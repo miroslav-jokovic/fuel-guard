@@ -1,0 +1,146 @@
+import { describe, it, expect } from "vitest";
+import {
+  detectReportKind,
+  normalizeTransactionRows,
+  normalizeRejectRows,
+  reconcileFuelLines,
+  efsDateToIso,
+} from "./index.js";
+
+// Real column headers from the Silvicom EFS exports (docs/08 §0).
+const TXN_HEADERS = [
+  "Card #", "Tran Date", "Invoice", "Unit", "Driver Name", "Odometer", "Location Name",
+  "City", "State/ Prov", "Fees", "Item", "Unit Price", "Qty", "Amt", "DB", "Currency",
+];
+const REJECT_HEADERS = [
+  "Date", "Time", "Card Number", "Invoice", "Location ID", "Location Name", "Location City",
+  "State/Prov", "Error Code", "Error Description", "Unit", "Driver ID", "Driver Name", "Policy", "Policy Name",
+];
+
+// A real multi-line invoice: one ULSD (fuel) row + one DEFD (non-fuel) row.
+const txnRows = [
+  {
+    "Card #": "94507", "Tran Date": "2026-06-29", Invoice: "0801987714", Unit: "691",
+    "Driver Name": "DONOVAN BOOTHE", Odometer: "293580", "Location Name": "PILOT JAMESTOWN 305",
+    City: "JAMESTOWN", "State/ Prov": "NM", Fees: "0.0", Item: "ULSD", "Unit Price": "4.227",
+    Qty: "141.7", Amt: "598.91", DB: "Y", Currency: "USD/Gallons",
+  },
+  {
+    "Card #": "94507", "Tran Date": "2026-06-29", Invoice: "0801987714", Unit: "691",
+    "Driver Name": "DONOVAN BOOTHE", Odometer: "293580", "Location Name": "PILOT JAMESTOWN 305",
+    City: "JAMESTOWN", "State/ Prov": "NM", Fees: "0.0", Item: "DEFD", "Unit Price": "4.999",
+    Qty: "5.24", Amt: "26.18", DB: "Y", Currency: "USD/Gallons",
+  },
+  {
+    "Card #": "94036", "Tran Date": "2026-06-29", Invoice: "0482599384", Unit: "704",
+    "Driver Name": "DANTE CORTES", Odometer: "220772", Item: "SCLE", "Unit Price": "0.0",
+    Qty: "1.0", Amt: "15.25", Currency: "USD/Gallons",
+  },
+];
+
+describe("detectReportKind", () => {
+  it("identifies the Transaction Report", () => {
+    expect(detectReportKind(TXN_HEADERS)).toBe("transaction");
+  });
+  it("identifies the Reject Report", () => {
+    expect(detectReportKind(REJECT_HEADERS)).toBe("reject");
+  });
+  it("returns unknown for unrelated headers", () => {
+    expect(detectReportKind(["foo", "bar"])).toBe("unknown");
+  });
+});
+
+describe("efsDateToIso", () => {
+  it("anchors a date-only value at noon UTC (docs/08 §4)", () => {
+    expect(efsDateToIso("2026-06-29")).toBe("2026-06-29T12:00:00.000Z");
+  });
+  it("handles a datetime string", () => {
+    expect(efsDateToIso("2026-06-29 07:37:00")).toBe("2026-06-29T12:00:00.000Z");
+  });
+});
+
+describe("normalizeTransactionRows", () => {
+  const { fuelLines, skipped } = normalizeTransactionRows(txnRows);
+
+  it("keeps only fuel lines (ULSD) and skips DEF + scales", () => {
+    expect(fuelLines).toHaveLength(1);
+    expect(skipped.map((s) => s.item)).toEqual(expect.arrayContaining(["DEFD", "SCLE"]));
+  });
+
+  it("maps fuel fields and a diesel product correctly", () => {
+    const line = fuelLines[0]!;
+    expect(line.unit).toBe("691");
+    expect(line.gallons).toBe(141.7);
+    expect(line.total_cost).toBe(598.91);
+    expect(line.price_per_gal).toBe(4.227);
+    expect(line.odometer).toBe(293580);
+    expect(line.fuel_type).toBe("diesel");
+    expect(line.driver_name).toBe("DONOVAN BOOTHE");
+    expect(line.card_ref).toBe("94507");
+    expect(line.city).toBe("JAMESTOWN");
+    expect(line.state).toBe("NM");
+  });
+
+  it("keys external_ref by Card | Invoice (one fueling event) and merges fuel lines", () => {
+    expect(fuelLines[0]!.external_ref).toBe("94507|0801987714");
+  });
+
+  it("merges multiple fuel lines on the same invoice (sum gallons, re-derive price)", () => {
+    const merged = normalizeTransactionRows([
+      { "Card #": "1", Invoice: "INV1", Unit: "5", Odometer: "1000", Item: "ULSD", "Unit Price": "4.0", Qty: "100", Amt: "400", "Tran Date": "2026-06-01" },
+      { "Card #": "1", Invoice: "INV1", Unit: "5", Odometer: "1000", Item: "ULSD", "Unit Price": "4.0", Qty: "50", Amt: "200", "Tran Date": "2026-06-01" },
+    ]).fuelLines;
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.gallons).toBe(150);
+    expect(merged[0]!.total_cost).toBe(600);
+    expect(merged[0]!.price_per_gal).toBe(4);
+  });
+
+  it("quarantines rows with an unparseable date", () => {
+    const { fuelLines: fl, skipped: sk } = normalizeTransactionRows([
+      { "Card #": "1", Invoice: "INV2", Item: "ULSD", Qty: "100", Amt: "400", "Tran Date": "not-a-date" },
+    ]);
+    expect(fl).toHaveLength(0);
+    expect(sk.some((s) => s.reason === "unparseable date")).toBe(true);
+  });
+});
+
+describe("reconcileFuelLines", () => {
+  const { fuelLines } = normalizeTransactionRows(txnRows);
+  const vehicles = [{ id: "veh-691", unit_number: "691" }];
+  const drivers = [{ id: "drv-1", full_name: "Donovan Boothe" }];
+
+  it("matches Unit→vehicle and Driver Name→driver (case-insensitive)", () => {
+    const [r] = reconcileFuelLines(fuelLines, vehicles, drivers);
+    expect(r!.vehicle_id).toBe("veh-691");
+    expect(r!.driver_id).toBe("drv-1");
+  });
+
+  it("leaves vehicle_id null when the unit is unknown (unattributed)", () => {
+    const [r] = reconcileFuelLines(fuelLines, [], drivers);
+    expect(r!.vehicle_id).toBeNull();
+  });
+});
+
+describe("normalizeRejectRows", () => {
+  const rows = [
+    {
+      Date: "2026-06-29 12:15:00", Time: "2026-06-29 12:15:00",
+      "Card Number": "7083050030485897149      ", Invoice: "0808024975  ", "Location ID": "516025",
+      "Location Name": "PILOT CARTERSVILLE 067", "Location City": "CARTERSVILLE", "State/Prov": "GA",
+      "Error Code": "3", "Error Description": "INACTIVE CARD IN0808024975|Non-Active Card|",
+      Unit: "702", "Driver ID": "1967", "Driver Name": "DERRICK KELLY",
+    },
+  ];
+  const declined = normalizeRejectRows(rows);
+
+  it("parses a declined attempt with a real timestamp and trimmed card", () => {
+    const d = declined[0]!;
+    expect(d.declined_at).toBe("2026-06-29T12:15:00.000Z");
+    expect(d.card_ref).toBe("7083050030485897149");
+    expect(d.error_code).toBe("3");
+    expect(d.driver_ext_id).toBe("1967");
+    expect(d.unit).toBe("702");
+    expect(d.external_ref).toBe("7083050030485897149|0808024975|3");
+  });
+});
