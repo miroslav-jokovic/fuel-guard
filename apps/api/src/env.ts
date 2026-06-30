@@ -21,6 +21,11 @@ const EnvSchema = z.object({
   // Phase 5.5 (Anthropic).
   ANTHROPIC_API_KEY: z.string().optional(),
 
+  // Samsara telematics (docs/10). Per-org tokens live in integration_credentials; this env var is a
+  // single-tenant fallback. SAMSARA_API_URL lets tests point elsewhere.
+  SAMSARA_API_TOKEN: z.string().optional(),
+  SAMSARA_API_URL: z.string().url().default("https://api.samsara.com"),
+
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   MAIL_PROVIDER: z.enum(["resend", "brevo", "none"]).default("none"),
   RESEND_API_KEY: z.string().optional(),

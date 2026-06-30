@@ -126,6 +126,54 @@ const reset = () => {
         they'll import as unattributed. Check that vehicle unit numbers match EFS.
       </p>
 
+      <!-- Faithful preview of the uploaded data (first rows) -->
+      <div v-if="preview.kind === 'transaction' && preview.allLines.length" class="space-y-1">
+        <p class="text-xs font-medium text-gray-500">Preview (first {{ Math.min(preview.allLines.length, 10) }} of {{ preview.allLines.length }} lines)</p>
+        <div class="overflow-x-auto rounded-md ring-1 ring-gray-200">
+          <table class="min-w-full divide-y divide-gray-100 text-xs whitespace-nowrap">
+            <thead class="bg-gray-50 text-left text-gray-500">
+              <tr>
+                <th class="px-3 py-2">Tran Date</th><th class="px-3 py-2">Card #</th><th class="px-3 py-2">Unit</th>
+                <th class="px-3 py-2">Driver</th><th class="px-3 py-2">Odometer</th><th class="px-3 py-2">Location</th>
+                <th class="px-3 py-2">Item</th><th class="px-3 py-2">Qty</th><th class="px-3 py-2">Amt</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="(l, i) in preview.allLines.slice(0, 10)" :key="i">
+                <td class="px-3 py-1.5 text-gray-700">{{ l.tran_date }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ l.card_num }}</td>
+                <td class="px-3 py-1.5 font-medium text-gray-900">{{ l.unit }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ l.driver_name }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ l.odometer }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ l.location_name }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ l.item }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ l.qty }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ l.amt }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div v-else-if="preview.kind === 'reject' && preview.newDeclined.length" class="space-y-1">
+        <p class="text-xs font-medium text-gray-500">Preview (first {{ Math.min(preview.newDeclined.length, 10) }} of {{ preview.newDeclined.length }})</p>
+        <div class="overflow-x-auto rounded-md ring-1 ring-gray-200">
+          <table class="min-w-full divide-y divide-gray-100 text-xs whitespace-nowrap">
+            <thead class="bg-gray-50 text-left text-gray-500">
+              <tr><th class="px-3 py-2">Card #</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2">Driver</th><th class="px-3 py-2">Error</th><th class="px-3 py-2">Description</th></tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="(d, i) in preview.newDeclined.slice(0, 10)" :key="i">
+                <td class="px-3 py-1.5 text-gray-700">{{ d.card_ref }}</td>
+                <td class="px-3 py-1.5 font-medium text-gray-900">{{ d.unit }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ d.driver_name }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ d.error_code }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ d.error_description }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="flex justify-end gap-3">
         <button
           class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50"

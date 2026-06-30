@@ -31,6 +31,7 @@ const form = reactive({
   current_odometer: props.vehicle?.current_odometer?.toString() ?? "0",
   status: props.vehicle?.status ?? "active",
   assigned_driver_id: props.vehicle?.assigned_driver_id ?? "",
+  samsara_vehicle_id: props.vehicle?.samsara_vehicle_id ?? "",
 });
 
 const errors = ref<Record<string, string>>({});
@@ -129,6 +130,11 @@ const inputCls =
           ]"
         />
       </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-900">Samsara vehicle ID</label>
+      <input v-model="form.samsara_vehicle_id" :class="inputCls" placeholder="For telematics odometer reconciliation" />
     </div>
 
     <div class="flex justify-end gap-3 pt-2">

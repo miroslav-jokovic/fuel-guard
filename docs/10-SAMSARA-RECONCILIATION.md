@@ -87,6 +87,54 @@ best we can do is a wider tolerance or a per-day plausibility band.
 
 ---
 
+---
+
+## 7. Implemented (matching algorithm)
+
+The location+time match is built and tested (`packages/shared/src/samsara.ts`):
+
+1. Pull the truck's Samsara **GPS history with the OBD odometer decorated** onto each point
+   (`types=gps&decorations=obdOdometerMeters`) for a ±30h window around the EFS date.
+2. `parseSamsaraSamples` → unified samples `{time, lat, lng, speedMph, address, odometerMiles}`.
+3. `matchFuelingMoment` → the **stopped** sample whose reverse-geocoded **address is in the EFS
+   station's city** (the truck parked there to fuel). That one sample yields:
+   - **`samsaraOdometerMiles`** → the ±5 reference (`reconcileOdometerMiles` → `odometer_mismatch`),
+   - **`matchedAt`** → the recovered fueling time (scoring overwrites the EFS date-only `fueled_at`
+     and switches the row to `instant` precision, so off-hours/rapid rules work),
+   - **location confirmation** → if Samsara never placed the truck in the EFS city that day,
+     `matchFuelingMoment` returns null → the engine fires **`location_mismatch`** (card used but
+     truck wasn't there).
+4. The HTTP call + token (per-org `integration_credentials`, else `SAMSARA_API_TOKEN`) + vehicle
+   mapping (`vehicles.samsara_vehicle_id`) live in the API; the call is best-effort and never blocks
+   the deterministic rules. Verified end-to-end on a simulated day trace: it recovers the 14:25 stop
+   and odometer 438795 (matching the real EFS line).
+
+> Setup to go live: add the Samsara API token + map each vehicle's `samsara_vehicle_id`.
+
+---
+
+## 8. Tank-fill reconciliation (advisory — Phase 8.8)
+
+A second, independent use of the same Samsara pull: did the fuel actually go **into the truck**?
+Alongside GPS we request `fuelPercents` (tank level). Around the matched fueling moment we read the
+tank level just **before** the stop and the **post-fill peak** in the next few hours, convert the rise
+to gallons (`Δ% × tank capacity`), and compare to the gallons billed (`reconcileTankFill`). A
+**shortfall** — far less fuel entered the tank than was paid for — is a possible siphon / fill-into-a-
+container and fires the **`tank_fill_short`** rule.
+
+This is deliberately a **low-confidence, advisory** signal, by design:
+
+- Samsara's OBD tank reading is **coarse and noisy**, so the check uses a **generous tolerance** (the
+  larger of 15 gal or 30% of the bill) and only ever flags a **shortfall**, never an exact match.
+- The rule is **low severity** and fuel-vehicle-only — a "worth a look", not proof. The odometer ±5
+  and location checks remain the high-confidence detectors.
+
+Stored per transaction: `samsara_tank_observed_gal`, `samsara_tank_short_gal` (migration 0013).
+Verified on a simulated trace: a full 21%→95% fill on a 120-gal tank reads ~89 gal (≈ the bill, no
+flag); a 21%→40% rise on a 90-gal bill reads ~23 gal → ~67 gal short → flags.
+
+---
+
 ## Sources
 - [Samsara — Historical vehicle stats (`/fleet/vehicles/stats/history`)](https://developers.samsara.com/reference/getvehiclestatshistory)
 - [Samsara — Vehicle Stat APIs (recent / history / feed)](https://developers.samsara.com/changelog/vehicle-stat-apis)

@@ -51,6 +51,7 @@ export interface ParsedDeclined {
   declined_at: string;
   card_ref: string | null;
   invoice: string | null;
+  location_id: string | null;
   unit: string | null;
   driver_ext_id: string | null;
   driver_name: string | null;
@@ -59,6 +60,8 @@ export interface ParsedDeclined {
   state: string | null;
   error_code: string | null;
   error_description: string | null;
+  policy: string | null;
+  policy_name: string | null;
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -189,6 +192,108 @@ export function normalizeTransactionRows(rows: RawRow[]): {
   return { fuelLines, skipped };
 }
 
+/** A faithful EFS Transaction Report line — every column, verbatim, no merge/filter (docs/10). */
+export interface EfsTransactionLine {
+  external_ref: string;
+  line_number: number;
+  card_num: string | null;
+  tran_date: string | null; // YYYY-MM-DD
+  fueled_at: string | null; // ISO (date anchored noon)
+  invoice: string | null;
+  unit: string | null;
+  driver_name: string | null;
+  odometer: number | null;
+  location_name: string | null;
+  city: string | null;
+  state: string | null;
+  fees: number | null;
+  item: string | null;
+  unit_price: number | null;
+  qty: number | null;
+  amt: number | null;
+  db: string | null;
+  currency: string | null;
+}
+
+/**
+ * Faithful parse of EVERY Transaction Report line (all 16 columns, including DEF/scales/fees) —
+ * the system of record for the preview tables and 1-year history. NOT transformed. The merged
+ * fuel-only events for scoring come from `normalizeTransactionRows`.
+ */
+export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine[] {
+  return rows.map((row, i) => {
+    const card = str(pick(row, "Card #", "Card Number"));
+    const invoice = str(pick(row, "Invoice"));
+    const item = str(pick(row, "Item"));
+    const qty = num(pick(row, "Qty"));
+    const amt = num(pick(row, "Amt", "Amount"));
+    const tranDateStr = str(pick(row, "Tran Date", "Date"));
+    const datePart = tranDateStr ? tranDateStr.slice(0, 10) : null;
+    return {
+      external_ref: [card ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? ""].join("|"),
+      line_number: i + 1,
+      card_num: card,
+      tran_date: /^\d{4}-\d{2}-\d{2}$/.test(datePart ?? "") ? datePart : null,
+      fueled_at: efsDateToIso(tranDateStr),
+      invoice,
+      unit: str(pick(row, "Unit")),
+      driver_name: str(pick(row, "Driver Name")),
+      odometer: num(pick(row, "Odometer")),
+      location_name: str(pick(row, "Location Name")),
+      city: str(pick(row, "City", "Location City")),
+      state: str(pick(row, "State/ Prov", "State/Prov", "State")),
+      fees: num(pick(row, "Fees")),
+      item,
+      unit_price: num(pick(row, "Unit Price")),
+      qty,
+      amt,
+      db: str(pick(row, "DB")),
+      currency: str(pick(row, "Currency")),
+    };
+  });
+}
+
+/** A persisted faithful EFS transaction row (as the preview table reads it). */
+export interface EfsTransactionRow {
+  id: string;
+  line_number: number | null;
+  card_num: string | null;
+  tran_date: string | null;
+  invoice: string | null;
+  unit: string | null;
+  driver_name: string | null;
+  odometer: number | null;
+  location_name: string | null;
+  city: string | null;
+  state: string | null;
+  fees: number | null;
+  item: string | null;
+  unit_price: number | null;
+  qty: number | null;
+  amt: number | null;
+  db: string | null;
+  currency: string | null;
+}
+
+/** A persisted declined (Reject Report) row (as the preview table reads it). */
+export interface DeclinedTransactionRow {
+  id: string;
+  declined_at: string;
+  card_ref: string | null;
+  invoice: string | null;
+  location_id: string | null;
+  location_text: string | null;
+  city: string | null;
+  state: string | null;
+  unit: string | null;
+  driver_ext_id: string | null;
+  driver_name: string | null;
+  error_code: string | null;
+  error_description: string | null;
+  policy: string | null;
+  policy_name: string | null;
+}
+
 export interface ReconciledFuelLine extends ParsedFuelLine {
   vehicle_id: string | null;
   driver_id: string | null;
@@ -223,6 +328,7 @@ export function normalizeRejectRows(rows: RawRow[]): ParsedDeclined[] {
       declined_at: rejectDateToIso(str(pick(row, "Date", "Time"))) ?? new Date().toISOString(),
       card_ref: card,
       invoice,
+      location_id: str(pick(row, "Location ID")),
       unit: str(pick(row, "Unit")),
       driver_ext_id: str(pick(row, "Driver ID")),
       driver_name: str(pick(row, "Driver Name")),
@@ -231,6 +337,8 @@ export function normalizeRejectRows(rows: RawRow[]): ParsedDeclined[] {
       state: str(pick(row, "State/Prov", "State/ Prov", "State")),
       error_code: code,
       error_description: str(pick(row, "Error Description")),
+      policy: str(pick(row, "Policy")),
+      policy_name: str(pick(row, "Policy Name")),
     };
   });
 }

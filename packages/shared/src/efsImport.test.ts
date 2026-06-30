@@ -4,6 +4,7 @@ import {
   normalizeTransactionRows,
   normalizeRejectRows,
   reconcileFuelLines,
+  normalizeAllTransactionLines,
   efsDateToIso,
 } from "./index.js";
 
@@ -102,6 +103,32 @@ describe("normalizeTransactionRows", () => {
     ]);
     expect(fl).toHaveLength(0);
     expect(sk.some((s) => s.reason === "unparseable date")).toBe(true);
+  });
+});
+
+describe("normalizeAllTransactionLines (faithful — docs/10)", () => {
+  const lines = normalizeAllTransactionLines(txnRows);
+
+  it("keeps every line verbatim (no merge, no fuel filter)", () => {
+    expect(lines).toHaveLength(3); // ULSD + DEFD + SCLE all retained
+    expect(lines.map((l) => l.item)).toEqual(["ULSD", "DEFD", "SCLE"]);
+  });
+
+  it("maps all columns faithfully", () => {
+    const l = lines[0]!;
+    expect(l.card_num).toBe("94507");
+    expect(l.tran_date).toBe("2026-06-29");
+    expect(l.unit).toBe("691");
+    expect(l.driver_name).toBe("DONOVAN BOOTHE");
+    expect(l.odometer).toBe(293580);
+    expect(l.qty).toBe(141.7);
+    expect(l.amt).toBe(598.91);
+    expect(l.unit_price).toBe(4.227);
+    expect(l.location_name).toBe("PILOT JAMESTOWN 305");
+    expect(l.city).toBe("JAMESTOWN");
+    expect(l.state).toBe("NM");
+    expect(l.currency).toBe("USD/Gallons");
+    expect(l.line_number).toBe(1);
   });
 });
 

@@ -56,6 +56,18 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresManage: true, title: "Import EFS Report" },
   },
   {
+    path: "/transactions",
+    name: "transactions",
+    component: () => import("@/pages/TransactionsPage.vue"),
+    meta: { requiresAuth: true, title: "Transactions" },
+  },
+  {
+    path: "/rejections",
+    name: "rejections",
+    component: () => import("@/pages/RejectionsPage.vue"),
+    meta: { requiresAuth: true, title: "Rejections" },
+  },
+  {
     path: "/anomalies",
     name: "anomalies",
     component: () => import("@/pages/AnomaliesPage.vue"),

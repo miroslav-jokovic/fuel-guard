@@ -12,11 +12,12 @@ import {
   type ExistingAnomaly,
   type FueledAtPrecision,
 } from "@fleetguard/shared";
+import type { Env } from "../env.js";
+import { reconcileWithSamsara } from "./samsaraRecon.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref";
+  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text";
 
-/** Odometer-integrity rule ids whose presence makes a prior fill unfit for the baseline (docs/09 P0.3). */
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
   "odometer_regression",
@@ -41,6 +42,9 @@ interface FtxnRow {
   version: number;
   source: string;
   card_ref: string | null;
+  city: string | null;
+  state: string | null;
+  location_text: string | null;
 }
 
 function toTxnView(r: FtxnRow): TxnView {
@@ -84,50 +88,82 @@ async function loadOperatingHours(admin: SupabaseClient, orgId: string): Promise
   return { start: oh.start ?? "05:00", end: oh.end ?? "20:00", tz: oh.tz ?? "America/Chicago" };
 }
 
-/** Score a single transaction: assemble context, run the engine, reconcile anomalies, update fields. */
-export async function scoreTransaction(admin: SupabaseClient, orgId: string, txnId: string): Promise<void> {
+/** Score a single transaction: assemble context (incl. Samsara reconciliation), run the engine, persist. */
+export async function scoreTransaction(admin: SupabaseClient, env: Env, orgId: string, txnId: string): Promise<void> {
   const { data: row } = await admin.from("fuel_transactions").select(FTXN_COLS).eq("id", txnId).eq("org_id", orgId).single();
   if (!row) return;
-  const txn = toTxnView(row as FtxnRow);
+  const r = row as FtxnRow;
+  const txn = toTxnView(r);
 
   let vehicle: VehicleView = { id: "none", fuelType: "other", tankCapacityGal: 0, baselineMpg: null };
+  let samsaraVehicleId: string | null = null;
   if (txn.vehicleId) {
-    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, baseline_mpg").eq("id", txn.vehicleId).single();
-    if (v) vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), baselineMpg: n(v.baseline_mpg) };
+    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, baseline_mpg, samsara_vehicle_id").eq("id", txn.vehicleId).single();
+    if (v) {
+      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), baselineMpg: n(v.baseline_mpg) };
+      samsaraVehicleId = v.samsara_vehicle_id ?? null;
+    }
   }
 
   const thresholds = await loadThresholds(admin, orgId);
   const operatingHours = await loadOperatingHours(admin, orgId);
   const windowMs = (thresholds.cumulativeWindowHours ?? 48) * 3_600_000;
-  const txnTime = new Date(txn.fueledAt).getTime();
-  const winStart = new Date(txnTime - windowMs).toISOString();
+  let txnTime = new Date(txn.fueledAt).getTime();
+  const winStart = () => new Date(txnTime - windowMs).toISOString();
+
+  // ── Samsara reconciliation: the ±5 odometer truth + recovered fueling time + location check ──
+  let crossSourceOdometer: number | null = null;
+  let samsaraLocationMatched: boolean | null = null;
+  let reconAt: string | null = null;
+  let tankFillShortGal: number | null = null;
+  let tankObservedRiseGal: number | null = null;
+  if (txn.vehicleId) {
+    const recon = await reconcileWithSamsara(admin, env, orgId, {
+      vehicleId: txn.vehicleId,
+      samsaraVehicleId,
+      fueledAt: txn.fueledAt,
+      city: r.city,
+      state: r.state,
+      locationName: r.location_text,
+      gallons: txn.gallons,
+      tankCapacityGal: vehicle.tankCapacityGal || null,
+    }).catch(() => null);
+    if (recon) {
+      crossSourceOdometer = recon.crossSourceOdometer;
+      samsaraLocationMatched = recon.locationMatched;
+      reconAt = recon.matchedAt;
+      tankFillShortGal = recon.tankFillShortGal;
+      tankObservedRiseGal = recon.tankObservedRiseGal;
+      if (recon.matchedAt) {
+        // Use the telematics-recovered precise time for time-based rules (fixes EFS date-only).
+        txn.fueledAt = recon.matchedAt;
+        txn.fueledAtPrecision = "instant";
+        txnTime = new Date(recon.matchedAt).getTime();
+      }
+    }
+  }
 
   let previousTxn: TxnView | null = null;
   let recentTxns: TxnView[] = [];
-  let crossSourceOdometer: number | null = null;
   let windowGallons = 0;
   let windowMiles: number | null = null;
   let cardVehicleCountInWindow = 0;
 
   if (txn.vehicleId) {
-    // Prior fills with an odometer, newest first (deterministic tiebreak by created_at, id).
     const { data: prevRows } = await admin
       .from("fuel_transactions")
       .select(FTXN_COLS)
       .eq("vehicle_id", txn.vehicleId)
-      .lt("fueled_at", txn.fueledAt)
+      .lt("fueled_at", r.fueled_at)
       .not("odometer", "is", null)
       .order("fueled_at", { ascending: false })
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(12);
     const rows = (prevRows ?? []) as FtxnRow[];
-
-    // Immediate prior (even if itself anomalous) — used for regression/jump/this-fill MPG.
     previousTxn = rows.length ? toTxnView(rows[0]!) : null;
 
-    // Baseline series excludes odometer-anomalous fills (docs/09 P0.3).
-    const candidateIds = rows.map((r) => r.id);
+    const candidateIds = rows.map((x) => x.id);
     let badIds = new Set<string>();
     if (candidateIds.length) {
       const { data: anoms } = await admin
@@ -138,58 +174,29 @@ export async function scoreTransaction(admin: SupabaseClient, orgId: string, txn
         .in("rule_id", ODOMETER_RULE_IDS);
       badIds = new Set((anoms ?? []).map((a) => a.transaction_id as string));
     }
-    recentTxns = rows
-      .filter((r) => !badIds.has(r.id))
-      .slice(0, 6)
-      .map(toTxnView)
-      .reverse(); // oldest→newest
+    recentTxns = rows.filter((x) => !badIds.has(x.id)).slice(0, 6).map(toTxnView).reverse();
 
-    // Cross-source ±tolerance sibling: a fill of the *other* source for the same event.
-    if (txn.odometer != null) {
-      const { data: sibs } = await admin
-        .from("fuel_transactions")
-        .select("id, odometer, gallons, source, fueled_at")
-        .eq("vehicle_id", txn.vehicleId)
-        .neq("id", txn.id)
-        .not("odometer", "is", null)
-        .gte("fueled_at", new Date(txnTime - 36 * 3_600_000).toISOString())
-        .lte("fueled_at", new Date(txnTime + 36 * 3_600_000).toISOString());
-      const thisManual = txn.fueledAtPrecision === "instant"; // manual = instant
-      let best: { odo: number; dt: number } | null = null;
-      for (const s of (sibs ?? []) as { odometer: number | string; gallons: number | string; source: string; fueled_at: string }[]) {
-        const sibManual = s.source === "manual";
-        if (sibManual === thisManual) continue; // need the opposite source
-        const g = Number(s.gallons);
-        if (txn.gallons > 0 && Math.abs(g - txn.gallons) / txn.gallons > 0.15) continue; // same fueling event
-        const dt = Math.abs(new Date(s.fueled_at).getTime() - txnTime);
-        if (!best || dt < best.dt) best = { odo: Number(s.odometer), dt };
-      }
-      crossSourceOdometer = best?.odo ?? null;
-    }
-
-    // Rolling window: gallons + miles span (for cumulative-overfuel).
     const { data: winRows } = await admin
       .from("fuel_transactions")
       .select("gallons, odometer")
       .eq("vehicle_id", txn.vehicleId)
-      .gte("fueled_at", winStart)
-      .lte("fueled_at", txn.fueledAt);
+      .gte("fueled_at", winStart())
+      .lte("fueled_at", r.fueled_at);
     const wr = (winRows ?? []) as { gallons: number | string; odometer: number | string | null }[];
-    windowGallons = wr.reduce((s, r) => s + Number(r.gallons), 0);
-    const odos = wr.map((r) => n(r.odometer)).filter((x): x is number => x != null);
+    windowGallons = wr.reduce((s, x) => s + Number(x.gallons), 0);
+    const odos = wr.map((x) => n(x.odometer)).filter((x): x is number => x != null);
     windowMiles = odos.length >= 2 ? Math.max(...odos) - Math.min(...odos) : null;
   }
 
-  // Card → multiple vehicles in the window (card sharing).
   if (txn.cardRef) {
     const { data: cardRows } = await admin
       .from("fuel_transactions")
       .select("vehicle_id")
       .eq("org_id", orgId)
       .eq("card_ref", txn.cardRef)
-      .gte("fueled_at", winStart)
-      .lte("fueled_at", txn.fueledAt);
-    cardVehicleCountInWindow = new Set((cardRows ?? []).map((r) => r.vehicle_id).filter(Boolean)).size;
+      .gte("fueled_at", winStart())
+      .lte("fueled_at", r.fueled_at);
+    cardVehicleCountInWindow = new Set((cardRows ?? []).map((x) => x.vehicle_id).filter(Boolean)).size;
   }
 
   const fired = runAllRules({
@@ -203,25 +210,27 @@ export async function scoreTransaction(admin: SupabaseClient, orgId: string, txn
     windowGallons,
     windowMiles,
     cardVehicleCountInWindow,
+    samsaraLocationMatched,
+    tankFillShortGal,
+    tankObservedRiseGal,
   });
 
   const { data: existing } = await admin.from("anomalies").select("id, rule_id, status, source").eq("transaction_id", txnId);
   const { toInsert, toSupersedeIds } = reconcileAnomalies((existing ?? []) as ExistingAnomaly[], fired);
 
-  for (const r of toInsert) {
-    // Insert individually so the active-anomaly unique index (idempotency backstop) can no-op a race.
+  for (const res of toInsert) {
     const { error } = await admin.from("anomalies").insert({
       org_id: orgId,
       transaction_id: txnId,
       vehicle_id: txn.vehicleId,
-      rule_id: r.ruleId,
-      severity: r.severity,
+      rule_id: res.ruleId,
+      severity: res.severity,
       status: "open",
-      message: r.message,
-      evidence: r.evidence,
+      message: res.message,
+      evidence: res.evidence,
       source: "rules",
     });
-    if (error && error.code !== "23505") throw new Error(error.message); // ignore duplicate-key races
+    if (error && error.code !== "23505") throw new Error(error.message);
   }
   if (toSupersedeIds.length) {
     await admin.from("anomalies").update({ status: "superseded" }).in("id", toSupersedeIds);
@@ -234,6 +243,12 @@ export async function scoreTransaction(admin: SupabaseClient, orgId: string, txn
       computed_mpg: computedMpg(txn, previousTxn),
       has_anomaly: fired.length > 0,
       max_severity: maxSeverity(fired),
+      samsara_odometer: crossSourceOdometer,
+      samsara_location_matched: samsaraLocationMatched,
+      samsara_tank_short_gal: tankFillShortGal,
+      samsara_tank_observed_gal: tankObservedRiseGal,
+      samsara_recon_at: reconAt,
+      ...(reconAt ? { fueled_at: txn.fueledAt } : {}),
     })
     .eq("id", txnId);
 
@@ -252,12 +267,9 @@ export async function scoreTransaction(admin: SupabaseClient, orgId: string, txn
   }
 }
 
-/**
- * Score a transaction and re-score the following fills within the baseline window (docs/09 P1.6),
- * since changing one fill shifts the rolling baseline used by the next several.
- */
-export async function scoreWithCascade(admin: SupabaseClient, orgId: string, txnId: string): Promise<void> {
-  await scoreTransaction(admin, orgId, txnId);
+/** Score a transaction and re-score the following fills within the baseline window (docs/09 P1.6). */
+export async function scoreWithCascade(admin: SupabaseClient, env: Env, orgId: string, txnId: string): Promise<void> {
+  await scoreTransaction(admin, env, orgId, txnId);
   const { data: row } = await admin.from("fuel_transactions").select("vehicle_id, fueled_at").eq("id", txnId).single();
   if (!row?.vehicle_id) return;
   const { data: next } = await admin
@@ -268,11 +280,11 @@ export async function scoreWithCascade(admin: SupabaseClient, orgId: string, txn
     .order("fueled_at", { ascending: true })
     .order("created_at", { ascending: true })
     .limit(5);
-  for (const r of ((next ?? []) as { id: string }[])) await scoreTransaction(admin, orgId, r.id);
+  for (const x of ((next ?? []) as { id: string }[])) await scoreTransaction(admin, env, orgId, x.id);
 }
 
 /** Backfill: score every transaction for an org in (vehicle, fueled_at) order. Used after seeding. */
-export async function backfillOrg(admin: SupabaseClient, orgId: string): Promise<number> {
+export async function backfillOrg(admin: SupabaseClient, env: Env, orgId: string): Promise<number> {
   const { data: rows } = await admin
     .from("fuel_transactions")
     .select("id")
@@ -280,7 +292,7 @@ export async function backfillOrg(admin: SupabaseClient, orgId: string): Promise
     .order("vehicle_id", { ascending: true })
     .order("fueled_at", { ascending: true })
     .order("created_at", { ascending: true });
-  const ids = ((rows ?? []) as { id: string }[]).map((r) => r.id);
-  for (const id of ids) await scoreTransaction(admin, orgId, id);
+  const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
+  for (const id of ids) await scoreTransaction(admin, env, orgId, id);
   return ids.length;
 }

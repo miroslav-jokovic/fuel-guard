@@ -7,13 +7,23 @@ import { useFuelTransactions, useCreateFillUp, type FuelFilters } from "@/featur
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
 import AppSelect from "@/components/AppSelect.vue";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import TableSkeleton from "@/components/TableSkeleton.vue";
+import ErrorState from "@/components/ErrorState.vue";
 import { useToastStore } from "@/stores/toast";
 
 const { data: vehicles } = useVehiclesQuery();
 
 const filters = ref<FuelFilters>({});
-const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
+const { data, isLoading, isError, error, refetch, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
   useFuelTransactions(filters);
+
+// Date inputs emit YYYY-MM-DD; make `to` inclusive of the whole day for the timestamped column.
+const fromDate = computed(() => filters.value.from?.slice(0, 10));
+const toDate = computed(() => filters.value.to?.slice(0, 10));
+const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
+const setTo = (v: string | undefined) =>
+  (filters.value = { ...filters.value, to: v ? `${v}T23:59:59` : undefined });
 
 const rows = computed(() => data.value?.pages.flat() ?? []);
 
@@ -40,7 +50,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
 <template>
   <div class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <AppSelect
           v-model="filters.vehicleId"
           :options="[
@@ -48,6 +58,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
             ...(vehicles ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
           ]"
         />
+        <DateRangeFilter :from="fromDate" :to="toDate" @update:from="setFrom" @update:to="setTo" />
       </div>
       <button
         class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
@@ -58,12 +69,15 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div v-if="isLoading" class="px-6 py-10 text-sm text-gray-500">Loading fuel log…</div>
-      <div v-else-if="isError" class="px-6 py-10 text-sm text-red-600">
-        {{ error instanceof Error ? error.message : "Failed to load fuel log" }}
-      </div>
+      <TableSkeleton v-if="isLoading" :cols="7" />
+      <ErrorState
+        v-else-if="isError"
+        :message="error instanceof Error ? error.message : 'Failed to load fuel log'"
+        :retrying="isFetching"
+        @retry="refetch"
+      />
       <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-        No fill-ups recorded yet.
+        No fill-ups match these filters.
       </div>
       <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
         <thead class="text-left text-gray-500">

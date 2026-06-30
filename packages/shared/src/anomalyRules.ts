@@ -27,6 +27,8 @@ export const RULE_IDS = [
   "unattributed_transaction",
   "cost_outlier",
   "card_multi_vehicle", // one card fueling multiple vehicles in a window
+  "location_mismatch", // telematics shows the truck was NOT at the fueling location
+  "tank_fill_short", // telematics tank rose less than billed gallons (advisory; coarse sensor)
 ] as const;
 
 export type RuleId = (typeof RULE_IDS)[number];
@@ -93,6 +95,12 @@ export interface RuleContext {
   windowMiles?: number | null;
   /** Distinct vehicles seen on this txn's card within the window (incl. this one). */
   cardVehicleCountInWindow?: number;
+  /** From Samsara reconciliation: was the truck actually at the EFS station's location? null = unknown. */
+  samsaraLocationMatched?: boolean | null;
+  /** Gallons the billed amount exceeded the observed Samsara tank rise by (coarse sensor). null = not measured. */
+  tankFillShortGal?: number | null;
+  /** Gallons the tank actually rose across the fueling moment (Samsara). */
+  tankObservedRiseGal?: number | null;
 }
 
 export interface RuleResult {
@@ -357,6 +365,41 @@ function ruleCostOutlier(ctx: RuleContext): RuleResult {
   return none("cost_outlier");
 }
 
+/** Telematics says the truck was NOT at the fueling location — a strong card-misuse / theft signal. */
+function ruleLocationMismatch(ctx: RuleContext): RuleResult {
+  if (ctx.samsaraLocationMatched === false) {
+    return {
+      ruleId: "location_mismatch",
+      fired: true,
+      severity: "high",
+      message: "Telematics shows the vehicle was not at the fueling location when the card was used.",
+      evidence: { samsaraLocationMatched: false },
+    };
+  }
+  return none("location_mismatch");
+}
+
+/**
+ * Telematics tank level rose less than the billed gallons — a soft "less fuel went in than was paid
+ * for" signal (possible siphoning / fill into a container). LOW severity by design: Samsara's tank
+ * sensor is coarse, so the reconciliation already uses a generous tolerance; this is a corroborator
+ * to review, not proof. Only fires on a measured shortfall.
+ */
+function ruleTankFillShort(ctx: RuleContext): RuleResult {
+  const short = ctx.tankFillShortGal;
+  if (short != null && short > 0) {
+    const observed = ctx.tankObservedRiseGal;
+    return {
+      ruleId: "tank_fill_short",
+      fired: true,
+      severity: "low",
+      message: `Telematics tank level rose ~${observed != null ? r2(observed) : "?"} gal, about ${r2(short)} gal less than the ${ctx.txn.gallons} gal billed (coarse sensor — review).`,
+      evidence: { gallonsBilled: ctx.txn.gallons, observedRiseGal: observed, shortGal: r2(short) },
+    };
+  }
+  return none("tank_fill_short");
+}
+
 /** One fuel card used across multiple vehicles in the window — classic card-sharing / misuse signal. */
 function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
   const count = ctx.cardVehicleCountInWindow ?? 0;
@@ -394,6 +437,8 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleUnattributed,
     ruleCostOutlier,
     ruleCardMultiVehicle,
+    ruleLocationMismatch,
+    ...(fuel ? [ruleTankFillShort] : []),
   ];
 
   let results = rules.map((rule) => rule(ctx)).filter((r) => r.fired && !disabled.has(r.ruleId));

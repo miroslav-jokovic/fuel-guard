@@ -33,6 +33,7 @@ export const vehicleInputSchema = z
       (v) => (v === "" || v == null ? undefined : v),
       z.uuid().optional(),
     ),
+    samsara_vehicle_id: optionalText, // maps this vehicle to its Samsara telematics id
   })
   // Diesel/gasoline vehicles must have a positive tank + baseline MPG (engine depends on them; H3).
   .refine((d) => !MPG_FUEL_TYPES.includes(d.fuel_type) || d.tank_capacity_gal > 0, {
@@ -61,6 +62,7 @@ export interface Vehicle {
   current_odometer: number;
   status: VehicleStatus;
   assigned_driver_id: string | null;
+  samsara_vehicle_id: string | null;
   created_at: string;
   updated_at: string;
 }

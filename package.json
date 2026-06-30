@@ -17,6 +17,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "vue-demi"]
+  },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "eslint": "10.6.0",

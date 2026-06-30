@@ -105,7 +105,33 @@ Only `VITE_`-prefixed, non-secret values ever reach the browser bundle.
   index. Migration 0010. Verified: 127 unit tests (pass+fail per rule), 22/22 RLS+hardening matrix,
   engine-over-seed still catches every seeded theft type.
 
-**MVP complete (Phases 0–8.5).** Remaining: Phase 9 — deploy to Railway + prod Supabase.
+- **Phase 8.6 — Faithful EFS storage + preview:** ✅ (docs/10) every uploaded line/column stored
+  verbatim (`efs_transactions`, all reject columns), retained 1-year+; **Transactions** and
+  **Rejections** preview tables (paginated, filterable) + a sample-data table in the import review;
+  derived fuel events unchanged for scoring. Migration 0011. Verified: 129 tests, 25/25 RLS matrix,
+  and a faithful parse of the real EFS exports (149 lines incl. all item types + 17 rejects, every
+  column).
+
+- **Phase 8.7 — Samsara reconciliation:** ✅ (docs/10) telematics matching — pull GPS+odometer,
+  find the stopped sample at the EFS station's city → **Samsara odometer for the ±5 check**
+  (`odometer_mismatch`), **recovered fueling time** (fixes EFS date-only; enables off-hours/rapid),
+  and a **`location_mismatch`** rule (truck not at the station). Samsara HTTP client + reconciliation
+  service wired into scoring; `integration_credentials` (service-role) + `vehicles.samsara_vehicle_id`.
+  Migration 0012. Verified: 138 tests (matching on a simulated trace recovers the real EFS odometer
+  438795), 27/27 RLS matrix, typecheck/lint/build green.
+
+- **Phase 8.8 — Tank-fill check + dashboard filter audit:** ✅ (docs/10 §8) advisory **`tank_fill_short`**
+  rule — reads Samsara `fuelPercents` before/after the matched fill, compares the tank rise to billed
+  gallons, and low-flags a shortfall (coarse sensor → generous tolerance, fuel-only). Migration 0013.
+  Plus a UI audit: reusable `SearchInput` / `DateRangeFilter` / `TableSkeleton` / `ErrorState` (retry)
+  components, and filters added across every data page — Vehicles & Drivers (search + status),
+  Rejections (search + unit + date), date-range on Fuel Log / Transactions, rule filter on Anomalies.
+  Verified: 147 tests (128 shared / 10 api / 9 web), 27/27 RLS matrix, typecheck/lint/build green.
+
+**MVP complete (Phases 0–8.8).** Remaining: Phase 9 — deploy to Railway + prod Supabase.
+
+> To activate Samsara: set the API token (per-org `integration_credentials` or `SAMSARA_API_TOKEN`)
+> and map each vehicle's `samsara_vehicle_id`. The deterministic rules run with or without it.
 
 > Note: the new tuning knobs (`odometer_tolerance_miles`, `max_daily_miles`, `cumulative_window_hours`)
 > ship with sensible DB defaults; exposing them in the Thresholds settings UI is a small follow-up.

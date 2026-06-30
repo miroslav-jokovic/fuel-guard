@@ -1,0 +1,115 @@
+<script setup lang="ts">
+import { ref, computed } from "vue";
+import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useEfsTransactions, type EfsFilters } from "@/features/reports/useEfsData";
+import AppSelect from "@/components/AppSelect.vue";
+import SearchInput from "@/components/SearchInput.vue";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import TableSkeleton from "@/components/TableSkeleton.vue";
+import ErrorState from "@/components/ErrorState.vue";
+
+const { data: vehicles } = useVehiclesQuery();
+const filters = ref<EfsFilters>({});
+const { data, isLoading, isError, error, refetch, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  useEfsTransactions(filters);
+
+const search = computed({
+  get: () => filters.value.search ?? "",
+  set: (v: string) => (filters.value = { ...filters.value, search: v || undefined }),
+});
+const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
+const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
+
+const rows = computed(() => data.value?.pages.flat() ?? []);
+const num = (v: number | null) => (v == null ? "" : v);
+</script>
+
+<template>
+  <div class="space-y-4">
+    <p class="text-sm text-gray-500">
+      Every line from your uploaded EFS Transaction reports, exactly as received.
+    </p>
+
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <div class="lg:max-w-xs lg:flex-1">
+        <SearchInput v-model="search" placeholder="Search driver, location, item…" />
+      </div>
+      <AppSelect
+        v-model="filters.unit"
+        class="lg:w-40"
+        :options="[
+          { value: undefined, label: 'All units' },
+          ...(vehicles ?? []).map((v) => ({ value: v.unit_number, label: v.unit_number })),
+        ]"
+      />
+      <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
+      <span class="text-sm text-gray-500 lg:ml-auto">{{ rows.length }} loaded</span>
+    </div>
+
+    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+      <TableSkeleton v-if="isLoading" :cols="8" />
+      <ErrorState
+        v-else-if="isError"
+        :message="error instanceof Error ? error.message : 'Failed to load transactions'"
+        :retrying="isFetching"
+        @retry="refetch"
+      />
+      <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
+        No transactions match — upload an EFS Transaction report from the Import page, or adjust filters.
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="text-left whitespace-nowrap text-gray-500">
+            <tr>
+              <th class="px-4 py-3 font-medium">Tran Date</th>
+              <th class="px-4 py-3 font-medium">Card #</th>
+              <th class="px-4 py-3 font-medium">Invoice</th>
+              <th class="px-4 py-3 font-medium">Unit</th>
+              <th class="px-4 py-3 font-medium">Driver</th>
+              <th class="px-4 py-3 font-medium">Odometer</th>
+              <th class="px-4 py-3 font-medium">Location</th>
+              <th class="px-4 py-3 font-medium">City</th>
+              <th class="px-4 py-3 font-medium">State</th>
+              <th class="px-4 py-3 font-medium">Item</th>
+              <th class="px-4 py-3 font-medium">Unit Price</th>
+              <th class="px-4 py-3 font-medium">Qty</th>
+              <th class="px-4 py-3 font-medium">Amt</th>
+              <th class="px-4 py-3 font-medium">Fees</th>
+              <th class="px-4 py-3 font-medium">DB</th>
+              <th class="px-4 py-3 font-medium">Currency</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 whitespace-nowrap">
+            <tr v-for="t in rows" :key="t.id">
+              <td class="px-4 py-2 text-gray-700">{{ t.tran_date }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.card_num }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.invoice }}</td>
+              <td class="px-4 py-2 font-medium text-gray-900">{{ t.unit }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.driver_name }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ num(t.odometer) }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.location_name }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.city }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.state }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.item }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ num(t.unit_price) }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ num(t.qty) }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ num(t.amt) }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ num(t.fees) }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.db }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.currency }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="hasNextPage" class="border-t border-gray-100 px-6 py-3 text-center">
+        <button
+          class="text-sm font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-50"
+          :disabled="isFetchingNextPage"
+          @click="fetchNextPage()"
+        >
+          {{ isFetchingNextPage ? "Loading…" : "Load more" }}
+        </button>
+      </div>
+    </div>
+  </div>
+</template>

@@ -80,6 +80,9 @@ async function main() {
     "migrations/0008_ai_verifications.sql",
     "migrations/0009_notifications_audit_triggers.sql",
     "migrations/0010_detection_hardening.sql",
+    "migrations/0011_faithful_efs_storage.sql",
+    "migrations/0012_samsara.sql",
+    "migrations/0013_tank_fill.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -246,6 +249,32 @@ async function main() {
     dupBlocked = true;
   }
   ok("active-anomaly unique index blocks duplicate (transaction_id, rule_id)", dupBlocked);
+
+  // ── Faithful EFS storage (migration 0011) ──────────────────────────────────
+  const efsRead = await asUser(mgrA, "select count(*)::int n from efs_transactions");
+  ok("member can read efs_transactions", !efsRead.error, JSON.stringify(efsRead));
+  const efsWrite = await asUser(
+    mgrA,
+    "insert into efs_transactions (org_id, card_num, item, qty) values ($1,'93509','ULSD',87.11) returning id",
+    [ORG_A],
+  );
+  ok("manager INSERT efs_transactions allowed", !efsWrite.error && efsWrite.rows?.length === 1, JSON.stringify(efsWrite));
+  const efsDrv = await asUser(
+    driverA,
+    "insert into efs_transactions (org_id, card_num) values ($1,'X')",
+    [ORG_A],
+  );
+  ok("driver INSERT efs_transactions denied", !!efsDrv.error, JSON.stringify(efsDrv));
+
+  // ── Samsara integration_credentials (migration 0012): no client access ──────
+  const credRead = await asUser(mgrA, "select count(*)::int n from integration_credentials");
+  ok("client cannot read integration_credentials (service-role only)", (credRead.rows?.[0]?.n ?? 1) === 0 || !!credRead.error, JSON.stringify(credRead));
+  const credWrite = await asUser(
+    adminA,
+    "insert into integration_credentials (org_id, samsara_api_token) values ($1,'secret')",
+    [ORG_A],
+  );
+  ok("client cannot write integration_credentials", !!credWrite.error, JSON.stringify(credWrite));
 
   // ── Custom Access Token hook (migration 0006) ──────────────────────────────
   const HOOK_UID = "00000000-0000-0000-0000-00000000aaaa";

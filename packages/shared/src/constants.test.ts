@@ -16,7 +16,7 @@ describe("shared constants", () => {
   });
 
   it("declares all 12 anomaly rule ids", () => {
-    expect(RULE_IDS).toHaveLength(17);
+    expect(RULE_IDS).toHaveLength(19);
   });
 });
 

@@ -205,6 +205,29 @@ describe("hardening — card sharing", () => {
   });
 });
 
+describe("hardening — location mismatch (Samsara)", () => {
+  it("fires when telematics says the truck was not at the fueling location", () => {
+    expect(ids(ctx({ samsaraLocationMatched: false }))).toContain("location_mismatch");
+  });
+  it("does not fire when matched or unknown", () => {
+    expect(ids(ctx({ samsaraLocationMatched: true }))).not.toContain("location_mismatch");
+    expect(ids(ctx())).not.toContain("location_mismatch");
+  });
+});
+
+describe("hardening — tank fill short (Samsara, advisory)", () => {
+  it("fires (low) when the tank rose far less than billed gallons", () => {
+    const fired = runAllRules(ctx({ tankFillShortGal: 65, tankObservedRiseGal: 25 }));
+    const tank = fired.find((r) => r.ruleId === "tank_fill_short");
+    expect(tank).toBeTruthy();
+    expect(tank!.severity).toBe("low");
+  });
+  it("does not fire when the shortfall is absent or zero", () => {
+    expect(ids(ctx())).not.toContain("tank_fill_short");
+    expect(ids(ctx({ tankFillShortGal: 0 }))).not.toContain("tank_fill_short");
+  });
+});
+
 describe("hardening — expected odometer band (padding)", () => {
   it("flags miles far exceeding what the fuel could cover", () => {
     // gallons 90, baseline 6.4 → expected ~576 mi; entered 99400→101000 = 1600 mi (>2x)

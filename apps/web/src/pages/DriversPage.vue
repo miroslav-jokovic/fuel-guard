@@ -7,11 +7,15 @@ import { useDriversQuery, useCreateDriver, useUpdateDriver } from "@/features/fl
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import AppSelect from "@/components/AppSelect.vue";
+import SearchInput from "@/components/SearchInput.vue";
+import TableSkeleton from "@/components/TableSkeleton.vue";
+import ErrorState from "@/components/ErrorState.vue";
 import DriverForm from "@/features/fleet/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 
 const session = useSessionStore();
-const { data: drivers, isLoading, isError, error } = useDriversQuery();
+const { data: drivers, isLoading, isError, error, refetch, isFetching } = useDriversQuery();
 const { data: vehicles } = useVehiclesQuery();
 const createDriver = useCreateDriver();
 const updateDriver = useUpdateDriver();
@@ -21,6 +25,24 @@ const drawerOpen = ref(false);
 const editing = ref<Driver | null>(null);
 
 const saving = computed(() => createDriver.isPending.value || updateDriver.isPending.value);
+
+const search = ref("");
+const statusFilter = ref<string>("");
+const statusOptions = computed(() => [
+  { value: "", label: "All statuses" },
+  ...[...new Set((drivers.value ?? []).map((d) => d.status))].map((s) => ({ value: s, label: s })),
+]);
+
+const filtered = computed(() => {
+  const term = search.value.toLowerCase();
+  return (drivers.value ?? []).filter((d) => {
+    if (statusFilter.value && d.status !== statusFilter.value) return false;
+    if (!term) return true;
+    return [d.full_name, d.employee_id, d.phone]
+      .filter(Boolean)
+      .some((f) => f!.toLowerCase().includes(term));
+  });
+});
 
 // Vehicles assigned to a driver (assignment is set from the Vehicles page).
 const assignedUnits = (driverId: string) =>
@@ -65,13 +87,27 @@ async function onSubmit(input: DriverInput) {
       </button>
     </div>
 
-    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div v-if="isLoading" class="px-6 py-10 text-sm text-gray-500">Loading drivers…</div>
-      <div v-else-if="isError" class="px-6 py-10 text-sm text-red-600">
-        {{ error instanceof Error ? error.message : "Failed to load drivers" }}
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div class="sm:max-w-xs sm:flex-1">
+        <SearchInput v-model="search" placeholder="Search name, employee ID, phone…" />
       </div>
+      <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-44" />
+      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} shown</span>
+    </div>
+
+    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+      <TableSkeleton v-if="isLoading" :cols="6" />
+      <ErrorState
+        v-else-if="isError"
+        :message="error instanceof Error ? error.message : 'Failed to load drivers'"
+        :retrying="isFetching"
+        @retry="refetch"
+      />
       <div v-else-if="!drivers || drivers.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         No drivers yet.
+      </div>
+      <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
+        No drivers match these filters.
       </div>
       <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
         <thead class="text-left text-gray-500">
@@ -85,7 +121,7 @@ async function onSubmit(input: DriverInput) {
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="d in drivers" :key="d.id">
+          <tr v-for="d in filtered" :key="d.id">
             <td class="px-6 py-3 font-medium text-gray-900">{{ d.full_name }}</td>
             <td class="px-6 py-3 text-gray-700">{{ d.employee_id ?? "—" }}</td>
             <td class="px-6 py-3 text-gray-700">{{ d.phone ?? "—" }}</td>

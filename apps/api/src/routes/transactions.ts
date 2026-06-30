@@ -28,7 +28,7 @@ export function transactionsRouter(): Router {
         res.status(404).json(apiError("not_found", "Transaction not found"));
         return;
       }
-      await scoreWithCascade(admin, orgId, id);
+      await scoreWithCascade(admin, env, orgId, id);
 
       // Best-effort AI verification (selective trigger inside the service; kill-switch + budget aware).
       if (env.ANTHROPIC_API_KEY) {
@@ -54,9 +54,10 @@ export function transactionsRouter(): Router {
     requireOrg,
     requireRole("admin", "fleet_manager"),
     asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
-      const count = await backfillOrg(admin, orgId);
+      const count = await backfillOrg(admin, env, orgId);
       await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "transactions.backfill", meta: { count } });
       res.json({ ok: true, scored: count });
     }),

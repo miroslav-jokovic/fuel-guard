@@ -1,18 +1,40 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { PlusIcon } from "@heroicons/vue/20/solid";
-import type { Vehicle, VehicleInput } from "@fleetguard/shared";
+import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fleetguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle } from "@/features/fleet/useVehicles";
 import { useDriversQuery } from "@/features/fleet/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import AppSelect from "@/components/AppSelect.vue";
+import SearchInput from "@/components/SearchInput.vue";
+import TableSkeleton from "@/components/TableSkeleton.vue";
+import ErrorState from "@/components/ErrorState.vue";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
 import { useToastStore } from "@/stores/toast";
 
 const session = useSessionStore();
-const { data: vehicles, isLoading, isError, error } = useVehiclesQuery();
+const { data: vehicles, isLoading, isError, error, refetch, isFetching } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
+
+const search = ref("");
+const statusFilter = ref<string>("");
+const statusOptions = [
+  { value: "", label: "All statuses" },
+  ...VEHICLE_STATUSES.map((s) => ({ value: s, label: s })),
+];
+
+const filtered = computed(() => {
+  const term = search.value.toLowerCase();
+  return (vehicles.value ?? []).filter((v) => {
+    if (statusFilter.value && v.status !== statusFilter.value) return false;
+    if (!term) return true;
+    return [v.unit_number, v.make, v.model, v.plate, v.vin, String(v.year ?? "")]
+      .filter(Boolean)
+      .some((f) => f!.toLowerCase().includes(term));
+  });
+});
 const createVehicle = useCreateVehicle();
 const updateVehicle = useUpdateVehicle();
 const retireVehicle = useRetireVehicle();
@@ -71,13 +93,27 @@ async function onRetire(v: Vehicle) {
       </button>
     </div>
 
-    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div v-if="isLoading" class="px-6 py-10 text-sm text-gray-500">Loading vehicles…</div>
-      <div v-else-if="isError" class="px-6 py-10 text-sm text-red-600">
-        {{ error instanceof Error ? error.message : "Failed to load vehicles" }}
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div class="sm:max-w-xs sm:flex-1">
+        <SearchInput v-model="search" placeholder="Search unit, make, model, plate, VIN…" />
       </div>
+      <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-44" />
+      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} shown</span>
+    </div>
+
+    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+      <TableSkeleton v-if="isLoading" :cols="8" />
+      <ErrorState
+        v-else-if="isError"
+        :message="error instanceof Error ? error.message : 'Failed to load vehicles'"
+        :retrying="isFetching"
+        @retry="refetch"
+      />
       <div v-else-if="!vehicles || vehicles.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         No vehicles yet.
+      </div>
+      <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
+        No vehicles match these filters.
       </div>
       <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
         <thead class="text-left text-gray-500">
@@ -93,7 +129,7 @@ async function onRetire(v: Vehicle) {
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="v in vehicles" :key="v.id">
+          <tr v-for="v in filtered" :key="v.id">
             <td class="px-6 py-3 font-medium">
               <RouterLink :to="`/vehicles/${v.id}`" class="text-indigo-600 hover:text-indigo-500">{{ v.unit_number }}</RouterLink>
             </td>

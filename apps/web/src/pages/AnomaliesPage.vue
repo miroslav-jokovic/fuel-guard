@@ -1,15 +1,22 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ANOMALY_SEVERITIES, type Anomaly } from "@fleetguard/shared";
+import { ANOMALY_SEVERITIES, RULE_IDS, type Anomaly } from "@fleetguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useAnomaliesQuery, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import AppSelect from "@/components/AppSelect.vue";
+import TableSkeleton from "@/components/TableSkeleton.vue";
+import ErrorState from "@/components/ErrorState.vue";
 
 const { data: vehicles } = useVehiclesQuery();
 const filters = ref<AnomalyFilters>({ status: "open" });
-const { data: anomalies, isLoading, isError, error } = useAnomaliesQuery(filters);
+const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
+
+const ruleOptions = [
+  { value: undefined, label: "All rules" },
+  ...RULE_IDS.map((r) => ({ value: r, label: r })),
+];
 
 const selected = ref<Anomaly | null>(null);
 
@@ -56,14 +63,18 @@ const openCount = computed(() => anomalies.value?.length ?? 0);
           ...(vehicles ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
         ]"
       />
+      <AppSelect v-model="filters.ruleId" :options="ruleOptions" />
       <span class="ml-auto text-sm text-gray-500">{{ openCount }} shown</span>
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div v-if="isLoading" class="px-6 py-10 text-sm text-gray-500">Loading anomalies…</div>
-      <div v-else-if="isError" class="px-6 py-10 text-sm text-red-600">
-        {{ error instanceof Error ? error.message : "Failed to load anomalies" }}
-      </div>
+      <TableSkeleton v-if="isLoading" :cols="6" />
+      <ErrorState
+        v-else-if="isError"
+        :message="error instanceof Error ? error.message : 'Failed to load anomalies'"
+        :retrying="isFetching"
+        @retry="refetch"
+      />
       <div v-else-if="!anomalies || anomalies.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         Nothing here — no anomalies match these filters.
       </div>

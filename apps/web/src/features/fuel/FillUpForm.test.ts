@@ -17,6 +17,7 @@ const vehicle = {
   current_odometer: 184000,
   status: "active" as const,
   assigned_driver_id: null,
+  samsara_vehicle_id: null,
   created_at: "",
   updated_at: "",
 };

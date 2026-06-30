@@ -2,12 +2,14 @@ import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import {
   detectReportKind,
   normalizeTransactionRows,
+  normalizeAllTransactionLines,
   normalizeRejectRows,
   reconcileFuelLines,
   derivePricePerGal,
   type ReportKind,
   type ReconciledFuelLine,
   type ParsedDeclined,
+  type EfsTransactionLine,
   type Vehicle,
   type Driver,
 } from "@fleetguard/shared";
@@ -23,7 +25,8 @@ export interface ImportPreview {
   filename: string;
   totalRows: number;
   // transaction
-  newFuel: ReconciledFuelLine[];
+  allLines: EfsTransactionLine[]; // faithful, every line (preview + system of record)
+  newFuel: ReconciledFuelLine[]; // derived fuel events for scoring
   duplicateFuelCount: number;
   unattributedCount: number;
   skippedCount: number;
@@ -52,6 +55,7 @@ export async function analyzeImport(
     source,
     filename: file.name,
     totalRows: rows.length,
+    allLines: [] as EfsTransactionLine[],
     newFuel: [] as ReconciledFuelLine[],
     duplicateFuelCount: 0,
     unattributedCount: 0,
@@ -61,12 +65,14 @@ export async function analyzeImport(
   };
 
   if (kind === "transaction") {
+    const allLines = normalizeAllTransactionLines(rows); // faithful, every column/row
     const { fuelLines, skipped } = normalizeTransactionRows(rows);
     const reconciled = reconcileFuelLines(fuelLines, vehicles, drivers);
     const seen = await existingRefs("fuel_transactions", reconciled.map((l) => l.external_ref));
     const newFuel = reconciled.filter((l) => !seen.has(l.external_ref));
     return {
       ...base,
+      allLines,
       newFuel,
       duplicateFuelCount: reconciled.length - newFuel.length,
       unattributedCount: newFuel.filter((l) => l.vehicle_id == null).length,
@@ -86,20 +92,21 @@ export async function analyzeImport(
 
 const loc = (...parts: (string | null)[]) => parts.filter(Boolean).join(", ") || null;
 
-/** Commit a reviewed preview: create the import record, insert fuel/declined rows idempotently. */
+/** Commit a reviewed preview: faithful store + derived scoring events + declined, all idempotent. */
 export function useCommitImport() {
   const qc = useQueryClient();
   const session = useSessionStore();
   return useMutation({
     mutationFn: async (preview: ImportPreview): Promise<void> => {
       if (!session.orgId) throw new Error("No organization in session");
+      const org_id = session.orgId;
 
       const inserted =
-        preview.kind === "transaction" ? preview.newFuel.length : preview.newDeclined.length;
+        preview.kind === "transaction" ? preview.allLines.length : preview.newDeclined.length;
       const { data: imp, error: impErr } = await supabase
         .from("imports")
         .insert({
-          org_id: session.orgId,
+          org_id,
           source: preview.source,
           kind: preview.kind === "reject" ? "reject" : "transaction",
           filename: preview.filename,
@@ -115,51 +122,89 @@ export function useCommitImport() {
       if (impErr || !imp) throw new Error(impErr?.message ?? "Could not create import record");
       const importId = (imp as { id: string }).id;
 
-      if (preview.kind === "transaction" && preview.newFuel.length) {
-        const fuelRows = preview.newFuel.map((l) => ({
-          id: genUuid(),
-          org_id: session.orgId,
-          vehicle_id: l.vehicle_id,
-          driver_id: l.driver_id,
-          fueled_at: l.fueled_at,
-          odometer: l.odometer,
-          gallons: l.gallons,
-          total_cost: l.total_cost,
-          price_per_gal: l.price_per_gal ?? derivePricePerGal(l.gallons, l.total_cost),
-          location_text: loc(l.location_text, l.city, l.state),
-          card_ref: l.card_ref,
-          source: "fuel_card",
-          external_ref: l.external_ref,
-          import_id: importId,
-          entered_by: session.userId,
-        }));
-        const { error } = await supabase
-          .from("fuel_transactions")
-          .upsert(fuelRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
-        if (error) throw new Error(error.message);
+      if (preview.kind === "transaction") {
+        // 1) Faithful system of record — every line, every column, verbatim.
+        if (preview.allLines.length) {
+          const efsRows = preview.allLines.map((l) => ({
+            org_id,
+            import_id: importId,
+            line_number: l.line_number,
+            external_ref: l.external_ref,
+            card_num: l.card_num,
+            tran_date: l.tran_date,
+            fueled_at: l.fueled_at,
+            invoice: l.invoice,
+            unit: l.unit,
+            driver_name: l.driver_name,
+            odometer: l.odometer,
+            location_name: l.location_name,
+            city: l.city,
+            state: l.state,
+            fees: l.fees,
+            item: l.item,
+            unit_price: l.unit_price,
+            qty: l.qty,
+            amt: l.amt,
+            db: l.db,
+            currency: l.currency,
+          }));
+          const { error } = await supabase
+            .from("efs_transactions")
+            .upsert(efsRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
+          if (error) throw new Error(error.message);
+        }
 
-        // Score the imported transactions in order (best-effort; engine runs server-side).
-        try {
-          await apiFetch("/api/transactions/backfill", { method: "POST" });
-        } catch {
-          /* scoring can be retried */
+        // 2) Derived fuel events for the anomaly engine.
+        if (preview.newFuel.length) {
+          const fuelRows = preview.newFuel.map((l) => ({
+            id: genUuid(),
+            org_id,
+            vehicle_id: l.vehicle_id,
+            driver_id: l.driver_id,
+            fueled_at: l.fueled_at,
+            odometer: l.odometer,
+            gallons: l.gallons,
+            total_cost: l.total_cost,
+            price_per_gal: l.price_per_gal ?? derivePricePerGal(l.gallons, l.total_cost),
+            location_text: loc(l.location_text, l.city, l.state),
+            city: l.city,
+            state: l.state,
+            card_ref: l.card_ref,
+            source: "fuel_card",
+            external_ref: l.external_ref,
+            import_id: importId,
+            entered_by: session.userId,
+          }));
+          const { error } = await supabase
+            .from("fuel_transactions")
+            .upsert(fuelRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
+          if (error) throw new Error(error.message);
+          try {
+            await apiFetch("/api/transactions/backfill", { method: "POST" });
+          } catch {
+            /* scoring can be retried */
+          }
         }
       }
 
       if (preview.kind === "reject" && preview.newDeclined.length) {
         const declinedRows = preview.newDeclined.map((d) => ({
-          org_id: session.orgId,
+          org_id,
           import_id: importId,
           declined_at: d.declined_at,
           card_ref: d.card_ref,
           invoice: d.invoice,
+          location_id: d.location_id,
           unit: d.unit,
           driver_ext_id: d.driver_ext_id,
-          location_text: loc(d.location_text, d.city, d.state),
+          driver_name: d.driver_name,
+          location_text: d.location_text,
           city: d.city,
           state: d.state,
           error_code: d.error_code,
           error_description: d.error_description,
+          policy: d.policy,
+          policy_name: d.policy_name,
           external_ref: d.external_ref,
         }));
         const { error } = await supabase
@@ -169,6 +214,7 @@ export function useCommitImport() {
       }
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["efs_transactions"] });
       qc.invalidateQueries({ queryKey: ["fuel_transactions"] });
       qc.invalidateQueries({ queryKey: ["declined_transactions"] });
       qc.invalidateQueries({ queryKey: ["imports"] });

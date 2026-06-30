@@ -7,6 +7,7 @@ import { useDashboard } from "@/features/dashboard/useDashboard";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import BaseChart from "@/components/BaseChart.vue";
+import { useToastStore } from "@/stores/toast";
 
 const session = useSessionStore();
 const days = ref(30);
@@ -49,13 +50,14 @@ const sevChart = computed<ChartConfiguration>(() => {
   };
 });
 
+const toast = useToastStore();
 const exporting = ref(false);
 async function exportReport(path: string, filename: string) {
   exporting.value = true;
   try {
     await downloadReport(`${path}?days=${days.value}`, filename);
-  } catch {
-    /* surfaced minimally */
+  } catch (e) {
+    toast.error("Export failed", e instanceof Error ? e.message : undefined);
   } finally {
     exporting.value = false;
   }

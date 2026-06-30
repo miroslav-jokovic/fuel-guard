@@ -11,6 +11,8 @@ import {
   Cog6ToothIcon,
   UsersIcon,
   ArrowUpTrayIcon,
+  TableCellsIcon,
+  NoSymbolIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
@@ -33,6 +35,8 @@ const navigation = computed<NavItem[]>(() =>
     { name: "Dashboard", to: "/", icon: HomeIcon, show: true },
     { name: "Fuel Log", to: "/fuel-log", icon: BeakerIcon, show: true },
     { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: session.canManage },
+    { name: "Transactions", to: "/transactions", icon: TableCellsIcon, show: session.canManage || session.readOnly },
+    { name: "Rejections", to: "/rejections", icon: NoSymbolIcon, show: session.canManage || session.readOnly },
     { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: session.canManage || session.readOnly },
     { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: session.canManage || session.readOnly },
     {
