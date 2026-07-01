@@ -243,6 +243,57 @@ const clean = (s: string | undefined): string | null => {
   return t ? t : null;
 };
 
+interface RawStatValue {
+  value?: number;
+}
+interface RawVehicleStat {
+  id?: string;
+  obdOdometerMeters?: RawStatValue;
+  gpsOdometerMeters?: RawStatValue;
+}
+
+/**
+ * Parse `GET /fleet/vehicles/stats?types=obdOdometerMeters,gpsOdometerMeters` into a map of Samsara
+ * vehicle id → current odometer in MILES. Prefers OBD (dash-accurate); falls back to GPS odometer.
+ * Samsara reports odometer in meters; entries without either reading are omitted.
+ */
+export function parseVehicleStatsOdometer(response: { data?: RawVehicleStat[] }): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const v of response.data ?? []) {
+    if (!v.id) continue;
+    const meters = v.obdOdometerMeters?.value ?? v.gpsOdometerMeters?.value;
+    if (meters != null) out.set(String(v.id), metersToMiles(meters));
+  }
+  return out;
+}
+
+interface RawSamsaraDriver {
+  id?: string;
+  name?: string;
+  phone?: string;
+  username?: string;
+  driverActivationStatus?: string;
+}
+
+export interface SamsaraDriver {
+  samsaraId: string;
+  name: string;
+  phone: string | null;
+  active: boolean;
+}
+
+/** Parse a Samsara `/fleet/drivers` list response (pages merged) into driver identities. */
+export function parseSamsaraDrivers(response: { data?: RawSamsaraDriver[] }): SamsaraDriver[] {
+  return (response.data ?? [])
+    .filter((d) => d.id != null && String(d.id).trim() !== "")
+    .map((d) => ({
+      samsaraId: String(d.id),
+      name: clean(d.name) ?? String(d.id),
+      phone: clean(d.phone),
+      active: d.driverActivationStatus ? d.driverActivationStatus === "active" : true,
+    }));
+}
+
 /** Parse a Samsara `/fleet/vehicles` list response (one or more pages merged) into vehicle identities. */
 export function parseSamsaraVehicles(response: { data?: RawSamsaraVehicle[] }): SamsaraVehicle[] {
   return (response.data ?? [])

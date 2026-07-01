@@ -112,11 +112,11 @@ export function shouldEscalate(firstPass: Pick<AiOutput, "risk_level" | "needs_d
   );
 }
 
-const sevRank: Record<AnomalySeverity, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+const SEVERITY_RANK: Record<AnomalySeverity, number> = { low: 1, medium: 2, high: 3, critical: 4 };
 
 /** Whether a transaction's anomalies warrant an AI pass (selective trigger: severity ≥ medium). */
 export function shouldVerify(maxSeverity: AnomalySeverity | null): boolean {
-  return maxSeverity != null && sevRank[maxSeverity] >= sevRank.medium;
+  return maxSeverity != null && SEVERITY_RANK[maxSeverity] >= SEVERITY_RANK.medium;
 }
 
 /** Budget gate: true if there is still token budget left for the month (null budget = unlimited). */

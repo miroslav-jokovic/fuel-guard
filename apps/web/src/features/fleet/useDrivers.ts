@@ -1,11 +1,35 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 
 const DRIVER_COLS =
-  "id, org_id, user_id, full_name, employee_id, phone, status, created_at, updated_at";
+  "id, org_id, user_id, full_name, employee_id, phone, status, samsara_driver_id, created_at, updated_at";
 
 const driversKey = ["drivers"] as const;
+
+export interface DriverSyncResult {
+  total: number;
+  created: number;
+  updated: number;
+}
+
+/** Pull drivers from Samsara into the roster (admin). Matches by samsara id → phone → name. */
+export function useSyncSamsaraDrivers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<DriverSyncResult> => {
+      const res = await apiFetch<DriverSyncResult>("/api/integrations/samsara/sync-drivers", {
+        method: "POST",
+      });
+      if (!res.ok || !res.data) {
+        throw new Error(res.error?.message ?? "Could not sync drivers from Samsara");
+      }
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: driversKey }),
+  });
+}
 
 export function useDriversQuery() {
   return useQuery({

@@ -11,6 +11,7 @@ const drivers = [
     employee_id: null,
     phone: null,
     status: "active" as const,
+    samsara_driver_id: null,
     created_at: "",
     updated_at: "",
   },

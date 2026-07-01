@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { PlusIcon } from "@heroicons/vue/20/solid";
+import { PlusIcon, ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
-import { useDriversQuery, useCreateDriver, useUpdateDriver } from "@/features/fleet/useDrivers";
+import { useDriversQuery, useCreateDriver, useUpdateDriver, useSyncSamsaraDrivers } from "@/features/fleet/useDrivers";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -77,6 +77,16 @@ async function onSubmit(input: DriverInput) {
     toast.error("Could not save driver", e instanceof Error ? e.message : undefined);
   }
 }
+
+const syncSamsara = useSyncSamsaraDrivers();
+async function onSyncSamsara() {
+  try {
+    const r = await syncSamsara.mutateAsync();
+    toast.success(`Synced ${r.total} drivers from Samsara`, `${r.created} added, ${r.updated} updated`);
+  } catch (e) {
+    toast.error("Could not sync from Samsara", e instanceof Error ? e.message : undefined);
+  }
+}
 </script>
 
 <template>
@@ -85,13 +95,23 @@ async function onSubmit(input: DriverInput) {
       <p class="text-sm text-gray-500">
         Drivers in your fleet. Assign drivers to vehicles from the Vehicles page.
       </p>
-      <button
-        v-if="session.canManage"
-        class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-        @click="openNew"
-      >
-        <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New driver
-      </button>
+      <div v-if="session.canManage" class="flex items-center gap-2">
+        <button
+          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+          :disabled="syncSamsara.isPending.value"
+          title="Import drivers from Samsara"
+          @click="onSyncSamsara"
+        >
+          <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+          {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+        </button>
+        <button
+          class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+          @click="openNew"
+        >
+          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New driver
+        </button>
+      </div>
     </div>
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">

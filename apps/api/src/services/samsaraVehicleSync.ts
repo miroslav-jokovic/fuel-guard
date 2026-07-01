@@ -1,8 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseSamsaraVehicles, type SamsaraVehicle } from "@fuelguard/shared";
+import { parseSamsaraVehicles, parseVehicleStatsOdometer, type SamsaraVehicle } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
-import { makeSamsaraVehicleLister, type SamsaraVehicleLister } from "../lib/samsara.js";
+import {
+  makeSamsaraVehicleLister,
+  makeSamsaraOdometerFetcher,
+  type SamsaraVehicleLister,
+  type SamsaraOdometerFetcher,
+} from "../lib/samsara.js";
 
 export interface VehicleSyncResult {
   total: number; // vehicles returned by Samsara
@@ -37,6 +42,7 @@ export async function syncVehiclesFromSamsara(
   env: Env,
   orgId: string,
   listerOverride?: SamsaraVehicleLister,
+  odometerOverride?: SamsaraOdometerFetcher,
 ): Promise<VehicleSyncResult> {
   const token = listerOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
@@ -44,6 +50,15 @@ export async function syncVehiclesFromSamsara(
   const lister = listerOverride ?? makeSamsaraVehicleLister(env, token);
   const raw = await lister();
   const vehicles = parseSamsaraVehicles({ data: raw as { id?: string }[] });
+
+  // Current odometer per vehicle (best-effort — identity sync still succeeds if stats are unavailable).
+  let odometerMiles = new Map<string, number>();
+  try {
+    const fetcher = odometerOverride ?? makeSamsaraOdometerFetcher(env, token);
+    odometerMiles = parseVehicleStatsOdometer(await fetcher());
+  } catch {
+    /* leave odometer unset; not fatal */
+  }
 
   const { data: existingData } = await admin
     .from("vehicles")
@@ -59,6 +74,9 @@ export async function syncVehiclesFromSamsara(
 
   for (const sv of vehicles) {
     const identity = { make: sv.make, model: sv.model, year: sv.year, plate: sv.licensePlate, vin: sv.vin };
+    const odo = odometerMiles.get(sv.samsaraId);
+    // Only include current_odometer when Samsara actually reported one (never overwrite with 0/null).
+    const withOdo = <T extends object>(o: T) => (odo != null ? { ...o, current_odometer: odo } : o);
     const match =
       bySamsara.get(sv.samsaraId) ??
       (sv.vin ? byVin.get(sv.vin.toUpperCase()) : undefined) ??
@@ -67,7 +85,7 @@ export async function syncVehiclesFromSamsara(
     if (match) {
       await admin
         .from("vehicles")
-        .update({ ...identity, samsara_vehicle_id: sv.samsaraId })
+        .update(withOdo({ ...identity, samsara_vehicle_id: sv.samsaraId }))
         .eq("id", match.id)
         .eq("org_id", orgId);
       result.updated++;
@@ -75,21 +93,23 @@ export async function syncVehiclesFromSamsara(
     }
 
     const unit = pickUnitNumber(sv);
-    const { error } = await admin.from("vehicles").insert({
-      org_id: orgId,
-      unit_number: unit,
-      ...identity,
-      samsara_vehicle_id: sv.samsaraId,
-      fuel_type: "diesel",
-      tank_capacity_gal: 0,
-      status: "active",
-    });
+    const { error } = await admin.from("vehicles").insert(
+      withOdo({
+        org_id: orgId,
+        unit_number: unit,
+        ...identity,
+        samsara_vehicle_id: sv.samsaraId,
+        fuel_type: "diesel",
+        tank_capacity_gal: 0,
+        status: "active",
+      }),
+    );
     if (error) {
       // Most likely a unit_number collision with a row we couldn't pre-match → link it instead.
       if (error.code === "23505") {
         await admin
           .from("vehicles")
-          .update({ ...identity, samsara_vehicle_id: sv.samsaraId })
+          .update(withOdo({ ...identity, samsara_vehicle_id: sv.samsaraId }))
           .eq("org_id", orgId)
           .eq("unit_number", unit);
         result.updated++;

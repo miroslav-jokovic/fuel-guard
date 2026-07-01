@@ -8,6 +8,7 @@ import {
   haversineMiles,
   impliedSpeedMph,
   AI_MODELS,
+  SEVERITY_RANK,
   type AiOutput,
   type AiVerificationContext,
   type AnomalySeverity,
@@ -33,8 +34,6 @@ Rules:
 function buildUserText(ctx: AiVerificationContext): string {
   return JSON.stringify(ctx, null, 2);
 }
-
-const sevRank: Record<AnomalySeverity, number> = { low: 1, medium: 2, high: 3, critical: 4 };
 
 interface VerifyOpts {
   force?: boolean;
@@ -77,7 +76,7 @@ export async function verifyTransaction(
     .eq("transaction_id", txnId);
   const fired = (anomalies ?? []).filter((a) => a.status !== "superseded");
   const maxSev = fired.reduce<AnomalySeverity | null>(
-    (m, a) => (m == null || sevRank[a.severity as AnomalySeverity] > sevRank[m] ? (a.severity as AnomalySeverity) : m),
+    (m, a) => (m == null || SEVERITY_RANK[a.severity as AnomalySeverity] > SEVERITY_RANK[m] ? (a.severity as AnomalySeverity) : m),
     null,
   );
   if (!opts.force && !shouldVerify(maxSev)) return null;
@@ -183,12 +182,18 @@ export async function verifyTransaction(
   let usage = first.usage;
 
   if (shouldEscalate(output)) {
-    const second = await callModel(AI_MODELS.deep, SYSTEM_PROMPT, buildUserText(context));
-    const secondParsed = aiOutputSchema.safeParse(second.json);
-    if (secondParsed.success) {
-      output = secondParsed.data;
-      model = AI_MODELS.deep;
-      usage = { input: usage.input + second.usage.input, output: usage.output + second.usage.output };
+    try {
+      const second = await callModel(AI_MODELS.deep, SYSTEM_PROMPT, buildUserText(context));
+      const secondParsed = aiOutputSchema.safeParse(second.json);
+      if (secondParsed.success) {
+        output = secondParsed.data;
+        model = AI_MODELS.deep;
+        usage = { input: usage.input + second.usage.input, output: usage.output + second.usage.output };
+      } else {
+        console.error("[ai] invalid deep-pass output — retaining first-pass result");
+      }
+    } catch (e) {
+      console.error("[ai] deep-pass call failed — retaining first-pass result:", e);
     }
   }
 

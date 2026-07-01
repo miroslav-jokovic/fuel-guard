@@ -56,9 +56,11 @@ export function invitesRouter(): Router {
       }
 
       const token = `${randomUUID()}${randomUUID()}`;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
       const { data: invite, error } = await admin
         .from("invites")
-        .insert({ org_id: orgId, email, role, invited_by: req.auth!.userId, token })
+        .insert({ org_id: orgId, email, role, invited_by: req.auth!.userId, token, expires_at: expiresAt.toISOString() })
         .select(INVITE_COLS)
         .single();
       if (error || !invite) {
@@ -82,7 +84,7 @@ export function invitesRouter(): Router {
         entityId: invite.id,
         meta: { email, role },
       });
-      res.status(201).json({ invite });
+      res.status(201).json({ invite, emailSent: !mailErr });
     }),
   );
 
@@ -127,11 +129,13 @@ export function invitesRouter(): Router {
         return;
       }
 
+      const now = new Date().toISOString();
       const { data: invite } = await admin
         .from("invites")
         .select("id, org_id, role, status")
         .eq("email", email)
         .eq("status", "pending")
+        .or(`expires_at.is.null,expires_at.gt.${now}`)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

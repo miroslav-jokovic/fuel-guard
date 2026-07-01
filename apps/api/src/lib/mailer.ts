@@ -22,7 +22,9 @@ export function makeSender(env: Env): Sender {
           method: "POST",
           headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({ from: env.MAIL_FROM, to: email.to, subject: email.subject, html: email.html, text: email.text }),
+          signal: AbortSignal.timeout(10_000),
         });
+        if (!r.ok) console.error(`[mailer] resend error ${r.status}:`, await r.text().catch(() => ""));
         return r.ok;
       }
       if (env.MAIL_PROVIDER === "brevo" && env.BREVO_API_KEY) {
@@ -36,7 +38,9 @@ export function makeSender(env: Env): Sender {
             htmlContent: email.html,
             textContent: email.text,
           }),
+          signal: AbortSignal.timeout(10_000),
         });
+        if (!r.ok) console.error(`[mailer] brevo error ${r.status}:`, await r.text().catch(() => ""));
         return r.ok;
       }
       return false; // no provider configured

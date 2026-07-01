@@ -74,6 +74,7 @@ export const driverInputSchema = z.object({
   employee_id: optionalText,
   phone: optionalText,
   status: z.enum(DRIVER_STATUSES).default("active"),
+  samsara_driver_id: optionalText, // maps this driver to its Samsara telematics id
 });
 
 export type DriverInput = z.infer<typeof driverInputSchema>;
@@ -86,6 +87,7 @@ export interface Driver {
   employee_id: string | null;
   phone: string | null;
   status: DriverStatus;
+  samsara_driver_id: string | null;
   created_at: string;
   updated_at: string;
 }

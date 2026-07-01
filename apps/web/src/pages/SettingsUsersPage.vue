@@ -23,12 +23,16 @@ async function load() {
 
 async function invite() {
   submitting.value = true;
-  const res = await apiFetch<{ invite: Invite }>("/api/invites", {
+  const res = await apiFetch<{ invite: Invite; emailSent: boolean }>("/api/invites", {
     method: "POST",
     body: { email: email.value, role: role.value },
   });
   if (res.ok) {
-    toast.success("Invitation sent", email.value);
+    if (res.data?.emailSent === false) {
+      toast.error("Invite created but email delivery failed", "Check server logs or Supabase SMTP settings.");
+    } else {
+      toast.success("Invitation sent", email.value);
+    }
     email.value = "";
     role.value = "driver";
     await load();

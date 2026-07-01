@@ -84,6 +84,7 @@ async function main() {
     "migrations/0012_samsara.sql",
     "migrations/0013_tank_fill.sql",
     "migrations/0014_upsert_safe_indexes.sql",
+    "migrations/0015_driver_samsara.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }

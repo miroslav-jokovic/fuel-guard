@@ -8,6 +8,8 @@ import {
   tankPercentNear,
   reconcileTankFill,
   parseSamsaraVehicles,
+  parseVehicleStatsOdometer,
+  parseSamsaraDrivers,
 } from "./index.js";
 
 describe("metersToMiles", () => {
@@ -142,5 +144,36 @@ describe("parseSamsaraVehicles", () => {
     expect(v[0]!.name).toBe("9"); // no usable name → falls back to the id
     expect(v[0]!.vin).toBeNull();
     expect(v[0]!.year).toBeNull();
+  });
+});
+
+describe("parseVehicleStatsOdometer", () => {
+  it("maps id → miles, preferring OBD over GPS", () => {
+    const m = parseVehicleStatsOdometer({
+      data: [
+        { id: "1", obdOdometerMeters: { value: 1609344 }, gpsOdometerMeters: { value: 999 } }, // 1000 mi
+        { id: "2", gpsOdometerMeters: { value: 1609344 } }, // GPS fallback → 1000 mi
+        { id: "3" }, // no reading → omitted
+      ],
+    });
+    expect(m.get("1")).toBe(1000);
+    expect(m.get("2")).toBe(1000);
+    expect(m.has("3")).toBe(false);
+  });
+});
+
+describe("parseSamsaraDrivers", () => {
+  it("maps identity + phone and skips id-less rows", () => {
+    const d = parseSamsaraDrivers({
+      data: [
+        { id: "d1", name: "Marcus Reyes", phone: "555-0101", driverActivationStatus: "active" },
+        { id: "d2", name: "Dana", phone: "", driverActivationStatus: "deactivated" },
+        { name: "no id" },
+      ],
+    });
+    expect(d).toHaveLength(2);
+    expect(d[0]).toEqual({ samsaraId: "d1", name: "Marcus Reyes", phone: "555-0101", active: true });
+    expect(d[1]!.phone).toBeNull();
+    expect(d[1]!.active).toBe(false);
   });
 });
