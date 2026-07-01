@@ -62,6 +62,7 @@ export function formatRuleId(ruleId: string): string {
     ?? ruleId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+
 export type FueledAtPrecision = "instant" | "date";
 
 export interface TxnView {

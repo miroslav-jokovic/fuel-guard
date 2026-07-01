@@ -160,8 +160,18 @@ export function fuelTypeFromText(s: string | null | undefined): FuelType | null 
 export function detectReportKind(headers: string[]): ReportKind {
   const h = new Set(headers.map(normKey));
   const has = (...ks: string[]) => ks.some((k) => h.has(normKey(k)));
-  if (has("Error Code", "Error Description", "Reject Reason", "Decline Reason")) return "reject";
-  if (has("Item", "ProductCode", "Product Description") && has("Qty", "Quantity")) return "transaction";
+
+  // Reject / Decline report — any of these error-related columns is a strong signal.
+  if (has("Error Code", "Error Description", "Reject Reason", "Decline Reason", "Decline Code", "Auth Code", "Authorization Code")) return "reject";
+
+  // Transaction report — needs a product column AND a quantity column.
+  const hasProduct = has("Item", "Product Code", "ProductCode", "Product Description", "ProductDescription", "Prod Code", "Product");
+  const hasQty     = has("Qty", "Quantity", "Gallons", "Volume", "Liters", "Gallons Purchased");
+  if (hasProduct && hasQty) return "transaction";
+
+  // Fallback: EFS transaction exports always have "Tran Date" + "Card #"/"Card Number" + "Invoice" together.
+  if (has("Tran Date", "Transaction Date") && has("Card #", "Card Number") && has("Invoice")) return "transaction";
+
   return "unknown";
 }
 

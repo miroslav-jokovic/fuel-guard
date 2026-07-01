@@ -24,6 +24,8 @@ export interface ImportPreview {
   source: "xlsx" | "csv";
   filename: string;
   totalRows: number;
+  fileHash: string;
+  alreadyImported: boolean; // true if this exact file was committed before
   // transaction
   allLines: EfsTransactionLine[]; // faithful, every line (preview + system of record)
   newFuel: ReconciledFuelLine[]; // derived fuel events for scoring
@@ -33,6 +35,15 @@ export interface ImportPreview {
   // reject
   newDeclined: ParsedDeclined[];
   duplicateDeclinedCount: number;
+}
+
+/** SHA-256 hex digest of the file contents using the Web Crypto API. */
+async function hashFile(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 async function existingRefs(table: string, refs: string[]): Promise<Set<string>> {
@@ -47,14 +58,25 @@ export async function analyzeImport(
   vehicles: Vehicle[],
   drivers: Driver[],
 ): Promise<ImportPreview> {
-  const { headers, rows } = await readFile(file);
+  const [{ headers, rows }, fileHash] = await Promise.all([readFile(file), hashFile(file)]);
   const kind = detectReportKind(headers);
   const source: "xlsx" | "csv" = file.name.toLowerCase().endsWith(".csv") ? "csv" : "xlsx";
+
+  // Check whether this exact file was already imported (by SHA-256 hash).
+  const { data: existing } = await supabase
+    .from("imports")
+    .select("id")
+    .eq("file_hash", fileHash)
+    .limit(1);
+  const alreadyImported = (existing ?? []).length > 0;
+
   const base = {
     kind,
     source,
     filename: file.name,
     totalRows: rows.length,
+    fileHash,
+    alreadyImported,
     allLines: [] as EfsTransactionLine[],
     newFuel: [] as ReconciledFuelLine[],
     duplicateFuelCount: 0,
@@ -110,6 +132,7 @@ export function useCommitImport() {
           source: preview.source,
           kind: preview.kind === "reject" ? "reject" : "transaction",
           filename: preview.filename,
+          file_hash: preview.fileHash,
           status: "completed",
           total_rows: preview.totalRows,
           inserted_rows: inserted,

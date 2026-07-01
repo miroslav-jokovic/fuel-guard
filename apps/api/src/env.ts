@@ -28,6 +28,8 @@ const EnvSchema = z.object({
   // single-tenant fallback. SAMSARA_API_URL lets tests point elsewhere.
   SAMSARA_API_TOKEN: z.string().optional(),
   SAMSARA_API_URL: z.string().url().default("https://api.samsara.com"),
+  // Background auto-sync cadence (hours). 0 disables the scheduler (manual "Sync" button still works).
+  SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   MAIL_PROVIDER: z.enum(["resend", "brevo", "none"]).default("none"),

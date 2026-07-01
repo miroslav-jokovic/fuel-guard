@@ -25,7 +25,7 @@ async function onFile(e: Event) {
     if (p.kind === "unknown") {
       toast.warning(
         "Unrecognized file",
-        "Could not identify this file as an EFS Transaction or Reject report.",
+        `Could not identify "${file.name}" as an EFS Transaction or Reject report. Make sure you're exporting a Transaction Detail or Reject/Decline report from EFS (.xlsx or .csv).`,
       );
     } else {
       preview.value = p;
@@ -58,8 +58,7 @@ const reset = () => {
   <div class="mx-auto max-w-3xl space-y-6">
     <p class="text-sm text-gray-500">
       Upload an EFS <strong>Transaction</strong> or <strong>Reject</strong> report (.xlsx or .csv).
-      We import only fuel lines (diesel/gasoline); DEF, scales and fees are skipped. Re-uploading the
-      same file is safe — duplicates are detected automatically.
+      Fuel lines (diesel/gasoline) are imported; DEF, scales and fees are skipped.
     </p>
 
     <!-- Upload -->
@@ -80,6 +79,17 @@ const reset = () => {
 
     <!-- Review -->
     <div v-if="preview" class="space-y-5 rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
+
+      <!-- Duplicate-file warning -->
+      <div v-if="preview.alreadyImported" class="flex items-start gap-3 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+        <span class="mt-0.5 shrink-0 text-amber-500">⚠</span>
+        <p>
+          <strong>This file was already imported.</strong>
+          Re-committing is safe — existing rows will be skipped as duplicates — but no new data will be added.
+          If you meant to upload a different date range, choose a different file.
+        </p>
+      </div>
+
       <div class="flex items-center justify-between">
         <div>
           <h3 class="text-base font-semibold text-gray-900">Review import</h3>
