@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import type { Anomaly } from "@fuelguard/shared";
+import { formatRuleId, type Anomaly } from "@fuelguard/shared";
 import { useTransaction, useAnomalyTransition } from "./useAnomalies";
 import { useAiVerification, useAiExamine } from "@/features/ai/useAiVerification";
 import AiAssessmentCard from "@/features/ai/AiAssessmentCard.vue";
@@ -67,7 +67,7 @@ async function reexamine() {
     <div class="flex flex-wrap items-center gap-2">
       <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize', sevBadge]">{{ anomaly.severity }}</span>
       <StatusBadge :status="anomaly.status" />
-      <span class="font-mono text-xs text-gray-400">{{ anomaly.rule_id }}</span>
+      <span class="text-xs text-gray-500" :title="anomaly.rule_id">{{ formatRuleId(anomaly.rule_id) }}</span>
     </div>
 
     <p class="text-sm text-gray-900">{{ anomaly.message }}</p>

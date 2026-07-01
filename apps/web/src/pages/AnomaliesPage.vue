@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { ANOMALY_SEVERITIES, RULE_IDS, type Anomaly } from "@fuelguard/shared";
+import { ANOMALY_SEVERITIES, RULE_IDS, formatRuleId, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useAnomaliesQuery, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import SlideOver from "@/components/SlideOver.vue";
@@ -22,7 +22,7 @@ const pageRows = computed(() => (anomalies.value ?? []).slice((page.value - 1) *
 
 const ruleOptions = [
   { value: undefined, label: "All rules" },
-  ...RULE_IDS.map((r) => ({ value: r, label: r })),
+  ...RULE_IDS.map((r) => ({ value: r, label: formatRuleId(r) })),
 ];
 
 const selected = ref<Anomaly | null>(null);
@@ -100,7 +100,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
             <td class="px-6 py-3">
               <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize', sevBadge(a.severity)]">{{ a.severity }}</span>
             </td>
-            <td class="px-6 py-3 font-mono text-xs text-gray-600">{{ a.rule_id }}</td>
+            <td class="px-6 py-3 text-sm text-gray-700">{{ formatRuleId(a.rule_id) }}</td>
             <td class="px-6 py-3 text-gray-900">{{ unit(a.vehicle_id) }}</td>
             <td class="max-w-md truncate px-6 py-3 text-gray-700">{{ a.message }}</td>
             <td class="px-6 py-3 whitespace-nowrap text-gray-500">{{ fmt(a.created_at) }}</td>

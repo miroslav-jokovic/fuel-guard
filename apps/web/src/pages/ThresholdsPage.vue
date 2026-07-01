@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { RULE_IDS, thresholdsFormSchema, type ThresholdsForm } from "@fuelguard/shared";
+import { RULE_IDS, formatRuleId, thresholdsFormSchema, type ThresholdsForm } from "@fuelguard/shared";
 import { useThresholdsQuery, useSaveThresholds } from "@/features/settings/useThresholds";
 import { useToastStore } from "@/stores/toast";
 
@@ -98,7 +98,10 @@ const input = "mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 r
         <div class="mt-3 grid grid-cols-2 gap-2">
           <label v-for="r in RULE_IDS" :key="r" class="flex items-center gap-2 text-sm text-gray-700">
             <input v-model="(form.disabled_rules as string[])" type="checkbox" :value="r" class="rounded border-gray-300" />
-            <span class="font-mono text-xs">{{ r }}</span>
+            <span>
+              <span class="block text-sm text-gray-800">{{ formatRuleId(r) }}</span>
+              <span class="block font-mono text-xs text-gray-400">{{ r }}</span>
+            </span>
           </label>
         </div>
       </section>

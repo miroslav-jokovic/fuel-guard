@@ -33,6 +33,35 @@ export const RULE_IDS = [
 
 export type RuleId = (typeof RULE_IDS)[number];
 
+/** Human-readable label for every rule ID. Used wherever the raw snake_case key would be shown. */
+export const RULE_LABELS: Record<RuleId, string> = {
+  odometer_missing:           "Missing Odometer",
+  odometer_regression:        "Odometer Regression",
+  odometer_stale:             "Stale Odometer",
+  odometer_implausible_jump:  "Implausible Odometer Jump",
+  odometer_daily_cap:         "Daily Mileage Cap Exceeded",
+  odometer_mismatch:          "Odometer / Location Mismatch",
+  expected_odometer_band:     "Outside Expected Odometer Band",
+  exceeds_tank_capacity:      "Exceeds Tank Capacity",
+  implausible_topoff:         "Implausible Top-Off",
+  cumulative_overfuel:        "Cumulative Overfueling",
+  mpg_deviation:              "MPG Deviation",
+  mpg_sustained_decline:      "Sustained MPG Decline",
+  rapid_repeat_fueling:       "Rapid Repeat Fueling",
+  off_hours_fueling:          "Off-Hours Fueling",
+  unattributed_transaction:   "Unattributed Transaction",
+  cost_outlier:               "Cost Outlier",
+  card_multi_vehicle:         "Card Used on Multiple Vehicles",
+  location_mismatch:          "Location Mismatch",
+  tank_fill_short:            "Tank Fill Short",
+};
+
+/** Returns the human-friendly label for a rule ID, with a sensible fallback for unknown IDs. */
+export function formatRuleId(ruleId: string): string {
+  return (RULE_LABELS as Record<string, string>)[ruleId]
+    ?? ruleId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export type FueledAtPrecision = "instant" | "date";
 
 export interface TxnView {

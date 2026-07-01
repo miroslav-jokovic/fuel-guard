@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
-import type { FuelTransaction, Vehicle, Anomaly } from "@fuelguard/shared";
+import { formatRuleId, type FuelTransaction, type Vehicle, type Anomaly } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -103,7 +103,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
         <h3 class="border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900">Anomalies</h3>
         <ul class="divide-y divide-gray-100 text-sm">
           <li v-for="a in anomalies ?? []" :key="a.id" class="flex items-center justify-between px-5 py-2">
-            <span class="font-mono text-xs text-gray-600">{{ a.rule_id }}</span>
+            <span class="text-sm text-gray-700" :title="a.rule_id">{{ formatRuleId(a.rule_id) }}</span>
             <StatusBadge :status="a.status" />
           </li>
           <li v-if="(anomalies ?? []).length === 0" class="px-5 py-3 text-gray-500">No anomalies.</li>
