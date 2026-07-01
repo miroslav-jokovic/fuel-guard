@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 
-// Reached via the Supabase invite email link, which establishes a session. The user sets a
-// password, then we create their membership (API) and refresh the token to load org/role claims.
+// Reached via a Supabase invite email link (type=invite) OR a password-recovery email
+// (type=recovery, used when re-inviting a user whose email was already confirmed). Either way
+// a session is established by the Supabase client before this page renders (requiresAuth: true
+// on the route). The user sets a password, then we create their membership.
 const session = useSessionStore();
 const router = useRouter();
+
+// If for any reason the session is missing (expired / already-used link slipped past the router),
+// show a friendly error instead of a broken password form.
+const hasSession = computed(() => !!session.session);
 
 const password = ref("");
 const confirm = ref("");
@@ -47,6 +53,15 @@ async function onSubmit() {
 
 <template>
   <div>
+    <template v-if="!hasSession">
+      <h2 class="mb-1 text-lg font-semibold text-gray-900">Link expired</h2>
+      <p class="text-sm text-gray-500">
+        This invitation link has already been used or has expired. Please ask your administrator to
+        resend the invitation.
+      </p>
+    </template>
+
+    <template v-else>
     <h2 class="mb-1 text-lg font-semibold text-gray-900">Set your password</h2>
     <p class="mb-6 text-sm text-gray-500">Finish setting up your FuelGuard account.</p>
 
@@ -84,5 +99,6 @@ async function onSubmit() {
         {{ loading ? "Saving…" : "Set password & continue" }}
       </button>
     </form>
+    </template>
   </div>
 </template>

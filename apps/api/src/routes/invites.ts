@@ -159,11 +159,25 @@ export function invitesRouter(): Router {
         return;
       }
 
-      const { error: mailErr } = await admin.auth.admin.inviteUserByEmail(existing.email, {
-        redirectTo: `${env.WEB_APP_URL}/accept-invite`,
-      });
-      if (mailErr) {
-        console.error(`[invites] resend email failed for ${existing.email}: ${mailErr.message}`);
+      // Step 1: try the normal invite email (works for new / still-unconfirmed users).
+      let emailSent = false;
+      const redirectTo = `${env.WEB_APP_URL}/accept-invite`;
+      const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(existing.email, { redirectTo });
+
+      if (!inviteErr) {
+        emailSent = true;
+      } else {
+        // Step 2: the user already confirmed their email by clicking the original invite link
+        // (Supabase marks email_confirmed_at the moment the link is clicked, before the password
+        // form is submitted). Fall back to a password-recovery email — the /accept-invite page
+        // handles PASSWORD_RECOVERY sessions identically to invite sessions.
+        console.warn(`[invites] inviteUserByEmail failed for ${existing.email} (${inviteErr.message}); trying recovery fallback`);
+        const { error: recoveryErr } = await admin.auth.resetPasswordForEmail(existing.email, { redirectTo });
+        if (!recoveryErr) {
+          emailSent = true;
+        } else {
+          console.error(`[invites] recovery fallback also failed for ${existing.email}: ${recoveryErr.message}`);
+        }
       }
 
       await writeAudit(admin, {
@@ -172,10 +186,10 @@ export function invitesRouter(): Router {
         action: "invite.resent",
         entity: "invites",
         entityId: id,
-        meta: { email: existing.email },
+        meta: { email: existing.email, emailSent },
       });
 
-      res.json({ ok: true, emailSent: !mailErr });
+      res.json({ ok: true, emailSent });
     }),
   );
 

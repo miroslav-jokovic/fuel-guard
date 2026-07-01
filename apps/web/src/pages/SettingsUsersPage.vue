@@ -62,9 +62,13 @@ async function revoke(id: string) {
 }
 
 async function resend(id: string) {
-  const res = await apiFetch(`/api/invites/${id}/resend`, { method: "POST" });
+  const res = await apiFetch<{ ok: boolean; emailSent: boolean }>(`/api/invites/${id}/resend`, { method: "POST" });
   if (res.ok) {
-    toast.success("Invitation resent");
+    if (res.data?.emailSent === false) {
+      toast.error("Invite reset but email delivery failed", "Check Supabase SMTP settings in the dashboard.");
+    } else {
+      toast.success("Invitation resent", "A fresh link has been emailed to the recipient.");
+    }
     await load();
   } else {
     toast.error("Could not resend invitation", res.error?.message);
