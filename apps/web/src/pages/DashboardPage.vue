@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { RouterLink } from "vue-router";
 import { ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
 import type { ChartConfiguration } from "chart.js";
+import type { TrendPoint } from "@fuelguard/shared";
 import { useDashboard } from "@/features/dashboard/useDashboard";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
@@ -23,8 +24,8 @@ const stats = computed(() => [
 const mpgChart = computed<ChartConfiguration>(() => ({
   type: "line",
   data: {
-    labels: s.value?.mpgTrend.map((p) => p.date) ?? [],
-    datasets: [{ label: "Fleet MPG", data: s.value?.mpgTrend.map((p) => p.value) ?? [], borderColor: "#4f46e5", backgroundColor: "#4f46e5", tension: 0.3 }],
+    labels: s.value?.mpgTrend.map((p: TrendPoint) => p.date) ?? [],
+    datasets: [{ label: "Fleet MPG", data: s.value?.mpgTrend.map((p: TrendPoint) => p.value) ?? [], borderColor: "#4f46e5", backgroundColor: "#4f46e5", tension: 0.3 }],
   },
   options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
 }));
@@ -32,8 +33,8 @@ const mpgChart = computed<ChartConfiguration>(() => ({
 const spendChart = computed<ChartConfiguration>(() => ({
   type: "bar",
   data: {
-    labels: s.value?.spendTrend.map((p) => p.date) ?? [],
-    datasets: [{ label: "Spend", data: s.value?.spendTrend.map((p) => p.value) ?? [], backgroundColor: "#10b981" }],
+    labels: s.value?.spendTrend.map((p: TrendPoint) => p.date) ?? [],
+    datasets: [{ label: "Spend", data: s.value?.spendTrend.map((p: TrendPoint) => p.value) ?? [], backgroundColor: "#10b981" }],
   },
   options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
 }));
