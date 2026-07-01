@@ -136,9 +136,9 @@ async function onRetire(v: Vehicle) {
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p class="text-sm text-gray-500">Fleet vehicles and their fuel parameters.</p>
-      <div v-if="session.canManage" class="flex items-center gap-2">
+      <div v-if="session.canManage" class="flex flex-wrap items-center gap-2">
         <button
           v-if="session.admin"
           class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-600 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
@@ -188,7 +188,8 @@ async function onRetire(v: Vehicle) {
       <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         No vehicles match these filters.
       </div>
-      <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead class="text-left text-gray-500">
           <tr>
             <th class="px-6 py-3 font-medium">Unit</th>
@@ -247,6 +248,7 @@ async function onRetire(v: Vehicle) {
           </tr>
         </tbody>
       </table>
+      </div>
       <TablePagination
         v-if="!isLoading && !isError && filtered.length > 0"
         :page="page"

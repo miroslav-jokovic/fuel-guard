@@ -226,51 +226,33 @@ describe("parseSamsaraDrivers", () => {
   });
 });
 
-describe("parseCurrentAssignments", () => {
-  const now = "2026-06-30T00:00:00Z";
-  it("keeps the active assignment per vehicle and tolerates both shapes", () => {
-    const links = parseCurrentAssignments(
-      {
-        data: [
-          { vehicle: { id: "v1" }, assignments: [{ driver: { id: "d1" }, startTime: "2026-06-01T00:00:00Z" }] },
-          { vehicle: { id: "v2" }, assignments: [{ driver: { id: "d9" }, startTime: "2020-01-01T00:00:00Z", endTime: "2020-02-01T00:00:00Z" }] },
-          { id: "v3", driverAssignments: [{ driverId: "d3", startTime: "2026-06-02T00:00:00Z" }] },
-        ],
-      },
-      now,
-    );
-    expect(links).toEqual([
-      { vehicleSamsaraId: "v1", driverSamsaraId: "d1" },
-      { vehicleSamsaraId: "v3", driverSamsaraId: "d3" },
-    ]);
+describe("parseCurrentAssignments (latest driver per vehicle)", () => {
+  it("keeps the most-recent assignment per vehicle — including ended HOS segments", () => {
+    // Real Samsara shape: flat rows, completed HOS segments with a past endTime. All should count.
+    const links = parseCurrentAssignments({
+      data: [
+        { vehicle: { id: "556" }, driver: { id: "d-mk" }, startTime: "2026-06-30T20:06:51Z", endTime: "2026-06-30T20:52:16Z" },
+        { vehicle: { id: "556" }, driver: { id: "d-mk" }, startTime: "2026-07-01T11:05:31Z", endTime: "2026-07-01T11:30:03Z" },
+        { vehicle: { id: "512" }, driverId: "d-x", startTime: "2026-06-29T10:00:00Z", endTime: "2026-06-29T18:00:00Z" },
+      ],
+    });
+    expect(links).toContainEqual({ vehicleSamsaraId: "556", driverSamsaraId: "d-mk" });
+    expect(links).toContainEqual({ vehicleSamsaraId: "512", driverSamsaraId: "d-x" });
+    expect(links).toHaveLength(2);
   });
-  it("handles the flat shape (driver + times on the item itself)", () => {
-    const links = parseCurrentAssignments(
-      {
-        data: [
-          { vehicle: { id: "v4" }, driver: { id: "d4" }, startTime: "2026-06-10T00:00:00Z" },
-          { vehicle: { id: "v5" }, driverId: "d5", startTime: "2019-01-01T00:00:00Z", endTime: "2019-02-01T00:00:00Z" },
-        ],
-      },
-      now,
-    );
-    expect(links).toEqual([{ vehicleSamsaraId: "v4", driverSamsaraId: "d4" }]);
-  });
-  it("picks the latest active assignment when several overlap", () => {
-    const links = parseCurrentAssignments(
-      {
-        data: [
-          {
-            vehicle: { id: "v1" },
-            assignments: [
-              { driver: { id: "old" }, startTime: "2026-06-01T00:00:00Z" },
-              { driver: { id: "new" }, startTime: "2026-06-20T00:00:00Z" },
-            ],
-          },
-        ],
-      },
-      now,
-    );
+  it("picks the driver with the latest start when a truck changed hands", () => {
+    const links = parseCurrentAssignments({
+      data: [
+        { vehicle: { id: "v1" }, driver: { id: "old" }, startTime: "2026-06-01T00:00:00Z", endTime: "2026-06-01T08:00:00Z" },
+        { vehicle: { id: "v1" }, driver: { id: "new" }, startTime: "2026-06-20T00:00:00Z", endTime: "2026-06-20T08:00:00Z" },
+      ],
+    });
     expect(links).toEqual([{ vehicleSamsaraId: "v1", driverSamsaraId: "new" }]);
+  });
+  it("supports the grouped shape too", () => {
+    const links = parseCurrentAssignments({
+      data: [{ vehicle: { id: "v3" }, assignments: [{ driverId: "d3", startTime: "2026-06-02T00:00:00Z" }] }],
+    });
+    expect(links).toEqual([{ vehicleSamsaraId: "v3", driverSamsaraId: "d3" }]);
   });
 });

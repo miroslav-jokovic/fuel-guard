@@ -38,7 +38,7 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
     }),
   ]);
 
-  const statsRows = (stats.data ?? []) as { obdOdometerMeters?: { value?: number }; gpsOdometerMeters?: { value?: number }; fuelPercents?: { value?: number } }[];
+  const statsRows = (stats.data ?? []) as { obdOdometerMeters?: { value?: number }; gpsOdometerMeters?: { value?: number }; fuelPercent?: { value?: number }; fuelPercents?: { value?: number } }[];
 
   return {
     tokenConfigured: true as const,
@@ -55,7 +55,7 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
       vehiclesReporting: statsRows.length,
       withObdOdometer: statsRows.filter((v) => v.obdOdometerMeters?.value != null).length,
       withGpsOdometer: statsRows.filter((v) => v.gpsOdometerMeters?.value != null).length,
-      withFuelPercents: statsRows.filter((v) => v.fuelPercents?.value != null).length,
+      withFuelPercents: statsRows.filter((v) => (v.fuelPercent ?? v.fuelPercents)?.value != null).length,
       sample: statsRows[0] ?? null,
     },
     drivers: { status: drivers.status, error: drivers.error },

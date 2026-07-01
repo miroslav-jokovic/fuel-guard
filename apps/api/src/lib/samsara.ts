@@ -88,8 +88,9 @@ export function makeSamsaraAssignmentFetcher(env: Env, token: string): SamsaraAs
   return async () => {
     // A window ending now (not a zero-width now→now, which can return nothing). Any assignment active
     // now overlaps this window; the shared parser keeps only those still active at "now".
+    // Look back a week so a truck idle for a few days still resolves to its last driver.
     const end = new Date();
-    const start = new Date(end.getTime() - 24 * 3_600_000);
+    const start = new Date(end.getTime() - 7 * 24 * 3_600_000);
     const data = await listAllPages(env, token, "/fleet/driver-vehicle-assignments", {
       filterBy: "vehicles",
       startTime: start.toISOString(),

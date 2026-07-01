@@ -324,6 +324,7 @@ interface RawVehicleStat {
   id?: string;
   obdOdometerMeters?: RawStatValue;
   gpsOdometerMeters?: RawStatValue;
+  fuelPercent?: RawStatValue; // Samsara returns this SINGULAR in the stats response
   fuelPercents?: RawStatValue;
 }
 
@@ -337,9 +338,10 @@ export function parseVehicleFuelPercents(response: { data?: RawVehicleStat[] }):
   const out = new Map<string, VehicleFuelLevel>();
   for (const v of response.data ?? []) {
     if (!v.id) continue;
-    const p = v.fuelPercents?.value;
+    const fp = v.fuelPercent ?? v.fuelPercents; // Samsara uses `fuelPercent` (singular) in responses
+    const p = fp?.value;
     if (p != null && p >= 0 && p <= 100) {
-      out.set(String(v.id), { percent: Math.round(p * 10) / 10, time: v.fuelPercents?.time ?? null });
+      out.set(String(v.id), { percent: Math.round(p * 10) / 10, time: fp?.time ?? null });
     }
   }
   return out;
@@ -397,41 +399,41 @@ export interface VehicleDriverLink {
 const assignmentDriverId = (a: RawAssignment): string | undefined => a.driver?.id ?? a.driverId;
 
 /**
- * Parse `GET /fleet/driver-vehicle-assignments?filterBy=vehicles` into current vehicle→driver links.
- * Keeps the assignment active at `nowIso` (no endTime, or an endTime still in the future) with the
- * latest start. Tolerant of both shapes Samsara may return: a vehicle GROUP with a nested
- * `assignments`/`driverAssignments` array, or a FLAT row with the driver + times on the item itself.
+ * Parse `GET /fleet/driver-vehicle-assignments?filterBy=vehicles` into each truck's CURRENT driver =
+ * the MOST RECENT assignment per vehicle (latest startTime). Samsara returns completed HOS driving
+ * segments (each with a past endTime), so "active right now" filtering would drop them all; the latest
+ * segment's driver is who last drove the truck. Tolerant of the flat shape (driver+vehicle on the row)
+ * and the grouped shape (vehicle with a nested `assignments`/`driverAssignments` array). `nowIso` is
+ * kept for signature compatibility.
  */
 export function parseCurrentAssignments(
   response: { data?: RawAssignmentGroup[] },
-  nowIso: string,
+  _nowIso?: string,
 ): VehicleDriverLink[] {
-  const now = new Date(nowIso).getTime();
-  const out: VehicleDriverLink[] = [];
+  // Per vehicle, remember the assignment with the latest start.
+  const latest = new Map<string, { start: number; driverId: string }>();
+  const consider = (vehicleId: string | undefined, a: RawAssignment) => {
+    const driverId = assignmentDriverId(a);
+    if (!vehicleId || !driverId) return;
+    const start = new Date(a.startTime ?? 0).getTime();
+    const prev = latest.get(vehicleId);
+    if (!prev || start >= prev.start) latest.set(vehicleId, { start, driverId: String(driverId) });
+  };
+
   for (const g of response.data ?? []) {
     const nested = g.assignments ?? g.driverAssignments;
-    let vehicleId: string | undefined;
-    let list: RawAssignment[];
     if (nested) {
-      vehicleId = g.vehicle?.id ?? g.vehicleId ?? g.id; // grouped-by-vehicle: g.id is the vehicle id
-      list = nested;
+      const vehicleId = g.vehicle?.id ?? g.vehicleId ?? g.id;
+      for (const a of nested) consider(vehicleId, a);
     } else if (assignmentDriverId(g)) {
-      vehicleId = g.vehicle?.id ?? g.vehicleId; // flat row: don't treat g.id as a vehicle id
-      list = [g];
-    } else {
-      continue;
+      consider(g.vehicle?.id ?? g.vehicleId, g); // flat row: don't treat g.id as a vehicle id
     }
-    if (!vehicleId) continue;
-
-    const active = list.filter((a) => !a.endTime || new Date(a.endTime).getTime() >= now);
-    if (active.length === 0) continue;
-    const pick = active.sort(
-      (a, b) => new Date(b.startTime ?? 0).getTime() - new Date(a.startTime ?? 0).getTime(),
-    )[0]!;
-    const driverId = assignmentDriverId(pick);
-    if (driverId) out.push({ vehicleSamsaraId: String(vehicleId), driverSamsaraId: String(driverId) });
   }
-  return out;
+
+  return [...latest.entries()].map(([vehicleSamsaraId, v]) => ({
+    vehicleSamsaraId,
+    driverSamsaraId: v.driverId,
+  }));
 }
 
 /** Parse a Samsara `/fleet/drivers` list response (pages merged) into driver identities. */

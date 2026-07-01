@@ -42,7 +42,8 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
       <div v-else-if="!logs || logs.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         No audit entries.
       </div>
-      <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead class="text-left text-gray-500">
           <tr>
             <th scope="col" class="px-6 py-3 font-medium">When</th>
@@ -60,6 +61,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
           </tr>
         </tbody>
       </table>
+      </div>
       <TablePagination
         v-if="!isLoading && !isError && total > 0"
         :page="page"

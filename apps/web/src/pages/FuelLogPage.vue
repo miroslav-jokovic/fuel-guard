@@ -82,7 +82,8 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
       <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         No fill-ups match these filters.
       </div>
-      <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead class="text-left text-gray-500">
           <tr>
             <th class="px-6 py-3 font-medium">When</th>
@@ -121,6 +122,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
           </tr>
         </tbody>
       </table>
+      </div>
       <TablePagination
         v-if="!isLoading && !isError && total > 0"
         :page="page"
