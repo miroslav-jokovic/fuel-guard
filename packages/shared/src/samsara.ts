@@ -195,9 +195,19 @@ const STATE_UTC_OFFSET: Record<string, number> = {
   AK: 9, HI: 10,
 };
 
+/**
+ * Parse a timestamp as UTC even when it carries no timezone designator. A tz-less ISO string
+ * ("2026-06-30T14:30:00") is interpreted as LOCAL time by `new Date`, which makes results depend on
+ * the server's timezone — so we append 'Z' when no offset/zone is present to force UTC deterministically.
+ */
+function parseAsUtcMs(iso: string): number {
+  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso.trim());
+  return new Date(hasZone ? iso : `${iso}Z`).getTime();
+}
+
 /** Approximate the fueling instant (ms, UTC) from the report's naive-UTC time + the station state. */
 export function approxFuelingUtcMs(posNaiveIso: string, state: string | null): number {
-  const base = new Date(posNaiveIso).getTime();
+  const base = parseAsUtcMs(posNaiveIso);
   const off = state ? STATE_UTC_OFFSET[state.trim().toUpperCase()] : undefined;
   return off != null ? base + off * 3_600_000 : base;
 }
