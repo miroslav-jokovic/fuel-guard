@@ -81,10 +81,24 @@ export function createApp(env: Env): Express {
   const here = path.dirname(fileURLToPath(import.meta.url)); // apps/api/src
   const webDist = env.WEB_DIST ?? path.resolve(here, "../../web/dist");
   if (fs.existsSync(path.join(webDist, "index.html"))) {
-    app.use(express.static(webDist));
-    // SPA history fallback: any non-API GET that isn't a real file returns index.html so the
-    // client-side router can take over (deep links, refreshes).
-    app.get(/^\/(?!api\/|healthz).*/, (_req: Request, res: Response) => {
+    // Hashed asset files are immutable → cache hard. index.html is served separately (below) with
+    // no-cache, so a new deploy's entry point is never stale relative to its asset hashes.
+    app.use(
+      express.static(webDist, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          }
+        },
+      }),
+    );
+    // SPA history fallback: only for navigation paths (no file extension). A request for a missing
+    // asset (…/foo.js, …/bar.css) must 404 — never fall back to index.html, or the browser rejects
+    // the HTML as the wrong MIME type. Keeps deploy hash-mismatches from silently breaking the app.
+    app.get(/^\/(?!api\/|healthz).*/, (req: Request, res: Response, next: NextFunction) => {
+      if (path.extname(req.path)) return next(); // asset-like but not found → real 404
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(webDist, "index.html"));
     });
   }
