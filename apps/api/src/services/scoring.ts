@@ -30,6 +30,17 @@ const ODOMETER_RULE_IDS = [
 const n = (v: unknown): number | null => (v == null ? null : Number(v));
 const precisionFromSource = (source: string): FueledAtPrecision => (source === "manual" ? "instant" : "date");
 
+/** True when an ISO instant is exactly the EFS date-only sentinel (noon UTC) → no real time-of-day. */
+function isNoonSentinel(iso: string): boolean {
+  const d = new Date(iso);
+  return (
+    d.getUTCHours() === 12 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0
+  );
+}
+
 interface FtxnRow {
   id: string;
   vehicle_id: string | null;
@@ -114,9 +125,13 @@ export async function scoreTransaction(admin: SupabaseClient, env: Env, orgId: s
   // ── Samsara reconciliation: the ±5 odometer truth + recovered fueling time + location check ──
   let crossSourceOdometer: number | null = null;
   let samsaraLocationMatched: boolean | null = null;
+  let locationEvidence: Record<string, unknown> | null = null;
   let reconAt: string | null = null;
   let tankFillShortGal: number | null = null;
   let tankObservedRiseGal: number | null = null;
+  // The EFS fueling time is "precise" when it carries a real time-of-day (timed report / manual),
+  // not the date-only noon sentinel. Only then can we compare Samsara's position at the exact minute.
+  const preciseTime = r.source === "manual" || !isNoonSentinel(txn.fueledAt);
   if (txn.vehicleId) {
     const recon = await reconcileWithSamsara(admin, env, orgId, {
       vehicleId: txn.vehicleId,
@@ -125,17 +140,22 @@ export async function scoreTransaction(admin: SupabaseClient, env: Env, orgId: s
       city: r.city,
       state: r.state,
       locationName: r.location_text,
+      preciseTime,
       gallons: txn.gallons,
       tankCapacityGal: vehicle.tankCapacityGal || null,
     }).catch(() => null);
     if (recon) {
       crossSourceOdometer = recon.crossSourceOdometer;
       samsaraLocationMatched = recon.locationMatched;
+      locationEvidence = recon.locationEvidence;
       reconAt = recon.matchedAt;
       tankFillShortGal = recon.tankFillShortGal;
       tankObservedRiseGal = recon.tankObservedRiseGal;
-      if (recon.matchedAt) {
-        // Use the telematics-recovered precise time for time-based rules (fixes EFS date-only).
+      if (preciseTime) {
+        // Timed report / manual: the reported time IS the fueling time → enable time-based rules.
+        txn.fueledAtPrecision = "instant";
+      } else if (recon.matchedAt) {
+        // Date-only EFS: recover the precise time from the telematics stop, so time-based rules work.
         txn.fueledAt = recon.matchedAt;
         txn.fueledAtPrecision = "instant";
         txnTime = new Date(recon.matchedAt).getTime();
@@ -211,6 +231,7 @@ export async function scoreTransaction(admin: SupabaseClient, env: Env, orgId: s
     windowMiles,
     cardVehicleCountInWindow,
     samsaraLocationMatched,
+    locationEvidence,
     tankFillShortGal,
     tankObservedRiseGal,
   });

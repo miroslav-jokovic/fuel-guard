@@ -127,6 +127,8 @@ export interface RuleContext {
   cardVehicleCountInWindow?: number;
   /** From Samsara reconciliation: was the truck actually at the EFS station's location? null = unknown. */
   samsaraLocationMatched?: boolean | null;
+  /** Evidence for a location mismatch (EFS vs Samsara city/state at the fueling time). */
+  locationEvidence?: Record<string, unknown> | null;
   /** Gallons the billed amount exceeded the observed Samsara tank rise by (coarse sensor). null = not measured. */
   tankFillShortGal?: number | null;
   /** Gallons the tank actually rose across the fueling moment (Samsara). */
@@ -395,10 +397,23 @@ function ruleCostOutlier(ctx: RuleContext): RuleResult {
   return none("cost_outlier");
 }
 
-// NOTE: `location_mismatch` is intentionally NOT run. Matching an EFS city NAME to Samsara's
-// reverse-geocoded address is unreliable (small towns, highway labels, formatting) and produced
-// false positives. Precise location/odometer verification comes from the exact fueling TIME instead.
-// The rule id is kept in RULE_IDS for history + filtering; re-enable only with true geofencing.
+/**
+ * Telematics shows the truck was in a DIFFERENT STATE than the EFS fuel station at the exact fueling
+ * time — a high-confidence "card used where the truck isn't" signal. Set only from a precise time +
+ * state comparison (docs/10 §11); an unconfirmed/uncertain location is `null` and never fires here.
+ */
+function ruleLocationMismatch(ctx: RuleContext): RuleResult {
+  if (ctx.samsaraLocationMatched === false) {
+    return {
+      ruleId: "location_mismatch",
+      fired: true,
+      severity: "high",
+      message: "Telematics places the vehicle in a different state than the fuel station at the fueling time.",
+      evidence: { samsaraLocationMatched: false, ...(ctx.locationEvidence ?? {}) },
+    };
+  }
+  return none("location_mismatch");
+}
 
 /**
  * Telematics tank level rose less than the billed gallons — a soft "less fuel went in than was paid
@@ -458,7 +473,7 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleUnattributed,
     ruleCostOutlier,
     ruleCardMultiVehicle,
-    // ruleLocationMismatch — disabled: city-name matching is unreliable (see note above).
+    ruleLocationMismatch,
     ...(fuel ? [ruleTankFillShort] : []),
   ];
 

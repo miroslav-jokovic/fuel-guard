@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   parseSamsaraSamples,
   matchFuelingMoment,
+  sampleNearestTime,
+  compareLocationState,
+  stateFromAddress,
+  cityFromAddress,
   parseFuelPercents,
   tankPercentNear,
   reconcileTankFill,
@@ -13,10 +17,12 @@ import { loadSamsaraToken } from "../lib/samsaraToken.js";
 export interface ReconInput {
   vehicleId: string | null;
   samsaraVehicleId: string | null;
-  fueledAt: string; // EFS date-anchored instant
+  fueledAt: string; // fueling instant (exact when preciseTime, else EFS date anchored at noon)
   city: string | null;
   state: string | null;
   locationName: string | null;
+  /** True when fueledAt carries a real time-of-day (timed EFS report / manual) vs date-only. */
+  preciseTime: boolean;
   /** Billed gallons + tank capacity, for the advisory tank-fill check. */
   gallons: number | null;
   tankCapacityGal: number | null;
@@ -25,8 +31,10 @@ export interface ReconInput {
 export interface ReconResult {
   /** Samsara odometer at the fueling moment (miles) → the ±5 reference. */
   crossSourceOdometer: number | null;
-  /** Was the truck actually in the EFS city when the card was used? null = couldn't determine. */
+  /** Truck in the SAME state as the EFS station at the fueling time? false = mismatch, null = unknown. */
   locationMatched: boolean | null;
+  /** Evidence behind a location decision (EFS vs Samsara city/state). */
+  locationEvidence: Record<string, unknown> | null;
   /** Telematics-recovered fueling time (fixes EFS date-only) — null if unmatched. */
   matchedAt: string | null;
   /** Gallons billed minus observed tank rise (advisory). null = not measurable. */
@@ -68,37 +76,52 @@ export async function reconcileWithSamsara(
   if (!vehicle) return null;
 
   const samples = parseSamsaraSamples(vehicle as Parameters<typeof parseSamsaraSamples>[0]);
+  const vehicleRaw = vehicle as Parameters<typeof parseFuelPercents>[0];
+
+  // ── Precise path: exact fueling time → nearest GPS sample → state comparison + exact odometer ──
+  if (input.preciseTime) {
+    const s = sampleNearestTime(samples, input.fueledAt, 15);
+    if (!s) {
+      // No telematics near the fueling minute → can't verify anything (unknown, no flag).
+      return { crossSourceOdometer: null, locationMatched: null, locationEvidence: null, matchedAt: null, tankFillShortGal: null, tankObservedRiseGal: null };
+    }
+    const matched = compareLocationState(input.state, s.address); // true / false / null
+    const tank = computeTankFill(vehicleRaw, input.fueledAt, input.gallons, input.tankCapacityGal);
+    return {
+      crossSourceOdometer: s.odometerMiles,
+      locationMatched: matched,
+      locationEvidence:
+        matched === false
+          ? {
+              efsCity: input.city,
+              efsState: input.state,
+              samsaraState: stateFromAddress(s.address),
+              samsaraCity: cityFromAddress(s.address),
+              samsaraAddress: s.address,
+              atTime: s.time,
+            }
+          : null,
+      matchedAt: s.time,
+      tankFillShortGal: tank?.shortGal ?? null,
+      tankObservedRiseGal: tank?.observedRiseGal ?? null,
+    };
+  }
+
+  // ── Date-only fallback: no exact time, so location can't be verified (never flag). Recover the
+  // odometer from the best stopped-in-city sample if we can; leave location UNKNOWN. ──
   const match = matchFuelingMoment(samples, {
     city: input.city,
     state: input.state,
     stationName: input.locationName,
   });
-
-  // No confident match. Matching EFS city NAME against Samsara's reverse-geocoded address is fragile
-  // (small towns, highway labels, formatting), so a miss is NOT proof the truck was elsewhere — report
-  // location as UNKNOWN (null), which suppresses the location_mismatch alert. Precise location/odometer
-  // verification comes from the exact fueling TIME once the timed EFS report is imported (docs/10 §10).
   if (!match) {
-    return {
-      crossSourceOdometer: null,
-      locationMatched: null,
-      matchedAt: null,
-      tankFillShortGal: null,
-      tankObservedRiseGal: null,
-    };
+    return { crossSourceOdometer: null, locationMatched: null, locationEvidence: null, matchedAt: null, tankFillShortGal: null, tankObservedRiseGal: null };
   }
-
-  // Advisory tank-fill check: tank level just before the stop vs the post-fill peak shortly after.
-  const tank = computeTankFill(
-    vehicle as Parameters<typeof parseFuelPercents>[0],
-    match.matchedAt,
-    input.gallons,
-    input.tankCapacityGal,
-  );
-
+  const tank = computeTankFill(vehicleRaw, match.matchedAt, input.gallons, input.tankCapacityGal);
   return {
     crossSourceOdometer: match.samsaraOdometerMiles,
-    locationMatched: true,
+    locationMatched: null, // date-only: not confident enough to flag location
+    locationEvidence: null,
     matchedAt: match.matchedAt,
     tankFillShortGal: tank?.shortGal ?? null,
     tankObservedRiseGal: tank?.observedRiseGal ?? null,

@@ -205,10 +205,17 @@ describe("hardening — card sharing", () => {
   });
 });
 
-describe("location mismatch is disabled (city-name matching too unreliable)", () => {
-  it("never fires, even when telematics couldn't confirm the location", () => {
-    expect(ids(ctx({ samsaraLocationMatched: false }))).not.toContain("location_mismatch");
+describe("location mismatch (precise state comparison)", () => {
+  it("fires (high) only when telematics confirms a different state at the fueling time", () => {
+    const fired = runAllRules(ctx({ samsaraLocationMatched: false, locationEvidence: { efsState: "GA", samsaraState: "TX" } }));
+    const loc = fired.find((r) => r.ruleId === "location_mismatch");
+    expect(loc).toBeTruthy();
+    expect(loc!.severity).toBe("high");
+    expect(loc!.evidence.samsaraState).toBe("TX");
+  });
+  it("does not fire when the state matches or is unknown", () => {
     expect(ids(ctx({ samsaraLocationMatched: true }))).not.toContain("location_mismatch");
+    expect(ids(ctx({ samsaraLocationMatched: null }))).not.toContain("location_mismatch");
     expect(ids(ctx())).not.toContain("location_mismatch");
   });
 });

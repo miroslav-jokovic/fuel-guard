@@ -11,6 +11,10 @@ import {
   parseVehicleStatsOdometer,
   parseSamsaraDrivers,
   parseCurrentAssignments,
+  sampleNearestTime,
+  stateFromAddress,
+  cityFromAddress,
+  compareLocationState,
 } from "./index.js";
 
 describe("metersToMiles", () => {
@@ -53,6 +57,33 @@ describe("matchFuelingMoment", () => {
 
   it("returns null when the truck was never in the EFS city (theft signal)", () => {
     expect(matchFuelingMoment(samples, { city: "DALLAS", state: "TX" })).toBeNull();
+  });
+});
+
+describe("precise location comparison", () => {
+  const samples = parseSamsaraSamples(vehicleStats);
+
+  it("sampleNearestTime finds the sample closest to the exact fueling minute", () => {
+    const s = sampleNearestTime(samples, "2026-06-29T14:28:00Z", 15);
+    expect(s!.time).toBe("2026-06-29T14:25:00Z");
+  });
+  it("sampleNearestTime returns null when nothing is within the window", () => {
+    expect(sampleNearestTime(samples, "2026-06-29T20:00:00Z", 15)).toBeNull();
+  });
+
+  it("stateFromAddress + cityFromAddress parse the Samsara formatted address", () => {
+    expect(stateFromAddress("Fuller Drive, Boylston, MA, 01505")).toBe("MA");
+    expect(cityFromAddress("Fuller Drive, Boylston, MA, 01505")).toBe("Boylston");
+    expect(stateFromAddress("Pilot Town Pump, Belgrade, MT")).toBe("MT");
+    expect(stateFromAddress("no state here")).toBeNull();
+  });
+
+  it("compareLocationState: same state true, different state false, unknown null", () => {
+    expect(compareLocationState("MT", "Pilot Town Pump, Belgrade, MT")).toBe(true);
+    expect(compareLocationState("GA", "I-10, Houston, TX, 77002")).toBe(false);
+    expect(compareLocationState("GA", null)).toBeNull();
+    expect(compareLocationState(null, "Belgrade, MT")).toBeNull();
+    expect(compareLocationState("MT", "some road with no state")).toBeNull();
   });
 });
 

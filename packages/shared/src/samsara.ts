@@ -103,6 +103,79 @@ export function matchFuelingMoment(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Precise location comparison (docs/10 §11)
+//
+// With the exact fueling TIME (from the timed EFS report) we take the Samsara GPS sample nearest that
+// minute and compare its reverse-geocoded STATE to the EFS station's state. State is robust to parse
+// and to compare (unlike fuzzy city names), so this is reliable and low-false-positive. City is kept
+// as evidence for the reviewer; a same-state city difference is NOT flagged (needs distance/geocoding).
+// ---------------------------------------------------------------------------
+
+/** The Samsara sample closest in time to `targetIso`, within `windowMin` minutes. Null if none. */
+export function sampleNearestTime(
+  samples: SamsaraSample[],
+  targetIso: string,
+  windowMin = 15,
+): SamsaraSample | null {
+  const t = new Date(targetIso).getTime();
+  const windowMs = windowMin * 60_000;
+  let best: SamsaraSample | null = null;
+  let bestDelta = Infinity;
+  for (const s of samples) {
+    const delta = Math.abs(new Date(s.time).getTime() - t);
+    if (delta <= windowMs && delta < bestDelta) {
+      bestDelta = delta;
+      best = s;
+    }
+  }
+  return best;
+}
+
+const US_STATES = new Set([
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
+  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
+  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC","PR",
+  // Canadian provinces (EFS fleets often cross the border)
+  "AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT",
+]);
+
+/** Extract the 2-letter state/province code from a Samsara formatted address ("…, City, ST, 12345"). */
+export function stateFromAddress(address: string | null | undefined): string | null {
+  if (!address) return null;
+  const tokens = address.split(",").map((s) => s.trim());
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const m = tokens[i]!.match(/\b([A-Za-z]{2})\b/);
+    if (m && US_STATES.has(m[1]!.toUpperCase())) return m[1]!.toUpperCase();
+  }
+  return null;
+}
+
+/** Extract the city (token just before the state) from a Samsara formatted address. */
+export function cityFromAddress(address: string | null | undefined): string | null {
+  if (!address) return null;
+  const tokens = address.split(",").map((s) => s.trim());
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const m = tokens[i]!.match(/\b([A-Za-z]{2})\b/);
+    if (m && US_STATES.has(m[1]!.toUpperCase())) return i > 0 ? tokens[i - 1]! : null;
+  }
+  return null;
+}
+
+/**
+ * Compare the EFS station state to the Samsara address state at the fueling moment.
+ * Returns true (same state), false (clearly different state → mismatch), or null (can't tell).
+ */
+export function compareLocationState(
+  efsState: string | null,
+  samsaraAddress: string | null,
+): boolean | null {
+  if (!efsState || !samsaraAddress) return null;
+  const s = stateFromAddress(samsaraAddress);
+  if (!s) return null;
+  return s === efsState.trim().toUpperCase();
+}
+
 export interface OdometerReconciliation {
   mismatch: boolean;
   diffMiles: number;
