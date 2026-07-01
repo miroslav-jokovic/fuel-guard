@@ -21,6 +21,8 @@ export function integrationsRouter(): Router {
       const orgId = req.auth!.orgId!;
       try {
         const admin = getSupabaseAdmin(env);
+        // Sync drivers first so samsara_driver_id is populated before the vehicle assignment step.
+        try { await syncDriversFromSamsara(admin, env, orgId); } catch { /* non-fatal */ }
         const result = await syncVehiclesFromSamsara(admin, env, orgId);
         await writeAudit(admin, {
           orgId,

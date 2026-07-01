@@ -73,7 +73,10 @@ export function useSyncSamsaraVehicles() {
       }
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: vehiclesKey }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: vehiclesKey });
+      qc.invalidateQueries({ queryKey: ["drivers"] });
+    },
   });
 }
 
