@@ -6,6 +6,7 @@ import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { syncVehiclesFromSamsara, NoSamsaraTokenError } from "../services/samsaraVehicleSync.js";
 import { syncDriversFromSamsara } from "../services/samsaraDriverSync.js";
+import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
 
 export function integrationsRouter(): Router {
   const router = Router();
@@ -69,6 +70,24 @@ export function integrationsRouter(): Router {
         }
         console.error("[integrations] samsara driver sync failed:", e);
         res.status(502).json(apiError("samsara_sync_failed", "Could not sync drivers from Samsara"));
+      }
+    }),
+  );
+
+  // Diagnostics: probe each Samsara endpoint and report status/counts/sample (admin, read-only).
+  router.post(
+    "/samsara/diagnostics",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      try {
+        const report = await runSamsaraDiagnostics(admin, env, req.auth!.orgId!);
+        res.json(report);
+      } catch (e) {
+        console.error("[integrations] diagnostics failed:", e);
+        res.status(502).json(apiError("diagnostics_failed", "Could not run Samsara diagnostics"));
       }
     }),
   );

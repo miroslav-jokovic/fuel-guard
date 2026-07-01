@@ -14,6 +14,7 @@ import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
 import { useToastStore } from "@/stores/toast";
+import { apiFetch } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
@@ -80,6 +81,31 @@ async function onSubmit(input: VehicleInput) {
   }
 }
 
+// Samsara diagnostics — probe each endpoint and show the raw report.
+const diagOpen = ref(false);
+const diagLoading = ref(false);
+const diagReport = ref("");
+async function runDiagnostics() {
+  diagLoading.value = true;
+  try {
+    const res = await apiFetch("/api/integrations/samsara/diagnostics", { method: "POST" });
+    diagReport.value = JSON.stringify(res.ok ? res.data : res.error, null, 2);
+    diagOpen.value = true;
+  } catch (e) {
+    toast.error("Diagnostics failed", e instanceof Error ? e.message : undefined);
+  } finally {
+    diagLoading.value = false;
+  }
+}
+async function copyDiag() {
+  try {
+    await navigator.clipboard.writeText(diagReport.value);
+    toast.success("Copied to clipboard");
+  } catch {
+    /* clipboard may be blocked */
+  }
+}
+
 const syncSamsara = useSyncSamsaraVehicles();
 async function onSyncSamsara() {
   try {
@@ -113,6 +139,15 @@ async function onRetire(v: Vehicle) {
     <div class="flex items-center justify-between">
       <p class="text-sm text-gray-500">Fleet vehicles and their fuel parameters.</p>
       <div v-if="session.canManage" class="flex items-center gap-2">
+        <button
+          v-if="session.admin"
+          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-600 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+          :disabled="diagLoading"
+          title="Check what Samsara returns for vehicles, stats, drivers and assignments"
+          @click="runDiagnostics"
+        >
+          {{ diagLoading ? "Checking…" : "Diagnostics" }}
+        </button>
         <button
           class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
           :disabled="syncSamsara.isPending.value"
@@ -220,6 +255,20 @@ async function onRetire(v: Vehicle) {
         @update:page="page = $event"
       />
     </div>
+
+    <SlideOver :open="diagOpen" title="Samsara diagnostics" @close="diagOpen = false">
+      <p class="mb-3 text-sm text-gray-500">
+        What Samsara returns for each endpoint. Check <code>scopes</code> (403 = missing scope),
+        <code>stats.withFuelPercents</code> (fuel level), and <code>assignments</code> (driver links).
+      </p>
+      <button
+        class="mb-3 rounded-md bg-gray-100 px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+        @click="copyDiag"
+      >
+        Copy report
+      </button>
+      <pre class="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs leading-relaxed text-gray-100">{{ diagReport }}</pre>
+    </SlideOver>
 
     <SlideOver :open="drawerOpen" :title="editing ? 'Edit vehicle' : 'New vehicle'" @close="drawerOpen = false">
       <VehicleForm
