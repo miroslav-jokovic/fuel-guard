@@ -55,8 +55,8 @@ describe("clean transaction", () => {
 });
 
 describe("Tier 1 — odometer", () => {
-  it("odometer_missing fires when odometer is null", () => {
-    expect(ids(ctx({ txn: txn({ odometer: null }) }))).toContain("odometer_missing");
+  it("odometer_missing is suppressed (data-quality, not an anomaly)", () => {
+    expect(ids(ctx({ txn: txn({ odometer: null }) }))).not.toContain("odometer_missing");
   });
   it("odometer_regression fires when below previous", () => {
     expect(ids(ctx({ txn: txn({ odometer: 99300 }) }))).toContain("odometer_regression");
@@ -122,8 +122,8 @@ describe("Tier 4 — behavioral", () => {
     // 2026-06-10T07:00:00Z = 02:00 Chicago
     expect(ids(ctx({ txn: txn({ fueledAt: "2026-06-10T07:00:00Z" }) }))).toContain("off_hours_fueling");
   });
-  it("unattributed_transaction fires with no vehicle/driver", () => {
-    expect(ids(ctx({ txn: txn({ vehicleId: null, driverId: null }), previousTxn: null }))).toContain("unattributed_transaction");
+  it("unattributed_transaction is suppressed (data-quality, not an anomaly)", () => {
+    expect(ids(ctx({ txn: txn({ vehicleId: null, driverId: null }), previousTxn: null }))).not.toContain("unattributed_transaction");
   });
   it("cost_outlier fires outside a configured band", () => {
     const c = ctx({ txn: txn({ pricePerGal: 9.5 }) });

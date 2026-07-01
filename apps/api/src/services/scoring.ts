@@ -17,7 +17,7 @@ import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text";
+  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_recon_at";
 
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -57,6 +57,11 @@ interface FtxnRow {
   city: string | null;
   state: string | null;
   location_text: string | null;
+  samsara_odometer: number | string | null;
+  samsara_location_matched: boolean | null;
+  samsara_tank_short_gal: number | string | null;
+  samsara_tank_observed_gal: number | string | null;
+  samsara_recon_at: string | null;
 }
 
 function toTxnView(r: FtxnRow): TxnView {
@@ -101,7 +106,22 @@ async function loadOperatingHours(admin: SupabaseClient, orgId: string): Promise
 }
 
 /** Score a single transaction: assemble context (incl. Samsara reconciliation), run the engine, persist. */
-export async function scoreTransaction(admin: SupabaseClient, env: Env, orgId: string, txnId: string): Promise<void> {
+export interface ScoreOpts {
+  /**
+   * Reuse the Samsara values already stored on the transaction instead of making a fresh live call.
+   * Used by bulk rebuilds so re-scoring thousands of historical rows doesn't hammer the Samsara API
+   * (and stay within rate limits). New imports use a fresh reconciliation (skipRecon=false).
+   */
+  skipRecon?: boolean;
+}
+
+export async function scoreTransaction(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  txnId: string,
+  opts: ScoreOpts = {},
+): Promise<void> {
   const { data: row } = await admin.from("fuel_transactions").select(FTXN_COLS).eq("id", txnId).eq("org_id", orgId).single();
   if (!row) return;
   const r = row as FtxnRow;
@@ -133,7 +153,16 @@ export async function scoreTransaction(admin: SupabaseClient, env: Env, orgId: s
   // The EFS fueling time is "precise" when it carries a real time-of-day (timed report / manual),
   // not the date-only noon sentinel. Only then can we compare Samsara's position at the exact minute.
   const preciseTime = r.source === "manual" || !isNoonSentinel(txn.fueledAt);
-  if (txn.vehicleId) {
+  if (txn.vehicleId && opts.skipRecon) {
+    // Rebuild path: trust the values the last live reconciliation already wrote to the row. The row's
+    // fueled_at is already the telematics-recovered time (recon rewrote it), so precision follows suit.
+    crossSourceOdometer = n(r.samsara_odometer);
+    samsaraLocationMatched = r.samsara_location_matched ?? null;
+    tankFillShortGal = n(r.samsara_tank_short_gal);
+    tankObservedRiseGal = n(r.samsara_tank_observed_gal);
+    reconAt = r.samsara_recon_at ?? null;
+    if (preciseTime || reconAt) txn.fueledAtPrecision = "instant";
+  } else if (txn.vehicleId) {
     const recon = await reconcileWithSamsara(admin, env, orgId, {
       vehicleId: txn.vehicleId,
       samsaraVehicleId,
@@ -314,8 +343,11 @@ export async function scoreWithCascade(admin: SupabaseClient, env: Env, orgId: s
   for (const x of ((next ?? []) as { id: string }[])) await scoreTransaction(admin, env, orgId, x.id);
 }
 
-/** Backfill: score every transaction for an org in (vehicle, fueled_at) order. Used after seeding. */
-export async function backfillOrg(admin: SupabaseClient, env: Env, orgId: string): Promise<number> {
+/**
+ * Backfill / rebuild: score every transaction for an org in (vehicle, fueled_at) order. Pass
+ * skipRecon=true for a rebuild of existing data so it reuses stored Samsara values (no live API spam).
+ */
+export async function backfillOrg(admin: SupabaseClient, env: Env, orgId: string, opts: ScoreOpts = {}): Promise<number> {
   const { data: rows } = await admin
     .from("fuel_transactions")
     .select("id")
@@ -324,7 +356,7 @@ export async function backfillOrg(admin: SupabaseClient, env: Env, orgId: string
     .order("fueled_at", { ascending: true })
     .order("created_at", { ascending: true });
   const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
-  for (const id of ids) await scoreTransaction(admin, env, orgId, id);
+  for (const id of ids) await scoreTransaction(admin, env, orgId, id, opts);
   return ids.length;
 }
 

@@ -395,20 +395,74 @@ export interface ReconciledFuelLine extends ParsedFuelLine {
 }
 
 /**
- * Resolve each fuel line's Unit → vehicle and Driver Name → driver (pure, testable).
- * Unmatched vehicle ⇒ vehicle_id null ⇒ the row is "unattributed" and routed to review (docs/08 §5).
+ * Unit match keys: exact-normalized (alnum, lowercased) plus a leading-zeros-stripped variant, so
+ * "0042", "42", and "Unit 42" all line up. Returns the distinct keys to index/look up by.
+ */
+export function unitMatchKeys(unit: string): string[] {
+  const base = unit.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!base) return [];
+  const noLeadingZeros = base.replace(/^0+(?=\d)/, "");
+  return [...new Set([base, noLeadingZeros])];
+}
+
+/**
+ * Driver match key: order-independent, punctuation-insensitive, middle-initial-tolerant. Splits into
+ * alphabetic tokens, drops single-letter tokens (initials like "J."), sorts, and joins — so
+ * "SMITH, JOHN", "John Smith", and "John A. Smith" all collapse to "john smith".
+ */
+export function driverMatchKey(name: string): string {
+  const tokens = name
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 1);
+  return tokens.sort().join(" ");
+}
+
+/** Build a lookup that maps each key to a single id, marking keys shared by 2+ records as ambiguous. */
+function buildKeyIndex(entries: { id: string; keys: string[] }[]): Map<string, string | null> {
+  const idx = new Map<string, string | null>();
+  for (const { id, keys } of entries) {
+    for (const k of keys) {
+      if (!k) continue;
+      if (idx.has(k)) idx.set(k, null); // collision → ambiguous, don't guess
+      else idx.set(k, id);
+    }
+  }
+  return idx;
+}
+
+/**
+ * Resolve each fuel line's Unit → vehicle and Driver Name → driver (pure, testable). Matching is
+ * tolerant of formatting differences ("LAST, FIRST" vs "First Last", casing, punctuation, leading
+ * zeros, middle initials). Ambiguous keys (shared by 2+ records) stay unmatched rather than guess.
+ * Unmatched vehicle ⇒ vehicle_id null (the row is "unattributed"); we no longer flag that as an anomaly.
  */
 export function reconcileFuelLines(
   lines: ParsedFuelLine[],
   vehicles: Pick<Vehicle, "id" | "unit_number">[],
   drivers: Pick<Driver, "id" | "full_name">[],
 ): ReconciledFuelLine[] {
-  const byUnit = new Map(vehicles.map((v) => [v.unit_number.trim().toLowerCase(), v.id]));
-  const byName = new Map(drivers.map((d) => [d.full_name.trim().toLowerCase(), d.id]));
+  const byUnit = buildKeyIndex(vehicles.map((v) => ({ id: v.id, keys: unitMatchKeys(v.unit_number) })));
+  const byName = buildKeyIndex(drivers.map((d) => ({ id: d.id, keys: [driverMatchKey(d.full_name)] })));
+
+  const matchUnit = (unit: string | null): string | null => {
+    if (!unit) return null;
+    for (const k of unitMatchKeys(unit)) {
+      const hit = byUnit.get(k);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const matchDriver = (name: string | null): string | null => {
+    if (!name) return null;
+    return byName.get(driverMatchKey(name)) ?? null;
+  };
+
   return lines.map((line) => ({
     ...line,
-    vehicle_id: line.unit ? (byUnit.get(line.unit.trim().toLowerCase()) ?? null) : null,
-    driver_id: line.driver_name ? (byName.get(line.driver_name.trim().toLowerCase()) ?? null) : null,
+    vehicle_id: matchUnit(line.unit),
+    driver_id: matchDriver(line.driver_name),
   }));
 }
 

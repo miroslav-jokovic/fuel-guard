@@ -81,7 +81,31 @@ export function transactionsRouter(): Router {
     }),
   );
 
-  // Backfill all transactions for the org (seed/demo + full re-score).
+  // Rebuild the anomaly report from existing data — re-score every transaction with the current rules
+  // (suppressions, severities, corrected location logic). Reuses stored Samsara values (skipRecon) so a
+  // full rebuild is fast and doesn't make a live Samsara call per row. Runs in the background.
+  router.post(
+    "/rebuild",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const actorId = req.auth!.userId;
+      res.json({ ok: true, queued: true }); // respond now; rebuild continues in the background
+      void (async () => {
+        try {
+          const count = await backfillOrg(admin, env, orgId, { skipRecon: true });
+          await writeAudit(admin, { orgId, actorId, action: "transactions.rebuild", meta: { count } });
+        } catch (e) {
+          console.error("[rebuild] background rebuild failed:", e instanceof Error ? e.message : e);
+        }
+      })();
+    }),
+  );
+
+  // Backfill all transactions for the org (seed/demo + full re-score, with live Samsara reconciliation).
   router.post(
     "/backfill",
     requireOrg,

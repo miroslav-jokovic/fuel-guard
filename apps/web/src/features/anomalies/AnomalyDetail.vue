@@ -34,11 +34,13 @@ const sevBadge = computed(() => {
 
 const evidenceRows = computed(() => Object.entries(props.anomaly.evidence ?? {}));
 const fmt = (iso: string) => new Date(iso).toLocaleString();
+const formatKey = (k: string) => k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 const STATUS_LABELS: Record<string, string> = {
   investigating: "Marked as investigating",
   resolved: "Anomaly resolved",
   dismissed: "Anomaly dismissed",
+  false_alarm: "Marked as false alarm",
 };
 
 async function doTransition(status: "investigating" | "resolved" | "dismissed") {
@@ -49,6 +51,16 @@ async function doTransition(status: "investigating" | "resolved" | "dismissed") 
     emit("changed");
   } catch (e) {
     toast.error("Update failed", e instanceof Error ? e.message : undefined);
+  }
+}
+
+async function doFalseAlarm() {
+  try {
+    await transition.mutateAsync({ id: props.anomaly.id, status: "dismissed", note: "False alarm", version: props.anomaly.version });
+    toast.success("Marked as false alarm");
+    emit("changed");
+  } catch (e) {
+    toast.error("Could not update", e instanceof Error ? e.message : undefined);
   }
 }
 
@@ -84,7 +96,7 @@ async function reexamine() {
       <h4 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">Why this fired</h4>
       <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
         <template v-for="[k, v] in evidenceRows" :key="k">
-          <dt class="text-gray-500">{{ k }}</dt>
+          <dt class="text-gray-500">{{ formatKey(k) }}</dt>
           <dd class="text-right font-medium text-gray-900">{{ typeof v === "object" ? JSON.stringify(v) : v }}</dd>
         </template>
       </dl>
@@ -112,27 +124,49 @@ async function reexamine() {
     </div>
 
     <!-- Workflow -->
-    <div v-if="anomaly.status === 'open' || anomaly.status === 'investigating'" class="space-y-3 border-t border-gray-200 pt-4">
-      <textarea
-        v-model="note"
-        rows="2"
-        placeholder="Resolution note (required to resolve or dismiss)"
-        class="block w-full rounded-md border-0 px-3 py-2 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600"
-      ></textarea>
-      <div class="flex flex-wrap gap-2">
-        <button v-if="anomaly.status === 'open'" :disabled="transition.isPending.value" class="rounded-md bg-amber-100 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200" @click="doTransition('investigating')">
-          Start investigating
+    <div v-if="anomaly.status === 'open' || anomaly.status === 'investigating'" class="space-y-4 border-t border-gray-200 pt-5">
+      <div>
+        <p class="mb-1.5 text-xs font-medium text-gray-500">Quick action</p>
+        <button
+          :disabled="transition.isPending.value"
+          class="rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100 disabled:opacity-50"
+          title="Checked and confirmed not real — dismiss without re-raising"
+          @click="doFalseAlarm"
+        >
+          Mark as false alarm
         </button>
-        <button :disabled="transition.isPending.value" class="rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-500" @click="doTransition('resolved')">
-          Resolve
-        </button>
-        <button :disabled="transition.isPending.value" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50" @click="doTransition('dismissed')">
-          Dismiss
-        </button>
+      </div>
+      <div class="space-y-3">
+        <p class="text-xs font-medium text-gray-500">Advance status</p>
+        <textarea
+          v-model="note"
+          rows="2"
+          placeholder="Resolution note (optional for investigating, recommended for resolve / dismiss)"
+          class="block w-full rounded-md border-0 px-3 py-2 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600"
+        ></textarea>
+        <div class="flex flex-wrap gap-2">
+          <button v-if="anomaly.status === 'open'" :disabled="transition.isPending.value" class="rounded-md bg-amber-100 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200 disabled:opacity-50" @click="doTransition('investigating')">
+            Start investigating
+          </button>
+          <button :disabled="transition.isPending.value" class="rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-500 disabled:opacity-50" @click="doTransition('resolved')">
+            Resolve
+          </button>
+          <button :disabled="transition.isPending.value" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="doTransition('dismissed')">
+            Dismiss
+          </button>
+        </div>
       </div>
     </div>
     <div v-else class="border-t border-gray-200 pt-4 text-sm text-gray-500">
-      <p>{{ anomaly.status === "resolved" ? "Resolved" : "Dismissed" }}<span v-if="anomaly.resolution_note">: "{{ anomaly.resolution_note }}"</span></p>
+      <p v-if="anomaly.status === 'resolved'">
+        Resolved<span v-if="anomaly.resolution_note"> — {{ anomaly.resolution_note }}</span>
+      </p>
+      <p v-else-if="anomaly.resolution_note === 'False alarm'">
+        Marked as false alarm
+      </p>
+      <p v-else>
+        Dismissed<span v-if="anomaly.resolution_note"> — {{ anomaly.resolution_note }}</span>
+      </p>
     </div>
   </div>
 </template>

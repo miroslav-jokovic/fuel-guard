@@ -33,6 +33,18 @@ export const RULE_IDS = [
 
 export type RuleId = (typeof RULE_IDS)[number];
 
+/**
+ * Data-quality flags, NOT theft/misuse signals. These describe gaps in the source data (a fill that
+ * couldn't be matched to a vehicle/driver, or a blank odometer) rather than suspicious behavior.
+ * Flagging them as anomalies drowns the real signals, so by product decision they never raise an
+ * anomaly. The underlying facts stay visible on the transaction itself (e.g. "Unattributed" in the
+ * fuel log). Re-enable a rule by removing it here.
+ */
+export const SUPPRESSED_RULE_IDS: readonly RuleId[] = [
+  "unattributed_transaction",
+  "odometer_missing",
+] as const;
+
 /** Human-readable label for every rule ID. Used wherever the raw snake_case key would be shown. */
 export const RULE_LABELS: Record<RuleId, string> = {
   odometer_missing:           "Missing Odometer",
@@ -477,7 +489,10 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ...(fuel ? [ruleTankFillShort] : []),
   ];
 
-  let results = rules.map((rule) => rule(ctx)).filter((r) => r.fired && !disabled.has(r.ruleId));
+  const suppressed = new Set<RuleId>(SUPPRESSED_RULE_IDS);
+  let results = rules
+    .map((rule) => rule(ctx))
+    .filter((r) => r.fired && !disabled.has(r.ruleId) && !suppressed.has(r.ruleId));
 
   // Precedence: an over-capacity fill makes the per-fill top-off rule redundant.
   if (results.some((r) => r.ruleId === "exceeds_tank_capacity")) {

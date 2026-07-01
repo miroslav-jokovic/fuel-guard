@@ -147,6 +147,25 @@ describe("reconcileFuelLines", () => {
     const [r] = reconcileFuelLines(fuelLines, [], drivers);
     expect(r!.vehicle_id).toBeNull();
   });
+
+  it("matches 'LAST, FIRST' vs 'First Last', casing, punctuation, and middle initials", () => {
+    const drv = [{ id: "d1", full_name: "John Smith" }];
+    const veh = [{ id: "v1", unit_number: "042" }];
+    const line = { ...fuelLines[0]!, unit: "42", driver_name: "SMITH, JOHN A." };
+    const [r] = reconcileFuelLines([line], veh, drv);
+    expect(r!.driver_id).toBe("d1"); // name order/initial/punctuation tolerant
+    expect(r!.vehicle_id).toBe("v1"); // leading-zero tolerant unit match
+  });
+
+  it("does not guess when a name key is ambiguous (two drivers collapse to the same key)", () => {
+    const drv = [
+      { id: "d1", full_name: "John Smith" },
+      { id: "d2", full_name: "Smith John" },
+    ];
+    const line = { ...fuelLines[0]!, driver_name: "John Smith" };
+    const [r] = reconcileFuelLines([line], vehicles, drv);
+    expect(r!.driver_id).toBeNull();
+  });
 });
 
 describe("detectReportKind — reject report without an obvious reason column", () => {

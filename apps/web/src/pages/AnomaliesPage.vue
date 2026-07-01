@@ -2,15 +2,16 @@
 import { ref, computed, watch } from "vue";
 import { ANOMALY_SEVERITIES, RULE_IDS, formatRuleId, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useAnomaliesQuery, useAnomalyTransition, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
-import { useSessionStore } from "@/stores/session";
-import { useToastStore } from "@/stores/toast";
+import { useAnomaliesQuery, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import { apiFetch } from "@/lib/api";
+import { useSessionStore } from "@/stores/session";
+import { useToastStore } from "@/stores/toast";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
@@ -19,15 +20,14 @@ const { data: vehicles } = useVehiclesQuery();
 const filters = ref<AnomalyFilters>({ status: "open" });
 const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
 
-const transition = useAnomalyTransition();
-async function onFalseAlarm(a: Anomaly) {
-  if (!confirm(`Mark this "${formatRuleId(a.rule_id)}" flag as a false alarm? It won't be re-raised.`)) return;
-  try {
-    await transition.mutateAsync({ id: a.id, status: "dismissed", note: "False alarm", version: a.version });
-    toast.success("Marked as false alarm");
-  } catch (e) {
-    toast.error("Could not update", e instanceof Error ? e.message : undefined);
-  }
+const rebuilding = ref(false);
+async function rebuild() {
+  if (!confirm("Re-score every transaction with the current rules? Existing false flags will clear; your notes are kept.")) return;
+  rebuilding.value = true;
+  const res = await apiFetch("/api/transactions/rebuild", { method: "POST" });
+  rebuilding.value = false;
+  if (res.ok) toast.success("Rebuild started", "Re-scoring in the background — refresh in a minute to see the cleaned-up list.");
+  else toast.error("Could not start rebuild", res.error?.message);
 }
 
 const statusBadge = (s: string) =>
@@ -75,7 +75,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
           { value: 'open', label: 'Open' },
           { value: 'investigating', label: 'Investigating' },
           { value: 'resolved', label: 'Resolved' },
-          { value: 'dismissed', label: 'Dismissed' },
+          { value: 'dismissed', label: 'False alarm / Dismissed' },
           { value: undefined, label: 'All (active)' },
         ]"
       />
@@ -95,6 +95,15 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
       />
       <AppSelect v-model="filters.ruleId" :options="ruleOptions" />
       <span class="ml-auto text-sm text-gray-500">{{ total }} total</span>
+      <button
+        v-if="session.canManage"
+        :disabled="rebuilding"
+        class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+        title="Re-score every transaction with the current rules — clears stale/false flags"
+        @click="rebuild"
+      >
+        {{ rebuilding ? "Rebuilding…" : "Rebuild anomalies" }}
+      </button>
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
@@ -133,17 +142,8 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
               <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize', statusBadge(a.status)]">{{ a.status }}</span>
             </td>
             <td class="px-6 py-3 whitespace-nowrap text-gray-500">{{ fmt(a.created_at) }}</td>
-            <td class="px-6 py-3 text-right whitespace-nowrap">
-              <button
-                v-if="session.canManage && (a.status === 'open' || a.status === 'investigating')"
-                class="text-sm font-medium text-amber-700 hover:text-amber-800 disabled:opacity-50"
-                :disabled="transition.isPending.value"
-                title="Checked and confirmed not real — dismiss and don't re-raise"
-                @click.stop="onFalseAlarm(a)"
-              >
-                False alarm
-              </button>
-              <span class="ml-4 text-sm font-medium text-indigo-600">Review →</span>
+            <td class="px-6 py-3 text-right">
+              <span class="text-sm font-medium text-indigo-600">Review →</span>
             </td>
           </tr>
         </tbody>

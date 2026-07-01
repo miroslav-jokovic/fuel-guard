@@ -30,6 +30,12 @@ const EnvSchema = z.object({
   SAMSARA_API_URL: z.string().url().default("https://api.samsara.com"),
   // Background auto-sync cadence (hours). 0 disables the scheduler (manual "Sync" button still works).
   SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),
+  // Re-score every transaction with the current rules once, shortly after each boot/deploy (rules-only,
+  // no live Samsara calls — cheap + idempotent). Set to "false" to disable.
+  REBUILD_ON_BOOT: z
+    .string()
+    .default("true")
+    .transform((s) => s.toLowerCase() !== "false"),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   MAIL_PROVIDER: z.enum(["resend", "brevo", "none"]).default("none"),
