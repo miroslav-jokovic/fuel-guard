@@ -8,6 +8,7 @@ import {
 } from "@fleetguard/shared";
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
+import { loadSamsaraToken } from "../lib/samsaraToken.js";
 
 export interface ReconInput {
   vehicleId: string | null;
@@ -34,16 +35,6 @@ export interface ReconResult {
   tankObservedRiseGal: number | null;
 }
 
-async function loadToken(admin: SupabaseClient, env: Env, orgId: string): Promise<string | null> {
-  const { data } = await admin
-    .from("integration_credentials")
-    .select("samsara_api_token, enabled")
-    .eq("org_id", orgId)
-    .maybeSingle();
-  if (data && data.enabled !== false && data.samsara_api_token) return data.samsara_api_token as string;
-  return env.SAMSARA_API_TOKEN ?? null;
-}
-
 /**
  * Reconcile an EFS fuel transaction against Samsara (docs/10): pull the truck's GPS+odometer for the
  * day, find the stopped sample at the EFS station's city, and return the Samsara odometer (for the ±5
@@ -58,7 +49,7 @@ export async function reconcileWithSamsara(
   fetcherOverride?: SamsaraFetcher,
 ): Promise<ReconResult | null> {
   if (!input.samsaraVehicleId) return null;
-  const token = fetcherOverride ? "test" : await loadToken(admin, env, orgId);
+  const token = fetcherOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) return null;
 
   // Day window around the EFS date (which is anchored at noon), with a buffer for tz/lag.

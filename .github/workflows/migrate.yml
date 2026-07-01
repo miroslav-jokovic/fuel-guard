@@ -1,0 +1,32 @@
+name: Apply Supabase migrations
+
+# Auto-applies database migrations to the production Supabase project whenever a migration file
+# changes on main — mirroring the way Railway auto-deploys the app. Also runnable on demand.
+#
+# Requires three repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  — a personal access token (Supabase dashboard → Account → Access Tokens)
+#   SUPABASE_PROJECT_REF   — the project ref (Project Settings → General → Reference ID)
+#   SUPABASE_DB_PASSWORD   — the database password you set when creating the project
+# Until those secrets exist the job simply fails harmlessly; it never touches anything without them.
+
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch: {}
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Link project
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - name: Apply migrations (only ones not yet applied)
+        run: supabase db push

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { PlusIcon } from "@heroicons/vue/20/solid";
+import { PlusIcon, ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
 import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fleetguard/shared";
 import { useSessionStore } from "@/stores/session";
-import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useSyncSamsaraVehicles } from "@/features/fleet/useVehicles";
 import { useDriversQuery } from "@/features/fleet/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -68,6 +68,22 @@ async function onSubmit(input: VehicleInput) {
   }
 }
 
+const syncSamsara = useSyncSamsaraVehicles();
+async function onSyncSamsara() {
+  try {
+    const r = await syncSamsara.mutateAsync();
+    const parts = [`${r.created} added`, `${r.updated} updated`];
+    toast.success(
+      `Synced ${r.total} vehicles from Samsara`,
+      r.needsCompletion.length
+        ? `${parts.join(", ")}. Set tank capacity + baseline MPG for ${r.needsCompletion.length} new truck(s).`
+        : parts.join(", "),
+    );
+  } catch (e) {
+    toast.error("Could not sync from Samsara", e instanceof Error ? e.message : undefined);
+  }
+}
+
 async function onRetire(v: Vehicle) {
   if (confirm(`Retire vehicle ${v.unit_number}? Its history is preserved.`)) {
     try {
@@ -84,13 +100,23 @@ async function onRetire(v: Vehicle) {
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <p class="text-sm text-gray-500">Fleet vehicles and their fuel parameters.</p>
-      <button
-        v-if="session.canManage"
-        class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-        @click="openNew"
-      >
-        <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New vehicle
-      </button>
+      <div v-if="session.canManage" class="flex items-center gap-2">
+        <button
+          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+          :disabled="syncSamsara.isPending.value"
+          title="Import trucks from Samsara (trailers are excluded)"
+          @click="onSyncSamsara"
+        >
+          <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+          {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+        </button>
+        <button
+          class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+          @click="openNew"
+        >
+          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New vehicle
+        </button>
+      </div>
     </div>
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">

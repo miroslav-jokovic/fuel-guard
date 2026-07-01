@@ -7,6 +7,7 @@ import {
   parseFuelPercents,
   tankPercentNear,
   reconcileTankFill,
+  parseSamsaraVehicles,
 } from "./index.js";
 
 describe("metersToMiles", () => {
@@ -114,5 +115,32 @@ describe("reconcileTankFill (advisory)", () => {
   it("returns null when capacity or a reading is missing", () => {
     expect(reconcileTankFill({ gallonsBilled: 90, pctBefore: null, pctAfter: 95, tankCapacityGal: 120 })).toBeNull();
     expect(reconcileTankFill({ gallonsBilled: 90, pctBefore: 21, pctAfter: 95, tankCapacityGal: null })).toBeNull();
+  });
+});
+
+describe("parseSamsaraVehicles", () => {
+  it("maps identity fields and coerces the year to a number", () => {
+    const v = parseSamsaraVehicles({
+      data: [
+        { id: "212014918732717", name: "T-101", vin: "JTMBK32V895081147", make: "Freightliner", model: "Cascadia", year: "2021", licensePlate: "SIL101" },
+      ],
+    });
+    expect(v).toHaveLength(1);
+    expect(v[0]).toEqual({
+      samsaraId: "212014918732717",
+      name: "T-101",
+      vin: "JTMBK32V895081147",
+      make: "Freightliner",
+      model: "Cascadia",
+      year: 2021,
+      licensePlate: "SIL101",
+    });
+  });
+  it("skips entries with no id and blanks empty fields; falls back name→id", () => {
+    const v = parseSamsaraVehicles({ data: [{ id: "", name: "x" }, { id: "9", name: "  ", vin: "", year: "n/a" }] });
+    expect(v).toHaveLength(1);
+    expect(v[0]!.name).toBe("9"); // no usable name → falls back to the id
+    expect(v[0]!.vin).toBeNull();
+    expect(v[0]!.year).toBeNull();
   });
 });

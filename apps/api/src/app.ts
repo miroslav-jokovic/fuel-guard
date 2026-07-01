@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -11,6 +14,7 @@ import { invitesRouter } from "./routes/invites.js";
 import { transactionsRouter } from "./routes/transactions.js";
 import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
+import { integrationsRouter } from "./routes/integrations.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -21,7 +25,26 @@ export function createApp(env: Env): Express {
   setAppLocals(app, { env });
   app.set("trust proxy", 1); // Railway runs behind a proxy
 
-  app.use(helmet());
+  // CSP tuned for the single-service deploy where this server also serves the SPA: the browser talks
+  // directly to Supabase (REST + realtime websockets + storage images), so those origins must be
+  // allowed in connect/img. Harmless for API-only responses (JSON carries no CSP-restricted content).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
+          connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co"],
+          fontSrc: ["'self'", "data:"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          frameAncestors: ["'self'"],
+        },
+      },
+    }),
+  );
   app.use(cors({ origin: env.ALLOWED_ORIGINS, credentials: true }));
   app.use(express.json({ limit: "1mb" }));
 
@@ -31,6 +54,7 @@ export function createApp(env: Env): Express {
   app.use("/api", apiLimiter);
   app.use("/api/invites", strictLimiter);
   app.use("/api/reports", strictLimiter);
+  app.use("/api/integrations", strictLimiter);
 
   app.get("/healthz", (_req: Request, res: Response) => {
     res.json({ status: "ok", service: `${APP_NAME} API`, env: env.NODE_ENV });
@@ -50,6 +74,20 @@ export function createApp(env: Env): Express {
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());
+  app.use("/api/integrations", integrationsRouter());
+
+  // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────
+  // Only when the build output exists, so API-only/dev runs and tests are unaffected.
+  const here = path.dirname(fileURLToPath(import.meta.url)); // apps/api/src
+  const webDist = env.WEB_DIST ?? path.resolve(here, "../../web/dist");
+  if (fs.existsSync(path.join(webDist, "index.html"))) {
+    app.use(express.static(webDist));
+    // SPA history fallback: any non-API GET that isn't a real file returns index.html so the
+    // client-side router can take over (deep links, refreshes).
+    app.get(/^\/(?!api\/|healthz).*/, (_req: Request, res: Response) => {
+      res.sendFile(path.join(webDist, "index.html"));
+    });
+  }
 
   // Structured error handler — never echo upstream errors verbatim (audit L8).
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

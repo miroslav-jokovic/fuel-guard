@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 
-const API_URL = import.meta.env.VITE_API_URL;
+// Same-origin by default (single-service deploy): paths already include `/api`, so "" → "/api/…".
+// Set VITE_API_URL only when the API lives on a different origin (split-service deploy).
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 export interface ApiResult<T> {
   ok: boolean;

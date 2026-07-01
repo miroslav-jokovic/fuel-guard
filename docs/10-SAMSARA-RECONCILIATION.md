@@ -135,7 +135,34 @@ flag); a 21%→40% rise on a 90-gal bill reads ~23 gal → ~67 gal short → fla
 
 ---
 
+## 9. Fleet vehicle sync (Samsara → `vehicles`, Phase 8.9)
+
+Rather than hand-typing each truck (and its Samsara ID), admins can **Sync from Samsara** on the
+Vehicles page. It calls `POST /api/integrations/samsara/sync-vehicles`, which pages through Samsara
+**`GET /fleet/vehicles`** and upserts each vehicle.
+
+- **Trucks only, never trailers.** `/fleet/vehicles` returns *powered* vehicles; trailers and other
+  unpowered assets live in the separate (beta) `/assets` API, so this endpoint can't pull them.
+- **Matching precedence:** `samsara_vehicle_id` → VIN → unit number. A match refreshes identity
+  (make/model/year/plate/VIN) and stamps `samsara_vehicle_id`, but **never overwrites** user-owned
+  fields (unit number, **tank capacity**, **baseline MPG**, fuel type).
+- **Auto-links telematics.** The Samsara `id` becomes `samsara_vehicle_id`, so odometer/location/tank
+  reconciliation works without anyone copying IDs.
+- **Fields Samsara doesn't have** — tank capacity and baseline MPG — are left for the admin. New
+  trucks are created with tank capacity 0 / no baseline and returned in `needsCompletion` so the UI
+  can prompt "set these before importing fuel."
+- Cursor pagination (`after` → `pagination.endCursor`/`hasNextPage`, 512/page); token from
+  `integration_credentials` or the `SAMSARA_API_TOKEN` fallback; admin-only + audited.
+
+> Note the unit-number tie-in: EFS fuel lines link to a truck by **Unit**, so a synced vehicle's
+> `unit_number` (from Samsara's `name`) must match the EFS "Unit" value for fuel to attribute.
+
+---
+
 ## Sources
+- [Samsara — List all vehicles (`GET /fleet/vehicles`, powered vehicles only)](https://developers.samsara.com/reference/listvehicles)
+- [Samsara — Assets: Vehicles, Trailers, and Equipment (why trailers are separate)](https://developers.samsara.com/docs/assets-vehicles-trailers-equipment)
+- [Samsara — Pagination (`after` / `endCursor` / `hasNextPage`)](https://developers.samsara.com/docs/pagination)
 - [Samsara — Historical vehicle stats (`/fleet/vehicles/stats/history`)](https://developers.samsara.com/reference/getvehiclestatshistory)
 - [Samsara — Vehicle Stat APIs (recent / history / feed)](https://developers.samsara.com/changelog/vehicle-stat-apis)
 - [Samsara — Mileage and distance (obdOdometerMeters / gpsOdometerMeters)](https://developers.samsara.com/docs/mileage-and-distance)

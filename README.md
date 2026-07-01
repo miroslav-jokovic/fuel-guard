@@ -128,7 +128,16 @@ Only `VITE_`-prefixed, non-secret values ever reach the browser bundle.
   Rejections (search + unit + date), date-range on Fuel Log / Transactions, rule filter on Anomalies.
   Verified: 147 tests (128 shared / 10 api / 9 web), 27/27 RLS matrix, typecheck/lint/build green.
 
-**MVP complete (Phases 0–8.8).** Remaining: Phase 9 — deploy to Railway + prod Supabase.
+- **Phase 8.9 — Samsara fleet sync + deploy prep:** ✅ (docs/10 §9, docs/11) **Sync from Samsara**
+  on the Vehicles page pulls *powered vehicles only* (`GET /fleet/vehicles` — trailers excluded),
+  upserts by `samsara_vehicle_id`→VIN→unit without clobbering tank/MPG, and auto-fills the telematics
+  link. Admin-only + audited (`POST /api/integrations/samsara/sync-vehicles`). Deploy prep: single
+  Railway service (API serves the built SPA, CSP tuned for Supabase), `railway.json`, and a full
+  deployment guide + auto-migrate GitHub Action. Verified: 149 tests (130 shared / 10 api / 9 web),
+  27/27 RLS matrix, production build smoke-tested, typecheck/lint/build green.
+
+**MVP complete (Phases 0–8.9).** Remaining: Phase 9 — deploy to Railway + prod Supabase (guide in
+`docs/11-DEPLOYMENT.md`; single-service Option A is wired and ready).
 
 > To activate Samsara: set the API token (per-org `integration_credentials` or `SAMSARA_API_TOKEN`)
 > and map each vehicle's `samsara_vehicle_id`. The deterministic rules run with or without it.

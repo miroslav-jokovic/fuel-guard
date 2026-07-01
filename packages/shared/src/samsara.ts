@@ -209,6 +209,58 @@ export function reconcileTankFill(args: {
   return { observedRiseGal, shortGal, short: shortGal > toleranceGal, toleranceGal };
 }
 
+// ---------------------------------------------------------------------------
+// Fleet vehicle sync (Samsara GET /fleet/vehicles)
+//
+// `/fleet/vehicles` returns POWERED vehicles only (trucks/tractors) — trailers and other unpowered
+// assets live in the separate /assets API, so this endpoint never pulls trailers. We map each Samsara
+// vehicle's identity into our `vehicles` table and, crucially, capture its Samsara `id` as
+// `samsara_vehicle_id` so telematics reconciliation links up automatically.
+// ---------------------------------------------------------------------------
+
+interface RawSamsaraVehicle {
+  id?: string;
+  name?: string;
+  vin?: string;
+  make?: string;
+  model?: string;
+  year?: string | number;
+  licensePlate?: string;
+}
+
+export interface SamsaraVehicle {
+  samsaraId: string;
+  name: string; // Samsara display name — usually the unit number
+  vin: string | null;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  licensePlate: string | null;
+}
+
+const clean = (s: string | undefined): string | null => {
+  const t = s?.trim();
+  return t ? t : null;
+};
+
+/** Parse a Samsara `/fleet/vehicles` list response (one or more pages merged) into vehicle identities. */
+export function parseSamsaraVehicles(response: { data?: RawSamsaraVehicle[] }): SamsaraVehicle[] {
+  return (response.data ?? [])
+    .filter((v) => v.id != null && String(v.id).trim() !== "")
+    .map((v) => {
+      const yr = v.year != null ? parseInt(String(v.year), 10) : NaN;
+      return {
+        samsaraId: String(v.id),
+        name: clean(v.name) ?? String(v.id),
+        vin: clean(v.vin),
+        make: clean(v.make),
+        model: clean(v.model),
+        year: Number.isFinite(yr) ? yr : null,
+        licensePlate: clean(v.licensePlate),
+      };
+    });
+}
+
 /** Distance (mi) between the EFS station coords (if known) and the matched Samsara point. */
 export function locationDistanceMiles(
   efs: { lat: number | null; lng: number | null },

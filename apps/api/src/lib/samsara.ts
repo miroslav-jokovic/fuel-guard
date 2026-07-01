@@ -25,3 +25,31 @@ export function makeSamsaraFetcher(env: Env, token: string): SamsaraFetcher {
     return res.json();
   };
 }
+
+/** Lists every POWERED vehicle (trucks only — trailers are separate /assets) for the org. */
+export type SamsaraVehicleLister = () => Promise<unknown[]>;
+
+/**
+ * Fetch all pages of Samsara `GET /fleet/vehicles`, following the `after` cursor until `hasNextPage`
+ * is false. Returns the merged `data` array of raw vehicle objects (parsed in shared).
+ */
+export function makeSamsaraVehicleLister(env: Env, token: string): SamsaraVehicleLister {
+  return async () => {
+    const out: unknown[] = [];
+    let after: string | undefined;
+    do {
+      const url = new URL("/fleet/vehicles", env.SAMSARA_API_URL);
+      url.searchParams.set("limit", "512");
+      if (after) url.searchParams.set("after", after);
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+      const json = (await res.json()) as {
+        data?: unknown[];
+        pagination?: { endCursor?: string; hasNextPage?: boolean };
+      };
+      if (Array.isArray(json.data)) out.push(...json.data);
+      after = json.pagination?.hasNextPage ? json.pagination.endCursor : undefined;
+    } while (after);
+    return out;
+  };
+}
