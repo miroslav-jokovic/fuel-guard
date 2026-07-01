@@ -17,9 +17,9 @@ export function integrationsRouter(): Router {
     requireRole("admin"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
-      const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       try {
+        const admin = getSupabaseAdmin(env);
         const result = await syncVehiclesFromSamsara(admin, env, orgId);
         await writeAudit(admin, {
           orgId,

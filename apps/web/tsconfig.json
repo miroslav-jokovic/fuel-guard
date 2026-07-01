@@ -8,7 +8,9 @@
     "types": ["node", "vite/client"],
     "jsx": "preserve",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@fuelguard/shared": ["../../packages/shared/src/index.ts"],
+      "@fuelguard/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts", "vite.config.ts", "vitest.config.ts"],
