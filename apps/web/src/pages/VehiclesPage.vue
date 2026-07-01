@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { PlusIcon, ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
 import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
@@ -11,9 +11,11 @@ import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
 import { useToastStore } from "@/stores/toast";
 
+const PAGE_SIZE = 20;
 const session = useSessionStore();
 const { data: vehicles, isLoading, isError, error, refetch, isFetching } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
@@ -35,6 +37,10 @@ const filtered = computed(() => {
       .some((f) => f!.toLowerCase().includes(term));
   });
 });
+
+const page = ref(1);
+watch([search, statusFilter], () => (page.value = 1));
+const pageRows = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const createVehicle = useCreateVehicle();
 const updateVehicle = useUpdateVehicle();
 const retireVehicle = useRetireVehicle();
@@ -124,7 +130,7 @@ async function onRetire(v: Vehicle) {
         <SearchInput v-model="search" placeholder="Search unit, make, model, plate, VIN…" />
       </div>
       <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-44" />
-      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} shown</span>
+      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} total</span>
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
@@ -155,7 +161,7 @@ async function onRetire(v: Vehicle) {
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="v in filtered" :key="v.id">
+          <tr v-for="v in pageRows" :key="v.id">
             <td class="px-6 py-3 font-medium">
               <RouterLink :to="`/vehicles/${v.id}`" class="text-indigo-600 hover:text-indigo-500">{{ v.unit_number }}</RouterLink>
             </td>
@@ -182,6 +188,13 @@ async function onRetire(v: Vehicle) {
           </tr>
         </tbody>
       </table>
+      <TablePagination
+        v-if="!isLoading && !isError && filtered.length > 0"
+        :page="page"
+        :page-size="PAGE_SIZE"
+        :total="filtered.length"
+        @update:page="page = $event"
+      />
     </div>
 
     <SlideOver :open="drawerOpen" :title="editing ? 'Edit vehicle' : 'New vehicle'" @close="drawerOpen = false">

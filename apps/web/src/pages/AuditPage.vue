@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, watch } from "vue";
 import { useAuditQuery, type AuditFilters } from "@/features/audit/useAudit";
+import TablePagination from "@/components/TablePagination.vue";
 
+const PAGE_SIZE = 20;
 const filters = ref<AuditFilters>({});
 const actionInput = ref("");
 const { data: logs, isLoading, isError, error } = useAuditQuery(filters);
+
+const page = ref(1);
+watch(filters, () => (page.value = 1), { deep: true });
+const total = computed(() => logs.value?.length ?? 0);
+const pageRows = computed(() => (logs.value ?? []).slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 function applyFilter() {
   filters.value = { action: actionInput.value.trim() || undefined };
@@ -45,7 +52,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="l in logs" :key="l.id">
+          <tr v-for="l in pageRows" :key="l.id">
             <td class="px-6 py-3 whitespace-nowrap text-gray-500">{{ fmt(l.created_at) }}</td>
             <td class="px-6 py-3 font-mono text-xs text-gray-900">{{ l.action }}</td>
             <td class="px-6 py-3 text-gray-700">{{ l.entity ?? "—" }}</td>
@@ -53,6 +60,13 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
           </tr>
         </tbody>
       </table>
+      <TablePagination
+        v-if="!isLoading && !isError && total > 0"
+        :page="page"
+        :page-size="PAGE_SIZE"
+        :total="total"
+        @update:page="page = $event"
+      />
     </div>
   </div>
 </template>

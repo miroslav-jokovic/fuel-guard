@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { PlusIcon } from "@heroicons/vue/20/solid";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
@@ -11,8 +11,11 @@ import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import DriverForm from "@/features/fleet/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
+
+const PAGE_SIZE = 20;
 
 const session = useSessionStore();
 const { data: drivers, isLoading, isError, error, refetch, isFetching } = useDriversQuery();
@@ -43,6 +46,10 @@ const filtered = computed(() => {
       .some((f) => f!.toLowerCase().includes(term));
   });
 });
+
+const page = ref(1);
+watch([search, statusFilter], () => (page.value = 1));
+const pageRows = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 // Vehicles assigned to a driver (assignment is set from the Vehicles page).
 const assignedUnits = (driverId: string) =>
@@ -92,7 +99,7 @@ async function onSubmit(input: DriverInput) {
         <SearchInput v-model="search" placeholder="Search name, employee ID, phone…" />
       </div>
       <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-44" />
-      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} shown</span>
+      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} total</span>
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
@@ -121,7 +128,7 @@ async function onSubmit(input: DriverInput) {
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="d in filtered" :key="d.id">
+          <tr v-for="d in pageRows" :key="d.id">
             <td class="px-6 py-3 font-medium text-gray-900">{{ d.full_name }}</td>
             <td class="px-6 py-3 text-gray-700">{{ d.employee_id ?? "—" }}</td>
             <td class="px-6 py-3 text-gray-700">{{ d.phone ?? "—" }}</td>
@@ -139,6 +146,13 @@ async function onSubmit(input: DriverInput) {
           </tr>
         </tbody>
       </table>
+      <TablePagination
+        v-if="!isLoading && !isError && filtered.length > 0"
+        :page="page"
+        :page-size="PAGE_SIZE"
+        :total="filtered.length"
+        @update:page="page = $event"
+      />
     </div>
 
     <SlideOver :open="drawerOpen" :title="editing ? 'Edit driver' : 'New driver'" @close="drawerOpen = false">

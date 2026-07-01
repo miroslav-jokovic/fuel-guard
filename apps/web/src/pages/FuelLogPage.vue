@@ -1,22 +1,24 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { PlusIcon } from "@heroicons/vue/20/solid";
 import type { FillUpInput } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useFuelTransactions, useCreateFillUp, type FuelFilters } from "@/features/fuel/useFuelLog";
+import { useFuelTransactions, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import { useToastStore } from "@/stores/toast";
 
 const { data: vehicles } = useVehiclesQuery();
 
 const filters = ref<FuelFilters>({});
-const { data, isLoading, isError, error, refetch, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
-  useFuelTransactions(filters);
+const page = ref(1);
+watch(filters, () => (page.value = 1), { deep: true });
+const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
 
 // Date inputs emit YYYY-MM-DD; make `to` inclusive of the whole day for the timestamped column.
 const fromDate = computed(() => filters.value.from?.slice(0, 10));
@@ -25,7 +27,8 @@ const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, 
 const setTo = (v: string | undefined) =>
   (filters.value = { ...filters.value, to: v ? `${v}T23:59:59` : undefined });
 
-const rows = computed(() => data.value?.pages.flat() ?? []);
+const rows = computed(() => data.value?.rows ?? []);
+const total = computed(() => data.value?.total ?? 0);
 
 const vehicleLabel = (id: string | null) =>
   id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "Unattributed";
@@ -118,15 +121,14 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
           </tr>
         </tbody>
       </table>
-      <div v-if="hasNextPage" class="border-t border-gray-100 px-6 py-3 text-center">
-        <button
-          class="text-sm font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-50"
-          :disabled="isFetchingNextPage"
-          @click="fetchNextPage()"
-        >
-          {{ isFetchingNextPage ? "Loading…" : "Load more" }}
-        </button>
-      </div>
+      <TablePagination
+        v-if="!isLoading && !isError && total > 0"
+        :page="page"
+        :page-size="FUEL_PAGE_SIZE"
+        :total="total"
+        :loading="isFetching"
+        @update:page="page = $event"
+      />
     </div>
 
     <SlideOver :open="drawerOpen" title="Log fill-up" @close="drawerOpen = false">

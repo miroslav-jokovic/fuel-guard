@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useEfsTransactions, type EfsFilters } from "@/features/reports/useEfsData";
+import { useEfsTransactions, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
+import TablePagination from "@/components/TablePagination.vue";
 
 const { data: vehicles } = useVehiclesQuery();
 const filters = ref<EfsFilters>({});
-const { data, isLoading, isError, error, refetch, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
-  useEfsTransactions(filters);
+const page = ref(1);
+watch(filters, () => (page.value = 1), { deep: true });
+
+const { data, isLoading, isError, error, refetch, isFetching } = useEfsTransactions(filters, page);
 
 const search = computed({
   get: () => filters.value.search ?? "",
@@ -20,7 +23,8 @@ const search = computed({
 const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
 const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
 
-const rows = computed(() => data.value?.pages.flat() ?? []);
+const rows = computed(() => data.value?.rows ?? []);
+const total = computed(() => data.value?.total ?? 0);
 const num = (v: number | null) => (v == null ? "" : v);
 </script>
 
@@ -43,7 +47,7 @@ const num = (v: number | null) => (v == null ? "" : v);
         ]"
       />
       <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
-      <span class="text-sm text-gray-500 lg:ml-auto">{{ rows.length }} loaded</span>
+      <span class="text-sm text-gray-500 lg:ml-auto">{{ total }} total</span>
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
@@ -101,15 +105,14 @@ const num = (v: number | null) => (v == null ? "" : v);
           </tbody>
         </table>
       </div>
-      <div v-if="hasNextPage" class="border-t border-gray-100 px-6 py-3 text-center">
-        <button
-          class="text-sm font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-50"
-          :disabled="isFetchingNextPage"
-          @click="fetchNextPage()"
-        >
-          {{ isFetchingNextPage ? "Loading…" : "Load more" }}
-        </button>
-      </div>
+      <TablePagination
+        v-if="!isLoading && !isError && total > 0"
+        :page="page"
+        :page-size="EFS_PAGE_SIZE"
+        :total="total"
+        :loading="isFetching"
+        @update:page="page = $event"
+      />
     </div>
   </div>
 </template>

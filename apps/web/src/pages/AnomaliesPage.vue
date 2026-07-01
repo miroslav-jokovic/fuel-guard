@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { ANOMALY_SEVERITIES, RULE_IDS, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useAnomaliesQuery, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
@@ -8,10 +8,17 @@ import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
+import TablePagination from "@/components/TablePagination.vue";
 
+const PAGE_SIZE = 20;
 const { data: vehicles } = useVehiclesQuery();
 const filters = ref<AnomalyFilters>({ status: "open" });
 const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
+
+const page = ref(1);
+watch(filters, () => (page.value = 1), { deep: true });
+const total = computed(() => anomalies.value?.length ?? 0);
+const pageRows = computed(() => (anomalies.value ?? []).slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const ruleOptions = [
   { value: undefined, label: "All rules" },
@@ -33,7 +40,6 @@ const sevBadge = (s: string) =>
         : "bg-gray-100 text-gray-600";
 
 const fmt = (iso: string) => new Date(iso).toLocaleDateString();
-const openCount = computed(() => anomalies.value?.length ?? 0);
 </script>
 
 <template>
@@ -64,7 +70,7 @@ const openCount = computed(() => anomalies.value?.length ?? 0);
         ]"
       />
       <AppSelect v-model="filters.ruleId" :options="ruleOptions" />
-      <span class="ml-auto text-sm text-gray-500">{{ openCount }} shown</span>
+      <span class="ml-auto text-sm text-gray-500">{{ total }} total</span>
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
@@ -90,7 +96,7 @@ const openCount = computed(() => anomalies.value?.length ?? 0);
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="a in anomalies" :key="a.id" class="cursor-pointer hover:bg-gray-50" @click="selected = a">
+          <tr v-for="a in pageRows" :key="a.id" class="cursor-pointer hover:bg-gray-50" @click="selected = a">
             <td class="px-6 py-3">
               <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize', sevBadge(a.severity)]">{{ a.severity }}</span>
             </td>
@@ -102,6 +108,13 @@ const openCount = computed(() => anomalies.value?.length ?? 0);
           </tr>
         </tbody>
       </table>
+      <TablePagination
+        v-if="!isLoading && !isError && total > 0"
+        :page="page"
+        :page-size="PAGE_SIZE"
+        :total="total"
+        @update:page="page = $event"
+      />
     </div>
 
     <SlideOver :open="!!selected" title="Anomaly" @close="selected = null">
