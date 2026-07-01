@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
 import {
   HomeIcon,
   TruckIcon,
@@ -13,6 +14,9 @@ import {
   ArrowUpTrayIcon,
   TableCellsIcon,
   NoSymbolIcon,
+  Bars3Icon,
+  XMarkIcon,
+  ArrowLeftOnRectangleIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
@@ -52,7 +56,35 @@ const navigation = computed<NavItem[]>(() =>
   ].filter((i) => i.show),
 );
 
-const isCurrent = (to: string) => (to === "/" ? route.path === "/" : route.path.startsWith(to));
+// Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching
+// is appropriate. If the current path IS an explicit nav item, only exact matches win; this
+// prevents /settings/users from simultaneously highlighting both "Settings" and "Users".
+const navPathSet = computed(() => new Set(navigation.value.map((i) => i.to)));
+
+/**
+ * Returns true when the nav item at `to` should be marked active:
+ *  - Exact match always wins.
+ *  - Prefix match (e.g. /vehicles → /vehicles/abc) only applies when the current path
+ *    is NOT itself an explicit nav item, so /settings/users never lights up /settings too.
+ */
+const isCurrent = (to: string): boolean => {
+  if (to === "/") return route.path === "/";
+  if (route.path === to) return true;
+  if (!navPathSet.value.has(route.path)) return route.path.startsWith(to + "/");
+  return false;
+};
+
+const navLinkClass = (to: string) => [
+  isCurrent(to) ? "bg-gray-800 text-white" : "text-gray-400 hover:bg-gray-800 hover:text-white",
+  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 transition-colors",
+];
+
+// Avatar initials from email (first char, uppercased).
+const avatarLetter = computed(() => (session.email ?? "?")[0]?.toUpperCase() ?? "?");
+
+// Mobile sidebar drawer state; auto-close on navigation.
+const mobileOpen = ref(false);
+watch(() => route.path, () => (mobileOpen.value = false));
 
 async function signOut() {
   await session.signOut();
@@ -62,51 +94,162 @@ async function signOut() {
 
 <template>
   <div class="min-h-full">
+    <!-- ── Mobile sidebar drawer (below lg) ─────────────────────────────── -->
+    <TransitionRoot as="template" :show="mobileOpen">
+      <Dialog class="relative z-50 lg:hidden" @close="mobileOpen = false">
+        <TransitionChild
+          as="template"
+          enter="transition-opacity ease-linear duration-300"
+          enter-from="opacity-0"
+          enter-to="opacity-100"
+          leave="transition-opacity ease-linear duration-300"
+          leave-from="opacity-100"
+          leave-to="opacity-0"
+        >
+          <div class="fixed inset-0 bg-gray-900/80" />
+        </TransitionChild>
+        <div class="fixed inset-0 flex">
+          <TransitionChild
+            as="template"
+            enter="transition ease-in-out duration-300 transform"
+            enter-from="-translate-x-full"
+            enter-to="translate-x-0"
+            leave="transition ease-in-out duration-300 transform"
+            leave-from="translate-x-0"
+            leave-to="-translate-x-full"
+          >
+            <DialogPanel class="relative mr-16 flex w-full max-w-xs flex-1">
+              <div class="absolute top-0 left-full flex w-16 justify-center pt-5">
+                <button type="button" class="-m-2.5 p-2.5" @click="mobileOpen = false">
+                  <span class="sr-only">Close sidebar</span>
+                  <XMarkIcon class="size-6 text-white" aria-hidden="true" />
+                </button>
+              </div>
+              <div class="flex grow flex-col overflow-y-auto bg-gray-900 px-6 pb-4">
+                <div class="flex h-16 shrink-0 items-center gap-x-3">
+                  <AppLogo class="size-9" />
+                  <span class="text-lg font-semibold tracking-tight text-white">FuelGuard</span>
+                </div>
+                <nav class="flex flex-1 flex-col">
+                  <ul role="list" class="-mx-2 space-y-1">
+                    <li v-for="item in navigation" :key="item.name">
+                      <RouterLink
+                        :to="item.to"
+                        :class="navLinkClass(item.to)"
+                        :aria-current="isCurrent(item.to) ? 'page' : undefined"
+                      >
+                        <component :is="item.icon" class="size-6 shrink-0" aria-hidden="true" />
+                        {{ item.name }}
+                      </RouterLink>
+                    </li>
+                  </ul>
+                </nav>
+                <!-- User section at the bottom of mobile drawer -->
+                <div class="mt-auto border-t border-gray-700 pt-4">
+                  <div class="flex items-center gap-x-3">
+                    <div
+                      class="flex size-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white"
+                      aria-hidden="true"
+                    >
+                      {{ avatarLetter }}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-medium text-white">{{ session.email }}</p>
+                      <p v-if="session.role" class="text-xs capitalize text-gray-400">{{ session.role }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      class="-m-1.5 p-1.5 text-gray-400 transition-colors hover:text-white"
+                      title="Sign out"
+                      @click="signOut"
+                    >
+                      <ArrowLeftOnRectangleIcon class="size-5" aria-hidden="true" />
+                      <span class="sr-only">Sign out</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </DialogPanel>
+          </TransitionChild>
+        </div>
+      </Dialog>
+    </TransitionRoot>
+
+    <!-- ── Desktop sidebar (lg+, fixed) ─────────────────────────────────── -->
     <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
-      <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900 px-6 pb-4">
+      <div class="flex grow flex-col overflow-y-auto bg-gray-900 px-6 pb-4">
         <div class="flex h-16 shrink-0 items-center gap-x-3">
           <AppLogo class="size-9" />
           <span class="text-lg font-semibold tracking-tight text-white">FuelGuard</span>
         </div>
         <nav class="flex flex-1 flex-col">
-          <ul role="list" class="flex flex-1 flex-col gap-y-7">
-            <li>
-              <ul role="list" class="-mx-2 space-y-1">
-                <li v-for="item in navigation" :key="item.name">
-                  <RouterLink
-                    :to="item.to"
-                    :class="[
-                      isCurrent(item.to)
-                        ? 'bg-gray-800 text-white'
-                        : 'text-gray-400 hover:bg-gray-800 hover:text-white',
-                      'group flex gap-x-3 rounded-md p-2 text-sm font-semibold',
-                    ]"
-                  >
-                    <component :is="item.icon" class="size-6 shrink-0" aria-hidden="true" />
-                    {{ item.name }}
-                  </RouterLink>
-                </li>
-              </ul>
+          <ul role="list" class="-mx-2 space-y-1">
+            <li v-for="item in navigation" :key="item.name">
+              <RouterLink
+                :to="item.to"
+                :class="navLinkClass(item.to)"
+                :aria-current="isCurrent(item.to) ? 'page' : undefined"
+              >
+                <component :is="item.icon" class="size-6 shrink-0" aria-hidden="true" />
+                {{ item.name }}
+              </RouterLink>
             </li>
           </ul>
         </nav>
+        <!-- User section at the bottom of the desktop sidebar -->
+        <div class="mt-auto border-t border-gray-700 pt-4">
+          <div class="flex items-center gap-x-3">
+            <div
+              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white"
+              aria-hidden="true"
+            >
+              {{ avatarLetter }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-white">{{ session.email }}</p>
+              <p v-if="session.role" class="text-xs capitalize text-gray-400">{{ session.role }}</p>
+            </div>
+            <button
+              type="button"
+              class="-m-1.5 p-1.5 text-gray-400 transition-colors hover:text-white"
+              title="Sign out"
+              @click="signOut"
+            >
+              <ArrowLeftOnRectangleIcon class="size-5" aria-hidden="true" />
+              <span class="sr-only">Sign out</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
+    <!-- ── Main content area ─────────────────────────────────────────────── -->
     <div class="lg:pl-64">
+      <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
-        class="flex h-16 shrink-0 items-center justify-between gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:px-6 lg:px-8"
+        class="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:px-6 lg:px-8"
       >
-        <h1 class="text-base font-semibold text-gray-900">
-          {{ (route.meta.title as string) ?? "FuelGuard" }}
-        </h1>
+        <div class="flex items-center gap-x-3">
+          <button
+            type="button"
+            class="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+            @click="mobileOpen = true"
+          >
+            <span class="sr-only">Open sidebar</span>
+            <Bars3Icon class="size-6" aria-hidden="true" />
+          </button>
+          <h1 class="text-base font-semibold text-gray-900">
+            {{ (route.meta.title as string) ?? "FuelGuard" }}
+          </h1>
+        </div>
         <div class="flex items-center gap-x-4">
           <span class="hidden text-sm text-gray-500 sm:inline">
             {{ session.email }}
-            <span v-if="session.role" class="ml-1 text-gray-400">· {{ session.role }}</span>
+            <span v-if="session.role" class="ml-1 capitalize text-gray-400">· {{ session.role }}</span>
           </span>
           <button
-            class="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            type="button"
+            class="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
             @click="signOut"
           >
             Sign out
