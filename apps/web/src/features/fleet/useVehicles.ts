@@ -7,6 +7,7 @@ export interface VehicleSyncResult {
   total: number;
   created: number;
   updated: number;
+  assigned: number;
   needsCompletion: string[];
 }
 

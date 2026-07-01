@@ -282,6 +282,51 @@ export interface SamsaraDriver {
   active: boolean;
 }
 
+interface RawAssignment {
+  startTime?: string;
+  endTime?: string;
+  driver?: { id?: string };
+  driverId?: string;
+}
+interface RawAssignmentGroup {
+  vehicle?: { id?: string };
+  id?: string;
+  assignments?: RawAssignment[];
+  driverAssignments?: RawAssignment[];
+}
+
+export interface VehicleDriverLink {
+  vehicleSamsaraId: string;
+  driverSamsaraId: string;
+}
+
+/**
+ * Parse `GET /fleet/driver-vehicle-assignments?filterBy=vehicles` into current vehicle→driver links.
+ * Each group is a vehicle with its assignments; we keep the assignment active at `nowIso` (no endTime,
+ * or an endTime still in the future) with the latest start. Tolerant of the two shapes Samsara returns
+ * (nested `driver.id` or flat `driverId`; `assignments` or `driverAssignments`).
+ */
+export function parseCurrentAssignments(
+  response: { data?: RawAssignmentGroup[] },
+  nowIso: string,
+): VehicleDriverLink[] {
+  const now = new Date(nowIso).getTime();
+  const out: VehicleDriverLink[] = [];
+  for (const g of response.data ?? []) {
+    const vehicleId = g.vehicle?.id ?? g.id;
+    if (!vehicleId) continue;
+    const list = g.assignments ?? g.driverAssignments ?? [];
+    const active = list.filter((a) => !a.endTime || new Date(a.endTime).getTime() >= now);
+    if (active.length === 0) continue;
+    const pick = active.sort(
+      (a, b) => new Date(b.startTime ?? 0).getTime() - new Date(a.startTime ?? 0).getTime(),
+    )[0]!;
+    const driverId = pick.driver?.id ?? pick.driverId;
+    if (driverId) out.push({ vehicleSamsaraId: String(vehicleId), driverSamsaraId: String(driverId) });
+  }
+  return out;
+}
+
 /** Parse a Samsara `/fleet/drivers` list response (pages merged) into driver identities. */
 export function parseSamsaraDrivers(response: { data?: RawSamsaraDriver[] }): SamsaraDriver[] {
   return (response.data ?? [])

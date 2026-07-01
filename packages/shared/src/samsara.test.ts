@@ -10,6 +10,7 @@ import {
   parseSamsaraVehicles,
   parseVehicleStatsOdometer,
   parseSamsaraDrivers,
+  parseCurrentAssignments,
 } from "./index.js";
 
 describe("metersToMiles", () => {
@@ -175,5 +176,42 @@ describe("parseSamsaraDrivers", () => {
     expect(d[0]).toEqual({ samsaraId: "d1", name: "Marcus Reyes", phone: "555-0101", active: true });
     expect(d[1]!.phone).toBeNull();
     expect(d[1]!.active).toBe(false);
+  });
+});
+
+describe("parseCurrentAssignments", () => {
+  const now = "2026-06-30T00:00:00Z";
+  it("keeps the active assignment per vehicle and tolerates both shapes", () => {
+    const links = parseCurrentAssignments(
+      {
+        data: [
+          { vehicle: { id: "v1" }, assignments: [{ driver: { id: "d1" }, startTime: "2026-06-01T00:00:00Z" }] },
+          { vehicle: { id: "v2" }, assignments: [{ driver: { id: "d9" }, startTime: "2020-01-01T00:00:00Z", endTime: "2020-02-01T00:00:00Z" }] },
+          { id: "v3", driverAssignments: [{ driverId: "d3", startTime: "2026-06-02T00:00:00Z" }] },
+        ],
+      },
+      now,
+    );
+    expect(links).toEqual([
+      { vehicleSamsaraId: "v1", driverSamsaraId: "d1" },
+      { vehicleSamsaraId: "v3", driverSamsaraId: "d3" },
+    ]);
+  });
+  it("picks the latest active assignment when several overlap", () => {
+    const links = parseCurrentAssignments(
+      {
+        data: [
+          {
+            vehicle: { id: "v1" },
+            assignments: [
+              { driver: { id: "old" }, startTime: "2026-06-01T00:00:00Z" },
+              { driver: { id: "new" }, startTime: "2026-06-20T00:00:00Z" },
+            ],
+          },
+        ],
+      },
+      now,
+    );
+    expect(links).toEqual([{ vehicleSamsaraId: "v1", driverSamsaraId: "new" }]);
   });
 });

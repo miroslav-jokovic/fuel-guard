@@ -1,18 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseSamsaraVehicles, parseVehicleStatsOdometer, type SamsaraVehicle } from "@fuelguard/shared";
+import {
+  parseSamsaraVehicles,
+  parseVehicleStatsOdometer,
+  parseCurrentAssignments,
+  type SamsaraVehicle,
+} from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import {
   makeSamsaraVehicleLister,
   makeSamsaraOdometerFetcher,
+  makeSamsaraAssignmentFetcher,
   type SamsaraVehicleLister,
   type SamsaraOdometerFetcher,
+  type SamsaraAssignmentFetcher,
 } from "../lib/samsara.js";
 
 export interface VehicleSyncResult {
   total: number; // vehicles returned by Samsara
   created: number; // new rows inserted
   updated: number; // existing rows matched + refreshed
+  assigned: number; // vehicles whose driver assignment was pulled from Samsara
   needsCompletion: string[]; // unit numbers of NEW vehicles missing tank capacity / baseline MPG
 }
 
@@ -43,6 +51,7 @@ export async function syncVehiclesFromSamsara(
   orgId: string,
   listerOverride?: SamsaraVehicleLister,
   odometerOverride?: SamsaraOdometerFetcher,
+  assignmentOverride?: SamsaraAssignmentFetcher,
 ): Promise<VehicleSyncResult> {
   const token = listerOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
@@ -72,7 +81,7 @@ export async function syncVehiclesFromSamsara(
   const byVin = new Map(existing.filter((r) => r.vin).map((r) => [r.vin!.toUpperCase(), r]));
   const byUnit = new Map(existing.map((r) => [r.unit_number, r]));
 
-  const result: VehicleSyncResult = { total: vehicles.length, created: 0, updated: 0, needsCompletion: [] };
+  const result: VehicleSyncResult = { total: vehicles.length, created: 0, updated: 0, assigned: 0, needsCompletion: [] };
 
   for (const sv of vehicles) {
     const identity = { make: sv.make, model: sv.model, year: sv.year, plate: sv.licensePlate, vin: sv.vin };
@@ -121,6 +130,35 @@ export async function syncVehiclesFromSamsara(
     }
     result.created++;
     result.needsCompletion.push(unit);
+  }
+
+  // ── Driver assignments: pull each truck's current driver and set assigned_driver_id ──────────
+  // Best-effort: needs drivers synced first (so they carry samsara_driver_id) + the "Read Assignments"
+  // token scope. Any failure here leaves identity/odometer sync intact.
+  try {
+    const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token);
+    const links = parseCurrentAssignments(
+      (await fetcher()) as Parameters<typeof parseCurrentAssignments>[0],
+      new Date().toISOString(),
+    );
+    if (links.length) {
+      const [{ data: vRows }, { data: dRows }] = await Promise.all([
+        admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).not("samsara_vehicle_id", "is", null),
+        admin.from("drivers").select("id, samsara_driver_id").eq("org_id", orgId).not("samsara_driver_id", "is", null),
+      ]);
+      const vehById = new Map((vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]));
+      const drvById = new Map((dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]));
+      for (const link of links) {
+        const vehId = vehById.get(link.vehicleSamsaraId);
+        const drvId = drvById.get(link.driverSamsaraId);
+        if (vehId && drvId) {
+          await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", vehId).eq("org_id", orgId);
+          result.assigned++;
+        }
+      }
+    }
+  } catch {
+    /* assignments are best-effort */
   }
 
   return result;

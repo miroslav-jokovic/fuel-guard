@@ -79,3 +79,18 @@ export type SamsaraDriverLister = () => Promise<unknown[]>;
 export function makeSamsaraDriverLister(env: Env, token: string): SamsaraDriverLister {
   return () => listAllPages(env, token, "/fleet/drivers");
 }
+
+/** Fetches current driver↔vehicle assignments (grouped by vehicle). */
+export type SamsaraAssignmentFetcher = () => Promise<{ data?: unknown[] }>;
+
+export function makeSamsaraAssignmentFetcher(env: Env, token: string): SamsaraAssignmentFetcher {
+  return async () => {
+    const now = new Date().toISOString();
+    const data = await listAllPages(env, token, "/fleet/driver-vehicle-assignments", {
+      filterBy: "vehicles",
+      startTime: now,
+      endTime: now,
+    });
+    return { data };
+  };
+}

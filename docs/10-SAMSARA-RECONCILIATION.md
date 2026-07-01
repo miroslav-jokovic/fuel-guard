@@ -175,6 +175,20 @@ is only written when Samsara actually returns a reading (never overwritten with 
 drivers from `GET /fleet/drivers`, upserting by `samsara_driver_id` → phone → name. It fills name, phone,
 and `samsara_driver_id` (migration 0015); `employee_id` and status stay user-owned. Admin-only + audited.
 
+### Driver ↔ vehicle assignment
+
+The vehicle sync also pulls **current driver assignments** from
+`GET /fleet/driver-vehicle-assignments?filterBy=vehicles` (defaults to "now") and sets each truck's
+`assigned_driver_id`. It matches Samsara vehicle id → `samsara_vehicle_id` and Samsara driver id →
+`samsara_driver_id`, so **drivers must be synced first**. Best-effort: any failure leaves the identity +
+odometer sync intact.
+
+### Required Samsara token scopes
+
+The **Sync from Samsara** buttons need these read scopes on the API token:
+**Read Vehicles**, **Read Vehicle Statistics** (odometer), **Read Drivers**, **Read Assignments**
+(driver↔vehicle). A token missing a scope makes only that part of the sync fail (Samsara returns 403).
+
 ---
 
 ## Sources
