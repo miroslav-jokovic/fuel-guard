@@ -85,11 +85,14 @@ export type SamsaraAssignmentFetcher = () => Promise<{ data?: unknown[] }>;
 
 export function makeSamsaraAssignmentFetcher(env: Env, token: string): SamsaraAssignmentFetcher {
   return async () => {
-    const now = new Date().toISOString();
+    // A window ending now (not a zero-width now→now, which can return nothing). Any assignment active
+    // now overlaps this window; the shared parser keeps only those still active at "now".
+    const end = new Date();
+    const start = new Date(end.getTime() - 24 * 3_600_000);
     const data = await listAllPages(env, token, "/fleet/driver-vehicle-assignments", {
       filterBy: "vehicles",
-      startTime: now,
-      endTime: now,
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
     });
     return { data };
   };

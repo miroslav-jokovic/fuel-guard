@@ -197,6 +197,18 @@ describe("parseCurrentAssignments", () => {
       { vehicleSamsaraId: "v3", driverSamsaraId: "d3" },
     ]);
   });
+  it("handles the flat shape (driver + times on the item itself)", () => {
+    const links = parseCurrentAssignments(
+      {
+        data: [
+          { vehicle: { id: "v4" }, driver: { id: "d4" }, startTime: "2026-06-10T00:00:00Z" },
+          { vehicle: { id: "v5" }, driverId: "d5", startTime: "2019-01-01T00:00:00Z", endTime: "2019-02-01T00:00:00Z" },
+        ],
+      },
+      now,
+    );
+    expect(links).toEqual([{ vehicleSamsaraId: "v4", driverSamsaraId: "d4" }]);
+  });
   it("picks the latest active assignment when several overlap", () => {
     const links = parseCurrentAssignments(
       {

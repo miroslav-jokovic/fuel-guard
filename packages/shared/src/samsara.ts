@@ -288,8 +288,9 @@ interface RawAssignment {
   driver?: { id?: string };
   driverId?: string;
 }
-interface RawAssignmentGroup {
+interface RawAssignmentGroup extends RawAssignment {
   vehicle?: { id?: string };
+  vehicleId?: string;
   id?: string;
   assignments?: RawAssignment[];
   driverAssignments?: RawAssignment[];
@@ -300,11 +301,13 @@ export interface VehicleDriverLink {
   driverSamsaraId: string;
 }
 
+const assignmentDriverId = (a: RawAssignment): string | undefined => a.driver?.id ?? a.driverId;
+
 /**
  * Parse `GET /fleet/driver-vehicle-assignments?filterBy=vehicles` into current vehicle→driver links.
- * Each group is a vehicle with its assignments; we keep the assignment active at `nowIso` (no endTime,
- * or an endTime still in the future) with the latest start. Tolerant of the two shapes Samsara returns
- * (nested `driver.id` or flat `driverId`; `assignments` or `driverAssignments`).
+ * Keeps the assignment active at `nowIso` (no endTime, or an endTime still in the future) with the
+ * latest start. Tolerant of both shapes Samsara may return: a vehicle GROUP with a nested
+ * `assignments`/`driverAssignments` array, or a FLAT row with the driver + times on the item itself.
  */
 export function parseCurrentAssignments(
   response: { data?: RawAssignmentGroup[] },
@@ -313,15 +316,26 @@ export function parseCurrentAssignments(
   const now = new Date(nowIso).getTime();
   const out: VehicleDriverLink[] = [];
   for (const g of response.data ?? []) {
-    const vehicleId = g.vehicle?.id ?? g.id;
+    const nested = g.assignments ?? g.driverAssignments;
+    let vehicleId: string | undefined;
+    let list: RawAssignment[];
+    if (nested) {
+      vehicleId = g.vehicle?.id ?? g.vehicleId ?? g.id; // grouped-by-vehicle: g.id is the vehicle id
+      list = nested;
+    } else if (assignmentDriverId(g)) {
+      vehicleId = g.vehicle?.id ?? g.vehicleId; // flat row: don't treat g.id as a vehicle id
+      list = [g];
+    } else {
+      continue;
+    }
     if (!vehicleId) continue;
-    const list = g.assignments ?? g.driverAssignments ?? [];
+
     const active = list.filter((a) => !a.endTime || new Date(a.endTime).getTime() >= now);
     if (active.length === 0) continue;
     const pick = active.sort(
       (a, b) => new Date(b.startTime ?? 0).getTime() - new Date(a.startTime ?? 0).getTime(),
     )[0]!;
-    const driverId = pick.driver?.id ?? pick.driverId;
+    const driverId = assignmentDriverId(pick);
     if (driverId) out.push({ vehicleSamsaraId: String(vehicleId), driverSamsaraId: String(driverId) });
   }
   return out;
