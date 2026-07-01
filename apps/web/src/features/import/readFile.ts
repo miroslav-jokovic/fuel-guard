@@ -21,11 +21,12 @@ async function readCsv(file: File): Promise<ParsedFile> {
 
   // EFS CSVs sometimes have a title line before the actual header row.
   // Scan the first 8 lines and use the first one that detectReportKind recognises.
+  // Require at least 5 columns — a title row like "Reject Transaction Report" has only 1.
   const lines = text.split(/\r?\n/);
   let headerLineIndex = 0;
   for (let i = 0; i < Math.min(8, lines.length); i++) {
     const cols = lines[i]!.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-    if (detectReportKind(cols) !== "unknown") {
+    if (cols.length >= 5 && detectReportKind(cols) !== "unknown") {
       headerLineIndex = i;
       break;
     }
@@ -51,13 +52,14 @@ async function readXlsx(file: File): Promise<ParsedFile> {
   for (const ws of wb.worksheets) {
     // Scan the first 8 rows looking for a row that detectReportKind accepts.
     // EFS exports often have a title row (e.g. "Transaction Report – June 2026") before headers.
+    // Require at least 5 cells — a title row like "Reject Transaction Report" has only 1.
     let headerRowNum = 1;
     for (let r = 1; r <= Math.min(8, ws.rowCount); r++) {
       const candidate: string[] = [];
       ws.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
         candidate.push(String(cell.value ?? "").trim());
       });
-      if (detectReportKind(candidate) !== "unknown") {
+      if (candidate.length >= 5 && detectReportKind(candidate) !== "unknown") {
         headerRowNum = r;
         break;
       }

@@ -63,12 +63,18 @@ export async function analyzeImport(
   const source: "xlsx" | "csv" = file.name.toLowerCase().endsWith(".csv") ? "csv" : "xlsx";
 
   // Check whether this exact file was already imported (by SHA-256 hash).
-  const { data: existing } = await supabase
-    .from("imports")
-    .select("id")
-    .eq("file_hash", fileHash)
-    .limit(1);
-  const alreadyImported = (existing ?? []).length > 0;
+  // Gracefully degrade if migration 0017 (file_hash column) has not been applied yet.
+  let alreadyImported = false;
+  try {
+    const { data: existing } = await supabase
+      .from("imports")
+      .select("id")
+      .eq("file_hash", fileHash)
+      .limit(1);
+    alreadyImported = (existing ?? []).length > 0;
+  } catch {
+    // file_hash column not yet in schema — treat as not-yet-imported
+  }
 
   const base = {
     kind,
@@ -125,23 +131,31 @@ export function useCommitImport() {
 
       const inserted =
         preview.kind === "transaction" ? preview.allLines.length : preview.newDeclined.length;
-      const { data: imp, error: impErr } = await supabase
+      const basePayload = {
+        org_id,
+        source: preview.source,
+        kind: preview.kind === "reject" ? "reject" : "transaction",
+        filename: preview.filename,
+        status: "completed",
+        total_rows: preview.totalRows,
+        inserted_rows: inserted,
+        duplicate_rows: preview.duplicateFuelCount + preview.duplicateDeclinedCount,
+        skipped_rows: preview.skippedCount,
+        created_by: session.userId,
+      };
+      // Include file_hash only when migration 0017 has been applied; fall back without it.
+      // Cast to any because Supabase generated types won't include file_hash until types are regenerated.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insertPayload: any = preview.fileHash ? { ...basePayload, file_hash: preview.fileHash } : basePayload;
+      let impResult = await supabase
         .from("imports")
-        .insert({
-          org_id,
-          source: preview.source,
-          kind: preview.kind === "reject" ? "reject" : "transaction",
-          filename: preview.filename,
-          file_hash: preview.fileHash,
-          status: "completed",
-          total_rows: preview.totalRows,
-          inserted_rows: inserted,
-          duplicate_rows: preview.duplicateFuelCount + preview.duplicateDeclinedCount,
-          skipped_rows: preview.skippedCount,
-          created_by: session.userId,
-        })
+        .insert(insertPayload)
         .select("id")
         .single();
+      if (impResult.error?.message?.includes("file_hash")) {
+        impResult = await supabase.from("imports").insert(basePayload).select("id").single();
+      }
+      const { data: imp, error: impErr } = impResult;
       if (impErr || !imp) throw new Error(impErr?.message ?? "Could not create import record");
       const importId = (imp as { id: string }).id;
 
