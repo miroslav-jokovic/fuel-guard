@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { verifyTransactionDetailed, type VerifyReason } from "../services/aiVerification.js";
+import { scoreTransaction } from "../services/scoring.js";
 
 const REASON_MESSAGE: Record<VerifyReason, string> = {
   disabled: "AI verification is turned off for your organization.",
@@ -99,7 +100,7 @@ export function anomaliesRouter(): Router {
       const id = String(req.params.id ?? "");
       const { data: anomaly } = await admin
         .from("anomalies")
-        .select("transaction_id")
+        .select("transaction_id, rule_id, status")
         .eq("id", id)
         .eq("org_id", orgId)
         .maybeSingle();
@@ -107,6 +108,54 @@ export function anomaliesRouter(): Router {
         res.status(404).json(apiError("not_found", "Anomaly not found"));
         return;
       }
+
+      // Refresh the deterministic ground truth first: re-run Samsara reconciliation + rescore. With the
+      // timezone-robust stop matching, a location mismatch that was really the truck being present now
+      // resolves to location_matched=true, and the engine supersedes the stale anomaly automatically.
+      await scoreTransaction(admin, env, orgId, anomaly.transaction_id).catch((e) => {
+        console.error("[ai-examine] rescore failed (continuing to AI):", e);
+      });
+
+      // Auto-clear: if this is a location mismatch and Samsara now positively confirms the truck was in
+      // the EFS station's state, dismiss it without manual review (user-approved auto-resolution).
+      const { data: txnAfter } = await admin
+        .from("fuel_transactions")
+        .select("samsara_location_matched")
+        .eq("id", anomaly.transaction_id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      const confirmedInState = txnAfter?.samsara_location_matched === true;
+      if (anomaly.rule_id === "location_mismatch" && confirmedInState) {
+        const { data: cur } = await admin.from("anomalies").select("status, version").eq("id", id).maybeSingle();
+        if (cur && cur.status !== "resolved" && cur.status !== "dismissed" && cur.status !== "superseded") {
+          await admin
+            .from("anomalies")
+            .update({
+              status: "dismissed",
+              resolution_note: "Auto-cleared: Samsara confirms the truck was in the EFS station's state at the fueling stop.",
+              resolved_by: req.auth!.userId ?? null,
+              resolved_at: new Date().toISOString(),
+              version: (cur.version ?? 1) + 1,
+            })
+            .eq("id", id);
+        }
+        await writeAudit(admin, {
+          orgId,
+          actorId: req.auth!.userId,
+          action: "anomaly.auto_cleared",
+          entity: "anomalies",
+          entityId: id,
+          meta: { rule: "location_mismatch", basis: "samsara_location_matched" },
+        });
+        res.json({
+          assessment: null,
+          reason: "auto_cleared",
+          cleared: true,
+          message: "Samsara confirms the truck was in the station's state at fueling — this location mismatch was auto-cleared.",
+        });
+        return;
+      }
+
       const { output: assessment, reason } = await verifyTransactionDetailed(
         admin,
         env,

@@ -55,8 +55,14 @@ async function doTransition(status: "investigating" | "resolved" | "dismissed") 
 async function reexamine() {
   try {
     const result = await aiExamine.mutateAsync(props.anomaly.id);
-    if (result.assessment) toast.success("AI assessment ready");
-    else toast.info("AI produced no assessment", result.message ?? undefined);
+    if (result.cleared) {
+      toast.success("Anomaly auto-cleared", result.message ?? undefined);
+      emit("changed");
+    } else if (result.assessment) {
+      toast.success("AI assessment ready");
+    } else {
+      toast.info("AI produced no assessment", result.message ?? undefined);
+    }
   } catch (e) {
     toast.error("AI verification failed", e instanceof Error ? e.message : undefined);
   }

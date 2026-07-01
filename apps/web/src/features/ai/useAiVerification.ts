@@ -32,6 +32,8 @@ export interface AiExamineResult {
   assessment: AiVerificationRecord | null;
   reason: string | null;
   message: string | null;
+  /** True when the deterministic recon auto-cleared the anomaly (e.g. Samsara confirmed the location). */
+  cleared?: boolean;
 }
 
 /** Trigger an on-demand AI re-examination of an anomaly. Returns the fresh assessment (or a reason). */
