@@ -131,7 +131,8 @@ onMounted(load);
       </div>
       <div v-if="loading" class="px-6 py-8 text-sm text-gray-500">Loading…</div>
       <p v-else-if="members.length === 0" class="px-6 py-8 text-sm text-gray-500">No members yet.</p>
-      <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead>
           <tr class="text-left text-gray-500">
             <th class="px-6 py-3 font-medium">Email</th>
@@ -158,6 +159,7 @@ onMounted(load);
           </tr>
         </tbody>
       </table>
+      </div>
     </section>
 
     <section class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
@@ -168,7 +170,8 @@ onMounted(load);
       <p v-else-if="invites.length === 0" class="px-6 py-8 text-sm text-gray-500">
         No invitations yet.
       </p>
-      <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead>
           <tr class="text-left text-gray-500">
             <th class="px-6 py-3 font-medium">Email</th>
@@ -213,6 +216,7 @@ onMounted(load);
           </tr>
         </tbody>
       </table>
+      </div>
     </section>
   </div>
 </template>

@@ -89,7 +89,8 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         <h3 class="border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900">Recent fills</h3>
-        <table class="min-w-full divide-y divide-gray-100 text-sm">
+        <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-100 whitespace-nowrap text-sm">
           <tbody class="divide-y divide-gray-100">
             <tr v-for="t in recent" :key="t.id">
               <td class="px-5 py-2 text-gray-500">{{ fmt(t.fueled_at) }}</td>
@@ -98,6 +99,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
       <div class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         <h3 class="border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900">Anomalies</h3>
