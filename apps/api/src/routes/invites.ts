@@ -50,7 +50,7 @@ export function invitesRouter(): Router {
         .select("allowed_domains")
         .eq("id", orgId)
         .single();
-      if (!org || !isEmailDomainAllowed(email, org.allowed_domains as string[])) {
+      if (!org || !isEmailDomainAllowed(email, (org.allowed_domains ?? []) as string[])) {
         res.status(422).json(apiError("domain_not_allowed", "Email domain is not allowed for this organization"));
         return;
       }

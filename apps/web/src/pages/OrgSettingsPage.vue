@@ -9,6 +9,7 @@ const save = useSaveOrgSettings();
 
 const form = reactive({
   name: "",
+  allowedDomains: "",
   start: "05:00",
   end: "20:00",
   tz: "America/Chicago",
@@ -21,6 +22,7 @@ watch(
   (o) => {
     if (!o) return;
     form.name = o.name;
+    form.allowedDomains = (o.allowed_domains ?? []).join(", ");
     form.start = o.operating_hours?.start ?? "05:00";
     form.end = o.operating_hours?.end ?? "20:00";
     form.tz = o.operating_hours?.tz ?? "America/Chicago";
@@ -35,8 +37,10 @@ const fieldErr = ref<Record<string, string>>({});
 
 async function onSave() {
   const emails = form.emails.split(/[,\s]+/).map((e) => e.trim()).filter(Boolean);
+  const domains = form.allowedDomains.split(/[,\s]+/).map((d) => d.trim().toLowerCase()).filter(Boolean);
   const result = orgSettingsFormSchema.safeParse({
     name: form.name,
+    allowed_domains: domains,
     operating_hours: { start: form.start, end: form.end, tz: form.tz },
     notifications_enabled: form.notifications_enabled,
     notification_emails: emails,
@@ -72,6 +76,15 @@ const input = "mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 r
           <label class="block text-sm font-medium text-gray-900">Name</label>
           <input v-model="form.name" :class="input" />
           <p v-if="fieldErr.name" class="mt-1 text-xs text-red-600">{{ fieldErr.name }}</p>
+        </div>
+        <div class="mt-4">
+          <label class="block text-sm font-medium text-gray-900">Allowed email domains (comma-separated)</label>
+          <input
+            v-model="form.allowedDomains"
+            placeholder="silvicominc.com, example.com — leave blank to allow any domain"
+            :class="input"
+          />
+          <p class="mt-1 text-xs text-gray-500">Only emails from these domains can be invited. Leave empty to allow any domain.</p>
         </div>
       </section>
 

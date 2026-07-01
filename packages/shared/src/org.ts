@@ -14,6 +14,7 @@ const timeHHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM (24h)"
 
 export const orgSettingsFormSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  allowed_domains: z.array(z.string().trim().toLowerCase().min(1)).default([]),
   operating_hours: z.object({
     start: timeHHMM,
     end: timeHHMM,

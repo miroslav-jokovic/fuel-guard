@@ -29,9 +29,11 @@ export function emailDomain(email: string): string | null {
 
 /**
  * True iff the email's domain is in the org's allowlist (case-insensitive).
+ * An empty or absent allowlist means no domain restriction — all emails are allowed.
  * Enforced at BOTH invite creation and invite acceptance (audit M2).
  */
-export function isEmailDomainAllowed(email: string, allowedDomains: readonly string[]): boolean {
+export function isEmailDomainAllowed(email: string, allowedDomains: readonly string[] | null | undefined): boolean {
+  if (!allowedDomains || allowedDomains.length === 0) return true;
   const domain = emailDomain(email);
   if (!domain) return false;
   return allowedDomains.some((d) => d.trim().toLowerCase() === domain);
