@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { PlusIcon, ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
-import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fleetguard/shared";
+import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useSyncSamsaraVehicles } from "@/features/fleet/useVehicles";
 import { useDriversQuery } from "@/features/fleet/useDrivers";

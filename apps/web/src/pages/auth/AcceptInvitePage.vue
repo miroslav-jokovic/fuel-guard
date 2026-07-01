@@ -48,7 +48,7 @@ async function onSubmit() {
 <template>
   <div>
     <h2 class="mb-1 text-lg font-semibold text-gray-900">Set your password</h2>
-    <p class="mb-6 text-sm text-gray-500">Finish setting up your FleetGuard account.</p>
+    <p class="mb-6 text-sm text-gray-500">Finish setting up your FuelGuard account.</p>
 
     <form class="space-y-5" @submit.prevent="onSubmit">
       <div>

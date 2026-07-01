@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Vehicle, VehicleInput } from "@fleetguard/shared";
+import type { Vehicle, VehicleInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 

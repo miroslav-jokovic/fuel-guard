@@ -1,4 +1,4 @@
-// FleetGuard — offline RLS test matrix (audit C2, Phase-1 deliverable).
+// FuelGuard — offline RLS test matrix (audit C2, Phase-1 deliverable).
 //
 // Applies all migrations + seed into an in-process PGlite (WASM Postgres) with light shims for the
 // Supabase-managed `auth` and `storage` schemas, then asserts tenant isolation + role permissions

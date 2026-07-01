@@ -6,7 +6,7 @@ import {
   derivePricePerGal,
   type Vehicle,
   type FillUpInput,
-} from "@fleetguard/shared";
+} from "@fuelguard/shared";
 import { genUuid } from "@/lib/uuid";
 import AppSelect from "@/components/AppSelect.vue";
 

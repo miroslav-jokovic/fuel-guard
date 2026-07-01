@@ -35,7 +35,7 @@ importers:
       '@anthropic-ai/sdk':
         specifier: 0.107.0
         version: 0.107.0(zod@4.4.3)
-      '@fleetguard/shared':
+      '@fuelguard/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@supabase/supabase-js':
@@ -90,12 +90,12 @@ importers:
 
   apps/web:
     dependencies:
-      '@fleetguard/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@floating-ui/vue':
         specifier: ^2.0.0
         version: 2.0.0(vue@3.5.39(typescript@6.0.3))
+      '@fuelguard/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@headlessui/vue':
         specifier: 1.7.23
         version: 1.7.23(vue@3.5.39(typescript@6.0.3))
@@ -845,8 +845,8 @@ packages:
   '@tanstack/query-core@5.101.2':
     resolution: {integrity: sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw==}
 
-  '@tanstack/virtual-core@3.17.3':
-    resolution: {integrity: sha512-8Np/TFELpI0ySuJoVmjvOrQYXH/8sTX0Biv9szhFhY39xOdAAY+smrMxjxOum/ux3eM8MUJQsEJ0/R0UpvC8dw==}
+  '@tanstack/virtual-core@3.17.2':
+    resolution: {integrity: sha512-w43MvWvmShpb6kIC9MOoLyUkLmRTLPjt61bHWs+X29hACSpX+n8DvgZ3qM7cUfflKlRRcHR9KVJE6TmcqnQvcA==}
 
   '@tanstack/vue-query@5.101.2':
     resolution: {integrity: sha512-nFXKNK4dI/PnKNejyIkQmmobBsJWWXTPcpjPvkgFLkpFPz9DcmqIiKIAF2Pa7MZCipH62/+bt2sxEIA0wNEeOg==}
@@ -857,8 +857,8 @@ packages:
       '@vue/composition-api':
         optional: true
 
-  '@tanstack/vue-virtual@3.13.31':
-    resolution: {integrity: sha512-wZMEoSf852jQqaf3Ika1J7PiBae6341LNy/2CxmIyn0XKDQXMuK41wVX+xp6G0yx8jyR95Ef+Tdr13DK7mbJtQ==}
+  '@tanstack/vue-virtual@3.13.30':
+    resolution: {integrity: sha512-5IpTZf5US81z9CHaRm2imVC44WDU1V/pd8mN1OIvIerRmo6C179UN+vnzlO/dx9Fpt9X7Rjl7fyvolPhPgtfqg==}
     peerDependencies:
       vue: ^2.7.0 || ^3.0.0
 
@@ -3039,7 +3039,7 @@ snapshots:
 
   '@headlessui/vue@1.7.23(vue@3.5.39(typescript@6.0.3))':
     dependencies:
-      '@tanstack/vue-virtual': 3.13.31(vue@3.5.39(typescript@6.0.3))
+      '@tanstack/vue-virtual': 3.13.30(vue@3.5.39(typescript@6.0.3))
       vue: 3.5.39(typescript@6.0.3)
 
   '@heroicons/vue@2.2.0(vue@3.5.39(typescript@6.0.3))':
@@ -3279,7 +3279,7 @@ snapshots:
 
   '@tanstack/query-core@5.101.2': {}
 
-  '@tanstack/virtual-core@3.17.3': {}
+  '@tanstack/virtual-core@3.17.2': {}
 
   '@tanstack/vue-query@5.101.2(vue@3.5.39(typescript@6.0.3))':
     dependencies:
@@ -3289,9 +3289,9 @@ snapshots:
       vue: 3.5.39(typescript@6.0.3)
       vue-demi: 0.14.10(vue@3.5.39(typescript@6.0.3))
 
-  '@tanstack/vue-virtual@3.13.31(vue@3.5.39(typescript@6.0.3))':
+  '@tanstack/vue-virtual@3.13.30(vue@3.5.39(typescript@6.0.3))':
     dependencies:
-      '@tanstack/virtual-core': 3.17.3
+      '@tanstack/virtual-core': 3.17.2
       vue: 3.5.39(typescript@6.0.3)
 
   '@tybys/wasm-util@0.10.3':

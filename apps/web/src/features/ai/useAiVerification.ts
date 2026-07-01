@@ -1,6 +1,6 @@
 import { type Ref, toValue } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { AiVerificationRecord } from "@fleetguard/shared";
+import type { AiVerificationRecord } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 

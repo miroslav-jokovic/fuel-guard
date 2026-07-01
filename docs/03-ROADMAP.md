@@ -1,4 +1,4 @@
-# FleetGuard — Build Roadmap
+# FuelGuard — Build Roadmap
 
 > Phased, dependency-ordered plan. Each phase maps to a numbered prompt block in `04-WINDSURF-PROMPTS.md`.
 > Principle: every phase ends in something **runnable and demoable**, not a half-built layer.

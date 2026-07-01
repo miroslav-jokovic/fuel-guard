@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
-import type { FuelTransaction, Vehicle, Anomaly } from "@fleetguard/shared";
+import type { FuelTransaction, Vehicle, Anomaly } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";

@@ -1,4 +1,4 @@
--- FleetGuard — 0006 Custom Access Token hook
+-- FuelGuard — 0006 Custom Access Token hook
 -- docs/01-ARCHITECTURE.md §4. Injects org_id + user_role from the user's membership into the JWT,
 -- so RLS (auth_org_id()/auth_role()) can authorize. Runs before each token is issued.
 --

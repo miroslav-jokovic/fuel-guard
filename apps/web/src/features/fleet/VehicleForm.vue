@@ -7,7 +7,7 @@ import {
   type Vehicle,
   type VehicleInput,
   type Driver,
-} from "@fleetguard/shared";
+} from "@fuelguard/shared";
 import AppSelect from "@/components/AppSelect.vue";
 
 const props = defineProps<{

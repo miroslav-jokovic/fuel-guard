@@ -1,4 +1,4 @@
-# FleetGuard — Architecture
+# FuelGuard — Architecture
 
 > How the system is put together. Read alongside `02-DATA-MODEL.md`.
 
@@ -58,7 +58,7 @@
 ## 3. Monorepo structure
 
 ```
-fleetguard/
+fuelguard/
 ├─ apps/
 │  ├─ web/                    # Vue 3 + Vite SPA
 │  │  ├─ src/

@@ -1,4 +1,4 @@
-# FleetGuard — Windsurf Prompt Pack
+# FuelGuard — Windsurf Prompt Pack
 
 > Copy-paste prompts, in order. One block per phase from `03-ROADMAP.md`.
 > **How to use:** paste the *System primer* once at the start of a Windsurf session (or set it as workspace rules). Then run prompts in order. Don't start a phase until the previous one runs clean.
@@ -8,7 +8,7 @@
 ## ★ System primer (paste first / use as workspace rules)
 
 ```
-You are building FleetGuard, an enterprise fuel-theft-prevention and MPG-monitoring
+You are building FuelGuard, an enterprise fuel-theft-prevention and MPG-monitoring
 platform for commercial fleets (tenant: Silvicom Inc).
 
 Authoritative specs live in /docs — READ THEM BEFORE CODING and treat them as the contract:
@@ -36,7 +36,7 @@ Confirm you have read the four /docs files and will follow them, then wait for t
 ## Phase 0 — Foundation
 
 ```
-Initialize the FleetGuard monorepo per docs/01-ARCHITECTURE.md §3.
+Initialize the FuelGuard monorepo per docs/01-ARCHITECTURE.md §3.
 
 Create:
 - pnpm workspace root (package.json with workspaces: apps/*, packages/*), .nvmrc (Node 20),

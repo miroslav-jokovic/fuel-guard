@@ -1,4 +1,4 @@
-# FleetGuard — Fuel-Card Integration (XLSX/CSV upload now, EFS data feed later)
+# FuelGuard — Fuel-Card Integration (XLSX/CSV upload now, EFS data feed later)
 
 > Ingest fuel-card transactions. **Phase one: file upload** (XLSX or CSV, manual). **Phase two: EFS
 > automated data feed** (portal-authorized, polling). Designed so the second is a drop-in source
@@ -185,7 +185,7 @@ are control signals). Not scored by the fuel-anomaly engine; feeds dashboards/al
 Default mapping for the EFS **Transaction Report** (`.xlsx`/`.csv`). Importer stays mapping-driven so
 layout changes don't break it, but ships with this as the EFS preset.
 
-| EFS column | FleetGuard | Notes |
+| EFS column | FuelGuard | Notes |
 |-----------|------------|-------|
 | `Card #` | → `fuel_cards` lookup (`card_ref`) | resolves vehicle/driver if mapped |
 | `Tran Date` | `fueled_at` | **date only** → store at org-local noon; no time available |
@@ -204,7 +204,7 @@ layout changes don't break it, but ships with this as the EFS preset.
 keeps **only the fuel line(s)**; DEF/scales/fees are ignored (per decision), so an imported fill-up's
 `total_cost` equals the fuel `Amt`.
 
-> Setup prerequisite: each vehicle's `unit_number` in FleetGuard must equal its EFS `Unit` value
+> Setup prerequisite: each vehicle's `unit_number` in FuelGuard must equal its EFS `Unit` value
 > (e.g. `637`, `704`) for auto-reconciliation; unmatched rows go to the review screen.
 
 ---
@@ -232,7 +232,7 @@ Re-uploading the same file is safe: every row dedupes on `external_ref`.
 ## 6. Phase 2 — EFS automated feed (future)
 
 When ready to automate:
-- **Provision** in the EFS portal: add FleetGuard as a Data Sharing Partner; obtain the **Data Feed
+- **Provision** in the EFS portal: add FuelGuard as a Data Sharing Partner; obtain the **Data Feed
   username/password** (allow a few business days).
 - **Store credentials** encrypted per org (new `integration_credentials` table or a secrets manager;
   never in the browser). One org → one EFS account for Silvicom.
@@ -280,7 +280,7 @@ create table integration_credentials (
 - ✅ Confirmed: **odometer present**, **no lat/lng**, **date only (no time)** on the Transaction Report.
 - Seed **`fuel_cards`**: provide the `Card # → vehicle/driver` assignment list (the Transaction
   Report's short `Card #` differs from the Reject Report's full PAN — capture both if available).
-- Ensure each FleetGuard vehicle's **`unit_number` matches the EFS `Unit`** value for auto-reconcile.
+- Ensure each FuelGuard vehicle's **`unit_number` matches the EFS `Unit`** value for auto-reconcile.
 - Product-code list may grow; the importer treats any code **not** in the fuel allowlist
   (`ULSD`,`ULSR`, gasoline codes) as non-fuel and skips it — add new fuel codes to the allowlist as needed.
 

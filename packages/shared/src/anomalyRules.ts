@@ -1,5 +1,5 @@
 /**
- * FleetGuard anomaly engine — deterministic, explainable rules (docs/02-DATA-MODEL.md §7 + §10.7–8,
+ * FuelGuard anomaly engine — deterministic, explainable rules (docs/02-DATA-MODEL.md §7 + §10.7–8,
  * hardened per docs/09-DETECTION-REVIEW.md). Pure functions only: the API assembles the context,
  * runs `runAllRules`, and persists the results. All quantitative math happens here (not in the AI).
  */

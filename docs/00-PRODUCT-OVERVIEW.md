@@ -1,4 +1,4 @@
-# FleetGuard — Product Overview (PRD)
+# FuelGuard — Product Overview (PRD)
 
 > Fuel-theft prevention and fuel-efficiency monitoring for commercial fleets.
 > Owner: Silvicom Inc. · Status: v1 (Enterprise) planning · Last updated: 2026-06-30
@@ -9,9 +9,9 @@
 
 Fleet fuel is one of the largest controllable costs in operations, and it leaks in ways that are hard to see transaction-by-transaction. Industry reporting suggests the large majority of fleets experience regular fuel loss, and most incidents go undetected for months because no one is correlating **gallons purchased** against **miles actually driven**.
 
-FleetGuard exists to close that gap. Every fill-up generates two numbers a driver can manipulate or mis-enter: the **odometer reading** and the **gallons dispensed**. By validating those two numbers against each vehicle's history, tank capacity, and expected efficiency, we surface the small set of transactions that don't add up — before they become a pattern.
+FuelGuard exists to close that gap. Every fill-up generates two numbers a driver can manipulate or mis-enter: the **odometer reading** and the **gallons dispensed**. By validating those two numbers against each vehicle's history, tank capacity, and expected efficiency, we surface the small set of transactions that don't add up — before they become a pattern.
 
-### The three jobs FleetGuard does
+### The three jobs FuelGuard does
 
 1. **Prevent fuel stealing** — catch fuel that is paid for but never moves the truck (siphoning, fueling a personal vehicle or a container, station collusion, inflated gallons).
 2. **Control MPG & usage** — track real fuel economy per vehicle/driver over time and flag abnormal drops that signal loss or a mechanical issue.

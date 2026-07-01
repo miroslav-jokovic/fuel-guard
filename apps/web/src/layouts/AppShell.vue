@@ -16,6 +16,7 @@ import {
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
+import AppLogo from "@/components/AppLogo.vue";
 
 interface NavItem {
   name: string;
@@ -64,11 +65,8 @@ async function signOut() {
     <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
       <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900 px-6 pb-4">
         <div class="flex h-16 shrink-0 items-center gap-x-3">
-          <span
-            class="flex size-9 items-center justify-center rounded-lg bg-indigo-500 text-sm font-bold text-white"
-            >FG</span
-          >
-          <span class="text-lg font-semibold text-white">FleetGuard</span>
+          <AppLogo class="size-9" />
+          <span class="text-lg font-semibold tracking-tight text-white">FuelGuard</span>
         </div>
         <nav class="flex flex-1 flex-col">
           <ul role="list" class="flex flex-1 flex-col gap-y-7">
@@ -100,7 +98,7 @@ async function signOut() {
         class="flex h-16 shrink-0 items-center justify-between gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:px-6 lg:px-8"
       >
         <h1 class="text-base font-semibold text-gray-900">
-          {{ (route.meta.title as string) ?? "FleetGuard" }}
+          {{ (route.meta.title as string) ?? "FuelGuard" }}
         </h1>
         <div class="flex items-center gap-x-4">
           <span class="hidden text-sm text-gray-500 sm:inline">

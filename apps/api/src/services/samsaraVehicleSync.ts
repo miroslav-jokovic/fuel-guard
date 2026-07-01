@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseSamsaraVehicles, type SamsaraVehicle } from "@fleetguard/shared";
+import { parseSamsaraVehicles, type SamsaraVehicle } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraVehicleLister, type SamsaraVehicleLister } from "../lib/samsara.js";

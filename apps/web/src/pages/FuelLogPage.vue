@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { PlusIcon } from "@heroicons/vue/20/solid";
-import type { FillUpInput } from "@fleetguard/shared";
+import type { FillUpInput } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useFuelTransactions, useCreateFillUp, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";

@@ -1,6 +1,6 @@
 import { type Ref, toValue } from "vue";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import { derivePricePerGal, type FillUpInput, type FuelTransaction } from "@fleetguard/shared";
+import { derivePricePerGal, type FillUpInput, type FuelTransaction } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";

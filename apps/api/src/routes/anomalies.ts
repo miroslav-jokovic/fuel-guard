@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { anomalyTransitionSchema, type AnomalyTransition } from "@fleetguard/shared";
+import { anomalyTransitionSchema, type AnomalyTransition } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

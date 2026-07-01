@@ -1,4 +1,4 @@
-# FleetGuard — Detection Logic Review & Pre-Deploy Polish Plan
+# FuelGuard — Detection Logic Review & Pre-Deploy Polish Plan
 
 > Pre-Phase-9 hardening pass. Goal: the most precise, reliable theft detection we can build on the
 > data we actually have, with **deterministic math in our system** and **AI only for audit/verification**.
@@ -27,7 +27,7 @@ and silent misses in production.
 ## 2. The ±5-mile odometer check — what's actually possible
 
 Industry systems validate the driver-entered odometer against an **independent measurement** —
-typically the **GPS/telematics odometer**, with a tolerance around **2%** (not a flat ±5). FleetGuard
+typically the **GPS/telematics odometer**, with a tolerance around **2%** (not a flat ±5). FuelGuard
 has **no GPS** (out of scope), so we need a different independent reference.
 
 A literal **±5-mile** tolerance is only honest when comparing **two recordings of the *same* fueling

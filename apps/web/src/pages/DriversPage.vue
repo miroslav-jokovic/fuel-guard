@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { PlusIcon } from "@heroicons/vue/20/solid";
-import type { Driver, DriverInput } from "@fleetguard/shared";
+import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery, useCreateDriver, useUpdateDriver } from "@/features/fleet/useDrivers";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";

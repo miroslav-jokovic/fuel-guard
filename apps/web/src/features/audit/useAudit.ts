@@ -1,6 +1,6 @@
 import { type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import type { AuditLog } from "@fleetguard/shared";
+import type { AuditLog } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 export interface AuditFilters {

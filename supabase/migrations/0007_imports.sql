@@ -1,4 +1,4 @@
--- FleetGuard — 0007 fuel-card import tables
+-- FuelGuard — 0007 fuel-card import tables
 -- docs/08-EFS-INTEGRATION.md §3, §3.1. One staging→reconcile→commit pipeline for XLSX/CSV uploads
 -- (Transaction Report → fuel_transactions; Reject Report → declined_transactions). The EFS feed
 -- (Phase 10) reuses these tables. fuel_transactions.external_ref + its unique index already exist

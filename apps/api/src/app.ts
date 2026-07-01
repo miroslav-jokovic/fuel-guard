@@ -5,7 +5,7 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { APP_NAME } from "@fleetguard/shared";
+import { APP_NAME } from "@fuelguard/shared";
 import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
 import { apiError } from "./lib/http.js";

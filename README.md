@@ -1,4 +1,4 @@
-# FleetGuard
+# FuelGuard
 
 Enterprise fuel-theft-prevention & MPG-monitoring platform for commercial fleets.
 Tenant: **Silvicom Inc.**
@@ -43,8 +43,8 @@ pnpm format         # Prettier write
 Run a single workspace, e.g. the web app:
 
 ```bash
-pnpm --filter @fleetguard/web dev
-pnpm --filter @fleetguard/api dev
+pnpm --filter @fuelguard/web dev
+pnpm --filter @fuelguard/api dev
 ```
 
 ## Environment

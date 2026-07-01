@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Driver, DriverInput } from "@fleetguard/shared";
+import type { Driver, DriverInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const DRIVER_COLS =

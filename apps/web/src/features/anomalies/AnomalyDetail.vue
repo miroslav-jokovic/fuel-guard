@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import type { Anomaly } from "@fleetguard/shared";
+import type { Anomaly } from "@fuelguard/shared";
 import { useTransaction, useAnomalyTransition } from "./useAnomalies";
 import { useAiVerification, useAiExamine } from "@/features/ai/useAiVerification";
 import AiAssessmentCard from "@/features/ai/AiAssessmentCard.vue";

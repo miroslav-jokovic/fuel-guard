@@ -1,0 +1,11 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FuelGuard app icon">
+  <defs>
+    <linearGradient id="fuelguardTile" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366F1" />
+      <stop offset="1" stop-color="#4338CA" />
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="64" height="64" rx="16" fill="url(#fuelguardTile)" />
+  <path d="M32 17 C38 27 42 30.8 42 36 A10 10 0 1 1 22 36 C22 30.8 26 27 32 17 Z" fill="#ffffff" />
+  <path d="M27 36.6 l4 4 l8-9.4" fill="none" stroke="#4338CA" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

@@ -1,4 +1,4 @@
--- FleetGuard — 0003 core tables, triggers & indexes
+-- FuelGuard — 0003 core tables, triggers & indexes
 -- docs/02-DATA-MODEL.md §3 with §10 amendments. Every tenant table carries org_id.
 
 -- ─────────────────────────────────────────────────────────────────────────────

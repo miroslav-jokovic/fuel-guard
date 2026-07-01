@@ -1,4 +1,4 @@
--- FleetGuard — 0012 Samsara telematics integration (docs/10)
+-- FuelGuard — 0012 Samsara telematics integration (docs/10)
 -- Maps fleet vehicles to Samsara, stores the per-org API token (server-only), and records the
 -- reconciliation result on each scored transaction (Samsara odometer + recovered fueling time +
 -- whether the truck was actually at the EFS station's location).

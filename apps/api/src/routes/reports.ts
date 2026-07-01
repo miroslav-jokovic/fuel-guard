@@ -1,6 +1,6 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
-import { toCsv, aggregateDashboard, type FuelTransaction, type Anomaly } from "@fleetguard/shared";
+import { toCsv, aggregateDashboard, type FuelTransaction, type Anomaly } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -80,7 +80,7 @@ export function reportsRouter(): Router {
       ]);
       await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "export.generated", meta: { report: "transactions.csv", rows: rows.length } });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", 'attachment; filename="fleetguard-transactions.csv"');
+      res.setHeader("Content-Disposition", 'attachment; filename="fuelguard-transactions.csv"');
       res.send(csv);
     }),
   );
@@ -118,7 +118,7 @@ export function reportsRouter(): Router {
       ]);
       await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "export.generated", meta: { report: "anomalies.csv", rows: rows.length } });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", 'attachment; filename="fleetguard-anomalies.csv"');
+      res.setHeader("Content-Disposition", 'attachment; filename="fuelguard-anomalies.csv"');
       res.send(csv);
     }),
   );
@@ -145,10 +145,10 @@ export function reportsRouter(): Router {
       );
 
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", 'attachment; filename="fleetguard-summary.pdf"');
+      res.setHeader("Content-Disposition", 'attachment; filename="fuelguard-summary.pdf"');
       const doc = new PDFDocument({ margin: 50 });
       doc.pipe(res);
-      doc.fontSize(20).text("FleetGuard — Fuel Summary", { continued: false });
+      doc.fontSize(20).text("FuelGuard — Fuel Summary", { continued: false });
       doc.moveDown(0.3).fontSize(10).fillColor("#666").text(`Period: ${from.slice(0, 10)} to ${to.slice(0, 10)}`);
       doc.moveDown().fillColor("#000").fontSize(12);
       doc.text(`Total fuel spend:  $${summary.totalSpend.toLocaleString()}`);

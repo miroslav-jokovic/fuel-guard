@@ -1,4 +1,4 @@
-# FleetGuard — Planning Docs
+# FuelGuard — Planning Docs
 
 Enterprise fuel-theft-prevention & MPG-monitoring platform for commercial fleets.
 Tenant: **Silvicom Inc.** · Stack: TypeScript · Vue 3 · Vite · Tailwind v4 · Node/Express · Supabase · Railway.
@@ -20,10 +20,10 @@ These docs are the **source of truth**. Build with Windsurf; point it here.
 > **Read order for a fresh build:** 00 → 01 → 02 → 06 (the v1.1 decisions amend 00–05) → 03 → 04,
 > with 07 and 08 as companion specs for the AI and import phases.
 
-## What FleetGuard does, in one paragraph
+## What FuelGuard does, in one paragraph
 
 Every fuel fill-up produces two numbers a driver can fudge: the **odometer** and the **gallons**.
-FleetGuard validates those against each vehicle's tank capacity, history, and expected MPG, then
+FuelGuard validates those against each vehicle's tank capacity, history, and expected MPG, then
 flags the handful of fill-ups that don't add up — fuel paid for but never burned (theft), bad
 odometer entries, or efficiency cliffs — into a review queue a fleet manager can act on. Simple for
 drivers (a 30-second mobile form), serious underneath (tenant-isolated, audited, explainable).

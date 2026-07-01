@@ -1,4 +1,4 @@
--- FleetGuard — 0005 storage (receipt photos)
+-- FuelGuard — 0005 storage (receipt photos)
 -- docs/01-ARCHITECTURE.md §6, docs/02 §10.9. Private bucket; objects keyed org_id/vehicle_id/{uuid}.
 -- Tenant isolation mirrors the DB: a user may only touch objects under their own org_id prefix.
 

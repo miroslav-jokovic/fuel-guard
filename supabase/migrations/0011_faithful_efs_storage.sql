@@ -1,4 +1,4 @@
--- FleetGuard — 0011 faithful EFS report storage (docs/10)
+-- FuelGuard — 0011 faithful EFS report storage (docs/10)
 -- The system of record: every uploaded line, every column, 1:1 with the EFS .xlsx/.csv, retained
 -- for 1-year+ history and shown verbatim in the preview tables. The anomaly engine continues to use
 -- the derived `fuel_transactions` (merged, fuel-only). This table is NOT transformed.

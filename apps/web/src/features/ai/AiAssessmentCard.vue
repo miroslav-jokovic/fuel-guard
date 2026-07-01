@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { SparklesIcon } from "@heroicons/vue/24/outline";
-import type { AiVerificationRecord } from "@fleetguard/shared";
+import type { AiVerificationRecord } from "@fuelguard/shared";
 
 const props = defineProps<{ assessment: AiVerificationRecord | null; loading?: boolean }>();
 

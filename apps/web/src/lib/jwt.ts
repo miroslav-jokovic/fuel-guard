@@ -1,4 +1,4 @@
-import type { AuthClaims } from "@fleetguard/shared";
+import type { AuthClaims } from "@fuelguard/shared";
 
 /**
  * Decode (NOT verify) a JWT payload to read our custom claims (org_id, user_role) for UI gating.

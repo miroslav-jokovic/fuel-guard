@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ANOMALY_SEVERITIES, RULE_IDS, type Anomaly } from "@fleetguard/shared";
+import { ANOMALY_SEVERITIES, RULE_IDS, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useAnomaliesQuery, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import SlideOver from "@/components/SlideOver.vue";

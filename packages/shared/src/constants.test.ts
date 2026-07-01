@@ -3,7 +3,7 @@ import { APP_NAME, USER_ROLES, MPG_FUEL_TYPES, RULE_IDS, runAllRules } from "./i
 
 describe("shared constants", () => {
   it("exposes the app name", () => {
-    expect(APP_NAME).toBe("FleetGuard");
+    expect(APP_NAME).toBe("FuelGuard");
   });
 
   it("defines exactly four user roles", () => {

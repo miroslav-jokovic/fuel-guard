@@ -27,7 +27,7 @@ export function renderAnomalyAlertEmail(
 ): RenderedEmail {
   const count = items.length;
   const critical = items.filter((i) => i.severity === "critical").length;
-  const subject = `FleetGuard alert: ${count} ${critical ? "critical/" : ""}high-severity fuel anomal${count === 1 ? "y" : "ies"}`;
+  const subject = `FuelGuard alert: ${count} ${critical ? "critical/" : ""}high-severity fuel anomal${count === 1 ? "y" : "ies"}`;
 
   const rows = items
     .map(
@@ -45,7 +45,7 @@ export function renderAnomalyAlertEmail(
     `<table style="border-collapse:collapse;font-size:14px"><thead><tr>` +
     `<th align="left" style="padding:6px 10px">Vehicle</th><th align="left" style="padding:6px 10px">Severity</th><th align="left" style="padding:6px 10px">Detail</th>` +
     `</tr></thead><tbody>${rows}</tbody></table>` +
-    `<p style="margin-top:16px"><a href="${esc(appUrl)}/anomalies" style="color:#4f46e5">Review in FleetGuard →</a></p>` +
+    `<p style="margin-top:16px"><a href="${esc(appUrl)}/anomalies" style="color:#4f46e5">Review in FuelGuard →</a></p>` +
     `</div>`;
 
   const text =

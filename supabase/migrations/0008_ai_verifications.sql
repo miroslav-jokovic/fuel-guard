@@ -1,4 +1,4 @@
--- FleetGuard — 0008 AI verification layer (docs/07-AI-VERIFICATION.md §5)
+-- FuelGuard — 0008 AI verification layer (docs/07-AI-VERIFICATION.md §5)
 -- Stores Claude's explainable risk assessment for flagged transactions. The kill-switch
 -- (anomaly_thresholds.ai_verification_enabled) and budget (ai_monthly_token_budget) and the
 -- denormalized fuel_transactions.ai_risk_level column already exist (migration 0003).

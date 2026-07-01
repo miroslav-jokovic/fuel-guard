@@ -5,7 +5,7 @@ import {
   type DashboardSummary,
   type FuelTransaction,
   type Anomaly,
-} from "@fleetguard/shared";
+} from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 /** Executive dashboard summary for the last N days (org-scoped via RLS). */

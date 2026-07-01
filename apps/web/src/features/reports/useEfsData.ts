@@ -1,6 +1,6 @@
 import { type Ref, toValue } from "vue";
 import { useInfiniteQuery } from "@tanstack/vue-query";
-import type { EfsTransactionRow, DeclinedTransactionRow } from "@fleetguard/shared";
+import type { EfsTransactionRow, DeclinedTransactionRow } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 100;

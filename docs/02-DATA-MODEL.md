@@ -1,4 +1,4 @@
-# FleetGuard — Data Model, Schema & Anomaly Rules
+# FuelGuard — Data Model, Schema & Anomaly Rules
 
 > Postgres (Supabase) schema, RLS policies, indexes, and the precise anomaly rule spec.
 > This is the contract. Windsurf builds migrations from this file.

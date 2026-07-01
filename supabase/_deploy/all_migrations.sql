@@ -1,4 +1,4 @@
--- FleetGuard — ALL migrations combined (0001 → 0013), in order.
+-- FuelGuard — ALL migrations combined (0001 → 0013), in order.
 -- Paste this whole file into the Supabase SQL Editor once and Run. Generated from
 -- supabase/migrations/*.sql — keep that folder as the source of truth; regenerate if it changes.
 -- (For ongoing/automated migrations use the Supabase CLI 'db push' or the GitHub Action instead.)
@@ -7,7 +7,7 @@
 -- ============================================================================
 -- 0001_extensions_and_enums.sql
 -- ============================================================================
--- FleetGuard — 0001 extensions & enums
+-- FuelGuard — 0001 extensions & enums
 -- Mirrors docs/02-DATA-MODEL.md §2 (with §10 v1.1 amendments).
 
 -- pgcrypto provides gen_random_uuid() on older Postgres; harmless on newer.
@@ -24,7 +24,7 @@ create type invite_status    as enum ('pending', 'accepted', 'revoked', 'expired
 -- ============================================================================
 -- 0002_functions.sql
 -- ============================================================================
--- FleetGuard — 0002 helper functions & triggers
+-- FuelGuard — 0002 helper functions & triggers
 -- docs/02-DATA-MODEL.md §4 and §10.1
 
 -- Maintains updated_at on any table that has the column.
@@ -63,7 +63,7 @@ $$;
 -- ============================================================================
 -- 0003_core_tables.sql
 -- ============================================================================
--- FleetGuard — 0003 core tables, triggers & indexes
+-- FuelGuard — 0003 core tables, triggers & indexes
 -- docs/02-DATA-MODEL.md §3 with §10 amendments. Every tenant table carries org_id.
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ create index idx_audit_org_time on audit_logs (org_id, created_at desc);
 -- ============================================================================
 -- 0004_rls.sql
 -- ============================================================================
--- FleetGuard — 0004 Row Level Security
+-- FuelGuard — 0004 Row Level Security
 -- docs/02-DATA-MODEL.md §5 (+ §10). RLS is MANDATORY: every table is enabled with policies.
 -- The Supabase service_role key has BYPASSRLS and is used only by the API for engine/audit/import
 -- writes AFTER its own auth+ownership checks (audit B5). Policies below govern normal user JWTs.
@@ -376,7 +376,7 @@ create policy audit_select on audit_logs
 -- ============================================================================
 -- 0005_storage.sql
 -- ============================================================================
--- FleetGuard — 0005 storage (receipt photos)
+-- FuelGuard — 0005 storage (receipt photos)
 -- docs/01-ARCHITECTURE.md §6, docs/02 §10.9. Private bucket; objects keyed org_id/vehicle_id/{uuid}.
 -- Tenant isolation mirrors the DB: a user may only touch objects under their own org_id prefix.
 
@@ -400,7 +400,7 @@ create policy receipts_delete on storage.objects
 -- ============================================================================
 -- 0006_auth_hook.sql
 -- ============================================================================
--- FleetGuard — 0006 Custom Access Token hook
+-- FuelGuard — 0006 Custom Access Token hook
 -- docs/01-ARCHITECTURE.md §4. Injects org_id + user_role from the user's membership into the JWT,
 -- so RLS (auth_org_id()/auth_role()) can authorize. Runs before each token is issued.
 --
@@ -459,7 +459,7 @@ create policy memberships_auth_admin_read on public.memberships
 -- ============================================================================
 -- 0007_imports.sql
 -- ============================================================================
--- FleetGuard — 0007 fuel-card import tables
+-- FuelGuard — 0007 fuel-card import tables
 -- docs/08-EFS-INTEGRATION.md §3, §3.1. One staging→reconcile→commit pipeline for XLSX/CSV uploads
 -- (Transaction Report → fuel_transactions; Reject Report → declined_transactions). The EFS feed
 -- (Phase 10) reuses these tables. fuel_transactions.external_ref + its unique index already exist
@@ -582,7 +582,7 @@ create policy declined_write on declined_transactions for all
 -- ============================================================================
 -- 0008_ai_verifications.sql
 -- ============================================================================
--- FleetGuard — 0008 AI verification layer (docs/07-AI-VERIFICATION.md §5)
+-- FuelGuard — 0008 AI verification layer (docs/07-AI-VERIFICATION.md §5)
 -- Stores Claude's explainable risk assessment for flagged transactions. The kill-switch
 -- (anomaly_thresholds.ai_verification_enabled) and budget (ai_monthly_token_budget) and the
 -- denormalized fuel_transactions.ai_risk_level column already exist (migration 0003).
@@ -619,7 +619,7 @@ create policy ai_verifications_select on ai_verifications
 -- ============================================================================
 -- 0009_notifications_audit_triggers.sql
 -- ============================================================================
--- FleetGuard — 0009 notification settings + audit triggers (Phase 8 hardening)
+-- FuelGuard — 0009 notification settings + audit triggers (Phase 8 hardening)
 -- docs/03-ROADMAP.md Phase 8, audit H9. Adds org notification config and DB-level audit triggers so
 -- client-side (direct-to-Supabase) changes to vehicles/drivers/thresholds are recorded in audit_logs
 -- (which is otherwise service-role-write only).
@@ -682,7 +682,7 @@ create trigger audit_thresholds after insert or update on anomaly_thresholds
 -- ============================================================================
 -- 0010_detection_hardening.sql
 -- ============================================================================
--- FleetGuard — 0010 detection hardening (docs/09-DETECTION-REVIEW.md)
+-- FuelGuard — 0010 detection hardening (docs/09-DETECTION-REVIEW.md)
 -- Adds: card identity on transactions, idempotent-anomaly index (race backstop),
 -- and the new tuning thresholds for cross-source odometer tolerance, daily-mileage cap,
 -- and the cumulative-overfuel / card-multi-vehicle rolling window.
@@ -707,7 +707,7 @@ alter table anomaly_thresholds
 -- ============================================================================
 -- 0011_faithful_efs_storage.sql
 -- ============================================================================
--- FleetGuard — 0011 faithful EFS report storage (docs/10)
+-- FuelGuard — 0011 faithful EFS report storage (docs/10)
 -- The system of record: every uploaded line, every column, 1:1 with the EFS .xlsx/.csv, retained
 -- for 1-year+ history and shown verbatim in the preview tables. The anomaly engine continues to use
 -- the derived `fuel_transactions` (merged, fuel-only). This table is NOT transformed.
@@ -760,7 +760,7 @@ alter table declined_transactions
 -- ============================================================================
 -- 0012_samsara.sql
 -- ============================================================================
--- FleetGuard — 0012 Samsara telematics integration (docs/10)
+-- FuelGuard — 0012 Samsara telematics integration (docs/10)
 -- Maps fleet vehicles to Samsara, stores the per-org API token (server-only), and records the
 -- reconciliation result on each scored transaction (Samsara odometer + recovered fueling time +
 -- whether the truck was actually at the EFS station's location).
@@ -794,7 +794,7 @@ alter table fuel_transactions
 -- ============================================================================
 -- 0013_tank_fill.sql
 -- ============================================================================
--- FleetGuard — 0013 Tank-fill reconciliation (docs/10 §8 — soft / advisory signal)
+-- FuelGuard — 0013 Tank-fill reconciliation (docs/10 §8 — soft / advisory signal)
 -- Records the Samsara tank-level check on each scored transaction: how many gallons the tank actually
 -- rose across the fueling moment, and how far short of the billed gallons that came (if any). The
 -- sensor is coarse, so the `tank_fill_short` rule is low-severity and uses a generous tolerance.

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { RULE_IDS, thresholdsFormSchema, type ThresholdsForm } from "@fleetguard/shared";
+import { RULE_IDS, thresholdsFormSchema, type ThresholdsForm } from "@fuelguard/shared";
 import { useThresholdsQuery, useSaveThresholds } from "@/features/settings/useThresholds";
 import { useToastStore } from "@/stores/toast";
 

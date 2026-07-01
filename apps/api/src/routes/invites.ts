@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
-import { inviteCreateSchema, isEmailDomainAllowed, type InviteCreateRequest } from "@fleetguard/shared";
+import { inviteCreateSchema, isEmailDomainAllowed, type InviteCreateRequest } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { validateBody, apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";

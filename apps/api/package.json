@@ -1,5 +1,5 @@
 {
-  "name": "@fleetguard/api",
+  "name": "@fuelguard/api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.107.0",
-    "@fleetguard/shared": "workspace:*",
+    "@fuelguard/shared": "workspace:*",
     "@supabase/supabase-js": "2.110.0",
     "cors": "2.8.6",
     "dotenv": "17.4.2",

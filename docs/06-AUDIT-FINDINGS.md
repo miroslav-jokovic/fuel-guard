@@ -1,4 +1,4 @@
-# FleetGuard — Design Audit & Resolutions (v1.1)
+# FuelGuard — Design Audit & Resolutions (v1.1)
 
 > Pre-build review of docs 00–05. Each finding has a **decision** that is now folded into the
 > canonical docs. Severity: **Blocker** (fix before Phase 1 migration) · **High** · **Medium** · **Low**.

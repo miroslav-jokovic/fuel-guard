@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { driverInputSchema, DRIVER_STATUSES, type Driver, type DriverInput } from "@fleetguard/shared";
+import { driverInputSchema, DRIVER_STATUSES, type Driver, type DriverInput } from "@fuelguard/shared";
 import AppSelect from "@/components/AppSelect.vue";
 
 const props = defineProps<{

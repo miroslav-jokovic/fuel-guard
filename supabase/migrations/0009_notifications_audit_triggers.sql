@@ -1,4 +1,4 @@
--- FleetGuard — 0009 notification settings + audit triggers (Phase 8 hardening)
+-- FuelGuard — 0009 notification settings + audit triggers (Phase 8 hardening)
 -- docs/03-ROADMAP.md Phase 8, audit H9. Adds org notification config and DB-level audit triggers so
 -- client-side (direct-to-Supabase) changes to vehicles/drivers/thresholds are recorded in audit_logs
 -- (which is otherwise service-role-write only).

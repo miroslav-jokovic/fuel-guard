@@ -1,4 +1,4 @@
--- FleetGuard — 0002 helper functions & triggers
+-- FuelGuard — 0002 helper functions & triggers
 -- docs/02-DATA-MODEL.md §4 and §10.1
 
 -- Maintains updated_at on any table that has the column.

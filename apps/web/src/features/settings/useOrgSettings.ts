@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { OrgSettings, OrgSettingsForm } from "@fleetguard/shared";
+import type { OrgSettings, OrgSettingsForm } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 

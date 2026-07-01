@@ -11,7 +11,7 @@ export interface ApiResult<T> {
   error?: { code: string; message: string };
 }
 
-/** Call the FleetGuard API with the current Supabase access token as a Bearer credential. */
+/** Call the FuelGuard API with the current Supabase access token as a Bearer credential. */
 export async function apiFetch<T = unknown>(
   path: string,
   options: { method?: string; body?: unknown } = {},

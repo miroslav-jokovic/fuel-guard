@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { SignJWT, generateKeyPair } from "jose";
-import type { AuthContext } from "@fleetguard/shared";
+import type { AuthContext } from "@fuelguard/shared";
 import { verifyAccessToken } from "../lib/auth.js";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";

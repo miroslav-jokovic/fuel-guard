@@ -1,4 +1,4 @@
--- FleetGuard — 0010 detection hardening (docs/09-DETECTION-REVIEW.md)
+-- FuelGuard — 0010 detection hardening (docs/09-DETECTION-REVIEW.md)
 -- Adds: card identity on transactions, idempotent-anomaly index (race backstop),
 -- and the new tuning thresholds for cross-source odometer tolerance, daily-mileage cap,
 -- and the cumulative-overfuel / card-multi-vehicle rolling window.

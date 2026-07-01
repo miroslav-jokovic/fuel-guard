@@ -1,5 +1,5 @@
 /** Application-wide constants shared between web and api. */
-export const APP_NAME = "FleetGuard";
+export const APP_NAME = "FuelGuard";
 
 /** User roles within an organization (mirrors the `user_role` Postgres enum). */
 export const USER_ROLES = ["admin", "fleet_manager", "driver", "auditor"] as const;

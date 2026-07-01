@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { AnomalyThresholds, ThresholdsForm } from "@fleetguard/shared";
+import type { AnomalyThresholds, ThresholdsForm } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 

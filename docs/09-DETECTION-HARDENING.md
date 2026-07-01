@@ -1,4 +1,4 @@
-# FleetGuard — Detection Hardening Analysis (pre-deploy)
+# FuelGuard — Detection Hardening Analysis (pre-deploy)
 
 > Goal: the most **precise and reliable** theft detection possible, deterministic in-system, with AI
 > reserved for auditing/verification. Plus an explicit **±5-mile odometer-accuracy** check.

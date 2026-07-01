@@ -1,5 +1,5 @@
 import type { Application, Request } from "express";
-import type { AuthContext } from "@fleetguard/shared";
+import type { AuthContext } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 
 /** Typed view of app.locals (env + optional test verifier). */

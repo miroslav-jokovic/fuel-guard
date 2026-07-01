@@ -1,4 +1,4 @@
-# FleetGuard — Claude AI Verification Layer
+# FuelGuard — Claude AI Verification Layer
 
 > An intelligent layer that sits **after** the deterministic rules engine to verify transactions and
 > locations, judge plausibility, and produce explainable, prioritized risk assessments.

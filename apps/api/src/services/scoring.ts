@@ -11,7 +11,7 @@ import {
   type OperatingHours,
   type ExistingAnomaly,
   type FueledAtPrecision,
-} from "@fleetguard/shared";
+} from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 

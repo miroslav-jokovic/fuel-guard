@@ -1,6 +1,6 @@
-# FleetGuard — Database (Supabase)
+# FuelGuard — Database (Supabase)
 
-Schema, RLS, and seed for FleetGuard. Built from `docs/02-DATA-MODEL.md` (with the v1.1 audit
+Schema, RLS, and seed for FuelGuard. Built from `docs/02-DATA-MODEL.md` (with the v1.1 audit
 amendments in `docs/06-AUDIT-FINDINGS.md`).
 
 ```

@@ -1,4 +1,4 @@
--- FleetGuard — seed data (dev only)
+-- FuelGuard — seed data (dev only)
 -- docs/02-DATA-MODEL.md §8. Creates Silvicom Inc, thresholds, drivers, vehicles, and ~140 fuel
 -- transactions over ~90 days: mostly clean, plus explicit fills engineered to trip every anomaly
 -- type once the Phase-5 engine scores them. Idempotent: safe to re-run (clears prior seed first).

@@ -31,7 +31,7 @@ describe("GET /healthz", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { status: string; service: string; env: string };
     expect(body.status).toBe("ok");
-    expect(body.service).toContain("FleetGuard");
+    expect(body.service).toContain("FuelGuard");
     expect(body.env).toBe("test");
   });
 });

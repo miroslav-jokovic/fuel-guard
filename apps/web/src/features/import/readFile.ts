@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import type { RawRow } from "@fleetguard/shared";
+import type { RawRow } from "@fuelguard/shared";
 
 export interface ParsedFile {
   headers: string[];

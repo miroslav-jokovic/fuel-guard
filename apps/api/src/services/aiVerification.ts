@@ -11,7 +11,7 @@ import {
   type AiOutput,
   type AiVerificationContext,
   type AnomalySeverity,
-} from "@fleetguard/shared";
+} from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { callClaude, type ModelResult } from "../lib/anthropic.js";
 

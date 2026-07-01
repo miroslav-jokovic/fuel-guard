@@ -1,5 +1,5 @@
 import { jwtVerify, createRemoteJWKSet, type JWTVerifyGetKey } from "jose";
-import { claimsToContext, type AuthClaims, type AuthContext } from "@fleetguard/shared";
+import { claimsToContext, type AuthClaims, type AuthContext } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 
 /** Either a static key (tests pass a CryptoKey) or a JWKS resolver (production). */

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // E2E smoke tests. Run against a deployed/served app:
-//   BASE_URL=http://localhost:5173 pnpm --filter @fleetguard/web e2e
+//   BASE_URL=http://localhost:5173 pnpm --filter @fuelguard/web e2e
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,

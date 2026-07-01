@@ -1,4 +1,4 @@
--- FleetGuard — 0004 Row Level Security
+-- FuelGuard — 0004 Row Level Security
 -- docs/02-DATA-MODEL.md §5 (+ §10). RLS is MANDATORY: every table is enabled with policies.
 -- The Supabase service_role key has BYPASSRLS and is used only by the API for engine/audit/import
 -- writes AFTER its own auth+ownership checks (audit B5). Policies below govern normal user JWTs.

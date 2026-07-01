@@ -1,6 +1,6 @@
-# FleetGuard — Deployment Guide (Supabase + Railway, single service)
+# FuelGuard — Deployment Guide (Supabase + Railway, single service)
 
-> This is the step-by-step for shipping FleetGuard to the internet. We deploy as **one Railway
+> This is the step-by-step for shipping FuelGuard to the internet. We deploy as **one Railway
 > service** (Option A): the Node API also serves the built web UI, so everything lives at **one
 > Railway domain** with no CORS to configure. Follow the stages in order — each ends with a check so
 > you know it worked before moving on.
@@ -23,7 +23,7 @@
 
 | Service | Plan | What it's for |
 |---------|------|----------------|
-| **GitHub** | free | Holds the repo; Railway deploys from it. Push FleetGuard to a GitHub repo if it isn't already. |
+| **GitHub** | free | Holds the repo; Railway deploys from it. Push FuelGuard to a GitHub repo if it isn't already. |
 | **Supabase** | Free tier | Postgres database, Auth (logins), Storage (receipt photos). |
 | **Railway** | Trial/Hobby | Hosting. Sign in with GitHub so it can see your repo. |
 
@@ -35,7 +35,7 @@
 ## Stage 1 — Supabase project & schema
 
 ### 1.1 Create the project
-1. Supabase dashboard → **New project**. Name it `fleetguard-prod`.
+1. Supabase dashboard → **New project**. Name it `fuelguard-prod`.
 2. Pick a strong **database password** and **save it** (you'll need it for the CLI). Choose the region
    closest to your drivers/office.
 3. Wait ~2 minutes for it to provision.
@@ -91,7 +91,7 @@ Keep these handy for Stage 3.
 
 ## Stage 2 — Bootstrap the real organization & first admin
 
-Because FleetGuard is invite-only, the very first admin can't invite themselves — we seed one org and
+Because FuelGuard is invite-only, the very first admin can't invite themselves — we seed one org and
 link the first account to it by hand. After that, everything is done in-app.
 
 1. **Create your login:** Supabase dashboard → **Authentication → Users → Add user** → enter your
@@ -124,10 +124,10 @@ app is deployed in Stage 3.)
 ## Stage 3 — Deploy to Railway
 
 ### 3.1 Create the service from your repo
-1. Railway → **New Project → Deploy from GitHub repo** → pick the FleetGuard repo.
+1. Railway → **New Project → Deploy from GitHub repo** → pick the FuelGuard repo.
 2. Railway reads **`railway.json`** in the repo, so the build and start commands are already set:
-   - build: `pnpm install && pnpm --filter @fleetguard/web build`  (builds the SPA)
-   - start: `pnpm --filter @fleetguard/api start`  (Node API that also serves the SPA)
+   - build: `pnpm install && pnpm --filter @fuelguard/web build`  (builds the SPA)
+   - start: `pnpm --filter @fuelguard/api start`  (Node API that also serves the SPA)
    - health check: `/healthz`
 3. The first build will likely **fail or come up unconfigured** — that's expected, we haven't added
    the environment variables yet. Continue to 3.2.
@@ -156,13 +156,13 @@ Paste these in. **Do not set `PORT`** — Railway injects it automatically and t
 
 ### 3.3 Generate the free domain
 1. Service → **Settings → Networking → Public Networking → Generate Domain**.
-2. Railway gives you something like `fleetguard-production-xxxx.up.railway.app`.
+2. Railway gives you something like `fuelguard-production-xxxx.up.railway.app`.
 3. Go back to **Variables** and set both `WEB_APP_URL` and `ALLOWED_ORIGINS` to
-   `https://fleetguard-production-xxxx.up.railway.app` (no trailing slash).
+   `https://fuelguard-production-xxxx.up.railway.app` (no trailing slash).
 4. **Redeploy** (Deployments → ⋯ → Redeploy) so the build picks up the domain and the final vars.
 
 **Check:** open `https://<your-domain>/healthz` → you should see `{"status":"ok",...}`. Then open
-`https://<your-domain>/` → the FleetGuard login screen.
+`https://<your-domain>/` → the FuelGuard login screen.
 
 ---
 
@@ -204,6 +204,6 @@ Paste these in. **Do not set `PORT`** — Railway injects it automatically and t
 
 ## Going further (optional, after it's live)
 - **Custom domain:** Railway → Settings → Networking → Custom Domain (add a CNAME at your DNS).
-- **Separate staging:** repeat with a second Supabase project + Railway service (`fleetguard-staging`).
+- **Separate staging:** repeat with a second Supabase project + Railway service (`fuelguard-staging`).
 - **Samsara:** add `SAMSARA_API_TOKEN` and map each vehicle's `samsara_vehicle_id` (docs/10).
 - **CI:** Railway auto-deploys on push to your chosen branch — set it under Settings → Deploys.

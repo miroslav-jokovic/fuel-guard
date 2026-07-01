@@ -1,4 +1,4 @@
--- FleetGuard — 0001 extensions & enums
+-- FuelGuard — 0001 extensions & enums
 -- Mirrors docs/02-DATA-MODEL.md §2 (with §10 v1.1 amendments).
 
 -- pgcrypto provides gen_random_uuid() on older Postgres; harmless on newer.

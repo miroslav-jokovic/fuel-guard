@@ -1,4 +1,4 @@
-# FleetGuard — Samsara × EFS Odometer Reconciliation (corrected design)
+# FuelGuard — Samsara × EFS Odometer Reconciliation (corrected design)
 
 > Supersedes the cross-source design in `09-DETECTION-REVIEW.md §2`. There is **no driver app**.
 > The ±5-mile odometer check compares the **EFS pump odometer** (driver-entered at fueling) against
@@ -10,9 +10,9 @@
 
 | | Before (wrong) | Now (corrected) |
 |---|---|---|
-| Reference for "correct odometer" | a second human entry in a FleetGuard app | **Samsara GPS/OBD odometer** (telematics) |
+| Reference for "correct odometer" | a second human entry in a FuelGuard app | **Samsara GPS/OBD odometer** (telematics) |
 | How it arrives | drivers double-enter | **Samsara API pull** + **EFS daily report upload** |
-| Driver app | assumed | **does not exist** — drivers never touch FleetGuard |
+| Driver app | assumed | **does not exist** — drivers never touch FuelGuard |
 
 The *concept* (cross-source ±5 reconciliation) was right; the *source* was wrong. Good news: the
 engine is reusable — the `odometer_mismatch` rule, the `crossSourceOdometer` context field, and the
@@ -80,7 +80,7 @@ best we can do is a wider tolerance or a per-day plausibility band.
 ## 6. New integration pieces (Phase 9-prep)
 
 - `integration_credentials`: per-org **Samsara API token** (server-only secret).
-- `vehicles.samsara_vehicle_id`: mapping EFS Unit / FleetGuard vehicle → Samsara vehicle.
+- `vehicles.samsara_vehicle_id`: mapping EFS Unit / FuelGuard vehicle → Samsara vehicle.
 - A **Samsara client** (`/fleet/vehicles/stats/history`) + a **reconciliation service** that, after
   each daily EFS upload, fetches Samsara odometer + location at each new transaction's time and runs
   the engine. (Daily batch aligned with the EFS upload; on-demand also possible.)

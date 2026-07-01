@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 /**
  * Critical-path smoke test (docs/03-ROADMAP.md Phase 8). Requires a running web app + a seeded
  * Supabase project (or VITE_DEV_BYPASS for the UI-only paths). Run against a deploy:
- *   BASE_URL=https://<app> pnpm --filter @fleetguard/web e2e
+ *   BASE_URL=https://<app> pnpm --filter @fuelguard/web e2e
  * Not part of the offline unit-test gate.
  */
 test("unauthenticated users are redirected to login", async ({ page }) => {

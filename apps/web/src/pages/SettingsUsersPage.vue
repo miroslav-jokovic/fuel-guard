@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { USER_ROLES, type UserRole, type Invite } from "@fleetguard/shared";
+import { USER_ROLES, type UserRole, type Invite } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import AppSelect from "@/components/AppSelect.vue";
 import { useToastStore } from "@/stores/toast";

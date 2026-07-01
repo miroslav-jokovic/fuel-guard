@@ -5,7 +5,7 @@ import {
   parseFuelPercents,
   tankPercentNear,
   reconcileTankFill,
-} from "@fleetguard/shared";
+} from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";

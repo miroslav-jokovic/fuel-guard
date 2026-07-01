@@ -1,4 +1,4 @@
-# FleetGuard — Setup & Deployment Guide
+# FuelGuard — Setup & Deployment Guide
 
 > Supabase + Railway + environment configuration. Hand-in-hand with Phase 9 of the prompt pack.
 
@@ -17,7 +17,7 @@
 
 ## 2. Supabase setup
 
-1. **Create two projects** (or one for now, one for prod later): `fleetguard-dev`, `fleetguard-prod`.
+1. **Create two projects** (or one for now, one for prod later): `fuelguard-dev`, `fuelguard-prod`.
 2. **Auth → Providers:** keep Email enabled. Disable open sign-ups if available; we invite users.
    Enable "Confirm email." Set the Site URL and redirect URLs to your local + Railway web domains.
 3. **Apply schema:** run the migrations from `/supabase/migrations` (via Supabase CLI
@@ -76,20 +76,20 @@ test inbox (or Supabase's invite flow) to exercise login.
 
 ## 5. Railway deployment
 
-FleetGuard is a monorepo with **two services** off one repo.
+FuelGuard is a monorepo with **two services** off one repo.
 
 1. **New Project → Deploy from GitHub repo.** Create two services from the same repo:
 
    **Service `api`**
    - Root directory: `apps/api`
-   - Build: `pnpm install && pnpm --filter @fleetguard/api build`
+   - Build: `pnpm install && pnpm --filter @fuelguard/api build`
    - Start: `node apps/api/dist/index.js` (adjust to your build output)
    - Variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ALLOWED_ORIGINS`, mail vars,
      `NODE_ENV=production`, `PORT` (Railway provides one).
 
    **Service `web`**
    - Root directory: `apps/web`
-   - Build: `pnpm install && pnpm --filter @fleetguard/web build`
+   - Build: `pnpm install && pnpm --filter @fuelguard/web build`
    - Serve `dist/` as static (Caddy/`serve`). For an SPA, configure a catch-all rewrite to
      `index.html`.
    - Variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`.
@@ -101,7 +101,7 @@ FleetGuard is a monorepo with **two services** off one repo.
      `web` rebuild, not just a restart.
 
 3. **Supabase prod:** point Auth Site URL + redirect URLs at the `web` Railway domain. Run
-   migrations on `fleetguard-prod`. Seed only the org row.
+   migrations on `fuelguard-prod`. Seed only the org row.
 
 4. **Smoke test:** run the Playwright e2e against the live `web` URL, then invite the first admin.
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { orgSettingsFormSchema, type OrgSettingsForm } from "@fleetguard/shared";
+import { orgSettingsFormSchema, type OrgSettingsForm } from "@fuelguard/shared";
 import { useOrgSettingsQuery, useSaveOrgSettings } from "@/features/settings/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
 
