@@ -17,7 +17,10 @@ const EnvSchema = z.object({
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   // Where the invite email should send users to finish sign-up (the web app's accept page).
-  WEB_APP_URL: z.string().url().default("http://localhost:5173"),
+  WEB_APP_URL: z.string().url().catch("http://localhost:5173"),
+  // Single-service deploy: absolute path to the built web SPA to serve. Defaults next to the API
+  // (apps/web/dist). Leave unset in API-only/dev runs and nothing static is served.
+  WEB_DIST: z.string().optional(),
   // Phase 5.5 (Anthropic).
   ANTHROPIC_API_KEY: z.string().optional(),
 
