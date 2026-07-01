@@ -2,7 +2,9 @@
 import { ref, computed, watch } from "vue";
 import { ANOMALY_SEVERITIES, RULE_IDS, formatRuleId, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useAnomaliesQuery, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
+import { useAnomaliesQuery, useAnomalyTransition, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
+import { useSessionStore } from "@/stores/session";
+import { useToastStore } from "@/stores/toast";
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import AppSelect from "@/components/AppSelect.vue";
@@ -11,9 +13,31 @@ import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
 
 const PAGE_SIZE = 20;
+const session = useSessionStore();
+const toast = useToastStore();
 const { data: vehicles } = useVehiclesQuery();
 const filters = ref<AnomalyFilters>({ status: "open" });
 const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
+
+const transition = useAnomalyTransition();
+async function onFalseAlarm(a: Anomaly) {
+  if (!confirm(`Mark this "${formatRuleId(a.rule_id)}" flag as a false alarm? It won't be re-raised.`)) return;
+  try {
+    await transition.mutateAsync({ id: a.id, status: "dismissed", note: "False alarm", version: a.version });
+    toast.success("Marked as false alarm");
+  } catch (e) {
+    toast.error("Could not update", e instanceof Error ? e.message : undefined);
+  }
+}
+
+const statusBadge = (s: string) =>
+  s === "open"
+    ? "bg-indigo-100 text-indigo-800"
+    : s === "investigating"
+      ? "bg-amber-100 text-amber-800"
+      : s === "resolved"
+        ? "bg-green-100 text-green-800"
+        : "bg-gray-100 text-gray-600"; // dismissed / superseded
 
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
@@ -74,7 +98,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="6" />
+      <TableSkeleton v-if="isLoading" :cols="7" />
       <ErrorState
         v-else-if="isError"
         :message="error instanceof Error ? error.message : 'Failed to load anomalies'"
@@ -91,6 +115,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
             <th class="px-6 py-3 font-medium">Rule</th>
             <th class="px-6 py-3 font-medium">Vehicle</th>
             <th class="px-6 py-3 font-medium">Detail</th>
+            <th class="px-6 py-3 font-medium">Status</th>
             <th class="px-6 py-3 font-medium">When</th>
             <th class="px-6 py-3"></th>
           </tr>
@@ -103,8 +128,22 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
             <td class="px-6 py-3 text-sm text-gray-700">{{ formatRuleId(a.rule_id) }}</td>
             <td class="px-6 py-3 text-gray-900">{{ unit(a.vehicle_id) }}</td>
             <td class="max-w-md truncate px-6 py-3 text-gray-700">{{ a.message }}</td>
+            <td class="px-6 py-3">
+              <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize', statusBadge(a.status)]">{{ a.status }}</span>
+            </td>
             <td class="px-6 py-3 whitespace-nowrap text-gray-500">{{ fmt(a.created_at) }}</td>
-            <td class="px-6 py-3 text-right text-indigo-600">Review →</td>
+            <td class="px-6 py-3 text-right whitespace-nowrap">
+              <button
+                v-if="session.canManage && (a.status === 'open' || a.status === 'investigating')"
+                class="text-sm font-medium text-amber-700 hover:text-amber-800 disabled:opacity-50"
+                :disabled="transition.isPending.value"
+                title="Checked and confirmed not real — dismiss and don't re-raise"
+                @click.stop="onFalseAlarm(a)"
+              >
+                False alarm
+              </button>
+              <span class="ml-4 text-sm font-medium text-indigo-600">Review →</span>
+            </td>
           </tr>
         </tbody>
       </table>

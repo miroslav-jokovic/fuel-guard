@@ -205,11 +205,9 @@ describe("hardening — card sharing", () => {
   });
 });
 
-describe("hardening — location mismatch (Samsara)", () => {
-  it("fires when telematics says the truck was not at the fueling location", () => {
-    expect(ids(ctx({ samsaraLocationMatched: false }))).toContain("location_mismatch");
-  });
-  it("does not fire when matched or unknown", () => {
+describe("location mismatch is disabled (city-name matching too unreliable)", () => {
+  it("never fires, even when telematics couldn't confirm the location", () => {
+    expect(ids(ctx({ samsaraLocationMatched: false }))).not.toContain("location_mismatch");
     expect(ids(ctx({ samsaraLocationMatched: true }))).not.toContain("location_mismatch");
     expect(ids(ctx())).not.toContain("location_mismatch");
   });

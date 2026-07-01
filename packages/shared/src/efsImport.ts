@@ -158,11 +158,21 @@ export function fuelTypeFromText(s: string | null | undefined): FuelType | null 
 
 /** Detect the report type from its header set (space/punctuation/case-insensitive). */
 export function detectReportKind(headers: string[]): ReportKind {
-  const h = new Set(headers.map(normKey));
+  const normed = headers.map(normKey);
+  const h = new Set(normed);
   const has = (...ks: string[]) => ks.some((k) => h.has(normKey(k)));
 
-  // Reject / Decline report — any of these error-related columns is a strong signal.
-  if (has("Error Code", "Error Description", "Reject Reason", "Decline Reason", "Decline Code", "Auth Code", "Authorization Code")) return "reject";
+  // Reject / Decline report — explicit known column names.
+  if (has(
+    "Error Code", "Error Description",
+    "Reject Reason", "Reject Code",
+    "Decline Reason", "Decline Code",
+    "Reason Code", "Response Code",
+    "Auth Code", "Authorization Code",
+  )) return "reject";
+
+  // Reject / Decline report — keyword substring fallback (catches 'Reject Transaction Status', etc.).
+  if (normed.some((k) => k.includes("reject") || k.includes("decline"))) return "reject";
 
   // Transaction report — needs a product column AND a quantity column.
   const hasProduct = has("Item", "Product Code", "ProductCode", "Product Description", "ProductDescription", "Prod Code", "Product");
@@ -401,7 +411,7 @@ export function normalizeRejectRows(rows: RawRow[]): ParsedDeclined[] {
   return rows.map((row) => {
     const card = str(pick(row, "Card Number", "Card #"));
     const invoice = str(pick(row, "Invoice"));
-    const code = str(pick(row, "Error Code", "Reject Reason", "Decline Reason"));
+    const code = str(pick(row, "Error Code", "Reject Code", "Reject Reason", "Decline Reason", "Decline Code", "Reason Code", "Response Code"));
     const declinedAt =
       efsDateTimeToIso(
         str(pick(row, "Date", "Tran Date", "TransactionPOSDate")),
@@ -422,7 +432,7 @@ export function normalizeRejectRows(rows: RawRow[]): ParsedDeclined[] {
       city: str(pick(row, "Location City", "City")),
       state: str(pick(row, "State/Prov", "State/ Prov", "State", "Location State")),
       error_code: code,
-      error_description: str(pick(row, "Error Description", "Reject Description")),
+      error_description: str(pick(row, "Error Description", "Reject Description", "Reject Reason", "Reason", "Response", "Description")),
       policy: str(pick(row, "Policy")),
       policy_name: str(pick(row, "Policy Name")),
     };

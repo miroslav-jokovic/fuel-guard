@@ -395,19 +395,10 @@ function ruleCostOutlier(ctx: RuleContext): RuleResult {
   return none("cost_outlier");
 }
 
-/** Telematics says the truck was NOT at the fueling location — a strong card-misuse / theft signal. */
-function ruleLocationMismatch(ctx: RuleContext): RuleResult {
-  if (ctx.samsaraLocationMatched === false) {
-    return {
-      ruleId: "location_mismatch",
-      fired: true,
-      severity: "high",
-      message: "Telematics shows the vehicle was not at the fueling location when the card was used.",
-      evidence: { samsaraLocationMatched: false },
-    };
-  }
-  return none("location_mismatch");
-}
+// NOTE: `location_mismatch` is intentionally NOT run. Matching an EFS city NAME to Samsara's
+// reverse-geocoded address is unreliable (small towns, highway labels, formatting) and produced
+// false positives. Precise location/odometer verification comes from the exact fueling TIME instead.
+// The rule id is kept in RULE_IDS for history + filtering; re-enable only with true geofencing.
 
 /**
  * Telematics tank level rose less than the billed gallons — a soft "less fuel went in than was paid
@@ -467,7 +458,7 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleUnattributed,
     ruleCostOutlier,
     ruleCardMultiVehicle,
-    ruleLocationMismatch,
+    // ruleLocationMismatch — disabled: city-name matching is unreliable (see note above).
     ...(fuel ? [ruleTankFillShort] : []),
   ];
 
