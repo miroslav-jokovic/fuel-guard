@@ -66,7 +66,7 @@ export interface AiVerificationContext {
     total_cost: number | null;
     station: { name: string | null; city: string | null; state: string | null; lat: number | null; lng: number | null };
   };
-  rules_fired: { ruleId: string; severity: string; message: string }[];
+  rules_fired: { ruleId: string; severity: string; message: string; evidence?: Record<string, unknown> | null }[];
   recent_transactions: {
     fueled_at: string;
     city: string | null;
@@ -79,6 +79,27 @@ export interface AiVerificationContext {
   /** Computed-in-code geo fact: implied mph from the previous station to this one (null if unknown). */
   implied_speed_mph: number | null;
   operating_hours: { start: string; end: string; tz: string };
+  /** Who this fill is attributed to. When attributed=false the fill couldn't be matched to a vehicle. */
+  attribution: {
+    attributed: boolean;
+    vehicle_unit: string | null;
+    /** Raw unit/asset text from the EFS report, useful to identify an unattributed fill. */
+    efs_unit_text: string | null;
+    driver_name: string | null;
+  };
+  /**
+   * Independent telematics (Samsara) facts reconciled at the fueling stop — the ground truth for the
+   * odometer and location checks. All null when Samsara had no coverage for this fill.
+   */
+  cross_source: {
+    /** Samsara odometer (miles) at the confirmed fueling stop — the ±5 reference for the driver's entry. */
+    samsara_odometer: number | null;
+    /** true = truck was stopped in the EFS station's state; false = it was in a different state; null = unknown. */
+    location_matched: boolean | null;
+    /** Gallons billed minus observed tank rise (advisory); null = not measurable. */
+    tank_short_gal: number | null;
+    reconciled_at: string | null;
+  };
 }
 
 // ── deterministic geo math ──────────────────────────────────────────────────

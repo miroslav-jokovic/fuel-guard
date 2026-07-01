@@ -5,7 +5,15 @@ import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
-import { verifyTransaction } from "../services/aiVerification.js";
+import { verifyTransactionDetailed, type VerifyReason } from "../services/aiVerification.js";
+
+const REASON_MESSAGE: Record<VerifyReason, string> = {
+  disabled: "AI verification is turned off for your organization.",
+  transaction_not_found: "The linked transaction could not be found.",
+  below_threshold: "This anomaly isn't severe enough to auto-verify.",
+  over_budget: "This month's AI token budget has been reached.",
+  invalid_model_output: "The AI returned an unreadable response — please try again.",
+};
 
 export function anomaliesRouter(): Router {
   const router = Router();
@@ -99,18 +107,22 @@ export function anomaliesRouter(): Router {
         res.status(404).json(apiError("not_found", "Anomaly not found"));
         return;
       }
-      const assessment = await verifyTransaction(admin, env, orgId, anomaly.transaction_id, {
-        force: true,
-        anomalyId: id,
-      });
+      const { output: assessment, reason } = await verifyTransactionDetailed(
+        admin,
+        env,
+        orgId,
+        anomaly.transaction_id,
+        { force: true, anomalyId: id },
+      );
       await writeAudit(admin, {
         orgId,
         actorId: req.auth!.userId,
         action: "ai.verification_run",
         entity: "anomalies",
         entityId: id,
+        meta: { reason: reason ?? "ok" },
       });
-      res.json({ assessment });
+      res.json({ assessment, reason, message: reason ? REASON_MESSAGE[reason] : null });
     }),
   );
 

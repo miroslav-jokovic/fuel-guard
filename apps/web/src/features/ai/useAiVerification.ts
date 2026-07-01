@@ -28,13 +28,20 @@ export function useAiVerification(transactionId: Ref<string | null>) {
   });
 }
 
-/** Trigger an on-demand AI re-examination of an anomaly. */
+export interface AiExamineResult {
+  assessment: AiVerificationRecord | null;
+  reason: string | null;
+  message: string | null;
+}
+
+/** Trigger an on-demand AI re-examination of an anomaly. Returns the fresh assessment (or a reason). */
 export function useAiExamine() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (anomalyId: string): Promise<void> => {
-      const res = await apiFetch(`/api/anomalies/${anomalyId}/ai-examine`, { method: "POST" });
+    mutationFn: async (anomalyId: string): Promise<AiExamineResult> => {
+      const res = await apiFetch<AiExamineResult>(`/api/anomalies/${anomalyId}/ai-examine`, { method: "POST" });
       if (!res.ok) throw new Error(res.error?.message ?? "AI verification failed");
+      return res.data ?? { assessment: null, reason: null, message: null };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ai_verifications"] }),
   });

@@ -29,7 +29,23 @@ Rules:
   fact — do not compute distances yourself or invent any.
 - Never accuse anyone of theft as fact; produce a RISK ASSESSMENT with reasons and a recommended
   action. State uncertainty honestly.
-- Always respond by calling the report_assessment tool.`;
+- Always respond by calling the report_assessment tool.
+
+Explaining specific flags (write a clear plain-language summary the manager can act on):
+- LOCATION MISMATCH (rule "location_mismatch"): cross_source.location_matched is the ground truth from
+  Samsara telematics. If it is TRUE, the truck WAS in the EFS station's state — treat the flag as a
+  likely FALSE ALARM and say so, lowering risk. If FALSE, the truck was stopped in a different state
+  than where the card was used — that is a real concern (card used away from the truck). If NULL,
+  Samsara had no coverage, so location could not be verified — say it's unverified, not suspicious.
+  Use rules_fired[].evidence (efsState vs samsaraState) to name the two states.
+- UNATTRIBUTED TRANSACTION (rule "unattributed_transaction"): attribution.attributed is false because
+  the fill couldn't be matched to a vehicle. Explain what it is in plain terms: a fuel-card charge
+  whose Unit number didn't match any vehicle on file. Cite attribution.efs_unit_text (the Unit as it
+  appeared on the EFS report) and driver_name if present, and recommend the manager map that Unit to a
+  vehicle (or confirm the card). This is a data-hygiene flag, not necessarily theft.
+- ODOMETER: cross_source.samsara_odometer is the independent Samsara reading at the fueling stop.
+  Compare it to transaction.odometer (what the driver entered). A gap beyond ~5 miles suggests a wrong
+  or mistyped odometer entry.`;
 
 function buildUserText(ctx: AiVerificationContext): string {
   return JSON.stringify(ctx, null, 2);
@@ -41,10 +57,22 @@ interface VerifyOpts {
   callModel?: ModelCaller;
 }
 
+/** Why a verification produced no assessment — surfaced to the UI so the drawer is never silently blank. */
+export type VerifyReason =
+  | "disabled"
+  | "transaction_not_found"
+  | "below_threshold"
+  | "over_budget"
+  | "invalid_model_output";
+
+export interface VerifyResult {
+  output: AiOutput | null;
+  reason: VerifyReason | null;
+}
+
 /**
- * Run the Claude verification layer for a flagged transaction (docs/07). Returns the assessment, or
- * null when skipped (disabled, below threshold, over budget, or invalid model output). Never throws
- * into the caller's path — failures degrade gracefully.
+ * Thin wrapper preserving the original contract (assessment or null). Prefer verifyTransactionDetailed
+ * when you need to tell the user WHY nothing came back.
  */
 export async function verifyTransaction(
   admin: SupabaseClient,
@@ -53,33 +81,50 @@ export async function verifyTransaction(
   txnId: string,
   opts: VerifyOpts = {},
 ): Promise<AiOutput | null> {
+  return (await verifyTransactionDetailed(admin, env, orgId, txnId, opts)).output;
+}
+
+/**
+ * Run the Claude verification layer for a flagged transaction (docs/07). Returns the assessment plus a
+ * reason when it's null (disabled, below threshold, over budget, or invalid model output). Never throws
+ * into the caller's path for soft skips — failures degrade gracefully.
+ */
+export async function verifyTransactionDetailed(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  txnId: string,
+  opts: VerifyOpts = {},
+): Promise<VerifyResult> {
   // Kill-switch + budget config.
   const { data: th } = await admin
     .from("anomaly_thresholds")
     .select("ai_verification_enabled, ai_monthly_token_budget")
     .eq("org_id", orgId)
     .maybeSingle();
-  if (!opts.force && th && th.ai_verification_enabled === false) return null;
+  if (!opts.force && th && th.ai_verification_enabled === false) return { output: null, reason: "disabled" };
 
   // Load the transaction + its open anomalies.
   const { data: txn } = await admin
     .from("fuel_transactions")
-    .select("id, vehicle_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, location_lat, location_lng")
+    .select(
+      "id, vehicle_id, driver_id, external_ref, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, location_lat, location_lng, samsara_odometer, samsara_location_matched, samsara_tank_short_gal, samsara_recon_at",
+    )
     .eq("id", txnId)
     .eq("org_id", orgId)
     .maybeSingle();
-  if (!txn) return null;
+  if (!txn) return { output: null, reason: "transaction_not_found" };
 
   const { data: anomalies } = await admin
     .from("anomalies")
-    .select("rule_id, severity, message, status")
+    .select("rule_id, severity, message, status, evidence")
     .eq("transaction_id", txnId);
   const fired = (anomalies ?? []).filter((a) => a.status !== "superseded");
   const maxSev = fired.reduce<AnomalySeverity | null>(
     (m, a) => (m == null || SEVERITY_RANK[a.severity as AnomalySeverity] > SEVERITY_RANK[m] ? (a.severity as AnomalySeverity) : m),
     null,
   );
-  if (!opts.force && !shouldVerify(maxSev)) return null;
+  if (!opts.force && !shouldVerify(maxSev)) return { output: null, reason: "below_threshold" };
 
   // Vehicle.
   let vehicle = { unit: "unknown", fuel_type: "other", tank_capacity_gal: 0, baseline_mpg: null as number | null };
@@ -112,6 +157,25 @@ export async function verifyTransaction(
     implied = impliedSpeedMph(miles, hours);
   }
 
+  // Attribution: driver name (if matched) + the raw EFS unit/driver text (helps identify an
+  // unattributed fill — the whole point of the unattributed anomaly).
+  let driverName: string | null = null;
+  if (txn.driver_id) {
+    const { data: d } = await admin.from("drivers").select("name").eq("id", txn.driver_id).maybeSingle();
+    driverName = d?.name ?? null;
+  }
+  let efsUnitText: string | null = null;
+  if (txn.external_ref) {
+    const { data: efs } = await admin
+      .from("efs_transactions")
+      .select("unit, driver_name")
+      .eq("org_id", orgId)
+      .eq("external_ref", txn.external_ref)
+      .maybeSingle();
+    efsUnitText = efs?.unit ?? null;
+    if (!driverName) driverName = efs?.driver_name ?? null;
+  }
+
   const { data: org } = await admin.from("organizations").select("operating_hours").eq("id", orgId).single();
   const oh = (org?.operating_hours ?? {}) as { start?: string; end?: string; tz?: string };
 
@@ -125,7 +189,12 @@ export async function verifyTransaction(
       total_cost: txn.total_cost == null ? null : Number(txn.total_cost),
       station: { name: txn.location_text, city: null, state: null, lat: txn.location_lat == null ? null : Number(txn.location_lat), lng: txn.location_lng == null ? null : Number(txn.location_lng) },
     },
-    rules_fired: fired.map((a) => ({ ruleId: a.rule_id, severity: a.severity, message: a.message })),
+    rules_fired: fired.map((a) => ({
+      ruleId: a.rule_id,
+      severity: a.severity,
+      message: a.message,
+      evidence: (a.evidence ?? null) as Record<string, unknown> | null,
+    })),
     recent_transactions: (recentRows ?? []).map((r) => ({
       fueled_at: r.fueled_at,
       city: null,
@@ -137,6 +206,18 @@ export async function verifyTransaction(
     })),
     implied_speed_mph: implied,
     operating_hours: { start: oh.start ?? "05:00", end: oh.end ?? "20:00", tz: oh.tz ?? "America/Chicago" },
+    attribution: {
+      attributed: txn.vehicle_id != null,
+      vehicle_unit: txn.vehicle_id ? vehicle.unit : null,
+      efs_unit_text: efsUnitText,
+      driver_name: driverName,
+    },
+    cross_source: {
+      samsara_odometer: txn.samsara_odometer == null ? null : Number(txn.samsara_odometer),
+      location_matched: txn.samsara_location_matched ?? null,
+      tank_short_gal: txn.samsara_tank_short_gal == null ? null : Number(txn.samsara_tank_short_gal),
+      reconciled_at: txn.samsara_recon_at ?? null,
+    },
   };
 
   const inputHash = aiInputHash(context);
@@ -149,7 +230,7 @@ export async function verifyTransaction(
       .eq("org_id", orgId)
       .eq("input_hash", inputHash)
       .maybeSingle();
-    if (cached) return aiOutputSchema.parse(cached.raw_response);
+    if (cached) return { output: aiOutputSchema.parse(cached.raw_response), reason: null };
   }
 
   // Monthly token budget.
@@ -166,7 +247,7 @@ export async function verifyTransaction(
       const u = (r.token_usage ?? {}) as { input?: number; output?: number };
       return sum + (u.input ?? 0) + (u.output ?? 0);
     }, 0);
-    if (!withinBudget(used, th.ai_monthly_token_budget)) return null;
+    if (!withinBudget(used, th.ai_monthly_token_budget)) return { output: null, reason: "over_budget" };
   }
 
   // Call the model (Haiku → escalate to Sonnet when serious/uncertain).
@@ -174,8 +255,8 @@ export async function verifyTransaction(
   const first = await callModel(AI_MODELS.fast, SYSTEM_PROMPT, buildUserText(context));
   const firstParsed = aiOutputSchema.safeParse(first.json);
   if (!firstParsed.success) {
-    console.error("[ai] invalid model output (first pass) — skipping");
-    return null;
+    console.error("[ai] invalid model output (first pass) — skipping:", JSON.stringify(first.json));
+    return { output: null, reason: "invalid_model_output" };
   }
   let output = firstParsed.data;
   let model: string = AI_MODELS.fast;
@@ -220,5 +301,5 @@ export async function verifyTransaction(
   );
   await admin.from("fuel_transactions").update({ ai_risk_level: output.risk_level }).eq("id", txnId);
 
-  return output;
+  return { output, reason: null };
 }
