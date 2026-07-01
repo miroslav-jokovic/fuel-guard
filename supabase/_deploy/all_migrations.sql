@@ -1,6 +1,5 @@
--- FuelGuard — ALL migrations combined (0001 → 0014), in order.
+-- FuelGuard — ALL migrations combined (0001 → 0015), in order.
 -- Paste into the Supabase SQL Editor once and Run. Source of truth: supabase/migrations/*.sql.
--- For automated migrations use the Supabase CLI 'db push' or the GitHub Action instead.
 
 -- ============================================================================
 -- 0001_extensions_and_enums.sql
@@ -824,4 +823,14 @@ create unique index idx_declined_external_ref on declined_transactions (org_id, 
 
 drop index if exists idx_efs_txn_extref;
 create unique index idx_efs_txn_extref on efs_transactions (org_id, external_ref);
+
+
+-- ============================================================================
+-- 0015_driver_samsara.sql
+-- ============================================================================
+-- FuelGuard — 0015 Driver ↔ Samsara mapping
+-- Mirrors vehicles.samsara_vehicle_id: lets the driver sync (GET /fleet/drivers) match and upsert
+-- drivers by their Samsara id, so telematics-linked driver data stays consistent across syncs.
+
+alter table drivers add column samsara_driver_id text;
 

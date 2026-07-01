@@ -52,6 +52,12 @@ const editing = ref<Vehicle | null>(null);
 const driverName = (id: string | null) =>
   id ? (drivers.value?.find((d) => d.id === id)?.full_name ?? "—") : "—";
 
+// Fuel vehicles (diesel/gasoline) need a tank capacity + baseline MPG for the detection engine.
+// Samsara can't provide these, so flag them as "setup needed" after a sync.
+const needsSetup = (v: Vehicle) =>
+  (v.fuel_type === "diesel" || v.fuel_type === "gasoline") &&
+  (Number(v.tank_capacity_gal) <= 0 || !v.baseline_mpg);
+
 const saving = computed(() => createVehicle.isPending.value || updateVehicle.isPending.value);
 
 function openNew() {
@@ -167,8 +173,16 @@ async function onRetire(v: Vehicle) {
             </td>
             <td class="px-6 py-3 text-gray-700">{{ [v.year, v.make, v.model].filter(Boolean).join(" ") || "—" }}</td>
             <td class="px-6 py-3 capitalize text-gray-700">{{ v.fuel_type }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ v.tank_capacity_gal }} gal</td>
-            <td class="px-6 py-3 text-gray-700">{{ v.baseline_mpg ?? "—" }}</td>
+            <td class="px-6 py-3 text-gray-700">
+              <span v-if="Number(v.tank_capacity_gal) > 0">{{ v.tank_capacity_gal }} gal</span>
+              <span v-else-if="needsSetup(v)" class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Set tank</span>
+              <span v-else class="text-gray-400">—</span>
+            </td>
+            <td class="px-6 py-3 text-gray-700">
+              <span v-if="v.baseline_mpg">{{ v.baseline_mpg }}</span>
+              <span v-else-if="needsSetup(v)" class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Set MPG</span>
+              <span v-else class="text-gray-400">—</span>
+            </td>
             <td class="px-6 py-3 text-gray-700">{{ driverName(v.assigned_driver_id) }}</td>
             <td class="px-6 py-3"><StatusBadge :status="v.status" /></td>
             <td class="px-6 py-3 text-right whitespace-nowrap">

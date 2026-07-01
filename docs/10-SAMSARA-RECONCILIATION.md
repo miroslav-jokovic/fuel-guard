@@ -157,6 +157,24 @@ Vehicles page. It calls `POST /api/integrations/samsara/sync-vehicles`, which pa
 > Note the unit-number tie-in: EFS fuel lines link to a truck by **Unit**, so a synced vehicle's
 > `unit_number` (from Samsara's `name`) must match the EFS "Unit" value for fuel to attribute.
 
+### What the sync fills — and what stays manual (Phase 8.10)
+
+| Field | Source |
+|-------|--------|
+| unit number, make, model, year, plate, VIN, `samsara_vehicle_id` | Samsara `/fleet/vehicles` |
+| **current odometer** | Samsara `/fleet/vehicles/stats` (`obdOdometerMeters` → GPS fallback, meters→miles) |
+| **tank capacity**, **baseline MPG** | **manual** — Samsara has no API field for these; they're vehicle specs |
+
+Because tank capacity and baseline MPG drive the over-capacity and efficiency detectors, the Vehicles
+table flags fuel vehicles missing them with a **"Set tank" / "Set MPG"** badge after a sync. Odometer
+is only written when Samsara actually returns a reading (never overwritten with 0).
+
+### Driver sync
+
+`POST /api/integrations/samsara/sync-drivers` (**Sync from Samsara** on the Drivers page) pulls the org's
+drivers from `GET /fleet/drivers`, upserting by `samsara_driver_id` → phone → name. It fills name, phone,
+and `samsara_driver_id` (migration 0015); `employee_id` and status stay user-owned. Admin-only + audited.
+
 ---
 
 ## Sources

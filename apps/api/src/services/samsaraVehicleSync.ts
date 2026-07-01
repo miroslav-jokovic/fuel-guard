@@ -55,7 +55,9 @@ export async function syncVehiclesFromSamsara(
   let odometerMiles = new Map<string, number>();
   try {
     const fetcher = odometerOverride ?? makeSamsaraOdometerFetcher(env, token);
-    odometerMiles = parseVehicleStatsOdometer(await fetcher());
+    odometerMiles = parseVehicleStatsOdometer(
+      (await fetcher()) as Parameters<typeof parseVehicleStatsOdometer>[0],
+    );
   } catch {
     /* leave odometer unset; not fatal */
   }
