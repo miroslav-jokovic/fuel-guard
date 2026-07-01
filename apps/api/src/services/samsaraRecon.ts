@@ -74,11 +74,14 @@ export async function reconcileWithSamsara(
     stationName: input.locationName,
   });
 
-  // No match means Samsara never placed the truck in the EFS city that day → location mismatch.
+  // No confident match. Matching EFS city NAME against Samsara's reverse-geocoded address is fragile
+  // (small towns, highway labels, formatting), so a miss is NOT proof the truck was elsewhere — report
+  // location as UNKNOWN (null), which suppresses the location_mismatch alert. Precise location/odometer
+  // verification comes from the exact fueling TIME once the timed EFS report is imported (docs/10 §10).
   if (!match) {
     return {
       crossSourceOdometer: null,
-      locationMatched: false,
+      locationMatched: null,
       matchedAt: null,
       tankFillShortGal: null,
       tankObservedRiseGal: null,
