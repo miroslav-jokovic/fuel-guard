@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
 import {
   HomeIcon,
@@ -32,6 +33,7 @@ interface NavItem {
 const session = useSessionStore();
 const route = useRoute();
 const router = useRouter();
+const queryClient = useQueryClient();
 
 // Role-aware navigation (PRD §2): drivers get Dashboard + Fuel Log; managers/admin/auditor see all;
 // Users is admin-only. UI gating only — RLS + API are the real enforcement.
@@ -88,7 +90,8 @@ watch(() => route.path, () => (mobileOpen.value = false));
 
 async function signOut() {
   await session.signOut();
-  router.push("/login");
+  queryClient.clear(); // drop cached data so nothing leaks to the next session
+  await router.replace({ name: "login" });
 }
 </script>
 

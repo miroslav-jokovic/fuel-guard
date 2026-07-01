@@ -76,8 +76,14 @@ export const useSessionStore = defineStore("session", () => {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    // Clear local state FIRST so route guards immediately see "logged out" (no waiting on the network).
     session.value = null;
+    try {
+      // `local` scope clears the stored tokens without a server round-trip that can hang/stall.
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      /* already cleared locally — ignore */
+    }
   }
 
   /** Re-fetch the token so newly-created membership claims (org_id/user_role) appear (audit B3). */
