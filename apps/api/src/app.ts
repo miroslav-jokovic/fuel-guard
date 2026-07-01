@@ -11,6 +11,7 @@ import { setAppLocals } from "./lib/appLocals.js";
 import { apiError } from "./lib/http.js";
 import { requireAuth } from "./middleware/auth.js";
 import { invitesRouter } from "./routes/invites.js";
+import { membersRouter } from "./routes/members.js";
 import { transactionsRouter } from "./routes/transactions.js";
 import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
@@ -71,6 +72,7 @@ export function createApp(env: Env): Express {
   });
 
   app.use("/api/invites", invitesRouter());
+  app.use("/api/members", membersRouter());
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());

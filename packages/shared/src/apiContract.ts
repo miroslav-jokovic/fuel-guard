@@ -47,6 +47,20 @@ export const inviteListResponseSchema = z.object({
 });
 export type InviteListResponse = z.infer<typeof inviteListResponseSchema>;
 
+// ── Members ───────────────────────────────────────────────────────────────────
+export const orgMemberSchema = z.object({
+  userId: z.uuid(),
+  email: z.string().nullable(),
+  role: roleSchema,
+  joinedAt: z.string(),
+});
+export type OrgMember = z.infer<typeof orgMemberSchema>;
+
+export const memberListResponseSchema = z.object({
+  members: z.array(orgMemberSchema),
+});
+export type MemberListResponse = z.infer<typeof memberListResponseSchema>;
+
 // ── Session / me ────────────────────────────────────────────────────────────
 export const meResponseSchema = z.object({
   userId: z.uuid(),

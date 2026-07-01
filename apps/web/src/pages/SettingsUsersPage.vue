@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { USER_ROLES, type UserRole, type Invite } from "@fuelguard/shared";
+import { USER_ROLES, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import AppSelect from "@/components/AppSelect.vue";
 import { useToastStore } from "@/stores/toast";
+import { useSessionStore } from "@/stores/session";
 
 const toast = useToastStore();
+const session = useSessionStore();
+
 const invites = ref<Invite[]>([]);
+const members = ref<OrgMember[]>([]);
 const loading = ref(false);
 
 const email = ref("");
@@ -15,9 +19,14 @@ const submitting = ref(false);
 
 async function load() {
   loading.value = true;
-  const res = await apiFetch<{ invites: Invite[] }>("/api/invites");
-  if (res.ok && res.data) invites.value = res.data.invites;
-  else toast.error("Could not load invitations", res.error?.message);
+  const [invRes, memRes] = await Promise.all([
+    apiFetch<{ invites: Invite[] }>("/api/invites"),
+    apiFetch<{ members: OrgMember[] }>("/api/members"),
+  ]);
+  if (invRes.ok && invRes.data) invites.value = invRes.data.invites;
+  else toast.error("Could not load invitations", invRes.error?.message);
+  if (memRes.ok && memRes.data) members.value = memRes.data.members;
+  else toast.error("Could not load members", memRes.error?.message);
   loading.value = false;
 }
 
@@ -49,6 +58,26 @@ async function revoke(id: string) {
     await load();
   } else {
     toast.error("Could not revoke invitation", res.error?.message);
+  }
+}
+
+async function resend(id: string) {
+  const res = await apiFetch(`/api/invites/${id}/resend`, { method: "POST" });
+  if (res.ok) {
+    toast.success("Invitation resent");
+    await load();
+  } else {
+    toast.error("Could not resend invitation", res.error?.message);
+  }
+}
+
+async function removeMember(userId: string) {
+  const res = await apiFetch(`/api/members/${userId}`, { method: "DELETE" });
+  if (res.ok) {
+    toast.success("Member removed");
+    await load();
+  } else {
+    toast.error("Could not remove member", res.error?.message);
   }
 }
 
@@ -94,6 +123,41 @@ onMounted(load);
 
     <section class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
       <div class="border-b border-gray-200 px-6 py-4">
+        <h3 class="text-base font-semibold text-gray-900">Active members</h3>
+      </div>
+      <div v-if="loading" class="px-6 py-8 text-sm text-gray-500">Loading…</div>
+      <p v-else-if="members.length === 0" class="px-6 py-8 text-sm text-gray-500">No members yet.</p>
+      <table v-else class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead>
+          <tr class="text-left text-gray-500">
+            <th class="px-6 py-3 font-medium">Email</th>
+            <th class="px-6 py-3 font-medium">Role</th>
+            <th class="px-6 py-3 font-medium">Joined</th>
+            <th class="px-6 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr v-for="m in members" :key="m.userId">
+            <td class="px-6 py-3 text-gray-900">{{ m.email ?? m.userId }}</td>
+            <td class="px-6 py-3 text-gray-700">{{ m.role }}</td>
+            <td class="px-6 py-3 text-gray-500">{{ new Date(m.joinedAt).toLocaleDateString() }}</td>
+            <td class="px-6 py-3 text-right">
+              <button
+                v-if="m.userId !== session.userId"
+                class="text-sm font-medium text-red-600 hover:text-red-500"
+                @click="removeMember(m.userId)"
+              >
+                Remove
+              </button>
+              <span v-else class="text-xs text-gray-400">You</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+      <div class="border-b border-gray-200 px-6 py-4">
         <h3 class="text-base font-semibold text-gray-900">Invitations</h3>
       </div>
       <div v-if="loading" class="px-6 py-8 text-sm text-gray-500">Loading…</div>
@@ -133,6 +197,13 @@ onMounted(load);
                 @click="revoke(inv.id)"
               >
                 Revoke
+              </button>
+              <button
+                v-else-if="inv.status === 'revoked' || inv.status === 'expired'"
+                class="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                @click="resend(inv.id)"
+              >
+                Resend
               </button>
             </td>
           </tr>

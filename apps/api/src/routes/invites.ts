@@ -117,6 +117,68 @@ export function invitesRouter(): Router {
     }),
   );
 
+  // Resend a revoked or expired invite (admin) — resets to pending with a fresh token.
+  router.post(
+    "/:id/resend",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+
+      const { data: existing } = await admin
+        .from("invites")
+        .select("id, email, status")
+        .eq("id", id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+
+      if (!existing) {
+        res.status(404).json(apiError("not_found", "Invite not found"));
+        return;
+      }
+      if (!["revoked", "expired"].includes(existing.status)) {
+        res.status(409).json(apiError("invalid_status", "Only revoked or expired invites can be resent"));
+        return;
+      }
+
+      const token = `${randomUUID()}${randomUUID()}`;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const { error } = await admin
+        .from("invites")
+        .update({ status: "pending", token, expires_at: expiresAt.toISOString(), invited_by: req.auth!.userId })
+        .eq("id", id)
+        .eq("org_id", orgId);
+
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not resend invite"));
+        return;
+      }
+
+      const { error: mailErr } = await admin.auth.admin.inviteUserByEmail(existing.email, {
+        redirectTo: `${env.WEB_APP_URL}/accept-invite`,
+      });
+      if (mailErr) {
+        console.error(`[invites] resend email failed for ${existing.email}: ${mailErr.message}`);
+      }
+
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "invite.resent",
+        entity: "invites",
+        entityId: id,
+        meta: { email: existing.email },
+      });
+
+      res.json({ ok: true, emailSent: !mailErr });
+    }),
+  );
+
   // Accept an invite → create the membership (audit B2). Authenticated invited user only.
   // Authorized by the JWT email matching a pending invite in an allowed domain (audit M2).
   router.post(
