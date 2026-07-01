@@ -216,10 +216,11 @@ export function useCommitImport() {
             .from("fuel_transactions")
             .upsert(fuelRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
           if (error) throw new Error(error.message);
+          // Score only THIS import's rows, in the background (returns immediately — no long wait).
           try {
-            await apiFetch("/api/transactions/backfill", { method: "POST" });
+            await apiFetch("/api/transactions/score-import", { method: "POST", body: { importId } });
           } catch {
-            /* scoring can be retried */
+            /* scoring can be retried; the upload itself is already committed */
           }
         }
       }

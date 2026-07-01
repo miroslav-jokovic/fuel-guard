@@ -149,6 +149,17 @@ describe("reconcileFuelLines", () => {
   });
 });
 
+describe("detectReportKind — reject report without an obvious reason column", () => {
+  it("classifies a card+date report with NO fuel quantity as a reject", () => {
+    // A decline: card was used but nothing was pumped → no product/quantity columns.
+    const headers = ["TransactionId", "CardNumber", "TransactionPOSDate", "TransactionPOSTime", "Unit", "DriverName", "LocationName", "LocationCity", "LocationState"];
+    expect(detectReportKind(headers)).toBe("reject");
+  });
+  it("still classifies a report with product + quantity as a transaction", () => {
+    expect(detectReportKind(["CardNumber", "TransactionPOSDate", "ProductCode", "Quantity", "Amount"])).toBe("transaction");
+  });
+});
+
 describe("new PascalCase report format (timed)", () => {
   const NEW_HEADERS = [
     "TransactionId", "CardNumber", "TransactionPOSDate", "TransactionPOSTime", "Invoice", "SubFleet",

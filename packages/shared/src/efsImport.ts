@@ -180,7 +180,13 @@ export function detectReportKind(headers: string[]): ReportKind {
   if (hasProduct && hasQty) return "transaction";
 
   // Fallback: EFS transaction exports always have "Tran Date" + "Card #"/"Card Number" + "Invoice" together.
-  if (has("Tran Date", "Transaction Date") && has("Card #", "Card Number") && has("Invoice")) return "transaction";
+  if (has("Tran Date", "Transaction Date", "TransactionPOSDate") && has("Card #", "Card Number") && has("Invoice")) return "transaction";
+
+  // Decisive reject heuristic: a card row with a date but NO dispensed fuel quantity is a decline
+  // (nothing was pumped) — this catches reject exports whose reason column we don't recognize by name.
+  const hasCard = has("Card #", "Card Number", "CardNumber");
+  const hasDate = has("Tran Date", "Transaction Date", "TransactionPOSDate", "Date", "Decline Date", "Declined At");
+  if (hasCard && hasDate && !hasQty) return "reject";
 
   return "unknown";
 }

@@ -60,10 +60,12 @@ export async function reconcileWithSamsara(
   const token = fetcherOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) return null;
 
-  // Day window around the EFS date (which is anchored at noon), with a buffer for tz/lag.
+  // Fetch window: tight (±3h) when we have the exact fueling time, wide (±30h) for date-only data
+  // where the fueling moment could be anywhere in the day. Tighter = less data + faster imports.
   const t = new Date(input.fueledAt).getTime();
-  const start = new Date(t - 30 * 3_600_000).toISOString();
-  const end = new Date(t + 30 * 3_600_000).toISOString();
+  const winMs = (input.preciseTime ? 3 : 30) * 3_600_000;
+  const start = new Date(t - winMs).toISOString();
+  const end = new Date(t + winMs).toISOString();
 
   const fetcher = fetcherOverride ?? makeSamsaraFetcher(env, token);
   let raw: unknown;

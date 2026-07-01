@@ -317,3 +317,18 @@ export async function backfillOrg(admin: SupabaseClient, env: Env, orgId: string
   for (const id of ids) await scoreTransaction(admin, env, orgId, id);
   return ids.length;
 }
+
+/** Score only the transactions from one import (post-import) — far cheaper than a full org backfill. */
+export async function scoreImport(admin: SupabaseClient, env: Env, orgId: string, importId: string): Promise<number> {
+  const { data: rows } = await admin
+    .from("fuel_transactions")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("import_id", importId)
+    .order("vehicle_id", { ascending: true })
+    .order("fueled_at", { ascending: true })
+    .order("created_at", { ascending: true });
+  const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
+  for (const id of ids) await scoreTransaction(admin, env, orgId, id);
+  return ids.length;
+}

@@ -4,7 +4,7 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
-import { scoreWithCascade, backfillOrg } from "../services/scoring.js";
+import { scoreWithCascade, backfillOrg, scoreImport } from "../services/scoring.js";
 import { verifyTransaction } from "../services/aiVerification.js";
 import { notifyForTransaction } from "../services/notifications.js";
 
@@ -48,7 +48,40 @@ export function transactionsRouter(): Router {
     }),
   );
 
-  // Backfill all transactions for the org (seed/demo + post-import bulk scoring).
+  // Score only the transactions from one import — returns immediately and scores in the BACKGROUND so
+  // a large upload doesn't block the request (each row does a live Samsara reconciliation).
+  router.post(
+    "/score-import",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const actorId = req.auth!.userId;
+      const importId = String((req.body as { importId?: string })?.importId ?? "");
+      if (!importId) {
+        res.status(400).json(apiError("bad_request", "importId is required"));
+        return;
+      }
+      const { data: imp } = await admin.from("imports").select("id").eq("id", importId).eq("org_id", orgId).maybeSingle();
+      if (!imp) {
+        res.status(404).json(apiError("not_found", "Import not found"));
+        return;
+      }
+      res.json({ ok: true, queued: true }); // respond now; scoring continues in the background
+      void (async () => {
+        try {
+          const count = await scoreImport(admin, env, orgId, importId);
+          await writeAudit(admin, { orgId, actorId, action: "transactions.score_import", meta: { importId, count } });
+        } catch (e) {
+          console.error("[score-import] background scoring failed:", e instanceof Error ? e.message : e);
+        }
+      })();
+    }),
+  );
+
+  // Backfill all transactions for the org (seed/demo + full re-score).
   router.post(
     "/backfill",
     requireOrg,
