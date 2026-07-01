@@ -9,6 +9,7 @@ import {
   reconcileTankFill,
   parseSamsaraVehicles,
   parseVehicleStatsOdometer,
+  parseVehicleFuelPercents,
   parseSamsaraDrivers,
   parseCurrentAssignments,
   sampleNearestTime,
@@ -176,6 +177,21 @@ describe("parseSamsaraVehicles", () => {
     expect(v[0]!.name).toBe("9"); // no usable name → falls back to the id
     expect(v[0]!.vin).toBeNull();
     expect(v[0]!.year).toBeNull();
+  });
+});
+
+describe("parseVehicleFuelPercents", () => {
+  it("maps id → current tank level %, skipping out-of-range/absent", () => {
+    const m = parseVehicleFuelPercents({
+      data: [
+        { id: "1", fuelPercents: { value: 62.4, time: "2026-06-30T10:00:00Z" } },
+        { id: "2", fuelPercents: { value: 150 } }, // invalid
+        { id: "3" }, // absent
+      ],
+    });
+    expect(m.get("1")).toEqual({ percent: 62.4, time: "2026-06-30T10:00:00Z" });
+    expect(m.has("2")).toBe(false);
+    expect(m.has("3")).toBe(false);
   });
 });
 

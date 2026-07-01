@@ -140,7 +140,7 @@ async function onRetire(v: Vehicle) {
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="9" />
+      <TableSkeleton v-if="isLoading" :cols="10" />
       <ErrorState
         v-else-if="isError"
         :message="error instanceof Error ? error.message : 'Failed to load vehicles'"
@@ -161,6 +161,7 @@ async function onRetire(v: Vehicle) {
             <th class="px-6 py-3 font-medium">Fuel</th>
             <th class="px-6 py-3 font-medium">Tank</th>
             <th class="px-6 py-3 font-medium">Baseline MPG</th>
+            <th class="px-6 py-3 font-medium">Fuel level</th>
             <th class="px-6 py-3 font-medium">Odometer</th>
             <th class="px-6 py-3 font-medium">Driver</th>
             <th class="px-6 py-3 font-medium">Status</th>
@@ -182,6 +183,10 @@ async function onRetire(v: Vehicle) {
             <td class="px-6 py-3 text-gray-700">
               <span v-if="v.baseline_mpg">{{ v.baseline_mpg }}</span>
               <span v-else-if="needsSetup(v)" class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Set MPG</span>
+              <span v-else class="text-gray-400">—</span>
+            </td>
+            <td class="px-6 py-3 text-gray-700">
+              <span v-if="v.samsara_fuel_percent != null">{{ v.samsara_fuel_percent }}%</span>
               <span v-else class="text-gray-400">—</span>
             </td>
             <td class="px-6 py-3 text-gray-700">

@@ -18,6 +18,8 @@ const vehicle = {
   status: "active" as const,
   assigned_driver_id: null,
   samsara_vehicle_id: null,
+  samsara_fuel_percent: null,
+  samsara_fuel_at: null,
   created_at: "",
   updated_at: "",
 };

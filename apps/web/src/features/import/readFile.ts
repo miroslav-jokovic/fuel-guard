@@ -6,6 +6,30 @@ export interface ParsedFile {
   rows: RawRow[];
 }
 
+/**
+ * Safely extract a plain string from an ExcelJS cell value.
+ * ExcelJS can return:
+ *   - formula cells:   { formula: "...", result: <CellValue> }
+ *   - rich-text cells: { richText: [{ text: "..." }, ...] }
+ *   - shared-formula:  { sharedFormula: "...", result: <CellValue> }
+ *   - plain strings, numbers, booleans, Date objects, null
+ * Falling back to "" prevents [object Object] poisoning normKey().
+ */
+function cellText(raw: unknown): string {
+  if (raw == null) return "";
+  if (raw instanceof Date) return raw.toISOString();
+  if (typeof raw !== "object") return String(raw);
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.richText)) {
+    return (obj.richText as Array<{ text?: unknown }>)
+      .map((r) => (r.text != null ? String(r.text) : ""))
+      .join("");
+  }
+  if (obj.result != null) return cellText(obj.result);
+  if (obj.text != null) return String(obj.text);
+  return "";
+}
+
 /** Read an EFS export (.xlsx or .csv) into header + row objects. ExcelJS is lazy-loaded. */
 export async function readFile(file: File): Promise<ParsedFile> {
   const name = file.name.toLowerCase();
@@ -57,7 +81,7 @@ async function readXlsx(file: File): Promise<ParsedFile> {
     for (let r = 1; r <= Math.min(8, ws.rowCount); r++) {
       const candidate: string[] = [];
       ws.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
-        candidate.push(String(cell.value ?? "").trim());
+        candidate.push(cellText(cell.value).trim());
       });
       if (candidate.length >= 5 && detectReportKind(candidate) !== "unknown") {
         headerRowNum = r;
@@ -67,7 +91,7 @@ async function readXlsx(file: File): Promise<ParsedFile> {
 
     const headers: string[] = [];
     ws.getRow(headerRowNum).eachCell({ includeEmpty: false }, (cell, col) => {
-      headers[col - 1] = String(cell.value ?? "").trim();
+      headers[col - 1] = cellText(cell.value).trim();
     });
     if (headers.length === 0) continue;
 
@@ -78,12 +102,7 @@ async function readXlsx(file: File): Promise<ParsedFile> {
       let hasValue = false;
       headers.forEach((h, i) => {
         const v = row.getCell(i + 1).value;
-        const val =
-          v == null
-            ? null
-            : typeof v === "object"
-              ? String((v as { text?: string; result?: unknown }).text ?? (v as { result?: unknown }).result ?? v)
-              : (v as string | number);
+        const val = v == null ? null : (cellText(v) || null);
         obj[h] = val;
         if (val != null && val !== "") hasValue = true;
       });

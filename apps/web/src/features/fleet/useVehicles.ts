@@ -12,7 +12,7 @@ export interface VehicleSyncResult {
 }
 
 const VEHICLE_COLS =
-  "id, org_id, unit_number, make, model, year, plate, vin, fuel_type, tank_capacity_gal, baseline_mpg, current_odometer, status, assigned_driver_id, samsara_vehicle_id, created_at, updated_at";
+  "id, org_id, unit_number, make, model, year, plate, vin, fuel_type, tank_capacity_gal, baseline_mpg, current_odometer, status, assigned_driver_id, samsara_vehicle_id, samsara_fuel_percent, samsara_fuel_at, created_at, updated_at";
 
 const vehiclesKey = ["vehicles"] as const;
 

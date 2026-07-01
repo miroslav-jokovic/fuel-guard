@@ -5,6 +5,7 @@ import {
   maxSeverity,
   milesSinceLast,
   computedMpg,
+  effectiveBaseline,
   type TxnView,
   type VehicleView,
   type Thresholds,
@@ -274,6 +275,7 @@ export async function scoreTransaction(admin: SupabaseClient, env: Env, orgId: s
     .eq("id", txnId);
 
   if (txn.vehicleId) {
+    const vehUpdate: Record<string, unknown> = {};
     const { data: maxRow } = await admin
       .from("fuel_transactions")
       .select("odometer")
@@ -282,8 +284,16 @@ export async function scoreTransaction(admin: SupabaseClient, env: Env, orgId: s
       .order("odometer", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (maxRow?.odometer != null) {
-      await admin.from("vehicles").update({ current_odometer: maxRow.odometer }).eq("id", txn.vehicleId);
+    if (maxRow?.odometer != null) vehUpdate.current_odometer = maxRow.odometer;
+
+    // Auto-derive baseline MPG from the vehicle's own fuel history when it isn't set (Samsara has no
+    // MPG). effectiveBaseline returns the median of recent computed MPG once there are ≥3 valid fills.
+    if (vehicle.baselineMpg == null) {
+      const base = effectiveBaseline(vehicle, recentTxns);
+      if (base != null) vehUpdate.baseline_mpg = base;
+    }
+    if (Object.keys(vehUpdate).length) {
+      await admin.from("vehicles").update(vehUpdate).eq("id", txn.vehicleId);
     }
   }
 }

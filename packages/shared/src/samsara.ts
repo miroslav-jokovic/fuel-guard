@@ -318,11 +318,31 @@ const clean = (s: string | undefined): string | null => {
 
 interface RawStatValue {
   value?: number;
+  time?: string;
 }
 interface RawVehicleStat {
   id?: string;
   obdOdometerMeters?: RawStatValue;
   gpsOdometerMeters?: RawStatValue;
+  fuelPercents?: RawStatValue;
+}
+
+export interface VehicleFuelLevel {
+  percent: number; // 0..100
+  time: string | null;
+}
+
+/** Parse `GET /fleet/vehicles/stats?types=fuelPercents` into a map of Samsara vehicle id → tank level %. */
+export function parseVehicleFuelPercents(response: { data?: RawVehicleStat[] }): Map<string, VehicleFuelLevel> {
+  const out = new Map<string, VehicleFuelLevel>();
+  for (const v of response.data ?? []) {
+    if (!v.id) continue;
+    const p = v.fuelPercents?.value;
+    if (p != null && p >= 0 && p <= 100) {
+      out.set(String(v.id), { percent: Math.round(p * 10) / 10, time: v.fuelPercents?.time ?? null });
+    }
+  }
+  return out;
 }
 
 /**

@@ -2,8 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   parseSamsaraVehicles,
   parseVehicleStatsOdometer,
+  parseVehicleFuelPercents,
   parseCurrentAssignments,
   type SamsaraVehicle,
+  type VehicleFuelLevel,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
@@ -60,15 +62,16 @@ export async function syncVehiclesFromSamsara(
   const raw = await lister();
   const vehicles = parseSamsaraVehicles({ data: raw as { id?: string }[] });
 
-  // Current odometer per vehicle (best-effort — identity sync still succeeds if stats are unavailable).
+  // Current odometer + fuel level per vehicle (best-effort — identity sync still succeeds without stats).
   let odometerMiles = new Map<string, number>();
+  let fuelByVehicle = new Map<string, VehicleFuelLevel>();
   try {
     const fetcher = odometerOverride ?? makeSamsaraOdometerFetcher(env, token);
-    odometerMiles = parseVehicleStatsOdometer(
-      (await fetcher()) as Parameters<typeof parseVehicleStatsOdometer>[0],
-    );
+    const stats = (await fetcher()) as Parameters<typeof parseVehicleStatsOdometer>[0];
+    odometerMiles = parseVehicleStatsOdometer(stats);
+    fuelByVehicle = parseVehicleFuelPercents(stats);
   } catch {
-    /* leave odometer unset; not fatal */
+    /* leave stats unset; not fatal */
   }
 
   const { data: existingData } = await admin
@@ -86,8 +89,15 @@ export async function syncVehiclesFromSamsara(
   for (const sv of vehicles) {
     const identity = { make: sv.make, model: sv.model, year: sv.year, plate: sv.licensePlate, vin: sv.vin };
     const odo = odometerMiles.get(sv.samsaraId);
-    // Only include current_odometer when Samsara actually reported one (never overwrite with 0/null).
-    const withOdo = <T extends object>(o: T) => (odo != null ? { ...o, current_odometer: odo } : o);
+    const fuel = fuelByVehicle.get(sv.samsaraId);
+    // Attach odometer + fuel level only when Samsara actually reported them (never overwrite with null).
+    const withStats = <T extends object>(o: T) => {
+      let out: T & { current_odometer?: number; samsara_fuel_percent?: number; samsara_fuel_at?: string | null } = { ...o };
+      if (odo != null) out = { ...out, current_odometer: odo };
+      if (fuel) out = { ...out, samsara_fuel_percent: fuel.percent, samsara_fuel_at: fuel.time };
+      return out;
+    };
+    const withOdo = withStats;
     const match =
       bySamsara.get(sv.samsaraId) ??
       (sv.vin ? byVin.get(sv.vin.toUpperCase()) : undefined) ??

@@ -1,4 +1,4 @@
--- FuelGuard — ALL migrations combined (0001 → 0015), in order.
+-- FuelGuard — ALL migrations combined (0001 → 0016), in order.
 -- Paste into the Supabase SQL Editor once and Run. Source of truth: supabase/migrations/*.sql.
 
 -- ============================================================================
@@ -850,3 +850,28 @@ alter table drivers add column samsara_driver_id text;
 create unique index idx_drivers_samsara_id
   on drivers (org_id, samsara_driver_id)
   where samsara_driver_id is not null;
+
+
+-- ============================================================================
+-- 0016_vehicle_fuel_level.sql
+-- ============================================================================
+-- FuelGuard — 0016 Current fuel level from Samsara
+-- Samsara's OBD fuel-percentage reading (`fuelPercents`) pulled onto each vehicle during sync, so the
+-- Vehicles page can show the truck's current tank level. (Tank CAPACITY in gallons and baseline MPG
+-- are not telematics data — capacity stays manual; baseline MPG is derived from fuel history.)
+
+alter table vehicles
+  add column samsara_fuel_percent numeric(5,1),  -- 0..100 (%)
+  add column samsara_fuel_at      timestamptz;   -- when that reading was taken
+
+
+-- ============================================================================
+-- 0017_import_file_hash.sql
+-- ============================================================================
+-- Add SHA-256 file hash to imports so the same physical file can be detected on re-upload.
+alter table imports add column if not exists file_hash text;
+
+create index if not exists idx_imports_file_hash
+  on imports (org_id, file_hash)
+  where file_hash is not null;
+

@@ -65,8 +65,9 @@ export type SamsaraOdometerFetcher = () => Promise<{ data?: unknown[] }>;
 
 export function makeSamsaraOdometerFetcher(env: Env, token: string): SamsaraOdometerFetcher {
   return async () => {
+    // One call for odometer + current fuel level.
     const data = await listAllPages(env, token, "/fleet/vehicles/stats", {
-      types: "obdOdometerMeters,gpsOdometerMeters",
+      types: "obdOdometerMeters,gpsOdometerMeters,fuelPercents",
     });
     return { data };
   };

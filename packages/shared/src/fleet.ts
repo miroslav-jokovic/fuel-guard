@@ -63,6 +63,8 @@ export interface Vehicle {
   status: VehicleStatus;
   assigned_driver_id: string | null;
   samsara_vehicle_id: string | null;
+  samsara_fuel_percent: number | null;
+  samsara_fuel_at: string | null;
   created_at: string;
   updated_at: string;
 }
