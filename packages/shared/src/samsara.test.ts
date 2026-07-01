@@ -16,6 +16,8 @@ import {
   stateFromAddress,
   cityFromAddress,
   compareLocationState,
+  matchFuelingStop,
+  approxFuelingUtcMs,
 } from "./index.js";
 
 describe("metersToMiles", () => {
@@ -254,5 +256,63 @@ describe("parseCurrentAssignments (latest driver per vehicle)", () => {
       data: [{ vehicle: { id: "v3" }, assignments: [{ driverId: "d3", startTime: "2026-06-02T00:00:00Z" }] }],
     });
     expect(links).toEqual([{ vehicleSamsaraId: "v3", driverSamsaraId: "d3" }]);
+  });
+});
+
+describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
+  const S = (
+    time: string,
+    speedMph: number | null,
+    address: string | null,
+    odometerMiles: number | null,
+  ) => ({ time, lat: 0, lng: 0, speedMph, address, odometerMiles });
+
+  it("reads odometer from the stop in the EFS state even when POS time is local (tz off by hours)", () => {
+    // EFS says 14:30 in Texas (Central). True fueling ≈ 20:30 UTC. At 14:30 UTC the truck is moving;
+    // at 20:30 UTC it is stopped at a TX truck stop. We must pick the stop, not the naive-time sample.
+    const samples = [
+      S("2026-06-30T14:30:00Z", 62, "I-20, Abilene, TX, 79601", 100000), // moving, wrong instant
+      S("2026-06-30T20:25:00Z", 0, "100 Fuel Rd, Dallas, TX, 75201", 100210), // the actual stop
+      S("2026-06-30T20:40:00Z", 3, "100 Fuel Rd, Dallas, TX, 75201", 100210),
+    ];
+    const r = matchFuelingStop(samples, { state: "TX" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
+    expect(r.odometerMiles).toBe(100210);
+    expect(r.locationMatched).toBe(true);
+    expect(r.matchedAt).toBe("2026-06-30T20:25:00Z");
+  });
+
+  it("flags a real mismatch: no stop in the EFS state but stopped in another state", () => {
+    const samples = [
+      S("2026-06-30T20:25:00Z", 0, "Depot, Oklahoma City, OK, 73101", 100210),
+      S("2026-06-30T20:40:00Z", 1, "Depot, Oklahoma City, OK, 73101", 100210),
+    ];
+    const r = matchFuelingStop(samples, { state: "TX" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
+    expect(r.locationMatched).toBe(false);
+    expect(r.odometerMiles).toBeNull();
+  });
+
+  it("returns unknown (not a mismatch) when there is no resolvable stop coverage", () => {
+    const samples = [S("2026-06-30T20:25:00Z", 55, "I-20, TX", 100000)]; // moving only, no stop
+    const r = matchFuelingStop(samples, { state: "TX" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
+    expect(r.locationMatched).toBeNull();
+    expect(r.odometerMiles).toBeNull();
+  });
+
+  it("without an EFS state, still recovers a best-effort odometer from the nearest stop", () => {
+    const samples = [
+      S("2026-06-30T13:00:00Z", 0, "Somewhere, ST, 00000", 100100),
+      S("2026-06-30T14:30:00Z", 0, "Somewhere, ST, 00000", 100150),
+    ];
+    const r = matchFuelingStop(samples, { state: null }, "2026-06-30T14:30:00", { stoppedMph: 5 });
+    expect(r.odometerMiles).toBe(100150);
+    expect(r.locationMatched).toBeNull();
+  });
+
+  it("approxFuelingUtcMs shifts local time by the station-state offset", () => {
+    const naive = "2026-06-30T14:30:00";
+    // TX (Central, +6) → 20:30 UTC
+    expect(approxFuelingUtcMs(naive, "TX")).toBe(new Date("2026-06-30T20:30:00Z").getTime());
+    // unknown state → unchanged
+    expect(approxFuelingUtcMs(naive, null)).toBe(new Date("2026-06-30T14:30:00Z").getTime());
   });
 });

@@ -2,8 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   parseSamsaraSamples,
   matchFuelingMoment,
-  sampleNearestTime,
-  compareLocationState,
+  matchFuelingStop,
+  approxFuelingUtcMs,
   stateFromAddress,
   cityFromAddress,
   parseFuelPercents,
@@ -60,12 +60,15 @@ export async function reconcileWithSamsara(
   const token = fetcherOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) return null;
 
-  // Fetch window: tight (±3h) when we have the exact fueling time, wide (±30h) for date-only data
-  // where the fueling moment could be anywhere in the day. Tighter = less data + faster imports.
-  const t = new Date(input.fueledAt).getTime();
-  const winMs = (input.preciseTime ? 3 : 30) * 3_600_000;
-  const start = new Date(t - winMs).toISOString();
-  const end = new Date(t + winMs).toISOString();
+  // Fetch window. For a timed report the POS time is LOCAL station time; we approximate the true UTC
+  // instant via the station-state offset and center a ±5h window on it (wide enough to absorb DST and
+  // the delay between arriving/stopping and the pump transaction). Date-only stays wide (±30h).
+  const center = input.preciseTime
+    ? approxFuelingUtcMs(input.fueledAt, input.state)
+    : new Date(input.fueledAt).getTime();
+  const winMs = (input.preciseTime ? 5 : 30) * 3_600_000;
+  const start = new Date(center - winMs).toISOString();
+  const end = new Date(center + winMs).toISOString();
 
   const fetcher = fetcherOverride ?? makeSamsaraFetcher(env, token);
   let raw: unknown;
@@ -80,30 +83,37 @@ export async function reconcileWithSamsara(
   const samples = parseSamsaraSamples(vehicle as Parameters<typeof parseSamsaraSamples>[0]);
   const vehicleRaw = vehicle as Parameters<typeof parseFuelPercents>[0];
 
-  // ── Precise path: exact fueling time → nearest GPS sample → state comparison + exact odometer ──
+  // ── Precise path: anchor on the PHYSICAL stop, not the timestamp's time zone. Find where Samsara
+  // shows the truck stopped in the EFS station's state near the (tz-adjusted) fueling time, and read
+  // the odometer there. That odometer is correct regardless of local-vs-UTC ambiguity, and "no stop in
+  // the right state (but stopped elsewhere)" is the only thing we treat as a real location mismatch. ──
   if (input.preciseTime) {
-    const s = sampleNearestTime(samples, input.fueledAt, 15);
-    if (!s) {
-      // No telematics near the fueling minute → can't verify anything (unknown, no flag).
+    const stop = matchFuelingStop(samples, { state: input.state }, input.fueledAt, { stoppedMph: 5 });
+    if (stop.odometerMiles == null && stop.locationMatched == null) {
+      // No usable stop near the fueling window → can't verify anything (unknown, no flag).
       return { crossSourceOdometer: null, locationMatched: null, locationEvidence: null, matchedAt: null, tankFillShortGal: null, tankObservedRiseGal: null };
     }
-    const matched = compareLocationState(input.state, s.address); // true / false / null
-    const tank = computeTankFill(vehicleRaw, input.fueledAt, input.gallons, input.tankCapacityGal);
+    const at = stop.matchedAt ?? input.fueledAt;
+    const evidenceSample = stop.matchedAt
+      ? samples.find((x) => x.time === stop.matchedAt)
+      : undefined;
+    const tank = computeTankFill(vehicleRaw, at, input.gallons, input.tankCapacityGal);
     return {
-      crossSourceOdometer: s.odometerMiles,
-      locationMatched: matched,
+      crossSourceOdometer: stop.odometerMiles,
+      locationMatched: stop.locationMatched,
       locationEvidence:
-        matched === false
+        stop.locationMatched === false
           ? {
               efsCity: input.city,
               efsState: input.state,
-              samsaraState: stateFromAddress(s.address),
-              samsaraCity: cityFromAddress(s.address),
-              samsaraAddress: s.address,
-              atTime: s.time,
+              samsaraState: evidenceSample ? stateFromAddress(evidenceSample.address) : null,
+              samsaraCity: evidenceSample ? cityFromAddress(evidenceSample.address) : null,
+              samsaraAddress: evidenceSample?.address ?? null,
+              atTime: at,
+              note: "No Samsara stop in the EFS station's state within the fueling window; truck was stopped in a different state.",
             }
           : null,
-      matchedAt: s.time,
+      matchedAt: stop.matchedAt,
       tankFillShortGal: tank?.shortGal ?? null,
       tankObservedRiseGal: tank?.observedRiseGal ?? null,
     };

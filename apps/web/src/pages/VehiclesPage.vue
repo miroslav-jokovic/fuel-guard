@@ -139,8 +139,10 @@ async function onRetire(v: Vehicle) {
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p class="text-sm text-gray-500">Fleet vehicles and their fuel parameters.</p>
       <div v-if="session.canManage" class="flex flex-wrap items-center gap-2">
+        <!-- Diagnostics button hidden; logic kept for future use. Re-enable by removing v-show="false". -->
         <button
           v-if="session.admin"
+          v-show="false"
           class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-600 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
           :disabled="diagLoading"
           title="Check what Samsara returns for vehicles, stats, drivers and assignments"

@@ -176,6 +176,84 @@ export function compareLocationState(
   return s === efsState.trim().toUpperCase();
 }
 
+// Hours to ADD to local time to get UTC (standard time; DST ignored → ≤1h slack, absorbed by the
+// matching window). Used only to APPROXIMATE the fueling instant so we can pick the right stop — the
+// odometer/location itself comes from the physical Samsara stop, so this never has to be exact.
+const STATE_UTC_OFFSET: Record<string, number> = {
+  // Eastern
+  CT: 5, DE: 5, FL: 5, GA: 5, IN: 5, MA: 5, MD: 5, ME: 5, MI: 5, NC: 5, NH: 5, NJ: 5, NY: 5, OH: 5,
+  PA: 5, RI: 5, SC: 5, VA: 5, VT: 5, WV: 5, DC: 5, ON: 5, QC: 5,
+  // Atlantic (Canada)
+  NB: 4, NS: 4, PE: 4, NL: 4,
+  // Central
+  AL: 6, AR: 6, IA: 6, IL: 6, KS: 6, LA: 6, MN: 6, MO: 6, MS: 6, ND: 6, NE: 6, OK: 6, SD: 6, TN: 6,
+  TX: 6, WI: 6, MB: 6,
+  // Mountain
+  AZ: 7, CO: 7, ID: 7, MT: 7, NM: 7, UT: 7, WY: 7, AB: 7,
+  // Pacific
+  CA: 8, NV: 8, OR: 8, WA: 8, BC: 8,
+  AK: 9, HI: 10,
+};
+
+/** Approximate the fueling instant (ms, UTC) from the report's naive-UTC time + the station state. */
+export function approxFuelingUtcMs(posNaiveIso: string, state: string | null): number {
+  const base = new Date(posNaiveIso).getTime();
+  const off = state ? STATE_UTC_OFFSET[state.trim().toUpperCase()] : undefined;
+  return off != null ? base + off * 3_600_000 : base;
+}
+
+export interface FuelingStopMatch {
+  /** Samsara odometer (miles) at the confirmed fueling stop — the ±5 reference. Null if unresolved. */
+  odometerMiles: number | null;
+  /** Samsara time of that stop (real fueling instant). */
+  matchedAt: string | null;
+  /** true = truck was stopped in the EFS state; false = confidently elsewhere; null = can't tell. */
+  locationMatched: boolean | null;
+}
+
+/**
+ * Anchor on the PHYSICAL stop, not the timestamp's time zone (docs/10 §12). Among stopped samples that
+ * carry an odometer + a reverse-geocoded state, keep those whose state matches the EFS station's state,
+ * then pick the one closest to the approximate fueling time. That stop's odometer is the true odometer
+ * at fueling — reliable regardless of the report's local-vs-UTC time. When no stop is in the EFS state
+ * but the truck was clearly stopped elsewhere that window, it's a real location mismatch.
+ */
+export function matchFuelingStop(
+  samples: SamsaraSample[],
+  efs: { state: string | null },
+  posNaiveIso: string,
+  opts: { stoppedMph?: number } = {},
+): FuelingStopMatch {
+  const stoppedMax = opts.stoppedMph ?? 5;
+  const efsState = efs.state?.trim().toUpperCase() || null;
+  const target = approxFuelingUtcMs(posNaiveIso, efsState);
+  const nearest = (list: SamsaraSample[]) =>
+    list.sort(
+      (a, b) => Math.abs(new Date(a.time).getTime() - target) - Math.abs(new Date(b.time).getTime() - target),
+    )[0]!;
+
+  const stopped = samples.filter((s) => (s.speedMph ?? 0) <= stoppedMax && s.odometerMiles != null && s.address);
+
+  if (efsState) {
+    const inState = stopped.filter((s) => stateFromAddress(s.address) === efsState);
+    if (inState.length) {
+      const pick = nearest(inState);
+      return { odometerMiles: pick.odometerMiles, matchedAt: pick.time, locationMatched: true };
+    }
+    // No stop in the EFS state: only call it a mismatch if we actually saw the truck stopped somewhere
+    // with a resolvable state (i.e., we have real coverage) — otherwise it's just unknown.
+    const sawElsewhere = stopped.some((s) => stateFromAddress(s.address) != null);
+    return { odometerMiles: null, matchedAt: null, locationMatched: sawElsewhere ? false : null };
+  }
+
+  // No EFS state to match on → best-effort odometer from the nearest stop; location unknown.
+  if (stopped.length) {
+    const pick = nearest(stopped);
+    return { odometerMiles: pick.odometerMiles, matchedAt: pick.time, locationMatched: null };
+  }
+  return { odometerMiles: null, matchedAt: null, locationMatched: null };
+}
+
 export interface OdometerReconciliation {
   mismatch: boolean;
   diffMiles: number;
