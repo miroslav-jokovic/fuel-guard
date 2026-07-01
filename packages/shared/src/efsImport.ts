@@ -99,19 +99,80 @@ function rejectDateToIso(date: string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? efsDateToIso(s) : d.toISOString();
 }
 
-/** Detect the report type from its header set. */
+/**
+ * Combine a date + optional time into an ISO instant. Handles "YYYY-MM-DD" and US "M/D/YYYY", and
+ * times "HH:MM[:SS]" / "H:MM[:SS] AM|PM" / "HHMMSS". A naive time is treated as UTC (deterministic;
+ * time-zone-aware Samsara matching is applied downstream). Date-only → anchored at noon.
+ */
+export function efsDateTimeToIso(date: string | null | undefined, time?: string | null): string | null {
+  const d = str(date);
+  if (!d) return null;
+  let ymd: string | null = null;
+  const iso = d.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) ymd = iso;
+  else {
+    const m = d.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); // US M/D/Y
+    if (m) {
+      const mo = m[1]!.padStart(2, "0");
+      const da = m[2]!.padStart(2, "0");
+      const yr = m[3]!.length === 2 ? `20${m[3]}` : m[3]!;
+      ymd = `${yr}-${mo}-${da}`;
+    }
+  }
+  if (!ymd) {
+    const parsed = new Date(d);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  // Explicit time column wins; else look for a time embedded in the date string ("… 14:25:00").
+  const embedded = d.match(/\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp][Mm])?/);
+  const hms = parseEfsTime(time) ?? (embedded ? parseEfsTime(embedded[0]) : null);
+  return hms ? `${ymd}T${hms}.000Z` : `${ymd}T12:00:00.000Z`;
+}
+
+/** Parse an EFS POS time into "HH:MM:SS" (24h). Finds a time inside longer strings (e.g. a full
+ *  timestamp in a "Time" column). Null when absent/unparseable. */
+function parseEfsTime(time: string | null | undefined): string | null {
+  const t = str(time);
+  if (!t) return null;
+  const m = t.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (m) {
+    let h = parseInt(m[1]!, 10);
+    const ap = m[4]?.toLowerCase();
+    if (ap === "pm" && h < 12) h += 12;
+    if (ap === "am" && h === 12) h = 0;
+    return `${String(h).padStart(2, "0")}:${m[2]}:${m[3] ?? "00"}`;
+  }
+  if (/^\d{4,6}$/.test(t)) return `${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6) || "00"}`; // "1425"/"142500"
+  return null;
+}
+
+/** Fuel type from a product code or description; excludes DEF/AdBlue (not propulsion fuel). */
+export function fuelTypeFromText(s: string | null | undefined): FuelType | null {
+  const t = (s ?? "").toLowerCase();
+  if (!t) return null;
+  if (/exhaust|adblue|\bdef\b|\bdefd\b|\bscle\b|scale/.test(t)) return null;
+  if (/diesel|ulsd|ulsr|\bdsl\b|biodiesel|\bbio\b|reefer/.test(t)) return "diesel";
+  if (/unleaded|gasoline|petrol|\bunl\b|\bunld\b|\brul\b|\bmul\b|\bpul\b|\bgas\b/.test(t)) return "gasoline";
+  return null;
+}
+
+/** Detect the report type from its header set (space/punctuation/case-insensitive). */
 export function detectReportKind(headers: string[]): ReportKind {
-  const h = new Set(headers.map((x) => x.trim().toLowerCase()));
-  if (h.has("error code") || h.has("error description")) return "reject";
-  if (h.has("item") && h.has("qty") && (h.has("unit") || h.has("card #"))) return "transaction";
+  const h = new Set(headers.map(normKey));
+  const has = (...ks: string[]) => ks.some((k) => h.has(normKey(k)));
+  if (has("Error Code", "Error Description", "Reject Reason", "Decline Reason")) return "reject";
+  if (has("Item", "ProductCode", "Product Description") && has("Qty", "Quantity")) return "transaction";
   return "unknown";
 }
 
+/** Normalize a header for matching — drop case, spaces and punctuation ("Driver Name" ≈ "DriverName"). */
+const normKey = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** Pick a cell by any of several header aliases, matching space/punctuation/case-insensitively. */
 const pick = (row: RawRow, ...keys: string[]): unknown => {
   for (const k of keys) {
-    if (k in row && row[k] != null && row[k] !== "") return row[k];
-    // case-insensitive fallback
-    const found = Object.keys(row).find((rk) => rk.trim().toLowerCase() === k.toLowerCase());
+    const nk = normKey(k);
+    const found = Object.keys(row).find((rk) => normKey(rk) === nk);
     if (found && row[found] != null && row[found] !== "") return row[found];
   }
   return null;
@@ -135,18 +196,23 @@ export function normalizeTransactionRows(rows: RawRow[]): {
 
   rows.forEach((row, i) => {
     const rowNumber = i + 1;
-    const item = (str(pick(row, "Item")) ?? "").toUpperCase();
-    const fuelType = FUEL_PRODUCT_CODES[item];
+    const item = (str(pick(row, "Item", "ProductCode")) ?? "").toUpperCase();
+    const desc = str(pick(row, "Product Description", "ProductDescription"));
+    // Fuel type from the product code, else the description (handles numeric/unknown product codes).
+    const fuelType = FUEL_PRODUCT_CODES[item] ?? fuelTypeFromText(item) ?? fuelTypeFromText(desc);
     if (!fuelType) {
       skipped.push({ row_number: rowNumber, reason: "non-fuel item", item: item || undefined });
       return;
     }
-    const gallons = num(pick(row, "Qty"));
+    const gallons = num(pick(row, "Qty", "Quantity"));
     if (gallons == null || gallons <= 0) {
       skipped.push({ row_number: rowNumber, reason: "no gallons", item });
       return;
     }
-    const fueledAt = efsDateToIso(str(pick(row, "Tran Date", "Date")));
+    const fueledAt = efsDateTimeToIso(
+      str(pick(row, "Tran Date", "Date", "TransactionPOSDate")),
+      str(pick(row, "TransactionPOSTime", "POS Time", "Time")),
+    );
     if (!fueledAt) {
       skipped.push({ row_number: rowNumber, reason: "unparseable date", item });
       return;
@@ -169,13 +235,13 @@ export function normalizeTransactionRows(rows: RawRow[]): {
         fueled_at: fueledAt,
         odometer: num(pick(row, "Odometer")),
         gallons,
-        price_per_gal: num(pick(row, "Unit Price")),
+        price_per_gal: num(pick(row, "Unit Price", "PricePerUnit")),
         total_cost: total,
         fuel_type: fuelType,
         item,
         location_text: str(pick(row, "Location Name")),
         city: str(pick(row, "City", "Location City")),
-        state: str(pick(row, "State/ Prov", "State/Prov", "State")),
+        state: str(pick(row, "State/ Prov", "State/Prov", "State", "Location State")),
       });
     }
   });
@@ -224,31 +290,33 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
   return rows.map((row, i) => {
     const card = str(pick(row, "Card #", "Card Number"));
     const invoice = str(pick(row, "Invoice"));
-    const item = str(pick(row, "Item"));
-    const qty = num(pick(row, "Qty"));
+    const item = str(pick(row, "Item", "ProductCode"));
+    const qty = num(pick(row, "Qty", "Quantity"));
     const amt = num(pick(row, "Amt", "Amount"));
-    const tranDateStr = str(pick(row, "Tran Date", "Date"));
-    const datePart = tranDateStr ? tranDateStr.slice(0, 10) : null;
+    const fueledAt = efsDateTimeToIso(
+      str(pick(row, "Tran Date", "Date", "TransactionPOSDate")),
+      str(pick(row, "TransactionPOSTime", "POS Time", "Time")),
+    );
     return {
       external_ref: [card ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? ""].join("|"),
       line_number: i + 1,
       card_num: card,
-      tran_date: /^\d{4}-\d{2}-\d{2}$/.test(datePart ?? "") ? datePart : null,
-      fueled_at: efsDateToIso(tranDateStr),
+      tran_date: fueledAt ? fueledAt.slice(0, 10) : null,
+      fueled_at: fueledAt,
       invoice,
       unit: str(pick(row, "Unit")),
       driver_name: str(pick(row, "Driver Name")),
       odometer: num(pick(row, "Odometer")),
       location_name: str(pick(row, "Location Name")),
       city: str(pick(row, "City", "Location City")),
-      state: str(pick(row, "State/ Prov", "State/Prov", "State")),
-      fees: num(pick(row, "Fees")),
+      state: str(pick(row, "State/ Prov", "State/Prov", "State", "Location State")),
+      fees: num(pick(row, "Fees", "Transaction Fee")),
       item,
-      unit_price: num(pick(row, "Unit Price")),
+      unit_price: num(pick(row, "Unit Price", "PricePerUnit")),
       qty,
       amt,
       db: str(pick(row, "DB")),
-      currency: str(pick(row, "Currency")),
+      currency: str(pick(row, "Currency", "Transaction Currency")),
     };
   });
 }
@@ -259,6 +327,7 @@ export interface EfsTransactionRow {
   line_number: number | null;
   card_num: string | null;
   tran_date: string | null;
+  fueled_at: string | null;
   invoice: string | null;
   unit: string | null;
   driver_name: string | null;
@@ -322,10 +391,17 @@ export function normalizeRejectRows(rows: RawRow[]): ParsedDeclined[] {
   return rows.map((row) => {
     const card = str(pick(row, "Card Number", "Card #"));
     const invoice = str(pick(row, "Invoice"));
-    const code = str(pick(row, "Error Code"));
+    const code = str(pick(row, "Error Code", "Reject Reason", "Decline Reason"));
+    const declinedAt =
+      efsDateTimeToIso(
+        str(pick(row, "Date", "Tran Date", "TransactionPOSDate")),
+        str(pick(row, "Time", "TransactionPOSTime", "POS Time")),
+      ) ??
+      rejectDateToIso(str(pick(row, "Date", "Time"))) ??
+      new Date().toISOString();
     return {
       external_ref: [card ?? "", invoice ?? "", code ?? ""].join("|"),
-      declined_at: rejectDateToIso(str(pick(row, "Date", "Time"))) ?? new Date().toISOString(),
+      declined_at: declinedAt,
       card_ref: card,
       invoice,
       location_id: str(pick(row, "Location ID")),
@@ -334,9 +410,9 @@ export function normalizeRejectRows(rows: RawRow[]): ParsedDeclined[] {
       driver_name: str(pick(row, "Driver Name")),
       location_text: str(pick(row, "Location Name")),
       city: str(pick(row, "Location City", "City")),
-      state: str(pick(row, "State/Prov", "State/ Prov", "State")),
+      state: str(pick(row, "State/Prov", "State/ Prov", "State", "Location State")),
       error_code: code,
-      error_description: str(pick(row, "Error Description")),
+      error_description: str(pick(row, "Error Description", "Reject Description")),
       policy: str(pick(row, "Policy")),
       policy_name: str(pick(row, "Policy Name")),
     };

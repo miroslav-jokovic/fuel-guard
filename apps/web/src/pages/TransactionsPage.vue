@@ -26,6 +26,12 @@ const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 const num = (v: number | null) => (v == null ? "" : v);
+// Show the fueling time (UTC, as reported) — "—" when the report had date only.
+const fmtTime = (iso: string | null) => {
+  if (!iso) return "—";
+  const hm = iso.slice(11, 16);
+  return hm === "12:00" ? "—" : hm; // noon = our date-only sentinel
+};
 </script>
 
 <template>
@@ -66,6 +72,7 @@ const num = (v: number | null) => (v == null ? "" : v);
           <thead class="text-left whitespace-nowrap text-gray-500">
             <tr>
               <th class="px-4 py-3 font-medium">Tran Date</th>
+              <th class="px-4 py-3 font-medium">Time</th>
               <th class="px-4 py-3 font-medium">Card #</th>
               <th class="px-4 py-3 font-medium">Invoice</th>
               <th class="px-4 py-3 font-medium">Unit</th>
@@ -86,6 +93,7 @@ const num = (v: number | null) => (v == null ? "" : v);
           <tbody class="divide-y divide-gray-100 whitespace-nowrap">
             <tr v-for="t in rows" :key="t.id">
               <td class="px-4 py-2 text-gray-700">{{ t.tran_date }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ fmtTime(t.fueled_at) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.card_num }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.invoice }}</td>
               <td class="px-4 py-2 font-medium text-gray-900">{{ t.unit }}</td>

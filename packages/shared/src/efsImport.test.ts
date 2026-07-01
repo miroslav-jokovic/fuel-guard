@@ -149,6 +149,51 @@ describe("reconcileFuelLines", () => {
   });
 });
 
+describe("new PascalCase report format (timed)", () => {
+  const NEW_HEADERS = [
+    "TransactionId", "CardNumber", "TransactionPOSDate", "TransactionPOSTime", "Invoice", "SubFleet",
+    "Unit", "Odometer", "DriverName", "DriverId", "LocationId", "LocationName", "LocationCity",
+    "LocationState", "TransactionFee", "TransactionCurrency", "ProductCode", "ProductDescription",
+    "PricePerUnit", "Quantity", "Amount",
+  ];
+  const rows = [
+    {
+      TransactionId: "T1", CardNumber: "70830500304 ", TransactionPOSDate: "06/29/2026",
+      TransactionPOSTime: "14:25:00", Invoice: "INV1", Unit: "637", Odometer: "438820",
+      DriverName: "Marcus Reyes", DriverId: "1001", LocationName: "PILOT BELGRADE",
+      LocationCity: "BELGRADE", LocationState: "MT", ProductCode: "001", ProductDescription: "ULSD DIESEL",
+      PricePerUnit: "4.10", Quantity: "90", Amount: "369.00", TransactionCurrency: "USD",
+    },
+  ];
+
+  it("detects the new format as a transaction report", () => {
+    expect(detectReportKind(NEW_HEADERS)).toBe("transaction");
+  });
+
+  it("maps the PascalCase columns and recovers the exact fueling time", () => {
+    const { fuelLines, skipped } = normalizeTransactionRows(rows);
+    expect(skipped).toHaveLength(0);
+    expect(fuelLines).toHaveLength(1);
+    const f = fuelLines[0]!;
+    expect(f.unit).toBe("637");
+    expect(f.driver_name).toBe("Marcus Reyes");
+    expect(f.card_ref).toBe("70830500304");
+    expect(f.odometer).toBe(438820);
+    expect(f.gallons).toBe(90);
+    expect(f.city).toBe("BELGRADE");
+    expect(f.state).toBe("MT");
+    expect(f.fuel_type).toBe("diesel"); // from ProductDescription (ProductCode is numeric)
+    expect(f.fueled_at).toBe("2026-06-29T14:25:00.000Z"); // exact date + time
+  });
+
+  it("keeps the exact time in the faithful line too", () => {
+    const [line] = normalizeAllTransactionLines(rows);
+    expect(line!.fueled_at).toBe("2026-06-29T14:25:00.000Z");
+    expect(line!.tran_date).toBe("2026-06-29");
+    expect(line!.qty).toBe(90);
+  });
+});
+
 describe("normalizeRejectRows", () => {
   const rows = [
     {

@@ -11,7 +11,7 @@ export interface Page<T> {
 }
 
 const EFS_COLS =
-  "id, line_number, card_num, tran_date, invoice, unit, driver_name, odometer, location_name, city, state, fees, item, unit_price, qty, amt, db, currency";
+  "id, line_number, card_num, tran_date, fueled_at, invoice, unit, driver_name, odometer, location_name, city, state, fees, item, unit_price, qty, amt, db, currency";
 
 export interface EfsFilters {
   unit?: string;
