@@ -113,25 +113,25 @@ async function rescore() {
       </div>
       <div v-else class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 text-sm">
-          <thead class="text-left whitespace-nowrap text-gray-500">
+          <thead class="sticky top-16 z-10 bg-gray-50 text-left whitespace-nowrap text-gray-500">
             <tr>
-              <SortableTh label="Risk" sort-key="suspicion_level" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <SortableTh label="Date / Time" sort-key="declined_at" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <th class="px-4 py-3 font-medium">Card #</th>
-              <th class="px-4 py-3 font-medium">Invoice</th>
-              <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <th class="px-4 py-3 font-medium">Location</th>
-              <th class="px-4 py-3 font-medium">City</th>
-              <SortableTh label="State" sort-key="state" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <SortableTh label="Error" sort-key="error_code" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <th class="px-4 py-3 font-medium">Description</th>
-              <th class="px-4 py-3 font-medium">Policy</th>
+              <SortableTh label="Risk" sort-key="suspicion_level" :active="sort.key" :dir="sort.dir" th-class="sticky left-0 z-20 bg-gray-50 px-4 py-3 font-medium min-w-[5rem] border-r border-gray-200" @sort="onSort" />
+              <SortableTh label="Date / Time" sort-key="declined_at" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[10rem]" @sort="onSort" />
+              <th class="px-4 py-3 font-medium min-w-[7rem]">Card #</th>
+              <th class="px-4 py-3 font-medium min-w-[6rem]">Invoice</th>
+              <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem]" @sort="onSort" />
+              <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[9rem]" @sort="onSort" />
+              <th class="px-4 py-3 font-medium min-w-[12rem]">Location</th>
+              <th class="px-4 py-3 font-medium min-w-[8rem]">City</th>
+              <SortableTh label="State" sort-key="state" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[4rem]" @sort="onSort" />
+              <SortableTh label="Error" sort-key="error_code" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem]" @sort="onSort" />
+              <th class="px-4 py-3 font-medium min-w-[14rem]">Description</th>
+              <th class="px-4 py-3 font-medium min-w-[8rem]">Policy</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 whitespace-nowrap">
-            <tr v-for="d in rows" :key="d.id">
-              <td class="px-4 py-2">
+            <tr v-for="d in rows" :key="d.id" class="group hover:bg-gray-50">
+              <td class="sticky left-0 z-[1] border-r border-gray-200 bg-white px-4 py-2 group-hover:bg-gray-50">
                 <span
                   v-if="d.suspicion_level && d.suspicion_level !== 'clear'"
                   :class="[BADGE_BASE, suspicionTone(d.suspicion_level)]"

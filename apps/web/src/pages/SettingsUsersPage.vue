@@ -231,15 +231,15 @@ onMounted(load);
       <p v-else-if="filteredMembers.length === 0" class="px-6 py-8 text-sm text-gray-500">No members match.</p>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead>
-          <tr class="text-left text-gray-500">
+        <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
+          <tr>
             <th class="w-10 px-4 py-3">
               <input type="checkbox" :checked="allChecked" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" @change="toggleAll" />
             </th>
-            <th class="px-4 py-3 font-medium">Email</th>
-            <th class="px-4 py-3 font-medium">Role</th>
-            <th class="px-4 py-3 font-medium">Joined</th>
-            <th class="px-4 py-3"></th>
+            <th class="px-4 py-3 font-medium min-w-[14rem]">Email</th>
+            <th class="px-4 py-3 font-medium min-w-[7rem]">Role</th>
+            <th class="px-4 py-3 font-medium min-w-[8rem]">Joined</th>
+            <th class="px-4 py-3 w-12"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
@@ -278,12 +278,12 @@ onMounted(load);
       </p>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead>
-          <tr class="text-left text-gray-500">
-            <th class="px-6 py-3 font-medium">Email</th>
-            <th class="px-6 py-3 font-medium">Role</th>
-            <th class="px-6 py-3 font-medium">Status</th>
-            <th class="px-6 py-3"></th>
+        <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
+          <tr>
+            <th class="px-6 py-3 font-medium min-w-[14rem]">Email</th>
+            <th class="px-6 py-3 font-medium min-w-[7rem]">Role</th>
+            <th class="px-6 py-3 font-medium min-w-[7rem]">Status</th>
+            <th class="px-6 py-3 w-12"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">

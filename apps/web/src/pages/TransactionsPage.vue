@@ -79,44 +79,44 @@ const fmtTime = (iso: string | null) => {
       </div>
       <div v-else class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 text-sm">
-          <thead class="text-left whitespace-nowrap text-gray-500">
+          <thead class="sticky top-16 z-10 bg-gray-50 text-left whitespace-nowrap text-gray-500">
             <tr>
-              <SortableTh label="Tran Date" sort-key="tran_date" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <th class="px-4 py-3 font-medium">Time</th>
-              <th class="px-4 py-3 font-medium">Card #</th>
-              <th class="px-4 py-3 font-medium">Invoice</th>
-              <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <SortableTh label="Odometer" sort-key="odometer" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <th class="px-4 py-3 font-medium">Location</th>
-              <th class="px-4 py-3 font-medium">City</th>
-              <th class="px-4 py-3 font-medium">State</th>
-              <th class="px-4 py-3 font-medium">Item</th>
-              <th class="px-4 py-3 font-medium">Unit Price</th>
-              <SortableTh label="Qty" sort-key="qty" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <SortableTh label="Amt" sort-key="amt" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-              <th class="px-4 py-3 font-medium">Fees</th>
-              <th class="px-4 py-3 font-medium">DB</th>
-              <th class="px-4 py-3 font-medium">Currency</th>
+              <SortableTh label="Tran Date" sort-key="tran_date" :active="sort.key" :dir="sort.dir" th-class="sticky left-0 z-20 bg-gray-50 px-4 py-3 font-medium min-w-[7rem] border-r border-gray-200" @sort="onSort" />
+              <th class="px-4 py-3 font-medium min-w-[5rem]">Time</th>
+              <th class="px-4 py-3 font-medium min-w-[7rem]">Card #</th>
+              <th class="px-4 py-3 font-medium min-w-[6rem]">Invoice</th>
+              <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem]" @sort="onSort" />
+              <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[9rem]" @sort="onSort" />
+              <SortableTh label="Odometer" sort-key="odometer" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[8rem] text-right" @sort="onSort" />
+              <th class="px-4 py-3 font-medium min-w-[12rem]">Location</th>
+              <th class="px-4 py-3 font-medium min-w-[8rem]">City</th>
+              <th class="px-4 py-3 font-medium min-w-[4rem]">State</th>
+              <th class="px-4 py-3 font-medium min-w-[6rem]">Item</th>
+              <th class="px-4 py-3 font-medium min-w-[7rem] text-right">Unit Price</th>
+              <SortableTh label="Qty" sort-key="qty" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[4rem] text-right" @sort="onSort" />
+              <SortableTh label="Amt" sort-key="amt" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem] text-right" @sort="onSort" />
+              <th class="px-4 py-3 font-medium min-w-[4rem] text-right">Fees</th>
+              <th class="px-4 py-3 font-medium min-w-[4rem]">DB</th>
+              <th class="px-4 py-3 font-medium min-w-[6rem]">Currency</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 whitespace-nowrap">
-            <tr v-for="t in rows" :key="t.id">
-              <td class="px-4 py-2 text-gray-700">{{ t.tran_date }}</td>
+            <tr v-for="t in rows" :key="t.id" class="group hover:bg-gray-50">
+              <td class="sticky left-0 z-[1] border-r border-gray-200 bg-white px-4 py-2 text-gray-700 group-hover:bg-gray-50">{{ t.tran_date }}</td>
               <td class="px-4 py-2 text-gray-700">{{ fmtTime(t.fueled_at) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.card_num }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.invoice }}</td>
               <td class="px-4 py-2 font-medium text-gray-900">{{ t.unit }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.driver_name }}</td>
-              <td class="px-4 py-2 text-gray-700">{{ num(t.odometer) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.odometer) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.location_name }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.city }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.state }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.item }}</td>
-              <td class="px-4 py-2 text-gray-700">{{ num(t.unit_price) }}</td>
-              <td class="px-4 py-2 text-gray-700">{{ num(t.qty) }}</td>
-              <td class="px-4 py-2 text-gray-700">{{ num(t.amt) }}</td>
-              <td class="px-4 py-2 text-gray-700">{{ num(t.fees) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.unit_price) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.qty) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.amt) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.fees) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.db }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.currency }}</td>
             </tr>
