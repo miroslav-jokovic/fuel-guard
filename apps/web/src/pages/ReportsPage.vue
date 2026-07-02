@@ -66,6 +66,16 @@ const accTone = (pct: number | null) =>
 
 watch([from, to, by], loadAccuracy);
 onMounted(loadAccuracy);
+
+const sendingDigest = ref(false);
+async function sendDigest() {
+  sendingDigest.value = true;
+  const res = await apiFetch<{ sent: boolean; reason: string | null }>("/api/reports/digest", { method: "POST" });
+  sendingDigest.value = false;
+  if (res.ok && res.data?.sent) toast.success("Weekly digest sent", "Emailed to your notification recipients.");
+  else if (res.ok) toast.info("Digest not sent", res.data?.reason ?? "Check notification recipients / mail settings.");
+  else toast.error("Could not send digest", res.error?.message);
+}
 </script>
 
 <template>
@@ -78,6 +88,20 @@ onMounted(loadAccuracy);
         </div>
         <DateRangeFilter v-model:from="from" v-model:to="to" />
       </div>
+    </div>
+
+    <div class="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900">Weekly theft digest</h2>
+        <p class="text-sm text-gray-500">An AI summary of the week's risks, emailed to your notification recipients. Sends automatically each week — or send one now.</p>
+      </div>
+      <button
+        :disabled="sendingDigest"
+        class="shrink-0 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+        @click="sendDigest"
+      >
+        {{ sendingDigest ? "Sending…" : "Send digest now" }}
+      </button>
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -141,36 +141,37 @@ Paste these in. **Do not set `PORT`** — Railway injects it automatically and t
 | `VITE_SUPABASE_ANON_KEY` | your Supabase **anon** key | ✅ (web build) |
 | `SUPABASE_URL` | same Supabase Project URL | ✅ (API) |
 | `SUPABASE_SERVICE_ROLE_KEY` | your Supabase **service_role** key (secret) | ✅ (API) |
-| `WEB_APP_URL` | your Railway domain (set in 3.3) | ✅ (invite links) |
-| `ALLOWED_ORIGINS` | your Railway domain (set in 3.3) | ✅ |
+| `WEB_APP_URL` | `https://fleetguardweb-production.up.railway.app` | ✅ (invite links) |
+| `ALLOWED_ORIGINS` | `https://fleetguardweb-production.up.railway.app` | ✅ |
 | `NODE_ENV` | `production` | recommended |
 | `ANTHROPIC_API_KEY` | Anthropic key | optional (AI verification; engine runs without it) |
-| `MAIL_PROVIDER` | `resend` or `brevo` or `none` | optional (default `none`) |
-| `RESEND_API_KEY` / `BREVO_API_KEY` | provider key | only if `MAIL_PROVIDER` set |
-| `MAIL_FROM` | `alerts@silvicominc.com` | optional |
+| `RESEND_API_KEY` | `re_...` from resend.com | ✅ (invite emails) |
+| `MAIL_FROM` | `FuelGuard <miki@silvicominc.com>` | ✅ (invite emails) |
 | `SAMSARA_API_TOKEN` | Samsara API token | optional (telematics; add when ready) |
+
+> ⚠️ **Two completely different domains** — do not confuse them:
+> - **`WEB_APP_URL`** = `fleetguardweb-production.up.railway.app` — the Railway app URL that goes **inside** invite emails as the link destination. No verification needed anywhere.
+> - **`MAIL_FROM` sender domain** = `silvicominc.com` — the domain Resend sends **from**. This is your company email domain and must be verified in Resend (Stage 5). Railway's domain is never used here.
 
 > `VITE_*` variables are baked into the web bundle **at build time** — Railway makes service variables
 > available to the build, so setting them here is enough. You do **not** need `VITE_API_URL`: the UI
 > talks to the API on the same domain by default.
 
-### 3.3 Generate the free domain
-1. Service → **Settings → Networking → Public Networking → Generate Domain**.
-2. Railway gives you something like `fuelguard-production-xxxx.up.railway.app`.
-3. Go back to **Variables** and set both `WEB_APP_URL` and `ALLOWED_ORIGINS` to
-   `https://fuelguard-production-xxxx.up.railway.app` (no trailing slash).
-4. **Redeploy** (Deployments → ⋯ → Redeploy) so the build picks up the domain and the final vars.
+### 3.3 Domain (already generated)
+Your Railway domain is **`https://fleetguardweb-production.up.railway.app`**. Both
+`WEB_APP_URL` and `ALLOWED_ORIGINS` should be set to this value (no trailing slash) as shown in
+the table above. **Redeploy** after setting variables so the build picks them up.
 
-**Check:** open `https://<your-domain>/healthz` → you should see `{"status":"ok",...}`. Then open
-`https://<your-domain>/` → the FuelGuard login screen.
+**Check:** open `https://fleetguardweb-production.up.railway.app/healthz` → you should see `{"status":"ok",...}`. Then open
+`https://fleetguardweb-production.up.railway.app/` → the FuelGuard login screen.
 
 ---
 
 ## Stage 4 — Point Supabase at the live domain & first login
 
 1. Supabase → **Authentication → URL Configuration:**
-   - **Site URL:** `https://<your-domain>`
-   - **Redirect URLs:** add `https://<your-domain>/**` (covers `/accept-invite`, etc.)
+   - **Site URL:** `https://fleetguardweb-production.up.railway.app`
+   - **Redirect URLs:** add `https://fleetguardweb-production.up.railway.app/**` (covers `/accept-invite`, etc.)
 2. Visit `https://<your-domain>`, **log in** with the email/password you created in Stage 2.
    - The auth hook stamps your `org_id` + role on login, so you land in the app (not the "pending"
      screen). If you see "pending", the membership row (Stage 2) or the hook (Stage 1.3) is missing.
@@ -197,8 +198,59 @@ Paste these in. **Do not set `PORT`** — Railway injects it automatically and t
 | App loads but every API call is 401/403 | Auth hook not enabled (Stage 1.3) or you logged in **before** enabling it — log out and back in. |
 | Logged in but stuck on "account pending" | No `memberships` row for your user (Stage 2), or wrong `org_id`/role. |
 | Login page loads but data calls fail in console (CSP/blocked) | `VITE_SUPABASE_URL` wrong or missing at build time → rebuild after setting it. |
-| Invite emails not arriving | Supabase auth email (free tier) is rate-limited; for app anomaly emails set `MAIL_PROVIDER` + key. |
+| Invite emails not arriving | Set `RESEND_API_KEY` + `MAIL_FROM` in Railway and verify `silvicominc.com` in Resend (see Stage 5). Check Railway Logs for `[mailer]` error lines — 403 = domain not verified, 401 = bad key. |
 | `/healthz` works but `/` is blank/404 | The web build didn't run or `apps/web/dist` is empty — check the build logs; `railway.json` build command must succeed. |
+
+---
+
+## Stage 5 — Email delivery (Resend)
+
+Invitation emails go through **Resend** (https://resend.com). Without this stage invites still work
+— the admin copies a link — but recipients won't receive an email automatically.
+
+### 5.1 Create a Resend account & API key
+1. Sign up at **https://resend.com** (free tier: 3,000 emails/month, 100/day).
+2. **API Keys → Create API Key** — name it `fuelguard-prod`, permission: **Sending access**.
+3. Copy the key (`re_...`). You'll set it as `RESEND_API_KEY` in Railway.
+
+### 5.2 Verify your sending domain
+Resend requires the **`from` email domain** to have DNS records verified before it delivers to
+any recipient. This is **your company domain (`silvicominc.com`)** — completely separate from
+the Railway app domain (`fleetguardweb-production.up.railway.app`), which is just a URL in the
+email body and needs no verification anywhere.
+
+1. Resend dashboard → **Domains → Add Domain** → enter `silvicominc.com`.
+2. Resend shows **3 DNS records** to add (SPF TXT, DKIM CNAME × 2, optionally DMARC TXT).
+3. Add these in your DNS provider (Cloudflare, GoDaddy, Route 53, etc.) for `silvicominc.com`.
+4. Click **Verify** in Resend — all records turn green within a few minutes (up to 48 h in rare cases).
+
+> **Cannot verify the domain yet?** Use Resend's shared test sender while DNS propagates:
+> set `MAIL_FROM=FuelGuard <onboarding@resend.dev>` — this only delivers to your **own**
+> Resend-account email, not to arbitrary recipients. Switch back once `silvicominc.com` is verified.
+
+### 5.3 Set Railway environment variables
+In Railway → your service → **Variables**, add:
+
+| Variable | Value |
+|----------|-------|
+| `RESEND_API_KEY` | `re_...` (from step 5.1) |
+| `MAIL_FROM` | `FuelGuard <miki@silvicominc.com>` |
+| `MAIL_PROVIDER` | `resend` *(optional — auto-detected from the key)* |
+
+Then **Redeploy**. The startup log will print:
+```
+[env] MAIL_PROVIDER auto-set to 'resend' (RESEND_API_KEY is present)
+```
+
+### 5.4 Verify it works
+1. Settings → Users → invite any address.
+2. Check Railway **Logs** — a successful send shows no `[mailer]` error lines.
+3. If you see `[mailer] resend 403 validation_error: The silvicominc.com domain is not verified` →
+   DNS records haven't propagated yet, or the domain wasn't added in Resend. Re-check step 5.2.
+4. If you see `[mailer] resend 401` → `RESEND_API_KEY` is wrong or missing.
+
+> The invite UI always shows a **copy link** button regardless of email status, so admins can share
+> the link manually even if email delivery is temporarily broken.
 
 ---
 

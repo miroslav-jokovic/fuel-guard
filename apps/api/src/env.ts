@@ -48,13 +48,19 @@ const EnvSchema = z.object({
     .string()
     .default("true")
     .transform((s) => s.toLowerCase() !== "false"),
+  // Weekly AI theft digest emailed to each org's notification recipients. Set DIGEST_ENABLED=false to
+  // turn off. Cadence is ~weekly (deduped via organizations.last_digest_at).
+  DIGEST_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
+  // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly
+  // specified, the provider is activated automatically — no need to set both vars.
   MAIL_PROVIDER: z.enum(["resend", "brevo", "none"]).default("none"),
   RESEND_API_KEY: z.string().optional(),
   BREVO_API_KEY: z.string().optional(),
-  // Sender for outbound email. Must be an address on a domain VERIFIED in your mail provider (Resend).
-  // A display name is fine ("FuelGuard <miki@silvicominc.com>"). Override via the Railway env var.
+  // Sender for outbound email. Must be an address on a domain VERIFIED in your mail provider.
+  // Domain verification for silvicominc.com: resend.com/domains → Add Domain → copy the 3 DNS records.
+  // A display name is fine: "FuelGuard <miki@silvicominc.com>". Override via the Railway env var.
   MAIL_FROM: z.string().default("FuelGuard <miki@silvicominc.com>"),
 });
 
@@ -66,5 +72,19 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
-  return parsed.data;
+  const env = parsed.data;
+
+  // Auto-detect provider: if an API key is present but MAIL_PROVIDER was left at the default
+  // "none", activate the matching provider so that setting only RESEND_API_KEY is enough.
+  if (env.MAIL_PROVIDER === "none") {
+    if (env.RESEND_API_KEY) {
+      console.info("[env] MAIL_PROVIDER auto-set to 'resend' (RESEND_API_KEY is present)");
+      (env as { MAIL_PROVIDER: string }).MAIL_PROVIDER = "resend";
+    } else if (env.BREVO_API_KEY) {
+      console.info("[env] MAIL_PROVIDER auto-set to 'brevo' (BREVO_API_KEY is present)");
+      (env as { MAIL_PROVIDER: string }).MAIL_PROVIDER = "brevo";
+    }
+  }
+
+  return env;
 }

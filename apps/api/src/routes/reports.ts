@@ -1,6 +1,7 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
 import { toCsv, aggregateDashboard, odometerAccuracy, type FuelTransaction, type Anomaly, type OdoRow } from "@fuelguard/shared";
+import { generateAndSendDigest } from "../services/digest.js";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -69,6 +70,20 @@ async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, t
 export function reportsRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg, requireRole("admin", "fleet_manager", "auditor"));
+
+  // Send the weekly theft digest NOW (for testing / on-demand). Emails the org's recipients.
+  router.post(
+    "/digest",
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const result = await generateAndSendDigest(admin, env, orgId, { force: true });
+      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "digest.sent", meta: { sent: result.sent, reason: result.reason ?? "ok" } });
+      res.json(result);
+    }),
+  );
 
   // odometer-accuracy (JSON) — entered vs Samsara odometer, grouped by driver (default) or vehicle.
   router.get(

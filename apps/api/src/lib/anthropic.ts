@@ -74,3 +74,18 @@ export async function callClaude(
     usage: { input: resp.usage.input_tokens, output: resp.usage.output_tokens },
   };
 }
+
+/** Free-form text completion (no forced tool) — used for the weekly digest narrative. */
+export async function callClaudeText(env: Env, model: string, system: string, userText: string): Promise<string> {
+  const resp = await getClient(env).messages.create({
+    model,
+    max_tokens: 1200,
+    system,
+    messages: [{ role: "user", content: userText }],
+  });
+  return resp.content
+    .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
+}

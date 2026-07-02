@@ -173,8 +173,8 @@ export function invitesRouter(): Router {
         res.status(404).json(apiError("not_found", "Invite not found"));
         return;
       }
-      if (!["revoked", "expired"].includes(existing.status)) {
-        res.status(409).json(apiError("invalid_status", "Only revoked or expired invites can be resent"));
+      if (!["pending", "revoked", "expired"].includes(existing.status)) {
+        res.status(409).json(apiError("invalid_status", "Only pending, revoked, or expired invites can be resent"));
         return;
       }
 

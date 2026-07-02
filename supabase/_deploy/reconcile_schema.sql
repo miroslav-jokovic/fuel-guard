@@ -152,3 +152,6 @@ update anomalies a
 set fueled_at = t.fueled_at
 from fuel_transactions t
 where a.transaction_id = t.id and a.fueled_at is null;
+
+-- ── 0024: weekly digest bookkeeping ──────────────────────────────────────────────────────────
+alter table organizations add column if not exists last_digest_at timestamptz;

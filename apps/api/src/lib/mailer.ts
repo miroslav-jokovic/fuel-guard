@@ -13,6 +13,11 @@ export type Sender = (email: OutgoingEmail) => Promise<boolean>;
 /**
  * Provider-agnostic email sender (plain fetch, no SDK). Set MAIL_PROVIDER to 'resend' or 'brevo'
  * (Brevo has the largest free tier ~9k/mo; Resend is simplest). 'none' = no-op so the app still runs.
+ *
+ * Common Resend failure reasons (check Railway logs):
+ *   403 "domain not verified" → go to resend.com/domains, add silvicominc.com and verify DNS records.
+ *   422 "Invalid `from` field" → MAIL_FROM must be "Name <email@verified-domain.com>".
+ *   401 "Unauthorized" → RESEND_API_KEY is wrong or not set.
  */
 export function makeSender(env: Env): Sender {
   return async (email) => {
@@ -24,7 +29,10 @@ export function makeSender(env: Env): Sender {
           body: JSON.stringify({ from: env.MAIL_FROM, to: email.to, subject: email.subject, html: email.html, text: email.text }),
           signal: AbortSignal.timeout(10_000),
         });
-        if (!r.ok) console.error(`[mailer] resend error ${r.status}:`, await r.text().catch(() => ""));
+        if (!r.ok) {
+          const body = await r.json().catch(() => null) as { name?: string; message?: string } | null;
+          console.error(`[mailer] resend ${r.status} ${body?.name ?? ""}: ${body?.message ?? "(no message)"} | from=${env.MAIL_FROM} to=${email.to.join(",")}`);
+        }
         return r.ok;
       }
       if (env.MAIL_PROVIDER === "brevo" && env.BREVO_API_KEY) {
@@ -40,12 +48,16 @@ export function makeSender(env: Env): Sender {
           }),
           signal: AbortSignal.timeout(10_000),
         });
-        if (!r.ok) console.error(`[mailer] brevo error ${r.status}:`, await r.text().catch(() => ""));
+        if (!r.ok) {
+          const body = await r.json().catch(() => null) as { message?: string; code?: string } | null;
+          console.error(`[mailer] brevo ${r.status} ${body?.code ?? ""}: ${body?.message ?? "(no message)"} | from=${env.MAIL_FROM} to=${email.to.join(",")}`);
+        }
         return r.ok;
       }
-      return false; // no provider configured
+      console.warn("[mailer] no provider active (MAIL_PROVIDER=none or API key missing) — email skipped");
+      return false;
     } catch (e) {
-      console.error("[mailer] send failed:", e);
+      console.error("[mailer] send failed (network/timeout):", e);
       return false;
     }
   };
