@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { scoreWithCascade, backfillOrg, scoreImport } from "../services/scoring.js";
+import { scoreDeclinedImport, scoreDeclinedOrg } from "../services/declinedScoring.js";
 import { verifyTransaction } from "../services/aiVerification.js";
 import { notifyForTransaction } from "../services/notifications.js";
 
@@ -100,6 +101,56 @@ export function transactionsRouter(): Router {
           await writeAudit(admin, { orgId, actorId, action: "transactions.rebuild", meta: { count } });
         } catch (e) {
           console.error("[rebuild] background rebuild failed:", e instanceof Error ? e.message : e);
+        }
+      })();
+    }),
+  );
+
+  // Score the declined attempts from one reject-report import (background — each does a live Samsara
+  // location check).
+  router.post(
+    "/score-declined-import",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const actorId = req.auth!.userId;
+      const importId = String((req.body as { importId?: string })?.importId ?? "");
+      if (!importId) {
+        res.status(400).json(apiError("bad_request", "importId is required"));
+        return;
+      }
+      res.json({ ok: true, queued: true });
+      void (async () => {
+        try {
+          const count = await scoreDeclinedImport(admin, env, orgId, importId);
+          await writeAudit(admin, { orgId, actorId, action: "declined.score_import", meta: { importId, count } });
+        } catch (e) {
+          console.error("[score-declined-import] failed:", e instanceof Error ? e.message : e);
+        }
+      })();
+    }),
+  );
+
+  // Re-score every declined attempt for the org (background) — for the Rejections "Rescore" button.
+  router.post(
+    "/rescore-declined",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const actorId = req.auth!.userId;
+      res.json({ ok: true, queued: true });
+      void (async () => {
+        try {
+          const count = await scoreDeclinedOrg(admin, env, orgId);
+          await writeAudit(admin, { orgId, actorId, action: "declined.rescore", meta: { count } });
+        } catch (e) {
+          console.error("[rescore-declined] failed:", e instanceof Error ? e.message : e);
         }
       })();
     }),

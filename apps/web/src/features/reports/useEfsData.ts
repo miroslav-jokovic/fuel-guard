@@ -18,6 +18,7 @@ export interface EfsFilters {
   from?: string; // YYYY-MM-DD
   to?: string;
   search?: string; // free text (driver / location / item or error)
+  suspicion?: string; // declined only: clear | review | alert
 }
 
 const ilikeOr = (term: string, cols: string[]) =>
@@ -49,7 +50,7 @@ export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) 
 }
 
 const DECLINED_COLS =
-  "id, declined_at, card_ref, invoice, location_id, location_text, city, state, unit, driver_ext_id, driver_name, error_code, error_description, policy, policy_name";
+  "id, declined_at, card_ref, invoice, location_id, location_text, city, state, unit, driver_ext_id, driver_name, error_code, error_description, policy, policy_name, suspicion_level, suspicion_reasons";
 
 /** Faithful declined (Reject Report) rows, newest first, one page (20) with total count. */
 export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<number>) {
@@ -65,6 +66,7 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
         .order("declined_at", { ascending: false })
         .range(start, start + EFS_PAGE_SIZE - 1);
       if (f.unit) q = q.eq("unit", f.unit);
+      if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);
       if (f.from) q = q.gte("declined_at", f.from);
       if (f.to) q = q.lte("declined_at", f.to);
       if (f.search) q = q.or(ilikeOr(f.search, ["driver_name", "error_description", "location_text", "error_code"]));

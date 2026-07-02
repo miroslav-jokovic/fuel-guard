@@ -387,6 +387,8 @@ export interface DeclinedTransactionRow {
   error_description: string | null;
   policy: string | null;
   policy_name: string | null;
+  suspicion_level?: string | null; // clear | review | alert (null until scored)
+  suspicion_reasons?: { key: string; weight: number; detail: string }[] | null;
 }
 
 export interface ReconciledFuelLine extends ParsedFuelLine {

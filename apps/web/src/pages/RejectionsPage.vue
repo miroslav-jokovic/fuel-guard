@@ -8,7 +8,13 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import { apiFetch } from "@/lib/api";
+import { useSessionStore } from "@/stores/session";
+import { useToastStore } from "@/stores/toast";
+import { BADGE_BASE, suspicionTone } from "@/lib/badges";
 
+const session = useSessionStore();
+const toast = useToastStore();
 const filters = ref<EfsFilters>({});
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
@@ -25,6 +31,10 @@ const unit = computed({
   get: () => filters.value.unit ?? "",
   set: (v: string) => (filters.value = { ...filters.value, unit: v || undefined }),
 });
+const suspicion = computed({
+  get: () => filters.value.suspicion ?? "",
+  set: (v: string) => (filters.value = { ...filters.value, suspicion: v || undefined }),
+});
 const search = computed({
   get: () => filters.value.search ?? "",
   set: (v: string) => (filters.value = { ...filters.value, search: v || undefined }),
@@ -35,6 +45,15 @@ const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 const fmt = (iso: string) => new Date(iso).toLocaleString();
+
+const rescoring = ref(false);
+async function rescore() {
+  rescoring.value = true;
+  const res = await apiFetch("/api/transactions/rescore-declined", { method: "POST" });
+  rescoring.value = false;
+  if (res.ok) toast.success("Rescoring started", "Checking each declined attempt against Samsara — refresh in a minute.");
+  else toast.error("Could not start rescore", res.error?.message);
+}
 </script>
 
 <template>
@@ -47,9 +66,30 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
       <div class="lg:max-w-xs lg:flex-1">
         <SearchInput v-model="search" placeholder="Search driver, location, error…" />
       </div>
+      <AppSelect
+        v-model="suspicion"
+        :options="[
+          { value: '', label: 'All attempts' },
+          { value: 'alert', label: 'Alert' },
+          { value: 'review', label: 'Review' },
+          { value: 'clear', label: 'Clear' },
+        ]"
+        class="lg:w-36"
+      />
       <AppSelect v-model="unit" :options="unitOptions" class="lg:w-40" />
       <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
-      <span class="text-sm text-gray-500 lg:ml-auto">{{ total }} total</span>
+      <div class="flex items-center gap-3 lg:ml-auto">
+        <span class="text-sm text-gray-500">{{ total }} total</span>
+        <button
+          v-if="session.canManage"
+          :disabled="rescoring"
+          class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+          title="Check each declined attempt against Samsara + card patterns"
+          @click="rescore"
+        >
+          {{ rescoring ? "Rescoring…" : "Rescore" }}
+        </button>
+      </div>
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
@@ -67,6 +107,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
         <table class="min-w-full divide-y divide-gray-200 text-sm">
           <thead class="text-left whitespace-nowrap text-gray-500">
             <tr>
+              <th class="px-4 py-3 font-medium">Risk</th>
               <th class="px-4 py-3 font-medium">Date / Time</th>
               <th class="px-4 py-3 font-medium">Card #</th>
               <th class="px-4 py-3 font-medium">Invoice</th>
@@ -82,6 +123,16 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
           </thead>
           <tbody class="divide-y divide-gray-100 whitespace-nowrap">
             <tr v-for="d in rows" :key="d.id">
+              <td class="px-4 py-2">
+                <span
+                  v-if="d.suspicion_level && d.suspicion_level !== 'clear'"
+                  :class="[BADGE_BASE, suspicionTone(d.suspicion_level)]"
+                  :title="(d.suspicion_reasons ?? []).map((r) => r.detail).join(' · ')"
+                  >{{ d.suspicion_level }}</span
+                >
+                <span v-else-if="d.suspicion_level === 'clear'" class="text-xs text-gray-400">Clear</span>
+                <span v-else class="text-xs text-gray-300">—</span>
+              </td>
               <td class="px-4 py-2 text-gray-700">{{ fmt(d.declined_at) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.card_ref }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.invoice }}</td>

@@ -249,6 +249,8 @@ export function useCommitImport() {
           .from("declined_transactions")
           .upsert(declinedRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
         if (error) throw new Error(error.message);
+        // Score the declined attempts for theft signals in the background.
+        await apiFetch("/api/transactions/score-declined-import", { method: "POST", body: { importId } });
       }
     },
     onSuccess: () => {

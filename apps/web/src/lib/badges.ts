@@ -31,3 +31,8 @@ export function txnStatusTone(status: string): string {
 export function inviteTone(status: string): string {
   return tone(status === "pending" ? "amber" : status === "accepted" ? "green" : "gray");
 }
+
+/** Declined-attempt suspicion: alert | review | clear. */
+export function suspicionTone(level: string | null | undefined): string {
+  return tone(level === "alert" ? "red" : level === "review" ? "amber" : "gray");
+}

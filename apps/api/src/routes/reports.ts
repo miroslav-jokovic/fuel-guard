@@ -1,6 +1,6 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
-import { toCsv, aggregateDashboard, type FuelTransaction, type Anomaly } from "@fuelguard/shared";
+import { toCsv, aggregateDashboard, odometerAccuracy, type FuelTransaction, type Anomaly, type OdoRow } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -41,9 +41,80 @@ async function loadTxnExport(admin: SupabaseClient, orgId: string, from: string,
   return (data ?? []) as unknown as TxnExport[];
 }
 
+/** Load entered-vs-Samsara odometer rows (with driver/vehicle labels) for the accuracy report. */
+async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<OdoRow[]> {
+  const { data } = await admin
+    .from("fuel_transactions")
+    .select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles(unit_number), drivers(full_name)")
+    .eq("org_id", orgId)
+    .gte("fueled_at", from)
+    .lte("fueled_at", to);
+  return ((data ?? []) as unknown as {
+    odometer: number | string | null;
+    samsara_odometer: number | string | null;
+    driver_id: string | null;
+    vehicle_id: string | null;
+    vehicles: { unit_number: string } | null;
+    drivers: { full_name: string } | null;
+  }[]).map((r) => ({
+    driverId: r.driver_id,
+    driverName: r.drivers?.full_name ?? null,
+    vehicleId: r.vehicle_id,
+    unit: r.vehicles?.unit_number ?? null,
+    entered: r.odometer == null ? null : Number(r.odometer),
+    samsara: r.samsara_odometer == null ? null : Number(r.samsara_odometer),
+  }));
+}
+
 export function reportsRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg, requireRole("admin", "fleet_manager", "auditor"));
+
+  // odometer-accuracy (JSON) — entered vs Samsara odometer, grouped by driver (default) or vehicle.
+  router.get(
+    "/odometer-accuracy",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
+      const by = qstr(req.query.by) === "vehicle" ? "vehicle" : "driver";
+      const rows = odometerAccuracy(await loadOdoRows(admin, orgId, from, to), by);
+      res.json({ by, from, to, rows });
+    }),
+  );
+
+  // odometer-accuracy.csv
+  router.get(
+    "/odometer-accuracy.csv",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
+      const by = qstr(req.query.by) === "vehicle" ? "vehicle" : "driver";
+      const rows = odometerAccuracy(await loadOdoRows(admin, orgId, from, to), by).map((r) => ({
+        name: r.label,
+        fills: r.fills,
+        checked: r.checked,
+        mismatches: r.mismatches,
+        accuracy_pct: r.accuracyPct ?? "",
+        avg_deviation_mi: r.avgDeviation ?? "",
+        max_deviation_mi: r.maxDeviation ?? "",
+      }));
+      const csv = toCsv(rows, [
+        { key: "name", header: by === "vehicle" ? "Unit" : "Driver" },
+        { key: "fills", header: "Fills" },
+        { key: "checked", header: "Verifiable (Samsara)" },
+        { key: "mismatches", header: "Off > 5 mi" },
+        { key: "accuracy_pct", header: "Accuracy %" },
+        { key: "avg_deviation_mi", header: "Avg deviation (mi)" },
+        { key: "max_deviation_mi", header: "Max deviation (mi)" },
+      ]);
+      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "export.generated", meta: { report: "odometer-accuracy.csv", rows: rows.length } });
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="fuelguard-odometer-accuracy.csv"');
+      res.send(csv);
+    }),
+  );
 
   // transactions.csv
   router.get(

@@ -5,6 +5,8 @@ export * from "./apiContract.js";
 export * from "./fleet.js";
 export * from "./fuel.js";
 export * from "./efsImport.js";
+export * from "./declined.js";
+export * from "./odometer.js";
 export * from "./ai.js";
 export * from "./anomaly.js";
 export * from "./dashboard.js";
