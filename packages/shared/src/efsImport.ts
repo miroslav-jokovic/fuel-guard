@@ -245,8 +245,16 @@ export function normalizeTransactionRows(rows: RawRow[]): {
     }
     const card = str(pick(row, "Card #", "Card Number"));
     const invoice = str(pick(row, "Invoice"));
+    const txnId = str(pick(row, "TransactionId", "Transaction Id", "Transaction ID"));
     const total = num(pick(row, "Amt", "Amount"));
-    const key = `${card ?? ""}|${invoice ?? ""}`; // one invoice = one fueling event
+    // One fueling event = one invoice (this correctly merges multi-line invoices). Only when the invoice
+    // is BLANK do we fall back to a unique per-transaction key (TransactionId, else time+amount), so a
+    // missing invoice can't collapse a whole card's history into a single row.
+    const key = invoice
+      ? `${card ?? ""}|${invoice}`
+      : txnId
+        ? `${card ?? ""}|${txnId}`
+        : `${card ?? ""}|${fueledAt}|${total ?? ""}|${gallons}`;
 
     const existing = byInvoice.get(key);
     if (existing) {

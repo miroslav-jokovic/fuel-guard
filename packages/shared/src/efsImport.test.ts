@@ -105,6 +105,23 @@ describe("normalizeTransactionRows", () => {
     expect(fl).toHaveLength(0);
     expect(sk.some((s) => s.reason === "unparseable date")).toBe(true);
   });
+
+  it("keeps a present invoice as the merge key (multi-line invoices stay one fueling event)", () => {
+    const { fuelLines: fl } = normalizeTransactionRows([
+      { CardNumber: "9", TransactionId: "T1", Invoice: "INV9", Quantity: "50", Amount: "200", TransactionPOSDate: "06/01/2026", ProductDescription: "ULSD DIESEL" },
+      { CardNumber: "9", TransactionId: "T2", Invoice: "INV9", Quantity: "70", Amount: "280", TransactionPOSDate: "06/01/2026", ProductDescription: "ULSD DIESEL" },
+    ]);
+    expect(fl).toHaveLength(1); // same invoice = one event (TransactionId does not override a real invoice)
+    expect(fl[0]!.external_ref).toBe("9|INV9");
+  });
+
+  it("only falls back to a unique key when the invoice is blank (no 1-row-per-card collapse)", () => {
+    const { fuelLines: fl } = normalizeTransactionRows([
+      { "Card #": "9", Invoice: "", Item: "ULSD", Qty: "50", Amt: "200", "Tran Date": "2026-06-01" },
+      { "Card #": "9", Invoice: "", Item: "ULSD", Qty: "70", Amt: "280", "Tran Date": "2026-06-02" },
+    ]);
+    expect(fl).toHaveLength(2); // previously both collapsed into a single "9|" row
+  });
 });
 
 describe("normalizeAllTransactionLines (faithful — docs/10)", () => {
