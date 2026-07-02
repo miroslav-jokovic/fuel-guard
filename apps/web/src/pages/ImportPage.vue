@@ -41,8 +41,11 @@ async function onFile(e: Event) {
 async function onCommit() {
   if (!preview.value) return;
   try {
+    const wasTxn = preview.value.kind === "transaction";
     await commit.mutateAsync(preview.value);
-    toast.success("Import complete", "Transactions have been saved.");
+    toast.success("Import complete", "New rows saved and scored. Duplicates were skipped automatically.");
+    // New history can change MPG/consumption for earlier fills — nudge a rebuild to recompute them.
+    if (wasTxn) toast.info("Tip: run 'Rebuild' on the Anomalies page", "So MPG and over-fuel checks use the full history.");
     preview.value = null;
   } catch (err) {
     toast.error("Import failed", err instanceof Error ? err.message : undefined);
@@ -96,6 +99,10 @@ const reset = () => {
           <p class="text-sm text-gray-500">
             {{ preview.filename }} · {{ preview.kind === "reject" ? "Reject report" : "Transaction report" }}
             ({{ preview.source.toUpperCase() }}) · {{ preview.totalRows }} rows
+            <span v-if="preview.reportFrom" class="text-gray-400"> · {{ preview.reportFrom }} → {{ preview.reportTo }}</span>
+          </p>
+          <p class="mt-1 text-xs text-gray-400">
+            Rows already in FuelGuard are detected and skipped automatically — safe to upload an overlapping period.
           </p>
         </div>
       </div>

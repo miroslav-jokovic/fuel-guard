@@ -35,6 +35,15 @@ export interface ImportPreview {
   // reject
   newDeclined: ParsedDeclined[];
   duplicateDeclinedCount: number;
+  // the period the file covers (YYYY-MM-DD), for at-a-glance validation
+  reportFrom: string | null;
+  reportTo: string | null;
+}
+
+/** Min/max date (YYYY-MM-DD) across a set of ISO timestamps. */
+function dateSpan(isos: (string | null)[]): { from: string | null; to: string | null } {
+  const days = isos.filter((d): d is string => !!d).map((d) => d.slice(0, 10)).sort();
+  return { from: days[0] ?? null, to: days[days.length - 1] ?? null };
 }
 
 /** SHA-256 hex digest of the file contents using the Web Crypto API. */
@@ -47,9 +56,17 @@ async function hashFile(file: File): Promise<string> {
 }
 
 async function existingRefs(table: string, refs: string[]): Promise<Set<string>> {
-  if (refs.length === 0) return new Set();
-  const { data } = await supabase.from(table).select("external_ref").in("external_ref", refs);
-  return new Set((data ?? []).map((r) => (r as { external_ref: string }).external_ref));
+  // Query in batches: a month of data can be thousands of refs, and a single .in() would blow past the
+  // request URL limit and silently return nothing (making every row look "new" in the preview).
+  const found = new Set<string>();
+  const CHUNK = 200;
+  for (let i = 0; i < refs.length; i += CHUNK) {
+    const slice = refs.slice(i, i + CHUNK);
+    const { data, error } = await supabase.from(table).select("external_ref").in("external_ref", slice);
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) found.add((r as { external_ref: string }).external_ref);
+  }
+  return found;
 }
 
 /** Read + classify + reconcile + dedup a file into a review preview (no writes). */
@@ -90,6 +107,8 @@ export async function analyzeImport(
     skippedCount: 0,
     newDeclined: [] as ParsedDeclined[],
     duplicateDeclinedCount: 0,
+    reportFrom: null as string | null,
+    reportTo: null as string | null,
   };
 
   if (kind === "transaction") {
@@ -98,6 +117,7 @@ export async function analyzeImport(
     const reconciled = reconcileFuelLines(fuelLines, vehicles, drivers);
     const seen = await existingRefs("fuel_transactions", reconciled.map((l) => l.external_ref));
     const newFuel = reconciled.filter((l) => !seen.has(l.external_ref));
+    const span = dateSpan(allLines.map((l) => l.fueled_at));
     return {
       ...base,
       allLines,
@@ -105,6 +125,8 @@ export async function analyzeImport(
       duplicateFuelCount: reconciled.length - newFuel.length,
       unattributedCount: newFuel.filter((l) => l.vehicle_id == null).length,
       skippedCount: skipped.length,
+      reportFrom: span.from,
+      reportTo: span.to,
     };
   }
 
@@ -112,7 +134,8 @@ export async function analyzeImport(
     const declined = normalizeRejectRows(rows);
     const seen = await existingRefs("declined_transactions", declined.map((d) => d.external_ref));
     const newDeclined = declined.filter((d) => !seen.has(d.external_ref));
-    return { ...base, newDeclined, duplicateDeclinedCount: declined.length - newDeclined.length };
+    const span = dateSpan(declined.map((d) => d.declined_at));
+    return { ...base, newDeclined, duplicateDeclinedCount: declined.length - newDeclined.length, reportFrom: span.from, reportTo: span.to };
   }
 
   return base;
