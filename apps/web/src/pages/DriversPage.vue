@@ -147,18 +147,18 @@ async function onSyncSamsara() {
       </div>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="text-left text-gray-500">
+        <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
           <tr>
-            <SortableTh label="Name" sort-key="full_name" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <SortableTh label="Employee ID" sort-key="employee_id" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <th class="px-6 py-3 font-medium">Phone</th>
-            <th class="px-6 py-3 font-medium">Vehicles</th>
-            <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <th class="px-6 py-3"></th>
+            <SortableTh label="Name" sort-key="full_name" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[12rem]" @sort="onSort" />
+            <SortableTh label="Employee ID" sort-key="employee_id" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />
+            <th class="px-6 py-3 font-medium min-w-[9rem]">Phone</th>
+            <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicles</th>
+            <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
+            <th class="px-6 py-3 w-12"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="d in pageRows" :key="d.id">
+          <tr v-for="d in pageRows" :key="d.id" class="hover:bg-gray-50">
             <td class="px-6 py-3 font-medium text-gray-900">{{ d.full_name }}</td>
             <td class="px-6 py-3 text-gray-700">{{ d.employee_id ?? "—" }}</td>
             <td class="px-6 py-3 text-gray-700">{{ d.phone ?? "—" }}</td>

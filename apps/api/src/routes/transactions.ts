@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { scoreWithCascade, backfillOrg, scoreImport } from "../services/scoring.js";
+import { syncFuelEventsFromEfs, scoreTouched } from "../services/efsSync.js";
 import { scoreDeclinedImport, scoreDeclinedOrg } from "../services/declinedScoring.js";
 import { verifyTransaction } from "../services/aiVerification.js";
 import { notifyForTransaction } from "../services/notifications.js";
@@ -157,6 +158,32 @@ export function transactionsRouter(): Router {
   );
 
   // Backfill all transactions for the org with LIVE Samsara reconciliation + geocoding (populates
+  // Repair fuel events from the faithful EFS store: re-derives merged events from efs_transactions and
+  // inserts any that are missing / corrects any whose time, gallons or cost drifted from the store
+  // (half-failed imports, the historical invoice-reuse merge bug, mis-restored dates). The data repair
+  // is synchronous and returns exact counts; re-scoring of touched rows continues in the background
+  // (live Samsara reconciliation is rate-limited).
+  router.post(
+    "/sync-from-efs",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const actorId = req.auth!.userId;
+      const { touchedIds, ...counts } = await syncFuelEventsFromEfs(admin, orgId, actorId);
+      await writeAudit(admin, { orgId, actorId, action: "transactions.sync_from_efs", meta: { ...counts, toScore: touchedIds.length } });
+      res.json({ ...counts, scoringQueued: touchedIds.length });
+      if (touchedIds.length) {
+        void (async () => {
+          const scored = await scoreTouched(admin, env, orgId, touchedIds);
+          await writeAudit(admin, { orgId, actorId, action: "transactions.sync_from_efs_scored", meta: { scored } });
+        })();
+      }
+    }),
+  );
+
   // location confidence on historical rows). Runs in the background — geocoding is rate-limited, so a
   // large org can take a few minutes; results appear as rows are processed.
   router.post(

@@ -233,22 +233,22 @@ async function onRetire(v: Vehicle) {
       </div>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="text-left text-gray-500">
+        <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
           <tr>
-            <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <th class="px-6 py-3 font-medium">Vehicle</th>
-            <th class="px-6 py-3 font-medium">Fuel</th>
-            <SortableTh label="Tank" sort-key="tank_capacity_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <SortableTh label="Baseline MPG" sort-key="baseline_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <SortableTh label="Fuel level" sort-key="samsara_fuel_percent" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <SortableTh label="Odometer" sort-key="current_odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <th class="px-6 py-3 font-medium">Driver</th>
-            <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <th class="px-6 py-3"></th>
+            <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[5rem]" @sort="onSort" />
+            <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicle</th>
+            <th class="px-6 py-3 font-medium min-w-[5rem]">Fuel</th>
+            <SortableTh label="Tank" sort-key="tank_capacity_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
+            <SortableTh label="Baseline MPG" sort-key="baseline_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />
+            <SortableTh label="Fuel level" sort-key="samsara_fuel_percent" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[7rem]" @sort="onSort" />
+            <SortableTh label="Odometer" sort-key="current_odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem]" @sort="onSort" />
+            <th class="px-6 py-3 font-medium min-w-[8rem]">Driver</th>
+            <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
+            <th class="px-6 py-3 w-12"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="v in pageRows" :key="v.id">
+          <tr v-for="v in pageRows" :key="v.id" class="hover:bg-gray-50">
             <td class="px-6 py-3 font-medium">
               <RouterLink :to="`/vehicles/${v.id}`" class="text-indigo-600 hover:text-indigo-500">{{ v.unit_number }}</RouterLink>
             </td>

@@ -99,25 +99,25 @@ const clearCount = computed(() => rows.value.filter((t) => !t.has_anomaly).lengt
       </div>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="text-left text-gray-500">
+        <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
           <tr>
-            <SortableTh label="When" sort-key="fueled_at" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <th class="px-6 py-3 font-medium">Vehicle</th>
-            <SortableTh label="Odometer" sort-key="odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <SortableTh label="Gallons" sort-key="gallons" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <SortableTh label="$/gal" sort-key="price_per_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <SortableTh label="MPG" sort-key="computed_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-            <th class="px-6 py-3 font-medium">Status</th>
+            <SortableTh label="When" sort-key="fueled_at" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[11rem]" @sort="onSort" />
+            <th class="px-6 py-3 font-medium min-w-[7rem]">Vehicle</th>
+            <SortableTh label="Odometer" sort-key="odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem] text-right" @sort="onSort" />
+            <SortableTh label="Gallons" sort-key="gallons" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem] text-right" @sort="onSort" />
+            <SortableTh label="$/gal" sort-key="price_per_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem] text-right" @sort="onSort" />
+            <SortableTh label="MPG" sort-key="computed_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[5rem] text-right" @sort="onSort" />
+            <th class="px-6 py-3 font-medium min-w-[11rem]">Status</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="t in rows" :key="t.id">
+          <tr v-for="t in rows" :key="t.id" class="hover:bg-gray-50">
             <td class="px-6 py-3 whitespace-nowrap text-gray-700">{{ fmtDate(t.fueled_at) }}</td>
             <td class="px-6 py-3 text-gray-900">{{ vehicleLabel(t.vehicle_id) }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ t.odometer ?? "—" }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ t.gallons }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ t.price_per_gal ?? "—" }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ t.computed_mpg ?? "—" }}</td>
+            <td class="px-6 py-3 text-right text-gray-700">{{ t.odometer ?? "—" }}</td>
+            <td class="px-6 py-3 text-right text-gray-700">{{ t.gallons }}</td>
+            <td class="px-6 py-3 text-right text-gray-700">{{ t.price_per_gal ?? "—" }}</td>
+            <td class="px-6 py-3 text-right text-gray-700">{{ t.computed_mpg ?? "—" }}</td>
             <td class="px-6 py-3">
               <div class="flex items-center gap-1.5">
                 <span

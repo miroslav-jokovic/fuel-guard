@@ -529,6 +529,109 @@ export interface ReconciledFuelLine extends ParsedFuelLine {
   driver_id: string | null;
 }
 
+// ── derive fuel events from the FAITHFUL EFS STORE (repair / self-heal path) ─────────────────────────
+// efs_transactions is the system of record: every uploaded line, verbatim. When fuel_transactions has
+// gaps or corrupted rows (a half-failed import, the historical invoice-reuse merge bug, a mis-restored
+// date), the correct fix is to re-derive the events from the store — NOT to re-upload files. This is
+// the pure half; the API loads the rows, reconciles vehicles/drivers, and upserts.
+
+/** The subset of a persisted efs_transactions row the derivation needs. */
+export interface EfsStoreLine {
+  card_num: string | null;
+  invoice: string | null;
+  tran_date: string | null; // YYYY-MM-DD (station-local business date)
+  fueled_at: string | null; // ISO instant (true UTC or the noon-UTC date-only sentinel)
+  unit: string | null;
+  driver_name: string | null;
+  odometer: number | null;
+  location_name: string | null;
+  city: string | null;
+  state: string | null;
+  item: string | null;
+  qty: number | null;
+  amt: number | null;
+}
+
+export interface DerivedFuelEvents {
+  events: ParsedFuelLine[];
+  /** Non-fuel lines (DEF, scales, fees) — correctly excluded, counted for the report. */
+  skippedNonFuel: number;
+  /** Fuel lines with a blank invoice — their original dedupe key embedded a raw parse-time value that
+   *  cannot be reconstructed from the store, so re-deriving them risks duplicates. Skipped + counted. */
+  skippedBlankInvoice: number;
+  /** Rows with no tran_date / no positive qty — unusable, counted. */
+  skippedUnusable: number;
+}
+
+/**
+ * Re-derive merged fuel events from faithful EFS store lines. Produces the SAME external_ref, merge
+ * and precision semantics as `normalizeTransactionRows` on the original file (one event per
+ * card|invoice|business-date; gallons/cost summed; price re-derived from the merged totals).
+ */
+export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuelEvents {
+  const byKey = new Map<string, ParsedFuelLine>();
+  let skippedNonFuel = 0;
+  let skippedBlankInvoice = 0;
+  let skippedUnusable = 0;
+
+  for (const l of lines) {
+    const item = (str(l.item) ?? "").toUpperCase();
+    const fuelType = FUEL_PRODUCT_CODES[item] ?? fuelTypeFromText(item);
+    if (!fuelType) {
+      skippedNonFuel += 1;
+      continue;
+    }
+    if (l.tran_date == null || l.qty == null || l.qty <= 0 || l.fueled_at == null) {
+      skippedUnusable += 1;
+      continue;
+    }
+    const invoice = str(l.invoice);
+    if (!invoice) {
+      skippedBlankInvoice += 1;
+      continue;
+    }
+    const key = `${str(l.card_num) ?? ""}|${invoice}|${l.tran_date}`;
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.gallons += l.qty;
+      existing.total_cost = (existing.total_cost ?? 0) + (l.amt ?? 0);
+      // Keep the earliest instant in the group as the fueling time.
+      if (new Date(l.fueled_at).getTime() < new Date(existing.fueled_at).getTime()) {
+        existing.fueled_at = l.fueled_at;
+      }
+    } else {
+      byKey.set(key, {
+        external_ref: key,
+        unit: str(l.unit),
+        driver_name: str(l.driver_name),
+        card_ref: str(l.card_num),
+        fueled_at: l.fueled_at,
+        tran_date: l.tran_date,
+        fueled_at_precision: isNoonSentinelIso(l.fueled_at) ? "date" : "instant",
+        odometer: l.odometer,
+        gallons: l.qty,
+        price_per_gal: null, // re-derived from merged totals below
+        total_cost: l.amt,
+        fuel_type: fuelType,
+        item,
+        location_text: str(l.location_name),
+        city: str(l.city),
+        state: str(l.state),
+      });
+    }
+  }
+
+  const events = [...byKey.values()].map((e) => ({
+    ...e,
+    price_per_gal:
+      e.total_cost != null && e.gallons > 0
+        ? Math.round((e.total_cost / e.gallons) * 1000) / 1000
+        : e.price_per_gal,
+  }));
+
+  return { events, skippedNonFuel, skippedBlankInvoice, skippedUnusable };
+}
+
 /** Known truck-stop chains, matched against the EFS Location Name. Order matters (Flying J before J). */
 const STATION_BRANDS: { key: string; label: string; patterns: RegExp[] }[] = [
   { key: "flying_j", label: "Flying J", patterns: [/\bflying\s*j\b/i, /\bflyingj\b/i] },

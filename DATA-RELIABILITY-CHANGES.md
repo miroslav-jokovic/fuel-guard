@@ -70,6 +70,22 @@ Also audited and confirmed clean: digest windows, Samsara scheduler/vehicle sync
 
 Known minor residual: a flagged (typo) odometer still participates in the rolling-window miles span, which can only make `cumulative_overfuel` *less* likely to fire (never a false positive).
 
+## Self-heal: repair fuel events from the EFS store
+
+`efs_transactions` (the faithful store, shown on the Transactions page) is the system of record. When
+the dashboard's derived fuel events drift from it — a half-failed import, the historical invoice-reuse
+merge bug, or a fueling time the migration couldn't restore — the fix is NOT re-uploading files:
+
+- **Shared:** `deriveFuelEventsFromEfsStore()` re-derives merged fuel events from stored lines with
+  identical ref/merge/precision semantics to the file parser (unit-tested against the parser's cases).
+- **API:** `POST /api/transactions/sync-from-efs` (admin/fleet_manager) inserts missing events,
+  corrects rows whose time/gallons/cost differ from the store (fills missing vehicle/driver attribution
+  but never overwrites it), records the repair as an `efs_feed` import for provenance, returns exact
+  counts, and re-scores touched rows in the background. Blank-invoice lines and store lines whose fuel
+  type can't be re-derived (numeric product codes without the description) are counted, never guessed.
+- **Web:** a "Repair fuel data" button on the Import page runs it, and the "already imported" banner
+  now explains re-committing correctly instead of claiming nothing new can be added.
+
 ## Deployment order (important)
 
 1. Apply migration `0026` **before** deploying the new code (new imports write date-scoped refs + precision; old data must be rewritten first so dedupe stays consistent).

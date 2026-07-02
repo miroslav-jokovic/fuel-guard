@@ -9,6 +9,7 @@ import {
   efsDateToIso,
   efsInstant,
   zonedWallTimeToUtcIso,
+  deriveFuelEventsFromEfsStore,
 } from "./index.js";
 
 // Real column headers from the Silvicom EFS exports (docs/08 §0).
@@ -350,5 +351,52 @@ describe("efsInstant precision semantics", () => {
   it("date+time+state converts the station wall clock to true UTC with 'instant' precision", () => {
     const r = efsInstant("2026-06-29", "07:37:00", "GA"); // EDT −4
     expect(r).toEqual({ iso: "2026-06-29T11:37:00.000Z", precision: "instant", tranDate: "2026-06-29" });
+  });
+});
+
+describe("deriveFuelEventsFromEfsStore (repair path)", () => {
+  const line = (over: Partial<import("./efsImport.js").EfsStoreLine>): import("./efsImport.js").EfsStoreLine => ({
+    card_num: "94507", invoice: "INV1", tran_date: "2026-06-29",
+    fueled_at: "2026-06-29T12:00:00.000Z", unit: "691", driver_name: "DONOVAN BOOTHE",
+    odometer: 293580, location_name: "PILOT JAMESTOWN 305", city: "JAMESTOWN", state: "NM",
+    item: "ULSD", qty: 100, amt: 400, ...over,
+  });
+
+  it("produces the same ref/merge semantics as the file parser (card|invoice|date, summed)", () => {
+    const r = deriveFuelEventsFromEfsStore([
+      line({}),
+      line({ qty: 50, amt: 200 }),                                  // same invoice+day → merged
+      line({ item: "DEFD", qty: 5, amt: 25 }),                      // non-fuel → skipped
+      line({ invoice: "INV1", tran_date: "2026-07-01", fueled_at: "2026-07-01T12:00:00.000Z" }), // reused invoice, other day → separate
+    ]);
+    expect(r.skippedNonFuel).toBe(1);
+    expect(r.events).toHaveLength(2);
+    const first = r.events.find((e) => e.tran_date === "2026-06-29")!;
+    expect(first.external_ref).toBe("94507|INV1|2026-06-29");
+    expect(first.gallons).toBe(150);
+    expect(first.total_cost).toBe(600);
+    expect(first.price_per_gal).toBe(4);
+    expect(first.fueled_at_precision).toBe("date"); // noon sentinel
+    expect(r.events.find((e) => e.tran_date === "2026-07-01")!.external_ref).toBe("94507|INV1|2026-07-01");
+  });
+
+  it("marks timed rows as instant and keeps the earliest instant of a merged group", () => {
+    const r = deriveFuelEventsFromEfsStore([
+      line({ fueled_at: "2026-06-29T18:40:00.000Z" }),
+      line({ fueled_at: "2026-06-29T18:25:00.000Z", qty: 10, amt: 40 }),
+    ]);
+    expect(r.events[0]!.fueled_at).toBe("2026-06-29T18:25:00.000Z");
+    expect(r.events[0]!.fueled_at_precision).toBe("instant");
+  });
+
+  it("quarantines blank-invoice and unusable rows instead of guessing keys", () => {
+    const r = deriveFuelEventsFromEfsStore([
+      line({ invoice: null }),
+      line({ tran_date: null }),
+      line({ qty: 0 }),
+    ]);
+    expect(r.events).toHaveLength(0);
+    expect(r.skippedBlankInvoice).toBe(1);
+    expect(r.skippedUnusable).toBe(2);
   });
 });
