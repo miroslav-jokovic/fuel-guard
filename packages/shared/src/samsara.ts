@@ -213,55 +213,81 @@ export function approxFuelingUtcMs(posNaiveIso: string, state: string | null): n
 }
 
 export interface FuelingStopMatch {
-  /** Samsara odometer (miles) at the confirmed fueling stop — the ±5 reference. Null if unresolved. */
+  /** Samsara odometer (miles) at the fueling stop (in-city > in-state > nearest). Null if unresolved. */
   odometerMiles: number | null;
-  /** Samsara time of that stop (real fueling instant). */
+  /** Samsara time the odometer was read (the anchoring stop). */
   matchedAt: string | null;
-  /** true = truck was stopped in the EFS state; false = confidently elsewhere; null = can't tell. */
+  /** true = truck was in the EFS state that day; false = confidently never there; null = can't tell. */
   locationMatched: boolean | null;
+  /** How the decision was reached — surfaced in evidence so a manager sees the reasoning. */
+  basis: "in_city" | "in_state" | "not_in_state" | "no_coverage" | "no_efs_state";
+  /** Reverse-geocoded state of the nearest stop we saw (for the "not in state" evidence). */
+  observedState: string | null;
+  /** Reverse-geocoded city/address of the anchoring or nearest stop (evidence). */
+  observedCity: string | null;
+  observedAddress: string | null;
 }
 
+const cityNorm = (c: string | null | undefined) => (c ?? "").trim().toLowerCase();
+
 /**
- * Anchor on the PHYSICAL stop, not the timestamp's time zone (docs/10 §12). Among stopped samples that
- * carry an odometer + a reverse-geocoded state, keep those whose state matches the EFS station's state,
- * then pick the one closest to the approximate fueling time. That stop's odometer is the true odometer
- * at fueling — reliable regardless of the report's local-vs-UTC time. When no stop is in the EFS state
- * but the truck was clearly stopped elsewhere that window, it's a real location mismatch.
+ * Timezone-PROOF location + odometer match (docs/10 §12, revised). We do NOT trust the report's
+ * time-of-day (its zone is ambiguous), so instead of picking "the sample nearest a guessed minute" we
+ * ask a robust question over the whole fetched day: was the truck EVER in the EFS station's state? If
+ * yes, location is confirmed (a passing highway point earlier that day no longer causes a false
+ * mismatch). We only call it a real mismatch when we have solid GPS coverage that day and the truck was
+ * NEVER in that state. Odometer is read at the best stop: in the EFS city, else in the EFS state, else
+ * the nearest stop — anchored by the approximate time only to disambiguate multiple candidates.
  */
 export function matchFuelingStop(
   samples: SamsaraSample[],
-  efs: { state: string | null },
+  efs: { state: string | null; city?: string | null },
   posNaiveIso: string,
   opts: { stoppedMph?: number } = {},
 ): FuelingStopMatch {
   const stoppedMax = opts.stoppedMph ?? 5;
   const efsState = efs.state?.trim().toUpperCase() || null;
+  const efsCity = cityNorm(efs.city);
   const target = approxFuelingUtcMs(posNaiveIso, efsState);
   const nearest = (list: SamsaraSample[]) =>
-    list.sort(
+    [...list].sort(
       (a, b) => Math.abs(new Date(a.time).getTime() - target) - Math.abs(new Date(b.time).getTime() - target),
-    )[0]!;
+    )[0] ?? null;
 
   const stopped = samples.filter((s) => (s.speedMph ?? 0) <= stoppedMax && s.odometerMiles != null && s.address);
+  const ev = (s: SamsaraSample | null) => ({
+    observedState: s ? stateFromAddress(s.address) : null,
+    observedCity: s ? cityFromAddress(s.address) : null,
+    observedAddress: s?.address ?? null,
+  });
 
-  if (efsState) {
-    const inState = stopped.filter((s) => stateFromAddress(s.address) === efsState);
-    if (inState.length) {
-      const pick = nearest(inState);
-      return { odometerMiles: pick.odometerMiles, matchedAt: pick.time, locationMatched: true };
-    }
-    // No stop in the EFS state: only call it a mismatch if we actually saw the truck stopped somewhere
-    // with a resolvable state (i.e., we have real coverage) — otherwise it's just unknown.
-    const sawElsewhere = stopped.some((s) => stateFromAddress(s.address) != null);
-    return { odometerMiles: null, matchedAt: null, locationMatched: sawElsewhere ? false : null };
-  }
-
-  // No EFS state to match on → best-effort odometer from the nearest stop; location unknown.
-  if (stopped.length) {
+  if (!efsState) {
     const pick = nearest(stopped);
-    return { odometerMiles: pick.odometerMiles, matchedAt: pick.time, locationMatched: null };
+    return { odometerMiles: pick?.odometerMiles ?? null, matchedAt: pick?.time ?? null, locationMatched: null, basis: "no_efs_state", ...ev(pick) };
   }
-  return { odometerMiles: null, matchedAt: null, locationMatched: null };
+
+  // Was the truck in the EFS state at ANY point in the fetched day — moving OR stopped?
+  const inStateAny = samples.some((s) => stateFromAddress(s.address) === efsState);
+  if (inStateAny) {
+    const inStateStops = stopped.filter((s) => stateFromAddress(s.address) === efsState);
+    const inCityStops = efsCity ? inStateStops.filter((s) => cityNorm(cityFromAddress(s.address)) === efsCity) : [];
+    const anchor = nearest(inCityStops) ?? nearest(inStateStops) ?? nearest(stopped);
+    return {
+      odometerMiles: anchor?.odometerMiles ?? null,
+      matchedAt: anchor?.time ?? null,
+      locationMatched: true,
+      basis: inCityStops.length ? "in_city" : "in_state",
+      ...ev(anchor),
+    };
+  }
+
+  // Never in the EFS state. Only a real mismatch if we actually had resolvable coverage that day.
+  const sawResolvableState = samples.some((s) => stateFromAddress(s.address) != null);
+  if (sawResolvableState) {
+    const pick = nearest(stopped) ?? nearest(samples.filter((s) => stateFromAddress(s.address) != null));
+    return { odometerMiles: null, matchedAt: null, locationMatched: false, basis: "not_in_state", ...ev(pick) };
+  }
+  return { odometerMiles: null, matchedAt: null, locationMatched: null, basis: "no_coverage", observedState: null, observedCity: null, observedAddress: null };
 }
 
 export interface OdometerReconciliation {

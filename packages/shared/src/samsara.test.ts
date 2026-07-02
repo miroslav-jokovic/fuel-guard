@@ -281,21 +281,42 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(r.matchedAt).toBe("2026-06-30T20:25:00Z");
   });
 
-  it("flags a real mismatch: no stop in the EFS state but stopped in another state", () => {
+  it("flags a real mismatch: truck was NEVER in the EFS state all day (stopped in another state)", () => {
     const samples = [
       S("2026-06-30T20:25:00Z", 0, "Depot, Oklahoma City, OK, 73101", 100210),
       S("2026-06-30T20:40:00Z", 1, "Depot, Oklahoma City, OK, 73101", 100210),
     ];
     const r = matchFuelingStop(samples, { state: "TX" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
     expect(r.locationMatched).toBe(false);
+    expect(r.basis).toBe("not_in_state");
     expect(r.odometerMiles).toBeNull();
   });
 
-  it("returns unknown (not a mismatch) when there is no resolvable stop coverage", () => {
-    const samples = [S("2026-06-30T20:25:00Z", 55, "I-20, TX", 100000)]; // moving only, no stop
+  it("NO false mismatch: presence in the EFS state that day counts even if another stop is elsewhere", () => {
+    // The Sturbridge/Benton bug: truck fueled in MA but also passed through ME. Old code matched the ME
+    // highway point → false mismatch. Now any MA sample that day confirms presence → matched.
+    const samples = [
+      S("2026-07-01T08:15:00Z", 61, "I-95, Benton, ME, 04975", 5000), // passing through Maine (moving)
+      S("2026-07-01T13:10:00Z", 0, "Rte 20, Sturbridge, MA, 01566", 5240), // the actual fueling stop
+    ];
+    const r = matchFuelingStop(samples, { state: "MA", city: "STURBRIDGE" }, "2026-07-01T08:15:00", { stoppedMph: 5 });
+    expect(r.locationMatched).toBe(true);
+    expect(r.basis).toBe("in_city");
+    expect(r.odometerMiles).toBe(5240);
+  });
+
+  it("a moving-only pass through the EFS state still confirms presence (no odometer)", () => {
+    const samples = [S("2026-06-30T20:25:00Z", 55, "I-20, Abilene, TX, 79601", 100000)]; // moving, in TX
+    const r = matchFuelingStop(samples, { state: "TX" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
+    expect(r.locationMatched).toBe(true);
+    expect(r.odometerMiles).toBeNull(); // no stopped sample to read an odometer from
+  });
+
+  it("returns unknown (not a mismatch) when there is NO resolvable GPS coverage that day", () => {
+    const samples = [S("2026-06-30T20:25:00Z", 55, "unmarked road", 100000)]; // no parseable state
     const r = matchFuelingStop(samples, { state: "TX" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
     expect(r.locationMatched).toBeNull();
-    expect(r.odometerMiles).toBeNull();
+    expect(r.basis).toBe("no_coverage");
   });
 
   it("without an EFS state, still recovers a best-effort odometer from the nearest stop", () => {

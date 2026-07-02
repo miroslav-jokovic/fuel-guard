@@ -3,9 +3,6 @@ import {
   parseSamsaraSamples,
   matchFuelingMoment,
   matchFuelingStop,
-  approxFuelingUtcMs,
-  stateFromAddress,
-  cityFromAddress,
   parseFuelPercents,
   tankPercentNear,
   reconcileTankFill,
@@ -60,13 +57,11 @@ export async function reconcileWithSamsara(
   const token = fetcherOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) return null;
 
-  // Fetch window. For a timed report the POS time is LOCAL station time; we approximate the true UTC
-  // instant via the station-state offset and center a ±5h window on it (wide enough to absorb DST and
-  // the delay between arriving/stopping and the pump transaction). Date-only stays wide (±30h).
-  const center = input.preciseTime
-    ? approxFuelingUtcMs(input.fueledAt, input.state)
-    : new Date(input.fueledAt).getTime();
-  const winMs = (input.preciseTime ? 5 : 30) * 3_600_000;
+  // Fetch the whole fueling DAY (±18h ≈ 36h) around the reported time. We no longer trust the report's
+  // time-of-day/timezone, so we pull a wide window and ask a robust question — "was the truck in the EFS
+  // state anywhere that day?" — rather than trusting a narrow guessed minute. Date-only stays ±30h.
+  const center = new Date(input.fueledAt).getTime();
+  const winMs = (input.preciseTime ? 18 : 30) * 3_600_000;
   const start = new Date(center - winMs).toISOString();
   const end = new Date(center + winMs).toISOString();
 
@@ -83,20 +78,16 @@ export async function reconcileWithSamsara(
   const samples = parseSamsaraSamples(vehicle as Parameters<typeof parseSamsaraSamples>[0]);
   const vehicleRaw = vehicle as Parameters<typeof parseFuelPercents>[0];
 
-  // ── Precise path: anchor on the PHYSICAL stop, not the timestamp's time zone. Find where Samsara
-  // shows the truck stopped in the EFS station's state near the (tz-adjusted) fueling time, and read
-  // the odometer there. That odometer is correct regardless of local-vs-UTC ambiguity, and "no stop in
-  // the right state (but stopped elsewhere)" is the only thing we treat as a real location mismatch. ──
+  // ── Precise path: timezone-PROOF presence check over the whole day. Location matches when the truck
+  // was in the EFS state at any point that day; a mismatch is raised only when we have solid GPS coverage
+  // and the truck was never in that state. Odometer is read at the best stop (in-city > in-state). ──
   if (input.preciseTime) {
-    const stop = matchFuelingStop(samples, { state: input.state }, input.fueledAt, { stoppedMph: 5 });
+    const stop = matchFuelingStop(samples, { state: input.state, city: input.city }, input.fueledAt, { stoppedMph: 5 });
     if (stop.odometerMiles == null && stop.locationMatched == null) {
-      // No usable stop near the fueling window → can't verify anything (unknown, no flag).
+      // No usable GPS coverage that day → can't verify anything (unknown, no flag).
       return { crossSourceOdometer: null, locationMatched: null, locationEvidence: null, matchedAt: null, tankFillShortGal: null, tankObservedRiseGal: null };
     }
     const at = stop.matchedAt ?? input.fueledAt;
-    const evidenceSample = stop.matchedAt
-      ? samples.find((x) => x.time === stop.matchedAt)
-      : undefined;
     const tank = computeTankFill(vehicleRaw, at, input.gallons, input.tankCapacityGal);
     return {
       crossSourceOdometer: stop.odometerMiles,
@@ -106,11 +97,10 @@ export async function reconcileWithSamsara(
           ? {
               efsCity: input.city,
               efsState: input.state,
-              samsaraState: evidenceSample ? stateFromAddress(evidenceSample.address) : null,
-              samsaraCity: evidenceSample ? cityFromAddress(evidenceSample.address) : null,
-              samsaraAddress: evidenceSample?.address ?? null,
-              atTime: at,
-              note: "No Samsara stop in the EFS station's state within the fueling window; truck was stopped in a different state.",
+              samsaraState: stop.observedState,
+              samsaraCity: stop.observedCity,
+              samsaraAddress: stop.observedAddress,
+              note: `Samsara shows the truck was never in ${input.state ?? "the EFS state"} at any point across the fueling day — the card was used where the truck was not.`,
             }
           : null,
       matchedAt: stop.matchedAt,
