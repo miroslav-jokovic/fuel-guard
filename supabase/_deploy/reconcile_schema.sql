@@ -105,3 +105,6 @@ alter table fuel_transactions add column if not exists station_lng numeric(9,6);
 
 -- ── 0019: geocode precision ─────────────────────────────────────────────────────────────────
 alter table geocode_cache add column if not exists precision text;
+
+-- ── 0020: pre-fill tank level ────────────────────────────────────────────────────────────────
+alter table fuel_transactions add column if not exists samsara_fuel_pct_before numeric(5,1);

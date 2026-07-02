@@ -2,7 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   runAllRules,
   reconcileAnomalies,
-  maxSeverity,
+  correlateSignals,
+  CASE_RULE_ID,
   milesSinceLast,
   computedMpg,
   effectiveBaseline,
@@ -12,12 +13,14 @@ import {
   type OperatingHours,
   type ExistingAnomaly,
   type FueledAtPrecision,
+  type RuleResult,
+  type RuleId,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_recon_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_recon_at";
 
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -64,6 +67,7 @@ interface FtxnRow {
   station_lng: number | string | null;
   samsara_tank_short_gal: number | string | null;
   samsara_tank_observed_gal: number | string | null;
+  samsara_fuel_pct_before: number | string | null;
   samsara_recon_at: string | null;
 }
 
@@ -156,6 +160,7 @@ export async function scoreTransaction(
   let reconAt: string | null = null;
   let tankFillShortGal: number | null = null;
   let tankObservedRiseGal: number | null = null;
+  let tankPctBefore: number | null = null;
   // The EFS fueling time is "precise" when it carries a real time-of-day (timed report / manual),
   // not the date-only noon sentinel. Only then can we compare Samsara's position at the exact minute.
   const preciseTime = r.source === "manual" || !isNoonSentinel(txn.fueledAt);
@@ -169,6 +174,7 @@ export async function scoreTransaction(
     stationLng = n(r.station_lng);
     tankFillShortGal = n(r.samsara_tank_short_gal);
     tankObservedRiseGal = n(r.samsara_tank_observed_gal);
+    tankPctBefore = n(r.samsara_fuel_pct_before);
     reconAt = r.samsara_recon_at ?? null;
     if (preciseTime || reconAt) txn.fueledAtPrecision = "instant";
   } else if (txn.vehicleId) {
@@ -193,6 +199,7 @@ export async function scoreTransaction(
       reconAt = recon.matchedAt;
       tankFillShortGal = recon.tankFillShortGal;
       tankObservedRiseGal = recon.tankObservedRiseGal;
+      tankPctBefore = recon.tankPctBefore;
       if (preciseTime) {
         // Timed report / manual: the reported time IS the fueling time → enable time-based rules.
         txn.fueledAtPrecision = "instant";
@@ -276,10 +283,20 @@ export async function scoreTransaction(
     locationEvidence,
     tankFillShortGal,
     tankObservedRiseGal,
+    tankPctBefore,
   });
 
+  // Correlate the fired signals into ONE per-transaction case (multi-signal model). A lone weak signal
+  // stays "clear" (no anomaly) so normal fills don't all look flagged; independent corroborating signals
+  // (or one physically-impossible one) become a single "theft_case" alert.
+  const assessment = correlateSignals(fired);
+  const caseFired: RuleResult[] =
+    assessment.level === "clear"
+      ? []
+      : [{ ruleId: CASE_RULE_ID as RuleId, fired: true, severity: assessment.severity!, message: assessment.summary, evidence: { level: assessment.level, score: assessment.score, axes: assessment.axes, signals: assessment.signals } }];
+
   const { data: existing } = await admin.from("anomalies").select("id, rule_id, status, source").eq("transaction_id", txnId);
-  const { toInsert, toSupersedeIds } = reconcileAnomalies((existing ?? []) as ExistingAnomaly[], fired);
+  const { toInsert, toSupersedeIds } = reconcileAnomalies((existing ?? []) as ExistingAnomaly[], caseFired);
 
   for (const res of toInsert) {
     const { error } = await admin.from("anomalies").insert({
@@ -299,13 +316,23 @@ export async function scoreTransaction(
     await admin.from("anomalies").update({ status: "superseded" }).in("id", toSupersedeIds);
   }
 
+  // Refresh an already-open case in place when the signals changed (rebuild/re-score) — but never
+  // disturb one a reviewer has moved to investigating/resolved/dismissed.
+  if (caseFired.length) {
+    const openCase = (existing ?? []).find((a) => a.rule_id === CASE_RULE_ID && a.status === "open");
+    if (openCase && !toInsert.length) {
+      const c = caseFired[0]!;
+      await admin.from("anomalies").update({ severity: c.severity, message: c.message, evidence: c.evidence }).eq("id", openCase.id);
+    }
+  }
+
   await admin
     .from("fuel_transactions")
     .update({
       miles_since_last: milesSinceLast(txn, previousTxn),
       computed_mpg: computedMpg(txn, previousTxn),
-      has_anomaly: fired.length > 0,
-      max_severity: maxSeverity(fired),
+      has_anomaly: assessment.level !== "clear",
+      max_severity: assessment.severity,
       samsara_odometer: crossSourceOdometer,
       samsara_location_matched: samsaraLocationMatched,
       samsara_location_confidence: locationConfidence,
@@ -313,6 +340,7 @@ export async function scoreTransaction(
       station_lng: stationLng,
       samsara_tank_short_gal: tankFillShortGal,
       samsara_tank_observed_gal: tankObservedRiseGal,
+      samsara_fuel_pct_before: tankPctBefore,
       samsara_recon_at: reconAt,
       ...(reconAt ? { fueled_at: txn.fueledAt } : {}),
     })

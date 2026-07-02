@@ -15,8 +15,8 @@ describe("shared constants", () => {
     expect(MPG_FUEL_TYPES).toEqual(["diesel", "gasoline"]);
   });
 
-  it("declares all 12 anomaly rule ids", () => {
-    expect(RULE_IDS).toHaveLength(19);
+  it("declares all anomaly rule ids", () => {
+    expect(RULE_IDS).toHaveLength(20);
   });
 });
 

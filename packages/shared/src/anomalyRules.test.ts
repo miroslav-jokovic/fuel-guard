@@ -2,10 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   runAllRules,
   reconcileAnomalies,
+  correlateSignals,
   effectiveBaseline,
   isOffHours,
   maxSeverity,
   type RuleContext,
+  type RuleResult,
+  type RuleId,
   type TxnView,
   type VehicleView,
 } from "./index.js";
@@ -51,6 +54,54 @@ const ids = (c: RuleContext) => runAllRules(c).map((r) => r.ruleId);
 describe("clean transaction", () => {
   it("fires nothing for a normal fill-up", () => {
     expect(runAllRules(ctx())).toEqual([]);
+  });
+});
+
+describe("tank_space_exceeded (physical: can't add more than the tank holds)", () => {
+  it("fires when billed gallons exceed the empty space before fueling", () => {
+    // 120 gal tank, 60% full before → only 48 gal of space, but billed 90 → impossible.
+    expect(ids(ctx({ tankPctBefore: 60 }))).toContain("tank_space_exceeded");
+  });
+  it("does not fire when the fill fits (near-empty tank)", () => {
+    expect(ids(ctx({ tankPctBefore: 5 }))).not.toContain("tank_space_exceeded");
+  });
+  it("stays silent when the pre-fill level is unknown (no false alarm on missing data)", () => {
+    expect(ids(ctx())).not.toContain("tank_space_exceeded");
+  });
+});
+
+describe("correlateSignals (multi-signal → one case)", () => {
+  const sig = (ruleId: RuleId, severity: RuleResult["severity"] = "high"): RuleResult => ({
+    ruleId,
+    fired: true,
+    severity,
+    message: `${ruleId} fired`,
+    evidence: {},
+  });
+
+  it("no signals → clear (no anomaly)", () => {
+    expect(correlateSignals([]).level).toBe("clear");
+  });
+  it("a lone WEAK signal (odometer mismatch) → clear, not a red alert", () => {
+    expect(correlateSignals([sig("odometer_mismatch")]).level).toBe("clear");
+  });
+  it("a lone STRONG signal (location mismatch) → review", () => {
+    const c = correlateSignals([sig("location_mismatch")]);
+    expect(c.level).toBe("review");
+    expect(c.severity).toBe("medium");
+  });
+  it("an overwhelming physical signal (tank space) → alert on its own", () => {
+    expect(correlateSignals([sig("tank_space_exceeded", "critical")]).level).toBe("alert");
+  });
+  it("two independent axes agreeing → alert", () => {
+    const c = correlateSignals([sig("location_mismatch"), sig("tank_fill_short")]);
+    expect(c.level).toBe("alert");
+    expect(c.axes.sort()).toEqual(["location", "volume"]);
+  });
+  it("two signals on the SAME axis do not over-count into an alert", () => {
+    // both odometer axis, weights 55 + 45 → single-axis, top 55 < review → clear
+    const c = correlateSignals([sig("odometer_regression"), sig("odometer_mismatch")]);
+    expect(c.level).toBe("clear");
   });
 });
 

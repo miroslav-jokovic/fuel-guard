@@ -16,6 +16,7 @@ export const RULE_IDS = [
   "expected_odometer_band", // single-source: miles vs fuel-implied miles
   // Tier 2 — volume vs capacity
   "exceeds_tank_capacity",
+  "tank_space_exceeded", // billed gallons > empty space in the tank before fueling (can't fit in THIS truck)
   "implausible_topoff",
   "cumulative_overfuel", // rolling-window gallons vs miles-burnable + a tank
   // Tier 3 — efficiency
@@ -55,6 +56,7 @@ export const RULE_LABELS: Record<RuleId, string> = {
   odometer_mismatch:          "Odometer / Location Mismatch",
   expected_odometer_band:     "Outside Expected Odometer Band",
   exceeds_tank_capacity:      "Exceeds Tank Capacity",
+  tank_space_exceeded:        "More Fuel Than Tank Could Hold",
   implausible_topoff:         "Implausible Top-Off",
   cumulative_overfuel:        "Cumulative Overfueling",
   mpg_deviation:              "MPG Deviation",
@@ -70,6 +72,7 @@ export const RULE_LABELS: Record<RuleId, string> = {
 
 /** Returns the human-friendly label for a rule ID, with a sensible fallback for unknown IDs. */
 export function formatRuleId(ruleId: string): string {
+  if (ruleId === "theft_case") return "Theft Risk";
   return (RULE_LABELS as Record<string, string>)[ruleId]
     ?? ruleId.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -145,6 +148,8 @@ export interface RuleContext {
   tankFillShortGal?: number | null;
   /** Gallons the tank actually rose across the fueling moment (Samsara). */
   tankObservedRiseGal?: number | null;
+  /** Samsara tank level (%) just BEFORE the fill — used for the physical tank-space check. */
+  tankPctBefore?: number | null;
 }
 
 export interface RuleResult {
@@ -318,6 +323,33 @@ function ruleExceedsTankCapacity(ctx: RuleContext): RuleResult {
   return none("exceeds_tank_capacity");
 }
 
+/**
+ * PHYSICAL tank-space check (the automated version of "he can't put in more than the tank holds"):
+ * before fueling the tank was at P% of a C-gallon tank, so only C·(1−P/100) gallons of empty space
+ * existed. If the card billed materially MORE than that space, the excess fuel could not have gone into
+ * this truck — it went somewhere else. Uses only the reliable PRE-fill level (not the noisy post-fill
+ * plateau). Tolerance absorbs sensor coarseness. Silent (never fires) when level/capacity are missing.
+ */
+function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
+  const { txn, vehicle, tankPctBefore } = ctx;
+  const cap = vehicle.tankCapacityGal;
+  if (tankPctBefore == null || cap <= 0 || txn.gallons <= 0) return none("tank_space_exceeded");
+  const freeSpace = cap * (1 - Math.min(Math.max(tankPctBefore, 0), 100) / 100);
+  // Tolerance for sensor coarseness: the larger of 12 gal or 10% of the tank.
+  const tol = Math.max(12, cap * 0.1);
+  const over = txn.gallons - freeSpace;
+  if (over > tol) {
+    return {
+      ruleId: "tank_space_exceeded",
+      fired: true,
+      severity: "critical",
+      message: `Billed ${txn.gallons} gal, but the tank was ${r2(tankPctBefore)}% full before fueling — only ~${r2(freeSpace)} gal of space existed. ~${r2(over)} gal could not fit in this truck.`,
+      evidence: { gallons: txn.gallons, tankPctBefore: r2(tankPctBefore), capacity: cap, freeSpaceGal: r2(freeSpace), overflowGal: r2(over), toleranceGal: r2(tol) },
+    };
+  }
+  return none("tank_space_exceeded");
+}
+
 function ruleImplausibleTopoff(ctx: RuleContext): RuleResult {
   const { txn, vehicle, previousTxn, recentTxns } = ctx;
   const miles = milesSinceLast(txn, previousTxn);
@@ -477,7 +509,7 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleOdometerMismatch,
     ...(fuel ? [ruleExpectedOdometerBand] : []),
     // Tier 2 — capacity (fuel vehicles only)
-    ...(fuel ? [ruleExceedsTankCapacity, ruleImplausibleTopoff, ruleCumulativeOverfuel] : []),
+    ...(fuel ? [ruleExceedsTankCapacity, ruleTankSpaceExceeded, ruleImplausibleTopoff, ruleCumulativeOverfuel] : []),
     // Tier 3 — efficiency (fuel vehicles only)
     ...(fuel ? [ruleMpgDeviation, ruleMpgSustainedDecline] : []),
     // Tier 4 — behavioral
@@ -506,6 +538,119 @@ export const SEVERITY_RANK: Record<AnomalySeverity, number> = { low: 1, medium: 
 export function maxSeverity(results: RuleResult[]): AnomalySeverity | null {
   if (results.length === 0) return null;
   return results.reduce((a, r) => (SEVERITY_RANK[r.severity] > SEVERITY_RANK[a] ? r.severity : a), "low" as AnomalySeverity);
+}
+
+// ── multi-signal correlation (docs/09 §theft-model) ─────────────────────────────
+// A single fired rule is a SIGNAL, not a verdict. Theft is caught reliably when INDEPENDENT signals
+// agree (truck-not-there + more-fuel-than-fits, etc.). Each signal has an evidence "axis" and a weight
+// (0–100) for how directly it implies theft. We correlate ACROSS axes so a lone weak signal (e.g. an
+// odometer that's a few miles off) never raises a red alert — it stays clear or, if strong on its own,
+// a review. This is what keeps normal fills from all looking flagged.
+
+export type SignalAxis = "location" | "volume" | "consumption" | "odometer" | "behavior";
+
+/** The single synthetic anomaly id used for a correlated per-transaction case. */
+export const CASE_RULE_ID = "theft_case";
+
+export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> = {
+  // Volume — fuel physically not going into this truck (the hardest to game)
+  tank_space_exceeded:        { axis: "volume", weight: 90 },
+  exceeds_tank_capacity:      { axis: "volume", weight: 85 },
+  tank_fill_short:            { axis: "volume", weight: 60 },
+  implausible_topoff:         { axis: "volume", weight: 50 },
+  // Consumption — buying more than the truck could burn
+  cumulative_overfuel:        { axis: "consumption", weight: 75 },
+  expected_odometer_band:     { axis: "consumption", weight: 40 },
+  mpg_deviation:              { axis: "consumption", weight: 30 },
+  mpg_sustained_decline:      { axis: "consumption", weight: 20 },
+  // Location — card used where the truck isn't
+  location_mismatch:          { axis: "location", weight: 70 },
+  // Odometer — driver misreporting (masks theft / owner's accuracy concern)
+  odometer_regression:        { axis: "odometer", weight: 55 },
+  odometer_mismatch:          { axis: "odometer", weight: 45 },
+  odometer_implausible_jump:  { axis: "odometer", weight: 35 },
+  odometer_daily_cap:         { axis: "odometer", weight: 30 },
+  odometer_stale:             { axis: "odometer", weight: 25 },
+  odometer_missing:           { axis: "odometer", weight: 0 },
+  // Behavior — card / timing patterns
+  card_multi_vehicle:         { axis: "behavior", weight: 60 },
+  rapid_repeat_fueling:       { axis: "behavior", weight: 40 },
+  off_hours_fueling:          { axis: "behavior", weight: 20 },
+  cost_outlier:               { axis: "behavior", weight: 15 },
+  unattributed_transaction:   { axis: "behavior", weight: 0 },
+};
+
+/** A signal ≥ this weight is "overwhelming" and raises an alert on its own (e.g. more fuel than fits). */
+const OVERWHELMING_WEIGHT = 85;
+/** A single signal ≥ this weight is worth a review on its own. */
+const REVIEW_WEIGHT = 60;
+/** Correlated alert: ≥2 independent axes and combined score ≥ this. */
+const ALERT_SCORE = 110;
+
+export type CaseLevel = "clear" | "review" | "alert";
+
+export interface CaseSignal {
+  ruleId: RuleId;
+  axis: SignalAxis;
+  weight: number;
+  severity: AnomalySeverity;
+  message: string;
+}
+
+export interface CaseAssessment {
+  level: CaseLevel;
+  /** null when clear; otherwise the case severity for the single anomaly row. */
+  severity: AnomalySeverity | null;
+  score: number;
+  axes: SignalAxis[];
+  signals: CaseSignal[];
+  summary: string;
+}
+
+/**
+ * Correlate the fired signals into ONE per-transaction case. Weak lone signals → clear (no anomaly);
+ * a single strong signal → review; independent corroborating signals (or one overwhelming one) → alert.
+ */
+export function correlateSignals(fired: RuleResult[]): CaseAssessment {
+  const signals: CaseSignal[] = fired
+    .map((f) => ({ ruleId: f.ruleId, ...SIGNAL_META[f.ruleId], severity: f.severity, message: f.message }))
+    .filter((s) => s.weight > 0)
+    .sort((a, b) => b.weight - a.weight);
+
+  if (signals.length === 0) {
+    return { level: "clear", severity: null, score: 0, axes: [], signals: [], summary: "" };
+  }
+
+  // Score = sum of the STRONGEST signal per axis (don't double-count the same axis).
+  const perAxis = new Map<SignalAxis, number>();
+  for (const s of signals) perAxis.set(s.axis, Math.max(perAxis.get(s.axis) ?? 0, s.weight));
+  const axes = [...perAxis.keys()];
+  const score = [...perAxis.values()].reduce((a, b) => a + b, 0);
+  const topWeight = signals[0]!.weight;
+
+  const overwhelming = topWeight >= OVERWHELMING_WEIGHT;
+  const corroborated = axes.length >= 2 && score >= ALERT_SCORE;
+
+  let level: CaseLevel;
+  let severity: AnomalySeverity;
+  if (overwhelming || corroborated) {
+    level = "alert";
+    severity = overwhelming && corroborated ? "critical" : "high";
+  } else if (topWeight >= REVIEW_WEIGHT) {
+    level = "review";
+    severity = "medium";
+  } else {
+    return { level: "clear", severity: null, score, axes, signals, summary: "" };
+  }
+
+  const lead = signals[0]!;
+  const others = signals.length - 1;
+  const summary =
+    level === "alert"
+      ? `Possible theft: ${axes.length} independent signal${axes.length > 1 ? "s" : ""} agree — ${lead.message}`
+      : `Review: ${lead.message}${others > 0 ? ` (+${others} more)` : ""}`;
+
+  return { level, severity, score, axes, signals, summary };
 }
 
 // ── anomaly reconciliation (audit M5: never wipe workflow state) ────────────────

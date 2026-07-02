@@ -32,7 +32,14 @@ const sevBadge = computed(() => {
   }
 });
 
-const evidenceRows = computed(() => Object.entries(props.anomaly.evidence ?? {}));
+interface CaseSignal { ruleId: string; axis: string; weight: number; severity: string; message: string }
+const ev = computed(() => (props.anomaly.evidence ?? {}) as Record<string, unknown>);
+const caseSignals = computed<CaseSignal[]>(() => (Array.isArray(ev.value.signals) ? (ev.value.signals as CaseSignal[]) : []));
+const isCase = computed(() => caseSignals.value.length > 0);
+// For non-case anomalies keep the raw key/value evidence; for a correlated case we render the signal list.
+const evidenceRows = computed(() =>
+  Object.entries(ev.value).filter(([k]) => !["signals", "level", "score", "axes"].includes(k)),
+);
 const fmt = (iso: string) => new Date(iso).toLocaleString();
 const formatKey = (k: string) => k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -91,8 +98,19 @@ async function reexamine() {
 
     <p class="text-sm text-gray-900">{{ anomaly.message }}</p>
 
-    <!-- Why this fired -->
-    <div class="rounded-md bg-gray-50 p-4">
+    <!-- Contributing signals (correlated case) -->
+    <div v-if="isCase" class="rounded-md bg-gray-50 p-4">
+      <h4 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">Contributing signals</h4>
+      <ul class="mt-2 space-y-2">
+        <li v-for="s in caseSignals" :key="s.ruleId" class="flex items-start gap-2 text-sm">
+          <span class="mt-0.5 inline-flex shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700 uppercase">{{ s.axis }}</span>
+          <span class="text-gray-800">{{ s.message }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Why this fired (single-rule anomalies) -->
+    <div v-else class="rounded-md bg-gray-50 p-4">
       <h4 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">Why this fired</h4>
       <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
         <template v-for="[k, v] in evidenceRows" :key="k">
