@@ -158,6 +158,16 @@ async function rebuild() {
   else toast.error("Could not start rebuild", res.error?.message);
 }
 
+const resyncing = ref(false);
+async function resync() {
+  if (!confirm("Re-check every fill against Samsara live? This recomputes exact fueling location and odometer (the tz-proof + geocoding logic), fixing false location/odometer flags. It's slower — a few minutes in the background.")) return;
+  resyncing.value = true;
+  const res = await apiFetch("/api/transactions/backfill", { method: "POST" });
+  resyncing.value = false;
+  if (res.ok) toast.success("Samsara re-sync started", "Re-reconciling every fill in the background — refresh in a few minutes.");
+  else toast.error("Could not start re-sync", res.error?.message);
+}
+
 const selectedRow = ref<Anomaly | null>(null);
 const fmt = (iso: string) => new Date(iso).toLocaleDateString();
 </script>
@@ -182,6 +192,15 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
             @click="runTriage"
           >
             {{ triaging ? "Triaging…" : "AI triage" }}
+          </button>
+          <button
+            v-if="session.canManage"
+            :disabled="resyncing"
+            class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+            title="Re-check every fill against Samsara live — fixes false location/odometer flags"
+            @click="resync"
+          >
+            {{ resyncing ? "Re-syncing…" : "Re-sync Samsara" }}
           </button>
           <button
             v-if="session.canManage"

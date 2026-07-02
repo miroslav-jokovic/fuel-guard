@@ -13,6 +13,7 @@ import { useDashboard } from "@/features/dashboard/useDashboard";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import BaseChart from "@/components/BaseChart.vue";
+import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
 import { useToastStore } from "@/stores/toast";
 
 const session = useSessionStore();
@@ -124,6 +125,8 @@ async function exportReport(path: string, filename: string) {
         <dd v-if="stat.sub" class="mt-0.5 text-xs text-gray-400">{{ stat.sub }}</dd>
       </div>
     </dl>
+
+    <FleetReadiness v-if="session.canManage" />
 
     <div v-if="isLoading" class="rounded-lg bg-white p-10 text-center text-sm text-gray-500 shadow-sm ring-1 ring-gray-200">
       Loading dashboard…
