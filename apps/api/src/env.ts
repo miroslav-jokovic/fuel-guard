@@ -53,7 +53,9 @@ const EnvSchema = z.object({
   MAIL_PROVIDER: z.enum(["resend", "brevo", "none"]).default("none"),
   RESEND_API_KEY: z.string().optional(),
   BREVO_API_KEY: z.string().optional(),
-  MAIL_FROM: z.string().default("alerts@silvicominc.com"),
+  // Sender for outbound email. Must be an address on a domain VERIFIED in your mail provider (Resend).
+  // A display name is fine ("FuelGuard <miki@silvicominc.com>"). Override via the Railway env var.
+  MAIL_FROM: z.string().default("FuelGuard <miki@silvicominc.com>"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

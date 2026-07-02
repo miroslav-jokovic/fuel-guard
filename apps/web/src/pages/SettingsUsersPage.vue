@@ -33,18 +33,37 @@ async function load() {
   loading.value = false;
 }
 
+interface InviteResult { emailSent: boolean; inviteLink?: string | null; reason?: string | null }
+
+const REASON_TEXT: Record<string, string> = {
+  mail_disabled: "Email isn't configured on the server, so nothing was sent.",
+  send_failed: "The email provider rejected the message (check the sender domain is verified).",
+  link_failed: "Couldn't generate the invite link — try again.",
+};
+
+// The most recent invite link, shown with a Copy button so invites work even if email delivery fails.
+const shareLink = ref<{ email: string; link: string; sent: boolean; reason?: string | null } | null>(null);
+const copied = ref(false);
+async function copyLink() {
+  if (!shareLink.value) return;
+  await navigator.clipboard.writeText(shareLink.value.link);
+  copied.value = true;
+  setTimeout(() => (copied.value = false), 1500);
+}
+
+function handleInviteResult(addr: string, data: InviteResult | undefined) {
+  const link = data?.inviteLink ?? null;
+  if (link) shareLink.value = { email: addr, link, sent: !!data?.emailSent, reason: data?.reason };
+  if (data?.emailSent) toast.success("Invitation emailed", addr);
+  else toast.info("Invite ready — share the link", data?.reason ? REASON_TEXT[data.reason] ?? "" : "");
+}
+
 async function invite() {
   submitting.value = true;
-  const res = await apiFetch<{ invite: Invite; emailSent: boolean }>("/api/invites", {
-    method: "POST",
-    body: { email: email.value, role: role.value },
-  });
+  const addr = email.value;
+  const res = await apiFetch<InviteResult>("/api/invites", { method: "POST", body: { email: addr, role: role.value } });
   if (res.ok) {
-    if (res.data?.emailSent === false) {
-      toast.error("Invite created but email delivery failed", "Check server logs or Supabase SMTP settings.");
-    } else {
-      toast.success("Invitation sent", email.value);
-    }
+    handleInviteResult(addr, res.data);
     email.value = "";
     role.value = "driver";
     await load();
@@ -65,13 +84,10 @@ async function revoke(id: string) {
 }
 
 async function resend(id: string) {
-  const res = await apiFetch<{ ok: boolean; emailSent: boolean }>(`/api/invites/${id}/resend`, { method: "POST" });
+  const inv = invites.value.find((i) => i.id === id);
+  const res = await apiFetch<InviteResult>(`/api/invites/${id}/resend`, { method: "POST" });
   if (res.ok) {
-    if (res.data?.emailSent === false) {
-      toast.error("Invite reset but email delivery failed", "Check Supabase SMTP settings in the dashboard.");
-    } else {
-      toast.success("Invitation resent", "A fresh link has been emailed to the recipient.");
-    }
+    handleInviteResult(inv?.email ?? "the recipient", res.data);
     await load();
   } else {
     toast.error("Could not resend invitation", res.error?.message);
@@ -161,6 +177,32 @@ onMounted(load);
           {{ submitting ? "Sending…" : "Send invite" }}
         </button>
       </form>
+
+      <!-- Shareable invite link (always available, even if email delivery fails) -->
+      <div v-if="shareLink" class="mt-4 rounded-md bg-gray-50 p-4 ring-1 ring-gray-200">
+        <div class="flex items-start justify-between gap-3">
+          <p class="text-sm text-gray-700">
+            <span v-if="shareLink.sent" class="font-medium text-green-700">Emailed to {{ shareLink.email }}.</span>
+            <span v-else class="font-medium text-amber-700">Email not sent to {{ shareLink.email }}.</span>
+            Share this invite link directly if needed:
+          </p>
+          <button class="text-gray-400 hover:text-gray-600" title="Dismiss" @click="shareLink = null">✕</button>
+        </div>
+        <div class="mt-2 flex items-center gap-2">
+          <input
+            :value="shareLink.link"
+            readonly
+            class="min-w-0 flex-1 rounded-md border-0 bg-white px-2.5 py-1.5 font-mono text-xs text-gray-700 ring-1 ring-gray-300 ring-inset"
+            @focus="($event.target as HTMLInputElement).select()"
+          />
+          <button
+            class="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+            @click="copyLink"
+          >
+            {{ copied ? "Copied!" : "Copy link" }}
+          </button>
+        </div>
+      </div>
     </section>
 
     <section class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">

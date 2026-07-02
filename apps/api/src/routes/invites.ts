@@ -195,8 +195,9 @@ export function invitesRouter(): Router {
 
       // Deliver via our Resend mailer (invite link, or recovery link if the user already exists).
       const { data: org } = await admin.from("organizations").select("name").eq("id", orgId).maybeSingle();
-      const emailSent = await deliverInvite(admin, env, (org?.name as string) ?? "FuelGuard", existing.email);
-      if (!emailSent) console.error(`[invites] resend delivery failed for ${existing.email}`);
+      const delivery = await deliverInvite(admin, env, (org?.name as string) ?? "FuelGuard", existing.email);
+      const emailSent = delivery.sent;
+      if (!emailSent) console.error(`[invites] resend not sent for ${existing.email} (${delivery.reason})`);
 
       await writeAudit(admin, {
         orgId,
@@ -207,7 +208,7 @@ export function invitesRouter(): Router {
         meta: { email: existing.email, emailSent },
       });
 
-      res.json({ ok: true, emailSent });
+      res.json({ ok: true, emailSent, inviteLink: delivery.link, reason: delivery.reason });
     }),
   );
 
