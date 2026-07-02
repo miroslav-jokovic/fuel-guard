@@ -19,6 +19,8 @@ export interface EfsFilters {
   to?: string;
   search?: string; // free text (driver / location / item or error)
   suspicion?: string; // declined only: clear | review | alert
+  sortKey?: string; // server-side column ordering
+  sortDir?: "asc" | "desc";
 }
 
 const ilikeOr = (term: string, cols: string[]) =>
@@ -35,7 +37,7 @@ export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) 
       let q = supabase
         .from("efs_transactions")
         .select(EFS_COLS, { count: "exact" })
-        .order("tran_date", { ascending: false })
+        .order(f.sortKey ?? "tran_date", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
         .order("line_number", { ascending: true })
         .range(start, start + EFS_PAGE_SIZE - 1);
       if (f.unit) q = q.eq("unit", f.unit);
@@ -63,7 +65,7 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
       let q = supabase
         .from("declined_transactions")
         .select(DECLINED_COLS, { count: "exact" })
-        .order("declined_at", { ascending: false })
+        .order(f.sortKey ?? "declined_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
         .range(start, start + EFS_PAGE_SIZE - 1);
       if (f.unit) q = q.eq("unit", f.unit);
       if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);

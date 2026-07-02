@@ -1,13 +1,39 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
-import { inviteCreateSchema, isEmailDomainAllowed, type InviteCreateRequest } from "@fuelguard/shared";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { inviteCreateSchema, isEmailDomainAllowed, renderInviteEmail, type InviteCreateRequest } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { validateBody, apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
+import { makeSender } from "../lib/mailer.js";
+import type { Env } from "../env.js";
 
 const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at";
+
+/**
+ * Deliver an invite through OUR mailer (Resend) instead of Supabase's built-in email. We ask Supabase
+ * to GENERATE the action link (which also creates the auth user) without sending, then send a branded
+ * email ourselves — reliable for external addresses and not subject to Supabase's default-email limits.
+ * Falls back to a recovery link when the user already exists (the /accept-invite page handles both).
+ */
+async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, email: string): Promise<boolean> {
+  const redirectTo = `${env.WEB_APP_URL}/accept-invite`;
+  let link: string | null = null;
+  const invite = await admin.auth.admin.generateLink({ type: "invite", email, options: { redirectTo } });
+  if (!invite.error && invite.data?.properties?.action_link) {
+    link = invite.data.properties.action_link;
+  } else {
+    const recovery = await admin.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo } });
+    if (!recovery.error && recovery.data?.properties?.action_link) link = recovery.data.properties.action_link;
+    else console.error(`[invites] generateLink failed for ${email}: ${invite.error?.message ?? ""} ${recovery.error?.message ?? ""}`);
+  }
+  if (!link) return false;
+  const mail = renderInviteEmail(orgName, link);
+  const send = makeSender(env);
+  return send({ to: [email], subject: mail.subject, html: mail.html, text: mail.text });
+}
 
 export function invitesRouter(): Router {
   const router = Router();
@@ -47,7 +73,7 @@ export function invitesRouter(): Router {
 
       const { data: org } = await admin
         .from("organizations")
-        .select("allowed_domains")
+        .select("name, allowed_domains")
         .eq("id", orgId)
         .single();
       if (!org || !isEmailDomainAllowed(email, (org.allowed_domains ?? []) as string[])) {
@@ -68,13 +94,9 @@ export function invitesRouter(): Router {
         return;
       }
 
-      // Send the Supabase invite email (handles sign-up + password). Non-fatal on failure.
-      const { error: mailErr } = await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${env.WEB_APP_URL}/accept-invite`,
-      });
-      if (mailErr) {
-        console.error(`[invites] email send failed for ${email}: ${mailErr.message}`);
-      }
+      // Deliver via our Resend mailer (branded, reliable for external addresses).
+      const emailSent = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email);
+      if (!emailSent) console.error(`[invites] email delivery failed for ${email}`);
 
       await writeAudit(admin, {
         orgId,
@@ -82,9 +104,9 @@ export function invitesRouter(): Router {
         action: "invite.created",
         entity: "invites",
         entityId: invite.id,
-        meta: { email, role },
+        meta: { email, role, emailSent },
       });
-      res.status(201).json({ invite, emailSent: !mailErr });
+      res.status(201).json({ invite, emailSent });
     }),
   );
 
@@ -159,26 +181,10 @@ export function invitesRouter(): Router {
         return;
       }
 
-      // Step 1: try the normal invite email (works for new / still-unconfirmed users).
-      let emailSent = false;
-      const redirectTo = `${env.WEB_APP_URL}/accept-invite`;
-      const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(existing.email, { redirectTo });
-
-      if (!inviteErr) {
-        emailSent = true;
-      } else {
-        // Step 2: the user already confirmed their email by clicking the original invite link
-        // (Supabase marks email_confirmed_at the moment the link is clicked, before the password
-        // form is submitted). Fall back to a password-recovery email — the /accept-invite page
-        // handles PASSWORD_RECOVERY sessions identically to invite sessions.
-        console.warn(`[invites] inviteUserByEmail failed for ${existing.email} (${inviteErr.message}); trying recovery fallback`);
-        const { error: recoveryErr } = await admin.auth.resetPasswordForEmail(existing.email, { redirectTo });
-        if (!recoveryErr) {
-          emailSent = true;
-        } else {
-          console.error(`[invites] recovery fallback also failed for ${existing.email}: ${recoveryErr.message}`);
-        }
-      }
+      // Deliver via our Resend mailer (invite link, or recovery link if the user already exists).
+      const { data: org } = await admin.from("organizations").select("name").eq("id", orgId).maybeSingle();
+      const emailSent = await deliverInvite(admin, env, (org?.name as string) ?? "FuelGuard", existing.email);
+      if (!emailSent) console.error(`[invites] resend delivery failed for ${existing.email}`);
 
       await writeAudit(admin, {
         orgId,

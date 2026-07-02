@@ -9,6 +9,7 @@ import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -16,6 +17,7 @@ import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, severityTone, statusTone } from "@/lib/badges";
+import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
@@ -48,10 +50,25 @@ const filtered = computed(() => {
   return rows.filter((a) => a.message.toLowerCase().includes(q) || unit(a.vehicle_id).toLowerCase().includes(q));
 });
 
+const SEV_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+const sort = ref<SortState>({ key: null, dir: "asc" });
+function onSort(key: string) {
+  sort.value = toggleSort(sort.value, key);
+}
+const getVal = (a: Anomaly, key: string): unknown => {
+  if (key === "severity") return SEV_RANK[a.severity] ?? 0;
+  if (key === "vehicle") return unit(a.vehicle_id);
+  if (key === "when") return a.created_at;
+  if (key === "type") return a.rule_id;
+  if (key === "status") return a.status;
+  return (a as unknown as Record<string, unknown>)[key];
+};
+const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
+
 const page = ref(1);
 watch([filters, search], () => (page.value = 1), { deep: true });
-const total = computed(() => filtered.value.length);
-const pageRows = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+const total = computed(() => sorted.value.length);
+const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 // ── selection + bulk actions ────────────────────────────────────────────────
 const selectedIds = ref<Set<string>>(new Set());
@@ -204,12 +221,12 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
               <th class="w-10 px-4 py-3">
                 <input v-if="session.canManage" type="checkbox" :checked="allChecked" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" @change="toggleAll" />
               </th>
-              <th class="px-4 py-3 font-medium">Severity</th>
-              <th class="px-4 py-3 font-medium">Type</th>
-              <th class="px-4 py-3 font-medium">Vehicle</th>
+              <SortableTh label="Severity" sort-key="severity" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="Type" sort-key="type" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="Vehicle" sort-key="vehicle" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3 font-medium">Detail</th>
-              <th class="px-4 py-3 font-medium">Status</th>
-              <th class="px-4 py-3 font-medium">When</th>
+              <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="When" sort-key="when" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3"></th>
             </tr>
           </thead>

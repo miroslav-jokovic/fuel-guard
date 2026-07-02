@@ -9,9 +9,11 @@ import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import { toggleSort, type SortState } from "@/lib/sort";
 import { useToastStore } from "@/stores/toast";
 
 const { data: vehicles } = useVehiclesQuery();
@@ -19,6 +21,12 @@ const { data: vehicles } = useVehiclesQuery();
 const filters = ref<FuelFilters>({});
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
+
+const sort = ref<SortState>({ key: null, dir: "asc" });
+function onSort(key: string) {
+  sort.value = toggleSort(sort.value, key);
+  filters.value = { ...filters.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
+}
 const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
 
 // Date inputs emit YYYY-MM-DD; make `to` inclusive of the whole day for the timestamped column.
@@ -93,12 +101,12 @@ const clearCount = computed(() => rows.value.filter((t) => !t.has_anomaly).lengt
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead class="text-left text-gray-500">
           <tr>
-            <th class="px-6 py-3 font-medium">When</th>
+            <SortableTh label="When" sort-key="fueled_at" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
             <th class="px-6 py-3 font-medium">Vehicle</th>
-            <th class="px-6 py-3 font-medium">Odometer</th>
-            <th class="px-6 py-3 font-medium">Gallons</th>
-            <th class="px-6 py-3 font-medium">$/gal</th>
-            <th class="px-6 py-3 font-medium">MPG</th>
+            <SortableTh label="Odometer" sort-key="odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
+            <SortableTh label="Gallons" sort-key="gallons" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
+            <SortableTh label="$/gal" sort-key="price_per_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
+            <SortableTh label="MPG" sort-key="computed_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
             <th class="px-6 py-3 font-medium">Status</th>
           </tr>
         </thead>

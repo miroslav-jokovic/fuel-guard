@@ -9,11 +9,13 @@ import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
+import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DriverForm from "@/features/fleet/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
+import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
 
@@ -47,9 +49,15 @@ const filtered = computed(() => {
   });
 });
 
+const sort = ref<SortState>({ key: null, dir: "asc" });
+function onSort(key: string) {
+  sort.value = toggleSort(sort.value, key);
+}
+const sorted = computed(() => sortRows(filtered.value, sort.value));
+
 const page = ref(1);
 watch([search, statusFilter], () => (page.value = 1));
-const pageRows = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 // Vehicles assigned to a driver (assignment is set from the Vehicles page).
 const assignedUnits = (driverId: string) =>
@@ -140,11 +148,11 @@ async function onSyncSamsara() {
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead class="text-left text-gray-500">
           <tr>
-            <th class="px-6 py-3 font-medium">Name</th>
-            <th class="px-6 py-3 font-medium">Employee ID</th>
+            <SortableTh label="Name" sort-key="full_name" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
+            <SortableTh label="Employee ID" sort-key="employee_id" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
             <th class="px-6 py-3 font-medium">Phone</th>
             <th class="px-6 py-3 font-medium">Vehicles</th>
-            <th class="px-6 py-3 font-medium">Status</th>
+            <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
             <th class="px-6 py-3"></th>
           </tr>
         </thead>

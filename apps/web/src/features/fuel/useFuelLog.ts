@@ -16,6 +16,8 @@ export interface FuelFilters {
   driverId?: string;
   from?: string; // ISO date (inclusive)
   to?: string; // ISO date (inclusive)
+  sortKey?: string; // column to order by (server-side)
+  sortDir?: "asc" | "desc";
 }
 
 export interface FuelPage {
@@ -34,7 +36,7 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
       let q = supabase
         .from("fuel_transactions")
         .select(FUEL_COLS, { count: "exact" })
-        .order("fueled_at", { ascending: false })
+        .order(f.sortKey ?? "fueled_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
         .range(start, start + FUEL_PAGE_SIZE - 1);
       if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
       if (f.driverId) q = q.eq("driver_id", f.driverId);

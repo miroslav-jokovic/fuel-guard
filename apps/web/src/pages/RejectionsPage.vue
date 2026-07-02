@@ -5,9 +5,11 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import { toggleSort, type SortState } from "@/lib/sort";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -18,6 +20,12 @@ const toast = useToastStore();
 const filters = ref<EfsFilters>({});
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
+
+const sort = ref<SortState>({ key: null, dir: "asc" });
+function onSort(key: string) {
+  sort.value = toggleSort(sort.value, key);
+  filters.value = { ...filters.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
+}
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDeclinedTransactions(filters, page);
 
@@ -107,16 +115,16 @@ async function rescore() {
         <table class="min-w-full divide-y divide-gray-200 text-sm">
           <thead class="text-left whitespace-nowrap text-gray-500">
             <tr>
-              <th class="px-4 py-3 font-medium">Risk</th>
-              <th class="px-4 py-3 font-medium">Date / Time</th>
+              <SortableTh label="Risk" sort-key="suspicion_level" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="Date / Time" sort-key="declined_at" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3 font-medium">Card #</th>
               <th class="px-4 py-3 font-medium">Invoice</th>
-              <th class="px-4 py-3 font-medium">Unit</th>
-              <th class="px-4 py-3 font-medium">Driver</th>
+              <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3 font-medium">Location</th>
               <th class="px-4 py-3 font-medium">City</th>
-              <th class="px-4 py-3 font-medium">State</th>
-              <th class="px-4 py-3 font-medium">Error</th>
+              <SortableTh label="State" sort-key="state" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="Error" sort-key="error_code" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3 font-medium">Description</th>
               <th class="px-4 py-3 font-medium">Policy</th>
             </tr>

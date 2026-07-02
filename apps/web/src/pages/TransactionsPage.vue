@@ -5,14 +5,22 @@ import { useEfsTransactions, EFS_PAGE_SIZE, type EfsFilters } from "@/features/r
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import { toggleSort, type SortState } from "@/lib/sort";
 
 const { data: vehicles } = useVehiclesQuery();
 const filters = ref<EfsFilters>({});
 const page = ref(1);
 watch(filters, () => (page.value = 1), { deep: true });
+
+const sort = ref<SortState>({ key: null, dir: "asc" });
+function onSort(key: string) {
+  sort.value = toggleSort(sort.value, key);
+  filters.value = { ...filters.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
+}
 
 const { data, isLoading, isError, error, refetch, isFetching } = useEfsTransactions(filters, page);
 
@@ -71,20 +79,20 @@ const fmtTime = (iso: string | null) => {
         <table class="min-w-full divide-y divide-gray-200 text-sm">
           <thead class="text-left whitespace-nowrap text-gray-500">
             <tr>
-              <th class="px-4 py-3 font-medium">Tran Date</th>
+              <SortableTh label="Tran Date" sort-key="tran_date" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3 font-medium">Time</th>
               <th class="px-4 py-3 font-medium">Card #</th>
               <th class="px-4 py-3 font-medium">Invoice</th>
-              <th class="px-4 py-3 font-medium">Unit</th>
-              <th class="px-4 py-3 font-medium">Driver</th>
-              <th class="px-4 py-3 font-medium">Odometer</th>
+              <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="Odometer" sort-key="odometer" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3 font-medium">Location</th>
               <th class="px-4 py-3 font-medium">City</th>
               <th class="px-4 py-3 font-medium">State</th>
               <th class="px-4 py-3 font-medium">Item</th>
               <th class="px-4 py-3 font-medium">Unit Price</th>
-              <th class="px-4 py-3 font-medium">Qty</th>
-              <th class="px-4 py-3 font-medium">Amt</th>
+              <SortableTh label="Qty" sort-key="qty" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="Amt" sort-key="amt" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3 font-medium">Fees</th>
               <th class="px-4 py-3 font-medium">DB</th>
               <th class="px-4 py-3 font-medium">Currency</th>

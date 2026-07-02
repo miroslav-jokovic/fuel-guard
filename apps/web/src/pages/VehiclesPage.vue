@@ -9,12 +9,14 @@ import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
+import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { apiFetch } from "@/lib/api";
+import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
 const session = useSessionStore();
@@ -39,9 +41,19 @@ const filtered = computed(() => {
   });
 });
 
+const sort = ref<SortState>({ key: null, dir: "asc" });
+function onSort(key: string) {
+  sort.value = toggleSort(sort.value, key);
+}
+const getVal = (v: Vehicle, key: string): unknown => {
+  const raw = (v as unknown as Record<string, unknown>)[key];
+  return typeof raw === "string" && raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
+};
+const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
+
 const page = ref(1);
 watch([search, statusFilter], () => (page.value = 1));
-const pageRows = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const createVehicle = useCreateVehicle();
 const updateVehicle = useUpdateVehicle();
 const retireVehicle = useRetireVehicle();
@@ -194,15 +206,15 @@ async function onRetire(v: Vehicle) {
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead class="text-left text-gray-500">
           <tr>
-            <th class="px-6 py-3 font-medium">Unit</th>
+            <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
             <th class="px-6 py-3 font-medium">Vehicle</th>
             <th class="px-6 py-3 font-medium">Fuel</th>
-            <th class="px-6 py-3 font-medium">Tank</th>
-            <th class="px-6 py-3 font-medium">Baseline MPG</th>
-            <th class="px-6 py-3 font-medium">Fuel level</th>
-            <th class="px-6 py-3 font-medium">Odometer</th>
+            <SortableTh label="Tank" sort-key="tank_capacity_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
+            <SortableTh label="Baseline MPG" sort-key="baseline_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
+            <SortableTh label="Fuel level" sort-key="samsara_fuel_percent" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
+            <SortableTh label="Odometer" sort-key="current_odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
             <th class="px-6 py-3 font-medium">Driver</th>
-            <th class="px-6 py-3 font-medium">Status</th>
+            <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
             <th class="px-6 py-3"></th>
           </tr>
         </thead>

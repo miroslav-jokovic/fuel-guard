@@ -16,6 +16,24 @@ export interface RenderedEmail {
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/** Branded invite email (sent via our own mailer, e.g. Resend). Pure — no I/O. */
+export function renderInviteEmail(orgName: string, acceptUrl: string): RenderedEmail {
+  const subject = `You're invited to ${orgName} on FuelGuard`;
+  const html =
+    `<div style="font-family:system-ui,sans-serif;color:#111">` +
+    `<h2 style="margin:0 0 8px">Join ${esc(orgName)} on FuelGuard</h2>` +
+    `<p style="color:#555">You've been invited to help manage fuel and prevent theft for ${esc(orgName)}. ` +
+    `Click below to set your password and get started.</p>` +
+    `<p style="margin:20px 0"><a href="${esc(acceptUrl)}" style="background:#4f46e5;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Accept invitation →</a></p>` +
+    `<p style="color:#888;font-size:12px">If the button doesn't work, paste this link into your browser:<br>${esc(acceptUrl)}</p>` +
+    `<p style="color:#aaa;font-size:12px">This invitation expires in 7 days. If you weren't expecting it, you can ignore this email.</p>` +
+    `</div>`;
+  const text =
+    `Join ${orgName} on FuelGuard\n\nYou've been invited to manage fuel for ${orgName}.\n` +
+    `Accept your invitation: ${acceptUrl}\n\nThis link expires in 7 days.`;
+  return { subject, html, text };
+}
+
 /**
  * Pure renderer for a high/critical-anomaly alert email (no I/O — fully testable).
  * Kept deliberately plain so any provider (Resend/Brevo/SMTP) can send it.
