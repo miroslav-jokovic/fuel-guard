@@ -71,7 +71,14 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
       if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);
       if (f.from) q = q.gte("declined_at", f.from);
       if (f.to) q = q.lte("declined_at", f.to);
-      if (f.search) q = q.or(ilikeOr(f.search, ["unit", "driver_name", "card_ref", "invoice", "error_code", "error_description", "location_text"]));
+      if (f.search) {
+        const t = f.search.replace(/[%,()]/g, "");
+        q = q.or(
+          [`unit.ilike.${t}%`, `driver_name.ilike.%${t}%`, `location_text.ilike.%${t}%`, `city.ilike.%${t}%`, `error_description.ilike.%${t}%`].join(
+            ",",
+          ),
+        );
+      }
       const { data, error, count } = await q;
       if (error) throw new Error(error.message);
       return { rows: (data ?? []) as DeclinedTransactionRow[], total: count ?? 0 };

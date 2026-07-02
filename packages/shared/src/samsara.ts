@@ -234,6 +234,10 @@ export interface FuelingStopMatch {
 
 const cityNorm = (c: string | null | undefined) => (c ?? "").trim().toLowerCase();
 
+/** Minimum number of state-resolvable GPS samples before a "never in the EFS state" day counts as a real
+ *  location mismatch. Below this, coverage is too thin to accuse and we report "no_coverage" (unknown). */
+export const MIN_MISMATCH_COVERAGE = 3;
+
 /**
  * Odometer (miles) interpolated to an exact instant from the day's Samsara odometer track. Samsara
  * doesn't stamp an odometer on every GPS ping, so rather than hoping the nearest ping carries one we
@@ -316,10 +320,12 @@ export function matchFuelingStop(
     };
   }
 
-  // Never in the EFS state. Only a real mismatch if we actually had resolvable coverage that day.
-  const sawResolvableState = samples.some((s) => stateFromAddress(s.address) != null);
-  if (sawResolvableState) {
-    const pick = nearest(stopped) ?? nearest(samples.filter((s) => stateFromAddress(s.address) != null));
+  // Never in the EFS state. Only call it a real mismatch when coverage is ROBUST — a handful of pings that
+  // happened to resolve a neighboring state (sparse reverse-geo, a stray GPS point, a corner-cut across a
+  // line) is too thin to accuse. Below the floor we return "no_coverage" (unknown), which never flags.
+  const resolvable = samples.filter((s) => stateFromAddress(s.address) != null);
+  if (resolvable.length >= MIN_MISMATCH_COVERAGE) {
+    const pick = nearest(stopped) ?? nearest(resolvable);
     return { odometerMiles: null, matchedAt: null, locationMatched: false, basis: "not_in_state", ...ev(pick) };
   }
   return { odometerMiles: null, matchedAt: null, locationMatched: null, basis: "no_coverage", observedState: null, observedCity: null, observedAddress: null };
@@ -362,12 +368,22 @@ export function resolveLocationConfidence(
   stop: Pick<FuelingStopMatch, "locationMatched">,
   proximityMiles: number | null,
   proxThresholdMiles: number,
+  veto?: { nearMiles: number | null; minMismatchMiles: number },
 ): { confidence: LocationConfidence; matched: boolean | null } {
   if (proximityMiles != null && proximityMiles <= proxThresholdMiles) {
     return { confidence: "gps_confirmed", matched: true };
   }
   if (stop.locationMatched === true) return { confidence: "in_state", matched: true };
-  if (stop.locationMatched === false) return { confidence: "mismatch", matched: false };
+  if (stop.locationMatched === false) {
+    // VETO a would-be mismatch when the truck's GPS came within a generous radius of the claimed station
+    // (even a coarse city-centroid geocode). If the truck was that close, we cannot honestly say "the card
+    // was used where the truck was not" — the differing state token is almost always a border crossing or
+    // a reverse-geo parse artifact, not theft. Downgrade to unknown rather than flag a false mismatch.
+    if (veto && veto.nearMiles != null && veto.nearMiles < veto.minMismatchMiles) {
+      return { confidence: "unknown", matched: null };
+    }
+    return { confidence: "mismatch", matched: false };
+  }
   return { confidence: "unknown", matched: null };
 }
 

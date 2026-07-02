@@ -227,6 +227,44 @@ describe("hardening — precision gating (docs/09)", () => {
   });
 });
 
+describe("hardening — time confidence (EFS auth-time vs telematics)", () => {
+  it("suppresses off-hours + rapid-repeat when the posted time is UNcorroborated (timeConfirmed=false)", () => {
+    // 02:00 Chicago posted time would fire off_hours, but we couldn't corroborate it (may be an EFS
+    // authorization time, not the pump time) → suppress rather than flag a possibly-wrong clock.
+    const c = ctx({ txn: txn({ fueledAt: "2026-06-10T07:00:00Z", timeConfirmed: false, odometer: 99450 }) });
+    const out = ids(c);
+    expect(out).not.toContain("off_hours_fueling");
+    expect(out).not.toContain("rapid_repeat_fueling");
+    expect(out).not.toContain("odometer_implausible_jump"); // implied-speed needs a reliable interval
+  });
+
+  it("uses the telematics eventAt (not the wrong posted time) for off-hours when corroborated", () => {
+    // EFS posted 02:00 Chicago (would be off-hours), but telematics says the truck actually fueled at
+    // 12:00 Chicago → eventAt governs and off_hours does NOT fire.
+    const c = ctx({
+      txn: txn({ fueledAt: "2026-06-10T07:00:00Z", eventAt: "2026-06-10T17:00:00Z", timeConfirmed: true }),
+    });
+    expect(ids(c)).not.toContain("off_hours_fueling");
+  });
+
+  it("still flags real off-hours fueling confirmed by telematics", () => {
+    const c = ctx({
+      txn: txn({ fueledAt: "2026-06-10T07:00:00Z", eventAt: "2026-06-10T07:00:00Z", timeConfirmed: true }),
+    });
+    expect(ids(c)).toContain("off_hours_fueling"); // 02:00 Chicago, corroborated → genuine
+  });
+
+  it("rapid-repeat measures the interval between telematics eventAt instants", () => {
+    // Previous fill's true (telematics) time is 17:00; this one 18:00 → 1h apart → within the 4h window.
+    const prev = { ...txn(), id: "prev", fueledAt: "2026-06-08T02:00:00Z", eventAt: "2026-06-08T17:00:00Z", odometer: 99400, timeConfirmed: true };
+    const c = ctx({
+      previousTxn: prev,
+      txn: txn({ fueledAt: "2026-06-08T03:00:00Z", eventAt: "2026-06-08T18:00:00Z", odometer: 99450, timeConfirmed: true }),
+    });
+    expect(ids(c)).toContain("rapid_repeat_fueling");
+  });
+});
+
 describe("hardening — odometer correctness (±5 cross-source)", () => {
   it("fires odometer_mismatch when the two sources differ by more than the tolerance", () => {
     const c = ctx({ crossSourceOdometer: 100020 }); // entered 100000, other source 100020 → 20 mi

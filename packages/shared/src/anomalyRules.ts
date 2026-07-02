@@ -91,6 +91,20 @@ export interface TxnView {
   totalCost: number | null;
   /** 'date' for EFS imports (no time-of-day) → time-based rules are suppressed. Default 'instant'. */
   fueledAtPrecision?: FueledAtPrecision;
+  /**
+   * The instant time-of-day and inter-fill rules should use — the telematics-recovered stop time when we
+   * corroborated it, which corrects EFS authorization/settlement timestamps that differ from the real pump
+   * time. `fueledAt` stays the business timestamp (day bucketing / dedup); this is separate. Defaults to
+   * `fueledAt`.
+   */
+  eventAt?: string | null;
+  /**
+   * Whether we trust the fueling INSTANT (not the day). true = corroborated by a telematics stop or a
+   * manual entry; false = an uncorroborated EFS posted time (may be an auth/settlement time). When false,
+   * time-of-day and inter-fill timing rules are suppressed rather than fired off a possibly-wrong clock.
+   * Undefined = treat as trusted (back-compat).
+   */
+  timeConfirmed?: boolean;
   cardRef?: string | null;
 }
 
@@ -233,6 +247,11 @@ export function isOffHours(iso: string, oh: OperatingHours): boolean {
 
 const isFuelVehicle = (v: VehicleView) => MPG_FUEL_TYPES.includes(v.fuelType);
 const precision = (t: TxnView): FueledAtPrecision => t.fueledAtPrecision ?? "instant";
+/** The instant to use for time-of-day / interval math — the telematics-recovered stop time when present. */
+const eventTime = (t: TxnView): string => t.eventAt ?? t.fueledAt;
+/** True when the fueling INSTANT is trustworthy: a real time-of-day AND corroborated (or manual). A
+ *  date-only sentinel or an uncorroborated EFS posted time (timeConfirmed===false) is not reliable. */
+const timeReliable = (t: TxnView): boolean => precision(t) === "instant" && t.timeConfirmed !== false;
 
 // ── the rules ─────────────────────────────────────────────────────────────────
 
@@ -445,10 +464,10 @@ function ruleMpgSustainedDecline(ctx: RuleContext): RuleResult {
 function ruleRapidRepeatFueling(ctx: RuleContext): RuleResult {
   const { txn, previousTxn, thresholds } = ctx;
   if (!previousTxn) return none("rapid_repeat_fueling");
-  // BOTH timestamps must be real instants — comparing against a date-only noon sentinel fabricates
-  // an interval and false-fires. (txn's own precision is gated by runAllRules.)
-  if (precision(previousTxn) !== "instant") return none("rapid_repeat_fueling");
-  const hours = hoursBetween(previousTxn.fueledAt, txn.fueledAt);
+  // BOTH timestamps must be RELIABLE instants — a date-only noon sentinel or an uncorroborated EFS
+  // posted time fabricates the interval and false-fires. (txn's own reliability is gated by runAllRules.)
+  if (!timeReliable(previousTxn)) return none("rapid_repeat_fueling");
+  const hours = hoursBetween(eventTime(previousTxn), eventTime(txn));
   if (hours < thresholds.rapidRefuelHours) {
     return { ruleId: "rapid_repeat_fueling", fired: true, severity: "high", message: `Another fill-up occurred ${r2(hours * 60)} minutes after the previous one.`, evidence: { minutesSincePrev: r2(hours * 60), thresholdHours: thresholds.rapidRefuelHours } };
   }
@@ -457,8 +476,9 @@ function ruleRapidRepeatFueling(ctx: RuleContext): RuleResult {
 
 function ruleOffHoursFueling(ctx: RuleContext): RuleResult {
   const { txn, operatingHours } = ctx;
-  if (isOffHours(txn.fueledAt, operatingHours)) {
-    return { ruleId: "off_hours_fueling", fired: true, severity: "medium", message: `Fueled outside operating hours (${operatingHours.start}–${operatingHours.end} ${operatingHours.tz}).`, evidence: { fueledAt: txn.fueledAt, window: `${operatingHours.start}-${operatingHours.end}`, tz: operatingHours.tz } };
+  const at = eventTime(txn); // telematics stop time when corroborated — not a possibly-wrong EFS auth time
+  if (isOffHours(at, operatingHours)) {
+    return { ruleId: "off_hours_fueling", fired: true, severity: "medium", message: `Fueled outside operating hours (${operatingHours.start}–${operatingHours.end} ${operatingHours.tz}).`, evidence: { fueledAt: at, window: `${operatingHours.start}-${operatingHours.end}`, tz: operatingHours.tz } };
   }
   return none("off_hours_fueling");
 }
@@ -541,17 +561,19 @@ function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
 export function runAllRules(ctx: RuleContext): RuleResult[] {
   const disabled = new Set(ctx.thresholds.disabledRules);
   const fuel = isFuelVehicle(ctx.vehicle);
-  const instant = precision(ctx.txn) === "instant";
-  // The implied-speed check needs BOTH endpoints to be real instants; a date-only previous fill
-  // (noon sentinel) fabricates the elapsed hours. Fall back to the miles/day cap in that case.
-  const prevInstant = ctx.previousTxn == null || precision(ctx.previousTxn) === "instant";
+  // Time-of-day and inter-fill rules need a RELIABLE instant (corroborated by telematics or manual) — an
+  // uncorroborated EFS posted time may be an authorization/settlement time, not the real pump time.
+  const timeOk = timeReliable(ctx.txn);
+  // The implied-speed check needs BOTH endpoints to be reliable instants; a date-only previous fill
+  // (noon sentinel) or an uncorroborated time fabricates the elapsed hours. Fall back to the miles/day cap.
+  const prevTimeOk = ctx.previousTxn == null || timeReliable(ctx.previousTxn);
 
   const rules: Rule[] = [
     // Tier 1 — odometer
     ruleOdometerMissing,
     ruleOdometerRegression,
     ruleOdometerStale,
-    instant && prevInstant ? ruleOdometerImplausibleJump : ruleOdometerDailyCap,
+    timeOk && prevTimeOk ? ruleOdometerImplausibleJump : ruleOdometerDailyCap,
     ruleOdometerMismatch,
     ...(fuel ? [ruleExpectedOdometerBand] : []),
     // Tier 2 — capacity (fuel vehicles only)
@@ -559,7 +581,7 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     // Tier 3 — efficiency (fuel vehicles only)
     ...(fuel ? [ruleMpgDeviation, ruleMpgSustainedDecline] : []),
     // Tier 4 — behavioral
-    ...(instant ? [ruleRapidRepeatFueling, ruleOffHoursFueling] : []),
+    ...(timeOk ? [ruleRapidRepeatFueling, ruleOffHoursFueling] : []),
     ruleUnattributed,
     ruleCostOutlier,
     ruleCardMultiVehicle,

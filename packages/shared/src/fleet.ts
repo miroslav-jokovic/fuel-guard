@@ -35,14 +35,11 @@ export const vehicleInputSchema = z
     ),
     samsara_vehicle_id: optionalText, // maps this vehicle to its Samsara telematics id
   })
-  // Diesel/gasoline vehicles must have a positive tank + baseline MPG (engine depends on them; H3).
+  // Diesel/gasoline vehicles must have a positive tank capacity (the engine uses it for fill-up checks).
+  // Baseline MPG is optional here — the VehiclesPage surfaces missing MPG as a "setup needed" warning.
   .refine((d) => !MPG_FUEL_TYPES.includes(d.fuel_type) || d.tank_capacity_gal > 0, {
     message: "Tank capacity must be greater than 0 for fuel vehicles",
     path: ["tank_capacity_gal"],
-  })
-  .refine((d) => !MPG_FUEL_TYPES.includes(d.fuel_type) || (d.baseline_mpg ?? 0) > 0, {
-    message: "Baseline MPG is required for diesel/gasoline vehicles",
-    path: ["baseline_mpg"],
   });
 
 export type VehicleInput = z.infer<typeof vehicleInputSchema>;

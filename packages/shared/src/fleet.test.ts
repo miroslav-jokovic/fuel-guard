@@ -19,12 +19,9 @@ describe("vehicleInputSchema", () => {
     expect(vehicleInputSchema.safeParse({ ...baseVehicle, unit_number: "" }).success).toBe(false);
   });
 
-  it("requires baseline MPG for diesel/gasoline (audit H3)", () => {
+  it("allows diesel vehicles without baseline MPG (surfaced as a soft warning in the UI)", () => {
     const r = vehicleInputSchema.safeParse({ ...baseVehicle, baseline_mpg: undefined });
-    expect(r.success).toBe(false);
-    if (!r.success) {
-      expect(r.error.issues.some((i) => i.path.includes("baseline_mpg"))).toBe(true);
-    }
+    expect(r.success).toBe(true);
   });
 
   it("allows electric vehicles without MPG or tank", () => {

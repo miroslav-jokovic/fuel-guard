@@ -72,7 +72,7 @@ async function rescore() {
 
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div class="lg:max-w-xs lg:flex-1">
-        <SearchInput v-model="search" placeholder="Search driver, location, error…" />
+        <SearchInput v-model="search" placeholder="Search unit, driver, location…" />
       </div>
       <AppSelect
         v-model="suspicion"
@@ -115,11 +115,11 @@ async function rescore() {
         <table class="min-w-full divide-y divide-gray-200 text-sm">
           <thead class="bg-gray-50 text-left whitespace-nowrap text-gray-500">
             <tr>
-              <SortableTh label="Risk" sort-key="suspicion_level" :active="sort.key" :dir="sort.dir" th-class="sticky left-0 z-20 bg-gray-50 px-4 py-3 font-medium min-w-[5rem] border-r border-gray-200" @sort="onSort" />
+              <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" th-class="sticky left-0 z-20 bg-gray-50 px-4 py-3 font-medium min-w-[5rem] border-r border-gray-200" @sort="onSort" />
+              <SortableTh label="Risk" sort-key="suspicion_level" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem]" @sort="onSort" />
               <SortableTh label="Date / Time" sort-key="declined_at" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[10rem]" @sort="onSort" />
               <th class="px-4 py-3 font-medium min-w-[7rem]">Card #</th>
               <th class="px-4 py-3 font-medium min-w-[6rem]">Invoice</th>
-              <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem]" @sort="onSort" />
               <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[9rem]" @sort="onSort" />
               <th class="px-4 py-3 font-medium min-w-[12rem]">Location</th>
               <th class="px-4 py-3 font-medium min-w-[8rem]">City</th>
@@ -131,7 +131,8 @@ async function rescore() {
           </thead>
           <tbody class="divide-y divide-gray-100 whitespace-nowrap">
             <tr v-for="d in rows" :key="d.id" class="group hover:bg-gray-50">
-              <td class="sticky left-0 z-[1] border-r border-gray-200 bg-white px-4 py-2 group-hover:bg-gray-50">
+              <td class="sticky left-0 z-[1] border-r border-gray-200 bg-white px-4 py-2 font-medium text-gray-900 group-hover:bg-gray-50">{{ d.unit }}</td>
+              <td class="px-4 py-2">
                 <span
                   v-if="d.suspicion_level && d.suspicion_level !== 'clear'"
                   :class="[BADGE_BASE, suspicionTone(d.suspicion_level)]"
@@ -144,7 +145,6 @@ async function rescore() {
               <td class="px-4 py-2 text-gray-700">{{ fmt(d.declined_at) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.card_ref }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.invoice }}</td>
-              <td class="px-4 py-2 font-medium text-gray-900">{{ d.unit }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.driver_name }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.location_text }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.city }}</td>

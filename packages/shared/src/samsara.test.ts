@@ -286,6 +286,7 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
 
   it("flags a real mismatch: truck was NEVER in the EFS state all day (stopped in another state)", () => {
     const samples = [
+      S("2026-06-30T09:00:00Z", 60, "I-35, Oklahoma City, OK, 73101", 100000),
       S("2026-06-30T20:25:00Z", 0, "Depot, Oklahoma City, OK, 73101", 100210),
       S("2026-06-30T20:40:00Z", 1, "Depot, Oklahoma City, OK, 73101", 100210),
     ];
@@ -293,6 +294,18 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(r.locationMatched).toBe(false);
     expect(r.basis).toBe("not_in_state");
     expect(r.odometerMiles).toBeNull();
+  });
+
+  it("does NOT flag a mismatch when coverage is too thin (a couple of stray resolvable pings)", () => {
+    // Only two pings resolved a state, both in OK — too little evidence to accuse. Report unknown, not a
+    // mismatch (this was a common source of false location flags on days with sparse Samsara reverse-geo).
+    const samples = [
+      S("2026-06-30T20:25:00Z", 0, "Depot, Oklahoma City, OK, 73101", 100210),
+      S("2026-06-30T20:40:00Z", 1, "Depot, Oklahoma City, OK, 73101", 100210),
+    ];
+    const r = matchFuelingStop(samples, { state: "TX" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
+    expect(r.basis).toBe("no_coverage");
+    expect(r.locationMatched).toBeNull();
   });
 
   it("NO false mismatch: presence in the EFS state that day counts even if another stop is elsewhere", () => {
@@ -352,6 +365,22 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(resolveLocationConfidence({ locationMatched: false }, 120, 20)).toEqual({ confidence: "mismatch", matched: false });
     // Unknown coverage
     expect(resolveLocationConfidence({ locationMatched: null }, null, 20)).toEqual({ confidence: "unknown", matched: null });
+  });
+
+  it("resolveLocationConfidence: a near city-centroid distance VETOes a would-be mismatch", () => {
+    const veto = { minMismatchMiles: 50 };
+    // Stop says mismatch, but the truck came within 12 mi of the claimed station's town → don't accuse.
+    expect(resolveLocationConfidence({ locationMatched: false }, null, 0.5, { nearMiles: 12, ...veto }))
+      .toEqual({ confidence: "unknown", matched: null });
+    // Truck was 300 mi away → the mismatch stands (real "card used where the truck wasn't").
+    expect(resolveLocationConfidence({ locationMatched: false }, null, 0.5, { nearMiles: 300, ...veto }))
+      .toEqual({ confidence: "mismatch", matched: false });
+    // No station coords at all (nearMiles null) → veto can't apply, mismatch stands.
+    expect(resolveLocationConfidence({ locationMatched: false }, null, 0.5, { nearMiles: null, ...veto }))
+      .toEqual({ confidence: "mismatch", matched: false });
+    // A confirmed site proximity still wins over everything.
+    expect(resolveLocationConfidence({ locationMatched: false }, 0.3, 0.5, { nearMiles: 0.3, ...veto }))
+      .toEqual({ confidence: "gps_confirmed", matched: true });
   });
 
   it("recovers the odometer by INTERPOLATION when the stop's own ping has no odometer", () => {

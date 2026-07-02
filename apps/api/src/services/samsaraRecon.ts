@@ -107,13 +107,17 @@ export async function reconcileWithSamsara(
   const siteCoords = stationCoords?.precision === "site" ? stationCoords : null;
   const proximityMiles = siteCoords ? minSampleDistanceMiles(samples, siteCoords.lat, siteCoords.lng) : null;
   const proxThreshold = env.SITE_PROX_MILES;
+  // Distance to the station's coordinates at ANY precision (site OR city centroid). Too coarse to CONFIRM
+  // a fill, but if the truck came within a generous radius we use it to VETO a false location mismatch.
+  const nearMiles = stationCoords ? minSampleDistanceMiles(samples, stationCoords.lat, stationCoords.lng) : null;
+  const mismatchVeto = { nearMiles, minMismatchMiles: env.LOCATION_MISMATCH_MIN_MILES };
 
   // ── Precise path: timezone-PROOF presence check over the whole day, corroborated by GPS proximity to
   // the geocoded station. Location matches when the truck came near the station OR was in the EFS state
   // that day; a mismatch is raised only when we have solid coverage and neither holds. ──
   if (input.preciseTime) {
     const stop = matchFuelingStop(samples, { state: input.state, city: input.city }, input.fueledAt, { stoppedMph: 5 });
-    const { confidence, matched } = resolveLocationConfidence(stop, proximityMiles, proxThreshold);
+    const { confidence, matched } = resolveLocationConfidence(stop, proximityMiles, proxThreshold, mismatchVeto);
     // Tank data is independent of GPS (fuel %), so compute it up front — the physical tank-space check
     // still works even when we couldn't pin the truck's location that day.
     const at = stop.matchedAt ?? input.fueledAt;

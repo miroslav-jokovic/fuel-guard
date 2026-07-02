@@ -84,16 +84,26 @@ interface FtxnRow {
 }
 
 function toTxnView(r: FtxnRow): TxnView {
+  // Time confidence (derived from stored columns, so prior fills reconstruct correctly on rebuild):
+  // a telematics-matched stop gives a real, trusted fueling INSTANT even when the stored business
+  // timestamp is a date-only sentinel. A manual entry is trusted. An uncorroborated EFS posted time is
+  // NOT trusted for time-of-day / interval rules (may be an authorization/settlement time).
+  const telematicsConfirmed = r.samsara_recon_at != null && r.samsara_location_matched === true;
+  const eventAt = telematicsConfirmed ? r.samsara_recon_at! : r.fueled_at;
+  const timeConfirmed = telematicsConfirmed || r.source === "manual";
+  const precision: FueledAtPrecision = telematicsConfirmed ? "instant" : rowPrecision(r);
   return {
     id: r.id,
     vehicleId: r.vehicle_id,
     driverId: r.driver_id,
-    fueledAt: r.fueled_at,
+    fueledAt: r.fueled_at, // business timestamp — never overwritten (day bucketing + dedup; see migration 0026)
     odometer: n(r.odometer),
     gallons: Number(r.gallons),
     pricePerGal: n(r.price_per_gal),
     totalCost: n(r.total_cost),
-    fueledAtPrecision: rowPrecision(r),
+    fueledAtPrecision: precision,
+    eventAt,
+    timeConfirmed,
     cardRef: r.card_ref,
   };
 }
@@ -195,10 +205,8 @@ export async function scoreTransaction(
     tankObservedRiseGal = n(r.samsara_tank_observed_gal);
     tankPctBefore = n(r.samsara_fuel_pct_before);
     reconAt = r.samsara_recon_at ?? null;
-    if (!preciseTime && reconAt) {
-      txn.fueledAt = reconAt;
-      txn.fueledAtPrecision = "instant";
-    }
+    // eventAt / timeConfirmed / precision were already derived from these same stored columns in
+    // toTxnView, so the telematics-recovered instant is applied for rules without touching fueled_at.
   } else if (txn.vehicleId) {
     const recon = await reconcileWithSamsara(admin, env, orgId, {
       vehicleId: txn.vehicleId,
@@ -222,12 +230,21 @@ export async function scoreTransaction(
       tankFillShortGal = recon.tankFillShortGal;
       tankObservedRiseGal = recon.tankObservedRiseGal;
       tankPctBefore = recon.tankPctBefore;
-      if (!preciseTime && recon.matchedAt) {
-        // Date-only EFS: recover the precise time from the telematics stop so time-based rules can
-        // run — IN MEMORY ONLY. The stored fueled_at keeps the EFS business date (rewriting it moved
-        // spend onto neighboring dates on the dashboard and reordered the MPG chain).
-        txn.fueledAt = recon.matchedAt;
+      const telematicsConfirmed = recon.matchedAt != null && recon.locationMatched === true;
+      if (telematicsConfirmed) {
+        // Telematics corroborated the physical stop → use its instant for time-of-day / inter-fill rules.
+        // This corrects EFS authorization/settlement timestamps that differ from the real pump time, and
+        // recovers a time for date-only rows. The stored fueled_at keeps the EFS business date (rewriting
+        // it moved spend onto neighboring dates and reordered the MPG chain — migration 0026); eventAt is
+        // carried separately, in memory only.
+        txn.eventAt = recon.matchedAt;
+        txn.timeConfirmed = true;
         txn.fueledAtPrecision = "instant";
+      } else if (r.source !== "manual") {
+        // A posted EFS time we could NOT corroborate (unmapped stop / no coverage / mismatch) — don't
+        // trust it for time-based rules; it may be an auth/settlement time. Off-hours + inter-fill rules
+        // are suppressed for this fill rather than fired off a possibly-wrong clock.
+        txn.timeConfirmed = false;
       }
     }
   }

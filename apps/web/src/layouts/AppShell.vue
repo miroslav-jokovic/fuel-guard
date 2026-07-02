@@ -32,40 +32,66 @@ interface NavItem {
   show: boolean;
 }
 
+interface NavGroup {
+  label: string | null;
+  items: NavItem[];
+}
+
 const session = useSessionStore();
 const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
 
-// Role-aware navigation (PRD §2): drivers get Dashboard + Fuel Log; managers/admin/auditor see all;
-// Users is admin-only. UI gating only — RLS + API are the real enforcement.
-const navigation = computed<NavItem[]>(() =>
+// Role-aware navigation grouped by category. UI gating only — RLS + API are the real enforcement.
+const navGroups = computed<NavGroup[]>(() =>
   [
-    { name: "Dashboard", to: "/", icon: HomeIcon, show: true },
-    { name: "Fuel Log", to: "/fuel-log", icon: BeakerIcon, show: true },
-    { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: session.canManage },
-    { name: "Transactions", to: "/transactions", icon: TableCellsIcon, show: session.canManage || session.readOnly },
-    { name: "Rejections", to: "/rejections", icon: NoSymbolIcon, show: session.canManage || session.readOnly },
-    { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: session.canManage || session.readOnly },
-    { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: session.canManage || session.readOnly },
     {
-      name: "Anomalies",
-      to: "/anomalies",
-      icon: ExclamationTriangleIcon,
-      show: session.canManage || session.readOnly,
+      label: null,
+      items: [
+        { name: "Dashboard", to: "/", icon: HomeIcon, show: true },
+        { name: "Fuel Log", to: "/fuel-log", icon: BeakerIcon, show: true },
+      ],
     },
-    { name: "Fuel Events", to: "/fuel-events", icon: FireIcon, show: session.canManage || session.readOnly },
-    { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: session.canManage || session.readOnly },
-    { name: "Reports", to: "/reports", icon: ChartBarIcon, show: session.canManage || session.readOnly },
-    { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: session.canManage },
-    { name: "Users", to: "/settings/users", icon: UsersIcon, show: session.admin },
-  ].filter((i) => i.show),
+    {
+      label: "Data",
+      items: [
+        { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: session.canManage },
+        { name: "Transactions", to: "/transactions", icon: TableCellsIcon, show: session.canManage || session.readOnly },
+        { name: "Rejections", to: "/rejections", icon: NoSymbolIcon, show: session.canManage || session.readOnly },
+      ],
+    },
+    {
+      label: "Fleet",
+      items: [
+        { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: session.canManage || session.readOnly },
+        { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: session.canManage || session.readOnly },
+      ],
+    },
+    {
+      label: "Analysis",
+      items: [
+        { name: "Anomalies", to: "/anomalies", icon: ExclamationTriangleIcon, show: session.canManage || session.readOnly },
+        { name: "Fuel Events", to: "/fuel-events", icon: FireIcon, show: session.canManage || session.readOnly },
+        { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: session.canManage || session.readOnly },
+        { name: "Reports", to: "/reports", icon: ChartBarIcon, show: session.canManage || session.readOnly },
+      ],
+    },
+    {
+      label: "Admin",
+      items: [
+        { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: session.canManage },
+        { name: "Users", to: "/settings/users", icon: UsersIcon, show: session.admin },
+      ],
+    },
+  ]
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.show) }))
+    .filter((g) => g.items.length > 0),
 );
 
 // Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching
 // is appropriate. If the current path IS an explicit nav item, only exact matches win; this
 // prevents /settings/users from simultaneously highlighting both "Settings" and "Users".
-const navPathSet = computed(() => new Set(navigation.value.map((i) => i.to)));
+const navPathSet = computed(() => new Set(navGroups.value.flatMap((g) => g.items.map((i) => i.to))));
 
 /**
  * Returns true when the nav item at `to` should be marked active:
@@ -81,8 +107,10 @@ const isCurrent = (to: string): boolean => {
 };
 
 const navLinkClass = (to: string) => [
-  isCurrent(to) ? "bg-gray-800 text-white" : "text-gray-400 hover:bg-gray-800 hover:text-white",
-  "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 transition-colors",
+  isCurrent(to)
+    ? "bg-indigo-500/10 text-indigo-300"
+    : "text-gray-400 hover:bg-white/5 hover:text-gray-200",
+  "group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium leading-6 transition-colors duration-150",
 ];
 
 // Avatar initials from email (first char, uppercased).
@@ -113,7 +141,7 @@ async function signOut() {
           leave-from="opacity-100"
           leave-to="opacity-0"
         >
-          <div class="fixed inset-0 bg-gray-900/80" />
+          <div class="fixed inset-0 bg-gray-900/80 backdrop-blur-sm" />
         </TransitionChild>
         <div class="fixed inset-0 flex">
           <TransitionChild
@@ -132,45 +160,54 @@ async function signOut() {
                   <XMarkIcon class="size-6 text-white" aria-hidden="true" />
                 </button>
               </div>
-              <div class="flex grow flex-col overflow-y-auto bg-gray-900 px-6 pb-4">
-                <div class="flex h-16 shrink-0 items-center gap-x-3">
-                  <AppLogo class="size-9" />
-                  <span class="text-lg font-semibold tracking-tight text-white">FuelGuard</span>
+              <!-- Mobile sidebar body -->
+              <div class="flex grow flex-col overflow-y-auto bg-gray-900 px-4 pb-4">
+                <div class="flex h-16 shrink-0 items-center gap-x-3 border-b border-gray-800/70 px-1">
+                  <AppLogo class="size-8 shrink-0" />
+                  <span class="text-base font-semibold tracking-tight text-white">FuelGuard</span>
                 </div>
-                <nav class="flex flex-1 flex-col">
-                  <ul role="list" class="-mx-2 space-y-1">
-                    <li v-for="item in navigation" :key="item.name">
-                      <RouterLink
-                        :to="item.to"
-                        :class="navLinkClass(item.to)"
-                        :aria-current="isCurrent(item.to) ? 'page' : undefined"
+                <nav class="flex flex-1 flex-col pt-3">
+                  <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
+                    <template v-for="group in navGroups" :key="group.label ?? '_top'">
+                      <li
+                        v-if="group.label"
+                        class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 first:mt-2"
                       >
-                        <component :is="item.icon" class="size-6 shrink-0" aria-hidden="true" />
-                        {{ item.name }}
-                      </RouterLink>
-                    </li>
+                        {{ group.label }}
+                      </li>
+                      <li v-for="item in group.items" :key="item.name">
+                        <RouterLink
+                          :to="item.to"
+                          :class="navLinkClass(item.to)"
+                          :aria-current="isCurrent(item.to) ? 'page' : undefined"
+                        >
+                          <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                          {{ item.name }}
+                        </RouterLink>
+                      </li>
+                    </template>
                   </ul>
                 </nav>
-                <!-- User section at the bottom of mobile drawer -->
-                <div class="mt-auto border-t border-gray-700 pt-4">
-                  <div class="flex items-center gap-x-3">
+                <!-- User card at the bottom of mobile drawer -->
+                <div class="mt-4">
+                  <div class="flex items-center gap-x-3 rounded-xl bg-gray-800/60 px-3 py-3 ring-1 ring-inset ring-white/5">
                     <div
-                      class="flex size-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white"
+                      class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white shadow"
                       aria-hidden="true"
                     >
                       {{ avatarLetter }}
                     </div>
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium text-white">{{ session.email }}</p>
-                      <p v-if="session.role" class="text-xs capitalize text-gray-400">{{ session.role }}</p>
+                      <p class="truncate text-xs font-semibold text-white">{{ session.email }}</p>
+                      <p v-if="session.role" class="mt-0.5 text-xs capitalize text-gray-400">{{ session.role }}</p>
                     </div>
                     <button
                       type="button"
-                      class="-m-1.5 p-1.5 text-gray-400 transition-colors hover:text-white"
+                      class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-white"
                       title="Sign out"
                       @click="signOut"
                     >
-                      <ArrowLeftOnRectangleIcon class="size-5" aria-hidden="true" />
+                      <ArrowLeftOnRectangleIcon class="size-4" aria-hidden="true" />
                       <span class="sr-only">Sign out</span>
                     </button>
                   </div>
@@ -184,45 +221,53 @@ async function signOut() {
 
     <!-- ── Desktop sidebar (lg+, fixed) ─────────────────────────────────── -->
     <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
-      <div class="flex grow flex-col overflow-y-auto bg-gray-900 px-6 pb-4">
-        <div class="flex h-16 shrink-0 items-center gap-x-3">
-          <AppLogo class="size-9" />
-          <span class="text-lg font-semibold tracking-tight text-white">FuelGuard</span>
+      <div class="flex grow flex-col overflow-y-auto border-r border-gray-800/50 bg-gray-900 px-4 pb-4">
+        <div class="flex h-16 shrink-0 items-center gap-x-3 border-b border-gray-800/70 px-1">
+          <AppLogo class="size-8 shrink-0" />
+          <span class="text-base font-semibold tracking-tight text-white">FuelGuard</span>
         </div>
-        <nav class="flex flex-1 flex-col">
-          <ul role="list" class="-mx-2 space-y-1">
-            <li v-for="item in navigation" :key="item.name">
-              <RouterLink
-                :to="item.to"
-                :class="navLinkClass(item.to)"
-                :aria-current="isCurrent(item.to) ? 'page' : undefined"
+        <nav class="flex flex-1 flex-col pt-3">
+          <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
+            <template v-for="group in navGroups" :key="group.label ?? '_top'">
+              <li
+                v-if="group.label"
+                class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500"
               >
-                <component :is="item.icon" class="size-6 shrink-0" aria-hidden="true" />
-                {{ item.name }}
-              </RouterLink>
-            </li>
+                {{ group.label }}
+              </li>
+              <li v-for="item in group.items" :key="item.name">
+                <RouterLink
+                  :to="item.to"
+                  :class="navLinkClass(item.to)"
+                  :aria-current="isCurrent(item.to) ? 'page' : undefined"
+                >
+                  <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                  {{ item.name }}
+                </RouterLink>
+              </li>
+            </template>
           </ul>
         </nav>
-        <!-- User section at the bottom of the desktop sidebar -->
-        <div class="mt-auto border-t border-gray-700 pt-4">
-          <div class="flex items-center gap-x-3">
+        <!-- User card at the bottom of the desktop sidebar -->
+        <div class="mt-4">
+          <div class="flex items-center gap-x-3 rounded-xl bg-gray-800/60 px-3 py-3 ring-1 ring-inset ring-white/5">
             <div
-              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white"
+              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white shadow"
               aria-hidden="true"
             >
               {{ avatarLetter }}
             </div>
             <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-white">{{ session.email }}</p>
-              <p v-if="session.role" class="text-xs capitalize text-gray-400">{{ session.role }}</p>
+              <p class="truncate text-xs font-semibold text-white">{{ session.email }}</p>
+              <p v-if="session.role" class="mt-0.5 text-xs capitalize text-gray-400">{{ session.role }}</p>
             </div>
             <button
               type="button"
-              class="-m-1.5 p-1.5 text-gray-400 transition-colors hover:text-white"
+              class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-white"
               title="Sign out"
               @click="signOut"
             >
-              <ArrowLeftOnRectangleIcon class="size-5" aria-hidden="true" />
+              <ArrowLeftOnRectangleIcon class="size-4" aria-hidden="true" />
               <span class="sr-only">Sign out</span>
             </button>
           </div>
