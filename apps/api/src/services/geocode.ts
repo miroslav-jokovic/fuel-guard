@@ -37,6 +37,10 @@ function throttle<T>(fn: () => Promise<T>): Promise<T> {
  * only fall back to the town; a result is "site" precision when it resolves to a real POI, "city" when
  * it's just the town centroid. Best-effort: returns null on any failure.
  */
+/** Unresolved cache entries older than this are retried — a transient provider failure or a station
+ *  newly added to OSM shouldn't stay "unresolvable" forever. Resolved entries never expire. */
+const UNRESOLVED_RETRY_DAYS = 30;
+
 export async function geocodeStation(admin: SupabaseClient, env: Env, station: StationQuery): Promise<Coords | null> {
   if (!env.GEOCODING_ENABLED) return null;
   if (!norm(station.city) && !norm(station.state) && !norm(station.name)) return null;
@@ -46,13 +50,17 @@ export async function geocodeStation(admin: SupabaseClient, env: Env, station: S
 
   const { data: cached } = await admin
     .from("geocode_cache")
-    .select("lat, lng, resolved, precision")
+    .select("lat, lng, resolved, precision, updated_at, created_at")
     .eq("query", key)
     .maybeSingle();
   if (cached) {
-    return cached.resolved && cached.lat != null && cached.lng != null
-      ? { lat: Number(cached.lat), lng: Number(cached.lng), precision: (cached.precision as GeoPrecision) ?? "city" }
-      : null;
+    if (cached.resolved && cached.lat != null && cached.lng != null) {
+      return { lat: Number(cached.lat), lng: Number(cached.lng), precision: (cached.precision as GeoPrecision) ?? "city" };
+    }
+    // Unresolved: honor the negative cache only while it's fresh; retry stale failures.
+    const stamp = (cached.updated_at ?? cached.created_at) as string | null;
+    const ageMs = stamp ? Date.now() - new Date(stamp).getTime() : Infinity;
+    if (ageMs < UNRESOLVED_RETRY_DAYS * 86_400_000) return null;
   }
 
   let coords: Coords | null = null;
@@ -70,6 +78,7 @@ export async function geocodeStation(admin: SupabaseClient, env: Env, station: S
       resolved: coords != null,
       precision: coords?.precision ?? null,
       provider: "nominatim",
+      updated_at: new Date().toISOString(),
     },
     { onConflict: "query" },
   );
@@ -77,7 +86,9 @@ export async function geocodeStation(admin: SupabaseClient, env: Env, station: S
 }
 
 // OSM classes that represent a real point-of-interest (a station) rather than a town/region centroid.
-const POI_CLASSES = new Set(["amenity", "shop", "highway", "building", "tourism", "office"]);
+// NOTE: "highway" is deliberately excluded — OSM highway results are road segments/junctions, and
+// treating one as "site" precision let a road centroid masquerade as an exact station location.
+const POI_CLASSES = new Set(["amenity", "shop", "building", "tourism", "office"]);
 
 async function queryNominatim(env: Env, station: StationQuery, brandLabel: string | null): Promise<Coords | null> {
   // Most specific → least. Brand/name + city + state target the station itself ("site"); the bare
@@ -100,7 +111,8 @@ async function queryNominatim(env: Env, station: StationQuery, brandLabel: strin
 async function lookup(env: Env, parts: (string | null)[]): Promise<{ lat: number; lng: number; klass: string } | null> {
   const q = parts.map(norm).filter(Boolean).join(", ");
   if (!q) return null;
-  const url = `${env.GEOCODE_URL}?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us&addressdetails=0`;
+  // us + ca: EFS fleets cross the border regularly — us-only made every Canadian station unresolvable.
+  const url = `${env.GEOCODE_URL}?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us,ca&addressdetails=0`;
   const res = await fetch(url, { headers: { "User-Agent": `FuelGuard/1.0 (${env.MAIL_FROM})` } });
   if (!res.ok) return null;
   const arr = (await res.json()) as Array<{ lat?: string; lon?: string; class?: string }>;

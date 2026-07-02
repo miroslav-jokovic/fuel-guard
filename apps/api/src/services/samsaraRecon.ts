@@ -72,9 +72,10 @@ export async function reconcileWithSamsara(
   const token = fetcherOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) return null;
 
-  // Fetch the whole fueling DAY (±18h ≈ 36h) around the reported time. We no longer trust the report's
-  // time-of-day/timezone, so we pull a wide window and ask a robust question — "was the truck in the EFS
-  // state anywhere that day?" — rather than trusting a narrow guessed minute. Date-only stays ±30h.
+  // Fetch the whole fueling DAY (±18h ≈ 36h) around the reported time. Timed EFS rows are now TRUE UTC
+  // (station-local wall time converted at parse; ±1h worst case for split-timezone states), but we still
+  // pull a wide window and ask a robust question — "was the truck in the EFS state anywhere that day?" —
+  // rather than trusting a single minute. Date-only rows (noon sentinel) stay ±30h.
   const center = new Date(input.fueledAt).getTime();
   const winMs = (input.preciseTime ? 18 : 30) * 3_600_000;
   const start = new Date(center - winMs).toISOString();

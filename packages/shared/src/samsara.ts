@@ -205,7 +205,11 @@ function parseAsUtcMs(iso: string): number {
   return new Date(hasZone ? iso : `${iso}Z`).getTime();
 }
 
-/** Approximate the fueling instant (ms, UTC) from the report's naive-UTC time + the station state. */
+/**
+ * Approximate the fueling instant (ms, UTC) from a report's naive-UTC time + the station state.
+ * @deprecated EFS instants are now converted station-local → true UTC at parse time (efsInstant),
+ * so callers should treat `fueled_at` as UTC directly. Kept for legacy data paths/tests only.
+ */
 export function approxFuelingUtcMs(posNaiveIso: string, state: string | null): number {
   const base = parseAsUtcMs(posNaiveIso);
   const off = state ? STATE_UTC_OFFSET[state.trim().toUpperCase()] : undefined;
@@ -259,24 +263,24 @@ export function odometerAtTime(samples: SamsaraSample[], targetIso: string): num
 }
 
 /**
- * Timezone-PROOF location + odometer match (docs/10 §12, revised). We do NOT trust the report's
- * time-of-day (its zone is ambiguous), so instead of picking "the sample nearest a guessed minute" we
- * ask a robust question over the whole fetched day: was the truck EVER in the EFS station's state? If
- * yes, location is confirmed (a passing highway point earlier that day no longer causes a false
+ * Timezone-robust location + odometer match (docs/10 §12, revised). The fueling instant is a true UTC
+ * instant (station-local POS time converted at parse; worst case ±1h for split-timezone states), but we
+ * still ask a robust question over the whole fetched day: was the truck EVER in the EFS station's state?
+ * If yes, location is confirmed (a passing highway point earlier that day no longer causes a false
  * mismatch). We only call it a real mismatch when we have solid GPS coverage that day and the truck was
  * NEVER in that state. Odometer is read at the best stop: in the EFS city, else in the EFS state, else
- * the nearest stop — anchored by the approximate time only to disambiguate multiple candidates.
+ * the nearest stop — anchored by the fueling instant only to disambiguate multiple candidates.
  */
 export function matchFuelingStop(
   samples: SamsaraSample[],
   efs: { state: string | null; city?: string | null },
-  posNaiveIso: string,
+  fueledAtUtcIso: string,
   opts: { stoppedMph?: number } = {},
 ): FuelingStopMatch {
   const stoppedMax = opts.stoppedMph ?? 5;
   const efsState = efs.state?.trim().toUpperCase() || null;
   const efsCity = cityNorm(efs.city);
-  const target = approxFuelingUtcMs(posNaiveIso, efsState);
+  const target = parseAsUtcMs(fueledAtUtcIso);
   const nearest = (list: SamsaraSample[]) =>
     [...list].sort(
       (a, b) => Math.abs(new Date(a.time).getTime() - target) - Math.abs(new Date(b.time).getTime() - target),

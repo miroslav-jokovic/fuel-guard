@@ -21,7 +21,7 @@ import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_recon_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_recon_at";
 
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -33,7 +33,6 @@ const ODOMETER_RULE_IDS = [
 ];
 
 const n = (v: unknown): number | null => (v == null ? null : Number(v));
-const precisionFromSource = (source: string): FueledAtPrecision => (source === "manual" ? "instant" : "date");
 
 /** True when an ISO instant is exactly the EFS date-only sentinel (noon UTC) → no real time-of-day. */
 function isNoonSentinel(iso: string): boolean {
@@ -46,11 +45,23 @@ function isNoonSentinel(iso: string): boolean {
   );
 }
 
+/**
+ * Timestamp precision for a row. The explicit `fueled_at_precision` column (written at import,
+ * backfilled by migration 0026) is authoritative; the sentinel/source heuristic is only a fallback
+ * for rows that predate the column.
+ */
+function rowPrecision(r: Pick<FtxnRow, "fueled_at" | "fueled_at_precision" | "source">): FueledAtPrecision {
+  if (r.fueled_at_precision === "instant" || r.fueled_at_precision === "date") return r.fueled_at_precision;
+  if (r.source === "manual") return "instant";
+  return isNoonSentinel(r.fueled_at) ? "date" : "instant";
+}
+
 interface FtxnRow {
   id: string;
   vehicle_id: string | null;
   driver_id: string | null;
   fueled_at: string;
+  fueled_at_precision: string | null;
   odometer: number | string | null;
   gallons: number | string;
   price_per_gal: number | string | null;
@@ -82,7 +93,7 @@ function toTxnView(r: FtxnRow): TxnView {
     gallons: Number(r.gallons),
     pricePerGal: n(r.price_per_gal),
     totalCost: n(r.total_cost),
-    fueledAtPrecision: precisionFromSource(r.source),
+    fueledAtPrecision: rowPrecision(r),
     cardRef: r.card_ref,
   };
 }
@@ -101,7 +112,9 @@ async function loadThresholds(admin: SupabaseClient, orgId: string): Promise<Thr
     costMinPerGal: n(data?.cost_min_per_gal),
     costMaxPerGal: n(data?.cost_max_per_gal),
     disabledRules: (data?.disabled_rules ?? []) as Thresholds["disabledRules"],
-    odometerToleranceMiles: n(data?.odometer_tolerance_miles) ?? 5,
+    // 10 mi default: the Samsara reference is a GPS-interpolated stop reading (±1h anchor slack,
+    // 0.1 mi rounding) — ±5 flagged honest entries. Orgs can still tighten via settings.
+    odometerToleranceMiles: n(data?.odometer_tolerance_miles) ?? 10,
     maxDailyMiles: n(data?.max_daily_miles) ?? 1000,
     cumulativeWindowHours: n(data?.cumulative_window_hours) ?? 48,
   };
@@ -150,8 +163,10 @@ export async function scoreTransaction(
   const thresholds = await loadThresholds(admin, orgId);
   const operatingHours = await loadOperatingHours(admin, orgId);
   const windowMs = (thresholds.cumulativeWindowHours ?? 48) * 3_600_000;
-  let txnTime = new Date(txn.fueledAt).getTime();
-  const winStart = () => new Date(txnTime - windowMs).toISOString();
+  // Rolling windows are anchored on the STORED fueled_at (business time) — the same clock every other
+  // row in the DB is on — never on the in-memory telematics-recovered instant.
+  const storedTime = new Date(r.fueled_at).getTime();
+  const winStart = () => new Date(storedTime - windowMs).toISOString();
 
   // ── Samsara reconciliation: the ±5 odometer truth + recovered fueling time + location check ──
   let crossSourceOdometer: number | null = null;
@@ -166,10 +181,11 @@ export async function scoreTransaction(
   let tankPctBefore: number | null = null;
   // The EFS fueling time is "precise" when it carries a real time-of-day (timed report / manual),
   // not the date-only noon sentinel. Only then can we compare Samsara's position at the exact minute.
-  const preciseTime = r.source === "manual" || !isNoonSentinel(txn.fueledAt);
+  const preciseTime = txn.fueledAtPrecision === "instant";
   if (txn.vehicleId && opts.skipRecon) {
-    // Rebuild path: trust the values the last live reconciliation already wrote to the row. The row's
-    // fueled_at is already the telematics-recovered time (recon rewrote it), so precision follows suit.
+    // Rebuild path: trust the values the last live reconciliation already wrote to the row. The
+    // stored fueled_at stays the EFS business date; the telematics-recovered instant lives in
+    // samsara_recon_at and is applied IN MEMORY ONLY so time-based rules can run.
     crossSourceOdometer = n(r.samsara_odometer);
     samsaraLocationMatched = r.samsara_location_matched ?? null;
     locationConfidence = r.samsara_location_confidence ?? null;
@@ -179,7 +195,10 @@ export async function scoreTransaction(
     tankObservedRiseGal = n(r.samsara_tank_observed_gal);
     tankPctBefore = n(r.samsara_fuel_pct_before);
     reconAt = r.samsara_recon_at ?? null;
-    if (preciseTime || reconAt) txn.fueledAtPrecision = "instant";
+    if (!preciseTime && reconAt) {
+      txn.fueledAt = reconAt;
+      txn.fueledAtPrecision = "instant";
+    }
   } else if (txn.vehicleId) {
     const recon = await reconcileWithSamsara(admin, env, orgId, {
       vehicleId: txn.vehicleId,
@@ -203,14 +222,12 @@ export async function scoreTransaction(
       tankFillShortGal = recon.tankFillShortGal;
       tankObservedRiseGal = recon.tankObservedRiseGal;
       tankPctBefore = recon.tankPctBefore;
-      if (preciseTime) {
-        // Timed report / manual: the reported time IS the fueling time → enable time-based rules.
-        txn.fueledAtPrecision = "instant";
-      } else if (recon.matchedAt) {
-        // Date-only EFS: recover the precise time from the telematics stop, so time-based rules work.
+      if (!preciseTime && recon.matchedAt) {
+        // Date-only EFS: recover the precise time from the telematics stop so time-based rules can
+        // run — IN MEMORY ONLY. The stored fueled_at keeps the EFS business date (rewriting it moved
+        // spend onto neighboring dates on the dashboard and reordered the MPG chain).
         txn.fueledAt = recon.matchedAt;
         txn.fueledAtPrecision = "instant";
-        txnTime = new Date(recon.matchedAt).getTime();
       }
     }
   }
@@ -312,7 +329,8 @@ export async function scoreTransaction(
       message: res.message,
       evidence: res.evidence,
       source: "rules",
-      fueled_at: txn.fueledAt,
+      // Denormalized for queue filtering — the STORED business time, consistent with the fuel log.
+      fueled_at: r.fueled_at,
     });
     if (error && error.code !== "23505") throw new Error(error.message);
   }
@@ -326,7 +344,7 @@ export async function scoreTransaction(
     const openCase = (existing ?? []).find((a) => a.rule_id === CASE_RULE_ID && a.status === "open");
     if (openCase && !toInsert.length) {
       const c = caseFired[0]!;
-      await admin.from("anomalies").update({ severity: c.severity, message: c.message, evidence: c.evidence, fueled_at: txn.fueledAt }).eq("id", openCase.id);
+      await admin.from("anomalies").update({ severity: c.severity, message: c.message, evidence: c.evidence, fueled_at: r.fueled_at }).eq("id", openCase.id);
     }
   }
 
@@ -345,8 +363,9 @@ export async function scoreTransaction(
       samsara_tank_short_gal: tankFillShortGal,
       samsara_tank_observed_gal: tankObservedRiseGal,
       samsara_fuel_pct_before: tankPctBefore,
+      // The telematics-recovered instant is stored HERE — never written over fueled_at. fueled_at
+      // stays the EFS business time so dashboards, dedupe keys and the MPG chain remain stable.
       samsara_recon_at: reconAt,
-      ...(reconAt ? { fueled_at: txn.fueledAt } : {}),
     })
     .eq("id", txnId);
 

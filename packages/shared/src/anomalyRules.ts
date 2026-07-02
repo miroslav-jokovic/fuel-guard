@@ -295,7 +295,7 @@ function ruleOdometerDailyCap(ctx: RuleContext): RuleResult {
 function ruleOdometerMismatch(ctx: RuleContext): RuleResult {
   const { txn, crossSourceOdometer, thresholds, vehicle } = ctx;
   if (txn.odometer == null || crossSourceOdometer == null) return none("odometer_mismatch");
-  const tol = thresholds.odometerToleranceMiles ?? 5;
+  const tol = thresholds.odometerToleranceMiles ?? 10;
   // Many trucks read a fixed amount apart from Samsara's OBD odometer (replaced cluster, OBD calibration).
   // Apply the learned/overridden per-vehicle offset so that constant gap doesn't false-flag every fill —
   // while a fill that deviates from the established offset by more than the tolerance still fires.
@@ -445,6 +445,9 @@ function ruleMpgSustainedDecline(ctx: RuleContext): RuleResult {
 function ruleRapidRepeatFueling(ctx: RuleContext): RuleResult {
   const { txn, previousTxn, thresholds } = ctx;
   if (!previousTxn) return none("rapid_repeat_fueling");
+  // BOTH timestamps must be real instants — comparing against a date-only noon sentinel fabricates
+  // an interval and false-fires. (txn's own precision is gated by runAllRules.)
+  if (precision(previousTxn) !== "instant") return none("rapid_repeat_fueling");
   const hours = hoursBetween(previousTxn.fueledAt, txn.fueledAt);
   if (hours < thresholds.rapidRefuelHours) {
     return { ruleId: "rapid_repeat_fueling", fired: true, severity: "high", message: `Another fill-up occurred ${r2(hours * 60)} minutes after the previous one.`, evidence: { minutesSincePrev: r2(hours * 60), thresholdHours: thresholds.rapidRefuelHours } };
@@ -539,13 +542,16 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   const disabled = new Set(ctx.thresholds.disabledRules);
   const fuel = isFuelVehicle(ctx.vehicle);
   const instant = precision(ctx.txn) === "instant";
+  // The implied-speed check needs BOTH endpoints to be real instants; a date-only previous fill
+  // (noon sentinel) fabricates the elapsed hours. Fall back to the miles/day cap in that case.
+  const prevInstant = ctx.previousTxn == null || precision(ctx.previousTxn) === "instant";
 
   const rules: Rule[] = [
     // Tier 1 — odometer
     ruleOdometerMissing,
     ruleOdometerRegression,
     ruleOdometerStale,
-    instant ? ruleOdometerImplausibleJump : ruleOdometerDailyCap,
+    instant && prevInstant ? ruleOdometerImplausibleJump : ruleOdometerDailyCap,
     ruleOdometerMismatch,
     ...(fuel ? [ruleExpectedOdometerBand] : []),
     // Tier 2 — capacity (fuel vehicles only)

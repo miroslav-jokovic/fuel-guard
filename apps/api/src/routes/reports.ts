@@ -42,11 +42,12 @@ async function loadTxnExport(admin: SupabaseClient, orgId: string, from: string,
   return (data ?? []) as unknown as TxnExport[];
 }
 
-/** Load entered-vs-Samsara odometer rows (with driver/vehicle labels) for the accuracy report. */
+/** Load entered-vs-Samsara odometer rows (with driver/vehicle labels + the per-vehicle calibration
+ *  offset, so the report judges deviations the same way the anomaly rule does). */
 async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<OdoRow[]> {
   const { data } = await admin
     .from("fuel_transactions")
-    .select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles(unit_number), drivers(full_name)")
+    .select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles(unit_number, odometer_offset), drivers(full_name)")
     .eq("org_id", orgId)
     .gte("fueled_at", from)
     .lte("fueled_at", to);
@@ -55,7 +56,7 @@ async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, t
     samsara_odometer: number | string | null;
     driver_id: string | null;
     vehicle_id: string | null;
-    vehicles: { unit_number: string } | null;
+    vehicles: { unit_number: string; odometer_offset: number | string | null } | null;
     drivers: { full_name: string } | null;
   }[]).map((r) => ({
     driverId: r.driver_id,
@@ -64,6 +65,7 @@ async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, t
     unit: r.vehicles?.unit_number ?? null,
     entered: r.odometer == null ? null : Number(r.odometer),
     samsara: r.samsara_odometer == null ? null : Number(r.samsara_odometer),
+    odometerOffset: r.vehicles?.odometer_offset == null ? 0 : Number(r.vehicles.odometer_offset),
   }));
 }
 
@@ -119,7 +121,7 @@ export function reportsRouter(): Router {
         { key: "name", header: by === "vehicle" ? "Unit" : "Driver" },
         { key: "fills", header: "Fills" },
         { key: "checked", header: "Verifiable (Samsara)" },
-        { key: "mismatches", header: "Off > 5 mi" },
+        { key: "mismatches", header: "Off > 10 mi (offset-adjusted)" },
         { key: "accuracy_pct", header: "Accuracy %" },
         { key: "avg_deviation_mi", header: "Avg deviation (mi)" },
         { key: "max_deviation_mi", header: "Max deviation (mi)" },
@@ -217,17 +219,19 @@ export function reportsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
 
-      const [{ data: txns }, { data: anomalies }, { data: vehicles }, { data: drivers }] = await Promise.all([
+      const [{ data: txns }, { data: anomalies }, { data: vehicles }, { data: drivers }, { data: org }] = await Promise.all([
         admin.from("fuel_transactions").select("id, gallons, total_cost, computed_mpg, fueled_at, vehicle_id, driver_id").eq("org_id", orgId).gte("fueled_at", from).lte("fueled_at", to),
         admin.from("anomalies").select("id, transaction_id, vehicle_id, severity, status").eq("org_id", orgId),
         admin.from("vehicles").select("id, unit_number").eq("org_id", orgId),
         admin.from("drivers").select("id, full_name").eq("org_id", orgId),
+        admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle(),
       ]);
       const summary = aggregateDashboard(
         (txns ?? []) as unknown as FuelTransaction[],
         (anomalies ?? []) as unknown as Anomaly[],
         (vehicles ?? []) as { id: string; unit_number: string }[],
         (drivers ?? []) as { id: string; full_name: string }[],
+        { tz: (org?.operating_hours as { tz?: string } | null)?.tz ?? null },
       );
 
       res.setHeader("Content-Type", "application/pdf");

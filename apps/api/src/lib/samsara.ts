@@ -7,22 +7,65 @@ export type SamsaraFetcher = (
   endIso: string,
 ) => Promise<unknown>;
 
+/** Shape of one stats-history page: per-vehicle arrays of gps / fuelPercents samples. */
+interface StatsHistoryVehicle {
+  id?: string;
+  gps?: unknown[];
+  fuelPercents?: unknown[];
+  [k: string]: unknown;
+}
+interface StatsHistoryPage {
+  data?: StatsHistoryVehicle[];
+  pagination?: { endCursor?: string; hasNextPage?: boolean };
+}
+
+/** Safety cap on stats-history pages per fetch (512 samples/page × 40 ≈ a full day at 5s GPS pings). */
+const MAX_STATS_PAGES = 40;
+
 /**
  * Real Samsara stats-history fetcher (docs/10). Requests GPS with the OBD odometer decorated onto
  * each point, so every sample carries time + lat/lng + speed + reverse-geocoded address + odometer.
+ *
+ * CRITICAL: stats-history is PAGINATED. A 36–60h window at telematics ping rates exceeds one page,
+ * and a truncated day previously caused false "truck was never there" location mismatches and wrong
+ * odometer anchors. We follow `pagination.endCursor` and merge every page's sample arrays before
+ * returning, so callers always see the complete window.
  */
 export function makeSamsaraFetcher(env: Env, token: string): SamsaraFetcher {
   return async (vehicleId, startIso, endIso) => {
-    const url = new URL("/fleet/vehicles/stats/history", env.SAMSARA_API_URL);
-    url.searchParams.set("vehicleIds", vehicleId);
-    url.searchParams.set("startTime", startIso);
-    url.searchParams.set("endTime", endIso);
-    // gps (location + odometer) + fuelPercents (coarse tank level, for the advisory tank-fill check).
-    url.searchParams.set("types", "gps,fuelPercents");
-    url.searchParams.set("decorations", "obdOdometerMeters");
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) throw new Error(`Samsara API ${res.status}`);
-    return res.json();
+    const merged = new Map<string, StatsHistoryVehicle>();
+    let after: string | undefined;
+    let pages = 0;
+
+    do {
+      const url = new URL("/fleet/vehicles/stats/history", env.SAMSARA_API_URL);
+      url.searchParams.set("vehicleIds", vehicleId);
+      url.searchParams.set("startTime", startIso);
+      url.searchParams.set("endTime", endIso);
+      // gps (location + odometer) + fuelPercents (coarse tank level, for the advisory tank-fill check).
+      url.searchParams.set("types", "gps,fuelPercents");
+      url.searchParams.set("decorations", "obdOdometerMeters");
+      if (after) url.searchParams.set("after", after);
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+      const page = (await res.json()) as StatsHistoryPage;
+
+      for (const v of page.data ?? []) {
+        const key = String(v.id ?? vehicleId);
+        const cur = merged.get(key);
+        if (!cur) {
+          merged.set(key, { ...v, gps: [...(v.gps ?? [])], fuelPercents: [...(v.fuelPercents ?? [])] });
+        } else {
+          if (v.gps?.length) cur.gps = [...(cur.gps ?? []), ...v.gps];
+          if (v.fuelPercents?.length) cur.fuelPercents = [...(cur.fuelPercents ?? []), ...v.fuelPercents];
+        }
+      }
+
+      after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
+      pages += 1;
+    } while (after && pages < MAX_STATS_PAGES);
+
+    return { data: [...merged.values()] };
   };
 }
 

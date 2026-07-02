@@ -7,6 +7,8 @@ import {
   parseStationIdentity,
   normalizeAllTransactionLines,
   efsDateToIso,
+  efsInstant,
+  zonedWallTimeToUtcIso,
 } from "./index.js";
 
 // Real column headers from the Silvicom EFS exports (docs/08 §0).
@@ -83,8 +85,20 @@ describe("normalizeTransactionRows", () => {
     expect(line.state).toBe("NM");
   });
 
-  it("keys external_ref by Card | Invoice (one fueling event) and merges fuel lines", () => {
-    expect(fuelLines[0]!.external_ref).toBe("94507|0801987714");
+  it("keys external_ref by Card | Invoice | business date (one fueling event per day)", () => {
+    expect(fuelLines[0]!.external_ref).toBe("94507|0801987714|2026-06-29");
+    expect(fuelLines[0]!.tran_date).toBe("2026-06-29");
+    expect(fuelLines[0]!.fueled_at_precision).toBe("date"); // Tran Date carries no time-of-day
+  });
+
+  it("does NOT merge a reused invoice number across days (invoice reuse previously ate whole days)", () => {
+    const { fuelLines: fl } = normalizeTransactionRows([
+      { "Card #": "1", Invoice: "INV1", Item: "ULSD", Qty: "100", Amt: "400", "Tran Date": "2026-06-01" },
+      { "Card #": "1", Invoice: "INV1", Item: "ULSD", Qty: "80", Amt: "320", "Tran Date": "2026-06-03" },
+    ]);
+    expect(fl).toHaveLength(2);
+    expect(fl.map((l) => l.external_ref).sort()).toEqual(["1|INV1|2026-06-01", "1|INV1|2026-06-03"]);
+    expect(fl.map((l) => l.gallons).sort((a, b) => a - b)).toEqual([80, 100]); // no gallon inflation
   });
 
   it("merges multiple fuel lines on the same invoice (sum gallons, re-derive price)", () => {
@@ -112,7 +126,7 @@ describe("normalizeTransactionRows", () => {
       { CardNumber: "9", TransactionId: "T2", Invoice: "INV9", Quantity: "70", Amount: "280", TransactionPOSDate: "06/01/2026", ProductDescription: "ULSD DIESEL" },
     ]);
     expect(fl).toHaveLength(1); // same invoice = one event (TransactionId does not override a real invoice)
-    expect(fl[0]!.external_ref).toBe("9|INV9");
+    expect(fl[0]!.external_ref).toBe("9|INV9|2026-06-01");
   });
 
   it("only falls back to a unique key when the invoice is blank (no 1-row-per-card collapse)", () => {
@@ -252,14 +266,34 @@ describe("new PascalCase report format (timed)", () => {
     expect(f.city).toBe("BELGRADE");
     expect(f.state).toBe("MT");
     expect(f.fuel_type).toBe("diesel"); // from ProductDescription (ProductCode is numeric)
-    expect(f.fueled_at).toBe("2026-06-29T14:25:00.000Z"); // exact date + time
+    // 14:25 is the STATION's wall clock. Belgrade MT = Mountain (UTC-6 in June/DST) → 20:25Z.
+    expect(f.fueled_at).toBe("2026-06-29T20:25:00.000Z");
+    expect(f.fueled_at_precision).toBe("instant");
+    expect(f.tran_date).toBe("2026-06-29"); // business date stays the printed local date
   });
 
-  it("keeps the exact time in the faithful line too", () => {
+  it("keeps the exact (tz-converted) time in the faithful line too", () => {
     const [line] = normalizeAllTransactionLines(rows);
-    expect(line!.fueled_at).toBe("2026-06-29T14:25:00.000Z");
+    expect(line!.fueled_at).toBe("2026-06-29T20:25:00.000Z");
     expect(line!.tran_date).toBe("2026-06-29");
     expect(line!.qty).toBe(90);
+  });
+
+  it("keeps the business date even when the local time crosses the UTC date boundary", () => {
+    const { fuelLines: fl } = normalizeTransactionRows([
+      { ...rows[0]!, TransactionPOSTime: "23:30:00" }, // 23:30 MDT = 05:30Z NEXT day
+    ]);
+    expect(fl[0]!.fueled_at).toBe("2026-06-30T05:30:00.000Z");
+    expect(fl[0]!.tran_date).toBe("2026-06-29"); // ref + dedupe stay on the printed date
+    expect(fl[0]!.external_ref.endsWith("|2026-06-29")).toBe(true);
+  });
+
+  it("falls back to naive-UTC (deterministic) when the state has no timezone mapping", () => {
+    const { fuelLines: fl } = normalizeTransactionRows([
+      { ...rows[0]!, LocationState: "ZZ" },
+    ]);
+    expect(fl[0]!.fueled_at).toBe("2026-06-29T14:25:00.000Z");
+    expect(fl[0]!.fueled_at_precision).toBe("instant");
   });
 });
 
@@ -273,15 +307,48 @@ describe("normalizeRejectRows", () => {
       Unit: "702", "Driver ID": "1967", "Driver Name": "DERRICK KELLY",
     },
   ];
-  const declined = normalizeRejectRows(rows);
+  const { declined, skipped } = normalizeRejectRows(rows);
 
-  it("parses a declined attempt with a real timestamp and trimmed card", () => {
+  it("parses a declined attempt with a real (tz-converted) timestamp and trimmed card", () => {
     const d = declined[0]!;
-    expect(d.declined_at).toBe("2026-06-29T12:15:00.000Z");
+    // 12:15 station wall clock in GA (Eastern, DST) → 16:15Z.
+    expect(d.declined_at).toBe("2026-06-29T16:15:00.000Z");
     expect(d.card_ref).toBe("7083050030485897149");
     expect(d.error_code).toBe("3");
     expect(d.driver_ext_id).toBe("1967");
     expect(d.unit).toBe("702");
-    expect(d.external_ref).toBe("7083050030485897149|0808024975|3");
+    expect(d.external_ref).toBe("7083050030485897149|0808024975|3|2026-06-29");
+    expect(skipped).toHaveLength(0);
+  });
+
+  it("quarantines a reject row with an unparseable date instead of fabricating 'now'", () => {
+    const { declined: d, skipped: sk } = normalizeRejectRows([
+      { "Card Number": "1", Invoice: "X", "Error Code": "3", Date: "garbage" },
+    ]);
+    expect(d).toHaveLength(0);
+    expect(sk).toHaveLength(1);
+    expect(sk[0]!.reason).toBe("unparseable date");
+  });
+});
+
+describe("zonedWallTimeToUtcIso (station-local → UTC, DST-correct)", () => {
+  it("converts standard vs daylight time correctly for the same wall clock", () => {
+    expect(zonedWallTimeToUtcIso("2026-01-15", "12:00:00", "America/Chicago")).toBe("2026-01-15T18:00:00.000Z"); // CST −6
+    expect(zonedWallTimeToUtcIso("2026-07-15", "12:00:00", "America/Chicago")).toBe("2026-07-15T17:00:00.000Z"); // CDT −5
+  });
+  it("handles Arizona (no DST) and Newfoundland (half-hour zone)", () => {
+    expect(zonedWallTimeToUtcIso("2026-07-15", "12:00:00", "America/Phoenix")).toBe("2026-07-15T19:00:00.000Z");
+    expect(zonedWallTimeToUtcIso("2026-07-15", "12:00:00", "America/St_Johns")).toBe("2026-07-15T14:30:00.000Z");
+  });
+});
+
+describe("efsInstant precision semantics", () => {
+  it("date-only stays the noon-UTC sentinel with 'date' precision (never fabricates a time)", () => {
+    const r = efsInstant("2026-06-29", null, "TX");
+    expect(r).toEqual({ iso: "2026-06-29T12:00:00.000Z", precision: "date", tranDate: "2026-06-29" });
+  });
+  it("date+time+state converts the station wall clock to true UTC with 'instant' precision", () => {
+    const r = efsInstant("2026-06-29", "07:37:00", "GA"); // EDT −4
+    expect(r).toEqual({ iso: "2026-06-29T11:37:00.000Z", precision: "instant", tranDate: "2026-06-29" });
   });
 });

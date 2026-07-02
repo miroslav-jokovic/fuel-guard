@@ -3,6 +3,7 @@ import {
   assessDecline,
   declineSignalWeight,
   isRestrictedDeclineReason,
+  isNoonSentinelIso,
   type DeclineSignal,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
@@ -50,7 +51,9 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
         city: d.city,
         state: d.state,
         locationName: d.location_text,
-        preciseTime: true, // declined_at carries a real timestamp
+        // A decline normally carries a real timestamp — but a date-only reject row is anchored at the
+        // noon sentinel, and treating THAT as precise could raise a false mismatch. Detect it.
+        preciseTime: !isNoonSentinelIso(d.declined_at),
         gallons: null,
         tankCapacityGal: null,
       }).catch(() => null);

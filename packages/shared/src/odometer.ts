@@ -11,6 +11,8 @@ export interface OdoRow {
   unit: string | null;
   entered: number | null; // odometer the driver entered
   samsara: number | null; // Samsara odometer at the fill
+  /** Learned/overridden per-vehicle calibration (dash − Samsara). 0 when unknown. */
+  odometerOffset?: number | null;
 }
 
 export interface OdoAccuracyRow {
@@ -26,7 +28,7 @@ export interface OdoAccuracyRow {
 
 const round = (n: number) => Math.round(n * 10) / 10;
 
-export function odometerAccuracy(rows: OdoRow[], by: "driver" | "vehicle", toleranceMiles = 5): OdoAccuracyRow[] {
+export function odometerAccuracy(rows: OdoRow[], by: "driver" | "vehicle", toleranceMiles = 10): OdoAccuracyRow[] {
   const groups = new Map<string, { label: string; fills: number; devs: number[]; mismatches: number }>();
 
   for (const r of rows) {
@@ -35,7 +37,11 @@ export function odometerAccuracy(rows: OdoRow[], by: "driver" | "vehicle", toler
     const g = groups.get(key) ?? { label, fills: 0, devs: [], mismatches: 0 };
     g.fills += 1;
     if (r.entered != null && r.samsara != null) {
-      const dev = Math.abs(r.entered - r.samsara);
+      // Apply the learned per-vehicle calibration (dash − Samsara) — the SAME correction the anomaly
+      // rule uses. Without it, every fill on a truck with a replaced cluster read as a "mismatch"
+      // here even though the anomaly engine considered it fine.
+      const expected = r.samsara + (r.odometerOffset ?? 0);
+      const dev = Math.abs(r.entered - expected);
       g.devs.push(dev);
       if (dev > toleranceMiles) g.mismatches += 1;
     }

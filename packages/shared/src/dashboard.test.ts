@@ -101,3 +101,36 @@ describe("toCsv", () => {
     expect(toCsv([], [{ key: "a", header: "A" }])).toBe("A");
   });
 });
+
+describe("aggregateDashboard — org-timezone bucketing + zero-fill (fix #4)", () => {
+  const txn = (id: string, fueledAt: string, cost: number): FuelTransaction =>
+    ({ id, org_id: "o", vehicle_id: "v1", driver_id: "d1", fueled_at: fueledAt, odometer: null,
+       gallons: 10, price_per_gal: null, total_cost: cost, location_text: null, source: "fuel_card",
+       computed_mpg: null, has_anomaly: false, max_severity: null, ai_risk_level: null, created_at: fueledAt } as FuelTransaction);
+
+  it("buckets an evening Central fill on its LOCAL day, not the UTC day", () => {
+    // 7pm Chicago on Jun 1 = 00:00Z Jun 2. UTC slicing put this on Jun 2 — wrong for the org.
+    const s = aggregateDashboard([txn("t1", "2026-06-02T00:00:00.000Z", 100)], [], [], [], { tz: "America/Chicago" });
+    expect(s.spendTrend).toEqual([{ date: "2026-06-01", value: 100 }]);
+  });
+
+  it("zero-fills missing days in the spend trend and null-gaps the MPG trend", () => {
+    const s = aggregateDashboard(
+      [txn("t1", "2026-06-01T12:00:00.000Z", 100), txn("t2", "2026-06-04T12:00:00.000Z", 50)],
+      [], [], [],
+    );
+    expect(s.spendTrend).toEqual([
+      { date: "2026-06-01", value: 100 },
+      { date: "2026-06-02", value: 0 },
+      { date: "2026-06-03", value: 0 },
+      { date: "2026-06-04", value: 50 },
+    ]);
+    expect(s.mpgTrend.map((p) => p.date)).toEqual(["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04"]);
+    expect(s.mpgTrend.every((p) => p.value === null)).toBe(true); // no computed_mpg in fixture
+  });
+
+  it("falls back to UTC slicing for an unknown timezone (deterministic, no throw)", () => {
+    const s = aggregateDashboard([txn("t1", "2026-06-02T00:00:00.000Z", 100)], [], [], [], { tz: "Not/AZone" });
+    expect(s.spendTrend).toEqual([{ date: "2026-06-02", value: 100 }]);
+  });
+});

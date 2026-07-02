@@ -43,28 +43,41 @@ async function readCsv(file: File): Promise<ParsedFile> {
   // Strip UTF-8 BOM if present (common in EFS exports saved from Windows).
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
 
-  // EFS CSVs sometimes have a title line before the actual header row.
-  // Scan the first 8 lines and use the first one that detectReportKind recognises.
-  // Require at least 5 columns — a title row like "Reject Transaction Report" has only 1.
-  const lines = text.split(/\r?\n/);
-  let headerLineIndex = 0;
-  for (let i = 0; i < Math.min(8, lines.length); i++) {
-    const cols = lines[i]!.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
-    if (cols.length >= 5 && detectReportKind(cols) !== "unknown") {
-      headerLineIndex = i;
+  // Parse the WHOLE file as arrays first (quoted fields can legally contain commas and newlines — a
+  // naive line split miscounted columns, could miss the header row, and silently dropped data), then
+  // locate the header row among the first 8 parsed rows and build objects positionally from it.
+  // Require at least 5 non-empty cells — a title row like "Reject Transaction Report" has only 1.
+  const parsed = Papa.parse<string[]>(text, { header: false, skipEmptyLines: true });
+  const data = parsed.data.filter((r) => Array.isArray(r));
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(8, data.length); i++) {
+    const cols = (data[i] ?? []).map((c) => String(c ?? "").trim());
+    if (cols.filter(Boolean).length >= 5 && detectReportKind(cols) !== "unknown") {
+      headerRowIndex = i;
       break;
     }
   }
-  const trimmedText = lines.slice(headerLineIndex).join("\n");
 
-  const result = Papa.parse<Record<string, string>>(trimmedText, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => h.trim(),
-  });
-  const rows = result.data as RawRow[];
-  const headers = result.meta.fields ?? (rows[0] ? Object.keys(rows[0]) : []);
-  return { headers, rows };
+  const headers = (data[headerRowIndex] ?? []).map((h) => String(h ?? "").trim());
+  const rows: RawRow[] = [];
+  for (let i = headerRowIndex + 1; i < data.length; i++) {
+    const cells = data[i] ?? [];
+    const obj: RawRow = {};
+    let hasValue = false;
+    headers.forEach((h, c) => {
+      if (!h) return; // unnamed column — no header to key by
+      const v = cells[c] != null ? String(cells[c]).trim() : "";
+      obj[h] = v === "" ? null : v;
+      if (v !== "") hasValue = true;
+    });
+    if (hasValue) rows.push(obj);
+  }
+  return { headers: headers.filter(Boolean), rows };
+}
+
+interface SheetCandidate {
+  parsed: ParsedFile;
+  recognized: boolean; // detectReportKind found a known EFS report on this sheet
 }
 
 async function readXlsx(file: File): Promise<ParsedFile> {
@@ -72,12 +85,15 @@ async function readXlsx(file: File): Promise<ParsedFile> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await file.arrayBuffer());
 
-  // Try each worksheet in order; pick the first one that has a recognisable EFS header row.
+  // Evaluate EVERY worksheet and pick the BEST candidate: a sheet whose header row detectReportKind
+  // recognises beats one it doesn't (EFS workbooks can lead with a summary/title sheet), and among
+  // equals the one with the most data rows wins. "First sheet with any rows" picked summaries.
+  let best: SheetCandidate | null = null;
   for (const ws of wb.worksheets) {
     // Scan the first 8 rows looking for a row that detectReportKind accepts.
-    // EFS exports often have a title row (e.g. "Transaction Report – June 2026") before headers.
-    // Require at least 5 cells — a title row like "Reject Transaction Report" has only 1.
+    // Require at least 5 non-empty cells — a title row like "Reject Transaction Report" has only 1.
     let headerRowNum = 1;
+    let recognized = false;
     for (let r = 1; r <= Math.min(8, ws.rowCount); r++) {
       const candidate: string[] = [];
       ws.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
@@ -85,15 +101,19 @@ async function readXlsx(file: File): Promise<ParsedFile> {
       });
       if (candidate.length >= 5 && detectReportKind(candidate) !== "unknown") {
         headerRowNum = r;
+        recognized = true;
         break;
       }
     }
 
+    // Read headers POSITIONALLY (includeEmpty) — with includeEmpty:false an empty header cell
+    // mid-row shifted every following column one left, silently landing values under wrong headers.
     const headers: string[] = [];
-    ws.getRow(headerRowNum).eachCell({ includeEmpty: false }, (cell, col) => {
+    ws.getRow(headerRowNum).eachCell({ includeEmpty: true }, (cell, col) => {
       headers[col - 1] = cellText(cell.value).trim();
     });
-    if (headers.length === 0) continue;
+    while (headers.length && !headers[headers.length - 1]) headers.pop();
+    if (headers.filter(Boolean).length === 0) continue;
 
     const rows: RawRow[] = [];
     for (let r = headerRowNum + 1; r <= ws.rowCount; r++) {
@@ -101,6 +121,7 @@ async function readXlsx(file: File): Promise<ParsedFile> {
       const obj: RawRow = {};
       let hasValue = false;
       headers.forEach((h, i) => {
+        if (!h) return; // unnamed column — no header to key by
         const v = row.getCell(i + 1).value;
         const val = v == null ? null : (cellText(v) || null);
         obj[h] = val;
@@ -108,8 +129,15 @@ async function readXlsx(file: File): Promise<ParsedFile> {
       });
       if (hasValue) rows.push(obj);
     }
-    if (rows.length > 0) return { headers, rows };
+    if (rows.length === 0) continue;
+
+    const cand: SheetCandidate = { parsed: { headers: headers.filter(Boolean), rows }, recognized };
+    const beats =
+      !best ||
+      (cand.recognized && !best.recognized) ||
+      (cand.recognized === best.recognized && cand.parsed.rows.length > best.parsed.rows.length);
+    if (beats) best = cand;
   }
 
-  return { headers: [], rows: [] };
+  return best?.parsed ?? { headers: [], rows: [] };
 }

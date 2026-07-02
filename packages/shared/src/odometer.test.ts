@@ -36,3 +36,24 @@ describe("odometerAccuracy", () => {
     expect(out[0]!.mismatches).toBe(1);
   });
 });
+
+describe("odometerAccuracy — per-vehicle calibration offset (fix #5)", () => {
+  it("judges deviation against samsara + learned offset, same as the anomaly rule", () => {
+    // Truck's dash reads a constant +500 vs Samsara OBD (replaced cluster). Raw comparison called
+    // every fill a mismatch; offset-adjusted comparison recognizes the entries as accurate.
+    const rows: OdoRow[] = [
+      row({ entered: 10500, samsara: 10000, odometerOffset: 500 }), // dev 0 after offset
+      row({ entered: 20502, samsara: 20000, odometerOffset: 500 }), // dev 2 after offset
+      row({ entered: 30580, samsara: 30000, odometerOffset: 500 }), // dev 80 → real mismatch
+    ];
+    const [r] = odometerAccuracy(rows, "driver", 10);
+    expect(r!.checked).toBe(3);
+    expect(r!.mismatches).toBe(1);
+    expect(r!.avgDeviation).toBeCloseTo((0 + 2 + 80) / 3, 1);
+  });
+
+  it("treats a missing offset as 0 (unchanged behavior)", () => {
+    const [r] = odometerAccuracy([row({ entered: 1000, samsara: 1002 })], "driver", 10);
+    expect(r!.mismatches).toBe(0);
+  });
+});

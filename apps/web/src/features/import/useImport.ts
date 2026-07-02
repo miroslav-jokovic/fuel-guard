@@ -30,6 +30,8 @@ export interface ImportPreview {
   allLines: EfsTransactionLine[]; // faithful, every line (preview + system of record)
   newFuel: ReconciledFuelLine[]; // derived fuel events for scoring
   duplicateFuelCount: number;
+  /** Faithful EFS lines already present from an earlier import (won't be re-inserted). */
+  duplicateEfsCount: number;
   unattributedCount: number;
   skippedCount: number;
   // reject
@@ -38,6 +40,19 @@ export interface ImportPreview {
   // the period the file covers (YYYY-MM-DD), for at-a-glance validation
   reportFrom: string | null;
   reportTo: string | null;
+  /** Rows per business day in the FILE — persisted so silent data loss is detectable after commit. */
+  rowsByDay: Record<string, number>;
+}
+
+/** Per-day row counts (business date) — the reconciliation fingerprint of a report file. */
+function countByDay(dates: (string | null)[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const d of dates) {
+    if (!d) continue;
+    const day = d.slice(0, 10);
+    out[day] = (out[day] ?? 0) + 1;
+  }
+  return out;
 }
 
 /** Min/max date (YYYY-MM-DD) across a set of ISO timestamps. */
@@ -103,19 +118,24 @@ export async function analyzeImport(
     allLines: [] as EfsTransactionLine[],
     newFuel: [] as ReconciledFuelLine[],
     duplicateFuelCount: 0,
+    duplicateEfsCount: 0,
     unattributedCount: 0,
     skippedCount: 0,
     newDeclined: [] as ParsedDeclined[],
     duplicateDeclinedCount: 0,
     reportFrom: null as string | null,
     reportTo: null as string | null,
+    rowsByDay: {} as Record<string, number>,
   };
 
   if (kind === "transaction") {
     const allLines = normalizeAllTransactionLines(rows); // faithful, every column/row
     const { fuelLines, skipped } = normalizeTransactionRows(rows);
     const reconciled = reconcileFuelLines(fuelLines, vehicles, drivers);
-    const seen = await existingRefs("fuel_transactions", reconciled.map((l) => l.external_ref));
+    const [seen, efsSeen] = await Promise.all([
+      existingRefs("fuel_transactions", reconciled.map((l) => l.external_ref)),
+      existingRefs("efs_transactions", allLines.map((l) => l.external_ref)),
+    ]);
     const newFuel = reconciled.filter((l) => !seen.has(l.external_ref));
     const span = dateSpan(allLines.map((l) => l.fueled_at));
     return {
@@ -123,19 +143,29 @@ export async function analyzeImport(
       allLines,
       newFuel,
       duplicateFuelCount: reconciled.length - newFuel.length,
+      duplicateEfsCount: allLines.filter((l) => efsSeen.has(l.external_ref)).length,
       unattributedCount: newFuel.filter((l) => l.vehicle_id == null).length,
       skippedCount: skipped.length,
       reportFrom: span.from,
       reportTo: span.to,
+      rowsByDay: countByDay(allLines.map((l) => l.tran_date)),
     };
   }
 
   if (kind === "reject") {
-    const declined = normalizeRejectRows(rows);
+    const { declined, skipped } = normalizeRejectRows(rows);
     const seen = await existingRefs("declined_transactions", declined.map((d) => d.external_ref));
     const newDeclined = declined.filter((d) => !seen.has(d.external_ref));
     const span = dateSpan(declined.map((d) => d.declined_at));
-    return { ...base, newDeclined, duplicateDeclinedCount: declined.length - newDeclined.length, reportFrom: span.from, reportTo: span.to };
+    return {
+      ...base,
+      newDeclined,
+      duplicateDeclinedCount: declined.length - newDeclined.length,
+      skippedCount: skipped.length,
+      reportFrom: span.from,
+      reportTo: span.to,
+      rowsByDay: countByDay(declined.map((d) => d.declined_at)),
+    };
   }
 
   return base;
@@ -222,6 +252,7 @@ export function useCommitImport() {
             vehicle_id: l.vehicle_id,
             driver_id: l.driver_id,
             fueled_at: l.fueled_at,
+            fueled_at_precision: l.fueled_at_precision,
             odometer: l.odometer,
             gallons: l.gallons,
             total_cost: l.total_cost,
@@ -246,6 +277,44 @@ export function useCommitImport() {
             /* scoring can be retried; the upload itself is already committed */
           }
         }
+      }
+
+      // 3) Post-commit reconciliation: VERIFY what actually landed vs what the file contained, and
+      // persist it on the import row. Silent losses (dedupe collisions, constraint drops) become
+      // visible numbers instead of being discovered weeks later on the dashboard.
+      if (preview.kind === "transaction") {
+        const [{ count: efsCount }, { count: fuelCount }] = await Promise.all([
+          supabase.from("efs_transactions").select("id", { count: "exact", head: true }).eq("import_id", importId),
+          supabase.from("fuel_transactions").select("id", { count: "exact", head: true }).eq("import_id", importId),
+        ]);
+        const expectedNewEfs = preview.allLines.length - preview.duplicateEfsCount;
+        const summary = {
+          report_from: preview.reportFrom,
+          report_to: preview.reportTo,
+          rows_by_day: preview.rowsByDay,
+          file_lines: preview.allLines.length,
+          expected_new_efs_lines: expectedNewEfs,
+          expected_new_fuel_events: preview.newFuel.length,
+          db_efs_lines: efsCount ?? null,
+          db_fuel_events: fuelCount ?? null,
+          shortfall_fuel_events: fuelCount == null ? null : Math.max(0, preview.newFuel.length - fuelCount),
+          shortfall_efs_lines: efsCount == null ? null : Math.max(0, expectedNewEfs - efsCount),
+        };
+        await supabase.from("imports").update({ summary }).eq("id", importId);
+      } else if (preview.kind === "reject") {
+        const { count: decCount } = await supabase
+          .from("declined_transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("import_id", importId);
+        const summary = {
+          report_from: preview.reportFrom,
+          report_to: preview.reportTo,
+          rows_by_day: preview.rowsByDay,
+          expected_new_declines: preview.newDeclined.length,
+          db_declines: decCount ?? null,
+          shortfall_declines: decCount == null ? null : Math.max(0, preview.newDeclined.length - decCount),
+        };
+        await supabase.from("imports").update({ summary }).eq("id", importId);
       }
 
       if (preview.kind === "reject" && preview.newDeclined.length) {

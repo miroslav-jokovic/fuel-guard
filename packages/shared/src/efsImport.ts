@@ -23,12 +23,19 @@ export const FUEL_PRODUCT_CODES: Record<string, FuelType> = {
 
 export type RawRow = Record<string, string | number | null | undefined>;
 
+/** Whether a fueling timestamp carries a real time-of-day ("instant") or only a date ("date"). */
+export type EfsTimePrecision = "instant" | "date";
+
 export interface ParsedFuelLine {
   external_ref: string;
   unit: string | null;
   driver_name: string | null;
   card_ref: string | null;
-  fueled_at: string; // ISO instant
+  fueled_at: string; // ISO instant (true UTC when a POS time + station tz were available)
+  /** The EFS business date (station-local, YYYY-MM-DD) — stable across timezones; keys dedupe. */
+  tran_date: string;
+  /** "instant" when a real POS time-of-day was present; "date" for date-only rows (noon sentinel). */
+  fueled_at_precision: EfsTimePrecision;
   odometer: number | null;
   gallons: number;
   price_per_gal: number | null;
@@ -99,34 +106,137 @@ function rejectDateToIso(date: string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? efsDateToIso(s) : d.toISOString();
 }
 
-/**
- * Combine a date + optional time into an ISO instant. Handles "YYYY-MM-DD" and US "M/D/YYYY", and
- * times "HH:MM[:SS]" / "H:MM[:SS] AM|PM" / "HHMMSS". A naive time is treated as UTC (deterministic;
- * time-zone-aware Samsara matching is applied downstream). Date-only → anchored at noon.
- */
-export function efsDateTimeToIso(date: string | null | undefined, time?: string | null): string | null {
+/** Extract the business date (YYYY-MM-DD, as printed on the report) from an EFS date cell. */
+export function efsLocalDate(date: string | null | undefined): string | null {
   const d = str(date);
   if (!d) return null;
-  let ymd: string | null = null;
   const iso = d.slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) ymd = iso;
-  else {
-    const m = d.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); // US M/D/Y
-    if (m) {
-      const mo = m[1]!.padStart(2, "0");
-      const da = m[2]!.padStart(2, "0");
-      const yr = m[3]!.length === 2 ? `20${m[3]}` : m[3]!;
-      ymd = `${yr}-${mo}-${da}`;
-    }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const m = d.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); // US M/D/Y
+  if (m) {
+    const mo = m[1]!.padStart(2, "0");
+    const da = m[2]!.padStart(2, "0");
+    const yr = m[3]!.length === 2 ? `20${m[3]}` : m[3]!;
+    return `${yr}-${mo}-${da}`;
   }
-  if (!ymd) {
-    const parsed = new Date(d);
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
-  }
+  const parsed = new Date(d);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+// ── station-local time → UTC ─────────────────────────────────────────────────
+// EFS POS timestamps are STATION-LOCAL wall-clock times. Previously they were stored as if they were
+// UTC, which mis-dated evening fills and broke time-of-day rules. We convert wall time → UTC using the
+// station state's IANA timezone (DST-correct via Intl). Known limitation, documented: states that span
+// two zones (TX/KY/TN/ID/…) use their DOMINANT zone — worst case ±1h, absorbed by the wide matching
+// windows downstream. When the state is unknown/unmappable we fall back to naive-UTC (deterministic).
+
+const STATE_IANA_TZ: Record<string, string> = {
+  // Eastern
+  CT: "America/New_York", DE: "America/New_York", FL: "America/New_York", GA: "America/New_York",
+  IN: "America/New_York", KY: "America/New_York", MA: "America/New_York", MD: "America/New_York",
+  ME: "America/New_York", MI: "America/New_York", NC: "America/New_York", NH: "America/New_York",
+  NJ: "America/New_York", NY: "America/New_York", OH: "America/New_York", PA: "America/New_York",
+  RI: "America/New_York", SC: "America/New_York", VA: "America/New_York", VT: "America/New_York",
+  WV: "America/New_York", DC: "America/New_York", ON: "America/Toronto", QC: "America/Toronto",
+  // Atlantic / Newfoundland (Canada)
+  NB: "America/Halifax", NS: "America/Halifax", PE: "America/Halifax", NL: "America/St_Johns",
+  // Central
+  AL: "America/Chicago", AR: "America/Chicago", IA: "America/Chicago", IL: "America/Chicago",
+  KS: "America/Chicago", LA: "America/Chicago", MN: "America/Chicago", MO: "America/Chicago",
+  MS: "America/Chicago", ND: "America/Chicago", NE: "America/Chicago", OK: "America/Chicago",
+  SD: "America/Chicago", TN: "America/Chicago", TX: "America/Chicago", WI: "America/Chicago",
+  MB: "America/Winnipeg", SK: "America/Regina",
+  // Mountain
+  AZ: "America/Phoenix", CO: "America/Denver", ID: "America/Denver", MT: "America/Denver",
+  NM: "America/Denver", UT: "America/Denver", WY: "America/Denver", AB: "America/Edmonton",
+  // Pacific
+  CA: "America/Los_Angeles", NV: "America/Los_Angeles", OR: "America/Los_Angeles",
+  WA: "America/Los_Angeles", BC: "America/Vancouver",
+  AK: "America/Anchorage", HI: "Pacific/Honolulu",
+  NT: "America/Yellowknife", NU: "America/Iqaluit", YT: "America/Whitehorse",
+};
+
+/** Dominant IANA timezone for a US state / Canadian province code, or null when unknown. */
+export function stateTimeZone(state: string | null | undefined): string | null {
+  const s = str(state)?.toUpperCase() ?? null;
+  return s ? (STATE_IANA_TZ[s] ?? null) : null;
+}
+
+/** Offset (ms) such that wallClock(tz, utcMs) = utcMs + offset. */
+function tzOffsetMs(tz: string, utcMs: number): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(utcMs));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
+  return asUtc - utcMs;
+}
+
+/**
+ * Convert a wall-clock date+time in `tz` to a UTC ISO instant (DST-correct). Two-pass fixpoint:
+ * exact except during the 1h spring-forward gap, where it resolves deterministically.
+ */
+export function zonedWallTimeToUtcIso(ymd: string, hms: string, tz: string): string {
+  const [y, mo, d] = ymd.split("-").map(Number);
+  const [h, mi, s] = hms.split(":").map(Number);
+  const wallMs = Date.UTC(y!, mo! - 1, d!, h ?? 0, mi ?? 0, s ?? 0);
+  let utc = wallMs - tzOffsetMs(tz, wallMs);
+  utc = wallMs - tzOffsetMs(tz, utc);
+  return new Date(utc).toISOString();
+}
+
+export interface EfsInstant {
+  iso: string;
+  precision: EfsTimePrecision;
+  /** Station-local business date (YYYY-MM-DD) as printed on the report. */
+  tranDate: string;
+}
+
+/** True when an ISO instant is exactly the EFS date-only sentinel (noon UTC) → no real time-of-day. */
+export function isNoonSentinelIso(iso: string): boolean {
+  const d = new Date(iso);
+  return (
+    d.getUTCHours() === 12 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0
+  );
+}
+
+/**
+ * Parse an EFS date (+ optional POS time, + station state) into a true UTC instant.
+ * - date + time + mappable state → station-local wall time converted to UTC ("instant").
+ * - date + time, unknown state    → naive-UTC fallback, deterministic ("instant").
+ * - date only                     → noon-UTC sentinel ("date"); never fabricates a time-of-day.
+ */
+export function efsInstant(
+  date: string | null | undefined,
+  time?: string | null,
+  state?: string | null,
+): EfsInstant | null {
+  const d = str(date);
+  if (!d) return null;
+  const ymd = efsLocalDate(d);
+  if (!ymd) return null;
   // Explicit time column wins; else look for a time embedded in the date string ("… 14:25:00").
   const embedded = d.match(/\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp][Mm])?/);
   const hms = parseEfsTime(time) ?? (embedded ? parseEfsTime(embedded[0]) : null);
-  return hms ? `${ymd}T${hms}.000Z` : `${ymd}T12:00:00.000Z`;
+  if (!hms) return { iso: `${ymd}T12:00:00.000Z`, precision: "date", tranDate: ymd };
+  const tz = stateTimeZone(state);
+  const iso = tz ? zonedWallTimeToUtcIso(ymd, hms, tz) : `${ymd}T${hms}.000Z`;
+  return { iso, precision: "instant", tranDate: ymd };
+}
+
+/**
+ * Combine a date + optional time into an ISO instant. Handles "YYYY-MM-DD" and US "M/D/YYYY", and
+ * times "HH:MM[:SS]" / "H:MM[:SS] AM|PM" / "HHMMSS". A naive time is treated as UTC (deterministic).
+ * Date-only → anchored at noon. Prefer `efsInstant` (station-timezone-aware) for new code.
+ */
+export function efsDateTimeToIso(date: string | null | undefined, time?: string | null): string | null {
+  return efsInstant(date, time, null)?.iso ?? null;
 }
 
 /** Parse an EFS POS time into "HH:MM:SS" (24h). Finds a time inside longer strings (e.g. a full
@@ -212,6 +322,10 @@ export function buildFuelExternalRef(card: string | null, invoice: string | null
  * Normalize Transaction Report rows. Keeps only fuel lines (docs/08 §4); multiple fuel lines on the
  * same invoice are MERGED into one fueling event (sum gallons/cost — docs/09 P0.4). Rows with an
  * unparseable date are quarantined to `skipped` rather than fabricating a timestamp (docs/09 P1.7).
+ *
+ * The merge/dedupe key is Card | Invoice | BUSINESS-DATE: EFS invoice numbers are per-site sequences
+ * that can repeat across days, and a date-less key silently merged different days into one event
+ * (inflating one day, losing the other) or dropped later days as "duplicates" of an earlier import.
  */
 export function normalizeTransactionRows(rows: RawRow[]): {
   fuelLines: ParsedFuelLine[];
@@ -235,11 +349,13 @@ export function normalizeTransactionRows(rows: RawRow[]): {
       skipped.push({ row_number: rowNumber, reason: "no gallons", item });
       return;
     }
-    const fueledAt = efsDateTimeToIso(
+    const state = str(pick(row, "State/ Prov", "State/Prov", "State", "Location State"));
+    const instant = efsInstant(
       str(pick(row, "Tran Date", "Date", "TransactionPOSDate")),
       str(pick(row, "TransactionPOSTime", "POS Time", "Time")),
+      state,
     );
-    if (!fueledAt) {
+    if (!instant) {
       skipped.push({ row_number: rowNumber, reason: "unparseable date", item });
       return;
     }
@@ -247,14 +363,16 @@ export function normalizeTransactionRows(rows: RawRow[]): {
     const invoice = str(pick(row, "Invoice"));
     const txnId = str(pick(row, "TransactionId", "Transaction Id", "Transaction ID"));
     const total = num(pick(row, "Amt", "Amount"));
-    // One fueling event = one invoice (this correctly merges multi-line invoices). Only when the invoice
-    // is BLANK do we fall back to a unique per-transaction key (TransactionId, else time+amount), so a
-    // missing invoice can't collapse a whole card's history into a single row.
-    const key = invoice
+    // One fueling event = one invoice ON one business date (merges multi-line invoices without
+    // collapsing reused invoice numbers across days). Only when the invoice is BLANK do we fall back
+    // to a unique per-transaction key (TransactionId, else time+amount), so a missing invoice can't
+    // collapse a whole card's history into a single row.
+    const base = invoice
       ? `${card ?? ""}|${invoice}`
       : txnId
         ? `${card ?? ""}|${txnId}`
-        : `${card ?? ""}|${fueledAt}|${total ?? ""}|${gallons}`;
+        : `${card ?? ""}|${instant.iso}|${total ?? ""}|${gallons}`;
+    const key = `${base}|${instant.tranDate}`;
 
     const existing = byInvoice.get(key);
     if (existing) {
@@ -266,7 +384,9 @@ export function normalizeTransactionRows(rows: RawRow[]): {
         unit: str(pick(row, "Unit")),
         driver_name: str(pick(row, "Driver Name")),
         card_ref: card,
-        fueled_at: fueledAt,
+        fueled_at: instant.iso,
+        tran_date: instant.tranDate,
+        fueled_at_precision: instant.precision,
         odometer: num(pick(row, "Odometer")),
         gallons,
         price_per_gal: num(pick(row, "Unit Price", "PricePerUnit")),
@@ -275,7 +395,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
         item,
         location_text: str(pick(row, "Location Name")),
         city: str(pick(row, "City", "Location City")),
-        state: str(pick(row, "State/ Prov", "State/Prov", "State", "Location State")),
+        state,
       });
     }
   });
@@ -327,23 +447,28 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
     const item = str(pick(row, "Item", "ProductCode"));
     const qty = num(pick(row, "Qty", "Quantity"));
     const amt = num(pick(row, "Amt", "Amount"));
-    const fueledAt = efsDateTimeToIso(
+    const state = str(pick(row, "State/ Prov", "State/Prov", "State", "Location State"));
+    const instant = efsInstant(
       str(pick(row, "Tran Date", "Date", "TransactionPOSDate")),
       str(pick(row, "TransactionPOSTime", "POS Time", "Time")),
+      state,
     );
+    // tran_date is the STATION-LOCAL business date as printed — not the UTC date of the instant
+    // (an evening local fill crosses the UTC date boundary). The ref is date-scoped so identical
+    // purchases on different days (blank/reused invoice) can never collide.
     return {
-      external_ref: [card ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? ""].join("|"),
+      external_ref: [card ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|"),
       line_number: i + 1,
       card_num: card,
-      tran_date: fueledAt ? fueledAt.slice(0, 10) : null,
-      fueled_at: fueledAt,
+      tran_date: instant?.tranDate ?? null,
+      fueled_at: instant?.iso ?? null,
       invoice,
       unit: str(pick(row, "Unit")),
       driver_name: str(pick(row, "Driver Name")),
       odometer: num(pick(row, "Odometer")),
       location_name: str(pick(row, "Location Name")),
       city: str(pick(row, "City", "Location City")),
-      state: str(pick(row, "State/ Prov", "State/Prov", "State", "Location State")),
+      state,
       fees: num(pick(row, "Fees", "Transaction Fee")),
       item,
       unit_price: num(pick(row, "Unit Price", "PricePerUnit")),
@@ -525,22 +650,35 @@ export function reconcileFuelLines(
   }));
 }
 
-/** Normalize Reject Report rows into declined-attempt records. */
-export function normalizeRejectRows(rows: RawRow[]): ParsedDeclined[] {
-  return rows.map((row) => {
+/**
+ * Normalize Reject Report rows into declined-attempt records. Rows whose date can't be parsed are
+ * QUARANTINED to `skipped` — we never fabricate an import-time timestamp for a decline (it would
+ * corrupt the decline timeline used by the theft scoring). Refs are date-scoped like transactions.
+ */
+export function normalizeRejectRows(rows: RawRow[]): {
+  declined: ParsedDeclined[];
+  skipped: SkippedRow[];
+} {
+  const declined: ParsedDeclined[] = [];
+  const skipped: SkippedRow[] = [];
+  rows.forEach((row, i) => {
     const card = str(pick(row, "Card Number", "Card #"));
     const invoice = str(pick(row, "Invoice"));
     const code = str(pick(row, "Error Code", "Reject Code", "Reject Reason", "Decline Reason", "Decline Code", "Reason Code", "Response Code"));
-    const declinedAt =
-      efsDateTimeToIso(
+    const state = str(pick(row, "State/Prov", "State/ Prov", "State", "Location State"));
+    const instant =
+      efsInstant(
         str(pick(row, "Date", "Tran Date", "TransactionPOSDate")),
         str(pick(row, "Time", "TransactionPOSTime", "POS Time")),
-      ) ??
-      rejectDateToIso(str(pick(row, "Date", "Time"))) ??
-      new Date().toISOString();
-    return {
-      external_ref: [card ?? "", invoice ?? "", code ?? ""].join("|"),
-      declined_at: declinedAt,
+        state,
+      ) ?? rejectInstant(str(pick(row, "Date", "Time")), state);
+    if (!instant) {
+      skipped.push({ row_number: i + 1, reason: "unparseable date" });
+      return;
+    }
+    declined.push({
+      external_ref: [card ?? "", invoice ?? "", code ?? "", instant.tranDate].join("|"),
+      declined_at: instant.iso,
       card_ref: card,
       invoice,
       location_id: str(pick(row, "Location ID")),
@@ -549,11 +687,25 @@ export function normalizeRejectRows(rows: RawRow[]): ParsedDeclined[] {
       driver_name: str(pick(row, "Driver Name")),
       location_text: str(pick(row, "Location Name")),
       city: str(pick(row, "Location City", "City")),
-      state: str(pick(row, "State/Prov", "State/ Prov", "State", "Location State")),
+      state,
       error_code: code,
       error_description: str(pick(row, "Error Description", "Reject Description", "Reject Reason", "Reason", "Response", "Description")),
       policy: str(pick(row, "Policy")),
       policy_name: str(pick(row, "Policy Name")),
-    };
+    });
   });
+  return { declined, skipped };
+}
+
+/** Fallback for Reject Reports with a combined "YYYY-MM-DD HH:mm:ss" cell — station-local, tz-aware. */
+function rejectInstant(date: string | null, state: string | null): EfsInstant | null {
+  const iso = rejectDateToIso(date);
+  if (!iso) return null;
+  // rejectDateToIso treated the naive wall time as UTC; re-derive via efsInstant for tz correctness.
+  const s = str(date);
+  if (s) {
+    const viaEfs = efsInstant(s, null, state);
+    if (viaEfs?.precision === "instant") return viaEfs;
+  }
+  return { iso, precision: "instant", tranDate: iso.slice(0, 10) };
 }

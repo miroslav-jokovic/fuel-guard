@@ -44,11 +44,12 @@ const stats = computed<Stat[]>(() => {
   ];
 });
 
+// Trends are zero-filled/org-tz-bucketed upstream; null MPG days render as honest GAPS (spanGaps off).
 const mpgChart = computed<ChartConfiguration>(() => ({
   type: "line",
   data: {
-    labels: s.value?.mpgTrend.map((p: { date: string; value: number }) => p.date) ?? [],
-    datasets: [{ label: "Fleet MPG", data: s.value?.mpgTrend.map((p: { date: string; value: number }) => p.value) ?? [], borderColor: "#4f46e5", backgroundColor: "#4f46e5", tension: 0.3, fill: false }],
+    labels: s.value?.mpgTrend.map((p: { date: string; value: number | null }) => p.date) ?? [],
+    datasets: [{ label: "Fleet MPG", data: s.value?.mpgTrend.map((p: { date: string; value: number | null }) => p.value) ?? [], borderColor: "#4f46e5", backgroundColor: "#4f46e5", tension: 0.3, fill: false, spanGaps: false }],
   },
   options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
 }));
@@ -56,8 +57,8 @@ const mpgChart = computed<ChartConfiguration>(() => ({
 const spendChart = computed<ChartConfiguration>(() => ({
   type: "bar",
   data: {
-    labels: s.value?.spendTrend.map((p: { date: string; value: number }) => p.date) ?? [],
-    datasets: [{ label: "Spend", data: s.value?.spendTrend.map((p: { date: string; value: number }) => p.value) ?? [], backgroundColor: "#10b981", borderRadius: 4 }],
+    labels: s.value?.spendTrend.map((p: { date: string; value: number | null }) => p.date) ?? [],
+    datasets: [{ label: "Spend", data: s.value?.spendTrend.map((p: { date: string; value: number | null }) => p.value) ?? [], backgroundColor: "#10b981", borderRadius: 4 }],
   },
   options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
 }));

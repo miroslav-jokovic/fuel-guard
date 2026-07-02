@@ -14,7 +14,7 @@ export function useDashboard(days: Ref<number>) {
     queryKey: ["dashboard", days],
     queryFn: async (): Promise<DashboardSummary> => {
       const from = new Date(Date.now() - toValue(days) * 86400_000).toISOString();
-      const [txnRes, anomRes, vehRes, drvRes] = await Promise.all([
+      const [txnRes, anomRes, vehRes, drvRes, orgRes] = await Promise.all([
         supabase
           .from("fuel_transactions")
           .select("id, vehicle_id, driver_id, fueled_at, gallons, total_cost, computed_mpg")
@@ -22,13 +22,17 @@ export function useDashboard(days: Ref<number>) {
         supabase.from("anomalies").select("id, transaction_id, vehicle_id, severity, status").neq("status", "superseded"),
         supabase.from("vehicles").select("id, unit_number"),
         supabase.from("drivers").select("id, full_name"),
+        supabase.from("organizations").select("operating_hours").maybeSingle(),
       ]);
       if (txnRes.error) throw new Error(txnRes.error.message);
+      // Bucket trend days in the ORG's timezone — UTC slicing mis-dated evening fills.
+      const tz = (orgRes.data?.operating_hours as { tz?: string } | null)?.tz ?? null;
       return aggregateDashboard(
         (txnRes.data ?? []) as unknown as FuelTransaction[],
         (anomRes.data ?? []) as unknown as Anomaly[],
         (vehRes.data ?? []) as { id: string; unit_number: string }[],
         (drvRes.data ?? []) as { id: string; full_name: string }[],
+        { tz },
       );
     },
   });

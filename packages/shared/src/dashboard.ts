@@ -10,7 +10,8 @@ import type { Vehicle, Driver } from "./fleet.js";
 
 export interface TrendPoint {
   date: string; // YYYY-MM-DD
-  value: number;
+  /** null = no data that day (MPG trend renders a gap; spend zero-fills instead). */
+  value: number | null;
 }
 
 export interface RiskRow {
@@ -33,18 +34,54 @@ export interface DashboardSummary {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const day = (iso: string) => iso.slice(0, 10);
+
+/** Options for aggregateDashboard. `tz` buckets trend days in the org's timezone (UTC when absent). */
+export interface DashboardOptions {
+  /** IANA timezone for day bucketing (e.g. "America/Chicago"). Defaults to UTC slicing. */
+  tz?: string | null;
+}
+
+/** YYYY-MM-DD of an instant in a timezone (cached Intl formatter per tz). */
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+export function dayInTz(iso: string, tz: string | null | undefined): string {
+  if (!tz) return iso.slice(0, 10);
+  let fmt = dayFormatters.get(tz);
+  if (!fmt) {
+    try {
+      fmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+    } catch {
+      return iso.slice(0, 10); // unknown tz → deterministic UTC fallback
+    }
+    dayFormatters.set(tz, fmt);
+  }
+  return fmt.format(new Date(iso)); // en-CA formats as YYYY-MM-DD
+}
+
+/** Every YYYY-MM-DD from `from` to `to` inclusive (both valid ISO dates). */
+export function dateRangeDays(from: string, to: string): string[] {
+  const out: string[] = [];
+  const end = new Date(`${to}T00:00:00Z`).getTime();
+  for (let t = new Date(`${from}T00:00:00Z`).getTime(); t <= end; t += 86_400_000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
+}
 
 function emptySeverity(): Record<AnomalySeverity, number> {
   return { low: 0, medium: 0, high: 0, critical: 0 };
 }
 
-/** Aggregate transactions + anomalies into the executive dashboard view. */
+/**
+ * Aggregate transactions + anomalies into the executive dashboard view. Trend days are bucketed in
+ * the ORG's timezone and ZERO-FILLED across the covered range, so a day with no fuel activity shows
+ * as an honest 0/gap instead of silently disappearing (which previously masked lost import days).
+ */
 export function aggregateDashboard(
   transactions: FuelTransaction[],
   anomalies: Anomaly[],
   vehicles: Pick<Vehicle, "id" | "unit_number">[],
   drivers: Pick<Driver, "id" | "full_name">[],
+  opts: DashboardOptions = {},
 ): DashboardSummary {
   let totalSpend = 0;
   let totalGallons = 0;
@@ -60,7 +97,7 @@ export function aggregateDashboard(
     totalGallons += gallons;
     totalSpend += cost;
 
-    const d = day(t.fueled_at);
+    const d = dayInTz(t.fueled_at, opts.tz);
     spendByDay.set(d, (spendByDay.get(d) ?? 0) + cost);
 
     if (t.computed_mpg != null && gallons > 0) {
@@ -74,13 +111,18 @@ export function aggregateDashboard(
     }
   }
 
-  const spendTrend: TrendPoint[] = [...spendByDay.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, value]) => ({ date, value: round2(value) }));
+  const seenDays = [...spendByDay.keys()].sort();
+  const allDays = seenDays.length ? dateRangeDays(seenDays[0]!, seenDays[seenDays.length - 1]!) : [];
 
-  const mpgTrend: TrendPoint[] = [...mpgGalByDay.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, { mpgGal, gal }]) => ({ date, value: gal > 0 ? round2(mpgGal / gal) : 0 }));
+  const spendTrend: TrendPoint[] = allDays.map((date) => ({
+    date,
+    value: round2(spendByDay.get(date) ?? 0), // zero-fill: a no-spend day is a real $0 day
+  }));
+
+  const mpgTrend: TrendPoint[] = allDays.map((date) => {
+    const cur = mpgGalByDay.get(date);
+    return { date, value: cur && cur.gal > 0 ? round2(cur.mpgGal / cur.gal) : null }; // null = gap, not 0 MPG
+  });
 
   // Anomalies (active = not superseded).
   const active = anomalies.filter((a) => a.status !== "superseded");
