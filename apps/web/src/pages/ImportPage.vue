@@ -42,8 +42,17 @@ async function onCommit() {
   if (!preview.value) return;
   try {
     const wasTxn = preview.value.kind === "transaction";
-    await commit.mutateAsync(preview.value);
-    toast.success("Import complete", "New rows saved and scored. Duplicates were skipped automatically.");
+    const result = await commit.mutateAsync(preview.value);
+    if (result.shortfallRows != null && result.shortfallRows > 0) {
+      // Post-commit verification found rows that should have inserted but didn't — surface it NOW
+      // instead of letting it show up weeks later as a hole in the dashboard.
+      toast.warning(
+        `Import verified with a shortfall: ${result.shortfallRows} expected row(s) did not insert`,
+        "Details were saved on the import record. Re-upload the file or contact support before trusting this period's data.",
+      );
+    } else {
+      toast.success("Import complete", "New rows saved and scored. Duplicates were skipped automatically.");
+    }
     // New history can change MPG/consumption for earlier fills — nudge a rebuild to recompute them.
     if (wasTxn) toast.info("Tip: run 'Rebuild' on the Anomalies page", "So MPG and over-fuel checks use the full history.");
     preview.value = null;

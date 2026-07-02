@@ -55,6 +55,21 @@ Ordering is load-bearing (restore → refs → tz-shift):
 
 ---
 
+## Second audit pass (additional fixes)
+
+A follow-up sweep over every remaining consumer of timestamps, odometers, and refs found and fixed six more issues:
+
+1. **`vehicles.current_odometer` poisoning** (`scoring.ts`) — was `MAX(odometer)` over all fills, so one fat-fingered 9,999,999 stuck forever (and it fought the Samsara sync). Now: Samsara-linked trucks are owned by the sync (authoritative OBD, never overwritten); unlinked trucks use the *latest* entered odometer (self-heals on the next correct entry).
+2. **Flagged previous fill cascaded false anomalies** (`scoring.ts`) — `previousTxn` was the immediate previous row even when its odometer was already flagged as anomalous, so one typo produced false regression/MPG alerts on every correct entry after it. Now the previous fill skips odometer-flagged rows (same exclusion `recentTxns` always had).
+3. **AI verification reasoned over fabricated times** (`aiVerification.ts`, `ai.ts`) — implied travel speed was computed from noon-sentinel timestamps and fed to the model as fact. Now: `fueled_at_precision` is part of the AI context, the system prompt forbids time-of-day reasoning on date-only rows, and implied speed is only computed when both endpoints are true instants.
+4. **Post-commit verification ordering bug** (`useImport.ts`) — the reconciliation count ran *before* declined rows were inserted, which would have reported a false shortfall on every reject import. Moved to run last; the commit now also *returns* the shortfall and the Import page shows a warning toast immediately when expected rows didn't land.
+5. **Report period used UTC dates** (`useImport.ts`) — `reportFrom/To` now derive from business dates (`tran_date`), so an evening fill no longer shifts the displayed covered period.
+6. **Dedupe-check URL headroom** (`useImport.ts`) — ref lookup chunk size 200 → 150 since date-scoped refs are ~11 chars longer (the failure mode is silent: everything looks "new").
+
+Also audited and confirmed clean: digest windows, Samsara scheduler/vehicle sync, diagnostics (current-stats only, no pagination issue), manual fill-up entry (browser-local → true UTC), EFS preview (filters on `tran_date`), notifications, fuel-drop webhooks, Ask-Data queries.
+
+Known minor residual: a flagged (typo) odometer still participates in the rolling-window miles span, which can only make `cumulative_overfuel` *less* likely to fire (never a false positive).
+
 ## Deployment order (important)
 
 1. Apply migration `0026` **before** deploying the new code (new imports write date-scoped refs + precision; old data must be rewritten first so dedupe stays consistent).

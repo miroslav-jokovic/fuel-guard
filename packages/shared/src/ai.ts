@@ -60,6 +60,9 @@ export interface AiVerificationContext {
   vehicle: { unit: string; fuel_type: string; tank_capacity_gal: number; baseline_mpg: number | null };
   transaction: {
     fueled_at: string;
+    /** "date" = date-only EFS row anchored at a noon-UTC sentinel — the time-of-day is NOT real and
+     *  must not be reasoned about; "instant" = a true fueling instant. Absent on legacy rows. */
+    fueled_at_precision?: "instant" | "date";
     odometer: number | null;
     gallons: number;
     price_per_gal: number | null;

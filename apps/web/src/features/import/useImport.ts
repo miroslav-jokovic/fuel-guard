@@ -73,8 +73,9 @@ async function hashFile(file: File): Promise<string> {
 async function existingRefs(table: string, refs: string[]): Promise<Set<string>> {
   // Query in batches: a month of data can be thousands of refs, and a single .in() would blow past the
   // request URL limit and silently return nothing (making every row look "new" in the preview).
+  // 150/chunk (was 200): refs grew ~11 chars each when they became date-scoped — keep URL headroom.
   const found = new Set<string>();
-  const CHUNK = 200;
+  const CHUNK = 150;
   for (let i = 0; i < refs.length; i += CHUNK) {
     const slice = refs.slice(i, i + CHUNK);
     const { data, error } = await supabase.from(table).select("external_ref").in("external_ref", slice);
@@ -137,7 +138,9 @@ export async function analyzeImport(
       existingRefs("efs_transactions", allLines.map((l) => l.external_ref)),
     ]);
     const newFuel = reconciled.filter((l) => !seen.has(l.external_ref));
-    const span = dateSpan(allLines.map((l) => l.fueled_at));
+    // Business dates (as printed on the report), not UTC dates of the instants — an evening local
+    // fill crosses the UTC boundary and would otherwise show the wrong covered period.
+    const span = dateSpan(allLines.map((l) => l.tran_date));
     return {
       ...base,
       allLines,
@@ -173,12 +176,17 @@ export async function analyzeImport(
 
 const loc = (...parts: (string | null)[]) => parts.filter(Boolean).join(", ") || null;
 
+/** Result of a commit: how many expected-new rows did NOT land (null = could not verify). */
+export interface CommitResult {
+  shortfallRows: number | null;
+}
+
 /** Commit a reviewed preview: faithful store + derived scoring events + declined, all idempotent. */
 export function useCommitImport() {
   const qc = useQueryClient();
   const session = useSessionStore();
   return useMutation({
-    mutationFn: async (preview: ImportPreview): Promise<void> => {
+    mutationFn: async (preview: ImportPreview): Promise<CommitResult> => {
       if (!session.orgId) throw new Error("No organization in session");
       const org_id = session.orgId;
 
@@ -279,44 +287,6 @@ export function useCommitImport() {
         }
       }
 
-      // 3) Post-commit reconciliation: VERIFY what actually landed vs what the file contained, and
-      // persist it on the import row. Silent losses (dedupe collisions, constraint drops) become
-      // visible numbers instead of being discovered weeks later on the dashboard.
-      if (preview.kind === "transaction") {
-        const [{ count: efsCount }, { count: fuelCount }] = await Promise.all([
-          supabase.from("efs_transactions").select("id", { count: "exact", head: true }).eq("import_id", importId),
-          supabase.from("fuel_transactions").select("id", { count: "exact", head: true }).eq("import_id", importId),
-        ]);
-        const expectedNewEfs = preview.allLines.length - preview.duplicateEfsCount;
-        const summary = {
-          report_from: preview.reportFrom,
-          report_to: preview.reportTo,
-          rows_by_day: preview.rowsByDay,
-          file_lines: preview.allLines.length,
-          expected_new_efs_lines: expectedNewEfs,
-          expected_new_fuel_events: preview.newFuel.length,
-          db_efs_lines: efsCount ?? null,
-          db_fuel_events: fuelCount ?? null,
-          shortfall_fuel_events: fuelCount == null ? null : Math.max(0, preview.newFuel.length - fuelCount),
-          shortfall_efs_lines: efsCount == null ? null : Math.max(0, expectedNewEfs - efsCount),
-        };
-        await supabase.from("imports").update({ summary }).eq("id", importId);
-      } else if (preview.kind === "reject") {
-        const { count: decCount } = await supabase
-          .from("declined_transactions")
-          .select("id", { count: "exact", head: true })
-          .eq("import_id", importId);
-        const summary = {
-          report_from: preview.reportFrom,
-          report_to: preview.reportTo,
-          rows_by_day: preview.rowsByDay,
-          expected_new_declines: preview.newDeclined.length,
-          db_declines: decCount ?? null,
-          shortfall_declines: decCount == null ? null : Math.max(0, preview.newDeclined.length - decCount),
-        };
-        await supabase.from("imports").update({ summary }).eq("id", importId);
-      }
-
       if (preview.kind === "reject" && preview.newDeclined.length) {
         const declinedRows = preview.newDeclined.map((d) => ({
           org_id,
@@ -344,6 +314,52 @@ export function useCommitImport() {
         // Score the declined attempts for theft signals in the background.
         await apiFetch("/api/transactions/score-declined-import", { method: "POST", body: { importId } });
       }
+
+      // 3) Post-commit reconciliation (runs LAST, after every insert): VERIFY what actually landed
+      // vs what the file contained, persist it on the import row, and return the shortfall so the
+      // UI can warn immediately. Silent losses (dedupe collisions, constraint drops) become visible
+      // numbers instead of being discovered weeks later on the dashboard.
+      let shortfallRows: number | null = null;
+      if (preview.kind === "transaction") {
+        const [{ count: efsCount }, { count: fuelCount }] = await Promise.all([
+          supabase.from("efs_transactions").select("id", { count: "exact", head: true }).eq("import_id", importId),
+          supabase.from("fuel_transactions").select("id", { count: "exact", head: true }).eq("import_id", importId),
+        ]);
+        const expectedNewEfs = preview.allLines.length - preview.duplicateEfsCount;
+        const shortEfs = efsCount == null ? null : Math.max(0, expectedNewEfs - efsCount);
+        const shortFuel = fuelCount == null ? null : Math.max(0, preview.newFuel.length - fuelCount);
+        shortfallRows = shortEfs == null && shortFuel == null ? null : (shortEfs ?? 0) + (shortFuel ?? 0);
+        const summary = {
+          report_from: preview.reportFrom,
+          report_to: preview.reportTo,
+          rows_by_day: preview.rowsByDay,
+          file_lines: preview.allLines.length,
+          expected_new_efs_lines: expectedNewEfs,
+          expected_new_fuel_events: preview.newFuel.length,
+          db_efs_lines: efsCount ?? null,
+          db_fuel_events: fuelCount ?? null,
+          shortfall_efs_lines: shortEfs,
+          shortfall_fuel_events: shortFuel,
+        };
+        await supabase.from("imports").update({ summary }).eq("id", importId);
+      } else if (preview.kind === "reject") {
+        const { count: decCount } = await supabase
+          .from("declined_transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("import_id", importId);
+        shortfallRows = decCount == null ? null : Math.max(0, preview.newDeclined.length - decCount);
+        const summary = {
+          report_from: preview.reportFrom,
+          report_to: preview.reportTo,
+          rows_by_day: preview.rowsByDay,
+          expected_new_declines: preview.newDeclined.length,
+          db_declines: decCount ?? null,
+          shortfall_declines: shortfallRows,
+        };
+        await supabase.from("imports").update({ summary }).eq("id", importId);
+      }
+
+      return { shortfallRows };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["efs_transactions"] });

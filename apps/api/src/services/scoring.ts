@@ -250,7 +250,6 @@ export async function scoreTransaction(
       .order("id", { ascending: false })
       .limit(12);
     const rows = (prevRows ?? []) as FtxnRow[];
-    previousTxn = rows.length ? toTxnView(rows[0]!) : null;
 
     const candidateIds = rows.map((x) => x.id);
     let badIds = new Set<string>();
@@ -263,6 +262,11 @@ export async function scoreTransaction(
         .in("rule_id", ODOMETER_RULE_IDS);
       badIds = new Set((anoms ?? []).map((a) => a.transaction_id as string));
     }
+    // Previous fill = the most recent fill whose odometer is NOT already flagged as anomalous.
+    // Comparing against a known-bad reading (a typo) cascaded false regressions / MPG anomalies onto
+    // every correct entry that followed it — same exclusion recentTxns has always applied.
+    const prevRow = rows.find((x) => !badIds.has(x.id)) ?? null;
+    previousTxn = prevRow ? toTxnView(prevRow) : null;
     recentTxns = rows.filter((x) => !badIds.has(x.id)).slice(0, 6).map(toTxnView).reverse();
 
     const { data: winRows } = await admin
@@ -371,15 +375,23 @@ export async function scoreTransaction(
 
   if (txn.vehicleId) {
     const vehUpdate: Record<string, unknown> = {};
-    const { data: maxRow } = await admin
-      .from("fuel_transactions")
-      .select("odometer")
-      .eq("vehicle_id", txn.vehicleId)
-      .not("odometer", "is", null)
-      .order("odometer", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (maxRow?.odometer != null) vehUpdate.current_odometer = maxRow.odometer;
+    // vehicles.current_odometer:
+    //  - Samsara-linked truck → the periodic sync owns it (OBD reading, authoritative). Never
+    //    overwrite it with a driver-entered value.
+    //  - Unlinked truck → LATEST entered odometer, not MAX: one fat-fingered 9,999,999 under MAX
+    //    poisoned the value forever; "latest" self-heals on the next correct entry.
+    if (!samsaraVehicleId) {
+      const { data: lastRow } = await admin
+        .from("fuel_transactions")
+        .select("odometer")
+        .eq("vehicle_id", txn.vehicleId)
+        .not("odometer", "is", null)
+        .order("fueled_at", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastRow?.odometer != null) vehUpdate.current_odometer = lastRow.odometer;
+    }
 
     // Auto-derive baseline MPG from the vehicle's own fuel history when it isn't set (Samsara has no
     // MPG). effectiveBaseline returns the median of recent computed MPG once there are ≥3 valid fills.
