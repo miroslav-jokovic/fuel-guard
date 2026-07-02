@@ -5,6 +5,7 @@ import { useTransaction, useAnomalyTransition } from "./useAnomalies";
 import { useAiVerification, useAiExamine } from "@/features/ai/useAiVerification";
 import AiAssessmentCard from "@/features/ai/AiAssessmentCard.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
+import { BADGE_BASE, severityTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 
 const props = defineProps<{ anomaly: Anomaly; vehicleUnit: string }>();
@@ -19,18 +20,7 @@ const transition = useAnomalyTransition();
 const toast = useToastStore();
 const note = ref("");
 
-const sevBadge = computed(() => {
-  switch (props.anomaly.severity) {
-    case "critical":
-      return "bg-red-100 text-red-800";
-    case "high":
-      return "bg-orange-100 text-orange-800";
-    case "medium":
-      return "bg-amber-100 text-amber-800";
-    default:
-      return "bg-gray-100 text-gray-600";
-  }
-});
+const sevBadge = computed(() => severityTone(props.anomaly.severity));
 
 interface CaseSignal { ruleId: string; axis: string; weight: number; severity: string; message: string }
 const ev = computed(() => (props.anomaly.evidence ?? {}) as Record<string, unknown>);
@@ -91,7 +81,7 @@ async function reexamine() {
 <template>
   <div class="space-y-5">
     <div class="flex flex-wrap items-center gap-2">
-      <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize', sevBadge]">{{ anomaly.severity }}</span>
+      <span :class="[BADGE_BASE, sevBadge]">{{ anomaly.severity }}</span>
       <StatusBadge :status="anomaly.status" />
       <span class="text-xs text-gray-500" :title="anomaly.rule_id">{{ formatRuleId(anomaly.rule_id) }}</span>
     </div>

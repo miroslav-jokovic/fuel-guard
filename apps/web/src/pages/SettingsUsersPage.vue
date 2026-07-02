@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { MagnifyingGlassIcon } from "@heroicons/vue/20/solid";
 import { USER_ROLES, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import AppSelect from "@/components/AppSelect.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
+import { BADGE_BASE, inviteTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
 
@@ -85,6 +88,41 @@ async function removeMember(userId: string) {
   }
 }
 
+// ── search + multi-select (members) ─────────────────────────────────────────
+const search = ref("");
+const filteredMembers = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  if (!q) return members.value;
+  return members.value.filter((m) => (m.email ?? m.userId).toLowerCase().includes(q) || m.role.toLowerCase().includes(q));
+});
+const removableMembers = computed(() => filteredMembers.value.filter((m) => m.userId !== session.userId));
+
+const selectedIds = ref<Set<string>>(new Set());
+const allChecked = computed(() => removableMembers.value.length > 0 && removableMembers.value.every((m) => selectedIds.value.has(m.userId)));
+function toggleRow(id: string) {
+  const next = new Set(selectedIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selectedIds.value = next;
+}
+function toggleAll() {
+  const next = new Set(selectedIds.value);
+  if (allChecked.value) removableMembers.value.forEach((m) => next.delete(m.userId));
+  else removableMembers.value.forEach((m) => next.add(m.userId));
+  selectedIds.value = next;
+}
+const bulkBusy = ref(false);
+async function bulkRemove() {
+  const ids = [...selectedIds.value];
+  if (ids.length === 0 || !confirm(`Remove ${ids.length} member${ids.length > 1 ? "s" : ""}?`)) return;
+  bulkBusy.value = true;
+  for (const id of ids) await apiFetch(`/api/members/${id}`, { method: "DELETE" });
+  bulkBusy.value = false;
+  selectedIds.value = new Set();
+  toast.success("Members removed");
+  await load();
+}
+
 onMounted(load);
 </script>
 
@@ -126,34 +164,60 @@ onMounted(load);
     </section>
 
     <section class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div class="border-b border-gray-200 px-6 py-4">
+      <div class="flex flex-col gap-3 border-b border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <h3 class="text-base font-semibold text-gray-900">Active members</h3>
+        <div class="relative">
+          <MagnifyingGlassIcon class="pointer-events-none absolute top-2.5 left-2.5 size-4 text-gray-400" />
+          <input
+            v-model="search"
+            type="search"
+            placeholder="Search members…"
+            class="w-full rounded-md border-0 py-1.5 pr-3 pl-8 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:w-64"
+          />
+        </div>
       </div>
+
+      <div v-if="selectedIds.size > 0" class="flex items-center justify-between bg-indigo-50 px-6 py-2.5 text-sm">
+        <span class="font-medium text-indigo-900">{{ selectedIds.size }} selected</span>
+        <div class="flex items-center gap-3">
+          <button :disabled="bulkBusy" class="font-medium text-red-600 hover:text-red-500 disabled:opacity-50" @click="bulkRemove">Remove</button>
+          <button class="font-medium text-gray-500 hover:text-gray-700" @click="selectedIds = new Set()">Clear</button>
+        </div>
+      </div>
+
       <div v-if="loading" class="px-6 py-8 text-sm text-gray-500">Loading…</div>
-      <p v-else-if="members.length === 0" class="px-6 py-8 text-sm text-gray-500">No members yet.</p>
+      <p v-else-if="filteredMembers.length === 0" class="px-6 py-8 text-sm text-gray-500">No members match.</p>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
         <thead>
           <tr class="text-left text-gray-500">
-            <th class="px-6 py-3 font-medium">Email</th>
-            <th class="px-6 py-3 font-medium">Role</th>
-            <th class="px-6 py-3 font-medium">Joined</th>
-            <th class="px-6 py-3"></th>
+            <th class="w-10 px-4 py-3">
+              <input type="checkbox" :checked="allChecked" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" @change="toggleAll" />
+            </th>
+            <th class="px-4 py-3 font-medium">Email</th>
+            <th class="px-4 py-3 font-medium">Role</th>
+            <th class="px-4 py-3 font-medium">Joined</th>
+            <th class="px-4 py-3"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="m in members" :key="m.userId">
-            <td class="px-6 py-3 text-gray-900">{{ m.email ?? m.userId }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ m.role }}</td>
-            <td class="px-6 py-3 text-gray-500">{{ new Date(m.joinedAt).toLocaleDateString() }}</td>
-            <td class="px-6 py-3 text-right">
-              <button
+          <tr v-for="m in filteredMembers" :key="m.userId" class="hover:bg-gray-50">
+            <td class="px-4 py-3">
+              <input
                 v-if="m.userId !== session.userId"
-                class="text-sm font-medium text-red-600 hover:text-red-500"
-                @click="removeMember(m.userId)"
-              >
-                Remove
-              </button>
+                type="checkbox"
+                :checked="selectedIds.has(m.userId)"
+                class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                @change="toggleRow(m.userId)"
+              />
+            </td>
+            <td class="px-4 py-3 text-gray-900">{{ m.email ?? m.userId }}</td>
+            <td class="px-4 py-3 text-gray-700 capitalize">{{ m.role }}</td>
+            <td class="px-4 py-3 text-gray-500">{{ new Date(m.joinedAt).toLocaleDateString() }}</td>
+            <td class="px-4 py-3 text-right">
+              <KebabMenu v-if="m.userId !== session.userId">
+                <button class="kebab-item kebab-item-danger" @click="removeMember(m.userId)">Remove member</button>
+              </KebabMenu>
               <span v-else class="text-xs text-gray-400">You</span>
             </td>
           </tr>
@@ -181,37 +245,15 @@ onMounted(load);
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="inv in invites" :key="inv.id">
+          <tr v-for="inv in invites" :key="inv.id" class="hover:bg-gray-50">
             <td class="px-6 py-3 text-gray-900">{{ inv.email }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ inv.role }}</td>
-            <td class="px-6 py-3">
-              <span
-                :class="[
-                  'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-                  inv.status === 'pending'
-                    ? 'bg-amber-100 text-amber-800'
-                    : inv.status === 'accepted'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-600',
-                ]"
-                >{{ inv.status }}</span
-              >
-            </td>
+            <td class="px-6 py-3 text-gray-700 capitalize">{{ inv.role }}</td>
+            <td class="px-6 py-3"><span :class="[BADGE_BASE, inviteTone(inv.status)]">{{ inv.status }}</span></td>
             <td class="px-6 py-3 text-right">
-              <button
-                v-if="inv.status === 'pending'"
-                class="text-sm font-medium text-red-600 hover:text-red-500"
-                @click="revoke(inv.id)"
-              >
-                Revoke
-              </button>
-              <button
-                v-else-if="inv.status === 'revoked' || inv.status === 'expired'"
-                class="text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                @click="resend(inv.id)"
-              >
-                Resend
-              </button>
+              <KebabMenu v-if="inv.status === 'pending' || inv.status === 'revoked' || inv.status === 'expired'">
+                <button v-if="inv.status === 'pending'" class="kebab-item kebab-item-danger" @click="revoke(inv.id)">Revoke invite</button>
+                <button v-else class="kebab-item" @click="resend(inv.id)">Resend invite</button>
+              </KebabMenu>
             </td>
           </tr>
         </tbody>

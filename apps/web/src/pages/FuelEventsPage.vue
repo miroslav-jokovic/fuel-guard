@@ -68,7 +68,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
               <td class="px-6 py-3 whitespace-nowrap text-gray-700">{{ fmt(ev.happened_at) }}</td>
               <td class="px-6 py-3 text-gray-900">{{ unit(ev.vehicle_id) }}</td>
               <td class="px-6 py-3">
-                <span class="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                <span class="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-600/20 ring-inset">
                   {{ ev.drop_pct != null ? `−${ev.drop_pct}%` : "Fuel drop" }}
                 </span>
               </td>

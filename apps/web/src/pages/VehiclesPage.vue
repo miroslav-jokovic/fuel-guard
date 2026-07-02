@@ -215,12 +215,12 @@ async function onRetire(v: Vehicle) {
             <td class="px-6 py-3 capitalize text-gray-700">{{ v.fuel_type }}</td>
             <td class="px-6 py-3 text-gray-700">
               <span v-if="Number(v.tank_capacity_gal) > 0">{{ v.tank_capacity_gal }} gal</span>
-              <span v-else-if="needsSetup(v)" class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Set tank</span>
+              <span v-else-if="needsSetup(v)" class="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20 ring-inset">Set tank</span>
               <span v-else class="text-gray-400">—</span>
             </td>
             <td class="px-6 py-3 text-gray-700">
               <span v-if="v.baseline_mpg">{{ v.baseline_mpg }}</span>
-              <span v-else-if="needsSetup(v)" class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Set MPG</span>
+              <span v-else-if="needsSetup(v)" class="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20 ring-inset">Set MPG</span>
               <span v-else class="text-gray-400">—</span>
             </td>
             <td class="px-6 py-3 text-gray-700">

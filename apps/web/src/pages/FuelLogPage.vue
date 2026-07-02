@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { PlusIcon } from "@heroicons/vue/20/solid";
-import { fuelTxnStatus, type FillUpInput, type TxnStatus } from "@fuelguard/shared";
+import { fuelTxnStatus, type FillUpInput } from "@fuelguard/shared";
+import { BADGE_BASE, txnStatusTone } from "@/lib/badges";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useFuelTransactions, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
@@ -49,12 +50,6 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleString();
 
-const STATUS_BADGE: Record<TxnStatus, string> = {
-  alert: "bg-red-100 text-red-800",
-  review: "bg-amber-100 text-amber-800",
-  verified: "bg-green-100 text-green-800",
-  clear: "bg-gray-100 text-gray-600",
-};
 const clearCount = computed(() => rows.value.filter((t) => !t.has_anomaly).length);
 </script>
 
@@ -118,7 +113,7 @@ const clearCount = computed(() => rows.value.filter((t) => !t.has_anomaly).lengt
             <td class="px-6 py-3">
               <div class="flex items-center gap-1.5">
                 <span
-                  :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium', STATUS_BADGE[fuelTxnStatus(t).status]]"
+                  :class="[BADGE_BASE, txnStatusTone(fuelTxnStatus(t).status)]"
                   :title="fuelTxnStatus(t).locationConfirmed ? 'Location confirmed by Samsara' : undefined"
                   >{{ fuelTxnStatus(t).label }}</span
                 >
