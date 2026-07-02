@@ -28,6 +28,9 @@ const EnvSchema = z.object({
   // single-tenant fallback. SAMSARA_API_URL lets tests point elsewhere.
   SAMSARA_API_TOKEN: z.string().optional(),
   SAMSARA_API_URL: z.string().url().default("https://api.samsara.com"),
+  // Base64 secret from the Samsara webhook config — used to verify incoming siphoning-alert webhooks.
+  // When unset, the webhook endpoint rejects everything (fail-closed).
+  SAMSARA_WEBHOOK_SECRET: z.string().optional(),
   // Background auto-sync cadence (hours). 0 disables the scheduler (manual "Sync" button still works).
   SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),
   // Geocoding for the location proximity check. Uses OpenStreetMap/Nominatim (free, no key) by default;

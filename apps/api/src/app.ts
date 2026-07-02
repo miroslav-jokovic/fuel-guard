@@ -16,6 +16,7 @@ import { transactionsRouter } from "./routes/transactions.js";
 import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
 import { integrationsRouter } from "./routes/integrations.js";
+import { webhooksRouter } from "./routes/webhooks.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -47,7 +48,15 @@ export function createApp(env: Env): Express {
     }),
   );
   app.use(cors({ origin: env.ALLOWED_ORIGINS, credentials: true }));
-  app.use(express.json({ limit: "1mb" }));
+  // Capture the exact raw body so provider webhooks (Samsara) can be HMAC-verified byte-for-byte.
+  app.use(
+    express.json({
+      limit: "1mb",
+      verify: (req, _res, buf) => {
+        (req as unknown as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
 
   // Rate limiting (audit M8): a general API cap + a stricter cap on sensitive/expensive routes.
   const apiLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 600, standardHeaders: "draft-7", legacyHeaders: false });
@@ -77,6 +86,7 @@ export function createApp(env: Env): Express {
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());
   app.use("/api/integrations", integrationsRouter());
+  app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 
   // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────
   // Only when the build output exists, so API-only/dev runs and tests are unaffected.
