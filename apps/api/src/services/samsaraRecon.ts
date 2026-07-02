@@ -3,6 +3,9 @@ import {
   parseSamsaraSamples,
   matchFuelingMoment,
   matchFuelingStop,
+  minSampleDistanceMiles,
+  resolveLocationConfidence,
+  type LocationConfidence,
   parseFuelPercents,
   tankPercentNear,
   reconcileTankFill,
@@ -10,6 +13,10 @@ import {
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
+import { geocodeStation, type Coords } from "./geocode.js";
+
+/** Injectable geocoder so tests can run without a network provider. */
+export type StationGeocoder = (station: { name: string | null; city: string | null; state: string | null }) => Promise<Coords | null>;
 
 export interface ReconInput {
   vehicleId: string | null;
@@ -30,6 +37,11 @@ export interface ReconResult {
   crossSourceOdometer: number | null;
   /** Truck in the SAME state as the EFS station at the fueling time? false = mismatch, null = unknown. */
   locationMatched: boolean | null;
+  /** Confidence tier: gps_confirmed | in_state | mismatch | unknown. */
+  locationConfidence: LocationConfidence | null;
+  /** Geocoded station coordinates we measured proximity against (null if not geocoded). */
+  stationLat: number | null;
+  stationLng: number | null;
   /** Evidence behind a location decision (EFS vs Samsara city/state). */
   locationEvidence: Record<string, unknown> | null;
   /** Telematics-recovered fueling time (fixes EFS date-only) — null if unmatched. */
@@ -52,6 +64,7 @@ export async function reconcileWithSamsara(
   orgId: string,
   input: ReconInput,
   fetcherOverride?: SamsaraFetcher,
+  geocodeOverride?: StationGeocoder,
 ): Promise<ReconResult | null> {
   if (!input.samsaraVehicleId) return null;
   const token = fetcherOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
@@ -78,29 +91,44 @@ export async function reconcileWithSamsara(
   const samples = parseSamsaraSamples(vehicle as Parameters<typeof parseSamsaraSamples>[0]);
   const vehicleRaw = vehicle as Parameters<typeof parseFuelPercents>[0];
 
-  // ── Precise path: timezone-PROOF presence check over the whole day. Location matches when the truck
-  // was in the EFS state at any point that day; a mismatch is raised only when we have solid GPS coverage
-  // and the truck was never in that state. Odometer is read at the best stop (in-city > in-state). ──
+  // Geocode the station once (cached) and measure how close the truck's GPS came to it that day — the
+  // most precise location signal. Best-effort: null when geocoding is off/unresolvable, and we fall
+  // back to the state-level presence check.
+  const geocode: StationGeocoder = geocodeOverride ?? ((s) => geocodeStation(admin, env, s));
+  const stationCoords = await geocode({ name: input.locationName, city: input.city, state: input.state }).catch(() => null);
+  const proximityMiles = stationCoords ? minSampleDistanceMiles(samples, stationCoords.lat, stationCoords.lng) : null;
+  const proxThreshold = env.GEOCODE_PROX_MILES;
+  const stationLat = stationCoords?.lat ?? null;
+  const stationLng = stationCoords?.lng ?? null;
+
+  // ── Precise path: timezone-PROOF presence check over the whole day, corroborated by GPS proximity to
+  // the geocoded station. Location matches when the truck came near the station OR was in the EFS state
+  // that day; a mismatch is raised only when we have solid coverage and neither holds. ──
   if (input.preciseTime) {
     const stop = matchFuelingStop(samples, { state: input.state, city: input.city }, input.fueledAt, { stoppedMph: 5 });
-    if (stop.odometerMiles == null && stop.locationMatched == null) {
+    const { confidence, matched } = resolveLocationConfidence(stop, proximityMiles, proxThreshold);
+    if (stop.odometerMiles == null && matched == null) {
       // No usable GPS coverage that day → can't verify anything (unknown, no flag).
-      return { crossSourceOdometer: null, locationMatched: null, locationEvidence: null, matchedAt: null, tankFillShortGal: null, tankObservedRiseGal: null };
+      return { crossSourceOdometer: null, locationMatched: null, locationConfidence: "unknown", stationLat, stationLng, locationEvidence: null, matchedAt: null, tankFillShortGal: null, tankObservedRiseGal: null };
     }
     const at = stop.matchedAt ?? input.fueledAt;
     const tank = computeTankFill(vehicleRaw, at, input.gallons, input.tankCapacityGal);
     return {
       crossSourceOdometer: stop.odometerMiles,
-      locationMatched: stop.locationMatched,
+      locationMatched: matched,
+      locationConfidence: confidence,
+      stationLat,
+      stationLng,
       locationEvidence:
-        stop.locationMatched === false
+        confidence === "mismatch"
           ? {
               efsCity: input.city,
               efsState: input.state,
               samsaraState: stop.observedState,
               samsaraCity: stop.observedCity,
               samsaraAddress: stop.observedAddress,
-              note: `Samsara shows the truck was never in ${input.state ?? "the EFS state"} at any point across the fueling day — the card was used where the truck was not.`,
+              nearestMilesToStation: proximityMiles,
+              note: `Samsara shows the truck was never in ${input.state ?? "the EFS state"} at any point across the fueling day${proximityMiles != null ? ` and came no closer than ${proximityMiles} mi to the station` : ""} — the card was used where the truck was not.`,
             }
           : null,
       matchedAt: stop.matchedAt,
@@ -109,20 +137,34 @@ export async function reconcileWithSamsara(
     };
   }
 
-  // ── Date-only fallback: no exact time, so location can't be verified (never flag). Recover the
-  // odometer from the best stopped-in-city sample if we can; leave location UNKNOWN. ──
+  // ── Date-only fallback: no exact time. We never raise a location mismatch, but GPS proximity can still
+  // positively CONFIRM the fill (verified). Recover the odometer from the best stopped-in-city sample. ──
+  const nearStation = proximityMiles != null && proximityMiles <= proxThreshold;
   const match = matchFuelingMoment(samples, {
     city: input.city,
     state: input.state,
     stationName: input.locationName,
   });
   if (!match) {
-    return { crossSourceOdometer: null, locationMatched: null, locationEvidence: null, matchedAt: null, tankFillShortGal: null, tankObservedRiseGal: null };
+    return {
+      crossSourceOdometer: null,
+      locationMatched: nearStation ? true : null,
+      locationConfidence: nearStation ? "gps_confirmed" : "unknown",
+      stationLat,
+      stationLng,
+      locationEvidence: null,
+      matchedAt: null,
+      tankFillShortGal: null,
+      tankObservedRiseGal: null,
+    };
   }
   const tank = computeTankFill(vehicleRaw, match.matchedAt, input.gallons, input.tankCapacityGal);
   return {
     crossSourceOdometer: match.samsaraOdometerMiles,
-    locationMatched: null, // date-only: not confident enough to flag location
+    locationMatched: nearStation ? true : null, // date-only: confirm only via proximity, never flag
+    locationConfidence: nearStation ? "gps_confirmed" : "unknown",
+    stationLat,
+    stationLng,
     locationEvidence: null,
     matchedAt: match.matchedAt,
     tankFillShortGal: tank?.shortGal ?? null,

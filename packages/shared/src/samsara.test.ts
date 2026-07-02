@@ -18,6 +18,8 @@ import {
   compareLocationState,
   matchFuelingStop,
   approxFuelingUtcMs,
+  minSampleDistanceMiles,
+  resolveLocationConfidence,
 } from "./index.js";
 
 describe("metersToMiles", () => {
@@ -327,6 +329,28 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     const r = matchFuelingStop(samples, { state: null }, "2026-06-30T14:30:00", { stoppedMph: 5 });
     expect(r.odometerMiles).toBe(100150);
     expect(r.locationMatched).toBeNull();
+  });
+
+  it("minSampleDistanceMiles finds the closest GPS approach to a point", () => {
+    const samples = [
+      { time: "t1", lat: 42.11, lng: -72.08, speedMph: 60, address: null, odometerMiles: null }, // ~near Sturbridge MA
+      { time: "t2", lat: 44.6, lng: -69.55, speedMph: 0, address: null, odometerMiles: null }, // Benton ME (far)
+    ];
+    // Sturbridge, MA ≈ (42.1057, -72.0784)
+    const d = minSampleDistanceMiles(samples, 42.1057, -72.0784);
+    expect(d).not.toBeNull();
+    expect(d!).toBeLessThan(5); // the first sample is essentially at the station
+  });
+
+  it("resolveLocationConfidence: proximity confirms; else falls back to state presence", () => {
+    // GPS came within the radius → confirmed regardless of state result
+    expect(resolveLocationConfidence({ locationMatched: false }, 3, 20)).toEqual({ confidence: "gps_confirmed", matched: true });
+    // No proximity, but truck was in-state → in_state
+    expect(resolveLocationConfidence({ locationMatched: true }, null, 20)).toEqual({ confidence: "in_state", matched: true });
+    // No proximity and never in-state → mismatch
+    expect(resolveLocationConfidence({ locationMatched: false }, 120, 20)).toEqual({ confidence: "mismatch", matched: false });
+    // Unknown coverage
+    expect(resolveLocationConfidence({ locationMatched: null }, null, 20)).toEqual({ confidence: "unknown", matched: null });
   });
 
   it("approxFuelingUtcMs shifts local time by the station-state offset", () => {

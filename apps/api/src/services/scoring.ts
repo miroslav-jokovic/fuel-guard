@@ -17,7 +17,7 @@ import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_recon_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_recon_at";
 
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -59,6 +59,9 @@ interface FtxnRow {
   location_text: string | null;
   samsara_odometer: number | string | null;
   samsara_location_matched: boolean | null;
+  samsara_location_confidence: string | null;
+  station_lat: number | string | null;
+  station_lng: number | string | null;
   samsara_tank_short_gal: number | string | null;
   samsara_tank_observed_gal: number | string | null;
   samsara_recon_at: string | null;
@@ -146,6 +149,9 @@ export async function scoreTransaction(
   // ── Samsara reconciliation: the ±5 odometer truth + recovered fueling time + location check ──
   let crossSourceOdometer: number | null = null;
   let samsaraLocationMatched: boolean | null = null;
+  let locationConfidence: string | null = null;
+  let stationLat: number | null = null;
+  let stationLng: number | null = null;
   let locationEvidence: Record<string, unknown> | null = null;
   let reconAt: string | null = null;
   let tankFillShortGal: number | null = null;
@@ -158,6 +164,9 @@ export async function scoreTransaction(
     // fueled_at is already the telematics-recovered time (recon rewrote it), so precision follows suit.
     crossSourceOdometer = n(r.samsara_odometer);
     samsaraLocationMatched = r.samsara_location_matched ?? null;
+    locationConfidence = r.samsara_location_confidence ?? null;
+    stationLat = n(r.station_lat);
+    stationLng = n(r.station_lng);
     tankFillShortGal = n(r.samsara_tank_short_gal);
     tankObservedRiseGal = n(r.samsara_tank_observed_gal);
     reconAt = r.samsara_recon_at ?? null;
@@ -177,6 +186,9 @@ export async function scoreTransaction(
     if (recon) {
       crossSourceOdometer = recon.crossSourceOdometer;
       samsaraLocationMatched = recon.locationMatched;
+      locationConfidence = recon.locationConfidence;
+      stationLat = recon.stationLat;
+      stationLng = recon.stationLng;
       locationEvidence = recon.locationEvidence;
       reconAt = recon.matchedAt;
       tankFillShortGal = recon.tankFillShortGal;
@@ -296,6 +308,9 @@ export async function scoreTransaction(
       max_severity: maxSeverity(fired),
       samsara_odometer: crossSourceOdometer,
       samsara_location_matched: samsaraLocationMatched,
+      samsara_location_confidence: locationConfidence,
+      station_lat: stationLat,
+      station_lng: stationLng,
       samsara_tank_short_gal: tankFillShortGal,
       samsara_tank_observed_gal: tankObservedRiseGal,
       samsara_recon_at: reconAt,

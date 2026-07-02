@@ -96,6 +96,8 @@ export interface AiVerificationContext {
     samsara_odometer: number | null;
     /** true = truck was stopped in the EFS station's state; false = it was in a different state; null = unknown. */
     location_matched: boolean | null;
+    /** Confidence tier: gps_confirmed (came within ~20mi of the geocoded station) | in_state | mismatch | unknown. */
+    location_confidence: string | null;
     /** Gallons billed minus observed tank rise (advisory); null = not measurable. */
     tank_short_gal: number | null;
     reconciled_at: string | null;

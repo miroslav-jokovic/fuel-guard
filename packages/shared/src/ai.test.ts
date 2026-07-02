@@ -64,7 +64,7 @@ const ctx: AiVerificationContext = {
   implied_speed_mph: null,
   operating_hours: { start: "05:00", end: "20:00", tz: "America/Chicago" },
   attribution: { attributed: true, vehicle_unit: "T-101", efs_unit_text: "101", driver_name: "Sam Diaz" },
-  cross_source: { samsara_odometer: 184228, location_matched: true, tank_short_gal: null, reconciled_at: null },
+  cross_source: { samsara_odometer: 184228, location_matched: true, location_confidence: "gps_confirmed", tank_short_gal: null, reconciled_at: null },
 };
 
 describe("aiInputHash", () => {

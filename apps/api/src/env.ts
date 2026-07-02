@@ -30,6 +30,12 @@ const EnvSchema = z.object({
   SAMSARA_API_URL: z.string().url().default("https://api.samsara.com"),
   // Background auto-sync cadence (hours). 0 disables the scheduler (manual "Sync" button still works).
   SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),
+  // Geocoding for the location proximity check. Uses OpenStreetMap/Nominatim (free, no key) by default;
+  // results are cached in geocode_cache so each station is looked up once. Set GEOCODING_ENABLED=false
+  // to turn off. GEOCODE_PROX_MILES = how close the truck's GPS must come to the station to "confirm".
+  GEOCODING_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
+  GEOCODE_URL: z.string().url().default("https://nominatim.openstreetmap.org/search"),
+  GEOCODE_PROX_MILES: z.coerce.number().min(1).default(20),
   // Re-score every transaction with the current rules once, shortly after each boot/deploy (rules-only,
   // no live Samsara calls — cheap + idempotent). Set to "false" to disable.
   REBUILD_ON_BOOT: z

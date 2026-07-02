@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { PlusIcon } from "@heroicons/vue/20/solid";
-import type { FillUpInput } from "@fuelguard/shared";
+import { fuelTxnStatus, type FillUpInput, type TxnStatus } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useFuelTransactions, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
@@ -48,6 +48,14 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
 }
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleString();
+
+const STATUS_BADGE: Record<TxnStatus, string> = {
+  alert: "bg-red-100 text-red-800",
+  review: "bg-amber-100 text-amber-800",
+  verified: "bg-green-100 text-green-800",
+  clear: "bg-gray-100 text-gray-600",
+};
+const clearCount = computed(() => rows.value.filter((t) => !t.has_anomaly).length);
 </script>
 
 <template>
@@ -71,6 +79,10 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
       </button>
     </div>
 
+    <p v-if="!isLoading && !isError && rows.length" class="text-sm text-gray-500">
+      <span class="font-medium text-green-700">{{ clearCount }}</span> of {{ rows.length }} shown are clear — only flagged fills need review.
+    </p>
+
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
       <TableSkeleton v-if="isLoading" :cols="7" />
       <ErrorState
@@ -92,7 +104,7 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
             <th class="px-6 py-3 font-medium">Gallons</th>
             <th class="px-6 py-3 font-medium">$/gal</th>
             <th class="px-6 py-3 font-medium">MPG</th>
-            <th class="px-6 py-3 font-medium">Flag</th>
+            <th class="px-6 py-3 font-medium">Status</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
@@ -104,11 +116,17 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
             <td class="px-6 py-3 text-gray-700">{{ t.price_per_gal ?? "—" }}</td>
             <td class="px-6 py-3 text-gray-700">{{ t.computed_mpg ?? "—" }}</td>
             <td class="px-6 py-3">
-              <div class="flex items-center gap-1">
+              <div class="flex items-center gap-1.5">
                 <span
-                  v-if="t.has_anomaly"
-                  class="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
-                  >{{ t.max_severity ?? "flagged" }}</span
+                  :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium', STATUS_BADGE[fuelTxnStatus(t).status]]"
+                  :title="fuelTxnStatus(t).locationConfirmed ? 'Location confirmed by Samsara' : undefined"
+                  >{{ fuelTxnStatus(t).label }}</span
+                >
+                <span
+                  v-if="fuelTxnStatus(t).locationConfirmed && !t.has_anomaly"
+                  class="text-green-600"
+                  title="Location confirmed by Samsara"
+                  >✓</span
                 >
                 <span
                   v-if="t.ai_risk_level"
@@ -116,7 +134,6 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString();
                   title="AI risk level"
                   >AI: {{ t.ai_risk_level }}</span
                 >
-                <span v-if="!t.has_anomaly && !t.ai_risk_level" class="text-gray-300">—</span>
               </div>
             </td>
           </tr>

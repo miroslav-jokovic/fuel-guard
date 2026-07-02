@@ -290,6 +290,52 @@ export function matchFuelingStop(
   return { odometerMiles: null, matchedAt: null, locationMatched: null, basis: "no_coverage", observedState: null, observedCity: null, observedAddress: null };
 }
 
+/**
+ * Location confidence, from strongest to weakest:
+ *  - gps_confirmed: the truck's GPS came within the proximity radius of the geocoded station.
+ *  - in_state:      the truck was in the EFS station's state that day (no station coords to be precise).
+ *  - mismatch:      solid GPS coverage, but the truck was never in that state / never near the station.
+ *  - unknown:       not enough GPS coverage (or no geocode) to say.
+ */
+export type LocationConfidence = "gps_confirmed" | "in_state" | "mismatch" | "unknown";
+
+/** Smallest great-circle distance (miles) from any GPS sample to a point; null if no sample has coords. */
+export function minSampleDistanceMiles(
+  samples: SamsaraSample[],
+  lat: number,
+  lng: number,
+): number | null {
+  let min: number | null = null;
+  for (const s of samples) {
+    if (s.lat == null || s.lng == null) continue;
+    const d = haversineMiles(s.lat, s.lng, lat, lng);
+    if (min == null || d < min) min = d;
+  }
+  return min == null ? null : Math.round(min * 10) / 10;
+}
+
+/**
+ * Combine the full-day state presence (from matchFuelingStop) with an optional GPS-proximity check to
+ * the geocoded station into a single confidence + boolean. Proximity, when available, is the most
+ * precise signal and can CONFIRM a fill the state check left as false/unknown — but a failed/absent
+ * proximity never invents a mismatch on its own (the state check governs that). Result:
+ *  - matched=true  for gps_confirmed and in_state
+ *  - matched=false for mismatch
+ *  - matched=null  for unknown
+ */
+export function resolveLocationConfidence(
+  stop: Pick<FuelingStopMatch, "locationMatched">,
+  proximityMiles: number | null,
+  proxThresholdMiles: number,
+): { confidence: LocationConfidence; matched: boolean | null } {
+  if (proximityMiles != null && proximityMiles <= proxThresholdMiles) {
+    return { confidence: "gps_confirmed", matched: true };
+  }
+  if (stop.locationMatched === true) return { confidence: "in_state", matched: true };
+  if (stop.locationMatched === false) return { confidence: "mismatch", matched: false };
+  return { confidence: "unknown", matched: null };
+}
+
 export interface OdometerReconciliation {
   mismatch: boolean;
   diffMiles: number;

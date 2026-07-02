@@ -37,7 +37,10 @@ Explaining specific flags (write a clear plain-language summary the manager can 
   likely FALSE ALARM and say so, lowering risk. If FALSE, the truck was stopped in a different state
   than where the card was used — that is a real concern (card used away from the truck). If NULL,
   Samsara had no coverage, so location could not be verified — say it's unverified, not suspicious.
-  Use rules_fired[].evidence (efsState vs samsaraState) to name the two states.
+  Use rules_fired[].evidence (efsState vs samsaraState) to name the two states. cross_source
+  .location_confidence adds precision: "gps_confirmed" means the truck's GPS came within ~20 miles of
+  the geocoded station (strong confirmation → treat location as verified); "in_state" is weaker
+  (right state, no exact fix); "mismatch" means neither held; "unknown" means insufficient GPS.
 - UNATTRIBUTED TRANSACTION (rule "unattributed_transaction"): attribution.attributed is false because
   the fill couldn't be matched to a vehicle. Explain what it is in plain terms: a fuel-card charge
   whose Unit number didn't match any vehicle on file. Cite attribution.efs_unit_text (the Unit as it
@@ -108,7 +111,7 @@ export async function verifyTransactionDetailed(
   const { data: txn } = await admin
     .from("fuel_transactions")
     .select(
-      "id, vehicle_id, driver_id, external_ref, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, location_lat, location_lng, samsara_odometer, samsara_location_matched, samsara_tank_short_gal, samsara_recon_at",
+      "id, vehicle_id, driver_id, external_ref, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, location_lat, location_lng, samsara_odometer, samsara_location_matched, samsara_location_confidence, samsara_tank_short_gal, samsara_recon_at",
     )
     .eq("id", txnId)
     .eq("org_id", orgId)
@@ -215,6 +218,7 @@ export async function verifyTransactionDetailed(
     cross_source: {
       samsara_odometer: txn.samsara_odometer == null ? null : Number(txn.samsara_odometer),
       location_matched: txn.samsara_location_matched ?? null,
+      location_confidence: txn.samsara_location_confidence ?? null,
       tank_short_gal: txn.samsara_tank_short_gal == null ? null : Number(txn.samsara_tank_short_gal),
       reconciled_at: txn.samsara_recon_at ?? null,
     },

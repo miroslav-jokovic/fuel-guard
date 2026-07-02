@@ -46,7 +46,34 @@ export interface FuelTransaction {
   has_anomaly: boolean;
   max_severity: AnomalySeverity | null;
   ai_risk_level: AnomalySeverity | null;
+  samsara_location_confidence?: string | null;
   created_at: string;
+}
+
+/** A transaction's at-a-glance verification status — so a normal fill reads as "clear/verified", not as
+ *  a suspect. Only HIGH/CRITICAL anomalies are true "alerts"; low/medium are "review". */
+export type TxnStatus = "alert" | "review" | "verified" | "clear";
+
+export interface TxnStatusInfo {
+  status: TxnStatus;
+  label: string;
+  /** Whether Samsara positively confirmed the fueling location (proximity or in-state). */
+  locationConfirmed: boolean;
+}
+
+export function fuelTxnStatus(
+  t: Pick<FuelTransaction, "has_anomaly" | "max_severity" | "samsara_location_confidence">,
+): TxnStatusInfo {
+  const conf = t.samsara_location_confidence ?? null;
+  const locationConfirmed = conf === "gps_confirmed" || conf === "in_state";
+  if (t.has_anomaly && (t.max_severity === "high" || t.max_severity === "critical")) {
+    return { status: "alert", label: "Alert", locationConfirmed };
+  }
+  if (t.has_anomaly && (t.max_severity === "medium" || t.max_severity === "low")) {
+    return { status: "review", label: "Review", locationConfirmed };
+  }
+  if (locationConfirmed) return { status: "verified", label: "Verified", locationConfirmed };
+  return { status: "clear", label: "Clear", locationConfirmed };
 }
 
 /**

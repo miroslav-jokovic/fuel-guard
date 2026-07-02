@@ -105,7 +105,9 @@ export function transactionsRouter(): Router {
     }),
   );
 
-  // Backfill all transactions for the org (seed/demo + full re-score, with live Samsara reconciliation).
+  // Backfill all transactions for the org with LIVE Samsara reconciliation + geocoding (populates
+  // location confidence on historical rows). Runs in the background — geocoding is rate-limited, so a
+  // large org can take a few minutes; results appear as rows are processed.
   router.post(
     "/backfill",
     requireOrg,
@@ -114,9 +116,16 @@ export function transactionsRouter(): Router {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
-      const count = await backfillOrg(admin, env, orgId);
-      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "transactions.backfill", meta: { count } });
-      res.json({ ok: true, scored: count });
+      const actorId = req.auth!.userId;
+      res.json({ ok: true, queued: true });
+      void (async () => {
+        try {
+          const count = await backfillOrg(admin, env, orgId);
+          await writeAudit(admin, { orgId, actorId, action: "transactions.backfill", meta: { count } });
+        } catch (e) {
+          console.error("[backfill] background backfill failed:", e instanceof Error ? e.message : e);
+        }
+      })();
     }),
   );
 
