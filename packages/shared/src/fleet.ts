@@ -65,6 +65,9 @@ export interface Vehicle {
   samsara_vehicle_id: string | null;
   samsara_fuel_percent: number | null;
   samsara_fuel_at: string | null;
+  /** Learned/overridden odometer calibration (dash − Samsara), applied before the mismatch check. */
+  odometer_offset?: number;
+  odometer_offset_source?: "auto" | "manual";
   created_at: string;
   updated_at: string;
 }

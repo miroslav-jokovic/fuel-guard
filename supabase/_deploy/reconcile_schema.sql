@@ -155,3 +155,9 @@ where a.transaction_id = t.id and a.fueled_at is null;
 
 -- ── 0024: weekly digest bookkeeping ──────────────────────────────────────────────────────────
 alter table organizations add column if not exists last_digest_at timestamptz;
+
+-- ── 0025: per-vehicle odometer offset (dash ↔ Samsara calibration) ───────────────────────────
+-- Learned constant (entered − samsara) subtracted before the odometer_mismatch check, so trucks
+-- whose dash sits a fixed amount off OBD stop false-flagging. source='manual' pins a human override.
+alter table vehicles add column if not exists odometer_offset        numeric(10,1) not null default 0;
+alter table vehicles add column if not exists odometer_offset_source text          not null default 'auto';

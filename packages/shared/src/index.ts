@@ -3,6 +3,7 @@ export * from "./anomalyRules.js";
 export * from "./auth.js";
 export * from "./apiContract.js";
 export * from "./fleet.js";
+export * from "./vehicleSetupCsv.js";
 export * from "./fuel.js";
 export * from "./efsImport.js";
 export * from "./declined.js";

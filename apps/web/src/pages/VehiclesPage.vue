@@ -9,11 +9,14 @@ import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
 import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
+import VehicleSetupImport from "@/features/fleet/VehicleSetupImport.vue";
+import { buildSetupCsv } from "@/features/fleet/useVehicleSetupImport";
 import { useToastStore } from "@/stores/toast";
 import { apiFetch } from "@/lib/api";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
@@ -134,6 +137,18 @@ async function onSyncSamsara() {
   }
 }
 
+// Bulk setup: export the fleet as a CSV template, edit offline, re-import (tank capacity + baseline MPG).
+const setupOpen = ref(false);
+function exportSetup() {
+  const csv = buildSetupCsv(vehicles.value ?? []);
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `fleet-setup-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function onRetire(v: Vehicle) {
   if (confirm(`Retire vehicle ${v.unit_number}? Its history is preserved.`)) {
     try {
@@ -170,6 +185,20 @@ async function onRetire(v: Vehicle) {
         >
           <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
           {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+        </button>
+        <button
+          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
+          title="Download a CSV of every vehicle to fill in tank capacity + baseline MPG"
+          @click="exportSetup"
+        >
+          Export setup
+        </button>
+        <button
+          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
+          title="Upload the edited setup CSV to bulk-update tank capacity + baseline MPG"
+          @click="setupOpen = true"
+        >
+          Import setup
         </button>
         <button
           class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
@@ -245,19 +274,11 @@ async function onRetire(v: Vehicle) {
             </td>
             <td class="px-6 py-3 text-gray-700">{{ driverName(v.assigned_driver_id) }}</td>
             <td class="px-6 py-3"><StatusBadge :status="v.status" /></td>
-            <td class="px-6 py-3 text-right whitespace-nowrap">
-              <template v-if="session.canManage">
-                <button class="text-sm font-medium text-indigo-600 hover:text-indigo-500" @click="openEdit(v)">
-                  Edit
-                </button>
-                <button
-                  v-if="v.status !== 'retired'"
-                  class="ml-4 text-sm font-medium text-red-600 hover:text-red-500"
-                  @click="onRetire(v)"
-                >
-                  Retire
-                </button>
-              </template>
+            <td class="px-6 py-3 text-right" @click.stop>
+              <KebabMenu v-if="session.canManage">
+                <button class="kebab-item" @click="openEdit(v)">Edit vehicle</button>
+                <button v-if="v.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(v)">Retire vehicle</button>
+              </KebabMenu>
             </td>
           </tr>
         </tbody>
@@ -284,6 +305,10 @@ async function onRetire(v: Vehicle) {
         Copy report
       </button>
       <pre class="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs leading-relaxed text-gray-100">{{ diagReport }}</pre>
+    </SlideOver>
+
+    <SlideOver :open="setupOpen" title="Bulk vehicle setup" @close="setupOpen = false">
+      <VehicleSetupImport :vehicles="vehicles ?? []" @done="setupOpen = false" />
     </SlideOver>
 
     <SlideOver :open="drawerOpen" :title="editing ? 'Edit vehicle' : 'New vehicle'" @close="drawerOpen = false">

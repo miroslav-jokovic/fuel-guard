@@ -7,6 +7,7 @@ import {
   milesSinceLast,
   computedMpg,
   effectiveBaseline,
+  learnOdometerOffset,
   type TxnView,
   type VehicleView,
   type Thresholds,
@@ -136,11 +137,13 @@ export async function scoreTransaction(
 
   let vehicle: VehicleView = { id: "none", fuelType: "other", tankCapacityGal: 0, baselineMpg: null };
   let samsaraVehicleId: string | null = null;
+  let odometerOffsetSource = "auto";
   if (txn.vehicleId) {
-    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, baseline_mpg, samsara_vehicle_id").eq("id", txn.vehicleId).single();
+    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", txn.vehicleId).single();
     if (v) {
-      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), baselineMpg: n(v.baseline_mpg) };
+      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
       samsaraVehicleId = v.samsara_vehicle_id ?? null;
+      odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
     }
   }
 
@@ -365,6 +368,29 @@ export async function scoreTransaction(
       const base = effectiveBaseline(vehicle, recentTxns);
       if (base != null) vehUpdate.baseline_mpg = base;
     }
+
+    // Auto-learn the odometer offset (dash − Samsara) from recent fills that carry BOTH readings, so a
+    // truck whose dash sits a constant amount off OBD stops false-flagging. A manual override is never
+    // overwritten. Median over the last 10 pairs; only applied once they cluster tightly (learner's rules).
+    if (odometerOffsetSource !== "manual") {
+      const { data: pairRows } = await admin
+        .from("fuel_transactions")
+        .select("odometer, samsara_odometer")
+        .eq("vehicle_id", txn.vehicleId)
+        .not("odometer", "is", null)
+        .not("samsara_odometer", "is", null)
+        .order("fueled_at", { ascending: false })
+        .limit(10);
+      const pairs = ((pairRows ?? []) as { odometer: number | string; samsara_odometer: number | string }[])
+        .map((p) => ({ entered: Number(p.odometer), samsara: Number(p.samsara_odometer) }))
+        .reverse(); // OLDEST→NEWEST so the learner's `window` keeps the most recent
+      const learned = learnOdometerOffset(pairs);
+      if (learned && learned.offset !== (vehicle.odometerOffset ?? 0)) {
+        vehUpdate.odometer_offset = learned.offset;
+        vehUpdate.odometer_offset_source = "auto";
+      }
+    }
+
     if (Object.keys(vehUpdate).length) {
       await admin.from("vehicles").update(vehUpdate).eq("id", txn.vehicleId);
     }

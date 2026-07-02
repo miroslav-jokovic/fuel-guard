@@ -99,6 +99,8 @@ export interface VehicleView {
   fuelType: FuelType;
   tankCapacityGal: number;
   baselineMpg: number | null;
+  /** Learned/overridden constant (dash − Samsara). Added to the Samsara reading before the mismatch check. */
+  odometerOffset?: number;
 }
 
 export interface Thresholds {
@@ -291,14 +293,52 @@ function ruleOdometerDailyCap(ctx: RuleContext): RuleResult {
 
 /** Cross-source odometer reconciliation — the driver-accuracy ±tolerance check (docs/09 §2). */
 function ruleOdometerMismatch(ctx: RuleContext): RuleResult {
-  const { txn, crossSourceOdometer, thresholds } = ctx;
+  const { txn, crossSourceOdometer, thresholds, vehicle } = ctx;
   if (txn.odometer == null || crossSourceOdometer == null) return none("odometer_mismatch");
   const tol = thresholds.odometerToleranceMiles ?? 5;
-  const diff = Math.abs(txn.odometer - crossSourceOdometer);
+  // Many trucks read a fixed amount apart from Samsara's OBD odometer (replaced cluster, OBD calibration).
+  // Apply the learned/overridden per-vehicle offset so that constant gap doesn't false-flag every fill —
+  // while a fill that deviates from the established offset by more than the tolerance still fires.
+  const offset = vehicle.odometerOffset ?? 0;
+  const expected = crossSourceOdometer + offset;
+  const diff = Math.abs(txn.odometer - expected);
   if (diff > tol) {
-    return { ruleId: "odometer_mismatch", fired: true, severity: "high", message: `Entered odometer ${txn.odometer} differs from the fuel-card reading ${crossSourceOdometer} by ${r2(diff)} mi (tolerance ${tol}).`, evidence: { entered: txn.odometer, otherSource: crossSourceOdometer, diff: r2(diff), toleranceMiles: tol } };
+    const offsetNote = offset ? ` (after a learned +${r2(offset)} mi calibration)` : "";
+    return { ruleId: "odometer_mismatch", fired: true, severity: "high", message: `Entered odometer ${txn.odometer} differs from the fuel-card reading ${crossSourceOdometer}${offsetNote} by ${r2(diff)} mi (tolerance ${tol}).`, evidence: { entered: txn.odometer, otherSource: crossSourceOdometer, offset: r2(offset), expected: r2(expected), diff: r2(diff), toleranceMiles: tol } };
   }
   return none("odometer_mismatch");
+}
+
+export interface OdometerOffsetResult {
+  /** Learned constant (entered − samsara), rounded to whole miles. */
+  offset: number;
+  /** How many (entered, samsara) pairs backed the estimate. */
+  samples: number;
+}
+
+/**
+ * Learn a per-vehicle odometer offset (dash − Samsara) from recent fills that have BOTH readings. Uses the
+ * median (robust to the occasional bad entry) over the most recent `window` pairs, and only returns a value
+ * when there are ≥ `minSamples` pairs AND they cluster tightly (a solid majority within `clusterToleranceMiles`
+ * of the median). Otherwise returns null — meaning "not enough evidence", leave the offset at 0.
+ */
+export function learnOdometerOffset(
+  pairs: { entered: number; samsara: number }[],
+  opts: { window?: number; clusterToleranceMiles?: number; minSamples?: number } = {},
+): OdometerOffsetResult | null {
+  const window = opts.window ?? 10;
+  const tol = opts.clusterToleranceMiles ?? 3;
+  const minSamples = opts.minSamples ?? 3;
+  const diffs = pairs
+    .filter((p) => Number.isFinite(p.entered) && Number.isFinite(p.samsara))
+    .slice(-window)
+    .map((p) => p.entered - p.samsara);
+  if (diffs.length < minSamples) return null;
+  const med = median(diffs);
+  const within = diffs.filter((d) => Math.abs(d - med) <= tol).length;
+  // Require both an absolute floor of clustered samples and a clustered majority.
+  if (within < minSamples || within / diffs.length < 0.6) return null;
+  return { offset: Math.round(med), samples: diffs.length };
 }
 
 /** Single-source odometer plausibility vs fuel: catches odometer padding (drove far more than fuel allows). */

@@ -9,6 +9,7 @@ import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
 import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
@@ -163,14 +164,10 @@ async function onSyncSamsara() {
             <td class="px-6 py-3 text-gray-700">{{ d.phone ?? "—" }}</td>
             <td class="px-6 py-3 text-gray-700">{{ assignedUnits(d.id) }}</td>
             <td class="px-6 py-3"><StatusBadge :status="d.status" /></td>
-            <td class="px-6 py-3 text-right">
-              <button
-                v-if="session.canManage"
-                class="text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                @click="openEdit(d)"
-              >
-                Edit
-              </button>
+            <td class="px-6 py-3 text-right" @click.stop>
+              <KebabMenu v-if="session.canManage">
+                <button class="kebab-item" @click="openEdit(d)">Edit driver</button>
+              </KebabMenu>
             </td>
           </tr>
         </tbody>

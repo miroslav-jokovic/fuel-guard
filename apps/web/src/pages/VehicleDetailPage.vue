@@ -78,6 +78,10 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
         <div><dt class="text-gray-500">Odometer</dt><dd class="font-medium text-gray-900">{{ vehicle.current_odometer }}</dd></div>
         <div><dt class="text-gray-500">Open anomalies</dt><dd class="font-medium text-gray-900">{{ (anomalies ?? []).filter((a) => a.status !== 'resolved' && a.status !== 'dismissed').length }}</dd></div>
       </dl>
+      <p v-if="Number(vehicle.odometer_offset) !== 0" class="mt-3 text-xs text-gray-500">
+        Odometer calibration: dash reads <strong>{{ Number(vehicle.odometer_offset) > 0 ? "+" : "" }}{{ vehicle.odometer_offset }} mi</strong>
+        vs Samsara ({{ vehicle.odometer_offset_source === "manual" ? "manual override" : "auto-learned" }}) — applied before mismatch checks.
+      </p>
     </div>
 
     <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">

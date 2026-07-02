@@ -4,6 +4,7 @@ import {
   reconcileAnomalies,
   correlateSignals,
   effectiveBaseline,
+  learnOdometerOffset,
   isOffHours,
   maxSeverity,
   type RuleContext,
@@ -233,6 +234,49 @@ describe("hardening — odometer correctness (±5 cross-source)", () => {
   });
   it("does not fire within ±5 miles", () => {
     expect(ids(ctx({ crossSourceOdometer: 100003 }))).not.toContain("odometer_mismatch");
+  });
+
+  it("a learned per-vehicle offset absorbs a constant dash↔Samsara gap (no false flag)", () => {
+    // Truck's dash reads 1,200 mi above Samsara's OBD on every fill. Without calibration this fires; with
+    // the learned offset applied it doesn't, because entered≈samsara+offset.
+    const calibrated: VehicleView = { ...vehicle, odometerOffset: 1200 };
+    expect(ids(ctx({ crossSourceOdometer: 98800 }))).toContain("odometer_mismatch"); // raw 1,200 gap
+    expect(ids(ctx({ vehicle: calibrated, crossSourceOdometer: 98800 }))).not.toContain("odometer_mismatch");
+  });
+
+  it("still fires when a fill deviates from the established offset beyond tolerance", () => {
+    const calibrated: VehicleView = { ...vehicle, odometerOffset: 1200 };
+    // Expected entered ≈ 98800 + 1200 = 100000; this fill entered 100000 but samsara says 98750 → 50 off.
+    expect(ids(ctx({ vehicle: calibrated, crossSourceOdometer: 98750 }))).toContain("odometer_mismatch");
+  });
+});
+
+describe("learnOdometerOffset", () => {
+  const P = (entered: number, samsara: number) => ({ entered, samsara });
+
+  it("returns the median offset once enough tightly-clustered pairs exist", () => {
+    const r = learnOdometerOffset([P(1200, 0), P(1201, 0), P(1199, 0), P(1200, 0)]);
+    expect(r).toEqual({ offset: 1200, samples: 4 });
+  });
+
+  it("returns null below the minimum sample count", () => {
+    expect(learnOdometerOffset([P(1200, 0), P(1201, 0)])).toBeNull();
+  });
+
+  it("returns null when pairs don't cluster (noisy, no stable offset)", () => {
+    expect(learnOdometerOffset([P(1200, 0), P(50, 0), P(900, 0), P(-300, 0)])).toBeNull();
+  });
+
+  it("ignores outliers via the median and clustered majority", () => {
+    const r = learnOdometerOffset([P(1200, 0), P(1200, 0), P(1200, 0), P(9999, 0)]);
+    expect(r).toEqual({ offset: 1200, samples: 4 }); // 3 of 4 within tolerance → accepted
+  });
+
+  it("only considers the most recent `window` pairs", () => {
+    const old = Array.from({ length: 8 }, () => P(0, 0)); // stale zero-offset era
+    const recent = [P(500, 0), P(501, 0), P(499, 0), P(500, 0)]; // shifted to +500
+    const r = learnOdometerOffset([...old, ...recent], { window: 4 });
+    expect(r).toEqual({ offset: 500, samples: 4 });
   });
 });
 
