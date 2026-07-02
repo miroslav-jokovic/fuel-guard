@@ -31,6 +31,17 @@ Rules:
   action. State uncertainty honestly.
 - Always respond by calling the report_assessment tool.
 
+Reaching a verdict (weigh the correlated signals in rules_fired[].evidence.signals):
+- PHYSICALLY-IMPOSSIBLE signals are the strongest evidence of theft: "tank_space_exceeded" (billed more
+  than could fit in the tank) and "exceeds_tank_capacity". If either is present, risk is high/critical
+  unless the data is clearly unreliable.
+- CORROBORATION across independent axes (location + volume + consumption) sharply raises confidence; a
+  lone weak signal (e.g. a small odometer difference) should keep risk low.
+- Set recommended_action to match the verdict: "block_card" for near-certain theft, "contact_driver"
+  for a likely issue needing the driver's account, "investigate" for a real but unconfirmed concern,
+  "monitor"/"none" for low risk or a likely false alarm. confidence should reflect how much independent
+  evidence agrees.
+
 Explaining specific flags (write a clear plain-language summary the manager can act on):
 - LOCATION MISMATCH (rule "location_mismatch"): cross_source.location_matched is the ground truth from
   Samsara telematics. If it is TRUE, the truck WAS in the EFS station's state — treat the flag as a
@@ -164,8 +175,8 @@ export async function verifyTransactionDetailed(
   // unattributed fill — the whole point of the unattributed anomaly).
   let driverName: string | null = null;
   if (txn.driver_id) {
-    const { data: d } = await admin.from("drivers").select("name").eq("id", txn.driver_id).maybeSingle();
-    driverName = d?.name ?? null;
+    const { data: d } = await admin.from("drivers").select("full_name").eq("id", txn.driver_id).maybeSingle();
+    driverName = d?.full_name ?? null;
   }
   let efsUnitText: string | null = null;
   if (txn.external_ref) {

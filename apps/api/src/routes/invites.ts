@@ -12,13 +12,22 @@ import type { Env } from "../env.js";
 
 const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at";
 
+export interface InviteDelivery {
+  sent: boolean;
+  /** The action link — always returned when generated, so an admin can copy/share it even if email fails. */
+  link: string | null;
+  /** Why email wasn't sent: mail_disabled | send_failed | link_failed. null when sent. */
+  reason: string | null;
+}
+
 /**
  * Deliver an invite through OUR mailer (Resend) instead of Supabase's built-in email. We ask Supabase
  * to GENERATE the action link (which also creates the auth user) without sending, then send a branded
  * email ourselves — reliable for external addresses and not subject to Supabase's default-email limits.
- * Falls back to a recovery link when the user already exists (the /accept-invite page handles both).
+ * Falls back to a recovery link when the user already exists. The link is ALWAYS returned so invites work
+ * even when email delivery is misconfigured (the admin can copy + share it directly).
  */
-async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, email: string): Promise<boolean> {
+async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, email: string): Promise<InviteDelivery> {
   const redirectTo = `${env.WEB_APP_URL}/accept-invite`;
   let link: string | null = null;
   const invite = await admin.auth.admin.generateLink({ type: "invite", email, options: { redirectTo } });
@@ -29,10 +38,12 @@ async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, e
     if (!recovery.error && recovery.data?.properties?.action_link) link = recovery.data.properties.action_link;
     else console.error(`[invites] generateLink failed for ${email}: ${invite.error?.message ?? ""} ${recovery.error?.message ?? ""}`);
   }
-  if (!link) return false;
+  if (!link) return { sent: false, link: null, reason: "link_failed" };
+  if (env.MAIL_PROVIDER === "none") return { sent: false, link, reason: "mail_disabled" };
+
   const mail = renderInviteEmail(orgName, link);
-  const send = makeSender(env);
-  return send({ to: [email], subject: mail.subject, html: mail.html, text: mail.text });
+  const sent = await makeSender(env)({ to: [email], subject: mail.subject, html: mail.html, text: mail.text });
+  return { sent, link, reason: sent ? null : "send_failed" };
 }
 
 export function invitesRouter(): Router {
@@ -94,9 +105,10 @@ export function invitesRouter(): Router {
         return;
       }
 
-      // Deliver via our Resend mailer (branded, reliable for external addresses).
-      const emailSent = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email);
-      if (!emailSent) console.error(`[invites] email delivery failed for ${email}`);
+      // Deliver via our Resend mailer (branded, reliable for external addresses). The link is returned
+      // regardless so the admin can copy/share it if email delivery is misconfigured.
+      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email);
+      if (!delivery.sent) console.error(`[invites] email not sent for ${email} (${delivery.reason})`);
 
       await writeAudit(admin, {
         orgId,
@@ -104,9 +116,9 @@ export function invitesRouter(): Router {
         action: "invite.created",
         entity: "invites",
         entityId: invite.id,
-        meta: { email, role, emailSent },
+        meta: { email, role, emailSent: delivery.sent, reason: delivery.reason },
       });
-      res.status(201).json({ invite, emailSent });
+      res.status(201).json({ invite, emailSent: delivery.sent, inviteLink: delivery.link, reason: delivery.reason });
     }),
   );
 
