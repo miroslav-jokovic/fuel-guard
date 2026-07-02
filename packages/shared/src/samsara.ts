@@ -231,6 +231,34 @@ export interface FuelingStopMatch {
 const cityNorm = (c: string | null | undefined) => (c ?? "").trim().toLowerCase();
 
 /**
+ * Odometer (miles) interpolated to an exact instant from the day's Samsara odometer track. Samsara
+ * doesn't stamp an odometer on every GPS ping, so rather than hoping the nearest ping carries one we
+ * interpolate linearly between the two bracketing odometer readings. At a fueling STOP the odometer is
+ * flat, so this returns the true stationary reading; between readings it estimates by elapsed time.
+ */
+export function odometerAtTime(samples: SamsaraSample[], targetIso: string): number | null {
+  const pts = samples
+    .filter((s) => s.odometerMiles != null)
+    .map((s) => ({ t: new Date(s.time).getTime(), odo: s.odometerMiles as number }))
+    .sort((a, b) => a.t - b.t);
+  if (pts.length === 0) return null;
+  const T = new Date(targetIso).getTime();
+  if (T <= pts[0]!.t) return pts[0]!.odo;
+  const last = pts[pts.length - 1]!;
+  if (T >= last.t) return last.odo;
+  for (let i = 1; i < pts.length; i++) {
+    const b = pts[i]!;
+    if (b.t >= T) {
+      const a = pts[i - 1]!;
+      if (b.t === a.t) return b.odo;
+      const frac = (T - a.t) / (b.t - a.t);
+      return Math.round((a.odo + (b.odo - a.odo) * frac) * 10) / 10;
+    }
+  }
+  return last.odo;
+}
+
+/**
  * Timezone-PROOF location + odometer match (docs/10 §12, revised). We do NOT trust the report's
  * time-of-day (its zone is ambiguous), so instead of picking "the sample nearest a guessed minute" we
  * ask a robust question over the whole fetched day: was the truck EVER in the EFS station's state? If
@@ -254,7 +282,10 @@ export function matchFuelingStop(
       (a, b) => Math.abs(new Date(a.time).getTime() - target) - Math.abs(new Date(b.time).getTime() - target),
     )[0] ?? null;
 
-  const stopped = samples.filter((s) => (s.speedMph ?? 0) <= stoppedMax && s.odometerMiles != null && s.address);
+  // Stops are matched by LOCATION (speed + address) — we intentionally do NOT require an odometer on the
+  // stop's own ping, because the odometer is recovered separately by interpolating the day's track.
+  const stopped = samples.filter((s) => (s.speedMph ?? 0) <= stoppedMax && s.address);
+  const odoAt = (s: SamsaraSample | null) => (s ? odometerAtTime(samples, s.time) : null);
   const ev = (s: SamsaraSample | null) => ({
     observedState: s ? stateFromAddress(s.address) : null,
     observedCity: s ? cityFromAddress(s.address) : null,
@@ -263,7 +294,7 @@ export function matchFuelingStop(
 
   if (!efsState) {
     const pick = nearest(stopped);
-    return { odometerMiles: pick?.odometerMiles ?? null, matchedAt: pick?.time ?? null, locationMatched: null, basis: "no_efs_state", ...ev(pick) };
+    return { odometerMiles: odoAt(pick), matchedAt: pick?.time ?? null, locationMatched: null, basis: "no_efs_state", ...ev(pick) };
   }
 
   // Was the truck in the EFS state at ANY point in the fetched day — moving OR stopped?
@@ -273,7 +304,7 @@ export function matchFuelingStop(
     const inCityStops = efsCity ? inStateStops.filter((s) => cityNorm(cityFromAddress(s.address)) === efsCity) : [];
     const anchor = nearest(inCityStops) ?? nearest(inStateStops) ?? nearest(stopped);
     return {
-      odometerMiles: anchor?.odometerMiles ?? null,
+      odometerMiles: odoAt(anchor),
       matchedAt: anchor?.time ?? null,
       locationMatched: true,
       basis: inCityStops.length ? "in_city" : "in_state",

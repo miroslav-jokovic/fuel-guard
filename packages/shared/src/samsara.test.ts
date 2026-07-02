@@ -20,6 +20,7 @@ import {
   approxFuelingUtcMs,
   minSampleDistanceMiles,
   resolveLocationConfidence,
+  odometerAtTime,
 } from "./index.js";
 
 describe("metersToMiles", () => {
@@ -351,6 +352,36 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(resolveLocationConfidence({ locationMatched: false }, 120, 20)).toEqual({ confidence: "mismatch", matched: false });
     // Unknown coverage
     expect(resolveLocationConfidence({ locationMatched: null }, null, 20)).toEqual({ confidence: "unknown", matched: null });
+  });
+
+  it("recovers the odometer by INTERPOLATION when the stop's own ping has no odometer", () => {
+    // Samsara doesn't stamp an odometer on every GPS ping. The truck is parked at the TX stop from
+    // 20:25–20:40 but those pings carry no odometer; the bracketing readings do. The odometer at the
+    // stop equals the interpolated value (parked → flat), so we recover it instead of falling back.
+    const samples = [
+      S("2026-06-30T14:30:00Z", 62, "I-20, Abilene, TX, 79601", 100000), // moving, has odo
+      S("2026-06-30T20:25:00Z", 0, "100 Fuel Rd, Dallas, TX, 75201", null), // the stop, no odo on ping
+      S("2026-06-30T20:40:00Z", 0, "100 Fuel Rd, Dallas, TX, 75201", null),
+      S("2026-06-30T22:00:00Z", 60, "US-75, Dallas, TX, 75201", 100120), // later, has odo
+    ];
+    const r = matchFuelingStop(samples, { state: "TX" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
+    expect(r.locationMatched).toBe(true);
+    expect(r.matchedAt).toBe("2026-06-30T20:25:00Z");
+    expect(r.odometerMiles).not.toBeNull();
+    // 100000 at 14:30 → 100120 at 22:00 (7.5h, 120mi). At 20:25 (5h55m in) ≈ 100094.7.
+    expect(r.odometerMiles!).toBeCloseTo(100094.7, 0);
+  });
+
+  it("odometerAtTime interpolates linearly and clamps to the endpoints", () => {
+    const samples = [
+      S("2026-06-30T12:00:00Z", 60, "a", 1000),
+      S("2026-06-30T12:00:00Z", 0, "b", null), // ignored (no odo)
+      S("2026-06-30T14:00:00Z", 60, "c", 1100),
+    ];
+    expect(odometerAtTime(samples, "2026-06-30T13:00:00Z")).toBe(1050); // midpoint
+    expect(odometerAtTime(samples, "2026-06-30T11:00:00Z")).toBe(1000); // before first → clamp
+    expect(odometerAtTime(samples, "2026-06-30T15:00:00Z")).toBe(1100); // after last → clamp
+    expect(odometerAtTime([S("t", 0, "x", null)], "2026-06-30T13:00:00Z")).toBeNull(); // none
   });
 
   it("approxFuelingUtcMs shifts local time by the station-state offset", () => {
