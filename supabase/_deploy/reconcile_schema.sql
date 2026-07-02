@@ -88,3 +88,17 @@ create unique index if not exists idx_efs_txn_extref on efs_transactions (org_id
 
 -- ── 0015: driver ↔ Samsara mapping ──────────────────────────────────────────────────────────
 alter table drivers add column if not exists samsara_driver_id text;
+
+-- ── 0018: geocoding cache + location confidence ─────────────────────────────────────────────
+create table if not exists geocode_cache (
+  query      text primary key,
+  lat        numeric(9,6),
+  lng        numeric(9,6),
+  resolved   boolean not null default false,
+  provider   text,
+  created_at timestamptz not null default now()
+);
+alter table geocode_cache enable row level security;
+alter table fuel_transactions add column if not exists samsara_location_confidence text;
+alter table fuel_transactions add column if not exists station_lat numeric(9,6);
+alter table fuel_transactions add column if not exists station_lng numeric(9,6);
