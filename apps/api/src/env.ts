@@ -36,6 +36,9 @@ const EnvSchema = z.object({
   GEOCODING_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
   GEOCODE_URL: z.string().url().default("https://nominatim.openstreetmap.org/search"),
   GEOCODE_PROX_MILES: z.coerce.number().min(1).default(20),
+  // Tight radius (miles) used to CONFIRM a fill when we resolved the exact station (site precision) —
+  // ~0.5 mi ≈ the truck was in the station's lot. City-level geocodes never confirm (too coarse).
+  SITE_PROX_MILES: z.coerce.number().min(0.05).default(0.5),
   // Re-score every transaction with the current rules once, shortly after each boot/deploy (rules-only,
   // no live Samsara calls — cheap + idempotent). Set to "false" to disable.
   REBUILD_ON_BOOT: z

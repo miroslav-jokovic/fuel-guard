@@ -96,10 +96,14 @@ export async function reconcileWithSamsara(
   // back to the state-level presence check.
   const geocode: StationGeocoder = geocodeOverride ?? ((s) => geocodeStation(admin, env, s));
   const stationCoords = await geocode({ name: input.locationName, city: input.city, state: input.state }).catch(() => null);
-  const proximityMiles = stationCoords ? minSampleDistanceMiles(samples, stationCoords.lat, stationCoords.lng) : null;
-  const proxThreshold = env.GEOCODE_PROX_MILES;
   const stationLat = stationCoords?.lat ?? null;
   const stationLng = stationCoords?.lng ?? null;
+  // Only an EXACT (site-precision) geocode can confirm a fill, and only within a tight radius (~0.5 mi ≈
+  // the truck was in the station's lot). A city-centroid geocode is too coarse to confirm, so we ignore
+  // it for proximity and fall back to the state-presence check.
+  const siteCoords = stationCoords?.precision === "site" ? stationCoords : null;
+  const proximityMiles = siteCoords ? minSampleDistanceMiles(samples, siteCoords.lat, siteCoords.lng) : null;
+  const proxThreshold = env.SITE_PROX_MILES;
 
   // ── Precise path: timezone-PROOF presence check over the whole day, corroborated by GPS proximity to
   // the geocoded station. Location matches when the truck came near the station OR was in the EFS state

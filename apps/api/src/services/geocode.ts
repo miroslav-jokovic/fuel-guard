@@ -1,9 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseStationIdentity } from "@fuelguard/shared";
 import type { Env } from "../env.js";
+
+export type GeoPrecision = "site" | "city";
 
 export interface Coords {
   lat: number;
   lng: number;
+  /** "site" = we resolved the specific station (tight radius can confirm); "city" = town centroid only. */
+  precision: GeoPrecision;
 }
 
 export interface StationQuery {
@@ -13,7 +18,6 @@ export interface StationQuery {
 }
 
 const norm = (s: string | null | undefined) => (s ?? "").trim();
-const keyFor = (q: StationQuery) => [norm(q.name), norm(q.city), norm(q.state)].join("|").toLowerCase();
 
 // Respect Nominatim's ~1 req/sec policy: serialize live lookups and space them out. Cache hits skip this.
 let providerChain: Promise<unknown> = Promise.resolve();
@@ -27,54 +31,80 @@ function throttle<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Resolve a fuel station to coordinates, cached in geocode_cache so each distinct station is looked up
- * only once (a MISS is cached too, so we never re-hit the provider for an unresolvable station). Uses
- * OpenStreetMap/Nominatim by default (free, no key). Best-effort: returns null on any failure so the
- * caller falls back to the state-level location check.
+ * Resolve a fuel station to coordinates + a precision tier, cached in geocode_cache keyed by the
+ * station identity (brand+store# when available — nationwide-unique — else name|city|state), so each
+ * distinct station is looked up once. We try the SPECIFIC station first (brand/name + city + state) and
+ * only fall back to the town; a result is "site" precision when it resolves to a real POI, "city" when
+ * it's just the town centroid. Best-effort: returns null on any failure.
  */
 export async function geocodeStation(admin: SupabaseClient, env: Env, station: StationQuery): Promise<Coords | null> {
   if (!env.GEOCODING_ENABLED) return null;
-  if (!norm(station.city) && !norm(station.state)) return null;
+  if (!norm(station.city) && !norm(station.state) && !norm(station.name)) return null;
 
-  const key = keyFor(station);
-  const { data: cached } = await admin.from("geocode_cache").select("lat, lng, resolved").eq("query", key).maybeSingle();
+  const identity = parseStationIdentity(station.name, station.city, station.state);
+  const key = identity.siteKey;
+
+  const { data: cached } = await admin
+    .from("geocode_cache")
+    .select("lat, lng, resolved, precision")
+    .eq("query", key)
+    .maybeSingle();
   if (cached) {
     return cached.resolved && cached.lat != null && cached.lng != null
-      ? { lat: Number(cached.lat), lng: Number(cached.lng) }
+      ? { lat: Number(cached.lat), lng: Number(cached.lng), precision: (cached.precision as GeoPrecision) ?? "city" }
       : null;
   }
 
   let coords: Coords | null = null;
   try {
-    coords = await throttle(() => queryNominatim(env, station));
+    coords = await throttle(() => queryNominatim(env, station, identity.brandLabel));
   } catch (e) {
     console.error("[geocode] provider lookup failed:", e instanceof Error ? e.message : e);
   }
 
-  await admin
-    .from("geocode_cache")
-    .upsert(
-      { query: key, lat: coords?.lat ?? null, lng: coords?.lng ?? null, resolved: coords != null, provider: "nominatim" },
-      { onConflict: "query" },
-    );
+  await admin.from("geocode_cache").upsert(
+    {
+      query: key,
+      lat: coords?.lat ?? null,
+      lng: coords?.lng ?? null,
+      resolved: coords != null,
+      precision: coords?.precision ?? null,
+      provider: "nominatim",
+    },
+    { onConflict: "query" },
+  );
   return coords;
 }
 
-async function queryNominatim(env: Env, station: StationQuery): Promise<Coords | null> {
-  // Try the most specific query first (station name + city + state), then fall back to city + state.
-  const attempts = [
+// OSM classes that represent a real point-of-interest (a station) rather than a town/region centroid.
+const POI_CLASSES = new Set(["amenity", "shop", "highway", "building", "tourism", "office"]);
+
+async function queryNominatim(env: Env, station: StationQuery, brandLabel: string | null): Promise<Coords | null> {
+  // Most specific → least. Brand/name + city + state target the station itself ("site"); the bare
+  // city + state is the coarse fallback ("city").
+  const siteAttempts = [
+    [brandLabel ?? station.name, station.city, station.state],
     [station.name, station.city, station.state],
-    [station.city, station.state],
   ];
-  for (const parts of attempts) {
-    const q = parts.map(norm).filter(Boolean).join(", ");
-    if (!q) continue;
-    const url = `${env.GEOCODE_URL}?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us`;
-    const res = await fetch(url, { headers: { "User-Agent": `FuelGuard/1.0 (${env.MAIL_FROM})` } });
-    if (!res.ok) continue;
-    const arr = (await res.json()) as Array<{ lat?: string; lon?: string }>;
-    const hit = arr?.[0];
-    if (hit?.lat && hit?.lon) return { lat: Number(hit.lat), lng: Number(hit.lon) };
+  for (const parts of siteAttempts) {
+    const hit = await lookup(env, parts);
+    if (hit) {
+      const precision: GeoPrecision = POI_CLASSES.has(hit.klass) ? "site" : "city";
+      return { lat: hit.lat, lng: hit.lng, precision };
+    }
   }
-  return null;
+  const cityHit = await lookup(env, [station.city, station.state]);
+  return cityHit ? { lat: cityHit.lat, lng: cityHit.lng, precision: "city" } : null;
+}
+
+async function lookup(env: Env, parts: (string | null)[]): Promise<{ lat: number; lng: number; klass: string } | null> {
+  const q = parts.map(norm).filter(Boolean).join(", ");
+  if (!q) return null;
+  const url = `${env.GEOCODE_URL}?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=us&addressdetails=0`;
+  const res = await fetch(url, { headers: { "User-Agent": `FuelGuard/1.0 (${env.MAIL_FROM})` } });
+  if (!res.ok) return null;
+  const arr = (await res.json()) as Array<{ lat?: string; lon?: string; class?: string }>;
+  const hit = arr?.[0];
+  if (!hit?.lat || !hit?.lon) return null;
+  return { lat: Number(hit.lat), lng: Number(hit.lon), klass: hit.class ?? "" };
 }

@@ -394,6 +394,55 @@ export interface ReconciledFuelLine extends ParsedFuelLine {
   driver_id: string | null;
 }
 
+/** Known truck-stop chains, matched against the EFS Location Name. Order matters (Flying J before J). */
+const STATION_BRANDS: { key: string; label: string; patterns: RegExp[] }[] = [
+  { key: "flying_j", label: "Flying J", patterns: [/\bflying\s*j\b/i, /\bflyingj\b/i] },
+  { key: "pilot", label: "Pilot", patterns: [/\bpilot\b/i] },
+  { key: "loves", label: "Love's", patterns: [/\blove'?s\b/i] },
+  { key: "ta", label: "TA", patterns: [/\bta\b/i, /\btravelcenters?\b/i, /\btravel\s*centers?\s*of\s*america\b/i] },
+  { key: "petro", label: "Petro", patterns: [/\bpetro\b/i] },
+];
+
+export interface StationIdentity {
+  /** Chain key (pilot, flying_j, loves, ta, petro) or null for independents. */
+  brand: string | null;
+  brandLabel: string | null;
+  /** Store number embedded in the Location Name (e.g. "PILOT JAMESTOWN 305" → "305"). */
+  storeNumber: string | null;
+  /** Stable cache key. brand+store# is unique nationwide; else falls back to name|city|state. */
+  siteKey: string;
+  /** Human label for logs / evidence. */
+  label: string;
+}
+
+const clean = (s: string | null | undefined) => (s ?? "").trim();
+
+/**
+ * Extract a stable station identity from the EFS Location Name (+ city/state). Truck-stop names carry
+ * the brand and a nationwide-unique store number ("PILOT JAMESTOWN 305"), which lets us key a fuel-site
+ * cache precisely instead of fuzzy-matching a city. Pure + testable.
+ */
+export function parseStationIdentity(
+  name: string | null,
+  city: string | null,
+  state: string | null,
+): StationIdentity {
+  const n = clean(name);
+  const brand = STATION_BRANDS.find((b) => b.patterns.some((p) => p.test(n))) ?? null;
+  // Store number = the last standalone number in the name (chains print it after the city).
+  const storeNumber = (n.match(/(?:^|\s|#)(\d{1,5})(?:\s|$)/g)?.pop()?.match(/\d{1,5}/)?.[0]) ?? null;
+
+  const c = clean(city).toLowerCase();
+  const st = clean(state).toLowerCase();
+  const siteKey =
+    brand && storeNumber
+      ? `${brand.key}#${storeNumber}` // globally unique per chain
+      : [n.toLowerCase(), c, st].filter(Boolean).join("|") || "unknown";
+
+  const label = [brand?.label ?? n, city, state].filter(Boolean).join(" · ") || "Unknown site";
+  return { brand: brand?.key ?? null, brandLabel: brand?.label ?? null, storeNumber, siteKey, label };
+}
+
 /**
  * Unit match keys: exact-normalized (alnum, lowercased) plus a leading-zeros-stripped variant, so
  * "0042", "42", and "Unit 42" all line up. Returns the distinct keys to index/look up by.

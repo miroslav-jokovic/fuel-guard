@@ -102,3 +102,6 @@ alter table geocode_cache enable row level security;
 alter table fuel_transactions add column if not exists samsara_location_confidence text;
 alter table fuel_transactions add column if not exists station_lat numeric(9,6);
 alter table fuel_transactions add column if not exists station_lng numeric(9,6);
+
+-- ── 0019: geocode precision ─────────────────────────────────────────────────────────────────
+alter table geocode_cache add column if not exists precision text;

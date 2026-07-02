@@ -4,6 +4,7 @@ import {
   normalizeTransactionRows,
   normalizeRejectRows,
   reconcileFuelLines,
+  parseStationIdentity,
   normalizeAllTransactionLines,
   efsDateToIso,
 } from "./index.js";
@@ -165,6 +166,27 @@ describe("reconcileFuelLines", () => {
     const line = { ...fuelLines[0]!, driver_name: "John Smith" };
     const [r] = reconcileFuelLines([line], vehicles, drv);
     expect(r!.driver_id).toBeNull();
+  });
+});
+
+describe("parseStationIdentity", () => {
+  it("extracts brand + store number and a nationwide-unique site key", () => {
+    const s = parseStationIdentity("PILOT JAMESTOWN 305", "Jamestown", "NY");
+    expect(s.brand).toBe("pilot");
+    expect(s.storeNumber).toBe("305");
+    expect(s.siteKey).toBe("pilot#305"); // brand+store# → unique regardless of city spelling
+  });
+
+  it("handles Flying J before matching a stray 'J', and Love's apostrophe", () => {
+    expect(parseStationIdentity("FLYING J 617", "Ogden", "UT").brand).toBe("flying_j");
+    expect(parseStationIdentity("LOVES TRAVEL STOP 452", "Amarillo", "TX").brand).toBe("loves");
+    expect(parseStationIdentity("LOVE'S #452", "Amarillo", "TX").brand).toBe("loves");
+  });
+
+  it("falls back to name|city|state for independents with no store number", () => {
+    const s = parseStationIdentity("JOE'S TRUCK PLAZA", "Reno", "NV");
+    expect(s.brand).toBeNull();
+    expect(s.siteKey).toBe("joe's truck plaza|reno|nv");
   });
 });
 
