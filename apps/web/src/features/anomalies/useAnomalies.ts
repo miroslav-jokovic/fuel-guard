@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 
 const ANOMALY_COLS =
-  "id, org_id, transaction_id, vehicle_id, rule_id, severity, status, message, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, created_at, updated_at";
+  "id, org_id, transaction_id, vehicle_id, rule_id, severity, status, message, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, fueled_at, created_at, updated_at";
 
 const SEV_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
 
@@ -24,19 +24,25 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
     queryKey: ["anomalies", filters],
     queryFn: async (): Promise<Anomaly[]> => {
       const f = toValue(filters);
-      let q = supabase.from("anomalies").select(ANOMALY_COLS).limit(300);
+      let q = supabase
+        .from("anomalies")
+        .select(ANOMALY_COLS)
+        .order("fueled_at", { ascending: false, nullsFirst: false })
+        .limit(500);
       q = f.status ? q.eq("status", f.status) : q.neq("status", "superseded");
       if (f.severity) q = q.eq("severity", f.severity);
       if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
       if (f.ruleId) q = q.eq("rule_id", f.ruleId);
-      if (f.from) q = q.gte("created_at", `${f.from}T00:00:00`);
-      if (f.to) q = q.lte("created_at", `${f.to}T23:59:59`);
+      // Filter by the FUELING date (not detection time, which a rebuild resets to "today").
+      if (f.from) q = q.gte("fueled_at", `${f.from}T00:00:00`);
+      if (f.to) q = q.lte("fueled_at", `${f.to}T23:59:59`);
       const { data, error } = await q;
       if (error) throw new Error(error.message);
+      const when = (a: Anomaly) => a.fueled_at ?? a.created_at;
       return ((data ?? []) as Anomaly[]).sort(
         (a, b) =>
           (SEV_RANK[b.severity] ?? 0) - (SEV_RANK[a.severity] ?? 0) ||
-          +new Date(b.created_at) - +new Date(a.created_at),
+          +new Date(when(b)) - +new Date(when(a)),
       );
     },
   });

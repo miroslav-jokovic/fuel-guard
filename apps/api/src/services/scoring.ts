@@ -309,6 +309,7 @@ export async function scoreTransaction(
       message: res.message,
       evidence: res.evidence,
       source: "rules",
+      fueled_at: txn.fueledAt,
     });
     if (error && error.code !== "23505") throw new Error(error.message);
   }
@@ -322,7 +323,7 @@ export async function scoreTransaction(
     const openCase = (existing ?? []).find((a) => a.rule_id === CASE_RULE_ID && a.status === "open");
     if (openCase && !toInsert.length) {
       const c = caseFired[0]!;
-      await admin.from("anomalies").update({ severity: c.severity, message: c.message, evidence: c.evidence }).eq("id", openCase.id);
+      await admin.from("anomalies").update({ severity: c.severity, message: c.message, evidence: c.evidence, fueled_at: txn.fueledAt }).eq("id", openCase.id);
     }
   }
 

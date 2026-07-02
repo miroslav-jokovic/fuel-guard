@@ -7,6 +7,7 @@ import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { verifyTransactionDetailed, type VerifyReason } from "../services/aiVerification.js";
 import { scoreTransaction } from "../services/scoring.js";
+import { triageOpenCases } from "../services/aiTriage.js";
 
 const REASON_MESSAGE: Record<VerifyReason, string> = {
   disabled: "AI verification is turned off for your organization.",
@@ -172,6 +173,33 @@ export function anomaliesRouter(): Router {
         meta: { reason: reason ?? "ok" },
       });
       res.json({ assessment, reason, message: reason ? REASON_MESSAGE[reason] : null });
+    }),
+  );
+
+  // Auto-triage: run the AI investigator across all open cases that lack an assessment (background,
+  // budget-aware) so the queue can be ranked by theft likelihood.
+  router.post(
+    "/triage",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      if (!env.ANTHROPIC_API_KEY) {
+        res.status(503).json(apiError("ai_unavailable", "AI verification is not configured"));
+        return;
+      }
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const actorId = req.auth!.userId;
+      res.json({ ok: true, queued: true });
+      void (async () => {
+        try {
+          const result = await triageOpenCases(admin, env, orgId);
+          await writeAudit(admin, { orgId, actorId, action: "ai.triage_run", meta: { ...result } });
+        } catch (e) {
+          console.error("[ai-triage] failed:", e instanceof Error ? e.message : e);
+        }
+      })();
     }),
   );
 

@@ -19,6 +19,8 @@ export interface Anomaly {
   resolved_at: string | null;
   resolution_note: string | null;
   version: number;
+  /** Transaction fueling time (denormalized) — filter/sort the queue by when the fill happened. */
+  fueled_at?: string | null;
   created_at: string;
   updated_at: string;
 }

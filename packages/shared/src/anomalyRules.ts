@@ -563,8 +563,10 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   expected_odometer_band:     { axis: "consumption", weight: 40 },
   mpg_deviation:              { axis: "consumption", weight: 30 },
   mpg_sustained_decline:      { axis: "consumption", weight: 20 },
-  // Location — card used where the truck isn't
-  location_mismatch:          { axis: "location", weight: 70 },
+  // Location — card used where the truck isn't. Corroboration-only (weight below the lone-review
+  // threshold): telematics location is the least-reliable signal, so it never raises a case on its own,
+  // but it strongly reinforces a case when a volume/consumption signal also fires.
+  location_mismatch:          { axis: "location", weight: 50 },
   // Odometer — driver misreporting (masks theft / owner's accuracy concern)
   odometer_regression:        { axis: "odometer", weight: 55 },
   odometer_mismatch:          { axis: "odometer", weight: 45 },

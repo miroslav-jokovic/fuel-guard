@@ -36,6 +36,34 @@ export interface AiExamineResult {
   cleared?: boolean;
 }
 
+export interface AiTriageInfo {
+  risk_level: string;
+  risk_score: number;
+  recommended_action: string;
+}
+
+/** Latest AI assessment per transaction, as a map — powers the AI triage column + ranking. */
+export function useAiAssessments() {
+  return useQuery({
+    queryKey: ["ai_assessments_map"],
+    queryFn: async (): Promise<Record<string, AiTriageInfo>> => {
+      const { data, error } = await supabase
+        .from("ai_verifications")
+        .select("transaction_id, risk_level, risk_score, recommended_action, created_at")
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      if (error) throw new Error(error.message);
+      const map: Record<string, AiTriageInfo> = {};
+      for (const r of (data ?? []) as { transaction_id: string; risk_level: string; risk_score: number; recommended_action: string }[]) {
+        if (!map[r.transaction_id]) {
+          map[r.transaction_id] = { risk_level: r.risk_level, risk_score: r.risk_score, recommended_action: r.recommended_action };
+        }
+      }
+      return map;
+    },
+  });
+}
+
 /** Trigger an on-demand AI re-examination of an anomaly. Returns the fresh assessment (or a reason). */
 export function useAiExamine() {
   const qc = useQueryClient();

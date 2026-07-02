@@ -4,6 +4,7 @@ import { MagnifyingGlassIcon } from "@heroicons/vue/20/solid";
 import { ANOMALY_SEVERITIES, formatRuleId, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useAnomaliesQuery, useAnomalyTransition, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
+import { useAiAssessments } from "@/features/ai/useAiVerification";
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import AppSelect from "@/components/AppSelect.vue";
@@ -26,7 +27,30 @@ const { data: vehicles } = useVehiclesQuery();
 const filters = ref<AnomalyFilters>({ status: "open" });
 const search = ref("");
 const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
+const { data: aiMap } = useAiAssessments();
 const transition = useAnomalyTransition();
+
+const ai = (a: Anomaly) => (a.transaction_id ? (aiMap.value?.[a.transaction_id] ?? null) : null);
+const ACTION_LABEL: Record<string, string> = {
+  block_card: "Block card",
+  contact_driver: "Contact driver",
+  investigate: "Investigate",
+  monitor: "Monitor",
+  none: "No action",
+};
+const isLikelyFalseAlarm = (a: Anomaly) => {
+  const v = ai(a);
+  return !!v && (v.risk_level === "low" || v.recommended_action === "monitor" || v.recommended_action === "none");
+};
+
+const triaging = ref(false);
+async function runTriage() {
+  triaging.value = true;
+  const res = await apiFetch("/api/anomalies/triage", { method: "POST" });
+  triaging.value = false;
+  if (res.ok) toast.success("AI triage started", "Assessing open cases in the background — refresh in a moment.");
+  else toast.error("Could not start triage", res.error?.message);
+}
 
 const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
 const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
@@ -58,9 +82,10 @@ function onSort(key: string) {
 const getVal = (a: Anomaly, key: string): unknown => {
   if (key === "severity") return SEV_RANK[a.severity] ?? 0;
   if (key === "vehicle") return unit(a.vehicle_id);
-  if (key === "when") return a.created_at;
+  if (key === "when") return a.fueled_at ?? a.created_at;
   if (key === "type") return a.rule_id;
   if (key === "status") return a.status;
+  if (key === "ai") return ai(a)?.risk_score ?? -1;
   return (a as unknown as Record<string, unknown>)[key];
 };
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
@@ -151,6 +176,15 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
           <button v-if="activeFilterCount" class="text-sm font-medium text-gray-500 hover:text-gray-700" @click="resetFilters">Clear filters</button>
           <button
             v-if="session.canManage"
+            :disabled="triaging"
+            class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 ring-1 ring-indigo-300 ring-inset hover:bg-indigo-50 disabled:opacity-50"
+            title="Run the AI investigator across open cases and rank them by theft likelihood"
+            @click="runTriage"
+          >
+            {{ triaging ? "Triaging…" : "AI triage" }}
+          </button>
+          <button
+            v-if="session.canManage"
             :disabled="rebuilding"
             class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
             title="Re-score every transaction with the current rules — clears stale/false flags"
@@ -211,7 +245,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
 
     <!-- Table -->
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="7" />
+      <TableSkeleton v-if="isLoading" :cols="8" />
       <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load anomalies'" :retrying="isFetching" @retry="refetch" />
       <div v-else-if="total === 0" class="px-6 py-10 text-center text-sm text-gray-500">Nothing here — no anomalies match these filters.</div>
       <div v-else class="overflow-x-auto">
@@ -224,6 +258,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
               <SortableTh label="Severity" sort-key="severity" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <SortableTh label="Type" sort-key="type" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <SortableTh label="Vehicle" sort-key="vehicle" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+              <SortableTh label="AI" sort-key="ai" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <th class="px-4 py-3 font-medium">Detail</th>
               <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" @sort="onSort" />
               <SortableTh label="When" sort-key="when" :active="sort.key" :dir="sort.dir" @sort="onSort" />
@@ -244,9 +279,17 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
               <td class="px-4 py-3"><span :class="[BADGE_BASE, severityTone(a.severity)]">{{ a.severity }}</span></td>
               <td class="px-4 py-3 text-gray-700">{{ formatRuleId(a.rule_id) }}</td>
               <td class="px-4 py-3 text-gray-900">{{ unit(a.vehicle_id) }}</td>
+              <td class="px-4 py-3">
+                <div v-if="ai(a)" class="flex items-center gap-1.5">
+                  <span :class="[BADGE_BASE, severityTone(ai(a)!.risk_level)]" :title="`AI risk ${ai(a)!.risk_score}/100`">{{ ai(a)!.risk_level }}</span>
+                  <span v-if="isLikelyFalseAlarm(a)" class="text-xs text-gray-400">likely false alarm</span>
+                  <span v-else class="text-xs text-gray-500">{{ ACTION_LABEL[ai(a)!.recommended_action] ?? ai(a)!.recommended_action }}</span>
+                </div>
+                <span v-else class="text-xs text-gray-300">—</span>
+              </td>
               <td class="max-w-md truncate px-4 py-3 text-gray-700">{{ a.message }}</td>
               <td class="px-4 py-3"><span :class="[BADGE_BASE, statusTone(a.status)]">{{ a.status }}</span></td>
-              <td class="px-4 py-3 whitespace-nowrap text-gray-500">{{ fmt(a.created_at) }}</td>
+              <td class="px-4 py-3 whitespace-nowrap text-gray-500" :title="`Detected ${fmt(a.created_at)}`">{{ fmt(a.fueled_at ?? a.created_at) }}</td>
               <td class="px-4 py-3 text-right" @click.stop>
                 <KebabMenu v-if="session.canManage && isActionable(a)">
                   <button class="kebab-item" @click="selectedRow = a">Review details</button>

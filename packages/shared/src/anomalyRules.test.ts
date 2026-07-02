@@ -85,8 +85,11 @@ describe("correlateSignals (multi-signal → one case)", () => {
   it("a lone WEAK signal (odometer mismatch) → clear, not a red alert", () => {
     expect(correlateSignals([sig("odometer_mismatch")]).level).toBe("clear");
   });
-  it("a lone STRONG signal (location mismatch) → review", () => {
-    const c = correlateSignals([sig("location_mismatch")]);
+  it("a lone location mismatch → clear (corroboration-only, never alerts alone)", () => {
+    expect(correlateSignals([sig("location_mismatch")]).level).toBe("clear");
+  });
+  it("a lone STRONG volume signal (tank fill short) → review", () => {
+    const c = correlateSignals([sig("tank_fill_short")]);
     expect(c.level).toBe("review");
     expect(c.severity).toBe("medium");
   });
