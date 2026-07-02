@@ -7,7 +7,7 @@ import { validateBody, apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
-import { makeSender } from "../lib/mailer.js";
+import { makeSender, sendEmail } from "../lib/mailer.js";
 import type { Env } from "../env.js";
 
 const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at";
@@ -49,6 +49,28 @@ async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, e
 export function invitesRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+
+  // Send a test email to the caller's own address and report the provider's exact response (admin).
+  router.post(
+    "/mail-test",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const to = req.auth!.email;
+      if (!to) {
+        res.status(400).json(apiError("no_email", "Your account has no email address"));
+        return;
+      }
+      const result = await sendEmail(env, {
+        to: [to],
+        subject: "FuelGuard test email",
+        html: "<p>This is a FuelGuard test email. If you received it, outbound email is working.</p>",
+        text: "This is a FuelGuard test email. If you received it, outbound email is working.",
+      });
+      res.json({ ...result, from: env.MAIL_FROM, to });
+    }),
+  );
 
   // List invites for the caller's org (admin).
   router.get(

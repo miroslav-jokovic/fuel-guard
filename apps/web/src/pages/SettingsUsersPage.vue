@@ -46,6 +46,23 @@ function handleInviteResult(addr: string, data: InviteResult | undefined) {
   else toast.error("Invitation not emailed", data?.reason ? (REASON_TEXT[data.reason] ?? data.reason) : undefined);
 }
 
+interface MailTest { ok: boolean; provider: string; status?: number; detail?: string; from: string; to: string }
+const mailTest = ref<MailTest | null>(null);
+const testing = ref(false);
+async function sendMailTest() {
+  testing.value = true;
+  mailTest.value = null;
+  const res = await apiFetch<MailTest>("/api/invites/mail-test", { method: "POST" });
+  testing.value = false;
+  if (res.ok && res.data) {
+    mailTest.value = res.data;
+    if (res.data.ok) toast.success("Test email sent", `Check ${res.data.to}`);
+    else toast.error("Provider rejected the email", res.data.detail ?? undefined);
+  } else {
+    toast.error("Mail test failed", res.error?.message);
+  }
+}
+
 async function invite() {
   submitting.value = true;
   const addr = email.value;
@@ -133,10 +150,31 @@ onMounted(load);
 <template>
   <div class="space-y-8">
     <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
-      <h3 class="text-base font-semibold text-gray-900">Invite a user</h3>
-      <p class="mt-1 text-sm text-gray-500">
-        Only addresses on your organization's allowed domain can be invited.
-      </p>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-base font-semibold text-gray-900">Invite a user</h3>
+          <p class="mt-1 text-sm text-gray-500">Only addresses on your organization's allowed domain can be invited.</p>
+        </div>
+        <button
+          :disabled="testing"
+          class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+          title="Send a test email to your own address to verify the mail setup"
+          @click="sendMailTest"
+        >
+          {{ testing ? "Testing…" : "Send test email" }}
+        </button>
+      </div>
+      <div
+        v-if="mailTest"
+        :class="['mt-3 rounded-md p-3 text-sm ring-1', mailTest.ok ? 'bg-green-50 text-green-800 ring-green-200' : 'bg-red-50 text-red-800 ring-red-200']"
+      >
+        <p v-if="mailTest.ok">Sent via {{ mailTest.provider }} to {{ mailTest.to }} — check your inbox.</p>
+        <p v-else>
+          {{ mailTest.provider }} rejected the message (status {{ mailTest.status ?? "—" }}):
+          <span class="font-mono">{{ mailTest.detail ?? "no detail" }}</span>
+          <br /><span class="text-xs">from: {{ mailTest.from }}</span>
+        </p>
+      </div>
       <form class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end" @submit.prevent="invite">
         <div class="flex-1">
           <label for="inv-email" class="block text-sm font-medium text-gray-900">Email</label>
