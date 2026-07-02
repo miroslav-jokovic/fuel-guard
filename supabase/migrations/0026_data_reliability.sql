@@ -10,8 +10,12 @@
 -- 5. imports.summary — post-commit reconciliation fingerprint (file vs DB counts, rows per day).
 -- 6. geocode_cache.updated_at — lets stale unresolved lookups be retried instead of failing forever.
 --
--- Ordering inside this file is load-bearing: restore (2) → refs (3) → tz shift (4), because the
--- date-scoped refs must be built from the business date, which equals the UTC date only BEFORE the shift.
+-- Ordering inside this file is load-bearing: restore (2) → dedupe (2b) → refs+tz-shift (3+4, merged
+-- into one atomic statement per table because the date-scoped ref must be built from the business
+-- date, which equals the UTC date only BEFORE the shift). Every statement is independently
+-- idempotent and NO session state (temp tables) is used, so this runs safely both as one
+-- transaction (CLI / direct connection) and statement-by-statement through a connection pooler
+-- (Supabase SQL editor).
 
 -- ── helper: dominant IANA timezone per US state / CA province (mirrors shared/efsImport.ts) ─────────
 create or replace function efs_state_tz(state text) returns text
@@ -87,48 +91,115 @@ where fueled_at_precision is null;
 alter table fuel_transactions alter column fueled_at_precision set default 'instant';
 alter table fuel_transactions alter column fueled_at_precision set not null;
 
--- ── 3) date-scope the dedupe keys (idempotent: skips refs already ending in a date) ────────────────
--- Distinct old refs stay distinct after appending, so the unique indexes cannot collide.
-update fuel_transactions
-set external_ref = external_ref || '|' || to_char(fueled_at at time zone 'UTC', 'YYYY-MM-DD')
-where source = 'fuel_card'
-  and external_ref is not null
-  and external_ref !~ '\|\d{4}-\d{2}-\d{2}$';
+-- ── 2b) remove duplicates created by imports that ran with the NEW (date-scoped) code BEFORE this
+-- migration was applied ─────────────────────────────────────────────────────────────────────────────
+-- If a file was re-imported under the new parser, its rows landed with date-scoped refs that didn't
+-- match the old-format rows already present — the same physical line/fill now exists twice, and the
+-- ref rewrite below would collide with the new twin (23505). The ORIGINAL old-format row is the
+-- keeper (it carries the Samsara reconciliation + any reviewer workflow); the re-import twin is
+-- deleted. anomalies / ai_verifications on the twin cascade; legacy import_rows pointers detach first.
 
-update efs_transactions
-set external_ref = external_ref || '|' || coalesce(to_char(tran_date, 'YYYY-MM-DD'), '')
-where external_ref is not null
-  and external_ref !~ '\|\d{4}-\d{2}-\d{2}$';
+update import_rows ir
+set transaction_id = null
+where ir.transaction_id in (
+  select n.id
+  from fuel_transactions n
+  join fuel_transactions o
+    on  o.org_id = n.org_id
+    and n.external_ref = o.external_ref || '|' || to_char(o.fueled_at at time zone 'UTC', 'YYYY-MM-DD')
+  where o.source = 'fuel_card'
+    and o.external_ref is not null
+    and o.external_ref !~ '\|\d{4}-\d{2}-\d{2}$'
+);
 
-update declined_transactions
-set external_ref = external_ref || '|' || to_char(declined_at at time zone 'UTC', 'YYYY-MM-DD')
-where external_ref is not null
-  and external_ref !~ '\|\d{4}-\d{2}-\d{2}$';
+delete from fuel_transactions n
+using fuel_transactions o
+where o.org_id = n.org_id
+  and o.source = 'fuel_card'
+  and o.external_ref is not null
+  and o.external_ref !~ '\|\d{4}-\d{2}-\d{2}$'
+  and n.external_ref = o.external_ref || '|' || to_char(o.fueled_at at time zone 'UTC', 'YYYY-MM-DD');
 
--- ── 4) convert naive wall-clock times to true UTC (DST-correct per date) ───────────────────────────
--- Every timed row written before this migration stored the station's LOCAL wall time as if it were
--- UTC. Interpret that wall time in the station state's zone. Guards:
---   • precision = 'instant' only (noon-sentinel date rows are unaffected by design)
---   • never rows still equal to samsara_recon_at (those are already true UTC from telematics)
---   • never manual entries (browser supplied a real instant)
---   • only states we can map
-update fuel_transactions
-set fueled_at = ((fueled_at at time zone 'UTC') at time zone efs_state_tz(state))
-where source = 'fuel_card'
-  and fueled_at_precision = 'instant'
-  and (samsara_recon_at is null or fueled_at <> samsara_recon_at)
-  and efs_state_tz(state) is not null;
+delete from efs_transactions n
+using efs_transactions o
+where o.org_id = n.org_id
+  and o.external_ref is not null
+  and o.external_ref !~ '\|\d{4}-\d{2}-\d{2}$'
+  and n.external_ref = o.external_ref || '|' || coalesce(to_char(o.tran_date, 'YYYY-MM-DD'), '');
 
-update efs_transactions
-set fueled_at = ((fueled_at at time zone 'UTC') at time zone efs_state_tz(state))
-where fueled_at is not null
-  and (fueled_at at time zone 'UTC')::time <> time '12:00:00'
-  and efs_state_tz(state) is not null;
+delete from declined_transactions n
+using declined_transactions o
+where o.org_id = n.org_id
+  and o.external_ref is not null
+  and o.external_ref !~ '\|\d{4}-\d{2}-\d{2}$'
+  and n.external_ref = o.external_ref || '|' || to_char(o.declined_at at time zone 'UTC', 'YYYY-MM-DD');
 
-update declined_transactions
-set declined_at = ((declined_at at time zone 'UTC') at time zone efs_state_tz(state))
-where (declined_at at time zone 'UTC')::time <> time '12:00:00'
-  and efs_state_tz(state) is not null;
+-- ── 3+4) date-scope the dedupe keys AND convert naive wall-clock times — ONE atomic statement per
+-- table ──────────────────────────────────────────────────────────────────────────────────────────────
+-- Both derived values are computed from the row's PRE-UPDATE state (SQL update semantics), which is
+-- what makes this correct: the new ref needs the business date (= the UTC date BEFORE the shift), and
+-- the old-format ref is simultaneously the only reliable marker that a row's time is naive local-as-UTC
+-- (rows written by the new parser are already true UTC and already date-scoped — they are never
+-- touched). No temp tables: connection-pooled runners (Supabase SQL editor) don't keep a session
+-- between statements, so session state must never be relied on.
+--
+-- Shift guards (inside the CASE):
+--   • precision = 'instant' only (noon-sentinel date rows keep their sentinel by design)
+--   • never rows still equal to samsara_recon_at (already true UTC from telematics)
+--   • only states we can map (unknown state → keep deterministic naive-UTC)
+-- The NOT EXISTS guard is belt-and-braces for any twin 2b could not pair (e.g. a pre-0011 row whose
+-- business date could not be restored and sits ±1 day off): such a row keeps its old-format ref and
+-- naive time — still unique, still functional — instead of aborting the whole migration.
+update fuel_transactions f
+set external_ref = f.external_ref || '|' || to_char(f.fueled_at at time zone 'UTC', 'YYYY-MM-DD'),
+    fueled_at = case
+      when f.fueled_at_precision = 'instant'
+       and (f.samsara_recon_at is null or f.fueled_at <> f.samsara_recon_at)
+       and efs_state_tz(f.state) is not null
+      then ((f.fueled_at at time zone 'UTC') at time zone efs_state_tz(f.state))
+      else f.fueled_at
+    end
+where f.source = 'fuel_card'
+  and f.external_ref is not null
+  and f.external_ref !~ '\|\d{4}-\d{2}-\d{2}$'
+  and not exists (
+    select 1 from fuel_transactions x
+    where x.org_id = f.org_id
+      and x.external_ref = f.external_ref || '|' || to_char(f.fueled_at at time zone 'UTC', 'YYYY-MM-DD')
+  );
+
+update efs_transactions e
+set external_ref = e.external_ref || '|' || coalesce(to_char(e.tran_date, 'YYYY-MM-DD'), ''),
+    fueled_at = case
+      when e.fueled_at is not null
+       and (e.fueled_at at time zone 'UTC')::time <> time '12:00:00'
+       and efs_state_tz(e.state) is not null
+      then ((e.fueled_at at time zone 'UTC') at time zone efs_state_tz(e.state))
+      else e.fueled_at
+    end
+where e.external_ref is not null
+  and e.external_ref !~ '\|\d{4}-\d{2}-\d{2}$'
+  and not exists (
+    select 1 from efs_transactions x
+    where x.org_id = e.org_id
+      and x.external_ref = e.external_ref || '|' || coalesce(to_char(e.tran_date, 'YYYY-MM-DD'), '')
+  );
+
+update declined_transactions d
+set external_ref = d.external_ref || '|' || to_char(d.declined_at at time zone 'UTC', 'YYYY-MM-DD'),
+    declined_at = case
+      when (d.declined_at at time zone 'UTC')::time <> time '12:00:00'
+       and efs_state_tz(d.state) is not null
+      then ((d.declined_at at time zone 'UTC') at time zone efs_state_tz(d.state))
+      else d.declined_at
+    end
+where d.external_ref is not null
+  and d.external_ref !~ '\|\d{4}-\d{2}-\d{2}$'
+  and not exists (
+    select 1 from declined_transactions x
+    where x.org_id = d.org_id
+      and x.external_ref = d.external_ref || '|' || to_char(d.declined_at at time zone 'UTC', 'YYYY-MM-DD')
+  );
 
 -- ── 4b) odometer tolerance default 5 → 10 mi ───────────────────────────────────────────────────────
 -- The Samsara reference odometer is a GPS-interpolated stop reading (±1h anchor slack, 0.1 mi
@@ -145,3 +216,15 @@ comment on column imports.summary is
 
 -- ── 6) retryable negative geocode cache ────────────────────────────────────────────────────────────
 alter table geocode_cache add column if not exists updated_at timestamptz not null default now();
+
+-- ── 7) completion marker ───────────────────────────────────────────────────────────────────────────
+-- Records that the one-shot data conversions (tz shift) ran, so repair scripts can refuse to run
+-- twice (a second shift would corrupt the timestamps). Deliberately the LAST statement: on a
+-- statement-by-statement runner it only executes if everything above succeeded. RLS enabled with no
+-- policies = invisible to the API; the SQL editor / service role bypasses RLS.
+create table if not exists migration_markers (
+  key     text primary key,
+  done_at timestamptz not null default now()
+);
+alter table migration_markers enable row level security;
+insert into migration_markers (key) values ('0026_tz_shift') on conflict (key) do nothing;
