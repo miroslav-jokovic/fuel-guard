@@ -17,6 +17,7 @@ import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { webhooksRouter } from "./routes/webhooks.js";
+import { aiRouter } from "./routes/ai.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -65,6 +66,7 @@ export function createApp(env: Env): Express {
   app.use("/api/invites", strictLimiter);
   app.use("/api/reports", strictLimiter);
   app.use("/api/integrations", strictLimiter);
+  app.use("/api/ai", strictLimiter);
 
   app.get("/healthz", (_req: Request, res: Response) => {
     res.json({ status: "ok", service: `${APP_NAME} API`, env: env.NODE_ENV });
@@ -86,6 +88,7 @@ export function createApp(env: Env): Express {
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());
   app.use("/api/integrations", integrationsRouter());
+  app.use("/api/ai", aiRouter());
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 
   // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────

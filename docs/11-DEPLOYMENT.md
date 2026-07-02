@@ -198,59 +198,50 @@ the table above. **Redeploy** after setting variables so the build picks them up
 | App loads but every API call is 401/403 | Auth hook not enabled (Stage 1.3) or you logged in **before** enabling it — log out and back in. |
 | Logged in but stuck on "account pending" | No `memberships` row for your user (Stage 2), or wrong `org_id`/role. |
 | Login page loads but data calls fail in console (CSP/blocked) | `VITE_SUPABASE_URL` wrong or missing at build time → rebuild after setting it. |
-| Invite emails not arriving | Set `RESEND_API_KEY` + `MAIL_FROM` in Railway and verify `silvicominc.com` in Resend (see Stage 5). Check Railway Logs for `[mailer]` error lines — 403 = domain not verified, 401 = bad key. |
+| Invite emails not arriving | Set `RESEND_API_KEY` in Railway (see Stage 5). Check Railway Logs for `[mailer]` error lines — 401 = bad/missing key. The UI always has a copy-link fallback. |
 | `/healthz` works but `/` is blank/404 | The web build didn't run or `apps/web/dist` is empty — check the build logs; `railway.json` build command must succeed. |
 
 ---
 
 ## Stage 5 — Email delivery (Resend)
 
-Invitation emails go through **Resend** (https://resend.com). Without this stage invites still work
-— the admin copies a link — but recipients won't receive an email automatically.
+Invitation emails go through **Resend** using their shared sender address (`onboarding@resend.dev`).
+**No DNS or domain verification is needed** — just an API key. Without this stage invites still
+work (the admin copies a link), but recipients won't get an email automatically.
 
 ### 5.1 Create a Resend account & API key
 1. Sign up at **https://resend.com** (free tier: 3,000 emails/month, 100/day).
 2. **API Keys → Create API Key** — name it `fuelguard-prod`, permission: **Sending access**.
-3. Copy the key (`re_...`). You'll set it as `RESEND_API_KEY` in Railway.
+3. Copy the key (`re_...`).
 
-### 5.2 Verify your sending domain
-Resend requires the **`from` email domain** to have DNS records verified before it delivers to
-any recipient. This is **your company domain (`silvicominc.com`)** — completely separate from
-the Railway app domain (`fleetguardweb-production.up.railway.app`), which is just a URL in the
-email body and needs no verification anywhere.
-
-1. Resend dashboard → **Domains → Add Domain** → enter `silvicominc.com`.
-2. Resend shows **3 DNS records** to add (SPF TXT, DKIM CNAME × 2, optionally DMARC TXT).
-3. Add these in your DNS provider (Cloudflare, GoDaddy, Route 53, etc.) for `silvicominc.com`.
-4. Click **Verify** in Resend — all records turn green within a few minutes (up to 48 h in rare cases).
-
-> **Cannot verify the domain yet?** Use Resend's shared test sender while DNS propagates:
-> set `MAIL_FROM=FuelGuard <onboarding@resend.dev>` — this only delivers to your **own**
-> Resend-account email, not to arbitrary recipients. Switch back once `silvicominc.com` is verified.
-
-### 5.3 Set Railway environment variables
-In Railway → your service → **Variables**, add:
+### 5.2 Set Railway environment variables
+Railway → your service → **Variables**:
 
 | Variable | Value |
 |----------|-------|
 | `RESEND_API_KEY` | `re_...` (from step 5.1) |
-| `MAIL_FROM` | `FuelGuard <miki@silvicominc.com>` |
-| `MAIL_PROVIDER` | `resend` *(optional — auto-detected from the key)* |
+| `MAIL_FROM` | `FuelGuard <onboarding@resend.dev>` *(default — no DNS needed)* |
 
-Then **Redeploy**. The startup log will print:
+`MAIL_PROVIDER` is optional — the server auto-detects it from the key. Then **Redeploy**.
+The startup log will print:
 ```
 [env] MAIL_PROVIDER auto-set to 'resend' (RESEND_API_KEY is present)
 ```
 
-### 5.4 Verify it works
+### 5.3 Verify it works
 1. Settings → Users → invite any address.
-2. Check Railway **Logs** — a successful send shows no `[mailer]` error lines.
-3. If you see `[mailer] resend 403 validation_error: The silvicominc.com domain is not verified` →
-   DNS records haven't propagated yet, or the domain wasn't added in Resend. Re-check step 5.2.
-4. If you see `[mailer] resend 401` → `RESEND_API_KEY` is wrong or missing.
+2. Railway **Logs** — a successful send shows no `[mailer]` error lines.
+3. `[mailer] resend 401` → `RESEND_API_KEY` is wrong or missing.
 
-> The invite UI always shows a **copy link** button regardless of email status, so admins can share
-> the link manually even if email delivery is temporarily broken.
+> The invite UI always shows a **copy link** button so admins can share the link manually as a fallback.
+
+### Later — switch to your own domain sender (optional)
+Once you have DNS access to `silvicominc.com`, verify it in **resend.com/domains** (add the
+3 DNS records Resend shows you) and set:
+```
+MAIL_FROM=FuelGuard <miki@silvicominc.com>
+```
+Emails will then arrive from your company address instead of `onboarding@resend.dev`.
 
 ---
 

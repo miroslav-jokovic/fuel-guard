@@ -53,6 +53,9 @@ function getClient(env: Env): Anthropic {
   return client;
 }
 
+/** The shared Anthropic client (for agentic tool-use flows like Ask-your-data). */
+export const anthropicClient = getClient;
+
 /** Call Claude, forcing the assessment tool, and return its structured (unvalidated) input. */
 export async function callClaude(
   env: Env,

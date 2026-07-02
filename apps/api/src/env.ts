@@ -58,10 +58,12 @@ const EnvSchema = z.object({
   MAIL_PROVIDER: z.enum(["resend", "brevo", "none"]).default("none"),
   RESEND_API_KEY: z.string().optional(),
   BREVO_API_KEY: z.string().optional(),
-  // Sender for outbound email. Must be an address on a domain VERIFIED in your mail provider.
-  // Domain verification for silvicominc.com: resend.com/domains → Add Domain → copy the 3 DNS records.
-  // A display name is fine: "FuelGuard <miki@silvicominc.com>". Override via the Railway env var.
-  MAIL_FROM: z.string().default("FuelGuard <miki@silvicominc.com>"),
+  // Sender for outbound email.
+  // Default uses Resend's shared test sender (onboarding@resend.dev) — no domain verification
+  // required, works with just a RESEND_API_KEY. Switch to your own verified domain address
+  // (e.g. "FuelGuard <miki@silvicominc.com>") once you have DNS access to verify silvicominc.com
+  // in resend.com/domains.
+  MAIL_FROM: z.string().default("FuelGuard <onboarding@resend.dev>"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
