@@ -37,7 +37,7 @@ function clear() {
     </div>
     <input
       v-model="local"
-      type="search"
+      type="text"
       :placeholder="placeholder"
       class="block w-full rounded-md border-0 py-1.5 pr-9 pl-10 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600"
     />

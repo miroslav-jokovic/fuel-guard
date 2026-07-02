@@ -24,6 +24,15 @@ function onSort(key: string) {
 
 const { data, isLoading, isError, error, refetch, isFetching } = useEfsTransactions(filters, page);
 
+const unitOptions = computed(() => [
+  { value: "", label: "All units" },
+  ...[...new Set((vehicles.value ?? []).map((v) => v.unit_number))].sort().map((u) => ({ value: u, label: u })),
+]);
+
+const unit = computed({
+  get: () => filters.value.unit ?? "",
+  set: (v: string) => (filters.value = { ...filters.value, unit: v || undefined }),
+});
 const search = computed({
   get: () => filters.value.search ?? "",
   set: (v: string) => (filters.value = { ...filters.value, search: v || undefined }),
@@ -52,14 +61,7 @@ const fmtTime = (iso: string | null) => {
       <div class="lg:max-w-xs lg:flex-1">
         <SearchInput v-model="search" placeholder="Search driver, location, item…" />
       </div>
-      <AppSelect
-        v-model="filters.unit"
-        class="lg:w-40"
-        :options="[
-          { value: undefined, label: 'All units' },
-          ...(vehicles ?? []).map((v) => ({ value: v.unit_number, label: v.unit_number })),
-        ]"
-      />
+      <AppSelect v-model="unit" :options="unitOptions" class="lg:w-40" />
       <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
       <span class="text-sm text-gray-500 lg:ml-auto">{{ total }} total</span>
     </div>

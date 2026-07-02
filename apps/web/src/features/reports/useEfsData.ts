@@ -43,7 +43,7 @@ export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) 
       if (f.unit) q = q.eq("unit", f.unit);
       if (f.from) q = q.gte("tran_date", f.from);
       if (f.to) q = q.lte("tran_date", f.to);
-      if (f.search) q = q.or(ilikeOr(f.search, ["driver_name", "location_name", "item", "city"]));
+      if (f.search) q = q.or(ilikeOr(f.search, ["unit", "driver_name", "card_num", "invoice", "location_name", "item", "city"]));
       const { data, error, count } = await q;
       if (error) throw new Error(error.message);
       return { rows: (data ?? []) as EfsTransactionRow[], total: count ?? 0 };
@@ -71,7 +71,7 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
       if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);
       if (f.from) q = q.gte("declined_at", f.from);
       if (f.to) q = q.lte("declined_at", f.to);
-      if (f.search) q = q.or(ilikeOr(f.search, ["driver_name", "error_description", "location_text", "error_code"]));
+      if (f.search) q = q.or(ilikeOr(f.search, ["unit", "driver_name", "card_ref", "invoice", "error_code", "error_description", "location_text"]));
       const { data, error, count } = await q;
       if (error) throw new Error(error.message);
       return { rows: (data ?? []) as DeclinedTransactionRow[], total: count ?? 0 };

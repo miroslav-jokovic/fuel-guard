@@ -76,15 +76,15 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   }
   const env = parsed.data;
 
-  // Auto-detect provider: if an API key is present but MAIL_PROVIDER was left at the default
-  // "none", activate the matching provider so that setting only RESEND_API_KEY is enough.
+  // Auto-detect provider when MAIL_PROVIDER is left at the default "none". Brevo is preferred (it allows
+  // single-sender verification with no DNS), so its key wins if both happen to be set.
   if (env.MAIL_PROVIDER === "none") {
-    if (env.RESEND_API_KEY) {
-      console.info("[env] MAIL_PROVIDER auto-set to 'resend' (RESEND_API_KEY is present)");
-      (env as { MAIL_PROVIDER: string }).MAIL_PROVIDER = "resend";
-    } else if (env.BREVO_API_KEY) {
+    if (env.BREVO_API_KEY) {
       console.info("[env] MAIL_PROVIDER auto-set to 'brevo' (BREVO_API_KEY is present)");
       (env as { MAIL_PROVIDER: string }).MAIL_PROVIDER = "brevo";
+    } else if (env.RESEND_API_KEY) {
+      console.info("[env] MAIL_PROVIDER auto-set to 'resend' (RESEND_API_KEY is present)");
+      (env as { MAIL_PROVIDER: string }).MAIL_PROVIDER = "resend";
     }
   }
 

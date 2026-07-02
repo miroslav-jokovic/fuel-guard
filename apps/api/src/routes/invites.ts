@@ -118,7 +118,7 @@ export function invitesRouter(): Router {
         entityId: invite.id,
         meta: { email, role, emailSent: delivery.sent, reason: delivery.reason },
       });
-      res.status(201).json({ invite, emailSent: delivery.sent, inviteLink: delivery.link, reason: delivery.reason });
+      res.status(201).json({ invite, emailSent: delivery.sent, reason: delivery.reason });
     }),
   );
 
@@ -208,7 +208,7 @@ export function invitesRouter(): Router {
         meta: { email: existing.email, emailSent },
       });
 
-      res.json({ ok: true, emailSent, inviteLink: delivery.link, reason: delivery.reason });
+      res.json({ ok: true, emailSent, reason: delivery.reason });
     }),
   );
 

@@ -10,6 +10,13 @@ export interface OutgoingEmail {
 /** A function that delivers an email; returns whether it was sent. Injectable for tests. */
 export type Sender = (email: OutgoingEmail) => Promise<boolean>;
 
+/** Split a "Name <email@x.com>" MAIL_FROM into parts (Brevo needs a bare email; Resend takes the string). */
+export function parseSender(from: string): { name?: string; email: string } {
+  const m = from.match(/^\s*(.*?)\s*<\s*([^>]+)\s*>\s*$/);
+  if (m) return { name: m[1] || undefined, email: m[2]!.trim() };
+  return { email: from.trim() };
+}
+
 /**
  * Provider-agnostic email sender (plain fetch, no SDK). Set MAIL_PROVIDER to 'resend' or 'brevo'
  * (Brevo has the largest free tier ~9k/mo; Resend is simplest). 'none' = no-op so the app still runs.
@@ -40,7 +47,7 @@ export function makeSender(env: Env): Sender {
           method: "POST",
           headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json", accept: "application/json" },
           body: JSON.stringify({
-            sender: { email: env.MAIL_FROM },
+            sender: parseSender(env.MAIL_FROM), // { name?, email } — Brevo rejects a "Name <email>" string
             to: email.to.map((e) => ({ email: e })),
             subject: email.subject,
             htmlContent: email.html,
