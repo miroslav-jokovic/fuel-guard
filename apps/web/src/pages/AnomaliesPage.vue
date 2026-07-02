@@ -269,7 +269,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
       <div v-else-if="total === 0" class="px-6 py-10 text-center text-sm text-gray-500">Nothing here — no anomalies match these filters.</div>
       <div v-else class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-          <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
+          <thead class="bg-gray-50 text-left text-gray-500">
             <tr>
               <th class="w-10 px-4 py-3">
                 <input v-if="session.canManage" type="checkbox" :checked="allChecked" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" @change="toggleAll" />

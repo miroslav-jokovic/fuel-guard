@@ -147,7 +147,7 @@ async function onSyncSamsara() {
       </div>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
+        <thead class="bg-gray-50 text-left text-gray-500">
           <tr>
             <SortableTh label="Name" sort-key="full_name" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[12rem]" @sort="onSort" />
             <SortableTh label="Employee ID" sort-key="employee_id" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />

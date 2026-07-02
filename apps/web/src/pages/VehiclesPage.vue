@@ -233,7 +233,7 @@ async function onRetire(v: Vehicle) {
       </div>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
+        <thead class="bg-gray-50 text-left text-gray-500">
           <tr>
             <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[5rem]" @sort="onSort" />
             <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicle</th>

@@ -79,7 +79,7 @@ const fmtTime = (iso: string | null) => {
       </div>
       <div v-else class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 text-sm">
-          <thead class="sticky top-16 z-10 bg-gray-50 text-left whitespace-nowrap text-gray-500">
+          <thead class="bg-gray-50 text-left whitespace-nowrap text-gray-500">
             <tr>
               <SortableTh label="Tran Date" sort-key="tran_date" :active="sort.key" :dir="sort.dir" th-class="sticky left-0 z-20 bg-gray-50 px-4 py-3 font-medium min-w-[7rem] border-r border-gray-200" @sort="onSort" />
               <th class="px-4 py-3 font-medium min-w-[5rem]">Time</th>

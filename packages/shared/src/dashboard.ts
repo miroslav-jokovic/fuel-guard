@@ -35,6 +35,14 @@ export interface DashboardSummary {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+// A fleet vehicle's real MPG is never below ~1 or above ~40. Values outside this band come from a
+// corrupt fill (bad/blank odometer, a missed prior fill, a top-off after barely moving) and would drag
+// the gallon-weighted daily average to a nonsense spike/dip. Exclude them from the efficiency views —
+// the underlying bad fill is still surfaced by the anomaly engine. Kept wide so real economy is untouched.
+export const MPG_PLAUSIBLE_MIN = 1;
+export const MPG_PLAUSIBLE_MAX = 40;
+const plausibleMpg = (n: number) => Number.isFinite(n) && n >= MPG_PLAUSIBLE_MIN && n <= MPG_PLAUSIBLE_MAX;
+
 /** Options for aggregateDashboard. `tz` buckets trend days in the org's timezone (UTC when absent). */
 export interface DashboardOptions {
   /** IANA timezone for day bucketing (e.g. "America/Chicago"). Defaults to UTC slicing. */
@@ -100,7 +108,7 @@ export function aggregateDashboard(
     const d = dayInTz(t.fueled_at, opts.tz);
     spendByDay.set(d, (spendByDay.get(d) ?? 0) + cost);
 
-    if (t.computed_mpg != null && gallons > 0) {
+    if (t.computed_mpg != null && gallons > 0 && plausibleMpg(Number(t.computed_mpg))) {
       const mpg = Number(t.computed_mpg);
       mpgWeighted += mpg * gallons;
       mpgGallons += gallons;

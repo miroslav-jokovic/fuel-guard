@@ -99,7 +99,7 @@ const clearCount = computed(() => rows.value.filter((t) => !t.has_anomaly).lengt
       </div>
       <div v-else class="overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="sticky top-16 z-10 bg-gray-50 text-left text-gray-500">
+        <thead class="bg-gray-50 text-left text-gray-500">
           <tr>
             <SortableTh label="When" sort-key="fueled_at" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[11rem]" @sort="onSort" />
             <th class="px-6 py-3 font-medium min-w-[7rem]">Vehicle</th>
