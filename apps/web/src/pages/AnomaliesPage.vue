@@ -6,6 +6,7 @@ import { useAnomaliesQuery, type AnomalyFilters } from "@/features/anomalies/use
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import AppSelect from "@/components/AppSelect.vue";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -19,6 +20,16 @@ const toast = useToastStore();
 const { data: vehicles } = useVehiclesQuery();
 const filters = ref<AnomalyFilters>({ status: "open" });
 const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
+
+const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
+const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
+const activeFilterCount = computed(() => {
+  const f = filters.value;
+  return [f.severity, f.vehicleId, f.ruleId, f.from, f.to].filter(Boolean).length;
+});
+function resetFilters() {
+  filters.value = { status: "open" };
+}
 
 const rebuilding = ref(false);
 async function rebuild() {
@@ -68,42 +79,62 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center gap-3">
-      <AppSelect
-        v-model="filters.status"
-        :options="[
-          { value: 'open', label: 'Open' },
-          { value: 'investigating', label: 'Investigating' },
-          { value: 'resolved', label: 'Resolved' },
-          { value: 'dismissed', label: 'False alarm / Dismissed' },
-          { value: undefined, label: 'All (active)' },
-        ]"
-      />
-      <AppSelect
-        v-model="filters.severity"
-        :options="[
-          { value: undefined, label: 'All severities' },
-          ...ANOMALY_SEVERITIES.map((s) => ({ value: s, label: s })),
-        ]"
-      />
-      <AppSelect
-        v-model="filters.vehicleId"
-        :options="[
-          { value: undefined, label: 'All vehicles' },
-          ...(vehicles ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
-        ]"
-      />
-      <AppSelect v-model="filters.ruleId" :options="ruleOptions" />
-      <span class="ml-auto text-sm text-gray-500">{{ total }} total</span>
-      <button
-        v-if="session.canManage"
-        :disabled="rebuilding"
-        class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-        title="Re-score every transaction with the current rules — clears stale/false flags"
-        @click="rebuild"
-      >
-        {{ rebuilding ? "Rebuilding…" : "Rebuild anomalies" }}
-      </button>
+    <div class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 class="text-sm font-semibold text-gray-900">
+          Anomalies
+          <span class="ml-1 font-normal text-gray-400">· {{ total }}</span>
+          <span v-if="activeFilterCount" class="ml-1 font-normal text-indigo-600">· {{ activeFilterCount }} filter{{ activeFilterCount > 1 ? "s" : "" }}</span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="activeFilterCount"
+            class="text-sm font-medium text-gray-500 hover:text-gray-700"
+            @click="resetFilters"
+          >
+            Clear filters
+          </button>
+          <button
+            v-if="session.canManage"
+            :disabled="rebuilding"
+            class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
+            title="Re-score every transaction with the current rules — clears stale/false flags"
+            @click="rebuild"
+          >
+            {{ rebuilding ? "Rebuilding…" : "Rebuild" }}
+          </button>
+        </div>
+      </div>
+      <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <AppSelect
+          v-model="filters.status"
+          :options="[
+            { value: 'open', label: 'Open' },
+            { value: 'investigating', label: 'Investigating' },
+            { value: 'resolved', label: 'Resolved' },
+            { value: 'dismissed', label: 'False alarm / Dismissed' },
+            { value: undefined, label: 'All (active)' },
+          ]"
+        />
+        <AppSelect
+          v-model="filters.severity"
+          :options="[
+            { value: undefined, label: 'All severities' },
+            ...ANOMALY_SEVERITIES.map((s) => ({ value: s, label: s })),
+          ]"
+        />
+        <AppSelect
+          v-model="filters.vehicleId"
+          :options="[
+            { value: undefined, label: 'All vehicles' },
+            ...(vehicles ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
+          ]"
+        />
+        <AppSelect v-model="filters.ruleId" :options="ruleOptions" />
+      </div>
+      <div class="mt-2">
+        <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
+      </div>
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">

@@ -14,6 +14,8 @@ export interface AnomalyFilters {
   severity?: string;
   vehicleId?: string;
   ruleId?: string;
+  from?: string; // YYYY-MM-DD (created_at ≥)
+  to?: string; // YYYY-MM-DD (created_at ≤, end of day)
 }
 
 /** Anomaly queue, filtered, sorted by severity then recency (client-side sort for enum ranking). */
@@ -27,6 +29,8 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
       if (f.severity) q = q.eq("severity", f.severity);
       if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
       if (f.ruleId) q = q.eq("rule_id", f.ruleId);
+      if (f.from) q = q.gte("created_at", `${f.from}T00:00:00`);
+      if (f.to) q = q.lte("created_at", `${f.to}T23:59:59`);
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       return ((data ?? []) as Anomaly[]).sort(
