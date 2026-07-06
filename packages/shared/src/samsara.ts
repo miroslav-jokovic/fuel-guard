@@ -331,6 +331,138 @@ export function matchFuelingStop(
   return { odometerMiles: null, matchedAt: null, locationMatched: null, basis: "no_coverage", observedState: null, observedCity: null, observedAddress: null };
 }
 
+// ── Tank-rise fueling-event solver (docs/10 §14) ────────────────────────────────────────────────
+// The EFS report time is a settlement/authorization stamp that can differ from the real pump time, so
+// anchoring on "the stop nearest the reported time" is circular. Instead we find the moment the truck's
+// fuel level STEPPED UP by ~the billed gallons — physically the fueling event, independent of the EFS
+// clock. This yields the true time, the odometer at that instant (flat, because parked), and the observed
+// location. Returns null when no confident rise is found so the caller falls back to matchFuelingStop.
+
+/** Minimum tank-level rise (percentage points) to trust a fueling event from telematics. */
+export const MIN_FUEL_RISE_PCT = 6;
+
+export interface FuelingEvent {
+  at: string; // actual fueling instant (ISO) — the telematics anchor, not the EFS report time
+  odometerMiles: number | null;
+  observedState: string | null;
+  observedCity: string | null;
+  observedAddress: string | null;
+  observedLat: number | null;
+  observedLng: number | null;
+  pctBefore: number;
+  pctAfter: number;
+  riseGalObserved: number | null; // observed rise converted to gallons (needs tank capacity)
+  expectedGal: number | null; // billed gallons (what we expected the rise to be)
+}
+
+interface Rise {
+  before: TankReading;
+  after: TankReading;
+  delta: number;
+}
+
+/**
+ * Detect fuel-level rises: a low reading followed, WITHIN a fueling-length window, by a materially higher
+ * one. Window-bounding keeps the "before" point at the actual arrival low instead of drifting to an
+ * earlier reading, and it naturally separates two fills on the same day.
+ */
+function detectFuelRises(readings: TankReading[], minRisePct: number, maxWindowMs = 2 * 3_600_000): Rise[] {
+  const r = [...readings].sort((a, b) => parseAsUtcMs(a.time) - parseAsUtcMs(b.time));
+  const rises: Rise[] = [];
+  let i = 0;
+  while (i < r.length - 1) {
+    const start = parseAsUtcMs(r[i]!.time);
+    let peak = i;
+    for (let j = i + 1; j < r.length && parseAsUtcMs(r[j]!.time) - start <= maxWindowMs; j++) {
+      if (r[j]!.percent > r[peak]!.percent) peak = j;
+    }
+    // "before" = the arrival LOW between the window start and the peak (not simply r[i]).
+    let lo = i;
+    for (let k = i; k <= peak; k++) if (r[k]!.percent < r[lo]!.percent) lo = k;
+    const delta = r[peak]!.percent - r[lo]!.percent;
+    if (peak > lo && delta >= minRisePct) {
+      rises.push({ before: r[lo]!, after: r[peak]!, delta });
+      i = peak; // continue after this fill's peak
+    } else {
+      i++;
+    }
+  }
+  return rises;
+}
+
+/**
+ * Find the fueling event by tank-level rise. `efs.reportedAtIso` is used ONLY as a weak tiebreaker
+ * between multiple same-day fills — never as the primary anchor. Returns null when there's no fuel-%
+ * data or no rise clears the threshold (caller falls back to the stop-nearest-time logic).
+ */
+export function findFuelingEvent(
+  samples: SamsaraSample[],
+  fuelReadings: TankReading[],
+  efs: { state: string | null; city?: string | null; gallons: number | null; tankCapacityGal: number | null; reportedAtIso: string },
+  opts: { stoppedMph?: number; minRisePct?: number } = {},
+): FuelingEvent | null {
+  const minRise = opts.minRisePct ?? MIN_FUEL_RISE_PCT;
+  const stoppedMax = opts.stoppedMph ?? 5;
+  if (fuelReadings.length < 2) return null;
+
+  const rises = detectFuelRises(fuelReadings, minRise);
+  if (rises.length === 0) return null;
+
+  const efsState = efs.state?.trim().toUpperCase() || null;
+  const tank = efs.tankCapacityGal && efs.tankCapacityGal > 0 ? efs.tankCapacityGal : null;
+  const expectedPct = tank && efs.gallons != null ? (efs.gallons / tank) * 100 : null;
+  const target = parseAsUtcMs(efs.reportedAtIso);
+
+  const pad = 20 * 60_000; // widen the stop search a little around the rise window
+  const anchorFor = (rise: Rise): SamsaraSample | null => {
+    const lo = parseAsUtcMs(rise.before.time) - pad;
+    const hi = parseAsUtcMs(rise.after.time) + pad;
+    const inWin = samples.filter((s) => {
+      const t = parseAsUtcMs(s.time);
+      return t >= lo && t <= hi;
+    });
+    const stopped = inWin.filter((s) => (s.speedMph ?? 0) <= stoppedMax && s.address);
+    const pool = stopped.length ? stopped : inWin;
+    const arrival = parseAsUtcMs(rise.before.time);
+    return pool.sort((a, b) => Math.abs(parseAsUtcMs(a.time) - arrival) - Math.abs(parseAsUtcMs(b.time) - arrival))[0] ?? null;
+  };
+
+  // Rank rises: prefer one whose stop is in the EFS state, then closest magnitude to the billed gallons,
+  // then (weak) closest to the reported time. When expected magnitude is unknown, prefer the biggest rise.
+  const scored = rises
+    .map((rise) => {
+      const anchor = anchorFor(rise);
+      const inState = !!(efsState && anchor && stateFromAddress(anchor.address) === efsState);
+      const magScore = expectedPct != null ? Math.abs(rise.delta - expectedPct) : -rise.delta;
+      const timeGap = anchor ? Math.abs(parseAsUtcMs(anchor.time) - target) : Number.MAX_SAFE_INTEGER;
+      return { rise, anchor, inState, magScore, timeGap };
+    })
+    // Guard against picking a small noise rise when a real fill was expected.
+    .filter((c) => (expectedPct != null ? c.rise.delta >= Math.max(minRise, expectedPct * 0.4) : true));
+  if (scored.length === 0) return null;
+
+  scored.sort(
+    (a, b) => Number(b.inState) - Number(a.inState) || a.magScore - b.magScore || a.timeGap - b.timeGap,
+  );
+  const best = scored[0]!;
+  const at = best.anchor?.time ?? best.rise.before.time;
+  const riseGal = tank ? Math.round((best.rise.delta / 100) * tank * 10) / 10 : null;
+
+  return {
+    at,
+    odometerMiles: odometerAtTime(samples, at),
+    observedState: best.anchor ? stateFromAddress(best.anchor.address) : null,
+    observedCity: best.anchor ? cityFromAddress(best.anchor.address) : null,
+    observedAddress: best.anchor?.address ?? null,
+    observedLat: best.anchor?.lat ?? null,
+    observedLng: best.anchor?.lng ?? null,
+    pctBefore: best.rise.before.percent,
+    pctAfter: best.rise.after.percent,
+    riseGalObserved: riseGal,
+    expectedGal: efs.gallons ?? null,
+  };
+}
+
 /**
  * Location confidence, from strongest to weakest:
  *  - gps_confirmed: the truck's GPS came within the proximity radius of the geocoded station.

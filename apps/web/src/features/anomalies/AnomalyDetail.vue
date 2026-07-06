@@ -6,6 +6,8 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useDriversQuery } from "@/features/fleet/useDrivers";
 import { useAiVerification, useAiExamine } from "@/features/ai/useAiVerification";
 import AiAssessmentCard from "@/features/ai/AiAssessmentCard.vue";
+import AnomalyAudit from "./AnomalyAudit.vue";
+import { useOrgSettingsQuery } from "@/features/settings/useOrgSettings";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
@@ -67,6 +69,12 @@ const vehicleDesc = (id: string | null) => {
   const v = vehicleById(id);
   return v ? [v.year, v.make, v.model].filter(Boolean).join(" ") : "";
 };
+
+// ── audit tab (odometer / time / location precision) ───────────────────────────
+const tab = ref<"overview" | "audit">("overview");
+const { data: org } = useOrgSettingsQuery();
+const orgTz = computed(() => (org.value?.operating_hours as { tz?: string } | null)?.tz ?? null);
+const odometerOffset = computed(() => Number(vehicleById(txn.value?.vehicle_id ?? null)?.odometer_offset ?? 0));
 
 // ── styling helpers ───────────────────────────────────────────────────────────
 const axisClass = (axis: string): string => {
@@ -180,6 +188,30 @@ async function reexamine() {
       </div>
     </div>
 
+    <!-- Tabs -->
+    <div class="flex gap-1 border-b border-gray-200 text-sm">
+      <button
+        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
+        :class="tab === 'overview' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+        @click="tab = 'overview'"
+      >
+        Overview
+      </button>
+      <button
+        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
+        :class="tab === 'audit' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+        @click="tab = 'audit'"
+      >
+        Odometer &amp; Location
+      </button>
+    </div>
+
+    <!-- AUDIT TAB -->
+    <AnomalyAudit v-if="tab === 'audit' && txn" :txn="txn" :odometer-offset="odometerOffset" :tz="orgTz" />
+    <p v-else-if="tab === 'audit'" class="text-sm text-gray-400 italic">Loading transaction…</p>
+
+    <!-- OVERVIEW TAB -->
+    <template v-if="tab === 'overview'">
     <!-- ③ Contributing signals / Why this fired -->
     <div class="rounded-lg bg-gray-50 p-4 ring-1 ring-gray-200">
       <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -356,6 +388,8 @@ async function reexamine() {
         {{ aiExamine.isPending.value ? "Running…" : "AI re-examine" }}
       </button>
     </div>
+
+    </template>
 
     <!-- ⑦ Workflow -->
     <div v-if="anomaly.status === 'open' || anomaly.status === 'investigating'" class="space-y-4 border-t border-gray-200 pt-5">

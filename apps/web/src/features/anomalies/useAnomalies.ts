@@ -4,12 +4,25 @@ import type { Anomaly, AnomalyTransition, FuelTransaction } from "@fuelguard/sha
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 
-/** Extended transaction row for the anomaly detail view (includes card/geo fields). */
+/** Extended transaction row for the anomaly detail view (includes card/geo + fueling-event audit fields). */
 export interface AnomalyTxnDetail extends FuelTransaction {
   card_ref: string | null;
   city: string | null;
   state: string | null;
   samsara_location_matched: boolean | null;
+  // Fueling-event audit fields (migration 0028 + earlier recon columns).
+  samsara_odometer: number | null;
+  samsara_recon_at: string | null;
+  station_lat: number | null;
+  station_lng: number | null;
+  samsara_observed_state: string | null;
+  samsara_observed_city: string | null;
+  samsara_observed_address: string | null;
+  samsara_observed_lat: number | null;
+  samsara_observed_lng: number | null;
+  samsara_fuel_pct_before: number | null;
+  samsara_fuel_pct_after: number | null;
+  fueling_time_basis: string | null;
 }
 
 /** A lighter sibling-fill row — other transactions on the same card in the same window. */
@@ -81,7 +94,7 @@ export function useTransaction(transactionId: Ref<string | null>) {
       const { data, error } = await supabase
         .from("fuel_transactions")
         .select(
-          "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, city, state, card_ref, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_matched, created_at",
+          "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, city, state, card_ref, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_matched, samsara_location_confidence, samsara_odometer, samsara_recon_at, station_lat, station_lng, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, samsara_fuel_pct_before, samsara_fuel_pct_after, fueling_time_basis, created_at",
         )
         .eq("id", id)
         .maybeSingle();

@@ -183,3 +183,12 @@ create unique index if not exists idx_jobs_active_one on jobs (org_id, kind) whe
 alter table jobs enable row level security;
 drop policy if exists jobs_select on jobs;
 create policy jobs_select on jobs for select using (org_id = auth_org_id());
+
+-- ── 0028: tank-rise fueling-event outputs (observed location, post-fill level, time-basis) ────────
+alter table fuel_transactions add column if not exists samsara_observed_state   text;
+alter table fuel_transactions add column if not exists samsara_observed_city    text;
+alter table fuel_transactions add column if not exists samsara_observed_address text;
+alter table fuel_transactions add column if not exists samsara_observed_lat     numeric(9,6);
+alter table fuel_transactions add column if not exists samsara_observed_lng     numeric(9,6);
+alter table fuel_transactions add column if not exists samsara_fuel_pct_after   numeric(5,1);
+alter table fuel_transactions add column if not exists fueling_time_basis       text;

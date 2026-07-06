@@ -21,6 +21,7 @@ import {
   minSampleDistanceMiles,
   resolveLocationConfidence,
   odometerAtTime,
+  findFuelingEvent,
 } from "./index.js";
 
 describe("metersToMiles", () => {
@@ -259,6 +260,80 @@ describe("parseCurrentAssignments (latest driver per vehicle)", () => {
       data: [{ vehicle: { id: "v3" }, assignments: [{ driverId: "d3", startTime: "2026-06-02T00:00:00Z" }] }],
     });
     expect(links).toEqual([{ vehicleSamsaraId: "v3", driverSamsaraId: "d3" }]);
+  });
+});
+
+describe("findFuelingEvent (tank-rise anchor)", () => {
+  // GPS sample builder with real coords for observed lat/lng.
+  const G = (time: string, speedMph: number, address: string | null, odometerMiles: number | null, lat = 32.78, lng = -96.8) =>
+    ({ time, lat, lng, speedMph, address, odometerMiles });
+  const F = (time: string, percent: number) => ({ time, percent });
+
+  it("anchors on the tank rise even when the EFS report time is hours off", () => {
+    // EFS posted 09:00 (an auth time); the truck actually fueled at 14:00 — the fuel level jumps 20→85.
+    const samples = [
+      G("2026-06-30T13:00:00Z", 60, "I-20, Abilene, TX, 79601", 100000),
+      G("2026-06-30T14:00:00Z", 0, "100 Fuel Rd, Dallas, TX, 75201", 100210),
+      G("2026-06-30T14:20:00Z", 0, "100 Fuel Rd, Dallas, TX, 75201", 100210),
+      G("2026-06-30T16:00:00Z", 55, "US-75, Dallas, TX, 75201", 100230),
+    ];
+    const fuel = [F("2026-06-30T13:00:00Z", 22), F("2026-06-30T14:00:00Z", 20), F("2026-06-30T14:30:00Z", 85), F("2026-06-30T16:00:00Z", 82)];
+    const ev = findFuelingEvent(samples, fuel, { state: "TX", city: "DALLAS", gallons: 90, tankCapacityGal: 120, reportedAtIso: "2026-06-30T09:00:00" });
+    expect(ev).not.toBeNull();
+    expect(ev!.at).toBe("2026-06-30T14:00:00Z"); // the parked stop at the rise, NOT the 09:00 report time
+    expect(ev!.odometerMiles).toBe(100210);
+    expect(ev!.observedState).toBe("TX");
+    expect(ev!.observedCity).toBe("Dallas");
+    expect(ev!.pctBefore).toBe(20);
+    expect(ev!.pctAfter).toBe(85);
+    expect(ev!.riseGalObserved).toBeCloseTo(78, 0); // 65% of 120 gal
+    expect(ev!.expectedGal).toBe(90);
+    expect(ev!.observedLat).toBeCloseTo(32.78, 2);
+  });
+
+  it("picks the fill whose magnitude matches the billed gallons when there are two that day", () => {
+    const samples = [
+      G("2026-06-30T10:00:00Z", 0, "Pilot, Waco, TX, 76701", 100000),
+      G("2026-06-30T18:00:00Z", 0, "Loves, Dallas, TX, 75201", 100300),
+    ];
+    // Fill 1: 20→50 (small, +30). Fill 2: 40→95 (large, +55). Billed 90 gal on a 120 tank → expect ~75%.
+    const fuel = [
+      F("2026-06-30T10:00:00Z", 20), F("2026-06-30T10:30:00Z", 50),
+      F("2026-06-30T14:00:00Z", 42), F("2026-06-30T18:00:00Z", 40),
+      F("2026-06-30T18:30:00Z", 95), F("2026-06-30T20:00:00Z", 92),
+    ];
+    const ev = findFuelingEvent(samples, fuel, { state: "TX", gallons: 90, tankCapacityGal: 120, reportedAtIso: "2026-06-30T18:00:00" });
+    expect(ev!.at).toBe("2026-06-30T18:00:00Z"); // the bigger fill matching ~75%
+    expect(ev!.pctBefore).toBe(40);
+    expect(ev!.pctAfter).toBe(95);
+  });
+
+  it("ignores sensor noise (small wiggles never form a fueling rise)", () => {
+    const samples = [G("2026-06-30T12:00:00Z", 55, "I-35, Austin, TX, 78701", 5000)];
+    const fuel = [F("2026-06-30T10:00:00Z", 60), F("2026-06-30T11:00:00Z", 58), F("2026-06-30T12:00:00Z", 61), F("2026-06-30T13:00:00Z", 59)];
+    expect(findFuelingEvent(samples, fuel, { state: "TX", gallons: 80, tankCapacityGal: 120, reportedAtIso: "2026-06-30T11:00:00" })).toBeNull();
+  });
+
+  it("returns null when there is no fuel-level data", () => {
+    const samples = [G("2026-06-30T14:00:00Z", 0, "Loves, Dallas, TX, 75201", 100210)];
+    expect(findFuelingEvent(samples, [], { state: "TX", gallons: 90, tankCapacityGal: 120, reportedAtIso: "2026-06-30T14:00:00" })).toBeNull();
+  });
+
+  it("still finds the rise when tank capacity is unknown (uses the biggest clear rise)", () => {
+    const samples = [G("2026-06-30T14:00:00Z", 0, "Loves, Dallas, TX, 75201", 100210)];
+    const fuel = [F("2026-06-30T13:30:00Z", 25), F("2026-06-30T14:30:00Z", 90)];
+    const ev = findFuelingEvent(samples, fuel, { state: "TX", gallons: 90, tankCapacityGal: null, reportedAtIso: "2026-06-30T14:00:00" });
+    expect(ev).not.toBeNull();
+    expect(ev!.riseGalObserved).toBeNull(); // can't convert % → gallons without the tank
+    expect(ev!.pctBefore).toBe(25);
+    expect(ev!.pctAfter).toBe(90);
+  });
+
+  it("does not falsely confirm a tiny rise when a large fill was billed", () => {
+    // Billed 90 gal (≈75% on 120) but the tank only rose 8% — below expected*0.4 (30%) → no confirmation.
+    const samples = [G("2026-06-30T14:00:00Z", 0, "Loves, Dallas, TX, 75201", 100210)];
+    const fuel = [F("2026-06-30T13:30:00Z", 40), F("2026-06-30T14:30:00Z", 48)];
+    expect(findFuelingEvent(samples, fuel, { state: "TX", gallons: 90, tankCapacityGal: 120, reportedAtIso: "2026-06-30T14:00:00" })).toBeNull();
   });
 });
 

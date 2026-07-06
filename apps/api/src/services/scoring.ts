@@ -21,7 +21,7 @@ import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_recon_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at";
 
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -80,6 +80,13 @@ interface FtxnRow {
   samsara_tank_short_gal: number | string | null;
   samsara_tank_observed_gal: number | string | null;
   samsara_fuel_pct_before: number | string | null;
+  samsara_fuel_pct_after: number | string | null;
+  samsara_observed_state: string | null;
+  samsara_observed_city: string | null;
+  samsara_observed_address: string | null;
+  samsara_observed_lat: number | string | null;
+  samsara_observed_lng: number | string | null;
+  fueling_time_basis: string | null;
   samsara_recon_at: string | null;
 }
 
@@ -88,10 +95,15 @@ function toTxnView(r: FtxnRow): TxnView {
   // a telematics-matched stop gives a real, trusted fueling INSTANT even when the stored business
   // timestamp is a date-only sentinel. A manual entry is trusted. An uncorroborated EFS posted time is
   // NOT trusted for time-of-day / interval rules (may be an authorization/settlement time).
-  const telematicsConfirmed = r.samsara_recon_at != null && r.samsara_location_matched === true;
-  const eventAt = telematicsConfirmed ? r.samsara_recon_at! : r.fueled_at;
-  const timeConfirmed = telematicsConfirmed || r.source === "manual";
-  const precision: FueledAtPrecision = telematicsConfirmed ? "instant" : rowPrecision(r);
+  // A tank-rise-confirmed instant is trustworthy even without a location match; otherwise require a
+  // corroborated stop (matched location + recovered time). Either way the recovered instant lives in
+  // samsara_recon_at and drives the time-of-day / interval rules (fueled_at stays the business time).
+  const tankConfirmed = r.fueling_time_basis === "tank_confirmed";
+  const telemMatched = r.samsara_recon_at != null && r.samsara_location_matched === true;
+  const hasRecoveredTime = tankConfirmed || telemMatched;
+  const eventAt = r.samsara_recon_at ?? r.fueled_at;
+  const timeConfirmed = hasRecoveredTime || r.source === "manual";
+  const precision: FueledAtPrecision = hasRecoveredTime ? "instant" : rowPrecision(r);
   return {
     id: r.id,
     vehicleId: r.vehicle_id,
@@ -189,6 +201,13 @@ export async function scoreTransaction(
   let tankFillShortGal: number | null = null;
   let tankObservedRiseGal: number | null = null;
   let tankPctBefore: number | null = null;
+  let tankPctAfter: number | null = null;
+  let observedState: string | null = null;
+  let observedCity: string | null = null;
+  let observedAddress: string | null = null;
+  let observedLat: number | null = null;
+  let observedLng: number | null = null;
+  let fuelingTimeBasis: string | null = null;
   // The EFS fueling time is "precise" when it carries a real time-of-day (timed report / manual),
   // not the date-only noon sentinel. Only then can we compare Samsara's position at the exact minute.
   const preciseTime = txn.fueledAtPrecision === "instant";
@@ -204,6 +223,13 @@ export async function scoreTransaction(
     tankFillShortGal = n(r.samsara_tank_short_gal);
     tankObservedRiseGal = n(r.samsara_tank_observed_gal);
     tankPctBefore = n(r.samsara_fuel_pct_before);
+    tankPctAfter = n(r.samsara_fuel_pct_after);
+    observedState = r.samsara_observed_state ?? null;
+    observedCity = r.samsara_observed_city ?? null;
+    observedAddress = r.samsara_observed_address ?? null;
+    observedLat = n(r.samsara_observed_lat);
+    observedLng = n(r.samsara_observed_lng);
+    fuelingTimeBasis = r.fueling_time_basis ?? null;
     reconAt = r.samsara_recon_at ?? null;
     // eventAt / timeConfirmed / precision were already derived from these same stored columns in
     // toTxnView, so the telematics-recovered instant is applied for rules without touching fueled_at.
@@ -230,7 +256,17 @@ export async function scoreTransaction(
       tankFillShortGal = recon.tankFillShortGal;
       tankObservedRiseGal = recon.tankObservedRiseGal;
       tankPctBefore = recon.tankPctBefore;
-      const telematicsConfirmed = recon.matchedAt != null && recon.locationMatched === true;
+      tankPctAfter = recon.tankPctAfter;
+      observedState = recon.observedState;
+      observedCity = recon.observedCity;
+      observedAddress = recon.observedAddress;
+      observedLat = recon.observedLat;
+      observedLng = recon.observedLng;
+      fuelingTimeBasis = recon.fuelingTimeBasis;
+      // A tank-rise-confirmed instant is trustworthy even on a location mismatch; otherwise require a
+      // corroborated stop (matched location + recovered time).
+      const telematicsConfirmed =
+        recon.fuelingTimeBasis === "tank_confirmed" || (recon.matchedAt != null && recon.locationMatched === true);
       if (telematicsConfirmed) {
         // Telematics corroborated the physical stop → use its instant for time-of-day / inter-fill rules.
         // This corrects EFS authorization/settlement timestamps that differ from the real pump time, and
@@ -384,6 +420,15 @@ export async function scoreTransaction(
       samsara_tank_short_gal: tankFillShortGal,
       samsara_tank_observed_gal: tankObservedRiseGal,
       samsara_fuel_pct_before: tankPctBefore,
+      samsara_fuel_pct_after: tankPctAfter,
+      // Where the truck actually was + how the fueling instant was determined (tank-rise event) — the
+      // audit-tab inputs, exact for every reconciled fill.
+      samsara_observed_state: observedState,
+      samsara_observed_city: observedCity,
+      samsara_observed_address: observedAddress,
+      samsara_observed_lat: observedLat,
+      samsara_observed_lng: observedLng,
+      fueling_time_basis: fuelingTimeBasis,
       // The telematics-recovered instant is stored HERE — never written over fueled_at. fueled_at
       // stays the EFS business time so dashboards, dedupe keys and the MPG chain remain stable.
       samsara_recon_at: reconAt,

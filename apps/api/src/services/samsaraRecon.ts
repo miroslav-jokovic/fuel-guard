@@ -9,6 +9,7 @@ import {
   parseFuelPercents,
   tankPercentNear,
   reconcileTankFill,
+  findFuelingEvent,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
@@ -52,6 +53,22 @@ export interface ReconResult {
   tankObservedRiseGal: number | null;
   /** Tank level (%) just before the fill — for the physical tank-space check. null = not measurable. */
   tankPctBefore: number | null;
+  /** Tank level (%) just after the fill (from the tank-rise event), for the audit view. */
+  tankPctAfter: number | null;
+  /** Where the truck actually was at the fueling stop (Samsara), for the audit view + evidence. */
+  observedState: string | null;
+  observedCity: string | null;
+  observedAddress: string | null;
+  observedLat: number | null;
+  observedLng: number | null;
+  /**
+   * How the fueling INSTANT (matchedAt) was determined, strongest→weakest:
+   *  tank_confirmed  – a fuel-% rise ≈ the billed gallons pinned the exact moment (report-time-independent)
+   *  stop_estimated  – no usable rise → the in-state stop nearest the reported time
+   *  reported        – no telematics stop → the EFS reported time as-is
+   *  date_only       – EFS had no time and no rise → the noon sentinel
+   */
+  fuelingTimeBasis: "tank_confirmed" | "stop_estimated" | "reported" | "date_only";
 }
 
 /**
@@ -112,22 +129,38 @@ export async function reconcileWithSamsara(
   const nearMiles = stationCoords ? minSampleDistanceMiles(samples, stationCoords.lat, stationCoords.lng) : null;
   const mismatchVeto = { nearMiles, minMismatchMiles: env.LOCATION_MISMATCH_MIN_MILES };
 
+  // Tank-rise fueling event — the report-time-INDEPENDENT anchor. When present it pins the exact fueling
+  // instant, the odometer at that instant, and the truck's observed location (docs/10 §14).
+  const fuelReadings = parseFuelPercents(vehicleRaw);
+  const fuelEvent = findFuelingEvent(samples, fuelReadings, {
+    state: input.state,
+    city: input.city,
+    gallons: input.gallons,
+    tankCapacityGal: input.tankCapacityGal,
+    reportedAtIso: input.fueledAt,
+  });
+  /** Observed location: prefer the tank-rise stop; else the location-match stop's address; else nulls. */
+  const observedFor = (stop: { observedState?: string | null; observedCity?: string | null; observedAddress?: string | null }) =>
+    fuelEvent
+      ? { observedState: fuelEvent.observedState, observedCity: fuelEvent.observedCity, observedAddress: fuelEvent.observedAddress, observedLat: fuelEvent.observedLat, observedLng: fuelEvent.observedLng }
+      : { observedState: stop.observedState ?? null, observedCity: stop.observedCity ?? null, observedAddress: stop.observedAddress ?? null, observedLat: null, observedLng: null };
+  /** How the fueling instant was determined (confidence ladder). */
+  const basisFor = (hasStopTime: boolean): ReconResult["fuelingTimeBasis"] =>
+    fuelEvent ? "tank_confirmed" : input.preciseTime ? (hasStopTime ? "stop_estimated" : "reported") : hasStopTime ? "stop_estimated" : "date_only";
+
   // ── Precise path: timezone-PROOF presence check over the whole day, corroborated by GPS proximity to
   // the geocoded station. Location matches when the truck came near the station OR was in the EFS state
   // that day; a mismatch is raised only when we have solid coverage and neither holds. ──
   if (input.preciseTime) {
     const stop = matchFuelingStop(samples, { state: input.state, city: input.city }, input.fueledAt, { stoppedMph: 5 });
     const { confidence, matched } = resolveLocationConfidence(stop, proximityMiles, proxThreshold, mismatchVeto);
-    // Tank data is independent of GPS (fuel %), so compute it up front — the physical tank-space check
-    // still works even when we couldn't pin the truck's location that day.
-    const at = stop.matchedAt ?? input.fueledAt;
-    const tank = computeTankFill(vehicleRaw, at, input.gallons, input.tankCapacityGal);
-    if (stop.odometerMiles == null && matched == null) {
-      // No usable GPS coverage that day → location unknown, but still surface tank readings.
-      return { crossSourceOdometer: null, locationMatched: null, locationConfidence: "unknown", stationLat, stationLng, locationEvidence: null, matchedAt: null, tankFillShortGal: tank.shortGal, tankObservedRiseGal: tank.observedRiseGal, tankPctBefore: tank.pctBefore };
-    }
+    // Odometer + fueling instant: the tank-rise event wins (report-time-independent); else the stop.
+    const odo = fuelEvent?.odometerMiles ?? stop.odometerMiles;
+    const at = fuelEvent?.at ?? stop.matchedAt;
+    const obs = observedFor(stop);
+    const tank = computeTankFill(vehicleRaw, at ?? input.fueledAt, input.gallons, input.tankCapacityGal);
     return {
-      crossSourceOdometer: stop.odometerMiles,
+      crossSourceOdometer: odo,
       locationMatched: matched,
       locationConfidence: confidence,
       stationLat,
@@ -137,17 +170,20 @@ export async function reconcileWithSamsara(
           ? {
               efsCity: input.city,
               efsState: input.state,
-              samsaraState: stop.observedState,
-              samsaraCity: stop.observedCity,
-              samsaraAddress: stop.observedAddress,
+              samsaraState: obs.observedState,
+              samsaraCity: obs.observedCity,
+              samsaraAddress: obs.observedAddress,
               nearestMilesToStation: proximityMiles,
               note: `Samsara shows the truck was never in ${input.state ?? "the EFS state"} at any point across the fueling day${proximityMiles != null ? ` and came no closer than ${proximityMiles} mi to the station` : ""} — the card was used where the truck was not.`,
             }
           : null,
-      matchedAt: stop.matchedAt,
+      matchedAt: at,
       tankFillShortGal: tank.shortGal,
       tankObservedRiseGal: tank.observedRiseGal,
       tankPctBefore: tank.pctBefore,
+      tankPctAfter: fuelEvent?.pctAfter ?? tank.pctAfter,
+      ...obs,
+      fuelingTimeBasis: basisFor(at != null),
     };
   }
 
@@ -159,33 +195,26 @@ export async function reconcileWithSamsara(
     state: input.state,
     stationName: input.locationName,
   });
-  if (!match) {
-    const tank = computeTankFill(vehicleRaw, input.fueledAt, input.gallons, input.tankCapacityGal);
-    return {
-      crossSourceOdometer: null,
-      locationMatched: nearStation ? true : null,
-      locationConfidence: nearStation ? "gps_confirmed" : "unknown",
-      stationLat,
-      stationLng,
-      locationEvidence: null,
-      matchedAt: null,
-      tankFillShortGal: tank.shortGal,
-      tankObservedRiseGal: tank.observedRiseGal,
-      tankPctBefore: tank.pctBefore,
-    };
-  }
-  const tank = computeTankFill(vehicleRaw, match.matchedAt, input.gallons, input.tankCapacityGal);
+  // Odometer + instant: tank-rise event wins; else the stopped-in-city sample. Date-only never flags a
+  // location mismatch — it only confirms via proximity.
+  const odo = fuelEvent?.odometerMiles ?? match?.samsaraOdometerMiles ?? null;
+  const at = fuelEvent?.at ?? match?.matchedAt ?? null;
+  const obs = observedFor({});
+  const tank = computeTankFill(vehicleRaw, at ?? input.fueledAt, input.gallons, input.tankCapacityGal);
   return {
-    crossSourceOdometer: match.samsaraOdometerMiles,
-    locationMatched: nearStation ? true : null, // date-only: confirm only via proximity, never flag
+    crossSourceOdometer: odo,
+    locationMatched: nearStation ? true : null,
     locationConfidence: nearStation ? "gps_confirmed" : "unknown",
     stationLat,
     stationLng,
     locationEvidence: null,
-    matchedAt: match.matchedAt,
+    matchedAt: at,
     tankFillShortGal: tank.shortGal,
     tankObservedRiseGal: tank.observedRiseGal,
     tankPctBefore: tank.pctBefore,
+    tankPctAfter: fuelEvent?.pctAfter ?? tank.pctAfter,
+    ...obs,
+    fuelingTimeBasis: basisFor(at != null),
   };
 }
 
@@ -196,6 +225,8 @@ export async function reconcileWithSamsara(
 interface TankFillResult {
   /** Tank level (%) just before the fill — the reliable reading for the physical tank-space check. */
   pctBefore: number | null;
+  /** Tank level (%) just after the fill (post-fill plateau peak). */
+  pctAfter: number | null;
   shortGal: number | null;
   observedRiseGal: number | null;
 }
@@ -207,7 +238,7 @@ function computeTankFill(
   tankCapacityGal: number | null,
 ): TankFillResult {
   const readings = parseFuelPercents(vehicle);
-  if (readings.length === 0) return { pctBefore: null, shortGal: null, observedRiseGal: null };
+  if (readings.length === 0) return { pctBefore: null, pctAfter: null, shortGal: null, observedRiseGal: null };
 
   const before = tankPercentNear(readings, matchedAt, "before", 120);
   const pctBefore = before?.percent ?? null;
@@ -220,5 +251,5 @@ function computeTankFill(
   const pctAfter = afterReadings.length ? Math.max(...afterReadings.map((r) => r.percent)) : null;
 
   const recon = reconcileTankFill({ gallonsBilled: gallons, pctBefore, pctAfter, tankCapacityGal });
-  return { pctBefore, shortGal: recon?.shortGal ?? null, observedRiseGal: recon?.observedRiseGal ?? null };
+  return { pctBefore, pctAfter, shortGal: recon?.shortGal ?? null, observedRiseGal: recon?.observedRiseGal ?? null };
 }
