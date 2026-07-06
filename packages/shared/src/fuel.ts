@@ -47,6 +47,8 @@ export interface FuelTransaction {
   max_severity: AnomalySeverity | null;
   ai_risk_level: AnomalySeverity | null;
   samsara_location_confidence?: string | null;
+  /** tractor propulsion tank vs reefer (trailer) tank. Default 'tractor'. */
+  tank_type?: "tractor" | "reefer";
   created_at: string;
 }
 

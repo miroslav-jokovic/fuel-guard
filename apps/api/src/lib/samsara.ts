@@ -117,6 +117,29 @@ export function makeSamsaraOdometerFetcher(env: Env, token: string): SamsaraOdom
   };
 }
 
+/** Lists every trailer (unpowered asset) in the org. */
+export type SamsaraTrailerLister = () => Promise<unknown[]>;
+
+/** Fetch all pages of `GET /fleet/trailers` — the merged `data` array of raw trailer objects. */
+export function makeSamsaraTrailerLister(env: Env, token: string): SamsaraTrailerLister {
+  return () => listAllPages(env, token, "/fleet/trailers");
+}
+
+/** Fetches current trailer↔vehicle assignments (recent window). */
+export type SamsaraTrailerAssignmentFetcher = () => Promise<{ data?: unknown[] }>;
+
+export function makeSamsaraTrailerAssignmentFetcher(env: Env, token: string): SamsaraTrailerAssignmentFetcher {
+  return async () => {
+    const end = new Date();
+    const start = new Date(end.getTime() - 7 * 24 * 3_600_000);
+    const data = await listAllPages(env, token, "/fleet/trailers/assignments", {
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+    });
+    return { data };
+  };
+}
+
 /** Lists every driver in the org. */
 export type SamsaraDriverLister = () => Promise<unknown[]>;
 

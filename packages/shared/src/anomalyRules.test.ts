@@ -227,6 +227,46 @@ describe("hardening — precision gating (docs/09)", () => {
   });
 });
 
+describe("reefer tank split (Phase 0)", () => {
+  it("does NOT run tractor volume rules on a reefer (ULSR) fill", () => {
+    // 150 gal into a 120-gal tractor tank would fire exceeds_tank_capacity — but this is a reefer fill,
+    // so tractor volume/consumption/tank rules are suppressed entirely.
+    const reefer = ctx({ txn: txn({ gallons: 150, tankType: "reefer" }) });
+    const out = ids(reefer);
+    expect(out).not.toContain("exceeds_tank_capacity");
+    expect(out).not.toContain("tank_space_exceeded");
+    expect(out).not.toContain("mpg_deviation");
+  });
+
+  it("still runs tractor volume rules on a normal tractor fill", () => {
+    expect(ids(ctx({ txn: txn({ gallons: 150, tankType: "tractor" }) }))).toContain("exceeds_tank_capacity");
+  });
+
+  it("fires reefer_exceeds_capacity when a ULSR fill exceeds the reefer tank", () => {
+    // 80 gal reefer fill into a 50-gal reefer tank → can't fit.
+    const c = ctx({ txn: txn({ gallons: 80, tankType: "reefer" }), reeferTankCapacityGal: 50 });
+    const out = ids(c);
+    expect(out).toContain("reefer_exceeds_capacity");
+    expect(out).not.toContain("exceeds_tank_capacity"); // tractor rule stays off
+  });
+
+  it("does not fire reefer_exceeds_capacity for a normal reefer fill within the tank", () => {
+    expect(ids(ctx({ txn: txn({ gallons: 40, tankType: "reefer" }), reeferTankCapacityGal: 50 }))).not.toContain("reefer_exceeds_capacity");
+  });
+
+  it("fires reefer_overfuel_rate when window reefer gallons exceed burn + a tank", () => {
+    // 48h window, 1.5 gph → ~72 gal burnable + 50 tank = 122 max. 200 reefer gal → over.
+    const c = ctx({ txn: txn({ gallons: 30, tankType: "reefer" }), reeferTankCapacityGal: 50, reeferWindowGallons: 200 });
+    expect(ids(c)).toContain("reefer_overfuel_rate");
+  });
+
+  it("reefer_exceeds_capacity correlates on the reefer axis (overwhelming → alert)", () => {
+    const c = correlateSignals([{ ruleId: "reefer_exceeds_capacity", fired: true, severity: "critical", message: "m", evidence: {} }]);
+    expect(c.axes).toContain("reefer");
+    expect(c.level).toBe("alert"); // weight 90 ≥ overwhelming
+  });
+});
+
 describe("hardening — time confidence (EFS auth-time vs telematics)", () => {
   it("suppresses off-hours + rapid-repeat when the posted time is UNcorroborated (timeConfirmed=false)", () => {
     // 02:00 Chicago posted time would fire off_hours, but we couldn't corroborate it (may be an EFS

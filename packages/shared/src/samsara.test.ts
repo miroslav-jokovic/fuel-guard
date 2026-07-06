@@ -12,6 +12,8 @@ import {
   parseVehicleFuelPercents,
   parseSamsaraDrivers,
   parseCurrentAssignments,
+  parseSamsaraTrailers,
+  parseTrailerAssignments,
   sampleNearestTime,
   stateFromAddress,
   cityFromAddress,
@@ -213,6 +215,34 @@ describe("parseVehicleStatsOdometer", () => {
     expect(m.get("1")).toBe(1000);
     expect(m.get("2")).toBe(1000);
     expect(m.has("3")).toBe(false);
+  });
+});
+
+describe("parseSamsaraTrailers", () => {
+  it("maps trailer identity and coerces year; skips id-less rows", () => {
+    const t = parseSamsaraTrailers({
+      data: [
+        { id: "asset-1", name: "R-402", make: "Utility", model: "3000R", year: "2022", licensePlate: "TR402", serialNumber: "SN9" },
+        { id: "", name: "x" },
+      ],
+    });
+    expect(t).toHaveLength(1);
+    expect(t[0]).toEqual({ samsaraId: "asset-1", name: "R-402", make: "Utility", model: "3000R", year: 2022, licensePlate: "TR402", serial: "SN9" });
+  });
+});
+
+describe("parseTrailerAssignments (latest tractor per trailer)", () => {
+  it("keeps the most-recent vehicle per trailer (flat + grouped shapes)", () => {
+    const links = parseTrailerAssignments({
+      data: [
+        { trailer: { id: "t1" }, vehicle: { id: "v-old" }, startTime: "2026-06-01T00:00:00Z" },
+        { trailer: { id: "t1" }, vehicle: { id: "v-new" }, startTime: "2026-06-20T00:00:00Z" },
+        { trailer: { id: "t2" }, assignments: [{ vehicleId: "v9", startTime: "2026-06-10T00:00:00Z" }] },
+      ],
+    });
+    expect(links).toContainEqual({ trailerSamsaraId: "t1", vehicleSamsaraId: "v-new" });
+    expect(links).toContainEqual({ trailerSamsaraId: "t2", vehicleSamsaraId: "v9" });
+    expect(links).toHaveLength(2);
   });
 });
 

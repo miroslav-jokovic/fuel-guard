@@ -30,6 +30,9 @@ export const RULE_IDS = [
   "card_multi_vehicle", // one card fueling multiple vehicles in a window
   "location_mismatch", // telematics shows the truck was NOT at the fueling location
   "tank_fill_short", // telematics tank rose less than billed gallons (advisory; coarse sensor)
+  // Tier A — reefer (trailer refrigeration) fuel integrity (reefer/ULSR events only)
+  "reefer_exceeds_capacity", // one ULSR purchase > reefer tank capacity — can't fit in the reefer
+  "reefer_overfuel_rate", // rolling-window reefer gallons > a reefer could burn + a tank
 ] as const;
 
 export type RuleId = (typeof RULE_IDS)[number];
@@ -68,6 +71,8 @@ export const RULE_LABELS: Record<RuleId, string> = {
   card_multi_vehicle:         "Card Used on Multiple Vehicles",
   location_mismatch:          "Location Mismatch",
   tank_fill_short:            "Tank Fill Short",
+  reefer_exceeds_capacity:    "Reefer Fill Exceeds Tank",
+  reefer_overfuel_rate:       "Reefer Over-Fueling",
 };
 
 /** Returns the human-friendly label for a rule ID, with a sensible fallback for unknown IDs. */
@@ -105,6 +110,9 @@ export interface TxnView {
    * Undefined = treat as trusted (back-compat).
    */
   timeConfirmed?: boolean;
+  /** Which tank this fill filled. 'reefer' events skip the tractor volume/consumption/tank rules
+   *  (those compare against the tractor's tank + MPG). Default 'tractor'. */
+  tankType?: "tractor" | "reefer";
   cardRef?: string | null;
 }
 
@@ -131,6 +139,10 @@ export interface Thresholds {
   maxDailyMiles?: number;
   /** Rolling window (hours) for cumulative-overfuel and card-multi-vehicle. Default 48. */
   cumulativeWindowHours?: number;
+  /** Max gallons/hour a reefer unit can plausibly burn (continuous, deep-frozen). Default 1.5. */
+  maxReeferBurnGph?: number;
+  /** Reefer tank capacity to assume when a fill's trailer is unknown/unpaired. Default 50. */
+  reeferTankDefaultGal?: number;
 }
 
 export interface OperatingHours {
@@ -166,6 +178,10 @@ export interface RuleContext {
   tankObservedRiseGal?: number | null;
   /** Samsara tank level (%) just BEFORE the fill — used for the physical tank-space check. */
   tankPctBefore?: number | null;
+  /** For a REEFER fill: the paired trailer's reefer tank capacity (gal); null → use the threshold default. */
+  reeferTankCapacityGal?: number | null;
+  /** For a REEFER fill: sum of reefer gallons for this vehicle within the cumulative window (incl. this txn). */
+  reeferWindowGallons?: number;
 }
 
 export interface RuleResult {
@@ -543,6 +559,44 @@ function ruleTankFillShort(ctx: RuleContext): RuleResult {
   return none("tank_fill_short");
 }
 
+/** The reefer tank capacity to use for a reefer fill: paired trailer's tank, else the threshold default. */
+function reeferTankGal(ctx: RuleContext): number {
+  return ctx.reeferTankCapacityGal ?? ctx.thresholds.reeferTankDefaultGal ?? 50;
+}
+
+/**
+ * A single reefer (ULSR) purchase exceeds the reefer tank capacity — the fuel physically cannot fit in
+ * the reefer. The strongest single-transaction sign of gun-switching (billed reefer, pumped into the
+ * tractor) or a container fill. Mirrors the tractor's exceeds_tank_capacity.
+ */
+function ruleReeferExceedsCapacity(ctx: RuleContext): RuleResult {
+  const { txn, thresholds } = ctx;
+  const cap = reeferTankGal(ctx);
+  const limit = cap * (1 + thresholds.capacityTolerancePct / 100);
+  if (cap > 0 && txn.gallons > limit) {
+    return { ruleId: "reefer_exceeds_capacity", fired: true, severity: "critical", message: `Reefer fill of ${txn.gallons} gal exceeds the reefer tank capacity (${cap} gal) — the fuel can't fit in the reefer.`, evidence: { gallons: txn.gallons, reeferCapacity: cap, tolerancePct: thresholds.capacityTolerancePct } };
+  }
+  return none("reefer_exceeds_capacity");
+}
+
+/**
+ * Rolling window: reefer gallons since the last reefer fill exceed what a reefer unit could physically
+ * burn (max burn rate × elapsed hours) plus one full tank. A reefer that "burned" 2.5 gal/h for days
+ * didn't — the fuel went elsewhere. Mirrors cumulative_overfuel for the tractor.
+ */
+function ruleReeferOverfuelRate(ctx: RuleContext): RuleResult {
+  const { thresholds } = ctx;
+  const cap = reeferTankGal(ctx);
+  const gph = thresholds.maxReeferBurnGph ?? 1.5;
+  const hrs = thresholds.cumulativeWindowHours ?? 48;
+  const windowGal = ctx.reeferWindowGallons ?? ctx.txn.gallons;
+  const maxPlausible = gph * hrs + cap; // could burn at most this in the window, plus a one-tank refill
+  if (windowGal > maxPlausible) {
+    return { ruleId: "reefer_overfuel_rate", fired: true, severity: "high", message: `Reefer bought ${r2(windowGal)} gal in ${hrs}h — more than a reefer could burn (${gph} gal/h ≈ ${r2(gph * hrs)} gal) plus a full ${cap}-gal tank.`, evidence: { reeferWindowGallons: r2(windowGal), maxBurnGph: gph, windowHours: hrs, reeferCapacity: cap, maxPlausibleGal: r2(maxPlausible) } };
+  }
+  return none("reefer_overfuel_rate");
+}
+
 /** One fuel card used across multiple vehicles in the window — classic card-sharing / misuse signal. */
 function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
   const count = ctx.cardVehicleCountInWindow ?? 0;
@@ -560,7 +614,10 @@ function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
  */
 export function runAllRules(ctx: RuleContext): RuleResult[] {
   const disabled = new Set(ctx.thresholds.disabledRules);
-  const fuel = isFuelVehicle(ctx.vehicle);
+  // Tractor volume/consumption/tank rules apply only to tractor-tank fills on a fuel vehicle. A reefer
+  // (ULSR) fill goes into the trailer's refrigeration tank, so comparing it to the tractor's tank
+  // capacity / MPG would be nonsense — those rules are suppressed here (reefer rules come in Phase 2).
+  const fuel = isFuelVehicle(ctx.vehicle) && ctx.txn.tankType !== "reefer";
   // Time-of-day and inter-fill rules need a RELIABLE instant (corroborated by telematics or manual) — an
   // uncorroborated EFS posted time may be an authorization/settlement time, not the real pump time.
   const timeOk = timeReliable(ctx.txn);
@@ -587,6 +644,8 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleCardMultiVehicle,
     ruleLocationMismatch,
     ...(fuel ? [ruleTankFillShort] : []),
+    // Tier A — reefer rules run ONLY on reefer (ULSR) fills (tractor rules were gated off for them).
+    ...(ctx.txn.tankType === "reefer" ? [ruleReeferExceedsCapacity, ruleReeferOverfuelRate] : []),
   ];
 
   const suppressed = new Set<RuleId>(SUPPRESSED_RULE_IDS);
@@ -615,7 +674,7 @@ export function maxSeverity(results: RuleResult[]): AnomalySeverity | null {
 // odometer that's a few miles off) never raises a red alert — it stays clear or, if strong on its own,
 // a review. This is what keeps normal fills from all looking flagged.
 
-export type SignalAxis = "location" | "volume" | "consumption" | "odometer" | "behavior";
+export type SignalAxis = "location" | "volume" | "consumption" | "odometer" | "behavior" | "reefer";
 
 /** The single synthetic anomaly id used for a correlated per-transaction case. */
 export const CASE_RULE_ID = "theft_case";
@@ -648,6 +707,9 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   off_hours_fueling:          { axis: "behavior", weight: 20 },
   cost_outlier:               { axis: "behavior", weight: 15 },
   unattributed_transaction:   { axis: "behavior", weight: 0 },
+  // Reefer — ULSR fuel not going into the reefer tank (gun-switch / container fill)
+  reefer_exceeds_capacity:    { axis: "reefer", weight: 90 },
+  reefer_overfuel_rate:       { axis: "reefer", weight: 75 },
 };
 
 /** A signal ≥ this weight is "overwhelming" and raises an alert on its own (e.g. more fuel than fits). */

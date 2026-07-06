@@ -64,6 +64,7 @@ const navGroups = computed<NavGroup[]>(() =>
       label: "Fleet",
       items: [
         { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: session.canManage || session.readOnly },
+        { name: "Trailers", to: "/trailers", icon: TruckIcon, show: session.canManage || session.readOnly },
         { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: session.canManage || session.readOnly },
       ],
     },

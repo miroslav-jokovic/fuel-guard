@@ -779,6 +779,86 @@ export function parseCurrentAssignments(
   }));
 }
 
+// ── Trailer (unpowered asset) sync — GET /fleet/trailers ────────────────────────────────────────
+interface RawSamsaraTrailer {
+  id?: string;
+  name?: string;
+  make?: string;
+  model?: string;
+  year?: string | number;
+  licensePlate?: string;
+  serialNumber?: string;
+}
+
+export interface SamsaraTrailer {
+  samsaraId: string;
+  name: string; // usually the trailer unit number
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  licensePlate: string | null;
+  serial: string | null;
+}
+
+/** Parse `GET /fleet/trailers` (pages merged) into trailer identities. */
+export function parseSamsaraTrailers(response: { data?: RawSamsaraTrailer[] }): SamsaraTrailer[] {
+  return (response.data ?? [])
+    .filter((t) => t.id != null && String(t.id).trim() !== "")
+    .map((t) => {
+      const yr = t.year != null ? parseInt(String(t.year), 10) : NaN;
+      return {
+        samsaraId: String(t.id),
+        name: clean(t.name) ?? String(t.id),
+        make: clean(t.make),
+        model: clean(t.model),
+        year: Number.isFinite(yr) ? yr : null,
+        licensePlate: clean(t.licensePlate),
+        serial: clean(t.serialNumber),
+      };
+    });
+}
+
+interface RawTrailerAssignment {
+  startTime?: string;
+  endTime?: string;
+  trailer?: { id?: string };
+  trailerId?: string;
+  vehicle?: { id?: string };
+  vehicleId?: string;
+  id?: string;
+  assignments?: RawTrailerAssignment[];
+}
+
+export interface TrailerVehicleLink {
+  trailerSamsaraId: string;
+  vehicleSamsaraId: string;
+}
+
+/**
+ * Parse trailer↔vehicle assignments into each trailer's CURRENT tractor = the assignment with the latest
+ * start. Tolerant of the flat shape (trailer+vehicle on the row) and the grouped shape (trailer with a
+ * nested `assignments` array).
+ */
+export function parseTrailerAssignments(response: { data?: RawTrailerAssignment[] }): TrailerVehicleLink[] {
+  const latest = new Map<string, { start: number; vehicleId: string }>();
+  const consider = (trailerId: string | undefined, a: RawTrailerAssignment) => {
+    const vehicleId = a.vehicle?.id ?? a.vehicleId;
+    if (!trailerId || !vehicleId) return;
+    const start = new Date(a.startTime ?? 0).getTime();
+    const prev = latest.get(trailerId);
+    if (!prev || start >= prev.start) latest.set(trailerId, { start, vehicleId: String(vehicleId) });
+  };
+  for (const g of response.data ?? []) {
+    if (g.assignments) {
+      const trailerId = g.trailer?.id ?? g.trailerId ?? g.id;
+      for (const a of g.assignments) consider(trailerId, a);
+    } else if (g.vehicle?.id ?? g.vehicleId) {
+      consider(g.trailer?.id ?? g.trailerId, g);
+    }
+  }
+  return [...latest.entries()].map(([trailerSamsaraId, v]) => ({ trailerSamsaraId, vehicleSamsaraId: v.vehicleId }));
+}
+
 /** Parse a Samsara `/fleet/drivers` list response (pages merged) into driver identities. */
 export function parseSamsaraDrivers(response: { data?: RawSamsaraDriver[] }): SamsaraDriver[] {
   return (response.data ?? [])

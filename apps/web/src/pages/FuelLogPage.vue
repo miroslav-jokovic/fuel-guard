@@ -8,6 +8,7 @@ import { useFuelTransactions, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters 
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
 import VehicleSelect from "@/components/VehicleSelect.vue";
+import AppSelect from "@/components/AppSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
@@ -35,6 +36,11 @@ const toDate = computed(() => filters.value.to?.slice(0, 10));
 const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
 const setTo = (v: string | undefined) =>
   (filters.value = { ...filters.value, to: v ? `${v}T23:59:59` : undefined });
+
+const tankTypeFilter = computed<string>({
+  get: () => filters.value.tankType ?? "",
+  set: (v) => (filters.value = { ...filters.value, tankType: v === "tractor" || v === "reefer" ? v : undefined }),
+});
 
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
@@ -76,6 +82,11 @@ const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", cur
         <VehicleSelect
           v-model="filters.vehicleId"
           :vehicles="vehicles ?? []"
+        />
+        <AppSelect
+          v-model="tankTypeFilter"
+          class="w-36"
+          :options="[{ value: '', label: 'All fuel' }, { value: 'tractor', label: 'Tractor' }, { value: 'reefer', label: 'Reefer' }]"
         />
         <DateRangeFilter :from="fromDate" :to="toDate" @update:from="setFrom" @update:to="setTo" />
       </div>
@@ -147,7 +158,10 @@ const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", cur
         <tbody class="divide-y divide-gray-100">
           <tr v-for="t in rows" :key="t.id" class="hover:bg-gray-50">
             <td class="px-6 py-3 whitespace-nowrap text-gray-700">{{ fmtDate(t.fueled_at) }}</td>
-            <td class="px-6 py-3 text-gray-900">{{ vehicleLabel(t.vehicle_id) }}</td>
+            <td class="px-6 py-3 text-gray-900">
+              <span>{{ vehicleLabel(t.vehicle_id) }}</span>
+              <span v-if="t.tank_type === 'reefer'" class="ml-1.5 inline-flex items-center rounded bg-cyan-100 px-1.5 py-0.5 text-xs font-medium text-cyan-700">Reefer</span>
+            </td>
             <td class="px-6 py-3 text-right text-gray-700">{{ t.odometer ?? "—" }}</td>
             <td class="px-6 py-3 text-right text-gray-700">{{ t.gallons }}</td>
             <td class="px-6 py-3 text-right text-gray-700">{{ t.price_per_gal ?? "—" }}</td>

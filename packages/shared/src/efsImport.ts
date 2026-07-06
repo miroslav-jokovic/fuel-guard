@@ -23,6 +23,21 @@ export const FUEL_PRODUCT_CODES: Record<string, FuelType> = {
 
 export type RawRow = Record<string, string | number | null | undefined>;
 
+/** Which physical tank a fuel line filled: the tractor's propulsion tank or a reefer (trailer) tank. */
+export type TankType = "tractor" | "reefer";
+
+/**
+ * EFS item codes billed as REEFER (trailer refrigeration / off-road) fuel — dyed, tax-exempt diesel.
+ * Kept separate from tractor fuel so reefer gallons don't inflate the tractor's tank-capacity /
+ * over-fuel / MPG checks. (Silvicom's exports use ULSR; extend here if a merchant uses RFR/REEF.)
+ */
+export const REEFER_ITEM_CODES = new Set(["ULSR", "RFR", "REEF", "RFER"]);
+
+/** Classify a fuel line's tank from its EFS Item code. Unknown/tractor codes → 'tractor'. */
+export function tankTypeForItem(item: string | null | undefined): TankType {
+  return item && REEFER_ITEM_CODES.has(item.trim().toUpperCase()) ? "reefer" : "tractor";
+}
+
 /** Whether a fueling timestamp carries a real time-of-day ("instant") or only a date ("date"). */
 export type EfsTimePrecision = "instant" | "date";
 
@@ -41,6 +56,8 @@ export interface ParsedFuelLine {
   price_per_gal: number | null;
   total_cost: number | null;
   fuel_type: FuelType;
+  /** tractor propulsion tank vs reefer (trailer) tank — reefer lines are scored separately. */
+  tank_type: TankType;
   item: string;
   location_text: string | null;
   city: string | null;
@@ -372,7 +389,13 @@ export function normalizeTransactionRows(rows: RawRow[]): {
       : txnId
         ? `${card ?? ""}|${txnId}`
         : `${card ?? ""}|${instant.iso}|${total ?? ""}|${gallons}`;
-    const key = `${base}|${instant.tranDate}`;
+    const dateKey = `${base}|${instant.tranDate}`;
+    // Reefer (ULSR) is a SEPARATE fueling event from the tractor's ULSD on the same invoice, so it can't
+    // inflate tractor volume/MPG checks. Merge per tank; suffix the ref with |reefer for reefer only, so
+    // the tractor event's external_ref stays byte-identical to before (dedup with prior imports intact).
+    const tankType = tankTypeForItem(item);
+    const ref = tankType === "reefer" ? `${dateKey}|reefer` : dateKey;
+    const key = `${dateKey}|${tankType}`;
 
     const existing = byInvoice.get(key);
     if (existing) {
@@ -380,7 +403,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
       existing.total_cost = (existing.total_cost ?? 0) + (total ?? 0);
     } else {
       byInvoice.set(key, {
-        external_ref: key,
+        external_ref: ref,
         unit: str(pick(row, "Unit")),
         driver_name: str(pick(row, "Driver Name")),
         card_ref: card,
@@ -392,6 +415,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
         price_per_gal: num(pick(row, "Unit Price", "PricePerUnit")),
         total_cost: total,
         fuel_type: fuelType,
+        tank_type: tankType,
         item,
         location_text: str(pick(row, "Location Name")),
         city: str(pick(row, "City", "Location City")),
@@ -590,7 +614,11 @@ export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuel
       skippedBlankInvoice += 1;
       continue;
     }
-    const key = `${str(l.card_num) ?? ""}|${invoice}|${l.tran_date}`;
+    const dateKey = `${str(l.card_num) ?? ""}|${invoice}|${l.tran_date}`;
+    // Same tank split + ref convention as normalizeTransactionRows, so backfill produces identical refs.
+    const tankType = tankTypeForItem(item);
+    const ref = tankType === "reefer" ? `${dateKey}|reefer` : dateKey;
+    const key = `${dateKey}|${tankType}`;
     const existing = byKey.get(key);
     if (existing) {
       existing.gallons += l.qty;
@@ -601,7 +629,7 @@ export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuel
       }
     } else {
       byKey.set(key, {
-        external_ref: key,
+        external_ref: ref,
         unit: str(l.unit),
         driver_name: str(l.driver_name),
         card_ref: str(l.card_num),
@@ -613,6 +641,7 @@ export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuel
         price_per_gal: null, // re-derived from merged totals below
         total_cost: l.amt,
         fuel_type: fuelType,
+        tank_type: tankType,
         item,
         location_text: str(l.location_name),
         city: str(l.city),

@@ -102,6 +102,20 @@ describe("normalizeTransactionRows", () => {
     expect(fl.map((l) => l.gallons).sort((a, b) => a - b)).toEqual([80, 100]); // no gallon inflation
   });
 
+  it("splits reefer (ULSR) from tractor (ULSD) on the same invoice into two events", () => {
+    const { fuelLines: fl } = normalizeTransactionRows([
+      { "Card #": "1", Invoice: "INV1", Unit: "5", Item: "ULSD", Qty: "120", Amt: "480", "Tran Date": "2026-06-01" },
+      { "Card #": "1", Invoice: "INV1", Unit: "5", Item: "ULSR", Qty: "40", Amt: "150", "Tran Date": "2026-06-01" },
+    ]);
+    expect(fl).toHaveLength(2);
+    const tractor = fl.find((l) => l.tank_type === "tractor")!;
+    const reefer = fl.find((l) => l.tank_type === "reefer")!;
+    expect(tractor.gallons).toBe(120); // tractor no longer inflated by the 40 reefer gallons
+    expect(tractor.external_ref).toBe("1|INV1|2026-06-01"); // unchanged (dedup with prior imports intact)
+    expect(reefer.gallons).toBe(40);
+    expect(reefer.external_ref).toBe("1|INV1|2026-06-01|reefer"); // distinct new ref
+  });
+
   it("merges multiple fuel lines on the same invoice (sum gallons, re-derive price)", () => {
     const merged = normalizeTransactionRows([
       { "Card #": "1", Invoice: "INV1", Unit: "5", Odometer: "1000", Item: "ULSD", "Unit Price": "4.0", Qty: "100", Amt: "400", "Tran Date": "2026-06-01" },
@@ -378,6 +392,20 @@ describe("deriveFuelEventsFromEfsStore (repair path)", () => {
     expect(first.price_per_gal).toBe(4);
     expect(first.fueled_at_precision).toBe("date"); // noon sentinel
     expect(r.events.find((e) => e.tran_date === "2026-07-01")!.external_ref).toBe("94507|INV1|2026-07-01");
+  });
+
+  it("splits reefer (ULSR) from tractor on backfill with the same refs as the parser", () => {
+    const r = deriveFuelEventsFromEfsStore([
+      line({ item: "ULSD", qty: 120, amt: 480 }),
+      line({ item: "ULSR", qty: 40, amt: 150 }),
+    ]);
+    expect(r.events).toHaveLength(2);
+    const tractor = r.events.find((e) => e.tank_type === "tractor")!;
+    const reefer = r.events.find((e) => e.tank_type === "reefer")!;
+    expect(tractor.gallons).toBe(120);
+    expect(tractor.external_ref).toBe("94507|INV1|2026-06-29");
+    expect(reefer.gallons).toBe(40);
+    expect(reefer.external_ref).toBe("94507|INV1|2026-06-29|reefer");
   });
 
   it("marks timed rows as instant and keeps the earliest instant of a merged group", () => {

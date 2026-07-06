@@ -269,6 +269,7 @@ export function useCommitImport() {
             city: l.city,
             state: l.state,
             card_ref: l.card_ref,
+            tank_type: l.tank_type,
             source: "fuel_card",
             external_ref: l.external_ref,
             import_id: importId,

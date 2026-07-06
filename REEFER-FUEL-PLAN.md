@@ -86,12 +86,14 @@ All rules feed the existing multi-signal case model (new `reefer` evidence axis 
 
 Phases 0–2 need nothing from Samsara beyond what's already connected. Phase 3 needs the reefer integration verified on your trailers.
 
-## 9. Open questions (answer before build)
+## 9. Open questions — ANSWERED (2026-07-06)
 
-1. Run `select distinct item, count(*) from efs_transactions group by 1 order by 2 desc;` — which reefer product codes do your merchants actually use?
-2. Do your reefers have Samsara AGs **with the Thermo King/Carrier reefer integration** (fuel % visible in the Samsara dashboard for a trailer)? Determines whether Phase 3 is available or the plan stops at Tier A + C.
-3. Trailer tank sizes — all 50 gal, or mixed (75/120)?
-4. Are trailers dedicated to trucks (stable pairing) or swapped per load (pairing must come from Samsara assignments)?
+1. **Item codes (from production data):** ULSD 2,132 · DEFD 1,512 · SCLE 378 · **ULSR 83** · STAX 46 · WWFL 19 · ADD 5 · ANFR 5 · null 4 · OIL 3. ULSR is the only reefer code; the rest are non-fuel and already skipped. Note: ULSR is only ~4% of fuel lines — itself a signal that reefers are under-fueled or fueled on the ULSD line; Tier A will break this down per truck/driver.
+2. **No Thermo King/Carrier reefer integration** — it's a paid per-trailer add-on (reefer cable + enablement on the AG license). **Phase 3 (Tier B) deferred**; plan proceeds with Tier A. Trailers DO have AGs (they're tracked in Samsara), so a later reefer pilot only needs cables + enablement, not new gateways.
+3. Trailer tank sizes: to be captured per trailer on the Trailers page (default 50 gal).
+4. **Trailers are in Samsara and assigned to trucks** → pairing comes from Samsara trailer assignments / trip associations. Samsara doesn't classify them as reefers — irrelevant: the reefer flag + tank capacity live in FleetGuard (manual, on the synced trailer records).
+
+**Confirmed scope to build: Phases 0–2** (tank-type split + backfill → Trailers page + Samsara trailer/assignment sync → Tier A rules + case integration + UI). Phase 3 revisit after a cable pilot, if ever.
 
 ## Sources
 

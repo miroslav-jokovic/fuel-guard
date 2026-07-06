@@ -84,6 +84,7 @@ const axisClass = (axis: string): string => {
     consumption: "bg-amber-100 text-amber-700",
     odometer:    "bg-violet-100 text-violet-700",
     behavior:    "bg-blue-100 text-blue-700",
+    reefer:      "bg-cyan-100 text-cyan-700",
   };
   return map[axis] ?? "bg-gray-100 text-gray-600";
 };

@@ -12,6 +12,7 @@ const KNOWN_KINDS = new Set<JobKind>([
   "score_declined_import",
   "rescore_declined",
   "sync_vehicles",
+  "sync_trailers",
   "sync_from_efs",
   "sync_stats",
   "sync_identity",

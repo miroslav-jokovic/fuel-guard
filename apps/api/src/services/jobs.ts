@@ -13,6 +13,7 @@ export type JobKind =
   | "score_declined_import"
   | "rescore_declined"
   | "sync_vehicles"
+  | "sync_trailers"
   | "sync_from_efs"
   | "sync_stats"
   | "sync_identity"

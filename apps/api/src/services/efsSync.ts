@@ -194,6 +194,7 @@ export async function syncFuelEventsFromEfs(
       city: ev.city,
       state: ev.state,
       card_ref: ev.card_ref,
+      tank_type: ev.tank_type,
       source: "fuel_card",
       external_ref: ev.external_ref,
       import_id: importId,

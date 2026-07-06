@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { syncVehiclesFromSamsara, NoSamsaraTokenError } from "../services/samsaraVehicleSync.js";
+import { syncTrailersFromSamsara } from "../services/samsaraTrailerSync.js";
 import { syncDriversFromSamsara } from "../services/samsaraDriverSync.js";
 import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
 import { startJob, finishJob, JobConflictError } from "../services/jobs.js";
@@ -54,6 +55,48 @@ export function integrationsRouter(): Router {
         }
         console.error("[integrations] samsara vehicle sync failed:", e);
         res.status(502).json(apiError("samsara_sync_failed", "Could not sync vehicles from Samsara"));
+      }
+    }),
+  );
+
+  // Sync the org's trailers (reefer assets) from Samsara into the trailers table (admin).
+  router.post(
+    "/samsara/sync-trailers",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const orgId = req.auth!.orgId!;
+      const admin = getSupabaseAdmin(env);
+      let jobId: string;
+      try {
+        jobId = await startJob(admin, orgId, "sync_trailers", { requestedBy: req.auth!.userId });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("job_running", "A trailer sync is already running."));
+          return;
+        }
+        throw e;
+      }
+      try {
+        const result = await syncTrailersFromSamsara(admin, env, orgId);
+        await writeAudit(admin, {
+          orgId,
+          actorId: req.auth!.userId,
+          action: "integration.samsara.trailers_synced",
+          entity: "trailers",
+          meta: { total: result.total, created: result.created, updated: result.updated, paired: result.paired },
+        });
+        await finishJob(admin, jobId, { status: "done", stats: { ...result } });
+        res.json(result);
+      } catch (e) {
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        if (e instanceof NoSamsaraTokenError) {
+          res.status(400).json(apiError("no_samsara_token", e.message));
+          return;
+        }
+        console.error("[integrations] samsara trailer sync failed:", e);
+        res.status(502).json(apiError("samsara_sync_failed", "Could not sync trailers from Samsara"));
       }
     }),
   );

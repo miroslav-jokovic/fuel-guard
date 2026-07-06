@@ -21,7 +21,7 @@ import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, tank_type, samsara_odometer, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at";
 
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -69,6 +69,7 @@ interface FtxnRow {
   version: number;
   source: string;
   card_ref: string | null;
+  tank_type: string | null;
   city: string | null;
   state: string | null;
   location_text: string | null;
@@ -116,6 +117,7 @@ function toTxnView(r: FtxnRow): TxnView {
     fueledAtPrecision: precision,
     eventAt,
     timeConfirmed,
+    tankType: r.tank_type === "reefer" ? "reefer" : "tractor",
     cardRef: r.card_ref,
   };
 }
@@ -123,7 +125,7 @@ function toTxnView(r: FtxnRow): TxnView {
 async function loadThresholds(admin: SupabaseClient, orgId: string): Promise<Thresholds> {
   const { data } = await admin
     .from("anomaly_thresholds")
-    .select("mpg_drop_pct, capacity_tolerance_pct, rapid_refuel_hours, max_plausible_mph, cost_min_per_gal, cost_max_per_gal, disabled_rules, odometer_tolerance_miles, max_daily_miles, cumulative_window_hours")
+    .select("mpg_drop_pct, capacity_tolerance_pct, rapid_refuel_hours, max_plausible_mph, cost_min_per_gal, cost_max_per_gal, disabled_rules, odometer_tolerance_miles, max_daily_miles, cumulative_window_hours, max_reefer_burn_gph, reefer_tank_default_gal")
     .eq("org_id", orgId)
     .maybeSingle();
   return {
@@ -139,6 +141,8 @@ async function loadThresholds(admin: SupabaseClient, orgId: string): Promise<Thr
     odometerToleranceMiles: n(data?.odometer_tolerance_miles) ?? 10,
     maxDailyMiles: n(data?.max_daily_miles) ?? 1000,
     cumulativeWindowHours: n(data?.cumulative_window_hours) ?? 48,
+    maxReeferBurnGph: n(data?.max_reefer_burn_gph) ?? 1.5,
+    reeferTankDefaultGal: n(data?.reefer_tank_default_gal) ?? 50,
   };
 }
 
@@ -291,11 +295,14 @@ export async function scoreTransaction(
   let windowMiles: number | null = null;
   let cardVehicleCountInWindow = 0;
 
-  if (txn.vehicleId) {
+  // The tractor MPG chain + cumulative window consider TRACTOR fills only — reefer (ULSR) gallons must
+  // never enter a tractor's consumption math. Reefer events get no chain (their own rules come later).
+  if (txn.vehicleId && txn.tankType !== "reefer") {
     const { data: prevRows } = await admin
       .from("fuel_transactions")
       .select(FTXN_COLS)
       .eq("vehicle_id", txn.vehicleId)
+      .eq("tank_type", "tractor")
       .lt("fueled_at", r.fueled_at)
       .not("odometer", "is", null)
       .order("fueled_at", { ascending: false })
@@ -326,6 +333,7 @@ export async function scoreTransaction(
       .from("fuel_transactions")
       .select("gallons, odometer")
       .eq("vehicle_id", txn.vehicleId)
+      .eq("tank_type", "tractor")
       .gte("fueled_at", winStart())
       .lte("fueled_at", r.fueled_at);
     const wr = (winRows ?? []) as { gallons: number | string; odometer: number | string | null }[];
@@ -345,6 +353,30 @@ export async function scoreTransaction(
     cardVehicleCountInWindow = new Set((cardRows ?? []).map((x) => x.vehicle_id).filter(Boolean)).size;
   }
 
+  // Reefer (ULSR) fills: resolve the paired trailer's reefer tank capacity (current pairing) and the
+  // rolling-window reefer gallons for this truck — inputs to the Tier A reefer rules.
+  let reeferTankCapacityGal: number | null = null;
+  let reeferWindowGallons = 0;
+  if (txn.vehicleId && txn.tankType === "reefer") {
+    const { data: trailer } = await admin
+      .from("trailers")
+      .select("reefer_tank_capacity_gal")
+      .eq("org_id", orgId)
+      .eq("assigned_vehicle_id", txn.vehicleId)
+      .neq("status", "retired")
+      .limit(1)
+      .maybeSingle();
+    reeferTankCapacityGal = trailer ? Number(trailer.reefer_tank_capacity_gal) : null;
+    const { data: rwin } = await admin
+      .from("fuel_transactions")
+      .select("gallons")
+      .eq("vehicle_id", txn.vehicleId)
+      .eq("tank_type", "reefer")
+      .gte("fueled_at", winStart())
+      .lte("fueled_at", r.fueled_at);
+    reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce((s, x) => s + Number(x.gallons), 0);
+  }
+
   const fired = runAllRules({
     txn,
     vehicle,
@@ -361,6 +393,8 @@ export async function scoreTransaction(
     tankFillShortGal,
     tankObservedRiseGal,
     tankPctBefore,
+    reeferTankCapacityGal,
+    reeferWindowGallons,
   });
 
   // Correlate the fired signals into ONE per-transaction case (multi-signal model). A lone weak signal

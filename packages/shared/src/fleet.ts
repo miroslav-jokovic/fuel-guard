@@ -69,6 +69,46 @@ export interface Vehicle {
   updated_at: string;
 }
 
+// ── Trailer (reefer) ────────────────────────────────────────────────────────────
+
+export const trailerInputSchema = z.object({
+  unit_number: z.string().trim().min(1, "Unit number is required").max(50),
+  make: optionalText,
+  model: optionalText,
+  year: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : v),
+    z.coerce.number().int().min(1900).max(2100).optional(),
+  ),
+  plate: optionalText,
+  /** Reefer (refrigeration) tank capacity in gallons. Standard reefer tank ≈ 50 gal. */
+  reefer_tank_capacity_gal: z.coerce.number().nonnegative().default(50),
+  status: z.enum(VEHICLE_STATUSES).default("active"),
+  /** Manual tractor pairing fallback when Samsara assignments aren't available. */
+  assigned_vehicle_id: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : v),
+    z.uuid().optional(),
+  ),
+  samsara_asset_id: optionalText,
+});
+
+export type TrailerInput = z.infer<typeof trailerInputSchema>;
+
+export interface Trailer {
+  id: string;
+  org_id: string;
+  unit_number: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  plate: string | null;
+  reefer_tank_capacity_gal: number;
+  status: VehicleStatus;
+  assigned_vehicle_id: string | null;
+  samsara_asset_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Driver ────────────────────────────────────────────────────────────────────
 
 export const driverInputSchema = z.object({
