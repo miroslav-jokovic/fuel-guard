@@ -7,6 +7,7 @@ import { writeAudit } from "../lib/audit.js";
 import { syncVehiclesFromSamsara, NoSamsaraTokenError } from "../services/samsaraVehicleSync.js";
 import { syncDriversFromSamsara } from "../services/samsaraDriverSync.js";
 import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
+import { startJob, finishJob, JobConflictError } from "../services/jobs.js";
 
 export function integrationsRouter(): Router {
   const router = Router();
@@ -20,8 +21,19 @@ export function integrationsRouter(): Router {
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const orgId = req.auth!.orgId!;
+      const admin = getSupabaseAdmin(env);
+      // Record the sync as a job so the UI shows freshness + refuses overlapping runs (manual + scheduled).
+      let jobId: string;
       try {
-        const admin = getSupabaseAdmin(env);
+        jobId = await startJob(admin, orgId, "sync_vehicles", { requestedBy: req.auth!.userId });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("job_running", "A Samsara sync is already running — watch its progress."));
+          return;
+        }
+        throw e;
+      }
+      try {
         // Sync drivers first so samsara_driver_id is populated before the vehicle assignment step.
         try { await syncDriversFromSamsara(admin, env, orgId); } catch { /* non-fatal */ }
         const result = await syncVehiclesFromSamsara(admin, env, orgId);
@@ -32,8 +44,10 @@ export function integrationsRouter(): Router {
           entity: "vehicles",
           meta: { total: result.total, created: result.created, updated: result.updated },
         });
+        await finishJob(admin, jobId, { status: "done", stats: { total: result.total, created: result.created, updated: result.updated, assigned: result.assigned } });
         res.json(result);
       } catch (e) {
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
         if (e instanceof NoSamsaraTokenError) {
           res.status(400).json(apiError("no_samsara_token", e.message));
           return;

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
+import { samsaraFetch } from "../lib/samsaraHttp.js";
 
 /**
  * Probe every Samsara endpoint the sync depends on and report exactly what it returns — HTTP status
@@ -15,7 +16,8 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
     const url = new URL(path, env.SAMSARA_API_URL);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
     try {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      // retry:false — diagnostics must REPORT the raw status (403 = missing scope), not retry it away.
+      const res = await samsaraFetch(env, token, url, { retry: false });
       const body = res.ok ? ((await res.json()) as { data?: unknown[] }) : null;
       const text = res.ok ? null : (await res.text()).slice(0, 300);
       return { status: res.status, ok: res.ok, data: body?.data ?? null, error: text };

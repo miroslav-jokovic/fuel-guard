@@ -42,6 +42,8 @@ export function useDriversQuery() {
       if (error) throw new Error(error.message);
       return (data ?? []) as Driver[];
     },
+    // Reflect background identity-sync updates without a manual reload.
+    refetchInterval: 60_000,
   });
 }
 

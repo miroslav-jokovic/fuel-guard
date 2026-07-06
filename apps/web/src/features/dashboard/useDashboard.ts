@@ -32,6 +32,8 @@ async function fetchAllPaged<T>(
 export function useDashboard(days: Ref<number>) {
   return useQuery({
     queryKey: ["dashboard", days],
+    // Reflect background sync + nightly-reconcile results without a manual reload.
+    refetchInterval: 120_000,
     queryFn: async (): Promise<DashboardSummary> => {
       const from = new Date(Date.now() - toValue(days) * 86400_000).toISOString();
       const [txns, anoms, vehRes, drvRes, orgRes] = await Promise.all([

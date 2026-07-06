@@ -1,4 +1,5 @@
 import type { Env } from "../env.js";
+import { samsaraFetch } from "./samsaraHttp.js";
 
 /** Fetches one vehicle's GPS+odometer history for a time range. Injectable for tests. */
 export type SamsaraFetcher = (
@@ -46,7 +47,7 @@ export function makeSamsaraFetcher(env: Env, token: string): SamsaraFetcher {
       url.searchParams.set("types", "gps,fuelPercents");
       url.searchParams.set("decorations", "obdOdometerMeters");
       if (after) url.searchParams.set("after", after);
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await samsaraFetch(env, token, url);
       if (!res.ok) throw new Error(`Samsara API ${res.status}`);
       const page = (await res.json()) as StatsHistoryPage;
 
@@ -83,7 +84,7 @@ async function listAllPages(
     url.searchParams.set("limit", "512");
     for (const [k, v] of Object.entries(extraParams)) url.searchParams.set(k, v);
     if (after) url.searchParams.set("after", after);
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await samsaraFetch(env, token, url);
     if (!res.ok) throw new Error(`Samsara API ${res.status}`);
     const json = (await res.json()) as {
       data?: unknown[];

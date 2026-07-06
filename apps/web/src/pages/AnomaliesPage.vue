@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { RouterLink } from "vue-router";
 import { MagnifyingGlassIcon } from "@heroicons/vue/20/solid";
 import { ANOMALY_SEVERITIES, formatRuleId, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
@@ -8,6 +9,7 @@ import { useAiAssessments } from "@/features/ai/useAiVerification";
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import AppSelect from "@/components/AppSelect.vue";
+import VehicleSelect from "@/components/VehicleSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import SortableTh from "@/components/SortableTh.vue";
@@ -148,25 +150,7 @@ async function rowAction(a: Anomaly, status: "investigating" | "resolved" | "dis
   }
 }
 
-const rebuilding = ref(false);
-async function rebuild() {
-  if (!confirm("Re-score every transaction with the current rules? Existing false flags will clear; your notes are kept.")) return;
-  rebuilding.value = true;
-  const res = await apiFetch("/api/transactions/rebuild", { method: "POST" });
-  rebuilding.value = false;
-  if (res.ok) toast.success("Rebuild started", "Re-scoring in the background — refresh in a minute to see the cleaned-up list.");
-  else toast.error("Could not start rebuild", res.error?.message);
-}
-
-const resyncing = ref(false);
-async function resync() {
-  if (!confirm("Re-check every fill against Samsara live? This recomputes exact fueling location and odometer (the tz-proof + geocoding logic), fixing false location/odometer flags. It's slower — a few minutes in the background.")) return;
-  resyncing.value = true;
-  const res = await apiFetch("/api/transactions/backfill", { method: "POST" });
-  resyncing.value = false;
-  if (res.ok) toast.success("Samsara re-sync started", "Re-reconciling every fill in the background — refresh in a few minutes.");
-  else toast.error("Could not start re-sync", res.error?.message);
-}
+// Rebuild + Re-sync Samsara moved to Settings → Data & Sync (with live progress + freshness).
 
 const selectedRow = ref<Anomaly | null>(null);
 const fmt = (iso: string) => new Date(iso).toLocaleDateString();
@@ -193,24 +177,14 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
           >
             {{ triaging ? "Triaging…" : "AI triage" }}
           </button>
-          <button
+          <RouterLink
             v-if="session.canManage"
-            :disabled="resyncing"
-            class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-            title="Re-check every fill against Samsara live — fixes false location/odometer flags"
-            @click="resync"
+            to="/settings/data"
+            class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-700"
+            title="Rebuild and Re-sync Samsara moved to Settings → Data & Sync (with live progress)"
           >
-            {{ resyncing ? "Re-syncing…" : "Re-sync Samsara" }}
-          </button>
-          <button
-            v-if="session.canManage"
-            :disabled="rebuilding"
-            class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-            title="Re-score every transaction with the current rules — clears stale/false flags"
-            @click="rebuild"
-          >
-            {{ rebuilding ? "Rebuilding…" : "Rebuild" }}
-          </button>
+            Rebuild / Re-sync →
+          </RouterLink>
         </div>
       </div>
 
@@ -238,9 +212,9 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
           v-model="filters.severity"
           :options="[{ value: undefined, label: 'All severities' }, ...ANOMALY_SEVERITIES.map((s) => ({ value: s, label: s }))]"
         />
-        <AppSelect
+        <VehicleSelect
           v-model="filters.vehicleId"
-          :options="[{ value: undefined, label: 'All vehicles' }, ...(vehicles ?? []).map((v) => ({ value: v.id, label: v.unit_number }))]"
+          :vehicles="vehicles ?? []"
         />
       </div>
       <div class="mt-2">

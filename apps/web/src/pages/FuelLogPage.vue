@@ -7,7 +7,7 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useFuelTransactions, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
-import AppSelect from "@/components/AppSelect.vue";
+import VehicleSelect from "@/components/VehicleSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
@@ -58,19 +58,24 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleString();
 
-const clearCount = computed(() => rows.value.filter((t) => !t.has_anomaly).length);
+const flaggedCount = computed(() => rows.value.filter((t) => t.has_anomaly).length);
+const clearCount   = computed(() => rows.value.filter((t) => !t.has_anomaly).length);
+const totalGallons = computed(() => rows.value.reduce((s, t) => s + t.gallons, 0));
+const pageCost     = computed(() => rows.value.reduce((s, t) => s + (t.total_cost ?? 0), 0));
+const hasCost      = computed(() => rows.value.some((t) => t.total_cost != null));
+const mpgValues    = computed(() => rows.value.map((t) => t.computed_mpg).filter((v): v is number => v != null));
+const avgMpg       = computed(() => mpgValues.value.length ? mpgValues.value.reduce((a, b) => a + b, 0) / mpgValues.value.length : null);
+const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFractionDigits: dec });
+const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 </script>
 
 <template>
   <div class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-2">
-        <AppSelect
+        <VehicleSelect
           v-model="filters.vehicleId"
-          :options="[
-            { value: undefined, label: 'All vehicles' },
-            ...(vehicles ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
-          ]"
+          :vehicles="vehicles ?? []"
         />
         <DateRangeFilter :from="fromDate" :to="toDate" @update:from="setFrom" @update:to="setTo" />
       </div>
@@ -82,9 +87,38 @@ const clearCount = computed(() => rows.value.filter((t) => !t.has_anomaly).lengt
       </button>
     </div>
 
-    <p v-if="!isLoading && !isError && rows.length" class="text-sm text-gray-500">
-      <span class="font-medium text-green-700">{{ clearCount }}</span> of {{ rows.length }} shown are clear — only flagged fills need review.
-    </p>
+    <!-- Summary stats block -->
+    <div v-if="!isLoading && !isError && total > 0" class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+      <dl class="grid grid-cols-2 divide-y divide-gray-100 sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-5">
+        <div class="px-5 py-4">
+          <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Total fill-ups</dt>
+          <dd class="mt-1 text-2xl font-bold text-gray-900">{{ total.toLocaleString() }}</dd>
+          <dd class="mt-0.5 text-xs text-gray-400">matching current filters</dd>
+        </div>
+        <div class="px-5 py-4">
+          <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Flagged</dt>
+          <dd class="mt-1 text-2xl font-bold" :class="flaggedCount ? 'text-red-600' : 'text-gray-300'">{{ flaggedCount }}</dd>
+          <dd class="mt-0.5 text-xs" :class="flaggedCount ? 'text-red-400' : 'text-gray-400'">
+            {{ flaggedCount ? 'anomalies need review' : 'no anomalies this page' }}
+          </dd>
+        </div>
+        <div class="px-5 py-4">
+          <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Clear</dt>
+          <dd class="mt-1 text-2xl font-bold" :class="clearCount ? 'text-green-600' : 'text-gray-300'">{{ clearCount }}</dd>
+          <dd class="mt-0.5 text-xs text-gray-400">transactions with no flags</dd>
+        </div>
+        <div class="px-5 py-4">
+          <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Gallons</dt>
+          <dd class="mt-1 text-2xl font-bold text-gray-900">{{ fmtNum(totalGallons, 0) }}</dd>
+          <dd class="mt-0.5 text-xs text-gray-400">total this page</dd>
+        </div>
+        <div class="px-5 py-4">
+          <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Avg MPG</dt>
+          <dd class="mt-1 text-2xl font-bold text-gray-900">{{ avgMpg != null ? avgMpg.toFixed(1) : '—' }}</dd>
+          <dd class="mt-0.5 text-xs text-gray-400">{{ hasCost ? fmtUsd(pageCost) + ' total cost' : 'this page' }}</dd>
+        </div>
+      </dl>
+    </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
       <TableSkeleton v-if="isLoading" :cols="7" />

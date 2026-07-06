@@ -465,7 +465,16 @@ export async function scoreWithCascade(admin: SupabaseClient, env: Env, orgId: s
  * Backfill / rebuild: score every transaction for an org in (vehicle, fueled_at) order. Pass
  * skipRecon=true for a rebuild of existing data so it reuses stored Samsara values (no live API spam).
  */
-export async function backfillOrg(admin: SupabaseClient, env: Env, orgId: string, opts: ScoreOpts = {}): Promise<number> {
+/** Optional progress callback for long loops — invoked periodically with (done, total). */
+export type ProgressFn = (done: number, total: number) => Promise<void> | void;
+
+export async function backfillOrg(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  opts: ScoreOpts = {},
+  onProgress?: ProgressFn,
+): Promise<number> {
   const { data: rows } = await admin
     .from("fuel_transactions")
     .select("id")
@@ -474,12 +483,24 @@ export async function backfillOrg(admin: SupabaseClient, env: Env, orgId: string
     .order("fueled_at", { ascending: true })
     .order("created_at", { ascending: true });
   const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
-  for (const id of ids) await scoreTransaction(admin, env, orgId, id, opts);
-  return ids.length;
+  const total = ids.length;
+  let done = 0;
+  for (const id of ids) {
+    await scoreTransaction(admin, env, orgId, id, opts);
+    done++;
+    if (onProgress && (done % 50 === 0 || done === total)) await onProgress(done, total);
+  }
+  return total;
 }
 
 /** Score only the transactions from one import (post-import) — far cheaper than a full org backfill. */
-export async function scoreImport(admin: SupabaseClient, env: Env, orgId: string, importId: string): Promise<number> {
+export async function scoreImport(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  importId: string,
+  onProgress?: ProgressFn,
+): Promise<number> {
   const { data: rows } = await admin
     .from("fuel_transactions")
     .select("id")
@@ -489,6 +510,65 @@ export async function scoreImport(admin: SupabaseClient, env: Env, orgId: string
     .order("fueled_at", { ascending: true })
     .order("created_at", { ascending: true });
   const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
-  for (const id of ids) await scoreTransaction(admin, env, orgId, id);
+  const total = ids.length;
+  let done = 0;
+  for (const id of ids) {
+    await scoreTransaction(admin, env, orgId, id);
+    done++;
+    if (onProgress && (done % 50 === 0 || done === total)) await onProgress(done, total);
+  }
+  return total;
+}
+
+/** Re-score every fill for ONE vehicle in chain order. Used by the post-import cascade (skipRecon). */
+export async function scoreVehicle(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  vehicleId: string,
+  opts: ScoreOpts = {},
+): Promise<number> {
+  const { data: rows } = await admin
+    .from("fuel_transactions")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("vehicle_id", vehicleId)
+    .order("fueled_at", { ascending: true })
+    .order("created_at", { ascending: true });
+  const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
+  for (const id of ids) await scoreTransaction(admin, env, orgId, id, opts);
   return ids.length;
+}
+
+/** Distinct vehicle ids attributed to an import's fuel rows. */
+export async function affectedVehicleIds(admin: SupabaseClient, orgId: string, importId: string): Promise<string[]> {
+  const { data } = await admin
+    .from("fuel_transactions")
+    .select("vehicle_id")
+    .eq("org_id", orgId)
+    .eq("import_id", importId)
+    .not("vehicle_id", "is", null);
+  const set = new Set<string>();
+  for (const r of (data ?? []) as { vehicle_id: string | null }[]) if (r.vehicle_id) set.add(r.vehicle_id);
+  return [...set];
+}
+
+/**
+ * Score an import, then AUTO-CASCADE: importing history changes MPG baselines and over-fuel windows for
+ * the affected vehicles' neighboring fills, so re-score every fill of just those vehicles (skipRecon —
+ * the new rows already did a live Samsara recon; neighbors reuse stored values). Scoped to the import's
+ * vehicles, never the whole org — this is what removes the manual "go press Rebuild" step.
+ */
+export async function scoreImportWithCascade(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  importId: string,
+  onProgress?: ProgressFn,
+): Promise<{ scored: number; cascaded: number; vehicles: number }> {
+  const scored = await scoreImport(admin, env, orgId, importId, onProgress);
+  const vehicleIds = await affectedVehicleIds(admin, orgId, importId);
+  let cascaded = 0;
+  for (const vId of vehicleIds) cascaded += await scoreVehicle(admin, env, orgId, vId, { skipRecon: true });
+  return { scored, cascaded, vehicles: vehicleIds.length };
 }

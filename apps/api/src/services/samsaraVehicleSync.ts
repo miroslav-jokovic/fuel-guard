@@ -177,3 +177,47 @@ export async function syncVehiclesFromSamsara(
 function pickUnitNumber(sv: SamsaraVehicle): string {
   return sv.name?.trim() || sv.vin || `SAMSARA-${sv.samsaraId}`;
 }
+
+export interface VehicleStatsSyncResult {
+  updated: number; // vehicles whose current odometer / fuel level was refreshed
+}
+
+/**
+ * LIVE STATS ONLY — refresh current odometer + fuel level for already-mapped vehicles. This is the
+ * cheap tier (one paginated `/fleet/vehicles/stats` call), safe to run every few minutes. It never
+ * touches identity, creates rows, or resolves assignments — those are the slow-changing identity tier.
+ */
+export async function syncVehicleStatsFromSamsara(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  odometerOverride?: SamsaraOdometerFetcher,
+): Promise<VehicleStatsSyncResult> {
+  const token = odometerOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
+  if (!token) throw new NoSamsaraTokenError();
+
+  const fetcher = odometerOverride ?? makeSamsaraOdometerFetcher(env, token);
+  const stats = (await fetcher()) as Parameters<typeof parseVehicleStatsOdometer>[0];
+  const odometerMiles = parseVehicleStatsOdometer(stats);
+  const fuelByVehicle = parseVehicleFuelPercents(stats);
+  if (odometerMiles.size === 0 && fuelByVehicle.size === 0) return { updated: 0 };
+
+  const { data: rows } = await admin
+    .from("vehicles")
+    .select("id, samsara_vehicle_id")
+    .eq("org_id", orgId)
+    .not("samsara_vehicle_id", "is", null);
+
+  let updated = 0;
+  for (const r of (rows ?? []) as { id: string; samsara_vehicle_id: string }[]) {
+    const odo = odometerMiles.get(r.samsara_vehicle_id);
+    const fuel = fuelByVehicle.get(r.samsara_vehicle_id);
+    if (odo == null && !fuel) continue; // Samsara reported nothing for this truck → leave it be
+    const patch: { current_odometer?: number; samsara_fuel_percent?: number; samsara_fuel_at?: string | null } = {};
+    if (odo != null) patch.current_odometer = odo;
+    if (fuel) { patch.samsara_fuel_percent = fuel.percent; patch.samsara_fuel_at = fuel.time; }
+    await admin.from("vehicles").update(patch).eq("id", r.id).eq("org_id", orgId);
+    updated++;
+  }
+  return { updated };
+}

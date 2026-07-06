@@ -6,6 +6,12 @@ import { makeSender } from "../lib/mailer.js";
 
 const WINDOW_DAYS = 7;
 
+export interface DigestHealth {
+  lastCheckLabel: string | null;
+  driftFixed: number;
+  syncFailures: number;
+}
+
 export interface DigestData {
   since: string;
   alertCount: number;
@@ -14,6 +20,38 @@ export interface DigestData {
   siphons: { unit: string; dropPct: number | null; at: string }[];
   declineAlertCount: number;
   topVehicles: { unit: string; count: number }[];
+  health: DigestHealth;
+}
+
+/** Coarse "x ago" label for a timestamp (server-side; for the digest data-health line). */
+function agoLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 60) return `${Math.max(1, mins)} min ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+}
+
+/** Data-health from the jobs ledger over the window: nightly-reconcile drift + any failed jobs. */
+async function buildDigestHealth(admin: SupabaseClient, orgId: string, since: string): Promise<DigestHealth> {
+  const { data } = await admin
+    .from("jobs")
+    .select("kind, status, stats, finished_at")
+    .eq("org_id", orgId)
+    .gte("created_at", since);
+  const rows = (data ?? []) as { kind: string; status: string; stats: Record<string, unknown> | null; finished_at: string | null }[];
+  let syncFailures = 0;
+  let driftFixed = 0;
+  let lastCheck: string | null = null;
+  for (const r of rows) {
+    if (r.status === "failed") syncFailures++;
+    if (r.kind === "nightly_reconcile" && r.status === "done") {
+      const d = Number((r.stats ?? {}).driftFixed ?? 0);
+      if (Number.isFinite(d)) driftFixed += d;
+      if (r.finished_at && (!lastCheck || r.finished_at > lastCheck)) lastCheck = r.finished_at;
+    }
+  }
+  return { lastCheckLabel: agoLabel(lastCheck), driftFixed, syncFailures };
 }
 
 export interface DigestResult {
@@ -62,6 +100,8 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     .eq("suspicion_level", "alert")
     .gte("declined_at", since);
 
+  const health = await buildDigestHealth(admin, orgId, since);
+
   return {
     since,
     alertCount: alerts.length,
@@ -70,6 +110,7 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     siphons: siphons.slice(0, 5),
     declineAlertCount: declineAlertCount ?? 0,
     topVehicles,
+    health,
   };
 }
 
@@ -112,6 +153,7 @@ export async function generateAndSendDigest(
     declineAlertCount: data.declineAlertCount,
     topVehicles: data.topVehicles,
     appUrl: env.WEB_APP_URL,
+    health: data.health,
   });
   const sent = await makeSender(env)({ to: recipients, subject: mail.subject, html: mail.html, text: mail.text });
   return { sent, reason: sent ? null : "send_failed", summary };

@@ -31,8 +31,21 @@ const EnvSchema = z.object({
   // Base64 secret from the Samsara webhook config — used to verify incoming siphoning-alert webhooks.
   // When unset, the webhook endpoint rejects everything (fail-closed).
   SAMSARA_WEBHOOK_SECRET: z.string().optional(),
-  // Background auto-sync cadence (hours). 0 disables the scheduler (manual "Sync" button still works).
+  // Background auto-sync. DEPRECATED as a cadence — kept only as a kill switch: SAMSARA_SYNC_HOURS=0
+  // disables ALL Samsara schedulers (manual buttons still work). Cadence is now tiered below.
   SAMSARA_SYNC_HOURS: z.coerce.number().min(0).default(6),
+  // Tier 1 — live stats (current odometer + fuel level): cheap, refresh often. Minutes.
+  SAMSARA_STATS_SYNC_MINUTES: z.coerce.number().min(1).default(20),
+  // Tier 2 — identity (vehicles, drivers, assignments): changes slowly, refresh rarely. Hours.
+  SAMSARA_IDENTITY_SYNC_HOURS: z.coerce.number().min(0.1).default(12),
+  // Nightly per-org self-heal (EFS-store repair → rescore → quick rebuild → integrity) at org-local 03:00.
+  // Set to "false" to disable.
+  NIGHTLY_RECONCILE_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
+  // Central Samsara client rate limiting (shared per org token across schedulers + recon + backfill).
+  // Steady request cadence (requests/sec) — stays well under Samsara's per-token limits while letting a
+  // large backfill finish in minutes. Retries honor Retry-After + exponential backoff before failing.
+  SAMSARA_MAX_RPS: z.coerce.number().min(0.1).default(5),
+  SAMSARA_MAX_RETRIES: z.coerce.number().int().min(0).default(4),
   // Geocoding for the location proximity check. Uses OpenStreetMap/Nominatim (free, no key) by default;
   // results are cached in geocode_cache so each station is looked up once. Set GEOCODING_ENABLED=false
   // to turn off. GEOCODE_PROX_MILES = how close the truck's GPS must come to the station to "confirm".

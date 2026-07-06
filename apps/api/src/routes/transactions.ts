@@ -4,11 +4,21 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
-import { scoreWithCascade, backfillOrg, scoreImport } from "../services/scoring.js";
+import { scoreWithCascade, backfillOrg, scoreImportWithCascade } from "../services/scoring.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "../services/efsSync.js";
 import { scoreDeclinedImport, scoreDeclinedOrg } from "../services/declinedScoring.js";
 import { verifyTransaction } from "../services/aiVerification.js";
 import { notifyForTransaction } from "../services/notifications.js";
+import { runJob } from "../services/jobs.js";
+
+/** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running. */
+function jobResponse(res: import("express").Response, result: { jobId: string } | { conflict: true }): void {
+  if ("conflict" in result) {
+    res.status(409).json(apiError("job_running", "That operation is already running — watch its progress."));
+  } else {
+    res.status(202).json({ ok: true, queued: true, jobId: result.jobId });
+  }
+}
 
 export function transactionsRouter(): Router {
   const router = Router();
@@ -71,15 +81,12 @@ export function transactionsRouter(): Router {
         res.status(404).json(apiError("not_found", "Import not found"));
         return;
       }
-      res.json({ ok: true, queued: true }); // respond now; scoring continues in the background
-      void (async () => {
-        try {
-          const count = await scoreImport(admin, env, orgId, importId);
-          await writeAudit(admin, { orgId, actorId, action: "transactions.score_import", meta: { importId, count } });
-        } catch (e) {
-          console.error("[score-import] background scoring failed:", e instanceof Error ? e.message : e);
-        }
-      })();
+      const result = await runJob(admin, orgId, "score_import", async (report) => {
+        const r = await scoreImportWithCascade(admin, env, orgId, importId, report);
+        await writeAudit(admin, { orgId, actorId, action: "transactions.score_import", meta: { importId, ...r } });
+        return r;
+      }, { requestedBy: actorId });
+      jobResponse(res, result);
     }),
   );
 
@@ -95,15 +102,12 @@ export function transactionsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const actorId = req.auth!.userId;
-      res.json({ ok: true, queued: true }); // respond now; rebuild continues in the background
-      void (async () => {
-        try {
-          const count = await backfillOrg(admin, env, orgId, { skipRecon: true });
-          await writeAudit(admin, { orgId, actorId, action: "transactions.rebuild", meta: { count } });
-        } catch (e) {
-          console.error("[rebuild] background rebuild failed:", e instanceof Error ? e.message : e);
-        }
-      })();
+      const result = await runJob(admin, orgId, "rebuild", async (report) => {
+        const count = await backfillOrg(admin, env, orgId, { skipRecon: true }, report);
+        await writeAudit(admin, { orgId, actorId, action: "transactions.rebuild", meta: { count } });
+        return { count };
+      }, { requestedBy: actorId });
+      jobResponse(res, result);
     }),
   );
 
@@ -123,15 +127,12 @@ export function transactionsRouter(): Router {
         res.status(400).json(apiError("bad_request", "importId is required"));
         return;
       }
-      res.json({ ok: true, queued: true });
-      void (async () => {
-        try {
-          const count = await scoreDeclinedImport(admin, env, orgId, importId);
-          await writeAudit(admin, { orgId, actorId, action: "declined.score_import", meta: { importId, count } });
-        } catch (e) {
-          console.error("[score-declined-import] failed:", e instanceof Error ? e.message : e);
-        }
-      })();
+      const result = await runJob(admin, orgId, "score_declined_import", async () => {
+        const count = await scoreDeclinedImport(admin, env, orgId, importId);
+        await writeAudit(admin, { orgId, actorId, action: "declined.score_import", meta: { importId, count } });
+        return { count };
+      }, { requestedBy: actorId });
+      jobResponse(res, result);
     }),
   );
 
@@ -145,15 +146,12 @@ export function transactionsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const actorId = req.auth!.userId;
-      res.json({ ok: true, queued: true });
-      void (async () => {
-        try {
-          const count = await scoreDeclinedOrg(admin, env, orgId);
-          await writeAudit(admin, { orgId, actorId, action: "declined.rescore", meta: { count } });
-        } catch (e) {
-          console.error("[rescore-declined] failed:", e instanceof Error ? e.message : e);
-        }
-      })();
+      const result = await runJob(admin, orgId, "rescore_declined", async () => {
+        const count = await scoreDeclinedOrg(admin, env, orgId);
+        await writeAudit(admin, { orgId, actorId, action: "declined.rescore", meta: { count } });
+        return { count };
+      }, { requestedBy: actorId });
+      jobResponse(res, result);
     }),
   );
 
@@ -195,15 +193,12 @@ export function transactionsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const actorId = req.auth!.userId;
-      res.json({ ok: true, queued: true });
-      void (async () => {
-        try {
-          const count = await backfillOrg(admin, env, orgId);
-          await writeAudit(admin, { orgId, actorId, action: "transactions.backfill", meta: { count } });
-        } catch (e) {
-          console.error("[backfill] background backfill failed:", e instanceof Error ? e.message : e);
-        }
-      })();
+      const result = await runJob(admin, orgId, "backfill", async (report) => {
+        const count = await backfillOrg(admin, env, orgId, {}, report);
+        await writeAudit(admin, { orgId, actorId, action: "transactions.backfill", meta: { count } });
+        return { count };
+      }, { requestedBy: actorId });
+      jobResponse(res, result);
     }),
   );
 

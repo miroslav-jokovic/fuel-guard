@@ -60,6 +60,7 @@ async function rescore() {
   const res = await apiFetch("/api/transactions/rescore-declined", { method: "POST" });
   rescoring.value = false;
   if (res.ok) toast.success("Rescoring started", "Checking each declined attempt against Samsara — refresh in a minute.");
+  else if (res.status === 409) toast.info("Already running", "A rescore is already in progress — refresh in a moment.");
   else toast.error("Could not start rescore", res.error?.message);
 }
 </script>

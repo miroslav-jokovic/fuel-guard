@@ -22,6 +22,21 @@ export interface DigestStats {
   declineAlertCount: number;
   topVehicles: { unit: string; count: number }[];
   appUrl: string;
+  /** Optional data-health line from the jobs ledger (nightly reconcile + sync failures). */
+  health?: {
+    lastCheckLabel: string | null; // e.g. "12h ago", or null if never
+    driftFixed: number; // rows the nightly self-heal repaired this week (0 = clean)
+    syncFailures: number; // failed sync/reconcile jobs this week
+  };
+}
+
+/** One-line data-health summary for the digest ("Data healthy" vs. what needs attention). */
+function healthLine(h: NonNullable<DigestStats["health"]>): string {
+  const checked = h.lastCheckLabel ? `last integrity check ${h.lastCheckLabel}` : "no integrity check yet";
+  const bits = [checked];
+  bits.push(h.driftFixed > 0 ? `${h.driftFixed} row(s) of drift repaired` : "no data drift");
+  if (h.syncFailures > 0) bits.push(`${h.syncFailures} sync failure(s) — check Settings → Data & Sync`);
+  return bits.join(" · ");
 }
 
 /** Weekly theft digest email: the AI narrative + a compact stats strip. Pure — no I/O. */
@@ -40,6 +55,10 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
       stats.topVehicles.map((v) => `${esc(v.unit)} (${v.count})`).join(", ") +
       `</p>`
     : "";
+  const health = stats.health
+    ? `<p style="margin:10px 0 0;color:${stats.health.syncFailures > 0 ? "#d97706" : "#777"};font-size:13px">` +
+      `Data health: ${esc(healthLine(stats.health))}</p>`
+    : "";
   const html =
     `<div style="font-family:system-ui,sans-serif;max-width:640px">` +
     `<h2 style="margin:0 0 4px;color:#111">${esc(orgName)} — weekly fuel-theft digest</h2>` +
@@ -51,11 +70,13 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
     `</tr></table>` +
     summaryHtml +
     topVeh +
+    health +
     `<p style="margin:20px 0 0"><a href="${esc(stats.appUrl)}/anomalies" style="color:#4f46e5">Open FuelGuard →</a></p>` +
     `</div>`;
   const text =
     `${orgName} — weekly fuel-theft digest (past 7 days)\n\n` +
     `High/critical alerts: ${stats.alertCount} | Siphoning: ${stats.siphonCount} | Suspicious declines: ${stats.declineAlertCount}\n\n` +
+    (stats.health ? `Data health: ${healthLine(stats.health)}\n\n` : "") +
     `${summary}\n\n${stats.appUrl}/anomalies`;
   return { subject, html, text };
 }

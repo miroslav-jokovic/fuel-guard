@@ -28,6 +28,8 @@ export function useVehiclesQuery() {
       if (error) throw new Error(error.message);
       return (data ?? []) as Vehicle[];
     },
+    // Surface background stats-sync updates (odometer / fuel level) without a manual reload.
+    refetchInterval: 60_000,
   });
 }
 
@@ -68,6 +70,9 @@ export function useSyncSamsaraVehicles() {
       const res = await apiFetch<VehicleSyncResult>("/api/integrations/samsara/sync-vehicles", {
         method: "POST",
       });
+      if (res.status === 409) {
+        throw new Error("A Samsara sync is already running — it'll finish shortly.");
+      }
       if (!res.ok || !res.data) {
         throw new Error(res.error?.message ?? "Could not sync vehicles from Samsara");
       }

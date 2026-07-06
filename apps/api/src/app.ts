@@ -18,6 +18,7 @@ import { reportsRouter } from "./routes/reports.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { aiRouter } from "./routes/ai.js";
+import { jobsRouter } from "./routes/jobs.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -89,6 +90,7 @@ export function createApp(env: Env): Express {
   app.use("/api/reports", reportsRouter());
   app.use("/api/integrations", integrationsRouter());
   app.use("/api/ai", aiRouter());
+  app.use("/api/jobs", jobsRouter());
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 
   // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────

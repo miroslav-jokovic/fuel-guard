@@ -110,6 +110,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: "Anomaly Thresholds" },
   },
   {
+    path: "/settings/data",
+    name: "data-sync",
+    component: () => import("@/pages/DataSyncPage.vue"),
+    meta: { requiresAuth: true, requiresManage: true, title: "Data & Sync" },
+  },
+  {
     path: "/settings/org",
     name: "org-settings",
     component: () => import("@/pages/OrgSettingsPage.vue"),

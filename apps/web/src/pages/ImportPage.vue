@@ -43,7 +43,6 @@ async function onFile(e: Event) {
 async function onCommit() {
   if (!preview.value) return;
   try {
-    const wasTxn = preview.value.kind === "transaction";
     const result = await commit.mutateAsync(preview.value);
     if (result.shortfallRows != null && result.shortfallRows > 0) {
       // Post-commit verification found rows that should have inserted but didn't — surface it NOW
@@ -53,10 +52,10 @@ async function onCommit() {
         "Details were saved on the import record. Re-upload the file or contact support before trusting this period's data.",
       );
     } else {
-      toast.success("Import complete", "New rows saved and scored. Duplicates were skipped automatically.");
+      // The affected vehicles' neighboring fills are re-scored automatically after import (auto-cascade),
+      // so MPG/over-fuel checks reflect the full history without a manual Rebuild.
+      toast.success("Import complete", "New rows saved and scored; affected vehicles re-checked automatically.");
     }
-    // New history can change MPG/consumption for earlier fills — nudge a rebuild to recompute them.
-    if (wasTxn) toast.info("Tip: run 'Rebuild' on the Anomalies page", "So MPG and over-fuel checks use the full history.");
     preview.value = null;
   } catch (err) {
     toast.error("Import failed", err instanceof Error ? err.message : undefined);

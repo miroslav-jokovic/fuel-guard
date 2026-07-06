@@ -161,3 +161,25 @@ alter table organizations add column if not exists last_digest_at timestamptz;
 -- whose dash sits a fixed amount off OBD stop false-flagging. source='manual' pins a human override.
 alter table vehicles add column if not exists odometer_offset        numeric(10,1) not null default 0;
 alter table vehicles add column if not exists odometer_offset_source text          not null default 'auto';
+
+-- ── 0027: background job ledger (sync / rebuild / backfill / reconcile progress + freshness) ──────
+create table if not exists jobs (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references organizations(id) on delete cascade,
+  kind          text not null,
+  status        text not null default 'queued',
+  progress      int  not null default 0,
+  total         int,
+  error         text,
+  stats         jsonb not null default '{}',
+  requested_by  uuid,
+  started_at    timestamptz,
+  finished_at   timestamptz,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists idx_jobs_org_kind_created on jobs (org_id, kind, created_at desc);
+create unique index if not exists idx_jobs_active_one on jobs (org_id, kind) where status in ('queued', 'running');
+alter table jobs enable row level security;
+drop policy if exists jobs_select on jobs;
+create policy jobs_select on jobs for select using (org_id = auth_org_id());
