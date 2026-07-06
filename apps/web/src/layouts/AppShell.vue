@@ -73,6 +73,7 @@ const navGroups = computed<NavGroup[]>(() =>
       items: [
         { name: "Anomalies", to: "/anomalies", icon: ExclamationTriangleIcon, show: session.canManage || session.readOnly },
         { name: "Fuel Events", to: "/fuel-events", icon: FireIcon, show: session.canManage || session.readOnly },
+        { name: "Reefer Coverage", to: "/reefer-coverage", icon: FireIcon, show: session.canManage || session.readOnly },
         { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: session.canManage || session.readOnly },
         { name: "Reports", to: "/reports", icon: ChartBarIcon, show: session.canManage || session.readOnly },
       ],

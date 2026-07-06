@@ -49,6 +49,7 @@ export interface AnomalyFilters {
   severity?: string;
   vehicleId?: string;
   ruleId?: string;
+  reeferOnly?: boolean; // only cases whose correlated signals include a reefer axis
   from?: string; // YYYY-MM-DD (created_at ≥)
   to?: string; // YYYY-MM-DD (created_at ≤, end of day)
 }
@@ -68,6 +69,8 @@ export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
       if (f.severity) q = q.eq("severity", f.severity);
       if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
       if (f.ruleId) q = q.eq("rule_id", f.ruleId);
+      // Reefer alerts: cases whose correlated evidence includes the reefer axis (evidence.axes @> ["reefer"]).
+      if (f.reeferOnly) q = q.contains("evidence", { axes: ["reefer"] });
       // Filter by the FUELING date (not detection time, which a rebuild resets to "today").
       if (f.from) q = q.gte("fueled_at", `${f.from}T00:00:00`);
       if (f.to) q = q.lte("fueled_at", `${f.to}T23:59:59`);

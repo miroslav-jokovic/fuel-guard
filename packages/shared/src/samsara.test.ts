@@ -232,7 +232,7 @@ describe("parseSamsaraTrailers", () => {
 });
 
 describe("parseTrailerAssignments (latest tractor per trailer)", () => {
-  it("keeps the most-recent vehicle per trailer (flat + grouped shapes)", () => {
+  it("keeps the most-recent vehicle per trailer (flat + grouped v2 shapes)", () => {
     const links = parseTrailerAssignments({
       data: [
         { trailer: { id: "t1" }, vehicle: { id: "v-old" }, startTime: "2026-06-01T00:00:00Z" },
@@ -243,6 +243,16 @@ describe("parseTrailerAssignments (latest tractor per trailer)", () => {
     expect(links).toContainEqual({ trailerSamsaraId: "t1", vehicleSamsaraId: "v-new" });
     expect(links).toContainEqual({ trailerSamsaraId: "t2", vehicleSamsaraId: "v9" });
     expect(links).toHaveLength(2);
+  });
+
+  it("parses the legacy v1 shape (trailers[] with currentAssociation.tractorId)", () => {
+    const links = parseTrailerAssignments({
+      trailers: [
+        { id: 111, name: "R-1", currentAssociation: { tractorId: 999, assignedAtMs: 1_700_000_000_000 } },
+        { id: 222, name: "R-2" }, // no association → skipped
+      ],
+    });
+    expect(links).toEqual([{ trailerSamsaraId: "111", vehicleSamsaraId: "999" }]);
   });
 });
 

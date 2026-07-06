@@ -125,18 +125,16 @@ export function makeSamsaraTrailerLister(env: Env, token: string): SamsaraTraile
   return () => listAllPages(env, token, "/fleet/trailers");
 }
 
-/** Fetches current trailer↔vehicle assignments (recent window). */
-export type SamsaraTrailerAssignmentFetcher = () => Promise<{ data?: unknown[] }>;
+/** Fetches current trailer↔tractor assignments. Uses the LEGACY v1 endpoint (`/v1/fleet/trailers/
+ *  assignments`) — the v2 API has no trailer-assignments route, which is why pairing never synced. */
+export type SamsaraTrailerAssignmentFetcher = () => Promise<{ trailers?: unknown[]; data?: unknown[] }>;
 
 export function makeSamsaraTrailerAssignmentFetcher(env: Env, token: string): SamsaraTrailerAssignmentFetcher {
   return async () => {
-    const end = new Date();
-    const start = new Date(end.getTime() - 7 * 24 * 3_600_000);
-    const data = await listAllPages(env, token, "/fleet/trailers/assignments", {
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
-    });
-    return { data };
+    const url = new URL("/v1/fleet/trailers/assignments", env.SAMSARA_API_URL);
+    const res = await samsaraFetch(env, token, url);
+    if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+    return (await res.json()) as { trailers?: unknown[]; data?: unknown[] };
   };
 }
 

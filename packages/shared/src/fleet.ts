@@ -80,6 +80,8 @@ export const trailerInputSchema = z.object({
     z.coerce.number().int().min(1900).max(2100).optional(),
   ),
   plate: optionalText,
+  /** Whether this trailer is a reefer (refrigerated). Only reefers drive the reefer fuel checks. */
+  is_reefer: z.coerce.boolean().default(false),
   /** Reefer (refrigeration) tank capacity in gallons. Standard reefer tank ≈ 50 gal. */
   reefer_tank_capacity_gal: z.coerce.number().nonnegative().default(50),
   status: z.enum(VEHICLE_STATUSES).default("active"),
@@ -101,6 +103,7 @@ export interface Trailer {
   model: string | null;
   year: number | null;
   plate: string | null;
+  is_reefer: boolean;
   reefer_tank_capacity_gal: number;
   status: VehicleStatus;
   assigned_vehicle_id: string | null;

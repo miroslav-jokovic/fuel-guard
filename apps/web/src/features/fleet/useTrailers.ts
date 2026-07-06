@@ -11,7 +11,7 @@ export interface TrailerSyncResult {
 }
 
 const COLS =
-  "id, org_id, unit_number, make, model, year, plate, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at";
+  "id, org_id, unit_number, make, model, year, plate, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at";
 
 const trailersKey = ["trailers"] as const;
 
@@ -46,6 +46,20 @@ export function useUpdateTrailer() {
       const { data, error } = await supabase.from("trailers").update(payload.input).eq("id", payload.id).select(COLS).single();
       if (error) throw new Error(error.message);
       return data as Trailer;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: trailersKey }),
+  });
+}
+
+/** Bulk-update selected trailers (mark reefer, set tank capacity, change status). */
+export function useBulkUpdateTrailers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { ids: string[]; patch: Partial<Pick<Trailer, "is_reefer" | "reefer_tank_capacity_gal" | "status">> }): Promise<number> => {
+      if (!payload.ids.length) return 0;
+      const { error } = await supabase.from("trailers").update(payload.patch).in("id", payload.ids);
+      if (error) throw new Error(error.message);
+      return payload.ids.length;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: trailersKey }),
   });

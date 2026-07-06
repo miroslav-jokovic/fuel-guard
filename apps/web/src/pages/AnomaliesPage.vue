@@ -188,6 +188,24 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
         </div>
       </div>
 
+      <!-- Tabs: all alerts vs reefer-fueling cases -->
+      <div class="mt-3 flex gap-1 border-b border-gray-200 text-sm">
+        <button
+          class="-mb-px border-b-2 px-3 py-1.5 font-medium"
+          :class="!filters.reeferOnly ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          @click="filters = { ...filters, reeferOnly: undefined }"
+        >
+          All alerts
+        </button>
+        <button
+          class="-mb-px border-b-2 px-3 py-1.5 font-medium"
+          :class="filters.reeferOnly ? 'border-cyan-600 text-cyan-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          @click="filters = { ...filters, reeferOnly: true }"
+        >
+          Reefer fueling
+        </button>
+      </div>
+
       <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <div class="relative sm:col-span-2 lg:col-span-1">
           <MagnifyingGlassIcon class="pointer-events-none absolute top-2.5 left-2.5 size-4 text-gray-400" />

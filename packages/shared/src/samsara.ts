@@ -818,14 +818,21 @@ export function parseSamsaraTrailers(response: { data?: RawSamsaraTrailer[] }): 
     });
 }
 
-interface RawTrailerAssignment {
+interface RawAssoc {
   startTime?: string;
+  assignedAtMs?: number;
+  tractorId?: string | number;
+  vehicleId?: string | number;
+  vehicle?: { id?: string | number };
+}
+interface RawTrailerAssignment extends RawAssoc {
   endTime?: string;
-  trailer?: { id?: string };
-  trailerId?: string;
-  vehicle?: { id?: string };
-  vehicleId?: string;
-  id?: string;
+  name?: string;
+  trailer?: { id?: string | number };
+  trailerId?: string | number;
+  id?: string | number; // v1 `trailers[]` rows: this IS the trailer id
+  currentAssociation?: RawAssoc;
+  association?: RawAssoc;
   assignments?: RawTrailerAssignment[];
 }
 
@@ -834,28 +841,47 @@ export interface TrailerVehicleLink {
   vehicleSamsaraId: string;
 }
 
+const assocTractorId = (a: RawAssoc): string | undefined => {
+  const v = a.tractorId ?? a.vehicleId ?? a.vehicle?.id;
+  return v != null ? String(v) : undefined;
+};
+const assocStart = (a: RawAssoc): number => (a.assignedAtMs != null ? a.assignedAtMs : new Date(a.startTime ?? 0).getTime());
+
 /**
- * Parse trailer↔vehicle assignments into each trailer's CURRENT tractor = the assignment with the latest
- * start. Tolerant of the flat shape (trailer+vehicle on the row) and the grouped shape (trailer with a
- * nested `assignments` array).
+ * Parse trailer↔tractor assignments into each trailer's CURRENT tractor (latest start). Tolerant of:
+ *  - v1 `{ trailers: [{ id, currentAssociation: { tractorId, assignedAtMs } }] }`
+ *  - v2/grouped `{ data: [{ trailer:{id}, assignments:[{ vehicleId, startTime }] }] }`
+ *  - flat `{ data: [{ trailer:{id}, vehicle:{id}, startTime }] }`
  */
-export function parseTrailerAssignments(response: { data?: RawTrailerAssignment[] }): TrailerVehicleLink[] {
+export function parseTrailerAssignments(response: { trailers?: RawTrailerAssignment[]; data?: RawTrailerAssignment[] }): TrailerVehicleLink[] {
   const latest = new Map<string, { start: number; vehicleId: string }>();
-  const consider = (trailerId: string | undefined, a: RawTrailerAssignment) => {
-    const vehicleId = a.vehicle?.id ?? a.vehicleId;
+  const consider = (trailerId: string | undefined, a: RawAssoc) => {
+    const vehicleId = assocTractorId(a);
     if (!trailerId || !vehicleId) return;
-    const start = new Date(a.startTime ?? 0).getTime();
+    const start = assocStart(a);
     const prev = latest.get(trailerId);
-    if (!prev || start >= prev.start) latest.set(trailerId, { start, vehicleId: String(vehicleId) });
+    if (!prev || start >= prev.start) latest.set(trailerId, { start, vehicleId });
   };
+
+  // v1: a list of trailers, each carrying its current association.
+  for (const t of response.trailers ?? []) {
+    const trailerId = t.id != null ? String(t.id) : undefined;
+    const assoc = t.currentAssociation ?? t.association;
+    if (assoc) consider(trailerId, assoc);
+    else if (assocTractorId(t)) consider(trailerId, t);
+  }
+
+  // v2 / generic `data`.
   for (const g of response.data ?? []) {
     if (g.assignments) {
-      const trailerId = g.trailer?.id ?? g.trailerId ?? g.id;
+      const trailerId = g.trailer?.id != null ? String(g.trailer.id) : g.trailerId != null ? String(g.trailerId) : g.id != null ? String(g.id) : undefined;
       for (const a of g.assignments) consider(trailerId, a);
-    } else if (g.vehicle?.id ?? g.vehicleId) {
-      consider(g.trailer?.id ?? g.trailerId, g);
+    } else {
+      const trailerId = g.trailer?.id != null ? String(g.trailer.id) : g.trailerId != null ? String(g.trailerId) : undefined;
+      if (assocTractorId(g)) consider(trailerId, g);
     }
   }
+
   return [...latest.entries()].map(([trailerSamsaraId, v]) => ({ trailerSamsaraId, vehicleSamsaraId: v.vehicleId }));
 }
 

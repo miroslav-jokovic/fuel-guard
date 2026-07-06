@@ -12,6 +12,7 @@ const form = reactive({
   model: props.trailer?.model ?? "",
   year: props.trailer?.year?.toString() ?? "",
   plate: props.trailer?.plate ?? "",
+  is_reefer: props.trailer?.is_reefer ?? false,
   reefer_tank_capacity_gal: props.trailer?.reefer_tank_capacity_gal?.toString() ?? "50",
   status: props.trailer?.status ?? "active",
   assigned_vehicle_id: props.trailer?.assigned_vehicle_id ?? "",
@@ -66,10 +67,18 @@ const inputCls =
       </div>
     </div>
 
+    <label class="flex items-start gap-2 rounded-md bg-cyan-50 px-3 py-2.5 ring-1 ring-cyan-100">
+      <input v-model="form.is_reefer" type="checkbox" class="mt-0.5 size-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
+      <span class="text-sm">
+        <span class="font-medium text-gray-900">This is a reefer (refrigerated) trailer</span>
+        <span class="block text-xs text-gray-500">Only reefers are checked against reefer (ULSR) fuel purchases.</span>
+      </span>
+    </label>
+
     <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="block text-sm font-medium text-gray-900">Reefer tank (gal)</label>
-        <input v-model="form.reefer_tank_capacity_gal" inputmode="decimal" :class="inputCls" />
+        <input v-model="form.reefer_tank_capacity_gal" inputmode="decimal" :class="inputCls" :disabled="!form.is_reefer" />
         <p v-if="errors.reefer_tank_capacity_gal" class="mt-1 text-xs text-red-600">{{ errors.reefer_tank_capacity_gal }}</p>
       </div>
       <div>

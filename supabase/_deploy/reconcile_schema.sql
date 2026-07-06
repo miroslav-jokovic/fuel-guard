@@ -226,3 +226,7 @@ drop policy if exists trailers_write on trailers;
 create policy trailers_write on trailers for all
   using (org_id = auth_org_id() and auth_role() in ('admin', 'fleet_manager'))
   with check (org_id = auth_org_id() and auth_role() in ('admin', 'fleet_manager'));
+
+-- ── 0032: explicit reefer flag (not every trailer is refrigerated) ───────────────────────────────────
+alter table trailers add column if not exists is_reefer boolean not null default false;
+create index if not exists idx_trailers_org_reefer on trailers (org_id, is_reefer);

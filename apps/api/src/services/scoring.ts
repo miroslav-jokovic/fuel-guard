@@ -363,6 +363,7 @@ export async function scoreTransaction(
       .select("reefer_tank_capacity_gal")
       .eq("org_id", orgId)
       .eq("assigned_vehicle_id", txn.vehicleId)
+      .eq("is_reefer", true)
       .neq("status", "retired")
       .limit(1)
       .maybeSingle();

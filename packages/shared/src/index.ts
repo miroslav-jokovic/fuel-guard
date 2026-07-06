@@ -11,6 +11,7 @@ export * from "./odometer.js";
 export * from "./ai.js";
 export * from "./anomaly.js";
 export * from "./dashboard.js";
+export * from "./reeferCoverage.js";
 export * from "./org.js";
 export * from "./email.js";
 export * from "./samsara.js";
