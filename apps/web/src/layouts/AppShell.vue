@@ -19,7 +19,8 @@ import {
   SparklesIcon,
   Bars3Icon,
   XMarkIcon,
-  ArrowLeftOnRectangleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
@@ -108,11 +109,21 @@ const isCurrent = (to: string): boolean => {
   return false;
 };
 
-const navLinkClass = (to: string) => [
+const activeClass = (to: string) =>
   isCurrent(to)
     ? "bg-indigo-500/10 text-indigo-300"
-    : "text-gray-400 hover:bg-white/5 hover:text-gray-200",
+    : "text-gray-400 hover:bg-white/5 hover:text-gray-200";
+
+/** Full expanded nav link — used in mobile drawer and expanded desktop sidebar. */
+const navLinkClass = (to: string) => [
+  activeClass(to),
   "group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium leading-6 transition-colors duration-150",
+];
+
+/** Icon-only nav link — used in collapsed desktop sidebar. */
+const navLinkClassCollapsed = (to: string) => [
+  activeClass(to),
+  "flex items-center justify-center rounded-lg p-2.5 transition-colors duration-150",
 ];
 
 // Avatar initials from email (first char, uppercased).
@@ -121,6 +132,11 @@ const avatarLetter = computed(() => (session.email ?? "?")[0]?.toUpperCase() ?? 
 // Mobile sidebar drawer state; auto-close on navigation.
 const mobileOpen = ref(false);
 watch(() => route.path, () => (mobileOpen.value = false));
+
+// Collapsible desktop sidebar — persisted so it survives page refreshes.
+const sidebarCollapsed = ref(localStorage.getItem("sidebar-collapsed") === "true");
+watch(sidebarCollapsed, (v) => localStorage.setItem("sidebar-collapsed", String(v)));
+function toggleSidebar() { sidebarCollapsed.value = !sidebarCollapsed.value; }
 
 async function signOut() {
   await session.signOut();
@@ -203,15 +219,6 @@ async function signOut() {
                       <p class="truncate text-xs font-semibold text-white">{{ session.email }}</p>
                       <p v-if="session.role" class="mt-0.5 text-xs capitalize text-gray-400">{{ session.role }}</p>
                     </div>
-                    <button
-                      type="button"
-                      class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-white"
-                      title="Sign out"
-                      @click="signOut"
-                    >
-                      <ArrowLeftOnRectangleIcon class="size-4" aria-hidden="true" />
-                      <span class="sr-only">Sign out</span>
-                    </button>
                   </div>
                 </div>
               </div>
@@ -221,38 +228,60 @@ async function signOut() {
       </Dialog>
     </TransitionRoot>
 
-    <!-- ── Desktop sidebar (lg+, fixed) ─────────────────────────────────── -->
-    <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
-      <div class="flex grow flex-col overflow-y-auto border-r border-gray-800/50 bg-gray-900 px-4 pb-4">
-        <div class="flex h-16 shrink-0 items-center gap-x-3 border-b border-gray-800/70 px-1">
+    <!-- ── Desktop sidebar (lg+, fixed, collapsible) ─────────────────────── -->
+    <div
+      class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-all duration-200 ease-in-out"
+      :class="sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'"
+    >
+      <div class="flex grow flex-col overflow-y-auto overflow-x-hidden border-r border-gray-800/50 bg-gray-900 pb-2">
+        <!-- Sidebar header -->
+        <div
+          class="flex h-16 shrink-0 items-center border-b border-gray-800/70"
+          :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-3 px-5'"
+        >
           <AppLogo class="size-8 shrink-0" />
-          <span class="text-base font-semibold tracking-tight text-white">FuelGuard</span>
+          <span v-if="!sidebarCollapsed" class="text-base font-semibold tracking-tight text-white">FuelGuard</span>
         </div>
-        <nav class="flex flex-1 flex-col pt-3">
+
+        <!-- Nav -->
+        <nav class="flex flex-1 flex-col pt-3" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
           <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
             <template v-for="group in navGroups" :key="group.label ?? '_top'">
               <li
-                v-if="group.label"
+                v-if="group.label && !sidebarCollapsed"
                 class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500"
               >
                 {{ group.label }}
               </li>
+              <li v-else-if="group.label" class="mt-3" />
               <li v-for="item in group.items" :key="item.name">
                 <RouterLink
                   :to="item.to"
-                  :class="navLinkClass(item.to)"
+                  :class="sidebarCollapsed ? navLinkClassCollapsed(item.to) : navLinkClass(item.to)"
+                  :title="sidebarCollapsed ? item.name : undefined"
                   :aria-current="isCurrent(item.to) ? 'page' : undefined"
                 >
                   <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                  {{ item.name }}
+                  <span v-if="!sidebarCollapsed">{{ item.name }}</span>
                 </RouterLink>
               </li>
             </template>
           </ul>
         </nav>
-        <!-- User card at the bottom of the desktop sidebar -->
-        <div class="mt-4">
-          <div class="flex items-center gap-x-3 rounded-xl bg-gray-800/60 px-3 py-3 ring-1 ring-inset ring-white/5">
+
+        <!-- User card -->
+        <div class="mt-2" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
+          <!-- Collapsed: avatar only -->
+          <div v-if="sidebarCollapsed" class="flex justify-center py-2">
+            <div
+              class="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white shadow"
+              :title="session.email ?? undefined"
+            >
+              {{ avatarLetter }}
+            </div>
+          </div>
+          <!-- Expanded: avatar + email/role -->
+          <div v-else class="flex items-center gap-x-3 rounded-xl bg-gray-800/60 px-3 py-3 ring-1 ring-inset ring-white/5">
             <div
               class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white shadow"
               aria-hidden="true"
@@ -263,22 +292,24 @@ async function signOut() {
               <p class="truncate text-xs font-semibold text-white">{{ session.email }}</p>
               <p v-if="session.role" class="mt-0.5 text-xs capitalize text-gray-400">{{ session.role }}</p>
             </div>
-            <button
-              type="button"
-              class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-700 hover:text-white"
-              title="Sign out"
-              @click="signOut"
-            >
-              <ArrowLeftOnRectangleIcon class="size-4" aria-hidden="true" />
-              <span class="sr-only">Sign out</span>
-            </button>
           </div>
         </div>
+
+        <!-- Collapse / expand toggle -->
+        <button
+          type="button"
+          class="mx-auto my-2 flex items-center justify-center rounded-md p-1.5 text-gray-600 transition-colors hover:bg-gray-800 hover:text-gray-300"
+          :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+          @click="toggleSidebar"
+        >
+          <ChevronLeftIcon v-if="!sidebarCollapsed" class="size-4" aria-hidden="true" />
+          <ChevronRightIcon v-else class="size-4" aria-hidden="true" />
+        </button>
       </div>
     </div>
 
     <!-- ── Main content area ─────────────────────────────────────────────── -->
-    <div class="lg:pl-64">
+    <div class="transition-all duration-200 ease-in-out" :class="sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'">
       <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
         class="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:px-6 lg:px-8"
