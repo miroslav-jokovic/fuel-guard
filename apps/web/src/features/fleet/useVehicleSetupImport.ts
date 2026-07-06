@@ -35,7 +35,7 @@ export function buildSetupCsv(vehicles: Vehicle[]): string {
 
 /** Read + parse + diff an uploaded setup CSV against the fleet — no writes. */
 export function analyzeSetupImport(text: string, filename: string, vehicles: Vehicle[]): SetupImportPreview {
-  const { rows, errors } = parseVehicleSetupCsv(text);
+  const { rows, errors } = parseVehicleSetupCsv(text.replace(/^\uFEFF/, ""));
   const byUnit = new Map(vehicles.map((v) => [norm(v.unit_number), v]));
   const changes: SetupChange[] = [];
   const unmatchedUnits: string[] = [];
@@ -171,17 +171,30 @@ const VALID_STATUSES   = ["active", "maintenance", "retired"];
  * No database writes are made here.
  */
 export function analyzeVehicleImport(text: string, filename: string, vehicles: Vehicle[]): VehicleImportPreview {
+  // Strip UTF-8 BOM (\uFEFF) that Excel silently prepends when saving as "CSV UTF-8".
+  // Also strip any other leading invisible characters.
+  const clean = text.replace(/^\uFEFF/, "").replace(/^\u200B/, "");
+
   const errors: string[] = [];
   const byUnit = new Map(vehicles.map((v) => [v.unit_number.trim().toLowerCase(), v]));
-  const nonEmpty = text.split(/\r\n|\n|\r/).filter((l) => l.trim() !== "");
+  const nonEmpty = clean.split(/\r\n|\n|\r/).filter((l) => l.trim() !== "");
   if (nonEmpty.length < 2)
     return { filename, toCreate: [], toUpdate: [], unchanged: 0, errors: ["The file has no data rows."], totalRows: 0 };
 
-  const headerCells = splitCsv(nonEmpty[0]!).map((h) => h.toLowerCase().trim());
+  // Normalise header: lowercase, trim, remove any residual non-printable characters.
+  const headerCells = splitCsv(nonEmpty[0]!).map((h) =>
+    h.toLowerCase().trim().replace(/[^\x20-\x7e]/g, ""),
+  );
   const col = (name: string) => headerCells.indexOf(name);
   const iUnit = col("unit_number");
-  if (iUnit === -1)
-    return { filename, toCreate: [], toUpdate: [], unchanged: 0, errors: ['Missing required "unit_number" column.'], totalRows: 0 };
+  if (iUnit === -1) {
+    const found = headerCells.filter(Boolean).join(", ") || "(none)";
+    return {
+      filename, toCreate: [], toUpdate: [], unchanged: 0,
+      errors: [`Missing required "unit_number" column. Columns found: ${found}`],
+      totalRows: 0,
+    };
+  }
 
   const toCreate: VehicleCreateRow[] = [];
   const toUpdate: SetupChange[] = [];
