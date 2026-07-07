@@ -69,6 +69,14 @@ const EnvSchema = z.object({
   // turn off. Cadence is ~weekly (deduped via organizations.last_digest_at).
   DIGEST_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
 
+  // Automated EFS report ingestion (removes the daily manual upload). "off" (default) disables the
+  // scheduler; "storage" polls a Supabase Storage bucket where reports are delivered under
+  // <orgId>/incoming/ (by an email-forwarding rule, SFTP→bucket sync, or manual drop). Direct IMAP/SFTP
+  // sources slot behind the same interface later. EFS_INGEST_MINUTES sets the poll cadence (Chunk 3).
+  EFS_INGEST_SOURCE: z.enum(["off", "storage"]).default("off"),
+  EFS_INGEST_BUCKET: z.string().default("efs-reports"),
+  EFS_INGEST_MINUTES: z.coerce.number().min(1).default(30),
+
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly
   // specified, the provider is activated automatically — no need to set both vars.

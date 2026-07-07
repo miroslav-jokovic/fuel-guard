@@ -17,7 +17,8 @@ export type JobKind =
   | "sync_from_efs"
   | "sync_stats"
   | "sync_identity"
-  | "nightly_reconcile";
+  | "nightly_reconcile"
+  | "efs_ingest";
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
 

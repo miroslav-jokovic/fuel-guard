@@ -100,23 +100,57 @@ swap-ins.
 
 ## Build order (chunks — each self-contained, verified, left uncommitted per house style)
 
-### Chunk 1 — Port commit to an API service  ☐
-Move the write path out of the browser with zero behavior change.
-- **New `apps/api/src/services/efsIngest.ts`**: `ingestReport(admin, env, orgId, { buffer, filename, requestedBy })`
-  → parse (shared) → upsert the three tables → post-commit shortfall summary → `scoreImportWithCascade`.
-  Lift the exact logic from `apps/web/src/features/import/useImport.ts` (`useCommitImport`), swapping the
-  browser Supabase client for `getSupabaseAdmin()` and `crypto.subtle` for Node `crypto`.
-- **Reuse `imports.file_hash`** for the already-imported short-circuit (same SHA-256).
-- **Verify:** unit tests feeding the real EFS sample exports (149-line transaction + reject) through
-  `ingestReport` against a stub client — assert row counts, dedup on re-run, shortfall = 0; api typecheck; lint.
+### Chunk 1 — Port commit to an API service  ☑ (2026-07-06, uncommitted)
+Moved the write path out of the browser with zero behaviour change; provenance recorded on `summary.channel`.
+- **New `apps/api/src/services/efsIngest.ts`**: `ingestReport(admin, env, input, deps?)` takes the parsed
+  report (`headers` + `rows` + `fileHash` + metadata) → shared parser → upsert `efs_transactions` /
+  `fuel_transactions` / `declined_transactions` → post-commit shortfall onto `imports.summary` →
+  `scoreImportWithCascade` / `scoreDeclinedImport`. Lifted faithfully from
+  `apps/web/src/features/import/useImport.ts` (`useCommitImport`), on `getSupabaseAdmin()`. Scoring is
+  injected (`IngestDeps`) so the write path is unit-testable without live Samsara. Scoring failure is
+  recorded (`scoreError`), never discards a committed import.
+- **Idempotency:** file-level `imports.file_hash` short-circuit (graceful pre-0017 fallback) + row-level
+  `external_ref` upsert dedup. Unknown report kind writes nothing.
+- **`efs_ingest` JobKind** added to `services/jobs.ts` (caller wired in Chunk 3).
+- **No new migration** — `summary.channel = manual|auto` distinguishes upload vs feed.
+- **Verify:** ✅ `efsIngest.test.ts` (7 tests: faithful store, fuel-only derivation, row- & file-level
+  idempotency, unknown-kind no-op, reject path, shortfall math) on a data-backed fake client using the real
+  Silvicom EFS headers. API typecheck clean; full API suite 59/59; eslint clean.
+- **Deferred to Chunk 2/3 (deliberately, to avoid new deps disturbing the working web path):** the server
+  file reader (`Buffer → {headers, rows}` via exceljs/papaparse) and the manual HTTP trigger endpoint —
+  both belong with the transport adapter and its dependencies.
 
-### Chunk 2 — Ingestion source adapter (IMAP first)  ☐
-- **`apps/api/src/lib/ingestSource.ts`**: the `IngestSource` interface + an `ImapSource` implementation
-  (poll unread, extract `.xlsx/.csv` attachments, `markDone` = mark read / move to a processed folder).
-  Stub `SftpSource` / `StorageSource` behind the same interface.
-- **Env:** `EFS_INGEST_SOURCE=imap|sftp|storage|off`, plus `EFS_IMAP_HOST/PORT/USER/PASS/FOLDER`
-  (mirror the `SAMSARA_*` env conventions in `apps/api/src/env.ts`).
-- **Verify:** adapter unit test against a mock IMAP server (fetch + markDone); typecheck; lint.
+### Chunk 2 — Server reader + ingestion source adapter  ☑ (2026-07-07, uncommitted)
+Built the transport-agnostic core with **zero new runtime deps that need installing to verify** — so the
+whole chunk type-checks, tests, and lints green in isolation. Direct IMAP/SFTP polling (which needs an
+installable client + live credentials) is the documented follow-up (Chunk 2b) and slots behind the same
+`IngestSource` interface with no downstream change.
+- **`apps/api/src/lib/readEfsFile.ts`** — server reader producing the same `{ headers, rows }` the browser
+  reader did. **CSV** via a self-contained RFC-4180 tokenizer (BOM strip, quoted commas/newlines, escaped
+  quotes, CRLF, title-row skip via `detectReportKind`) — no dependency, fully unit-tested. **XLSX** via a
+  RUNTIME dynamic `import("exceljs")` (non-literal specifier → type-checks without exceljs present; a bad
+  .xlsx throws a clear, quarantinable error). `exceljs@4.4.0` added to `apps/api/package.json`.
+- **`apps/api/src/lib/ingestSource.ts`** — `Artifact` + `IngestSource` (`list`/`fetch`/`markDone`/
+  `quarantine`) + **`StorageSource`** over a tiny `ObjectStore` seam (backed by the Supabase client the API
+  already ships). Reports land in `<orgId>/incoming/`; success → `<orgId>/processed/`, bad file →
+  `<orgId>/error/` (timestamp-prefixed; nothing overwritten or deleted).
+- **`apps/api/src/services/efsAutoIngest.ts`** — glue: `ingestArtifact` (fetch → SHA-256 → read →
+  `ingestReport` → markDone / quarantine) and `runEfsIngest` (batch, aggregates for jobs.stats). Unattended-
+  safe: one bad file is quarantined with a reason, never dropped silently, never halts the batch.
+- **Env:** `EFS_INGEST_SOURCE=off|storage` (default `off`), `EFS_INGEST_BUCKET=efs-reports`,
+  `EFS_INGEST_MINUTES=30` (cadence used by Chunk 3).
+- **Verify:** ✅ 17 new tests (CSV reader edge cases, StorageSource move lifecycle, glue happy/quarantine
+  paths) — API typecheck clean, full API suite **76/76**, eslint clean.
+
+### Chunk 2b — Direct IMAP / SFTP sources (follow-up, needs a dep install)  ☐
+- **`ImapSource`** (poll unread, pull `.csv/.xlsx` attachments, mark seen / move to a processed folder) and/or
+  **`SftpSource`** (list a remote dir, download, move to `/processed`) — each behind the existing
+  `IngestSource` interface, so `efsAutoIngest` / the scheduler need no change.
+- **Deps (user runs `pnpm add`):** `imapflow` for IMAP, `ssh2-sftp-client` for SFTP. Cannot be sandbox-
+  verified here (no registry install into the mounted node_modules; needs live mailbox/SFTP creds).
+- **Env:** `EFS_INGEST_SOURCE=imap|sftp`, plus `EFS_IMAP_HOST/PORT/USER/PASS/FOLDER` or
+  `EFS_SFTP_HOST/PORT/USER/KEY/PATH`.
+- **Verify:** unit test against a mock IMAP/SFTP; typecheck; lint.
 
 ### Chunk 3 — Scheduler + jobs wiring  ☐
 - **`apps/api/src/services/efsIngestScheduler.ts`** modeled on `samsaraScheduler.ts`: per-org loop, staggered,
