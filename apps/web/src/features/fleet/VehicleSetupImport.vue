@@ -5,7 +5,7 @@ import type { Vehicle } from "@fuelguard/shared";
 import {
   buildVehicleImportTemplate,
   buildSetupCsv,
-  analyzeVehicleImport,
+  analyzeVehicleImportFile,
   useCommitVehicleImport,
   type VehicleImportPreview,
 } from "./useVehicleSetupImport";
@@ -37,7 +37,7 @@ async function onFile(e: Event) {
   if (!file) return;
   reading.value = true;
   try {
-    preview.value = analyzeVehicleImport(await file.text(), file.name, props.vehicles);
+    preview.value = await analyzeVehicleImportFile(file, props.vehicles);
   } catch (err) {
     toast.error("Could not read file", err instanceof Error ? err.message : undefined);
   } finally {
@@ -76,7 +76,7 @@ const fmt         = (n: number | null) => (n == null ? "—" : String(n));
       <ol class="space-y-1 rounded-lg bg-indigo-50 px-4 py-3 text-sm text-indigo-800 ring-1 ring-indigo-100 list-decimal list-inside">
         <li>Download the blank template below and open it in Excel / Google Sheets</li>
         <li>Delete the two example rows and enter your vehicle data</li>
-        <li>Save as CSV and upload it here</li>
+        <li>Save as CSV or Excel and upload it here</li>
         <li>Review the preview and confirm the import</li>
       </ol>
 
@@ -141,9 +141,9 @@ const fmt         = (n: number | null) => (n == null ? "—" : String(n));
       <div class="rounded-lg border-2 border-dashed border-gray-300 bg-white px-6 py-10 text-center">
         <label class="inline-block cursor-pointer">
           <span class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
-            {{ reading ? "Reading…" : "Choose CSV file" }}
+            {{ reading ? "Reading…" : "Choose CSV or Excel file" }}
           </span>
-          <input type="file" accept=".csv" class="sr-only" :disabled="reading" @change="onFile" />
+          <input type="file" accept=".csv,.xlsx,.xls" class="sr-only" :disabled="reading" @change="onFile" />
         </label>
         <p class="mt-2 text-xs text-gray-400">Upload the completed template to see a preview before importing</p>
       </div>

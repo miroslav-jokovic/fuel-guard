@@ -3,8 +3,10 @@ import {
   serializeVehicleSetupCsv,
   parseVehicleSetupCsv,
   type Vehicle,
+  type RawRow,
 } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
+import { readFile } from "../import/readFile";
 
 /** One vehicle whose tank capacity and/or baseline MPG will change on commit. */
 export interface SetupChange {
@@ -252,6 +254,31 @@ export function analyzeVehicleImport(text: string, filename: string, vehicles: V
   }
 
   return { filename, toCreate, toUpdate, unchanged, errors, totalRows: nonEmpty.length - 1 };
+}
+
+/**
+ * Serialize header + parsed rows back to CSV text. This lets the CSV-based analyzer above accept BOTH
+ * `.csv` and `.xlsx` uploads: the file is decoded once by the shared reader (which understands Excel),
+ * then handed to the analyzer as clean CSV. Cells containing quotes/commas/newlines are quoted per RFC 4180.
+ */
+export function rowsToCsvText(headers: string[], rows: RawRow[]): string {
+  const esc = (v: unknown): string => {
+    const s = v == null ? "" : String(v);
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const headerLine = headers.map(esc).join(",");
+  const body = rows.map((r) => headers.map((h) => esc(r[h])).join(",")).join("\r\n");
+  return body ? `${headerLine}\r\n${body}` : `${headerLine}\r\n`;
+}
+
+/**
+ * Read an uploaded vehicle file — **CSV or Excel (.xlsx/.xls)** — and analyze it against the fleet.
+ * Uses the same robust reader as the EFS importer, so an Excel workbook is decoded properly instead of
+ * being misread as raw ZIP bytes, and an unsupported file (PDF, image, …) fails with a clear message.
+ */
+export async function analyzeVehicleImportFile(file: File, vehicles: Vehicle[]): Promise<VehicleImportPreview> {
+  const { headers, rows } = await readFile(file);
+  return analyzeVehicleImport(rowsToCsvText(headers, rows), file.name, vehicles);
 }
 
 /** Batch-commit a vehicle import: insert new vehicles and update existing ones' tank + MPG. */
