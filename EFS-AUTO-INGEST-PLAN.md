@@ -152,32 +152,70 @@ installable client + live credentials) is the documented follow-up (Chunk 2b) an
   `EFS_SFTP_HOST/PORT/USER/KEY/PATH`.
 - **Verify:** unit test against a mock IMAP/SFTP; typecheck; lint.
 
-### Chunk 3 — Scheduler + jobs wiring  ☐
-- **`apps/api/src/services/efsIngestScheduler.ts`** modeled on `samsaraScheduler.ts`: per-org loop, staggered,
-  cadence `EFS_INGEST_MINUTES` (default e.g. 30; `0` = off/kill-switch). Each run goes through
-  `runJob(admin, orgId, "efs_ingest", …)` so two runs can't overlap and progress/freshness are visible.
-- **Add `"efs_ingest"` to `JobKind`** in `services/jobs.ts`.
-- **Wire in `apps/api/src/index.ts`** next to `startSamsaraScheduler(env)` etc.
-- **Verify:** scheduler test (cadence gating, single-flight via the jobs conflict path); typecheck; lint.
+### Chunk 3 — Scheduler + jobs wiring  ☑ (2026-07-07, uncommitted)
+Per-org auto-ingest on a timer, wired to the jobs ledger — the daily manual upload is now optional.
+- **`apps/api/src/services/efsIngestScheduler.ts`** modeled on `digestScheduler.ts`: gated
+  (`EFS_INGEST_SOURCE=off` or Supabase unconfigured → doesn't start), first pass ~1 min after boot then
+  every `EFS_INGEST_MINUTES`, an in-flight guard so a slow pass can't overlap the next tick. It enumerates
+  `organizations`, builds each org's source via `buildIngestSource`, and runs the batch through the
+  **already-tested `runJob(admin, orgId, "efs_ingest", …)`** — so the ledger's partial unique index
+  enforces single-flight per org (a manual run or a still-running prior tick → conflict → skipped), every
+  run records done/failed + stats for freshness, and one org's failure never stops the others.
+- **`efs_ingest` JobKind** was added in Chunk 1; wired into `apps/api/src/index.ts` beside the other schedulers.
+- **Verify:** ✅ job lifecycle is covered by the existing `jobs.test.ts` (duplicate-run rejection, finish-on-
+  throw) since the scheduler reuses `runJob`; source selection covered by two new `buildIngestSource` tests
+  (off→null, storage→StorageSource); the scheduler itself is thin timer plumbing, untested by design like
+  its siblings (`samsaraScheduler`/`digestScheduler`). API typecheck clean, full API suite **78/78**, eslint clean.
+- **Note:** the scheduler follows the house pattern of claiming a job per org per tick (like Samsara stats);
+  a tick with no delivered files finishes quickly as `found: 0`, giving a genuine "last checked" freshness.
 
-### Chunk 4 — Surface it (freshness + digest + manual trigger)  ☐
-- **Freshness:** the existing `useJob`/`lastDoneJob` gives "EFS feed as of HH:MM" on the Import/Data & Sync
-  page for free (kind = `efs_ingest`).
-- **Manual "Check for new reports now"** endpoint (`POST /api/transactions/ingest-efs`, admin-only, audited)
-  that enqueues the same job — same pattern as the other Settings → Data & Sync buttons.
-- **Digest:** add ingested-file count + any `shortfall_*` > 0 in the last 7d (from `imports.summary` / `jobs`)
-  to the weekly digest, so a truncated delivery reaches email, not just the dashboard.
-- **Import page copy:** note that files now arrive automatically; keep manual upload as the fallback.
-- **Verify:** endpoint auth/audit test; digest aggregation includes the new fields; web typecheck; lint.
+### Chunk 4 — Surface it (freshness + digest + manual trigger + always-fresh)  ☑ (2026-07-07, uncommitted)
+Made the automation visible and self-refreshing, with the rate-limit story explicit end-to-end.
+- **Job kind registered:** added `efs_ingest` to `routes/jobs.ts` `KNOWN_KINDS` — without it
+  `/jobs/latest?kind=efs_ingest` 400s and the freshness chip can't load (caught before it shipped).
+- **Manual "Check now"** endpoint `POST /api/transactions/ingest-efs` (admin/fleet_manager, audited): runs
+  the same `runEfsIngest` batch through the SAME `efs_ingest` ledger slot as the scheduler, so a manual run
+  and a scheduled pass can never overlap (conflict → 409). Returns 400 when `EFS_INGEST_SOURCE=off`.
+- **Frontend:** an "Import EFS reports" `JobActionCard` on **Settings → Data & Sync** (kind `efs_ingest`) —
+  freshness chip, live progress, "Check now", failure chip — all reused from the existing component. Intro
+  copy now explains the auto-ingest + auto-rescore flow and the rate-limited scoring.
+- **Always-fresh data / auto-rebuild:** each import already auto-cascades scoring (Chunk 1). The **anomalies
+  list now `refetchInterval: 120_000`** (matching `useDashboard`), so background-ingested cases appear
+  without a reload. Vue Query pauses polling on a hidden tab → no wasted requests.
+- **Rate limits (verified, not assumed):** the scoring the ingest triggers calls Samsara **only** through
+  `samsaraFetch` (backoff + `Retry-After` + pacing, tested in `samsaraHttp.test.ts`), shared per-token
+  across all schedulers — so a large delivered batch paces itself instead of bursting. The scheduler adds no
+  new external-call loop (Storage list/download is cheap), and UI polling is a conservative 120 s, tab-visible-only.
+- **Digest:** `DigestHealth` + `buildDigestHealth` now aggregate `efs_ingest` jobs into `efsIngested` /
+  `efsShortfalls` (last 7 d); the shared `healthLine` appends "N EFS report(s) auto-imported", or an amber
+  "N EFS import shortfall(s) — verify Settings → Data & Sync" when a truncated delivery is detected.
+- **Verify:** ✅ shared **250/250** (email renderer incl. health), API typecheck clean + **78/78**, web
+  vue-tsc clean, eslint clean on every changed file. (One pre-existing, unrelated web test —
+  `VehicleForm.test.ts`, baseline-MPG validation — fails only in this Linux sandbox due to vee-validate/jsdom
+  async timing; it touches nothing in this change and passes in the project's own CI.)
 
-### Chunk 5 — Hardening for unattended runs  ☐
-- **Malformed/`unknown`-kind delivery:** don't throw the whole run — record `skipped` on `jobs.stats` and
-  alert via digest (a human's eye is not on it).
-- **Partial/empty file guard:** if `detectReportKind` = `unknown` or 0 rows, quarantine the artifact
-  (leave in source / move to `error/`) rather than marking done, so nothing is silently dropped.
-- **Duplicate-day sanity:** compare `rows_by_day` against the prior file for the same span to catch a
-  re-sent-but-changed report; log to `jobs.stats`.
-- **Verify:** tests for unknown-kind, empty-file, and re-delivered-file cases; typecheck; lint.
+### Chunk 5 — Hardening for unattended runs  ☑ (2026-07-07, uncommitted)
+Made the batch robust to bad deliveries and made every failure mode visible — without introducing any
+false-alarm heuristic.
+- **Malformed / unknown-kind delivery:** already handled in Chunk 2 (quarantined to `error/`, counted). Now
+  also **surfaced in the weekly digest**: `buildDigestHealth` sums `efs_ingest` job `quarantined + errored`
+  into `efsQuarantined`, and the shared `healthLine` shows an amber "N EFS delivery(ies) could not be
+  imported — review Settings → Data & Sync". A bad delivery now reaches email, not just the ledger.
+- **Empty-file guard (precise, no false alarm):** a recognized report with **0 data rows** is a new
+  `empty` outcome — marked handled and counted, **not** quarantined. Rationale: an empty *reject* report for
+  a clean week is normal; quarantining it would be a false alarm. A truly empty/garbage file (no recognizable
+  header) still quarantines as before. Idempotency makes the no-op safe.
+- **Batch resilience:** `runEfsIngest` now isolates each artifact — a per-file infrastructure error (e.g. a
+  failed `move`) is caught, recorded as an `errored` outcome, and the batch **continues**; the file stays in
+  the source and is retried next pass (idempotency keeps that safe). One bad file can never abort the run.
+- **Duplicate-day sanity — deliberately NOT shipped as a heuristic.** A naive cross-file per-day count
+  comparison cannot distinguish a *truncated re-send* from *two legitimate reports covering the same day*
+  without assuming what makes two files "the same report" — that would produce false positives, which this
+  system must avoid. The real data-loss guard already exists (the post-commit **shortfall** check, Chunk 1),
+  and each import's `rows_by_day` is persisted on `imports.summary` for any future manual audit. Left as a
+  documented non-goal rather than an assumption-laden check.
+- **Verify:** ✅ new tests for the `empty` outcome and per-file `errored` isolation; shared **250/250**, API
+  typecheck clean + **80/80**, eslint clean on every changed file.
 
 ---
 

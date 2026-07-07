@@ -10,6 +10,12 @@ export interface DigestHealth {
   lastCheckLabel: string | null;
   driftFixed: number;
   syncFailures: number;
+  /** EFS reports auto-imported this week by the ingestion scheduler (0 = none delivered). */
+  efsIngested: number;
+  /** Auto-imports that landed with a row shortfall this week (>0 needs a look — possible data loss). */
+  efsShortfalls: number;
+  /** EFS deliveries this week that could not be imported (unreadable/unrecognized/errored — >0 to review). */
+  efsQuarantined: number;
 }
 
 export interface DigestData {
@@ -42,6 +48,9 @@ async function buildDigestHealth(admin: SupabaseClient, orgId: string, since: st
   const rows = (data ?? []) as { kind: string; status: string; stats: Record<string, unknown> | null; finished_at: string | null }[];
   let syncFailures = 0;
   let driftFixed = 0;
+  let efsIngested = 0;
+  let efsShortfalls = 0;
+  let efsQuarantined = 0;
   let lastCheck: string | null = null;
   for (const r of rows) {
     if (r.status === "failed") syncFailures++;
@@ -50,8 +59,18 @@ async function buildDigestHealth(admin: SupabaseClient, orgId: string, since: st
       if (Number.isFinite(d)) driftFixed += d;
       if (r.finished_at && (!lastCheck || r.finished_at > lastCheck)) lastCheck = r.finished_at;
     }
+    if (r.kind === "efs_ingest" && r.status === "done") {
+      const stats = r.stats ?? {};
+      const ing = Number(stats.ingested ?? 0);
+      const sf = Number(stats.shortfalls ?? 0);
+      // Deliveries needing a human: files moved to error/ (quarantined) plus any that hit an infra error.
+      const bad = Number(stats.quarantined ?? 0) + Number(stats.errored ?? 0);
+      if (Number.isFinite(ing)) efsIngested += ing;
+      if (Number.isFinite(sf)) efsShortfalls += sf;
+      if (Number.isFinite(bad)) efsQuarantined += bad;
+    }
   }
-  return { lastCheckLabel: agoLabel(lastCheck), driftFixed, syncFailures };
+  return { lastCheckLabel: agoLabel(lastCheck), driftFixed, syncFailures, efsIngested, efsShortfalls, efsQuarantined };
 }
 
 export interface DigestResult {

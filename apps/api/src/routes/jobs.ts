@@ -17,6 +17,7 @@ const KNOWN_KINDS = new Set<JobKind>([
   "sync_stats",
   "sync_identity",
   "nightly_reconcile",
+  "efs_ingest",
 ]);
 
 export function jobsRouter(): Router {

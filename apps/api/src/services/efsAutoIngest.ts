@@ -4,6 +4,7 @@ import type { Env } from "../env.js";
 import { ingestReport, type IngestResult } from "./efsIngest.js";
 import { readEfsBuffer, fileSourceFor } from "../lib/readEfsFile.js";
 import { StorageSource, supabaseObjectStore, type Artifact, type IngestSource } from "../lib/ingestSource.js";
+import { GraphMailSource, graphMailClient, graphConfigFromEnv } from "../lib/graphMail.js";
 
 /**
  * Automated EFS ingestion glue: takes reports delivered to a source (Supabase Storage today), reads +
@@ -14,12 +15,19 @@ import { StorageSource, supabaseObjectStore, type Artifact, type IngestSource } 
 
 export type ArtifactOutcome =
   | { name: string; status: "ingested"; result: IngestResult }
-  | { name: string; status: "quarantined"; reason: string };
+  | { name: string; status: "empty"; reason: string }
+  | { name: string; status: "quarantined"; reason: string }
+  | { name: string; status: "errored"; reason: string };
 
 export interface EfsIngestRunStats extends Record<string, unknown> {
   found: number;
   ingested: number;
+  /** Recognized reports that arrived with no data rows (valid empty period or truncated export). */
+  empty: number;
+  /** Files moved to error/ because they were unreadable/unsupported/unrecognized. */
   quarantined: number;
+  /** Files that hit an infrastructure error (e.g. a failed move) — left in place, retried next pass. */
+  errored: number;
   newFuel: number;
   newDeclined: number;
   shortfalls: number;
@@ -45,7 +53,8 @@ const defaultDeps: AutoIngestDeps = {
 /**
  * Process one delivered artifact end-to-end. Returns its outcome; NEVER throws for a per-file problem
  * (unreadable bytes, unsupported extension, unrecognized report) — those quarantine the file so the
- * batch continues. Infrastructure errors from the source itself (e.g. a failed move) propagate.
+ * batch continues. A source infrastructure error (e.g. a failed move) may throw; `runEfsIngest` isolates
+ * it per-artifact so one file never aborts the batch.
  */
 export async function ingestArtifact(
   admin: SupabaseClient,
@@ -89,6 +98,15 @@ export async function ingestArtifact(
     return { name: artifact.name, status: "quarantined", reason };
   }
 
+  // Recognized report header but no data rows: a valid empty period (e.g. a reject report for a clean
+  // week) or a truncated export. There is nothing to ingest and idempotency makes re-delivery safe, so we
+  // mark it handled and COUNT it rather than quarantining — quarantining normal empty reject reports would
+  // be a false alarm. An unusual run of empty deliveries still surfaces via the digest.
+  if (parsed.rows.length === 0) {
+    await source.markDone(artifact);
+    return { name: artifact.name, status: "empty", reason: "recognized report with no data rows" };
+  }
+
   await source.markDone(artifact);
   return { name: artifact.name, status: "ingested", result };
 }
@@ -107,7 +125,9 @@ export async function runEfsIngest(
   const stats: EfsIngestRunStats = {
     found: artifacts.length,
     ingested: 0,
+    empty: 0,
     quarantined: 0,
+    errored: 0,
     newFuel: 0,
     newDeclined: 0,
     shortfalls: 0,
@@ -115,24 +135,48 @@ export async function runEfsIngest(
   };
 
   for (const artifact of artifacts) {
-    const outcome = await ingestArtifact(admin, env, source, artifact, deps);
+    let outcome: ArtifactOutcome;
+    try {
+      outcome = await ingestArtifact(admin, env, source, artifact, deps);
+    } catch (e) {
+      // A per-file infrastructure failure (e.g. a failed move) must NOT abort the batch. Record it and
+      // continue; the file stays in the source and is retried next pass — idempotency keeps that safe.
+      outcome = { name: artifact.name, status: "errored", reason: e instanceof Error ? e.message : String(e) };
+    }
     stats.outcomes.push(outcome);
-    if (outcome.status === "ingested") {
-      stats.ingested += 1;
-      stats.newFuel += outcome.result.newFuel;
-      stats.newDeclined += outcome.result.newDeclined;
-      if (outcome.result.shortfallRows && outcome.result.shortfallRows > 0) stats.shortfalls += 1;
-    } else {
-      stats.quarantined += 1;
+    switch (outcome.status) {
+      case "ingested":
+        stats.ingested += 1;
+        stats.newFuel += outcome.result.newFuel;
+        stats.newDeclined += outcome.result.newDeclined;
+        if (outcome.result.shortfallRows && outcome.result.shortfallRows > 0) stats.shortfalls += 1;
+        break;
+      case "empty":
+        stats.empty += 1;
+        break;
+      case "quarantined":
+        stats.quarantined += 1;
+        break;
+      case "errored":
+        stats.errored += 1;
+        break;
     }
   }
   return stats;
 }
 
-/** Build the configured source for an org, or null when auto-ingestion is disabled. */
+/** Build the configured source for an org, or null when auto-ingestion is disabled/unconfigured. */
 export function buildIngestSource(admin: SupabaseClient, env: Env, orgId: string): IngestSource | null {
+  // Single-tenant guard: when EFS_INGEST_ORG_ID is set, only that org ingests. This matters for the shared
+  // "graph" mailbox — without it, every org in a multi-tenant deployment would read the same inbox.
+  if (env.EFS_INGEST_ORG_ID && env.EFS_INGEST_ORG_ID !== orgId) return null;
+
   if (env.EFS_INGEST_SOURCE === "storage") {
     return new StorageSource(supabaseObjectStore(admin, env.EFS_INGEST_BUCKET), orgId);
+  }
+  if (env.EFS_INGEST_SOURCE === "graph") {
+    const cfg = graphConfigFromEnv(env);
+    return cfg ? new GraphMailSource(graphMailClient(cfg), orgId) : null; // null until creds are configured
   }
   return null;
 }

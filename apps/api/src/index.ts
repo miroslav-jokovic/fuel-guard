@@ -5,6 +5,7 @@ import { startSamsaraScheduler } from "./services/samsaraScheduler.js";
 import { startRebuildOnBoot } from "./services/rebuildScheduler.js";
 import { startDigestScheduler } from "./services/digestScheduler.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";
+import { startEfsIngestScheduler } from "./services/efsIngestScheduler.js";
 import { reclaimInterruptedJobs } from "./services/jobs.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { runSchemaCheck } from "./services/schemaCheck.js";
@@ -25,4 +26,5 @@ app.listen(env.PORT, () => {
   startRebuildOnBoot(env); // one-time anomaly rebuild with the current rules (rules-only, idempotent)
   startDigestScheduler(env); // weekly AI theft digest email
   startNightlyReconcileScheduler(env); // per-org 03:00 self-heal: EFS repair → rescore → rebuild → integrity
+  startEfsIngestScheduler(env); // per-org auto-ingest of EFS reports delivered to the configured source
 });

@@ -58,6 +58,9 @@ export interface AnomalyFilters {
 export function useAnomaliesQuery(filters: Ref<AnomalyFilters>) {
   return useQuery({
     queryKey: ["anomalies", filters],
+    // Surface anomalies from background EFS ingestion + scoring without a manual reload. Matches the
+    // dashboard cadence; Vue Query pauses polling when the tab is hidden, so it stays rate-friendly.
+    refetchInterval: 120_000,
     queryFn: async (): Promise<Anomaly[]> => {
       const f = toValue(filters);
       let q = supabase

@@ -27,6 +27,9 @@ export interface DigestStats {
     lastCheckLabel: string | null; // e.g. "12h ago", or null if never
     driftFixed: number; // rows the nightly self-heal repaired this week (0 = clean)
     syncFailures: number; // failed sync/reconcile jobs this week
+    efsIngested?: number; // EFS reports auto-imported this week (optional; omitted = feature off)
+    efsShortfalls?: number; // auto-imports with a row shortfall this week (>0 needs attention)
+    efsQuarantined?: number; // EFS deliveries that could not be imported this week (>0 needs review)
   };
 }
 
@@ -36,6 +39,10 @@ function healthLine(h: NonNullable<DigestStats["health"]>): string {
   const bits = [checked];
   bits.push(h.driftFixed > 0 ? `${h.driftFixed} row(s) of drift repaired` : "no data drift");
   if (h.syncFailures > 0) bits.push(`${h.syncFailures} sync failure(s) — check Settings → Data & Sync`);
+  // EFS auto-ingest: only surfaced when it actually did something this week (or needs attention).
+  if ((h.efsQuarantined ?? 0) > 0) bits.push(`${h.efsQuarantined} EFS delivery(ies) could not be imported — review Settings → Data & Sync`);
+  if ((h.efsShortfalls ?? 0) > 0) bits.push(`${h.efsShortfalls} EFS import shortfall(s) — verify Settings → Data & Sync`);
+  else if ((h.efsIngested ?? 0) > 0) bits.push(`${h.efsIngested} EFS report(s) auto-imported`);
   return bits.join(" · ");
 }
 
@@ -56,7 +63,7 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
       `</p>`
     : "";
   const health = stats.health
-    ? `<p style="margin:10px 0 0;color:${stats.health.syncFailures > 0 ? "#d97706" : "#777"};font-size:13px">` +
+    ? `<p style="margin:10px 0 0;color:${stats.health.syncFailures > 0 || (stats.health.efsShortfalls ?? 0) > 0 || (stats.health.efsQuarantined ?? 0) > 0 ? "#d97706" : "#777"};font-size:13px">` +
       `Data health: ${esc(healthLine(stats.health))}</p>`
     : "";
   const html =

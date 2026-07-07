@@ -70,12 +70,23 @@ const EnvSchema = z.object({
   DIGEST_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
 
   // Automated EFS report ingestion (removes the daily manual upload). "off" (default) disables the
-  // scheduler; "storage" polls a Supabase Storage bucket where reports are delivered under
-  // <orgId>/incoming/ (by an email-forwarding rule, SFTP→bucket sync, or manual drop). Direct IMAP/SFTP
-  // sources slot behind the same interface later. EFS_INGEST_MINUTES sets the poll cadence (Chunk 3).
-  EFS_INGEST_SOURCE: z.enum(["off", "storage"]).default("off"),
+  // scheduler. Sources: "storage" polls a Supabase Storage bucket where reports land under
+  // <orgId>/incoming/; "graph" reads an M365 mailbox via Microsoft Graph (see EFS-MICROSOFT365-SETUP.md).
+  // EFS_INGEST_MINUTES sets the poll cadence (Chunk 3).
+  EFS_INGEST_SOURCE: z.enum(["off", "storage", "graph"]).default("off"),
   EFS_INGEST_BUCKET: z.string().default("efs-reports"),
   EFS_INGEST_MINUTES: z.coerce.number().min(1).default(30),
+  // Optional single-tenant guard: when set, only this org ingests (relevant for the shared "graph" mailbox
+  // so a multi-org deployment can't double-read one inbox). Unset = every org uses the configured source.
+  EFS_INGEST_ORG_ID: z.string().optional(),
+  // Microsoft 365 "graph" source — app-only credentials from the Entra app registration. The app needs the
+  // Mail.Read APPLICATION permission with admin consent, ideally scoped to just EFS_GRAPH_MAILBOX via an
+  // Application Access Policy. EFS_GRAPH_FOLDER (optional) restricts reading to one mail folder by name.
+  EFS_GRAPH_TENANT_ID: z.string().optional(),
+  EFS_GRAPH_CLIENT_ID: z.string().optional(),
+  EFS_GRAPH_CLIENT_SECRET: z.string().optional(),
+  EFS_GRAPH_MAILBOX: z.string().optional(),
+  EFS_GRAPH_FOLDER: z.string().optional(),
 
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly

@@ -19,12 +19,21 @@ const integrity = computed(() => {
 <template>
   <div class="space-y-6">
     <p class="text-sm text-gray-500">
-      Telematics data refreshes automatically (live stats every ~20 min, identity every ~12 h) and a nightly
-      self-heal keeps the anomaly report consistent. Use these when you want to force a refresh now —
-      each shows its own freshness and live progress.
+      EFS reports and telematics data are ingested automatically — new fuel reports are picked up on a
+      schedule, and each import re-scores the affected vehicles so the anomaly report stays current with no
+      manual step. Telematics live stats refresh every ~20 min, identity every ~12 h, and a nightly self-heal
+      keeps everything consistent. Use these to force a refresh now — each shows its own freshness and live
+      progress. Scoring runs through the rate-limited Samsara client, so large batches pace themselves.
     </p>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <JobActionCard
+        title="Import EFS reports"
+        kind="efs_ingest"
+        endpoint="/api/transactions/ingest-efs"
+        action-label="Check now"
+        description="Pick up any EFS fuel reports delivered to the ingestion source and import them — the same batch that runs automatically. New rows are scored and the affected vehicles re-checked."
+      />
       <JobActionCard
         v-if="session.admin"
         title="Sync from Samsara"

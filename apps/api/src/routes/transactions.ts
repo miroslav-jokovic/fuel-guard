@@ -10,6 +10,7 @@ import { scoreDeclinedImport, scoreDeclinedOrg } from "../services/declinedScori
 import { verifyTransaction } from "../services/aiVerification.js";
 import { notifyForTransaction } from "../services/notifications.js";
 import { runJob } from "../services/jobs.js";
+import { runEfsIngest, buildIngestSource } from "../services/efsAutoIngest.js";
 
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running. */
 function jobResponse(res: import("express").Response, result: { jobId: string } | { conflict: true }): void {
@@ -86,6 +87,44 @@ export function transactionsRouter(): Router {
         await writeAudit(admin, { orgId, actorId, action: "transactions.score_import", meta: { importId, ...r } });
         return r;
       }, { requestedBy: actorId });
+      jobResponse(res, result);
+    }),
+  );
+
+  // Manually check the configured EFS delivery source now and ingest any reports found — the same
+  // idempotent batch the background scheduler runs, through the SAME `efs_ingest` ledger slot, so a
+  // manual "Check now" and a scheduled pass can never overlap (a conflict returns 409). Reports are
+  // scored via the rate-limited Samsara path, so a large batch paces itself instead of hammering.
+  router.post(
+    "/ingest-efs",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const actorId = req.auth!.userId;
+      const source = buildIngestSource(admin, env, orgId);
+      if (!source) {
+        res.status(400).json(apiError("not_configured", "Automated EFS ingestion is not configured (set EFS_INGEST_SOURCE)"));
+        return;
+      }
+      const result = await runJob(
+        admin,
+        orgId,
+        "efs_ingest",
+        async () => {
+          const stats = await runEfsIngest(admin, env, source);
+          await writeAudit(admin, {
+            orgId,
+            actorId,
+            action: "transactions.ingest_efs",
+            meta: { found: stats.found, ingested: stats.ingested, quarantined: stats.quarantined },
+          });
+          return stats;
+        },
+        { requestedBy: actorId },
+      );
       jobResponse(res, result);
     }),
   );

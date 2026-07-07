@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ingestArtifact, runEfsIngest, sha256Hex, type AutoIngestDeps } from "./efsAutoIngest.js";
-import type { Artifact, IngestSource } from "../lib/ingestSource.js";
+import { ingestArtifact, runEfsIngest, sha256Hex, buildIngestSource, type AutoIngestDeps } from "./efsAutoIngest.js";
+import { StorageSource, type Artifact, type IngestSource } from "../lib/ingestSource.js";
+import { GraphMailSource } from "../lib/graphMail.js";
 import type { IngestResult } from "./efsIngest.js";
 import { loadEnv, type Env } from "../env.js";
 
@@ -127,6 +128,42 @@ describe("ingestArtifact", () => {
   });
 });
 
+describe("buildIngestSource", () => {
+  it("returns null when auto-ingestion is disabled", () => {
+    expect(buildIngestSource(admin, loadEnv({ EFS_INGEST_SOURCE: "off" }), "org1")).toBeNull();
+  });
+
+  it("builds a StorageSource when EFS_INGEST_SOURCE=storage", () => {
+    // Minimal storage-capable admin — buildIngestSource wires admin.storage.from(bucket) into the source.
+    const storageAdmin = { storage: { from: () => ({}) } } as unknown as SupabaseClient;
+    const src = buildIngestSource(storageAdmin, loadEnv({ EFS_INGEST_SOURCE: "storage" }), "org1");
+    expect(src).toBeInstanceOf(StorageSource);
+  });
+
+  it("builds a GraphMailSource when EFS_INGEST_SOURCE=graph and creds are set", () => {
+    const env = loadEnv({
+      EFS_INGEST_SOURCE: "graph",
+      EFS_GRAPH_TENANT_ID: "tenant",
+      EFS_GRAPH_CLIENT_ID: "client",
+      EFS_GRAPH_CLIENT_SECRET: "secret",
+      EFS_GRAPH_MAILBOX: "miki@silvicominc.com",
+    });
+    expect(buildIngestSource(admin, env, "org1")).toBeInstanceOf(GraphMailSource);
+  });
+
+  it("returns null for graph when the credentials are not fully configured", () => {
+    const env = loadEnv({ EFS_INGEST_SOURCE: "graph", EFS_GRAPH_TENANT_ID: "tenant" });
+    expect(buildIngestSource(admin, env, "org1")).toBeNull();
+  });
+
+  it("respects EFS_INGEST_ORG_ID — other orgs get no source (shared-mailbox guard)", () => {
+    const storageAdmin = { storage: { from: () => ({}) } } as unknown as SupabaseClient;
+    const env = loadEnv({ EFS_INGEST_SOURCE: "storage", EFS_INGEST_ORG_ID: "orgA" });
+    expect(buildIngestSource(storageAdmin, env, "orgB")).toBeNull();
+    expect(buildIngestSource(storageAdmin, env, "orgA")).toBeInstanceOf(StorageSource);
+  });
+});
+
 describe("runEfsIngest", () => {
   it("processes every artifact and aggregates counts; one bad file never stops the batch", async () => {
     const src = new FakeSource([artifact("good.csv"), artifact("bad.txt")]);
@@ -139,5 +176,39 @@ describe("runEfsIngest", () => {
     expect(stats.outcomes).toHaveLength(2);
     expect(src.done).toEqual(["good.csv"]);
     expect(src.quarantined.map((q) => q.name)).toEqual(["bad.txt"]);
+  });
+
+  it("marks a recognized report with no data rows as EMPTY (handled, not quarantined)", async () => {
+    const src = new FakeSource([artifact("empty.csv")]);
+    const d = deps({ read: async () => ({ headers: ["Card #"], rows: [] }) });
+
+    const outcome = await ingestArtifact(admin, env, src, artifact("empty.csv"), d);
+
+    expect(outcome.status).toBe("empty");
+    expect(src.done).toEqual(["empty.csv"]); // moved to processed, not error
+    expect(src.quarantined).toEqual([]);
+  });
+
+  it("isolates a per-file infrastructure error as ERRORED and finishes the rest of the batch", async () => {
+    // A source whose markDone fails for one file — the batch must still process the other.
+    const bad: IngestSource = {
+      async list() {
+        return [artifact("a.csv"), artifact("b.csv")];
+      },
+      async fetch() {
+        return Buffer.from("DATA");
+      },
+      async markDone(a) {
+        if (a.name === "a.csv") throw new Error("move failed");
+      },
+      async quarantine() {},
+    };
+
+    const stats = await runEfsIngest(admin, env, bad, deps());
+
+    expect(stats.found).toBe(2);
+    expect(stats.errored).toBe(1);
+    expect(stats.ingested).toBe(1); // b.csv still succeeded — one bad file didn't abort the batch
+    expect(stats.outcomes.find((o) => o.status === "errored")?.name).toBe("a.csv");
   });
 });
