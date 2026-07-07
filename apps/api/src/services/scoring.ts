@@ -358,19 +358,24 @@ export async function scoreTransaction(
   let reeferTankCapacityGal: number | null = null;
   let reeferWindowGallons = 0;
   if (txn.vehicleId && txn.tankType === "reefer") {
-    const { data: trailer } = await admin
+    // Resolve the paired reefer trailer's tank capacity — but ONLY when the pairing is unambiguous.
+    // If a truck has 2+ assigned reefer trailers we can't know which one this fill went into, so we
+    // leave capacity unknown (null) and the reefer rules stay quiet, rather than judging the fill
+    // against an arbitrarily-picked tank (match-don't-guess, like the unit/driver reconciliation).
+    const { data: trailerRows } = await admin
       .from("trailers")
       .select("reefer_tank_capacity_gal")
       .eq("org_id", orgId)
       .eq("assigned_vehicle_id", txn.vehicleId)
       .eq("is_reefer", true)
       .neq("status", "retired")
-      .limit(1)
-      .maybeSingle();
-    reeferTankCapacityGal = trailer ? Number(trailer.reefer_tank_capacity_gal) : null;
+      .limit(2);
+    const reeferTrailers = (trailerRows ?? []) as { reefer_tank_capacity_gal: number | string }[];
+    reeferTankCapacityGal = reeferTrailers.length === 1 ? Number(reeferTrailers[0]!.reefer_tank_capacity_gal) : null;
     const { data: rwin } = await admin
       .from("fuel_transactions")
       .select("gallons")
+      .eq("org_id", orgId)
       .eq("vehicle_id", txn.vehicleId)
       .eq("tank_type", "reefer")
       .gte("fueled_at", winStart())

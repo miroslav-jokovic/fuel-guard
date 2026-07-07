@@ -18,7 +18,7 @@ export function useReeferCoverage() {
       for (let offset = 0; ; offset += PAGE) {
         const { data, error } = await supabase
           .from("fuel_transactions")
-          .select("vehicle_id, tank_type, gallons, fueled_at")
+          .select("vehicle_id, tank_type, gallons, fueled_at, total_cost, driver_id")
           .gte("fueled_at", from)
           .order("fueled_at", { ascending: true })
           .range(offset, offset + PAGE - 1);

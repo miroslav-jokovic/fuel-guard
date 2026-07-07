@@ -23,6 +23,11 @@ describe("computeReeferCoverage", () => {
     expect(v1.reeferActive).toBe(true);
     expect(v1.lastReeferAt).toBe("2026-07-02T12:00:00.000Z"); // the most recent reefer fill
     expect(v1.daysSinceReefer).toBe(3); // Jul 2 12:00 → Jul 6 00:00 = 3.5d floored
+    expect(v1.reeferFills).toBe(2);
+    expect(v1.avgGalPerFill).toBe(25); // 50 gal / 2 fills
+    expect(v1.avgCadenceDays).toBe(2); // Jun 30 → Jul 2 = 2d across 1 gap
+    expect(v1.reeferSpend).toBe(0); // no cost supplied
+    expect(v1.primaryDriverId).toBeNull();
 
     const v2 = s.perTruck.find((t) => t.vehicleId === "v2")!;
     expect(v2.reeferActive).toBe(false);
@@ -42,6 +47,23 @@ describe("computeReeferCoverage", () => {
     expect(s.reeferActiveCount).toBe(2);
     expect(s.totalTrucks).toBe(3);
     expect(s.fleetMedianSharePct).toBe(15); // median of [10, 20]
+  });
+
+  it("sums reefer spend and picks the driver with the most reefer fills", () => {
+    const s = computeReeferCoverage(
+      [
+        { vehicle_id: "v1", tank_type: "reefer", gallons: 40, fueled_at: "2026-07-01T12:00:00Z", total_cost: 120, driver_id: "d1" },
+        { vehicle_id: "v1", tank_type: "reefer", gallons: 30, fueled_at: "2026-07-03T12:00:00Z", total_cost: 90, driver_id: "d1" },
+        { vehicle_id: "v1", tank_type: "reefer", gallons: 20, fueled_at: "2026-07-05T12:00:00Z", total_cost: 60, driver_id: "d2" },
+        { vehicle_id: "v1", tank_type: "tractor", gallons: 100, fueled_at: "2026-07-02T12:00:00Z", total_cost: 400, driver_id: "d1" },
+      ],
+      now,
+    );
+    const v1 = s.perTruck.find((t) => t.vehicleId === "v1")!;
+    expect(v1.reeferSpend).toBe(270); // tractor cost excluded
+    expect(v1.reeferFills).toBe(3);
+    expect(v1.primaryDriverId).toBe("d1"); // 2 reefer fills vs d2's 1
+    expect(v1.avgCadenceDays).toBe(2); // Jul 1 → Jul 5 = 4d across 2 gaps
   });
 
   it("ignores unattributed rows and handles an empty fleet", () => {
