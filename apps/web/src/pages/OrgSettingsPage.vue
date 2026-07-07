@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
+import { RouterLink } from "vue-router";
 import { orgSettingsFormSchema, type OrgSettingsForm } from "@fuelguard/shared";
 import { useOrgSettingsQuery, useSaveOrgSettings } from "@/features/settings/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
@@ -109,20 +110,10 @@ const input = "mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 r
         </div>
       </section>
 
-      <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
-        <h3 class="text-base font-semibold text-gray-900">Notifications</h3>
-        <label class="mt-3 flex items-center gap-2 text-sm text-gray-700">
-          <input v-model="form.notifications_enabled" type="checkbox" class="rounded border-gray-300" />
-          Email recipients when high/critical anomalies are detected
-        </label>
-        <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-900">Recipient emails (comma-separated)</label>
-          <input v-model="form.emails" placeholder="ops@silvicominc.com, manager@silvicominc.com" :class="input" />
-          <p v-if="fieldErr['notification_emails.0'] || fieldErr['notification_emails']" class="mt-1 text-xs text-red-600">
-            One or more emails are invalid.
-          </p>
-        </div>
-      </section>
+      <p class="text-xs text-gray-500">
+        Looking for alert recipients? They now live in
+        <RouterLink to="/settings/notifications" class="font-medium text-indigo-600 hover:text-indigo-500">Settings → Notifications</RouterLink>.
+      </p>
 
       <div class="flex items-center gap-3">
         <button type="submit" :disabled="save.isPending.value" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">

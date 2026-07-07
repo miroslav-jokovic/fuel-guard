@@ -113,31 +113,37 @@ const routes: RouteRecordRaw[] = [
     path: "/settings/users",
     name: "users",
     component: () => import("@/pages/SettingsUsersPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Users" },
+    meta: { requiresAuth: true, requiresAdmin: true, title: "Users", parent: "/settings" },
   },
   {
     path: "/settings/thresholds",
     name: "thresholds",
     component: () => import("@/pages/ThresholdsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Anomaly Thresholds" },
+    meta: { requiresAuth: true, requiresAdmin: true, title: "Anomaly Thresholds", parent: "/settings" },
   },
   {
     path: "/settings/data",
     name: "data-sync",
     component: () => import("@/pages/DataSyncPage.vue"),
-    meta: { requiresAuth: true, requiresManage: true, title: "Data & Sync" },
+    meta: { requiresAuth: true, requiresManage: true, title: "Data & Sync", parent: "/settings" },
   },
   {
     path: "/settings/org",
     name: "org-settings",
     component: () => import("@/pages/OrgSettingsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Organization" },
+    meta: { requiresAuth: true, requiresAdmin: true, title: "Organization", parent: "/settings" },
+  },
+  {
+    path: "/settings/notifications",
+    name: "notifications",
+    component: () => import("@/pages/NotificationsPage.vue"),
+    meta: { requiresAuth: true, requiresAdmin: true, title: "Notifications", parent: "/settings" },
   },
   {
     path: "/settings/audit",
     name: "audit",
     component: () => import("@/pages/AuditPage.vue"),
-    meta: { requiresAuth: true, requiresAuditAccess: true, title: "Audit Log" },
+    meta: { requiresAuth: true, requiresAuditAccess: true, title: "Audit Log", parent: "/settings" },
   },
 ];
 

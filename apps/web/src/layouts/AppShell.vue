@@ -328,6 +328,14 @@ async function signOut() {
             <span class="sr-only">Open sidebar</span>
             <Bars3Icon class="size-6" aria-hidden="true" />
           </button>
+          <RouterLink
+            v-if="route.meta.parent"
+            :to="(route.meta.parent as string)"
+            class="-ml-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <ChevronLeftIcon class="size-4" aria-hidden="true" />
+            <span class="hidden sm:inline">Back</span>
+          </RouterLink>
           <h1 class="text-base font-semibold text-gray-900">
             {{ (route.meta.title as string) ?? "FuelGuard" }}
           </h1>
