@@ -20,6 +20,8 @@ import {
   Bars3Icon,
   XMarkIcon,
   ChevronLeftIcon,
+  CubeIcon,
+  ArchiveBoxIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
@@ -64,7 +66,7 @@ const navGroups = computed<NavGroup[]>(() =>
       label: "Fleet",
       items: [
         { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: session.canManage || session.readOnly },
-        { name: "Trailers", to: "/trailers", icon: TruckIcon, show: session.canManage || session.readOnly },
+        { name: "Trailers", to: "/trailers", icon: ArchiveBoxIcon, show: session.canManage || session.readOnly },
         { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: session.canManage || session.readOnly },
       ],
     },
@@ -73,7 +75,7 @@ const navGroups = computed<NavGroup[]>(() =>
       items: [
         { name: "Anomalies", to: "/anomalies", icon: ExclamationTriangleIcon, show: session.canManage || session.readOnly },
         { name: "Fuel Events", to: "/fuel-events", icon: FireIcon, show: session.canManage || session.readOnly },
-        { name: "Reefer Coverage", to: "/reefer-coverage", icon: FireIcon, show: session.canManage || session.readOnly },
+        { name: "Reefer Coverage", to: "/reefer-coverage", icon: CubeIcon, show: session.canManage || session.readOnly },
         { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: session.canManage || session.readOnly },
         { name: "Reports", to: "/reports", icon: ChartBarIcon, show: session.canManage || session.readOnly },
       ],
