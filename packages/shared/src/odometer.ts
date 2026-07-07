@@ -28,6 +28,118 @@ export interface OdoAccuracyRow {
 
 const round = (n: number) => Math.round(n * 10) / 10;
 
+// ── per-fill odometer mismatch listing (the browsable "which fills disagree" view) ──────────────
+// The odometer-accuracy report below answers "how accurate is each driver/vehicle overall". This
+// answers "show me the individual fills where the entered odometer disagrees with telematics" — the
+// data behind the Odometer Mismatches tab. It never raises an anomaly; it's a human-review surface so
+// systematic odometer padding (a single-axis masking move that stays below the theft-case threshold)
+// is visible without polluting the case queue.
+
+export interface OdoMismatchInput {
+  id: string;
+  fueledAt: string;
+  vehicleId: string | null;
+  unit: string | null;
+  driverId: string | null;
+  driverName: string | null;
+  entered: number | null;
+  samsara: number | null;
+  /** Learned/overridden per-vehicle calibration (dash − Samsara). 0 when unknown. */
+  odometerOffset?: number | null;
+  /** How the fueling instant was determined (tank_confirmed | stop_estimated | reported | date_only). */
+  timeBasis?: string | null;
+  /** Samsara location confidence at the fill (gps_confirmed | in_state | mismatch | unknown). */
+  locationConfidence?: string | null;
+}
+
+export interface OdoMismatchRow {
+  id: string;
+  fueledAt: string;
+  vehicleId: string | null;
+  unit: string | null;
+  driverId: string | null;
+  driverName: string | null;
+  entered: number;
+  samsara: number;
+  offset: number;
+  /** Signed calibrated difference: entered − (samsara + offset). Positive = entered reads high. */
+  diff: number;
+  absDiff: number;
+  timeBasis: string | null;
+  locationConfidence: string | null;
+}
+
+export interface OdoOffenderRow {
+  key: string;
+  label: string;
+  mismatches: number;
+  avgAbsDiff: number;
+  maxAbsDiff: number;
+}
+
+export interface OdoMismatchReport {
+  rows: OdoMismatchRow[];
+  /** Drivers ranked by mismatch count — surfaces systematic padding. */
+  offenders: OdoOffenderRow[];
+  /** Fills with BOTH readings present (the verifiable denominator). */
+  checked: number;
+  toleranceMiles: number;
+}
+
+/**
+ * List individual fills whose calibrated |entered − Samsara| exceeds the tolerance, largest-first, plus
+ * a per-driver offender rollup. Applies the SAME per-vehicle offset the anomaly rule uses, so the tab
+ * and the engine agree on what counts as a mismatch. Pure + testable.
+ */
+export function odometerMismatches(rows: OdoMismatchInput[], toleranceMiles = 10): OdoMismatchReport {
+  const out: OdoMismatchRow[] = [];
+  let checked = 0;
+  for (const r of rows) {
+    if (r.entered == null || r.samsara == null) continue;
+    checked += 1;
+    const offset = r.odometerOffset ?? 0;
+    const diff = r.entered - (r.samsara + offset);
+    if (Math.abs(diff) > toleranceMiles) {
+      out.push({
+        id: r.id,
+        fueledAt: r.fueledAt,
+        vehicleId: r.vehicleId,
+        unit: r.unit,
+        driverId: r.driverId,
+        driverName: r.driverName,
+        entered: r.entered,
+        samsara: r.samsara,
+        offset: round(offset),
+        diff: round(diff),
+        absDiff: round(Math.abs(diff)),
+        timeBasis: r.timeBasis ?? null,
+        locationConfidence: r.locationConfidence ?? null,
+      });
+    }
+  }
+  out.sort((a, b) => b.absDiff - a.absDiff || new Date(b.fueledAt).getTime() - new Date(a.fueledAt).getTime());
+
+  const g = new Map<string, { label: string; devs: number[] }>();
+  for (const m of out) {
+    const key = m.driverId ?? "__unattributed__";
+    const label = m.driverName ?? "Unattributed";
+    const e = g.get(key) ?? { label, devs: [] };
+    e.devs.push(m.absDiff);
+    g.set(key, e);
+  }
+  const offenders = [...g.entries()]
+    .map(([key, e]) => ({
+      key,
+      label: e.label,
+      mismatches: e.devs.length,
+      avgAbsDiff: round(e.devs.reduce((a, b) => a + b, 0) / e.devs.length),
+      maxAbsDiff: round(Math.max(...e.devs)),
+    }))
+    .sort((a, b) => b.mismatches - a.mismatches || b.maxAbsDiff - a.maxAbsDiff);
+
+  return { rows: out, offenders, checked, toleranceMiles };
+}
+
 export function odometerAccuracy(rows: OdoRow[], by: "driver" | "vehicle", toleranceMiles = 10): OdoAccuracyRow[] {
   const groups = new Map<string, { label: string; fills: number; devs: number[]; mismatches: number }>();
 

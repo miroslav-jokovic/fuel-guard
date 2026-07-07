@@ -133,7 +133,7 @@ export interface Thresholds {
   costMinPerGal: number | null;
   costMaxPerGal: number | null;
   disabledRules: RuleId[];
-  /** Cross-source odometer tolerance in miles (the ±5 check). Default 5. */
+  /** Cross-source odometer tolerance in miles (entered vs Samsara at the fill). Default 10 (migration 0026). */
   odometerToleranceMiles?: number;
   /** Max plausible miles/day for date-precision data. Default 1000. */
   maxDailyMiles?: number;

@@ -38,6 +38,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Vehicle" },
   },
   {
+    path: "/odometer",
+    name: "odometer",
+    component: () => import("@/pages/OdometerPage.vue"),
+    meta: { requiresAuth: true, title: "Odometer Mismatches" },
+  },
+  {
     path: "/trailers",
     name: "trailers",
     component: () => import("@/pages/TrailersPage.vue"),

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
+import { RouterLink } from "vue-router";
 import { ArrowDownTrayIcon } from "@heroicons/vue/24/outline";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -123,7 +124,7 @@ async function sendDigest() {
       <div class="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 class="text-sm font-semibold text-gray-900">Odometer accuracy</h3>
-          <p class="text-sm text-gray-500">Driver-entered odometer vs. Samsara reading (within ±5 mi).</p>
+          <p class="text-sm text-gray-500">Driver-entered odometer vs. Samsara reading. See <RouterLink to="/odometer" class="font-medium text-indigo-600 hover:text-indigo-500">Odometer Mismatches</RouterLink> for the fill-by-fill list.</p>
         </div>
         <div class="flex items-center gap-2">
           <AppSelect v-model="by" :options="[{ value: 'driver', label: 'By driver' }, { value: 'vehicle', label: 'By vehicle' }]" class="w-36" />

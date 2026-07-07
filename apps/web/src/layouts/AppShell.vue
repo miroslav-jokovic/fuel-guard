@@ -22,6 +22,7 @@ import {
   ChevronLeftIcon,
   CubeIcon,
   ArchiveBoxIcon,
+  ArrowsRightLeftIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
@@ -68,6 +69,7 @@ const navGroups = computed<NavGroup[]>(() =>
         { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: session.canManage || session.readOnly },
         { name: "Trailers", to: "/trailers", icon: ArchiveBoxIcon, show: session.canManage || session.readOnly },
         { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: session.canManage || session.readOnly },
+        { name: "Odometer", to: "/odometer", icon: ArrowsRightLeftIcon, show: session.canManage || session.readOnly },
       ],
     },
     {
