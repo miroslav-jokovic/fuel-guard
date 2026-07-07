@@ -559,21 +559,27 @@ function ruleTankFillShort(ctx: RuleContext): RuleResult {
   return none("tank_fill_short");
 }
 
-/** The reefer tank capacity to use for a reefer fill: paired trailer's tank, else the threshold default. */
-function reeferTankGal(ctx: RuleContext): number {
-  return ctx.reeferTankCapacityGal ?? ctx.thresholds.reeferTankDefaultGal ?? 50;
+/**
+ * The reefer tank capacity for a fill — ONLY when it's actually known (a paired, reefer-marked trailer).
+ * Returns null when unknown; the reefer rules then do NOT fire, because judging "exceeds capacity" or
+ * "over-fueled" against an ASSUMED tank size produces false criticals on legitimate large-reefer fills.
+ * (The org threshold default is a UI seed for the Trailers page, never a silent detection assumption.)
+ */
+function knownReeferTankGal(ctx: RuleContext): number | null {
+  return ctx.reeferTankCapacityGal != null && ctx.reeferTankCapacityGal > 0 ? ctx.reeferTankCapacityGal : null;
 }
 
 /**
  * A single reefer (ULSR) purchase exceeds the reefer tank capacity — the fuel physically cannot fit in
  * the reefer. The strongest single-transaction sign of gun-switching (billed reefer, pumped into the
- * tractor) or a container fill. Mirrors the tractor's exceeds_tank_capacity.
+ * tractor) or a container fill. Only fires when the reefer tank size is KNOWN (paired reefer trailer).
  */
 function ruleReeferExceedsCapacity(ctx: RuleContext): RuleResult {
   const { txn, thresholds } = ctx;
-  const cap = reeferTankGal(ctx);
+  const cap = knownReeferTankGal(ctx);
+  if (cap == null) return none("reefer_exceeds_capacity"); // unknown tank → never accuse on an assumption
   const limit = cap * (1 + thresholds.capacityTolerancePct / 100);
-  if (cap > 0 && txn.gallons > limit) {
+  if (txn.gallons > limit) {
     return { ruleId: "reefer_exceeds_capacity", fired: true, severity: "critical", message: `Reefer fill of ${txn.gallons} gal exceeds the reefer tank capacity (${cap} gal) — the fuel can't fit in the reefer.`, evidence: { gallons: txn.gallons, reeferCapacity: cap, tolerancePct: thresholds.capacityTolerancePct } };
   }
   return none("reefer_exceeds_capacity");
@@ -581,12 +587,13 @@ function ruleReeferExceedsCapacity(ctx: RuleContext): RuleResult {
 
 /**
  * Rolling window: reefer gallons since the last reefer fill exceed what a reefer unit could physically
- * burn (max burn rate × elapsed hours) plus one full tank. A reefer that "burned" 2.5 gal/h for days
- * didn't — the fuel went elsewhere. Mirrors cumulative_overfuel for the tractor.
+ * burn (max burn rate × elapsed hours) plus one full tank. Only fires when the reefer tank size is KNOWN
+ * — an assumed tank would mis-size the burnable envelope and false-flag large-reefer trucks.
  */
 function ruleReeferOverfuelRate(ctx: RuleContext): RuleResult {
   const { thresholds } = ctx;
-  const cap = reeferTankGal(ctx);
+  const cap = knownReeferTankGal(ctx);
+  if (cap == null) return none("reefer_overfuel_rate");
   const gph = thresholds.maxReeferBurnGph ?? 1.5;
   const hrs = thresholds.cumulativeWindowHours ?? 48;
   const windowGal = ctx.reeferWindowGallons ?? ctx.txn.gallons;

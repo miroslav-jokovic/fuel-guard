@@ -20,7 +20,6 @@ import {
   Bars3Icon,
   XMarkIcon,
   ChevronLeftIcon,
-  ChevronRightIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
@@ -233,7 +232,7 @@ async function signOut() {
       class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-all duration-200 ease-in-out"
       :class="sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'"
     >
-      <div class="flex grow flex-col overflow-y-auto overflow-x-hidden border-r border-gray-800/50 bg-gray-900 pb-2">
+      <div class="flex grow flex-col overflow-x-hidden border-r border-gray-800/50 bg-gray-900">
         <!-- Sidebar header -->
         <div
           class="flex h-16 shrink-0 items-center border-b border-gray-800/70"
@@ -244,7 +243,7 @@ async function signOut() {
         </div>
 
         <!-- Nav -->
-        <nav class="flex flex-1 flex-col pt-3" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
+        <nav class="flex flex-1 min-h-0 flex-col overflow-y-auto pt-3" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
           <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
             <template v-for="group in navGroups" :key="group.label ?? '_top'">
               <li
@@ -270,7 +269,7 @@ async function signOut() {
         </nav>
 
         <!-- User card -->
-        <div class="mt-2" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
+        <div class="mt-2 shrink-0 pb-3" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
           <!-- Collapsed: avatar only -->
           <div v-if="sidebarCollapsed" class="flex justify-center py-2">
             <div
@@ -295,17 +294,21 @@ async function signOut() {
           </div>
         </div>
 
-        <!-- Collapse / expand toggle -->
-        <button
-          type="button"
-          class="mx-auto my-2 flex items-center justify-center rounded-md p-1.5 text-gray-600 transition-colors hover:bg-gray-800 hover:text-gray-300"
-          :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-          @click="toggleSidebar"
-        >
-          <ChevronLeftIcon v-if="!sidebarCollapsed" class="size-4" aria-hidden="true" />
-          <ChevronRightIcon v-else class="size-4" aria-hidden="true" />
-        </button>
       </div>
+
+      <!-- Modern floating edge toggle -->
+      <button
+        type="button"
+        class="absolute right-0 top-8 z-10 flex size-5 translate-x-1/2 cursor-pointer items-center justify-center rounded-full border border-gray-700 bg-gray-900 text-gray-400 shadow-md transition-all duration-200 hover:scale-110 hover:border-indigo-500 hover:bg-indigo-600 hover:text-white hover:shadow-indigo-500/25"
+        :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        @click="toggleSidebar"
+      >
+        <ChevronLeftIcon
+          class="size-3 transition-transform duration-200"
+          :class="{ 'rotate-180': sidebarCollapsed }"
+          aria-hidden="true"
+        />
+      </button>
     </div>
 
     <!-- ── Main content area ─────────────────────────────────────────────── -->

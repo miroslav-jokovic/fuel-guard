@@ -260,6 +260,14 @@ describe("reefer tank split (Phase 0)", () => {
     expect(ids(c)).toContain("reefer_overfuel_rate");
   });
 
+  it("does NOT fire reefer rules when the reefer tank is unknown (no assumption → no false critical)", () => {
+    // Big reefer fill but no paired reefer trailer → tank unknown → we must not accuse on an assumed 50 gal.
+    const c = ctx({ txn: txn({ gallons: 90, tankType: "reefer" }) }); // reeferTankCapacityGal omitted → null
+    const out = ids(c);
+    expect(out).not.toContain("reefer_exceeds_capacity");
+    expect(out).not.toContain("reefer_overfuel_rate");
+  });
+
   it("reefer_exceeds_capacity correlates on the reefer axis (overwhelming → alert)", () => {
     const c = correlateSignals([{ ruleId: "reefer_exceeds_capacity", fired: true, severity: "critical", message: "m", evidence: {} }]);
     expect(c.axes).toContain("reefer");
