@@ -1,7 +1,12 @@
--- FuelGuard — idempotent schema reconcile (migrations 0010 → 0015)
--- Safe to run once on a database that had migrations applied piecemeal. Every statement uses
--- IF [NOT] EXISTS (or drop-then-create), so running it when things already exist is a harmless no-op.
--- Fixes uploads/sync failing with 400 "column ... does not exist" or the on-conflict arbiter error.
+-- FuelGuard — idempotent schema reconcile (migrations 0010 → 0032)
+-- Safe to run on a database that had migrations applied piecemeal. Every statement uses IF [NOT] EXISTS
+-- (or drop-then-create), so running it when things already exist is a harmless no-op. Fixes uploads/sync
+-- and page loads failing with "column ... does not exist" (e.g. vehicles.odometer_offset) or on-conflict
+-- arbiter errors.
+--
+-- SCOPE: SCHEMA ONLY (columns, tables, indexes, RLS policies). It intentionally OMITS the one-shot DATA
+-- conversions in migration 0026 (the timezone shift + dedupe-key rewrite) — those must never be re-run
+-- (a second run would double-shift timestamps) and are unrelated to the missing-column errors.
 
 -- ── 0010: card identity + tuning thresholds + idempotency index ─────────────────────────────
 alter table fuel_transactions add column if not exists card_ref text;
@@ -89,6 +94,16 @@ create unique index if not exists idx_efs_txn_extref on efs_transactions (org_id
 -- ── 0015: driver ↔ Samsara mapping ──────────────────────────────────────────────────────────
 alter table drivers add column if not exists samsara_driver_id text;
 
+-- ── 0016: driver Samsara uniqueness + vehicle current fuel level ─────────────────────────────
+create unique index if not exists idx_drivers_samsara_id
+  on drivers (org_id, samsara_driver_id) where samsara_driver_id is not null;
+alter table vehicles add column if not exists samsara_fuel_percent numeric(5,1);  -- 0..100 (%)
+alter table vehicles add column if not exists samsara_fuel_at      timestamptz;
+
+-- ── 0017: imports.file_hash (re-upload detection) ────────────────────────────────────────────
+alter table imports add column if not exists file_hash text;
+create index if not exists idx_imports_file_hash on imports (org_id, file_hash) where file_hash is not null;
+
 -- ── 0018: geocoding cache + location confidence ─────────────────────────────────────────────
 create table if not exists geocode_cache (
   query      text primary key,
@@ -161,6 +176,19 @@ alter table organizations add column if not exists last_digest_at timestamptz;
 -- whose dash sits a fixed amount off OBD stop false-flagging. source='manual' pins a human override.
 alter table vehicles add column if not exists odometer_offset        numeric(10,1) not null default 0;
 alter table vehicles add column if not exists odometer_offset_source text          not null default 'auto';
+
+-- ── 0026: data-reliability SCHEMA bits (one-shot DATA conversions intentionally OMITTED — see header) ─
+alter table fuel_transactions add column if not exists fueled_at_precision text
+  check (fueled_at_precision in ('instant', 'date'));
+update fuel_transactions set fueled_at_precision = 'instant' where fueled_at_precision is null; -- safe default
+alter table fuel_transactions alter column fueled_at_precision set default 'instant';
+alter table fuel_transactions alter column fueled_at_precision set not null;
+alter table anomaly_thresholds alter column odometer_tolerance_miles set default 10;  -- was 5 in 0010
+alter table imports add column if not exists summary jsonb;
+alter table geocode_cache add column if not exists updated_at timestamptz not null default now();
+create table if not exists migration_markers (key text primary key, done_at timestamptz not null default now());
+alter table migration_markers enable row level security;
+-- NOTE: the '0026_tz_shift' marker is NOT inserted here — this reconcile does not run that data step.
 
 -- ── 0027: background job ledger (sync / rebuild / backfill / reconcile progress + freshness) ──────
 create table if not exists jobs (
