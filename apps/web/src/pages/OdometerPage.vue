@@ -40,6 +40,15 @@ const CONF: Record<string, { label: string; cls: string }> = {
   unknown: { label: "Unverified", cls: "text-gray-500" },
 };
 const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
+
+// Where the Samsara odometer came from — OBD (ECU, best), GPS (Samsara estimate), or reconstructed
+// (rebuilt from the nearest reading + driven distance, lowest confidence).
+const SOURCE: Record<string, { label: string; cls: string; title: string }> = {
+  obd: { label: "OBD", cls: "bg-green-100 text-green-700", title: "Read from the truck's ECU — most accurate." },
+  gps: { label: "GPS", cls: "bg-blue-100 text-blue-700", title: "Samsara's GPS-derived odometer (no ECU odometer on this truck)." },
+  reconstructed: { label: "Est.", cls: "bg-amber-100 text-amber-700", title: "Reconstructed from the nearest reading + driven distance — lowest confidence." },
+};
+const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: "bg-gray-100 text-gray-500", title: "Unknown source" };
 </script>
 
 <template>
@@ -90,7 +99,7 @@ const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="9" />
+      <TableSkeleton v-if="isLoading" :cols="10" />
       <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load'" :retrying="isFetching" @retry="refetch" />
       <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         <p>No confirmed odometer mismatches in the last 90 days — either driver entries agree with telematics, or no fills have a confirmed fueling-time odometer yet.</p>
@@ -109,6 +118,7 @@ const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
                 <th class="px-4 py-3 font-medium">Driver</th>
                 <th class="px-4 py-3 font-medium text-right">Entered</th>
                 <th class="px-4 py-3 font-medium text-right">Samsara</th>
+                <th class="px-4 py-3 font-medium">Source</th>
                 <th class="px-4 py-3 font-medium text-right">Offset</th>
                 <th class="px-4 py-3 font-medium text-right">Difference</th>
                 <th class="px-4 py-3 font-medium">Time basis</th>
@@ -128,6 +138,7 @@ const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
                   {{ fmtOdo(r.samsara) }}
                   <div v-if="r.samsaraOdometerAt" class="text-xs font-normal text-gray-400">read {{ fmtDateTime(r.samsaraOdometerAt) }}</div>
                 </td>
+                <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', source(r.samsaraOdometerSource).cls]" :title="source(r.samsaraOdometerSource).title">{{ source(r.samsaraOdometerSource).label }}</span></td>
                 <td class="px-4 py-3 text-right text-gray-500">{{ r.offset ? signed(r.offset) : "—" }}</td>
                 <td class="px-4 py-3 text-right font-semibold" :class="Math.abs(r.diff) > tolerance * 3 ? 'text-red-700' : 'text-amber-600'">{{ signed(r.diff) }}</td>
                 <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', basis(r.timeBasis).cls]">{{ basis(r.timeBasis).label }}</span></td>

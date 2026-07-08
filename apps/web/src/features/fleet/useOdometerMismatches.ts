@@ -13,6 +13,7 @@ interface RawRow {
   fueling_time_basis: string | null;
   samsara_location_confidence: string | null;
   samsara_odometer_at: string | null;
+  samsara_odometer_source: string | null;
   vehicle_id: string | null;
   driver_id: string | null;
   vehicles: { unit_number: string; odometer_offset: number | string | null } | null;
@@ -41,7 +42,7 @@ export function useOdometerMismatches() {
         const { data, error } = await supabase
           .from("fuel_transactions")
           .select(
-            "id, fueled_at, odometer, samsara_odometer, samsara_odometer_at, fueling_time_basis, samsara_location_confidence, vehicle_id, driver_id, vehicles(unit_number, odometer_offset), drivers(full_name)",
+            "id, fueled_at, odometer, samsara_odometer, samsara_odometer_at, samsara_odometer_source, fueling_time_basis, samsara_location_confidence, vehicle_id, driver_id, vehicles(unit_number, odometer_offset), drivers(full_name)",
           )
           .gte("fueled_at", from)
           .not("odometer", "is", null)
@@ -68,6 +69,7 @@ export function useOdometerMismatches() {
             timeBasis: r.fueling_time_basis,
             locationConfidence: r.samsara_location_confidence,
             samsaraOdometerAt: r.samsara_odometer_at,
+            samsaraOdometerSource: r.samsara_odometer_source,
           });
         }
         if (batch.length < PAGE) break;

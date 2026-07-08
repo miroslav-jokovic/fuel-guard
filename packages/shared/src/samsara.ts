@@ -18,6 +18,18 @@ export interface SamsaraSample {
   speedMph: number | null;
   address: string | null; // reverseGeo.formattedLocation
   odometerMiles: number | null;
+  /** 'obd' (from the ECU — most accurate) or 'gps' (Samsara's GPS-derived odometer). null/absent when
+   *  no odometer on the ping. Optional for back-compat with hand-built samples. */
+  odometerSource?: "obd" | "gps" | null;
+}
+
+/** How a resolved fueling-moment odometer was obtained (for display + confidence). */
+export type OdometerSource = "obd" | "gps" | "reconstructed";
+
+/** A resolved odometer reading at an instant, with provenance. */
+export interface SourcedOdometer {
+  miles: number;
+  source: OdometerSource;
 }
 
 interface RawGpsPoint {
@@ -42,7 +54,10 @@ export function parseSamsaraSamples(vehicle: RawVehicleStats): SamsaraSample[] {
   return (vehicle.gps ?? [])
     .filter((p) => p.time && p.latitude != null && p.longitude != null)
     .map((p) => {
-      const meters = p.decorations?.obdOdometerMeters?.value ?? p.decorations?.gpsOdometerMeters?.value;
+      // Prefer the ECU/OBD odometer; fall back to Samsara's GPS-derived odometer. Track which we used.
+      const obd = p.decorations?.obdOdometerMeters?.value;
+      const gps = p.decorations?.gpsOdometerMeters?.value;
+      const meters = obd ?? gps;
       return {
         time: p.time!,
         lat: p.latitude!,
@@ -50,6 +65,7 @@ export function parseSamsaraSamples(vehicle: RawVehicleStats): SamsaraSample[] {
         speedMph: p.speedMilesPerHour ?? null,
         address: p.reverseGeo?.formattedLocation ?? null,
         odometerMiles: meters != null ? metersToMiles(meters) : null,
+        odometerSource: (obd != null ? "obd" : gps != null ? "gps" : null) as "obd" | "gps" | null,
       };
     });
 }
@@ -264,6 +280,79 @@ export function odometerAtTime(samples: SamsaraSample[], targetIso: string): num
     }
   }
   return last.odo;
+}
+
+/** Sum of great-circle distance (miles) along the GPS trace between two instants — the truck's DRIVEN
+ *  path length. With dense pings this closely approximates road miles (each short segment is near-straight);
+ *  it's an under-estimate when pings are sparse. Used to reconstruct an odometer when none was stamped near
+ *  the fueling moment. */
+export function pathDistanceMiles(samples: SamsaraSample[], aIso: string, bIso: string): number {
+  const lo = Math.min(parseAsUtcMs(aIso), parseAsUtcMs(bIso));
+  const hi = Math.max(parseAsUtcMs(aIso), parseAsUtcMs(bIso));
+  const pts = samples
+    .filter((s) => s.lat != null && s.lng != null)
+    .map((s) => ({ t: parseAsUtcMs(s.time), lat: s.lat, lng: s.lng }))
+    .filter((p) => p.t >= lo && p.t <= hi)
+    .sort((a, b) => a.t - b.t);
+  let d = 0;
+  for (let i = 1; i < pts.length; i++) d += haversineMiles(pts[i - 1]!.lat, pts[i - 1]!.lng, pts[i]!.lat, pts[i]!.lng);
+  return Math.round(d * 10) / 10;
+}
+
+/**
+ * Odometer AT an instant, WITH provenance. Three tiers, strongest first:
+ *   1. read/interpolate — an odometer reading brackets the instant within `maxInterpGapMin` on each side
+ *      (at a stop the track is flat, so this is the true stationary reading). Source = the ping's obd|gps.
+ *   2. reconstruct — no reading is that close, but one exists within `maxReconstructGapMin`: take it and add
+ *      the DRIVEN path distance to the instant (nearest before → +dist, after → −dist). Source = 'reconstructed'.
+ *   3. null — no odometer reading anywhere near.
+ * This is what lets a truck whose odometer wasn't stamped exactly at the fill still get a fueling-time value,
+ * without ever falling back to a stale whole-day clamp.
+ */
+export function odometerAtTimeSourced(
+  samples: SamsaraSample[],
+  targetIso: string,
+  opts: { maxInterpGapMin?: number; maxReconstructGapMin?: number } = {},
+): SourcedOdometer | null {
+  const interpGap = (opts.maxInterpGapMin ?? 30) * 60_000;
+  const reconGap = (opts.maxReconstructGapMin ?? 180) * 60_000;
+  const pts = samples
+    .filter((s) => s.odometerMiles != null)
+    .map((s) => ({ t: parseAsUtcMs(s.time), odo: s.odometerMiles as number, src: (s.odometerSource ?? "obd") as "obd" | "gps" }))
+    .sort((a, b) => a.t - b.t);
+  if (pts.length === 0) return null;
+  const T = parseAsUtcMs(targetIso);
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+
+  // Tier 1 — bracketed within the tight gap on both sides → read / interpolate.
+  let before: (typeof pts)[number] | null = null;
+  let after: (typeof pts)[number] | null = null;
+  for (const p of pts) {
+    if (p.t <= T) before = p;
+    if (p.t >= T && after == null) after = p;
+  }
+  if (before && after && T - before.t <= interpGap && after.t - T <= interpGap) {
+    if (after.t === before.t) return { miles: round1(before.odo), source: before.src };
+    const frac = (T - before.t) / (after.t - before.t);
+    return { miles: round1(before.odo + (after.odo - before.odo) * frac), source: before.src };
+  }
+
+  // Tier 2 — nearest reading within the wider gap + driven path distance → reconstructed.
+  let near: (typeof pts)[number] | null = null;
+  let nd = Infinity;
+  for (const p of pts) {
+    const d = Math.abs(p.t - T);
+    if (d <= reconGap && d < nd) {
+      nd = d;
+      near = p;
+    }
+  }
+  if (near) {
+    const dist = pathDistanceMiles(samples, new Date(near.t).toISOString(), targetIso);
+    const miles = near.t <= T ? near.odo + dist : near.odo - dist;
+    return { miles: round1(miles), source: "reconstructed" };
+  }
+  return null;
 }
 
 /**

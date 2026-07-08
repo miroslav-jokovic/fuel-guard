@@ -21,7 +21,7 @@ import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at";
 
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -75,6 +75,7 @@ interface FtxnRow {
   location_text: string | null;
   samsara_odometer: number | string | null;
   samsara_odometer_at: string | null;
+  samsara_odometer_source: string | null;
   samsara_location_matched: boolean | null;
   samsara_location_confidence: string | null;
   station_lat: number | string | null;
@@ -198,6 +199,7 @@ export async function scoreTransaction(
   // ── Samsara reconciliation: the fueling-time odometer truth + recovered fueling time + location check ──
   let crossSourceOdometer: number | null = null;
   let crossSourceOdometerAt: string | null = null;
+  let crossSourceOdometerSource: string | null = null;
   let samsaraLocationMatched: boolean | null = null;
   let locationConfidence: string | null = null;
   let stationLat: number | null = null;
@@ -223,6 +225,7 @@ export async function scoreTransaction(
     // samsara_recon_at and is applied IN MEMORY ONLY so time-based rules can run.
     crossSourceOdometer = n(r.samsara_odometer);
     crossSourceOdometerAt = r.samsara_odometer_at ?? null;
+    crossSourceOdometerSource = r.samsara_odometer_source ?? null;
     samsaraLocationMatched = r.samsara_location_matched ?? null;
     locationConfidence = r.samsara_location_confidence ?? null;
     stationLat = n(r.station_lat);
@@ -255,6 +258,7 @@ export async function scoreTransaction(
     if (recon) {
       crossSourceOdometer = recon.crossSourceOdometer;
       crossSourceOdometerAt = recon.crossSourceOdometerAt;
+      crossSourceOdometerSource = recon.crossSourceOdometerSource;
       samsaraLocationMatched = recon.locationMatched;
       locationConfidence = recon.locationConfidence;
       stationLat = recon.stationLat;
@@ -458,6 +462,7 @@ export async function scoreTransaction(
       max_severity: assessment.severity,
       samsara_odometer: crossSourceOdometer,
       samsara_odometer_at: crossSourceOdometerAt,
+      samsara_odometer_source: crossSourceOdometerSource,
       samsara_location_matched: samsaraLocationMatched,
       samsara_location_confidence: locationConfidence,
       station_lat: stationLat,

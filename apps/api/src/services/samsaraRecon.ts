@@ -3,6 +3,8 @@ import {
   parseSamsaraSamples,
   matchFuelingMoment,
   matchFuelingStop,
+  odometerAtTimeSourced,
+  type OdometerSource,
   minSampleDistanceMiles,
   resolveLocationConfidence,
   type LocationConfidence,
@@ -43,6 +45,9 @@ export interface ReconResult {
   crossSourceOdometer: number | null;
   /** ISO time the odometer reading was taken (the physical-fill anchor). null when no trusted reading. */
   crossSourceOdometerAt: string | null;
+  /** Where the odometer came from: 'obd' (ECU), 'gps' (Samsara GPS odometer), or 'reconstructed'
+   *  (nearest reading + driven distance). null when no trusted reading. */
+  crossSourceOdometerSource: OdometerSource | null;
   /** Truck in the SAME state as the EFS station at the fueling time? false = mismatch, null = unknown. */
   locationMatched: boolean | null;
   /** Confidence tier: gps_confirmed | in_state | mismatch | unknown. */
@@ -166,22 +171,19 @@ export async function reconcileWithSamsara(
     const at = fuelEvent?.at ?? stop.matchedAt;
     // Odometer must be read at the PHYSICAL fill, not a nearest-in-time stop off the (unreliable) EFS clock.
     // Trust it only when anchored by the tank rise, an at-station (in-city) stop, or GPS-confirmed proximity.
-    // Otherwise leave it null — a wrong-time odometer is what made every truck look mismatched.
+    // Then read the odometer AT that anchor (OBD/GPS, or reconstructed from driven distance when no reading
+    // is stamped near the moment). Otherwise leave it null — a wrong-time odometer made every truck mismatch.
     const odoReliable = fuelEvent != null || stop.basis === "in_city" || confidence === "gps_confirmed";
-    let odo: number | null = null;
-    let odoAt: string | null = null;
-    if (fuelEvent?.odometerMiles != null) {
-      odo = fuelEvent.odometerMiles;
-      odoAt = fuelEvent.at;
-    } else if (odoReliable && stop.odometerMiles != null) {
-      odo = stop.odometerMiles;
-      odoAt = stop.matchedAt; // matchFuelingStop reads the odometer at the anchor stop's time
-    }
+    const reading = at && odoReliable ? odometerAtTimeSourced(samples, at, { maxInterpGapMin: 30, maxReconstructGapMin: 180 }) : null;
+    const odo = reading?.miles ?? null;
+    const odoAt = reading ? at : null;
+    const odoSource = reading?.source ?? null;
     const obs = observedFor(stop);
     const tank = computeTankFill(vehicleRaw, at ?? input.fueledAt, input.gallons, input.tankCapacityGal);
     return {
       crossSourceOdometer: odo,
       crossSourceOdometerAt: odoAt,
+      crossSourceOdometerSource: odoSource,
       locationMatched: matched,
       locationConfidence: confidence,
       stationLat,
@@ -217,16 +219,20 @@ export async function reconcileWithSamsara(
     stationName: input.locationName,
   });
   // Odometer + instant: tank-rise event wins; else the stopped-in-city sample (both are physically at the
-  // fill, so both are trusted fueling-time readings). Date-only never flags a location mismatch — it only
-  // confirms via proximity.
-  const odo = fuelEvent?.odometerMiles ?? match?.samsaraOdometerMiles ?? null;
+  // fill). Read the odometer AT that anchor (OBD/GPS or reconstructed). Date-only never flags a location
+  // mismatch — it only confirms via proximity.
   const at = fuelEvent?.at ?? match?.matchedAt ?? null;
-  const odoAt = odo != null ? (fuelEvent?.at ?? match?.matchedAt ?? null) : null;
+  const odoReliable = fuelEvent != null || match != null || nearStation;
+  const reading = at && odoReliable ? odometerAtTimeSourced(samples, at, { maxInterpGapMin: 30, maxReconstructGapMin: 180 }) : null;
+  const odo = reading?.miles ?? null;
+  const odoAt = reading ? at : null;
+  const odoSource = reading?.source ?? null;
   const obs = observedFor({});
   const tank = computeTankFill(vehicleRaw, at ?? input.fueledAt, input.gallons, input.tankCapacityGal);
   return {
     crossSourceOdometer: odo,
     crossSourceOdometerAt: odoAt,
+    crossSourceOdometerSource: odoSource,
     locationMatched: nearStation ? true : null,
     locationConfidence: nearStation ? "gps_confirmed" : "unknown",
     stationLat,

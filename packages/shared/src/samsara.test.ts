@@ -23,6 +23,8 @@ import {
   minSampleDistanceMiles,
   resolveLocationConfidence,
   odometerAtTime,
+  odometerAtTimeSourced,
+  pathDistanceMiles,
   findFuelingEvent,
 } from "./index.js";
 
@@ -526,6 +528,38 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(odometerAtTime(samples, "2026-06-30T11:00:00Z")).toBe(1000); // before first → clamp
     expect(odometerAtTime(samples, "2026-06-30T15:00:00Z")).toBe(1100); // after last → clamp
     expect(odometerAtTime([S("t", 0, "x", null)], "2026-06-30T13:00:00Z")).toBeNull(); // none
+  });
+
+  it("odometerAtTimeSourced: reads with the ping's source when tightly bracketed", () => {
+    const s = (time: string, odo: number | null, src: "obd" | "gps" | null = "obd", lat = 32.0, lng = -96.0) =>
+      ({ time, lat, lng, speedMph: 0, address: "Stop, TX", odometerMiles: odo, odometerSource: src });
+    // Odometer stamped at the stop → direct read, source carried through.
+    const parked = [s("2026-06-30T13:55:00Z", 5000, "obd"), s("2026-06-30T14:05:00Z", 5000, "obd")];
+    const r = odometerAtTimeSourced(parked, "2026-06-30T14:00:00Z", { maxInterpGapMin: 30 });
+    expect(r).toEqual({ miles: 5000, source: "obd" });
+    // GPS-sourced pings → source 'gps'.
+    const g = odometerAtTimeSourced([s("2026-06-30T14:00:00Z", 8000, "gps")], "2026-06-30T14:00:00Z");
+    expect(g!.source).toBe("gps");
+  });
+
+  it("odometerAtTimeSourced: reconstructs from the nearest reading + driven distance when nothing is close", () => {
+    // Reading at 10:00 (odo 1000) ~2 mi west; truck then drives east to the fill at 14:00. No odometer
+    // stamp near 14:00 → reconstruct = 1000 + path distance driven from 10:00 to 14:00.
+    const samples = [
+      { time: "2026-06-30T10:00:00Z", lat: 32.0, lng: -96.03, speedMph: 0, address: "A, TX", odometerMiles: 1000, odometerSource: "obd" as const },
+      { time: "2026-06-30T12:00:00Z", lat: 32.0, lng: -96.02, speedMph: 60, address: "B, TX", odometerMiles: null, odometerSource: null },
+      { time: "2026-06-30T14:00:00Z", lat: 32.0, lng: -96.0, speedMph: 0, address: "C, TX", odometerMiles: null, odometerSource: null },
+    ];
+    const dist = pathDistanceMiles(samples, "2026-06-30T10:00:00Z", "2026-06-30T14:00:00Z");
+    expect(dist).toBeGreaterThan(0);
+    const r = odometerAtTimeSourced(samples, "2026-06-30T14:00:00Z", { maxInterpGapMin: 30, maxReconstructGapMin: 300 });
+    expect(r!.source).toBe("reconstructed");
+    expect(r!.miles).toBeCloseTo(1000 + dist, 1);
+  });
+
+  it("odometerAtTimeSourced: returns null when no odometer reading is anywhere near", () => {
+    const samples = [{ time: "2026-06-30T02:00:00Z", lat: 32, lng: -96, speedMph: 0, address: "x", odometerMiles: 1000, odometerSource: "obd" as const }];
+    expect(odometerAtTimeSourced(samples, "2026-06-30T20:00:00Z", { maxReconstructGapMin: 60 })).toBeNull();
   });
 
   it("approxFuelingUtcMs shifts local time by the station-state offset", () => {

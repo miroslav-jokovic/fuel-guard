@@ -52,6 +52,8 @@ export interface OdoMismatchInput {
   locationConfidence?: string | null;
   /** ISO time the Samsara odometer reading was taken (the physical-fill anchor). null when unknown. */
   samsaraOdometerAt?: string | null;
+  /** Where the Samsara odometer came from: 'obd' | 'gps' | 'reconstructed'. null when unknown. */
+  samsaraOdometerSource?: string | null;
 }
 
 export interface OdoMismatchRow {
@@ -70,6 +72,7 @@ export interface OdoMismatchRow {
   timeBasis: string | null;
   locationConfidence: string | null;
   samsaraOdometerAt: string | null;
+  samsaraOdometerSource: string | null;
 }
 
 export interface OdoOffenderRow {
@@ -118,6 +121,7 @@ export function odometerMismatches(rows: OdoMismatchInput[], toleranceMiles = 10
         timeBasis: r.timeBasis ?? null,
         locationConfidence: r.locationConfidence ?? null,
         samsaraOdometerAt: r.samsaraOdometerAt ?? null,
+        samsaraOdometerSource: r.samsaraOdometerSource ?? null,
       });
     }
   }

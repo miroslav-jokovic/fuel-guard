@@ -292,3 +292,7 @@ as $$
   order by random()
   limit greatest(coalesce(p_limit, 0), 0);
 $$;
+
+-- ── 0036: provenance of the fueling-time Samsara odometer (obd | gps | reconstructed) ────────────────
+alter table fuel_transactions add column if not exists samsara_odometer_source text
+  check (samsara_odometer_source in ('obd', 'gps', 'reconstructed'));
