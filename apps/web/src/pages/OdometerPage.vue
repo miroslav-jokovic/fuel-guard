@@ -45,15 +45,17 @@ const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
 <template>
   <div class="space-y-6">
     <p class="text-sm text-gray-500">
-      Every fuel-up in the last 90 days where the driver-entered odometer disagrees with the Samsara
-      reading at the fueling moment by more than ±{{ tolerance }} mi, after each truck's learned dash↔OBD
-      calibration. This is a review surface — it never raises alerts on its own, but a driver who
-      consistently pads the odometer shows up here even when no theft case fired.
+      <strong>What this shows:</strong> fuel-ups where the odometer the <em>driver typed at the pump</em>
+      disagrees with the truck's <em>actual OBD odometer at that same moment</em> by more than ±{{ tolerance }} mi
+      (after each truck's learned dash↔OBD calibration). A large or repeated gap means the entered reading is
+      wrong — an honest fat-finger, or a driver misreporting mileage to mask fuel use. It's a review list, not
+      an alert: start with the <strong>repeat offenders</strong> below and the biggest differences.
     </p>
     <p class="-mt-4 text-xs text-gray-400">
-      The Samsara value is the odometer read <em>at the fueling moment</em> (anchored to the tank-fill event
-      or the at-station stop). Fills where telematics can't confirm the fueling-time reading are excluded, so
-      what you see are real driver-entry discrepancies — not stale "latest odometer" noise.
+      Only fills where telematics captured the odometer <em>at the confirmed fueling moment</em> (a tank-fill
+      event or an at-station stop, shown as the "read" time) are compared — fills we can't pin to the fueling
+      moment are left out entirely rather than compared against a wrong-time reading. Coverage of what could
+      and couldn't be verified lives on the <RouterLink to="/coverage" class="text-indigo-600 hover:text-indigo-500">Coverage</RouterLink> page.
     </p>
 
     <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -91,8 +93,11 @@ const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
       <TableSkeleton v-if="isLoading" :cols="9" />
       <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load'" :retrying="isFetching" @retry="refetch" />
       <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-        No odometer mismatches in the last 90 days. Fills need both a driver-entered and a Samsara odometer —
-        run a Backfill from Settings → Data &amp; Sync if telematics readings are missing.
+        <p>No confirmed odometer mismatches in the last 90 days — either driver entries agree with telematics, or no fills have a confirmed fueling-time odometer yet.</p>
+        <p class="mt-1 text-gray-400">
+          If you just deployed the fueling-time fix, run a <RouterLink to="/settings/data" class="text-indigo-600 hover:text-indigo-500">Samsara re-sync / backfill</RouterLink>
+          to re-anchor odometer readings, then check <RouterLink to="/coverage" class="text-indigo-600 hover:text-indigo-500">Coverage</RouterLink> to see how many fills could be verified.
+        </p>
       </div>
       <template v-else>
         <div class="overflow-x-auto">

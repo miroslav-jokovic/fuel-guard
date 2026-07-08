@@ -45,7 +45,12 @@ export function makeSamsaraFetcher(env: Env, token: string): SamsaraFetcher {
       url.searchParams.set("endTime", endIso);
       // gps (location + odometer) + fuelPercents (coarse tank level, for the advisory tank-fill check).
       url.searchParams.set("types", "gps,fuelPercents");
-      url.searchParams.set("decorations", "obdOdometerMeters");
+      // Request BOTH odometer sources. Samsara reports OBD (from the ECU — most accurate) when available,
+      // else a GPS-derived odometer; a vehicle uses one or the other, never both. Asking only for OBD
+      // meant trucks without ECU odometer coverage returned NO historical odometer at all (their dashboard
+      // value is the GPS one), so their fills couldn't be checked. parseSamsaraSamples prefers OBD and
+      // falls back to GPS; any constant GPS↔dash calibration bias is absorbed by the learned per-truck offset.
+      url.searchParams.set("decorations", "obdOdometerMeters,gpsOdometerMeters");
       if (after) url.searchParams.set("after", after);
       const res = await samsaraFetch(env, token, url);
       if (!res.ok) throw new Error(`Samsara API ${res.status}`);

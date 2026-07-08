@@ -46,6 +46,10 @@ export function useOdometerMismatches() {
           .gte("fueled_at", from)
           .not("odometer", "is", null)
           .not("samsara_odometer", "is", null)
+          // Only compare when the Samsara odometer was captured AT a confirmed fueling moment (tank-rise
+          // or at-station stop). samsara_odometer_at is set only by the gated pipeline, so this excludes
+          // stale / un-anchored readings that produced hours-off "phantom" mismatches.
+          .not("samsara_odometer_at", "is", null)
           .order("fueled_at", { ascending: false })
           .range(offset, offset + PAGE - 1);
         if (error) throw new Error(error.message);
