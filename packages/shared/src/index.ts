@@ -14,6 +14,7 @@ export * from "./dashboard.js";
 export * from "./reeferCoverage.js";
 export * from "./detectionMetrics.js";
 export * from "./detectionCoverage.js";
+export * from "./recallMetrics.js";
 export * from "./org.js";
 export * from "./email.js";
 export * from "./samsara.js";

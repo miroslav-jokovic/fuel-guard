@@ -269,3 +269,26 @@ alter table anomalies add column if not exists disposition_by  uuid references a
 alter table anomalies add column if not exists disposition_at  timestamptz;
 create index if not exists idx_anomalies_disposition on anomalies (org_id, disposition, fueled_at desc)
   where disposition is not null;
+
+-- ── 0035: recall sampling audit (verdicts on cleared fills + random-sample RPC) ──────────────────────
+alter table fuel_transactions add column if not exists audit_verdict text
+  check (audit_verdict in ('clean', 'missed'));
+alter table fuel_transactions add column if not exists audit_note text;
+alter table fuel_transactions add column if not exists audit_by   uuid references auth.users(id);
+alter table fuel_transactions add column if not exists audit_at   timestamptz;
+create index if not exists idx_ftxn_audit on fuel_transactions (org_id, audit_verdict) where audit_verdict is not null;
+create or replace function sample_clear_transactions(p_org uuid, p_limit int)
+returns setof fuel_transactions
+language sql
+stable
+as $$
+  select *
+  from fuel_transactions
+  where org_id = p_org
+    and coalesce(has_anomaly, false) = false
+    and audit_verdict is null
+    and samsara_recon_at is not null
+    and tank_type is distinct from 'reefer'
+  order by random()
+  limit greatest(coalesce(p_limit, 0), 0);
+$$;

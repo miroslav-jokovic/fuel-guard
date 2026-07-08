@@ -6,7 +6,7 @@ import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import { apiFetch } from "@/lib/api";
-import type { DetectionMetrics } from "@fuelguard/shared";
+import type { DetectionMetrics, RecallMetrics } from "@fuelguard/shared";
 import { useToastStore } from "@/stores/toast";
 
 const toast = useToastStore();
@@ -80,6 +80,14 @@ async function loadMetrics() {
 }
 onMounted(loadMetrics);
 const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
+
+// Estimated recall (from the sampled audit) — shown alongside precision to complete the accuracy picture.
+const recall = ref<RecallMetrics | null>(null);
+async function loadRecall() {
+  const res = await apiFetch<RecallMetrics>("/api/audit/recall-metrics");
+  recall.value = res.ok && res.data ? res.data : null;
+}
+onMounted(loadRecall);
 const precisionTone = computed(() => {
   const p = metrics.value?.precision;
   return p == null ? "text-gray-400" : p >= 0.9 ? "text-green-700" : p >= 0.75 ? "text-amber-700" : "text-red-700";
@@ -155,9 +163,18 @@ async function sendDigest() {
             </table>
           </div>
         </div>
+        <div class="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-gray-100 pt-3 text-sm">
+          <span class="text-gray-500">Estimated recall:</span>
+          <template v-if="recall && recall.audited > 0">
+            <span class="font-semibold text-gray-900">{{ pct(recall.estimatedRecall) }}</span>
+            <span class="text-xs text-gray-400">(range {{ pct(recall.recallLow) }}–{{ pct(recall.recallHigh) }}, from {{ recall.audited }} audits)</span>
+          </template>
+          <span v-else class="text-gray-400">not yet audited</span>
+          <RouterLink to="/recall-audit" class="ml-auto text-xs font-medium text-indigo-600 hover:text-indigo-500">Review cleared fills →</RouterLink>
+        </div>
         <p class="mt-3 text-xs text-gray-400">
-          Precision is measured, not asserted — the interval widens on small samples. Recall (missed theft)
-          needs sampled clears and is tracked separately.
+          Precision and recall are both measured, not asserted — intervals widen on small samples. Recall is
+          estimated from a random audit of cleared, telematics-covered fills.
         </p>
       </template>
       <p v-else class="mt-4 text-sm text-gray-500">

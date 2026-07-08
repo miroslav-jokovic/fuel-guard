@@ -58,3 +58,18 @@ export const DISPOSITION_LABELS: Record<AnomalyDisposition, string> = {
   benign_explained: "Legitimate, explained",
   inconclusive: "Inconclusive",
 };
+
+/**
+ * Verdict a reviewer gives an audited "clear" transaction in the recall sampling program. A random
+ * sample of un-flagged (covered) fills is reviewed; a "missed" verdict is a FALSE NEGATIVE — theft the
+ * engine didn't catch — which is what lets recall be measured rather than guessed.
+ *  - clean  → correctly not flagged (no issue)
+ *  - missed → should have been flagged (a miss / false negative)
+ */
+export const AUDIT_VERDICTS = ["clean", "missed"] as const;
+export type AuditVerdict = (typeof AUDIT_VERDICTS)[number];
+
+export const AUDIT_VERDICT_LABELS: Record<AuditVerdict, string> = {
+  clean: "Clean — correctly cleared",
+  missed: "Missed — should have flagged",
+};

@@ -15,6 +15,7 @@ import { membersRouter } from "./routes/members.js";
 import { transactionsRouter } from "./routes/transactions.js";
 import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
+import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { aiRouter } from "./routes/ai.js";
@@ -88,6 +89,7 @@ export function createApp(env: Env): Express {
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());
+  app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());

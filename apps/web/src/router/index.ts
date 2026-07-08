@@ -50,6 +50,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Detection Coverage" },
   },
   {
+    path: "/recall-audit",
+    name: "recall-audit",
+    component: () => import("@/pages/RecallAuditPage.vue"),
+    meta: { requiresAuth: true, title: "Recall Audit" },
+  },
+  {
     path: "/trailers",
     name: "trailers",
     component: () => import("@/pages/TrailersPage.vue"),
