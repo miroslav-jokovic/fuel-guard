@@ -415,6 +415,12 @@ describe("hardening — tank fill short (Samsara, advisory)", () => {
     expect(ids(ctx())).not.toContain("tank_fill_short");
     expect(ids(ctx({ tankFillShortGal: 0 }))).not.toContain("tank_fill_short");
   });
+  it("does NOT fire on a small sensor-noise shortfall within tolerance", () => {
+    // 0.4 gal short on a 90-gal fill (~27 gal sensor tolerance) is noise, not siphoning — must stay quiet.
+    expect(ids(ctx({ tankFillShortGal: 0.4, tankObservedRiseGal: 89.6 }))).not.toContain("tank_fill_short");
+    // Just under the tolerance still doesn't fire.
+    expect(ids(ctx({ tankFillShortGal: 20 }))).not.toContain("tank_fill_short");
+  });
 });
 
 describe("hardening — expected odometer band (padding)", () => {

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "./efsSync.js";
-import { backfillOrg } from "./scoring.js";
+import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring.js";
 import { startJob, finishJob, latestJob, JobConflictError } from "./jobs.js";
 
 const TARGET_HOUR = 3; // org-local hour to run the nightly self-heal
@@ -37,7 +37,10 @@ export function shouldRunNightly(
 export async function runNightlyReconcile(admin: SupabaseClient, env: Env, orgId: string): Promise<Record<string, unknown>> {
   const efs = await syncFuelEventsFromEfs(admin, orgId, null);
   const rescored = efs.touchedIds.length ? await scoreTouched(admin, env, orgId, efs.touchedIds) : 0;
-  const rebuilt = await backfillOrg(admin, env, orgId, { skipRecon: true });
+  // Rules-only rebuild of RECENT fills (no live Samsara calls). Bounded so the nightly self-heal doesn't
+  // re-score the entire history every night as the fleet grows; a manual Rebuild covers older rows after
+  // a detection-logic change.
+  const rebuilt = await backfillOrg(admin, env, orgId, { skipRecon: true, sinceDays: RECENT_REBUILD_DAYS });
   return {
     driftFixed: efs.inserted + efs.updated, // rows the store repair created/corrected (0 = clean)
     efsInserted: efs.inserted,

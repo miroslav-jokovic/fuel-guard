@@ -1,6 +1,6 @@
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { backfillOrg } from "./scoring.js";
+import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring.js";
 import { writeAudit } from "../lib/audit.js";
 
 /**
@@ -20,7 +20,7 @@ export function startRebuildOnBoot(env: Env): void {
         const { data: orgs } = await admin.from("organizations").select("id");
         let total = 0;
         for (const o of orgs ?? []) {
-          const count = await backfillOrg(admin, env, o.id as string, { skipRecon: true });
+          const count = await backfillOrg(admin, env, o.id as string, { skipRecon: true, sinceDays: RECENT_REBUILD_DAYS });
           total += count;
           await writeAudit(admin, { orgId: o.id as string, action: "transactions.rebuild_on_boot", meta: { count } });
         }

@@ -47,15 +47,24 @@ const integrity = computed(() => {
         kind="backfill"
         endpoint="/api/transactions/backfill"
         action-label="Re-sync now"
-        description="Re-check every fill against Samsara live — recomputes exact fueling location + odometer, fixing false location/odometer flags. Slower (a few minutes)."
-        confirm="Re-check every fill against Samsara live? It recomputes location + odometer for all fills and takes a few minutes in the background."
+        description="Reconcile only NEW / not-yet-reconciled fills against Samsara live — fast and scales with your data. New imports already reconcile themselves; this catches any that were missed."
+      />
+      <JobActionCard
+        v-if="session.admin"
+        title="Full re-reconcile"
+        kind="backfill"
+        endpoint="/api/transactions/backfill"
+        :body="{ full: true }"
+        action-label="Re-reconcile all"
+        description="Re-check EVERY fill against Samsara live (slow, grows with history). Only needed after a detection-logic change that must re-touch old rows — routine syncing does not require this."
+        confirm="Re-check EVERY historical fill against Samsara live? This can take a while and is only needed after a settings/logic change."
       />
       <JobActionCard
         title="Rebuild anomalies"
         kind="rebuild"
         endpoint="/api/transactions/rebuild"
         action-label="Rebuild now"
-        description="Re-score every transaction with the current rules (reuses stored Samsara values — fast). Clears stale/false flags; your review notes are kept."
+        description="Re-score every transaction with the current rules (reuses stored Samsara values — fast, no live calls). Clears stale/false flags after a rule change; your review notes are kept."
         confirm="Re-score every transaction with the current rules? Existing false flags will clear; your notes are kept."
       />
     </div>

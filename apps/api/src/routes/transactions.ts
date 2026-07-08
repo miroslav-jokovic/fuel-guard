@@ -232,10 +232,14 @@ export function transactionsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const actorId = req.auth!.userId;
+      // Incremental by default: reconcile only fills NEVER reconciled (new/failed rows) — this scales as
+      // the fleet grows instead of re-fetching Samsara for the entire history every time. `full: true`
+      // forces a complete re-reconcile (use after a detection-logic change that must re-touch old rows).
+      const full = (req.body as { full?: boolean } | undefined)?.full === true;
       const result = await runJob(admin, orgId, "backfill", async (report) => {
-        const count = await backfillOrg(admin, env, orgId, {}, report);
-        await writeAudit(admin, { orgId, actorId, action: "transactions.backfill", meta: { count } });
-        return { count };
+        const count = await backfillOrg(admin, env, orgId, full ? {} : { onlyUnreconciled: true }, report);
+        await writeAudit(admin, { orgId, actorId, action: "transactions.backfill", meta: { count, full } });
+        return { count, full };
       }, { requestedBy: actorId });
       jobResponse(res, result);
     }),

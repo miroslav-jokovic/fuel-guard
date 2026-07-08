@@ -164,6 +164,41 @@ export interface ScoreOpts {
   skipRecon?: boolean;
 }
 
+/** Bulk-scope filters for backfillOrg — keep routine runs incremental instead of re-processing history. */
+export interface BackfillOpts extends ScoreOpts {
+  /** Only rows never Samsara-reconciled (samsara_recon_at IS NULL) — the routine "catch up new fills". */
+  onlyUnreconciled?: boolean;
+  /** Only fills within the last N days — bounds auto rebuilds so they don't re-score the whole history. */
+  sinceDays?: number;
+}
+
+/** How far back the AUTOMATIC (nightly / on-boot) rules-rebuild reaches. Manual /rebuild is unbounded. */
+export const RECENT_REBUILD_DAYS = 180;
+
+/**
+ * Collect EVERY matching transaction id for an org, paging past PostgREST's 1000-row cap (a single
+ * .select() silently returns only the first 1000 — so an un-paged backfill skips everything beyond it).
+ * Optional filters keep routine runs cheap: onlyUnreconciled = never-reconciled rows; sinceDays = recent.
+ */
+async function collectTxnIds(admin: SupabaseClient, orgId: string, opts: { onlyUnreconciled?: boolean; sinceDays?: number } = {}): Promise<string[]> {
+  const PAGE = 1000;
+  const ids: string[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    let q = admin.from("fuel_transactions").select("id").eq("org_id", orgId);
+    if (opts.onlyUnreconciled) q = q.is("samsara_recon_at", null);
+    if (opts.sinceDays != null) q = q.gte("fueled_at", new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString());
+    const { data } = await q
+      .order("vehicle_id", { ascending: true })
+      .order("fueled_at", { ascending: true })
+      .order("created_at", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    const batch = ((data ?? []) as { id: string }[]).map((x) => x.id);
+    ids.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return ids;
+}
+
 export async function scoreTransaction(
   admin: SupabaseClient,
   env: Env,
@@ -567,21 +602,15 @@ export async function backfillOrg(
   admin: SupabaseClient,
   env: Env,
   orgId: string,
-  opts: ScoreOpts = {},
+  opts: BackfillOpts = {},
   onProgress?: ProgressFn,
 ): Promise<number> {
-  const { data: rows } = await admin
-    .from("fuel_transactions")
-    .select("id")
-    .eq("org_id", orgId)
-    .order("vehicle_id", { ascending: true })
-    .order("fueled_at", { ascending: true })
-    .order("created_at", { ascending: true });
-  const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
+  const { onlyUnreconciled, sinceDays, ...scoreOpts } = opts;
+  const ids = await collectTxnIds(admin, orgId, { onlyUnreconciled, sinceDays });
   const total = ids.length;
   let done = 0;
   for (const id of ids) {
-    await scoreTransaction(admin, env, orgId, id, opts);
+    await scoreTransaction(admin, env, orgId, id, scoreOpts);
     done++;
     if (onProgress && (done % 50 === 0 || done === total)) await onProgress(done, total);
   }
@@ -596,15 +625,22 @@ export async function scoreImport(
   importId: string,
   onProgress?: ProgressFn,
 ): Promise<number> {
-  const { data: rows } = await admin
-    .from("fuel_transactions")
-    .select("id")
-    .eq("org_id", orgId)
-    .eq("import_id", importId)
-    .order("vehicle_id", { ascending: true })
-    .order("fueled_at", { ascending: true })
-    .order("created_at", { ascending: true });
-  const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
+  const PAGE = 1000;
+  const ids: string[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await admin
+      .from("fuel_transactions")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("import_id", importId)
+      .order("vehicle_id", { ascending: true })
+      .order("fueled_at", { ascending: true })
+      .order("created_at", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    const batch = ((data ?? []) as { id: string }[]).map((x) => x.id);
+    ids.push(...batch);
+    if (batch.length < PAGE) break;
+  }
   const total = ids.length;
   let done = 0;
   for (const id of ids) {
@@ -623,14 +659,21 @@ export async function scoreVehicle(
   vehicleId: string,
   opts: ScoreOpts = {},
 ): Promise<number> {
-  const { data: rows } = await admin
-    .from("fuel_transactions")
-    .select("id")
-    .eq("org_id", orgId)
-    .eq("vehicle_id", vehicleId)
-    .order("fueled_at", { ascending: true })
-    .order("created_at", { ascending: true });
-  const ids = ((rows ?? []) as { id: string }[]).map((x) => x.id);
+  const PAGE = 1000;
+  const ids: string[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await admin
+      .from("fuel_transactions")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("vehicle_id", vehicleId)
+      .order("fueled_at", { ascending: true })
+      .order("created_at", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    const batch = ((data ?? []) as { id: string }[]).map((x) => x.id);
+    ids.push(...batch);
+    if (batch.length < PAGE) break;
+  }
   for (const id of ids) await scoreTransaction(admin, env, orgId, id, opts);
   return ids.length;
 }

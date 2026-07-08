@@ -224,6 +224,14 @@ function median(nums: number[]): number {
   return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
 }
 
+/**
+ * Sensor tolerance for the advisory tank-fill-short check. Samsara's OBD tank-% reading is coarse, so a
+ * billed-vs-observed gap under the LARGER of {floor gal, pct of the bill} is treated as noise, not a
+ * shortfall. Mirrors reconcileTankFill's defaults. Exposed so it's discoverable and tunable in one place.
+ */
+export const TANK_FILL_MIN_TOLERANCE_GAL = 15;
+export const TANK_FILL_TOLERANCE_PCT = 0.3;
+
 export function recentMpgSeries(ordered: TxnView[]): number[] {
   const out: number[] = [];
   for (let i = 1; i < ordered.length; i++) {
@@ -546,17 +554,21 @@ function ruleLocationMismatch(ctx: RuleContext): RuleResult {
  */
 function ruleTankFillShort(ctx: RuleContext): RuleResult {
   const short = ctx.tankFillShortGal;
-  if (short != null && short > 0) {
-    const observed = ctx.tankObservedRiseGal;
-    return {
-      ruleId: "tank_fill_short",
-      fired: true,
-      severity: "low",
-      message: `Telematics tank level rose ~${observed != null ? r2(observed) : "?"} gal, about ${r2(short)} gal less than the ${ctx.txn.gallons} gal billed (coarse sensor — review).`,
-      evidence: { gallonsBilled: ctx.txn.gallons, observedRiseGal: observed, shortGal: r2(short) },
-    };
-  }
-  return none("tank_fill_short");
+  if (short == null || short <= 0) return none("tank_fill_short");
+  // Samsara's tank-% sensor is COARSE, so a small gap between billed gallons and the observed rise is
+  // sensor noise, not siphoning. Only flag a shortfall that clears a generous tolerance — the LARGER of an
+  // absolute floor or a fraction of the bill. (A few tenths of a gallon off a 168-gal fill must never feed
+  // a theft case.) Mirrors reconcileTankFill's defaults; applied HERE so a cheap re-score fixes prior rows.
+  const tol = Math.max(TANK_FILL_MIN_TOLERANCE_GAL, ctx.txn.gallons * TANK_FILL_TOLERANCE_PCT);
+  if (short <= tol) return none("tank_fill_short");
+  const observed = ctx.tankObservedRiseGal;
+  return {
+    ruleId: "tank_fill_short",
+    fired: true,
+    severity: "low",
+    message: `Telematics tank level rose ~${observed != null ? r2(observed) : "?"} gal, about ${r2(short)} gal less than the ${ctx.txn.gallons} gal billed — beyond the ~${r2(tol)} gal sensor tolerance (coarse sensor — review).`,
+    evidence: { gallonsBilled: ctx.txn.gallons, observedRiseGal: observed, shortGal: r2(short), toleranceGal: r2(tol) },
+  };
 }
 
 /**

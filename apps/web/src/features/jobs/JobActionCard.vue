@@ -11,6 +11,8 @@ const props = defineProps<{
   actionLabel: string;
   confirm?: string;
   disabled?: boolean;
+  /** Optional JSON body sent with the POST (e.g. { full: true } for a full re-reconcile). */
+  body?: Record<string, unknown>;
 }>();
 
 const toast = useToastStore();
@@ -18,7 +20,7 @@ const { isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh }
 
 async function run() {
   if (props.confirm && !window.confirm(props.confirm)) return;
-  const res = await apiFetch(props.endpoint, { method: "POST" });
+  const res = await apiFetch(props.endpoint, { method: "POST", body: props.body });
   if (res.ok) {
     toast.success(`${props.title} started`, "Running in the background — progress shows here.");
     refresh();
