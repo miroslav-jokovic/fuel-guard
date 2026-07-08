@@ -31,7 +31,7 @@ export function anomaliesRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const id = String(req.params.id ?? "");
-      const { status, note, version } = res.locals.body as AnomalyTransition;
+      const { status, note, disposition, version } = res.locals.body as AnomalyTransition;
 
       const { data: cur } = await admin
         .from("anomalies")
@@ -57,6 +57,13 @@ export function anomaliesRouter(): Router {
       if (status === "resolved" || status === "dismissed") {
         patch.resolved_by = req.auth!.userId;
         patch.resolved_at = new Date().toISOString();
+        // Ground-truth outcome for the accuracy program. Only recorded on close; a reopened case that is
+        // later re-closed overwrites it (latest reviewer judgment wins).
+        if (disposition) {
+          patch.disposition = disposition;
+          patch.disposition_by = req.auth!.userId;
+          patch.disposition_at = new Date().toISOString();
+        }
       }
 
       // Re-assert the version in the WHERE clause to defeat a race.
@@ -79,7 +86,7 @@ export function anomaliesRouter(): Router {
         action: "anomaly.status_changed",
         entity: "anomalies",
         entityId: id,
-        meta: { from: cur.status, to: status },
+        meta: { from: cur.status, to: status, disposition: disposition ?? null },
       });
       res.json({ ok: true });
     }),

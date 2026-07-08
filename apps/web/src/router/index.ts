@@ -44,6 +44,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Odometer Mismatches" },
   },
   {
+    path: "/coverage",
+    name: "coverage",
+    component: () => import("@/pages/CoveragePage.vue"),
+    meta: { requiresAuth: true, title: "Detection Coverage" },
+  },
+  {
     path: "/trailers",
     name: "trailers",
     component: () => import("@/pages/TrailersPage.vue"),

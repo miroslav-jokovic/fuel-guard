@@ -20,6 +20,8 @@ const paged = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+const fmtDateTime = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const fmtOdo = (n: number) => `${Math.round(n).toLocaleString()} mi`;
 const signed = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n).toLocaleString()} mi`;
 
@@ -47,6 +49,11 @@ const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
       reading at the fueling moment by more than ±{{ tolerance }} mi, after each truck's learned dash↔OBD
       calibration. This is a review surface — it never raises alerts on its own, but a driver who
       consistently pads the odometer shows up here even when no theft case fired.
+    </p>
+    <p class="-mt-4 text-xs text-gray-400">
+      The Samsara value is the odometer read <em>at the fueling moment</em> (anchored to the tank-fill event
+      or the at-station stop). Fills where telematics can't confirm the fueling-time reading are excluded, so
+      what you see are real driver-entry discrepancies — not stale "latest odometer" noise.
     </p>
 
     <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -112,7 +119,10 @@ const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
                 </td>
                 <td class="px-4 py-3 text-gray-700">{{ r.driverName ?? "—" }}</td>
                 <td class="px-4 py-3 text-right text-gray-700">{{ fmtOdo(r.entered) }}</td>
-                <td class="px-4 py-3 text-right text-gray-700">{{ fmtOdo(r.samsara) }}</td>
+                <td class="px-4 py-3 text-right text-gray-700">
+                  {{ fmtOdo(r.samsara) }}
+                  <div v-if="r.samsaraOdometerAt" class="text-xs font-normal text-gray-400">read {{ fmtDateTime(r.samsaraOdometerAt) }}</div>
+                </td>
                 <td class="px-4 py-3 text-right text-gray-500">{{ r.offset ? signed(r.offset) : "—" }}</td>
                 <td class="px-4 py-3 text-right font-semibold" :class="Math.abs(r.diff) > tolerance * 3 ? 'text-red-700' : 'text-amber-600'">{{ signed(r.diff) }}</td>
                 <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', basis(r.timeBasis).cls]">{{ basis(r.timeBasis).label }}</span></td>

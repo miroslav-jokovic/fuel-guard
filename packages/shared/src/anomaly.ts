@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AnomalySeverity, AnomalyStatus } from "./constants.js";
+import { ANOMALY_DISPOSITIONS, type AnomalyDisposition, type AnomalySeverity, type AnomalyStatus } from "./constants.js";
 import { RULE_IDS } from "./anomalyRules.js";
 
 /** An anomaly row as the web reads it. */
@@ -18,6 +18,10 @@ export interface Anomaly {
   resolved_by: string | null;
   resolved_at: string | null;
   resolution_note: string | null;
+  /** Ground-truth outcome recorded at close (null until disposed). Drives the accuracy metrics. */
+  disposition?: AnomalyDisposition | null;
+  disposition_by?: string | null;
+  disposition_at?: string | null;
   version: number;
   /** Transaction fueling time (denormalized) — filter/sort the queue by when the fill happened. */
   fueled_at?: string | null;
@@ -33,6 +37,11 @@ export const anomalyTransitionSchema = z
   .object({
     status: z.enum(["investigating", "resolved", "dismissed"]),
     note: z.string().trim().max(2000).optional(),
+    /**
+     * Ground-truth outcome. Optional on the wire (back-compat), but the UI requires it when closing a
+     * case so the accuracy program always has a label. Only meaningful on resolve/dismiss.
+     */
+    disposition: z.enum(ANOMALY_DISPOSITIONS).optional(),
     version: z.number().int().nonnegative(),
   })
   .refine((d) => d.status === "investigating" || (d.note && d.note.length > 0), {

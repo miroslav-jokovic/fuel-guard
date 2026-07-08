@@ -34,8 +34,15 @@ export interface ReconInput {
 }
 
 export interface ReconResult {
-  /** Samsara odometer at the fueling moment (miles) → the ±5 reference. */
+  /**
+   * Samsara odometer AT THE FUELING MOMENT (miles) → the ±tolerance reference. Only populated when the
+   * reading is anchored to the physical fill (tank-rise event, an at-station in-city stop, or GPS-confirmed
+   * proximity). When we can't confirm the fill moment we return null rather than a nearest-in-time stop's
+   * odometer (the EFS clock is unreliable) — so a comparison is only made when it's truly at fueling time.
+   */
   crossSourceOdometer: number | null;
+  /** ISO time the odometer reading was taken (the physical-fill anchor). null when no trusted reading. */
+  crossSourceOdometerAt: string | null;
   /** Truck in the SAME state as the EFS station at the fueling time? false = mismatch, null = unknown. */
   locationMatched: boolean | null;
   /** Confidence tier: gps_confirmed | in_state | mismatch | unknown. */
@@ -154,13 +161,27 @@ export async function reconcileWithSamsara(
   if (input.preciseTime) {
     const stop = matchFuelingStop(samples, { state: input.state, city: input.city }, input.fueledAt, { stoppedMph: 5 });
     const { confidence, matched } = resolveLocationConfidence(stop, proximityMiles, proxThreshold, mismatchVeto);
-    // Odometer + fueling instant: the tank-rise event wins (report-time-independent); else the stop.
-    const odo = fuelEvent?.odometerMiles ?? stop.odometerMiles;
+    // Fueling INSTANT for time-of-day / interval rules: tank-rise event wins (report-time-independent); else
+    // the nearest matched stop. (Unchanged — location/time recovery is separate from odometer trust.)
     const at = fuelEvent?.at ?? stop.matchedAt;
+    // Odometer must be read at the PHYSICAL fill, not a nearest-in-time stop off the (unreliable) EFS clock.
+    // Trust it only when anchored by the tank rise, an at-station (in-city) stop, or GPS-confirmed proximity.
+    // Otherwise leave it null — a wrong-time odometer is what made every truck look mismatched.
+    const odoReliable = fuelEvent != null || stop.basis === "in_city" || confidence === "gps_confirmed";
+    let odo: number | null = null;
+    let odoAt: string | null = null;
+    if (fuelEvent?.odometerMiles != null) {
+      odo = fuelEvent.odometerMiles;
+      odoAt = fuelEvent.at;
+    } else if (odoReliable && stop.odometerMiles != null) {
+      odo = stop.odometerMiles;
+      odoAt = stop.matchedAt; // matchFuelingStop reads the odometer at the anchor stop's time
+    }
     const obs = observedFor(stop);
     const tank = computeTankFill(vehicleRaw, at ?? input.fueledAt, input.gallons, input.tankCapacityGal);
     return {
       crossSourceOdometer: odo,
+      crossSourceOdometerAt: odoAt,
       locationMatched: matched,
       locationConfidence: confidence,
       stationLat,
@@ -195,14 +216,17 @@ export async function reconcileWithSamsara(
     state: input.state,
     stationName: input.locationName,
   });
-  // Odometer + instant: tank-rise event wins; else the stopped-in-city sample. Date-only never flags a
-  // location mismatch — it only confirms via proximity.
+  // Odometer + instant: tank-rise event wins; else the stopped-in-city sample (both are physically at the
+  // fill, so both are trusted fueling-time readings). Date-only never flags a location mismatch — it only
+  // confirms via proximity.
   const odo = fuelEvent?.odometerMiles ?? match?.samsaraOdometerMiles ?? null;
   const at = fuelEvent?.at ?? match?.matchedAt ?? null;
+  const odoAt = odo != null ? (fuelEvent?.at ?? match?.matchedAt ?? null) : null;
   const obs = observedFor({});
   const tank = computeTankFill(vehicleRaw, at ?? input.fueledAt, input.gallons, input.tankCapacityGal);
   return {
     crossSourceOdometer: odo,
+    crossSourceOdometerAt: odoAt,
     locationMatched: nearStation ? true : null,
     locationConfidence: nearStation ? "gps_confirmed" : "unknown",
     stationLat,

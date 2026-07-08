@@ -6,6 +6,7 @@ import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import { apiFetch } from "@/lib/api";
+import type { DetectionMetrics } from "@fuelguard/shared";
 import { useToastStore } from "@/stores/toast";
 
 const toast = useToastStore();
@@ -68,6 +69,22 @@ const accTone = (pct: number | null) =>
 watch([from, to, by], loadAccuracy);
 onMounted(loadAccuracy);
 
+// ── Detection accuracy (measured precision from reviewer dispositions) ────────
+const metrics = ref<DetectionMetrics | null>(null);
+const metricsLoading = ref(false);
+async function loadMetrics() {
+  metricsLoading.value = true;
+  const res = await apiFetch<DetectionMetrics>("/api/reports/detection-metrics");
+  metricsLoading.value = false;
+  metrics.value = res.ok && res.data ? res.data : null;
+}
+onMounted(loadMetrics);
+const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
+const precisionTone = computed(() => {
+  const p = metrics.value?.precision;
+  return p == null ? "text-gray-400" : p >= 0.9 ? "text-green-700" : p >= 0.75 ? "text-amber-700" : "text-red-700";
+});
+
 const sendingDigest = ref(false);
 async function sendDigest() {
   sendingDigest.value = true;
@@ -81,6 +98,74 @@ async function sendDigest() {
 
 <template>
   <div class="space-y-6">
+    <!-- Detection accuracy — the measured trust metric -->
+    <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">Detection accuracy <span class="font-normal text-gray-400">(all-time)</span></h2>
+          <p class="text-sm text-gray-500">Measured from reviewer outcomes — precision is how often a raised case was a real issue.</p>
+        </div>
+      </div>
+
+      <div v-if="metricsLoading" class="mt-4 text-sm text-gray-400">Loading…</div>
+      <template v-else-if="metrics && metrics.decided > 0">
+        <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Precision</dt>
+            <dd class="mt-1 text-2xl font-bold" :class="precisionTone">{{ pct(metrics.precision) }}</dd>
+            <dd class="mt-0.5 text-xs text-gray-400">95% CI {{ pct(metrics.precisionCiLow) }}–{{ pct(metrics.precisionCiHigh) }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Non-issue rate</dt>
+            <dd class="mt-1 text-2xl font-bold text-gray-900">{{ pct(metrics.nonIssueRate) }}</dd>
+            <dd class="mt-0.5 text-xs text-gray-400">false alarms + legitimate, explained</dd>
+          </div>
+          <div>
+            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Reviewed</dt>
+            <dd class="mt-1 text-2xl font-bold text-gray-900">{{ metrics.decided.toLocaleString() }}<span class="text-base font-normal text-gray-400"> cases</span></dd>
+            <dd class="mt-0.5 text-xs text-gray-400">{{ metrics.confirmed }} confirmed · {{ metrics.inconclusive }} inconclusive</dd>
+          </div>
+          <div>
+            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Awaiting review</dt>
+            <dd class="mt-1 text-2xl font-bold text-gray-900">{{ metrics.pending.toLocaleString() }}</dd>
+            <dd class="mt-0.5 text-xs text-gray-400">label these to sharpen the number</dd>
+          </div>
+        </div>
+
+        <div v-if="metrics.perLeadRule.length" class="mt-5">
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Precision by lead signal</p>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+              <thead class="text-left text-gray-500">
+                <tr>
+                  <th class="py-2 pr-4 font-medium">Signal</th>
+                  <th class="py-2 pr-4 font-medium text-right">Reviewed</th>
+                  <th class="py-2 pr-4 font-medium text-right">Confirmed</th>
+                  <th class="py-2 font-medium text-right">Precision</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="r in metrics.perLeadRule" :key="r.ruleId">
+                  <td class="py-2 pr-4 text-gray-900">{{ r.label }}</td>
+                  <td class="py-2 pr-4 text-right text-gray-700">{{ r.decided }}</td>
+                  <td class="py-2 pr-4 text-right text-gray-700">{{ r.confirmed }}</td>
+                  <td class="py-2 text-right font-medium" :class="r.precision == null ? 'text-gray-400' : r.precision >= 0.9 ? 'text-green-700' : r.precision >= 0.75 ? 'text-amber-700' : 'text-red-700'">{{ pct(r.precision) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-gray-400">
+          Precision is measured, not asserted — the interval widens on small samples. Recall (missed theft)
+          needs sampled clears and is tracked separately.
+        </p>
+      </template>
+      <p v-else class="mt-4 text-sm text-gray-500">
+        No reviewed cases yet. Resolve or dismiss cases in the Anomalies queue and record an outcome —
+        once you've labeled a few, your measured precision appears here.
+      </p>
+    </div>
+
     <div class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>

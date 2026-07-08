@@ -1,6 +1,6 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
-import { toCsv, aggregateDashboard, odometerAccuracy, type FuelTransaction, type Anomaly, type OdoRow } from "@fuelguard/shared";
+import { toCsv, aggregateDashboard, odometerAccuracy, computeDetectionMetrics, CASE_RULE_ID, type FuelTransaction, type Anomaly, type OdoRow, type DispositionCaseInput } from "@fuelguard/shared";
 import { generateAndSendDigest } from "../services/digest.js";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { asyncHandler } from "../lib/http.js";
@@ -69,9 +69,50 @@ async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, t
   }));
 }
 
+/**
+ * Load every theft CASE for the org (not superseded), reduced to the accuracy-metric inputs: the
+ * reviewer disposition, when it was decided, and the lead signal (top-weighted rule in the evidence).
+ * Paged so a large history isn't silently capped at PostgREST's 1000-row limit.
+ */
+async function loadCaseDispositions(admin: SupabaseClient, orgId: string): Promise<DispositionCaseInput[]> {
+  const PAGE = 1000;
+  const out: DispositionCaseInput[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await admin
+      .from("anomalies")
+      .select("disposition, disposition_at, evidence")
+      .eq("org_id", orgId)
+      .eq("rule_id", CASE_RULE_ID)
+      .neq("status", "superseded")
+      .order("created_at", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    const batch = (data ?? []) as { disposition: string | null; disposition_at: string | null; evidence: { signals?: { ruleId?: string }[] } | null }[];
+    for (const r of batch) {
+      out.push({
+        disposition: (r.disposition as DispositionCaseInput["disposition"]) ?? null,
+        disposedAt: r.disposition_at,
+        // Lead signal = the top-weighted rule (correlateSignals sorts signals by weight desc).
+        leadRuleId: r.evidence?.signals?.[0]?.ruleId ?? null,
+      });
+    }
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
 export function reportsRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg, requireRole("admin", "fleet_manager", "auditor"));
+
+  // detection-accuracy (JSON) — measured precision, confidence interval, FP rate, per-signal + trend.
+  router.get(
+    "/detection-metrics",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      res.json(computeDetectionMetrics(await loadCaseDispositions(admin, orgId)));
+    }),
+  );
 
   // Send the weekly theft digest NOW (for testing / on-demand). Emails the org's recipients.
   router.post(

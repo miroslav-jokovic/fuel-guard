@@ -33,3 +33,28 @@ export const ANOMALY_STATUSES = [
   "superseded",
 ] as const;
 export type AnomalyStatus = (typeof ANOMALY_STATUSES)[number];
+
+/**
+ * Ground-truth OUTCOME a reviewer records when closing a case — the label the whole accuracy
+ * program is built on. Distinct from workflow `status`: status is "where is this in the queue",
+ * disposition is "was the flag right".
+ *  - confirmed        → a real theft/misuse issue (TRUE positive)
+ *  - false_positive   → the flag was wrong: bad data, a telematics gap, a parsing artifact (FALSE positive)
+ *  - benign_explained → the fact was real but the behavior was legitimate (not wrongdoing; not a true issue)
+ *  - inconclusive     → couldn't be determined → EXCLUDED from precision (no ground truth)
+ */
+export const ANOMALY_DISPOSITIONS = [
+  "confirmed",
+  "false_positive",
+  "benign_explained",
+  "inconclusive",
+] as const;
+export type AnomalyDisposition = (typeof ANOMALY_DISPOSITIONS)[number];
+
+/** Human labels for dispositions (UI + reports). */
+export const DISPOSITION_LABELS: Record<AnomalyDisposition, string> = {
+  confirmed: "Confirmed issue",
+  false_positive: "False alarm",
+  benign_explained: "Legitimate, explained",
+  inconclusive: "Inconclusive",
+};

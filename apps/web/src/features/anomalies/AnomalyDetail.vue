@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { formatRuleId, type Anomaly } from "@fuelguard/shared";
+import { formatRuleId, ANOMALY_DISPOSITIONS, DISPOSITION_LABELS, type Anomaly, type AnomalyDisposition } from "@fuelguard/shared";
 import { useTransaction, useAnomalyTransition, useRelatedCardFills } from "./useAnomalies";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useDriversQuery } from "@/features/fleet/useDrivers";
@@ -105,6 +105,9 @@ const formatKey = (k: string) => k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.
 // ── workflow ──────────────────────────────────────────────────────────────────
 const toast = useToastStore();
 const note  = ref("");
+// Ground-truth outcome, required when closing a case — this is what the accuracy metrics measure.
+const disposition = ref<AnomalyDisposition | "">("");
+const DISPOSITION_OPTIONS = ANOMALY_DISPOSITIONS.map((d) => ({ value: d, label: DISPOSITION_LABELS[d] }));
 
 const STATUS_LABELS: Record<string, string> = {
   investigating: "Marked as investigating",
@@ -113,9 +116,21 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 async function doTransition(status: "investigating" | "resolved" | "dismissed") {
+  // Closing a case must record whether the flag was right — no silent, unlabeled closes.
+  if ((status === "resolved" || status === "dismissed") && !disposition.value) {
+    toast.error("Pick an outcome", "Select whether this was a confirmed issue, a false alarm, legitimate, or inconclusive.");
+    return;
+  }
   try {
-    await transition.mutateAsync({ id: props.anomaly.id, status, note: note.value || undefined, version: props.anomaly.version });
+    await transition.mutateAsync({
+      id: props.anomaly.id,
+      status,
+      note: note.value || undefined,
+      disposition: disposition.value || undefined,
+      version: props.anomaly.version,
+    });
     note.value = "";
+    disposition.value = "";
     toast.success(STATUS_LABELS[status] ?? "Status updated");
     emit("changed");
   } catch (e) {
@@ -125,7 +140,7 @@ async function doTransition(status: "investigating" | "resolved" | "dismissed") 
 
 async function doFalseAlarm() {
   try {
-    await transition.mutateAsync({ id: props.anomaly.id, status: "dismissed", note: "False alarm", version: props.anomaly.version });
+    await transition.mutateAsync({ id: props.anomaly.id, status: "dismissed", note: "False alarm", disposition: "false_positive", version: props.anomaly.version });
     toast.success("Marked as false alarm");
     emit("changed");
   } catch (e) {
@@ -407,6 +422,21 @@ async function reexamine() {
       </div>
       <div class="space-y-3">
         <p class="text-xs font-medium text-gray-500">Advance status</p>
+        <div>
+          <p class="mb-1.5 text-xs text-gray-500">Outcome <span class="text-gray-400">(required to resolve or dismiss — this is what measures our accuracy)</span></p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="opt in DISPOSITION_OPTIONS"
+              :key="opt.value"
+              type="button"
+              class="rounded-full px-3 py-1 text-sm ring-1 ring-inset transition-colors"
+              :class="disposition === opt.value ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-gray-700 ring-gray-300 hover:bg-gray-50'"
+              @click="disposition = opt.value"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
         <textarea
           v-model="note"
           rows="2"
@@ -446,6 +476,9 @@ async function reexamine() {
       <p v-else-if="anomaly.resolution_note === 'False alarm'">Marked as false alarm</p>
       <p v-else>
         Dismissed<span v-if="anomaly.resolution_note"> — {{ anomaly.resolution_note }}</span>
+      </p>
+      <p v-if="anomaly.disposition" class="mt-1 text-xs">
+        Outcome: <span class="font-medium text-gray-700">{{ DISPOSITION_LABELS[anomaly.disposition] }}</span>
       </p>
     </div>
 

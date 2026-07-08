@@ -12,6 +12,11 @@ describe("anomalyTransitionSchema", () => {
   it("rejects an invalid status", () => {
     expect(anomalyTransitionSchema.safeParse({ status: "open", version: 1 }).success).toBe(false);
   });
+  it("accepts a valid disposition and rejects an unknown one", () => {
+    expect(anomalyTransitionSchema.safeParse({ status: "resolved", note: "theft", disposition: "confirmed", version: 1 }).success).toBe(true);
+    expect(anomalyTransitionSchema.safeParse({ status: "dismissed", note: "bad data", disposition: "false_positive", version: 1 }).success).toBe(true);
+    expect(anomalyTransitionSchema.safeParse({ status: "resolved", note: "x", disposition: "bogus", version: 1 }).success).toBe(false);
+  });
 });
 
 describe("thresholdsFormSchema", () => {

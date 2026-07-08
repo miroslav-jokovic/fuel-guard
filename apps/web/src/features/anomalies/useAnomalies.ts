@@ -40,7 +40,7 @@ export interface SiblingFill {
 }
 
 const ANOMALY_COLS =
-  "id, org_id, transaction_id, vehicle_id, rule_id, severity, status, message, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, version, fueled_at, created_at, updated_at";
+  "id, org_id, transaction_id, vehicle_id, rule_id, severity, status, message, evidence, source, assigned_to, resolved_by, resolved_at, resolution_note, disposition, disposition_by, disposition_at, version, fueled_at, created_at, updated_at";
 
 const SEV_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
 

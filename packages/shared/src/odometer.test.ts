@@ -85,6 +85,7 @@ describe("odometerMismatches — per-fill listing", () => {
     expect(rep.checked).toBe(4); // a, b, c, d had both readings; e did not
     expect(rep.rows.map((r) => r.id)).toEqual(["c", "b"]); // 200 before 50
     expect(rep.rows[0]!.diff).toBe(200);
+    expect(rep.rows[0]!.samsaraOdometerAt).toBeNull(); // passthrough default
     expect(rep.toleranceMiles).toBe(10);
   });
 

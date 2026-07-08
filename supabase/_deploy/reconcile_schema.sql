@@ -258,3 +258,14 @@ create policy trailers_write on trailers for all
 -- ── 0032: explicit reefer flag (not every trailer is refrigerated) ───────────────────────────────────
 alter table trailers add column if not exists is_reefer boolean not null default false;
 create index if not exists idx_trailers_org_reefer on trailers (org_id, is_reefer);
+
+-- ── 0033: Samsara odometer reading time (physical-fill anchor) ───────────────────────────────────────
+alter table fuel_transactions add column if not exists samsara_odometer_at timestamptz;
+
+-- ── 0034: reviewer ground-truth disposition on cases (accuracy metrics) ──────────────────────────────
+alter table anomalies add column if not exists disposition    text
+  check (disposition in ('confirmed', 'false_positive', 'benign_explained', 'inconclusive'));
+alter table anomalies add column if not exists disposition_by  uuid references auth.users(id);
+alter table anomalies add column if not exists disposition_at  timestamptz;
+create index if not exists idx_anomalies_disposition on anomalies (org_id, disposition, fueled_at desc)
+  where disposition is not null;

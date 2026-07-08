@@ -51,6 +51,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
     expect(recon!.fuelingTimeBasis).toBe("tank_confirmed");
     expect(recon!.matchedAt).toBe("2026-06-30T14:00:00Z"); // the tank stop, not 09:00
     expect(recon!.crossSourceOdometer).toBe(100210);
+    expect(recon!.crossSourceOdometerAt).toBe("2026-06-30T14:00:00Z"); // read AT the tank-rise fill moment
     expect(recon!.observedState).toBe("TX");
     expect(recon!.observedCity).toBe("Dallas");
     expect(recon!.observedLat).toBeCloseTo(32.78, 2);
@@ -70,6 +71,26 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
       noGeocode,
     );
     expect(recon!.fuelingTimeBasis).toBe("stop_estimated"); // stop matched, but no tank confirmation
-    expect(recon!.crossSourceOdometer).toBe(100210);
+    expect(recon!.crossSourceOdometer).toBe(100210); // in-city Dallas stop → trusted fueling-time reading
+    expect(recon!.crossSourceOdometerAt).toBe("2026-06-30T14:00:00Z");
+  });
+
+  it("does NOT trust the odometer when the only stop is in-state but NOT at the station (no tank rise)", () => {
+    // The mass-mismatch bug: EFS says the fill is in Waco, TX, but the truck's only stop that day is in
+    // Dallas, TX (in-state, wrong city) and there's no tank-rise confirmation. Reading that stop's odometer
+    // would be a wrong-time value, so we return null instead — no false mismatch.
+    return reconcileWithSamsara(
+      admin,
+      env,
+      "org1",
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Waco", state: "TX", locationName: null, preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      async () => ({ data: [{ gps: rawStats.data[0]!.gps, fuelPercents: [] }] }), // Dallas stops, no fuel %
+      noGeocode,
+    ).then((recon) => {
+      expect(recon!.locationMatched).toBe(true); // truck WAS in TX
+      expect(recon!.locationConfidence).toBe("in_state");
+      expect(recon!.crossSourceOdometer).toBeNull(); // but not at the Waco station → no trusted odometer
+      expect(recon!.crossSourceOdometerAt).toBeNull();
+    });
   });
 });
