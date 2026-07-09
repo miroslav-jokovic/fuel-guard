@@ -184,6 +184,9 @@ export interface ScoreOpts {
   /** Backfill already tried and FAILED to fetch this vehicle's window — skip recon, leave row unreconciled
    *  (deterministic rules still run). Prevents a per-fill retry after a group fetch already failed. */
   reconUnavailable?: boolean;
+  /** Bulk backfill: reconcile with CACHED geocodes only (skip the live 1-req/sec Nominatim call so
+   *  concurrent workers don't serialize behind it). Exact proximity fills in later via live recon. */
+  geocodeCacheOnly?: boolean;
 }
 
 /** Bulk-scope filters for backfillOrg — keep routine runs incremental instead of re-processing history. */
@@ -321,7 +324,7 @@ export async function scoreTransaction(
         },
         undefined,
         undefined,
-        { token: opts.ctx?.samsaraToken, prefetchedRaw: opts.prefetchedRaw },
+        { token: opts.ctx?.samsaraToken, prefetchedRaw: opts.prefetchedRaw, geocodeCacheOnly: opts.geocodeCacheOnly },
       );
     } catch (e) {
       // Distinguish a Samsara FETCH outage from "no data". On an outage, leave the row unreconciled
@@ -748,8 +751,16 @@ export async function backfillOrg(
   const reconHealth = { attempts: 0, failures: 0 };
   let aborted: Error | null = null;
   let canceled = false;
+  // Lightweight phase timing so we can see WHERE the wall-clock goes (Samsara fetch vs per-fill scoring/DB)
+  // without guessing — logged every 200 fills.
+  const timing = { fetchMs: 0, fetches: 0, scoreMs: 0 };
   const bump = async () => {
     done += 1;
+    if (done % 200 === 0) {
+      const avgFetch = timing.fetches ? Math.round(timing.fetchMs / timing.fetches) : 0;
+      const avgScore = done ? Math.round(timing.scoreMs / done) : 0;
+      console.log(`[backfill] ${done}/${total} — avg fetch ${avgFetch}ms/bucket (${timing.fetches} fetches), avg score ${avgScore}ms/fill`);
+    }
     if (onProgress && (done % 50 === 0 || done === total)) await onProgress(done, total);
   };
 
@@ -786,18 +797,25 @@ export async function backfillOrg(
 
       let raw: unknown = null;
       let failed = false;
+      const tFetch = Date.now();
       try {
         raw = await makeSamsaraFetcher(env, token, "backfill")(svid, new Date(bStart).toISOString(), new Date(bEnd).toISOString());
       } catch {
         failed = true;
       }
+      timing.fetchMs += Date.now() - tFetch;
+      timing.fetches += 1;
       reconHealth.attempts += bucket.length;
       if (failed) reconHealth.failures += bucket.length;
 
       for (const f of bucket) {
         if (aborted || canceled) return;
-        const fillOpts: ScoreOpts = failed ? { ...scoreOpts, ctx, reconUnavailable: true } : { ...scoreOpts, ctx, prefetchedRaw: raw };
+        const fillOpts: ScoreOpts = failed
+          ? { ...scoreOpts, ctx, reconUnavailable: true }
+          : { ...scoreOpts, ctx, prefetchedRaw: raw, geocodeCacheOnly: true };
+        const tScore = Date.now();
         await scoreTransaction(admin, env, orgId, f.id, fillOpts);
+        timing.scoreMs += Date.now() - tScore;
         await bump();
       }
 

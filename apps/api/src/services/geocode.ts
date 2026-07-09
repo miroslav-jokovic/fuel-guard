@@ -41,7 +41,12 @@ function throttle<T>(fn: () => Promise<T>): Promise<T> {
  *  newly added to OSM shouldn't stay "unresolvable" forever. Resolved entries never expire. */
 const UNRESOLVED_RETRY_DAYS = 30;
 
-export async function geocodeStation(admin: SupabaseClient, env: Env, station: StationQuery): Promise<Coords | null> {
+export async function geocodeStation(
+  admin: SupabaseClient,
+  env: Env,
+  station: StationQuery,
+  opts: { cacheOnly?: boolean } = {},
+): Promise<Coords | null> {
   if (!env.GEOCODING_ENABLED) return null;
   if (!norm(station.city) && !norm(station.state) && !norm(station.name)) return null;
 
@@ -62,6 +67,11 @@ export async function geocodeStation(admin: SupabaseClient, env: Env, station: S
     const ageMs = stamp ? Date.now() - new Date(stamp).getTime() : Infinity;
     if (ageMs < UNRESOLVED_RETRY_DAYS * 86_400_000) return null;
   }
+
+  // Bulk backfill path: do NOT make the live, globally-1-req/sec-throttled Nominatim call — it serializes
+  // every concurrent worker behind one lock. Return null (recon falls back to state-level matching); the
+  // exact proximity for this station fills in later via normal live recon. Only cache HITS are used here.
+  if (opts.cacheOnly) return null;
 
   let coords: Coords | null = null;
   try {

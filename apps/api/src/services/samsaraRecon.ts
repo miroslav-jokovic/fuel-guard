@@ -42,6 +42,9 @@ export interface ReconExtra {
   /** Raw stats response already fetched over a window that COVERS this fill's window. When set, reconcile
    *  skips its own fetch and slices these samples to this fill's window (see sliceVehicleToWindow). */
   prefetchedRaw?: unknown;
+  /** Bulk backfill: use only CACHED geocodes, never the live 1-req/sec Nominatim call (which serializes all
+   *  concurrent workers). Recon falls back to state-level matching for uncached stations. */
+  geocodeCacheOnly?: boolean;
 }
 
 /** Slice a raw vehicle stats object's gps + fuelPercents arrays to [startMs, endMs]. Used when samples were
@@ -179,7 +182,7 @@ export async function reconcileWithSamsara(
   // Geocode the station once (cached) and measure how close the truck's GPS came to it that day — the
   // most precise location signal. Best-effort: null when geocoding is off/unresolvable, and we fall
   // back to the state-level presence check.
-  const geocode: StationGeocoder = geocodeOverride ?? ((s) => geocodeStation(admin, env, s));
+  const geocode: StationGeocoder = geocodeOverride ?? ((s) => geocodeStation(admin, env, s, { cacheOnly: extra?.geocodeCacheOnly }));
   const stationCoords = await geocode({ name: input.locationName, city: input.city, state: input.state }).catch(() => null);
   const stationLat = stationCoords?.lat ?? null;
   const stationLng = stationCoords?.lng ?? null;
