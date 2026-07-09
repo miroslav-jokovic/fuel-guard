@@ -3,7 +3,6 @@ import {
   parseSamsaraSamples,
   matchFuelingMoment,
   matchFuelingStop,
-  odometerAtTimeSourced,
   type OdometerSource,
   minSampleDistanceMiles,
   resolveLocationConfidence,
@@ -11,6 +10,7 @@ import {
   parseFuelPercents,
   findFuelingEvent,
   resolveTankFuel,
+  resolveOdometer,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
@@ -229,9 +229,9 @@ export async function reconcileWithSamsara(
     // Then read the odometer AT that anchor (OBD/GPS, or reconstructed from driven distance when no reading
     // is stamped near the moment). Otherwise leave it null — a wrong-time odometer made every truck mismatch.
     const odoReliable = fuelEvent != null || stop.basis === "in_city" || confidence === "gps_confirmed";
-    const reading = at && odoReliable ? odometerAtTimeSourced(samples, at, { maxInterpGapMin: 30, maxReconstructGapMin: 180 }) : null;
+    const reading = resolveOdometer(samples, at, odoReliable);
     const odo = reading?.miles ?? null;
-    const odoAt = reading ? at : null;
+    const odoAt = reading?.at ?? null;
     const odoSource = reading?.source ?? null;
     const obs = observedFor(stop);
     const tank = resolveTankFuel(fuelReadings, at ?? input.fueledAt, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null);
@@ -278,9 +278,9 @@ export async function reconcileWithSamsara(
   // mismatch — it only confirms via proximity.
   const at = fuelEvent?.at ?? match?.matchedAt ?? null;
   const odoReliable = fuelEvent != null || match != null || nearStation;
-  const reading = at && odoReliable ? odometerAtTimeSourced(samples, at, { maxInterpGapMin: 30, maxReconstructGapMin: 180 }) : null;
+  const reading = resolveOdometer(samples, at, odoReliable);
   const odo = reading?.miles ?? null;
-  const odoAt = reading ? at : null;
+  const odoAt = reading?.at ?? null;
   const odoSource = reading?.source ?? null;
   const obs = observedFor({});
   const tank = resolveTankFuel(fuelReadings, at ?? input.fueledAt, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null);
