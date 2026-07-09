@@ -185,7 +185,11 @@ export function toCsv<T extends Record<string, unknown>>(
   columns: { key: keyof T; header: string }[],
 ): string {
   const esc = (v: unknown): string => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    // CSV formula-injection guard (S-1): a cell starting with = + - @ (or a leading tab/CR) is interpreted as
+    // a formula by Excel/Sheets. Untrusted EFS text (driver, station, location) is exported verbatim, so
+    // neutralize it with a leading apostrophe before quoting. RFC-4180 quoting still applies below.
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const head = columns.map((c) => esc(c.header)).join(",");

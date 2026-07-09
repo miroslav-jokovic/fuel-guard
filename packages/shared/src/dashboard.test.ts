@@ -100,6 +100,14 @@ describe("toCsv", () => {
   it("emits just the header for empty input", () => {
     expect(toCsv([], [{ key: "a", header: "A" }])).toBe("A");
   });
+  it("neutralizes CSV formula injection in untrusted cells (S-1)", () => {
+    const csv = toCsv(
+      [{ a: "=1+1", b: "+2" }, { a: "@SUM", b: "-3" }],
+      [{ key: "a", header: "A" }, { key: "b", header: "B" }],
+    );
+    // Each dangerous leading char (= + - @) gets a defusing apostrophe so Excel/Sheets won't execute it.
+    expect(csv).toBe("A,B\n'=1+1,'+2\n'@SUM,'-3");
+  });
 });
 
 describe("aggregateDashboard — org-timezone bucketing + zero-fill (fix #4)", () => {
