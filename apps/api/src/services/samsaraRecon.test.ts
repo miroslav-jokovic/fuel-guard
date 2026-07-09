@@ -75,6 +75,31 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
     expect(recon!.crossSourceOdometerAt).toBe("2026-06-30T14:00:00Z");
   });
 
+  it("flags a location mismatch WITH evidence: truck all day in OK, EFS says TX, far from the geocoded station", async () => {
+    // 8+ OK pings (clears the coverage floor); station geocoded to Dallas TX ~180 mi away (no proximity veto).
+    const okGps = Array.from({ length: 8 }, (_, i) => ({
+      time: `2026-06-30T${String(9 + i).padStart(2, "0")}:00:00Z`,
+      latitude: 35.46,
+      longitude: -97.5,
+      speedMilesPerHour: i < 6 ? 55 : 0,
+      reverseGeo: { formattedLocation: `I-40, Oklahoma City, OK, 7310${i}` },
+    }));
+    const farStationTX = async () => ({ lat: 32.78, lng: -96.8, precision: "site" as const });
+    const recon = await reconcileWithSamsara(
+      admin,
+      env,
+      "org1",
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:00:00", city: "Dallas", state: "TX", locationName: "Pilot Dallas", preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      async () => ({ data: [{ gps: okGps, fuelPercents: [] }] }),
+      farStationTX,
+    );
+    expect(recon!.locationConfidence).toBe("mismatch");
+    expect(recon!.locationMatched).toBe(false);
+    expect(recon!.locationEvidence).not.toBeNull();
+    expect(recon!.locationEvidence!.efsState).toBe("TX");
+    expect(recon!.locationEvidence!.samsaraState).toBe("OK");
+  });
+
   it("throws SamsaraUnavailableError when the Samsara fetch fails — a systemic outage, NOT 'no data' (F1)", async () => {
     const throwingFetcher = () => {
       throw new Error("Samsara API 400"); // e.g. an invalid decoration param

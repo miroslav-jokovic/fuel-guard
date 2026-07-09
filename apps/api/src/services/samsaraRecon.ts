@@ -1,16 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   parseSamsaraSamples,
-  matchFuelingMoment,
-  matchFuelingStop,
   type OdometerSource,
   minSampleDistanceMiles,
-  resolveLocationConfidence,
   type LocationConfidence,
   parseFuelPercents,
   findFuelingEvent,
   resolveTankFuel,
   resolveOdometer,
+  resolveLocation,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
@@ -194,7 +192,6 @@ export async function reconcileWithSamsara(
   // Distance to the station's coordinates at ANY precision (site OR city centroid). Too coarse to CONFIRM
   // a fill, but if the truck came within a generous radius we use it to VETO a false location mismatch.
   const nearMiles = stationCoords ? minSampleDistanceMiles(samples, stationCoords.lat, stationCoords.lng) : null;
-  const mismatchVeto = { nearMiles, minMismatchMiles: env.LOCATION_MISMATCH_MIN_MILES };
 
   // Tank-rise fueling event — the report-time-INDEPENDENT anchor. When present it pins the exact fueling
   // instant, the odometer at that instant, and the truck's observed location (docs/10 §14).
@@ -206,99 +203,60 @@ export async function reconcileWithSamsara(
     tankCapacityGal: input.tankCapacityGal,
     reportedAtIso: input.fueledAt,
   });
-  /** Observed location: prefer the tank-rise stop; else the location-match stop's address; else nulls. */
-  const observedFor = (stop: { observedState?: string | null; observedCity?: string | null; observedAddress?: string | null }) =>
-    fuelEvent
-      ? { observedState: fuelEvent.observedState, observedCity: fuelEvent.observedCity, observedAddress: fuelEvent.observedAddress, observedLat: fuelEvent.observedLat, observedLng: fuelEvent.observedLng }
-      : { observedState: stop.observedState ?? null, observedCity: stop.observedCity ?? null, observedAddress: stop.observedAddress ?? null, observedLat: null, observedLng: null };
   /** How the fueling instant was determined (confidence ladder). */
   const basisFor = (hasStopTime: boolean): ReconResult["fuelingTimeBasis"] =>
     fuelEvent ? "tank_confirmed" : input.preciseTime ? (hasStopTime ? "stop_estimated" : "reported") : hasStopTime ? "stop_estimated" : "date_only";
 
-  // ── Precise path: timezone-PROOF presence check over the whole day, corroborated by GPS proximity to
-  // the geocoded station. Location matches when the truck came near the station OR was in the EFS state
-  // that day; a mismatch is raised only when we have solid coverage and neither holds. ──
-  if (input.preciseTime) {
-    const stop = matchFuelingStop(samples, { state: input.state, city: input.city }, input.fueledAt, { stoppedMph: 5 });
-    const { confidence, matched } = resolveLocationConfidence(stop, proximityMiles, proxThreshold, mismatchVeto);
-    // Fueling INSTANT for time-of-day / interval rules: tank-rise event wins (report-time-independent); else
-    // the nearest matched stop. (Unchanged — location/time recovery is separate from odometer trust.)
-    const at = fuelEvent?.at ?? stop.matchedAt;
-    // Odometer must be read at the PHYSICAL fill, not a nearest-in-time stop off the (unreliable) EFS clock.
-    // Trust it only when anchored by the tank rise, an at-station (in-city) stop, or GPS-confirmed proximity.
-    // Then read the odometer AT that anchor (OBD/GPS, or reconstructed from driven distance when no reading
-    // is stamped near the moment). Otherwise leave it null — a wrong-time odometer made every truck mismatch.
-    const odoReliable = fuelEvent != null || stop.basis === "in_city" || confidence === "gps_confirmed";
-    const reading = resolveOdometer(samples, at, odoReliable);
-    const odo = reading?.miles ?? null;
-    const odoAt = reading?.at ?? null;
-    const odoSource = reading?.source ?? null;
-    const obs = observedFor(stop);
-    const tank = resolveTankFuel(fuelReadings, at ?? input.fueledAt, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null);
-    return {
-      crossSourceOdometer: odo,
-      crossSourceOdometerAt: odoAt,
-      crossSourceOdometerSource: odoSource,
-      locationMatched: matched,
-      locationConfidence: confidence,
-      stationLat,
-      stationLng,
-      locationEvidence:
-        confidence === "mismatch"
-          ? {
-              efsCity: input.city,
-              efsState: input.state,
-              samsaraState: obs.observedState,
-              samsaraCity: obs.observedCity,
-              samsaraAddress: obs.observedAddress,
-              nearestMilesToStation: proximityMiles,
-              note: `Samsara shows the truck was never in ${input.state ?? "the EFS state"} at any point across the fueling day${proximityMiles != null ? ` and came no closer than ${proximityMiles} mi to the station` : ""} — the card was used where the truck was not.`,
-            }
-          : null,
-      matchedAt: at,
-      tankFillShortGal: tank.shortGal,
-      tankObservedRiseGal: tank.observedRiseGal,
-      tankPctBefore: tank.pctBefore,
-      tankPctAfter: tank.pctAfter,
-      ...obs,
-      fuelingTimeBasis: basisFor(at != null),
-    };
-  }
-
-  // ── Date-only fallback: no exact time. We never raise a location mismatch, but GPS proximity can still
-  // positively CONFIRM the fill (verified). Recover the odometer from the best stopped-in-city sample. ──
-  const nearStation = proximityMiles != null && proximityMiles <= proxThreshold;
-  const match = matchFuelingMoment(samples, {
-    city: input.city,
-    state: input.state,
-    stationName: input.locationName,
+  // ── S2: location decision (precise + date-only, unified in one module). The tank-rise event's observed
+  // position takes precedence for the reported location + mismatch evidence. ──
+  const anchorObserved = fuelEvent
+    ? { observedState: fuelEvent.observedState, observedCity: fuelEvent.observedCity, observedAddress: fuelEvent.observedAddress, observedLat: fuelEvent.observedLat, observedLng: fuelEvent.observedLng }
+    : null;
+  const loc = resolveLocation({
+    samples,
+    preciseTime: input.preciseTime,
+    efs: { state: input.state, city: input.city, locationName: input.locationName },
+    fueledAt: input.fueledAt,
+    proximityMiles,
+    nearMiles,
+    proxThresholdMiles: proxThreshold,
+    minMismatchMiles: env.LOCATION_MISMATCH_MIN_MILES,
+    anchorObserved,
   });
-  // Odometer + instant: tank-rise event wins; else the stopped-in-city sample (both are physically at the
-  // fill). Read the odometer AT that anchor (OBD/GPS or reconstructed). Date-only never flags a location
-  // mismatch — it only confirms via proximity.
-  const at = fuelEvent?.at ?? match?.matchedAt ?? null;
-  const odoReliable = fuelEvent != null || match != null || nearStation;
-  const reading = resolveOdometer(samples, at, odoReliable);
-  const odo = reading?.miles ?? null;
-  const odoAt = reading?.at ?? null;
-  const odoSource = reading?.source ?? null;
-  const obs = observedFor({});
+
+  // ── S1: the fill anchor. The tank-rise instant (report-time-independent) wins; else the matched stop. ──
+  const at = fuelEvent?.at ?? loc.stopMatchedAt;
+
+  // ── S3: odometer at the anchor. Trust gate kept identical to the prior per-branch logic (PM decision a):
+  // read the odometer only when anchored by a tank rise, an at-station in-city stop, or GPS-confirmed
+  // proximity (precise) / any matched stop or proximity (date-only). ──
+  const trusted = input.preciseTime
+    ? fuelEvent != null || loc.stopBasis === "in_city" || loc.confidence === "gps_confirmed"
+    : fuelEvent != null || loc.stopMatchedAt != null || loc.nearStation;
+  const reading = resolveOdometer(samples, at, trusted);
+
+  // ── S4: tank & fuel level at the anchor. ──
   const tank = resolveTankFuel(fuelReadings, at ?? input.fueledAt, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null);
+
   return {
-    crossSourceOdometer: odo,
-    crossSourceOdometerAt: odoAt,
-    crossSourceOdometerSource: odoSource,
-    locationMatched: nearStation ? true : null,
-    locationConfidence: nearStation ? "gps_confirmed" : "unknown",
+    crossSourceOdometer: reading?.miles ?? null,
+    crossSourceOdometerAt: reading?.at ?? null,
+    crossSourceOdometerSource: reading?.source ?? null,
+    locationMatched: loc.matched,
+    locationConfidence: loc.confidence,
     stationLat,
     stationLng,
-    locationEvidence: null,
+    locationEvidence: loc.evidence,
     matchedAt: at,
     tankFillShortGal: tank.shortGal,
     tankObservedRiseGal: tank.observedRiseGal,
     tankPctBefore: tank.pctBefore,
     tankPctAfter: tank.pctAfter,
-    ...obs,
+    observedState: loc.observedState,
+    observedCity: loc.observedCity,
+    observedAddress: loc.observedAddress,
+    observedLat: loc.observedLat,
+    observedLng: loc.observedLng,
     fuelingTimeBasis: basisFor(at != null),
   };
 }
