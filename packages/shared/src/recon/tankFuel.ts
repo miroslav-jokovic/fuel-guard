@@ -23,12 +23,17 @@ const POST_FILL_PLATEAU_MS = 3 * 3_600_000;
 
 export function resolveTankFuel(
   fuelReadings: TankReading[],
-  matchedAt: string,
+  matchedAt: string | null,
   gallons: number | null,
   tankCapacityGal: number | null,
   tankRisePctAfter: number | null,
+  trusted = true,
 ): TankFuelResult {
-  if (fuelReadings.length === 0) {
+  // pctBefore is only meaningful when we have a REAL, trusted fill moment. Without one (no tank-rise
+  // event and no matched stop → matchedAt null, or a weak anchor), reading the tank level at an
+  // unverified/date-only time would compare the billed gallons against an unrelated tank level and
+  // false-fire the physical tank-space check. In that case return no before-level (rule stays silent).
+  if (fuelReadings.length === 0 || matchedAt == null || !trusted) {
     return { pctBefore: null, pctAfter: tankRisePctAfter, observedRiseGal: null, shortGal: null };
   }
   const before = tankPercentNear(fuelReadings, matchedAt, "before", 120);

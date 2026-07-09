@@ -51,4 +51,26 @@ describe("resolveTankFuel (S4 — tank & fuel level module)", () => {
     expect(r.shortGal).toBeNull();
     expect(r.pctBefore).toBe(20);
   });
+
+  it("yields NO before-level when there is no trusted fill anchor (matchedAt null)", () => {
+    const readings = [R("2026-06-30T11:30:00Z", 59), R("2026-06-30T14:30:00Z", 85)];
+    // No tank-rise event and no matched stop → matchedAt null. Must not read a wrong-time level.
+    const r = resolveTankFuel(readings, null, 124.61, 240, 85);
+    expect(r.pctBefore).toBeNull();
+    expect(r.observedRiseGal).toBeNull();
+    expect(r.pctAfter).toBe(85); // tank-rise after-% still displayed
+  });
+
+  it("yields NO before-level when the anchor is untrusted (weak match), even if a reading exists", () => {
+    // A noon-ish reading looks like 59% full, but the anchor is not a trusted physical fill moment.
+    const readings = [R("2026-06-30T11:30:00Z", 59), R("2026-06-30T14:30:00Z", 85)];
+    const r = resolveTankFuel(readings, "2026-06-30T12:00:00Z", 124.61, 240, null, false);
+    expect(r.pctBefore).toBeNull(); // the tank-space check stays silent
+  });
+
+  it("still computes the before-level for a trusted anchor (explicit trusted=true)", () => {
+    const readings = [R("2026-06-30T13:30:00Z", 20), R("2026-06-30T14:30:00Z", 85)];
+    const r = resolveTankFuel(readings, "2026-06-30T14:00:00Z", 100, 150, null, true);
+    expect(r.pctBefore).toBe(20);
+  });
 });

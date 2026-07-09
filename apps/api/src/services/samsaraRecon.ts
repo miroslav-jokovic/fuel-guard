@@ -235,8 +235,11 @@ export async function reconcileWithSamsara(
     : fuelEvent != null || loc.stopMatchedAt != null || loc.nearStation;
   const reading = resolveOdometer(samples, at, trusted);
 
-  // ── S4: tank & fuel level at the anchor. ──
-  const tank = resolveTankFuel(fuelReadings, at ?? input.fueledAt, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null);
+  // ── S4: tank & fuel level at the anchor. The tank-space check needs the level at the TRUE fill moment,
+  // so pctBefore is gated on the same trusted physical anchor as the odometer (a tank rise, an in-city
+  // stop, or GPS-confirmed proximity). We pass the real anchor `at` (NOT a noon/date-only fallback) so an
+  // unanchored fill yields no before-level and can't false-fire tank_space_exceeded. ──
+  const tank = resolveTankFuel(fuelReadings, at, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null, trusted);
 
   return {
     crossSourceOdometer: reading?.miles ?? null,
