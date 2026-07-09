@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useDeclinedTransactions, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
+import type { DeclinedTransactionRow } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
@@ -9,6 +10,7 @@ import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import SlideOver from "@/components/SlideOver.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
@@ -53,6 +55,9 @@ const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 const fmt = (iso: string) => new Date(iso).toLocaleString();
+
+// Row drill-down: click a decline to inspect its full details + why it was flagged.
+const selectedRow = ref<DeclinedTransactionRow | null>(null);
 
 const rescoring = ref(false);
 async function rescore() {
@@ -131,7 +136,7 @@ async function rescore() {
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 whitespace-nowrap">
-            <tr v-for="d in rows" :key="d.id" class="group hover:bg-gray-50">
+            <tr v-for="d in rows" :key="d.id" class="group cursor-pointer hover:bg-gray-50" @click="selectedRow = d">
               <td class="sticky left-0 z-[1] border-r border-gray-200 bg-white px-4 py-2 font-medium text-gray-900 group-hover:bg-gray-50">{{ d.unit }}</td>
               <td class="px-4 py-2">
                 <span
@@ -168,5 +173,50 @@ async function rescore() {
         @update:page="page = $event"
       />
     </div>
+
+    <!-- Decline detail drill-down -->
+    <SlideOver :open="!!selectedRow" title="Declined attempt" @close="selectedRow = null">
+      <div v-if="selectedRow" class="space-y-5 text-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-lg font-semibold text-gray-900">Unit {{ selectedRow.unit || "—" }}</div>
+            <div class="text-gray-500">{{ fmt(selectedRow.declined_at) }}</div>
+          </div>
+          <span
+            v-if="selectedRow.suspicion_level && selectedRow.suspicion_level !== 'clear'"
+            :class="[BADGE_BASE, suspicionTone(selectedRow.suspicion_level)]"
+            >{{ selectedRow.suspicion_level }}</span
+          >
+          <span v-else class="text-xs text-gray-400">Clear</span>
+        </div>
+
+        <div class="rounded-md bg-red-50 p-3 ring-1 ring-red-100">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{{ selectedRow.error_code }}</span>
+            <span class="font-medium text-red-900">{{ selectedRow.error_description }}</span>
+          </div>
+          <p v-if="selectedRow.policy_name" class="mt-1 text-xs text-red-700">Policy: {{ selectedRow.policy_name.trim() }}</p>
+        </div>
+
+        <div v-if="(selectedRow.suspicion_reasons ?? []).length" class="space-y-2">
+          <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Why it was flagged</h4>
+          <ul class="space-y-1.5">
+            <li v-for="(r, i) in selectedRow.suspicion_reasons ?? []" :key="i" class="flex items-start gap-2 text-gray-700">
+              <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true" />
+              <span>{{ r.detail }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
+          <div><dt class="text-xs text-gray-400">Driver</dt><dd class="text-gray-900">{{ selectedRow.driver_name || "—" }}</dd></div>
+          <div><dt class="text-xs text-gray-400">Card #</dt><dd class="text-gray-900">{{ selectedRow.card_ref || "—" }}</dd></div>
+          <div><dt class="text-xs text-gray-400">Invoice</dt><dd class="text-gray-900">{{ selectedRow.invoice || "—" }}</dd></div>
+          <div><dt class="text-xs text-gray-400">Location</dt><dd class="text-gray-900">{{ selectedRow.location_text || "—" }}</dd></div>
+          <div><dt class="text-xs text-gray-400">City</dt><dd class="text-gray-900">{{ selectedRow.city || "—" }}</dd></div>
+          <div><dt class="text-xs text-gray-400">State</dt><dd class="text-gray-900">{{ selectedRow.state || "—" }}</dd></div>
+        </dl>
+      </div>
+    </SlideOver>
   </div>
 </template>
