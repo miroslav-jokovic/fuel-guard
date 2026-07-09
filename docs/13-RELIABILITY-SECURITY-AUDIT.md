@@ -135,13 +135,16 @@ still route to the owning org by vehicle lookup) — consider per-org secrets.
 
 ## Recommended order of fixes
 
-1. **Quick completions of the phases just shipped (low-risk, high-value):** P-2 (`tank_space_exceeded` →
-   `effectiveCapacityGal`), P-6b (`mpg_sustained_decline` cold-weather derate), R-2 (window/offset query
-   tiebreakers), R-1 (schemaCheck columns). All are small and directly finish Phases 2/3/6.
-2. **The one live false-positive path:** P-1 (odometer typo poisoning three axes) and P-3 (double-counted
-   axes) — these are the most likely remaining source of false "possible theft" cases.
-3. **Correctness/robustness:** R-3/R-5/R-8 (determinism + learned-field race + visibility), R-4/R-6 (external
-   resilience).
-4. **Security hardening:** S-1 (CSV injection) then S-2/S-3/S-4.
-5. **Longer-horizon precision:** P-4 (non-linear tank curve), P-8 (re-score prior fills on learn-flip),
+1. ~~**Quick completions of the phases just shipped:** P-2, P-6b, R-2, R-1.~~ **✅ DONE** (commit "audit bundle 1").
+2. ~~**The one live false-positive path:** P-1, P-3.~~ **✅ DONE** (commit "audit bundle 2").
+3. **Correctness/robustness (OPEN):** R-3/R-5/R-8 (determinism + learned-field race + visibility), R-4/R-6
+   (external resilience).
+4. **Security hardening:** ~~S-1 (CSV injection)~~ **✅ DONE**; S-2/S-3/S-4 still open.
+5. **Longer-horizon precision (OPEN):** P-4 (non-linear tank curve), P-8 (re-score prior fills on learn-flip),
    P-5/P-7/P-9.
+
+### Status legend
+✅ Fixed & test-locked: **P-1, P-2, P-3, P-6b, R-1, R-2, S-1**.
+◻ Open (recommended next): **R-3, R-5** (determinism/race), **R-4, R-6** (external resilience), **P-7** (reefer
+description classification), **P-8** (re-score on learn-flip), **S-2/S-3/S-4** (hardening), then longer-horizon
+**P-4/P-5/P-9**.
