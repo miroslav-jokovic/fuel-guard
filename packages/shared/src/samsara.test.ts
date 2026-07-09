@@ -441,9 +441,16 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(r.matchedAt).toBe("2026-06-30T20:25:00Z");
   });
 
-  it("flags a real mismatch: truck was NEVER in the EFS state all day (stopped in another state)", () => {
+  it("flags a real mismatch: truck was NEVER in the EFS state all day (robust OK coverage)", () => {
+    // Needs >= MIN_MISMATCH_COVERAGE (8) state-resolvable pings before we'll accuse — a genuine all-day-in-OK
+    // trace clears it; a handful of stray pings never does (see the 'too thin' test below).
     const samples = [
       S("2026-06-30T09:00:00Z", 60, "I-35, Oklahoma City, OK, 73101", 100000),
+      S("2026-06-30T10:00:00Z", 58, "I-35, Norman, OK, 73019", 100050),
+      S("2026-06-30T11:00:00Z", 55, "I-40, El Reno, OK, 73036", 100100),
+      S("2026-06-30T12:00:00Z", 60, "I-40, Yukon, OK, 73099", 100150),
+      S("2026-06-30T13:00:00Z", 57, "I-35, Moore, OK, 73160", 100180),
+      S("2026-06-30T14:00:00Z", 50, "I-240, Oklahoma City, OK, 73135", 100200),
       S("2026-06-30T20:25:00Z", 0, "Depot, Oklahoma City, OK, 73101", 100210),
       S("2026-06-30T20:40:00Z", 1, "Depot, Oklahoma City, OK, 73101", 100210),
     ];
@@ -518,8 +525,9 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(resolveLocationConfidence({ locationMatched: false }, 3, 20)).toEqual({ confidence: "gps_confirmed", matched: true });
     // No proximity, but truck was in-state → in_state
     expect(resolveLocationConfidence({ locationMatched: true }, null, 20)).toEqual({ confidence: "in_state", matched: true });
-    // No proximity and never in-state → mismatch
-    expect(resolveLocationConfidence({ locationMatched: false }, 120, 20)).toEqual({ confidence: "mismatch", matched: false });
+    // Never in-state but NO geocode/veto data → we can't measure distance to the station, so we do NOT
+    // accuse; downgrade to unknown (a mismatch requires a geocode — see the veto test).
+    expect(resolveLocationConfidence({ locationMatched: false }, 120, 20)).toEqual({ confidence: "unknown", matched: null });
     // Unknown coverage
     expect(resolveLocationConfidence({ locationMatched: null }, null, 20)).toEqual({ confidence: "unknown", matched: null });
   });
@@ -532,9 +540,9 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     // Truck was 300 mi away → the mismatch stands (real "card used where the truck wasn't").
     expect(resolveLocationConfidence({ locationMatched: false }, null, 0.5, { nearMiles: 300, ...veto }))
       .toEqual({ confidence: "mismatch", matched: false });
-    // No station coords at all (nearMiles null) → veto can't apply, mismatch stands.
+    // No station coords at all (nearMiles null) → we can't measure distance, so we do NOT accuse; unknown.
     expect(resolveLocationConfidence({ locationMatched: false }, null, 0.5, { nearMiles: null, ...veto }))
-      .toEqual({ confidence: "mismatch", matched: false });
+      .toEqual({ confidence: "unknown", matched: null });
     // A confirmed site proximity still wins over everything.
     expect(resolveLocationConfidence({ locationMatched: false }, 0.3, 0.5, { nearMiles: 0.3, ...veto }))
       .toEqual({ confidence: "gps_confirmed", matched: true });

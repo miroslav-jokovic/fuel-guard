@@ -283,7 +283,11 @@ const cityNorm = (c: string | null | undefined) => (c ?? "").trim().toLowerCase(
 
 /** Minimum number of state-resolvable GPS samples before a "never in the EFS state" day counts as a real
  *  location mismatch. Below this, coverage is too thin to accuse and we report "no_coverage" (unknown). */
-export const MIN_MISMATCH_COVERAGE = 3;
+// Minimum state-resolvable GPS pings across the fueling day before we'll call a "truck was never in the EFS
+// state" mismatch. Set generously (not 3): a handful of stray/neighbor-state pings — while the true
+// station-lot pings are unresolved or truncated — must never be enough to accuse. Combined with the
+// geocode-required veto in resolveLocationConfidence, a mismatch needs BOTH robust coverage and a geocode.
+export const MIN_MISMATCH_COVERAGE = 8;
 
 /**
  * Odometer (miles) interpolated to an exact instant from the day's Samsara odometer track. Samsara
@@ -627,13 +631,15 @@ export function resolveLocationConfidence(
   }
   if (stop.locationMatched === true) return { confidence: "in_state", matched: true };
   if (stop.locationMatched === false) {
+    // We may ONLY accuse "the card was used where the truck was not" when we can measure how close the
+    // truck came to the station — i.e. we have a geocode. Without one (uncached station, geocoding off, or
+    // a bulk backfill that skipped the live lookup) `nearMiles` is null and we CANNOT rule out a border
+    // crossing or a reverse-geo parse artifact, so we must NOT flag. Downgrade to unknown.
+    if (!veto || veto.nearMiles == null) return { confidence: "unknown", matched: null };
     // VETO a would-be mismatch when the truck's GPS came within a generous radius of the claimed station
-    // (even a coarse city-centroid geocode). If the truck was that close, we cannot honestly say "the card
-    // was used where the truck was not" — the differing state token is almost always a border crossing or
-    // a reverse-geo parse artifact, not theft. Downgrade to unknown rather than flag a false mismatch.
-    if (veto && veto.nearMiles != null && veto.nearMiles < veto.minMismatchMiles) {
-      return { confidence: "unknown", matched: null };
-    }
+    // (even a coarse city-centroid geocode) — that differing state token is almost always a border/parse
+    // artifact, not theft.
+    if (veto.nearMiles < veto.minMismatchMiles) return { confidence: "unknown", matched: null };
     return { confidence: "mismatch", matched: false };
   }
   return { confidence: "unknown", matched: null };
