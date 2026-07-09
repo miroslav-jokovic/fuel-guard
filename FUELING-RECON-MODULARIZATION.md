@@ -56,14 +56,15 @@ samples+geocode+efs        samples + at + locationConfidence      fuelReadings +
 
 Before moving any code: build a **golden-fixture harness** — capture the current `ReconResult` for a set of representative fills (≥20: precise/date-only, tank-confirmed, in_state, mismatch, gps_confirmed, no-coverage, OBD/GPS odometer, dual-tank, missing-fuel-data). Refactor module by module; after each extraction the harness must produce **byte-identical** `ReconResult` (unless the change is a decision from §3, which gets its own updated golden). This turns "did I break another signal?" into a failing test, not a production surprise.
 
-## 5. Incremental extraction order (each step: tests green, one commit)
+## 5. Extraction status
 
-1. Land the golden-fixture harness against today's function (locks current behavior).
-2. Extract **S4 tankFuel** (most self-contained; your active concern) — prove identical.
-3. Extract **S3 odometer** (trust gate as explicit input).
-4. Extract **S2 location** (folds the precise/date-only duplication into one module).
-5. Extract **S1 fuelingMoment** (the anchor authority).
-6. Extract **S0 acquireSamples**; orchestrator shrinks to wiring.
-7. Delete the old inline blocks; each module now owns its tests.
+Decisions (PM): §3.1 keep shared anchor ✅ · §3.2 option (a) keep trust logic, pass location in as explicit input ✅ · §3.3 one tank & fuel-level module ✅.
 
-No behavior changes in steps 1-7 except the explicitly-approved §3 decisions. After this, every future fix touches exactly one module with its own test suite.
+- ✅ **Behavior lock** — `samsaraRecon.test.ts` (now 8 cases incl. mismatch/evidence) + the shared unit tests hold every extraction to byte-identical output.
+- ✅ **S4 tankFuel** — `packages/shared/src/recon/tankFuel.ts` (+ tests). Behavior-identical.
+- ✅ **S3 odometer** — `packages/shared/src/recon/odometer.ts` (+ tests). Trust is an explicit input.
+- ✅ **S2 location** — `packages/shared/src/recon/location.ts` (+ tests). Precise + date-only unified; tank-rise observed-precedence + mismatch evidence preserved exactly.
+- ✅ **S1 fueling anchor** — is `findFuelingEvent` (already a pure shared module) + the one-line `fuelEvent?.at ?? loc.stopMatchedAt` combination in the orchestrator.
+- ⏳ **S0 acquireSamples** (OPTIONAL) — the fetch/window/slice/parse I/O still lives in the orchestrator. It touches no signal logic, so extracting it is cosmetic; deferred to avoid churn.
+
+**Result:** the five fueling-time signals are now five separate, independently-tested units. `reconcileWithSamsara` is thin wiring: acquire samples → geocode → tank-rise event → S2 location → anchor → S3 odometer → S4 tank. A change to one module cannot alter another — they share only explicit typed inputs, enforced by the behavior-lock tests. Full suite: 293 shared + 93 API green, typecheck clean.
