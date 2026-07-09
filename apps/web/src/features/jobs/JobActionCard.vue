@@ -39,29 +39,29 @@ async function run(body?: Record<string, unknown>, confirmMsg?: string) {
 </script>
 
 <template>
-  <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-    <div class="flex items-start justify-between gap-4">
-      <div class="min-w-0">
-        <h3 class="text-sm font-semibold text-gray-900">{{ title }}</h3>
-        <p class="mt-1 text-sm text-gray-500">{{ description }}</p>
-      </div>
-      <div class="flex shrink-0 items-center gap-2">
-        <button
-          v-if="secondaryLabel"
-          :disabled="isRunning || disabled"
-          class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
-          @click="run(secondaryBody, secondaryConfirm)"
-        >
-          {{ secondaryLabel }}
-        </button>
-        <button
-          :disabled="isRunning || disabled"
-          class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-          @click="run(body, confirm)"
-        >
-          {{ isRunning ? "Running…" : actionLabel }}
-        </button>
-      </div>
+  <div class="flex h-full flex-col rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
+    <div class="min-w-0">
+      <h3 class="text-sm font-semibold text-gray-900">{{ title }}</h3>
+      <p class="mt-1 text-sm text-gray-500">{{ description }}</p>
+    </div>
+
+    <!-- Actions: their own row so a secondary button never squeezes the title in a narrow column. -->
+    <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
+      <button
+        v-if="secondaryLabel"
+        :disabled="isRunning || disabled"
+        class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+        @click="run(secondaryBody, secondaryConfirm)"
+      >
+        {{ secondaryLabel }}
+      </button>
+      <button
+        :disabled="isRunning || disabled"
+        class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+        @click="run(body, confirm)"
+      >
+        {{ isRunning ? "Running…" : actionLabel }}
+      </button>
     </div>
 
     <!-- Progress bar while a run is active -->
