@@ -178,6 +178,9 @@ alter table vehicles add column if not exists odometer_offset        numeric(10,
 alter table vehicles add column if not exists odometer_offset_source text          not null default 'auto';
 -- 0037: capacity of the single tank the Samsara sensor reads; NULL = dual-tank/unknown → tank-fill-short suppressed.
 alter table vehicles add column if not exists monitored_tank_capacity_gal numeric(7,2);
+-- 0038: LEARNED — does the Samsara tank sensor reflect the whole fill (ratio ~1)? gates tank_fill_short.
+alter table vehicles add column if not exists tank_sensor_reliable boolean not null default false;
+alter table vehicles add column if not exists tank_fill_ratio       numeric(5,3);
 
 -- ── 0026: data-reliability SCHEMA bits (one-shot DATA conversions intentionally OMITTED — see header) ─
 alter table fuel_transactions add column if not exists fueled_at_precision text

@@ -123,10 +123,11 @@ export interface VehicleView {
   baselineMpg: number | null;
   /** Learned/overridden constant (dash − Samsara). Added to the Samsara reading before the mismatch check. */
   odometerOffset?: number;
-  /** Capacity (gal) of the SINGLE tank the Samsara fuel-level sensor reads. null = unknown / dual-tank /
-   *  not configured → the tank-fill-short check is suppressed (a lone sensor on a dual-saddle-tank truck
-   *  reads ~half the billed fill → false shorts). Set it to reconcile the rise against the sensed tank. */
-  monitoredTankCapacityGal?: number | null;
+  /** LEARNED per-truck: does the Samsara fuel-level sensor's rise reflect the WHOLE billed fill? True only
+   *  when the observed-rise ÷ billed ratio is consistently ≈1 (single tank, or crossover-equalized). False
+   *  for dual independent tanks (ratio ≈0.5 / erratic) or until enough history clusters → tank-fill-short is
+   *  suppressed, so a single sensor on a two-tank truck never produces a false short. */
+  tankSensorReliable?: boolean;
 }
 
 export interface Thresholds {
@@ -397,6 +398,41 @@ export function learnOdometerOffset(
   return { offset: Math.round(med), samples: diffs.length };
 }
 
+export interface TankSensorReliabilityResult {
+  /** True when the sensor's observed rise reflects the whole billed fill (ratio ≈1, single/equalized tank). */
+  reliable: boolean;
+  /** Median observed-rise ÷ billed ratio over the sampled fills (for transparency/UI). */
+  ratio: number;
+  samples: number;
+}
+
+/**
+ * Learn whether a truck's Samsara fuel-level sensor reflects the WHOLE billed fill. For each recent fill with
+ * both an observed tank rise and billed gallons, take ratio = observedRise / billed. A single-tank (or
+ * crossover-equalized) truck clusters near 1.0; a dual-independent-tank truck reads only one tank so the
+ * ratio runs ~0.5 or swings wildly. Returns reliable=true ONLY when there are enough samples AND the median
+ * ratio sits in a tight band around 1 AND a solid majority cluster there. Otherwise reliable=false (or null
+ * = not enough evidence yet → caller leaves the tank-fill check suppressed).
+ */
+export function learnTankSensorReliability(
+  pairs: { observedRiseGal: number; billedGallons: number }[],
+  opts: { window?: number; minSamples?: number; band?: [number, number]; clusterTol?: number } = {},
+): TankSensorReliabilityResult | null {
+  const window = opts.window ?? 12;
+  const minSamples = opts.minSamples ?? 4;
+  const [lo, hi] = opts.band ?? [0.85, 1.15];
+  const clusterTol = opts.clusterTol ?? 0.15;
+  const ratios = pairs
+    .filter((p) => Number.isFinite(p.observedRiseGal) && Number.isFinite(p.billedGallons) && p.billedGallons > 0)
+    .slice(-window)
+    .map((p) => p.observedRiseGal / p.billedGallons);
+  if (ratios.length < minSamples) return null;
+  const med = median(ratios);
+  const within = ratios.filter((r) => Math.abs(r - med) <= clusterTol).length;
+  const reliable = med >= lo && med <= hi && within / ratios.length >= 0.6;
+  return { reliable, ratio: Math.round(med * 1000) / 1000, samples: ratios.length };
+}
+
 /** Single-source odometer plausibility vs fuel: catches odometer padding (drove far more than fuel allows). */
 function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
   const { txn, vehicle, previousTxn, recentTxns } = ctx;
@@ -566,11 +602,11 @@ function ruleLocationMismatch(ctx: RuleContext): RuleResult {
  * to review, not proof. Only fires on a measured shortfall.
  */
 function ruleTankFillShort(ctx: RuleContext): RuleResult {
-  // Only trustworthy when we know the sensor covers the whole billed fill — i.e. a configured single/monitored
-  // tank. Unset (dual-tank / unknown) → suppress: a lone sensor on a dual-saddle-tank truck reads ~half the
-  // fill and false-flags every full fill. Gating HERE means a cheap re-score clears prior false rows without
-  // a Samsara re-fetch.
-  if (ctx.vehicle.monitoredTankCapacityGal == null) return none("tank_fill_short");
+  // Only fire for trucks whose sensor is LEARNED to reflect the whole fill (observed/billed ≈1). Not-yet-
+  // learned or dual-independent-tank trucks (ratio ≈0.5 / erratic) → suppress: a lone sensor on a two-tank
+  // truck reads ~half the fill and false-flags every full fill. Gating HERE means a cheap re-score clears
+  // prior false rows without a Samsara re-fetch.
+  if (ctx.vehicle.tankSensorReliable !== true) return none("tank_fill_short");
   const short = ctx.tankFillShortGal;
   if (short == null || short <= 0) return none("tank_fill_short");
   // Samsara's tank-% sensor is COARSE, so a small gap between billed gallons and the observed rise is

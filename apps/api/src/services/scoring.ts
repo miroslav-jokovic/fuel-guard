@@ -8,6 +8,7 @@ import {
   computedMpg,
   effectiveBaseline,
   learnOdometerOffset,
+  learnTankSensorReliability,
   type TxnView,
   type VehicleView,
   type Thresholds,
@@ -240,9 +241,9 @@ export async function scoreTransaction(
   let samsaraVehicleId: string | null = null;
   let odometerOffsetSource = "auto";
   if (txn.vehicleId) {
-    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, monitored_tank_capacity_gal, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", txn.vehicleId).single();
+    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, tank_sensor_reliable, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", txn.vehicleId).single();
     if (v) {
-      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), monitoredTankCapacityGal: n(v.monitored_tank_capacity_gal), baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
+      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), tankSensorReliable: v.tank_sensor_reliable === true, baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
       samsaraVehicleId = v.samsara_vehicle_id ?? null;
       odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
     }
@@ -320,10 +321,11 @@ export async function scoreTransaction(
           locationName: r.location_text,
           preciseTime,
           gallons: txn.gallons,
-          // Tank-fill reconciliation uses the MONITORED (sensed) tank capacity, NOT the total. When it's
-          // unset (dual-tank / unknown) the tank-fill-short check is suppressed — a single sensor can't
-          // reconcile a fill that may span two tanks, which produced false "short" anomalies.
-          tankCapacityGal: vehicle.monitoredTankCapacityGal ?? null,
+          // Compute the observed rise / shortfall against the FULL tank capacity — this is the raw signal the
+          // per-truck reliability learner uses (observed/billed ratio). Whether a shortfall is actually
+          // FLAGGED is gated in ruleTankFillShort on the learned `tankSensorReliable` flag, so a dual-tank
+          // truck (ratio ≈ 0.5 / erratic) never produces a false short.
+          tankCapacityGal: vehicle.tankCapacityGal || null,
         },
         undefined,
         undefined,
@@ -620,6 +622,28 @@ export async function scoreTransaction(
       if (learned && learned.offset !== (vehicle.odometerOffset ?? 0)) {
         vehUpdate.odometer_offset = learned.offset;
         vehUpdate.odometer_offset_source = "auto";
+      }
+    }
+
+    // Auto-learn whether the Samsara tank sensor reflects the WHOLE fill (observed/billed ≈1). Only then may
+    // ruleTankFillShort fire — a dual-independent-tank truck (ratio ≈0.5 / erratic) stays suppressed, so it
+    // never produces a false short. Learned from recent fills that carry both an observed rise and gallons.
+    {
+      const { data: tankRows } = await admin
+        .from("fuel_transactions")
+        .select("samsara_tank_observed_gal, gallons")
+        .eq("vehicle_id", txn.vehicleId)
+        .not("samsara_tank_observed_gal", "is", null)
+        .gt("gallons", 0)
+        .order("fueled_at", { ascending: false })
+        .limit(12);
+      const tankPairs = ((tankRows ?? []) as { samsara_tank_observed_gal: number | string; gallons: number | string }[])
+        .map((p) => ({ observedRiseGal: Number(p.samsara_tank_observed_gal), billedGallons: Number(p.gallons) }))
+        .reverse();
+      const rel = learnTankSensorReliability(tankPairs);
+      if (rel) {
+        vehUpdate.tank_sensor_reliable = rel.reliable;
+        vehUpdate.tank_fill_ratio = rel.ratio;
       }
     }
 

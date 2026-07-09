@@ -5,6 +5,7 @@ import {
   correlateSignals,
   effectiveBaseline,
   learnOdometerOffset,
+  learnTankSensorReliability,
   isOffHours,
   maxSeverity,
   type RuleContext,
@@ -346,6 +347,27 @@ describe("hardening — odometer correctness (±5 cross-source)", () => {
   });
 });
 
+describe("learnTankSensorReliability", () => {
+  const fills = (ratios: number[]) => ratios.map((r) => ({ observedRiseGal: r * 100, billedGallons: 100 }));
+  it("marks a single-tank truck reliable (ratio clusters ≈1)", () => {
+    const r = learnTankSensorReliability(fills([0.98, 1.02, 1.0, 0.95, 1.05, 1.01]));
+    expect(r).not.toBeNull();
+    expect(r!.reliable).toBe(true);
+    expect(r!.ratio).toBeCloseTo(1.0, 1);
+  });
+  it("marks a dual-independent-tank truck UNreliable (ratio ≈0.5)", () => {
+    const r = learnTankSensorReliability(fills([0.5, 0.48, 0.52, 0.49, 0.51]));
+    expect(r!.reliable).toBe(false);
+  });
+  it("marks an erratic sensor UNreliable (wide swings)", () => {
+    const r = learnTankSensorReliability(fills([1.9, 0.1, 1.0, 0.5, 1.4, 0.2]));
+    expect(r!.reliable).toBe(false);
+  });
+  it("returns null until enough samples", () => {
+    expect(learnTankSensorReliability(fills([1.0, 1.0]))).toBeNull();
+  });
+});
+
 describe("learnOdometerOffset", () => {
   const P = (entered: number, samsara: number) => ({ entered, samsara });
 
@@ -415,16 +437,16 @@ describe("location mismatch (precise state comparison)", () => {
 
 describe("hardening — tank fill short (Samsara, advisory)", () => {
   // The check only runs for a truck with a configured MONITORED (sensed) tank capacity.
-  const monitored: VehicleView = { ...vehicle, monitoredTankCapacityGal: 120 };
+  const monitored: VehicleView = { ...vehicle, tankSensorReliable: true };
   it("fires (low) when the tank rose far less than billed gallons (monitored tank configured)", () => {
     const fired = runAllRules(ctx({ vehicle: monitored, tankFillShortGal: 65, tankObservedRiseGal: 25 }));
     const tank = fired.find((r) => r.ruleId === "tank_fill_short");
     expect(tank).toBeTruthy();
     expect(tank!.severity).toBe("low");
   });
-  it("does NOT fire when the monitored tank is unset (dual-tank/unknown) — even on a large shortfall", () => {
-    // Default vehicle has no monitoredTankCapacityGal → single sensor can't reconcile a possibly-two-tank
-    // fill → suppress rather than false-flag.
+  it("does NOT fire when the sensor is not learned-reliable (dual-tank/unknown) — even on a large shortfall", () => {
+    // Default vehicle has tankSensorReliable falsy → single sensor can't reconcile a possibly-two-tank fill
+    // → suppress rather than false-flag.
     expect(ids(ctx({ tankFillShortGal: 65, tankObservedRiseGal: 25 }))).not.toContain("tank_fill_short");
   });
   it("does not fire when the shortfall is absent or zero", () => {
