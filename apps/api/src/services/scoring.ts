@@ -240,9 +240,9 @@ export async function scoreTransaction(
   let samsaraVehicleId: string | null = null;
   let odometerOffsetSource = "auto";
   if (txn.vehicleId) {
-    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", txn.vehicleId).single();
+    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, monitored_tank_capacity_gal, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", txn.vehicleId).single();
     if (v) {
-      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
+      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), monitoredTankCapacityGal: n(v.monitored_tank_capacity_gal), baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
       samsaraVehicleId = v.samsara_vehicle_id ?? null;
       odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
     }
@@ -320,7 +320,10 @@ export async function scoreTransaction(
           locationName: r.location_text,
           preciseTime,
           gallons: txn.gallons,
-          tankCapacityGal: vehicle.tankCapacityGal || null,
+          // Tank-fill reconciliation uses the MONITORED (sensed) tank capacity, NOT the total. When it's
+          // unset (dual-tank / unknown) the tank-fill-short check is suppressed — a single sensor can't
+          // reconcile a fill that may span two tanks, which produced false "short" anomalies.
+          tankCapacityGal: vehicle.monitoredTankCapacityGal ?? null,
         },
         undefined,
         undefined,

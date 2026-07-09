@@ -12,6 +12,7 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "declined_transactions", column: "suspicion_level", migration: "0022" },
   { table: "anomalies", column: "fueled_at", migration: "0023" },
   { table: "organizations", column: "last_digest_at", migration: "0024" },
+  { table: "vehicles", column: "monitored_tank_capacity_gal", migration: "0037" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

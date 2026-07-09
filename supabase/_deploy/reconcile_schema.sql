@@ -176,6 +176,8 @@ alter table organizations add column if not exists last_digest_at timestamptz;
 -- whose dash sits a fixed amount off OBD stop false-flagging. source='manual' pins a human override.
 alter table vehicles add column if not exists odometer_offset        numeric(10,1) not null default 0;
 alter table vehicles add column if not exists odometer_offset_source text          not null default 'auto';
+-- 0037: capacity of the single tank the Samsara sensor reads; NULL = dual-tank/unknown → tank-fill-short suppressed.
+alter table vehicles add column if not exists monitored_tank_capacity_gal numeric(7,2);
 
 -- ── 0026: data-reliability SCHEMA bits (one-shot DATA conversions intentionally OMITTED — see header) ─
 alter table fuel_transactions add column if not exists fueled_at_precision text

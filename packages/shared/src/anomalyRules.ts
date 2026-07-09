@@ -123,6 +123,10 @@ export interface VehicleView {
   baselineMpg: number | null;
   /** Learned/overridden constant (dash − Samsara). Added to the Samsara reading before the mismatch check. */
   odometerOffset?: number;
+  /** Capacity (gal) of the SINGLE tank the Samsara fuel-level sensor reads. null = unknown / dual-tank /
+   *  not configured → the tank-fill-short check is suppressed (a lone sensor on a dual-saddle-tank truck
+   *  reads ~half the billed fill → false shorts). Set it to reconcile the rise against the sensed tank. */
+  monitoredTankCapacityGal?: number | null;
 }
 
 export interface Thresholds {
