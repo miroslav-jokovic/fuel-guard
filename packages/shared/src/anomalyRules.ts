@@ -4,6 +4,7 @@
  * runs `runAllRules`, and persists the results. All quantitative math happens here (not in the AI).
  */
 import { MPG_FUEL_TYPES, type AnomalySeverity, type FuelType } from "./constants.js";
+import { computeFillConfidence, ruleEligible } from "./fillConfidence.js";
 
 export const RULE_IDS = [
   // Tier 1 — odometer integrity
@@ -345,13 +346,13 @@ function ruleOdometerDailyCap(ctx: RuleContext): RuleResult {
 
 /** Cross-source odometer reconciliation — the driver-accuracy ±tolerance check (docs/09 §2). */
 function ruleOdometerMismatch(ctx: RuleContext): RuleResult {
-  const { txn, crossSourceOdometer, crossSourceOdometerSource, thresholds, vehicle } = ctx;
+  const { txn, crossSourceOdometer, thresholds, vehicle } = ctx;
   if (txn.odometer == null || crossSourceOdometer == null) return none("odometer_mismatch");
   // Only the ECU/OBD odometer matches the dash the driver reads off (and the EFS entry) closely enough for
   // an absolute ±tolerance check. Samsara's GPS-derived odometer carries a large, per-truck-varying bias,
   // and a single learned offset can't absorb a MIX of OBD and GPS readings across a truck's fills — so
   // comparing it produced false mismatches. Use it for display/coverage only; never flag on it.
-  if (crossSourceOdometerSource != null && crossSourceOdometerSource !== "obd") return none("odometer_mismatch");
+  // Confidence gate (OBD-only cross-source) is centralized in ruleEligible/computeFillConfidence (docs/12).
   const tol = thresholds.odometerToleranceMiles ?? 10;
   // Many trucks read a fixed amount apart from Samsara's OBD odometer (replaced cluster, OBD calibration).
   // Apply the learned/overridden per-vehicle offset so that constant gap doesn't false-flag every fill —
@@ -467,7 +468,7 @@ function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
   // Reconciling ONE fill against ONE sensed tank's free space is only valid when the sensor reflects the
   // whole fill (learned tankSensorReliable). On a dual-saddle-tank truck the sensor reads one tank at 92%
   // while the OTHER tank has room, so billed > sensed-tank-space false-flags every both-tank fill.
-  if (vehicle.tankSensorReliable !== true) return none("tank_space_exceeded");
+  // Tank-sensor-reliability gate centralized in ruleEligible/computeFillConfidence (docs/12).
   const cap = vehicle.tankCapacityGal;
   if (tankPctBefore == null || cap <= 0 || txn.gallons <= 0) return none("tank_space_exceeded");
   const freeSpace = cap * (1 - Math.min(Math.max(tankPctBefore, 0), 100) / 100);
@@ -491,7 +492,7 @@ function ruleImplausibleTopoff(ctx: RuleContext): RuleResult {
   // "Dispensed > consumed since last fill" is only meaningful when fills reconcile with the tank (learned
   // reliable). If a truck ran a tank low then filled both, dispensing more than it burned is NORMAL — the
   // extra fuel filled pre-existing space — so this false-fires on dual-tank / irregular (not-to-full) fills.
-  if (vehicle.tankSensorReliable !== true) return none("implausible_topoff");
+  // Tank-sensor-reliability gate centralized in ruleEligible/computeFillConfidence (docs/12).
   const miles = milesSinceLast(txn, previousTxn);
   const baseline = effectiveBaseline(vehicle, recentTxns); // rolling, not static seed
   if (miles == null || baseline == null || baseline <= 0) return none("implausible_topoff");
@@ -523,7 +524,7 @@ function ruleMpgDeviation(ctx: RuleContext): RuleResult {
   // Per-fill MPG = miles ÷ THIS fill's gallons. Only reliable when fills reconcile with the tank (to-full,
   // single effective tank). On an irregular / dual-tank fill the gallons are inflated vs the miles, so MPG
   // looks artificially low → false deviation. Gross overfueling is still caught by cumulative_overfuel.
-  if (vehicle.tankSensorReliable !== true) return none("mpg_deviation");
+  // Tank-sensor-reliability gate centralized in ruleEligible/computeFillConfidence (docs/12).
   const mpg = computedMpg(txn, previousTxn);
   const baseline = effectiveBaseline(vehicle, recentTxns);
   if (mpg == null || baseline == null || baseline <= 0) return none("mpg_deviation");
@@ -537,8 +538,7 @@ function ruleMpgDeviation(ctx: RuleContext): RuleResult {
 function ruleMpgSustainedDecline(ctx: RuleContext): RuleResult {
   const { txn, recentTxns } = ctx;
   // Built from per-fill MPGs — same reliability caveat as mpg_deviation: a run of irregular / dual-tank
-  // fills drags the recent median down artificially. Only evaluate for reliable-fill trucks.
-  if (ctx.vehicle.tankSensorReliable !== true) return none("mpg_sustained_decline");
+  // fills drags the recent median down artificially. Reliability gate centralized in ruleEligible (docs/12).
   const series = recentMpgSeries([...recentTxns, txn]);
   if (series.length < 6) return none("mpg_sustained_decline");
   const last3 = median(series.slice(-3));
@@ -619,9 +619,8 @@ function ruleLocationMismatch(ctx: RuleContext): RuleResult {
 function ruleTankFillShort(ctx: RuleContext): RuleResult {
   // Only fire for trucks whose sensor is LEARNED to reflect the whole fill (observed/billed ≈1). Not-yet-
   // learned or dual-independent-tank trucks (ratio ≈0.5 / erratic) → suppress: a lone sensor on a two-tank
-  // truck reads ~half the fill and false-flags every full fill. Gating HERE means a cheap re-score clears
-  // prior false rows without a Samsara re-fetch.
-  if (ctx.vehicle.tankSensorReliable !== true) return none("tank_fill_short");
+  // truck reads ~half the fill and false-flags every full fill. Reliability gate centralized in ruleEligible
+  // (docs/12); gating still means a cheap re-score clears prior false rows without a Samsara re-fetch.
   const short = ctx.tankFillShortGal;
   if (short == null || short <= 0) return none("tank_fill_short");
   // Samsara's tank-% sensor is COARSE, so a small gap between billed gallons and the observed rise is
@@ -737,9 +736,13 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   ];
 
   const suppressed = new Set<RuleId>(SUPPRESSED_RULE_IDS);
+  // Confidence gating in ONE place (docs/12 Phase 1): a rule may fire only when the fill's inputs support it
+  // (e.g. per-fill tank/volume/consumption rules need a reliable tank sensor; the absolute odometer mismatch
+  // needs an OBD cross-source reading). `ruleEligible` reproduces the previous per-rule inline guards exactly.
+  const confidence = computeFillConfidence(ctx);
   let results = rules
     .map((rule) => rule(ctx))
-    .filter((r) => r.fired && !disabled.has(r.ruleId) && !suppressed.has(r.ruleId));
+    .filter((r) => r.fired && !disabled.has(r.ruleId) && !suppressed.has(r.ruleId) && ruleEligible(r.ruleId, confidence));
 
   // Precedence: an over-capacity fill makes the per-fill top-off rule redundant.
   if (results.some((r) => r.ruleId === "exceeds_tank_capacity")) {
