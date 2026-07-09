@@ -630,6 +630,42 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(odometerAtTimeSourced(samples, "2026-06-30T20:00:00Z", { maxReconstructGapMin: 60 })).toBeNull();
   });
 
+  it("odometerAtTimeSourced: never blends OBD with the differently-based GPS odometer (single-source)", () => {
+    // Truck's real (OBD) odometer ~414,140; Samsara's GPS-derived odometer for the same truck reads on a
+    // different baseline ~441,140. A GPS point sits right at the fill instant, OBD points bracket it.
+    // Must resolve on the OBD scale, NOT blend to a phantom ~27k-higher value.
+    const s = (time: string, odo: number, src: "obd" | "gps") =>
+      ({ time, lat: 32.0, lng: -96.0, speedMph: 0, address: "Stop, TX", odometerMiles: odo, odometerSource: src });
+    const samples = [
+      s("2026-06-30T13:55:00Z", 414_140, "obd"),
+      s("2026-06-30T14:00:00Z", 441_140, "gps"), // wrong-baseline reading exactly at the fill
+      s("2026-06-30T14:05:00Z", 414_140, "obd"),
+    ];
+    const r = odometerAtTimeSourced(samples, "2026-06-30T14:00:00Z", { maxInterpGapMin: 30 });
+    expect(r).toEqual({ miles: 414_140, source: "obd" });
+  });
+
+  it("odometerAtTimeSourced: rejects an isolated OBD spike near the fill", () => {
+    // A single bad OBD sample jumps +27,000 then reverts. It must not define the fueling-time reading.
+    const s = (time: string, odo: number) =>
+      ({ time, lat: 32.0, lng: -96.0, speedMph: 0, address: "Stop, TX", odometerMiles: odo, odometerSource: "obd" as const });
+    const samples = [
+      s("2026-06-30T13:55:00Z", 414_140),
+      s("2026-06-30T14:00:00Z", 441_140), // spike
+      s("2026-06-30T14:05:00Z", 414_140),
+    ];
+    const r = odometerAtTimeSourced(samples, "2026-06-30T14:00:00Z", { maxInterpGapMin: 30 });
+    expect(r!.miles).toBe(414_140);
+  });
+
+  it("odometerAtTimeSourced: leaves a genuine monotone climb untouched", () => {
+    const s = (time: string, odo: number) =>
+      ({ time, lat: 32.0, lng: -96.0, speedMph: 30, address: "Rd, TX", odometerMiles: odo, odometerSource: "obd" as const });
+    const samples = [s("2026-06-30T13:00:00Z", 1000), s("2026-06-30T14:00:00Z", 1050), s("2026-06-30T15:00:00Z", 1100)];
+    const r = odometerAtTimeSourced(samples, "2026-06-30T14:00:00Z", { maxInterpGapMin: 90 });
+    expect(r!.miles).toBe(1050);
+  });
+
   it("approxFuelingUtcMs shifts local time by the station-state offset", () => {
     const naive = "2026-06-30T14:30:00";
     // TX (Central, +6) → 20:30 UTC

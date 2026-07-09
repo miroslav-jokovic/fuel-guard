@@ -384,10 +384,33 @@ export function odometerAtTimeSourced(
 ): SourcedOdometer | null {
   const interpGap = (opts.maxInterpGapMin ?? 30) * 60_000;
   const reconGap = (opts.maxReconstructGapMin ?? 180) * 60_000;
-  const pts = samples
+  const raw = samples
     .filter((s) => s.odometerMiles != null)
     .map((s) => ({ t: parseAsUtcMs(s.time), odo: s.odometerMiles as number, src: (s.odometerSource ?? "obd") as "obd" | "gps" }))
     .sort((a, b) => a.t - b.t);
+  if (raw.length === 0) return null;
+  // SINGLE-SOURCE: OBD and Samsara's GPS-derived odometer use different baselines (often tens of
+  // thousands of miles apart). Interpolating across sources blends two scales → a phantom fueling-time
+  // odometer. When the truck has ANY OBD reading in the window, resolve from OBD only; otherwise GPS only.
+  const hasObd = raw.some((p) => p.src === "obd");
+  const single = raw.filter((p) => p.src === (hasObd ? "obd" : "gps"));
+  // DESPIKE: an odometer is physically monotone non-decreasing. Drop backward jumps (a reading below the
+  // last kept value) and isolated up-spikes (implausible rate up that the next reading immediately reverts
+  // below) — a single bad OBD sample must never define the fueling-time reading.
+  const MAX_PLAUSIBLE_MPH = 100;
+  const pts: typeof single = [];
+  for (let i = 0; i < single.length; i++) {
+    const cur = single[i]!;
+    const prev = pts[pts.length - 1];
+    const next = single[i + 1];
+    if (prev) {
+      if (cur.odo < prev.odo - 1) continue; // odometer went backward → bad sample
+      const dtHr = Math.max((cur.t - prev.t) / 3_600_000, 1 / 60);
+      const upMph = (cur.odo - prev.odo) / dtHr;
+      if (next && upMph > MAX_PLAUSIBLE_MPH && next.odo < cur.odo - 1) continue; // isolated up-spike
+    }
+    pts.push(cur);
+  }
   if (pts.length === 0) return null;
   const T = parseAsUtcMs(targetIso);
   const round1 = (n: number) => Math.round(n * 10) / 10;
