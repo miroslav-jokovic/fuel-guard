@@ -43,9 +43,9 @@ const blindTone = (p: number) => (p <= 15 ? "text-green-700" : p <= 50 ? "text-a
         <dd class="mt-0.5 text-xs text-gray-400">{{ data.blindFills.toLocaleString() }} of {{ data.totalFills.toLocaleString() }} fills blind</dd>
       </div>
       <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Location-verifiable</dt>
-        <dd class="mt-1 text-2xl font-bold" :class="covTone(data.locationPct)">{{ fmtPct(data.locationPct) }}</dd>
-        <dd class="mt-0.5 text-xs text-gray-400">could judge where the truck was</dd>
+        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Location-confirmed</dt>
+        <dd class="mt-1 text-2xl font-bold" :class="covTone(data.locationConfirmedPct)">{{ fmtPct(data.locationConfirmedPct) }}</dd>
+        <dd class="mt-0.5 text-xs text-gray-400">GPS placed the truck at the station · {{ fmtPct(data.locationPct) }} judgeable (incl. in-state)</dd>
       </div>
       <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
         <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Odometer-verifiable</dt>

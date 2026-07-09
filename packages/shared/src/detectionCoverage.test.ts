@@ -25,7 +25,8 @@ describe("computeDetectionCoverage", () => {
     expect(s.attributedPct).toBe(75); // 3 of 4 have vehicle+driver
     expect(s.reconciledPct).toBe(50); // 2 of 4 reconciled
     expect(s.odometerPct).toBe(25); // only 1 has a fueling-time odometer
-    expect(s.locationPct).toBe(50); // gps_confirmed + in_state; unknown/null don't count
+    expect(s.locationPct).toBe(50); // JUDGEABLE: gps_confirmed + in_state; unknown/null don't count
+    expect(s.locationConfirmedPct).toBe(25); // CONFIRMED at station: only the 1 gps_confirmed fill
     expect(s.blindFills).toBe(2);
     expect(s.blindPct).toBe(50);
     expect(s.lastReconciledAt).toBe("2026-07-02T12:00:00.000Z"); // most recent recon

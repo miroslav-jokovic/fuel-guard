@@ -32,7 +32,9 @@ export interface CoverageTruckRow {
   attributedPct: number;
   reconciledPct: number; // telematics matched
   odometerPct: number; // fueling-time odometer available
-  locationPct: number; // location judgeable (not unknown)
+  locationPct: number; // location JUDGEABLE (confirmed OR in-state OR mismatch) — the honest bound
+  /** Location CONFIRMED at the pump (gps_confirmed only) — the truck was actually placed at the station. */
+  locationConfirmedPct: number;
   /** Fills with NO telematics corroboration — card-only, invisible to cross-checks. */
   blindFills: number;
   blindPct: number;
@@ -45,7 +47,8 @@ export interface CoverageSummary {
   unattributed: number; // missing a vehicle or a driver
   reconciledPct: number;
   odometerPct: number;
-  locationPct: number;
+  locationPct: number; // JUDGEABLE (confirmed + in-state + mismatch)
+  locationConfirmedPct: number; // CONFIRMED at the station (gps_confirmed only)
   blindFills: number;
   blindPct: number;
   timeBasis: Record<TimeBasisKey, number>;
@@ -71,7 +74,8 @@ interface TruckAcc {
   withDriver: number;
   reconciled: number;
   odometer: number;
-  location: number;
+  location: number; // judgeable
+  confirmed: number; // gps_confirmed only
 }
 
 export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary {
@@ -83,12 +87,14 @@ export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary
   let reconciled = 0;
   let odometer = 0;
   let location = 0;
+  let confirmed = 0;
   let lastReconMs: number | null = null;
 
   for (const r of rows) {
     const hasRecon = r.samsara_recon_at != null;
     const hasOdo = r.samsara_odometer != null;
     const hasLoc = r.samsara_location_confidence != null && LOCATION_JUDGEABLE.has(r.samsara_location_confidence);
+    const isConfirmed = r.samsara_location_confidence === "gps_confirmed";
     const isAttributed = r.vehicle_id != null && r.driver_id != null;
 
     if (isAttributed) attributed += 1;
@@ -100,15 +106,17 @@ export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary
     }
     if (hasOdo) odometer += 1;
     if (hasLoc) location += 1;
+    if (isConfirmed) confirmed += 1;
     timeBasis[timeBasisKey(r.fueling_time_basis)] += 1;
 
     if (r.vehicle_id != null) {
-      const cur = byTruck.get(r.vehicle_id) ?? { fills: 0, withDriver: 0, reconciled: 0, odometer: 0, location: 0 };
+      const cur = byTruck.get(r.vehicle_id) ?? { fills: 0, withDriver: 0, reconciled: 0, odometer: 0, location: 0, confirmed: 0 };
       cur.fills += 1;
       if (r.driver_id != null) cur.withDriver += 1;
       if (hasRecon) cur.reconciled += 1;
       if (hasOdo) cur.odometer += 1;
       if (hasLoc) cur.location += 1;
+      if (isConfirmed) cur.confirmed += 1;
       byTruck.set(r.vehicle_id, cur);
     }
   }
@@ -124,6 +132,7 @@ export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary
         reconciledPct: pct(v.reconciled, v.fills),
         odometerPct: pct(v.odometer, v.fills),
         locationPct: pct(v.location, v.fills),
+        locationConfirmedPct: pct(v.confirmed, v.fills),
         blindFills,
         blindPct: pct(blindFills, v.fills),
       };
@@ -138,6 +147,7 @@ export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary
     reconciledPct: pct(reconciled, total),
     odometerPct: pct(odometer, total),
     locationPct: pct(location, total),
+    locationConfirmedPct: pct(confirmed, total),
     blindFills: total - reconciled,
     blindPct: pct(total - reconciled, total),
     timeBasis,
