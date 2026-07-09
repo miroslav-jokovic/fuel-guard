@@ -492,6 +492,22 @@ describe("learnTankSensorReliability", () => {
   it("returns null until enough samples", () => {
     expect(learnTankSensorReliability(fills([1.0, 1.0]))).toBeNull();
   });
+  it("marks a swinging dual-tank truck UNreliable even when the MEDIAN lands in-band (real unit 706)", () => {
+    // Actual 706 fills: observed/billed ratios 0.75, 0.66, 1.18, 1.21, 1.14 — median 1.14 is in-band, but the
+    // fills swing 0.66–1.21, so anchoring on 1.0 (not the median) correctly rejects it.
+    const r = learnTankSensorReliability([
+      { observedRiseGal: 93.6, billedGallons: 124.61 },
+      { observedRiseGal: 40.8, billedGallons: 62.06 },
+      { observedRiseGal: 112.8, billedGallons: 95.5 },
+      { observedRiseGal: 148.8, billedGallons: 122.57 },
+      { observedRiseGal: 117.6, billedGallons: 103.07 },
+    ]);
+    expect(r!.reliable).toBe(false);
+  });
+  it("treats physically-impossible ratios (>1: rose more than bought) as NOT reconciling", () => {
+    // Overstated capacity / non-linear sensor makes observed rise exceed billed — must not count as reliable.
+    expect(learnTankSensorReliability(fills([1.3, 1.25, 1.35, 1.28, 1.4]))!.reliable).toBe(false);
+  });
 });
 
 describe("learnOdometerOffset", () => {

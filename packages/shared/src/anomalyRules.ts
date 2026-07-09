@@ -492,28 +492,33 @@ export interface TankSensorReliabilityResult {
 /**
  * Learn whether a truck's Samsara fuel-level sensor reflects the WHOLE billed fill. For each recent fill with
  * both an observed tank rise and billed gallons, take ratio = observedRise / billed. A single-tank (or
- * crossover-equalized) truck clusters near 1.0; a dual-independent-tank truck reads only one tank so the
- * ratio runs ~0.5 or swings wildly. Returns reliable=true ONLY when there are enough samples AND the median
- * ratio sits in a tight band around 1 AND a solid majority cluster there. Otherwise reliable=false (or null
- * = not enough evidence yet → caller leaves the tank-fill check suppressed).
+ * crossover-equalized) truck reconciles NEAR 1.0 on almost every fill; a dual-independent-tank truck reads
+ * only one tank so the ratio runs ~0.5, or swings wildly (both-tank vs one-tank fills, non-linear sensor).
+ *
+ * Reliable=true ONLY when a STRONG MAJORITY of fills land within `band` of 1.0 — the PHYSICAL truth that
+ * observed rise ≈ gallons bought. The band is anchored on 1.0, NOT on the median, because a spread/bimodal
+ * distribution can have a median that happens to sit in-band while the individual fills swing (real case:
+ * unit 706, ratios 0.66–1.21, median 1.14 — it must NOT be called reliable). Ratios materially above 1.0 are
+ * physically impossible (can't rise more than you bought → overstated capacity / non-linear sensor) and fall
+ * OUTSIDE the band, so they count against reliability. Returns reliable=false when the majority don't
+ * reconcile, or null when there isn't enough history yet (caller leaves the per-fill tank rules suppressed).
  */
 export function learnTankSensorReliability(
   pairs: { observedRiseGal: number; billedGallons: number }[],
-  opts: { window?: number; minSamples?: number; band?: [number, number]; clusterTol?: number } = {},
+  opts: { window?: number; minSamples?: number; band?: number; minFraction?: number } = {},
 ): TankSensorReliabilityResult | null {
   const window = opts.window ?? 12;
   const minSamples = opts.minSamples ?? 4;
-  const [lo, hi] = opts.band ?? [0.85, 1.15];
-  const clusterTol = opts.clusterTol ?? 0.15;
+  const band = opts.band ?? 0.15; // ±15% around 1.0 absorbs sensor coarseness
+  const minFraction = opts.minFraction ?? 0.7; // ≥70% of fills must reconcile near 1.0
   const ratios = pairs
     .filter((p) => Number.isFinite(p.observedRiseGal) && Number.isFinite(p.billedGallons) && p.billedGallons > 0)
     .slice(-window)
     .map((p) => p.observedRiseGal / p.billedGallons);
   if (ratios.length < minSamples) return null;
-  const med = median(ratios);
-  const within = ratios.filter((r) => Math.abs(r - med) <= clusterTol).length;
-  const reliable = med >= lo && med <= hi && within / ratios.length >= 0.6;
-  return { reliable, ratio: Math.round(med * 1000) / 1000, samples: ratios.length };
+  const near1 = ratios.filter((r) => Math.abs(r - 1) <= band).length;
+  const reliable = near1 / ratios.length >= minFraction;
+  return { reliable, ratio: Math.round(median(ratios) * 1000) / 1000, samples: ratios.length };
 }
 
 export interface WindowOdoRow {
