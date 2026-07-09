@@ -9,9 +9,8 @@ import {
   resolveLocationConfidence,
   type LocationConfidence,
   parseFuelPercents,
-  tankPercentNear,
-  reconcileTankFill,
   findFuelingEvent,
+  resolveTankFuel,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
@@ -235,7 +234,7 @@ export async function reconcileWithSamsara(
     const odoAt = reading ? at : null;
     const odoSource = reading?.source ?? null;
     const obs = observedFor(stop);
-    const tank = computeTankFill(vehicleRaw, at ?? input.fueledAt, input.gallons, input.tankCapacityGal);
+    const tank = resolveTankFuel(fuelReadings, at ?? input.fueledAt, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null);
     return {
       crossSourceOdometer: odo,
       crossSourceOdometerAt: odoAt,
@@ -260,7 +259,7 @@ export async function reconcileWithSamsara(
       tankFillShortGal: tank.shortGal,
       tankObservedRiseGal: tank.observedRiseGal,
       tankPctBefore: tank.pctBefore,
-      tankPctAfter: fuelEvent?.pctAfter ?? tank.pctAfter,
+      tankPctAfter: tank.pctAfter,
       ...obs,
       fuelingTimeBasis: basisFor(at != null),
     };
@@ -284,7 +283,7 @@ export async function reconcileWithSamsara(
   const odoAt = reading ? at : null;
   const odoSource = reading?.source ?? null;
   const obs = observedFor({});
-  const tank = computeTankFill(vehicleRaw, at ?? input.fueledAt, input.gallons, input.tankCapacityGal);
+  const tank = resolveTankFuel(fuelReadings, at ?? input.fueledAt, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null);
   return {
     crossSourceOdometer: odo,
     crossSourceOdometerAt: odoAt,
@@ -298,44 +297,9 @@ export async function reconcileWithSamsara(
     tankFillShortGal: tank.shortGal,
     tankObservedRiseGal: tank.observedRiseGal,
     tankPctBefore: tank.pctBefore,
-    tankPctAfter: fuelEvent?.pctAfter ?? tank.pctAfter,
+    tankPctAfter: tank.pctAfter,
     ...obs,
     fuelingTimeBasis: basisFor(at != null),
   };
 }
 
-/**
- * Tank-fill reconciliation around the matched fueling moment: level just before the truck stopped vs
- * the highest reading in the few hours after (the post-fill plateau). Coarse sensor → advisory only.
- */
-interface TankFillResult {
-  /** Tank level (%) just before the fill — the reliable reading for the physical tank-space check. */
-  pctBefore: number | null;
-  /** Tank level (%) just after the fill (post-fill plateau peak). */
-  pctAfter: number | null;
-  shortGal: number | null;
-  observedRiseGal: number | null;
-}
-
-function computeTankFill(
-  vehicle: Parameters<typeof parseFuelPercents>[0],
-  matchedAt: string,
-  gallons: number | null,
-  tankCapacityGal: number | null,
-): TankFillResult {
-  const readings = parseFuelPercents(vehicle);
-  if (readings.length === 0) return { pctBefore: null, pctAfter: null, shortGal: null, observedRiseGal: null };
-
-  const before = tankPercentNear(readings, matchedAt, "before", 120);
-  const pctBefore = before?.percent ?? null;
-  // Post-fill level = the peak reading within 3h after the stop (fueling takes time to register).
-  const t = new Date(matchedAt).getTime();
-  const afterReadings = readings.filter((r) => {
-    const rt = new Date(r.time).getTime();
-    return rt >= t && rt - t <= 3 * 3_600_000;
-  });
-  const pctAfter = afterReadings.length ? Math.max(...afterReadings.map((r) => r.percent)) : null;
-
-  const recon = reconcileTankFill({ gallonsBilled: gallons, pctBefore, pctAfter, tankCapacityGal });
-  return { pctBefore, pctAfter, shortGal: recon?.shortGal ?? null, observedRiseGal: recon?.observedRiseGal ?? null };
-}
