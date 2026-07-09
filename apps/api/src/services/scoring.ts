@@ -481,6 +481,7 @@ export async function scoreTransaction(
     thresholds,
     operatingHours,
     crossSourceOdometer,
+    crossSourceOdometerSource,
     windowGallons,
     windowMiles,
     cardVehicleCountInWindow,
@@ -602,6 +603,9 @@ export async function scoreTransaction(
         .from("fuel_transactions")
         .select("odometer, samsara_odometer")
         .eq("vehicle_id", txn.vehicleId)
+        // OBD-only: the offset must be learned from ONE consistent source. Pooling GPS-derived odometers
+        // (a different, large bias) with OBD readings makes the median meaningless and the offset useless.
+        .eq("samsara_odometer_source", "obd")
         .not("odometer", "is", null)
         .not("samsara_odometer", "is", null)
         .order("fueled_at", { ascending: false })

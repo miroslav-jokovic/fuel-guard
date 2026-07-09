@@ -162,6 +162,10 @@ export interface RuleContext {
   operatingHours: OperatingHours;
   /** Odometer from the *other* source (manual↔EFS) for the same fueling event, if matched. */
   crossSourceOdometer?: number | null;
+  /** Provenance of `crossSourceOdometer`: 'obd' (ECU — matches the dash/EFS odometer), 'gps' (Samsara
+   *  GPS-derived — a large, per-truck-varying bias), or 'reconstructed'. Only 'obd' is trustworthy for an
+   *  absolute ±tolerance mismatch; GPS/reconstructed carry biases a single per-truck offset can't absorb. */
+  crossSourceOdometerSource?: string | null;
   /** Sum of gallons for this vehicle within the cumulative window (incl. this txn). */
   windowGallons?: number;
   /** Odometer span (max−min) for this vehicle within the cumulative window, if computable. */
@@ -336,8 +340,13 @@ function ruleOdometerDailyCap(ctx: RuleContext): RuleResult {
 
 /** Cross-source odometer reconciliation — the driver-accuracy ±tolerance check (docs/09 §2). */
 function ruleOdometerMismatch(ctx: RuleContext): RuleResult {
-  const { txn, crossSourceOdometer, thresholds, vehicle } = ctx;
+  const { txn, crossSourceOdometer, crossSourceOdometerSource, thresholds, vehicle } = ctx;
   if (txn.odometer == null || crossSourceOdometer == null) return none("odometer_mismatch");
+  // Only the ECU/OBD odometer matches the dash the driver reads off (and the EFS entry) closely enough for
+  // an absolute ±tolerance check. Samsara's GPS-derived odometer carries a large, per-truck-varying bias,
+  // and a single learned offset can't absorb a MIX of OBD and GPS readings across a truck's fills — so
+  // comparing it produced false mismatches. Use it for display/coverage only; never flag on it.
+  if (crossSourceOdometerSource != null && crossSourceOdometerSource !== "obd") return none("odometer_mismatch");
   const tol = thresholds.odometerToleranceMiles ?? 10;
   // Many trucks read a fixed amount apart from Samsara's OBD odometer (replaced cluster, OBD calibration).
   // Apply the learned/overridden per-vehicle offset so that constant gap doesn't false-flag every fill —

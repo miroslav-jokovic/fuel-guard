@@ -322,6 +322,15 @@ describe("hardening — odometer correctness (±5 cross-source)", () => {
     expect(ids(ctx({ crossSourceOdometer: 100003 }))).not.toContain("odometer_mismatch");
   });
 
+  it("does NOT fire on a GPS-sourced odometer even with a large diff (GPS bias, display-only)", () => {
+    // GPS-derived odometer carries a big per-truck bias a single offset can't absorb → never flag on it.
+    expect(ids(ctx({ crossSourceOdometer: 100020, crossSourceOdometerSource: "gps" }))).not.toContain("odometer_mismatch");
+    expect(ids(ctx({ crossSourceOdometer: 100020, crossSourceOdometerSource: "reconstructed" }))).not.toContain("odometer_mismatch");
+  });
+  it("still fires on an OBD-sourced odometer beyond tolerance", () => {
+    expect(ids(ctx({ crossSourceOdometer: 100020, crossSourceOdometerSource: "obd" }))).toContain("odometer_mismatch");
+  });
+
   it("a learned per-vehicle offset absorbs a constant dash↔Samsara gap (no false flag)", () => {
     // Truck's dash reads 1,200 mi above Samsara's OBD on every fill. Without calibration this fires; with
     // the learned offset applied it doesn't, because entered≈samsara+offset.
