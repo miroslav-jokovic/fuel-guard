@@ -14,6 +14,7 @@ export const RULE_IDS = [
   "odometer_implausible_jump", // instant-precision only (uses elapsed hours)
   "odometer_daily_cap", // date-precision (EFS) fallback (miles/day cap)
   "odometer_mismatch", // cross-source ±tolerance reconciliation (the driver-accuracy check)
+  "odometer_entry_suspect", // cross-source diff so large it's a data-entry typo / OBD glitch, not theft
   "expected_odometer_band", // single-source: miles vs fuel-implied miles
   // Tier 2 — volume vs capacity
   "exceeds_tank_capacity",
@@ -58,6 +59,7 @@ export const RULE_LABELS: Record<RuleId, string> = {
   odometer_implausible_jump:  "Implausible Odometer Jump",
   odometer_daily_cap:         "Daily Mileage Cap Exceeded",
   odometer_mismatch:          "Odometer / Location Mismatch",
+  odometer_entry_suspect:     "Odometer Entry Needs Review",
   expected_odometer_band:     "Outside Expected Odometer Band",
   exceeds_tank_capacity:      "Exceeds Tank Capacity",
   tank_space_exceeded:        "More Fuel Than Tank Could Hold",
@@ -392,26 +394,45 @@ function ruleOdometerDailyCap(ctx: RuleContext): RuleResult {
 }
 
 /** Cross-source odometer reconciliation — the driver-accuracy ±tolerance check (docs/09 §2). */
-function ruleOdometerMismatch(ctx: RuleContext): RuleResult {
-  const { txn, crossSourceOdometer, thresholds, vehicle } = ctx;
-  if (txn.odometer == null || crossSourceOdometer == null) return none("odometer_mismatch");
-  // Only the ECU/OBD odometer matches the dash the driver reads off (and the EFS entry) closely enough for
-  // an absolute ±tolerance check. Samsara's GPS-derived odometer carries a large, per-truck-varying bias,
-  // and a single learned offset can't absorb a MIX of OBD and GPS readings across a truck's fills — so
-  // comparing it produced false mismatches. Use it for display/coverage only; never flag on it.
-  // Confidence gate (OBD-only cross-source) is centralized in ruleEligible/computeFillConfidence (docs/12).
-  const tol = thresholds.odometerToleranceMiles ?? 10;
+/** A cross-source odometer diff this large (miles) is not a plausible theft mask — real odometer padding is
+ *  hundreds of miles. It's a driver-entry typo (e.g. a transposed digit) or an OBD glitch → route to the
+ *  data-quality rule (odometer_entry_suspect, weight 0), NOT the theft-weighted odometer_mismatch. */
+const ODOMETER_DATA_QUALITY_MILES = 5000;
+
+/** Shared cross-source odometer comparison (offset-adjusted). null when either reading is absent. */
+function odometerDiff(ctx: RuleContext): { entered: number; otherSource: number; offset: number; expected: number; diff: number } | null {
+  const { txn, crossSourceOdometer, vehicle } = ctx;
+  if (txn.odometer == null || crossSourceOdometer == null) return null;
   // Many trucks read a fixed amount apart from Samsara's OBD odometer (replaced cluster, OBD calibration).
-  // Apply the learned/overridden per-vehicle offset so that constant gap doesn't false-flag every fill —
-  // while a fill that deviates from the established offset by more than the tolerance still fires.
+  // Apply the learned/overridden per-vehicle offset so that constant gap doesn't false-flag every fill.
   const offset = vehicle.odometerOffset ?? 0;
   const expected = crossSourceOdometer + offset;
-  const diff = Math.abs(txn.odometer - expected);
-  if (diff > tol) {
-    const offsetNote = offset ? ` (after a learned +${r2(offset)} mi calibration)` : "";
-    return { ruleId: "odometer_mismatch", fired: true, severity: "high", message: `Entered odometer ${txn.odometer} differs from the fuel-card reading ${crossSourceOdometer}${offsetNote} by ${r2(diff)} mi (tolerance ${tol}).`, evidence: { entered: txn.odometer, otherSource: crossSourceOdometer, offset: r2(offset), expected: r2(expected), diff: r2(diff), toleranceMiles: tol } };
+  return { entered: txn.odometer, otherSource: crossSourceOdometer, offset, expected, diff: Math.abs(txn.odometer - expected) };
+}
+
+function ruleOdometerMismatch(ctx: RuleContext): RuleResult {
+  // OBD-only confidence gate centralized in ruleEligible/computeFillConfidence (docs/12).
+  const d = odometerDiff(ctx);
+  if (d == null) return none("odometer_mismatch");
+  const tol = ctx.thresholds.odometerToleranceMiles ?? 10;
+  // A real, theft-plausible discrepancy: beyond tolerance but NOT so huge it must be a data error (that case
+  // is odometer_entry_suspect). This keeps a bogus 27,000-mi diff out of the theft correlation.
+  if (d.diff > tol && d.diff <= ODOMETER_DATA_QUALITY_MILES) {
+    const offsetNote = d.offset ? ` (after a learned +${r2(d.offset)} mi calibration)` : "";
+    return { ruleId: "odometer_mismatch", fired: true, severity: "high", message: `Entered odometer ${d.entered} differs from the fuel-card reading ${d.otherSource}${offsetNote} by ${r2(d.diff)} mi (tolerance ${tol}).`, evidence: { entered: d.entered, otherSource: d.otherSource, offset: r2(d.offset), expected: r2(d.expected), diff: r2(d.diff), toleranceMiles: tol } };
   }
   return none("odometer_mismatch");
+}
+
+/** Data-quality classification of an implausibly large cross-source odometer diff — "check this entry", not
+ *  theft. Low severity, zero theft weight, so it never inflates a correlated case (the 27k-row class). */
+function ruleOdometerEntrySuspect(ctx: RuleContext): RuleResult {
+  const d = odometerDiff(ctx);
+  if (d == null) return none("odometer_entry_suspect");
+  if (d.diff > ODOMETER_DATA_QUALITY_MILES) {
+    return { ruleId: "odometer_entry_suspect", fired: true, severity: "low", message: `Entered odometer ${d.entered} differs from the fuel-card reading ${d.otherSource} by ${r2(d.diff)} mi — implausibly large, so this looks like a mistyped odometer or a telematics glitch to verify, not fuel theft.`, evidence: { entered: d.entered, otherSource: d.otherSource, expected: r2(d.expected), diff: r2(d.diff), dataQualityThresholdMiles: ODOMETER_DATA_QUALITY_MILES } };
+  }
+  return none("odometer_entry_suspect");
 }
 
 export interface OdometerOffsetResult {
@@ -836,6 +857,7 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleOdometerStale,
     timeOk && prevTimeOk ? ruleOdometerImplausibleJump : ruleOdometerDailyCap,
     ruleOdometerMismatch,
+    ruleOdometerEntrySuspect,
     ...(fuel ? [ruleExpectedOdometerBand] : []),
     // Tier 2 — capacity (fuel vehicles only)
     ...(fuel ? [ruleExceedsTankCapacity, ruleTankSpaceExceeded, ruleImplausibleTopoff, ruleCumulativeOverfuel] : []),
@@ -905,6 +927,9 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   // Odometer — driver misreporting (masks theft / owner's accuracy concern)
   odometer_regression:        { axis: "odometer", weight: 55 },
   odometer_mismatch:          { axis: "odometer", weight: 45 },
+  // Data-quality, NOT theft: an implausibly huge cross-source diff is a typo / OBD glitch (real odometer
+  // fraud is hundreds of miles, not tens of thousands). Weight 0 → never contributes to a theft case.
+  odometer_entry_suspect:     { axis: "odometer", weight: 0 },
   odometer_implausible_jump:  { axis: "odometer", weight: 35 },
   odometer_daily_cap:         { axis: "odometer", weight: 30 },
   odometer_stale:             { axis: "odometer", weight: 25 },

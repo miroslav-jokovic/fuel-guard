@@ -393,6 +393,35 @@ describe("hardening — odometer correctness (±5 cross-source)", () => {
   });
 });
 
+describe("Phase 5 — implausibly huge odometer diff is DATA QUALITY, not theft", () => {
+  it("reclassifies a 27,000-mi diff as odometer_entry_suspect (low), not odometer_mismatch (high/theft)", () => {
+    const c = ctx({ crossSourceOdometer: 127001 }); // entered 100000 vs 127001 → 27,001 mi
+    const out = runAllRules(c);
+    const idList = out.map((r) => r.ruleId);
+    expect(idList).toContain("odometer_entry_suspect");
+    expect(idList).not.toContain("odometer_mismatch");
+    expect(out.find((r) => r.ruleId === "odometer_entry_suspect")!.severity).toBe("low");
+  });
+
+  it("odometer_entry_suspect carries zero theft weight (never inflates a correlated case)", () => {
+    const r = (ruleId: RuleId): RuleResult => ({ ruleId, fired: true, severity: "low", message: "", evidence: {} });
+    expect(correlateSignals([r("odometer_entry_suspect")]).level).toBe("clear");
+    // Weight-0 → excluded from the correlated signal set entirely; adding it changes nothing.
+    const alone = correlateSignals([r("tank_fill_short")]);
+    const withSuspect = correlateSignals([r("odometer_entry_suspect"), r("tank_fill_short")]);
+    expect(withSuspect.level).toBe(alone.level);
+    expect(withSuspect.signals.some((s) => s.ruleId === "odometer_entry_suspect")).toBe(false);
+  });
+
+  it("a normal (theft-plausible) diff still fires odometer_mismatch", () => {
+    expect(ids(ctx({ crossSourceOdometer: 100020 }))).toContain("odometer_mismatch");
+  });
+
+  it("is gated OBD-only like odometer_mismatch (no GPS/reconstructed)", () => {
+    expect(ids(ctx({ crossSourceOdometer: 127001, crossSourceOdometerSource: "gps" }))).not.toContain("odometer_entry_suspect");
+  });
+});
+
 describe("learnTankSensorReliability", () => {
   const fills = (ratios: number[]) => ratios.map((r) => ({ observedRiseGal: r * 100, billedGallons: 100 }));
   it("marks a single-tank truck reliable (ratio clusters ≈1)", () => {

@@ -74,6 +74,7 @@ export function ruleEligible(id: RuleId, c: FillConfidence): boolean {
     case "mpg_sustained_decline":
       return c.tankSensor === "reliable";
     case "odometer_mismatch":
+    case "odometer_entry_suspect":
       return c.odoSource !== "other";
     default:
       return true;
