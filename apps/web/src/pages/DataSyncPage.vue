@@ -36,28 +36,21 @@ const integrity = computed(() => {
       />
       <JobActionCard
         v-if="session.admin"
-        title="Sync from Samsara"
+        title="Sync fleet identity"
         kind="sync_vehicles"
         endpoint="/api/integrations/samsara/sync-vehicles"
         action-label="Sync now"
-        description="Pull trucks, drivers and driver assignments from Samsara (identity). Runs automatically every ~12 hours."
+        description="Pull trucks, drivers, trailers and their Samsara IDs from Samsara. This is the identity link that lets fuel fills be reconciled. Runs automatically every ~12 hours."
       />
       <JobActionCard
-        title="Re-sync Samsara"
+        title="Reconcile fuel with telematics"
         kind="backfill"
         endpoint="/api/transactions/backfill"
-        action-label="Re-sync now"
-        description="Reconcile only NEW / not-yet-reconciled fills against Samsara live — fast and scales with your data. New imports already reconcile themselves; this catches any that were missed."
-      />
-      <JobActionCard
-        v-if="session.admin"
-        title="Full re-reconcile"
-        kind="backfill"
-        endpoint="/api/transactions/backfill"
-        :body="{ full: true }"
-        action-label="Re-reconcile all"
-        description="Re-check EVERY fill against Samsara live (slow, grows with history). Only needed after a detection-logic change that must re-touch old rows — routine syncing does not require this."
-        confirm="Re-check EVERY historical fill against Samsara live? This can take a while and is only needed after a settings/logic change."
+        action-label="Reconcile new fills"
+        :secondary-label="session.admin ? 'Re-check all history' : undefined"
+        :secondary-body="{ full: true }"
+        secondary-confirm="Re-check EVERY historical fill against Samsara live? Slower — only needed after a detection-logic change."
+        description="Match fuel-card fills to Samsara — location, fueling-time odometer and tank level. 'Reconcile new fills' catches any not-yet-reconciled rows (fast). 'Re-check all history' re-touches every fill (only after a logic change)."
       />
       <JobActionCard
         title="Rebuild anomalies"

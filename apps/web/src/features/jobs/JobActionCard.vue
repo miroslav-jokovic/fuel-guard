@@ -11,16 +11,21 @@ const props = defineProps<{
   actionLabel: string;
   confirm?: string;
   disabled?: boolean;
-  /** Optional JSON body sent with the POST (e.g. { full: true } for a full re-reconcile). */
+  /** Optional JSON body sent with the primary POST (e.g. { full: true }). */
   body?: Record<string, unknown>;
+  /** Optional SECONDARY action on the same job/endpoint (e.g. "Re-check all history" → { full: true }).
+   *  Keeps two variants of one job on ONE card so they share one status chip instead of misleading duplicates. */
+  secondaryLabel?: string;
+  secondaryBody?: Record<string, unknown>;
+  secondaryConfirm?: string;
 }>();
 
 const toast = useToastStore();
 const { isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh } = useJob(props.kind);
 
-async function run() {
-  if (props.confirm && !window.confirm(props.confirm)) return;
-  const res = await apiFetch(props.endpoint, { method: "POST", body: props.body });
+async function run(body?: Record<string, unknown>, confirmMsg?: string) {
+  if (confirmMsg && !window.confirm(confirmMsg)) return;
+  const res = await apiFetch(props.endpoint, { method: "POST", body });
   if (res.ok) {
     toast.success(`${props.title} started`, "Running in the background — progress shows here.");
     refresh();
@@ -40,13 +45,23 @@ async function run() {
         <h3 class="text-sm font-semibold text-gray-900">{{ title }}</h3>
         <p class="mt-1 text-sm text-gray-500">{{ description }}</p>
       </div>
-      <button
-        :disabled="isRunning || disabled"
-        class="shrink-0 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-        @click="run"
-      >
-        {{ isRunning ? "Running…" : actionLabel }}
-      </button>
+      <div class="flex shrink-0 items-center gap-2">
+        <button
+          v-if="secondaryLabel"
+          :disabled="isRunning || disabled"
+          class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+          @click="run(secondaryBody, secondaryConfirm)"
+        >
+          {{ secondaryLabel }}
+        </button>
+        <button
+          :disabled="isRunning || disabled"
+          class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+          @click="run(body, confirm)"
+        >
+          {{ isRunning ? "Running…" : actionLabel }}
+        </button>
+      </div>
     </div>
 
     <!-- Progress bar while a run is active -->
