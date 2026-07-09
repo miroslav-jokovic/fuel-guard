@@ -566,6 +566,11 @@ function ruleLocationMismatch(ctx: RuleContext): RuleResult {
  * to review, not proof. Only fires on a measured shortfall.
  */
 function ruleTankFillShort(ctx: RuleContext): RuleResult {
+  // Only trustworthy when we know the sensor covers the whole billed fill — i.e. a configured single/monitored
+  // tank. Unset (dual-tank / unknown) → suppress: a lone sensor on a dual-saddle-tank truck reads ~half the
+  // fill and false-flags every full fill. Gating HERE means a cheap re-score clears prior false rows without
+  // a Samsara re-fetch.
+  if (ctx.vehicle.monitoredTankCapacityGal == null) return none("tank_fill_short");
   const short = ctx.tankFillShortGal;
   if (short == null || short <= 0) return none("tank_fill_short");
   // Samsara's tank-% sensor is COARSE, so a small gap between billed gallons and the observed rise is

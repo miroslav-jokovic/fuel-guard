@@ -414,21 +414,28 @@ describe("location mismatch (precise state comparison)", () => {
 });
 
 describe("hardening — tank fill short (Samsara, advisory)", () => {
-  it("fires (low) when the tank rose far less than billed gallons", () => {
-    const fired = runAllRules(ctx({ tankFillShortGal: 65, tankObservedRiseGal: 25 }));
+  // The check only runs for a truck with a configured MONITORED (sensed) tank capacity.
+  const monitored: VehicleView = { ...vehicle, monitoredTankCapacityGal: 120 };
+  it("fires (low) when the tank rose far less than billed gallons (monitored tank configured)", () => {
+    const fired = runAllRules(ctx({ vehicle: monitored, tankFillShortGal: 65, tankObservedRiseGal: 25 }));
     const tank = fired.find((r) => r.ruleId === "tank_fill_short");
     expect(tank).toBeTruthy();
     expect(tank!.severity).toBe("low");
+  });
+  it("does NOT fire when the monitored tank is unset (dual-tank/unknown) — even on a large shortfall", () => {
+    // Default vehicle has no monitoredTankCapacityGal → single sensor can't reconcile a possibly-two-tank
+    // fill → suppress rather than false-flag.
+    expect(ids(ctx({ tankFillShortGal: 65, tankObservedRiseGal: 25 }))).not.toContain("tank_fill_short");
   });
   it("does not fire when the shortfall is absent or zero", () => {
     expect(ids(ctx())).not.toContain("tank_fill_short");
     expect(ids(ctx({ tankFillShortGal: 0 }))).not.toContain("tank_fill_short");
   });
-  it("does NOT fire on a small sensor-noise shortfall within tolerance", () => {
+  it("does NOT fire on a small sensor-noise shortfall within tolerance (monitored tank configured)", () => {
     // 0.4 gal short on a 90-gal fill (~27 gal sensor tolerance) is noise, not siphoning — must stay quiet.
-    expect(ids(ctx({ tankFillShortGal: 0.4, tankObservedRiseGal: 89.6 }))).not.toContain("tank_fill_short");
+    expect(ids(ctx({ vehicle: monitored, tankFillShortGal: 0.4, tankObservedRiseGal: 89.6 }))).not.toContain("tank_fill_short");
     // Just under the tolerance still doesn't fire.
-    expect(ids(ctx({ tankFillShortGal: 20 }))).not.toContain("tank_fill_short");
+    expect(ids(ctx({ vehicle: monitored, tankFillShortGal: 20 }))).not.toContain("tank_fill_short");
   });
 });
 
