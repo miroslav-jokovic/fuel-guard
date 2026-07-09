@@ -162,7 +162,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
     <div class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-sm font-semibold text-gray-900">
-          Anomalies
+          Alerts
           <span class="ml-1 font-normal text-gray-400">· {{ total }}</span>
           <span v-if="activeFilterCount" class="ml-1 font-normal text-indigo-600">· {{ activeFilterCount }} filter{{ activeFilterCount > 1 ? "s" : "" }}</span>
         </h2>
@@ -248,8 +248,8 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
       <span class="text-sm font-medium text-indigo-900">{{ selectedCount }} selected</span>
       <div class="flex flex-wrap gap-2">
         <button :disabled="busy" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkTransition('investigating')">Investigate</button>
-        <button :disabled="busy" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} anomalies as false alarm?')">False alarm</button>
-        <button :disabled="busy" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkTransition('resolved', undefined, 'Resolve {n} anomalies?')">Resolve</button>
+        <button :disabled="busy" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?')">False alarm</button>
+        <button :disabled="busy" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkTransition('resolved', undefined, 'Resolve {n} alerts?')">Resolve</button>
         <button :disabled="busy" class="text-sm font-medium text-gray-500 hover:text-gray-700" @click="selectedIds = new Set()">Clear</button>
       </div>
     </div>
@@ -258,7 +258,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
       <TableSkeleton v-if="isLoading" :cols="8" />
       <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load anomalies'" :retrying="isFetching" @retry="refetch" />
-      <div v-else-if="total === 0" class="px-6 py-10 text-center text-sm text-gray-500">Nothing here — no anomalies match these filters.</div>
+      <div v-else-if="total === 0" class="px-6 py-10 text-center text-sm text-gray-500">Nothing here — no alerts match these filters.</div>
       <div v-else class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
           <thead class="bg-gray-50 text-left text-gray-500">
@@ -317,7 +317,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
       <TablePagination v-if="!isLoading && !isError && total > 0" :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />
     </div>
 
-    <SlideOver :open="!!selectedRow" title="Anomaly" @close="selectedRow = null">
+    <SlideOver :open="!!selectedRow" title="Alert" @close="selectedRow = null">
       <AnomalyDetail v-if="selectedRow" :anomaly="selectedRow" :vehicle-unit="unit(selectedRow.vehicle_id)" @changed="selectedRow = null" />
     </SlideOver>
   </div>

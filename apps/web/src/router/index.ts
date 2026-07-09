@@ -101,13 +101,12 @@ const routes: RouteRecordRaw[] = [
     path: "/anomalies",
     name: "anomalies",
     component: () => import("@/pages/AnomaliesPage.vue"),
-    meta: { requiresAuth: true, title: "Anomalies" },
+    meta: { requiresAuth: true, title: "Alerts" },
   },
   {
+    // Merged into Fuel Log (same underlying fuel_transactions data) — redirect old links.
     path: "/fuel-events",
-    name: "fuel-events",
-    component: () => import("@/pages/FuelEventsPage.vue"),
-    meta: { requiresAuth: true, title: "Fuel Events" },
+    redirect: "/fuel-log",
   },
   {
     path: "/ask",

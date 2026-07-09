@@ -15,7 +15,6 @@ import {
   ArrowUpTrayIcon,
   TableCellsIcon,
   NoSymbolIcon,
-  FireIcon,
   SparklesIcon,
   Bars3Icon,
   XMarkIcon,
@@ -77,11 +76,8 @@ const navGroups = computed<NavGroup[]>(() =>
     {
       label: "Analysis",
       items: [
-        { name: "Anomalies", to: "/anomalies", icon: ExclamationTriangleIcon, show: session.canManage || session.readOnly },
-        { name: "Fuel Events", to: "/fuel-events", icon: FireIcon, show: session.canManage || session.readOnly },
+        { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: session.canManage || session.readOnly },
         { name: "Reefer Coverage", to: "/reefer-coverage", icon: CubeIcon, show: session.canManage || session.readOnly },
-        { name: "Coverage", to: "/coverage", icon: SignalIcon, show: session.canManage || session.readOnly },
-        { name: "Recall Audit", to: "/recall-audit", icon: ClipboardDocumentCheckIcon, show: session.canManage || session.readOnly },
         { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: session.canManage || session.readOnly },
         { name: "Reports", to: "/reports", icon: ChartBarIcon, show: session.canManage || session.readOnly },
       ],
@@ -90,6 +86,8 @@ const navGroups = computed<NavGroup[]>(() =>
       label: "Admin",
       items: [
         { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: session.canManage },
+        { name: "Detection Coverage", to: "/coverage", icon: SignalIcon, show: session.canManage || session.readOnly },
+        { name: "Recall Audit", to: "/recall-audit", icon: ClipboardDocumentCheckIcon, show: session.canManage || session.readOnly },
         { name: "Users", to: "/settings/users", icon: UsersIcon, show: session.admin },
       ],
     },

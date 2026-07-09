@@ -37,7 +37,9 @@ export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) 
       let q = supabase
         .from("efs_transactions")
         .select(EFS_COLS, { count: "exact" })
-        .order(f.sortKey ?? "tran_date", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
+        // nullsFirst:false — undated lines (fee/DEF/footer rows with no Tran Date) must sort to the BOTTOM,
+        // not float to the top of a DESC sort (Postgres defaults to NULLS FIRST on descending).
+        .order(f.sortKey ?? "tran_date", { ascending: f.sortKey ? f.sortDir !== "desc" : false, nullsFirst: false })
         .order("line_number", { ascending: true })
         .range(start, start + EFS_PAGE_SIZE - 1);
       if (f.unit) q = q.eq("unit", f.unit);
@@ -65,7 +67,7 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
       let q = supabase
         .from("declined_transactions")
         .select(DECLINED_COLS, { count: "exact" })
-        .order(f.sortKey ?? "declined_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
+        .order(f.sortKey ?? "declined_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false, nullsFirst: false })
         .range(start, start + EFS_PAGE_SIZE - 1);
       if (f.unit) q = q.eq("unit", f.unit);
       if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);
