@@ -404,6 +404,8 @@ export async function scoreTransaction(
       .eq("state", r.state)
       .not("samsara_nearest_station_miles", "is", null)
       .order("fueled_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false }) // deterministic sample at the limit boundary (R-2)
       .limit(20);
     const dists = ((stationRows ?? []) as { samsara_nearest_station_miles: number | string }[])
       .map((x) => Number(x.samsara_nearest_station_miles))
@@ -466,7 +468,11 @@ export async function scoreTransaction(
       .eq("tank_type", "tractor")
       .gte("fueled_at", winStart())
       .lte("fueled_at", r.fueled_at)
-      .order("fueled_at", { ascending: true }); // OLDEST→NEWEST for robustWindowMiles' regression check
+      // OLDEST→NEWEST for robustWindowMiles' regression check; created_at,id tiebreakers make the order
+      // deterministic when date-only rows share the noon-sentinel fueled_at (R-2 — rebuild idempotency).
+      .order("fueled_at", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
     const wr = (winRows ?? []) as {
       gallons: number | string;
       odometer: number | string | null;

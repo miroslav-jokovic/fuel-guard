@@ -614,7 +614,7 @@ function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
   // whole fill (learned tankSensorReliable). On a dual-saddle-tank truck the sensor reads one tank at 92%
   // while the OTHER tank has room, so billed > sensed-tank-space false-flags every both-tank fill.
   // Tank-sensor-reliability gate centralized in ruleEligible/computeFillConfidence (docs/12).
-  const cap = vehicle.tankCapacityGal;
+  const cap = effectiveCapacityGal(vehicle); // learned combined capacity when available, else entered (P-2)
   if (tankPctBefore == null || cap <= 0 || txn.gallons <= 0) return none("tank_space_exceeded");
   const freeSpace = cap * (1 - Math.min(Math.max(tankPctBefore, 0), 100) / 100);
   // Tolerance for sensor coarseness: the larger of 12 gal or 10% of the tank.
@@ -700,8 +700,13 @@ function ruleMpgSustainedDecline(ctx: RuleContext): RuleResult {
   if (series.length < 6) return none("mpg_sustained_decline");
   const last3 = median(series.slice(-3));
   const prior3 = median(series.slice(-6, -3));
-  if (prior3 > 0 && last3 < prior3 * 0.9) {
-    return { ruleId: "mpg_sustained_decline", fired: true, severity: "medium", message: `Recent MPG (${r2(last3)}) has declined more than 10% versus the prior period (${r2(prior3)}).`, evidence: { recentMedian: r2(last3), priorMedian: r2(prior3) } };
+  // Base 10% decline threshold, widened by the cold-weather allowance (P-6b) so a legitimate fall→winter
+  // economy decline doesn't false-fire. Only ever widens the band.
+  const coldDerate = coldWeatherDeratePct(txn.fueledAt);
+  const declineFactor = 1 - (10 + coldDerate) / 100;
+  if (prior3 > 0 && last3 < prior3 * declineFactor) {
+    const coldNote = coldDerate ? ` (allowing +${coldDerate}% for cold-weather economy)` : "";
+    return { ruleId: "mpg_sustained_decline", fired: true, severity: "medium", message: `Recent MPG (${r2(last3)}) has declined more than ${10 + coldDerate}% versus the prior period (${r2(prior3)})${coldNote}.`, evidence: { recentMedian: r2(last3), priorMedian: r2(prior3), coldWeatherDeratePct: coldDerate } };
   }
   return none("mpg_sustained_decline");
 }

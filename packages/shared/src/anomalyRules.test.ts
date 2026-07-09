@@ -81,6 +81,13 @@ describe("tank_space_exceeded (physical: can't add more than the tank holds)", (
   it("stays silent when the pre-fill level is unknown (no false alarm on missing data)", () => {
     expect(ids(ctx())).not.toContain("tank_space_exceeded");
   });
+  it("uses the LEARNED combined capacity, not the under-entered nameplate (P-2)", () => {
+    // Nameplate 120 (one tank) at 60% → 48 gal space; billed 90 → would false-fire. With learned combined
+    // capacity 240, space is 96 gal → the both-tank fill fits and must NOT fire.
+    const dualTank: VehicleView = { ...reliable, tankCapacityGal: 120, observedMaxFillGal: 240 };
+    expect(ids(ctx({ vehicle: reliable, tankPctBefore: 60 }))).toContain("tank_space_exceeded"); // nameplate only
+    expect(ids(ctx({ vehicle: dualTank, tankPctBefore: 60 }))).not.toContain("tank_space_exceeded"); // learned combined
+  });
 });
 
 describe("correlateSignals (multi-signal → one case)", () => {
