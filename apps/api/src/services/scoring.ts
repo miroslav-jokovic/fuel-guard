@@ -10,6 +10,7 @@ import {
   learnOdometerOffset,
   learnTankSensorReliability,
   learnObservedMaxFill,
+  robustWindowMiles,
   type TxnView,
   type VehicleView,
   type Thresholds,
@@ -427,15 +428,24 @@ export async function scoreTransaction(
 
     const { data: winRows } = await admin
       .from("fuel_transactions")
-      .select("gallons, odometer")
+      .select("gallons, odometer, samsara_odometer, samsara_odometer_source")
       .eq("vehicle_id", txn.vehicleId)
       .eq("tank_type", "tractor")
       .gte("fueled_at", winStart())
-      .lte("fueled_at", r.fueled_at);
-    const wr = (winRows ?? []) as { gallons: number | string; odometer: number | string | null }[];
+      .lte("fueled_at", r.fueled_at)
+      .order("fueled_at", { ascending: true }); // OLDEST→NEWEST for robustWindowMiles' regression check
+    const wr = (winRows ?? []) as {
+      gallons: number | string;
+      odometer: number | string | null;
+      samsara_odometer: number | string | null;
+      samsara_odometer_source: string | null;
+    }[];
     windowGallons = wr.reduce((s, x) => s + Number(x.gallons), 0);
-    const odos = wr.map((x) => n(x.odometer)).filter((x): x is number => x != null);
-    windowMiles = odos.length >= 2 ? Math.max(...odos) - Math.min(...odos) : null;
+    // Miles driven from the CLEAN OBD Samsara odometer span when available; fall back to the entered span only
+    // when it doesn't regress; else null → cumulative_overfuel stays silent (data-quality, not a false alarm).
+    windowMiles = robustWindowMiles(
+      wr.map((x) => ({ enteredOdometer: n(x.odometer), samsaraOdometer: n(x.samsara_odometer), samsaraSource: x.samsara_odometer_source })),
+    ).miles;
   }
 
   if (txn.cardRef) {

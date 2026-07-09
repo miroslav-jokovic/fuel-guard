@@ -8,6 +8,7 @@ import {
   learnTankSensorReliability,
   learnObservedMaxFill,
   effectiveCapacityGal,
+  robustWindowMiles,
   isOffHours,
   maxSeverity,
   type RuleContext,
@@ -451,6 +452,39 @@ describe("hardening — cumulative overfuel", () => {
     // 2000 mi window can burn ~312 gal; 300 gal purchased is fine.
     const c = ctx({ windowGallons: 300, windowMiles: 2000 });
     expect(ids(c)).not.toContain("cumulative_overfuel");
+  });
+  it("does not fire when miles are unknown (untrustworthy window → suppressed)", () => {
+    const c = ctx({ windowGallons: 400, windowMiles: null });
+    expect(ids(c)).not.toContain("cumulative_overfuel");
+  });
+});
+
+describe("Phase 3 — robust over-fuel window miles", () => {
+  const row = (enteredOdometer: number | null, samsaraOdometer: number | null = null, samsaraSource: string | null = null) =>
+    ({ enteredOdometer, samsaraOdometer, samsaraSource });
+
+  it("prefers the clean OBD Samsara odometer span over the noisy entered span", () => {
+    const rows = [row(100000, 500000, "obd"), row(100050, 500600, "obd")]; // entered barely moves; OBD shows 600 mi
+    const r = robustWindowMiles(rows);
+    expect(r.basis).toBe("samsara_obd");
+    expect(r.miles).toBe(600);
+  });
+
+  it("ignores GPS/reconstructed Samsara odometer (different baseline) and uses a clean entered span", () => {
+    const rows = [row(100000, 900000, "gps"), row(100600, 930000, "reconstructed")];
+    const r = robustWindowMiles(rows);
+    expect(r.basis).toBe("entered");
+    expect(r.miles).toBe(600);
+  });
+
+  it("suppresses (null) when the entered odometer regresses — a bad entry, not real miles", () => {
+    const rows = [row(100600), row(100000)]; // later reading below the earlier one
+    expect(robustWindowMiles(rows).miles).toBeNull();
+  });
+
+  it("returns null when fewer than two usable readings exist", () => {
+    expect(robustWindowMiles([row(100000)]).miles).toBeNull();
+    expect(robustWindowMiles([row(null, null, "obd")]).miles).toBeNull();
   });
 });
 

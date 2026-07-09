@@ -481,6 +481,43 @@ export function learnTankSensorReliability(
   return { reliable, ratio: Math.round(med * 1000) / 1000, samples: ratios.length };
 }
 
+export interface WindowOdoRow {
+  /** Driver-entered odometer on the fill (noisy — typos, missed/duplicate entries). */
+  enteredOdometer: number | null;
+  /** Samsara fueling-time odometer (single-source + despiked upstream). */
+  samsaraOdometer: number | null;
+  /** Provenance of samsaraOdometer: 'obd' is a single consistent baseline; 'gps'/'reconstructed' are not. */
+  samsaraSource: string | null;
+}
+
+export interface WindowMilesResult {
+  /** Miles driven across the window, or null when no source is trustworthy (→ cumulative_overfuel suppressed). */
+  miles: number | null;
+  basis: "samsara_obd" | "entered" | "none";
+}
+
+/**
+ * Robust miles-driven over the cumulative window. The over-fuel ceiling is only as trustworthy as this number,
+ * and computing it from the DRIVER-ENTERED odometer span lets one typo / missed / duplicate entry collapse the
+ * miles and false-fire cumulative_overfuel. So: prefer the clean OBD Samsara odometer span (single, despiked
+ * baseline); fall back to the entered span ONLY when it doesn't regress (a later reading below an earlier one
+ * signals a bad entry); otherwise return null so the rule stays silent (data-quality, not fraud). Rows must be
+ * ordered OLDEST→NEWEST.
+ */
+export function robustWindowMiles(rowsOldestFirst: WindowOdoRow[]): WindowMilesResult {
+  const obd = rowsOldestFirst
+    .filter((r) => r.samsaraSource === "obd" && r.samsaraOdometer != null && Number.isFinite(r.samsaraOdometer))
+    .map((r) => r.samsaraOdometer as number);
+  if (obd.length >= 2) return { miles: Math.max(...obd) - Math.min(...obd), basis: "samsara_obd" };
+
+  const entered = rowsOldestFirst.map((r) => r.enteredOdometer).filter((x): x is number => x != null && Number.isFinite(x));
+  if (entered.length >= 2) {
+    const monotonic = entered.every((v, i) => i === 0 || v >= entered[i - 1]! - 1); // no backward jump (±1 float tol)
+    if (monotonic) return { miles: Math.max(...entered) - Math.min(...entered), basis: "entered" };
+  }
+  return { miles: null, basis: "none" };
+}
+
 /** Single-source odometer plausibility vs fuel: catches odometer padding (drove far more than fuel allows). */
 function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
   const { txn, vehicle, previousTxn, recentTxns } = ctx;
@@ -551,6 +588,10 @@ function ruleImplausibleTopoff(ctx: RuleContext): RuleResult {
   return none("implausible_topoff");
 }
 
+/** Net-unaccounted gallons the window purchase must exceed the burnable+tank ceiling by before firing —
+ *  a documented fuel-loss threshold (~>10 gal) that keeps a marginal excess from false-firing. */
+const CUMULATIVE_OVERFUEL_MARGIN_GAL = 10;
+
 /** Rolling-window reconciliation: fuel purchased can't exceed fuel burnable in the window + one tank. */
 function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
   const { vehicle, recentTxns, thresholds } = ctx;
@@ -560,7 +601,9 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
   if (windowGallons <= 0 || baseline == null || baseline <= 0 || windowMiles == null) return none("cumulative_overfuel");
   const cap = effectiveCapacityGal(vehicle); // learned combined capacity when available, else entered
   const burnable = windowMiles / baseline;
-  const ceiling = burnable + cap; // could burn this much + arrive with an empty tank
+  // Ceiling = fuel burnable over the window + one empty-to-full tank of slack. Require the overage to clear a
+  // net-unaccounted floor (documented industry practice: ~>10 gal) so a marginal excess never fires.
+  const ceiling = burnable + cap + CUMULATIVE_OVERFUEL_MARGIN_GAL;
   if (windowGallons > ceiling) {
     const hrs = thresholds.cumulativeWindowHours ?? 48;
     return { ruleId: "cumulative_overfuel", fired: true, severity: "high", message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${windowMiles} mi (+${cap} gal tank).`, evidence: { windowGallons: r2(windowGallons), windowMiles, burnable: r2(burnable), tankCapacity: cap, windowHours: hrs } };
