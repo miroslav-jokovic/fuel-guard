@@ -11,6 +11,7 @@ import {
   learnTankSensorReliability,
   learnObservedMaxFill,
   robustWindowMiles,
+  isSystematicStationOffset,
   type TxnView,
   type VehicleView,
   type Thresholds,
@@ -26,7 +27,7 @@ import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraFetcher } from "../lib/samsara.js";
 
 const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, samsara_nearest_station_miles, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at";
 
 const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -83,6 +84,7 @@ interface FtxnRow {
   samsara_odometer_source: string | null;
   samsara_location_matched: boolean | null;
   samsara_location_confidence: string | null;
+  samsara_nearest_station_miles: number | string | null;
   station_lat: number | string | null;
   station_lng: number | string | null;
   samsara_tank_short_gal: number | string | null;
@@ -267,6 +269,7 @@ export async function scoreTransaction(
   let locationConfidence: string | null = null;
   let stationLat: number | null = null;
   let stationLng: number | null = null;
+  let nearestStationMiles: number | null = null;
   let locationEvidence: Record<string, unknown> | null = null;
   let reconAt: string | null = null;
   let tankFillShortGal: number | null = null;
@@ -291,6 +294,7 @@ export async function scoreTransaction(
     crossSourceOdometerSource = r.samsara_odometer_source ?? null;
     samsaraLocationMatched = r.samsara_location_matched ?? null;
     locationConfidence = r.samsara_location_confidence ?? null;
+    nearestStationMiles = n(r.samsara_nearest_station_miles);
     stationLat = n(r.station_lat);
     stationLng = n(r.station_lng);
     tankFillShortGal = n(r.samsara_tank_short_gal);
@@ -350,6 +354,7 @@ export async function scoreTransaction(
       crossSourceOdometerSource = recon.crossSourceOdometerSource;
       samsaraLocationMatched = recon.locationMatched;
       locationConfidence = recon.locationConfidence;
+      nearestStationMiles = recon.nearestStationMiles;
       stationLat = recon.stationLat;
       stationLng = recon.stationLng;
       locationEvidence = recon.locationEvidence;
@@ -383,6 +388,34 @@ export async function scoreTransaction(
         // are suppressed for this fill rather than fired off a possibly-wrong clock.
         txn.timeConfirmed = false;
       }
+    }
+  }
+
+  // Phase 4 (docs/12 §E): suppress a would-be location mismatch that is actually a WRONG STATION PIN. If the
+  // truck came a CONSISTENT non-zero distance from this station across its recent fills, the stored coordinate
+  // is off (city-centroid / bad geocode), not theft — downgrade to unknown (data-quality) so the mismatch rule
+  // stays silent. A genuine "card used where the truck wasn't" varies trip to trip. Never RAISES a mismatch.
+  if (samsaraLocationMatched === false && r.location_text && r.state) {
+    const { data: stationRows } = await admin
+      .from("fuel_transactions")
+      .select("samsara_nearest_station_miles")
+      .eq("org_id", orgId)
+      .eq("location_text", r.location_text)
+      .eq("state", r.state)
+      .not("samsara_nearest_station_miles", "is", null)
+      .order("fueled_at", { ascending: false })
+      .limit(20);
+    const dists = ((stationRows ?? []) as { samsara_nearest_station_miles: number | string }[])
+      .map((x) => Number(x.samsara_nearest_station_miles))
+      .filter((x) => Number.isFinite(x));
+    if (nearestStationMiles != null) dists.push(nearestStationMiles);
+    if (isSystematicStationOffset(dists)) {
+      samsaraLocationMatched = null;
+      locationConfidence = "unknown";
+      locationEvidence = {
+        dataQuality: "station_coordinate_suspect",
+        note: `Across recent fills the truck stayed a consistent ~${nearestStationMiles ?? "?"} mi from this station's stored coordinate — the pin appears wrong, so this is a data-quality issue, not a location mismatch.`,
+      };
     }
   }
 
@@ -564,6 +597,7 @@ export async function scoreTransaction(
       samsara_odometer_source: crossSourceOdometerSource,
       samsara_location_matched: samsaraLocationMatched,
       samsara_location_confidence: locationConfidence,
+      samsara_nearest_station_miles: nearestStationMiles,
       station_lat: stationLat,
       station_lng: stationLng,
       samsara_tank_short_gal: tankFillShortGal,

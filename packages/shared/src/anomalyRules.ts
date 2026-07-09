@@ -518,6 +518,31 @@ export function robustWindowMiles(rowsOldestFirst: WindowOdoRow[]): WindowMilesR
   return { miles: null, basis: "none" };
 }
 
+/**
+ * Detect a WRONG STATION COORDINATE from the pattern of how close a truck came to a station across many fills.
+ * WEX documents this exact pitfall: when a station's stored/geocoded coordinate is off (city-centroid, chain
+ * HQ, bad pin), EVERY fill there shows the truck a CONSISTENT distance away — a data error, not theft. Genuine
+ * "card used where the truck wasn't" varies trip to trip. So if the per-fill nearest-distances to a station
+ * cluster tightly at a materially non-zero value across ≥ minSamples fills, treat it as a systematic offset
+ * (route the mismatch to data-quality / suppress) rather than a theft signal. Pure.
+ */
+export function isSystematicStationOffset(
+  distancesMiles: number[],
+  opts: { minSamples?: number; minOffsetMiles?: number; maxRelSpread?: number; window?: number } = {},
+): boolean {
+  const minSamples = opts.minSamples ?? 4;
+  const minOffset = opts.minOffsetMiles ?? 1;
+  const maxRelSpread = opts.maxRelSpread ?? 0.25;
+  const window = opts.window ?? 20;
+  const vals = distancesMiles.filter((d) => Number.isFinite(d) && d >= 0).slice(-window);
+  if (vals.length < minSamples) return false;
+  const med = median(vals);
+  if (med < minOffset) return false; // essentially at the station → no offset to explain
+  // A strong majority must sit within a tight relative band of the median (tight cluster = fixed pin error).
+  const within = vals.filter((d) => Math.abs(d - med) <= maxRelSpread * med).length;
+  return within / vals.length >= 0.8;
+}
+
 /** Single-source odometer plausibility vs fuel: catches odometer padding (drove far more than fuel allows). */
 function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
   const { txn, vehicle, previousTxn, recentTxns } = ctx;

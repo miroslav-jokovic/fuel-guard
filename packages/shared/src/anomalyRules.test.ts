@@ -9,6 +9,7 @@ import {
   learnObservedMaxFill,
   effectiveCapacityGal,
   robustWindowMiles,
+  isSystematicStationOffset,
   isOffHours,
   maxSeverity,
   type RuleContext,
@@ -485,6 +486,29 @@ describe("Phase 3 — robust over-fuel window miles", () => {
   it("returns null when fewer than two usable readings exist", () => {
     expect(robustWindowMiles([row(100000)]).miles).toBeNull();
     expect(robustWindowMiles([row(null, null, "obd")]).miles).toBeNull();
+  });
+});
+
+describe("Phase 4 — systematic station-offset (wrong-pin) detection", () => {
+  it("flags a station whose fills are consistently ~the same distance away (bad coordinate)", () => {
+    // Truck always ~62 mi from the station's stored pin across 5 visits → the pin is wrong, not theft.
+    expect(isSystematicStationOffset([61, 63, 62, 62, 64])).toBe(true);
+  });
+
+  it("does NOT flag when distances vary trip-to-trip (genuine 'truck was elsewhere')", () => {
+    expect(isSystematicStationOffset([60, 5, 120, 3, 200])).toBe(false);
+  });
+
+  it("does NOT flag when the truck is essentially at the station (no offset to explain)", () => {
+    expect(isSystematicStationOffset([0.2, 0.3, 0.1, 0.4, 0.2])).toBe(false);
+  });
+
+  it("requires enough visits before concluding it is systematic", () => {
+    expect(isSystematicStationOffset([62, 62])).toBe(false); // < minSamples
+  });
+
+  it("tolerates a single outlier within an otherwise tight cluster", () => {
+    expect(isSystematicStationOffset([62, 61, 63, 62, 5, 62])).toBe(true); // 5/6 within band
   });
 });
 

@@ -91,6 +91,9 @@ export interface ReconResult {
   /** Geocoded station coordinates we measured proximity against (null if not geocoded). */
   stationLat: number | null;
   stationLng: number | null;
+  /** Truck's closest approach (mi) to the station's geocoded coordinate that day — used across fills to
+   *  detect a systematically wrong station pin (a constant offset = data error, not theft). null if no geocode. */
+  nearestStationMiles: number | null;
   /** Evidence behind a location decision (EFS vs Samsara city/state). */
   locationEvidence: Record<string, unknown> | null;
   /** Telematics-recovered fueling time (fixes EFS date-only) — null if unmatched. */
@@ -249,6 +252,7 @@ export async function reconcileWithSamsara(
     locationConfidence: loc.confidence,
     stationLat,
     stationLng,
+    nearestStationMiles: nearMiles,
     locationEvidence: loc.evidence,
     matchedAt: at,
     tankFillShortGal: tank.shortGal,
