@@ -16,6 +16,7 @@ import {
   parseTrailerAssignments,
   sampleNearestTime,
   stateFromAddress,
+  normalizeStateCode,
   cityFromAddress,
   compareLocationState,
   matchFuelingStop,
@@ -127,6 +128,25 @@ describe("precise location comparison", () => {
     expect(cityFromAddress("Fuller Drive, Boylston, MA, 01505")).toBe("Boylston");
     expect(stateFromAddress("Pilot Town Pump, Belgrade, MT")).toBe("MT");
     expect(stateFromAddress("no state here")).toBeNull();
+  });
+
+  it("normalizeStateCode: codes pass through, full names map, unknown → null (fail-safe)", () => {
+    expect(normalizeStateCode("TX")).toBe("TX");
+    expect(normalizeStateCode("tx")).toBe("TX");
+    expect(normalizeStateCode("Texas")).toBe("TX");
+    expect(normalizeStateCode("TEXAS")).toBe("TX");
+    expect(normalizeStateCode("British Columbia")).toBe("BC");
+    expect(normalizeStateCode("Ontario")).toBe("ON");
+    expect(normalizeStateCode("Nowhere")).toBeNull();
+    expect(normalizeStateCode(null)).toBeNull();
+  });
+
+  it("matchFuelingStop does NOT false-mismatch when the EFS state is a full NAME ('Texas', truck in TX)", () => {
+    const samples = [
+      { time: "2026-06-30T20:25:00Z", lat: 32.45, lng: -99.73, speedMph: 0, address: "I-20, Abilene, TX, 79601", odometerMiles: 100000 },
+    ];
+    const r = matchFuelingStop(samples, { state: "Texas" }, "2026-06-30T14:30:00", { stoppedMph: 5 });
+    expect(r.locationMatched).toBe(true); // "Texas" normalized to "TX" → in-state, not a mismatch
   });
 
   it("compareLocationState: same state true, different state false, unknown null", () => {

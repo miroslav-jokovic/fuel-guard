@@ -187,6 +187,38 @@ const US_STATES = new Set([
   "AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT",
 ]);
 
+/** Full state/province NAME → 2-letter code, so an EFS value that arrives as a full name ("Texas",
+ *  "British Columbia") still compares equal to Samsara's 2-letter reverse-geo code and can't cause a
+ *  false location mismatch. */
+const STATE_NAME_TO_CODE: Record<string, string> = {
+  ALABAMA: "AL", ALASKA: "AK", ARIZONA: "AZ", ARKANSAS: "AR", CALIFORNIA: "CA", COLORADO: "CO",
+  CONNECTICUT: "CT", DELAWARE: "DE", FLORIDA: "FL", GEORGIA: "GA", HAWAII: "HI", IDAHO: "ID",
+  ILLINOIS: "IL", INDIANA: "IN", IOWA: "IA", KANSAS: "KS", KENTUCKY: "KY", LOUISIANA: "LA", MAINE: "ME",
+  MARYLAND: "MD", MASSACHUSETTS: "MA", MICHIGAN: "MI", MINNESOTA: "MN", MISSISSIPPI: "MS", MISSOURI: "MO",
+  MONTANA: "MT", NEBRASKA: "NE", NEVADA: "NV", "NEW HAMPSHIRE": "NH", "NEW JERSEY": "NJ", "NEW MEXICO": "NM",
+  "NEW YORK": "NY", "NORTH CAROLINA": "NC", "NORTH DAKOTA": "ND", OHIO: "OH", OKLAHOMA: "OK", OREGON: "OR",
+  PENNSYLVANIA: "PA", "RHODE ISLAND": "RI", "SOUTH CAROLINA": "SC", "SOUTH DAKOTA": "SD", TENNESSEE: "TN",
+  TEXAS: "TX", UTAH: "UT", VERMONT: "VT", VIRGINIA: "VA", WASHINGTON: "WA", "WEST VIRGINIA": "WV",
+  WISCONSIN: "WI", WYOMING: "WY", "DISTRICT OF COLUMBIA": "DC", "PUERTO RICO": "PR",
+  // Canadian provinces/territories
+  ALBERTA: "AB", "BRITISH COLUMBIA": "BC", MANITOBA: "MB", "NEW BRUNSWICK": "NB",
+  "NEWFOUNDLAND AND LABRADOR": "NL", NEWFOUNDLAND: "NL", "NOVA SCOTIA": "NS", "NORTHWEST TERRITORIES": "NT",
+  NUNAVUT: "NU", ONTARIO: "ON", "PRINCE EDWARD ISLAND": "PE", QUEBEC: "QC", SASKATCHEWAN: "SK", YUKON: "YT",
+};
+
+/**
+ * Normalize a state/province value to its 2-letter US/CA code. Accepts a code ("TX", "tx") OR a full name
+ * ("Texas", "TEXAS", "British Columbia"). Returns null when unrecognized — fail-safe: no code means no state
+ * comparison, which yields "unknown" (never a false mismatch). Use this on any EFS-provided state before
+ * comparing it to a Samsara reverse-geo code.
+ */
+export function normalizeStateCode(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const t = s.trim().toUpperCase();
+  if (US_STATES.has(t)) return t;
+  return STATE_NAME_TO_CODE[t] ?? null;
+}
+
 /** Extract the 2-letter state/province code from a Samsara formatted address ("…, City, ST, 12345"). */
 export function stateFromAddress(address: string | null | undefined): string | null {
   if (!address) return null;
@@ -219,8 +251,9 @@ export function compareLocationState(
 ): boolean | null {
   if (!efsState || !samsaraAddress) return null;
   const s = stateFromAddress(samsaraAddress);
-  if (!s) return null;
-  return s === efsState.trim().toUpperCase();
+  const efs = normalizeStateCode(efsState);
+  if (!s || !efs) return null;
+  return s === efs;
 }
 
 // Hours to ADD to local time to get UTC (standard time; DST ignored → ≤1h slack, absorbed by the
@@ -406,7 +439,7 @@ export function matchFuelingStop(
   opts: { stoppedMph?: number } = {},
 ): FuelingStopMatch {
   const stoppedMax = opts.stoppedMph ?? 5;
-  const efsState = efs.state?.trim().toUpperCase() || null;
+  const efsState = normalizeStateCode(efs.state);
   const efsCity = cityNorm(efs.city);
   const target = parseAsUtcMs(fueledAtUtcIso);
   const nearest = (list: SamsaraSample[]) =>
@@ -532,7 +565,7 @@ export function findFuelingEvent(
   const rises = detectFuelRises(fuelReadings, minRise);
   if (rises.length === 0) return null;
 
-  const efsState = efs.state?.trim().toUpperCase() || null;
+  const efsState = normalizeStateCode(efs.state);
   const tank = efs.tankCapacityGal && efs.tankCapacityGal > 0 ? efs.tankCapacityGal : null;
   const expectedPct = tank && efs.gallons != null ? (efs.gallons / tank) * 100 : null;
   const target = parseAsUtcMs(efs.reportedAtIso);
