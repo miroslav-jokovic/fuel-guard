@@ -18,7 +18,9 @@ import {
   type RuleId,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
-import { reconcileWithSamsara } from "./samsaraRecon.js";
+import { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
+import { loadSamsaraToken } from "../lib/samsaraToken.js";
+import { makeSamsaraFetcher } from "../lib/samsara.js";
 
 const FTXN_COLS =
   "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at";
@@ -162,6 +164,26 @@ export interface ScoreOpts {
    * (and stay within rate limits). New imports use a fresh reconciliation (skipRecon=false).
    */
   skipRecon?: boolean;
+  /**
+   * Optional live-recon health counter. When provided, scoreTransaction increments `attempts` for every
+   * live Samsara reconcile it tries and `failures` when the fetch itself failed (SamsaraUnavailableError).
+   * backfillOrg uses this to abort a bulk re-sync loudly on a systemic outage instead of silently marking
+   * thousands of fills blind. Not set on single-fill or skipRecon paths.
+   */
+  reconHealth?: { attempts: number; failures: number };
+  /** Hoisted per-org context, loaded once by a bulk run so it isn't re-queried per fill (F2). */
+  ctx?: {
+    thresholds?: Awaited<ReturnType<typeof loadThresholds>>;
+    operatingHours?: Awaited<ReturnType<typeof loadOperatingHours>>;
+    /** Org Samsara token, loaded once; `null` = not configured. Passed to reconcile to skip per-fill lookup. */
+    samsaraToken?: string | null;
+  };
+  /** Raw Samsara stats already fetched (per-vehicle) covering this fill's window — reconcile reuses it
+   *  instead of making its own call (F3 dedup). reconcile slices it to this fill's window. */
+  prefetchedRaw?: unknown;
+  /** Backfill already tried and FAILED to fetch this vehicle's window — skip recon, leave row unreconciled
+   *  (deterministic rules still run). Prevents a per-fill retry after a group fetch already failed. */
+  reconUnavailable?: boolean;
 }
 
 /** Bulk-scope filters for backfillOrg — keep routine runs incremental instead of re-processing history. */
@@ -223,8 +245,8 @@ export async function scoreTransaction(
     }
   }
 
-  const thresholds = await loadThresholds(admin, orgId);
-  const operatingHours = await loadOperatingHours(admin, orgId);
+  const thresholds = opts.ctx?.thresholds ?? (await loadThresholds(admin, orgId));
+  const operatingHours = opts.ctx?.operatingHours ?? (await loadOperatingHours(admin, orgId));
   const windowMs = (thresholds.cumulativeWindowHours ?? 48) * 3_600_000;
   // Rolling windows are anchored on the STORED fueled_at (business time) — the same clock every other
   // row in the DB is on — never on the in-memory telematics-recovered instant.
@@ -278,18 +300,40 @@ export async function scoreTransaction(
     reconAt = r.samsara_recon_at ?? null;
     // eventAt / timeConfirmed / precision were already derived from these same stored columns in
     // toTxnView, so the telematics-recovered instant is applied for rules without touching fueled_at.
-  } else if (txn.vehicleId) {
-    const recon = await reconcileWithSamsara(admin, env, orgId, {
-      vehicleId: txn.vehicleId,
-      samsaraVehicleId,
-      fueledAt: txn.fueledAt,
-      city: r.city,
-      state: r.state,
-      locationName: r.location_text,
-      preciseTime,
-      gallons: txn.gallons,
-      tankCapacityGal: vehicle.tankCapacityGal || null,
-    }).catch(() => null);
+  } else if (txn.vehicleId && !opts.reconUnavailable) {
+    if (opts.reconHealth) opts.reconHealth.attempts++;
+    let recon: Awaited<ReturnType<typeof reconcileWithSamsara>> = null;
+    try {
+      recon = await reconcileWithSamsara(
+        admin,
+        env,
+        orgId,
+        {
+          vehicleId: txn.vehicleId,
+          samsaraVehicleId,
+          fueledAt: txn.fueledAt,
+          city: r.city,
+          state: r.state,
+          locationName: r.location_text,
+          preciseTime,
+          gallons: txn.gallons,
+          tankCapacityGal: vehicle.tankCapacityGal || null,
+        },
+        undefined,
+        undefined,
+        { token: opts.ctx?.samsaraToken, prefetchedRaw: opts.prefetchedRaw },
+      );
+    } catch (e) {
+      // Distinguish a Samsara FETCH outage from "no data". On an outage, leave the row unreconciled
+      // (samsara_recon_at stays null so it retries later) and record it for the backfill abort guard.
+      // Any other (unexpected) error still surfaces.
+      if (e instanceof SamsaraUnavailableError) {
+        if (opts.reconHealth) opts.reconHealth.failures++;
+        recon = null;
+      } else {
+        throw e;
+      }
+    }
     if (recon) {
       crossSourceOdometer = recon.crossSourceOdometer;
       crossSourceOdometerAt = recon.crossSourceOdometerAt;
@@ -598,23 +642,195 @@ export async function scoreWithCascade(admin: SupabaseClient, env: Env, orgId: s
 /** Optional progress callback for long loops — invoked periodically with (done, total). */
 export type ProgressFn = (done: number, total: number) => Promise<void> | void;
 
+/** Minimal per-fill metadata for grouping a live re-sync by vehicle before fetching Samsara (F3). */
+interface TxnMeta {
+  id: string;
+  vehicleId: string | null;
+  centerMs: number;
+  precise: boolean;
+}
+
+/** Collect fill metadata (id + vehicle + time + precision), ordered by vehicle then time so consecutive
+ *  same-vehicle fills are adjacent for bucketing. Paged past PostgREST's 1000-row cap (like collectTxnIds). */
+async function collectTxnMeta(
+  admin: SupabaseClient,
+  orgId: string,
+  opts: { onlyUnreconciled?: boolean; sinceDays?: number } = {},
+): Promise<TxnMeta[]> {
+  const PAGE = 1000;
+  const out: TxnMeta[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    let q = admin.from("fuel_transactions").select("id, vehicle_id, fueled_at, fueled_at_precision").eq("org_id", orgId);
+    if (opts.onlyUnreconciled) q = q.is("samsara_recon_at", null);
+    if (opts.sinceDays != null) q = q.gte("fueled_at", new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString());
+    const { data } = await q
+      .order("vehicle_id", { ascending: true })
+      .order("fueled_at", { ascending: true })
+      .order("created_at", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    const rows = (data ?? []) as { id: string; vehicle_id: string | null; fueled_at: string; fueled_at_precision: string | null }[];
+    for (const r of rows) out.push({ id: r.id, vehicleId: r.vehicle_id, centerMs: new Date(r.fueled_at).getTime(), precise: r.fueled_at_precision === "instant" });
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+/** Map org vehicle_id → samsara_vehicle_id (null when unmapped), so backfill knows which fills can be
+ *  reconciled and can fetch each truck's telematics ONCE. Paged for large fleets. */
+async function loadVehicleSamsaraMap(admin: SupabaseClient, orgId: string): Promise<Map<string, string | null>> {
+  const PAGE = 1000;
+  const map = new Map<string, string | null>();
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).range(offset, offset + PAGE - 1);
+    const rows = (data ?? []) as { id: string; samsara_vehicle_id: string | null }[];
+    for (const v of rows) map.set(v.id, v.samsara_vehicle_id ?? null);
+    if (rows.length < PAGE) break;
+  }
+  return map;
+}
+
+const BACKFILL_ABORT_AFTER = 20; // consecutive all-failed reconcile attempts → abort a live re-sync
+const BUCKET_MAX_MS = 96 * 3_600_000; // cap one grouped Samsara fetch window so it never over-paginates
+
 export async function backfillOrg(
   admin: SupabaseClient,
   env: Env,
   orgId: string,
   opts: BackfillOpts = {},
   onProgress?: ProgressFn,
+  shouldCancel?: () => Promise<boolean>,
 ): Promise<number> {
   const { onlyUnreconciled, sinceDays, ...scoreOpts } = opts;
-  const ids = await collectTxnIds(admin, orgId, { onlyUnreconciled, sinceDays });
-  const total = ids.length;
-  let done = 0;
-  for (const id of ids) {
-    await scoreTransaction(admin, env, orgId, id, scoreOpts);
-    done++;
-    if (onProgress && (done % 50 === 0 || done === total)) await onProgress(done, total);
+  // F2: load per-org context ONCE, not per fill.
+  const ctxBase = { thresholds: await loadThresholds(admin, orgId), operatingHours: await loadOperatingHours(admin, orgId) };
+
+  // Rebuild path (skipRecon): reuse stored Samsara values, no live fetch — simple sequential re-score.
+  if (scoreOpts.skipRecon) {
+    const ids = await collectTxnIds(admin, orgId, { onlyUnreconciled, sinceDays });
+    const total = ids.length;
+    let done = 0;
+    for (const id of ids) {
+      await scoreTransaction(admin, env, orgId, id, { ...scoreOpts, ctx: ctxBase });
+      done++;
+      if (done % 50 === 0 || done === total) {
+        if (onProgress) await onProgress(done, total);
+        if (shouldCancel && (await shouldCancel())) return done; // F6: stop gracefully; processed rows persist
+      }
+    }
+    return total;
   }
-  return total;
+
+  // ── Live recon path (F3 + F4): fetch each truck's telematics ONCE per bounded window and reuse it across
+  // that truck's fills; reconcile multiple VEHICLES in parallel (bounded) to overlap fetch latency + DB
+  // writes. Fills are ordered by vehicle then time; each worker owns a whole vehicle (sequential within it,
+  // since a fill's scoring reads its prior fills), parallel across vehicles. ──
+  const token = await loadSamsaraToken(admin, env, orgId);
+  const ctx = { ...ctxBase, samsaraToken: token };
+  const vehMap = await loadVehicleSamsaraMap(admin, orgId);
+  const meta = await collectTxnMeta(admin, orgId, { onlyUnreconciled, sinceDays });
+  const total = meta.length;
+  const winMsOf = (m: TxnMeta) => (m.precise ? 18 : 30) * 3_600_000;
+
+  // Group fills by vehicle, order preserved.
+  const groups: TxnMeta[][] = [];
+  {
+    const byVehicle = new Map<string, TxnMeta[]>();
+    for (const m of meta) {
+      const key = m.vehicleId ?? "__none__";
+      const g = byVehicle.get(key);
+      if (g) g.push(m);
+      else byVehicle.set(key, [m]);
+    }
+    for (const g of byVehicle.values()) groups.push(g);
+  }
+
+  let done = 0;
+  const reconHealth = { attempts: 0, failures: 0 };
+  let aborted: Error | null = null;
+  let canceled = false;
+  const bump = async () => {
+    done += 1;
+    if (onProgress && (done % 50 === 0 || done === total)) await onProgress(done, total);
+  };
+
+  const processVehicle = async (fills: TxnMeta[]): Promise<void> => {
+    const svid = fills[0]!.vehicleId ? vehMap.get(fills[0]!.vehicleId) ?? null : null;
+
+    // No telematics possible (no token, unmapped truck, or no vehicle) → score deterministically only.
+    if (!token || !svid) {
+      for (const f of fills) {
+        if (aborted || canceled) return;
+        await scoreTransaction(admin, env, orgId, f.id, { ...scoreOpts, ctx });
+        await bump();
+      }
+      return;
+    }
+
+    let i = 0;
+    while (i < fills.length) {
+      if (aborted || canceled) return;
+      // Bucket consecutive fills whose windows overlap, capped so one fetch stays bounded.
+      let bStart = fills[i]!.centerMs - winMsOf(fills[i]!);
+      let bEnd = fills[i]!.centerMs + winMsOf(fills[i]!);
+      const bucket: TxnMeta[] = [fills[i]!];
+      let j = i + 1;
+      while (j < fills.length) {
+        const s = fills[j]!.centerMs - winMsOf(fills[j]!);
+        const e = fills[j]!.centerMs + winMsOf(fills[j]!);
+        if (s > bEnd) break; // gap → separate fetch (avoid a huge sparse window)
+        if (e - bStart > BUCKET_MAX_MS) break; // exceeds fetch-window cap → close bucket
+        bEnd = Math.max(bEnd, e);
+        bucket.push(fills[j]!);
+        j += 1;
+      }
+
+      let raw: unknown = null;
+      let failed = false;
+      try {
+        raw = await makeSamsaraFetcher(env, token, "backfill")(svid, new Date(bStart).toISOString(), new Date(bEnd).toISOString());
+      } catch {
+        failed = true;
+      }
+      reconHealth.attempts += bucket.length;
+      if (failed) reconHealth.failures += bucket.length;
+
+      for (const f of bucket) {
+        if (aborted || canceled) return;
+        const fillOpts: ScoreOpts = failed ? { ...scoreOpts, ctx, reconUnavailable: true } : { ...scoreOpts, ctx, prefetchedRaw: raw };
+        await scoreTransaction(admin, env, orgId, f.id, fillOpts);
+        await bump();
+      }
+
+      // Systemic-outage guard: if the first batch of real fetch attempts ALL failed, signal a loud abort.
+      if (reconHealth.attempts >= BACKFILL_ABORT_AFTER && reconHealth.failures === reconHealth.attempts) {
+        aborted = new Error(
+          `Samsara telematics unavailable: first ${reconHealth.attempts} fetch attempts all failed. ` +
+            `Aborting re-sync after ${done}/${total} rows to avoid marking fills blind — check the Samsara token, scopes, and stats request parameters.`,
+        );
+        return;
+      }
+      i = j;
+    }
+  };
+
+  // Bounded worker pool over vehicles; workers poll cancel/abort between vehicles.
+  let next = 0;
+  const concurrency = Math.min(env.SAMSARA_BACKFILL_CONCURRENCY, Math.max(1, groups.length));
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      if (aborted || canceled) return;
+      if (shouldCancel && (await shouldCancel())) {
+        canceled = true; // F6: stop gracefully; processed rows are committed + checkpointed → re-run resumes
+        return;
+      }
+      const k = next++;
+      if (k >= groups.length) return;
+      await processVehicle(groups[k]!);
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  if (aborted) throw aborted; // F1: surface a systemic outage loudly
+  return canceled ? done : total;
 }
 
 /** Score only the transactions from one import (post-import) — far cheaper than a full org backfill. */

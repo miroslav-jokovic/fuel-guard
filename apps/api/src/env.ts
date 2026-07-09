@@ -44,8 +44,15 @@ const EnvSchema = z.object({
   // Central Samsara client rate limiting (shared per org token across schedulers + recon + backfill).
   // Steady request cadence (requests/sec) — stays well under Samsara's per-token limits while letting a
   // large backfill finish in minutes. Retries honor Retry-After + exponential backoff before failing.
-  SAMSARA_MAX_RPS: z.coerce.number().min(0.1).default(5),
+  SAMSARA_MAX_RPS: z.coerce.number().min(0.1).default(20),
   SAMSARA_MAX_RETRIES: z.coerce.number().int().min(0).default(4),
+  // Two-tier priority split of SAMSARA_MAX_RPS: this fraction is RESERVED for "live" traffic (schedulers,
+  // interactive recon) so a bulk backfill can never starve live data updates. Backfill gets the remainder.
+  // e.g. 0.6 → live paced at 60% of the cap, backfill at 40%; combined never exceeds the token limit.
+  SAMSARA_LIVE_RPS_FRACTION: z.coerce.number().min(0.1).max(1).default(0.6),
+  // How many VEHICLES a live backfill reconciles in parallel. Overlaps Samsara-fetch latency + DB writes;
+  // the rate limiter still caps total request rate, so this trades latency for wall-clock, not API load.
+  SAMSARA_BACKFILL_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
   // Geocoding for the location proximity check. Uses OpenStreetMap/Nominatim (free, no key) by default;
   // results are cached in geocode_cache so each station is looked up once. Set GEOCODING_ENABLED=false
   // to turn off. GEOCODE_PROX_MILES = how close the truck's GPS must come to the station to "confirm".

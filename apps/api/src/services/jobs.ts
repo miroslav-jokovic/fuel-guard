@@ -175,6 +175,34 @@ export async function lastDoneJob(admin: SupabaseClient, orgId: string, kind: Jo
   return (data as JobRow | null) ?? null;
 }
 
+/**
+ * Request cooperative cancellation of the active job of a kind: set `stats.cancel_requested` on the running
+ * row (no schema change — stats is jsonb). Long jobs (backfill) poll this between chunks and stop
+ * gracefully; rows already processed are committed + checkpointed (samsara_recon_at), so a re-run resumes.
+ * Returns true if a running/queued job was flagged.
+ */
+export async function requestJobCancel(admin: SupabaseClient, orgId: string, kind: JobKind): Promise<boolean> {
+  const { data } = await admin
+    .from("jobs")
+    .select("id, stats")
+    .eq("org_id", orgId)
+    .eq("kind", kind)
+    .in("status", ["queued", "running"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return false;
+  const stats = { ...(((data as { stats?: Record<string, unknown> }).stats) ?? {}), cancel_requested: true };
+  await admin.from("jobs").update({ stats, updated_at: new Date().toISOString() }).eq("id", (data as { id: string }).id);
+  return true;
+}
+
+/** True if cancellation was requested for this job id (stats.cancel_requested) — a cheap poll for long jobs. */
+export async function jobCancelRequested(admin: SupabaseClient, jobId: string): Promise<boolean> {
+  const { data } = await admin.from("jobs").select("stats").eq("id", jobId).maybeSingle();
+  return Boolean((data as { stats?: Record<string, unknown> } | null)?.stats?.cancel_requested);
+}
+
 export type RunJobResult = { jobId: string } | { conflict: true };
 
 /**

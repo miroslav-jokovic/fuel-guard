@@ -47,16 +47,47 @@ interface RawFuelPercentPoint {
 interface RawVehicleStats {
   gps?: RawGpsPoint[];
   fuelPercents?: RawFuelPercentPoint[];
+  /** GPS-derived odometer requested as its OWN stat TYPE (types=…,gpsOdometerMeters) — a separate series,
+   *  NOT a gps decoration. Used as the odometer fallback for trucks without ECU/OBD coverage. */
+  gpsOdometerMeters?: { time?: string; value?: number }[];
 }
 
-/** Parse one vehicle's stats-history (types=gps, decorations=obdOdometerMeters) into samples. */
+/** Max time gap to attach a gpsOdometerMeters reading to a GPS ping (their timestamps are close but may not
+ *  match exactly). Downstream (odometerAtTimeSourced) interpolates across samples, so this only needs to be
+ *  tight enough to associate the right reading. */
+const GPS_ODO_MATCH_TOL_MS = 120_000;
+
+/** Parse one vehicle's stats-history into samples. Odometer preference per ping: ECU/OBD (decoration) →
+ *  Samsara GPS-derived odometer (the separate gpsOdometerMeters TYPE series, matched by nearest time). */
 export function parseSamsaraSamples(vehicle: RawVehicleStats): SamsaraSample[] {
+  // Build a sorted series of the GPS-odometer TYPE readings for a nearest-time lookup (fallback source).
+  const gpsOdoSeries = (vehicle.gpsOdometerMeters ?? [])
+    .map((p) => ({ t: p.time ? parseAsUtcMs(p.time) : NaN, v: p.value }))
+    .filter((x): x is { t: number; v: number } => Number.isFinite(x.t) && x.v != null)
+    .sort((a, b) => a.t - b.t);
+  const nearestGpsOdo = (tMs: number): number | null => {
+    if (gpsOdoSeries.length === 0) return null;
+    let lo = 0;
+    let hi = gpsOdoSeries.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (gpsOdoSeries[mid]!.t < tMs) lo = mid + 1;
+      else hi = mid;
+    }
+    let best: { t: number; v: number } | null = null;
+    for (const c of [gpsOdoSeries[lo], gpsOdoSeries[lo - 1]]) {
+      if (c && (!best || Math.abs(c.t - tMs) < Math.abs(best.t - tMs))) best = c;
+    }
+    return best && Math.abs(best.t - tMs) <= GPS_ODO_MATCH_TOL_MS ? best.v : null;
+  };
+
   return (vehicle.gps ?? [])
     .filter((p) => p.time && p.latitude != null && p.longitude != null)
     .map((p) => {
-      // Prefer the ECU/OBD odometer; fall back to Samsara's GPS-derived odometer. Track which we used.
+      // Prefer the ECU/OBD odometer decoration; else the GPS-odometer decoration (legacy); else the
+      // GPS-odometer TYPE series matched by nearest time. Track which source we used.
       const obd = p.decorations?.obdOdometerMeters?.value;
-      const gps = p.decorations?.gpsOdometerMeters?.value;
+      const gps = obd != null ? undefined : p.decorations?.gpsOdometerMeters?.value ?? nearestGpsOdo(parseAsUtcMs(p.time!)) ?? undefined;
       const meters = obd ?? gps;
       return {
         time: p.time!,

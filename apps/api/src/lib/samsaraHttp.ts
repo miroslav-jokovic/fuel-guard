@@ -45,6 +45,20 @@ export interface SamsaraFetchOpts {
   retry?: boolean;
   /** Injectable fetch, for tests. */
   fetchImpl?: typeof fetch;
+  /**
+   * Rate-limit lane. "live" (default) — schedulers, interactive recon; gets the reserved live share.
+   * "backfill" — bulk re-sync; gets only the leftover share so it can never starve live traffic.
+   */
+  priority?: "live" | "backfill";
+}
+
+/** Effective per-second cadence for a lane: live gets SAMSARA_LIVE_RPS_FRACTION of the cap, backfill the
+ *  rest. The two lanes are paced on SEPARATE slots, so combined they never exceed the cap and live is
+ *  always guaranteed its share regardless of backfill load. */
+export function laneRps(env: Env, priority: "live" | "backfill"): number {
+  const frac = env.SAMSARA_LIVE_RPS_FRACTION ?? 0.6; // default guards partial test envs
+  const live = env.SAMSARA_MAX_RPS * frac;
+  return Math.max(0.1, priority === "backfill" ? env.SAMSARA_MAX_RPS - live : live);
 }
 
 /** Rate-limited, retrying Samsara GET/POST. Adds the Bearer token; returns the final Response. */
@@ -54,13 +68,15 @@ export async function samsaraFetch(
   url: URL | string,
   opts: SamsaraFetchOpts = {},
 ): Promise<Response> {
-  const rps = env.SAMSARA_MAX_RPS;
+  const priority = opts.priority ?? "live";
+  const rps = laneRps(env, priority);
+  const slotKey = `${token}:${priority}`; // separate pacing slot per lane
   const maxRetries = opts.retry === false ? 0 : env.SAMSARA_MAX_RETRIES;
   const doFetch = opts.fetchImpl ?? fetch;
   const headers = { Authorization: `Bearer ${token}`, ...(opts.init?.headers ?? {}) };
   let attempt = 0;
   for (;;) {
-    const wait = reserveSlot(token, rps);
+    const wait = reserveSlot(slotKey, rps);
     if (wait > 0) await sleep(wait);
     let res: Response;
     try {

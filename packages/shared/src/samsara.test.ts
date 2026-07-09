@@ -53,6 +53,46 @@ describe("parseSamsaraSamples", () => {
     expect(s[1]!.odometerMiles).toBe(438795);
     expect(s[1]!.address).toContain("Belgrade");
   });
+
+  it("falls back to the gpsOdometerMeters TYPE series (nearest time) when OBD is absent (F7)", () => {
+    const miles = 100000;
+    const s = parseSamsaraSamples({
+      gps: [
+        // No obd decoration on either ping — a truck without ECU odometer coverage.
+        { time: "2026-06-30T14:00:00Z", latitude: 32.7, longitude: -96.8, speedMilesPerHour: 0, reverseGeo: { formattedLocation: "Dallas, TX" } },
+        { time: "2026-06-30T14:00:20Z", latitude: 32.7, longitude: -96.8, speedMilesPerHour: 0, reverseGeo: { formattedLocation: "Dallas, TX" } },
+      ],
+      fuelPercents: [],
+      gpsOdometerMeters: [
+        { time: "2026-06-30T14:00:05Z", value: miles * 1609.344 }, // within tolerance of both pings
+      ],
+    });
+    expect(s[0]!.odometerMiles).toBe(miles);
+    expect(s[0]!.odometerSource).toBe("gps");
+    expect(s[1]!.odometerMiles).toBe(miles);
+  });
+
+  it("prefers OBD over the gpsOdometerMeters series when both are present (F7)", () => {
+    const s = parseSamsaraSamples({
+      gps: [
+        { time: "2026-06-30T14:00:00Z", latitude: 32.7, longitude: -96.8, speedMilesPerHour: 0, reverseGeo: { formattedLocation: "Dallas, TX" }, decorations: { obdOdometerMeters: { value: 200000 * 1609.344 } } },
+      ],
+      fuelPercents: [],
+      gpsOdometerMeters: [{ time: "2026-06-30T14:00:00Z", value: 999999 * 1609.344 }],
+    });
+    expect(s[0]!.odometerMiles).toBe(200000);
+    expect(s[0]!.odometerSource).toBe("obd");
+  });
+
+  it("leaves odometer null when the gpsOdometerMeters reading is outside the match tolerance (F7)", () => {
+    const s = parseSamsaraSamples({
+      gps: [{ time: "2026-06-30T14:00:00Z", latitude: 32.7, longitude: -96.8, speedMilesPerHour: 0, reverseGeo: { formattedLocation: "Dallas, TX" } }],
+      fuelPercents: [],
+      gpsOdometerMeters: [{ time: "2026-06-30T14:30:00Z", value: 100000 * 1609.344 }], // 30 min away → too far
+    });
+    expect(s[0]!.odometerMiles).toBeNull();
+    expect(s[0]!.odometerSource).toBeNull();
+  });
 });
 
 describe("matchFuelingMoment", () => {

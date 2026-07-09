@@ -1,6 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { backoffMs, parseRetryAfter, samsaraFetch, __resetSamsaraPacing } from "./samsaraHttp.js";
+import { backoffMs, parseRetryAfter, samsaraFetch, laneRps, __resetSamsaraPacing } from "./samsaraHttp.js";
 import type { Env } from "../env.js";
+
+describe("laneRps — two-tier rate split (F5)", () => {
+  const e = { SAMSARA_MAX_RPS: 20, SAMSARA_LIVE_RPS_FRACTION: 0.6 } as unknown as Env;
+  it("reserves the live fraction for live and gives backfill the remainder; combined ≤ cap", () => {
+    expect(laneRps(e, "live")).toBeCloseTo(12, 6); // 60% of 20
+    expect(laneRps(e, "backfill")).toBeCloseTo(8, 6); // remaining 40%
+    expect(laneRps(e, "live") + laneRps(e, "backfill")).toBeCloseTo(20, 6); // never exceeds the token cap
+  });
+  it("never drops a lane to zero even at extreme fractions", () => {
+    const hot = { SAMSARA_MAX_RPS: 20, SAMSARA_LIVE_RPS_FRACTION: 1 } as unknown as Env;
+    expect(laneRps(hot, "backfill")).toBeGreaterThanOrEqual(0.1);
+  });
+});
 
 const env = { SAMSARA_MAX_RPS: 1000, SAMSARA_MAX_RETRIES: 4 } as unknown as Env; // high rps → no pacing waits
 

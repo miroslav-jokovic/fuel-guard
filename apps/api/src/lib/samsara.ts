@@ -8,11 +8,12 @@ export type SamsaraFetcher = (
   endIso: string,
 ) => Promise<unknown>;
 
-/** Shape of one stats-history page: per-vehicle arrays of gps / fuelPercents samples. */
+/** Shape of one stats-history page: per-vehicle arrays of gps / fuelPercents / gpsOdometerMeters samples. */
 interface StatsHistoryVehicle {
   id?: string;
   gps?: unknown[];
   fuelPercents?: unknown[];
+  gpsOdometerMeters?: unknown[];
   [k: string]: unknown;
 }
 interface StatsHistoryPage {
@@ -20,8 +21,9 @@ interface StatsHistoryPage {
   pagination?: { endCursor?: string; hasNextPage?: boolean };
 }
 
-/** Safety cap on stats-history pages per fetch (512 samples/page × 40 ≈ a full day at 5s GPS pings). */
-const MAX_STATS_PAGES = 40;
+/** Safety cap on stats-history pages per fetch. Raised to cover the wider per-vehicle windows used by the
+ *  grouped backfill (up to ~96h); real GPS volume is HOS-bounded so this is only a runaway guard. */
+const MAX_STATS_PAGES = 120;
 
 /**
  * Real Samsara stats-history fetcher (docs/10). Requests GPS with the OBD odometer decorated onto
@@ -32,7 +34,7 @@ const MAX_STATS_PAGES = 40;
  * odometer anchors. We follow `pagination.endCursor` and merge every page's sample arrays before
  * returning, so callers always see the complete window.
  */
-export function makeSamsaraFetcher(env: Env, token: string): SamsaraFetcher {
+export function makeSamsaraFetcher(env: Env, token: string, priority: "live" | "backfill" = "live"): SamsaraFetcher {
   return async (vehicleId, startIso, endIso) => {
     const merged = new Map<string, StatsHistoryVehicle>();
     let after: string | undefined;
@@ -43,16 +45,16 @@ export function makeSamsaraFetcher(env: Env, token: string): SamsaraFetcher {
       url.searchParams.set("vehicleIds", vehicleId);
       url.searchParams.set("startTime", startIso);
       url.searchParams.set("endTime", endIso);
-      // gps (location + odometer) + fuelPercents (coarse tank level, for the advisory tank-fill check).
-      url.searchParams.set("types", "gps,fuelPercents");
-      // Request BOTH odometer sources. Samsara reports OBD (from the ECU — most accurate) when available,
-      // else a GPS-derived odometer; a vehicle uses one or the other, never both. Asking only for OBD
-      // meant trucks without ECU odometer coverage returned NO historical odometer at all (their dashboard
-      // value is the GPS one), so their fills couldn't be checked. parseSamsaraSamples prefers OBD and
-      // falls back to GPS; any constant GPS↔dash calibration bias is absorbed by the learned per-truck offset.
-      url.searchParams.set("decorations", "obdOdometerMeters,gpsOdometerMeters");
+      // Three stat TYPES (Samsara allows ≤3): gps (location + OBD-odo decoration), fuelPercents (tank
+      // level), and gpsOdometerMeters (GPS-derived odometer for trucks WITHOUT ECU/OBD coverage).
+      url.searchParams.set("types", "gps,fuelPercents,gpsOdometerMeters");
+      // OBD odometer decorated onto each GPS point. IMPORTANT: only `obdOdometerMeters` is a valid
+      // `decorations` value. `gpsOdometerMeters` is a stat *type* (requested above), NOT a decoration —
+      // passing it in `decorations` makes Samsara reject the ENTIRE request with HTTP 400 (the bug that
+      // produced 0% telematics coverage). parseSamsaraSamples merges the type series in by nearest time.
+      url.searchParams.set("decorations", "obdOdometerMeters");
       if (after) url.searchParams.set("after", after);
-      const res = await samsaraFetch(env, token, url);
+      const res = await samsaraFetch(env, token, url, { priority });
       if (!res.ok) throw new Error(`Samsara API ${res.status}`);
       const page = (await res.json()) as StatsHistoryPage;
 
@@ -60,10 +62,16 @@ export function makeSamsaraFetcher(env: Env, token: string): SamsaraFetcher {
         const key = String(v.id ?? vehicleId);
         const cur = merged.get(key);
         if (!cur) {
-          merged.set(key, { ...v, gps: [...(v.gps ?? [])], fuelPercents: [...(v.fuelPercents ?? [])] });
+          merged.set(key, {
+            ...v,
+            gps: [...(v.gps ?? [])],
+            fuelPercents: [...(v.fuelPercents ?? [])],
+            gpsOdometerMeters: [...(v.gpsOdometerMeters ?? [])],
+          });
         } else {
           if (v.gps?.length) cur.gps = [...(cur.gps ?? []), ...v.gps];
           if (v.fuelPercents?.length) cur.fuelPercents = [...(cur.fuelPercents ?? []), ...v.fuelPercents];
+          if (v.gpsOdometerMeters?.length) cur.gpsOdometerMeters = [...(cur.gpsOdometerMeters ?? []), ...v.gpsOdometerMeters];
         }
       }
 

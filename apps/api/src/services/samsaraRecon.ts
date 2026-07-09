@@ -21,6 +21,42 @@ import { geocodeStation, type Coords } from "./geocode.js";
 /** Injectable geocoder so tests can run without a network provider. */
 export type StationGeocoder = (station: { name: string | null; city: string | null; state: string | null }) => Promise<Coords | null>;
 
+/**
+ * Raised when the Samsara telematics FETCH itself failed (network / 4xx / 5xx after retries) — as opposed
+ * to a truck simply having no coverage (which returns null). Callers use this to tell a systemic outage
+ * (bad token / missing scope / invalid parameter) apart from "no data", so a bulk re-sync can abort loudly
+ * instead of silently marking every fill blind (the class of bug that produced 0% telematics coverage).
+ */
+export class SamsaraUnavailableError extends Error {
+  constructor(cause?: unknown) {
+    super(cause instanceof Error ? `Samsara fetch failed: ${cause.message}` : "Samsara fetch failed", { cause });
+    this.name = "SamsaraUnavailableError";
+  }
+}
+
+/** Extra reconcile inputs used by bulk backfill: a hoisted org token and a pre-fetched (per-vehicle) raw
+ *  stats response so many fills of one truck reuse a SINGLE Samsara fetch. */
+export interface ReconExtra {
+  /** Org Samsara token loaded once by the caller, to avoid a per-fill token lookup. `null` = not configured. */
+  token?: string | null;
+  /** Raw stats response already fetched over a window that COVERS this fill's window. When set, reconcile
+   *  skips its own fetch and slices these samples to this fill's window (see sliceVehicleToWindow). */
+  prefetchedRaw?: unknown;
+}
+
+/** Slice a raw vehicle stats object's gps + fuelPercents arrays to [startMs, endMs]. Used when samples were
+ *  pre-fetched over a WIDER per-vehicle window: the matching functions reason over the whole array (state
+ *  presence, best tank-rise), so we must reduce to exactly this fill's window to reproduce a per-fill fetch. */
+function sliceVehicleToWindow(vehicle: unknown, startMs: number, endMs: number): unknown {
+  const v = vehicle as { gps?: { time?: string }[]; fuelPercents?: { time?: string }[]; [k: string]: unknown };
+  const inWin = (t?: string) => {
+    if (!t) return false;
+    const ms = Date.parse(t);
+    return Number.isFinite(ms) && ms >= startMs && ms <= endMs;
+  };
+  return { ...v, gps: (v.gps ?? []).filter((p) => inWin(p.time)), fuelPercents: (v.fuelPercents ?? []).filter((p) => inWin(p.time)) };
+}
+
 export interface ReconInput {
   vehicleId: string | null;
   samsaraVehicleId: string | null;
@@ -96,29 +132,46 @@ export async function reconcileWithSamsara(
   input: ReconInput,
   fetcherOverride?: SamsaraFetcher,
   geocodeOverride?: StationGeocoder,
+  extra?: ReconExtra,
 ): Promise<ReconResult | null> {
   if (!input.samsaraVehicleId) return null;
-  const token = fetcherOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
-  if (!token) return null;
+  const usingPrefetch = extra?.prefetchedRaw !== undefined;
 
-  // Fetch the whole fueling DAY (±18h ≈ 36h) around the reported time. Timed EFS rows are now TRUE UTC
-  // (station-local wall time converted at parse; ±1h worst case for split-timezone states), but we still
-  // pull a wide window and ask a robust question — "was the truck in the EFS state anywhere that day?" —
-  // rather than trusting a single minute. Date-only rows (noon sentinel) stay ±30h.
+  // This fill's fetch/slice window: the whole fueling DAY (±18h ≈ 36h, or ±30h for date-only rows) around
+  // the reported time. We ask a robust "was the truck in the EFS state anywhere that day?" rather than
+  // trusting a single (often wrong) EFS minute.
   const center = new Date(input.fueledAt).getTime();
   const winMs = (input.preciseTime ? 18 : 30) * 3_600_000;
-  const start = new Date(center - winMs).toISOString();
-  const end = new Date(center + winMs).toISOString();
+  const startMs = center - winMs;
+  const endMs = center + winMs;
+  const start = new Date(startMs).toISOString();
+  const end = new Date(endMs).toISOString();
 
-  const fetcher = fetcherOverride ?? makeSamsaraFetcher(env, token);
   let raw: unknown;
-  try {
-    raw = await fetcher(input.samsaraVehicleId, start, end);
-  } catch {
-    return null;
+  if (usingPrefetch) {
+    // Backfill already fetched this vehicle's window once; reuse it (no per-fill Samsara call).
+    raw = extra!.prefetchedRaw;
+  } else {
+    // Prefer a caller-hoisted token (bulk runs load it once); else look it up. fetcherOverride = tests.
+    const token = fetcherOverride ? "test" : extra?.token !== undefined ? extra.token : await loadSamsaraToken(admin, env, orgId);
+    if (!token) return null;
+    const fetcher = fetcherOverride ?? makeSamsaraFetcher(env, token);
+    try {
+      raw = await fetcher(input.samsaraVehicleId, start, end);
+    } catch (e) {
+      // A FETCH failure (network / 4xx / 5xx after retries) is NOT the same as "no telematics data".
+      // Throw a typed error so the caller can distinguish a systemic Samsara outage (bad token/scope/param —
+      // e.g. the gpsOdometerMeters decoration bug) from a truck that simply has no coverage, and abort a
+      // bulk re-sync loudly instead of silently stamping thousands of rows as "blind".
+      throw new SamsaraUnavailableError(e);
+    }
   }
-  const vehicle = (raw as { data?: unknown[] })?.data?.[0];
-  if (!vehicle) return null;
+  const vehicleFull = (raw as { data?: unknown[] })?.data?.[0];
+  if (!vehicleFull) return null;
+
+  // Pre-fetched samples span a WIDER per-vehicle window; slice back to THIS fill's window so the matching
+  // functions (state presence, best tank-rise) see exactly what a per-fill fetch would — behavior-identical.
+  const vehicle = usingPrefetch ? sliceVehicleToWindow(vehicleFull, startMs, endMs) : vehicleFull;
 
   const samples = parseSamsaraSamples(vehicle as Parameters<typeof parseSamsaraSamples>[0]);
   const vehicleRaw = vehicle as Parameters<typeof parseFuelPercents>[0];

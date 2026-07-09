@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { reconcileWithSamsara } from "./samsaraRecon.js";
+import { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
 import type { Env } from "../env.js";
 
 const env = { SITE_PROX_MILES: 0.5, LOCATION_MISMATCH_MIN_MILES: 50 } as unknown as Env;
@@ -73,6 +73,90 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
     expect(recon!.fuelingTimeBasis).toBe("stop_estimated"); // stop matched, but no tank confirmation
     expect(recon!.crossSourceOdometer).toBe(100210); // in-city Dallas stop → trusted fueling-time reading
     expect(recon!.crossSourceOdometerAt).toBe("2026-06-30T14:00:00Z");
+  });
+
+  it("throws SamsaraUnavailableError when the Samsara fetch fails — a systemic outage, NOT 'no data' (F1)", async () => {
+    const throwingFetcher = () => {
+      throw new Error("Samsara API 400"); // e.g. an invalid decoration param
+    };
+    await expect(
+      reconcileWithSamsara(
+        admin,
+        env,
+        "org1",
+        { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+        throwingFetcher,
+        noGeocode,
+      ),
+    ).rejects.toBeInstanceOf(SamsaraUnavailableError);
+  });
+
+  it("returns null (not an error) when the truck genuinely has no telematics data", async () => {
+    const recon = await reconcileWithSamsara(
+      admin,
+      env,
+      "org1",
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      async () => ({ data: [] }),
+      noGeocode,
+    );
+    expect(recon).toBeNull();
+  });
+
+  it("prefetched (per-vehicle) + window slice yields the SAME result as a per-fill fetch (F3)", async () => {
+    const fillInput = {
+      vehicleId: "v1",
+      samsaraVehicleId: "sv1",
+      fueledAt: "2026-06-30T09:00:00",
+      city: "Dallas",
+      state: "TX",
+      locationName: "Loves Dallas",
+      preciseTime: true,
+      gallons: 90,
+      tankCapacityGal: 120,
+    };
+    // Per-fill path: fetcher returns just this fill's data.
+    const perFill = await reconcileWithSamsara(admin, env, "org1", fillInput, async () => rawStats, noGeocode);
+    // Prefetched path: same data handed in as prefetchedRaw (reconcile slices to the fill window).
+    const prefetched = await reconcileWithSamsara(admin, env, "org1", fillInput, undefined, noGeocode, { prefetchedRaw: rawStats });
+    expect(prefetched).toEqual(perFill);
+    expect(prefetched!.fuelingTimeBasis).toBe("tank_confirmed");
+    expect(prefetched!.matchedAt).toBe("2026-06-30T14:00:00Z");
+  });
+
+  it("window slice ignores samples OUTSIDE this fill's window (the per-vehicle landmine)", async () => {
+    // A wider per-vehicle response with a DECOY fuel rise + Oklahoma stop three days later, far outside the
+    // fill's ±18h window. Without slicing, findFuelingEvent/matchFuelingStop would consider it and corrupt the
+    // match. With slicing, only the in-window Dallas fill is seen.
+    const wide = {
+      data: [
+        {
+          gps: [
+            ...rawStats.data[0]!.gps,
+            { time: "2026-07-03T14:00:00Z", latitude: 35.46, longitude: -97.5, speedMilesPerHour: 0, reverseGeo: { formattedLocation: "1 Decoy Rd, Oklahoma City, OK, 73102" }, decorations: { obdOdometerMeters: { value: 101000 * 1609.344 } } },
+          ],
+          fuelPercents: [
+            ...rawStats.data[0]!.fuelPercents,
+            { time: "2026-07-03T13:30:00Z", value: 15 },
+            { time: "2026-07-03T14:30:00Z", value: 95 }, // bigger decoy rise, later day
+          ],
+        },
+      ],
+    };
+    const recon = await reconcileWithSamsara(
+      admin,
+      env,
+      "org1",
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T09:00:00", city: "Dallas", state: "TX", locationName: "Loves Dallas", preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      undefined,
+      noGeocode,
+      { prefetchedRaw: wide },
+    );
+    // Must pick the in-window Dallas fill, NOT the later Oklahoma decoy.
+    expect(recon!.matchedAt).toBe("2026-06-30T14:00:00Z");
+    expect(recon!.observedState).toBe("TX");
+    expect(recon!.observedCity).toBe("Dallas");
+    expect(recon!.tankPctAfter).toBe(85);
   });
 
   it("does NOT trust the odometer when the only stop is in-state but NOT at the station (no tank rise)", () => {

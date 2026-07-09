@@ -9,7 +9,7 @@ import { syncFuelEventsFromEfs, scoreTouched } from "../services/efsSync.js";
 import { scoreDeclinedImport, scoreDeclinedOrg } from "../services/declinedScoring.js";
 import { verifyTransaction } from "../services/aiVerification.js";
 import { notifyForTransaction } from "../services/notifications.js";
-import { runJob } from "../services/jobs.js";
+import { runJob, jobCancelRequested } from "../services/jobs.js";
 import { runEfsIngest, buildIngestSource } from "../services/efsAutoIngest.js";
 
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running. */
@@ -236,10 +236,13 @@ export function transactionsRouter(): Router {
       // the fleet grows instead of re-fetching Samsara for the entire history every time. `full: true`
       // forces a complete re-reconcile (use after a detection-logic change that must re-touch old rows).
       const full = (req.body as { full?: boolean } | undefined)?.full === true;
-      const result = await runJob(admin, orgId, "backfill", async (report) => {
-        const count = await backfillOrg(admin, env, orgId, full ? {} : { onlyUnreconciled: true }, report);
-        await writeAudit(admin, { orgId, actorId, action: "transactions.backfill", meta: { count, full } });
-        return { count, full };
+      const result = await runJob(admin, orgId, "backfill", async (report, jobId) => {
+        const count = await backfillOrg(admin, env, orgId, full ? {} : { onlyUnreconciled: true }, report, () =>
+          jobCancelRequested(admin, jobId),
+        );
+        const canceled = await jobCancelRequested(admin, jobId);
+        await writeAudit(admin, { orgId, actorId, action: "transactions.backfill", meta: { count, full, canceled } });
+        return { count, full, canceled };
       }, { requestedBy: actorId });
       jobResponse(res, result);
     }),
