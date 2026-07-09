@@ -16,6 +16,9 @@ import {
 } from "./index.js";
 
 const vehicle: VehicleView = { id: "v1", fuelType: "diesel", tankCapacityGal: 120, baselineMpg: 6.4 };
+// A truck whose fills reconcile with the tank sensor — required for the per-fill volume/consumption rules
+// (tank_space_exceeded, implausible_topoff, mpg_deviation, mpg_sustained_decline) to be evaluated at all.
+const reliable: VehicleView = { ...vehicle, tankSensorReliable: true };
 
 function txn(over: Partial<TxnView> = {}): TxnView {
   return {
@@ -60,9 +63,12 @@ describe("clean transaction", () => {
 });
 
 describe("tank_space_exceeded (physical: can't add more than the tank holds)", () => {
-  it("fires when billed gallons exceed the empty space before fueling", () => {
+  it("fires when billed gallons exceed the empty space before fueling (reliable-sensor truck)", () => {
     // 120 gal tank, 60% full before → only 48 gal of space, but billed 90 → impossible.
-    expect(ids(ctx({ tankPctBefore: 60 }))).toContain("tank_space_exceeded");
+    expect(ids(ctx({ vehicle: reliable, tankPctBefore: 60 }))).toContain("tank_space_exceeded");
+  });
+  it("is suppressed for a truck whose sensor is not learned-reliable (dual-tank) — no false space alarm", () => {
+    expect(ids(ctx({ tankPctBefore: 60 }))).not.toContain("tank_space_exceeded");
   });
   it("does not fire when the fill fits (near-empty tank)", () => {
     expect(ids(ctx({ tankPctBefore: 5 }))).not.toContain("tank_space_exceeded");
@@ -138,9 +144,9 @@ describe("Tier 2 — capacity (fuel vehicles only)", () => {
     expect(out).toContain("exceeds_tank_capacity");
     expect(out).not.toContain("implausible_topoff");
   });
-  it("implausible_topoff fires when gallons far exceed consumption", () => {
+  it("implausible_topoff fires when gallons far exceed consumption (reliable-sensor truck)", () => {
     // only ~7 miles since last but 110 gal dispensed
-    expect(ids(ctx({ txn: txn({ gallons: 110, odometer: 99407 }) }))).toContain("implausible_topoff");
+    expect(ids(ctx({ vehicle: reliable, txn: txn({ gallons: 110, odometer: 99407 }) }))).toContain("implausible_topoff");
   });
   it("capacity rule is skipped for electric vehicles (gating H1)", () => {
     const ev: VehicleView = { id: "e1", fuelType: "electric", tankCapacityGal: 0, baselineMpg: null };
@@ -149,9 +155,12 @@ describe("Tier 2 — capacity (fuel vehicles only)", () => {
 });
 
 describe("Tier 3 — efficiency", () => {
-  it("mpg_deviation fires when MPG is well below baseline", () => {
+  it("mpg_deviation fires when MPG is well below baseline (reliable-sensor truck)", () => {
     // 99400 → 99450 = 50 mi / 90 gal ≈ 0.56 mpg vs baseline 6.4
-    expect(ids(ctx({ txn: txn({ odometer: 99450 }) }))).toContain("mpg_deviation");
+    expect(ids(ctx({ vehicle: reliable, txn: txn({ odometer: 99450 }) }))).toContain("mpg_deviation");
+  });
+  it("mpg_deviation is suppressed for a not-yet-reliable / dual-tank truck (per-fill MPG unreliable)", () => {
+    expect(ids(ctx({ txn: txn({ odometer: 99450 }) }))).not.toContain("mpg_deviation");
   });
   it("does not fire mpg_deviation for a normal economy fill", () => {
     expect(ids(ctx())).not.toContain("mpg_deviation");
@@ -166,7 +175,7 @@ describe("Tier 3 — efficiency", () => {
       recent.push(txn({ id: `r${i}`, odometer: odo, gallons: 100, fueledAt: `2026-05-${10 + i}T17:00:00Z` }));
     });
     const cur = txn({ odometer: odo + 500, gallons: 100, fueledAt: "2026-05-17T17:00:00Z" }); // 5 mpg
-    expect(ids(ctx({ txn: cur, previousTxn: recent[recent.length - 1]!, recentTxns: recent }))).toContain("mpg_sustained_decline");
+    expect(ids(ctx({ vehicle: reliable, txn: cur, previousTxn: recent[recent.length - 1]!, recentTxns: recent }))).toContain("mpg_sustained_decline");
   });
 });
 

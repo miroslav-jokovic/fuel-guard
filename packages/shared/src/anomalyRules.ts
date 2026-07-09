@@ -464,6 +464,10 @@ function ruleExceedsTankCapacity(ctx: RuleContext): RuleResult {
  */
 function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
   const { txn, vehicle, tankPctBefore } = ctx;
+  // Reconciling ONE fill against ONE sensed tank's free space is only valid when the sensor reflects the
+  // whole fill (learned tankSensorReliable). On a dual-saddle-tank truck the sensor reads one tank at 92%
+  // while the OTHER tank has room, so billed > sensed-tank-space false-flags every both-tank fill.
+  if (vehicle.tankSensorReliable !== true) return none("tank_space_exceeded");
   const cap = vehicle.tankCapacityGal;
   if (tankPctBefore == null || cap <= 0 || txn.gallons <= 0) return none("tank_space_exceeded");
   const freeSpace = cap * (1 - Math.min(Math.max(tankPctBefore, 0), 100) / 100);
@@ -484,6 +488,10 @@ function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
 
 function ruleImplausibleTopoff(ctx: RuleContext): RuleResult {
   const { txn, vehicle, previousTxn, recentTxns } = ctx;
+  // "Dispensed > consumed since last fill" is only meaningful when fills reconcile with the tank (learned
+  // reliable). If a truck ran a tank low then filled both, dispensing more than it burned is NORMAL — the
+  // extra fuel filled pre-existing space — so this false-fires on dual-tank / irregular (not-to-full) fills.
+  if (vehicle.tankSensorReliable !== true) return none("implausible_topoff");
   const miles = milesSinceLast(txn, previousTxn);
   const baseline = effectiveBaseline(vehicle, recentTxns); // rolling, not static seed
   if (miles == null || baseline == null || baseline <= 0) return none("implausible_topoff");
@@ -512,6 +520,10 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
 
 function ruleMpgDeviation(ctx: RuleContext): RuleResult {
   const { txn, vehicle, previousTxn, recentTxns, thresholds } = ctx;
+  // Per-fill MPG = miles ÷ THIS fill's gallons. Only reliable when fills reconcile with the tank (to-full,
+  // single effective tank). On an irregular / dual-tank fill the gallons are inflated vs the miles, so MPG
+  // looks artificially low → false deviation. Gross overfueling is still caught by cumulative_overfuel.
+  if (vehicle.tankSensorReliable !== true) return none("mpg_deviation");
   const mpg = computedMpg(txn, previousTxn);
   const baseline = effectiveBaseline(vehicle, recentTxns);
   if (mpg == null || baseline == null || baseline <= 0) return none("mpg_deviation");
@@ -524,6 +536,9 @@ function ruleMpgDeviation(ctx: RuleContext): RuleResult {
 
 function ruleMpgSustainedDecline(ctx: RuleContext): RuleResult {
   const { txn, recentTxns } = ctx;
+  // Built from per-fill MPGs — same reliability caveat as mpg_deviation: a run of irregular / dual-tank
+  // fills drags the recent median down artificially. Only evaluate for reliable-fill trucks.
+  if (ctx.vehicle.tankSensorReliable !== true) return none("mpg_sustained_decline");
   const series = recentMpgSeries([...recentTxns, txn]);
   if (series.length < 6) return none("mpg_sustained_decline");
   const last3 = median(series.slice(-3));
