@@ -42,7 +42,9 @@ const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to
 
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
-const num = (v: number | null) => (v == null ? "" : v);
+// Consistent numeric formatting: thousands separators, "—" for null. Money shows 2 decimals.
+const fmtNum = (v: number | null) => (v == null ? "—" : v.toLocaleString());
+const fmtMoney = (v: number | null) => (v == null ? "—" : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 // Show the fueling time (UTC, as reported) — "—" when the report had date only.
 const fmtTime = (iso: string | null) => {
   if (!iso) return "—";
@@ -67,7 +69,7 @@ const fmtTime = (iso: string | null) => {
     </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="8" />
+      <TableSkeleton v-if="isLoading" :cols="17" />
       <ErrorState
         v-else-if="isError"
         :message="error instanceof Error ? error.message : 'Failed to load transactions'"
@@ -108,15 +110,15 @@ const fmtTime = (iso: string | null) => {
               <td class="px-4 py-2 text-gray-700">{{ t.card_num }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.invoice }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.driver_name }}</td>
-              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.odometer) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700 tabular-nums">{{ fmtNum(t.odometer) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.location_name }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.city }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.state }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.item }}</td>
-              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.unit_price) }}</td>
-              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.qty) }}</td>
-              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.amt) }}</td>
-              <td class="px-4 py-2 text-right text-gray-700">{{ num(t.fees) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700 tabular-nums">{{ fmtMoney(t.unit_price) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700 tabular-nums">{{ fmtNum(t.qty) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700 tabular-nums">{{ fmtMoney(t.amt) }}</td>
+              <td class="px-4 py-2 text-right text-gray-700 tabular-nums">{{ fmtMoney(t.fees) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.db }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.currency }}</td>
             </tr>
