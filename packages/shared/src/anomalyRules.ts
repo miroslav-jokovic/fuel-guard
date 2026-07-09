@@ -277,6 +277,20 @@ export function computedMpg(txn: TxnView, prev: TxnView | null): number | null {
   return r2(miles / txn.gallons);
 }
 
+/**
+ * Extra percentage points of MPG drop to ALLOW for cold weather, by month, so a legitimate winter economy hit
+ * doesn't false-fire mpg_deviation. Documented effect: diesel highway MPG runs ~5–10% worse in severe cold
+ * (fueleconomy.gov / fleet studies). This ONLY widens the tolerance (never tightens it), so an imperfect
+ * season map can never CREATE a false alarm — worst case it's slightly more lenient in winter. Northern-
+ * hemisphere / US calendar (this fleet is ~99.9% US); month read in UTC. Tune per fleet if needed.
+ */
+export function coldWeatherDeratePct(fueledAtIso: string): number {
+  const m = new Date(fueledAtIso).getUTCMonth(); // 0=Jan … 11=Dec
+  if (m === 11 || m === 0 || m === 1) return 10; // Dec–Feb: deep winter
+  if (m === 10 || m === 2) return 5; // Nov, Mar: shoulder
+  return 0;
+}
+
 function median(nums: number[]): number {
   const s = [...nums].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
@@ -666,9 +680,14 @@ function ruleMpgDeviation(ctx: RuleContext): RuleResult {
   const mpg = computedMpg(txn, previousTxn);
   const baseline = effectiveBaseline(vehicle, recentTxns);
   if (mpg == null || baseline == null || baseline <= 0) return none("mpg_deviation");
-  const floor = baseline * (1 - thresholds.mpgDropPct / 100);
+  // Allow a wider drop in cold months (diesel legitimately loses ~5–10% MPG in severe cold) so winter fills
+  // don't false-fire. Derate only widens the band; it never makes the rule fire when it otherwise wouldn't.
+  const coldDerate = coldWeatherDeratePct(txn.fueledAt);
+  const effectiveDropPct = thresholds.mpgDropPct + coldDerate;
+  const floor = baseline * (1 - effectiveDropPct / 100);
   if (mpg < floor) {
-    return { ruleId: "mpg_deviation", fired: true, severity: "high", message: `MPG ${mpg} is ${r2(((baseline - mpg) / baseline) * 100)}% below the baseline ${r2(baseline)}.`, evidence: { computedMpg: mpg, baselineMpg: r2(baseline), dropPct: thresholds.mpgDropPct } };
+    const coldNote = coldDerate ? ` (allowing +${coldDerate}% for cold-weather economy)` : "";
+    return { ruleId: "mpg_deviation", fired: true, severity: "high", message: `MPG ${mpg} is ${r2(((baseline - mpg) / baseline) * 100)}% below the baseline ${r2(baseline)}${coldNote}.`, evidence: { computedMpg: mpg, baselineMpg: r2(baseline), dropPct: thresholds.mpgDropPct, coldWeatherDeratePct: coldDerate, effectiveDropPct } };
   }
   return none("mpg_deviation");
 }

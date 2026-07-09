@@ -10,6 +10,7 @@ import {
   effectiveCapacityGal,
   robustWindowMiles,
   isSystematicStationOffset,
+  coldWeatherDeratePct,
   isOffHours,
   maxSeverity,
   type RuleContext,
@@ -198,6 +199,23 @@ describe("Tier 3 — efficiency", () => {
   });
   it("mpg_deviation is suppressed for a not-yet-reliable / dual-tank truck (per-fill MPG unreliable)", () => {
     expect(ids(ctx({ txn: txn({ odometer: 99450 }) }))).not.toContain("mpg_deviation");
+  });
+  it("cold-weather derate: a borderline drop fires in summer but not in deep winter", () => {
+    // 450 mi / 90 gal = 5.0 mpg vs baseline 6.4. Summer floor 6.4×0.85=5.44 → fires; Dec floor 6.4×0.75=4.8 → not.
+    const borderline = { odometer: 99850, gallons: 90 };
+    expect(ids(ctx({ vehicle: reliable, txn: txn({ ...borderline, fueledAt: "2026-06-10T17:00:00Z" }) }))).toContain("mpg_deviation");
+    expect(ids(ctx({ vehicle: reliable, txn: txn({ ...borderline, fueledAt: "2026-12-10T17:00:00Z" }) }))).not.toContain("mpg_deviation");
+  });
+  it("cold-weather derate never HIDES a severe drop even in winter", () => {
+    // 0.56 mpg is catastrophic — still fires in December despite the +10% allowance.
+    expect(ids(ctx({ vehicle: reliable, txn: txn({ odometer: 99450, fueledAt: "2026-12-10T17:00:00Z" }) }))).toContain("mpg_deviation");
+  });
+  it("coldWeatherDeratePct: 10% deep winter, 5% shoulder, 0% otherwise", () => {
+    expect(coldWeatherDeratePct("2026-01-15T00:00:00Z")).toBe(10);
+    expect(coldWeatherDeratePct("2026-12-15T00:00:00Z")).toBe(10);
+    expect(coldWeatherDeratePct("2026-11-15T00:00:00Z")).toBe(5);
+    expect(coldWeatherDeratePct("2026-03-15T00:00:00Z")).toBe(5);
+    expect(coldWeatherDeratePct("2026-07-15T00:00:00Z")).toBe(0);
   });
   it("does not fire mpg_deviation for a normal economy fill", () => {
     expect(ids(ctx())).not.toContain("mpg_deviation");
