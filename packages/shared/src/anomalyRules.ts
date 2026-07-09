@@ -129,6 +129,53 @@ export interface VehicleView {
    *  for dual independent tanks (ratio ≈0.5 / erratic) or until enough history clusters → tank-fill-short is
    *  suppressed, so a single sensor on a two-tank truck never produces a false short. */
   tankSensorReliable?: boolean;
+  /** LEARNED robust high-percentile of observed single-fill gallons ≈ the truck's true capacity — the COMBINED
+   *  capacity for a dual/saddle-tank tractor that regularly fills both tanks. Used ONLY to RAISE the effective
+   *  capacity above an under-entered nameplate (never to lower it), so legitimate both-tank fills stop
+   *  false-firing the capacity / over-fuel checks. See effectiveCapacityGal + learnObservedMaxFill (docs/12 §B). */
+  observedMaxFillGal?: number;
+}
+
+/**
+ * The capacity the volume/over-fuel checks should reconcile against. Real fleet systems (Motive, Samsara)
+ * LEARN tank size from refuel history rather than trusting a nameplate, because a dual/saddle-tank tractor
+ * has one sensor and an easily-mis-entered capacity. We take the larger of the entered capacity and the
+ * learned observed-fill capacity, so a truck that demonstrably takes ~200 gal across two tanks is judged
+ * against ~200 gal — never below what it has actually taken in one fill. Falls back to the entered value
+ * when nothing is learned yet (behaviour-preserving).
+ */
+export function effectiveCapacityGal(v: VehicleView): number {
+  return v.observedMaxFillGal != null && v.observedMaxFillGal > v.tankCapacityGal ? v.observedMaxFillGal : v.tankCapacityGal;
+}
+
+export interface ObservedCapacityResult {
+  /** Robust high-percentile single-fill gallons ≈ the truck's true (possibly dual-tank combined) capacity. */
+  gallons: number;
+  /** How many fills backed the estimate. */
+  samples: number;
+}
+
+/**
+ * Learn a truck's true fill capacity from its own billed-gallon history. Uses a high NEAREST-RANK percentile
+ * (default p95) over the most recent `window` fills, requiring ≥ `minSamples` — the percentile deliberately
+ * drops the top ~5% so a single pump-error or theft outlier can't train the ceiling upward, while still
+ * capturing the normal both-tank fill volume of a dual-tank tractor. Returns null (not enough evidence) until
+ * enough fills accumulate, so the caller keeps using the entered capacity during cold-start.
+ */
+export function learnObservedMaxFill(
+  gallons: number[],
+  opts: { window?: number; minSamples?: number; percentile?: number } = {},
+): ObservedCapacityResult | null {
+  const window = opts.window ?? 30;
+  const minSamples = opts.minSamples ?? 12;
+  const pct = opts.percentile ?? 0.95;
+  const vals = gallons
+    .filter((g) => Number.isFinite(g) && g > 0)
+    .slice(-window)
+    .sort((a, b) => a - b);
+  if (vals.length < minSamples) return null;
+  const idx = Math.min(vals.length - 1, Math.max(0, Math.ceil(pct * vals.length) - 1));
+  return { gallons: Math.round(vals[idx]! * 10) / 10, samples: vals.length };
 }
 
 export interface Thresholds {
@@ -449,9 +496,10 @@ function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
 
 function ruleExceedsTankCapacity(ctx: RuleContext): RuleResult {
   const { txn, vehicle, thresholds } = ctx;
-  const limit = vehicle.tankCapacityGal * (1 + thresholds.capacityTolerancePct / 100);
-  if (vehicle.tankCapacityGal > 0 && txn.gallons > limit) {
-    return { ruleId: "exceeds_tank_capacity", fired: true, severity: "critical", message: `Dispensed ${txn.gallons} gal exceeds the ${vehicle.tankCapacityGal} gal tank — fuel cannot fit.`, evidence: { gallons: txn.gallons, capacity: vehicle.tankCapacityGal, tolerancePct: thresholds.capacityTolerancePct } };
+  const cap = effectiveCapacityGal(vehicle); // learned combined capacity when available, else entered
+  const limit = cap * (1 + thresholds.capacityTolerancePct / 100);
+  if (cap > 0 && txn.gallons > limit) {
+    return { ruleId: "exceeds_tank_capacity", fired: true, severity: "critical", message: `Dispensed ${txn.gallons} gal exceeds the ${cap} gal tank — fuel cannot fit.`, evidence: { gallons: txn.gallons, capacity: cap, enteredCapacity: vehicle.tankCapacityGal, tolerancePct: thresholds.capacityTolerancePct } };
   }
   return none("exceeds_tank_capacity");
 }
@@ -510,11 +558,12 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
   const windowMiles = ctx.windowMiles ?? null;
   const baseline = effectiveBaseline(vehicle, recentTxns);
   if (windowGallons <= 0 || baseline == null || baseline <= 0 || windowMiles == null) return none("cumulative_overfuel");
+  const cap = effectiveCapacityGal(vehicle); // learned combined capacity when available, else entered
   const burnable = windowMiles / baseline;
-  const ceiling = burnable + vehicle.tankCapacityGal; // could burn this much + arrive with an empty tank
+  const ceiling = burnable + cap; // could burn this much + arrive with an empty tank
   if (windowGallons > ceiling) {
     const hrs = thresholds.cumulativeWindowHours ?? 48;
-    return { ruleId: "cumulative_overfuel", fired: true, severity: "high", message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${windowMiles} mi (+${vehicle.tankCapacityGal} gal tank).`, evidence: { windowGallons: r2(windowGallons), windowMiles, burnable: r2(burnable), tankCapacity: vehicle.tankCapacityGal, windowHours: hrs } };
+    return { ruleId: "cumulative_overfuel", fired: true, severity: "high", message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${windowMiles} mi (+${cap} gal tank).`, evidence: { windowGallons: r2(windowGallons), windowMiles, burnable: r2(burnable), tankCapacity: cap, windowHours: hrs } };
   }
   return none("cumulative_overfuel");
 }

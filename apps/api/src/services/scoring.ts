@@ -9,6 +9,7 @@ import {
   effectiveBaseline,
   learnOdometerOffset,
   learnTankSensorReliability,
+  learnObservedMaxFill,
   type TxnView,
   type VehicleView,
   type Thresholds,
@@ -241,9 +242,9 @@ export async function scoreTransaction(
   let samsaraVehicleId: string | null = null;
   let odometerOffsetSource = "auto";
   if (txn.vehicleId) {
-    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, tank_sensor_reliable, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", txn.vehicleId).single();
+    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, tank_sensor_reliable, observed_max_fill_gal, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", txn.vehicleId).single();
     if (v) {
-      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), tankSensorReliable: v.tank_sensor_reliable === true, baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
+      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), tankSensorReliable: v.tank_sensor_reliable === true, observedMaxFillGal: n(v.observed_max_fill_gal) ?? undefined, baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
       samsaraVehicleId = v.samsara_vehicle_id ?? null;
       odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
     }
@@ -645,6 +646,24 @@ export async function scoreTransaction(
         vehUpdate.tank_sensor_reliable = rel.reliable;
         vehUpdate.tank_fill_ratio = rel.ratio;
       }
+    }
+
+    // Auto-learn the truck's TRUE fill capacity (combined tanks for a dual/saddle-tank tractor) from its own
+    // billed-gallon history, so an under-entered nameplate stops false-firing the capacity / over-fuel checks
+    // on legitimate both-tank fills. A robust p95 (drops pump/theft outliers); only RAISES capacity above the
+    // entered value (effectiveCapacityGal never lowers it). Needs ≥12 fills, else leaves it null (cold-start).
+    {
+      const { data: fillRows } = await admin
+        .from("fuel_transactions")
+        .select("gallons")
+        .eq("vehicle_id", txn.vehicleId)
+        .eq("tank_type", "tractor")
+        .gt("gallons", 0)
+        .order("fueled_at", { ascending: false })
+        .limit(30);
+      const gallons = ((fillRows ?? []) as { gallons: number | string }[]).map((r) => Number(r.gallons)).reverse();
+      const learnedCap = learnObservedMaxFill(gallons);
+      if (learnedCap) vehUpdate.observed_max_fill_gal = learnedCap.gallons;
     }
 
     if (Object.keys(vehUpdate).length) {

@@ -6,6 +6,8 @@ import {
   effectiveBaseline,
   learnOdometerOffset,
   learnTankSensorReliability,
+  learnObservedMaxFill,
+  effectiveCapacityGal,
   isOffHours,
   maxSeverity,
   type RuleContext,
@@ -151,6 +153,39 @@ describe("Tier 2 — capacity (fuel vehicles only)", () => {
   it("capacity rule is skipped for electric vehicles (gating H1)", () => {
     const ev: VehicleView = { id: "e1", fuelType: "electric", tankCapacityGal: 0, baselineMpg: null };
     expect(ids(ctx({ vehicle: ev, txn: txn({ gallons: 150 }) }))).not.toContain("exceeds_tank_capacity");
+  });
+});
+
+describe("Phase 2 — learned combined tank capacity", () => {
+  it("learnObservedMaxFill returns null until enough fills, then a robust high value", () => {
+    expect(learnObservedMaxFill([100, 100, 100, 100, 100])).toBeNull(); // < 12 samples
+    const twelve = Array(12).fill(100);
+    expect(learnObservedMaxFill(twelve)!.gallons).toBe(100);
+    // Mostly single-tank ~100 with regular both-tank ~200 fills → converges near the both-tank volume.
+    const mixed = [100, 100, 100, 100, 100, 100, 200, 200, 200, 200, 200, 200];
+    expect(learnObservedMaxFill(mixed)!.gallons).toBeGreaterThanOrEqual(190);
+  });
+
+  it("learnObservedMaxFill drops a lone pump/theft outlier at larger n (p95)", () => {
+    // 29 normal ~200 fills + one 900-gal outlier → p95 stays at the normal max, not the outlier.
+    const vals = [...Array(29).fill(200), 900];
+    expect(learnObservedMaxFill(vals)!.gallons).toBe(200);
+  });
+
+  it("effectiveCapacityGal only RAISES capacity above an under-entered nameplate, never lowers it", () => {
+    expect(effectiveCapacityGal({ ...vehicle, tankCapacityGal: 120 })).toBe(120); // nothing learned
+    expect(effectiveCapacityGal({ ...vehicle, tankCapacityGal: 120, observedMaxFillGal: 210 })).toBe(210); // dual-tank raise
+    expect(effectiveCapacityGal({ ...vehicle, tankCapacityGal: 240, observedMaxFillGal: 210 })).toBe(240); // never lowers
+  });
+
+  it("a legitimate both-tank fill fires exceeds_tank_capacity ONLY before capacity is learned", () => {
+    const singleTankEntered: VehicleView = { ...vehicle, tankCapacityGal: 120 }; // one tank entered
+    const bothTankFill = txn({ gallons: 200, odometer: 100000 }); // fills both saddle tanks
+    // Cold-start (nameplate only) → false-fires on the legit both-tank fill (current behaviour).
+    expect(ids(ctx({ vehicle: singleTankEntered, txn: bothTankFill }))).toContain("exceeds_tank_capacity");
+    // After learning the true combined capacity → no longer fires.
+    const learned: VehicleView = { ...singleTankEntered, observedMaxFillGal: 210 };
+    expect(ids(ctx({ vehicle: learned, txn: bothTankFill }))).not.toContain("exceeds_tank_capacity");
   });
 });
 
