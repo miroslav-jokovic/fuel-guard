@@ -241,6 +241,32 @@ describe("Tier 3 — efficiency", () => {
   });
 });
 
+describe("Audit fixes — P-1 (odometer typo can't poison 3 axes) & P-3 (no double-count)", () => {
+  it("P-1: an odometer mismatch suppresses the miles-derived per-fill rules", () => {
+    // entered 99450 vs OBD 99480 → mismatch; miles-since-last (50) would otherwise fire mpg_deviation +
+    // implausible_topoff. With an untrustworthy odometer those miles-based rules must be suppressed.
+    const out = ids(ctx({ vehicle: reliable, txn: txn({ odometer: 99450 }), crossSourceOdometer: 99480 }));
+    expect(out).toContain("odometer_mismatch");
+    expect(out).not.toContain("mpg_deviation");
+    expect(out).not.toContain("implausible_topoff");
+  });
+
+  it("P-1: a huge diff (entry_suspect) also suppresses the miles-derived rules and stays low-severity", () => {
+    const out = runAllRules(ctx({ vehicle: reliable, txn: txn({ odometer: 99450 }), crossSourceOdometer: 130000 }));
+    const idList = out.map((r) => r.ruleId);
+    expect(idList).toContain("odometer_entry_suspect");
+    expect(idList).not.toContain("mpg_deviation");
+    expect(idList).not.toContain("implausible_topoff");
+  });
+
+  it("P-3: implausible_topoff and mpg_deviation share one axis (can't be a 2-axis alert alone)", () => {
+    const r = (ruleId: RuleId): RuleResult => ({ ruleId, fired: true, severity: "high", message: "", evidence: {} });
+    const c = correlateSignals([r("implausible_topoff"), r("mpg_deviation")]);
+    expect(new Set(c.signals.map((s) => s.axis)).size).toBe(1);
+    expect(c.level).not.toBe("alert");
+  });
+});
+
 describe("Tier 4 — behavioral", () => {
   it("rapid_repeat_fueling fires within the window", () => {
     expect(ids(ctx({ txn: txn({ fueledAt: "2026-06-08T18:00:00Z", odometer: 99450 }) }))).toContain("rapid_repeat_fueling");

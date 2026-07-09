@@ -911,6 +911,15 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   if (results.some((r) => r.ruleId === "exceeds_tank_capacity")) {
     results = results.filter((r) => r.ruleId !== "implausible_topoff");
   }
+  // P-1: when the entered odometer disagrees with the trusted OBD reading (a mismatch, or a data-quality
+  // entry-suspect), the per-fill miles derived FROM that entered odometer are untrustworthy. Suppress the
+  // miles-based per-fill rules so one bad odometer entry can't stack odometer + consumption + volume signals
+  // into a false theft case. Gross overfuel is still caught by cumulative_overfuel (clean OBD-span window)
+  // and by the tank rules.
+  if (results.some((r) => r.ruleId === "odometer_mismatch" || r.ruleId === "odometer_entry_suspect")) {
+    const milesDerived = new Set<RuleId>(["mpg_deviation", "implausible_topoff", "expected_odometer_band"]);
+    results = results.filter((r) => !milesDerived.has(r.ruleId));
+  }
   return results;
 }
 
@@ -938,8 +947,10 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   tank_space_exceeded:        { axis: "volume", weight: 90 },
   exceeds_tank_capacity:      { axis: "volume", weight: 85 },
   tank_fill_short:            { axis: "volume", weight: 60 },
-  implausible_topoff:         { axis: "volume", weight: 50 },
-  // Consumption — buying more than the truck could burn
+  // Consumption — buying more than the truck could burn. implausible_topoff (dispensed > consumed since last
+  // fill) and mpg_deviation are the SAME gallons-vs-miles inequality, so they share this axis and can't
+  // double-count across two axes (P-3); the axis takes the max weight, not the sum.
+  implausible_topoff:         { axis: "consumption", weight: 50 },
   cumulative_overfuel:        { axis: "consumption", weight: 75 },
   expected_odometer_band:     { axis: "consumption", weight: 40 },
   mpg_deviation:              { axis: "consumption", weight: 30 },
