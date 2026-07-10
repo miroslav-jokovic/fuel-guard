@@ -38,6 +38,14 @@ export function integrationsRouter(): Router {
         // Sync drivers first so samsara_driver_id is populated before the vehicle assignment step.
         try { await syncDriversFromSamsara(admin, env, orgId); } catch { /* non-fatal */ }
         const result = await syncVehiclesFromSamsara(admin, env, orgId);
+        // The identity sync also covers trailers (and runs the reefer↔tractor GPS co-location pairing). Kept
+        // in the same action so "Sync now" does everything the card promises. Non-fatal + logged.
+        try {
+          const tr = await syncTrailersFromSamsara(admin, env, orgId);
+          console.log(`[integrations] trailer sync: ${tr.total} trailers, ${tr.paired} paired`);
+        } catch (e) {
+          console.error("[integrations] trailer sync (within vehicle sync) failed:", e instanceof Error ? e.message : e);
+        }
         await writeAudit(admin, {
           orgId,
           actorId: req.auth!.userId,
