@@ -737,8 +737,13 @@ export async function learnVehicleValues(
     }
   }
 
-  // Observed (combined) capacity — robust p95 of single-fill gallons; only raises the effective capacity.
+  // Observed (combined) capacity — corroborated high single-fill volume; only raises the effective capacity.
+  // Passes the entered nameplate so non-physical fills (typos/pump errors) are discarded before learning, and
+  // the corroboration floor means a lone outlier can never train capacity up (audit A2.1). The created_at,id
+  // tiebreaker makes the sampled fills deterministic across rebuilds (date-only EFS rows share fueled_at).
   {
+    const { data: veh } = await admin.from("vehicles").select("tank_capacity_gal").eq("id", vehicleId).single();
+    const nameplateGal = veh ? Number(veh.tank_capacity_gal) : undefined;
     const { data: fillRows } = await admin
       .from("fuel_transactions")
       .select("gallons")
@@ -746,9 +751,11 @@ export async function learnVehicleValues(
       .eq("tank_type", "tractor")
       .gt("gallons", 0)
       .order("fueled_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(30);
     const gallons = ((fillRows ?? []) as { gallons: number | string }[]).map((r) => Number(r.gallons)).reverse();
-    const learnedCap = learnObservedMaxFill(gallons);
+    const learnedCap = learnObservedMaxFill(gallons, { nameplateGal });
     if (learnedCap) vehUpdate.observed_max_fill_gal = learnedCap.gallons;
   }
 

@@ -180,10 +180,37 @@ describe("Phase 2 — learned combined tank capacity", () => {
     expect(learnObservedMaxFill(mixed)!.gallons).toBeGreaterThanOrEqual(190);
   });
 
-  it("learnObservedMaxFill drops a lone pump/theft outlier at larger n (p95)", () => {
-    // 29 normal ~200 fills + one 900-gal outlier → p95 stays at the normal max, not the outlier.
+  it("learnObservedMaxFill drops a lone pump/theft outlier at larger n", () => {
+    // 29 normal ~200 fills + one 900-gal outlier → learned stays at the normal max, not the outlier.
     const vals = [...Array(29).fill(200), 900];
     expect(learnObservedMaxFill(vals)!.gallons).toBe(200);
+  });
+
+  it("learnObservedMaxFill: a lone outlier can't train capacity up even at the MINIMUM sample size (audit A2.1)", () => {
+    // 11 normal 200s + one 900 typo = exactly 12 samples. The old p95 returned the 900 (index 11 = max);
+    // corroboration (2nd-largest) keeps it at 200 because only ONE fill was that big.
+    const vals = [...Array(11).fill(200), 900];
+    expect(learnObservedMaxFill(vals)!.gallons).toBe(200);
+  });
+
+  it("learnObservedMaxFill requires ≥2 corroborating fills before raising capacity", () => {
+    // A single both-tank fill (240) among single-tank 120s must NOT raise capacity — could be a typo/fraud.
+    const oneBig = [...Array(11).fill(120), 240];
+    expect(learnObservedMaxFill(oneBig)!.gallons).toBe(120);
+    // Two both-tank fills corroborate → capacity is the real combined volume.
+    const twoBig = [...Array(10).fill(120), 240, 240];
+    expect(learnObservedMaxFill(twoBig)!.gallons).toBe(240);
+  });
+
+  it("learnObservedMaxFill discards non-physical fills above the nameplate ceiling", () => {
+    // Even a PAIR of matching 800-gal outliers can't inflate a 200-gal-nameplate truck: ceiling 2.2×200=440
+    // filters both, leaving the corroborated 200. (Without the nameplate, two outliers would defeat corroboration.)
+    const vals = [...Array(12).fill(200), 800, 800];
+    expect(learnObservedMaxFill(vals)!.gallons).toBe(800); // no nameplate → 2nd-largest is the outlier
+    expect(learnObservedMaxFill(vals, { nameplateGal: 200 })!.gallons).toBe(200); // ceiling rejects the outliers
+    // Genuine dual-tank raise (240 on a 120 single-tank nameplate) survives the ceiling (2.2×120=264).
+    const dual = [...Array(10).fill(120), 240, 240];
+    expect(learnObservedMaxFill(dual, { nameplateGal: 120 })!.gallons).toBe(240);
   });
 
   it("effectiveCapacityGal only RAISES capacity above an under-entered nameplate, never lowers it", () => {

@@ -151,33 +151,58 @@ export function effectiveCapacityGal(v: VehicleView): number {
 }
 
 export interface ObservedCapacityResult {
-  /** Robust high-percentile single-fill gallons ≈ the truck's true (possibly dual-tank combined) capacity. */
+  /** Corroborated high single-fill gallons ≈ the truck's true (possibly dual-tank combined) capacity. */
   gallons: number;
-  /** How many fills backed the estimate. */
+  /** How many fills backed the estimate (after discarding non-physical outliers). */
   samples: number;
+  /** How many fills had to reach the learned volume for it to be trusted (the corroboration floor). */
+  corroboration: number;
 }
 
 /**
- * Learn a truck's true fill capacity from its own billed-gallon history. Uses a high NEAREST-RANK percentile
- * (default p95) over the most recent `window` fills, requiring ≥ `minSamples` — the percentile deliberately
- * drops the top ~5% so a single pump-error or theft outlier can't train the ceiling upward, while still
- * capturing the normal both-tank fill volume of a dual-tank tractor. Returns null (not enough evidence) until
- * enough fills accumulate, so the caller keeps using the entered capacity during cold-start.
+ * Learn a truck's true fill capacity from its own billed-gallon history, used ONLY to RAISE an under-entered
+ * nameplate (see effectiveCapacityGal). Because this value SUPPRESSES the over-capacity / over-fuel rules, a
+ * single bad fill must never be able to train it upward and mask fraud. Two independent safeguards:
+ *
+ *  1. CORROBORATION — we take the `minCorroboration`-th largest fill (default the 2nd-largest), not the max.
+ *     The k-th largest is, by definition, a volume that ≥ k fills reached, so a lone pump-error / theft /
+ *     typo (only one fill that big) can never move the capacity — the estimate needs repeated evidence.
+ *  2. PHYSICAL CEILING — when the entered nameplate is known, fills above `maxMultipleOfNameplate` × nameplate
+ *     (default 2.2×, i.e. a dual saddle-tank tractor's combined capacity + margin) are discarded as bad data
+ *     before learning, so even a pair of matching outliers can't inflate the ceiling.
+ *
+ * Returns null (not enough evidence) until ≥ `minSamples` physical fills accumulate, so the caller keeps using
+ * the entered capacity during cold-start (behaviour-preserving, and the SAFE direction — a lower effective
+ * capacity fires the capacity rules MORE, never less).
  */
 export function learnObservedMaxFill(
   gallons: number[],
-  opts: { window?: number; minSamples?: number; percentile?: number } = {},
+  opts: { window?: number; minSamples?: number; minCorroboration?: number; nameplateGal?: number; maxMultipleOfNameplate?: number } = {},
 ): ObservedCapacityResult | null {
   const window = opts.window ?? 30;
   const minSamples = opts.minSamples ?? 12;
-  const pct = opts.percentile ?? 0.95;
-  const vals = gallons
+  const minCorroboration = opts.minCorroboration ?? 2;
+  const maxMult = opts.maxMultipleOfNameplate ?? 2.2;
+
+  let vals = gallons
     .filter((g) => Number.isFinite(g) && g > 0)
     .slice(-window)
     .sort((a, b) => a - b);
   if (vals.length < minSamples) return null;
-  const idx = Math.min(vals.length - 1, Math.max(0, Math.ceil(pct * vals.length) - 1));
-  return { gallons: Math.round(vals[idx]! * 10) / 10, samples: vals.length };
+
+  // Physical ceiling: discard impossible fills (typos / pump errors) before learning. A genuine dual-tank
+  // combined capacity is at most ~2× one entered tank; anything beyond maxMult × nameplate is bad data, not a
+  // bigger tank. Skipped when no nameplate is supplied (corroboration still guards the single-outlier case).
+  if (opts.nameplateGal && opts.nameplateGal > 0) {
+    const ceiling = opts.nameplateGal * maxMult;
+    vals = vals.filter((g) => g <= ceiling);
+    if (vals.length < minSamples) return null; // too little physical evidence → fall back to nameplate
+  }
+
+  // Corroborated capacity = the largest volume reached by at least `minCorroboration` fills.
+  const idx = vals.length - minCorroboration;
+  if (idx < 0) return null;
+  return { gallons: Math.round(vals[idx]! * 10) / 10, samples: vals.length, corroboration: minCorroboration };
 }
 
 export interface Thresholds {
