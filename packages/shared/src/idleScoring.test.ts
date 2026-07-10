@@ -1,5 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { classifyIdleEvent, aggregateDriverIdle, milliCToF, mlToGal, parseIdlingEvents, type IdleRow } from "./idleScoring.js";
+import { classifyIdleEvent, aggregateDriverIdle, milliCToF, mlToGal, parseIdlingEvents, learnComfortBand, type IdleRow } from "./idleScoring.js";
+
+describe("learnComfortBand", () => {
+  it("finds the low-idle valley between the cold and hot climate tails", () => {
+    const events: { tempF: number; hours: number }[] = [];
+    // Heavy idle in the cold (10–25°F) and hot (90–100°F) tails; little in the 50–75°F middle.
+    for (let i = 0; i < 20; i++) events.push({ tempF: 10 + (i % 4) * 5, hours: 4 }); // cold, lots
+    for (let i = 0; i < 20; i++) events.push({ tempF: 90 + (i % 3) * 5, hours: 4 }); // hot, lots
+    for (let i = 0; i < 20; i++) events.push({ tempF: 55 + (i % 4) * 5, hours: 0.3 }); // comfortable, little
+    const band = learnComfortBand(events);
+    expect(band).not.toBeNull();
+    expect(band!.lowF).toBeGreaterThanOrEqual(30);
+    expect(band!.highF).toBeLessThanOrEqual(90);
+    expect(band!.lowF).toBeLessThan(band!.highF);
+  });
+  it("returns null until there is enough data", () => {
+    expect(learnComfortBand([{ tempF: 60, hours: 1 }])).toBeNull();
+  });
+});
 
 describe("parseIdlingEvents", () => {
   it("normalizes a Samsara idle event (units + optional driver)", () => {

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useIdleScores } from "@/features/fleet/useIdleScores";
 import { useIdleCapabilities } from "@/features/fleet/useIdleCapabilities";
+import { useIdleSettings } from "@/features/fleet/useIdleSettings";
 import TableToolbar from "@/components/TableToolbar.vue";
 import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
@@ -51,6 +52,13 @@ const fleetOptimizedPct = computed(() => {
   const rows = caps.value ?? [];
   return rows.length ? Math.round((rows.reduce((s, r) => s + r.idle_optimized_pct, 0) / rows.length) * 10) / 10 : null;
 });
+
+// ── comfort band (Phase 3): configured + learned suggestion ─────────────────
+const { data: settings } = useIdleSettings();
+const suggestionDiffers = computed(() => {
+  const s = settings.value;
+  return !!s && s.suggested_low_f != null && s.suggested_high_f != null && (s.suggested_low_f !== s.comfort_low_f || s.suggested_high_f !== s.comfort_high_f);
+});
 </script>
 
 <template>
@@ -82,6 +90,17 @@ const fleetOptimizedPct = computed(() => {
         <dd class="mt-1 text-2xl font-bold text-gray-900">{{ fleetOptimizedPct }}%<span class="text-base font-normal text-gray-400"> of parked time on APU or optimized idle</span></dd>
         <dd class="mt-0.5 text-xs text-gray-400">learned per truck from engine-state park sessions</dd>
       </div>
+    </div>
+
+    <!-- Comfort band: what counts as climate-justified idle, + the data-driven suggestion. -->
+    <div v-if="settings" class="rounded-lg bg-white px-4 py-3 text-sm shadow-sm ring-1 ring-gray-200">
+      <span class="text-gray-500">Comfort band (idle outside it is treated as climate-justified):</span>
+      <span class="ml-1 font-medium text-gray-900">{{ settings.comfort_low_f }}–{{ settings.comfort_high_f }}°F</span>
+      <span class="ml-1 text-gray-400">· idle ≥ {{ settings.min_idle_minutes }} min scored</span>
+      <span v-if="suggestionDiffers" class="ml-2 text-indigo-600">
+        · learned from your data: <strong>{{ settings.suggested_low_f }}–{{ settings.suggested_high_f }}°F</strong>
+        <span class="text-gray-400">(update idle_settings to adopt, then re-sync)</span>
+      </span>
     </div>
 
     <TableToolbar

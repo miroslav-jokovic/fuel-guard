@@ -50,6 +50,58 @@ export function classifyIdleEvent(e: IdleEventInput, opts: IdleThresholds = {}):
   return "discretionary";
 }
 
+export interface ComfortBandResult {
+  /** Below this °F, idle is treated as justified (cab heating). */
+  lowF: number;
+  /** Above this °F, idle is treated as justified (cab cooling). */
+  highF: number;
+  samples: number;
+}
+
+/**
+ * LEARN the fleet's comfort band from its own idle-vs-temperature pattern. Drivers idle far more at temperature
+ * EXTREMES (cab heating/cooling) and little in comfortable weather — so binning idle HOURS by temperature shows
+ * a low-idle valley in the middle and high-idle tails. The learned band = the low-idle valley (idle there is
+ * behavioral/avoidable → discretionary); outside it, idle is climate-justified. Returns null until there's
+ * enough data. This is the data-driven alternative to a fixed 20–85°F guess.
+ */
+export function learnComfortBand(events: { tempF: number; hours: number }[], opts: { binSizeF?: number; minEvents?: number; comfortFrac?: number } = {}): ComfortBandResult | null {
+  const binSize = opts.binSizeF ?? 5;
+  const minEvents = opts.minEvents ?? 30;
+  const comfortFrac = opts.comfortFrac ?? 0.5;
+  const valid = events.filter((e) => Number.isFinite(e.tempF) && e.hours > 0);
+  if (valid.length < minEvents) return null;
+
+  const bins = new Map<number, number>();
+  for (const e of valid) {
+    const b = Math.floor(e.tempF / binSize) * binSize;
+    bins.set(b, (bins.get(b) ?? 0) + e.hours);
+  }
+  const starts = [...bins.keys()].sort((a, b) => a - b);
+  if (starts.length < 3) return null;
+
+  const threshold = comfortFrac * Math.max(...bins.values());
+  // Comfort center = the lowest-idle bin; expand outward while bins stay in the low-idle valley.
+  let center = starts[0]!;
+  let minH = Infinity;
+  for (const s of starts) {
+    const h = bins.get(s)!;
+    if (h < minH) { minH = h; center = s; }
+  }
+  const ci = starts.indexOf(center);
+  let low = center;
+  for (let i = ci - 1; i >= 0; i--) {
+    if (bins.get(starts[i]!)! <= threshold) low = starts[i]!;
+    else break;
+  }
+  let highStart = center;
+  for (let i = ci + 1; i < starts.length; i++) {
+    if (bins.get(starts[i]!)! <= threshold) highStart = starts[i]!;
+    else break;
+  }
+  return { lowF: low, highF: highStart + binSize, samples: valid.length };
+}
+
 // ── unit conversions (Samsara → our storage) ────────────────────────────────
 export const milliCToF = (mc: number | null | undefined): number | null => (mc == null ? null : Math.round(((mc / 1000) * 9) / 5 + 32));
 export const mlToGal = (ml: number | null | undefined): number | null => (ml == null ? null : Math.round((ml / 3785.411784) * 1000) / 1000);

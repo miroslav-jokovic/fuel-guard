@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseIdlingEvents, classifyIdleEvent, type IdleThresholds } from "@fuelguard/shared";
+import { parseIdlingEvents, classifyIdleEvent, learnComfortBand, type IdleThresholds } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraIdlingEventFetcher } from "../lib/samsara.js";
@@ -29,6 +29,21 @@ export async function syncIdleEvents(admin: SupabaseClient, env: Env, orgId: str
   const events = parseIdlingEvents(raw);
   if (events.length === 0) return { fetched: 0, upserted: 0 };
 
+  // Configured thresholds (settable comfort band, min duration, $ rates) — fall back to defaults when unset.
+  const { data: settings } = await admin.from("idle_settings").select("*").eq("org_id", orgId).maybeSingle();
+  const thresholds: IdleThresholds = {
+    ...opts.thresholds,
+    ...(settings
+      ? {
+          minIdleSec: Number(settings.min_idle_minutes) * 60,
+          climateLowF: Number(settings.comfort_low_f),
+          climateHighF: Number(settings.comfort_high_f),
+          idleGalPerHour: Number(settings.idle_gal_per_hour),
+          fuelPricePerGal: Number(settings.fuel_price_per_gal),
+        }
+      : {}),
+  };
+
   const [{ data: vs }, { data: ds }] = await Promise.all([
     admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).not("samsara_vehicle_id", "is", null),
     admin.from("drivers").select("id, samsara_driver_id").eq("org_id", orgId).not("samsara_driver_id", "is", null),
@@ -50,7 +65,7 @@ export async function syncIdleEvents(admin: SupabaseClient, env: Env, orgId: str
     lat: e.lat,
     lng: e.lng,
     geofence_types: e.geofenceTypes,
-    classification: classifyIdleEvent({ durationSec: e.durationSec, ptoActive: e.ptoActive, airTempF: e.airTempF }, opts.thresholds),
+    classification: classifyIdleEvent({ durationSec: e.durationSec, ptoActive: e.ptoActive, airTempF: e.airTempF }, thresholds),
   }));
 
   let upserted = 0;
@@ -60,5 +75,13 @@ export async function syncIdleEvents(admin: SupabaseClient, env: Env, orgId: str
     if (error) throw new Error(error.message);
     upserted += chunk.length;
   }
+
+  // Learn the data-driven comfort band from the idle-vs-temperature pattern and store it as a SUGGESTION
+  // (never auto-applied — an admin adopts it). Upsert touches only the suggestion columns.
+  const band = learnComfortBand(events.filter((e) => e.airTempF != null).map((e) => ({ tempF: e.airTempF as number, hours: e.durationSec / 3600 })));
+  if (band) {
+    await admin.from("idle_settings").upsert({ org_id: orgId, suggested_low_f: band.lowF, suggested_high_f: band.highF, updated_at: new Date().toISOString() }, { onConflict: "org_id" });
+  }
+
   return { fetched: events.length, upserted };
 }
