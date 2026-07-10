@@ -23,6 +23,7 @@ import {
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
+import { attributeDrivers } from "./driverAttribution.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraFetcher } from "../lib/samsara.js";
 
@@ -837,6 +838,13 @@ export async function backfillOrg(
   shouldCancel?: () => Promise<boolean>,
 ): Promise<number> {
   const { onlyUnreconciled, sinceDays, ...scoreOpts } = opts;
+  // Maximize driver attribution before scoring: auto-create driver records for EFS names that have none and
+  // link the previously-unattributed fills. Best-effort + idempotent, so a rebuild also repairs attribution.
+  try {
+    await attributeDrivers(admin, orgId);
+  } catch (e) {
+    console.error("[backfill] driver attribution failed:", e instanceof Error ? e.message : e);
+  }
   // F2: load per-org context ONCE, not per fill.
   const ctxBase = { thresholds: await loadThresholds(admin, orgId), operatingHours: await loadOperatingHours(admin, orgId) };
 

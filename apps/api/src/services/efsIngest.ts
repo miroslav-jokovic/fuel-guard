@@ -5,6 +5,7 @@ import {
   normalizeTransactionRows,
   normalizeRejectRows,
   reconcileFuelLines,
+  driversToProvision,
   derivePricePerGal,
   type RawRow,
   type ReportKind,
@@ -213,11 +214,18 @@ async function ingestTransaction(
 ): Promise<IngestResult> {
   const allLines = normalizeAllTransactionLines(input.rows); // faithful: every line, every column
   const { fuelLines, skipped } = normalizeTransactionRows(input.rows); // merged fuel-only events
-  const reconciled = reconcileFuelLines(
-    fuelLines,
-    vehicles as { id: string; unit_number: string }[],
-    drivers as { id: string; full_name: string }[],
-  );
+  // Auto-provision a driver record for any EFS name with no match, so the fill is attributed instead of
+  // left driverless (EFS carries the correct name; the gap is only a missing record). Deduped/normalized.
+  let driverList = drivers as { id: string; full_name: string }[];
+  const toProvision = driversToProvision(fuelLines.map((l) => l.driver_name), driverList);
+  if (toProvision.length) {
+    const { data: created } = await admin
+      .from("drivers")
+      .insert(toProvision.map((full_name) => ({ org_id: input.orgId, full_name, status: "active" })))
+      .select("id, full_name");
+    driverList = [...driverList, ...((created ?? []) as { id: string; full_name: string }[])];
+  }
+  const reconciled = reconcileFuelLines(fuelLines, vehicles as { id: string; unit_number: string }[], driverList);
 
   const [fuelSeen, efsSeen] = await Promise.all([
     existingRefs(admin, "fuel_transactions", reconciled.map((l) => l.external_ref)),

@@ -726,7 +726,8 @@ export function unitMatchKeys(unit: string): string[] {
  * alphabetic tokens, drops single-letter tokens (initials like "J."), sorts, and joins — so
  * "SMITH, JOHN", "John Smith", and "John A. Smith" all collapse to "john smith".
  */
-export function driverMatchKey(name: string): string {
+export function driverMatchKey(name: string | null | undefined): string {
+  if (!name) return "";
   const tokens = name
     .toLowerCase()
     .replace(/[^a-z\s]/g, " ")
@@ -754,6 +755,32 @@ function buildKeyIndex(entries: { id: string; keys: string[] }[]): Map<string, s
  * zeros, middle initials). Ambiguous keys (shared by 2+ records) stay unmatched rather than guess.
  * Unmatched vehicle ⇒ vehicle_id null (the row is "unattributed"); we no longer flag that as an anomaly.
  */
+/**
+ * Which EFS driver names have NO matching driver record and are safe to AUTO-CREATE so the fill can be
+ * attributed. Deduped by the same normalized match key the matcher uses (so "SMITH, JOHN" and "John Smith"
+ * produce ONE driver), and requires a plausible full name (≥2 alphabetic tokens) so junk like a blank, a
+ * single word, or "DRIVER" is skipped. Returns the canonical (first-seen) name to store for each.
+ */
+export function driversToProvision(names: (string | null)[], existing: Pick<Driver, "full_name">[]): string[] {
+  const have = new Set<string>();
+  for (const d of existing) {
+    const k = driverMatchKey(d.full_name);
+    if (k) have.add(k);
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of names) {
+    if (!raw) continue;
+    const name = raw.trim();
+    const key = driverMatchKey(name);
+    if (!key || key.split(" ").length < 2) continue; // need first + last, at least
+    if (have.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
 export function reconcileFuelLines(
   lines: ParsedFuelLine[],
   vehicles: Pick<Vehicle, "id" | "unit_number">[],

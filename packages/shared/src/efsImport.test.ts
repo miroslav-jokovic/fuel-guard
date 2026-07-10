@@ -4,6 +4,7 @@ import {
   normalizeTransactionRows,
   normalizeRejectRows,
   reconcileFuelLines,
+  driversToProvision,
   parseStationIdentity,
   normalizeAllTransactionLines,
   efsDateToIso,
@@ -212,6 +213,18 @@ describe("reconcileFuelLines", () => {
     const line = { ...fuelLines[0]!, driver_name: "John Smith" };
     const [r] = reconcileFuelLines([line], vehicles, drv);
     expect(r!.driver_id).toBeNull();
+  });
+});
+
+describe("driversToProvision", () => {
+  const existing = [{ full_name: "John Smith" }];
+  it("returns EFS names with no matching driver record, one per normalized identity", () => {
+    const out = driversToProvision(["ISRAEL PALOMAR", "SMITH, JOHN", "Israel Palomar", "Ramiro Ramirez"], existing);
+    // "SMITH, JOHN" already exists (normalized); "ISRAEL PALOMAR" dedupes with "Israel Palomar" → one.
+    expect(out).toEqual(["ISRAEL PALOMAR", "Ramiro Ramirez"]);
+  });
+  it("skips junk / single-token / blank names", () => {
+    expect(driversToProvision(["DRIVER", "", null, "  ", "X"], existing)).toEqual([]);
   });
 });
 
