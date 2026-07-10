@@ -50,4 +50,21 @@ describe("inferTrailerPairing (reefer ↔ tractor GPS co-location)", () => {
     const trucks: TruckTrack[] = [{ vehicleId: "later", gps: track(40.0005, -80, 60, 0.001, 600) }]; // 10h later
     expect(inferTrailerPairing(trailer, trucks)).toBeNull();
   });
+
+  it("pairs a reefer that was HAULED then PARKED — parked-alone time doesn't dilute the hauler", () => {
+    const moving = Array.from({ length: 30 }, (_, i) => ({ t: i * 60_000, lat: 40, lng: -80 + i * 0.001, speedMph: 60 }));
+    const parked = Array.from({ length: 40 }, (_, i) => ({ t: (200 + i) * 60_000, lat: 41.5, lng: -83, speedMph: 0 }));
+    const truckA = moving.map((s) => ({ t: s.t, lat: s.lat + 0.0003, lng: s.lng, speedMph: 60 }));
+    const r = inferTrailerPairing([...moving, ...parked], [{ vehicleId: "A", gps: truckA }]);
+    expect(r?.vehicleId).toBe("A"); // old logic (share over all samples = 30/70) would have failed
+  });
+
+  it("prefers the truck it MOVED with over one merely parked next to it in a yard", () => {
+    const moving = Array.from({ length: 30 }, (_, i) => ({ t: i * 60_000, lat: 40, lng: -80 + i * 0.001, speedMph: 60 }));
+    const parked = Array.from({ length: 50 }, (_, i) => ({ t: (100 + i) * 60_000, lat: 41, lng: -85, speedMph: 0 }));
+    const truckA = moving.map((s) => ({ t: s.t, lat: s.lat + 0.0003, lng: s.lng, speedMph: 60 })); // hauls it
+    const truckB = parked.map((s) => ({ t: s.t, lat: 41.0003, lng: -85, speedMph: 0 })); // parked beside it, not hauling
+    const r = inferTrailerPairing([...moving, ...parked], [{ vehicleId: "A", gps: truckA }, { vehicleId: "B", gps: truckB }]);
+    expect(r?.vehicleId).toBe("A");
+  });
 });

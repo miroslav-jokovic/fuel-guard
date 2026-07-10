@@ -12,6 +12,8 @@ export interface GpsSample {
   t: number;
   lat: number;
   lng: number;
+  /** mph, when available — used to prefer "moving together" (hauling) over parked-in-the-same-yard. */
+  speedMph?: number;
 }
 export interface TruckTrack {
   vehicleId: string;
@@ -33,10 +35,10 @@ export function parseAssetGps(response: { data?: { id?: string | number; gps?: u
     if (a.id == null) continue;
     const pts: GpsSample[] = [];
     for (const raw of a.gps ?? []) {
-      const p = raw as { time?: string; latitude?: number; longitude?: number };
+      const p = raw as { time?: string; latitude?: number; longitude?: number; speedMilesPerHour?: number };
       if (!p.time || p.latitude == null || p.longitude == null) continue;
       const t = Date.parse(p.time);
-      if (Number.isFinite(t)) pts.push({ t, lat: Number(p.latitude), lng: Number(p.longitude) });
+      if (Number.isFinite(t)) pts.push({ t, lat: Number(p.latitude), lng: Number(p.longitude), speedMph: p.speedMilesPerHour ?? undefined });
     }
     out.set(String(a.id), pts);
   }
@@ -79,19 +81,26 @@ function nearestAt(sorted: GpsSample[], t: number, tolMs: number): GpsSample | n
 export function inferTrailerPairing(
   trailerGps: GpsSample[],
   trucks: TruckTrack[],
-  opts: { maxMatchMiles?: number; timeTolMin?: number; minCoSamples?: number; minShare?: number } = {},
+  opts: { maxMatchMiles?: number; timeTolMin?: number; minCoSamples?: number; minShare?: number; movingMph?: number } = {},
 ): TrailerPairing | null {
   const maxMiles = opts.maxMatchMiles ?? 0.25; // ~400 m — Samsara's "moving together" radius
   const tolMs = (opts.timeTolMin ?? 10) * 60_000;
-  const minCo = opts.minCoSamples ?? 20;
+  const minCo = opts.minCoSamples ?? 8;
   const minShare = opts.minShare ?? 0.6;
+  const movingMph = opts.movingMph ?? 5;
 
-  const samples = clean(trailerGps);
-  if (samples.length === 0) return null;
+  const all = clean(trailerGps);
+  if (all.length === 0) return null;
   const tracks = trucks.map((tr) => ({ vehicleId: tr.vehicleId, gps: clean(tr.gps) })).filter((tr) => tr.gps.length > 0);
   if (tracks.length === 0) return null;
 
+  // Prefer MOVING trailer samples (driving together = hauling, not parked in a shared yard). Fall back to all
+  // samples only when speed is absent or the trailer never moved in the window (e.g., synthetic data).
+  const moving = all.filter((s) => s.speedMph != null && s.speedMph > movingMph);
+  const samples = moving.length >= minCo ? moving : all;
+
   const hits = new Map<string, number>();
+  let totalHits = 0; // trailer samples where SOME truck was co-located (excludes parked-alone time)
   for (const s of samples) {
     let bestVeh: string | null = null;
     let bestD = maxMiles;
@@ -104,9 +113,12 @@ export function inferTrailerPairing(
         bestVeh = tr.vehicleId;
       }
     }
-    if (bestVeh) hits.set(bestVeh, (hits.get(bestVeh) ?? 0) + 1);
+    if (bestVeh) {
+      hits.set(bestVeh, (hits.get(bestVeh) ?? 0) + 1);
+      totalHits += 1;
+    }
   }
-  if (hits.size === 0) return null;
+  if (totalHits === 0) return null;
 
   let winner: string | null = null;
   let winCo = 0;
@@ -116,7 +128,9 @@ export function inferTrailerPairing(
       winner = v;
     }
   }
-  const share = winCo / samples.length;
+  // Dominance among CO-LOCATED samples (not all trailer samples), so parked-alone / sparse reporting doesn't
+  // dilute a real hauler, but a reefer split between two tractors still fails the share test.
+  const share = winCo / totalHits;
   if (winner == null || winCo < minCo || share < minShare) return null;
   return { vehicleId: winner, confidence: Math.round(share * 100) / 100, coSamples: winCo, totalSamples: samples.length };
 }
