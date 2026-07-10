@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useIdleScores } from "@/features/fleet/useIdleScores";
+import { useIdleCapabilities } from "@/features/fleet/useIdleCapabilities";
 import TableToolbar from "@/components/TableToolbar.vue";
 import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
@@ -36,6 +37,20 @@ const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, pa
 // Score tone: green ≥80, amber 60–79, red <60.
 const scoreTone = (s: number) => (s >= 80 ? "text-green-700" : s >= 60 ? "text-amber-600" : "text-red-700");
 const rank = (i: number) => (page.value - 1) * PAGE_SIZE + i + 1;
+
+// ── per-truck idle capability (Phase 2) ──────────────────────────────────────
+const { data: caps } = useIdleCapabilities();
+const CAP: Record<string, { label: string; cls: string }> = {
+  apu: { label: "APU", cls: "bg-green-100 text-green-700" },
+  ecu_optimized: { label: "Optimized idle", cls: "bg-green-100 text-green-700" },
+  continuous_only: { label: "No optimization", cls: "bg-amber-100 text-amber-700" },
+  unknown: { label: "Unknown", cls: "bg-gray-100 text-gray-500" },
+};
+const capBadge = (c: string) => CAP[c] ?? CAP.unknown!;
+const fleetOptimizedPct = computed(() => {
+  const rows = caps.value ?? [];
+  return rows.length ? Math.round((rows.reduce((s, r) => s + r.idle_optimized_pct, 0) / rows.length) * 10) / 10 : null;
+});
 </script>
 
 <template>
@@ -61,6 +76,11 @@ const rank = (i: number) => (page.value - 1) * PAGE_SIZE + i + 1;
         <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Projected annual waste</dt>
         <dd class="mt-1 text-2xl font-bold text-gray-900">{{ usd(data.fleetDiscretionaryCost * 12) }}</dd>
         <dd class="mt-0.5 text-xs text-gray-400">at the current 30-day rate</dd>
+      </div>
+      <div v-if="fleetOptimizedPct != null" class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200 sm:col-span-3">
+        <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Optimized-idle adoption</dt>
+        <dd class="mt-1 text-2xl font-bold text-gray-900">{{ fleetOptimizedPct }}%<span class="text-base font-normal text-gray-400"> of parked time on APU or optimized idle</span></dd>
+        <dd class="mt-0.5 text-xs text-gray-400">learned per truck from engine-state park sessions</dd>
       </div>
     </div>
 
@@ -110,6 +130,29 @@ const rank = (i: number) => (page.value - 1) * PAGE_SIZE + i + 1;
         </div>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>
+    </div>
+
+    <!-- Per-truck idle capability (learned) — trucks with no APU/optimized idle can't avoid some idle. -->
+    <div v-if="caps && caps.length" class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+      <h3 class="mb-3 text-xs font-semibold tracking-wide text-gray-500 uppercase">Truck idle capability · lowest optimized-idle first</h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm whitespace-nowrap">
+          <thead class="text-left text-gray-500">
+            <tr>
+              <th class="px-3 py-2 font-medium">Truck</th>
+              <th class="px-3 py-2 font-medium">Capability</th>
+              <th class="px-3 py-2 font-medium text-right">Optimized idle %</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="t in caps" :key="t.unit_number" class="hover:bg-gray-50">
+              <td class="px-3 py-2 font-medium text-gray-900">{{ t.unit_number }}</td>
+              <td class="px-3 py-2"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', capBadge(t.idle_capability).cls]">{{ capBadge(t.idle_capability).label }}</span></td>
+              <td class="px-3 py-2 text-right tabular-nums text-gray-700">{{ t.idle_optimized_pct }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>

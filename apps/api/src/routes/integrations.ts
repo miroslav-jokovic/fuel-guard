@@ -7,6 +7,7 @@ import { writeAudit } from "../lib/audit.js";
 import { syncVehiclesFromSamsara, NoSamsaraTokenError } from "../services/samsaraVehicleSync.js";
 import { syncTrailersFromSamsara } from "../services/samsaraTrailerSync.js";
 import { syncIdleEvents } from "../services/idleSync.js";
+import { syncIdleCapabilities } from "../services/idleCapabilitySync.js";
 import { syncDriversFromSamsara } from "../services/samsaraDriverSync.js";
 import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
 import { startJob, finishJob, JobConflictError } from "../services/jobs.js";
@@ -139,9 +140,18 @@ export function integrationsRouter(): Router {
       }
       try {
         const result = await syncIdleEvents(admin, env, orgId);
-        await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "integration.samsara.idle_synced", entity: "idle_events", meta: { ...result } });
-        await finishJob(admin, jobId, { status: "done", stats: { ...result } });
-        res.json(result);
+        // Phase 2: learn each truck's idle capability (APU / ECU-optimized / continuous) from engineStates,
+        // so the driver score is fair. Best-effort + logged; never fails the event sync above.
+        let cap = { vehicles: 0, learned: 0 };
+        try {
+          cap = await syncIdleCapabilities(admin, env, orgId);
+          console.log(`[integrations] idle capability: ${cap.learned}/${cap.vehicles} trucks classified`);
+        } catch (e) {
+          console.error("[integrations] idle capability learning failed:", e instanceof Error ? e.message : e);
+        }
+        await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "integration.samsara.idle_synced", entity: "idle_events", meta: { ...result, capabilityLearned: cap.learned } });
+        await finishJob(admin, jobId, { status: "done", stats: { ...result, capabilityLearned: cap.learned } });
+        res.json({ ...result, capabilityLearned: cap.learned });
       } catch (e) {
         await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
         if (e instanceof NoSamsaraTokenError) {

@@ -200,6 +200,37 @@ export function makeSamsaraVehiclesGpsFetcher(env: Env, token: string): AssetGps
   return (ids, s, e) => fetchAssetGpsHistory(env, token, "/fleet/vehicles/stats/history", "vehicleIds", ids, s, e);
 }
 
+/** Vehicle engineStates history decorated with gps (speed), for idle park-session / mode analysis. */
+export type EngineStatesFetcher = (ids: string[], startIso: string, endIso: string) => Promise<{ data: unknown[] }>;
+export function makeSamsaraEngineStatesFetcher(env: Env, token: string): EngineStatesFetcher {
+  return async (ids, startIso, endIso) => {
+    const merged = new Map<string, { id?: string | number; engineStates?: unknown[] }>();
+    let after: string | undefined;
+    let pages = 0;
+    do {
+      const url = new URL("/fleet/vehicles/stats/history", env.SAMSARA_API_URL);
+      url.searchParams.set("vehicleIds", ids.join(","));
+      url.searchParams.set("types", "engineStates");
+      url.searchParams.set("decorations", "gps");
+      url.searchParams.set("startTime", startIso);
+      url.searchParams.set("endTime", endIso);
+      if (after) url.searchParams.set("after", after);
+      const res = await samsaraFetch(env, token, url, { priority: "backfill" });
+      if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+      const page = (await res.json()) as { data?: { id?: string | number; engineStates?: unknown[] }[]; pagination?: { hasNextPage?: boolean; endCursor?: string } };
+      for (const v of page.data ?? []) {
+        const key = String(v.id ?? "");
+        const cur = merged.get(key);
+        if (!cur) merged.set(key, { ...v, engineStates: [...(v.engineStates ?? [])] });
+        else if (v.engineStates?.length) cur.engineStates = [...(cur.engineStates ?? []), ...v.engineStates];
+      }
+      after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
+      pages += 1;
+    } while (after && pages < MAX_STATS_PAGES);
+    return { data: [...merged.values()] };
+  };
+}
+
 /** Idling events over a window (GET /idling/events) — paginated + merged. Scope: Read Idling. */
 export type SamsaraIdlingFetcher = (startIso: string, endIso: string) => Promise<{ data: unknown[] }>;
 export function makeSamsaraIdlingEventFetcher(env: Env, token: string): SamsaraIdlingFetcher {
