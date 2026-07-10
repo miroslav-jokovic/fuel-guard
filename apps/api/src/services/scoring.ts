@@ -24,6 +24,7 @@ import {
 import type { Env } from "../env.js";
 import { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
 import { attributeDrivers } from "./driverAttribution.js";
+import { learnStationGeocodes } from "./stationGeocodeLearning.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraFetcher } from "../lib/samsara.js";
 
@@ -844,6 +845,13 @@ export async function backfillOrg(
     await attributeDrivers(admin, orgId);
   } catch (e) {
     console.error("[backfill] driver attribution failed:", e instanceof Error ? e.message : e);
+  }
+  // Upgrade city-level stations to learned 'site' coordinates from our own telematics, so more fills can be
+  // location-CONFIRMED on the recon pass below. Best-effort; a re-check applies the new geocodes.
+  try {
+    await learnStationGeocodes(admin, orgId);
+  } catch (e) {
+    console.error("[backfill] station geocode learning failed:", e instanceof Error ? e.message : e);
   }
   // F2: load per-org context ONCE, not per fill.
   const ctxBase = { thresholds: await loadThresholds(admin, orgId), operatingHours: await loadOperatingHours(admin, orgId) };
