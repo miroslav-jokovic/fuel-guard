@@ -14,6 +14,7 @@ export type JobKind =
   | "rescore_declined"
   | "sync_vehicles"
   | "sync_trailers"
+  | "sync_idle"
   | "sync_stats"
   | "nightly_reconcile"
   | "efs_ingest";

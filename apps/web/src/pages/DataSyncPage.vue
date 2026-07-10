@@ -60,6 +60,14 @@ const integrity = computed(() => {
         description="Re-score every transaction with the current rules (reuses stored Samsara values — fast, no live calls). Clears stale/false flags after a rule change; your review notes are kept."
         confirm="Re-score every transaction with the current rules? Existing false flags will clear; your notes are kept."
       />
+      <JobActionCard
+        v-if="session.canManage"
+        title="Sync idling events"
+        kind="sync_idle"
+        endpoint="/api/integrations/samsara/sync-idle"
+        action-label="Sync idling now"
+        description="Pull the last 30 days of Samsara idling events and refresh the driver idle scorecard. Also runs with 'Sync fleet identity'. Needs the token's Read Idling scope."
+      />
     </div>
 
     <!-- Data integrity (read-only) -->

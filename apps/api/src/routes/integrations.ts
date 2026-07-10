@@ -118,6 +118,42 @@ export function integrationsRouter(): Router {
     }),
   );
 
+  // Pull idling events from Samsara into idle_events (idle tracking + driver fuel scoring).
+  router.post(
+    "/samsara/sync-idle",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const orgId = req.auth!.orgId!;
+      const admin = getSupabaseAdmin(env);
+      let jobId: string;
+      try {
+        jobId = await startJob(admin, orgId, "sync_idle", { requestedBy: req.auth!.userId });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("job_running", "An idle sync is already running."));
+          return;
+        }
+        throw e;
+      }
+      try {
+        const result = await syncIdleEvents(admin, env, orgId);
+        await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "integration.samsara.idle_synced", entity: "idle_events", meta: { ...result } });
+        await finishJob(admin, jobId, { status: "done", stats: { ...result } });
+        res.json(result);
+      } catch (e) {
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        if (e instanceof NoSamsaraTokenError) {
+          res.status(400).json(apiError("no_samsara_token", e.message));
+          return;
+        }
+        console.error("[integrations] samsara idle sync failed:", e);
+        res.status(502).json(apiError("samsara_sync_failed", "Could not sync idling events from Samsara"));
+      }
+    }),
+  );
+
   // Sync the org's drivers from Samsara into the drivers table (admin).
   router.post(
     "/samsara/sync-drivers",
