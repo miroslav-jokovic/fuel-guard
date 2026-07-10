@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { RouterLink } from "vue-router";
 import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useTrailersQuery } from "@/features/fleet/useTrailers";
@@ -61,6 +62,9 @@ const pairingOf = (vehicleId: string) => {
   const n = (reefersByVehicle.value.get(vehicleId) ?? []).length;
   return n === 0 ? "unpaired" : n === 1 ? "paired" : "ambiguous";
 };
+// True once at least one reefer-active truck has a reefer trailer paired to it. When false, the pairing data
+// is missing entirely (no Samsara auto-pairing + nothing assigned manually) — surface how to fix it.
+const anyReeferPaired = computed(() => activeAll.value.some((t) => reefersByVehicle.value.has(t.vehicleId)));
 const activeFilterCount = computed(() => (pairing.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
 function resetFilters() {
   search.value = "";
@@ -116,6 +120,17 @@ function staleTone(days: number | null): string {
         ]"
       />
     </TableToolbar>
+
+    <!-- No reefer↔truck pairing data at all → tell the user how to establish it. -->
+    <div v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+      <p class="font-medium">No reefer trailers are paired to trucks yet.</p>
+      <p class="mt-0.5 text-amber-700">
+        Reefer fuel can't be attributed to a specific trailer until each reefer is identified and paired. On the
+        <RouterLink to="/trailers" class="font-medium underline">Trailers</RouterLink> page, mark each refrigerated
+        trailer as a reefer and set its paired tractor. Samsara auto-pairs trailers that have a powered Asset
+        Gateway; trucks/reefers without one must be paired manually here.
+      </p>
+    </div>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
       <TableSkeleton v-if="isLoading" :cols="10" />

@@ -15,6 +15,7 @@ const { data: vehicles } = useVehiclesQuery();
 
 const tolerance = computed(() => data.value?.toleranceMiles ?? 10);
 const rows = computed(() => data.value?.rows ?? []);
+const offenders = computed(() => (data.value?.offenders ?? []).slice(0, 8));
 
 // ── Search + filters (standard toolbar) ──────────────────────────────────────
 const search = ref("");
@@ -147,6 +148,20 @@ const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: "bg
         </div>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>
+    </div>
+
+    <!-- Repeat offenders (drivers who most often mis-enter the odometer) — coaching list, not alerts. -->
+    <div v-if="offenders.length > 1" class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+      <h3 class="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">Repeat offenders · drivers who most often mis-enter the odometer</h3>
+      <div class="flex flex-wrap gap-2">
+        <span v-for="o in offenders" :key="o.key" class="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-sm ring-1 ring-gray-200">
+          <span class="font-medium text-gray-900">{{ o.label }}</span>
+          <span class="text-gray-400">·</span>
+          <span class="text-gray-600">{{ o.mismatches }}×</span>
+          <span class="text-gray-400">·</span>
+          <span class="text-gray-600">max {{ Math.round(o.maxAbsDiff) }} mi</span>
+        </span>
+      </div>
     </div>
   </div>
 </template>
