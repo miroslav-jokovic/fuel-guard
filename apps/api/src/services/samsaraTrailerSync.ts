@@ -115,8 +115,11 @@ export async function syncTrailersFromSamsara(
   try {
     const inferred = await inferReeferPairings(admin, env, orgId);
     result.paired += inferred.paired;
-  } catch {
-    /* co-location inference is best-effort */
+    console.log(`[trailer-sync] reefer co-location: ${inferred.candidates} candidates, ${inferred.paired} paired`);
+  } catch (e) {
+    // Best-effort (never breaks the identity sync), but LOG it — a 401 here almost always means the token is
+    // missing the "Read Trailer Statistics" scope, which otherwise fails silently.
+    console.error("[trailer-sync] reefer co-location inference failed:", e instanceof Error ? e.message : e);
   }
 
   return result;
