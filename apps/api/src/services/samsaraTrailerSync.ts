@@ -9,6 +9,7 @@ import {
   type SamsaraTrailerAssignmentFetcher,
 } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { inferReeferPairings } from "./reeferPairing.js";
 
 export interface TrailerSyncResult {
   total: number;
@@ -89,22 +90,33 @@ export async function syncTrailersFromSamsara(
     const links = parseTrailerAssignments((await fetcher()) as Parameters<typeof parseTrailerAssignments>[0]);
     if (links.length) {
       const [{ data: tRows }, { data: vRows }] = await Promise.all([
-        admin.from("trailers").select("id, samsara_asset_id").eq("org_id", orgId).not("samsara_asset_id", "is", null),
+        admin.from("trailers").select("id, samsara_asset_id, pairing_source").eq("org_id", orgId).not("samsara_asset_id", "is", null),
         admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).not("samsara_vehicle_id", "is", null),
       ]);
-      const trById = new Map((tRows ?? []).map((r) => [r.samsara_asset_id as string, r.id as string]));
+      const trById = new Map((tRows ?? []).map((r) => [r.samsara_asset_id as string, { id: r.id as string, source: (r.pairing_source as string | null) ?? null }]));
       const vehById = new Map((vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]));
       for (const link of links) {
-        const trId = trById.get(link.trailerSamsaraId);
+        const tr = trById.get(link.trailerSamsaraId);
         const vehId = vehById.get(link.vehicleSamsaraId);
-        if (trId && vehId) {
-          await admin.from("trailers").update({ assigned_vehicle_id: vehId }).eq("id", trId).eq("org_id", orgId);
+        // A manual pairing is authoritative — never overwrite it with the Samsara-assignment feed.
+        if (tr && tr.source !== "manual" && vehId) {
+          await admin.from("trailers").update({ assigned_vehicle_id: vehId, pairing_source: "samsara", pairing_confidence: null }).eq("id", tr.id).eq("org_id", orgId);
           result.paired++;
         }
       }
     }
   } catch {
     /* assignments are best-effort */
+  }
+
+  // Reefer↔tractor pairing by GPS CO-LOCATION — the reliable path when drivers don't select the trailer in
+  // the app but the reefer has an Asset Gateway. Best-effort: never breaks the identity sync above. Skips
+  // trailers already pinned manually or by the Samsara assignment feed handled above.
+  try {
+    const inferred = await inferReeferPairings(admin, env, orgId);
+    result.paired += inferred.paired;
+  } catch {
+    /* co-location inference is best-effort */
   }
 
   return result;

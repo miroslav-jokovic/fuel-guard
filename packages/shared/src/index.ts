@@ -22,3 +22,4 @@ export * from "./samsara.js";
 export * from "./recon/tankFuel.js";
 export * from "./recon/odometer.js";
 export * from "./recon/location.js";
+export * from "./recon/trailerPairing.js";

@@ -151,6 +151,55 @@ export function makeSamsaraTrailerAssignmentFetcher(env: Env, token: string): Sa
   };
 }
 
+/** GPS history (types=gps only) for a set of assets over a window, paginated + merged by asset id. Used for
+ *  reefer↔tractor co-location pairing. `path` is the stats/history endpoint (vehicles or trailers). */
+type AssetGpsRaw = { id?: string | number; gps?: unknown[] };
+async function fetchAssetGpsHistory(
+  env: Env,
+  token: string,
+  path: string,
+  idParam: string,
+  ids: string[],
+  startIso: string,
+  endIso: string,
+): Promise<{ data: AssetGpsRaw[] }> {
+  const merged = new Map<string, AssetGpsRaw>();
+  let after: string | undefined;
+  let pages = 0;
+  do {
+    const url = new URL(path, env.SAMSARA_API_URL);
+    url.searchParams.set(idParam, ids.join(","));
+    url.searchParams.set("types", "gps");
+    url.searchParams.set("startTime", startIso);
+    url.searchParams.set("endTime", endIso);
+    if (after) url.searchParams.set("after", after);
+    const res = await samsaraFetch(env, token, url, { priority: "backfill" });
+    if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+    const page = (await res.json()) as { data?: AssetGpsRaw[]; pagination?: { hasNextPage?: boolean; endCursor?: string } };
+    for (const a of page.data ?? []) {
+      const key = String(a.id ?? "");
+      const cur = merged.get(key);
+      if (!cur) merged.set(key, { ...a, gps: [...(a.gps ?? [])] });
+      else if (a.gps?.length) cur.gps = [...(cur.gps ?? []), ...a.gps];
+    }
+    after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
+    pages += 1;
+  } while (after && pages < MAX_STATS_PAGES);
+  return { data: [...merged.values()] };
+}
+
+export type AssetGpsFetcher = (ids: string[], startIso: string, endIso: string) => Promise<{ data: AssetGpsRaw[] }>;
+
+/** Trailer GPS history (Asset-Gateway location) — the reefer's own position over time. */
+export function makeSamsaraTrailerGpsFetcher(env: Env, token: string): AssetGpsFetcher {
+  return (ids, s, e) => fetchAssetGpsHistory(env, token, "/fleet/trailers/stats/history", "trailerIds", ids, s, e);
+}
+
+/** Vehicle GPS history (types=gps only) — lighter than makeSamsaraFetcher; for bulk co-location matching. */
+export function makeSamsaraVehiclesGpsFetcher(env: Env, token: string): AssetGpsFetcher {
+  return (ids, s, e) => fetchAssetGpsHistory(env, token, "/fleet/vehicles/stats/history", "vehicleIds", ids, s, e);
+}
+
 /** Lists every driver in the org. */
 export type SamsaraDriverLister = () => Promise<unknown[]>;
 
