@@ -512,6 +512,18 @@ describe("learnTankSensorReliability", () => {
     // Overstated capacity / non-linear sensor makes observed rise exceed billed — must not count as reliable.
     expect(learnTankSensorReliability(fills([1.3, 1.25, 1.35, 1.28, 1.4]))!.reliable).toBe(false);
   });
+  it("marks a MOSTLY-single-tank truck UNreliable when it has a tail of both-tank (short) fills", () => {
+    // 9 single-tank fills reconcile near 1.0 (median stays ~1.0), but 3 both-tank fills only rise ~0.7 of
+    // billed — those false-fire tank_space_exceeded (real Freightliner dual-tank case). 3/12 = 25% short.
+    const r = learnTankSensorReliability(fills([1.0, 0.98, 1.02, 1.0, 0.97, 1.03, 1.0, 0.99, 1.01, 0.7, 0.68, 0.72]));
+    expect(r!.ratio).toBeGreaterThan(0.9); // median still looks fine
+    expect(r!.reliable).toBe(false); // …but the both-tank tail makes it unreliable for per-fill checks
+  });
+  it("stays reliable for a genuine single-tank truck with just one odd fill", () => {
+    // 11 good fills + 1 short outlier (1/12 ≈ 8% ≤ 12%) → still reliable; a lone anomaly can still be flagged.
+    const r = learnTankSensorReliability(fills([1.0, 0.98, 1.02, 1.0, 0.97, 1.03, 1.0, 0.99, 1.01, 0.96, 1.04, 0.6]));
+    expect(r!.reliable).toBe(true);
+  });
 });
 
 describe("learnOdometerOffset", () => {

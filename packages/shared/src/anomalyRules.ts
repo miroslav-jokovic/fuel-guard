@@ -505,19 +505,26 @@ export interface TankSensorReliabilityResult {
  */
 export function learnTankSensorReliability(
   pairs: { observedRiseGal: number; billedGallons: number }[],
-  opts: { window?: number; minSamples?: number; band?: number; minFraction?: number } = {},
+  opts: { window?: number; minSamples?: number; band?: number; minFraction?: number; shortRatio?: number; maxShortFraction?: number } = {},
 ): TankSensorReliabilityResult | null {
   const window = opts.window ?? 12;
   const minSamples = opts.minSamples ?? 4;
   const band = opts.band ?? 0.15; // ±15% around 1.0 absorbs sensor coarseness
   const minFraction = opts.minFraction ?? 0.7; // ≥70% of fills must reconcile near 1.0
+  const shortRatio = opts.shortRatio ?? 0.8; // observed rise below this share of billed = a "short" fill
+  const maxShortFraction = opts.maxShortFraction ?? 0.12; // too many short fills ⇒ dual-tank both-fills
   const ratios = pairs
     .filter((p) => Number.isFinite(p.observedRiseGal) && Number.isFinite(p.billedGallons) && p.billedGallons > 0)
     .slice(-window)
     .map((p) => p.observedRiseGal / p.billedGallons);
   if (ratios.length < minSamples) return null;
   const near1 = ratios.filter((r) => Math.abs(r - 1) <= band).length;
-  const reliable = near1 / ratios.length >= minFraction;
+  // A DUAL-tank truck whose driver USUALLY fills one tank (ratio ~1) but sometimes fills BOTH (the sensor sees
+  // only one tank → observed rise ≪ billed) has a near-1 MEDIAN yet a tail of "short" fills. Those both-tank
+  // fills false-fire tank_space_exceeded, so a truck with more than a small fraction of short fills is NOT
+  // reliable for the per-fill space/volume checks (cumulative_overfuel + exceeds_tank_capacity still apply).
+  const short = ratios.filter((r) => r < shortRatio).length;
+  const reliable = near1 / ratios.length >= minFraction && short / ratios.length <= maxShortFraction;
   return { reliable, ratio: Math.round(median(ratios) * 1000) / 1000, samples: ratios.length };
 }
 
