@@ -25,11 +25,19 @@ alter table fuel_transactions add column if not exists samsara_nearest_station_m
 comment on column fuel_transactions.samsara_nearest_station_miles is
   'Truck GPS closest approach (mi) to the station pin that day. Clustering across a station''s fills flags a wrong pin (data error), suppressing a false location mismatch.';
 
+-- ── Reefer trailer pairing provenance (GPS co-location inference) ─────────────────────────────────────────
+--    (migration 0041)
+alter table trailers add column if not exists pairing_source     text;
+alter table trailers add column if not exists pairing_confidence numeric(4,3);
+comment on column trailers.pairing_source is
+  'How assigned_vehicle_id was set: manual | samsara | inferred (GPS co-location). manual is never overwritten by a sync.';
+
 commit;
 
--- ── Verify (optional) — run these SELECTs after COMMIT to confirm the three columns exist ────────────────
+-- ── Verify (optional) — run after COMMIT; should return 5 rows ───────────────────────────────────────────
 select table_name, column_name, data_type
 from information_schema.columns
 where (table_name = 'vehicles'          and column_name in ('tank_sensor_reliable','tank_fill_ratio','observed_max_fill_gal'))
    or (table_name = 'fuel_transactions' and column_name = 'samsara_nearest_station_miles')
+   or (table_name = 'trailers'          and column_name in ('pairing_source','pairing_confidence'))
 order by table_name, column_name;
