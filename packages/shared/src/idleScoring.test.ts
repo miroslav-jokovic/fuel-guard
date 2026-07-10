@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyIdleEvent, aggregateDriverIdle, milliCToF, mlToGal, parseIdlingEvents, learnComfortBand, type IdleRow } from "./idleScoring.js";
+import { classifyIdleEvent, aggregateDriverIdle, milliCToF, mlToGal, parseIdlingEvents, learnComfortBand, topAvoidableIdles, type IdleRow, type LongIdleInput } from "./idleScoring.js";
 
 describe("learnComfortBand", () => {
   it("finds the low-idle valley between the cold and hot climate tails", () => {
@@ -128,5 +128,63 @@ describe("aggregateDriverIdle", () => {
   it("buckets unattributed idle under a single row", () => {
     const s = aggregateDriverIdle([row({ driverId: null, driverName: null, classification: "discretionary" })]);
     expect(s.drivers[0]!.driverName).toBe("Unattributed");
+  });
+
+  it("computes a week-over-week discretionary trend from event dates", () => {
+    const now = Date.parse("2026-07-10T00:00:00Z");
+    const daysAgo = (d: number) => new Date(now - d * 86_400_000).toISOString();
+    // Improving driver: 10 h prior week, 1 h recent week → "down".
+    const improving = aggregateDriverIdle(
+      [
+        row({ driverId: "a", driverName: "A", durationSec: 36000, startedAt: daysAgo(10) }),
+        row({ driverId: "a", driverName: "A", durationSec: 3600, startedAt: daysAgo(2) }),
+      ],
+      { nowMs: now },
+    );
+    expect(improving.drivers[0]!.priorDiscHours).toBe(10);
+    expect(improving.drivers[0]!.recentDiscHours).toBe(1);
+    expect(improving.drivers[0]!.trend).toBe("down");
+    // Worsening driver: 1 h prior, 10 h recent → "up".
+    const worse = aggregateDriverIdle(
+      [
+        row({ driverId: "b", driverName: "B", durationSec: 3600, startedAt: daysAgo(10) }),
+        row({ driverId: "b", driverName: "B", durationSec: 36000, startedAt: daysAgo(2) }),
+      ],
+      { nowMs: now },
+    );
+    expect(worse.drivers[0]!.trend).toBe("up");
+  });
+
+  it("marks trend 'na' when there is no dated activity in either window", () => {
+    const s = aggregateDriverIdle([row({ classification: "discretionary" })]); // no startedAt
+    expect(s.drivers[0]!.trend).toBe("na");
+  });
+});
+
+describe("topAvoidableIdles", () => {
+  const li = (o: Partial<LongIdleInput>): LongIdleInput => ({
+    driverName: "John Smith", unitNumber: "712", startedAt: "2026-07-08T04:00:00Z",
+    durationSec: 36000, classification: "discretionary", costUsd: null, fuelGal: null, idleCapability: "apu", ...o,
+  });
+
+  it("surfaces long discretionary idles, avoidable (APU/optimized) first", () => {
+    const rows = topAvoidableIdles([
+      li({ unitNumber: "A", durationSec: 18000, idleCapability: "continuous_only" }), // 5 h, not avoidable
+      li({ unitNumber: "B", durationSec: 10800, idleCapability: "apu" }), // 3 h, avoidable
+      li({ unitNumber: "C", durationSec: 3600, idleCapability: "ecu_optimized" }), // 1 h → below minHours
+    ]);
+    expect(rows.map((r) => r.unitNumber)).toEqual(["B", "A"]); // avoidable first, 1 h dropped
+    expect(rows[0]!.avoidable).toBe(true);
+    expect(rows[1]!.avoidable).toBe(false);
+  });
+
+  it("excludes non-discretionary idle and estimates cost when unmeasured", () => {
+    const rows = topAvoidableIdles([
+      li({ classification: "productive" }),
+      li({ classification: "justified" }),
+      li({ durationSec: 36000, costUsd: null, fuelGal: null }), // 10 h → 8 gal → $32 at defaults
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.costUsd).toBe(32);
   });
 });

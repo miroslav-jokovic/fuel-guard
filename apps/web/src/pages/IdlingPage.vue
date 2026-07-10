@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useIdleScores } from "@/features/fleet/useIdleScores";
 import { useIdleCapabilities } from "@/features/fleet/useIdleCapabilities";
 import { useIdleSettings } from "@/features/fleet/useIdleSettings";
+import { useLongIdles } from "@/features/fleet/useLongIdles";
 import TableToolbar from "@/components/TableToolbar.vue";
 import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
@@ -59,6 +60,19 @@ const suggestionDiffers = computed(() => {
   const s = settings.value;
   return !!s && s.suggested_low_f != null && s.suggested_high_f != null && (s.suggested_low_f !== s.comfort_low_f || s.suggested_high_f !== s.comfort_high_f);
 });
+
+// ── week-over-week trend (Phase 3): improving = less discretionary idle vs the prior week ────
+const TREND: Record<string, { icon: string; cls: string; title: string }> = {
+  down: { icon: "▼", cls: "text-green-600", title: "Improving — less avoidable idle than the prior week" },
+  up: { icon: "▲", cls: "text-red-600", title: "Worsening — more avoidable idle than the prior week" },
+  flat: { icon: "▬", cls: "text-gray-400", title: "About the same as the prior week" },
+  na: { icon: "–", cls: "text-gray-300", title: "Not enough recent data" },
+};
+const trendCell = (t: string) => TREND[t] ?? TREND.na!;
+
+// ── longest avoidable idles (Phase 3): the biggest single coaching wins ─────
+const { data: longIdles } = useLongIdles();
+const dateFmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 </script>
 
 <template>
@@ -113,7 +127,7 @@ const suggestionDiffers = computed(() => {
     />
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="8" />
+      <TableSkeleton v-if="isLoading" :cols="9" />
       <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load'" :retrying="isFetching" @retry="refetch" />
       <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         No idle events yet — run a Samsara sync from Settings → Data & Sync to pull idling data.
@@ -131,6 +145,7 @@ const suggestionDiffers = computed(() => {
                 <SortableTh label="Total idle hrs" sort-key="totalIdleHours" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium text-right" @sort="onSort" />
                 <SortableTh label="Discr. %" sort-key="discretionaryPct" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium text-right" @sort="onSort" />
                 <SortableTh label="Long idles" sort-key="longIdleCount" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium text-right" @sort="onSort" />
+                <th class="px-4 py-3 font-medium text-center" title="Discretionary idle this week vs the prior week">7-day trend</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -143,6 +158,7 @@ const suggestionDiffers = computed(() => {
                 <td class="px-4 py-3 text-right text-gray-500 tabular-nums">{{ d.totalIdleHours }}</td>
                 <td class="px-4 py-3 text-right text-gray-700 tabular-nums">{{ d.discretionaryPct }}%</td>
                 <td class="px-4 py-3 text-right text-gray-500 tabular-nums">{{ d.longIdleCount }}</td>
+                <td class="px-4 py-3 text-center font-bold" :class="trendCell(d.trend).cls" :title="trendCell(d.trend).title">{{ trendCell(d.trend).icon }}</td>
               </tr>
             </tbody>
           </table>
@@ -168,6 +184,43 @@ const suggestionDiffers = computed(() => {
               <td class="px-3 py-2 font-medium text-gray-900">{{ t.unit_number }}</td>
               <td class="px-3 py-2"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', capBadge(t.idle_capability).cls]">{{ capBadge(t.idle_capability).label }}</span></td>
               <td class="px-3 py-2 text-right tabular-nums text-gray-700">{{ t.idle_optimized_pct }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Longest avoidable idles (Phase 3): single biggest coaching wins — long discretionary idles, "Avoidable"
+         flagged where the truck HAD an APU / optimized idle the driver could have used instead. -->
+    <div v-if="longIdles && longIdles.length" class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+      <h3 class="mb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase">Longest avoidable idles · last 30 days</h3>
+      <p class="mb-3 text-xs text-gray-400">
+        Long discretionary idles (≥ 2 h). <span class="font-semibold text-green-700">Avoidable</span> = this truck has an
+        APU or optimized idle the driver could have used instead of running the main engine.
+      </p>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm whitespace-nowrap">
+          <thead class="text-left text-gray-500">
+            <tr>
+              <th class="px-3 py-2 font-medium">Driver</th>
+              <th class="px-3 py-2 font-medium">Truck</th>
+              <th class="px-3 py-2 font-medium">Date</th>
+              <th class="px-3 py-2 font-medium text-right">Hours</th>
+              <th class="px-3 py-2 font-medium text-right">Est. cost</th>
+              <th class="px-3 py-2 font-medium">Equipment</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="(r, i) in longIdles" :key="i" class="hover:bg-gray-50" :class="r.avoidable ? 'bg-red-50/40' : ''">
+              <td class="px-3 py-2 font-medium text-gray-900">{{ r.driverName }}</td>
+              <td class="px-3 py-2 text-gray-700">{{ r.unitNumber }}</td>
+              <td class="px-3 py-2 text-gray-500">{{ dateFmt(r.startedAt) }}</td>
+              <td class="px-3 py-2 text-right tabular-nums text-gray-700">{{ r.hours }}</td>
+              <td class="px-3 py-2 text-right tabular-nums font-semibold text-gray-900">{{ usd2(r.costUsd) }}</td>
+              <td class="px-3 py-2">
+                <span v-if="r.avoidable" class="inline-flex rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700" :title="capBadge(r.idleCapability).label + ' available — should have been used'">Avoidable · {{ capBadge(r.idleCapability).label }}</span>
+                <span v-else class="inline-flex rounded px-1.5 py-0.5 text-xs font-semibold" :class="capBadge(r.idleCapability).cls">{{ capBadge(r.idleCapability).label }}</span>
+              </td>
             </tr>
           </tbody>
         </table>

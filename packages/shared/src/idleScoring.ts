@@ -176,6 +176,12 @@ export interface IdleScoreRow {
   longIdleCount: number;
   /** 0–100, higher = better (less avoidable idle). */
   score: number;
+  /** Discretionary idle hours in the most recent 7-day window (needs startedAt on the rows). */
+  recentDiscHours: number;
+  /** Discretionary idle hours in the prior 7-day window (8–14 days ago). */
+  priorDiscHours: number;
+  /** Week-over-week direction: "down" = improving (less waste), "up" = worsening, "flat"/"na" otherwise. */
+  trend: "up" | "down" | "flat" | "na";
 }
 
 export interface IdleSummary {
@@ -194,6 +200,8 @@ export interface IdleRow {
   classification: IdleClassification;
   fuelGal: number | null;
   costUsd: number | null;
+  /** ISO start time — used for the week-over-week trend. Optional (trend is skipped when absent). */
+  startedAt?: string;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -213,9 +221,14 @@ function costFor(row: IdleRow, gal: number, o: Required<IdleThresholds>): number
  * score and the "wasted $" — productive (PTO) and justified (extreme-temp) idle are tracked but not penalized.
  * Score = 100 at 0% discretionary idle, scaling down as the discretionary share of a driver's idle rises.
  */
-export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds = {}): IdleSummary {
+export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds & { nowMs?: number } = {}): IdleSummary {
   const o = { ...DEFAULTS, ...opts };
-  const byDriver = new Map<string, { name: string; events: number; total: number; disc: number; just: number; prod: number; discGal: number; discCost: number; long: number }>();
+  // Week-over-week trend windows, anchored on the latest event (or now) so it works on backfilled data.
+  const anchor = opts.nowMs ?? (rows.reduce((mx, r) => (r.startedAt ? Math.max(mx, Date.parse(r.startedAt)) : mx), 0) || Date.now());
+  const DAY = 86_400_000;
+  const recentFrom = anchor - 7 * DAY;
+  const priorFrom = anchor - 14 * DAY;
+  const byDriver = new Map<string, { name: string; events: number; total: number; disc: number; just: number; prod: number; discGal: number; discCost: number; long: number; recentDisc: number; priorDisc: number }>();
   let fleetIdle = 0;
   let fleetDiscHours = 0;
   let fleetDiscGal = 0;
@@ -229,7 +242,7 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds = {}):
     fleetIdle += hours;
     const key = row.driverId ?? "__unattributed__";
     const name = row.driverName ?? "Unattributed";
-    const d = byDriver.get(key) ?? { name, events: 0, total: 0, disc: 0, just: 0, prod: 0, discGal: 0, discCost: 0, long: 0 };
+    const d = byDriver.get(key) ?? { name, events: 0, total: 0, disc: 0, just: 0, prod: 0, discGal: 0, discCost: 0, long: 0, recentDisc: 0, priorDisc: 0 };
     d.events += 1;
     d.total += hours;
     if (row.durationSec >= 3600) d.long += 1;
@@ -242,6 +255,11 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds = {}):
       fleetDiscHours += hours;
       fleetDiscGal += gal;
       fleetDiscCost += cost;
+      if (row.startedAt) {
+        const t = Date.parse(row.startedAt);
+        if (t >= recentFrom) d.recentDisc += hours;
+        else if (t >= priorFrom) d.priorDisc += hours;
+      }
     } else if (row.classification === "justified") d.just += hours;
     else if (row.classification === "productive") d.prod += hours;
     byDriver.set(key, d);
@@ -250,6 +268,14 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds = {}):
   const drivers: IdleScoreRow[] = [...byDriver.entries()]
     .map(([driverId, d]) => {
       const discretionaryPct = d.total > 0 ? (d.disc / d.total) * 100 : 0;
+      // Trend: need meaningful activity in either window; ≥15% swing to avoid noise.
+      const both = d.recentDisc + d.priorDisc;
+      let trend: IdleScoreRow["trend"] = "na";
+      if (both >= 0.5) {
+        const delta = d.recentDisc - d.priorDisc;
+        const rel = d.priorDisc > 0 ? delta / d.priorDisc : delta > 0 ? 1 : 0;
+        trend = rel > 0.15 ? "up" : rel < -0.15 ? "down" : "flat";
+      }
       return {
         driverId,
         driverName: d.name,
@@ -263,6 +289,9 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds = {}):
         discretionaryPct: r1(discretionaryPct),
         longIdleCount: d.long,
         score: Math.max(0, Math.round(100 - discretionaryPct)),
+        recentDiscHours: r1(d.recentDisc),
+        priorDiscHours: r1(d.priorDisc),
+        trend,
       };
     })
     // Worst first: most $ wasted, then most discretionary hours.
@@ -276,4 +305,59 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds = {}):
     fleetDiscretionaryCost: r2(fleetDiscCost),
     events,
   };
+}
+
+// ── Longest avoidable idles (coaching targets) ──────────────────────────────
+export interface LongIdleInput {
+  driverName: string | null;
+  unitNumber: string | null;
+  startedAt: string;
+  durationSec: number;
+  classification: IdleClassification;
+  costUsd: number | null;
+  fuelGal: number | null;
+  /** Learned per-truck capability: 'apu' | 'ecu_optimized' | 'continuous_only' | 'unknown' | null. */
+  idleCapability: string | null;
+}
+
+export interface LongIdleRow {
+  driverName: string;
+  unitNumber: string;
+  startedAt: string;
+  hours: number;
+  costUsd: number;
+  /** True when this truck HAD APU/optimized idle available — the driver could have avoided burning the main engine. */
+  avoidable: boolean;
+  idleCapability: string;
+}
+
+/**
+ * Surface the longest DISCRETIONARY idle events for coaching. These are the single biggest wins: one 10-hour
+ * overnight idle on a truck that has an APU is pure waste. `avoidable` marks the events where an APU or optimized
+ * idle was available (learned in Phase 2), so the fleet can point drivers to the equipment they already have.
+ */
+export function topAvoidableIdles(rows: LongIdleInput[], opts: IdleThresholds & { minHours?: number; limit?: number } = {}): LongIdleRow[] {
+  const o = { ...DEFAULTS, ...opts };
+  const minHours = opts.minHours ?? 2;
+  const limit = opts.limit ?? 25;
+  return rows
+    .filter((r) => r.classification === "discretionary" && r.durationSec / 3600 >= minHours)
+    .map((r) => {
+      const hours = r.durationSec / 3600;
+      const gal = r.fuelGal != null ? r.fuelGal : hours * o.idleGalPerHour;
+      const cost = r.costUsd != null ? r.costUsd : gal * o.fuelPricePerGal;
+      const cap = r.idleCapability ?? "unknown";
+      return {
+        driverName: r.driverName ?? "Unattributed",
+        unitNumber: r.unitNumber ?? "—",
+        startedAt: r.startedAt,
+        hours: r1(hours),
+        costUsd: r2(cost),
+        avoidable: cap === "apu" || cap === "ecu_optimized",
+        idleCapability: cap,
+      };
+    })
+    // Avoidable first (had the equipment), then longest.
+    .sort((a, b) => Number(b.avoidable) - Number(a.avoidable) || b.hours - a.hours)
+    .slice(0, limit);
 }
