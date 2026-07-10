@@ -192,6 +192,10 @@ export interface ScoreOpts {
   /** Bulk backfill: reconcile with CACHED geocodes only (skip the live 1-req/sec Nominatim call so
    *  concurrent workers don't serialize behind it). Exact proximity fills in later via live recon. */
   geocodeCacheOnly?: boolean;
+  /** Skip the per-fill learned-value update (offset / tank reliability / capacity). A bulk rebuild learns
+   *  each vehicle ONCE up front (learnVehicleValues), then scores every fill against those CONVERGED values
+   *  in a single pass — so a rebuild no longer needs to be run twice for learned values to take effect (R-3). */
+  skipLearn?: boolean;
 }
 
 /** Bulk-scope filters for backfillOrg — keep routine runs incremental instead of re-processing history. */
@@ -651,74 +655,103 @@ export async function scoreTransaction(
       if (base != null) vehUpdate.baseline_mpg = base;
     }
 
-    // Auto-learn the odometer offset (dash − Samsara) from recent fills that carry BOTH readings, so a
-    // truck whose dash sits a constant amount off OBD stops false-flagging. A manual override is never
-    // overwritten. Median over the last 10 pairs; only applied once they cluster tightly (learner's rules).
-    if (odometerOffsetSource !== "manual") {
-      const { data: pairRows } = await admin
-        .from("fuel_transactions")
-        .select("odometer, samsara_odometer")
-        .eq("vehicle_id", txn.vehicleId)
-        // OBD-only: the offset must be learned from ONE consistent source. Pooling GPS-derived odometers
-        // (a different, large bias) with OBD readings makes the median meaningless and the offset useless.
-        .eq("samsara_odometer_source", "obd")
-        .not("odometer", "is", null)
-        .not("samsara_odometer", "is", null)
-        .order("fueled_at", { ascending: false })
-        .limit(10);
-      const pairs = ((pairRows ?? []) as { odometer: number | string; samsara_odometer: number | string }[])
-        .map((p) => ({ entered: Number(p.odometer), samsara: Number(p.samsara_odometer) }))
-        .reverse(); // OLDEST→NEWEST so the learner's `window` keeps the most recent
-      const learned = learnOdometerOffset(pairs);
-      if (learned && learned.offset !== (vehicle.odometerOffset ?? 0)) {
-        vehUpdate.odometer_offset = learned.offset;
-        vehUpdate.odometer_offset_source = "auto";
-      }
-    }
-
-    // Auto-learn whether the Samsara tank sensor reflects the WHOLE fill (observed/billed ≈1). Only then may
-    // ruleTankFillShort fire — a dual-independent-tank truck (ratio ≈0.5 / erratic) stays suppressed, so it
-    // never produces a false short. Learned from recent fills that carry both an observed rise and gallons.
-    {
-      const { data: tankRows } = await admin
-        .from("fuel_transactions")
-        .select("samsara_tank_observed_gal, gallons")
-        .eq("vehicle_id", txn.vehicleId)
-        .not("samsara_tank_observed_gal", "is", null)
-        .gt("gallons", 0)
-        .order("fueled_at", { ascending: false })
-        .limit(12);
-      const tankPairs = ((tankRows ?? []) as { samsara_tank_observed_gal: number | string; gallons: number | string }[])
-        .map((p) => ({ observedRiseGal: Number(p.samsara_tank_observed_gal), billedGallons: Number(p.gallons) }))
-        .reverse();
-      const rel = learnTankSensorReliability(tankPairs);
-      if (rel) {
-        vehUpdate.tank_sensor_reliable = rel.reliable;
-        vehUpdate.tank_fill_ratio = rel.ratio;
-      }
-    }
-
-    // Auto-learn the truck's TRUE fill capacity (combined tanks for a dual/saddle-tank tractor) from its own
-    // billed-gallon history, so an under-entered nameplate stops false-firing the capacity / over-fuel checks
-    // on legitimate both-tank fills. A robust p95 (drops pump/theft outliers); only RAISES capacity above the
-    // entered value (effectiveCapacityGal never lowers it). Needs ≥12 fills, else leaves it null (cold-start).
-    {
-      const { data: fillRows } = await admin
-        .from("fuel_transactions")
-        .select("gallons")
-        .eq("vehicle_id", txn.vehicleId)
-        .eq("tank_type", "tractor")
-        .gt("gallons", 0)
-        .order("fueled_at", { ascending: false })
-        .limit(30);
-      const gallons = ((fillRows ?? []) as { gallons: number | string }[]).map((r) => Number(r.gallons)).reverse();
-      const learnedCap = learnObservedMaxFill(gallons);
-      if (learnedCap) vehUpdate.observed_max_fill_gal = learnedCap.gallons;
-    }
-
     if (Object.keys(vehUpdate).length) {
       await admin.from("vehicles").update(vehUpdate).eq("id", txn.vehicleId);
     }
+
+    // Learned values that GATE rules (offset / tank reliability / capacity). A bulk rebuild learns these ONCE
+    // up front (backfillOrg pre-pass, skipLearn=true) so every fill scores against the CONVERGED values in a
+    // single pass; live/single scoring learns them here per fill.
+    if (!opts.skipLearn) {
+      await learnVehicleValues(admin, txn.vehicleId, { odometerOffset: vehicle.odometerOffset ?? 0, odometerOffsetSource });
+    }
+  }
+}
+
+/**
+ * Learn the per-vehicle values that GATE the rules — odometer offset, tank-sensor reliability, and observed
+ * (combined) capacity — from the vehicle's own reconciled history, and persist them. Extracted so a bulk
+ * rebuild can run it ONCE per vehicle BEFORE scoring, converging the values in a single pass (fixes the
+ * two-pass "rebuild twice" limitation, audit R-3). `ctx` passes the caller's already-loaded offset to avoid a
+ * re-fetch; omitted on the pre-pass, where we read it from the vehicle row.
+ */
+export async function learnVehicleValues(
+  admin: SupabaseClient,
+  vehicleId: string,
+  ctx?: { odometerOffset: number; odometerOffsetSource: string },
+): Promise<void> {
+  let odometerOffset: number;
+  let odometerOffsetSource: string;
+  if (ctx) {
+    odometerOffset = ctx.odometerOffset;
+    odometerOffsetSource = ctx.odometerOffsetSource;
+  } else {
+    const { data: v } = await admin.from("vehicles").select("odometer_offset, odometer_offset_source").eq("id", vehicleId).single();
+    if (!v) return;
+    odometerOffset = n(v.odometer_offset) ?? 0;
+    odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
+  }
+  const vehUpdate: Record<string, unknown> = {};
+
+  // Odometer offset (dash − Samsara), OBD-only, median over the last 10 clustered pairs. Manual is never
+  // overwritten.
+  if (odometerOffsetSource !== "manual") {
+    const { data: pairRows } = await admin
+      .from("fuel_transactions")
+      .select("odometer, samsara_odometer")
+      .eq("vehicle_id", vehicleId)
+      .eq("samsara_odometer_source", "obd")
+      .not("odometer", "is", null)
+      .not("samsara_odometer", "is", null)
+      .order("fueled_at", { ascending: false })
+      .limit(10);
+    const pairs = ((pairRows ?? []) as { odometer: number | string; samsara_odometer: number | string }[])
+      .map((p) => ({ entered: Number(p.odometer), samsara: Number(p.samsara_odometer) }))
+      .reverse();
+    const learned = learnOdometerOffset(pairs);
+    if (learned && learned.offset !== odometerOffset) {
+      vehUpdate.odometer_offset = learned.offset;
+      vehUpdate.odometer_offset_source = "auto";
+    }
+  }
+
+  // Tank-sensor reliability (observed-rise ÷ billed ≈ 1) — gates the per-fill tank/volume/MPG rules.
+  {
+    const { data: tankRows } = await admin
+      .from("fuel_transactions")
+      .select("samsara_tank_observed_gal, gallons")
+      .eq("vehicle_id", vehicleId)
+      .not("samsara_tank_observed_gal", "is", null)
+      .gt("gallons", 0)
+      .order("fueled_at", { ascending: false })
+      .limit(12);
+    const tankPairs = ((tankRows ?? []) as { samsara_tank_observed_gal: number | string; gallons: number | string }[])
+      .map((p) => ({ observedRiseGal: Number(p.samsara_tank_observed_gal), billedGallons: Number(p.gallons) }))
+      .reverse();
+    const rel = learnTankSensorReliability(tankPairs);
+    if (rel) {
+      vehUpdate.tank_sensor_reliable = rel.reliable;
+      vehUpdate.tank_fill_ratio = rel.ratio;
+    }
+  }
+
+  // Observed (combined) capacity — robust p95 of single-fill gallons; only raises the effective capacity.
+  {
+    const { data: fillRows } = await admin
+      .from("fuel_transactions")
+      .select("gallons")
+      .eq("vehicle_id", vehicleId)
+      .eq("tank_type", "tractor")
+      .gt("gallons", 0)
+      .order("fueled_at", { ascending: false })
+      .limit(30);
+    const gallons = ((fillRows ?? []) as { gallons: number | string }[]).map((r) => Number(r.gallons)).reverse();
+    const learnedCap = learnObservedMaxFill(gallons);
+    if (learnedCap) vehUpdate.observed_max_fill_gal = learnedCap.gallons;
+  }
+
+  if (Object.keys(vehUpdate).length) {
+    await admin.from("vehicles").update(vehUpdate).eq("id", vehicleId);
   }
 }
 
@@ -809,11 +842,18 @@ export async function backfillOrg(
 
   // Rebuild path (skipRecon): reuse stored Samsara values, no live fetch — simple sequential re-score.
   if (scoreOpts.skipRecon) {
+    // Learn each vehicle's gating values (offset / tank reliability / capacity) ONCE up front from the
+    // already-stored Samsara data, so every fill is scored against the CONVERGED values in a SINGLE pass —
+    // a rebuild no longer has to be run twice for learned changes to take effect (audit R-3).
+    const { data: vrows } = await admin.from("vehicles").select("id").eq("org_id", orgId);
+    for (const v of (vrows ?? []) as { id: string }[]) {
+      await learnVehicleValues(admin, v.id);
+    }
     const ids = await collectTxnIds(admin, orgId, { onlyUnreconciled, sinceDays });
     const total = ids.length;
     let done = 0;
     for (const id of ids) {
-      await scoreTransaction(admin, env, orgId, id, { ...scoreOpts, ctx: ctxBase });
+      await scoreTransaction(admin, env, orgId, id, { ...scoreOpts, ctx: ctxBase, skipLearn: true });
       done++;
       if (done % 50 === 0 || done === total) {
         if (onProgress) await onProgress(done, total);
