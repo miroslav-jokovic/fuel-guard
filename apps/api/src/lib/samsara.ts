@@ -200,6 +200,28 @@ export function makeSamsaraVehiclesGpsFetcher(env: Env, token: string): AssetGps
   return (ids, s, e) => fetchAssetGpsHistory(env, token, "/fleet/vehicles/stats/history", "vehicleIds", ids, s, e);
 }
 
+/** Idling events over a window (GET /idling/events) — paginated + merged. Scope: Read Idling. */
+export type SamsaraIdlingFetcher = (startIso: string, endIso: string) => Promise<{ data: unknown[] }>;
+export function makeSamsaraIdlingEventFetcher(env: Env, token: string): SamsaraIdlingFetcher {
+  return async (startIso, endIso) => {
+    const out: unknown[] = [];
+    let after: string | undefined;
+    do {
+      const url = new URL("/idling/events", env.SAMSARA_API_URL);
+      url.searchParams.set("startTime", startIso);
+      url.searchParams.set("endTime", endIso);
+      url.searchParams.set("limit", "200");
+      if (after) url.searchParams.set("after", after);
+      const res = await samsaraFetch(env, token, url);
+      if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+      const page = (await res.json()) as { data?: unknown[]; pagination?: { hasNextPage?: boolean; endCursor?: string } };
+      if (Array.isArray(page.data)) out.push(...page.data);
+      after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
+    } while (after);
+    return { data: out };
+  };
+}
+
 /** Lists every driver in the org. */
 export type SamsaraDriverLister = () => Promise<unknown[]>;
 

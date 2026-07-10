@@ -6,6 +6,7 @@ import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { syncVehiclesFromSamsara, NoSamsaraTokenError } from "../services/samsaraVehicleSync.js";
 import { syncTrailersFromSamsara } from "../services/samsaraTrailerSync.js";
+import { syncIdleEvents } from "../services/idleSync.js";
 import { syncDriversFromSamsara } from "../services/samsaraDriverSync.js";
 import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
 import { startJob, finishJob, JobConflictError } from "../services/jobs.js";
@@ -45,6 +46,14 @@ export function integrationsRouter(): Router {
           console.log(`[integrations] trailer sync: ${tr.total} trailers, ${tr.paired} paired`);
         } catch (e) {
           console.error("[integrations] trailer sync (within vehicle sync) failed:", e instanceof Error ? e.message : e);
+        }
+        // Pull idling events (idle tracking + driver fuel scoring). Best-effort + logged; a 401 = missing
+        // "Read Idling" token scope.
+        try {
+          const idle = await syncIdleEvents(admin, env, orgId);
+          console.log(`[integrations] idle sync: ${idle.fetched} events`);
+        } catch (e) {
+          console.error("[integrations] idle sync failed:", e instanceof Error ? e.message : e);
         }
         await writeAudit(admin, {
           orgId,
