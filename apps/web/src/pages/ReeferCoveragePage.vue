@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useTrailersQuery } from "@/features/fleet/useTrailers";
 import { useDriversQuery } from "@/features/fleet/useDrivers";
+import TableToolbar from "@/components/TableToolbar.vue";
+import AppSelect from "@/components/AppSelect.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 
@@ -17,7 +19,7 @@ const driverName = (id: string | null) => (id ? (drivers.value?.find((d) => d.id
 const median = computed(() => data.value?.fleetMedianSharePct ?? null);
 
 // Only reefer-active trucks (bought ULSR in the window). Sorted by reefer gallons (from the aggregator).
-const active = computed(() => (data.value?.perTruck ?? []).filter((t) => t.reeferActive));
+const activeAll = computed(() => (data.value?.perTruck ?? []).filter((t) => t.reeferActive));
 
 /**
  * Reefer trailers CURRENTLY paired to each truck (Samsara/manual assignment). Keyed by vehicle id.
@@ -52,6 +54,30 @@ function tankCapFor(vehicleId: string): number | null {
   return list.length === 1 ? list[0]!.reefer_tank_capacity_gal : null;
 }
 
+// ── Search + pairing filter (standard toolbar) ───────────────────────────────
+const search = ref("");
+const pairing = ref<string | undefined>(undefined); // 'paired' | 'unpaired' | 'ambiguous'
+const pairingOf = (vehicleId: string) => {
+  const n = (reefersByVehicle.value.get(vehicleId) ?? []).length;
+  return n === 0 ? "unpaired" : n === 1 ? "paired" : "ambiguous";
+};
+const activeFilterCount = computed(() => (pairing.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
+function resetFilters() {
+  search.value = "";
+  pairing.value = undefined;
+}
+const active = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  return activeAll.value.filter((t) => {
+    if (pairing.value && pairingOf(t.vehicleId) !== pairing.value) return false;
+    if (q) {
+      const hay = `${unit(t.vehicleId)} ${trailerFor(t.vehicleId).text} ${driverName(t.primaryDriverId)}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+});
+
 const usd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const shortDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
@@ -71,24 +97,25 @@ function staleTone(days: number | null): string {
 
 <template>
   <div class="space-y-6">
-    <p class="text-sm text-gray-500">
-      Read-only view of reefer (ULSR) vs tractor (ULSD) fuel per truck over the last 90 days. It shows which
-      trucks run reefers, how much and how often they fuel them, and the reefer trailer currently paired to
-      each — so a report names the exact trailer. It never raises alerts. Only trucks that bought reefer fuel
-      are shown.
-    </p>
-
-    <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Reefer-active trucks</dt>
-        <dd class="mt-1 text-2xl font-bold text-gray-900">{{ data.reeferActiveCount }}<span class="text-base font-normal text-gray-400"> / {{ data.totalTrucks }}</span></dd>
-      </div>
-      <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Fleet median reefer share</dt>
-        <dd class="mt-1 text-2xl font-bold text-gray-900">{{ median != null ? median + "%" : "—" }}</dd>
-        <dd class="mt-0.5 text-xs text-gray-400">of fuel on reefer-active trucks</dd>
-      </div>
-    </div>
+    <TableToolbar
+      v-model="search"
+      title="Reefer Coverage"
+      :count="active.length"
+      :subtitle="median != null ? `fleet median ${median}% reefer share` : null"
+      search-placeholder="Search truck, trailer or driver…"
+      :active-filter-count="activeFilterCount"
+      @clear="resetFilters"
+    >
+      <AppSelect
+        v-model="pairing"
+        :options="[
+          { value: undefined, label: 'All pairings' },
+          { value: 'paired', label: 'Paired (1 reefer)' },
+          { value: 'unpaired', label: 'Unpaired' },
+          { value: 'ambiguous', label: 'Ambiguous (2+ reefers)' },
+        ]"
+      />
+    </TableToolbar>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
       <TableSkeleton v-if="isLoading" :cols="10" />

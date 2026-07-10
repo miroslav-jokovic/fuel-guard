@@ -2,21 +2,49 @@
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useOdometerMismatches } from "@/features/fleet/useOdometerMismatches";
+import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import TableToolbar from "@/components/TableToolbar.vue";
+import VehicleSelect from "@/components/VehicleSelect.vue";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useOdometerMismatches();
+const { data: vehicles } = useVehiclesQuery();
 
 const tolerance = computed(() => data.value?.toleranceMiles ?? 10);
 const rows = computed(() => data.value?.rows ?? []);
-const offenders = computed(() => (data.value?.offenders ?? []).slice(0, 5));
 
-// Client-side pagination over the computed mismatch list (reuses the shared jump-to-page control).
+// ── Search + filters (standard toolbar) ──────────────────────────────────────
+const search = ref("");
+const vehicleId = ref<string | undefined>(undefined);
+const from = ref<string | undefined>(undefined);
+const to = ref<string | undefined>(undefined);
+const activeFilterCount = computed(() => [vehicleId.value, from.value, to.value].filter(Boolean).length + (search.value.trim() ? 1 : 0));
+function resetFilters() {
+  search.value = "";
+  vehicleId.value = undefined;
+  from.value = undefined;
+  to.value = undefined;
+}
+const filtered = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  return rows.value.filter((r) => {
+    if (vehicleId.value && r.vehicleId !== vehicleId.value) return false;
+    const day = r.fueledAt.slice(0, 10);
+    if (from.value && day < from.value) return false;
+    if (to.value && day > to.value) return false;
+    if (q && !(`${r.unit ?? ""}`.toLowerCase().includes(q) || `${r.driverName ?? ""}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
+});
+
+// Client-side pagination over the filtered mismatch list (reuses the shared jump-to-page control).
 const PAGE_SIZE = 20;
 const page = ref(1);
-watch(rows, () => (page.value = 1));
-const paged = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+watch([filtered], () => (page.value = 1));
+const paged = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -53,55 +81,25 @@ const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: "bg
 
 <template>
   <div class="space-y-6">
-    <p class="text-sm text-gray-500">
-      <strong>What this shows:</strong> fuel-ups where the odometer the <em>driver typed at the pump</em>
-      disagrees with the truck's <em>actual OBD odometer at that same moment</em> by more than ±{{ tolerance }} mi
-      (after each truck's learned dash↔OBD calibration). A large or repeated gap means the entered reading is
-      wrong — an honest fat-finger, or a driver misreporting mileage to mask fuel use. It's a review list, not
-      an alert: start with the <strong>repeat offenders</strong> below and the biggest differences.
-    </p>
-    <p class="-mt-4 text-xs text-gray-400">
-      Only fills where telematics captured the odometer <em>at the confirmed fueling moment</em> (a tank-fill
-      event or an at-station stop, shown as the "read" time) are compared — fills we can't pin to the fueling
-      moment are left out entirely rather than compared against a wrong-time reading. Coverage of what could
-      and couldn't be verified lives on the <RouterLink to="/coverage" class="text-indigo-600 hover:text-indigo-500">Coverage</RouterLink> page.
-    </p>
-
-    <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Mismatched fills</dt>
-        <dd class="mt-1 text-2xl font-bold text-gray-900">{{ rows.length.toLocaleString() }}<span class="text-base font-normal text-gray-400"> / {{ data.checked.toLocaleString() }} checked</span></dd>
+    <TableToolbar
+      v-model="search"
+      title="Odometer Mismatches"
+      :count="filtered.length"
+      :subtitle="`±${tolerance} mi tolerance`"
+      search-placeholder="Search truck or driver…"
+      :active-filter-count="activeFilterCount"
+      @clear="resetFilters"
+    >
+      <VehicleSelect v-model="vehicleId" :vehicles="vehicles ?? []" />
+      <div class="sm:col-span-2 lg:col-span-2">
+        <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v)" @update:to="(v) => (to = v)" />
       </div>
-      <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Tolerance</dt>
-        <dd class="mt-1 text-2xl font-bold text-gray-900">±{{ tolerance }} mi</dd>
-        <dd class="mt-0.5 text-xs text-gray-400">configured in Settings → Thresholds</dd>
-      </div>
-      <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Top repeat driver</dt>
-        <dd class="mt-1 text-2xl font-bold text-gray-900">{{ offenders[0]?.label ?? "—" }}</dd>
-        <dd v-if="offenders[0]" class="mt-0.5 text-xs text-gray-400">{{ offenders[0].mismatches }} mismatches · max {{ Math.round(offenders[0].maxAbsDiff) }} mi</dd>
-      </div>
-    </div>
-
-    <!-- Repeat offenders -->
-    <div v-if="offenders.length > 1" class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
-      <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Repeat offenders (drivers)</h3>
-      <div class="flex flex-wrap gap-2">
-        <span v-for="o in offenders" :key="o.key" class="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-sm ring-1 ring-gray-200">
-          <span class="font-medium text-gray-900">{{ o.label }}</span>
-          <span class="text-gray-400">·</span>
-          <span class="text-gray-600">{{ o.mismatches }}×</span>
-          <span class="text-gray-400">·</span>
-          <span class="text-gray-600">max {{ Math.round(o.maxAbsDiff) }} mi</span>
-        </span>
-      </div>
-    </div>
+    </TableToolbar>
 
     <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
       <TableSkeleton v-if="isLoading" :cols="10" />
       <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load'" :retrying="isFetching" @retry="refetch" />
-      <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
+      <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
         <p>No confirmed odometer mismatches in the last 90 days — either driver entries agree with telematics, or no fills have a confirmed fueling-time odometer yet.</p>
         <p class="mt-1 text-gray-400">
           If you just deployed the fueling-time fix, run a <RouterLink to="/settings/data" class="text-indigo-600 hover:text-indigo-500">Samsara re-sync / backfill</RouterLink>
@@ -147,7 +145,7 @@ const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: "bg
             </tbody>
           </table>
         </div>
-        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="rows.length" @update:page="page = $event" />
+        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>
     </div>
   </div>
