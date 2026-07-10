@@ -242,7 +242,7 @@ export async function reconcileWithSamsara(
   // so pctBefore is gated on the same trusted physical anchor as the odometer (a tank rise, an in-city
   // stop, or GPS-confirmed proximity). We pass the real anchor `at` (NOT a noon/date-only fallback) so an
   // unanchored fill yields no before-level and can't false-fire tank_space_exceeded. ──
-  const tank = resolveTankFuel(fuelReadings, at, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null, trusted);
+  const tank = resolveTankFuel(fuelReadings, at, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null, trusted, fuelEvent?.pctBefore ?? null);
 
   return {
     crossSourceOdometer: reading?.miles ?? null,

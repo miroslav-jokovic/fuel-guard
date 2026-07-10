@@ -20,6 +20,10 @@ export interface TankFuelResult {
 
 /** Milliseconds after the stop within which the tank is expected to have finished registering the fill. */
 const POST_FILL_PLATEAU_MS = 3 * 3_600_000;
+/** Fallback lookback (minutes) for the pre-fill level when there is NO detected tank-rise event. Kept TIGHT:
+ *  a wide window grabs a pre-drive "full" reading from before the truck drove and drained, which reads too
+ *  high and false-fires the tank-space check. The precise path is the rise event's own pre-rise level. */
+const FALLBACK_BEFORE_WINDOW_MIN = 45;
 
 export function resolveTankFuel(
   fuelReadings: TankReading[],
@@ -28,6 +32,9 @@ export function resolveTankFuel(
   tankCapacityGal: number | null,
   tankRisePctAfter: number | null,
   trusted = true,
+  /** The tank-rise event's pre-rise level (%). This is the tank level at the EXACT instant fueling began, so
+   *  it's preferred over any time-window lookup. Null when there is no detected rise event. */
+  risePctBefore: number | null = null,
 ): TankFuelResult {
   // pctBefore is only meaningful when we have a REAL, trusted fill moment. Without one (no tank-rise
   // event and no matched stop → matchedAt null, or a weak anchor), reading the tank level at an
@@ -36,8 +43,13 @@ export function resolveTankFuel(
   if (fuelReadings.length === 0 || matchedAt == null || !trusted) {
     return { pctBefore: null, pctAfter: tankRisePctAfter, observedRiseGal: null, shortGal: null };
   }
-  const before = tankPercentNear(fuelReadings, matchedAt, "before", 120);
-  const pctBefore = before?.percent ?? null;
+  // PRECISION: prefer the tank-rise event's pre-rise level (the tank level at the exact moment fueling began,
+  // by construction). Only when there is no detected rise do we fall back to the nearest reading in a TIGHT
+  // window. `?? ` keeps a genuine 0% pre-fill level (an empty tank) rather than treating it as missing.
+  const pctBefore =
+    risePctBefore != null
+      ? risePctBefore
+      : tankPercentNear(fuelReadings, matchedAt, "before", FALLBACK_BEFORE_WINDOW_MIN)?.percent ?? null;
   // Post-fill level = the PEAK reading within a few hours after the stop (fueling takes time to register).
   const t = new Date(matchedAt).getTime();
   const plateauReadings = fuelReadings.filter((r) => {

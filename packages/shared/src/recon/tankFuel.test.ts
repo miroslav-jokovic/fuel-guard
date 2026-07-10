@@ -52,6 +52,26 @@ describe("resolveTankFuel (S4 — tank & fuel level module)", () => {
     expect(r.pctBefore).toBe(20);
   });
 
+  it("PREFERS the tank-rise event's pre-rise level over a time-window lookup (precision)", () => {
+    // The nearest reading says 80% (a stale pre-drive sample), but the rise event's pre-rise level was 30%.
+    const readings = [R("2026-06-30T13:30:00Z", 80), R("2026-06-30T14:30:00Z", 95)];
+    const r = resolveTankFuel(readings, "2026-06-30T14:00:00Z", 100, 150, 95, true, 30);
+    expect(r.pctBefore).toBe(30); // the exact pre-rise level, not the 80% lookback
+  });
+
+  it("keeps a genuine 0% pre-rise level (empty tank), not treated as missing", () => {
+    const readings = [R("2026-06-30T13:30:00Z", 5), R("2026-06-30T14:30:00Z", 95)];
+    const r = resolveTankFuel(readings, "2026-06-30T14:00:00Z", 100, 150, 95, true, 0);
+    expect(r.pctBefore).toBe(0);
+  });
+
+  it("no rise event: falls back to the nearest reading only within a TIGHT window (not 2h)", () => {
+    // Only pre-fill reading is 90 min before → outside the 45-min fallback → no before-level (don't guess high).
+    const readings = [R("2026-06-30T12:30:00Z", 40), R("2026-06-30T14:30:00Z", 85)];
+    const r = resolveTankFuel(readings, "2026-06-30T14:00:00Z", 100, 150, null);
+    expect(r.pctBefore).toBeNull();
+  });
+
   it("yields NO before-level when there is no trusted fill anchor (matchedAt null)", () => {
     const readings = [R("2026-06-30T11:30:00Z", 59), R("2026-06-30T14:30:00Z", 85)];
     // No tank-rise event and no matched stop → matchedAt null. Must not read a wrong-time level.

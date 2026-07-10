@@ -613,6 +613,10 @@ function ruleExceedsTankCapacity(ctx: RuleContext): RuleResult {
  * this truck — it went somewhere else. Uses only the reliable PRE-fill level (not the noisy post-fill
  * plateau). Tolerance absorbs sensor coarseness. Silent (never fires) when level/capacity are missing.
  */
+/** A pre-fill level at/above this % means the tank was essentially full, so a large billed fill can't be
+ *  real — the reading is stale/mistimed. Above this, the physical tank-space check is suppressed. */
+const TANK_NEARLY_FULL_PCT = 90;
+
 function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
   const { txn, vehicle, tankPctBefore } = ctx;
   // Reconciling ONE fill against ONE sensed tank's free space is only valid when the sensor reflects the
@@ -621,6 +625,10 @@ function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
   // Tank-sensor-reliability gate centralized in ruleEligible/computeFillConfidence (docs/12).
   const cap = effectiveCapacityGal(vehicle); // learned combined capacity when available, else entered (P-2)
   if (tankPctBefore == null || cap <= 0 || txn.gallons <= 0) return none("tank_space_exceeded");
+  // Physical-contradiction guard: you cannot put a meaningful fill into an already-near-full tank, so a large
+  // billed fill against a pre-fill level this high means the reading is stale/mistimed (wrong-time sensor
+  // sample), not theft. Suppress rather than false-fire. Real over-space fills start from a low/moderate tank.
+  if (tankPctBefore >= TANK_NEARLY_FULL_PCT) return none("tank_space_exceeded");
   const freeSpace = cap * (1 - Math.min(Math.max(tankPctBefore, 0), 100) / 100);
   // Tolerance for sensor coarseness: the larger of 12 gal or 10% of the tank.
   const tol = Math.max(12, cap * 0.1);
