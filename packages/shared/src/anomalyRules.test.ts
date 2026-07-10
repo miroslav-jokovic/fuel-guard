@@ -507,37 +507,46 @@ describe("Phase 5 — implausibly huge odometer diff is DATA QUALITY, not theft"
 describe("learnTankSensorReliability", () => {
   const fills = (ratios: number[]) => ratios.map((r) => ({ observedRiseGal: r * 100, billedGallons: 100 }));
   it("marks a single-tank truck reliable (ratio clusters ≈1)", () => {
-    const r = learnTankSensorReliability(fills([0.98, 1.02, 1.0, 0.95, 1.05, 1.01]));
+    const r = learnTankSensorReliability(fills([0.98, 1.02, 1.0, 0.95, 1.05, 1.01, 0.99, 1.0]));
     expect(r).not.toBeNull();
     expect(r!.reliable).toBe(true);
     expect(r!.ratio).toBeCloseTo(1.0, 1);
   });
   it("marks a dual-independent-tank truck UNreliable (ratio ≈0.5)", () => {
-    const r = learnTankSensorReliability(fills([0.5, 0.48, 0.52, 0.49, 0.51]));
+    const r = learnTankSensorReliability(fills([0.5, 0.48, 0.52, 0.49, 0.51, 0.5, 0.47, 0.53]));
     expect(r!.reliable).toBe(false);
   });
   it("marks an erratic sensor UNreliable (wide swings)", () => {
-    const r = learnTankSensorReliability(fills([1.9, 0.1, 1.0, 0.5, 1.4, 0.2]));
+    const r = learnTankSensorReliability(fills([1.9, 0.1, 1.0, 0.5, 1.4, 0.2, 1.7, 0.3]));
     expect(r!.reliable).toBe(false);
   });
-  it("returns null until enough samples", () => {
+  it("returns null until enough samples (evidence floor is 8 — audit A2.2)", () => {
     expect(learnTankSensorReliability(fills([1.0, 1.0]))).toBeNull();
+    // A dual-tank truck that logs a few clean single-tank fills early must NOT be prematurely trusted: at the
+    // old floor of 4 these 5 clean fills flipped it reliable → false-fired tank_space_exceeded on later
+    // both-tank fills. Now it stays null (rules suppressed) until 8 fills of evidence accumulate.
+    expect(learnTankSensorReliability(fills([1.0, 0.99, 1.01, 1.0, 0.98]))).toBeNull();
+    // With 8 clean fills there IS enough evidence → reliable.
+    expect(learnTankSensorReliability(fills([1.0, 0.99, 1.01, 1.0, 0.98, 1.02, 1.0, 0.97]))!.reliable).toBe(true);
   });
   it("marks a swinging dual-tank truck UNreliable even when the MEDIAN lands in-band (real unit 706)", () => {
-    // Actual 706 fills: observed/billed ratios 0.75, 0.66, 1.18, 1.21, 1.14 — median 1.14 is in-band, but the
-    // fills swing 0.66–1.21, so anchoring on 1.0 (not the median) correctly rejects it.
+    // Actual 706 fills: observed/billed ratios swing 0.66–1.21 while the median (1.14) sits in-band; anchoring
+    // on 1.0 (not the median) correctly rejects it. (8 fills to clear the evidence floor.)
     const r = learnTankSensorReliability([
       { observedRiseGal: 93.6, billedGallons: 124.61 },
       { observedRiseGal: 40.8, billedGallons: 62.06 },
       { observedRiseGal: 112.8, billedGallons: 95.5 },
       { observedRiseGal: 148.8, billedGallons: 122.57 },
       { observedRiseGal: 117.6, billedGallons: 103.07 },
+      { observedRiseGal: 88.2, billedGallons: 118.4 },
+      { observedRiseGal: 130.1, billedGallons: 110.2 },
+      { observedRiseGal: 51.0, billedGallons: 78.9 },
     ]);
     expect(r!.reliable).toBe(false);
   });
   it("treats physically-impossible ratios (>1: rose more than bought) as NOT reconciling", () => {
     // Overstated capacity / non-linear sensor makes observed rise exceed billed — must not count as reliable.
-    expect(learnTankSensorReliability(fills([1.3, 1.25, 1.35, 1.28, 1.4]))!.reliable).toBe(false);
+    expect(learnTankSensorReliability(fills([1.3, 1.25, 1.35, 1.28, 1.4, 1.32, 1.27, 1.31]))!.reliable).toBe(false);
   });
   it("marks a MOSTLY-single-tank truck UNreliable when it has a tail of both-tank (short) fills", () => {
     // 9 single-tank fills reconcile near 1.0 (median stays ~1.0), but 3 both-tank fills only rise ~0.7 of

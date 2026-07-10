@@ -726,6 +726,8 @@ export async function learnVehicleValues(
       .not("samsara_tank_observed_gal", "is", null)
       .gt("gallons", 0)
       .order("fueled_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(12);
     const tankPairs = ((tankRows ?? []) as { samsara_tank_observed_gal: number | string; gallons: number | string }[])
       .map((p) => ({ observedRiseGal: Number(p.samsara_tank_observed_gal), billedGallons: Number(p.gallons) }))

@@ -527,13 +527,21 @@ export interface TankSensorReliabilityResult {
  * physically impossible (can't rise more than you bought → overstated capacity / non-linear sensor) and fall
  * OUTSIDE the band, so they count against reliability. Returns reliable=false when the majority don't
  * reconcile, or null when there isn't enough history yet (caller leaves the per-fill tank rules suppressed).
+ *
+ * The evidence floor is `minSamples = 8` (audit A2.1/A2.2). At the old floor of 4, a dual-tank truck that
+ * happened to log a few single-tank fills early was prematurely marked reliable, which then ENABLED the
+ * weight-90 tank_space_exceeded rule and false-fired on the next both-tank fill. Requiring 8 fills both demands
+ * real evidence AND widens the window enough that a genuine dual-tank truck's occasional both-tank fill lands
+ * in-sample and trips the short-fill guard below → it stays unreliable. Cold-start (< 8 fills) returns null, so
+ * the per-fill tank rules stay suppressed until there's enough history — the SAFE direction (fewer false alarms;
+ * cumulative_overfuel + exceeds_tank_capacity still catch gross fraud regardless of this flag).
  */
 export function learnTankSensorReliability(
   pairs: { observedRiseGal: number; billedGallons: number }[],
   opts: { window?: number; minSamples?: number; band?: number; minFraction?: number; shortRatio?: number; maxShortFraction?: number } = {},
 ): TankSensorReliabilityResult | null {
   const window = opts.window ?? 12;
-  const minSamples = opts.minSamples ?? 4;
+  const minSamples = opts.minSamples ?? 8;
   const band = opts.band ?? 0.15; // ±15% around 1.0 absorbs sensor coarseness
   const minFraction = opts.minFraction ?? 0.7; // ≥70% of fills must reconcile near 1.0
   const shortRatio = opts.shortRatio ?? 0.8; // observed rise below this share of billed = a "short" fill
