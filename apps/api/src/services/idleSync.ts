@@ -101,8 +101,12 @@ export async function syncIdleEvents(admin: SupabaseClient, env: Env, orgId: str
   }
 
   // Learn the data-driven comfort band from the idle-vs-temperature pattern and store it as a SUGGESTION
-  // (never auto-applied — an admin adopts it). Upsert touches only the suggestion columns.
-  const band = learnComfortBand(events.filter((e) => e.airTempF != null).map((e) => ({ tempF: e.airTempF as number, hours: e.durationSec / 3600 })));
+  // (never auto-applied — an admin adopts it). Only SCORED idle (≥ the min duration) counts — feeding brief
+  // sub-threshold stops would skew the histogram (audit A1.6). Upsert touches only the suggestion columns.
+  const minIdleSec = thresholds.minIdleSec ?? 300;
+  const band = learnComfortBand(
+    events.filter((e) => e.airTempF != null && e.durationSec >= minIdleSec).map((e) => ({ tempF: e.airTempF as number, hours: e.durationSec / 3600 })),
+  );
   if (band) {
     await admin.from("idle_settings").upsert({ org_id: orgId, suggested_low_f: band.lowF, suggested_high_f: band.highF, updated_at: new Date().toISOString() }, { onConflict: "org_id" });
   }

@@ -65,10 +65,11 @@ export interface ComfortBandResult {
  * behavioral/avoidable → discretionary); outside it, idle is climate-justified. Returns null until there's
  * enough data. This is the data-driven alternative to a fixed 20–85°F guess.
  */
-export function learnComfortBand(events: { tempF: number; hours: number }[], opts: { binSizeF?: number; minEvents?: number; comfortFrac?: number } = {}): ComfortBandResult | null {
+export function learnComfortBand(events: { tempF: number; hours: number }[], opts: { binSizeF?: number; minEvents?: number; comfortFrac?: number; minBandWidthF?: number } = {}): ComfortBandResult | null {
   const binSize = opts.binSizeF ?? 5;
   const minEvents = opts.minEvents ?? 30;
   const comfortFrac = opts.comfortFrac ?? 0.5;
+  const minBandWidth = opts.minBandWidthF ?? 20; // a band narrower than this isn't a trustworthy comfort zone
   const valid = events.filter((e) => Number.isFinite(e.tempF) && e.hours > 0);
   if (valid.length < minEvents) return null;
 
@@ -89,6 +90,10 @@ export function learnComfortBand(events: { tempF: number; hours: number }[], opt
     if (h < minH) { minH = h; center = s; }
   }
   const ci = starts.indexOf(center);
+  // Reject a valley sitting on an EDGE bin: a real comfort zone has high-idle tails on BOTH sides. If the
+  // minimum-idle bin is the coldest or hottest observed bin, we only saw one tail — not enough to place a band
+  // (audit A1.6). Returning null keeps the previous configured band rather than suggesting a lopsided one.
+  if (ci === 0 || ci === starts.length - 1) return null;
   let low = center;
   for (let i = ci - 1; i >= 0; i--) {
     if (bins.get(starts[i]!)! <= threshold) low = starts[i]!;
@@ -99,7 +104,11 @@ export function learnComfortBand(events: { tempF: number; hours: number }[], opt
     if (bins.get(starts[i]!)! <= threshold) highStart = starts[i]!;
     else break;
   }
-  return { lowF: low, highF: highStart + binSize, samples: valid.length };
+  const highF = highStart + binSize;
+  // A too-narrow valley (e.g. one 5°F bin) would make almost all idle "discretionary" if adopted — don't
+  // suggest it. Require a minimum plausible comfort width.
+  if (highF - low < minBandWidth) return null;
+  return { lowF: low, highF, samples: valid.length };
 }
 
 // ── unit conversions (Samsara → our storage) ────────────────────────────────

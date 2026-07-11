@@ -17,6 +17,23 @@ describe("learnComfortBand", () => {
   it("returns null until there is enough data", () => {
     expect(learnComfortBand([{ tempF: 60, hours: 1 }])).toBeNull();
   });
+  it("rejects a valley sitting on an edge bin (only one climate tail seen — audit A1.6)", () => {
+    // Idle falls monotonically as it warms: heavy in the cold, light at the hot end → the min-idle bin is the
+    // hottest (edge). We only saw the cold tail, so no interior comfort valley → null.
+    const events: { tempF: number; hours: number }[] = [];
+    for (let i = 0; i < 15; i++) events.push({ tempF: 10 + (i % 3) * 5, hours: 5 }); // cold, heavy
+    for (let i = 0; i < 15; i++) events.push({ tempF: 80 + (i % 3) * 5, hours: 0.2 }); // hot, light (edge min)
+    expect(learnComfortBand(events)).toBeNull();
+  });
+  it("rejects a too-narrow valley that would over-classify idle as discretionary (audit A1.6)", () => {
+    // Heavy idle on both sides of a single low-idle bin → the raw valley is only ~5°F wide. Adopting it would
+    // make almost all idle 'discretionary', so it must not be suggested.
+    const events: { tempF: number; hours: number }[] = [];
+    for (let i = 0; i < 15; i++) events.push({ tempF: 50, hours: 5 }); // cold-side tail
+    for (let i = 0; i < 15; i++) events.push({ tempF: 60, hours: 5 }); // hot-side tail
+    events.push({ tempF: 55, hours: 0.2 }); // lone low-idle bin between them
+    expect(learnComfortBand(events)).toBeNull();
+  });
 });
 
 describe("parseIdlingEvents", () => {
