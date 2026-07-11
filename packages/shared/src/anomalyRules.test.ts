@@ -92,6 +92,18 @@ describe("tank_space_exceeded (physical: can't add more than the tank holds)", (
     expect(ids(ctx({ vehicle: reliable, tankPctBefore: 60 }))).toContain("tank_space_exceeded"); // nameplate only
     expect(ids(ctx({ vehicle: dualTank, tankPctBefore: 60 }))).not.toContain("tank_space_exceeded"); // learned combined
   });
+  it("is suppressed when the post-fill sensor shows the fuel actually FIT (stale pre-fill sample — audit A2.3)", () => {
+    // Pre-fill sample says 60% (only 48 gal space) so billed 90 looks impossible — but the tank then ROSE 90
+    // gal, so the fuel physically went in and the pre-fill reading was stale/mistimed. Must NOT fire.
+    expect(ids(ctx({ vehicle: reliable, tankPctBefore: 60, tankObservedRiseGal: 90 }))).not.toContain("tank_space_exceeded");
+  });
+  it("still fires when the observed rise is SHORT (fuel didn't all go in → corroborates the overflow)", () => {
+    // Billed 90 but the tank only rose ~40 gal → the rest didn't enter this truck. Corroborated → fire.
+    expect(ids(ctx({ vehicle: reliable, tankPctBefore: 60, tankObservedRiseGal: 40 }))).toContain("tank_space_exceeded");
+  });
+  it("still fires on the pre-fill sample alone when no post-fill rise was measured (behaviour unchanged)", () => {
+    expect(ids(ctx({ vehicle: reliable, tankPctBefore: 60, tankObservedRiseGal: null }))).toContain("tank_space_exceeded");
+  });
 });
 
 describe("correlateSignals (multi-signal → one case)", () => {

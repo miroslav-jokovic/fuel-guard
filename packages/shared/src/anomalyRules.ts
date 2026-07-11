@@ -673,6 +673,13 @@ function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
   // Tolerance for sensor coarseness: the larger of 12 gal or 10% of the tank.
   const tol = Math.max(12, cap * 0.1);
   const over = txn.gallons - freeSpace;
+  // Independent post-fill corroboration (audit A2.3): tankPctBefore is a SINGLE pre-fill sensor sample; a
+  // stale/mistimed one reads high (understating free space) and false-fires a lone weight-90 critical. But if
+  // the sensor then shows the tank actually ROSE by ~the billed gallons, the fuel physically went into THIS
+  // truck — so the pre-fill sample was wrong, not evidence of overflow. Suppress. We still fire when the
+  // observed rise is SHORT (fuel didn't all go in → corroborates the overflow) or when no rise was measured.
+  const observedRise = ctx.tankObservedRiseGal;
+  if (observedRise != null && observedRise >= txn.gallons - tol) return none("tank_space_exceeded");
   if (over > tol) {
     return {
       ruleId: "tank_space_exceeded",
