@@ -147,6 +147,15 @@ describe("aggregateDriverIdle", () => {
     expect(s.drivers[0]!.driverName).toBe("Unattributed");
   });
 
+  it("reports the attributed share of discretionary $ (audit A1.5)", () => {
+    const s = aggregateDriverIdle([
+      row({ driverId: "a", driverName: "A", classification: "discretionary" }), // $3.20 attributed
+      row({ driverId: null, driverName: null, classification: "discretionary" }), // $3.20 unattributed
+    ]);
+    expect(s.unattributedDiscretionaryCost).toBe(3.2);
+    expect(s.attributedPct).toBe(50);
+  });
+
   it("computes a week-over-week discretionary trend from event dates", () => {
     const now = Date.parse("2026-07-10T00:00:00Z");
     const daysAgo = (d: number) => new Date(now - d * 86_400_000).toISOString();

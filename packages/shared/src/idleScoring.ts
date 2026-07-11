@@ -200,6 +200,12 @@ export interface IdleSummary {
   fleetDiscretionaryCost: number;
   fleetDiscretionaryGal: number;
   events: number;
+  /** Discretionary $ that could NOT be attributed to a driver (Samsara had no operator, or the driver isn't in
+   *  our records). Surfaced so the "Unattributed" leaderboard row is understood as a data-coverage gap, not a
+   *  person to coach (audit A1.5). */
+  unattributedDiscretionaryCost: number;
+  /** Share (0–100) of discretionary $ attributed to a real driver. 100 when there's no idle $ at all. */
+  attributedPct: number;
 }
 
 export interface IdleRow {
@@ -242,6 +248,7 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds & { no
   let fleetDiscHours = 0;
   let fleetDiscGal = 0;
   let fleetDiscCost = 0;
+  let unattrDiscCost = 0;
   let events = 0;
 
   for (const row of rows) {
@@ -264,6 +271,7 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds & { no
       fleetDiscHours += hours;
       fleetDiscGal += gal;
       fleetDiscCost += cost;
+      if (row.driverId == null) unattrDiscCost += cost;
       if (row.startedAt) {
         const t = Date.parse(row.startedAt);
         if (t >= recentFrom) d.recentDisc += hours;
@@ -313,6 +321,8 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds & { no
     fleetDiscretionaryGal: r1(fleetDiscGal),
     fleetDiscretionaryCost: r2(fleetDiscCost),
     events,
+    unattributedDiscretionaryCost: r2(unattrDiscCost),
+    attributedPct: fleetDiscCost > 0 ? r1(((fleetDiscCost - unattrDiscCost) / fleetDiscCost) * 100) : 100,
   };
 }
 

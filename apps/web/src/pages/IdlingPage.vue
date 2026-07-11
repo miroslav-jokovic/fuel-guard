@@ -192,6 +192,7 @@ watch(capFiltered, () => (capPage.value = 1));
         v-model="drvSearch"
         title="Driver idle scorecard"
         :count="drvFiltered.length"
+        :subtitle="data && data.attributedPct < 100 ? `${data.attributedPct}% of idle \$ attributed to a driver` : null"
         search-placeholder="Search driver…"
         :active-filter-count="drvFilterCount"
         @clear="drvSearch = ''"
@@ -219,9 +220,11 @@ watch(capFiltered, () => (capPage.value = 1));
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
-                <tr v-for="(d, i) in drvPaged" :key="d.driverId" class="hover:bg-gray-50">
-                  <td class="px-4 py-3 text-gray-400">{{ drvRank(i) }}</td>
-                  <td class="px-4 py-3 font-medium text-gray-900">{{ d.driverName }}</td>
+                <tr v-for="(d, i) in drvPaged" :key="d.driverId" class="hover:bg-gray-50" :class="d.driverId === '__unattributed__' ? 'bg-gray-50/60' : ''">
+                  <td class="px-4 py-3 text-gray-400">{{ d.driverId === '__unattributed__' ? '—' : drvRank(i) }}</td>
+                  <td class="px-4 py-3 font-medium" :class="d.driverId === '__unattributed__' ? 'text-gray-400 italic' : 'text-gray-900'">
+                    {{ d.driverName }}<span v-if="d.driverId === '__unattributed__'" class="ml-1 text-xs font-normal">(no driver assigned by Samsara)</span>
+                  </td>
                   <td class="px-4 py-3 text-right font-bold tabular-nums" :class="scoreTone(d.score)">{{ d.score }}</td>
                   <td class="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{{ usd2(d.discretionaryCost) }}</td>
                   <td class="px-4 py-3 text-right text-gray-700 tabular-nums">{{ d.discretionaryHours }}</td>
