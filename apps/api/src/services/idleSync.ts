@@ -12,6 +12,22 @@ export interface IdleSyncResult {
 
 const UPSERT_CHUNK = 500;
 
+/** The fleet's recent actual EFS price/gal (mean of the last N priced fills), for a real idle-cost estimate.
+ *  Falls back to the configured/default rate when there's no price history. */
+async function recentEfsPricePerGal(admin: SupabaseClient, orgId: string, fallback: number): Promise<number> {
+  const { data } = await admin
+    .from("fuel_transactions")
+    .select("price_per_gal")
+    .eq("org_id", orgId)
+    .not("price_per_gal", "is", null)
+    .gt("price_per_gal", 0)
+    .order("fueled_at", { ascending: false })
+    .limit(500);
+  const prices = ((data ?? []) as { price_per_gal: number | string }[]).map((r) => Number(r.price_per_gal)).filter((p) => Number.isFinite(p) && p > 0);
+  if (prices.length === 0) return fallback;
+  return prices.reduce((s, p) => s + p, 0) / prices.length;
+}
+
 /**
  * Pull Samsara idling events over the trailing window, attribute each to our vehicle + driver, classify it
  * (productive / justified / discretionary / brief), and upsert into idle_events. Idempotent on
@@ -51,6 +67,14 @@ export async function syncIdleEvents(admin: SupabaseClient, env: Env, orgId: str
   const vehBySamsara = new Map(((vs ?? []) as { id: string; samsara_vehicle_id: string }[]).map((v) => [v.samsara_vehicle_id, v.id]));
   const drvBySamsara = new Map(((ds ?? []) as { id: string; samsara_driver_id: string }[]).map((d) => [d.samsara_driver_id, d.id]));
 
+  // Idle $ uses OUR model, not Samsara's fuelCost (unverified currency/units — audit A1.4): cost = gallons ×
+  // the fleet's ACTUAL EFS price/gal. Gallons = Samsara's measured value when present, else duration × the
+  // configured idle burn rate (0.8 gal/hr). The EFS price is the recent fleet average; fall back to the
+  // configured rate, then the default.
+  const galPerHour = thresholds.idleGalPerHour ?? 0.8;
+  const fuelPrice = await recentEfsPricePerGal(admin, orgId, thresholds.fuelPricePerGal ?? 4.0);
+  const idleGal = (e: (typeof events)[number]) => (e.fuelGal != null ? e.fuelGal : (e.durationSec / 3600) * galPerHour);
+
   const rows = events.map((e) => ({
     org_id: orgId,
     samsara_event_id: e.eventUuid,
@@ -61,7 +85,7 @@ export async function syncIdleEvents(admin: SupabaseClient, env: Env, orgId: str
     pto_active: e.ptoActive,
     air_temp_f: e.airTempF,
     fuel_gal: e.fuelGal,
-    cost_usd: e.costUsd,
+    cost_usd: Math.round(idleGal(e) * fuelPrice * 100) / 100,
     lat: e.lat,
     lng: e.lng,
     geofence_types: e.geofenceTypes,
