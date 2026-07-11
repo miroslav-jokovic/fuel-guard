@@ -6,7 +6,7 @@
  * driver on a non-APU truck isn't scored like one who could have shut the engine off.
  *
  * There is no APU field or engine-start counter in Samsara (verified), so the mode is derived from the
- * Off/On/Idle pattern + GPS speed.
+ * Off/On/Idle pattern: "On" = driving (splits parks), "Idle" = engine-on idle, "Off" = shut down / APU.
  */
 
 export type EngineState = "Off" | "On" | "Idle";
@@ -66,8 +66,18 @@ export interface IdleSessionOpts {
 
 const DEF: Required<IdleSessionOpts> = { minSessionSec: 1800, movingMph: 5, offDominantShare: 0.6, minCycles: 4 };
 
-/** Is this interval the truck DRIVING (engine on + moving)? Such intervals bound/split park sessions. */
+/**
+ * Is this interval the truck DRIVING? Such intervals bound/split park sessions.
+ *
+ * Samsara's engineStates enum already separates driving from idling: "On" = engine running AND moving (a
+ * drive), "Idle" = running but stationary, "Off" = shut down. So "On" is the RELIABLE drive signal. We must NOT
+ * depend on the GPS speed decorated at a state-change instant — that sample fires the moment the state flips,
+ * usually while the truck is still stationary (speed ≈ 0), which made almost no interval look like driving and
+ * left long parks unsplit (so most trucks fell under the session floor and never got a learned capability —
+ * audit A1.1). Speed is kept only as a secondary confirmation for the rare mislabeled "Idle" with real motion.
+ */
 function isDriving(s: EngineSample, movingMph: number): boolean {
+  if (s.state === "On") return true;
   return s.state !== "Off" && s.speedMph != null && s.speedMph > movingMph;
 }
 

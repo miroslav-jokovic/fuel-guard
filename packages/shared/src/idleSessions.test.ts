@@ -64,6 +64,20 @@ describe("buildIdleSessions", () => {
     ]);
     expect(out.length).toBe(2);
   });
+
+  it("splits on the 'On' state even when the decorated speed reads 0 (audit A1.1)", () => {
+    // Real Samsara data: the 'On' state change is timestamped the instant it flips, so its GPS speed is ~0.
+    // The old speed-based split missed these and merged everything into one un-splittable park. 'On' must
+    // split regardless of the decorated speed.
+    const out = buildIdleSessions([
+      s(0, "Idle"), s(60, "On", 0), // park 1 (1h), then drive — speed decorated 0 at the flip
+      s(120, "Idle"), s(240, "On", 0), // park 2 (2h)
+      s(250, "On", 0),
+    ]);
+    expect(out.length).toBe(2);
+    expect(out[0]!.idleSec).toBe(60 * 60);
+    expect(out[1]!.idleSec).toBe(120 * 60);
+  });
 });
 
 describe("learnIdleCapability", () => {
