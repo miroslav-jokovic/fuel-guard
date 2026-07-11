@@ -141,6 +141,33 @@ I'll pause here for your review of this report and plan. On your go-ahead I'll s
 
 Idle detection & fuel burn: Geotab True/Operational idling (https://www.geotab.com/blog/detect-stop-true-fleet-idling/), Geotab idling report thresholds (https://support.geotab.com/help/mygeotab/reports/safety-reports/idling-time), Samsara PTO/AUX/Idle (https://kb.samsara.com/hc/en-us/articles/360062066772-PTO-AUX-Idle-Time), Samsara `/idling/events` (https://developers.samsara.com/reference/getidlingevents), Argonne/DOE HDV idling ~0.8 gal/hr (https://afdc.energy.gov/files/u/publication/hdv_idling_2015.pdf), EPA SmartWay idle reduction (https://www.epa.gov/smartway/idle-reduction), J1939 SPNs (https://www.csselectronics.com/pages/j1939-pgn-list).
 
+---
+
+## Part D — Resolution log (Phase D — detection precision)
+
+Shipped issue-by-issue, each as its own tested commit. Apply = deploy → Rebuild, unless a migration is noted.
+
+**A2.1 — `learnObservedMaxFill` could be trained up by a lone bad fill (fraud-masking).** _Done._ Verified the "p95" returned the tank's maximum at our sample sizes. Now learns the k-th-largest fill (default 2nd-largest → needs ≥2 corroborating fills) and, when the nameplate is known, discards fills above 2.2× nameplate as bad data. +4 tests.
+
+**A2.2 — tank-sensor reliability decided on too few samples.** _Done._ Raised the evidence floor 4 → 8, so a dual-tank truck can't be prematurely marked reliable on a few lucky single-tank fills (the enabler of the weight-90 `tank_space_exceeded` false alarms). Cold-start (<8 fills) stays null → per-fill tank rules suppressed (safe).
+
+**A2.3 — `tank_space_exceeded` fired off one stale pre-fill sensor sample.** _Done._ Added an independent post-fill corroboration: if the sensor shows the tank actually rose by ~the billed gallons, the fuel fit → the pre-fill sample was stale → suppress. Still fires on a short rise (fuel didn't all go in) or when no rise was measured. This is the fix most tied to the reported 50+ alarms. +3 tests.
+
+**A2.4 — `fillSize` confidence computed but ignored.** _Done._ `tank_space_exceeded` / `tank_fill_short` / `mpg_deviation` now also require `fillSize !== "too_small"` (floor = max 15 gal, 8% capacity), killing sensor-noise false positives from tiny fills. `unknown` fill-size does not gate (no lost detection). +unit + integration tests.
+
+**A2.5 — non-deterministic learner queries → phantom alarms.** _Done._ Added `created_at, id` tiebreakers to every limited learner query (offset pairs, `current_odometer`, plus the observed-max-fill and tank-reliability queries done under A2.1/A2.2) so learned values — and therefore anomalies — are stable across rebuilds.
+
+**A3.1 — learned station coordinates leaked across tenants.** _Done (migration 0045)._ Moved telematics-learned pump coordinates out of the shared `geocode_cache` into an org-scoped `station_geocode_learned` table; the reader prefers a same-org learned coordinate, else the shared **provider** geocode (public data, still shared). Migration purges legacy `provider='learned'` rows; they re-learn per-org on the next Rebuild. **Run `apply_0045.sql`.**
+
+**A2.6 — adopt researched thresholds *where they beat ours*.** _Evaluated; deliberately no change._ The two researched thresholds do not beat our data-appropriate values:
+
+- _Overfill (`exceeds_tank_capacity`, 5%)._ Geotab's 110%-of-capacity margin exists for systems reconciling against the entered nameplate. We reconcile against `effectiveCapacityGal` — the **learned** combined capacity (hardened in A2.1) — which is more accurate, so we can hold a tighter 5%. Loosening to 10% would miss a real siphon-and-rebill (e.g. 260 gal on a true 240 tank) with no false-positive benefit for us. **Kept 5%.**
+- _Location mismatch (`LOCATION_MISMATCH_MIN_MILES`, 50 mi)._ Our `location_mismatch` is a **state-level** check; the 50 mi value is the border-crossing veto (don't flag a differing state token when the truck was within 50 mi of the claimed station). Geotab's ~1 km figure is a precise-coordinate **same-area proximity** check — a different detection. Dropping our veto to 0.6 mi would false-flag legitimate fills near a state line. **Kept 50 mi.** (A3.1's learned site coordinates are what actually sharpen the confirm side.)
+
+Decision posture: we do not loosen critical fraud thresholds on generic vendor numbers when our own design (learned capacity, state-level mismatch with a border veto) is better-targeted for our data. The researched values are recorded here so the choice is auditable, not implicit.
+
+**Phase D status: complete.** Next per the plan: Phase A (Idling-page redesign — tabs, filtering, remove the top explanation) and Phase B (manual APU flag as source of truth).
+
 APU: EPA idle-reduction technologies (https://www.epa.gov/verified-diesel-tech/learn-about-idling-reduction-technologies-irts-trucks-and-school-buses), NACFE diesel APUs ~0.25 gal/hr (https://nacfe.org/research/technology/idle-reduction/diesel-apus/), Thermo King TriPac (own telematics) (https://www.thermoking.com/na/en/newsroom/high-efficiency-apus.html), Samsara aux input (https://kb.samsara.com/hc/en-us/articles/19757622859661-Configure-an-Auxiliary-Input).
 
 Fuel reconciliation thresholds: Geotab Fuel Transactions (https://support.geotab.com/help/mygeotab/energy-and-sustainability/fuel/fuel-transactions), Geotab fuel fill-ups (https://support.geotab.com/mygeotab/doc/fuel-fill-ups), fuel-level sensor error (https://navixy.com/docs/expert-center/vehicle-telematics-technology/fuel-management/installation-and-initial-configuration-of-fuel-control-devices/fuel-level-sensors/types-of-fuel-level-sensors), Samsara fuel-fraud overview (https://www.samsara.com/blog/the-high-cost-of-fuel-fraud-and-how-public-fleets-can-prevent-it).
