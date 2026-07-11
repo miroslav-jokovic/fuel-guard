@@ -238,6 +238,12 @@ describe("Tier 3 — efficiency", () => {
   it("mpg_deviation is suppressed for a not-yet-reliable / dual-tank truck (per-fill MPG unreliable)", () => {
     expect(ids(ctx({ txn: txn({ odometer: 99450 }) }))).not.toContain("mpg_deviation");
   });
+  it("mpg_deviation is suppressed on a TOO-SMALL fill even on a reliable truck (audit A2.4)", () => {
+    // Both fills compute ~4.0 mpg (well below baseline 6.4); they differ ONLY in fill size (floor = 15 gal).
+    // 20 gal / 80 mi is measurable → fires; 10 gal / 40 mi is too small to read a coarse sensor → suppressed.
+    expect(ids(ctx({ vehicle: reliable, txn: txn({ odometer: 99480, gallons: 20 }) }))).toContain("mpg_deviation");
+    expect(ids(ctx({ vehicle: reliable, txn: txn({ odometer: 99440, gallons: 10 }) }))).not.toContain("mpg_deviation");
+  });
   it("cold-weather derate: a borderline drop fires in summer but not in deep winter", () => {
     // 450 mi / 90 gal = 5.0 mpg vs baseline 6.4. Summer floor 6.4×0.85=5.44 → fires; Dec floor 6.4×0.75=4.8 → not.
     const borderline = { odometer: 99850, gallons: 90 };

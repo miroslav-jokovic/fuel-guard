@@ -55,8 +55,20 @@ describe("ruleEligible — reproduces the previous inline guards exactly", () =>
     }
   });
 
-  it("fill-size is descriptive only — it does NOT gate anything in Phase 1", () => {
+  it("a too-small fill makes the per-fill sensor-measurement rules ineligible (audit A2.4)", () => {
     const tooSmall: FillConfidence = { tankSensor: "reliable", odoSource: "obd", fillSize: "too_small" };
-    for (const id of tankRules) expect(ruleEligible(id, tooSmall)).toBe(true);
+    // Sensor-measurement rules: a fill too small to read against a coarse sensor → ineligible.
+    for (const id of ["tank_space_exceeded", "tank_fill_short", "mpg_deviation"] as RuleId[]) {
+      expect(ruleEligible(id, tooSmall)).toBe(false);
+    }
+    // Consumption/trend rules are NOT gated on fill size (a small fill can't over-topoff; decline spans fills).
+    for (const id of ["implausible_topoff", "mpg_sustained_decline"] as RuleId[]) {
+      expect(ruleEligible(id, tooSmall)).toBe(true);
+    }
+  });
+
+  it("an unknown fill-size does NOT gate — only a demonstrably too-small fill does", () => {
+    const unknown: FillConfidence = { tankSensor: "reliable", odoSource: "obd", fillSize: "unknown" };
+    for (const id of tankRules) expect(ruleEligible(id, unknown)).toBe(true);
   });
 });

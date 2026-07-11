@@ -16,10 +16,11 @@ import type { RuleContext, RuleId } from "./anomalyRules.js";
  */
 
 /** Smallest fill (gallons) that moves a coarse tank sensor measurably — Geotab notes small/partial fills are
- *  "not noticeable"; standard J1939 fuel level (SPN 96) is ~0.4%/bit. DESCRIPTIVE in Phase 1 (not yet gating);
- *  wired into eligibility in a later phase once the fleet's real floor is confirmed. */
+ *  "not noticeable"; standard J1939 fuel level (SPN 96) is ~0.4%/bit. GATING (audit A2.4): a fill below this
+ *  floor is `too_small`, and the per-fill sensor-measurement rules are ineligible for it (sensor noise, not
+ *  signal). */
 export const MIN_MEASURABLE_FILL_GAL = 15;
-/** …or this fraction of tank capacity, whichever is larger. DESCRIPTIVE in Phase 1 (not yet gating). */
+/** …or this fraction of tank capacity, whichever is larger. */
 export const MIN_MEASURABLE_FILL_PCT = 0.08;
 
 export interface FillConfidence {
@@ -30,8 +31,9 @@ export interface FillConfidence {
    *  dash/EFS; "other" = a GPS-derived/reconstructed reading carrying a bias a single offset can't absorb;
    *  null = no source recorded (treated as OBD for back-compat). */
   odoSource: "obd" | "other" | null;
-  /** Is the fill large enough to measure against a coarse sensor? DESCRIPTIVE in Phase 1 — surfaced for the UI
-   *  and future gating, NOT used by `ruleEligible` yet. "unknown" when capacity/gallons are missing. */
+  /** Is the fill large enough to measure against a coarse sensor? GATES the per-fill sensor-measurement rules
+   *  (audit A2.4): "too_small" makes them ineligible. "unknown" (capacity/gallons missing) does NOT gate — we
+   *  only suppress the specific bad case of a fill demonstrably too small to read, never on a data gap. */
   fillSize: "measurable" | "too_small" | "unknown";
 }
 
@@ -58,19 +60,23 @@ export function computeFillConfidence(ctx: RuleContext): FillConfidence {
 /**
  * Is `id` allowed to fire for this confidence? Returns true for rules with no confidence dependency.
  *
- * BEHAVIOUR-LOCK (Phase 1) — these reproduce the exact inline guards that previously lived in the rules:
- *   - tank_space_exceeded / implausible_topoff / tank_fill_short / mpg_deviation / mpg_sustained_decline
- *       ← `if (vehicle.tankSensorReliable !== true) return none()`
- *   - odometer_mismatch
- *       ← `if (crossSourceOdometerSource != null && crossSourceOdometerSource !== "obd") return none()`
- *         (i.e. eligible when the source is OBD or absent; ineligible only for a GPS/reconstructed reading)
+ *   - tank_space_exceeded / tank_fill_short / mpg_deviation — the per-fill SENSOR-MEASUREMENT rules: need a
+ *       reliable sensor AND a fill big enough to read against a coarse J1939 level sensor. A too-small fill is
+ *       sensor noise, not signal, so gating on `fillSize !== "too_small"` removes those false positives
+ *       (audit A2.4). "unknown" fill-size does NOT gate — we only suppress a demonstrably-too-small fill, not a
+ *       data gap, so no existing detection is newly lost.
+ *   - implausible_topoff / mpg_sustained_decline — consumption/trend rules, gated on the reliable sensor only
+ *       (a small single fill can't create an over-topoff, and the decline rule spans multiple fills).
+ *   - odometer_mismatch / odometer_entry_suspect — eligible when the cross-source odometer is OBD or absent;
+ *       ineligible only for a GPS/reconstructed reading whose bias a single offset can't absorb.
  */
 export function ruleEligible(id: RuleId, c: FillConfidence): boolean {
   switch (id) {
     case "tank_space_exceeded":
-    case "implausible_topoff":
     case "tank_fill_short":
     case "mpg_deviation":
+      return c.tankSensor === "reliable" && c.fillSize !== "too_small";
+    case "implausible_topoff":
     case "mpg_sustained_decline":
       return c.tankSensor === "reliable";
     case "odometer_mismatch":
