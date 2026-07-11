@@ -645,6 +645,7 @@ export async function scoreTransaction(
         .not("odometer", "is", null)
         .order("fueled_at", { ascending: false })
         .order("created_at", { ascending: false })
+        .order("id", { ascending: false }) // deterministic pick when fueled_at+created_at tie (audit A2.5)
         .limit(1)
         .maybeSingle();
       if (lastRow?.odometer != null) vehUpdate.current_odometer = lastRow.odometer;
@@ -706,6 +707,8 @@ export async function learnVehicleValues(
       .not("odometer", "is", null)
       .not("samsara_odometer", "is", null)
       .order("fueled_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false }) // deterministic sample at the limit boundary (audit A2.5)
       .limit(10);
     const pairs = ((pairRows ?? []) as { odometer: number | string; samsara_odometer: number | string }[])
       .map((p) => ({ entered: Number(p.odometer), samsara: Number(p.samsara_odometer) }))
@@ -778,6 +781,7 @@ export async function scoreWithCascade(admin: SupabaseClient, env: Env, orgId: s
     .gt("fueled_at", row.fueled_at)
     .order("fueled_at", { ascending: true })
     .order("created_at", { ascending: true })
+    .order("id", { ascending: true }) // stable cascade set at the boundary (audit A2.5; idempotent re-score)
     .limit(5);
   for (const x of ((next ?? []) as { id: string }[])) await scoreTransaction(admin, env, orgId, x.id);
 }
