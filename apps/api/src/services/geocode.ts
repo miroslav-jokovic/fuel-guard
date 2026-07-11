@@ -45,6 +45,7 @@ export async function geocodeStation(
   admin: SupabaseClient,
   env: Env,
   station: StationQuery,
+  orgId: string,
   opts: { cacheOnly?: boolean } = {},
 ): Promise<Coords | null> {
   if (!env.GEOCODING_ENABLED) return null;
@@ -52,6 +53,21 @@ export async function geocodeStation(
 
   const identity = parseStationIdentity(station.name, station.city, station.state);
   const key = identity.siteKey;
+
+  // Org-scoped LEARNED pump coordinate takes priority: it's derived from THIS org's telematics (median of its
+  // trucks' stop positions) and must never leak across tenants (audit A3.1). Always 'site' precision. Checked
+  // before the shared provider cache; only the generic provider geocode below is shared across orgs.
+  if (key) {
+    const { data: learned } = await admin
+      .from("station_geocode_learned")
+      .select("lat, lng")
+      .eq("org_id", orgId)
+      .eq("query", key)
+      .maybeSingle();
+    if (learned && learned.lat != null && learned.lng != null) {
+      return { lat: Number(learned.lat), lng: Number(learned.lng), precision: "site" };
+    }
+  }
 
   const { data: cached } = await admin
     .from("geocode_cache")

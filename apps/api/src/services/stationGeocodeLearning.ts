@@ -19,10 +19,11 @@ interface FillLoc {
 /**
  * Upgrade city-level stations to precise 'site' coordinates LEARNED from our own telematics. Trucks stopping
  * to fuel at a station cluster at the same pump lot, so the median of their observed stop positions is the
- * station's true coordinate — better for confirmation than a city-centroid geocode, and free. Writes a
- * geocode_cache 'site' row (provider='learned') for stations that aren't already 'site'. After this, a
- * re-check confirms fills there (truck GPS within the confirm radius of the learned pump coordinate).
- * Idempotent; safe to re-run.
+ * station's true coordinate — better for confirmation than a city-centroid geocode, and free. Writes an
+ * ORG-SCOPED station_geocode_learned row for stations that aren't already 'site' (audit A3.1: this coordinate
+ * is derived from THIS org's private telematics, so it must not land in the shared, cross-tenant geocode_cache).
+ * After this, a re-check confirms fills there (truck GPS within the confirm radius of the learned pump
+ * coordinate). Idempotent; safe to re-run.
  */
 export async function learnStationGeocodes(admin: SupabaseClient, orgId: string): Promise<StationGeocodeLearnResult> {
   // 1) Gather each fill's station identity + the truck's observed stop position.
@@ -48,26 +49,31 @@ export async function learnStationGeocodes(admin: SupabaseClient, orgId: string)
   }
   if (byStation.size === 0) return { stations: 0, learned: 0 };
 
-  // 2) Which stations are already 'site' precision (don't churn those).
+  // 2) Skip stations we already have a 'site' coordinate for: either the shared provider geocode resolved this
+  //    station precisely (geocode_cache precision='site'), or this org already learned it
+  //    (station_geocode_learned). We only UPGRADE city-level stations.
   const keys = [...byStation.keys()];
   const alreadySite = new Set<string>();
   for (let i = 0; i < keys.length; i += 200) {
-    const { data } = await admin.from("geocode_cache").select("query, precision").in("query", keys.slice(i, i + 200));
-    for (const r of (data ?? []) as { query: string; precision: string | null }[]) {
+    const slice = keys.slice(i, i + 200);
+    const { data: provider } = await admin.from("geocode_cache").select("query, precision").in("query", slice);
+    for (const r of (provider ?? []) as { query: string; precision: string | null }[]) {
       if (r.precision === "site") alreadySite.add(r.query);
     }
+    const { data: mine } = await admin.from("station_geocode_learned").select("query").eq("org_id", orgId).in("query", slice);
+    for (const r of (mine ?? []) as { query: string }[]) alreadySite.add(r.query);
   }
 
-  // 3) Cluster each remaining station's stop positions → learned 'site' coordinate.
+  // 3) Cluster each remaining station's stop positions → learned 'site' coordinate, stored ORG-SCOPED.
   let learned = 0;
   const now = new Date().toISOString();
   for (const [key, s] of byStation) {
     if (alreadySite.has(key)) continue;
     const coord = learnStationCoord(s.positions);
     if (!coord) continue;
-    const { error } = await admin.from("geocode_cache").upsert(
-      { query: key, lat: coord.lat, lng: coord.lng, resolved: true, precision: "site", provider: "learned", updated_at: now },
-      { onConflict: "query" },
+    const { error } = await admin.from("station_geocode_learned").upsert(
+      { org_id: orgId, query: key, lat: coord.lat, lng: coord.lng, samples: coord.samples, updated_at: now },
+      { onConflict: "org_id,query" },
     );
     if (error) throw new Error(error.message);
     learned++;

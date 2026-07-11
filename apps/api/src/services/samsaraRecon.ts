@@ -182,7 +182,7 @@ export async function reconcileWithSamsara(
   // Geocode the station once (cached) and measure how close the truck's GPS came to it that day — the
   // most precise location signal. Best-effort: null when geocoding is off/unresolvable, and we fall
   // back to the state-level presence check.
-  const geocode: StationGeocoder = geocodeOverride ?? ((s) => geocodeStation(admin, env, s, { cacheOnly: extra?.geocodeCacheOnly }));
+  const geocode: StationGeocoder = geocodeOverride ?? ((s) => geocodeStation(admin, env, s, orgId, { cacheOnly: extra?.geocodeCacheOnly }));
   const stationCoords = await geocode({ name: input.locationName, city: input.city, state: input.state }).catch(() => null);
   const stationLat = stationCoords?.lat ?? null;
   const stationLng = stationCoords?.lng ?? null;
