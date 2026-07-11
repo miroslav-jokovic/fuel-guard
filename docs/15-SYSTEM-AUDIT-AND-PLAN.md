@@ -168,6 +168,24 @@ Decision posture: we do not loosen critical fraud thresholds on generic vendor n
 
 **Phase D status: complete.** Next per the plan: Phase A (Idling-page redesign — tabs, filtering, remove the top explanation) and Phase B (manual APU flag as source of truth).
 
+## Part E — Resolution log (Phases A & B + idle-feature audit)
+
+**Phase A — Idling-page redesign.** _Done._ Three tables split into tabs (Drivers / Avoidable idles / Truck capability), each with its own search + sort + pagination; the always-on explanation moved into a collapsible "How idle is scored" panel; fleet KPIs pinned above the tabs. No migration.
+
+**Phase B — manual APU flag as source of truth.** _Done (migration 0046)._ `vehicles.has_apu` (+`apu_type`), editable on the Vehicles form. `topAvoidableIdles` avoidability now comes from the manual flag, never the inferred capability; an unset truck is never called avoidable. Capability tab is a full-fleet view (recorded APU vs learned capability) with an agree/disagree cross-check. **Run `apply_0046.sql`.**
+
+**A1.1 — sparse capability table (drive-split root cause).** _Done._ `buildIdleSessions` splits parks on the `On` engine state (running + moving), not the GPS speed decorated at a state-change instant (~0), which had left parks unsplit and most trucks under the session floor. Also, `syncIdleCapabilities` now writes `unknown` instead of skipping, so no truck is silently hidden. Re-run the Samsara sync.
+
+**A1.3 — capability never used in the driver score.** _Done._ `classifyIdleEvent` takes `has_apu`: an APU truck's extreme-temp main-engine idle stays discretionary (should've used the APU) instead of being excused. No-APU/unknown trucks keep the climate excuse. Re-run the idle sync to reclassify.
+
+**A1.4 — idle $ trusted Samsara's unverified `fuelCost`.** _Done._ Idle cost is computed from our model — gallons × the fleet's recent average EFS price/gal — never Samsara's dollar figure. Re-run the idle sync to recost.
+
+**A1.5 — unattributed idle unmeasured.** _Done._ `aggregateDriverIdle` returns the attributed share; the Drivers tab shows "% attributed" and styles the Unattributed row as a coverage gap, not a person to coach.
+
+**A1.6 — comfort-band suggestion could be too narrow / edge-sitting.** _Done._ `learnComfortBand` now uses only scored events, rejects edge-bin valleys (one climate tail) and sub-20°F bands; returns null rather than suggest a bad band.
+
+**Idle-feature audit status: complete.** Remaining deferred (separate, larger): the OBD-odometer source-of-truth switch (verified 99.9% precise, greenlit, not yet built).
+
 APU: EPA idle-reduction technologies (https://www.epa.gov/verified-diesel-tech/learn-about-idling-reduction-technologies-irts-trucks-and-school-buses), NACFE diesel APUs ~0.25 gal/hr (https://nacfe.org/research/technology/idle-reduction/diesel-apus/), Thermo King TriPac (own telematics) (https://www.thermoking.com/na/en/newsroom/high-efficiency-apus.html), Samsara aux input (https://kb.samsara.com/hc/en-us/articles/19757622859661-Configure-an-Auxiliary-Input).
 
 Fuel reconciliation thresholds: Geotab Fuel Transactions (https://support.geotab.com/help/mygeotab/energy-and-sustainability/fuel/fuel-transactions), Geotab fuel fill-ups (https://support.geotab.com/mygeotab/doc/fuel-fill-ups), fuel-level sensor error (https://navixy.com/docs/expert-center/vehicle-telematics-technology/fuel-management/installation-and-initial-configuration-of-fuel-control-devices/fuel-level-sensors/types-of-fuel-level-sensors), Samsara fuel-fraud overview (https://www.samsara.com/blog/the-high-cost-of-fuel-fraud-and-how-public-fleets-can-prevent-it).
