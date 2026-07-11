@@ -184,7 +184,11 @@ Decision posture: we do not loosen critical fraud thresholds on generic vendor n
 
 **A1.6 — comfort-band suggestion could be too narrow / edge-sitting.** _Done._ `learnComfortBand` now uses only scored events, rejects edge-bin valleys (one climate tail) and sub-20°F bands; returns null rather than suggest a bad band.
 
-**Idle-feature audit status: complete.** Remaining deferred (separate, larger): the OBD-odometer source-of-truth switch (verified 99.9% precise, greenlit, not yet built).
+**Idle-feature audit status: complete.**
+
+**OBD-odometer source of truth.** _Done._ `milesSinceLast` prefers the OBD/ECU odometer span when both fills have an `obd`-source reading (~99.9% precise vs ~80%-within-2mi driver-entered), sharpening mpg_deviation, expected_odometer_band, implausible_topoff, the learned baseline, and the stored miles. Never mixes sources; falls back to the entered span when OBD is missing or non-positive; `odometer_mismatch` still compares entered-vs-OBD for padding fraud. No migration — Re-check → Rebuild to recompute miles/mpg.
+
+**Everything in this document is now implemented.** Deploy checklist: run `apply_0045.sql` + `apply_0046.sql`, deploy, set Has APU per truck, Re-check → Rebuild, and re-run the Samsara idle sync.
 
 APU: EPA idle-reduction technologies (https://www.epa.gov/verified-diesel-tech/learn-about-idling-reduction-technologies-irts-trucks-and-school-buses), NACFE diesel APUs ~0.25 gal/hr (https://nacfe.org/research/technology/idle-reduction/diesel-apus/), Thermo King TriPac (own telematics) (https://www.thermoking.com/na/en/newsroom/high-efficiency-apus.html), Samsara aux input (https://kb.samsara.com/hc/en-us/articles/19757622859661-Configure-an-Auxiliary-Input).
 
