@@ -9,6 +9,7 @@ import {
   learnObservedMaxFill,
   effectiveCapacityGal,
   robustWindowMiles,
+  milesSinceLast,
   isSystematicStationOffset,
   coldWeatherDeratePct,
   isOffHours,
@@ -748,5 +749,36 @@ describe("reconcileAnomalies (audit M5)", () => {
     expect(toInsert.map((r) => r.ruleId)).not.toContain("odometer_regression");
     // off_hours no longer fires and is open → superseded
     expect(toSupersedeIds).toContain("a1");
+  });
+});
+
+describe("milesSinceLast — OBD odometer source of truth", () => {
+  const obd = (odometer: number, samsaraOdometer: number): TxnView =>
+    txn({ odometer, samsaraOdometer, samsaraOdometerSource: "obd" });
+
+  it("prefers the OBD odometer span when BOTH fills have an OBD reading", () => {
+    // Entered span says 500 mi (noisy); OBD span says 480 mi (precise) → use OBD.
+    const prev = obd(99_000, 500_000);
+    const cur = obd(99_500, 500_480);
+    expect(milesSinceLast(cur, prev)).toBe(480);
+  });
+
+  it("does NOT mix sources — falls back to the entered span when either fill lacks an OBD reading", () => {
+    const prevObd = obd(99_000, 500_000);
+    const curEntered = txn({ odometer: 99_600 }); // no OBD
+    // Must use the entered span (600), never OBD-cur vs entered-prev (which would be a wrong scale).
+    expect(milesSinceLast(curEntered, prevObd)).toBe(600);
+  });
+
+  it("falls back to the entered span when the OBD span is non-positive (reconstruction gap/rollback)", () => {
+    const prev = obd(99_000, 500_500); // OBD reads HIGHER than cur (bad) → span ≤ 0
+    const cur = obd(99_400, 500_400);
+    expect(milesSinceLast(cur, prev)).toBe(400); // entered span governs
+  });
+
+  it("ignores a GPS/reconstructed cross-source odometer (only 'obd' is trusted for miles)", () => {
+    const prev = txn({ odometer: 99_000, samsaraOdometer: 500_000, samsaraOdometerSource: "gps" });
+    const cur = txn({ odometer: 99_700, samsaraOdometer: 500_480, samsaraOdometerSource: "gps" });
+    expect(milesSinceLast(cur, prev)).toBe(700); // entered span, GPS odometer not used
   });
 });

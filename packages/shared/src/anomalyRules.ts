@@ -94,6 +94,12 @@ export interface TxnView {
   driverId: string | null;
   fueledAt: string; // ISO-8601 instant
   odometer: number | null;
+  /** OBD/ECU odometer at the fueling instant (reconstructed via recon), when available. ~99.9% precise vs the
+   *  ~80%-within-2mi driver-entered value, so it's the preferred basis for miles-driven (see milesSinceLast). */
+  samsaraOdometer?: number | null;
+  /** Provenance of samsaraOdometer: 'obd' (ECU — trustworthy), 'gps'/'reconstructed' (biased — not used for
+   *  miles). Only 'obd' is used as the miles source. */
+  samsaraOdometerSource?: string | null;
   gallons: number;
   pricePerGal: number | null;
   totalCost: number | null;
@@ -290,8 +296,29 @@ export function daysBetween(aIso: string, bIso: string): number {
   return hoursBetween(aIso, bIso) / 24;
 }
 
+/** The OBD/ECU odometer for a fill, ONLY when it's a real ECU reading (source 'obd') — the ~99.9%-precise one.
+ *  GPS/reconstructed readings carry a per-truck bias and are never used as the miles source. */
+function obdOdometer(t: TxnView): number | null {
+  return t.samsaraOdometerSource === "obd" && t.samsaraOdometer != null ? t.samsaraOdometer : null;
+}
+
+/**
+ * Miles driven since the previous fill. PREFERS the OBD/ECU odometer SPAN when BOTH fills have one — the ECU
+ * odometer is ~99.9% precise, while driver-entered readings are only ~80% within 2 mi and add noise to every
+ * consumption/efficiency rule (mpg, expected-band, top-off). The dash↔ECU offset cancels in a span, and we
+ * NEVER mix sources (both OBD, or both entered). Falls back to the entered span when OBD isn't available for
+ * both fills, or if the OBD span is non-positive (a reconstruction gap / rollback) — the entered span then
+ * governs, exactly as before.
+ */
 export function milesSinceLast(txn: TxnView, prev: TxnView | null): number | null {
-  if (!prev || txn.odometer == null || prev.odometer == null) return null;
+  if (!prev) return null;
+  const tObd = obdOdometer(txn);
+  const pObd = obdOdometer(prev);
+  if (tObd != null && pObd != null) {
+    const d = tObd - pObd;
+    if (d > 0) return d;
+  }
+  if (txn.odometer == null || prev.odometer == null) return null;
   const d = txn.odometer - prev.odometer;
   return d > 0 ? d : null;
 }

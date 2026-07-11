@@ -122,6 +122,8 @@ function toTxnView(r: FtxnRow): TxnView {
     driverId: r.driver_id,
     fueledAt: r.fueled_at, // business timestamp — never overwritten (day bucketing + dedup; see migration 0026)
     odometer: n(r.odometer),
+    samsaraOdometer: n(r.samsara_odometer),
+    samsaraOdometerSource: r.samsara_odometer_source ?? null,
     gallons: Number(r.gallons),
     pricePerGal: n(r.price_per_gal),
     totalCost: n(r.total_cost),
