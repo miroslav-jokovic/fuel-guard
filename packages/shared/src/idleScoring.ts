@@ -316,7 +316,9 @@ export interface LongIdleInput {
   classification: IdleClassification;
   costUsd: number | null;
   fuelGal: number | null;
-  /** Learned per-truck capability: 'apu' | 'ecu_optimized' | 'continuous_only' | 'unknown' | null. */
+  /** MANUAL source of truth: does this truck have an APU / optimized-idle option? null = unknown/unset. */
+  hasApu: boolean | null;
+  /** Learned per-truck capability, kept as a cross-check only: 'apu' | 'ecu_optimized' | 'continuous_only' | 'unknown' | null. */
   idleCapability: string | null;
 }
 
@@ -326,15 +328,21 @@ export interface LongIdleRow {
   startedAt: string;
   hours: number;
   costUsd: number;
-  /** True when this truck HAD APU/optimized idle available — the driver could have avoided burning the main engine. */
+  /** True when the truck has an APU/optimized idle (manual has_apu) — the driver could have avoided burning the
+   *  main engine. Only true when has_apu is explicitly set; an unknown/unset truck is NOT called avoidable. */
   avoidable: boolean;
+  /** Manual APU flag as recorded on the vehicle (source of truth). */
+  hasApu: boolean | null;
+  /** Learned capability (cross-check/display). */
   idleCapability: string;
 }
 
 /**
  * Surface the longest DISCRETIONARY idle events for coaching. These are the single biggest wins: one 10-hour
- * overnight idle on a truck that has an APU is pure waste. `avoidable` marks the events where an APU or optimized
- * idle was available (learned in Phase 2), so the fleet can point drivers to the equipment they already have.
+ * overnight idle on a truck that has an APU is pure waste. `avoidable` is driven by the MANUAL `hasApu` flag —
+ * the reliable source of truth, since a diesel APU can't be detected from telematics (audit A1.2). The learned
+ * capability is kept only as a secondary cross-check. A truck with has_apu unset (null) is NOT called avoidable,
+ * so we never accuse a driver of wasting an APU the truck may not have.
  */
 export function topAvoidableIdles(rows: LongIdleInput[], opts: IdleThresholds & { minHours?: number; limit?: number } = {}): LongIdleRow[] {
   const o = { ...DEFAULTS, ...opts };
@@ -346,15 +354,15 @@ export function topAvoidableIdles(rows: LongIdleInput[], opts: IdleThresholds & 
       const hours = r.durationSec / 3600;
       const gal = r.fuelGal != null ? r.fuelGal : hours * o.idleGalPerHour;
       const cost = r.costUsd != null ? r.costUsd : gal * o.fuelPricePerGal;
-      const cap = r.idleCapability ?? "unknown";
       return {
         driverName: r.driverName ?? "Unattributed",
         unitNumber: r.unitNumber ?? "—",
         startedAt: r.startedAt,
         hours: r1(hours),
         costUsd: r2(cost),
-        avoidable: cap === "apu" || cap === "ecu_optimized",
-        idleCapability: cap,
+        avoidable: r.hasApu === true,
+        hasApu: r.hasApu,
+        idleCapability: r.idleCapability ?? "unknown",
       };
     })
     // Avoidable first (had the equipment), then longest.

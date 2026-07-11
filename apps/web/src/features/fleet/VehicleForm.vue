@@ -32,6 +32,8 @@ const form = reactive({
   status: props.vehicle?.status ?? "active",
   assigned_driver_id: props.vehicle?.assigned_driver_id ?? "",
   samsara_vehicle_id: props.vehicle?.samsara_vehicle_id ?? "",
+  // Tri-state APU flag as a form string: "" = unknown, "true" = has APU, "false" = none.
+  has_apu: props.vehicle?.has_apu == null ? "" : props.vehicle.has_apu ? "true" : "false",
 });
 
 const errors = ref<Record<string, string>>({});
@@ -132,9 +134,24 @@ const inputCls =
       </div>
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-gray-900">Samsara vehicle ID</label>
-      <input v-model="form.samsara_vehicle_id" :class="inputCls" placeholder="For telematics odometer reconciliation" />
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-900">Samsara vehicle ID</label>
+        <input v-model="form.samsara_vehicle_id" :class="inputCls" placeholder="For telematics odometer reconciliation" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-900">APU / idle-reduction</label>
+        <AppSelect
+          v-model="form.has_apu"
+          class="mt-1"
+          :options="[
+            { value: '', label: 'Unknown' },
+            { value: 'true', label: 'Has APU / optimized idle' },
+            { value: 'false', label: 'None' },
+          ]"
+        />
+        <p class="mt-1 text-xs text-gray-400">Source of truth for the idle scorecard's avoidable-idle flag.</p>
+      </div>
     </div>
 
     <div class="flex justify-end gap-3 pt-2">

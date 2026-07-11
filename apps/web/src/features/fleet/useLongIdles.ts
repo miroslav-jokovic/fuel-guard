@@ -12,7 +12,7 @@ interface RawLongIdleRow {
   fuel_gal: number | string | null;
   cost_usd: number | string | null;
   drivers: { full_name: string } | null;
-  vehicles: { unit_number: string; idle_capability: string | null } | null;
+  vehicles: { unit_number: string; idle_capability: string | null; has_apu: boolean | null } | null;
 }
 
 /**
@@ -30,7 +30,7 @@ export function useLongIdles() {
       for (let offset = 0; ; offset += PAGE) {
         const { data, error } = await supabase
           .from("idle_events")
-          .select("started_at, duration_sec, classification, fuel_gal, cost_usd, drivers(full_name), vehicles(unit_number, idle_capability)")
+          .select("started_at, duration_sec, classification, fuel_gal, cost_usd, drivers(full_name), vehicles(unit_number, idle_capability, has_apu)")
           .eq("classification", "discretionary")
           .gte("started_at", from)
           .order("duration_sec", { ascending: false })
@@ -46,6 +46,7 @@ export function useLongIdles() {
             classification: r.classification as IdleClassification,
             fuelGal: r.fuel_gal == null ? null : Number(r.fuel_gal),
             costUsd: r.cost_usd == null ? null : Number(r.cost_usd),
+            hasApu: r.vehicles?.has_apu ?? null,
             idleCapability: r.vehicles?.idle_capability ?? null,
           });
         }

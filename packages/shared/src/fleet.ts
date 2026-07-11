@@ -34,6 +34,14 @@ export const vehicleInputSchema = z
       z.uuid().optional(),
     ),
     samsara_vehicle_id: optionalText, // maps this vehicle to its Samsara telematics id
+    // Does the truck have an APU / optimized-idle option (auxiliary power unit, battery HVAC, shore power)?
+    // MANUAL source of truth for the idle "avoidable" logic — telematics can't reliably detect an APU (it's a
+    // separate engine off the J1939 bus), so an admin sets it. Tri-state: null = unknown/unset. Always present
+    // (never omitted) so selecting "Unknown" explicitly clears the stored value.
+    has_apu: z.preprocess(
+      (v) => (v === "" || v == null ? null : v === "true" || v === true ? true : false),
+      z.boolean().nullable().default(null),
+    ),
   })
   // Diesel/gasoline vehicles must have a positive tank capacity (the engine uses it for fill-up checks).
   // Baseline MPG is optional here — the VehiclesPage surfaces missing MPG as a "setup needed" warning.
@@ -62,6 +70,10 @@ export interface Vehicle {
   samsara_vehicle_id: string | null;
   samsara_fuel_percent: number | null;
   samsara_fuel_at: string | null;
+  /** Manual source of truth: does this truck have an APU / optimized-idle option? null = unknown/unset. */
+  has_apu?: boolean | null;
+  /** Learned from engine-state park sessions (cross-check vs has_apu). */
+  idle_capability?: "apu" | "ecu_optimized" | "continuous_only" | "unknown" | null;
   /** Learned/overridden odometer calibration (dash − Samsara), applied before the mismatch check. */
   odometer_offset?: number;
   odometer_offset_source?: "auto" | "manual";

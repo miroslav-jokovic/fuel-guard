@@ -49,9 +49,21 @@ const suggestionDiffers = computed(() => {
   return !!s && s.suggested_low_f != null && s.suggested_high_f != null && (s.suggested_low_f !== s.comfort_low_f || s.suggested_high_f !== s.comfort_high_f);
 });
 const fleetOptimizedPct = computed(() => {
-  const rows = caps.value ?? [];
+  // Average only over trucks with a KNOWN learned capability (exclude 'unknown' so the metric isn't diluted
+  // by trucks we couldn't classify yet).
+  const rows = (caps.value ?? []).filter((r) => r.idle_capability !== "unknown");
   return rows.length ? Math.round((rows.reduce((s, r) => s + r.idle_optimized_pct, 0) / rows.length) * 10) / 10 : null;
 });
+
+// Manual APU display + learned cross-check badges (capability tab).
+const apuLabel = (h: boolean | null) => (h === true ? "Has APU" : h === false ? "No APU" : "Unknown");
+const apuCls = (h: boolean | null) => (h === true ? "bg-green-100 text-green-700" : h === false ? "bg-gray-100 text-gray-500" : "bg-amber-50 text-amber-700");
+const XCHECK: Record<string, { label: string; cls: string; title: string }> = {
+  agree: { label: "✓ agrees", cls: "text-green-600", title: "Telematics agrees with the recorded APU status" },
+  disagree: { label: "⚠ review", cls: "text-red-600", title: "Telematics disagrees with the recorded APU status — review" },
+  na: { label: "–", cls: "text-gray-300", title: "Not enough data to compare" },
+};
+const xcheck = (c: string) => XCHECK[c] ?? XCHECK.na!;
 
 // ── tab 1: driver scorecard ──────────────────────────────────────────────────
 const scoreTone = (s: number) => (s >= 80 ? "text-green-700" : s >= 60 ? "text-amber-600" : "text-red-700");
@@ -266,8 +278,9 @@ watch(capFiltered, () => (capPage.value = 1));
                   <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ r.hours }}</td>
                   <td class="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">{{ usd2(r.costUsd) }}</td>
                   <td class="px-4 py-3">
-                    <span v-if="r.avoidable" class="inline-flex rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700" :title="capBadge(r.idleCapability).label + ' available — should have been used'">Avoidable · {{ capBadge(r.idleCapability).label }}</span>
-                    <span v-else class="inline-flex rounded px-1.5 py-0.5 text-xs font-semibold" :class="capBadge(r.idleCapability).cls">{{ capBadge(r.idleCapability).label }}</span>
+                    <span v-if="r.avoidable" class="inline-flex rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700" title="Truck has an APU/optimized idle — should have been used">Avoidable · APU</span>
+                    <span v-else-if="r.hasApu === false" class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-500" title="No APU — the main engine was the only option">No APU</span>
+                    <span v-else class="inline-flex rounded bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-700" title="APU status not set — mark it on the Vehicles page to enable avoidable-idle coaching">APU unknown</span>
                   </td>
                 </tr>
               </tbody>
@@ -298,7 +311,7 @@ watch(capFiltered, () => (capPage.value = 1));
       </TableToolbar>
       <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         <div v-if="capFiltered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-          No learned idle capability yet — run a Samsara sync to pull engine-state history.
+          No trucks match. Set each truck's APU status on the Vehicles page; telematics fills in the learned column after a Samsara sync.
         </div>
         <template v-else>
           <div class="overflow-x-auto">
@@ -306,15 +319,19 @@ watch(capFiltered, () => (capPage.value = 1));
               <thead class="bg-gray-50 text-left text-gray-500">
                 <tr>
                   <SortableTh label="Truck" sort-key="unit_number" :active="capSort.key" :dir="capSort.dir" th-class="px-4 py-3 font-medium" @sort="capSort = toggleSort(capSort, $event)" />
-                  <th class="px-4 py-3 font-medium">Capability</th>
+                  <th class="px-4 py-3 font-medium" title="Manual source of truth — set on the Vehicles page">APU (recorded)</th>
+                  <th class="px-4 py-3 font-medium" title="Learned from engine-state park sessions">Telematics (learned)</th>
                   <SortableTh label="Optimized idle %" sort-key="idle_optimized_pct" :active="capSort.key" :dir="capSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="capSort = toggleSort(capSort, $event)" />
+                  <th class="px-4 py-3 font-medium text-center">Cross-check</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
-                <tr v-for="t in capPaged" :key="t.unit_number" class="hover:bg-gray-50">
+                <tr v-for="t in capPaged" :key="t.unit_number" class="hover:bg-gray-50" :class="t.cross_check === 'disagree' ? 'bg-red-50/40' : ''">
                   <td class="px-4 py-3 font-medium text-gray-900">{{ t.unit_number }}</td>
+                  <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', apuCls(t.has_apu)]">{{ apuLabel(t.has_apu) }}</span></td>
                   <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', capBadge(t.idle_capability).cls]">{{ capBadge(t.idle_capability).label }}</span></td>
                   <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ t.idle_optimized_pct }}%</td>
+                  <td class="px-4 py-3 text-center font-semibold" :class="xcheck(t.cross_check).cls" :title="xcheck(t.cross_check).title">{{ xcheck(t.cross_check).label }}</td>
                 </tr>
               </tbody>
             </table>

@@ -17,6 +17,7 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "vehicles", column: "observed_max_fill_gal", migration: "0039" },
   { table: "fuel_transactions", column: "samsara_nearest_station_miles", migration: "0040" },
   { table: "station_geocode_learned", column: "query", migration: "0045" },
+  { table: "vehicles", column: "has_apu", migration: "0046" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

@@ -42,9 +42,12 @@ export async function syncIdleCapabilities(admin: SupabaseClient, env: Env, orgI
       if (!vehicleId) continue;
       const sessions = buildIdleSessions(samples);
       const cap = learnIdleCapability(sessions);
-      if (cap.capability === "unknown") continue;
+      // Always write the result — including "unknown" (insufficient park sessions). Previously we skipped
+      // unknown, so a truck with too little engine-state data was left NULL and vanished from the capability
+      // table entirely (audit A1.1). Writing "unknown" keeps every synced truck visible with an honest
+      // data-sufficiency state instead of silently hiding it.
       await admin.from("vehicles").update({ idle_capability: cap.capability, idle_optimized_pct: cap.optimizedPct }).eq("id", vehicleId).eq("org_id", orgId);
-      learned += 1;
+      if (cap.capability !== "unknown") learned += 1;
     }
   }
   return { vehicles: vehicles.length, learned };

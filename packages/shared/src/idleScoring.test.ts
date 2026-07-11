@@ -164,18 +164,25 @@ describe("aggregateDriverIdle", () => {
 describe("topAvoidableIdles", () => {
   const li = (o: Partial<LongIdleInput>): LongIdleInput => ({
     driverName: "John Smith", unitNumber: "712", startedAt: "2026-07-08T04:00:00Z",
-    durationSec: 36000, classification: "discretionary", costUsd: null, fuelGal: null, idleCapability: "apu", ...o,
+    durationSec: 36000, classification: "discretionary", costUsd: null, fuelGal: null, hasApu: true, idleCapability: "apu", ...o,
   });
 
-  it("surfaces long discretionary idles, avoidable (APU/optimized) first", () => {
+  it("surfaces long discretionary idles, avoidable (APU truck) first — driven by the manual has_apu flag", () => {
     const rows = topAvoidableIdles([
-      li({ unitNumber: "A", durationSec: 18000, idleCapability: "continuous_only" }), // 5 h, not avoidable
-      li({ unitNumber: "B", durationSec: 10800, idleCapability: "apu" }), // 3 h, avoidable
-      li({ unitNumber: "C", durationSec: 3600, idleCapability: "ecu_optimized" }), // 1 h → below minHours
+      li({ unitNumber: "A", durationSec: 18000, hasApu: false }), // 5 h, no APU → not avoidable
+      li({ unitNumber: "B", durationSec: 10800, hasApu: true }), // 3 h, has APU → avoidable
+      li({ unitNumber: "C", durationSec: 3600, hasApu: true }), // 1 h → below minHours
     ]);
     expect(rows.map((r) => r.unitNumber)).toEqual(["B", "A"]); // avoidable first, 1 h dropped
     expect(rows[0]!.avoidable).toBe(true);
     expect(rows[1]!.avoidable).toBe(false);
+  });
+
+  it("never calls an idle avoidable when the truck's APU status is unknown (null)", () => {
+    // Even if the LEARNED capability guessed 'apu', an unset manual flag must not accuse the driver.
+    const rows = topAvoidableIdles([li({ hasApu: null, idleCapability: "apu" })]);
+    expect(rows[0]!.avoidable).toBe(false);
+    expect(rows[0]!.hasApu).toBeNull();
   });
 
   it("excludes non-discretionary idle and estimates cost when unmeasured", () => {
