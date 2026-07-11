@@ -33,20 +33,26 @@ export interface IdleEventInput {
   ptoActive: boolean;
   /** Ambient air temperature °F, or null when Samsara couldn't read it. */
   airTempF: number | null;
+  /** Manual has_apu for the truck. When true, extreme-temp idle is NOT climate-excused — the driver should run
+   *  the APU for cab climate, so main-engine idle is still avoidable. null/false → the extreme-temp excuse
+   *  applies (the main engine is the only climate source). */
+  hasApu?: boolean | null;
 }
 
 /**
  * Classify one idle event:
  *  - `brief`         — below the minimum duration → a normal stop, ignored.
  *  - `productive`    — PTO active (equipment/work) → not the driver's waste.
- *  - `justified`     — ambient temperature outside the comfort band → cab climate is legitimate.
- *  - `discretionary` — engine idling, no PTO, comfortable weather → AVOIDABLE. This is what we score.
+ *  - `justified`     — ambient temperature outside the comfort band → cab climate is legitimate, BUT only on a
+ *                      truck with no APU. On an APU-equipped truck the driver should run the APU, so climate
+ *                      idle on the main engine stays discretionary (audit A1.3 — makes the score capability-fair).
+ *  - `discretionary` — engine idling, no PTO, comfortable weather (or APU truck in any weather) → AVOIDABLE.
  */
 export function classifyIdleEvent(e: IdleEventInput, opts: IdleThresholds = {}): IdleClassification {
   const o = { ...DEFAULTS, ...opts };
   if (e.durationSec < o.minIdleSec) return "brief";
   if (e.ptoActive) return "productive";
-  if (e.airTempF != null && (e.airTempF < o.climateLowF || e.airTempF > o.climateHighF)) return "justified";
+  if (e.hasApu !== true && e.airTempF != null && (e.airTempF < o.climateLowF || e.airTempF > o.climateHighF)) return "justified";
   return "discretionary";
 }
 

@@ -82,6 +82,16 @@ describe("classifyIdleEvent", () => {
   it("treats unknown temperature as discretionary (no justification available)", () => {
     expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: null })).toBe("discretionary");
   });
+  it("does NOT excuse extreme-temp idle on an APU truck — should have used the APU (audit A1.3)", () => {
+    // Same freezing fill: a no-APU (or unknown) truck is justified; an APU truck is discretionary.
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: false })).toBe("justified");
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: null })).toBe("justified");
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: true })).toBe("discretionary");
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 95, hasApu: true })).toBe("discretionary");
+  });
+  it("still treats PTO idle on an APU truck as productive (equipment work, not the driver's waste)", () => {
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: true, airTempF: 5, hasApu: true })).toBe("productive");
+  });
 });
 
 describe("unit conversions", () => {

@@ -61,10 +61,10 @@ export async function syncIdleEvents(admin: SupabaseClient, env: Env, orgId: str
   };
 
   const [{ data: vs }, { data: ds }] = await Promise.all([
-    admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).not("samsara_vehicle_id", "is", null),
+    admin.from("vehicles").select("id, samsara_vehicle_id, has_apu").eq("org_id", orgId).not("samsara_vehicle_id", "is", null),
     admin.from("drivers").select("id, samsara_driver_id").eq("org_id", orgId).not("samsara_driver_id", "is", null),
   ]);
-  const vehBySamsara = new Map(((vs ?? []) as { id: string; samsara_vehicle_id: string }[]).map((v) => [v.samsara_vehicle_id, v.id]));
+  const vehBySamsara = new Map(((vs ?? []) as { id: string; samsara_vehicle_id: string; has_apu: boolean | null }[]).map((v) => [v.samsara_vehicle_id, { id: v.id, hasApu: v.has_apu }]));
   const drvBySamsara = new Map(((ds ?? []) as { id: string; samsara_driver_id: string }[]).map((d) => [d.samsara_driver_id, d.id]));
 
   // Idle $ uses OUR model, not Samsara's fuelCost (unverified currency/units — audit A1.4): cost = gallons ×
@@ -75,22 +75,27 @@ export async function syncIdleEvents(admin: SupabaseClient, env: Env, orgId: str
   const fuelPrice = await recentEfsPricePerGal(admin, orgId, thresholds.fuelPricePerGal ?? 4.0);
   const idleGal = (e: (typeof events)[number]) => (e.fuelGal != null ? e.fuelGal : (e.durationSec / 3600) * galPerHour);
 
-  const rows = events.map((e) => ({
-    org_id: orgId,
-    samsara_event_id: e.eventUuid,
-    vehicle_id: e.assetId ? vehBySamsara.get(e.assetId) ?? null : null,
-    driver_id: e.operatorId ? drvBySamsara.get(e.operatorId) ?? null : null,
-    started_at: e.startTime,
-    duration_sec: e.durationSec,
-    pto_active: e.ptoActive,
-    air_temp_f: e.airTempF,
-    fuel_gal: e.fuelGal,
-    cost_usd: Math.round(idleGal(e) * fuelPrice * 100) / 100,
-    lat: e.lat,
-    lng: e.lng,
-    geofence_types: e.geofenceTypes,
-    classification: classifyIdleEvent({ durationSec: e.durationSec, ptoActive: e.ptoActive, airTempF: e.airTempF }, thresholds),
-  }));
+  const rows = events.map((e) => {
+    const veh = e.assetId ? vehBySamsara.get(e.assetId) : undefined;
+    return {
+      org_id: orgId,
+      samsara_event_id: e.eventUuid,
+      vehicle_id: veh?.id ?? null,
+      driver_id: e.operatorId ? drvBySamsara.get(e.operatorId) ?? null : null,
+      started_at: e.startTime,
+      duration_sec: e.durationSec,
+      pto_active: e.ptoActive,
+      air_temp_f: e.airTempF,
+      fuel_gal: e.fuelGal,
+      cost_usd: Math.round(idleGal(e) * fuelPrice * 100) / 100,
+      lat: e.lat,
+      lng: e.lng,
+      geofence_types: e.geofenceTypes,
+      // has_apu makes the classification capability-fair: an APU truck's extreme-temp main-engine idle stays
+      // discretionary (should've used the APU), not justified (audit A1.3).
+      classification: classifyIdleEvent({ durationSec: e.durationSec, ptoActive: e.ptoActive, airTempF: e.airTempF, hasApu: veh?.hasApu ?? null }, thresholds),
+    };
+  });
 
   let upserted = 0;
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
