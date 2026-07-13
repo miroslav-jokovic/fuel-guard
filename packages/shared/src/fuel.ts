@@ -41,6 +41,8 @@ export interface FuelTransaction {
   price_per_gal: number | null;
   total_cost: number | null;
   location_text: string | null;
+  /** Station state (2-letter) — used to render fueling times in the station's local timezone. */
+  state?: string | null;
   source: string;
   computed_mpg: number | null;
   has_anomaly: boolean;

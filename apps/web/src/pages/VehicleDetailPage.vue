@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/vue-query";
 import type { ChartConfiguration } from "chart.js";
 import { formatRuleId, type FuelTransaction, type Vehicle, type Anomaly } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
+import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 
@@ -24,7 +25,7 @@ const { data: txns } = useQuery({
   queryFn: async (): Promise<FuelTransaction[]> => {
     const { data } = await supabase
       .from("fuel_transactions")
-      .select("id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at")
+      .select("id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at")
       .eq("vehicle_id", id.value)
       .order("fueled_at", { ascending: true })
       .limit(200);
@@ -59,7 +60,8 @@ const mpgChart = computed<ChartConfiguration>(() => ({
 }));
 
 const recent = computed(() => [...(txns.value ?? [])].reverse().slice(0, 15));
-const fmt = (iso: string) => new Date(iso).toLocaleDateString();
+// Station-local date (matches the EFS report; avoids a browser-tz off-by-a-day near midnight).
+const fmt = (iso: string, state: string | null) => stationDate(iso, state);
 </script>
 
 <template>
@@ -97,7 +99,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
         <table class="min-w-full divide-y divide-gray-100 whitespace-nowrap text-sm">
           <tbody class="divide-y divide-gray-100">
             <tr v-for="t in recent" :key="t.id">
-              <td class="px-5 py-2 text-gray-500">{{ fmt(t.fueled_at) }}</td>
+              <td class="px-5 py-2 text-gray-500">{{ fmt(t.fueled_at, t.state ?? null) }}</td>
               <td class="px-5 py-2 text-gray-900">{{ t.gallons }} gal</td>
               <td class="px-5 py-2 text-gray-700">{{ t.computed_mpg ?? "—" }} mpg</td>
             </tr>

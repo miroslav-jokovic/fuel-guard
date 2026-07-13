@@ -18,22 +18,28 @@ const drivers = [
 ];
 
 describe("VehicleForm", () => {
-  it("blocks submit and shows an error when baseline MPG is missing for diesel (audit H3)", async () => {
+  it("blocks submit and shows an error when tank capacity is missing for a fuel vehicle", async () => {
+    // Baseline MPG is intentionally OPTIONAL on the form (the VehiclesPage surfaces missing MPG as a
+    // 'setup needed' warning); the remaining hard requirement for a fuel vehicle is a positive tank capacity.
     const wrapper = mount(VehicleForm, { props: { drivers } });
-    await wrapper.find('input').setValue("T-200"); // unit_number (first input)
-    // set tank capacity, leave baseline_mpg empty
-    const inputs = wrapper.findAll("input");
-    // tank capacity is the input with inputmode decimal labelled Tank capacity
-    const tank = wrapper
-      .findAll("input")
-      .find((i) => (i.element.getAttribute("inputmode") === "decimal"));
-    await tank!.setValue("120");
+    await wrapper.find("input").setValue("T-200"); // unit_number; leave tank capacity empty (→ 0)
 
     await wrapper.find("form").trigger("submit.prevent");
 
     expect(wrapper.emitted("submit")).toBeUndefined();
-    expect(wrapper.text()).toContain("Baseline MPG is required");
-    expect(inputs.length).toBeGreaterThan(0);
+    expect(wrapper.text()).toContain("Tank capacity must be greater than 0");
+  });
+
+  it("allows submit for a diesel with a tank capacity but no baseline MPG (baseline is optional)", async () => {
+    const wrapper = mount(VehicleForm, { props: { drivers } });
+    await wrapper.find("input").setValue("T-201");
+    await wrapper.findAll('input[inputmode="decimal"]')[0]!.setValue("120"); // tank only
+    await wrapper.find("form").trigger("submit.prevent");
+
+    const emitted = wrapper.emitted("submit");
+    expect(emitted).toBeTruthy();
+    const payload = emitted![0]![0] as { baseline_mpg?: number };
+    expect(payload.baseline_mpg).toBeUndefined();
   });
 
   it("emits a parsed VehicleInput on a valid diesel submit", async () => {

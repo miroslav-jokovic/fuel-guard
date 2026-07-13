@@ -2,6 +2,7 @@
 import { ref, computed, watch } from "vue";
 import { useDeclinedTransactions, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
 import type { DeclinedTransactionRow } from "@fuelguard/shared";
+import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
@@ -54,7 +55,8 @@ const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to
 
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
-const fmt = (iso: string) => new Date(iso).toLocaleString();
+// Show declined times in the station's local timezone (matches the EFS report), not the browser's.
+const fmt = (iso: string | null, state: string | null) => stationDateTime(iso, state);
 
 // Row drill-down: click a decline to inspect its full details + why it was flagged.
 const selectedRow = ref<DeclinedTransactionRow | null>(null);
@@ -148,7 +150,7 @@ async function rescore() {
                 <span v-else-if="d.suspicion_level === 'clear'" class="text-xs text-gray-400">Clear</span>
                 <span v-else class="text-xs text-gray-300">—</span>
               </td>
-              <td class="px-4 py-2 text-gray-700">{{ fmt(d.declined_at) }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ fmt(d.declined_at, d.state) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.card_ref }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.invoice }}</td>
               <td class="px-4 py-2 text-gray-700">{{ d.driver_name }}</td>
@@ -180,7 +182,7 @@ async function rescore() {
         <div class="flex items-center justify-between">
           <div>
             <div class="text-lg font-semibold text-gray-900">Unit {{ selectedRow.unit || "—" }}</div>
-            <div class="text-gray-500">{{ fmt(selectedRow.declined_at) }}</div>
+            <div class="text-gray-500">{{ fmt(selectedRow.declined_at, selectedRow.state) }}</div>
           </div>
           <span
             v-if="selectedRow.suspicion_level && selectedRow.suspicion_level !== 'clear'"

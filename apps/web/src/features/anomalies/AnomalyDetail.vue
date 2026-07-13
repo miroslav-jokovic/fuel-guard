@@ -7,6 +7,7 @@ import { useDriversQuery } from "@/features/fleet/useDrivers";
 import { useAiVerification, useAiExamine } from "@/features/ai/useAiVerification";
 import AiAssessmentCard from "@/features/ai/AiAssessmentCard.vue";
 import AnomalyAudit from "./AnomalyAudit.vue";
+import { stationDateTime } from "@/lib/stationTime";
 import { useOrgSettingsQuery } from "@/features/settings/useOrgSettings";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
@@ -96,8 +97,9 @@ const weightBarClass = (w: number): string => {
 };
 
 // ── formatting ────────────────────────────────────────────────────────────────
-const fmt     = (iso: string) => new Date(iso).toLocaleString();
-const fmtShort = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+// Fueling times render in the STATION's local timezone so they match the printed EFS report.
+const fmt = (iso: string, state: string | null) => stationDateTime(iso, state);
+const fmtShort = (iso: string, state: string | null) => stationDateTime(iso, state, { short: true });
 const fmtOdo  = (n: number | null) => (n != null ? n.toLocaleString() + " mi" : "—");
 const fmtMoney = (n: number | null, prefix = "$") => (n != null ? prefix + n.toFixed(2) : "—");
 const formatKey = (k: string) => k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -314,7 +316,7 @@ async function reexamine() {
                   this fill
                 </span>
               </td>
-              <td class="whitespace-nowrap px-2 py-2 text-gray-700">{{ fmtShort(fill.fueled_at) }}</td>
+              <td class="whitespace-nowrap px-2 py-2 text-gray-700">{{ fmtShort(fill.fueled_at, fill.state) }}</td>
               <td class="px-2 py-2 text-right font-medium text-gray-900">{{ fill.gallons }}</td>
               <td class="px-2 py-2 text-right text-gray-600">{{ fmtMoney(fill.price_per_gal) }}</td>
               <td class="px-2 py-2 text-right text-gray-700">{{ fmtOdo(fill.odometer) }}</td>
@@ -350,7 +352,7 @@ async function reexamine() {
         </template>
         <!-- When -->
         <dt class="text-gray-500">When</dt>
-        <dd class="text-right text-gray-900">{{ fmt(txn.fueled_at) }}</dd>
+        <dd class="text-right text-gray-900">{{ fmt(txn.fueled_at, txn.state) }}</dd>
         <!-- Odometer -->
         <dt class="text-gray-500">Odometer</dt>
         <dd class="text-right text-gray-900">{{ fmtOdo(txn.odometer) }}</dd>

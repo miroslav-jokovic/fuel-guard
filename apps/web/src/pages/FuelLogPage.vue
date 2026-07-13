@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { PlusIcon } from "@heroicons/vue/20/solid";
 import { fuelTxnStatus, type FillUpInput } from "@fuelguard/shared";
 import { BADGE_BASE, txnStatusTone } from "@/lib/badges";
+import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useFuelTransactions, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
@@ -62,7 +63,8 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
   }
 }
 
-const fmtDate = (iso: string) => new Date(iso).toLocaleString();
+// Station-local (matches the EFS report), not the browser's timezone.
+const fmtDate = (iso: string, state: string | null) => stationDateTime(iso, state);
 
 const flaggedCount = computed(() => rows.value.filter((t) => t.has_anomaly).length);
 const clearCount   = computed(() => rows.value.filter((t) => !t.has_anomaly).length);
@@ -157,7 +159,7 @@ const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", cur
         </thead>
         <tbody class="divide-y divide-gray-100">
           <tr v-for="t in rows" :key="t.id" class="hover:bg-gray-50">
-            <td class="px-6 py-3 whitespace-nowrap text-gray-700">{{ fmtDate(t.fueled_at) }}</td>
+            <td class="px-6 py-3 whitespace-nowrap text-gray-700">{{ fmtDate(t.fueled_at, t.state ?? null) }}</td>
             <td class="px-6 py-3 text-gray-900">
               <span>{{ vehicleLabel(t.vehicle_id) }}</span>
               <span v-if="t.tank_type === 'reefer'" class="ml-1.5 inline-flex items-center rounded bg-cyan-100 px-1.5 py-0.5 text-xs font-medium text-cyan-700">Reefer</span>
