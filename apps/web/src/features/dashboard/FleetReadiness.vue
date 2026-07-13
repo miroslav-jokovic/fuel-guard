@@ -37,28 +37,56 @@ const rows = computed<Row[]>(() => {
 
 const gaps = computed(() => rows.value.filter((r) => r.total > 0 && r.ok < r.total).length);
 const pct = (r: Row) => (r.total === 0 ? 0 : Math.round((r.ok / r.total) * 100));
-const tone = (r: Row) => (r.ok >= r.total ? "text-green-600" : pct(r) >= 70 ? "text-amber-600" : "text-red-600");
+const meterTone = (r: Row) =>
+  r.ok >= r.total ? "bg-emerald-500" : pct(r) >= 70 ? "bg-amber-500" : "bg-red-500";
+const textTone = (r: Row) =>
+  r.ok >= r.total ? "text-emerald-600" : pct(r) >= 70 ? "text-amber-600" : "text-red-600";
 </script>
 
 <template>
-  <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-    <div class="mb-3 flex items-center justify-between">
+  <!-- Fully configured → collapse to a slim confirmation strip; detail returns whenever a gap opens. -->
+  <div
+    v-if="gaps === 0"
+    class="flex items-center gap-2 rounded-xl bg-white px-5 py-3 shadow-sm ring-1 ring-gray-200"
+  >
+    <CheckCircleIcon class="size-5 text-emerald-500" aria-hidden="true" />
+    <p class="text-sm text-gray-700">
+      <span class="font-semibold text-gray-900">Fleet readiness:</span> all set — detection checks have the
+      data they need.
+    </p>
+  </div>
+
+  <div v-else class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
+    <div class="mb-4 flex items-center justify-between gap-2">
       <h3 class="text-sm font-semibold text-gray-900">Fleet readiness</h3>
-      <span v-if="gaps === 0" class="inline-flex items-center gap-1 text-xs font-medium text-green-700">
-        <CheckCircleIcon class="size-4" /> All set
-      </span>
-      <span v-else class="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
-        <ExclamationTriangleIcon class="size-4" /> {{ gaps }} to complete
+      <span
+        class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20 ring-inset"
+      >
+        <ExclamationTriangleIcon class="size-3.5" aria-hidden="true" /> {{ gaps }} to complete
       </span>
     </div>
-    <ul class="divide-y divide-gray-100 text-sm">
-      <li v-for="r in rows" :key="r.label" class="flex items-center justify-between py-2">
-        <span class="text-gray-700" :title="r.why">{{ r.label }}</span>
-        <span class="flex items-center gap-3">
-          <span :class="['font-medium', tone(r)]">{{ r.ok }}/{{ r.total }}</span>
-          <RouterLink v-if="r.ok < r.total" :to="r.to" class="text-xs font-medium text-indigo-600 hover:text-indigo-500">Fix →</RouterLink>
-          <CheckCircleIcon v-else class="size-4 text-green-500" />
-        </span>
+    <ul class="grid grid-cols-1 gap-x-10 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+      <li v-for="r in rows" :key="r.label" :title="r.why">
+        <div class="flex items-center justify-between gap-3">
+          <span class="truncate text-gray-700">{{ r.label }}</span>
+          <span class="flex shrink-0 items-center gap-2">
+            <span :class="['text-xs font-semibold tabular-nums', textTone(r)]">{{ r.ok }}/{{ r.total }}</span>
+            <RouterLink
+              v-if="r.ok < r.total"
+              :to="r.to"
+              class="rounded text-xs font-medium text-indigo-600 hover:text-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              Fix →
+            </RouterLink>
+            <CheckCircleIcon v-else class="size-4 text-emerald-500" aria-hidden="true" />
+          </span>
+        </div>
+        <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100">
+          <div
+            :class="['h-full rounded-full transition-all duration-300', meterTone(r)]"
+            :style="{ width: `${pct(r)}%` }"
+          />
+        </div>
       </li>
     </ul>
   </div>

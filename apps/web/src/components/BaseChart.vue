@@ -11,6 +11,14 @@ let chart: Chart | null = null;
 
 function render() {
   if (!canvas.value) return;
+  // Same chart type → update in place, so data changes animate instead of flashing a rebuild.
+  const config = chart?.config as ChartConfiguration | undefined;
+  if (chart && config && config.type === props.config.type) {
+    config.data = props.config.data;
+    if (props.config.options) config.options = props.config.options;
+    chart.update();
+    return;
+  }
   chart?.destroy();
   chart = new Chart(canvas.value, props.config);
 }
