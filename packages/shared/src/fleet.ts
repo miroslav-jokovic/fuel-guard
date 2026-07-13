@@ -1,6 +1,12 @@
 import { z } from "zod";
-import { FUEL_TYPES, VEHICLE_STATUSES, DRIVER_STATUSES, MPG_FUEL_TYPES } from "./constants.js";
-import type { FuelType, VehicleStatus, DriverStatus } from "./constants.js";
+import {
+  FUEL_TYPES,
+  VEHICLE_STATUSES,
+  DRIVER_STATUSES,
+  MPG_FUEL_TYPES,
+  APU_TYPES,
+} from "./constants.js";
+import type { FuelType, VehicleStatus, DriverStatus, ApuType } from "./constants.js";
 
 // ── Vehicle ───────────────────────────────────────────────────────────────────
 
@@ -42,6 +48,18 @@ export const vehicleInputSchema = z
       (v) => (v === "" || v == null ? null : v === "true" || v === true ? true : false),
       z.boolean().nullable().default(null),
     ),
+    // Richer idle-reduction equipment (refines has_apu). Free text in DB, enum here. null = unknown/unset.
+    apu_type: z.preprocess(
+      (v) => (v === "" || v == null ? null : v),
+      z.enum(APU_TYPES).nullable().default(null),
+    ),
+    // OEM optimized idle (e.g. Freightliner Cascadia): the engine auto start/stops for cab climate/battery.
+    // DISTINCT from an APU — the engine cycling here is the OEM feature working, not driver waste. Tri-state:
+    // null = unknown/unset. Kept separate so the idle score can treat it fairly (not as avoidable waste).
+    has_optimized_idle: z.preprocess(
+      (v) => (v === "" || v == null ? null : v === "true" || v === true ? true : false),
+      z.boolean().nullable().default(null),
+    ),
   })
   // Diesel/gasoline vehicles must have a positive tank capacity (the engine uses it for fill-up checks).
   // Baseline MPG is optional here — the VehiclesPage surfaces missing MPG as a "setup needed" warning.
@@ -51,6 +69,16 @@ export const vehicleInputSchema = z
   });
 
 export type VehicleInput = z.infer<typeof vehicleInputSchema>;
+
+/**
+ * Derive has_apu (ENGINE-OFF capable at rest) from the idle-reduction equipment type, so the two can never
+ * contradict. Any real device (diesel APU / battery HVAC / fuel heater / shore power) -> true; "none" -> false;
+ * null/undefined (unknown/unset) -> null. Single source that maps equipment -> the avoidable-idle flag.
+ */
+export function deriveHasApu(apuType: ApuType | null | undefined): boolean | null {
+  if (apuType == null) return null;
+  return apuType !== "none";
+}
 
 export interface Vehicle {
   id: string;
@@ -70,8 +98,12 @@ export interface Vehicle {
   samsara_vehicle_id: string | null;
   samsara_fuel_percent: number | null;
   samsara_fuel_at: string | null;
-  /** Manual source of truth: does this truck have an APU / optimized-idle option? null = unknown/unset. */
+  /** Manual source of truth: is the truck ENGINE-OFF capable at rest (real APU / battery HVAC / shore power)? null = unknown/unset. */
   has_apu?: boolean | null;
+  /** Idle-reduction equipment detail (refines has_apu). null = unknown/unset. */
+  apu_type?: ApuType | null;
+  /** Manual source of truth: does the truck have OEM optimized idle (e.g. Freightliner Cascadia)? Distinct from has_apu. null = unknown/unset. */
+  has_optimized_idle?: boolean | null;
   /** Learned from engine-state park sessions (cross-check vs has_apu). */
   idle_capability?: "apu" | "ecu_optimized" | "continuous_only" | "unknown" | null;
   /** Learned/overridden odometer calibration (dash − Samsara), applied before the mismatch check. */

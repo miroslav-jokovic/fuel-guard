@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { classifyIdleEvent, aggregateDriverIdle, milliCToF, mlToGal, parseIdlingEvents, learnComfortBand, topAvoidableIdles, type IdleRow, type LongIdleInput } from "./idleScoring.js";
+import {
+  classifyIdleEvent,
+  aggregateDriverIdle,
+  milliCToF,
+  mlToGal,
+  parseIdlingEvents,
+  learnComfortBand,
+  topAvoidableIdles,
+  type IdleRow,
+  type LongIdleInput,
+} from "./idleScoring.js";
 
 describe("learnComfortBand", () => {
   it("finds the low-idle valley between the cold and hot climate tails", () => {
@@ -56,10 +66,29 @@ describe("parseIdlingEvents", () => {
         },
       ],
     });
-    expect(e).toMatchObject({ eventUuid: "abc", durationSec: 3600, assetId: "123", operatorId: "456", ptoActive: false, airTempF: 70, fuelGal: 1, costUsd: 3.2, geofenceTypes: ["yard"] });
+    expect(e).toMatchObject({
+      eventUuid: "abc",
+      durationSec: 3600,
+      assetId: "123",
+      operatorId: "456",
+      ptoActive: false,
+      airTempF: 70,
+      fuelGal: 1,
+      costUsd: 3.2,
+      geofenceTypes: ["yard"],
+    });
   });
   it("handles a missing operator (unassigned) and missing temperature", () => {
-    const [e] = parseIdlingEvents({ data: [{ eventUuid: "x", startTime: "2026-07-08T04:00:00Z", durationMilliseconds: 600000, asset: { id: 1 } }] });
+    const [e] = parseIdlingEvents({
+      data: [
+        {
+          eventUuid: "x",
+          startTime: "2026-07-08T04:00:00Z",
+          durationMilliseconds: 600000,
+          asset: { id: 1 },
+        },
+      ],
+    });
     expect(e!.operatorId).toBeNull();
     expect(e!.airTempF).toBeNull();
   });
@@ -70,27 +99,47 @@ describe("classifyIdleEvent", () => {
     expect(classifyIdleEvent({ durationSec: 120, ptoActive: false, airTempF: 70 })).toBe("brief");
   });
   it("treats PTO-active idle as productive", () => {
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: true, airTempF: 70 })).toBe("productive");
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: true, airTempF: 70 })).toBe(
+      "productive",
+    );
   });
   it("justifies idle in extreme cold or heat", () => {
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5 })).toBe("justified");
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 95 })).toBe("justified");
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5 })).toBe(
+      "justified",
+    );
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 95 })).toBe(
+      "justified",
+    );
   });
   it("flags comfortable-weather engine idle as discretionary (avoidable)", () => {
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 68 })).toBe("discretionary");
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 68 })).toBe(
+      "discretionary",
+    );
   });
   it("treats unknown temperature as discretionary (no justification available)", () => {
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: null })).toBe("discretionary");
+    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: null })).toBe(
+      "discretionary",
+    );
   });
   it("does NOT excuse extreme-temp idle on an APU truck — should have used the APU (audit A1.3)", () => {
     // Same freezing fill: a no-APU (or unknown) truck is justified; an APU truck is discretionary.
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: false })).toBe("justified");
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: null })).toBe("justified");
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: true })).toBe("discretionary");
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 95, hasApu: true })).toBe("discretionary");
+    expect(
+      classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: false }),
+    ).toBe("justified");
+    expect(
+      classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: null }),
+    ).toBe("justified");
+    expect(
+      classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 5, hasApu: true }),
+    ).toBe("discretionary");
+    expect(
+      classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: 95, hasApu: true }),
+    ).toBe("discretionary");
   });
   it("still treats PTO idle on an APU truck as productive (equipment work, not the driver's waste)", () => {
-    expect(classifyIdleEvent({ durationSec: 3600, ptoActive: true, airTempF: 5, hasApu: true })).toBe("productive");
+    expect(
+      classifyIdleEvent({ durationSec: 3600, ptoActive: true, airTempF: 5, hasApu: true }),
+    ).toBe("productive");
   });
 });
 
@@ -108,7 +157,13 @@ describe("unit conversions", () => {
 
 describe("aggregateDriverIdle", () => {
   const row = (o: Partial<IdleRow>): IdleRow => ({
-    driverId: "d1", driverName: "John Smith", durationSec: 3600, classification: "discretionary", fuelGal: null, costUsd: null, ...o,
+    driverId: "d1",
+    driverName: "John Smith",
+    durationSec: 3600,
+    classification: "discretionary",
+    fuelGal: null,
+    costUsd: null,
+    ...o,
   });
 
   it("scores only discretionary idle and estimates fuel $ when unmeasured", () => {
@@ -129,16 +184,24 @@ describe("aggregateDriverIdle", () => {
   });
 
   it("uses measured fuel/cost when present", () => {
-    const s = aggregateDriverIdle([row({ classification: "discretionary", fuelGal: 2, costUsd: 9.5 })]);
+    const s = aggregateDriverIdle([
+      row({ classification: "discretionary", fuelGal: 2, costUsd: 9.5 }),
+    ]);
     expect(s.drivers[0]!.discretionaryGal).toBe(2);
     expect(s.drivers[0]!.discretionaryCost).toBe(9.5);
   });
 
   it("score is 100 with no avoidable idle and drops with discretionary share", () => {
-    const clean = aggregateDriverIdle([row({ classification: "productive" }), row({ classification: "justified" })]);
+    const clean = aggregateDriverIdle([
+      row({ classification: "productive" }),
+      row({ classification: "justified" }),
+    ]);
     expect(clean.drivers[0]!.score).toBe(100);
     // Half discretionary, half justified → 50% discretionary share → score ~50.
-    const mixed = aggregateDriverIdle([row({ classification: "discretionary" }), row({ classification: "justified" })]);
+    const mixed = aggregateDriverIdle([
+      row({ classification: "discretionary" }),
+      row({ classification: "justified" }),
+    ]);
     expect(mixed.drivers[0]!.discretionaryPct).toBe(50);
     expect(mixed.drivers[0]!.score).toBe(50);
   });
@@ -153,7 +216,9 @@ describe("aggregateDriverIdle", () => {
   });
 
   it("buckets unattributed idle under a single row", () => {
-    const s = aggregateDriverIdle([row({ driverId: null, driverName: null, classification: "discretionary" })]);
+    const s = aggregateDriverIdle([
+      row({ driverId: null, driverName: null, classification: "discretionary" }),
+    ]);
     expect(s.drivers[0]!.driverName).toBe("Unattributed");
   });
 
@@ -199,8 +264,16 @@ describe("aggregateDriverIdle", () => {
 
 describe("topAvoidableIdles", () => {
   const li = (o: Partial<LongIdleInput>): LongIdleInput => ({
-    driverName: "John Smith", unitNumber: "712", startedAt: "2026-07-08T04:00:00Z",
-    durationSec: 36000, classification: "discretionary", costUsd: null, fuelGal: null, hasApu: true, idleCapability: "apu", ...o,
+    driverName: "John Smith",
+    unitNumber: "712",
+    startedAt: "2026-07-08T04:00:00Z",
+    durationSec: 36000,
+    classification: "discretionary",
+    costUsd: null,
+    fuelGal: null,
+    hasApu: true,
+    idleCapability: "apu",
+    ...o,
   });
 
   it("surfaces long discretionary idles, avoidable (APU truck) first — driven by the manual has_apu flag", () => {
@@ -229,5 +302,22 @@ describe("topAvoidableIdles", () => {
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.costUsd).toBe(32);
+  });
+
+  it("labels equipment for the coaching list and never calls optimized-idle avoidable", () => {
+    const rows = topAvoidableIdles([
+      li({ unitNumber: "APU", hasApu: true }),
+      li({ unitNumber: "OPT", hasApu: false, hasOptimizedIdle: true }),
+      li({ unitNumber: "NONE", hasApu: false, hasOptimizedIdle: false }),
+      li({ unitNumber: "UNK", hasApu: null, hasOptimizedIdle: null }),
+    ]);
+    const by = Object.fromEntries(rows.map((r) => [r.unitNumber, r]));
+    expect(by.APU!.equipment).toBe("apu");
+    expect(by.APU!.avoidable).toBe(true);
+    // OEM optimized idle: the engine cycling is the feature, not driver waste → never "avoidable".
+    expect(by.OPT!.equipment).toBe("optimized_idle");
+    expect(by.OPT!.avoidable).toBe(false);
+    expect(by.NONE!.equipment).toBe("none");
+    expect(by.UNK!.equipment).toBe("unknown");
   });
 });

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "env",
-      "runtimeArgs": ["VITE_DEV_BYPASS=true", "pnpm", "--dir", "apps/web", "dev"],
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/web", "dev"],
       "port": 5173
     }
   ]

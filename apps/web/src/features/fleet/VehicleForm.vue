@@ -4,9 +4,13 @@ import {
   vehicleInputSchema,
   FUEL_TYPES,
   VEHICLE_STATUSES,
+  APU_TYPES,
+  APU_TYPE_LABELS,
+  deriveHasApu,
   type Vehicle,
   type VehicleInput,
   type Driver,
+  type ApuType,
 } from "@fuelguard/shared";
 import AppSelect from "@/components/AppSelect.vue";
 
@@ -32,14 +36,25 @@ const form = reactive({
   status: props.vehicle?.status ?? "active",
   assigned_driver_id: props.vehicle?.assigned_driver_id ?? "",
   samsara_vehicle_id: props.vehicle?.samsara_vehicle_id ?? "",
-  // Tri-state APU flag as a form string: "" = unknown, "true" = has APU, "false" = none.
-  has_apu: props.vehicle?.has_apu == null ? "" : props.vehicle.has_apu ? "true" : "false",
+  // Idle-reduction equipment (drives has_apu, derived on submit) + OEM optimized idle. Strings for the selects:
+  // "" = unknown. has_apu is NOT a separate form field so equipment and "engine-off capable" can't contradict.
+  apu_type: props.vehicle?.apu_type ?? "",
+  has_optimized_idle:
+    props.vehicle?.has_optimized_idle == null
+      ? ""
+      : props.vehicle.has_optimized_idle
+        ? "true"
+        : "false",
 });
 
 const errors = ref<Record<string, string>>({});
 
 function onSubmit() {
-  const result = vehicleInputSchema.safeParse({ ...form });
+  // has_apu (engine-off capable) is DERIVED from the equipment type so a truck can't be "has APU" with no
+  // equipment, or vice-versa. "" equipment -> has_apu unset (unknown).
+  const has_apu =
+    form.apu_type === "" ? "" : deriveHasApu(form.apu_type as ApuType) ? "true" : "false";
+  const result = vehicleInputSchema.safeParse({ ...form, has_apu });
   if (!result.success) {
     const map: Record<string, string> = {};
     for (const issue of result.error.issues) {
@@ -112,7 +127,9 @@ const inputCls =
       <div>
         <label class="block text-sm font-medium text-gray-900">Baseline MPG</label>
         <input v-model="form.baseline_mpg" inputmode="decimal" :class="inputCls" />
-        <p v-if="errors.baseline_mpg" class="mt-1 text-xs text-red-600">{{ errors.baseline_mpg }}</p>
+        <p v-if="errors.baseline_mpg" class="mt-1 text-xs text-red-600">
+          {{ errors.baseline_mpg }}
+        </p>
       </div>
     </div>
 
@@ -137,20 +154,47 @@ const inputCls =
     <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="block text-sm font-medium text-gray-900">Samsara vehicle ID</label>
-        <input v-model="form.samsara_vehicle_id" :class="inputCls" placeholder="For telematics odometer reconciliation" />
+        <input
+          v-model="form.samsara_vehicle_id"
+          :class="inputCls"
+          placeholder="For telematics odometer reconciliation"
+        />
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-900">APU / idle-reduction</label>
+        <label class="block text-sm font-medium text-gray-900">Idle-reduction equipment</label>
         <AppSelect
-          v-model="form.has_apu"
+          v-model="form.apu_type"
           class="mt-1"
           :options="[
             { value: '', label: 'Unknown' },
-            { value: 'true', label: 'Has APU / optimized idle' },
-            { value: 'false', label: 'None' },
+            ...APU_TYPES.map((t) => ({ value: t, label: APU_TYPE_LABELS[t] })),
           ]"
         />
-        <p class="mt-1 text-xs text-gray-400">Source of truth for the idle scorecard's avoidable-idle flag.</p>
+        <p class="mt-1 text-xs text-gray-400">
+          Lets the truck keep the cab comfortable with the engine off. Drives the 'avoidable idle'
+          flag.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-900"
+          >OEM optimized idle (e.g. Cascadia)</label
+        >
+        <AppSelect
+          v-model="form.has_optimized_idle"
+          class="mt-1"
+          :options="[
+            { value: '', label: 'Unknown' },
+            { value: 'true', label: 'Yes' },
+            { value: 'false', label: 'No' },
+          ]"
+        />
+        <p class="mt-1 text-xs text-gray-400">
+          The engine auto start/stops on its own; its idling is the feature working, not driver
+          waste.
+        </p>
       </div>
     </div>
 

@@ -10,6 +10,7 @@ import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { APU_TYPE_LABELS, type ApuType } from "@fuelguard/shared";
 
 const usd = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const usd2 = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
@@ -28,10 +29,19 @@ const drivers = computed(() => data.value?.drivers ?? []);
 const CAP: Record<string, { label: string; cls: string }> = {
   apu: { label: "APU", cls: "bg-green-100 text-green-700" },
   ecu_optimized: { label: "Optimized idle", cls: "bg-green-100 text-green-700" },
-  continuous_only: { label: "No optimization", cls: "bg-amber-100 text-amber-700" },
+  continuous_only: { label: "Continuous idle only", cls: "bg-amber-100 text-amber-700" },
   unknown: { label: "Unknown", cls: "bg-gray-100 text-gray-500" },
 };
 const capBadge = (c: string) => CAP[c] ?? CAP.unknown!;
+
+// Equipment badge for the "Biggest idle events to coach" list (from the shared topAvoidableIdles equipment).
+const EQUIP: Record<string, { label: string; cls: string; title: string }> = {
+  apu: { label: "Engine off was possible (APU)", cls: "bg-red-100 text-red-700", title: "This truck has an APU — the driver could have shut the main engine off and run it" },
+  optimized_idle: { label: "Optimized idle (OEM)", cls: "bg-green-100 text-green-700", title: "OEM optimized idle cycles the engine on purpose — the engine running is the feature working, not driver waste" },
+  none: { label: "No idle-reduction equipment", cls: "bg-gray-100 text-gray-500", title: "No APU or optimized idle — the main engine was the only way to keep the cab comfortable" },
+  unknown: { label: "Equipment not recorded — set it", cls: "bg-amber-50 text-amber-700", title: "Set this truck's equipment on the Vehicles page to enable coaching" },
+};
+const equipBadge = (e: string) => EQUIP[e] ?? EQUIP.unknown!;
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
 type TabKey = "drivers" | "avoidable" | "capability";
@@ -55,12 +65,14 @@ const fleetOptimizedPct = computed(() => {
   return rows.length ? Math.round((rows.reduce((s, r) => s + r.idle_optimized_pct, 0) / rows.length) * 10) / 10 : null;
 });
 
-// Manual APU display + learned cross-check badges (capability tab).
-const apuLabel = (h: boolean | null) => (h === true ? "Has APU" : h === false ? "No APU" : "Unknown");
-const apuCls = (h: boolean | null) => (h === true ? "bg-green-100 text-green-700" : h === false ? "bg-gray-100 text-gray-500" : "bg-amber-50 text-amber-700");
+// Recorded idle-reduction equipment (capability tab): the equipment type + an optimized-idle chip.
+const recordedLabel = (t: { has_apu: boolean | null; apu_type: string | null }) =>
+  t.apu_type && t.apu_type !== "none" ? APU_TYPE_LABELS[t.apu_type as ApuType] ?? "APU" : t.has_apu === true ? "APU" : t.has_apu === false || t.apu_type === "none" ? "None" : "Unknown";
+const recordedCls = (t: { has_apu: boolean | null }) =>
+  t.has_apu === true ? "bg-green-100 text-green-700" : t.has_apu === false ? "bg-gray-100 text-gray-500" : "bg-amber-50 text-amber-700";
 const XCHECK: Record<string, { label: string; cls: string; title: string }> = {
-  agree: { label: "✓ agrees", cls: "text-green-600", title: "Telematics agrees with the recorded APU status" },
-  disagree: { label: "⚠ review", cls: "text-red-600", title: "Telematics disagrees with the recorded APU status — review" },
+  agree: { label: "Matches", cls: "text-green-600", title: "The data matches the recorded equipment" },
+  disagree: { label: "Doesn't match", cls: "text-red-600", title: "The data disagrees with the recorded equipment — worth a look" },
   na: { label: "–", cls: "text-gray-300", title: "Not enough data to compare" },
 };
 const xcheck = (c: string) => XCHECK[c] ?? XCHECK.na!;
@@ -130,16 +142,16 @@ watch(capFiltered, () => (capPage.value = 1));
     <!-- Fleet money summary (KPIs, always visible) -->
     <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Wasted on idle (30 d)</dt>
+        <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Money wasted idling (last 30 days)</dt>
         <dd class="mt-1 text-2xl font-bold text-red-700">{{ usd(data.fleetDiscretionaryCost) }}</dd>
-        <dd class="mt-0.5 text-xs text-gray-400">{{ data.fleetDiscretionaryGal.toLocaleString() }} gal of discretionary idle</dd>
+        <dd class="mt-0.5 text-xs text-gray-400">{{ data.fleetDiscretionaryGal.toLocaleString() }} gal of avoidable idle</dd>
       </div>
       <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Discretionary idle hours</dt>
+        <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Avoidable idle hours</dt>
         <dd class="mt-1 text-2xl font-bold text-gray-900">{{ data.fleetDiscretionaryHours.toLocaleString() }}<span class="text-base font-normal text-gray-400"> / {{ data.fleetIdleHours.toLocaleString() }} total</span></dd>
       </div>
       <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Projected annual waste</dt>
+        <dt class="text-xs font-medium tracking-wide text-gray-500 uppercase">Projected yearly waste</dt>
         <dd class="mt-1 text-2xl font-bold text-gray-900">{{ usd(data.fleetDiscretionaryCost * 12) }}</dd>
         <dd class="mt-0.5 text-xs text-gray-400">at the current 30-day rate</dd>
       </div>
@@ -166,12 +178,13 @@ watch(capFiltered, () => (capPage.value = 1));
     <!-- Collapsible explanation + comfort band (was the always-on top blurb) -->
     <div v-if="showInfo" class="space-y-3 rounded-lg bg-white p-4 text-sm shadow-sm ring-1 ring-gray-200">
       <p class="text-gray-600">
-        Avoidable engine idling over the last 30 days, by driver. Idle while PTO is active (work) or in extreme
-        temperatures (cab climate) is excluded — only <strong>discretionary</strong> idle (engine running in
-        comfortable weather, e.g. sleeping/waiting) counts against the score and the wasted-fuel total.
+        We only count idling that could have been avoided: the engine running while parked, in comfortable
+        weather, with no work being done. We don't count short stops, idling to run equipment (PTO), or idling to
+        heat or cool the cab in extreme weather. Only <strong>avoidable</strong> idle affects a driver's score and
+        the wasted-money total.
       </p>
       <p v-if="settings" class="text-gray-600">
-        <span class="text-gray-500">Comfort band (idle outside it is treated as climate-justified):</span>
+        <span class="text-gray-500">Comfortable-weather range (idle outside it counts as weather-excused — heating or cooling the cab):</span>
         <span class="ml-1 font-medium text-gray-900">{{ settings.comfort_low_f }}–{{ settings.comfort_high_f }}°F</span>
         <span class="ml-1 text-gray-400">· idle ≥ {{ settings.min_idle_minutes }} min scored</span>
         <span v-if="suggestionDiffers" class="ml-2 text-indigo-600">
@@ -192,7 +205,7 @@ watch(capFiltered, () => (capPage.value = 1));
         v-model="drvSearch"
         title="Driver idle scorecard"
         :count="drvFiltered.length"
-        :subtitle="data && data.attributedPct < 100 ? `${data.attributedPct}% of idle \$ attributed to a driver` : null"
+        :subtitle="data && data.attributedPct < 100 ? `${data.attributedPct}% of wasted money traced to a driver` : null"
         search-placeholder="Search driver…"
         :active-filter-count="drvFilterCount"
         @clear="drvSearch = ''"
@@ -210,13 +223,13 @@ watch(capFiltered, () => (capPage.value = 1));
                 <tr>
                   <th class="px-4 py-3 font-medium">#</th>
                   <th class="px-4 py-3 font-medium">Driver</th>
-                  <SortableTh label="Score" sort-key="score" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-                  <SortableTh label="$ wasted" sort-key="discretionaryCost" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-                  <SortableTh label="Discretionary hrs" sort-key="discretionaryHours" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
+                  <SortableTh label="Idle score" sort-key="score" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
+                  <SortableTh label="Money wasted" sort-key="discretionaryCost" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
+                  <SortableTh label="Avoidable hrs" sort-key="discretionaryHours" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
                   <SortableTh label="Total idle hrs" sort-key="totalIdleHours" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-                  <SortableTh label="Discr. %" sort-key="discretionaryPct" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-                  <SortableTh label="Long idles" sort-key="longIdleCount" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-                  <th class="px-4 py-3 font-medium text-center" title="Discretionary idle this week vs the prior week">7-day trend</th>
+                  <SortableTh label="% avoidable" sort-key="discretionaryPct" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
+                  <SortableTh label="Long idles (1h+)" sort-key="longIdleCount" :active="drvSort.key" :dir="drvSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
+                  <th class="px-4 py-3 font-medium text-center" title="Avoidable idle this week vs last week">Trend vs last week</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -245,7 +258,7 @@ watch(capFiltered, () => (capPage.value = 1));
     <template v-else-if="activeTab === 'avoidable'">
       <TableToolbar
         v-model="avSearch"
-        title="Longest avoidable idles · last 30 days"
+        title="Biggest idle events to coach · last 30 days"
         :count="avFiltered.length"
         search-placeholder="Search driver or truck…"
         :active-filter-count="avFilterCount"
@@ -253,12 +266,12 @@ watch(capFiltered, () => (capPage.value = 1));
       >
         <select v-model="avAvoidableOnly" class="rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
           <option :value="false">All long idles</option>
-          <option :value="true">Avoidable only (APU/optimized available)</option>
+          <option :value="true">Avoidable only (has APU)</option>
         </select>
       </TableToolbar>
       <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         <div v-if="avFiltered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-          No long discretionary idles (≥ 2 h) in the last 30 days.
+          No long avoidable idles in the last 30 days (2 hours or more).
         </div>
         <template v-else>
           <div class="overflow-x-auto">
@@ -269,7 +282,7 @@ watch(capFiltered, () => (capPage.value = 1));
                   <th class="px-4 py-3 font-medium">Truck</th>
                   <SortableTh label="Date" sort-key="startedAt" :active="avSort.key" :dir="avSort.dir" th-class="px-4 py-3 font-medium" @sort="avSort = toggleSort(avSort, $event)" />
                   <SortableTh label="Hours" sort-key="hours" :active="avSort.key" :dir="avSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="avSort = toggleSort(avSort, $event)" />
-                  <SortableTh label="Est. cost" sort-key="costUsd" :active="avSort.key" :dir="avSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="avSort = toggleSort(avSort, $event)" />
+                  <SortableTh label="Estimated cost" sort-key="costUsd" :active="avSort.key" :dir="avSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="avSort = toggleSort(avSort, $event)" />
                   <th class="px-4 py-3 font-medium">Equipment</th>
                 </tr>
               </thead>
@@ -281,9 +294,7 @@ watch(capFiltered, () => (capPage.value = 1));
                   <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ r.hours }}</td>
                   <td class="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">{{ usd2(r.costUsd) }}</td>
                   <td class="px-4 py-3">
-                    <span v-if="r.avoidable" class="inline-flex rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700" title="Truck has an APU/optimized idle — should have been used">Avoidable · APU</span>
-                    <span v-else-if="r.hasApu === false" class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-xs font-semibold text-gray-500" title="No APU — the main engine was the only option">No APU</span>
-                    <span v-else class="inline-flex rounded bg-amber-50 px-1.5 py-0.5 text-xs font-semibold text-amber-700" title="APU status not set — mark it on the Vehicles page to enable avoidable-idle coaching">APU unknown</span>
+                    <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', equipBadge(r.equipment).cls]" :title="equipBadge(r.equipment).title">{{ equipBadge(r.equipment).label }}</span>
                   </td>
                 </tr>
               </tbody>
@@ -308,13 +319,13 @@ watch(capFiltered, () => (capPage.value = 1));
           <option value="">All capabilities</option>
           <option value="apu">APU</option>
           <option value="ecu_optimized">Optimized idle</option>
-          <option value="continuous_only">No optimization</option>
+          <option value="continuous_only">Continuous idle only</option>
           <option value="unknown">Unknown</option>
         </select>
       </TableToolbar>
       <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         <div v-if="capFiltered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-          No trucks match. Set each truck's APU status on the Vehicles page; telematics fills in the learned column after a Samsara sync.
+          No trucks match. Set each truck's idle-reduction equipment on the Vehicles page; the data column fills in after a Samsara sync.
         </div>
         <template v-else>
           <div class="overflow-x-auto">
@@ -322,16 +333,19 @@ watch(capFiltered, () => (capPage.value = 1));
               <thead class="bg-gray-50 text-left text-gray-500">
                 <tr>
                   <SortableTh label="Truck" sort-key="unit_number" :active="capSort.key" :dir="capSort.dir" th-class="px-4 py-3 font-medium" @sort="capSort = toggleSort(capSort, $event)" />
-                  <th class="px-4 py-3 font-medium" title="Manual source of truth — set on the Vehicles page">APU (recorded)</th>
-                  <th class="px-4 py-3 font-medium" title="Learned from engine-state park sessions">Telematics (learned)</th>
-                  <SortableTh label="Optimized idle %" sort-key="idle_optimized_pct" :active="capSort.key" :dir="capSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="capSort = toggleSort(capSort, $event)" />
+                  <th class="px-4 py-3 font-medium" title="What you recorded on the Vehicles page">Engine-off capable (recorded)</th>
+                  <th class="px-4 py-3 font-medium" title="Learned from the truck's engine on/off pattern">What the data shows</th>
+                  <SortableTh label="% time engine off/optimized" sort-key="idle_optimized_pct" :active="capSort.key" :dir="capSort.dir" th-class="px-4 py-3 font-medium text-right" @sort="capSort = toggleSort(capSort, $event)" />
                   <th class="px-4 py-3 font-medium text-center">Cross-check</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
                 <tr v-for="t in capPaged" :key="t.unit_number" class="hover:bg-gray-50" :class="t.cross_check === 'disagree' ? 'bg-red-50/40' : ''">
                   <td class="px-4 py-3 font-medium text-gray-900">{{ t.unit_number }}</td>
-                  <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', apuCls(t.has_apu)]">{{ apuLabel(t.has_apu) }}</span></td>
+                  <td class="px-4 py-3">
+                    <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', recordedCls(t)]">{{ recordedLabel(t) }}</span>
+                    <span v-if="t.has_optimized_idle === true" class="ml-1 inline-flex rounded bg-green-100 px-1.5 py-0.5 text-xs font-semibold text-green-700" title="OEM optimized idle recorded">Optimized idle</span>
+                  </td>
                   <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', capBadge(t.idle_capability).cls]">{{ capBadge(t.idle_capability).label }}</span></td>
                   <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ t.idle_optimized_pct }}%</td>
                   <td class="px-4 py-3 text-center font-semibold" :class="xcheck(t.cross_check).cls" :title="xcheck(t.cross_check).title">{{ xcheck(t.cross_check).label }}</td>

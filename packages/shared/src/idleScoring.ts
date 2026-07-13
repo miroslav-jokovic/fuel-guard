@@ -48,11 +48,19 @@ export interface IdleEventInput {
  *                      idle on the main engine stays discretionary (audit A1.3 — makes the score capability-fair).
  *  - `discretionary` — engine idling, no PTO, comfortable weather (or APU truck in any weather) → AVOIDABLE.
  */
-export function classifyIdleEvent(e: IdleEventInput, opts: IdleThresholds = {}): IdleClassification {
+export function classifyIdleEvent(
+  e: IdleEventInput,
+  opts: IdleThresholds = {},
+): IdleClassification {
   const o = { ...DEFAULTS, ...opts };
   if (e.durationSec < o.minIdleSec) return "brief";
   if (e.ptoActive) return "productive";
-  if (e.hasApu !== true && e.airTempF != null && (e.airTempF < o.climateLowF || e.airTempF > o.climateHighF)) return "justified";
+  if (
+    e.hasApu !== true &&
+    e.airTempF != null &&
+    (e.airTempF < o.climateLowF || e.airTempF > o.climateHighF)
+  )
+    return "justified";
   return "discretionary";
 }
 
@@ -71,7 +79,15 @@ export interface ComfortBandResult {
  * behavioral/avoidable → discretionary); outside it, idle is climate-justified. Returns null until there's
  * enough data. This is the data-driven alternative to a fixed 20–85°F guess.
  */
-export function learnComfortBand(events: { tempF: number; hours: number }[], opts: { binSizeF?: number; minEvents?: number; comfortFrac?: number; minBandWidthF?: number } = {}): ComfortBandResult | null {
+export function learnComfortBand(
+  events: { tempF: number; hours: number }[],
+  opts: {
+    binSizeF?: number;
+    minEvents?: number;
+    comfortFrac?: number;
+    minBandWidthF?: number;
+  } = {},
+): ComfortBandResult | null {
   const binSize = opts.binSizeF ?? 5;
   const minEvents = opts.minEvents ?? 30;
   const comfortFrac = opts.comfortFrac ?? 0.5;
@@ -93,7 +109,10 @@ export function learnComfortBand(events: { tempF: number; hours: number }[], opt
   let minH = Infinity;
   for (const s of starts) {
     const h = bins.get(s)!;
-    if (h < minH) { minH = h; center = s; }
+    if (h < minH) {
+      minH = h;
+      center = s;
+    }
   }
   const ci = starts.indexOf(center);
   // Reject a valley sitting on an EDGE bin: a real comfort zone has high-idle tails on BOTH sides. If the
@@ -118,8 +137,10 @@ export function learnComfortBand(events: { tempF: number; hours: number }[], opt
 }
 
 // ── unit conversions (Samsara → our storage) ────────────────────────────────
-export const milliCToF = (mc: number | null | undefined): number | null => (mc == null ? null : Math.round(((mc / 1000) * 9) / 5 + 32));
-export const mlToGal = (ml: number | null | undefined): number | null => (ml == null ? null : Math.round((ml / 3785.411784) * 1000) / 1000);
+export const milliCToF = (mc: number | null | undefined): number | null =>
+  mc == null ? null : Math.round(((mc / 1000) * 9) / 5 + 32);
+export const mlToGal = (ml: number | null | undefined): number | null =>
+  ml == null ? null : Math.round((ml / 3785.411784) * 1000) / 1000;
 
 // ── Samsara /idling/events → normalized event (pure, testable) ──────────────
 export interface ParsedIdleEvent {
@@ -242,14 +263,35 @@ function costFor(row: IdleRow, gal: number, o: Required<IdleThresholds>): number
  * score and the "wasted $" — productive (PTO) and justified (extreme-temp) idle are tracked but not penalized.
  * Score = 100 at 0% discretionary idle, scaling down as the discretionary share of a driver's idle rises.
  */
-export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds & { nowMs?: number } = {}): IdleSummary {
+export function aggregateDriverIdle(
+  rows: IdleRow[],
+  opts: IdleThresholds & { nowMs?: number } = {},
+): IdleSummary {
   const o = { ...DEFAULTS, ...opts };
   // Week-over-week trend windows, anchored on the latest event (or now) so it works on backfilled data.
-  const anchor = opts.nowMs ?? (rows.reduce((mx, r) => (r.startedAt ? Math.max(mx, Date.parse(r.startedAt)) : mx), 0) || Date.now());
+  const anchor =
+    opts.nowMs ??
+    (rows.reduce((mx, r) => (r.startedAt ? Math.max(mx, Date.parse(r.startedAt)) : mx), 0) ||
+      Date.now());
   const DAY = 86_400_000;
   const recentFrom = anchor - 7 * DAY;
   const priorFrom = anchor - 14 * DAY;
-  const byDriver = new Map<string, { name: string; events: number; total: number; disc: number; just: number; prod: number; discGal: number; discCost: number; long: number; recentDisc: number; priorDisc: number }>();
+  const byDriver = new Map<
+    string,
+    {
+      name: string;
+      events: number;
+      total: number;
+      disc: number;
+      just: number;
+      prod: number;
+      discGal: number;
+      discCost: number;
+      long: number;
+      recentDisc: number;
+      priorDisc: number;
+    }
+  >();
   let fleetIdle = 0;
   let fleetDiscHours = 0;
   let fleetDiscGal = 0;
@@ -264,7 +306,19 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds & { no
     fleetIdle += hours;
     const key = row.driverId ?? "__unattributed__";
     const name = row.driverName ?? "Unattributed";
-    const d = byDriver.get(key) ?? { name, events: 0, total: 0, disc: 0, just: 0, prod: 0, discGal: 0, discCost: 0, long: 0, recentDisc: 0, priorDisc: 0 };
+    const d = byDriver.get(key) ?? {
+      name,
+      events: 0,
+      total: 0,
+      disc: 0,
+      just: 0,
+      prod: 0,
+      discGal: 0,
+      discCost: 0,
+      long: 0,
+      recentDisc: 0,
+      priorDisc: 0,
+    };
     d.events += 1;
     d.total += hours;
     if (row.durationSec >= 3600) d.long += 1;
@@ -318,7 +372,10 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds & { no
       };
     })
     // Worst first: most $ wasted, then most discretionary hours.
-    .sort((a, b) => b.discretionaryCost - a.discretionaryCost || b.discretionaryHours - a.discretionaryHours);
+    .sort(
+      (a, b) =>
+        b.discretionaryCost - a.discretionaryCost || b.discretionaryHours - a.discretionaryHours,
+    );
 
   return {
     drivers,
@@ -328,7 +385,8 @@ export function aggregateDriverIdle(rows: IdleRow[], opts: IdleThresholds & { no
     fleetDiscretionaryCost: r2(fleetDiscCost),
     events,
     unattributedDiscretionaryCost: r2(unattrDiscCost),
-    attributedPct: fleetDiscCost > 0 ? r1(((fleetDiscCost - unattrDiscCost) / fleetDiscCost) * 100) : 100,
+    attributedPct:
+      fleetDiscCost > 0 ? r1(((fleetDiscCost - unattrDiscCost) / fleetDiscCost) * 100) : 100,
   };
 }
 
@@ -341,8 +399,11 @@ export interface LongIdleInput {
   classification: IdleClassification;
   costUsd: number | null;
   fuelGal: number | null;
-  /** MANUAL source of truth: does this truck have an APU / optimized-idle option? null = unknown/unset. */
+  /** MANUAL source of truth: is the truck ENGINE-OFF capable at rest (real APU / battery HVAC / shore power)? null = unknown/unset. */
   hasApu: boolean | null;
+  /** MANUAL: does the truck have OEM optimized idle (e.g. Cascadia)? The engine cycling is the feature, so these
+   *  idles are NOT called avoidable. Distinct from hasApu. null = unknown/unset. */
+  hasOptimizedIdle?: boolean | null;
   /** Learned per-truck capability, kept as a cross-check only: 'apu' | 'ecu_optimized' | 'continuous_only' | 'unknown' | null. */
   idleCapability: string | null;
 }
@@ -353,9 +414,13 @@ export interface LongIdleRow {
   startedAt: string;
   hours: number;
   costUsd: number;
-  /** True when the truck has an APU/optimized idle (manual has_apu) — the driver could have avoided burning the
-   *  main engine. Only true when has_apu is explicitly set; an unknown/unset truck is NOT called avoidable. */
+  /** True when the truck is ENGINE-OFF capable (manual has_apu) — the driver could have shut the main engine off
+   *  and run the APU. Only true when has_apu is explicitly true; unknown/unset AND optimized-idle are NOT avoidable
+   *  (optimized idle runs the engine on purpose, so its idling is the feature working, not driver waste). */
   avoidable: boolean;
+  /** Plain-language equipment for the coaching list: 'apu' (engine-off capable → avoidable), 'optimized_idle'
+   *  (OEM cycling → the feature, not avoidable), 'none' (no equipment), 'unknown' (not recorded). */
+  equipment: "apu" | "optimized_idle" | "none" | "unknown";
   /** Manual APU flag as recorded on the vehicle (source of truth). */
   hasApu: boolean | null;
   /** Learned capability (cross-check/display). */
@@ -369,28 +434,42 @@ export interface LongIdleRow {
  * capability is kept only as a secondary cross-check. A truck with has_apu unset (null) is NOT called avoidable,
  * so we never accuse a driver of wasting an APU the truck may not have.
  */
-export function topAvoidableIdles(rows: LongIdleInput[], opts: IdleThresholds & { minHours?: number; limit?: number } = {}): LongIdleRow[] {
+export function topAvoidableIdles(
+  rows: LongIdleInput[],
+  opts: IdleThresholds & { minHours?: number; limit?: number } = {},
+): LongIdleRow[] {
   const o = { ...DEFAULTS, ...opts };
   const minHours = opts.minHours ?? 2;
   const limit = opts.limit ?? 25;
-  return rows
-    .filter((r) => r.classification === "discretionary" && r.durationSec / 3600 >= minHours)
-    .map((r) => {
-      const hours = r.durationSec / 3600;
-      const gal = r.fuelGal != null ? r.fuelGal : hours * o.idleGalPerHour;
-      const cost = r.costUsd != null ? r.costUsd : gal * o.fuelPricePerGal;
-      return {
-        driverName: r.driverName ?? "Unattributed",
-        unitNumber: r.unitNumber ?? "—",
-        startedAt: r.startedAt,
-        hours: r1(hours),
-        costUsd: r2(cost),
-        avoidable: r.hasApu === true,
-        hasApu: r.hasApu,
-        idleCapability: r.idleCapability ?? "unknown",
-      };
-    })
-    // Avoidable first (had the equipment), then longest.
-    .sort((a, b) => Number(b.avoidable) - Number(a.avoidable) || b.hours - a.hours)
-    .slice(0, limit);
+  return (
+    rows
+      .filter((r) => r.classification === "discretionary" && r.durationSec / 3600 >= minHours)
+      .map((r) => {
+        const hours = r.durationSec / 3600;
+        const gal = r.fuelGal != null ? r.fuelGal : hours * o.idleGalPerHour;
+        const cost = r.costUsd != null ? r.costUsd : gal * o.fuelPricePerGal;
+        return {
+          driverName: r.driverName ?? "Unattributed",
+          unitNumber: r.unitNumber ?? "—",
+          startedAt: r.startedAt,
+          hours: r1(hours),
+          costUsd: r2(cost),
+          avoidable: r.hasApu === true,
+          // Equipment label for the coaching list. APU first (engine-off capable → avoidable); then optimized idle
+          // (OEM cycling, never avoidable); then an explicit "none"; else unrecorded.
+          equipment: (r.hasApu === true
+            ? "apu"
+            : r.hasOptimizedIdle === true
+              ? "optimized_idle"
+              : r.hasApu === false
+                ? "none"
+                : "unknown") as LongIdleRow["equipment"],
+          hasApu: r.hasApu,
+          idleCapability: r.idleCapability ?? "unknown",
+        };
+      })
+      // Avoidable first (had the equipment), then longest.
+      .sort((a, b) => Number(b.avoidable) - Number(a.avoidable) || b.hours - a.hours)
+      .slice(0, limit)
+  );
 }

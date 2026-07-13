@@ -12,6 +12,25 @@ export type FuelType = (typeof FUEL_TYPES)[number];
 /** Fuel types that participate in MPG / tank-capacity rules (audit H1). */
 export const MPG_FUEL_TYPES: readonly FuelType[] = ["diesel", "gasoline"];
 
+/** Idle-reduction equipment on a truck (free text in DB; constrained here for the UI). Refines has_apu. */
+export const APU_TYPES = [
+  "diesel_apu",
+  "battery_hvac",
+  "fuel_heater",
+  "shore_power",
+  "none",
+] as const;
+export type ApuType = (typeof APU_TYPES)[number];
+
+/** Human labels for the idle-reduction equipment dropdown (plain language for the Vehicles page). */
+export const APU_TYPE_LABELS: Record<ApuType, string> = {
+  diesel_apu: "Diesel APU",
+  battery_hvac: "Battery HVAC",
+  fuel_heater: "Fuel-fired heater (heat only)",
+  shore_power: "Shore power",
+  none: "None",
+};
+
 /** Vehicle lifecycle status (mirrors the `vehicle_status` Postgres enum). */
 export const VEHICLE_STATUSES = ["active", "maintenance", "retired"] as const;
 export type VehicleStatus = (typeof VEHICLE_STATUSES)[number];
