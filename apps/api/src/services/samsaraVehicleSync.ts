@@ -4,6 +4,7 @@ import {
   parseVehicleStatsOdometer,
   parseVehicleFuelPercents,
   parseCurrentAssignments,
+  parseAssignmentIntervals,
   type SamsaraVehicle,
   type VehicleFuelLevel,
 } from "@fuelguard/shared";
@@ -80,19 +81,37 @@ export async function syncVehiclesFromSamsara(
     .eq("org_id", orgId);
   const existing = (existingData ?? []) as ExistingRow[];
 
-  const bySamsara = new Map(existing.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id!, r]));
+  const bySamsara = new Map(
+    existing.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id!, r]),
+  );
   const byVin = new Map(existing.filter((r) => r.vin).map((r) => [r.vin!.toUpperCase(), r]));
   const byUnit = new Map(existing.map((r) => [r.unit_number, r]));
 
-  const result: VehicleSyncResult = { total: vehicles.length, created: 0, updated: 0, assigned: 0, needsCompletion: [] };
+  const result: VehicleSyncResult = {
+    total: vehicles.length,
+    created: 0,
+    updated: 0,
+    assigned: 0,
+    needsCompletion: [],
+  };
 
   for (const sv of vehicles) {
-    const identity = { make: sv.make, model: sv.model, year: sv.year, plate: sv.licensePlate, vin: sv.vin };
+    const identity = {
+      make: sv.make,
+      model: sv.model,
+      year: sv.year,
+      plate: sv.licensePlate,
+      vin: sv.vin,
+    };
     const odo = odometerMiles.get(sv.samsaraId);
     const fuel = fuelByVehicle.get(sv.samsaraId);
     // Attach odometer + fuel level only when Samsara actually reported them (never overwrite with null).
     const withStats = <T extends object>(o: T) => {
-      let out: T & { current_odometer?: number; samsara_fuel_percent?: number; samsara_fuel_at?: string | null } = { ...o };
+      let out: T & {
+        current_odometer?: number;
+        samsara_fuel_percent?: number;
+        samsara_fuel_at?: string | null;
+      } = { ...o };
       if (odo != null) out = { ...out, current_odometer: odo };
       if (fuel) out = { ...out, samsara_fuel_percent: fuel.percent, samsara_fuel_at: fuel.time };
       return out;
@@ -147,22 +166,57 @@ export async function syncVehiclesFromSamsara(
   // token scope. Any failure here leaves identity/odometer sync intact.
   try {
     const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token);
-    const links = parseCurrentAssignments(
-      (await fetcher()) as Parameters<typeof parseCurrentAssignments>[0],
-      new Date().toISOString(),
-    );
+    const rawAssign = (await fetcher()) as Parameters<typeof parseCurrentAssignments>[0];
+    const links = parseCurrentAssignments(rawAssign, new Date().toISOString());
+    // CP4: persist time-ranged assignment intervals so idle events without a Samsara operator can be attributed
+    // to the driver who had the truck at that time. Best-effort (inside the same try).
+    const intervals = parseAssignmentIntervals(rawAssign);
+    if (intervals.length) {
+      const now = new Date().toISOString();
+      const arows = intervals.map((iv) => ({
+        org_id: orgId,
+        vehicle_samsara_id: iv.vehicleSamsaraId,
+        driver_samsara_id: iv.driverSamsaraId,
+        start_at: new Date(iv.startMs).toISOString(),
+        end_at: iv.endMs != null ? new Date(iv.endMs).toISOString() : null,
+        updated_at: now,
+      }));
+      for (let i = 0; i < arows.length; i += 500) {
+        await admin
+          .from("driver_vehicle_assignments")
+          .upsert(arows.slice(i, i + 500), {
+            onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at",
+          });
+      }
+    }
     if (links.length) {
       const [{ data: vRows }, { data: dRows }] = await Promise.all([
-        admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).not("samsara_vehicle_id", "is", null),
-        admin.from("drivers").select("id, samsara_driver_id").eq("org_id", orgId).not("samsara_driver_id", "is", null),
+        admin
+          .from("vehicles")
+          .select("id, samsara_vehicle_id")
+          .eq("org_id", orgId)
+          .not("samsara_vehicle_id", "is", null),
+        admin
+          .from("drivers")
+          .select("id, samsara_driver_id")
+          .eq("org_id", orgId)
+          .not("samsara_driver_id", "is", null),
       ]);
-      const vehById = new Map((vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]));
-      const drvById = new Map((dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]));
+      const vehById = new Map(
+        (vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]),
+      );
+      const drvById = new Map(
+        (dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]),
+      );
       for (const link of links) {
         const vehId = vehById.get(link.vehicleSamsaraId);
         const drvId = drvById.get(link.driverSamsaraId);
         if (vehId && drvId) {
-          await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", vehId).eq("org_id", orgId);
+          await admin
+            .from("vehicles")
+            .update({ assigned_driver_id: drvId })
+            .eq("id", vehId)
+            .eq("org_id", orgId);
           result.assigned++;
         }
       }
@@ -213,9 +267,16 @@ export async function syncVehicleStatsFromSamsara(
     const odo = odometerMiles.get(r.samsara_vehicle_id);
     const fuel = fuelByVehicle.get(r.samsara_vehicle_id);
     if (odo == null && !fuel) continue; // Samsara reported nothing for this truck → leave it be
-    const patch: { current_odometer?: number; samsara_fuel_percent?: number; samsara_fuel_at?: string | null } = {};
+    const patch: {
+      current_odometer?: number;
+      samsara_fuel_percent?: number;
+      samsara_fuel_at?: string | null;
+    } = {};
     if (odo != null) patch.current_odometer = odo;
-    if (fuel) { patch.samsara_fuel_percent = fuel.percent; patch.samsara_fuel_at = fuel.time; }
+    if (fuel) {
+      patch.samsara_fuel_percent = fuel.percent;
+      patch.samsara_fuel_at = fuel.time;
+    }
     await admin.from("vehicles").update(patch).eq("id", r.id).eq("org_id", orgId);
     updated++;
   }

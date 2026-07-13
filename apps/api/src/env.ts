@@ -40,7 +40,10 @@ const EnvSchema = z.object({
   SAMSARA_IDENTITY_SYNC_HOURS: z.coerce.number().min(0.1).default(12),
   // Nightly per-org self-heal (EFS-store repair → rescore → quick rebuild → integrity) at org-local 03:00.
   // Set to "false" to disable.
-  NIGHTLY_RECONCILE_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
+  NIGHTLY_RECONCILE_ENABLED: z
+    .string()
+    .default("true")
+    .transform((s) => s.toLowerCase() !== "false"),
   // Central Samsara client rate limiting (shared per org token across schedulers + recon + backfill).
   // Steady request cadence (requests/sec) — stays well under Samsara's per-token limits while letting a
   // large backfill finish in minutes. Retries honor Retry-After + exponential backoff before failing.
@@ -56,8 +59,17 @@ const EnvSchema = z.object({
   // Geocoding for the location proximity check. Uses OpenStreetMap/Nominatim (free, no key) by default;
   // results are cached in geocode_cache so each station is looked up once. Set GEOCODING_ENABLED=false
   // to turn off. GEOCODE_PROX_MILES = how close the truck's GPS must come to the station to "confirm".
-  GEOCODING_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
+  GEOCODING_ENABLED: z
+    .string()
+    .default("true")
+    .transform((s) => s.toLowerCase() !== "false"),
   GEOCODE_URL: z.string().url().default("https://nominatim.openstreetmap.org/search"),
+  // Historical weather backfill for idle events missing a Samsara temperature (CP2). Open-Meteo is free / no key.
+  WEATHER_BACKFILL_ENABLED: z
+    .string()
+    .default("true")
+    .transform((s) => s.toLowerCase() !== "false"),
+  OPEN_METEO_URL: z.string().url().default("https://api.open-meteo.com/v1/forecast"),
   GEOCODE_PROX_MILES: z.coerce.number().min(1).default(20),
   // Tight radius (miles) used to CONFIRM a fill when we resolved the exact station (site precision) —
   // ~0.5 mi ≈ the truck was in the station's lot. City-level geocodes never confirm (too coarse).
@@ -74,7 +86,10 @@ const EnvSchema = z.object({
     .transform((s) => s.toLowerCase() !== "false"),
   // Weekly AI theft digest emailed to each org's notification recipients. Set DIGEST_ENABLED=false to
   // turn off. Cadence is ~weekly (deduped via organizations.last_digest_at).
-  DIGEST_ENABLED: z.string().default("true").transform((s) => s.toLowerCase() !== "false"),
+  DIGEST_ENABLED: z
+    .string()
+    .default("true")
+    .transform((s) => s.toLowerCase() !== "false"),
 
   // Automated EFS report ingestion (removes the daily manual upload). "off" (default) disables the
   // scheduler. Sources: "storage" polls a Supabase Storage bucket where reports land under
@@ -114,7 +129,9 @@ export type Env = z.infer<typeof EnvSchema>;
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const parsed = EnvSchema.safeParse(source);
   if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+    const issues = parsed.error.issues
+      .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
+      .join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
   const env = parsed.data;

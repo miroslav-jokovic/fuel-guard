@@ -16,6 +16,8 @@ export const SETUP_CSV_COLUMNS = [
   "year",
   "fuel_type",
   "current_odometer",
+  "apu_type",
+  "has_optimized_idle",
 ] as const;
 
 /** The only fields an import will write back to a vehicle. */
@@ -23,7 +25,16 @@ export const SETUP_EDITABLE_FIELDS = ["tank_capacity_gal", "baseline_mpg"] as co
 
 type SetupVehicle = Pick<
   Vehicle,
-  "unit_number" | "tank_capacity_gal" | "baseline_mpg" | "make" | "model" | "year" | "fuel_type" | "current_odometer"
+  | "unit_number"
+  | "tank_capacity_gal"
+  | "baseline_mpg"
+  | "make"
+  | "model"
+  | "year"
+  | "fuel_type"
+  | "current_odometer"
+  | "apu_type"
+  | "has_optimized_idle"
 >;
 
 export interface ParsedSetupRow {
@@ -57,6 +68,8 @@ export function serializeVehicleSetupCsv(vehicles: SetupVehicle[]): string {
       v.year ?? "",
       v.fuel_type,
       v.current_odometer ?? "",
+      v.apu_type ?? "",
+      v.has_optimized_idle == null ? "" : v.has_optimized_idle ? "yes" : "no",
     ]
       .map(q)
       .join(","),
@@ -89,7 +102,11 @@ function splitCsvLine(line: string): string[] {
 }
 
 /** Parse a non-blank numeric cell. Returns { value } on success, { error } on a bad number, or null if blank. */
-function parseCell(raw: string, field: string, line: number): { value: number } | { error: string } | null {
+function parseCell(
+  raw: string,
+  field: string,
+  line: number,
+): { value: number } | { error: string } | null {
   const s = raw.replace(/[$,]/g, "").trim();
   if (s === "") return null; // blank → leave unchanged
   const num = Number(s);
@@ -104,7 +121,9 @@ function parseCell(raw: string, field: string, line: number): { value: number } 
  */
 export function parseVehicleSetupCsv(text: string): ParseSetupResult {
   const errors: string[] = [];
-  const rawLines = text.split(/\r\n|\n|\r/).filter((l, i, arr) => l.trim() !== "" || i < arr.length - 1);
+  const rawLines = text
+    .split(/\r\n|\n|\r/)
+    .filter((l, i, arr) => l.trim() !== "" || i < arr.length - 1);
   const nonEmpty = rawLines.filter((l) => l.trim() !== "");
   if (nonEmpty.length < 2) return { rows: [], errors: ["The file has no data rows."] };
 
@@ -115,7 +134,10 @@ export function parseVehicleSetupCsv(text: string): ParseSetupResult {
   const iMpg = col("baseline_mpg");
   if (iUnit === -1) return { rows: [], errors: ['Missing required "unit_number" column.'] };
   if (iTank === -1 && iMpg === -1) {
-    return { rows: [], errors: ['Nothing to import: include a "tank_capacity_gal" and/or "baseline_mpg" column.'] };
+    return {
+      rows: [],
+      errors: ['Nothing to import: include a "tank_capacity_gal" and/or "baseline_mpg" column.'],
+    };
   }
 
   const rows: ParsedSetupRow[] = [];

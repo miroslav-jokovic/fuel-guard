@@ -19,15 +19,24 @@ const BATCH = 20;
  * the learned capability + optimized-idle % on the vehicle. Best-effort; a 401 means the token lacks the
  * Read Vehicle Statistics scope.
  */
-export async function syncIdleCapabilities(admin: SupabaseClient, env: Env, orgId: string, opts: { sinceDays?: number } = {}): Promise<IdleCapabilityResult> {
+export async function syncIdleCapabilities(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  opts: { sinceDays?: number } = {},
+): Promise<IdleCapabilityResult> {
   const token = await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
 
-  const { data: vs } = await admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).not("samsara_vehicle_id", "is", null);
+  const { data: vs } = await admin
+    .from("vehicles")
+    .select("id, samsara_vehicle_id")
+    .eq("org_id", orgId)
+    .not("samsara_vehicle_id", "is", null);
   const vehicles = (vs ?? []) as { id: string; samsara_vehicle_id: string }[];
   if (vehicles.length === 0) return { vehicles: 0, learned: 0 };
 
-  const days = opts.sinceDays ?? 14;
+  const days = opts.sinceDays ?? 30;
   const endIso = new Date().toISOString();
   const startIso = new Date(Date.now() - days * 86_400_000).toISOString();
   const fetcher = makeSamsaraEngineStatesFetcher(env, token);
@@ -36,17 +45,36 @@ export async function syncIdleCapabilities(admin: SupabaseClient, env: Env, orgI
   let learned = 0;
   for (let i = 0; i < vehicles.length; i += BATCH) {
     const batch = vehicles.slice(i, i + BATCH);
-    const series = parseEngineStates(await fetcher(batch.map((v) => v.samsara_vehicle_id), startIso, endIso));
+    const series = parseEngineStates(
+      await fetcher(
+        batch.map((v) => v.samsara_vehicle_id),
+        startIso,
+        endIso,
+      ),
+    );
     for (const [samsaraId, samples] of series) {
       const vehicleId = idBySamsara.get(samsaraId);
       if (!vehicleId) continue;
       const sessions = buildIdleSessions(samples);
       const cap = learnIdleCapability(sessions);
+      // CP6: independent idle measure — total engine-on idle seconds from the raw engine-state sessions, stored
+      // to cross-validate against the Samsara idle-events total on the Data Confidence panel.
+      const statesIdleSec = Math.round(sessions.reduce((acc, s) => acc + s.idleSec, 0));
       // Always write the result — including "unknown" (insufficient park sessions). Previously we skipped
       // unknown, so a truck with too little engine-state data was left NULL and vanished from the capability
       // table entirely (audit A1.1). Writing "unknown" keeps every synced truck visible with an honest
       // data-sufficiency state instead of silently hiding it.
-      await admin.from("vehicles").update({ idle_capability: cap.capability, idle_optimized_pct: cap.optimizedPct }).eq("id", vehicleId).eq("org_id", orgId);
+      await admin
+        .from("vehicles")
+        .update({
+          idle_capability: cap.capability,
+          idle_optimized_pct: cap.optimizedPct,
+          idle_states_sec: statesIdleSec,
+          idle_states_window_days: days,
+          idle_states_at: new Date().toISOString(),
+        })
+        .eq("id", vehicleId)
+        .eq("org_id", orgId);
       if (cap.capability !== "unknown") learned += 1;
     }
   }

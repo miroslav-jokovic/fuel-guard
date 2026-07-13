@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { reactive, ref, computed } from "vue";
 import {
   vehicleInputSchema,
   FUEL_TYPES,
@@ -7,6 +7,7 @@ import {
   APU_TYPES,
   APU_TYPE_LABELS,
   deriveHasApu,
+  suggestIdleEquipment,
   type Vehicle,
   type VehicleInput,
   type Driver,
@@ -48,6 +49,21 @@ const form = reactive({
 });
 
 const errors = ref<Record<string, string>>({});
+
+// In-form idle-equipment suggestion from make/model/year (admin confirms with one click; never auto-applied).
+const idleSuggestion = computed(() =>
+  suggestIdleEquipment({
+    make: form.make || null,
+    model: form.model || null,
+    year: form.year ? Number(form.year) : null,
+  }),
+);
+const showOptimizedSuggestion = computed(
+  () => idleSuggestion.value?.hasOptimizedIdle === true && form.has_optimized_idle !== "true",
+);
+function applyOptimizedSuggestion() {
+  form.has_optimized_idle = "true";
+}
 
 function onSubmit() {
   // has_apu (engine-off capable) is DERIVED from the equipment type so a truck can't be "has APU" with no
@@ -195,6 +211,15 @@ const inputCls =
           The engine auto start/stops on its own; its idling is the feature working, not driver
           waste.
         </p>
+        <button
+          v-if="showOptimizedSuggestion"
+          type="button"
+          class="mt-1 rounded bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"
+          :title="idleSuggestion?.reason"
+          @click="applyOptimizedSuggestion"
+        >
+          Suggested: {{ idleSuggestion?.label }} — apply
+        </button>
       </div>
     </div>
 

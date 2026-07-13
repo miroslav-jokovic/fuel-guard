@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/vue-query";
-import { aggregateDriverIdle, type IdleRow, type IdleSummary, type IdleClassification } from "@fuelguard/shared";
+import {
+  aggregateDriverIdle,
+  type IdleRow,
+  type IdleSummary,
+  type IdleClassification,
+} from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;
@@ -11,6 +16,7 @@ interface RawIdleRow {
   duration_sec: number | string;
   classification: string;
   fuel_gal: number | string | null;
+  idle_gal: number | string | null;
   cost_usd: number | string | null;
   drivers: { full_name: string } | null;
 }
@@ -28,7 +34,9 @@ export function useIdleScores() {
       for (let offset = 0; ; offset += PAGE) {
         const { data, error } = await supabase
           .from("idle_events")
-          .select("driver_id, started_at, duration_sec, classification, fuel_gal, cost_usd, drivers(full_name)")
+          .select(
+            "driver_id, started_at, duration_sec, classification, fuel_gal, idle_gal, cost_usd, drivers(full_name)",
+          )
           .gte("started_at", from)
           .order("started_at", { ascending: false })
           .range(offset, offset + PAGE - 1);
@@ -42,6 +50,7 @@ export function useIdleScores() {
             durationSec: Number(r.duration_sec),
             classification: r.classification as IdleClassification,
             fuelGal: r.fuel_gal == null ? null : Number(r.fuel_gal),
+            idleGal: r.idle_gal == null ? null : Number(r.idle_gal),
             costUsd: r.cost_usd == null ? null : Number(r.cost_usd),
           });
         }

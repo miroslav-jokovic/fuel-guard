@@ -2,8 +2,10 @@
 import { computed, ref, watch } from "vue";
 import { useIdleScores } from "@/features/fleet/useIdleScores";
 import { useIdleCapabilities } from "@/features/fleet/useIdleCapabilities";
-import { useIdleSettings } from "@/features/fleet/useIdleSettings";
+import { useIdleSettings, useAdoptComfortBand } from "@/features/fleet/useIdleSettings";
+import { useToastStore } from "@/stores/toast";
 import { useLongIdles } from "@/features/fleet/useLongIdles";
+import { useIdleConfidence } from "@/features/fleet/useIdleConfidence";
 import TableToolbar from "@/components/TableToolbar.vue";
 import SortableTh from "@/components/SortableTh.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
@@ -22,6 +24,19 @@ const { data, isLoading, isError, error, refetch, isFetching } = useIdleScores()
 const { data: caps } = useIdleCapabilities();
 const { data: longIdles } = useLongIdles();
 const { data: settings } = useIdleSettings();
+const { data: confidence } = useIdleConfidence();
+const adoptBand = useAdoptComfortBand();
+const toast = useToastStore();
+async function onAdoptBand() {
+  const s = settings.value;
+  if (!s || s.suggested_low_f == null || s.suggested_high_f == null) return;
+  try {
+    await adoptBand.mutateAsync({ low: s.suggested_low_f, high: s.suggested_high_f });
+    toast.success("Comfort band adopted", "Re-sync idle to re-classify past events with the new band.");
+  } catch (e) {
+    toast.error("Couldn't adopt band", e instanceof Error ? e.message : undefined);
+  }
+}
 
 const drivers = computed(() => data.value?.drivers ?? []);
 
@@ -54,6 +69,10 @@ const tabs = computed(() => [
 
 // ── collapsible "how scoring works" panel (replaces the always-on top blurb) ──
 const showInfo = ref(false);
+// ── collapsible data-confidence panel (coverage of the inputs behind the numbers) ──
+const showConfidence = ref(false);
+const confTone = (p: number) => (p >= 95 ? "text-green-700" : p >= 80 ? "text-amber-600" : "text-red-700");
+const confBar = (p: number) => (p >= 95 ? "bg-green-500" : p >= 80 ? "bg-amber-500" : "bg-red-500");
 const suggestionDiffers = computed(() => {
   const s = settings.value;
   return !!s && s.suggested_low_f != null && s.suggested_high_f != null && (s.suggested_low_f !== s.comfort_low_f || s.suggested_high_f !== s.comfort_high_f);
@@ -170,9 +189,15 @@ watch(capFiltered, () => (capPage.value = 1));
           {{ t.label }} <span class="ml-0.5 text-gray-400">{{ t.count }}</span>
         </button>
       </div>
-      <button class="text-sm font-medium text-gray-500 hover:text-gray-700" @click="showInfo = !showInfo">
-        {{ showInfo ? "Hide" : "How idle is scored" }}
-      </button>
+      <div class="flex items-center gap-4">
+        <button class="text-sm font-medium text-gray-500 hover:text-gray-700" @click="showConfidence = !showConfidence">
+          Data confidence
+          <span v-if="confidence && confidence.overall != null" class="font-bold" :class="confTone(confidence.overall)">{{ confidence.overall }}%</span>
+        </button>
+        <button class="text-sm font-medium text-gray-500 hover:text-gray-700" @click="showInfo = !showInfo">
+          {{ showInfo ? "Hide" : "How idle is scored" }}
+        </button>
+      </div>
     </div>
 
     <!-- Collapsible explanation + comfort band (was the always-on top blurb) -->
@@ -189,7 +214,15 @@ watch(capFiltered, () => (capPage.value = 1));
         <span class="ml-1 text-gray-400">· idle ≥ {{ settings.min_idle_minutes }} min scored</span>
         <span v-if="suggestionDiffers" class="ml-2 text-indigo-600">
           · learned from your data: <strong>{{ settings.suggested_low_f }}–{{ settings.suggested_high_f }}°F</strong>
-          <span class="text-gray-400">(update idle_settings to adopt, then re-sync)</span>
+          <button
+            type="button"
+            :disabled="adoptBand.isPending.value"
+            class="ml-1 rounded bg-indigo-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            @click="onAdoptBand"
+          >
+            {{ adoptBand.isPending.value ? "Adopting…" : "Adopt" }}
+          </button>
+          <span class="ml-1 text-gray-400">then re-sync to re-classify</span>
         </span>
       </p>
       <p v-if="fleetOptimizedPct != null" class="text-gray-600">
@@ -197,6 +230,28 @@ watch(capFiltered, () => (capPage.value = 1));
         <span class="ml-1 font-medium text-gray-900">{{ fleetOptimizedPct }}%</span>
         <span class="ml-1 text-gray-400">of parked time on APU or optimized idle (learned per truck)</span>
       </p>
+    </div>
+
+    <!-- Data confidence: how complete the inputs behind these numbers are -->
+    <div v-if="showConfidence && confidence" class="space-y-3 rounded-lg bg-white p-4 text-sm shadow-sm ring-1 ring-gray-200">
+      <div class="flex items-center justify-between">
+        <p class="font-medium text-gray-900">Data confidence</p>
+        <p v-if="confidence.overall != null" class="text-lg font-bold" :class="confTone(confidence.overall)">{{ confidence.overall }}%</p>
+      </div>
+      <p class="text-xs text-gray-500">How complete the inputs behind these numbers are. Raise the low bars to raise your confidence — each note says how.</p>
+      <div v-for="m in confidence.metrics" :key="m.key" class="space-y-1">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-gray-700">{{ m.label }}</span>
+          <span class="font-medium tabular-nums" :class="confTone(m.pct)">
+            {{ m.total ? m.pct + "%" : "no data yet" }}
+            <span class="ml-1 font-normal text-gray-400">({{ m.covered }}/{{ m.total }})</span>
+          </span>
+        </div>
+        <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+          <div class="h-full rounded-full" :class="confBar(m.pct)" :style="{ width: (m.total ? m.pct : 0) + '%' }"></div>
+        </div>
+        <p class="text-xs text-gray-400">{{ m.note }}</p>
+      </div>
     </div>
 
     <!-- ── TAB: Drivers ──────────────────────────────────────────────────────── -->

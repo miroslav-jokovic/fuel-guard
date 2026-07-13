@@ -64,6 +64,13 @@ async function onCommit() {
 
 const actionCount = computed(() => (preview.value?.toCreate.length ?? 0) + (preview.value?.toUpdate.length ?? 0));
 const fmt         = (n: number | null) => (n == null ? "—" : String(n));
+const equipLabel  = (apu: string | null, opt: boolean | null) => {
+  const parts: string[] = [];
+  if (apu && apu !== "none") parts.push(apu);
+  if (opt) parts.push("Optimized idle");
+  if (parts.length) return parts.join(" + ");
+  return apu === "none" ? "None" : "—";
+};
 </script>
 
 <template>
@@ -98,7 +105,7 @@ const fmt         = (n: number | null) => (n == null ? "—" : String(n));
         >
           <ArrowDownTrayIcon class="size-6 text-gray-400" aria-hidden="true" />
           <span class="text-sm font-semibold text-gray-700">Current fleet</span>
-          <span class="text-xs text-gray-500">Edit tank / MPG for existing vehicles</span>
+          <span class="text-xs text-gray-500">Edit tank / MPG / idle equipment</span>
         </button>
       </div>
 
@@ -128,10 +135,12 @@ const fmt         = (n: number | null) => (n == null ? "—" : String(n));
               <tr><td class="py-1.5 pr-4 font-mono">baseline_mpg</td><td class="pr-4 text-amber-600 font-medium">Recommended</td><td>Average MPG. Required for consumption anomaly rules.</td></tr>
               <tr><td class="py-1.5 pr-4 font-mono">current_odometer</td><td class="pr-4 text-gray-400">No</td><td>Current odometer reading in miles</td></tr>
               <tr><td class="py-1.5 pr-4 font-mono">status</td><td class="pr-4 text-gray-400">No</td><td>active / maintenance / retired (default: active)</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">apu_type</td><td class="pr-4 text-gray-400">No</td><td>diesel_apu / battery_hvac / fuel_heater / shore_power / none — idle-reduction equipment</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">has_optimized_idle</td><td class="pr-4 text-gray-400">No</td><td>yes / no — OEM optimized idle (e.g. Freightliner Cascadia)</td></tr>
             </tbody>
           </table>
           <p class="mt-2 text-xs text-gray-500">
-            Existing vehicles are matched by <strong>unit_number</strong> — only <em>tank_capacity_gal</em> and <em>baseline_mpg</em> are updated.
+            Existing vehicles are matched by <strong>unit_number</strong> — <em>tank_capacity_gal</em>, <em>baseline_mpg</em>, and idle equipment (<em>apu_type</em>, <em>has_optimized_idle</em>) are updated.
             Unrecognised units create new vehicles.
           </p>
         </div>
@@ -197,6 +206,7 @@ const fmt         = (n: number | null) => (n == null ? "—" : String(n));
                 <th class="px-3 py-2 font-medium text-right">MPG</th>
                 <th class="px-3 py-2 font-medium text-right">Odometer</th>
                 <th class="px-3 py-2 font-medium">Status</th>
+                <th class="px-3 py-2 font-medium">Idle equipment</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -213,6 +223,7 @@ const fmt         = (n: number | null) => (n == null ? "—" : String(n));
                 <td class="px-3 py-1.5 text-right text-gray-700">{{ fmt(r.baseline_mpg) }}</td>
                 <td class="px-3 py-1.5 text-right text-gray-700">{{ r.current_odometer ? r.current_odometer.toLocaleString() : "—" }}</td>
                 <td class="px-3 py-1.5 capitalize text-gray-700">{{ r.status }}</td>
+                <td class="px-3 py-1.5 text-gray-700">{{ equipLabel(r.apu_type, r.has_optimized_idle) }}</td>
               </tr>
             </tbody>
           </table>
@@ -231,6 +242,7 @@ const fmt         = (n: number | null) => (n == null ? "—" : String(n));
               <th class="px-3 py-2 font-medium">Unit</th>
               <th class="px-3 py-2 font-medium">Tank (gal)</th>
               <th class="px-3 py-2 font-medium">Baseline MPG</th>
+              <th class="px-3 py-2 font-medium">Idle equipment</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
@@ -243,6 +255,10 @@ const fmt         = (n: number | null) => (n == null ? "—" : String(n));
               <td class="px-3 py-1.5 text-gray-700">
                 <span :class="c.mpg_before !== c.mpg_after ? 'text-gray-400 line-through' : ''">{{ fmt(c.mpg_before) }}</span>
                 <span v-if="c.mpg_before !== c.mpg_after" class="font-medium text-gray-900"> → {{ fmt(c.mpg_after) }}</span>
+              </td>
+              <td class="px-3 py-1.5 text-gray-700">
+                <span v-if="c.equip_changed" class="font-medium text-gray-900">{{ equipLabel(c.apu_type_after ?? null, c.has_optimized_idle_after ?? null) }}</span>
+                <span v-else class="text-gray-400">—</span>
               </td>
             </tr>
           </tbody>

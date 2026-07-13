@@ -87,7 +87,12 @@ export function parseSamsaraSamples(vehicle: RawVehicleStats): SamsaraSample[] {
       // Prefer the ECU/OBD odometer decoration; else the GPS-odometer decoration (legacy); else the
       // GPS-odometer TYPE series matched by nearest time. Track which source we used.
       const obd = p.decorations?.obdOdometerMeters?.value;
-      const gps = obd != null ? undefined : p.decorations?.gpsOdometerMeters?.value ?? nearestGpsOdo(parseAsUtcMs(p.time!)) ?? undefined;
+      const gps =
+        obd != null
+          ? undefined
+          : (p.decorations?.gpsOdometerMeters?.value ??
+            nearestGpsOdo(parseAsUtcMs(p.time!)) ??
+            undefined);
       const meters = obd ?? gps;
       return {
         time: p.time!,
@@ -180,30 +185,145 @@ export function sampleNearestTime(
 }
 
 const US_STATES = new Set([
-  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
-  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
-  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC","PR",
+  "AL",
+  "AK",
+  "AZ",
+  "AR",
+  "CA",
+  "CO",
+  "CT",
+  "DE",
+  "FL",
+  "GA",
+  "HI",
+  "ID",
+  "IL",
+  "IN",
+  "IA",
+  "KS",
+  "KY",
+  "LA",
+  "ME",
+  "MD",
+  "MA",
+  "MI",
+  "MN",
+  "MS",
+  "MO",
+  "MT",
+  "NE",
+  "NV",
+  "NH",
+  "NJ",
+  "NM",
+  "NY",
+  "NC",
+  "ND",
+  "OH",
+  "OK",
+  "OR",
+  "PA",
+  "RI",
+  "SC",
+  "SD",
+  "TN",
+  "TX",
+  "UT",
+  "VT",
+  "VA",
+  "WA",
+  "WV",
+  "WI",
+  "WY",
+  "DC",
+  "PR",
   // Canadian provinces (EFS fleets often cross the border)
-  "AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT",
+  "AB",
+  "BC",
+  "MB",
+  "NB",
+  "NL",
+  "NS",
+  "NT",
+  "NU",
+  "ON",
+  "PE",
+  "QC",
+  "SK",
+  "YT",
 ]);
 
 /** Full state/province NAME → 2-letter code, so an EFS value that arrives as a full name ("Texas",
  *  "British Columbia") still compares equal to Samsara's 2-letter reverse-geo code and can't cause a
  *  false location mismatch. */
 const STATE_NAME_TO_CODE: Record<string, string> = {
-  ALABAMA: "AL", ALASKA: "AK", ARIZONA: "AZ", ARKANSAS: "AR", CALIFORNIA: "CA", COLORADO: "CO",
-  CONNECTICUT: "CT", DELAWARE: "DE", FLORIDA: "FL", GEORGIA: "GA", HAWAII: "HI", IDAHO: "ID",
-  ILLINOIS: "IL", INDIANA: "IN", IOWA: "IA", KANSAS: "KS", KENTUCKY: "KY", LOUISIANA: "LA", MAINE: "ME",
-  MARYLAND: "MD", MASSACHUSETTS: "MA", MICHIGAN: "MI", MINNESOTA: "MN", MISSISSIPPI: "MS", MISSOURI: "MO",
-  MONTANA: "MT", NEBRASKA: "NE", NEVADA: "NV", "NEW HAMPSHIRE": "NH", "NEW JERSEY": "NJ", "NEW MEXICO": "NM",
-  "NEW YORK": "NY", "NORTH CAROLINA": "NC", "NORTH DAKOTA": "ND", OHIO: "OH", OKLAHOMA: "OK", OREGON: "OR",
-  PENNSYLVANIA: "PA", "RHODE ISLAND": "RI", "SOUTH CAROLINA": "SC", "SOUTH DAKOTA": "SD", TENNESSEE: "TN",
-  TEXAS: "TX", UTAH: "UT", VERMONT: "VT", VIRGINIA: "VA", WASHINGTON: "WA", "WEST VIRGINIA": "WV",
-  WISCONSIN: "WI", WYOMING: "WY", "DISTRICT OF COLUMBIA": "DC", "PUERTO RICO": "PR",
+  ALABAMA: "AL",
+  ALASKA: "AK",
+  ARIZONA: "AZ",
+  ARKANSAS: "AR",
+  CALIFORNIA: "CA",
+  COLORADO: "CO",
+  CONNECTICUT: "CT",
+  DELAWARE: "DE",
+  FLORIDA: "FL",
+  GEORGIA: "GA",
+  HAWAII: "HI",
+  IDAHO: "ID",
+  ILLINOIS: "IL",
+  INDIANA: "IN",
+  IOWA: "IA",
+  KANSAS: "KS",
+  KENTUCKY: "KY",
+  LOUISIANA: "LA",
+  MAINE: "ME",
+  MARYLAND: "MD",
+  MASSACHUSETTS: "MA",
+  MICHIGAN: "MI",
+  MINNESOTA: "MN",
+  MISSISSIPPI: "MS",
+  MISSOURI: "MO",
+  MONTANA: "MT",
+  NEBRASKA: "NE",
+  NEVADA: "NV",
+  "NEW HAMPSHIRE": "NH",
+  "NEW JERSEY": "NJ",
+  "NEW MEXICO": "NM",
+  "NEW YORK": "NY",
+  "NORTH CAROLINA": "NC",
+  "NORTH DAKOTA": "ND",
+  OHIO: "OH",
+  OKLAHOMA: "OK",
+  OREGON: "OR",
+  PENNSYLVANIA: "PA",
+  "RHODE ISLAND": "RI",
+  "SOUTH CAROLINA": "SC",
+  "SOUTH DAKOTA": "SD",
+  TENNESSEE: "TN",
+  TEXAS: "TX",
+  UTAH: "UT",
+  VERMONT: "VT",
+  VIRGINIA: "VA",
+  WASHINGTON: "WA",
+  "WEST VIRGINIA": "WV",
+  WISCONSIN: "WI",
+  WYOMING: "WY",
+  "DISTRICT OF COLUMBIA": "DC",
+  "PUERTO RICO": "PR",
   // Canadian provinces/territories
-  ALBERTA: "AB", "BRITISH COLUMBIA": "BC", MANITOBA: "MB", "NEW BRUNSWICK": "NB",
-  "NEWFOUNDLAND AND LABRADOR": "NL", NEWFOUNDLAND: "NL", "NOVA SCOTIA": "NS", "NORTHWEST TERRITORIES": "NT",
-  NUNAVUT: "NU", ONTARIO: "ON", "PRINCE EDWARD ISLAND": "PE", QUEBEC: "QC", SASKATCHEWAN: "SK", YUKON: "YT",
+  ALBERTA: "AB",
+  "BRITISH COLUMBIA": "BC",
+  MANITOBA: "MB",
+  "NEW BRUNSWICK": "NB",
+  "NEWFOUNDLAND AND LABRADOR": "NL",
+  NEWFOUNDLAND: "NL",
+  "NOVA SCOTIA": "NS",
+  "NORTHWEST TERRITORIES": "NT",
+  NUNAVUT: "NU",
+  ONTARIO: "ON",
+  "PRINCE EDWARD ISLAND": "PE",
+  QUEBEC: "QC",
+  SASKATCHEWAN: "SK",
+  YUKON: "YT",
 };
 
 /**
@@ -261,18 +381,69 @@ export function compareLocationState(
 // odometer/location itself comes from the physical Samsara stop, so this never has to be exact.
 const STATE_UTC_OFFSET: Record<string, number> = {
   // Eastern
-  CT: 5, DE: 5, FL: 5, GA: 5, IN: 5, MA: 5, MD: 5, ME: 5, MI: 5, NC: 5, NH: 5, NJ: 5, NY: 5, OH: 5,
-  PA: 5, RI: 5, SC: 5, VA: 5, VT: 5, WV: 5, DC: 5, ON: 5, QC: 5,
+  CT: 5,
+  DE: 5,
+  FL: 5,
+  GA: 5,
+  IN: 5,
+  MA: 5,
+  MD: 5,
+  ME: 5,
+  MI: 5,
+  NC: 5,
+  NH: 5,
+  NJ: 5,
+  NY: 5,
+  OH: 5,
+  PA: 5,
+  RI: 5,
+  SC: 5,
+  VA: 5,
+  VT: 5,
+  WV: 5,
+  DC: 5,
+  ON: 5,
+  QC: 5,
   // Atlantic (Canada)
-  NB: 4, NS: 4, PE: 4, NL: 4,
+  NB: 4,
+  NS: 4,
+  PE: 4,
+  NL: 4,
   // Central
-  AL: 6, AR: 6, IA: 6, IL: 6, KS: 6, LA: 6, MN: 6, MO: 6, MS: 6, ND: 6, NE: 6, OK: 6, SD: 6, TN: 6,
-  TX: 6, WI: 6, MB: 6,
+  AL: 6,
+  AR: 6,
+  IA: 6,
+  IL: 6,
+  KS: 6,
+  LA: 6,
+  MN: 6,
+  MO: 6,
+  MS: 6,
+  ND: 6,
+  NE: 6,
+  OK: 6,
+  SD: 6,
+  TN: 6,
+  TX: 6,
+  WI: 6,
+  MB: 6,
   // Mountain
-  AZ: 7, CO: 7, ID: 7, MT: 7, NM: 7, UT: 7, WY: 7, AB: 7,
+  AZ: 7,
+  CO: 7,
+  ID: 7,
+  MT: 7,
+  NM: 7,
+  UT: 7,
+  WY: 7,
+  AB: 7,
   // Pacific
-  CA: 8, NV: 8, OR: 8, WA: 8, BC: 8,
-  AK: 9, HI: 10,
+  CA: 8,
+  NV: 8,
+  OR: 8,
+  WA: 8,
+  BC: 8,
+  AK: 9,
+  HI: 10,
 };
 
 /**
@@ -363,7 +534,8 @@ export function pathDistanceMiles(samples: SamsaraSample[], aIso: string, bIso: 
     .filter((p) => p.t >= lo && p.t <= hi)
     .sort((a, b) => a.t - b.t);
   let d = 0;
-  for (let i = 1; i < pts.length; i++) d += haversineMiles(pts[i - 1]!.lat, pts[i - 1]!.lng, pts[i]!.lat, pts[i]!.lng);
+  for (let i = 1; i < pts.length; i++)
+    d += haversineMiles(pts[i - 1]!.lat, pts[i - 1]!.lng, pts[i]!.lat, pts[i]!.lng);
   return Math.round(d * 10) / 10;
 }
 
@@ -386,7 +558,11 @@ export function odometerAtTimeSourced(
   const reconGap = (opts.maxReconstructGapMin ?? 180) * 60_000;
   const raw = samples
     .filter((s) => s.odometerMiles != null)
-    .map((s) => ({ t: parseAsUtcMs(s.time), odo: s.odometerMiles as number, src: (s.odometerSource ?? "obd") as "obd" | "gps" }))
+    .map((s) => ({
+      t: parseAsUtcMs(s.time),
+      odo: s.odometerMiles as number,
+      src: (s.odometerSource ?? "obd") as "obd" | "gps",
+    }))
     .sort((a, b) => a.t - b.t);
   if (raw.length === 0) return null;
   // SINGLE-SOURCE: OBD and Samsara's GPS-derived odometer use different baselines (often tens of
@@ -467,7 +643,9 @@ export function matchFuelingStop(
   const target = parseAsUtcMs(fueledAtUtcIso);
   const nearest = (list: SamsaraSample[]) =>
     [...list].sort(
-      (a, b) => Math.abs(new Date(a.time).getTime() - target) - Math.abs(new Date(b.time).getTime() - target),
+      (a, b) =>
+        Math.abs(new Date(a.time).getTime() - target) -
+        Math.abs(new Date(b.time).getTime() - target),
     )[0] ?? null;
 
   // Stops are matched by LOCATION (speed + address) — we intentionally do NOT require an odometer on the
@@ -482,14 +660,22 @@ export function matchFuelingStop(
 
   if (!efsState) {
     const pick = nearest(stopped);
-    return { odometerMiles: odoAt(pick), matchedAt: pick?.time ?? null, locationMatched: null, basis: "no_efs_state", ...ev(pick) };
+    return {
+      odometerMiles: odoAt(pick),
+      matchedAt: pick?.time ?? null,
+      locationMatched: null,
+      basis: "no_efs_state",
+      ...ev(pick),
+    };
   }
 
   // Was the truck in the EFS state at ANY point in the fetched day — moving OR stopped?
   const inStateAny = samples.some((s) => stateFromAddress(s.address) === efsState);
   if (inStateAny) {
     const inStateStops = stopped.filter((s) => stateFromAddress(s.address) === efsState);
-    const inCityStops = efsCity ? inStateStops.filter((s) => cityNorm(cityFromAddress(s.address)) === efsCity) : [];
+    const inCityStops = efsCity
+      ? inStateStops.filter((s) => cityNorm(cityFromAddress(s.address)) === efsCity)
+      : [];
     const anchor = nearest(inCityStops) ?? nearest(inStateStops) ?? nearest(stopped);
     return {
       odometerMiles: odoAt(anchor),
@@ -506,9 +692,23 @@ export function matchFuelingStop(
   const resolvable = samples.filter((s) => stateFromAddress(s.address) != null);
   if (resolvable.length >= MIN_MISMATCH_COVERAGE) {
     const pick = nearest(stopped) ?? nearest(resolvable);
-    return { odometerMiles: null, matchedAt: null, locationMatched: false, basis: "not_in_state", ...ev(pick) };
+    return {
+      odometerMiles: null,
+      matchedAt: null,
+      locationMatched: false,
+      basis: "not_in_state",
+      ...ev(pick),
+    };
   }
-  return { odometerMiles: null, matchedAt: null, locationMatched: null, basis: "no_coverage", observedState: null, observedCity: null, observedAddress: null };
+  return {
+    odometerMiles: null,
+    matchedAt: null,
+    locationMatched: null,
+    basis: "no_coverage",
+    observedState: null,
+    observedCity: null,
+    observedAddress: null,
+  };
 }
 
 // ── Tank-rise fueling-event solver (docs/10 §14) ────────────────────────────────────────────────
@@ -546,7 +746,11 @@ interface Rise {
  * one. Window-bounding keeps the "before" point at the actual arrival low instead of drifting to an
  * earlier reading, and it naturally separates two fills on the same day.
  */
-function detectFuelRises(readings: TankReading[], minRisePct: number, maxWindowMs = 2 * 3_600_000): Rise[] {
+function detectFuelRises(
+  readings: TankReading[],
+  minRisePct: number,
+  maxWindowMs = 2 * 3_600_000,
+): Rise[] {
   const r = [...readings].sort((a, b) => parseAsUtcMs(a.time) - parseAsUtcMs(b.time));
   const rises: Rise[] = [];
   let i = 0;
@@ -578,7 +782,13 @@ function detectFuelRises(readings: TankReading[], minRisePct: number, maxWindowM
 export function findFuelingEvent(
   samples: SamsaraSample[],
   fuelReadings: TankReading[],
-  efs: { state: string | null; city?: string | null; gallons: number | null; tankCapacityGal: number | null; reportedAtIso: string },
+  efs: {
+    state: string | null;
+    city?: string | null;
+    gallons: number | null;
+    tankCapacityGal: number | null;
+    reportedAtIso: string;
+  },
   opts: { stoppedMph?: number; minRisePct?: number } = {},
 ): FuelingEvent | null {
   const minRise = opts.minRisePct ?? MIN_FUEL_RISE_PCT;
@@ -604,7 +814,12 @@ export function findFuelingEvent(
     const stopped = inWin.filter((s) => (s.speedMph ?? 0) <= stoppedMax && s.address);
     const pool = stopped.length ? stopped : inWin;
     const arrival = parseAsUtcMs(rise.before.time);
-    return pool.sort((a, b) => Math.abs(parseAsUtcMs(a.time) - arrival) - Math.abs(parseAsUtcMs(b.time) - arrival))[0] ?? null;
+    return (
+      pool.sort(
+        (a, b) =>
+          Math.abs(parseAsUtcMs(a.time) - arrival) - Math.abs(parseAsUtcMs(b.time) - arrival),
+      )[0] ?? null
+    );
   };
 
   // Rank rises: prefer one whose stop is in the EFS state, then closest magnitude to the billed gallons,
@@ -614,15 +829,20 @@ export function findFuelingEvent(
       const anchor = anchorFor(rise);
       const inState = !!(efsState && anchor && stateFromAddress(anchor.address) === efsState);
       const magScore = expectedPct != null ? Math.abs(rise.delta - expectedPct) : -rise.delta;
-      const timeGap = anchor ? Math.abs(parseAsUtcMs(anchor.time) - target) : Number.MAX_SAFE_INTEGER;
+      const timeGap = anchor
+        ? Math.abs(parseAsUtcMs(anchor.time) - target)
+        : Number.MAX_SAFE_INTEGER;
       return { rise, anchor, inState, magScore, timeGap };
     })
     // Guard against picking a small noise rise when a real fill was expected.
-    .filter((c) => (expectedPct != null ? c.rise.delta >= Math.max(minRise, expectedPct * 0.4) : true));
+    .filter((c) =>
+      expectedPct != null ? c.rise.delta >= Math.max(minRise, expectedPct * 0.4) : true,
+    );
   if (scored.length === 0) return null;
 
   scored.sort(
-    (a, b) => Number(b.inState) - Number(a.inState) || a.magScore - b.magScore || a.timeGap - b.timeGap,
+    (a, b) =>
+      Number(b.inState) - Number(a.inState) || a.magScore - b.magScore || a.timeGap - b.timeGap,
   );
   const best = scored[0]!;
   const at = best.anchor?.time ?? best.rise.before.time;
@@ -802,7 +1022,8 @@ export function reconcileTankFill(args: {
 
   const observedRiseGal = Math.round(((pctAfter - pctBefore) / 100) * tankCapacityGal * 10) / 10;
   const fracTol = args.tolerancePctOfBill ?? 0.3;
-  const toleranceGal = Math.round(Math.max(args.toleranceGal ?? 15, gallonsBilled * fracTol) * 10) / 10;
+  const toleranceGal =
+    Math.round(Math.max(args.toleranceGal ?? 15, gallonsBilled * fracTol) * 10) / 10;
   const shortGal = Math.round(Math.max(0, gallonsBilled - observedRiseGal) * 10) / 10;
   return { observedRiseGal, shortGal, short: shortGal > toleranceGal, toleranceGal };
 }
@@ -859,7 +1080,9 @@ export interface VehicleFuelLevel {
 }
 
 /** Parse `GET /fleet/vehicles/stats?types=fuelPercents` into a map of Samsara vehicle id → tank level %. */
-export function parseVehicleFuelPercents(response: { data?: RawVehicleStat[] }): Map<string, VehicleFuelLevel> {
+export function parseVehicleFuelPercents(response: {
+  data?: RawVehicleStat[];
+}): Map<string, VehicleFuelLevel> {
   const out = new Map<string, VehicleFuelLevel>();
   for (const v of response.data ?? []) {
     if (!v.id) continue;
@@ -877,7 +1100,9 @@ export function parseVehicleFuelPercents(response: { data?: RawVehicleStat[] }):
  * vehicle id → current odometer in MILES. Prefers OBD (dash-accurate); falls back to GPS odometer.
  * Samsara reports odometer in meters; entries without either reading are omitted.
  */
-export function parseVehicleStatsOdometer(response: { data?: RawVehicleStat[] }): Map<string, number> {
+export function parseVehicleStatsOdometer(response: {
+  data?: RawVehicleStat[];
+}): Map<string, number> {
   const out = new Map<string, number>();
   for (const v of response.data ?? []) {
     if (!v.id) continue;
@@ -961,6 +1186,73 @@ export function parseCurrentAssignments(
   }));
 }
 
+export interface AssignmentInterval {
+  vehicleSamsaraId: string;
+  driverSamsaraId: string;
+  startMs: number;
+  endMs: number | null; // null = open / ongoing
+}
+
+/** Parse driver-vehicle-assignments into time-ranged INTERVALS (not collapsed to the latest), so an idle event
+ *  without a Samsara operator can be attributed to whoever had the truck at that time. Tolerant of the flat and
+ *  grouped shapes, same as parseCurrentAssignments. */
+export function parseAssignmentIntervals(response: {
+  data?: RawAssignmentGroup[];
+}): AssignmentInterval[] {
+  const out: AssignmentInterval[] = [];
+  const push = (vehicleId: string | undefined, a: RawAssignment) => {
+    const driverId = assignmentDriverId(a);
+    if (!vehicleId || !driverId) return;
+    const startMs = a.startTime ? new Date(a.startTime).getTime() : NaN;
+    if (!Number.isFinite(startMs)) return;
+    const endRaw = a.endTime ? new Date(a.endTime).getTime() : null;
+    out.push({
+      vehicleSamsaraId: String(vehicleId),
+      driverSamsaraId: String(driverId),
+      startMs,
+      endMs: endRaw != null && Number.isFinite(endRaw) ? endRaw : null,
+    });
+  };
+  for (const g of response.data ?? []) {
+    const nested = g.assignments ?? g.driverAssignments;
+    if (nested) {
+      const vehicleId = g.vehicle?.id ?? g.vehicleId ?? g.id;
+      for (const a of nested) push(vehicleId, a);
+    } else if (assignmentDriverId(g)) {
+      push(g.vehicle?.id ?? g.vehicleId, g);
+    }
+  }
+  return out;
+}
+
+/** Which driver had a vehicle at `whenMs`? Prefer the interval that COVERS the time; otherwise the most recent
+ *  interval that started before it (last-known driver), but only if within `maxStaleMs` (default 24h) so we don't
+ *  attribute an idle to a driver who left the truck days ago. Returns the Samsara driver id, or null. */
+export function matchAssignmentAt(
+  intervals: AssignmentInterval[],
+  vehicleSamsaraId: string,
+  whenMs: number,
+  opts: { maxStaleMs?: number } = {},
+): string | null {
+  const maxStale = opts.maxStaleMs ?? 24 * 3_600_000;
+  let covering: AssignmentInterval | null = null;
+  let lastBefore: AssignmentInterval | null = null;
+  for (const iv of intervals) {
+    if (iv.vehicleSamsaraId !== vehicleSamsaraId) continue;
+    if (whenMs >= iv.startMs && (iv.endMs == null || whenMs <= iv.endMs)) {
+      if (!covering || iv.startMs > covering.startMs) covering = iv;
+    } else if (iv.startMs <= whenMs) {
+      if (!lastBefore || iv.startMs > lastBefore.startMs) lastBefore = iv;
+    }
+  }
+  if (covering) return covering.driverSamsaraId;
+  if (lastBefore) {
+    const ref = lastBefore.endMs ?? lastBefore.startMs;
+    if (whenMs - ref <= maxStale) return lastBefore.driverSamsaraId;
+  }
+  return null;
+}
+
 // ── Trailer (unpowered asset) sync — GET /fleet/trailers ────────────────────────────────────────
 interface RawSamsaraTrailer {
   id?: string;
@@ -1027,7 +1319,8 @@ const assocTractorId = (a: RawAssoc): string | undefined => {
   const v = a.tractorId ?? a.vehicleId ?? a.vehicle?.id;
   return v != null ? String(v) : undefined;
 };
-const assocStart = (a: RawAssoc): number => (a.assignedAtMs != null ? a.assignedAtMs : new Date(a.startTime ?? 0).getTime());
+const assocStart = (a: RawAssoc): number =>
+  a.assignedAtMs != null ? a.assignedAtMs : new Date(a.startTime ?? 0).getTime();
 
 /**
  * Parse trailer↔tractor assignments into each trailer's CURRENT tractor (latest start). Tolerant of:
@@ -1035,7 +1328,10 @@ const assocStart = (a: RawAssoc): number => (a.assignedAtMs != null ? a.assigned
  *  - v2/grouped `{ data: [{ trailer:{id}, assignments:[{ vehicleId, startTime }] }] }`
  *  - flat `{ data: [{ trailer:{id}, vehicle:{id}, startTime }] }`
  */
-export function parseTrailerAssignments(response: { trailers?: RawTrailerAssignment[]; data?: RawTrailerAssignment[] }): TrailerVehicleLink[] {
+export function parseTrailerAssignments(response: {
+  trailers?: RawTrailerAssignment[];
+  data?: RawTrailerAssignment[];
+}): TrailerVehicleLink[] {
   const latest = new Map<string, { start: number; vehicleId: string }>();
   const consider = (trailerId: string | undefined, a: RawAssoc) => {
     const vehicleId = assocTractorId(a);
@@ -1056,15 +1352,30 @@ export function parseTrailerAssignments(response: { trailers?: RawTrailerAssignm
   // v2 / generic `data`.
   for (const g of response.data ?? []) {
     if (g.assignments) {
-      const trailerId = g.trailer?.id != null ? String(g.trailer.id) : g.trailerId != null ? String(g.trailerId) : g.id != null ? String(g.id) : undefined;
+      const trailerId =
+        g.trailer?.id != null
+          ? String(g.trailer.id)
+          : g.trailerId != null
+            ? String(g.trailerId)
+            : g.id != null
+              ? String(g.id)
+              : undefined;
       for (const a of g.assignments) consider(trailerId, a);
     } else {
-      const trailerId = g.trailer?.id != null ? String(g.trailer.id) : g.trailerId != null ? String(g.trailerId) : undefined;
+      const trailerId =
+        g.trailer?.id != null
+          ? String(g.trailer.id)
+          : g.trailerId != null
+            ? String(g.trailerId)
+            : undefined;
       if (assocTractorId(g)) consider(trailerId, g);
     }
   }
 
-  return [...latest.entries()].map(([trailerSamsaraId, v]) => ({ trailerSamsaraId, vehicleSamsaraId: v.vehicleId }));
+  return [...latest.entries()].map(([trailerSamsaraId, v]) => ({
+    trailerSamsaraId,
+    vehicleSamsaraId: v.vehicleId,
+  }));
 }
 
 /** Parse a Samsara `/fleet/drivers` list response (pages merged) into driver identities. */

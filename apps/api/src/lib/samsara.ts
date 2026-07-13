@@ -34,7 +34,11 @@ const MAX_STATS_PAGES = 120;
  * odometer anchors. We follow `pagination.endCursor` and merge every page's sample arrays before
  * returning, so callers always see the complete window.
  */
-export function makeSamsaraFetcher(env: Env, token: string, priority: "live" | "backfill" = "live"): SamsaraFetcher {
+export function makeSamsaraFetcher(
+  env: Env,
+  token: string,
+  priority: "live" | "backfill" = "live",
+): SamsaraFetcher {
   return async (vehicleId, startIso, endIso) => {
     const merged = new Map<string, StatsHistoryVehicle>();
     let after: string | undefined;
@@ -70,8 +74,10 @@ export function makeSamsaraFetcher(env: Env, token: string, priority: "live" | "
           });
         } else {
           if (v.gps?.length) cur.gps = [...(cur.gps ?? []), ...v.gps];
-          if (v.fuelPercents?.length) cur.fuelPercents = [...(cur.fuelPercents ?? []), ...v.fuelPercents];
-          if (v.gpsOdometerMeters?.length) cur.gpsOdometerMeters = [...(cur.gpsOdometerMeters ?? []), ...v.gpsOdometerMeters];
+          if (v.fuelPercents?.length)
+            cur.fuelPercents = [...(cur.fuelPercents ?? []), ...v.fuelPercents];
+          if (v.gpsOdometerMeters?.length)
+            cur.gpsOdometerMeters = [...(cur.gpsOdometerMeters ?? []), ...v.gpsOdometerMeters];
         }
       }
 
@@ -140,9 +146,15 @@ export function makeSamsaraTrailerLister(env: Env, token: string): SamsaraTraile
 
 /** Fetches current trailer↔tractor assignments. Uses the LEGACY v1 endpoint (`/v1/fleet/trailers/
  *  assignments`) — the v2 API has no trailer-assignments route, which is why pairing never synced. */
-export type SamsaraTrailerAssignmentFetcher = () => Promise<{ trailers?: unknown[]; data?: unknown[] }>;
+export type SamsaraTrailerAssignmentFetcher = () => Promise<{
+  trailers?: unknown[];
+  data?: unknown[];
+}>;
 
-export function makeSamsaraTrailerAssignmentFetcher(env: Env, token: string): SamsaraTrailerAssignmentFetcher {
+export function makeSamsaraTrailerAssignmentFetcher(
+  env: Env,
+  token: string,
+): SamsaraTrailerAssignmentFetcher {
   return async () => {
     const url = new URL("/v1/fleet/trailers/assignments", env.SAMSARA_API_URL);
     const res = await samsaraFetch(env, token, url);
@@ -175,7 +187,10 @@ async function fetchAssetGpsHistory(
     if (after) url.searchParams.set("after", after);
     const res = await samsaraFetch(env, token, url, { priority: "backfill" });
     if (!res.ok) throw new Error(`Samsara API ${res.status}`);
-    const page = (await res.json()) as { data?: AssetGpsRaw[]; pagination?: { hasNextPage?: boolean; endCursor?: string } };
+    const page = (await res.json()) as {
+      data?: AssetGpsRaw[];
+      pagination?: { hasNextPage?: boolean; endCursor?: string };
+    };
     for (const a of page.data ?? []) {
       const key = String(a.id ?? "");
       const cur = merged.get(key);
@@ -188,20 +203,30 @@ async function fetchAssetGpsHistory(
   return { data: [...merged.values()] };
 }
 
-export type AssetGpsFetcher = (ids: string[], startIso: string, endIso: string) => Promise<{ data: AssetGpsRaw[] }>;
+export type AssetGpsFetcher = (
+  ids: string[],
+  startIso: string,
+  endIso: string,
+) => Promise<{ data: AssetGpsRaw[] }>;
 
 /** Trailer GPS history (Asset-Gateway location) — the reefer's own position over time. */
 export function makeSamsaraTrailerGpsFetcher(env: Env, token: string): AssetGpsFetcher {
-  return (ids, s, e) => fetchAssetGpsHistory(env, token, "/fleet/trailers/stats/history", "trailerIds", ids, s, e);
+  return (ids, s, e) =>
+    fetchAssetGpsHistory(env, token, "/fleet/trailers/stats/history", "trailerIds", ids, s, e);
 }
 
 /** Vehicle GPS history (types=gps only) — lighter than makeSamsaraFetcher; for bulk co-location matching. */
 export function makeSamsaraVehiclesGpsFetcher(env: Env, token: string): AssetGpsFetcher {
-  return (ids, s, e) => fetchAssetGpsHistory(env, token, "/fleet/vehicles/stats/history", "vehicleIds", ids, s, e);
+  return (ids, s, e) =>
+    fetchAssetGpsHistory(env, token, "/fleet/vehicles/stats/history", "vehicleIds", ids, s, e);
 }
 
 /** Vehicle engineStates history decorated with gps (speed), for idle park-session / mode analysis. */
-export type EngineStatesFetcher = (ids: string[], startIso: string, endIso: string) => Promise<{ data: unknown[] }>;
+export type EngineStatesFetcher = (
+  ids: string[],
+  startIso: string,
+  endIso: string,
+) => Promise<{ data: unknown[] }>;
 export function makeSamsaraEngineStatesFetcher(env: Env, token: string): EngineStatesFetcher {
   return async (ids, startIso, endIso) => {
     const merged = new Map<string, { id?: string | number; engineStates?: unknown[] }>();
@@ -217,12 +242,16 @@ export function makeSamsaraEngineStatesFetcher(env: Env, token: string): EngineS
       if (after) url.searchParams.set("after", after);
       const res = await samsaraFetch(env, token, url, { priority: "backfill" });
       if (!res.ok) throw new Error(`Samsara API ${res.status}`);
-      const page = (await res.json()) as { data?: { id?: string | number; engineStates?: unknown[] }[]; pagination?: { hasNextPage?: boolean; endCursor?: string } };
+      const page = (await res.json()) as {
+        data?: { id?: string | number; engineStates?: unknown[] }[];
+        pagination?: { hasNextPage?: boolean; endCursor?: string };
+      };
       for (const v of page.data ?? []) {
         const key = String(v.id ?? "");
         const cur = merged.get(key);
         if (!cur) merged.set(key, { ...v, engineStates: [...(v.engineStates ?? [])] });
-        else if (v.engineStates?.length) cur.engineStates = [...(cur.engineStates ?? []), ...v.engineStates];
+        else if (v.engineStates?.length)
+          cur.engineStates = [...(cur.engineStates ?? []), ...v.engineStates];
       }
       after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
       pages += 1;
@@ -232,7 +261,10 @@ export function makeSamsaraEngineStatesFetcher(env: Env, token: string): EngineS
 }
 
 /** Idling events over a window (GET /idling/events) — paginated + merged. Scope: Read Idling. */
-export type SamsaraIdlingFetcher = (startIso: string, endIso: string) => Promise<{ data: unknown[] }>;
+export type SamsaraIdlingFetcher = (
+  startIso: string,
+  endIso: string,
+) => Promise<{ data: unknown[] }>;
 export function makeSamsaraIdlingEventFetcher(env: Env, token: string): SamsaraIdlingFetcher {
   return async (startIso, endIso) => {
     const out: unknown[] = [];
@@ -245,7 +277,10 @@ export function makeSamsaraIdlingEventFetcher(env: Env, token: string): SamsaraI
       if (after) url.searchParams.set("after", after);
       const res = await samsaraFetch(env, token, url);
       if (!res.ok) throw new Error(`Samsara API ${res.status}`);
-      const page = (await res.json()) as { data?: unknown[]; pagination?: { hasNextPage?: boolean; endCursor?: string } };
+      const page = (await res.json()) as {
+        data?: unknown[];
+        pagination?: { hasNextPage?: boolean; endCursor?: string };
+      };
       if (Array.isArray(page.data)) out.push(...page.data);
       after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
     } while (after);
@@ -268,9 +303,10 @@ export function makeSamsaraAssignmentFetcher(env: Env, token: string): SamsaraAs
   return async () => {
     // A window ending now (not a zero-width now→now, which can return nothing). Any assignment active
     // now overlaps this window; the shared parser keeps only those still active at "now".
-    // Look back a week so a truck idle for a few days still resolves to its last driver.
+    // Look back 30 days (matches the idle window) so idle events can be attributed to the driver assigned at
+    // that time, and a truck idle for days still resolves to its last driver.
     const end = new Date();
-    const start = new Date(end.getTime() - 7 * 24 * 3_600_000);
+    const start = new Date(end.getTime() - 30 * 24 * 3_600_000);
     const data = await listAllPages(env, token, "/fleet/driver-vehicle-assignments", {
       filterBy: "vehicles",
       startTime: start.toISOString(),

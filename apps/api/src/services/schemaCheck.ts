@@ -19,6 +19,11 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "station_geocode_learned", column: "query", migration: "0045" },
   { table: "vehicles", column: "has_apu", migration: "0046" },
   { table: "vehicles", column: "has_optimized_idle", migration: "0048" },
+  { table: "idle_events", column: "air_temp_source", migration: "0049" },
+  { table: "idle_events", column: "idle_gal", migration: "0050" },
+  { table: "idle_events", column: "driver_source", migration: "0051" },
+  { table: "driver_vehicle_assignments", column: "driver_samsara_id", migration: "0051" },
+  { table: "vehicles", column: "idle_states_sec", migration: "0052" },
   { table: "efs_transactions", column: "tran_time", migration: "0047" },
 ];
 

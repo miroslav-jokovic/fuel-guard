@@ -5,7 +5,8 @@
  * goal: during sleep / load / wait, use APU or optimized idle — not continuous main-engine idle.
  */
 
-export type IdleClassification = "productive" | "justified" | "discretionary" | "brief";
+export type IdleClassification =
+  "productive" | "justified" | "discretionary" | "brief" | "undetermined";
 
 export interface IdleThresholds {
   /** Idle shorter than this is a normal stop, not scored. Default 300 s (5 min). */
@@ -47,6 +48,7 @@ export interface IdleEventInput {
  *                      truck with no APU. On an APU-equipped truck the driver should run the APU, so climate
  *                      idle on the main engine stays discretionary (audit A1.3 — makes the score capability-fair).
  *  - `discretionary` — engine idling, no PTO, comfortable weather (or APU truck in any weather) → AVOIDABLE.
+ *  - `undetermined`  — no PTO, no APU, and temperature UNKNOWN → can't judge weather, so not counted as waste.
  */
 export function classifyIdleEvent(
   e: IdleEventInput,
@@ -55,12 +57,15 @@ export function classifyIdleEvent(
   const o = { ...DEFAULTS, ...opts };
   if (e.durationSec < o.minIdleSec) return "brief";
   if (e.ptoActive) return "productive";
-  if (
-    e.hasApu !== true &&
-    e.airTempF != null &&
-    (e.airTempF < o.climateLowF || e.airTempF > o.climateHighF)
-  )
-    return "justified";
+  // A truck with no APU relies on the MAIN ENGINE for cab climate, so extreme-weather idle is legitimate — but
+  // only when we actually KNOW the weather. If the temperature is unknown (Samsara didn't report it and the
+  // weather backfill couldn't fill it), we must NOT assume it was comfortable and call it waste. Classify it
+  // `undetermined` (tracked, never counted against a driver) — the honest state (CP2). On an APU truck the
+  // temperature is moot (the driver should run the APU either way), so unknown temp there stays discretionary.
+  if (e.hasApu !== true) {
+    if (e.airTempF == null) return "undetermined";
+    if (e.airTempF < o.climateLowF || e.airTempF > o.climateHighF) return "justified";
+  }
   return "discretionary";
 }
 
@@ -242,6 +247,8 @@ export interface IdleRow {
   classification: IdleClassification;
   fuelGal: number | null;
   costUsd: number | null;
+  /** Resolved idle gallons (measured, or the CP3 per-truck / temperature estimate) — preferred for the gal total. */
+  idleGal?: number | null;
   /** ISO start time — used for the week-over-week trend. Optional (trend is skipped when absent). */
   startedAt?: string;
 }
@@ -251,6 +258,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Fuel gallons for an event: measured value if present, else duration × idle burn rate. */
 function galFor(row: IdleRow, o: Required<IdleThresholds>): number {
+  if (row.idleGal != null) return row.idleGal;
   if (row.fuelGal != null) return row.fuelGal;
   return (row.durationSec / 3600) * o.idleGalPerHour;
 }
@@ -399,6 +407,8 @@ export interface LongIdleInput {
   classification: IdleClassification;
   costUsd: number | null;
   fuelGal: number | null;
+  /** Resolved idle gallons (measured, or the CP3 per-truck / temperature estimate) — preferred for cost/gallons. */
+  idleGal?: number | null;
   /** MANUAL source of truth: is the truck ENGINE-OFF capable at rest (real APU / battery HVAC / shore power)? null = unknown/unset. */
   hasApu: boolean | null;
   /** MANUAL: does the truck have OEM optimized idle (e.g. Cascadia)? The engine cycling is the feature, so these
@@ -446,7 +456,7 @@ export function topAvoidableIdles(
       .filter((r) => r.classification === "discretionary" && r.durationSec / 3600 >= minHours)
       .map((r) => {
         const hours = r.durationSec / 3600;
-        const gal = r.fuelGal != null ? r.fuelGal : hours * o.idleGalPerHour;
+        const gal = r.idleGal != null ? r.idleGal : r.fuelGal != null ? r.fuelGal : hours * o.idleGalPerHour;
         const cost = r.costUsd != null ? r.costUsd : gal * o.fuelPricePerGal;
         return {
           driverName: r.driverName ?? "Unattributed",

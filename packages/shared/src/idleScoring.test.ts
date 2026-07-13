@@ -116,10 +116,19 @@ describe("classifyIdleEvent", () => {
       "discretionary",
     );
   });
-  it("treats unknown temperature as discretionary (no justification available)", () => {
+  it("treats unknown temperature on a non-APU truck as UNDETERMINED, not waste (CP2 guardrail)", () => {
+    // Temperature unknown + no APU → we can't tell if extreme-weather cab climate justified it, so we don't accuse.
     expect(classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: null })).toBe(
-      "discretionary",
+      "undetermined",
     );
+    expect(
+      classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: null, hasApu: false }),
+    ).toBe("undetermined");
+  });
+  it("keeps unknown-temp idle on an APU truck discretionary (temperature is moot — use the APU)", () => {
+    expect(
+      classifyIdleEvent({ durationSec: 3600, ptoActive: false, airTempF: null, hasApu: true }),
+    ).toBe("discretionary");
   });
   it("does NOT excuse extreme-temp idle on an APU truck — should have used the APU (audit A1.3)", () => {
     // Same freezing fill: a no-APU (or unknown) truck is justified; an APU truck is discretionary.

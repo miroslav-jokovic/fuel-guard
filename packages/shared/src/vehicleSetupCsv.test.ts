@@ -15,11 +15,14 @@ const veh = (over: Partial<Parameters<typeof serializeVehicleSetupCsv>[0][number
 
 describe("serializeVehicleSetupCsv", () => {
   it("writes a header then one row per vehicle", () => {
-    const csv = serializeVehicleSetupCsv([veh(), veh({ unit_number: "102", tank_capacity_gal: 0, baseline_mpg: null })]);
+    const csv = serializeVehicleSetupCsv([
+      veh(),
+      veh({ unit_number: "102", tank_capacity_gal: 0, baseline_mpg: null }),
+    ]);
     const lines = csv.trim().split("\r\n");
     expect(lines[0]).toBe(SETUP_CSV_COLUMNS.join(","));
-    expect(lines[1]).toBe("101,120,6.5,Freightliner,Cascadia,2021,diesel,438795");
-    expect(lines[2]).toBe("102,0,,Freightliner,Cascadia,2021,diesel,438795"); // null MPG → blank
+    expect(lines[1]).toBe("101,120,6.5,Freightliner,Cascadia,2021,diesel,438795,,");
+    expect(lines[2]).toBe("102,0,,Freightliner,Cascadia,2021,diesel,438795,,"); // null MPG → blank
   });
 
   it("quotes values that contain commas", () => {
@@ -28,11 +31,18 @@ describe("serializeVehicleSetupCsv", () => {
   });
 
   it("round-trips through the parser", () => {
-    const csv = serializeVehicleSetupCsv([veh(), veh({ unit_number: "102", tank_capacity_gal: 150, baseline_mpg: 7 })]);
+    const csv = serializeVehicleSetupCsv([
+      veh(),
+      veh({ unit_number: "102", tank_capacity_gal: 150, baseline_mpg: 7 }),
+    ]);
     const { rows, errors } = parseVehicleSetupCsv(csv);
     expect(errors).toEqual([]);
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ unit_number: "101", tank_capacity_gal: 120, baseline_mpg: 6.5 });
+    expect(rows[0]).toMatchObject({
+      unit_number: "101",
+      tank_capacity_gal: 120,
+      baseline_mpg: 6.5,
+    });
     expect(rows[1]).toMatchObject({ unit_number: "102", tank_capacity_gal: 150, baseline_mpg: 7 });
   });
 });
@@ -41,8 +51,16 @@ describe("parseVehicleSetupCsv", () => {
   it("treats blank editable cells as 'leave unchanged' (null)", () => {
     const csv = "unit_number,tank_capacity_gal,baseline_mpg\n201,,\n202,100,";
     const { rows } = parseVehicleSetupCsv(csv);
-    expect(rows[0]).toMatchObject({ unit_number: "201", tank_capacity_gal: null, baseline_mpg: null });
-    expect(rows[1]).toMatchObject({ unit_number: "202", tank_capacity_gal: 100, baseline_mpg: null });
+    expect(rows[0]).toMatchObject({
+      unit_number: "201",
+      tank_capacity_gal: null,
+      baseline_mpg: null,
+    });
+    expect(rows[1]).toMatchObject({
+      unit_number: "202",
+      tank_capacity_gal: 100,
+      baseline_mpg: null,
+    });
   });
 
   it("is tolerant of column order and extra columns", () => {
@@ -52,7 +70,7 @@ describe("parseVehicleSetupCsv", () => {
   });
 
   it("strips $ and thousands separators from numbers", () => {
-    const csv = "unit_number,tank_capacity_gal\n404,\"1,200\"";
+    const csv = 'unit_number,tank_capacity_gal\n404,"1,200"';
     const { rows } = parseVehicleSetupCsv(csv);
     expect(rows[0]!.tank_capacity_gal).toBe(1200);
   });
@@ -63,7 +81,10 @@ describe("parseVehicleSetupCsv", () => {
     expect(errors.some((e) => e.includes("not a number"))).toBe(true);
     expect(errors.some((e) => e.includes("negative"))).toBe(true);
     // 501 and 502 have bad cells but still produce a row (the bad cell just stays null/unchanged)
-    expect(rows.find((r) => r.unit_number === "503")).toMatchObject({ tank_capacity_gal: 120, baseline_mpg: 6.2 });
+    expect(rows.find((r) => r.unit_number === "503")).toMatchObject({
+      tank_capacity_gal: 120,
+      baseline_mpg: 6.2,
+    });
   });
 
   it("skips rows with no unit number and flags duplicates", () => {

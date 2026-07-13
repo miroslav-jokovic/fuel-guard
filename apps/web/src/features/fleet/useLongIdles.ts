@@ -15,6 +15,7 @@ interface RawLongIdleRow {
   duration_sec: number | string;
   classification: string;
   fuel_gal: number | string | null;
+  idle_gal: number | string | null;
   cost_usd: number | string | null;
   drivers: { full_name: string } | null;
   vehicles: {
@@ -41,7 +42,7 @@ export function useLongIdles() {
         const { data, error } = await supabase
           .from("idle_events")
           .select(
-            "started_at, duration_sec, classification, fuel_gal, cost_usd, drivers(full_name), vehicles(unit_number, idle_capability, has_apu, has_optimized_idle)",
+            "started_at, duration_sec, classification, fuel_gal, idle_gal, cost_usd, drivers(full_name), vehicles(unit_number, idle_capability, has_apu, has_optimized_idle)",
           )
           .eq("classification", "discretionary")
           .gte("started_at", from)
@@ -57,6 +58,7 @@ export function useLongIdles() {
             durationSec: Number(r.duration_sec),
             classification: r.classification as IdleClassification,
             fuelGal: r.fuel_gal == null ? null : Number(r.fuel_gal),
+            idleGal: r.idle_gal == null ? null : Number(r.idle_gal),
             costUsd: r.cost_usd == null ? null : Number(r.cost_usd),
             hasApu: r.vehicles?.has_apu ?? null,
             hasOptimizedIdle: r.vehicles?.has_optimized_idle ?? null,
