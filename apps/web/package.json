@@ -8,6 +8,7 @@
     "build": "vue-tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc -p tsconfig.json --noEmit",
+    "lint:tokens": "node scripts/check-design-tokens.mjs",
     "test": "vitest run",
     "e2e": "playwright test"
   },

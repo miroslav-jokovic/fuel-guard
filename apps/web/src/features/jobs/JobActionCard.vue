@@ -2,6 +2,8 @@
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import { useJob } from "./useJob";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 
 const props = defineProps<{
   title: string;
@@ -39,54 +41,49 @@ async function run(body?: Record<string, unknown>, confirmMsg?: string) {
 </script>
 
 <template>
-  <div class="flex h-full flex-col rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
+  <BaseCard class="flex h-full flex-col">
     <div class="min-w-0">
-      <h3 class="text-sm font-semibold text-gray-900">{{ title }}</h3>
-      <p class="mt-1 text-sm text-gray-500">{{ description }}</p>
+      <h3 class="text-sm font-semibold text-ink">{{ title }}</h3>
+      <p class="mt-1 text-sm text-ink-muted">{{ description }}</p>
     </div>
 
     <!-- Actions: their own row so a secondary button never squeezes the title in a narrow column. -->
     <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
-      <button
+      <BaseButton
         v-if="secondaryLabel"
         :disabled="isRunning || disabled"
-        class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
         @click="run(secondaryBody, secondaryConfirm)"
       >
         {{ secondaryLabel }}
-      </button>
-      <button
-        :disabled="isRunning || disabled"
-        class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-        @click="run(body, confirm)"
-      >
+      </BaseButton>
+      <BaseButton variant="primary" :disabled="isRunning || disabled" @click="run(body, confirm)">
         {{ isRunning ? "Running…" : actionLabel }}
-      </button>
+      </BaseButton>
     </div>
 
     <!-- Progress bar while a run is active -->
     <div v-if="isRunning" class="mt-4">
-      <div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+      <div class="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
         <div
-          class="h-full rounded-full bg-indigo-500 transition-all"
+          class="h-full rounded-full bg-brand-500 transition-all"
           :style="{ width: (progressPct ?? 15) + '%' }"
         />
       </div>
-      <p class="mt-1 text-xs text-gray-500">{{ progressLabel ?? "working…" }}</p>
+      <p class="mt-1 text-xs text-ink-muted">{{ progressLabel ?? "working…" }}</p>
     </div>
 
     <!-- Freshness / failure chip when idle -->
     <p
       v-else
       class="mt-3 inline-flex items-center gap-1.5 text-xs"
-      :class="failed ? 'text-red-600' : 'text-gray-400'"
+      :class="failed ? 'text-danger-600' : 'text-ink-subtle'"
     >
       <span
         class="inline-block size-1.5 rounded-full"
-        :class="failed ? 'bg-red-500' : 'bg-emerald-400'"
+        :class="failed ? 'bg-danger-500' : 'bg-success-400'"
         aria-hidden="true"
       />
       {{ freshnessLabel }}
     </p>
-  </div>
+  </BaseCard>
 </template>

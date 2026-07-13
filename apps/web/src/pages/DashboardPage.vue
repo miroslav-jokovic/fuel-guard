@@ -18,6 +18,7 @@ import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
 import BaseChart from "@/components/BaseChart.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
 import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
 import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
@@ -41,9 +42,9 @@ const stats = computed(() => {
       valueTitle: s.value ? fmtMoney(s.value.totalSpend) : undefined,
       sub: `last ${days.value} days`,
       icon: CurrencyDollarIcon,
-      tone: "text-emerald-600 bg-emerald-50",
+      tone: "text-success-600 bg-success-50",
       spark: s.value?.spendTrend.map((p) => p.value),
-      sparkColor: viz.emerald,
+      sparkColor: viz.spend,
     },
     {
       label: "Gallons",
@@ -51,23 +52,23 @@ const stats = computed(() => {
       valueTitle: s.value ? `${s.value.totalGallons.toLocaleString()} gal` : undefined,
       sub: `last ${days.value} days`,
       icon: BeakerIcon,
-      tone: "text-sky-600 bg-sky-50",
+      tone: "text-info-600 bg-info-50",
     },
     {
       label: "Fleet avg MPG",
       value: s.value?.fleetMpg != null ? String(s.value.fleetMpg) : "—",
       sub: "gallon-weighted",
       icon: ChartBarSquareIcon,
-      tone: "text-indigo-600 bg-indigo-50",
+      tone: "text-brand-600 bg-brand-50",
       spark: s.value?.mpgTrend.map((p) => p.value),
-      sparkColor: viz.indigo,
+      sparkColor: viz.brand,
     },
     {
       label: "Active alerts",
       value: s.value ? String(alerts) : "—",
       sub: s.value ? `${s.value.openAnomalies} open case${s.value.openAnomalies === 1 ? "" : "s"}` : undefined,
       icon: ShieldExclamationIcon,
-      tone: alerts > 0 ? "text-red-600 bg-red-50" : "text-gray-500 bg-gray-100",
+      tone: alerts > 0 ? "text-danger-600 bg-danger-50" : "text-ink-muted bg-surface-muted",
     },
   ];
 });
@@ -82,8 +83,8 @@ const mpgChart = computed<ChartConfiguration>(() => ({
       {
         label: "Fleet MPG",
         data: s.value?.mpgTrend.map((p) => p.value) ?? [],
-        borderColor: viz.indigo,
-        backgroundColor: viz.indigoWash,
+        borderColor: viz.brand,
+        backgroundColor: viz.brandWash,
         fill: true,
         tension: 0.3,
         spanGaps: false,
@@ -93,8 +94,8 @@ const mpgChart = computed<ChartConfiguration>(() => ({
         pointRadius: 0,
         pointHitRadius: 12,
         pointHoverRadius: 4,
-        pointHoverBackgroundColor: viz.indigo,
-        pointHoverBorderColor: "#ffffff",
+        pointHoverBackgroundColor: viz.brand,
+        pointHoverBorderColor: viz.pointHalo,
         pointHoverBorderWidth: 2,
       },
     ],
@@ -115,8 +116,8 @@ const spendChart = computed<ChartConfiguration>(() => ({
       {
         label: "Spend",
         data: s.value?.spendTrend.map((p) => p.value) ?? [],
-        backgroundColor: viz.emerald,
-        hoverBackgroundColor: "#047857",
+        backgroundColor: viz.spend,
+        hoverBackgroundColor: viz.spendHover,
         borderRadius: { topLeft: 4, topRight: 4 },
         borderSkipped: false,
         maxBarThickness: 24,
@@ -162,12 +163,12 @@ const EXPORTS = [
     <!-- ── Page header: context + the one filter row that scopes everything below ── -->
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 class="text-lg font-semibold tracking-tight text-gray-900">Fleet overview</h2>
-        <p class="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500">
+        <h2 class="text-lg font-semibold tracking-tight text-ink">Fleet overview</h2>
+        <p class="mt-0.5 flex items-center gap-1.5 text-sm text-ink-muted">
           Fuel activity and risk · last {{ days }} days
           <ArrowPathIcon
             v-if="isFetching && !isLoading"
-            class="size-3.5 animate-spin text-gray-400"
+            class="size-3.5 animate-spin text-ink-subtle"
             aria-hidden="true"
           />
         </p>
@@ -175,7 +176,7 @@ const EXPORTS = [
 
       <div class="flex flex-wrap items-center gap-3">
         <div
-          class="inline-flex gap-0.5 rounded-lg bg-gray-100 p-0.5"
+          class="inline-flex gap-0.5 rounded-lg bg-surface-muted p-0.5"
           role="group"
           aria-label="Date range"
         >
@@ -185,8 +186,8 @@ const EXPORTS = [
             type="button"
             :aria-pressed="days === d"
             :class="[
-              'rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600',
-              days === d ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-800',
+              'rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+              days === d ? 'bg-surface text-ink shadow-sm ring-1 ring-edge' : 'text-ink-muted hover:text-ink-secondary',
             ]"
             @click="days = d"
           >
@@ -197,11 +198,11 @@ const EXPORTS = [
         <Menu v-if="session.canManage || session.readOnly" as="div" class="relative">
           <MenuButton
             :disabled="exporting"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-300 ring-inset transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
+            class="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-sm font-medium text-ink-secondary shadow-sm ring-1 ring-edge-strong ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50"
           >
             <ArrowDownTrayIcon class="size-4" aria-hidden="true" />
             {{ exporting ? "Exporting…" : "Export" }}
-            <ChevronDownIcon class="size-4 text-gray-400" aria-hidden="true" />
+            <ChevronDownIcon class="size-4 text-ink-subtle" aria-hidden="true" />
           </MenuButton>
           <transition
             enter-active-class="transition duration-100 ease-out"
@@ -212,18 +213,18 @@ const EXPORTS = [
             leave-to-class="scale-95 opacity-0"
           >
             <MenuItems
-              class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-xl bg-white p-1 shadow-lg ring-1 ring-gray-200 focus:outline-none"
+              class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-lg bg-surface p-1 shadow-lg ring-1 ring-edge focus:outline-none"
             >
               <MenuItem v-for="exp in EXPORTS" :key="exp.label" v-slot="{ active }">
                 <button
                   type="button"
-                  :class="['flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left', active ? 'bg-gray-50' : '']"
+                  :class="['flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left', active ? 'bg-surface-subtle' : '']"
                   @click="exp.run()"
                 >
-                  <component :is="exp.icon" class="mt-0.5 size-5 shrink-0 text-gray-400" aria-hidden="true" />
+                  <component :is="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
                   <span>
-                    <span class="block text-sm font-medium text-gray-900">{{ exp.label }}</span>
-                    <span class="block text-xs text-gray-500">{{ exp.description }}</span>
+                    <span class="block text-sm font-medium text-ink">{{ exp.label }}</span>
+                    <span class="block text-xs text-ink-muted">{{ exp.description }}</span>
                   </span>
                 </button>
               </MenuItem>
@@ -254,10 +255,10 @@ const EXPORTS = [
       <!-- ── Trends ── -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <template v-if="isLoading">
-          <div v-for="i in 2" :key="i" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
-            <div class="h-4 w-32 animate-pulse rounded bg-gray-100" />
-            <div class="mt-4 h-60 animate-pulse rounded-lg bg-gray-50" />
-          </div>
+          <BaseCard v-for="i in 2" :key="i">
+            <div class="h-4 w-32 animate-pulse rounded bg-surface-muted" />
+            <div class="mt-4 h-60 animate-pulse rounded-lg bg-surface-subtle" />
+          </BaseCard>
         </template>
         <template v-else>
           <ChartCard title="Fleet MPG trend" subtitle="Gallon-weighted daily average · gaps mean no valid fills">
@@ -292,12 +293,12 @@ const EXPORTS = [
       <!-- ── Risk breakdown ── -->
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <template v-if="isLoading">
-          <div v-for="i in 3" :key="i" class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
-            <div class="h-4 w-40 animate-pulse rounded bg-gray-100" />
+          <BaseCard v-for="i in 3" :key="i">
+            <div class="h-4 w-40 animate-pulse rounded bg-surface-muted" />
             <div class="mt-4 space-y-3">
-              <div v-for="j in 4" :key="j" class="h-8 animate-pulse rounded-lg bg-gray-50" />
+              <div v-for="j in 4" :key="j" class="h-8 animate-pulse rounded-lg bg-surface-subtle" />
             </div>
-          </div>
+          </BaseCard>
         </template>
         <template v-else>
           <SeverityBreakdown :severity="s?.anomaliesBySeverity ?? { low: 0, medium: 0, high: 0, critical: 0 }" />

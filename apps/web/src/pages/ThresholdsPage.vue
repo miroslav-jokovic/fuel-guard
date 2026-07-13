@@ -3,6 +3,12 @@ import { reactive, ref, watch } from "vue";
 import { RULE_IDS, formatRuleId, thresholdsFormSchema, type ThresholdsForm } from "@fuelguard/shared";
 import { useThresholdsQuery, useSaveThresholds } from "@/features/settings/useThresholds";
 import { useToastStore } from "@/stores/toast";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import FormField from "@/components/ui/FormField.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useThresholdsQuery();
 const save = useSaveThresholds();
@@ -69,59 +75,54 @@ const numFields: { key: string; label: string }[] = [
   { key: "cost_min_per_gal", label: "Min $/gal (optional)" },
   { key: "cost_max_per_gal", label: "Max $/gal (optional)" },
 ];
-const input = "mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm";
 </script>
 
 <template>
   <div class="mx-auto max-w-2xl space-y-6">
-    <p class="text-sm text-gray-500">
-      Tune the anomaly engine. Changes apply to future scoring only — they do not rewrite history.
-    </p>
+    <PageHeader description="Tune the anomaly engine. Changes apply to future scoring only — they do not rewrite history." />
 
-    <div v-if="isLoading" class="text-sm text-gray-500">Loading…</div>
+    <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
 
     <form v-else class="space-y-6" @submit.prevent="onSave">
-      <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
-        <h3 class="text-base font-semibold text-gray-900">Thresholds</h3>
-        <div class="mt-4 grid grid-cols-2 gap-4">
-          <div v-for="f in numFields" :key="f.key">
-            <label class="block text-sm font-medium text-gray-900">{{ f.label }}</label>
-            <input v-model="form[f.key]" inputmode="decimal" :class="input" />
-            <p v-if="fieldErr[f.key]" class="mt-1 text-xs text-red-600">{{ fieldErr[f.key] }}</p>
-          </div>
+      <BaseCard as="section">
+        <h3 class="text-base font-semibold text-ink">Thresholds</h3>
+        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField v-for="f in numFields" :key="f.key" :label="f.label" :error="fieldErr[f.key]" v-slot="{ id }">
+            <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="decimal" :invalid="Boolean(fieldErr[f.key])" />
+          </FormField>
         </div>
-      </section>
+      </BaseCard>
 
-      <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
-        <h3 class="text-base font-semibold text-gray-900">Disabled rules</h3>
-        <p class="mt-1 text-xs text-gray-500">Checked rules are turned off (everything else stays on).</p>
-        <div class="mt-3 grid grid-cols-2 gap-2">
-          <label v-for="r in RULE_IDS" :key="r" class="flex items-center gap-2 text-sm text-gray-700">
-            <input v-model="(form.disabled_rules as string[])" type="checkbox" :value="r" class="rounded border-gray-300" />
+      <BaseCard as="section">
+        <h3 class="text-base font-semibold text-ink">Disabled rules</h3>
+        <p class="mt-1 text-xs text-ink-muted">Checked rules are turned off (everything else stays on).</p>
+        <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label v-for="r in RULE_IDS" :key="r" class="flex items-center gap-2 text-sm text-ink-secondary">
+            <input v-model="(form.disabled_rules as string[])" type="checkbox" :value="r" class="size-4 rounded border-edge-strong accent-brand-600" />
             <span>
-              <span class="block text-sm text-gray-800">{{ formatRuleId(r) }}</span>
-              <span class="block font-mono text-xs text-gray-400">{{ r }}</span>
+              <span class="block text-sm text-ink-secondary">{{ formatRuleId(r) }}</span>
+              <span class="block font-mono text-xs text-ink-subtle">{{ r }}</span>
             </span>
           </label>
         </div>
-      </section>
+      </BaseCard>
 
-      <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
-        <h3 class="text-base font-semibold text-gray-900">AI verification</h3>
-        <label class="mt-3 flex items-center gap-2 text-sm text-gray-700">
-          <input v-model="form.ai_verification_enabled" type="checkbox" class="rounded border-gray-300" />
-          Enable Claude AI verification on flagged transactions
-        </label>
-        <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-900">Monthly token budget (optional)</label>
-          <input v-model="form.ai_monthly_token_budget" inputmode="numeric" class="mt-1 max-w-xs rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset sm:text-sm" />
+      <BaseCard as="section">
+        <h3 class="text-base font-semibold text-ink">AI verification</h3>
+        <div class="mt-3">
+          <BaseCheckbox v-model="(form.ai_verification_enabled as boolean)">
+            Enable Claude AI verification on flagged transactions
+          </BaseCheckbox>
         </div>
-      </section>
+        <FormField class="mt-4 max-w-xs" label="Monthly token budget (optional)" v-slot="{ id }">
+          <BaseInput :id="id" v-model="(form.ai_monthly_token_budget as string)" inputmode="numeric" />
+        </FormField>
+      </BaseCard>
 
       <div class="flex items-center gap-3">
-        <button type="submit" :disabled="save.isPending.value" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50">
+        <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
           {{ save.isPending.value ? "Saving…" : "Save thresholds" }}
-        </button>
+        </BaseButton>
       </div>
     </form>
   </div>

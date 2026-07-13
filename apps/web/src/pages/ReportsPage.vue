@@ -5,6 +5,9 @@ import { ArrowDownTrayIcon } from "@heroicons/vue/24/outline";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import AppSelect from "@/components/AppSelect.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import DataTable from "@/components/ui/DataTable.vue";
 import { apiFetch } from "@/lib/api";
 import type { DetectionMetrics, RecallMetrics } from "@fuelguard/shared";
 import { useToastStore } from "@/stores/toast";
@@ -64,7 +67,7 @@ async function loadAccuracy() {
 }
 const accTop = computed(() => acc.value.filter((r) => r.checked > 0).slice(0, 10));
 const accTone = (pct: number | null) =>
-  pct == null ? "text-gray-400" : pct >= 90 ? "text-green-700" : pct >= 70 ? "text-amber-700" : "text-red-700";
+  pct == null ? "text-ink-subtle" : pct >= 90 ? "text-success-700" : pct >= 70 ? "text-warning-700" : "text-danger-700";
 
 watch([from, to, by], loadAccuracy);
 onMounted(loadAccuracy);
@@ -90,7 +93,7 @@ async function loadRecall() {
 onMounted(loadRecall);
 const precisionTone = computed(() => {
   const p = metrics.value?.precision;
-  return p == null ? "text-gray-400" : p >= 0.9 ? "text-green-700" : p >= 0.75 ? "text-amber-700" : "text-red-700";
+  return p == null ? "text-ink-subtle" : p >= 0.9 ? "text-success-700" : p >= 0.75 ? "text-warning-700" : "text-danger-700";
 });
 
 const sendingDigest = ref(false);
@@ -107,169 +110,154 @@ async function sendDigest() {
 <template>
   <div class="space-y-6">
     <!-- Detection accuracy — the measured trust metric -->
-    <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
+    <BaseCard>
       <div class="flex items-start justify-between">
         <div>
-          <h2 class="text-sm font-semibold text-gray-900">Detection accuracy <span class="font-normal text-gray-400">(all-time)</span></h2>
-          <p class="text-sm text-gray-500">Measured from reviewer outcomes — precision is how often a raised case was a real issue.</p>
+          <h2 class="text-sm font-semibold text-ink">Detection accuracy <span class="font-normal text-ink-subtle">(all-time)</span></h2>
+          <p class="text-sm text-ink-muted">Measured from reviewer outcomes — precision is how often a raised case was a real issue.</p>
         </div>
       </div>
 
-      <div v-if="metricsLoading" class="mt-4 text-sm text-gray-400">Loading…</div>
+      <div v-if="metricsLoading" class="mt-4 text-sm text-ink-subtle">Loading…</div>
       <template v-else-if="metrics && metrics.decided > 0">
         <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Precision</dt>
+            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Precision</dt>
             <dd class="mt-1 text-2xl font-bold" :class="precisionTone">{{ pct(metrics.precision) }}</dd>
-            <dd class="mt-0.5 text-xs text-gray-400">95% CI {{ pct(metrics.precisionCiLow) }}–{{ pct(metrics.precisionCiHigh) }}</dd>
+            <dd class="mt-0.5 text-xs text-ink-subtle">95% CI {{ pct(metrics.precisionCiLow) }}–{{ pct(metrics.precisionCiHigh) }}</dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Non-issue rate</dt>
-            <dd class="mt-1 text-2xl font-bold text-gray-900">{{ pct(metrics.nonIssueRate) }}</dd>
-            <dd class="mt-0.5 text-xs text-gray-400">false alarms + legitimate, explained</dd>
+            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Non-issue rate</dt>
+            <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.nonIssueRate) }}</dd>
+            <dd class="mt-0.5 text-xs text-ink-subtle">false alarms + legitimate, explained</dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Reviewed</dt>
-            <dd class="mt-1 text-2xl font-bold text-gray-900">{{ metrics.decided.toLocaleString() }}<span class="text-base font-normal text-gray-400"> cases</span></dd>
-            <dd class="mt-0.5 text-xs text-gray-400">{{ metrics.confirmed }} confirmed · {{ metrics.inconclusive }} inconclusive</dd>
+            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Reviewed</dt>
+            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.decided.toLocaleString() }}<span class="text-base font-normal text-ink-subtle"> cases</span></dd>
+            <dd class="mt-0.5 text-xs text-ink-subtle">{{ metrics.confirmed }} confirmed · {{ metrics.inconclusive }} inconclusive</dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Awaiting review</dt>
-            <dd class="mt-1 text-2xl font-bold text-gray-900">{{ metrics.pending.toLocaleString() }}</dd>
-            <dd class="mt-0.5 text-xs text-gray-400">label these to sharpen the number</dd>
+            <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Awaiting review</dt>
+            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.pending.toLocaleString() }}</dd>
+            <dd class="mt-0.5 text-xs text-ink-subtle">label these to sharpen the number</dd>
           </div>
         </div>
 
         <div v-if="metrics.perLeadRule.length" class="mt-5">
-          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Precision by lead signal</p>
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 text-sm">
-              <thead class="text-left text-gray-500">
-                <tr>
-                  <th class="py-2 pr-4 font-medium">Signal</th>
-                  <th class="py-2 pr-4 font-medium text-right">Reviewed</th>
-                  <th class="py-2 pr-4 font-medium text-right">Confirmed</th>
-                  <th class="py-2 font-medium text-right">Precision</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100">
-                <tr v-for="r in metrics.perLeadRule" :key="r.ruleId">
-                  <td class="py-2 pr-4 text-gray-900">{{ r.label }}</td>
-                  <td class="py-2 pr-4 text-right text-gray-700">{{ r.decided }}</td>
-                  <td class="py-2 pr-4 text-right text-gray-700">{{ r.confirmed }}</td>
-                  <td class="py-2 text-right font-medium" :class="r.precision == null ? 'text-gray-400' : r.precision >= 0.9 ? 'text-green-700' : r.precision >= 0.75 ? 'text-amber-700' : 'text-red-700'">{{ pct(r.precision) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Precision by lead signal</p>
+          <DataTable :empty="metrics.perLeadRule.length === 0">
+            <template #head>
+              <tr>
+                <th class="px-6 py-3 font-medium">Signal</th>
+                <th class="px-6 py-3 font-medium text-right">Reviewed</th>
+                <th class="px-6 py-3 font-medium text-right">Confirmed</th>
+                <th class="px-6 py-3 font-medium text-right">Precision</th>
+              </tr>
+            </template>
+            <tr v-for="r in metrics.perLeadRule" :key="r.ruleId" class="hover:bg-surface-subtle">
+              <td class="px-6 py-3 text-ink">{{ r.label }}</td>
+              <td class="px-6 py-3 text-right text-ink-secondary">{{ r.decided }}</td>
+              <td class="px-6 py-3 text-right text-ink-secondary">{{ r.confirmed }}</td>
+              <td class="px-6 py-3 text-right font-medium" :class="r.precision == null ? 'text-ink-subtle' : r.precision >= 0.9 ? 'text-success-700' : r.precision >= 0.75 ? 'text-warning-700' : 'text-danger-700'">{{ pct(r.precision) }}</td>
+            </tr>
+          </DataTable>
         </div>
-        <div class="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-gray-100 pt-3 text-sm">
-          <span class="text-gray-500">Estimated recall:</span>
+        <div class="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-edge-subtle pt-3 text-sm">
+          <span class="text-ink-muted">Estimated recall:</span>
           <template v-if="recall && recall.audited > 0">
-            <span class="font-semibold text-gray-900">{{ pct(recall.estimatedRecall) }}</span>
-            <span class="text-xs text-gray-400">(range {{ pct(recall.recallLow) }}–{{ pct(recall.recallHigh) }}, from {{ recall.audited }} audits)</span>
+            <span class="font-semibold text-ink">{{ pct(recall.estimatedRecall) }}</span>
+            <span class="text-xs text-ink-subtle">(range {{ pct(recall.recallLow) }}–{{ pct(recall.recallHigh) }}, from {{ recall.audited }} audits)</span>
           </template>
-          <span v-else class="text-gray-400">not yet audited</span>
-          <RouterLink to="/recall-audit" class="ml-auto text-xs font-medium text-indigo-600 hover:text-indigo-500">Review cleared fills →</RouterLink>
+          <span v-else class="text-ink-subtle">not yet audited</span>
+          <RouterLink to="/recall-audit" class="ml-auto text-xs font-medium text-brand-600 hover:text-brand-500">Review cleared fills →</RouterLink>
         </div>
-        <p class="mt-3 text-xs text-gray-400">
+        <p class="mt-3 text-xs text-ink-subtle">
           Precision and recall are both measured, not asserted — intervals widen on small samples. Recall is
           estimated from a random audit of cleared, telematics-covered fills.
         </p>
       </template>
-      <p v-else class="mt-4 text-sm text-gray-500">
+      <p v-else class="mt-4 text-sm text-ink-muted">
         No reviewed cases yet. Resolve or dismiss cases in the Anomalies queue and record an outcome —
         once you've labeled a few, your measured precision appears here.
       </p>
-    </div>
+    </BaseCard>
 
-    <div class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+    <BaseCard padding="sm">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 class="text-sm font-semibold text-gray-900">Report period</h2>
-          <p class="text-sm text-gray-500">{{ rangeLabel }}</p>
+          <h2 class="text-sm font-semibold text-ink">Report period</h2>
+          <p class="text-sm text-ink-muted">{{ rangeLabel }}</p>
         </div>
         <DateRangeFilter v-model:from="from" v-model:to="to" />
       </div>
-    </div>
+    </BaseCard>
 
-    <div class="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200 sm:flex-row sm:items-center sm:justify-between">
+    <BaseCard padding="sm" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h2 class="text-sm font-semibold text-gray-900">Weekly theft digest</h2>
-        <p class="text-sm text-gray-500">An AI summary of the week's risks, emailed to your notification recipients. Sends automatically each week — or send one now.</p>
+        <h2 class="text-sm font-semibold text-ink">Weekly theft digest</h2>
+        <p class="text-sm text-ink-muted">An AI summary of the week's risks, emailed to your notification recipients. Sends automatically each week — or send one now.</p>
       </div>
-      <button
-        :disabled="sendingDigest"
-        class="shrink-0 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
-        @click="sendDigest"
-      >
+      <BaseButton variant="primary" class="shrink-0" :disabled="sendingDigest" @click="sendDigest">
         {{ sendingDigest ? "Sending…" : "Send digest now" }}
-      </button>
-    </div>
+      </BaseButton>
+    </BaseCard>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div v-for="r in reports" :key="r.key" class="flex flex-col rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
-        <h3 class="text-sm font-semibold text-gray-900">{{ r.name }}</h3>
-        <p class="mt-1 flex-1 text-sm text-gray-500">{{ r.desc }}</p>
-        <button
-          :disabled="busy === r.key"
-          class="mt-4 inline-flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
-          @click="run(r.path, r.file, r.key)"
-        >
+      <BaseCard v-for="r in reports" :key="r.key" class="flex flex-col">
+        <h3 class="text-sm font-semibold text-ink">{{ r.name }}</h3>
+        <p class="mt-1 flex-1 text-sm text-ink-muted">{{ r.desc }}</p>
+        <BaseButton variant="primary" class="mt-4" :disabled="busy === r.key" @click="run(r.path, r.file, r.key)">
           <ArrowDownTrayIcon class="size-4" /> {{ busy === r.key ? "Preparing…" : "Download" }}
-        </button>
-      </div>
+        </BaseButton>
+      </BaseCard>
     </div>
 
     <!-- Odometer accuracy -->
-    <div class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div class="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="space-y-3">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 class="text-sm font-semibold text-gray-900">Odometer accuracy</h3>
-          <p class="text-sm text-gray-500">Driver-entered odometer vs. Samsara reading. See <RouterLink to="/odometer" class="font-medium text-indigo-600 hover:text-indigo-500">Odometer Mismatches</RouterLink> for the fill-by-fill list.</p>
+          <h3 class="text-sm font-semibold text-ink">Odometer accuracy</h3>
+          <p class="text-sm text-ink-muted">Driver-entered odometer vs. Samsara reading. See <RouterLink to="/odometer" class="font-medium text-brand-600 hover:text-brand-500">Odometer Mismatches</RouterLink> for the fill-by-fill list.</p>
         </div>
         <div class="flex items-center gap-2">
           <AppSelect v-model="by" :options="[{ value: 'driver', label: 'By driver' }, { value: 'vehicle', label: 'By vehicle' }]" class="w-36" />
-          <button
+          <BaseButton
+            size="sm"
             :disabled="busy === 'odo'"
-            class="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
             @click="run('/api/reports/odometer-accuracy.csv', 'fuelguard-odometer-accuracy.csv', 'odo', { by })"
           >
             <ArrowDownTrayIcon class="size-4" /> CSV
-          </button>
+          </BaseButton>
         </div>
       </div>
 
-      <div v-if="accLoading" class="px-5 py-8 text-sm text-gray-500">Loading…</div>
-      <div v-else-if="accTop.length === 0" class="px-5 py-8 text-sm text-gray-500">
-        No verifiable odometer data yet (needs Samsara odometer readings). Run a Backfill to populate.
-      </div>
-      <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-          <thead class="text-left text-gray-500">
-            <tr>
-              <th class="px-5 py-3 font-medium">{{ by === "vehicle" ? "Unit" : "Driver" }}</th>
-              <th class="px-5 py-3 font-medium">Fills</th>
-              <th class="px-5 py-3 font-medium">Verifiable</th>
-              <th class="px-5 py-3 font-medium">Off &gt; 5 mi</th>
-              <th class="px-5 py-3 font-medium">Accuracy</th>
-              <th class="px-5 py-3 font-medium">Avg dev</th>
-              <th class="px-5 py-3 font-medium">Max dev</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <tr v-for="r in accTop" :key="r.key">
-              <td class="px-5 py-2.5 font-medium text-gray-900">{{ r.label }}</td>
-              <td class="px-5 py-2.5 text-gray-700">{{ r.fills }}</td>
-              <td class="px-5 py-2.5 text-gray-700">{{ r.checked }}</td>
-              <td class="px-5 py-2.5 text-gray-700">{{ r.mismatches }}</td>
-              <td class="px-5 py-2.5 font-medium" :class="accTone(r.accuracyPct)">{{ r.accuracyPct != null ? `${r.accuracyPct}%` : "—" }}</td>
-              <td class="px-5 py-2.5 text-gray-700">{{ r.avgDeviation != null ? `${r.avgDeviation} mi` : "—" }}</td>
-              <td class="px-5 py-2.5 text-gray-700">{{ r.maxDeviation != null ? `${r.maxDeviation} mi` : "—" }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        :loading="accLoading"
+        :empty="accTop.length === 0"
+        empty-text="No verifiable odometer data yet (needs Samsara odometer readings). Run a Backfill to populate."
+        :skeleton-cols="7"
+      >
+        <template #head>
+          <tr>
+            <th class="px-6 py-3 font-medium">{{ by === "vehicle" ? "Unit" : "Driver" }}</th>
+            <th class="px-6 py-3 font-medium">Fills</th>
+            <th class="px-6 py-3 font-medium">Verifiable</th>
+            <th class="px-6 py-3 font-medium">Off &gt; 5 mi</th>
+            <th class="px-6 py-3 font-medium">Accuracy</th>
+            <th class="px-6 py-3 font-medium">Avg dev</th>
+            <th class="px-6 py-3 font-medium">Max dev</th>
+          </tr>
+        </template>
+        <tr v-for="r in accTop" :key="r.key" class="hover:bg-surface-subtle">
+          <td class="px-6 py-3 font-medium text-ink">{{ r.label }}</td>
+          <td class="px-6 py-3 text-ink-secondary">{{ r.fills }}</td>
+          <td class="px-6 py-3 text-ink-secondary">{{ r.checked }}</td>
+          <td class="px-6 py-3 text-ink-secondary">{{ r.mismatches }}</td>
+          <td class="px-6 py-3 font-medium" :class="accTone(r.accuracyPct)">{{ r.accuracyPct != null ? `${r.accuracyPct}%` : "—" }}</td>
+          <td class="px-6 py-3 text-ink-secondary">{{ r.avgDeviation != null ? `${r.avgDeviation} mi` : "—" }}</td>
+          <td class="px-6 py-3 text-ink-secondary">{{ r.maxDeviation != null ? `${r.maxDeviation} mi` : "—" }}</td>
+        </tr>
+      </DataTable>
     </div>
   </div>
 </template>

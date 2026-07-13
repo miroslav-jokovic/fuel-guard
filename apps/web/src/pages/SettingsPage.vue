@@ -21,14 +21,14 @@ const cards = [
       v-for="c in cards"
       :key="c.to"
       :to="c.to"
-      class="flex items-start gap-4 rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200 hover:ring-indigo-300"
+      class="flex items-start gap-4 rounded-lg bg-surface p-5 shadow-sm ring-1 ring-edge hover:ring-brand-300"
     >
-      <component :is="c.icon" class="size-6 shrink-0 text-indigo-500" aria-hidden="true" />
+      <component :is="c.icon" class="size-6 shrink-0 text-brand-500" aria-hidden="true" />
       <div>
-        <h3 class="text-sm font-semibold text-gray-900">{{ c.name }}</h3>
-        <p class="mt-1 text-sm text-gray-500">{{ c.desc }}</p>
+        <h3 class="text-sm font-semibold text-ink">{{ c.name }}</h3>
+        <p class="mt-1 text-sm text-ink-muted">{{ c.desc }}</p>
       </div>
     </RouterLink>
-    <p v-if="cards.length === 0" class="text-sm text-gray-500">No settings available for your role.</p>
+    <p v-if="cards.length === 0" class="text-sm text-ink-muted">No settings available for your role.</p>
   </div>
 </template>

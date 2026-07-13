@@ -3,6 +3,11 @@ import { reactive, ref, watch } from "vue";
 import { orgSettingsFormSchema, type OrgSettingsForm } from "@fuelguard/shared";
 import { useOrgSettingsQuery, useSaveOrgSettings } from "@/features/settings/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import FormField from "@/components/ui/FormField.vue";
 
 const { data, isLoading } = useOrgSettingsQuery();
 const save = useSaveOrgSettings();
@@ -54,42 +59,43 @@ async function onSave() {
     toast.error("Could not save notifications", e instanceof Error ? e.message : undefined);
   }
 }
-
-const input = "mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm";
 </script>
 
 <template>
   <div class="mx-auto max-w-2xl space-y-6">
-    <div v-if="isLoading" class="text-sm text-gray-500">Loading…</div>
+    <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
     <form v-else class="space-y-6" @submit.prevent="onSave">
-      <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
-        <h3 class="text-base font-semibold text-gray-900">Anomaly alerts</h3>
-        <p class="mt-1 text-xs text-gray-500">
+      <BaseCard as="section">
+        <h3 class="text-base font-semibold text-ink">Anomaly alerts</h3>
+        <p class="mt-1 text-xs text-ink-muted">
           Who gets emailed when the detection engine flags a high or critical anomaly.
         </p>
-        <label class="mt-4 flex items-center gap-2 text-sm text-gray-700">
-          <input v-model="form.notifications_enabled" type="checkbox" class="rounded border-gray-300" />
-          Email recipients when high/critical anomalies are detected
-        </label>
         <div class="mt-4">
-          <label class="block text-sm font-medium text-gray-900">Recipient emails (comma-separated)</label>
-          <input
+          <BaseCheckbox v-model="form.notifications_enabled">
+            Email recipients when high/critical anomalies are detected
+          </BaseCheckbox>
+        </div>
+        <FormField
+          class="mt-4"
+          label="Recipient emails (comma-separated)"
+          :error="fieldErr['notification_emails.0'] || fieldErr['notification_emails'] ? 'One or more emails are invalid.' : undefined"
+          hint="Each address must be a valid email. Leave blank to send to no one."
+          v-slot="{ id }"
+        >
+          <BaseInput
+            :id="id"
             v-model="form.emails"
             :disabled="!form.notifications_enabled"
             placeholder="ops@silvicominc.com, manager@silvicominc.com"
-            :class="[input, !form.notifications_enabled && 'opacity-50']"
+            :invalid="Boolean(fieldErr['notification_emails.0'] || fieldErr['notification_emails'])"
           />
-          <p v-if="fieldErr['notification_emails.0'] || fieldErr['notification_emails']" class="mt-1 text-xs text-red-600">
-            One or more emails are invalid.
-          </p>
-          <p v-else class="mt-1 text-xs text-gray-500">Each address must be a valid email. Leave blank to send to no one.</p>
-        </div>
-      </section>
+        </FormField>
+      </BaseCard>
 
       <div class="flex items-center gap-3">
-        <button type="submit" :disabled="save.isPending.value" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">
+        <BaseButton variant="primary" type="submit" :disabled="save.isPending.value">
           {{ save.isPending.value ? "Saving…" : "Save notifications" }}
-        </button>
+        </BaseButton>
       </div>
     </form>
   </div>

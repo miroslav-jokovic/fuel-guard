@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { RouterLink } from "vue-router";
-import { MagnifyingGlassIcon } from "@heroicons/vue/20/solid";
 import { ANOMALY_SEVERITIES, formatRuleId, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useAnomaliesQuery, useAnomalyTransition, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
@@ -13,9 +11,11 @@ import VehicleSelect from "@/components/VehicleSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import SortableTh from "@/components/SortableTh.vue";
-import TableSkeleton from "@/components/TableSkeleton.vue";
-import ErrorState from "@/components/ErrorState.vue";
+import SearchInput from "@/components/SearchInput.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import DataTable from "@/components/ui/DataTable.vue";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -159,47 +159,48 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
 <template>
   <div class="space-y-6">
     <!-- Filter bar -->
-    <div class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+    <BaseCard padding="sm">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 class="text-sm font-semibold text-gray-900">
+        <h2 class="text-sm font-semibold text-ink">
           Alerts
-          <span class="ml-1 font-normal text-gray-400">· {{ total }}</span>
-          <span v-if="activeFilterCount" class="ml-1 font-normal text-indigo-600">· {{ activeFilterCount }} filter{{ activeFilterCount > 1 ? "s" : "" }}</span>
+          <span class="ml-1 font-normal text-ink-subtle">· {{ total }}</span>
+          <span v-if="activeFilterCount" class="ml-1 font-normal text-brand-600">· {{ activeFilterCount }} filter{{ activeFilterCount > 1 ? "s" : "" }}</span>
         </h2>
         <div class="flex items-center gap-2">
-          <button v-if="activeFilterCount" class="text-sm font-medium text-gray-500 hover:text-gray-700" @click="resetFilters">Clear filters</button>
-          <button
+          <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
+          <BaseButton
             v-if="session.canManage"
+            size="sm"
             :disabled="triaging"
-            class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-indigo-700 ring-1 ring-indigo-300 ring-inset hover:bg-indigo-50 disabled:opacity-50"
             title="Run the AI investigator across open cases and rank them by theft likelihood"
             @click="runTriage"
           >
             {{ triaging ? "Triaging…" : "AI triage" }}
-          </button>
-          <RouterLink
+          </BaseButton>
+          <BaseButton
             v-if="session.canManage"
+            variant="ghost"
+            size="sm"
             to="/settings/data"
-            class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-700"
             title="Rebuild and Re-sync Samsara moved to Settings → Data & Sync (with live progress)"
           >
             Rebuild / Re-sync →
-          </RouterLink>
+          </BaseButton>
         </div>
       </div>
 
       <!-- Tabs: all alerts vs reefer-fueling cases -->
-      <div class="mt-3 flex gap-1 border-b border-gray-200 text-sm">
+      <div class="mt-3 flex gap-1 border-b border-edge text-sm">
         <button
           class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-          :class="!filters.reeferOnly ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          :class="!filters.reeferOnly ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
           @click="filters = { ...filters, reeferOnly: undefined }"
         >
           All alerts
         </button>
         <button
           class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-          :class="filters.reeferOnly ? 'border-cyan-600 text-cyan-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          :class="filters.reeferOnly ? 'border-info-600 text-info-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
           @click="filters = { ...filters, reeferOnly: true }"
         >
           Reefer fueling
@@ -207,14 +208,8 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
       </div>
 
       <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="relative sm:col-span-2 lg:col-span-1">
-          <MagnifyingGlassIcon class="pointer-events-none absolute top-2.5 left-2.5 size-4 text-gray-400" />
-          <input
-            v-model="search"
-            type="search"
-            placeholder="Search message or vehicle…"
-            class="w-full rounded-md border-0 py-1.5 pr-3 pl-8 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600"
-          />
+        <div class="sm:col-span-2 lg:col-span-1">
+          <SearchInput v-model="search" placeholder="Search message or vehicle…" />
         </div>
         <AppSelect
           v-model="filters.status"
@@ -238,84 +233,85 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
       <div class="mt-2">
         <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
       </div>
-    </div>
+    </BaseCard>
 
     <!-- Bulk action bar -->
     <div
       v-if="selectedCount > 0"
-      class="flex flex-col gap-2 rounded-lg bg-indigo-50 px-4 py-3 ring-1 ring-indigo-200 sm:flex-row sm:items-center sm:justify-between"
+      class="flex flex-col gap-2 rounded-lg bg-brand-50 px-4 py-3 ring-1 ring-brand-200 sm:flex-row sm:items-center sm:justify-between"
     >
-      <span class="text-sm font-medium text-indigo-900">{{ selectedCount }} selected</span>
+      <span class="text-sm font-medium text-brand-900">{{ selectedCount }} selected</span>
       <div class="flex flex-wrap gap-2">
-        <button :disabled="busy" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkTransition('investigating')">Investigate</button>
-        <button :disabled="busy" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?')">False alarm</button>
-        <button :disabled="busy" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkTransition('resolved', undefined, 'Resolve {n} alerts?')">Resolve</button>
-        <button :disabled="busy" class="text-sm font-medium text-gray-500 hover:text-gray-700" @click="selectedIds = new Set()">Clear</button>
+        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
+        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?')">False alarm</BaseButton>
+        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', undefined, 'Resolve {n} alerts?')">Resolve</BaseButton>
+        <BaseButton variant="ghost" size="sm" @click="selectedIds = new Set()">Clear</BaseButton>
       </div>
     </div>
 
     <!-- Table -->
-    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="8" />
-      <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load anomalies'" :retrying="isFetching" @retry="refetch" />
-      <div v-else-if="total === 0" class="px-6 py-10 text-center text-sm text-gray-500">Nothing here — no alerts match these filters.</div>
-      <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-          <thead class="bg-gray-50 text-left text-gray-500">
-            <tr>
-              <th class="w-10 px-4 py-3">
-                <input v-if="session.canManage" type="checkbox" :checked="allChecked" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" @change="toggleAll" />
-              </th>
-              <SortableTh label="Severity" sort-key="severity" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-              <SortableTh label="Type" sort-key="type" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[10rem]" @sort="onSort" />
-              <SortableTh label="Vehicle" sort-key="vehicle" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-              <SortableTh label="AI" sort-key="ai" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[10rem]" @sort="onSort" />
-              <th class="px-4 py-3 font-medium min-w-[18rem]">Detail</th>
-              <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[8rem]" @sort="onSort" />
-              <SortableTh label="When" sort-key="when" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[8rem]" @sort="onSort" />
-              <th class="px-4 py-3 w-12"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <tr v-for="a in pageRows" :key="a.id" class="cursor-pointer hover:bg-gray-50" @click="selectedRow = a">
-              <td class="px-4 py-3" @click.stop>
-                <input
-                  v-if="session.canManage && isActionable(a)"
-                  type="checkbox"
-                  :checked="selectedIds.has(a.id)"
-                  class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  @change="toggleRow(a.id)"
-                />
-              </td>
-              <td class="px-4 py-3"><span :class="[BADGE_BASE, severityTone(a.severity)]">{{ a.severity }}</span></td>
-              <td class="px-4 py-3 text-gray-700">{{ formatRuleId(a.rule_id) }}</td>
-              <td class="px-4 py-3 text-gray-900">{{ unit(a.vehicle_id) }}</td>
-              <td class="px-4 py-3">
-                <div v-if="ai(a)" class="flex items-center gap-1.5">
-                  <span :class="[BADGE_BASE, severityTone(ai(a)!.risk_level)]" :title="`AI risk ${ai(a)!.risk_score}/100`">{{ ai(a)!.risk_level }}</span>
-                  <span v-if="isLikelyFalseAlarm(a)" class="text-xs text-gray-400">likely false alarm</span>
-                  <span v-else class="text-xs text-gray-500">{{ ACTION_LABEL[ai(a)!.recommended_action] ?? ai(a)!.recommended_action }}</span>
-                </div>
-                <span v-else class="text-xs text-gray-300">—</span>
-              </td>
-              <td class="max-w-md truncate px-4 py-3 text-gray-700">{{ a.message }}</td>
-              <td class="px-4 py-3"><span :class="[BADGE_BASE, statusTone(a.status)]">{{ a.status }}</span></td>
-              <td class="px-4 py-3 whitespace-nowrap text-gray-500" :title="`Detected ${fmt(a.created_at)}`">{{ fmt(a.fueled_at ?? a.created_at) }}</td>
-              <td class="px-4 py-3 text-right" @click.stop>
-                <KebabMenu v-if="session.canManage && isActionable(a)">
-                  <button class="kebab-item" @click="selectedRow = a">Review details</button>
-                  <button v-if="a.status === 'open'" class="kebab-item" @click="rowAction(a, 'investigating')">Start investigating</button>
-                  <button class="kebab-item" @click="rowAction(a, 'resolved')">Resolve</button>
-                  <button class="kebab-item kebab-item-danger" @click="rowAction(a, 'dismissed', 'False alarm')">False alarm</button>
-                </KebabMenu>
-                <button v-else class="text-sm font-medium text-indigo-600 hover:text-indigo-500" @click="selectedRow = a">Review</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <TablePagination v-if="!isLoading && !isError && total > 0" :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />
-    </div>
+    <DataTable
+      :loading="isLoading"
+      :error="isError ? (error instanceof Error ? error.message : 'Failed to load anomalies') : null"
+      :retrying="isFetching"
+      :empty="total === 0"
+      empty-text="Nothing here — no alerts match these filters."
+      :skeleton-cols="8"
+      @retry="refetch"
+    >
+      <template #head>
+        <tr>
+          <th class="w-10 px-6 py-3">
+            <input v-if="session.canManage" type="checkbox" :checked="allChecked" class="size-4 rounded border-edge-strong accent-brand-600" @change="toggleAll" />
+          </th>
+          <SortableTh label="Severity" sort-key="severity" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
+          <SortableTh label="Type" sort-key="type" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[10rem]" @sort="onSort" />
+          <SortableTh label="Vehicle" sort-key="vehicle" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
+          <SortableTh label="AI" sort-key="ai" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[10rem]" @sort="onSort" />
+          <th class="px-6 py-3 font-medium min-w-[18rem]">Detail</th>
+          <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem]" @sort="onSort" />
+          <SortableTh label="When" sort-key="when" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem]" @sort="onSort" />
+          <th class="w-12 px-6 py-3"></th>
+        </tr>
+      </template>
+      <tr v-for="a in pageRows" :key="a.id" class="cursor-pointer hover:bg-surface-subtle" @click="selectedRow = a">
+        <td class="px-6 py-3" @click.stop>
+          <input
+            v-if="session.canManage && isActionable(a)"
+            type="checkbox"
+            :checked="selectedIds.has(a.id)"
+            class="size-4 rounded border-edge-strong accent-brand-600"
+            @change="toggleRow(a.id)"
+          />
+        </td>
+        <td class="px-6 py-3"><span :class="[BADGE_BASE, severityTone(a.severity)]">{{ a.severity }}</span></td>
+        <td class="px-6 py-3 text-ink-secondary">{{ formatRuleId(a.rule_id) }}</td>
+        <td class="px-6 py-3 text-ink">{{ unit(a.vehicle_id) }}</td>
+        <td class="px-6 py-3">
+          <div v-if="ai(a)" class="flex items-center gap-1.5">
+            <span :class="[BADGE_BASE, severityTone(ai(a)!.risk_level)]" :title="`AI risk ${ai(a)!.risk_score}/100`">{{ ai(a)!.risk_level }}</span>
+            <span v-if="isLikelyFalseAlarm(a)" class="text-xs text-ink-subtle">likely false alarm</span>
+            <span v-else class="text-xs text-ink-muted">{{ ACTION_LABEL[ai(a)!.recommended_action] ?? ai(a)!.recommended_action }}</span>
+          </div>
+          <span v-else class="text-xs text-ink-subtle">—</span>
+        </td>
+        <td class="max-w-md truncate px-6 py-3 text-ink-secondary">{{ a.message }}</td>
+        <td class="px-6 py-3"><span :class="[BADGE_BASE, statusTone(a.status)]">{{ a.status }}</span></td>
+        <td class="px-6 py-3 text-ink-muted" :title="`Detected ${fmt(a.created_at)}`">{{ fmt(a.fueled_at ?? a.created_at) }}</td>
+        <td class="px-6 py-3 text-right" @click.stop>
+          <KebabMenu v-if="session.canManage && isActionable(a)">
+            <button class="kebab-item" @click="selectedRow = a">Review details</button>
+            <button v-if="a.status === 'open'" class="kebab-item" @click="rowAction(a, 'investigating')">Start investigating</button>
+            <button class="kebab-item" @click="rowAction(a, 'resolved')">Resolve</button>
+            <button class="kebab-item kebab-item-danger" @click="rowAction(a, 'dismissed', 'False alarm')">False alarm</button>
+          </KebabMenu>
+          <button v-else class="text-sm font-medium text-brand-600 hover:text-brand-500" @click="selectedRow = a">Review</button>
+        </td>
+      </tr>
+      <template #footer>
+        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />
+      </template>
+    </DataTable>
 
     <SlideOver :open="!!selectedRow" title="Alert" @close="selectedRow = null">
       <AnomalyDetail v-if="selectedRow" :anomaly="selectedRow" :vehicle-unit="unit(selectedRow.vehicle_id)" @changed="selectedRow = null" />

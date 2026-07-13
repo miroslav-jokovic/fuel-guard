@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { FunctionalComponent } from "vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
 import SparkLine from "@/components/SparkLine.vue";
+import { viz } from "./chartTheme";
 
 defineProps<{
   label: string;
@@ -10,7 +12,7 @@ defineProps<{
   valueTitle?: string;
   sub?: string;
   icon: FunctionalComponent;
-  /** Tailwind classes for the icon chip, e.g. "text-emerald-600 bg-emerald-50". */
+  /** Tailwind classes for the icon chip, e.g. "text-success-600 bg-success-50". */
   tone: string;
   /** Optional 30-point trend; nulls render as gaps. */
   spark?: (number | null)[];
@@ -20,19 +22,19 @@ defineProps<{
 </script>
 
 <template>
-  <div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
+  <BaseCard>
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0">
-        <p class="truncate text-sm font-medium text-gray-500">{{ label }}</p>
+        <p class="truncate text-sm font-medium text-ink-muted">{{ label }}</p>
         <template v-if="loading">
-          <div class="mt-2.5 h-8 w-24 animate-pulse rounded-md bg-gray-100" />
-          <div class="mt-2 h-3 w-16 animate-pulse rounded bg-gray-100" />
+          <div class="mt-2.5 h-8 w-24 animate-pulse rounded-md bg-surface-muted" />
+          <div class="mt-2 h-3 w-16 animate-pulse rounded bg-surface-muted" />
         </template>
         <template v-else>
-          <p class="mt-1.5 text-3xl font-semibold tracking-tight text-gray-900" :title="valueTitle">
+          <p class="mt-1.5 text-3xl font-semibold tracking-tight text-ink" :title="valueTitle">
             {{ value }}
           </p>
-          <p v-if="sub" class="mt-1 text-xs text-gray-400">{{ sub }}</p>
+          <p v-if="sub" class="mt-1 text-xs text-ink-subtle">{{ sub }}</p>
         </template>
       </div>
       <span
@@ -43,7 +45,7 @@ defineProps<{
       </span>
     </div>
     <div v-if="spark && !loading" class="mt-3">
-      <SparkLine :points="spark" :color="sparkColor ?? '#4f46e5'" />
+      <SparkLine :points="spark" :color="sparkColor ?? viz.brand" />
     </div>
-  </div>
+  </BaseCard>
 </template>

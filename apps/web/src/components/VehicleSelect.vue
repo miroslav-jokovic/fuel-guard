@@ -99,14 +99,14 @@ watch(
   <div ref="triggerRef" class="relative min-w-[10rem]">
     <!-- Trigger / input wrapper -->
     <div
-      class="flex w-full items-center gap-1.5 rounded-md border-0 bg-white px-2.5 py-1.5 text-sm ring-1 ring-inset transition-shadow"
+      class="flex w-full items-center gap-1.5 rounded-md border-0 bg-surface px-2.5 py-1.5 text-sm ring-1 ring-inset transition-shadow"
       :class="[
-        open ? 'ring-2 ring-indigo-600' : 'ring-gray-300',
+        open ? 'ring-2 ring-brand-600' : 'ring-edge-strong',
         disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
       ]"
       @click="openDropdown"
     >
-      <TruckIcon class="size-4 shrink-0 text-gray-400" />
+      <TruckIcon class="size-4 shrink-0 text-ink-subtle" />
 
       <input
         v-if="open"
@@ -114,14 +114,14 @@ watch(
         v-model="search"
         type="text"
         :placeholder="placeholder"
-        class="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
+        class="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
         @keydown="onInputKeydown"
         @click.stop
       />
       <span
         v-else
         class="min-w-0 flex-1 truncate text-sm"
-        :class="isUnset ? 'text-gray-400' : 'text-gray-900'"
+        :class="isUnset ? 'text-ink-subtle' : 'text-ink'"
       >
         {{ isUnset ? placeholder : selectedVehicle?.unit_number }}
       </span>
@@ -129,13 +129,13 @@ watch(
       <button
         v-if="!isUnset && !open"
         type="button"
-        class="ml-auto shrink-0 text-gray-400 hover:text-gray-600"
+        class="ml-auto shrink-0 text-ink-subtle hover:text-ink-secondary"
         aria-label="Clear vehicle filter"
         @click="clear"
       >
         <XMarkIcon class="size-4" />
       </button>
-      <ChevronUpDownIcon v-else class="ml-auto size-4 shrink-0 text-gray-400" />
+      <ChevronUpDownIcon v-else class="ml-auto size-4 shrink-0 text-ink-subtle" />
     </div>
 
     <!-- Dropdown -->
@@ -145,25 +145,25 @@ watch(
         <div
           ref="panelRef"
           :style="floatingStyles"
-          class="z-[9999] overflow-hidden rounded-md bg-white shadow-lg ring-1 ring-black/5"
+          class="z-[9999] overflow-hidden rounded-md bg-surface shadow-lg ring-1 ring-edge"
         >
           <!-- "All vehicles" option -->
           <button
             type="button"
             class="flex w-full items-center px-3 py-2 text-left text-sm"
-            :class="isUnset ? 'bg-indigo-50 font-medium text-indigo-700' : 'text-gray-500 hover:bg-gray-50'"
+            :class="isUnset ? 'bg-brand-50 font-medium text-brand-700' : 'text-ink-muted hover:bg-surface-subtle'"
             @click="select(undefined)"
           >
             <CheckIcon
-              class="mr-2 size-4 shrink-0 text-indigo-600 transition-opacity"
+              class="mr-2 size-4 shrink-0 text-brand-600 transition-opacity"
               :class="isUnset ? 'opacity-100' : 'opacity-0'"
             />
             All vehicles
           </button>
 
-          <div class="max-h-56 overflow-y-auto border-t border-gray-100">
+          <div class="max-h-56 overflow-y-auto border-t border-edge-subtle">
             <!-- No results -->
-            <p v-if="filteredVehicles.length === 0" class="px-3 py-2 text-sm text-gray-400 italic">
+            <p v-if="filteredVehicles.length === 0" class="px-3 py-2 text-sm text-ink-subtle italic">
               No vehicles match "{{ search }}"
             </p>
 
@@ -174,17 +174,17 @@ watch(
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
               :class="
                 v.id === modelValue
-                  ? 'bg-indigo-50 font-medium text-indigo-700'
-                  : 'text-gray-900 hover:bg-gray-50'
+                  ? 'bg-brand-50 font-medium text-brand-700'
+                  : 'text-ink hover:bg-surface-subtle'
               "
               @click="select(v.id)"
             >
               <CheckIcon
-                class="size-4 shrink-0 text-indigo-600 transition-opacity"
+                class="size-4 shrink-0 text-brand-600 transition-opacity"
                 :class="v.id === modelValue ? 'opacity-100' : 'opacity-0'"
               />
               <span class="font-medium">{{ v.unit_number }}</span>
-              <span v-if="v.make || v.model" class="truncate text-xs text-gray-400">
+              <span v-if="v.make || v.model" class="truncate text-xs text-ink-subtle">
                 {{ [v.year, v.make, v.model].filter(Boolean).join(" ") }}
               </span>
             </button>

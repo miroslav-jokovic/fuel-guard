@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { MagnifyingGlassIcon } from "@heroicons/vue/20/solid";
 import { USER_ROLES, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import AppSelect from "@/components/AppSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import SearchInput from "@/components/SearchInput.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import FormField from "@/components/ui/FormField.vue";
 import { BADGE_BASE, inviteTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
@@ -148,25 +153,25 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="space-y-8">
-    <section class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
+  <div class="space-y-6">
+    <BaseCard as="section">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 class="text-base font-semibold text-gray-900">Invite a user</h3>
-          <p class="mt-1 text-sm text-gray-500">Only addresses on your organization's allowed domain can be invited.</p>
+          <h3 class="text-base font-semibold text-ink">Invite a user</h3>
+          <p class="mt-1 text-sm text-ink-muted">Only addresses on your organization's allowed domain can be invited.</p>
         </div>
-        <button
+        <BaseButton
+          size="sm"
           :disabled="testing"
-          class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
           title="Send a test email to your own address to verify the mail setup"
           @click="sendMailTest"
         >
           {{ testing ? "Testing…" : "Send test email" }}
-        </button>
+        </BaseButton>
       </div>
       <div
         v-if="mailTest"
-        :class="['mt-3 rounded-md p-3 text-sm ring-1', mailTest.ok ? 'bg-green-50 text-green-800 ring-green-200' : 'bg-red-50 text-red-800 ring-red-200']"
+        :class="['mt-3 rounded-md p-3 text-sm ring-1', mailTest.ok ? 'bg-success-50 text-success-800 ring-success-200' : 'bg-danger-50 text-danger-800 ring-danger-200']"
       >
         <p v-if="mailTest.ok">Sent via {{ mailTest.provider }} to {{ mailTest.to }} — check your inbox.</p>
         <p v-else>
@@ -176,131 +181,101 @@ onMounted(load);
         </p>
       </div>
       <form class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end" @submit.prevent="invite">
-        <div class="flex-1">
-          <label for="inv-email" class="block text-sm font-medium text-gray-900">Email</label>
-          <input
-            id="inv-email"
+        <FormField label="Email" class="flex-1" v-slot="{ id }">
+          <BaseInput
+            :id="id"
             v-model="email"
             type="email"
             required
             placeholder="name@silvicominc.com"
-            class="mt-2 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm"
           />
-        </div>
-        <div>
-          <label for="inv-role" class="block text-sm font-medium text-gray-900">Role</label>
+        </FormField>
+        <FormField label="Role">
           <AppSelect
             v-model="role"
-            class="mt-2"
             :options="USER_ROLES.map((r) => ({ value: r, label: r }))"
           />
-        </div>
-        <button
-          type="submit"
-          :disabled="submitting"
-          class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-        >
+        </FormField>
+        <BaseButton variant="primary" type="submit" :disabled="submitting">
           {{ submitting ? "Sending…" : "Send invite" }}
-        </button>
+        </BaseButton>
       </form>
-    </section>
+    </BaseCard>
 
-    <section class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div class="flex flex-col gap-3 border-b border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <h3 class="text-base font-semibold text-gray-900">Active members</h3>
-        <div class="relative">
-          <MagnifyingGlassIcon class="pointer-events-none absolute top-2.5 left-2.5 size-4 text-gray-400" />
-          <input
-            v-model="search"
-            type="search"
-            placeholder="Search members…"
-            class="w-full rounded-md border-0 py-1.5 pr-3 pl-8 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:w-64"
-          />
+    <section class="space-y-3">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h3 class="text-base font-semibold text-ink">Active members</h3>
+        <div class="w-full sm:w-64">
+          <SearchInput v-model="search" placeholder="Search members…" />
         </div>
       </div>
 
-      <div v-if="selectedIds.size > 0" class="flex items-center justify-between bg-indigo-50 px-6 py-2.5 text-sm">
-        <span class="font-medium text-indigo-900">{{ selectedIds.size }} selected</span>
+      <div v-if="selectedIds.size > 0" class="flex items-center justify-between rounded-lg bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-100">
+        <span class="font-medium text-brand-800">{{ selectedIds.size }} selected</span>
         <div class="flex items-center gap-3">
-          <button :disabled="bulkBusy" class="font-medium text-red-600 hover:text-red-500 disabled:opacity-50" @click="bulkRemove">Remove</button>
-          <button class="font-medium text-gray-500 hover:text-gray-700" @click="selectedIds = new Set()">Clear</button>
+          <button :disabled="bulkBusy" class="font-medium text-danger-600 hover:text-danger-500 disabled:opacity-50" @click="bulkRemove">Remove</button>
+          <button class="font-medium text-ink-muted hover:text-ink-secondary" @click="selectedIds = new Set()">Clear</button>
         </div>
       </div>
 
-      <div v-if="loading" class="px-6 py-8 text-sm text-gray-500">Loading…</div>
-      <p v-else-if="filteredMembers.length === 0" class="px-6 py-8 text-sm text-gray-500">No members match.</p>
-      <div v-else class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="bg-gray-50 text-left text-gray-500">
+      <DataTable :loading="loading" :empty="filteredMembers.length === 0" empty-text="No members match." :skeleton-cols="5">
+        <template #head>
           <tr>
             <th class="w-10 px-4 py-3">
-              <input type="checkbox" :checked="allChecked" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" @change="toggleAll" />
+              <input type="checkbox" :checked="allChecked" class="size-4 rounded border-edge-strong accent-brand-600" @change="toggleAll" />
             </th>
             <th class="px-4 py-3 font-medium min-w-[14rem]">Email</th>
             <th class="px-4 py-3 font-medium min-w-[7rem]">Role</th>
             <th class="px-4 py-3 font-medium min-w-[8rem]">Joined</th>
             <th class="px-4 py-3 w-12"></th>
           </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-for="m in filteredMembers" :key="m.userId" class="hover:bg-gray-50">
-            <td class="px-4 py-3">
-              <input
-                v-if="m.userId !== session.userId"
-                type="checkbox"
-                :checked="selectedIds.has(m.userId)"
-                class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                @change="toggleRow(m.userId)"
-              />
-            </td>
-            <td class="px-4 py-3 text-gray-900">{{ m.email ?? m.userId }}</td>
-            <td class="px-4 py-3 text-gray-700 capitalize">{{ m.role }}</td>
-            <td class="px-4 py-3 text-gray-500">{{ new Date(m.joinedAt).toLocaleDateString() }}</td>
-            <td class="px-4 py-3 text-right">
-              <KebabMenu v-if="m.userId !== session.userId">
-                <button class="kebab-item kebab-item-danger" @click="removeMember(m.userId)">Remove member</button>
-              </KebabMenu>
-              <span v-else class="text-xs text-gray-400">You</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
+        </template>
+        <tr v-for="m in filteredMembers" :key="m.userId" class="hover:bg-surface-subtle">
+          <td class="px-4 py-3">
+            <input
+              v-if="m.userId !== session.userId"
+              type="checkbox"
+              :checked="selectedIds.has(m.userId)"
+              class="size-4 rounded border-edge-strong accent-brand-600"
+              @change="toggleRow(m.userId)"
+            />
+          </td>
+          <td class="px-4 py-3 text-ink">{{ m.email ?? m.userId }}</td>
+          <td class="px-4 py-3 text-ink-secondary capitalize">{{ m.role }}</td>
+          <td class="px-4 py-3 text-ink-muted">{{ new Date(m.joinedAt).toLocaleDateString() }}</td>
+          <td class="px-4 py-3 text-right">
+            <KebabMenu v-if="m.userId !== session.userId">
+              <button class="kebab-item kebab-item-danger" @click="removeMember(m.userId)">Remove member</button>
+            </KebabMenu>
+            <span v-else class="text-xs text-ink-subtle">You</span>
+          </td>
+        </tr>
+      </DataTable>
     </section>
 
-    <section class="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div class="border-b border-gray-200 px-6 py-4">
-        <h3 class="text-base font-semibold text-gray-900">Invitations</h3>
-      </div>
-      <div v-if="loading" class="px-6 py-8 text-sm text-gray-500">Loading…</div>
-      <p v-else-if="invites.length === 0" class="px-6 py-8 text-sm text-gray-500">
-        No invitations yet.
-      </p>
-      <div v-else class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="bg-gray-50 text-left text-gray-500">
+    <section class="space-y-3">
+      <h3 class="text-base font-semibold text-ink">Invitations</h3>
+      <DataTable :loading="loading" :empty="invites.length === 0" empty-text="No invitations yet." :skeleton-cols="4">
+        <template #head>
           <tr>
             <th class="px-6 py-3 font-medium min-w-[14rem]">Email</th>
             <th class="px-6 py-3 font-medium min-w-[7rem]">Role</th>
             <th class="px-6 py-3 font-medium min-w-[7rem]">Status</th>
             <th class="px-6 py-3 w-12"></th>
           </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-for="inv in invites" :key="inv.id" class="hover:bg-gray-50">
-            <td class="px-6 py-3 text-gray-900">{{ inv.email }}</td>
-            <td class="px-6 py-3 text-gray-700 capitalize">{{ inv.role }}</td>
-            <td class="px-6 py-3"><span :class="[BADGE_BASE, inviteTone(inv.status)]">{{ inv.status }}</span></td>
-            <td class="px-6 py-3 text-right">
-              <KebabMenu v-if="inv.status === 'pending' || inv.status === 'revoked' || inv.status === 'expired'">
-                <button v-if="inv.status === 'pending'" class="kebab-item kebab-item-danger" @click="revoke(inv.id)">Revoke invite</button>
-                <button v-else class="kebab-item" @click="resend(inv.id)">Resend invite</button>
-              </KebabMenu>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
+        </template>
+        <tr v-for="inv in invites" :key="inv.id" class="hover:bg-surface-subtle">
+          <td class="px-6 py-3 text-ink">{{ inv.email }}</td>
+          <td class="px-6 py-3 text-ink-secondary capitalize">{{ inv.role }}</td>
+          <td class="px-6 py-3"><span :class="[BADGE_BASE, inviteTone(inv.status)]">{{ inv.status }}</span></td>
+          <td class="px-6 py-3 text-right">
+            <KebabMenu v-if="inv.status === 'pending' || inv.status === 'revoked' || inv.status === 'expired'">
+              <button v-if="inv.status === 'pending'" class="kebab-item kebab-item-danger" @click="revoke(inv.id)">Revoke invite</button>
+              <button v-else class="kebab-item" @click="resend(inv.id)">Resend invite</button>
+            </KebabMenu>
+          </td>
+        </tr>
+      </DataTable>
     </section>
   </div>
 </template>

@@ -7,6 +7,10 @@ import { analyzeImport, useCommitImport, type ImportPreview } from "@/features/i
 import { useToastStore } from "@/stores/toast";
 import { apiFetch } from "@/lib/api";
 import { useQueryClient } from "@tanstack/vue-query";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import DataTable from "@/components/ui/DataTable.vue";
 
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
@@ -107,32 +111,32 @@ async function onRepair() {
 
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
-    <p class="text-sm text-gray-500">
+    <PageHeader>
       Upload an EFS <strong>Transaction</strong> or <strong>Reject</strong> report (.xlsx or .csv).
       Fuel lines (diesel/gasoline) are imported; DEF, scales and fees are skipped.
-    </p>
+    </PageHeader>
 
     <!-- Upload -->
     <div
       v-if="!preview"
-      class="rounded-lg border-2 border-dashed border-gray-300 bg-white px-6 py-12 text-center"
+      class="rounded-lg border-2 border-dashed border-edge-strong bg-surface px-6 py-12 text-center"
     >
-      <ArrowUpTrayIcon class="mx-auto size-10 text-gray-400" aria-hidden="true" />
+      <ArrowUpTrayIcon class="mx-auto size-10 text-ink-subtle" aria-hidden="true" />
       <label class="mt-4 inline-block cursor-pointer">
         <span
-          class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+          class="rounded-md bg-brand-600 px-3 py-2 text-sm font-semibold text-ink-inverse shadow-sm hover:bg-brand-500"
           >{{ analyzing ? "Reading…" : "Choose EFS file" }}</span
         >
         <input type="file" accept=".xlsx,.xls,.csv" class="sr-only" :disabled="analyzing" @change="onFile" />
       </label>
-      <p class="mt-2 text-xs text-gray-400">.xlsx or .csv</p>
+      <p class="mt-2 text-xs text-ink-subtle">.xlsx or .csv</p>
     </div>
 
     <!-- Repair from stored data -->
-    <div v-if="!preview" class="flex items-start justify-between gap-4 rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+    <BaseCard v-if="!preview" padding="sm" class="flex items-start justify-between gap-4">
       <div>
-        <h4 class="text-sm font-semibold text-gray-900">Dashboard missing days?</h4>
-        <p class="mt-1 text-xs text-gray-500">
+        <h4 class="text-sm font-semibold text-ink">Dashboard missing days?</h4>
+        <p class="mt-1 text-xs text-ink-muted">
           If the Transactions page shows all your EFS data but dashboard graphs are missing days, the
           derived fuel events are out of sync with the stored report lines. This rebuilds them from the
           stored data — no file re-upload needed. Safe to run any time; it only adds or corrects rows.
@@ -140,19 +144,19 @@ async function onRepair() {
       </div>
       <button
         :disabled="repairing"
-        class="shrink-0 rounded-md bg-white px-3 py-2 text-sm font-semibold text-indigo-600 ring-1 ring-indigo-200 ring-inset hover:bg-indigo-50 disabled:opacity-50"
+        class="shrink-0 rounded-md bg-surface px-3 py-2 text-sm font-semibold text-brand-600 ring-1 ring-brand-200 ring-inset hover:bg-brand-50 disabled:opacity-50"
         @click="onRepair"
       >
         {{ repairing ? "Repairing…" : "Repair fuel data" }}
       </button>
-    </div>
+    </BaseCard>
 
     <!-- Review -->
-    <div v-if="preview" class="space-y-5 rounded-lg bg-white p-6 shadow-sm ring-1 ring-gray-200">
+    <BaseCard v-if="preview" class="space-y-5">
 
       <!-- Duplicate-file warning -->
-      <div v-if="preview.alreadyImported" class="flex items-start gap-3 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
-        <span class="mt-0.5 shrink-0 text-amber-500">⚠</span>
+      <div v-if="preview.alreadyImported" class="flex items-start gap-3 rounded-md bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
+        <span class="mt-0.5 shrink-0 text-warning-500">⚠</span>
         <p>
           <strong>This file was already imported.</strong>
           Re-committing is safe: rows already in FuelGuard are skipped, and any rows that are missing
@@ -163,13 +167,13 @@ async function onRepair() {
 
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-base font-semibold text-gray-900">Review import</h3>
-          <p class="text-sm text-gray-500">
+          <h3 class="text-base font-semibold text-ink">Review import</h3>
+          <p class="text-sm text-ink-muted">
             {{ preview.filename }} · {{ preview.kind === "reject" ? "Reject report" : "Transaction report" }}
             ({{ preview.source.toUpperCase() }}) · {{ preview.totalRows }} rows
-            <span v-if="preview.reportFrom" class="text-gray-400"> · {{ preview.reportFrom }} → {{ preview.reportTo }}</span>
+            <span v-if="preview.reportFrom" class="text-ink-subtle"> · {{ preview.reportFrom }} → {{ preview.reportTo }}</span>
           </p>
-          <p class="mt-1 text-xs text-gray-400">
+          <p class="mt-1 text-xs text-ink-subtle">
             Rows already in FuelGuard are detected and skipped automatically — safe to upload an overlapping period.
           </p>
         </div>
@@ -177,103 +181,86 @@ async function onRepair() {
 
       <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <template v-if="preview.kind === 'transaction'">
-          <div class="rounded-md bg-gray-50 p-3">
-            <dt class="text-xs text-gray-500">New fill-ups</dt>
-            <dd class="text-2xl font-semibold text-gray-900">{{ preview.newFuel.length }}</dd>
+          <div class="rounded-md bg-surface-subtle p-3">
+            <dt class="text-xs text-ink-muted">New fill-ups</dt>
+            <dd class="text-2xl font-semibold text-ink">{{ preview.newFuel.length }}</dd>
           </div>
-          <div class="rounded-md bg-gray-50 p-3">
-            <dt class="text-xs text-gray-500">Duplicates</dt>
-            <dd class="text-2xl font-semibold text-gray-500">{{ preview.duplicateFuelCount }}</dd>
+          <div class="rounded-md bg-surface-subtle p-3">
+            <dt class="text-xs text-ink-muted">Duplicates</dt>
+            <dd class="text-2xl font-semibold text-ink-muted">{{ preview.duplicateFuelCount }}</dd>
           </div>
-          <div class="rounded-md bg-amber-50 p-3">
-            <dt class="text-xs text-amber-700">Unattributed</dt>
-            <dd class="text-2xl font-semibold text-amber-800">{{ preview.unattributedCount }}</dd>
+          <div class="rounded-md bg-warning-50 p-3">
+            <dt class="text-xs text-warning-700">Unattributed</dt>
+            <dd class="text-2xl font-semibold text-warning-800">{{ preview.unattributedCount }}</dd>
           </div>
-          <div class="rounded-md bg-gray-50 p-3">
-            <dt class="text-xs text-gray-500">Non-fuel skipped</dt>
-            <dd class="text-2xl font-semibold text-gray-500">{{ preview.skippedCount }}</dd>
+          <div class="rounded-md bg-surface-subtle p-3">
+            <dt class="text-xs text-ink-muted">Non-fuel skipped</dt>
+            <dd class="text-2xl font-semibold text-ink-muted">{{ preview.skippedCount }}</dd>
           </div>
         </template>
         <template v-else>
-          <div class="rounded-md bg-gray-50 p-3">
-            <dt class="text-xs text-gray-500">New declined</dt>
-            <dd class="text-2xl font-semibold text-gray-900">{{ preview.newDeclined.length }}</dd>
+          <div class="rounded-md bg-surface-subtle p-3">
+            <dt class="text-xs text-ink-muted">New declined</dt>
+            <dd class="text-2xl font-semibold text-ink">{{ preview.newDeclined.length }}</dd>
           </div>
-          <div class="rounded-md bg-gray-50 p-3">
-            <dt class="text-xs text-gray-500">Duplicates</dt>
-            <dd class="text-2xl font-semibold text-gray-500">{{ preview.duplicateDeclinedCount }}</dd>
+          <div class="rounded-md bg-surface-subtle p-3">
+            <dt class="text-xs text-ink-muted">Duplicates</dt>
+            <dd class="text-2xl font-semibold text-ink-muted">{{ preview.duplicateDeclinedCount }}</dd>
           </div>
         </template>
       </dl>
 
-      <p v-if="preview.kind === 'transaction' && preview.unattributedCount > 0" class="text-xs text-amber-700">
+      <p v-if="preview.kind === 'transaction' && preview.unattributedCount > 0" class="text-xs text-warning-700">
         {{ preview.unattributedCount }} fill-up(s) couldn't be matched to a vehicle by Unit number —
         they'll import as unattributed. Check that vehicle unit numbers match EFS.
       </p>
 
       <!-- Faithful preview of the uploaded data (first rows) -->
       <div v-if="preview.kind === 'transaction' && preview.allLines.length" class="space-y-1">
-        <p class="text-xs font-medium text-gray-500">Preview (first {{ Math.min(preview.allLines.length, 10) }} of {{ preview.allLines.length }} lines)</p>
-        <div class="overflow-x-auto rounded-md ring-1 ring-gray-200">
-          <table class="min-w-full divide-y divide-gray-100 text-xs whitespace-nowrap">
-            <thead class="bg-gray-50 text-left text-gray-500">
-              <tr>
-                <th class="px-3 py-2">Tran Date</th><th class="px-3 py-2">Card #</th><th class="px-3 py-2">Unit</th>
-                <th class="px-3 py-2">Driver</th><th class="px-3 py-2">Odometer</th><th class="px-3 py-2">Location</th>
-                <th class="px-3 py-2">Item</th><th class="px-3 py-2">Qty</th><th class="px-3 py-2">Amt</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              <tr v-for="(l, i) in preview.allLines.slice(0, 10)" :key="i">
-                <td class="px-3 py-1.5 text-gray-700">{{ l.tran_date }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ l.card_num }}</td>
-                <td class="px-3 py-1.5 font-medium text-gray-900">{{ l.unit }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ l.driver_name }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ l.odometer }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ l.location_name }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ l.item }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ l.qty }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ l.amt }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <p class="text-xs font-medium text-ink-muted">Preview (first {{ Math.min(preview.allLines.length, 10) }} of {{ preview.allLines.length }} lines)</p>
+        <DataTable dense>
+          <template #head>
+            <tr>
+              <th class="px-3 py-2 font-medium">Tran Date</th><th class="px-3 py-2 font-medium">Card #</th><th class="px-3 py-2 font-medium">Unit</th>
+              <th class="px-3 py-2 font-medium">Driver</th><th class="px-3 py-2 font-medium">Odometer</th><th class="px-3 py-2 font-medium">Location</th>
+              <th class="px-3 py-2 font-medium">Item</th><th class="px-3 py-2 font-medium">Qty</th><th class="px-3 py-2 font-medium">Amt</th>
+            </tr>
+          </template>
+          <tr v-for="(l, i) in preview.allLines.slice(0, 10)" :key="i">
+            <td class="px-3 py-1.5 text-ink-secondary">{{ l.tran_date }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ l.card_num }}</td>
+            <td class="px-3 py-1.5 font-medium text-ink">{{ l.unit }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ l.driver_name }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ l.odometer }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ l.location_name }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ l.item }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ l.qty }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ l.amt }}</td>
+          </tr>
+        </DataTable>
       </div>
       <div v-else-if="preview.kind === 'reject' && preview.newDeclined.length" class="space-y-1">
-        <p class="text-xs font-medium text-gray-500">Preview (first {{ Math.min(preview.newDeclined.length, 10) }} of {{ preview.newDeclined.length }})</p>
-        <div class="overflow-x-auto rounded-md ring-1 ring-gray-200">
-          <table class="min-w-full divide-y divide-gray-100 text-xs whitespace-nowrap">
-            <thead class="bg-gray-50 text-left text-gray-500">
-              <tr><th class="px-3 py-2">Card #</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2">Driver</th><th class="px-3 py-2">Error</th><th class="px-3 py-2">Description</th></tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              <tr v-for="(d, i) in preview.newDeclined.slice(0, 10)" :key="i">
-                <td class="px-3 py-1.5 text-gray-700">{{ d.card_ref }}</td>
-                <td class="px-3 py-1.5 font-medium text-gray-900">{{ d.unit }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ d.driver_name }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ d.error_code }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ d.error_description }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <p class="text-xs font-medium text-ink-muted">Preview (first {{ Math.min(preview.newDeclined.length, 10) }} of {{ preview.newDeclined.length }})</p>
+        <DataTable dense>
+          <template #head>
+            <tr><th class="px-3 py-2 font-medium">Card #</th><th class="px-3 py-2 font-medium">Unit</th><th class="px-3 py-2 font-medium">Driver</th><th class="px-3 py-2 font-medium">Error</th><th class="px-3 py-2 font-medium">Description</th></tr>
+          </template>
+          <tr v-for="(d, i) in preview.newDeclined.slice(0, 10)" :key="i">
+            <td class="px-3 py-1.5 text-ink-secondary">{{ d.card_ref }}</td>
+            <td class="px-3 py-1.5 font-medium text-ink">{{ d.unit }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ d.driver_name }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ d.error_code }}</td>
+            <td class="px-3 py-1.5 text-ink-secondary">{{ d.error_description }}</td>
+          </tr>
+        </DataTable>
       </div>
 
       <div class="flex justify-end gap-3">
-        <button
-          class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
-          @click="reset"
-        >
-          Cancel
-        </button>
-        <button
-          :disabled="commit.isPending.value"
-          class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-          @click="onCommit"
-        >
+        <BaseButton @click="reset">Cancel</BaseButton>
+        <BaseButton variant="primary" :disabled="commit.isPending.value" @click="onCommit">
           {{ commit.isPending.value ? "Importing…" : "Commit import" }}
-        </button>
+        </BaseButton>
       </div>
-    </div>
+    </BaseCard>
   </div>
 </template>

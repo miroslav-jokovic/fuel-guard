@@ -11,13 +11,15 @@ import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import SortableTh from "@/components/SortableTh.vue";
-import TableSkeleton from "@/components/TableSkeleton.vue";
-import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
 import VehicleSetupImport from "@/features/fleet/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
 import { apiFetch } from "@/lib/api";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
@@ -152,141 +154,123 @@ async function onRetire(v: Vehicle) {
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p class="text-sm text-gray-500">Fleet vehicles and their fuel parameters.</p>
-      <div v-if="session.canManage" class="flex flex-wrap items-center gap-2">
-        <!-- Diagnostics button hidden; logic kept for future use. Re-enable by removing v-show="false". -->
-        <button
-          v-if="session.admin"
-          v-show="false"
-          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-600 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-          :disabled="diagLoading"
-          title="Check what Samsara returns for vehicles, stats, drivers and assignments"
-          @click="runDiagnostics"
-        >
-          {{ diagLoading ? "Checking…" : "Diagnostics" }}
-        </button>
-        <button
-          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-          :disabled="syncSamsara.isPending.value"
-          title="Import trucks from Samsara (trailers are excluded)"
-          @click="onSyncSamsara"
-        >
-          <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
-          {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
-        </button>
-        <button
-          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
-          title="Import vehicles from CSV — download a blank template, fill it in, and upload"
-          @click="setupOpen = true"
-        >
-          Import vehicles
-        </button>
-        <button
-          class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-          @click="openNew"
-        >
-          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New vehicle
-        </button>
-      </div>
-    </div>
+    <PageHeader description="Fleet vehicles and their fuel parameters.">
+      <template #actions>
+        <template v-if="session.canManage">
+          <!-- Diagnostics button hidden; logic kept for future use. Re-enable by removing v-show="false". -->
+          <BaseButton
+            v-if="session.admin"
+            v-show="false"
+            :disabled="diagLoading"
+            title="Check what Samsara returns for vehicles, stats, drivers and assignments"
+            @click="runDiagnostics"
+          >
+            {{ diagLoading ? "Checking…" : "Diagnostics" }}
+          </BaseButton>
+          <BaseButton
+            :disabled="syncSamsara.isPending.value"
+            title="Import trucks from Samsara (trailers are excluded)"
+            @click="onSyncSamsara"
+          >
+            <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+            {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+          </BaseButton>
+          <BaseButton
+            title="Import vehicles from CSV — download a blank template, fill it in, and upload"
+            @click="setupOpen = true"
+          >
+            Import vehicles
+          </BaseButton>
+          <BaseButton variant="primary" @click="openNew">
+            <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New vehicle
+          </BaseButton>
+        </template>
+      </template>
+    </PageHeader>
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
       <div class="sm:max-w-xs sm:flex-1">
         <SearchInput v-model="search" placeholder="Search unit, make, model, plate, VIN…" />
       </div>
       <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-44" />
-      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} total</span>
+      <span class="text-sm text-ink-muted sm:ml-auto">{{ filtered.length }} total</span>
     </div>
 
-    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="10" />
-      <ErrorState
-        v-else-if="isError"
-        :message="error instanceof Error ? error.message : 'Failed to load vehicles'"
-        :retrying="isFetching"
-        @retry="refetch"
-      />
-      <div v-else-if="!vehicles || vehicles.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-        No vehicles yet.
-      </div>
-      <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-        No vehicles match these filters.
-      </div>
-      <div v-else class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="bg-gray-50 text-left text-gray-500">
-          <tr>
-            <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[5rem]" @sort="onSort" />
-            <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicle</th>
-            <th class="px-6 py-3 font-medium min-w-[5rem]">Fuel</th>
-            <SortableTh label="Tank" sort-key="tank_capacity_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-            <SortableTh label="Baseline MPG" sort-key="baseline_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />
-            <SortableTh label="Fuel level" sort-key="samsara_fuel_percent" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[7rem]" @sort="onSort" />
-            <SortableTh label="Odometer" sort-key="current_odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem]" @sort="onSort" />
-            <th class="px-6 py-3 font-medium min-w-[8rem]">Driver</th>
-            <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-            <th class="px-6 py-3 w-12"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-for="v in pageRows" :key="v.id" class="hover:bg-gray-50">
-            <td class="px-6 py-3 font-medium">
-              <RouterLink :to="`/vehicles/${v.id}`" class="text-indigo-600 hover:text-indigo-500">{{ v.unit_number }}</RouterLink>
-            </td>
-            <td class="px-6 py-3 text-gray-700">{{ [v.year, v.make, v.model].filter(Boolean).join(" ") || "—" }}</td>
-            <td class="px-6 py-3 capitalize text-gray-700">{{ v.fuel_type }}</td>
-            <td class="px-6 py-3 text-gray-700">
-              <span v-if="Number(v.tank_capacity_gal) > 0">{{ v.tank_capacity_gal }} gal</span>
-              <span v-else-if="needsSetup(v)" class="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20 ring-inset">Set tank</span>
-              <span v-else class="text-gray-400">—</span>
-            </td>
-            <td class="px-6 py-3 text-gray-700">
-              <span v-if="v.baseline_mpg">{{ v.baseline_mpg }}</span>
-              <span v-else-if="needsSetup(v)" class="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/20 ring-inset">Set MPG</span>
-              <span v-else class="text-gray-400">—</span>
-            </td>
-            <td class="px-6 py-3 text-gray-700">
-              <span v-if="v.samsara_fuel_percent != null">{{ v.samsara_fuel_percent }}%</span>
-              <span v-else class="text-gray-400">—</span>
-            </td>
-            <td class="px-6 py-3 text-gray-700">
-              <span v-if="Number(v.current_odometer) > 0">{{ Math.round(Number(v.current_odometer)).toLocaleString() }} mi</span>
-              <span v-else class="text-gray-400">—</span>
-            </td>
-            <td class="px-6 py-3 text-gray-700">{{ driverName(v.assigned_driver_id) }}</td>
-            <td class="px-6 py-3"><StatusBadge :status="v.status" /></td>
-            <td class="px-6 py-3 text-right" @click.stop>
-              <KebabMenu v-if="session.canManage">
-                <button class="kebab-item" @click="openEdit(v)">Edit vehicle</button>
-                <button v-if="v.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(v)">Retire vehicle</button>
-              </KebabMenu>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
-      <TablePagination
-        v-if="!isLoading && !isError && filtered.length > 0"
-        :page="page"
-        :page-size="PAGE_SIZE"
-        :total="filtered.length"
-        @update:page="page = $event"
-      />
-    </div>
+    <DataTable
+      :loading="isLoading"
+      :error="isError ? (error instanceof Error ? error.message : 'Failed to load vehicles') : null"
+      :retrying="isFetching"
+      :empty="filtered.length === 0"
+      :empty-text="(vehicles ?? []).length === 0 ? 'No vehicles yet.' : 'No vehicles match these filters.'"
+      :skeleton-cols="10"
+      @retry="refetch"
+    >
+      <template #head>
+        <tr>
+          <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[5rem]" @sort="onSort" />
+          <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicle</th>
+          <th class="px-6 py-3 font-medium min-w-[5rem]">Fuel</th>
+          <SortableTh label="Tank" sort-key="tank_capacity_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
+          <SortableTh label="Baseline MPG" sort-key="baseline_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />
+          <SortableTh label="Fuel level" sort-key="samsara_fuel_percent" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[7rem]" @sort="onSort" />
+          <SortableTh label="Odometer" sort-key="current_odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem]" @sort="onSort" />
+          <th class="px-6 py-3 font-medium min-w-[8rem]">Driver</th>
+          <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
+          <th class="px-6 py-3 w-12"></th>
+        </tr>
+      </template>
+      <tr v-for="v in pageRows" :key="v.id" class="hover:bg-surface-subtle">
+        <td class="px-6 py-3 font-medium">
+          <RouterLink :to="`/vehicles/${v.id}`" class="text-brand-600 hover:text-brand-500">{{ v.unit_number }}</RouterLink>
+        </td>
+        <td class="px-6 py-3 text-ink-secondary">{{ [v.year, v.make, v.model].filter(Boolean).join(" ") || "—" }}</td>
+        <td class="px-6 py-3 capitalize text-ink-secondary">{{ v.fuel_type }}</td>
+        <td class="px-6 py-3 text-ink-secondary">
+          <span v-if="Number(v.tank_capacity_gal) > 0">{{ v.tank_capacity_gal }} gal</span>
+          <span v-else-if="needsSetup(v)" :class="[BADGE_BASE, toneClass('warning')]">Set tank</span>
+          <span v-else class="text-ink-subtle">—</span>
+        </td>
+        <td class="px-6 py-3 text-ink-secondary">
+          <span v-if="v.baseline_mpg">{{ v.baseline_mpg }}</span>
+          <span v-else-if="needsSetup(v)" :class="[BADGE_BASE, toneClass('warning')]">Set MPG</span>
+          <span v-else class="text-ink-subtle">—</span>
+        </td>
+        <td class="px-6 py-3 text-ink-secondary">
+          <span v-if="v.samsara_fuel_percent != null">{{ v.samsara_fuel_percent }}%</span>
+          <span v-else class="text-ink-subtle">—</span>
+        </td>
+        <td class="px-6 py-3 text-ink-secondary">
+          <span v-if="Number(v.current_odometer) > 0">{{ Math.round(Number(v.current_odometer)).toLocaleString() }} mi</span>
+          <span v-else class="text-ink-subtle">—</span>
+        </td>
+        <td class="px-6 py-3 text-ink-secondary">{{ driverName(v.assigned_driver_id) }}</td>
+        <td class="px-6 py-3"><StatusBadge :status="v.status" /></td>
+        <td class="px-6 py-3 text-right" @click.stop>
+          <KebabMenu v-if="session.canManage">
+            <button class="kebab-item" @click="openEdit(v)">Edit vehicle</button>
+            <button v-if="v.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(v)">Retire vehicle</button>
+          </KebabMenu>
+        </td>
+      </tr>
+      <template #footer>
+        <TablePagination
+          :page="page"
+          :page-size="PAGE_SIZE"
+          :total="filtered.length"
+          @update:page="page = $event"
+        />
+      </template>
+    </DataTable>
 
     <SlideOver :open="diagOpen" title="Samsara diagnostics" @close="diagOpen = false">
-      <p class="mb-3 text-sm text-gray-500">
+      <p class="mb-3 text-sm text-ink-muted">
         What Samsara returns for each endpoint. Check <code>scopes</code> (403 = missing scope),
         <code>stats.withFuelPercents</code> (fuel level), and <code>assignments</code> (driver links).
       </p>
-      <button
-        class="mb-3 rounded-md bg-gray-100 px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-        @click="copyDiag"
-      >
+      <BaseButton variant="soft" size="sm" class="mb-3" @click="copyDiag">
         Copy report
-      </button>
-      <pre class="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs leading-relaxed text-gray-100">{{ diagReport }}</pre>
+      </BaseButton>
+      <pre class="overflow-x-auto rounded-md bg-surface-inverse p-3 text-xs leading-relaxed text-neutral-100">{{ diagReport }}</pre>
     </SlideOver>
 
     <SlideOver :open="setupOpen" title="Import vehicles" @close="setupOpen = false">

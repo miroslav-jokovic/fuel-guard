@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/20/solid";
+import BaseButton from "@/components/ui/BaseButton.vue";
 
 const props = withDefaults(
   defineProps<{ page: number; pageSize?: number; total: number; loading?: boolean }>(),
@@ -33,13 +34,11 @@ const commitJump = () => {
   draft.value = String(props.page); // reset invalid/out-of-range input back to the actual page
 };
 
-const btn =
-  "inline-flex items-center gap-x-1 rounded-md bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40";
 </script>
 
 <template>
-  <div class="flex items-center justify-between border-t border-gray-100 px-4 py-3 sm:px-6">
-    <p class="text-sm text-gray-600">
+  <div class="flex items-center justify-between border-t border-edge-subtle px-4 py-3 sm:px-6">
+    <p class="text-sm text-ink-secondary">
       <template v-if="total > 0">
         Showing <span class="font-medium">{{ from }}</span>–<span class="font-medium">{{ to }}</span>
         of <span class="font-medium">{{ total }}</span>
@@ -47,7 +46,7 @@ const btn =
       <template v-else>No results</template>
     </p>
     <div class="flex items-center gap-3">
-      <label v-if="totalPages > 1" class="hidden items-center gap-1.5 text-sm text-gray-500 sm:flex">
+      <label v-if="totalPages > 1" class="hidden items-center gap-1.5 text-sm text-ink-muted sm:flex">
         <span>Page</span>
         <input
           type="number"
@@ -57,7 +56,7 @@ const btn =
           :value="draft"
           :disabled="loading"
           aria-label="Go to page"
-          class="w-14 rounded-md border-0 py-1 text-center text-sm text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-500 disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          class="w-14 rounded-md border-0 py-1 text-center text-sm text-ink ring-1 ring-edge-strong ring-inset focus:ring-2 focus:ring-brand-600 disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           @input="draft = ($event.target as HTMLInputElement).value"
           @keyup.enter="commitJump"
           @blur="commitJump"
@@ -65,12 +64,12 @@ const btn =
         <span>of {{ totalPages }}</span>
       </label>
       <div class="flex items-center gap-2">
-        <button type="button" :class="btn" :disabled="!canPrev || loading" @click="go(page - 1)">
+        <BaseButton size="sm" :disabled="!canPrev || loading" @click="go(page - 1)">
           <ChevronLeftIcon class="size-4" aria-hidden="true" /> Prev
-        </button>
-        <button type="button" :class="btn" :disabled="!canNext || loading" @click="go(page + 1)">
+        </BaseButton>
+        <BaseButton size="sm" :disabled="!canNext || loading" @click="go(page + 1)">
           Next <ChevronRightIcon class="size-4" aria-hidden="true" />
-        </button>
+        </BaseButton>
       </div>
     </div>
   </div>

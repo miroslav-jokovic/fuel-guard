@@ -1,26 +1,96 @@
 import type { ChartOptions, TooltipItem } from "chart.js";
 
 /**
- * Shared chart look for the dashboard. Colors were validated with the dataviz palette
- * checker against the white card surface (contrast ≥ 3:1, CVD ΔE 93 for the hue pair);
- * severity steps pass adjacent-CVD separation and always render next to labeled counts.
+ * Shared chart look for the dashboard, driven by the design tokens in
+ * src/style.css. Canvas can't read CSS variables, so `resolve()` computes
+ * each --viz-* role to an rgb() string at first use (cached; charts mount
+ * after styles load). Hex fallbacks keep unit tests (jsdom) rendering.
+ *
+ * Colors were validated with the dataviz palette checker against the white
+ * card surface (contrast ≥ 3:1, CVD ΔE 93 for the hue pair); severity steps
+ * pass adjacent-CVD separation and always render next to labeled counts.
  */
+const FALLBACK: Record<string, string> = {
+  "--viz-brand": "#4f46e5",
+  "--viz-spend": "#059669",
+  "--viz-spend-hover": "#047857",
+  "--viz-severity-critical": "#b91c1c",
+  "--viz-severity-high": "#f97316",
+  "--viz-severity-medium": "#fbbf24",
+  "--viz-severity-low": "#9ca3af",
+  "--viz-grid": "#f3f4f6",
+  "--viz-tick": "#6b7280",
+  "--surface-inverse": "#111827",
+  "--ink-inverse": "#ffffff",
+  "--edge": "#e5e7eb",
+  "--ramp-neutral-50": "#f9fafb",
+  "--ramp-neutral-200": "#e5e7eb",
+};
+
+const cache = new Map<string, string>();
+
+/** Resolve a CSS custom property to a concrete rgb() color for canvas use. */
+export function resolve(varName: string): string {
+  const hit = cache.get(varName);
+  if (hit) return hit;
+  const fallback = FALLBACK[varName] ?? "#000000";
+  if (typeof document === "undefined") return fallback;
+  const probe = document.createElement("span");
+  probe.style.color = `var(${varName}, ${fallback})`;
+  document.body.appendChild(probe);
+  const value = getComputedStyle(probe).color || fallback;
+  probe.remove();
+  cache.set(varName, value);
+  return value;
+}
+
+/** `resolve()` + alpha, for washes/fills (expects the rgb() form resolve returns). */
+export function resolveAlpha(varName: string, alpha: number): string {
+  const rgb = resolve(varName);
+  const m = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  return m ? `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${alpha})` : rgb;
+}
+
+/** Chart color roles (getters so tokens resolve lazily, post-mount). */
 export const viz = {
   /** Fleet MPG (brand accent). */
-  indigo: "#4f46e5",
-  indigoWash: "rgba(79, 70, 229, 0.08)",
-  /** Fuel spend. */
-  emerald: "#059669",
-  /** Severity scale — ordered, always paired with a visible label + count. */
-  severity: {
-    critical: "#b91c1c",
-    high: "#f97316",
-    medium: "#fbbf24",
-    low: "#9ca3af",
+  get brand(): string {
+    return resolve("--viz-brand");
   },
-  grid: "#f3f4f6", // hairline, one step off the white surface
-  tick: "#6b7280",
-} as const;
+  get brandWash(): string {
+    return resolveAlpha("--viz-brand", 0.08);
+  },
+  /** Fuel spend. */
+  get spend(): string {
+    return resolve("--viz-spend");
+  },
+  get spendHover(): string {
+    return resolve("--viz-spend-hover");
+  },
+  /** Severity scale — ordered, always paired with a visible label + count. */
+  get severity(): Record<"critical" | "high" | "medium" | "low", string> {
+    return {
+      critical: resolve("--viz-severity-critical"),
+      high: resolve("--viz-severity-high"),
+      medium: resolve("--viz-severity-medium"),
+      low: resolve("--viz-severity-low"),
+    };
+  },
+  get grid(): string {
+    return resolve("--viz-grid"); // hairline, one step off the white surface
+  },
+  get tick(): string {
+    return resolve("--viz-tick");
+  },
+  /** Muted line for baseline/reference series. */
+  get reference(): string {
+    return resolve("--viz-severity-low");
+  },
+  /** Contrasting stroke around hovered points (matches the card surface). */
+  get pointHalo(): string {
+    return resolve("--ink-inverse");
+  },
+};
 
 const FONT = {
   family:
@@ -76,9 +146,9 @@ export function trendOptions({
     plugins: {
       legend: { display: false }, // single series — the card title names it
       tooltip: {
-        backgroundColor: "#111827",
-        titleColor: "#f9fafb",
-        bodyColor: "#e5e7eb",
+        backgroundColor: resolve("--surface-inverse"),
+        titleColor: resolve("--ramp-neutral-50"),
+        bodyColor: resolve("--ramp-neutral-200"),
         titleFont: { ...FONT, size: 12, weight: 600 },
         bodyFont: { ...FONT, size: 12 },
         padding: 10,
@@ -95,7 +165,7 @@ export function trendOptions({
     scales: {
       x: {
         grid: { display: false },
-        border: { color: "#e5e7eb" },
+        border: { color: resolve("--edge") },
         ticks: {
           color: viz.tick,
           font: FONT,

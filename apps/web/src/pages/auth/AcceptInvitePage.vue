@@ -4,6 +4,9 @@ import { useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
+import FormField from "@/components/ui/FormField.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 
 // Reached via a Supabase invite email link (type=invite) OR a password-recovery email
 // (type=recovery, used when re-inviting a user whose email was already confirmed). Either way
@@ -54,50 +57,30 @@ async function onSubmit() {
 <template>
   <div>
     <template v-if="!hasSession">
-      <h2 class="mb-1 text-lg font-semibold text-gray-900">Link expired</h2>
-      <p class="text-sm text-gray-500">
+      <h2 class="mb-1 text-lg font-semibold text-ink">Link expired</h2>
+      <p class="text-sm text-ink-muted">
         This invitation link has already been used or has expired. Please ask your administrator to
         resend the invitation.
       </p>
     </template>
 
     <template v-else>
-    <h2 class="mb-1 text-lg font-semibold text-gray-900">Set your password</h2>
-    <p class="mb-6 text-sm text-gray-500">Finish setting up your FuelGuard account.</p>
+    <h2 class="mb-1 text-lg font-semibold text-ink">Set your password</h2>
+    <p class="mb-6 text-sm text-ink-muted">Finish setting up your FuelGuard account.</p>
 
     <form class="space-y-5" @submit.prevent="onSubmit">
-      <div>
-        <label for="pw" class="block text-sm font-medium text-gray-900">New password</label>
-        <input
-          id="pw"
-          v-model="password"
-          type="password"
-          autocomplete="new-password"
-          required
-          class="mt-2 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm"
-        />
-      </div>
-      <div>
-        <label for="cf" class="block text-sm font-medium text-gray-900">Confirm password</label>
-        <input
-          id="cf"
-          v-model="confirm"
-          type="password"
-          autocomplete="new-password"
-          required
-          class="mt-2 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm"
-        />
-      </div>
+      <FormField id="pw" label="New password" v-slot="{ id }">
+        <BaseInput :id="id" v-model="password" type="password" autocomplete="new-password" required />
+      </FormField>
+      <FormField id="cf" label="Confirm password" v-slot="{ id }">
+        <BaseInput :id="id" v-model="confirm" type="password" autocomplete="new-password" required />
+      </FormField>
 
-      <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
+      <p v-if="error" class="text-sm text-danger-600">{{ error }}</p>
 
-      <button
-        type="submit"
-        :disabled="loading"
-        class="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-      >
+      <BaseButton type="submit" variant="primary" block :disabled="loading">
         {{ loading ? "Saving…" : "Set password & continue" }}
-      </button>
+      </BaseButton>
     </form>
     </template>
   </div>

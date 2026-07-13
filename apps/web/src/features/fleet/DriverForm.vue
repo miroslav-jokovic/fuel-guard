@@ -2,6 +2,9 @@
 import { reactive, ref } from "vue";
 import { driverInputSchema, DRIVER_STATUSES, type Driver, type DriverInput } from "@fuelguard/shared";
 import AppSelect from "@/components/AppSelect.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import FormField from "@/components/ui/FormField.vue";
 
 const props = defineProps<{
   driver?: Driver | null;
@@ -33,52 +36,33 @@ function onSubmit() {
   errors.value = {};
   emit("submit", result.data);
 }
-
-const inputCls =
-  "mt-1 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm";
 </script>
 
 <template>
   <form class="space-y-4" @submit.prevent="onSubmit">
-    <div>
-      <label class="block text-sm font-medium text-gray-900">Full name</label>
-      <input v-model="form.full_name" :class="inputCls" />
-      <p v-if="errors.full_name" class="mt-1 text-xs text-red-600">{{ errors.full_name }}</p>
-    </div>
+    <FormField v-slot="{ id }" label="Full name" :error="errors.full_name">
+      <BaseInput :id="id" v-model="form.full_name" :invalid="!!errors.full_name" />
+    </FormField>
     <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label class="block text-sm font-medium text-gray-900">Employee ID</label>
-        <input v-model="form.employee_id" :class="inputCls" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-900">Phone</label>
-        <input v-model="form.phone" :class="inputCls" />
-      </div>
+      <FormField v-slot="{ id }" label="Employee ID">
+        <BaseInput :id="id" v-model="form.employee_id" />
+      </FormField>
+      <FormField v-slot="{ id }" label="Phone">
+        <BaseInput :id="id" v-model="form.phone" />
+      </FormField>
     </div>
-    <div>
-      <label class="block text-sm font-medium text-gray-900">Status</label>
+    <FormField label="Status">
       <AppSelect
         v-model="form.status"
-        class="mt-1"
         :options="DRIVER_STATUSES.map((s) => ({ value: s, label: s }))"
       />
-    </div>
+    </FormField>
 
     <div class="flex justify-end gap-3 pt-2">
-      <button
-        type="button"
-        class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
-        @click="emit('cancel')"
-      >
-        Cancel
-      </button>
-      <button
-        type="submit"
-        :disabled="submitting"
-        class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-      >
+      <BaseButton @click="emit('cancel')">Cancel</BaseButton>
+      <BaseButton type="submit" variant="primary" :disabled="submitting">
         {{ submitting ? "Saving…" : "Save driver" }}
-      </button>
+      </BaseButton>
     </div>
   </form>
 </template>

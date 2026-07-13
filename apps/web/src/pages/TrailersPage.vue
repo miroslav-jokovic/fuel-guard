@@ -14,11 +14,13 @@ import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import SortableTh from "@/components/SortableTh.vue";
-import TableSkeleton from "@/components/TableSkeleton.vue";
-import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 import TrailerForm from "@/features/fleet/TrailerForm.vue";
 import { useToastStore } from "@/stores/toast";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const PAGE_SIZE = 20;
@@ -132,90 +134,90 @@ async function onRetire(t: Trailer) {
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p class="text-sm text-gray-500">Trailers and reefer tanks. Mark which trailers are reefers — only those are checked against reefer (ULSR) fuel.</p>
-      <div v-if="session.canManage" class="flex flex-wrap items-center gap-2">
-        <button
-          v-if="session.admin"
-          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-          :disabled="syncTrailers.isPending.value"
-          title="Import trailers from Samsara"
-          @click="onSync"
-        >
-          <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
-          {{ syncTrailers.isPending.value ? "Syncing…" : "Sync from Samsara" }}
-        </button>
-        <button class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500" @click="openNew">
-          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New trailer
-        </button>
-      </div>
-    </div>
+    <PageHeader description="Trailers and reefer tanks. Mark which trailers are reefers — only those are checked against reefer (ULSR) fuel.">
+      <template #actions>
+        <template v-if="session.canManage">
+          <BaseButton
+            v-if="session.admin"
+            :disabled="syncTrailers.isPending.value"
+            title="Import trailers from Samsara"
+            @click="onSync"
+          >
+            <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+            {{ syncTrailers.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+          </BaseButton>
+          <BaseButton variant="primary" @click="openNew">
+            <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New trailer
+          </BaseButton>
+        </template>
+      </template>
+    </PageHeader>
 
     <!-- Filters -->
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
       <div class="sm:max-w-xs sm:flex-1"><SearchInput v-model="search" placeholder="Search unit, make, model, plate…" /></div>
       <AppSelect v-model="reeferFilter" :options="reeferOptions" class="sm:w-44" />
       <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-40" />
-      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} total</span>
+      <span class="text-sm text-ink-muted sm:ml-auto">{{ filtered.length }} total</span>
     </div>
 
     <!-- Bulk action bar -->
-    <div v-if="session.canManage && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-lg bg-indigo-50 px-4 py-2.5 ring-1 ring-indigo-100">
-      <span class="text-sm font-medium text-indigo-800">{{ selectedCount }} selected</span>
-      <button :disabled="bulkUpdate.isPending.value" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-cyan-700 ring-1 ring-cyan-300 ring-inset hover:bg-cyan-50 disabled:opacity-50" @click="bulkSet({ is_reefer: true })">Mark as reefer</button>
-      <button :disabled="bulkUpdate.isPending.value" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkSet({ is_reefer: false })">Unmark reefer</button>
-      <button :disabled="bulkUpdate.isPending.value" class="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50" @click="bulkSet({ status: 'retired' })">Retire</button>
-      <button class="text-sm font-medium text-gray-500 hover:text-gray-700" @click="selected = new Set()">Clear</button>
+    <div v-if="session.canManage && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">
+      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
+      <button :disabled="bulkUpdate.isPending.value" class="rounded-md bg-surface px-3 py-1.5 text-sm font-medium text-info-700 ring-1 ring-info-300 ring-inset hover:bg-info-50 disabled:opacity-50" @click="bulkSet({ is_reefer: true })">Mark as reefer</button>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSet({ is_reefer: false })">Unmark reefer</BaseButton>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSet({ status: 'retired' })">Retire</BaseButton>
+      <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
     </div>
 
-    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="7" />
-      <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load trailers'" :retrying="isFetching" @retry="refetch" />
-      <div v-else-if="!trailers || trailers.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">No trailers yet. Add one, or sync from Samsara.</div>
-      <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">No trailers match these filters.</div>
-      <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-          <thead class="text-left text-gray-500">
-            <tr>
-              <th v-if="session.canManage" class="px-4 py-3">
-                <input type="checkbox" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" :checked="allOnPageSelected" @change="toggleAll" />
-              </th>
-              <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-              <th class="px-6 py-3 font-medium">Trailer</th>
-              <SortableTh label="Type" sort-key="is_reefer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-              <SortableTh label="Reefer tank" sort-key="reefer_tank_capacity_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-              <th class="px-6 py-3 font-medium">Paired tractor</th>
-              <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium" @sort="onSort" />
-              <th class="px-6 py-3"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <tr v-for="t in pageRows" :key="t.id" :class="selected.has(t.id) ? 'bg-indigo-50/40' : ''">
-              <td v-if="session.canManage" class="px-4 py-3">
-                <input type="checkbox" class="size-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" :checked="selected.has(t.id)" @change="toggleOne(t.id)" />
-              </td>
-              <td class="px-6 py-3 font-medium text-gray-900">{{ t.unit_number }}</td>
-              <td class="px-6 py-3 text-gray-700">{{ [t.year, t.make, t.model].filter(Boolean).join(" ") || "—" }}</td>
-              <td class="px-6 py-3">
-                <span v-if="t.is_reefer" class="inline-flex items-center rounded bg-cyan-100 px-1.5 py-0.5 text-xs font-medium text-cyan-700">Reefer</span>
-                <span v-else class="text-xs text-gray-400">Dry / other</span>
-              </td>
-              <td class="px-6 py-3 text-gray-700">{{ t.is_reefer ? t.reefer_tank_capacity_gal + " gal" : "—" }}</td>
-              <td class="px-6 py-3 text-gray-700">{{ vehUnit(t.assigned_vehicle_id) }}</td>
-              <td class="px-6 py-3"><StatusBadge :status="t.status" /></td>
-              <td class="px-6 py-3 text-right">
-                <KebabMenu v-if="session.canManage">
-                  <button class="kebab-item" @click="openEdit(t)">Edit</button>
-                  <button class="kebab-item" @click="toggleReefer(t)">{{ t.is_reefer ? 'Unmark reefer' : 'Mark as reefer' }}</button>
-                  <button v-if="t.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(t)">Retire</button>
-                </KebabMenu>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <TablePagination v-if="!isLoading && !isError && filtered.length > 0" :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
-    </div>
+    <DataTable
+      :loading="isLoading"
+      :error="isError ? (error instanceof Error ? error.message : 'Failed to load trailers') : null"
+      :retrying="isFetching"
+      :empty="filtered.length === 0"
+      :empty-text="(trailers ?? []).length === 0 ? 'No trailers yet. Add one, or sync from Samsara.' : 'No trailers match these filters.'"
+      :skeleton-cols="7"
+      @retry="refetch"
+    >
+      <template #head>
+        <tr>
+          <th v-if="session.canManage" class="px-4 py-3">
+            <input type="checkbox" class="size-4 rounded border-edge-strong accent-brand-600" :checked="allOnPageSelected" @change="toggleAll" />
+          </th>
+          <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+          <th class="px-6 py-3 font-medium">Trailer</th>
+          <SortableTh label="Type" sort-key="is_reefer" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+          <SortableTh label="Reefer tank" sort-key="reefer_tank_capacity_gal" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+          <th class="px-6 py-3 font-medium">Paired tractor</th>
+          <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" @sort="onSort" />
+          <th class="px-6 py-3"></th>
+        </tr>
+      </template>
+      <tr v-for="t in pageRows" :key="t.id" :class="selected.has(t.id) ? 'bg-brand-50/40' : ''">
+        <td v-if="session.canManage" class="px-4 py-3">
+          <input type="checkbox" class="size-4 rounded border-edge-strong accent-brand-600" :checked="selected.has(t.id)" @change="toggleOne(t.id)" />
+        </td>
+        <td class="px-6 py-3 font-medium text-ink">{{ t.unit_number }}</td>
+        <td class="px-6 py-3 text-ink-secondary">{{ [t.year, t.make, t.model].filter(Boolean).join(" ") || "—" }}</td>
+        <td class="px-6 py-3">
+          <span v-if="t.is_reefer" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
+          <span v-else class="text-xs text-ink-subtle">Dry / other</span>
+        </td>
+        <td class="px-6 py-3 text-ink-secondary">{{ t.is_reefer ? t.reefer_tank_capacity_gal + " gal" : "—" }}</td>
+        <td class="px-6 py-3 text-ink-secondary">{{ vehUnit(t.assigned_vehicle_id) }}</td>
+        <td class="px-6 py-3"><StatusBadge :status="t.status" /></td>
+        <td class="px-6 py-3 text-right">
+          <KebabMenu v-if="session.canManage">
+            <button class="kebab-item" @click="openEdit(t)">Edit</button>
+            <button class="kebab-item" @click="toggleReefer(t)">{{ t.is_reefer ? 'Unmark reefer' : 'Mark as reefer' }}</button>
+            <button v-if="t.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(t)">Retire</button>
+          </KebabMenu>
+        </td>
+      </tr>
+      <template #footer>
+        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
+      </template>
+    </DataTable>
 
     <SlideOver :open="drawerOpen" :title="editing ? 'Edit trailer' : 'New trailer'" @close="drawerOpen = false">
       <TrailerForm :trailer="editing" :vehicles="vehicles ?? []" :submitting="saving" @submit="onSubmit" @cancel="drawerOpen = false" />

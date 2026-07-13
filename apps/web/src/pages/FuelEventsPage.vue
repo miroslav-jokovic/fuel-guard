@@ -5,7 +5,8 @@ import { useQuery } from "@tanstack/vue-query";
 import { CASE_RULE_ID } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { BADGE_BASE, severityTone, suspicionTone } from "@/lib/badges";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import { BADGE_BASE, severityTone, suspicionTone, toneClass } from "@/lib/badges";
 
 const { data: vehicles } = useVehiclesQuery();
 const unit = (id: string | null) => (id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "—");
@@ -56,65 +57,65 @@ const empty = computed(() => !(alerts.value?.length || declines.value?.length ||
 
 <template>
   <div class="space-y-6">
-    <div class="rounded-md bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+    <div class="rounded-md bg-warning-50 p-4 text-sm text-warning-800 ring-1 ring-warning-200">
       Everything worth a look in one place — confirmed theft-risk alerts, suspicious declined attempts, and
       real-time siphoning (sudden fuel-drop) events.
     </div>
 
     <!-- Theft alerts -->
-    <section class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div class="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-        <h3 class="text-sm font-semibold text-gray-900">Active theft alerts <span class="font-normal text-gray-400">· {{ alerts?.length ?? 0 }}</span></h3>
-        <RouterLink to="/anomalies" class="text-xs font-medium text-indigo-600 hover:text-indigo-500">Open Anomalies →</RouterLink>
+    <BaseCard as="section" padding="none">
+      <div class="flex items-center justify-between border-b border-edge-subtle px-5 py-3">
+        <h3 class="text-sm font-semibold text-ink">Active theft alerts <span class="font-normal text-ink-subtle">· {{ alerts?.length ?? 0 }}</span></h3>
+        <RouterLink to="/anomalies" class="text-xs font-medium text-brand-600 hover:text-brand-500">Open Anomalies →</RouterLink>
       </div>
-      <ul v-if="alerts?.length" class="divide-y divide-gray-100 text-sm">
+      <ul v-if="alerts?.length" class="divide-y divide-edge-subtle text-sm">
         <li v-for="a in alerts" :key="a.id" class="flex items-center gap-3 px-5 py-2.5">
           <span :class="[BADGE_BASE, severityTone(a.severity)]">{{ a.severity }}</span>
-          <span class="font-medium text-gray-900">{{ unit(a.vehicle_id) }}</span>
-          <span class="flex-1 truncate text-gray-600">{{ a.message }}</span>
-          <span class="whitespace-nowrap text-gray-400">{{ fmt(a.fueled_at ?? a.created_at) }}</span>
+          <span class="font-medium text-ink">{{ unit(a.vehicle_id) }}</span>
+          <span class="flex-1 truncate text-ink-secondary">{{ a.message }}</span>
+          <span class="whitespace-nowrap text-ink-subtle">{{ fmt(a.fueled_at ?? a.created_at) }}</span>
         </li>
       </ul>
-      <p v-else class="px-5 py-4 text-sm text-gray-500">No high-risk theft cases right now.</p>
-    </section>
+      <p v-else class="px-5 py-4 text-sm text-ink-muted">No high-risk theft cases right now.</p>
+    </BaseCard>
 
     <!-- Suspicious declines -->
-    <section class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div class="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-        <h3 class="text-sm font-semibold text-gray-900">Suspicious declined attempts <span class="font-normal text-gray-400">· {{ declines?.length ?? 0 }}</span></h3>
-        <RouterLink to="/rejections" class="text-xs font-medium text-indigo-600 hover:text-indigo-500">Open Rejections →</RouterLink>
+    <BaseCard as="section" padding="none">
+      <div class="flex items-center justify-between border-b border-edge-subtle px-5 py-3">
+        <h3 class="text-sm font-semibold text-ink">Suspicious declined attempts <span class="font-normal text-ink-subtle">· {{ declines?.length ?? 0 }}</span></h3>
+        <RouterLink to="/rejections" class="text-xs font-medium text-brand-600 hover:text-brand-500">Open Rejections →</RouterLink>
       </div>
-      <ul v-if="declines?.length" class="divide-y divide-gray-100 text-sm">
+      <ul v-if="declines?.length" class="divide-y divide-edge-subtle text-sm">
         <li v-for="d in declines" :key="d.id" class="flex items-center gap-3 px-5 py-2.5">
           <span :class="[BADGE_BASE, suspicionTone(d.suspicion_level)]">{{ d.suspicion_level }}</span>
-          <span class="font-medium text-gray-900">{{ d.unit ?? "—" }}</span>
-          <span class="flex-1 truncate text-gray-600">{{ (d.suspicion_reasons ?? [])[0]?.detail ?? `${d.city ?? ""} ${d.state ?? ""}` }}</span>
-          <span class="whitespace-nowrap text-gray-400">{{ fmt(d.declined_at) }}</span>
+          <span class="font-medium text-ink">{{ d.unit ?? "—" }}</span>
+          <span class="flex-1 truncate text-ink-secondary">{{ (d.suspicion_reasons ?? [])[0]?.detail ?? `${d.city ?? ""} ${d.state ?? ""}` }}</span>
+          <span class="whitespace-nowrap text-ink-subtle">{{ fmt(d.declined_at) }}</span>
         </li>
       </ul>
-      <p v-else class="px-5 py-4 text-sm text-gray-500">No suspicious declines. Run "Rescore" on the Rejections page if you've just imported.</p>
-    </section>
+      <p v-else class="px-5 py-4 text-sm text-ink-muted">No suspicious declines. Run "Rescore" on the Rejections page if you've just imported.</p>
+    </BaseCard>
 
     <!-- Siphoning / fuel-drop events -->
-    <section class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <div class="border-b border-gray-100 px-5 py-3">
-        <h3 class="text-sm font-semibold text-gray-900">Siphoning events (sudden fuel drops) <span class="font-normal text-gray-400">· {{ drops?.length ?? 0 }}</span></h3>
+    <BaseCard as="section" padding="none">
+      <div class="border-b border-edge-subtle px-5 py-3">
+        <h3 class="text-sm font-semibold text-ink">Siphoning events (sudden fuel drops) <span class="font-normal text-ink-subtle">· {{ drops?.length ?? 0 }}</span></h3>
       </div>
-      <ul v-if="drops?.length" class="divide-y divide-gray-100 text-sm">
+      <ul v-if="drops?.length" class="divide-y divide-edge-subtle text-sm">
         <li v-for="ev in drops" :key="ev.id" class="flex items-center gap-3 px-5 py-2.5">
-          <span class="inline-flex items-center rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-600/20 ring-inset">
+          <span :class="[BADGE_BASE, toneClass('danger')]">
             {{ ev.drop_pct != null ? `−${ev.drop_pct}%` : "drop" }}
           </span>
-          <span class="font-medium text-gray-900">{{ unit(ev.vehicle_id) }}</span>
-          <span class="flex-1 truncate text-gray-600">{{ ev.address ?? "—" }}</span>
-          <span class="whitespace-nowrap text-gray-400">{{ fmt(ev.happened_at) }}</span>
+          <span class="font-medium text-ink">{{ unit(ev.vehicle_id) }}</span>
+          <span class="flex-1 truncate text-ink-secondary">{{ ev.address ?? "—" }}</span>
+          <span class="whitespace-nowrap text-ink-subtle">{{ fmt(ev.happened_at) }}</span>
         </li>
       </ul>
-      <p v-else class="px-5 py-4 text-sm text-gray-500">
+      <p v-else class="px-5 py-4 text-sm text-ink-muted">
         No fuel-drop events yet. These arrive in real time once the Samsara "Fuel Level → sudden decrease" alert is configured with the webhook.
       </p>
-    </section>
+    </BaseCard>
 
-    <p v-if="empty" class="text-center text-sm text-gray-400">Nothing flagged right now — that's a good thing.</p>
+    <p v-if="empty" class="text-center text-sm text-ink-subtle">Nothing flagged right now — that's a good thing.</p>
   </div>
 </template>

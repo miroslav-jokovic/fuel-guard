@@ -10,6 +10,7 @@ import {
   type VehicleImportPreview,
 } from "./useVehicleSetupImport";
 import { useToastStore } from "@/stores/toast";
+import BaseButton from "@/components/ui/BaseButton.vue";
 
 const props = defineProps<{ vehicles: Vehicle[] }>();
 const emit = defineEmits<{ done: [] }>();
@@ -80,7 +81,7 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
     <template v-if="!preview">
 
       <!-- How-to steps -->
-      <ol class="space-y-1 rounded-lg bg-indigo-50 px-4 py-3 text-sm text-indigo-800 ring-1 ring-indigo-100 list-decimal list-inside">
+      <ol class="space-y-1 rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-800 ring-1 ring-brand-100 list-decimal list-inside">
         <li>Download the blank template below and open it in Excel / Google Sheets</li>
         <li>Delete the two example rows and enter your vehicle data</li>
         <li>Save as CSV or Excel and upload it here</li>
@@ -90,56 +91,56 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
       <!-- Download buttons -->
       <div class="grid grid-cols-2 gap-3">
         <button
-          class="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-indigo-300 px-4 py-5 text-center transition-colors hover:border-indigo-400 hover:bg-indigo-50"
+          class="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-brand-300 px-4 py-5 text-center transition-colors hover:border-brand-400 hover:bg-brand-50"
           @click="downloadTemplate"
         >
-          <ArrowDownTrayIcon class="size-6 text-indigo-500" aria-hidden="true" />
-          <span class="text-sm font-semibold text-indigo-700">Blank template</span>
-          <span class="text-xs text-gray-500">All fields · 2 example rows</span>
+          <ArrowDownTrayIcon class="size-6 text-brand-500" aria-hidden="true" />
+          <span class="text-sm font-semibold text-brand-700">Blank template</span>
+          <span class="text-xs text-ink-muted">All fields · 2 example rows</span>
         </button>
         <button
-          class="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-5 text-center transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          class="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-edge-strong px-4 py-5 text-center transition-colors hover:border-neutral-400 hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
           :disabled="!vehicles.length"
           :title="vehicles.length ? 'Export current fleet — fill in tank / MPG and re-import' : 'No vehicles yet'"
           @click="downloadCurrentFleet"
         >
-          <ArrowDownTrayIcon class="size-6 text-gray-400" aria-hidden="true" />
-          <span class="text-sm font-semibold text-gray-700">Current fleet</span>
-          <span class="text-xs text-gray-500">Edit tank / MPG / idle equipment</span>
+          <ArrowDownTrayIcon class="size-6 text-ink-subtle" aria-hidden="true" />
+          <span class="text-sm font-semibold text-ink-secondary">Current fleet</span>
+          <span class="text-xs text-ink-muted">Edit tank / MPG / idle equipment</span>
         </button>
       </div>
 
       <!-- Field reference -->
-      <details class="rounded-lg bg-gray-50 ring-1 ring-gray-200">
-        <summary class="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-gray-700">
+      <details class="rounded-lg bg-surface-subtle ring-1 ring-edge">
+        <summary class="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-ink-secondary">
           CSV field reference ▾
         </summary>
-        <div class="overflow-x-auto border-t border-gray-200 px-4 pb-3 pt-2">
+        <div class="overflow-x-auto border-t border-edge px-4 pb-3 pt-2">
           <table class="min-w-full text-xs">
             <thead>
-              <tr class="border-b border-gray-200 text-left text-gray-500">
+              <tr class="border-b border-edge text-left text-ink-muted">
                 <th class="pb-1.5 pr-4 font-medium">Column</th>
                 <th class="pb-1.5 pr-4 font-medium">Required</th>
                 <th class="pb-1.5 font-medium">Notes</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100 text-gray-700">
-              <tr><td class="py-1.5 pr-4 font-mono">unit_number</td><td class="pr-4 text-red-600 font-medium">Yes</td><td>Unique truck ID (e.g. T-101). Used to match existing vehicles.</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">fuel_type</td><td class="pr-4 text-red-600 font-medium">New only</td><td>diesel / gasoline / def / electric / other</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">make</td><td class="pr-4 text-gray-400">No</td><td>e.g. Freightliner, Ford, Kenworth</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">model</td><td class="pr-4 text-gray-400">No</td><td>e.g. Cascadia, F-450, T680</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">year</td><td class="pr-4 text-gray-400">No</td><td>4-digit model year (e.g. 2021)</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">plate</td><td class="pr-4 text-gray-400">No</td><td>License plate number</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">vin</td><td class="pr-4 text-gray-400">No</td><td>17-character VIN</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">tank_capacity_gal</td><td class="pr-4 text-amber-600 font-medium">Recommended</td><td>Full tank size in gallons. Required for theft detection.</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">baseline_mpg</td><td class="pr-4 text-amber-600 font-medium">Recommended</td><td>Average MPG. Required for consumption anomaly rules.</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">current_odometer</td><td class="pr-4 text-gray-400">No</td><td>Current odometer reading in miles</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">status</td><td class="pr-4 text-gray-400">No</td><td>active / maintenance / retired (default: active)</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">apu_type</td><td class="pr-4 text-gray-400">No</td><td>diesel_apu / battery_hvac / fuel_heater / shore_power / none — idle-reduction equipment</td></tr>
-              <tr><td class="py-1.5 pr-4 font-mono">has_optimized_idle</td><td class="pr-4 text-gray-400">No</td><td>yes / no — OEM optimized idle (e.g. Freightliner Cascadia)</td></tr>
+            <tbody class="divide-y divide-edge-subtle text-ink-secondary">
+              <tr><td class="py-1.5 pr-4 font-mono">unit_number</td><td class="pr-4 text-danger-600 font-medium">Yes</td><td>Unique truck ID (e.g. T-101). Used to match existing vehicles.</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">fuel_type</td><td class="pr-4 text-danger-600 font-medium">New only</td><td>diesel / gasoline / def / electric / other</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">make</td><td class="pr-4 text-ink-subtle">No</td><td>e.g. Freightliner, Ford, Kenworth</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">model</td><td class="pr-4 text-ink-subtle">No</td><td>e.g. Cascadia, F-450, T680</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">year</td><td class="pr-4 text-ink-subtle">No</td><td>4-digit model year (e.g. 2021)</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">plate</td><td class="pr-4 text-ink-subtle">No</td><td>License plate number</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">vin</td><td class="pr-4 text-ink-subtle">No</td><td>17-character VIN</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">tank_capacity_gal</td><td class="pr-4 text-warning-600 font-medium">Recommended</td><td>Full tank size in gallons. Required for theft detection.</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">baseline_mpg</td><td class="pr-4 text-warning-600 font-medium">Recommended</td><td>Average MPG. Required for consumption anomaly rules.</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">current_odometer</td><td class="pr-4 text-ink-subtle">No</td><td>Current odometer reading in miles</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">status</td><td class="pr-4 text-ink-subtle">No</td><td>active / maintenance / retired (default: active)</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">apu_type</td><td class="pr-4 text-ink-subtle">No</td><td>diesel_apu / battery_hvac / fuel_heater / shore_power / none — idle-reduction equipment</td></tr>
+              <tr><td class="py-1.5 pr-4 font-mono">has_optimized_idle</td><td class="pr-4 text-ink-subtle">No</td><td>yes / no — OEM optimized idle (e.g. Freightliner Cascadia)</td></tr>
             </tbody>
           </table>
-          <p class="mt-2 text-xs text-gray-500">
+          <p class="mt-2 text-xs text-ink-muted">
             Existing vehicles are matched by <strong>unit_number</strong> — <em>tank_capacity_gal</em>, <em>baseline_mpg</em>, and idle equipment (<em>apu_type</em>, <em>has_optimized_idle</em>) are updated.
             Unrecognised units create new vehicles.
           </p>
@@ -147,14 +148,14 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
       </details>
 
       <!-- File upload zone -->
-      <div class="rounded-lg border-2 border-dashed border-gray-300 bg-white px-6 py-10 text-center">
+      <div class="rounded-lg border-2 border-dashed border-edge-strong bg-surface px-6 py-10 text-center">
         <label class="inline-block cursor-pointer">
-          <span class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+          <span class="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-ink-inverse shadow-sm hover:bg-brand-500">
             {{ reading ? "Reading…" : "Choose CSV or Excel file" }}
           </span>
           <input type="file" accept=".csv,.xlsx,.xls" class="sr-only" :disabled="reading" @change="onFile" />
         </label>
-        <p class="mt-2 text-xs text-gray-400">Upload the completed template to see a preview before importing</p>
+        <p class="mt-2 text-xs text-ink-subtle">Upload the completed template to see a preview before importing</p>
       </div>
 
     </template>
@@ -163,40 +164,40 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
     <template v-else>
 
       <!-- Filename -->
-      <p class="truncate text-xs text-gray-500">
-        File: <strong class="text-gray-700">{{ preview.filename }}</strong>
-        <span class="ml-2 text-gray-400">{{ preview.totalRows }} data row{{ preview.totalRows === 1 ? "" : "s" }}</span>
+      <p class="truncate text-xs text-ink-muted">
+        File: <strong class="text-ink-secondary">{{ preview.filename }}</strong>
+        <span class="ml-2 text-ink-subtle">{{ preview.totalRows }} data row{{ preview.totalRows === 1 ? "" : "s" }}</span>
       </p>
 
       <!-- Summary stats -->
       <dl class="grid grid-cols-3 gap-3">
-        <div class="rounded-lg p-3 ring-1" :class="preview.toCreate.length ? 'bg-green-50 ring-green-200' : 'bg-gray-50 ring-gray-200'">
-          <dt class="text-xs" :class="preview.toCreate.length ? 'text-green-700' : 'text-gray-500'">New vehicles</dt>
-          <dd class="text-2xl font-bold" :class="preview.toCreate.length ? 'text-green-800' : 'text-gray-400'">{{ preview.toCreate.length }}</dd>
+        <div class="rounded-lg p-3 ring-1" :class="preview.toCreate.length ? 'bg-success-50 ring-success-200' : 'bg-surface-subtle ring-edge'">
+          <dt class="text-xs" :class="preview.toCreate.length ? 'text-success-700' : 'text-ink-muted'">New vehicles</dt>
+          <dd class="text-2xl font-bold" :class="preview.toCreate.length ? 'text-success-800' : 'text-ink-subtle'">{{ preview.toCreate.length }}</dd>
         </div>
-        <div class="rounded-lg p-3 ring-1" :class="preview.toUpdate.length ? 'bg-indigo-50 ring-indigo-200' : 'bg-gray-50 ring-gray-200'">
-          <dt class="text-xs" :class="preview.toUpdate.length ? 'text-indigo-700' : 'text-gray-500'">Setup updates</dt>
-          <dd class="text-2xl font-bold" :class="preview.toUpdate.length ? 'text-indigo-800' : 'text-gray-400'">{{ preview.toUpdate.length }}</dd>
+        <div class="rounded-lg p-3 ring-1" :class="preview.toUpdate.length ? 'bg-brand-50 ring-brand-200' : 'bg-surface-subtle ring-edge'">
+          <dt class="text-xs" :class="preview.toUpdate.length ? 'text-brand-700' : 'text-ink-muted'">Setup updates</dt>
+          <dd class="text-2xl font-bold" :class="preview.toUpdate.length ? 'text-brand-800' : 'text-ink-subtle'">{{ preview.toUpdate.length }}</dd>
         </div>
-        <div class="rounded-lg p-3 ring-1" :class="preview.errors.length ? 'bg-red-50 ring-red-200' : 'bg-gray-50 ring-gray-200'">
-          <dt class="text-xs" :class="preview.errors.length ? 'text-red-700' : 'text-gray-500'">Errors</dt>
-          <dd class="text-2xl font-bold" :class="preview.errors.length ? 'text-red-800' : 'text-gray-400'">{{ preview.errors.length }}</dd>
+        <div class="rounded-lg p-3 ring-1" :class="preview.errors.length ? 'bg-danger-50 ring-danger-200' : 'bg-surface-subtle ring-edge'">
+          <dt class="text-xs" :class="preview.errors.length ? 'text-danger-700' : 'text-ink-muted'">Errors</dt>
+          <dd class="text-2xl font-bold" :class="preview.errors.length ? 'text-danger-800' : 'text-ink-subtle'">{{ preview.errors.length }}</dd>
         </div>
       </dl>
 
       <!-- Errors -->
-      <div v-if="preview.errors.length" class="max-h-28 overflow-y-auto rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">
+      <div v-if="preview.errors.length" class="max-h-28 overflow-y-auto rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700 ring-1 ring-danger-200">
         <p v-for="(err, i) in preview.errors" :key="i">{{ err }}</p>
       </div>
 
       <!-- New vehicles table -->
-      <div v-if="preview.toCreate.length" class="overflow-hidden rounded-lg ring-1 ring-gray-200">
-        <div class="bg-green-50 px-3 py-2 text-xs font-semibold text-green-800 border-b border-green-100">
+      <div v-if="preview.toCreate.length" class="overflow-hidden rounded-lg ring-1 ring-edge">
+        <div class="bg-success-50 px-3 py-2 text-xs font-semibold text-success-800 border-b border-success-100">
           New vehicles ({{ preview.toCreate.length }})
         </div>
         <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-100 text-sm">
-            <thead class="bg-gray-50 text-left text-xs text-gray-500">
+          <table class="min-w-full divide-y divide-edge-subtle text-sm">
+            <thead class="bg-surface-subtle text-left text-xs text-ink-muted">
               <tr>
                 <th class="px-3 py-2 font-medium">Unit</th>
                 <th class="px-3 py-2 font-medium">Fuel type</th>
@@ -209,82 +210,81 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
                 <th class="px-3 py-2 font-medium">Idle equipment</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100">
-              <tr v-for="r in preview.toCreate.slice(0, 50)" :key="r.unit_number" class="hover:bg-gray-50">
-                <td class="px-3 py-1.5 font-semibold text-gray-900">{{ r.unit_number }}</td>
-                <td class="px-3 py-1.5 capitalize text-gray-700">{{ r.fuel_type }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ [r.make, r.model, r.year].filter(Boolean).join(" ") || "—" }}</td>
-                <td class="px-3 py-1.5 text-gray-500 text-xs">
+            <tbody class="divide-y divide-edge-subtle">
+              <tr v-for="r in preview.toCreate.slice(0, 50)" :key="r.unit_number" class="hover:bg-surface-subtle">
+                <td class="px-3 py-1.5 font-semibold text-ink">{{ r.unit_number }}</td>
+                <td class="px-3 py-1.5 capitalize text-ink-secondary">{{ r.fuel_type }}</td>
+                <td class="px-3 py-1.5 text-ink-secondary">{{ [r.make, r.model, r.year].filter(Boolean).join(" ") || "—" }}</td>
+                <td class="px-3 py-1.5 text-ink-muted text-xs">
                   <div v-if="r.plate">{{ r.plate }}</div>
                   <div v-if="r.vin" class="font-mono">{{ r.vin }}</div>
                   <span v-if="!r.plate && !r.vin">—</span>
                 </td>
-                <td class="px-3 py-1.5 text-right text-gray-700">{{ r.tank_capacity_gal || "—" }}</td>
-                <td class="px-3 py-1.5 text-right text-gray-700">{{ fmt(r.baseline_mpg) }}</td>
-                <td class="px-3 py-1.5 text-right text-gray-700">{{ r.current_odometer ? r.current_odometer.toLocaleString() : "—" }}</td>
-                <td class="px-3 py-1.5 capitalize text-gray-700">{{ r.status }}</td>
-                <td class="px-3 py-1.5 text-gray-700">{{ equipLabel(r.apu_type, r.has_optimized_idle) }}</td>
+                <td class="px-3 py-1.5 text-right text-ink-secondary">{{ r.tank_capacity_gal || "—" }}</td>
+                <td class="px-3 py-1.5 text-right text-ink-secondary">{{ fmt(r.baseline_mpg) }}</td>
+                <td class="px-3 py-1.5 text-right text-ink-secondary">{{ r.current_odometer ? r.current_odometer.toLocaleString() : "—" }}</td>
+                <td class="px-3 py-1.5 capitalize text-ink-secondary">{{ r.status }}</td>
+                <td class="px-3 py-1.5 text-ink-secondary">{{ equipLabel(r.apu_type, r.has_optimized_idle) }}</td>
               </tr>
             </tbody>
           </table>
-          <p v-if="preview.toCreate.length > 50" class="px-3 py-2 text-xs text-gray-400">+{{ preview.toCreate.length - 50 }} more…</p>
+          <p v-if="preview.toCreate.length > 50" class="px-3 py-2 text-xs text-ink-subtle">+{{ preview.toCreate.length - 50 }} more…</p>
         </div>
       </div>
 
       <!-- Setup updates table -->
-      <div v-if="preview.toUpdate.length" class="overflow-hidden rounded-lg ring-1 ring-gray-200">
-        <div class="bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 border-b border-indigo-100">
+      <div v-if="preview.toUpdate.length" class="overflow-hidden rounded-lg ring-1 ring-edge">
+        <div class="bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-800 border-b border-brand-100">
           Setup updates ({{ preview.toUpdate.length }}) — existing vehicles, tank &amp; MPG only
         </div>
-        <table class="min-w-full divide-y divide-gray-100 text-sm">
-          <thead class="bg-gray-50 text-left text-xs text-gray-500">
-            <tr>
-              <th class="px-3 py-2 font-medium">Unit</th>
-              <th class="px-3 py-2 font-medium">Tank (gal)</th>
-              <th class="px-3 py-2 font-medium">Baseline MPG</th>
-              <th class="px-3 py-2 font-medium">Idle equipment</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <tr v-for="c in preview.toUpdate.slice(0, 50)" :key="c.id" class="hover:bg-gray-50">
-              <td class="px-3 py-1.5 font-medium text-gray-900">{{ c.unit_number }}</td>
-              <td class="px-3 py-1.5 text-gray-700">
-                <span :class="c.tank_before !== c.tank_after ? 'text-gray-400 line-through' : ''">{{ fmt(c.tank_before) }}</span>
-                <span v-if="c.tank_before !== c.tank_after" class="font-medium text-gray-900"> → {{ fmt(c.tank_after) }}</span>
-              </td>
-              <td class="px-3 py-1.5 text-gray-700">
-                <span :class="c.mpg_before !== c.mpg_after ? 'text-gray-400 line-through' : ''">{{ fmt(c.mpg_before) }}</span>
-                <span v-if="c.mpg_before !== c.mpg_after" class="font-medium text-gray-900"> → {{ fmt(c.mpg_after) }}</span>
-              </td>
-              <td class="px-3 py-1.5 text-gray-700">
-                <span v-if="c.equip_changed" class="font-medium text-gray-900">{{ equipLabel(c.apu_type_after ?? null, c.has_optimized_idle_after ?? null) }}</span>
-                <span v-else class="text-gray-400">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-if="preview.toUpdate.length > 50" class="px-3 py-2 text-xs text-gray-400">+{{ preview.toUpdate.length - 50 }} more…</p>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-edge-subtle text-sm">
+            <thead class="bg-surface-subtle text-left text-xs text-ink-muted">
+              <tr>
+                <th class="px-3 py-2 font-medium">Unit</th>
+                <th class="px-3 py-2 font-medium">Tank (gal)</th>
+                <th class="px-3 py-2 font-medium">Baseline MPG</th>
+                <th class="px-3 py-2 font-medium">Idle equipment</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-edge-subtle">
+              <tr v-for="c in preview.toUpdate.slice(0, 50)" :key="c.id" class="hover:bg-surface-subtle">
+                <td class="px-3 py-1.5 font-medium text-ink">{{ c.unit_number }}</td>
+                <td class="px-3 py-1.5 text-ink-secondary">
+                  <span :class="c.tank_before !== c.tank_after ? 'text-ink-subtle line-through' : ''">{{ fmt(c.tank_before) }}</span>
+                  <span v-if="c.tank_before !== c.tank_after" class="font-medium text-ink"> → {{ fmt(c.tank_after) }}</span>
+                </td>
+                <td class="px-3 py-1.5 text-ink-secondary">
+                  <span :class="c.mpg_before !== c.mpg_after ? 'text-ink-subtle line-through' : ''">{{ fmt(c.mpg_before) }}</span>
+                  <span v-if="c.mpg_before !== c.mpg_after" class="font-medium text-ink"> → {{ fmt(c.mpg_after) }}</span>
+                </td>
+                <td class="px-3 py-1.5 text-ink-secondary">
+                  <span v-if="c.equip_changed" class="font-medium text-ink">{{ equipLabel(c.apu_type_after ?? null, c.has_optimized_idle_after ?? null) }}</span>
+                  <span v-else class="text-ink-subtle">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="preview.toUpdate.length > 50" class="px-3 py-2 text-xs text-ink-subtle">+{{ preview.toUpdate.length - 50 }} more…</p>
+        </div>
       </div>
 
       <!-- No changes -->
       <div
         v-if="!preview.toCreate.length && !preview.toUpdate.length && !preview.errors.length"
-        class="rounded-lg bg-gray-50 px-4 py-4 text-center text-sm text-gray-500 ring-1 ring-gray-200"
+        class="rounded-lg bg-surface-subtle px-4 py-4 text-center text-sm text-ink-muted ring-1 ring-edge"
       >
         No changes — all vehicles in this file are already up to date.
       </div>
 
       <!-- Action buttons -->
-      <div class="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
-        <button
-          class="text-sm font-medium text-gray-500 hover:text-gray-700"
-          @click="preview = null"
-        >
+      <div class="flex items-center justify-between gap-3 border-t border-edge-subtle pt-4">
+        <BaseButton variant="ghost" @click="preview = null">
           ← Choose another file
-        </button>
-        <button
+        </BaseButton>
+        <BaseButton
+          variant="primary"
           :disabled="commit.isPending.value || !actionCount"
-          class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
           @click="onCommit"
         >
           {{ commit.isPending.value
@@ -292,7 +292,7 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
               : actionCount
                 ? `Import ${actionCount} vehicle${actionCount === 1 ? "" : "s"}`
                 : "Nothing to import" }}
-        </button>
+        </BaseButton>
       </div>
 
     </template>

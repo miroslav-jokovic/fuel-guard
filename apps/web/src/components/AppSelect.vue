@@ -62,13 +62,13 @@ function select(val: OptionValue) {
       ref="triggerRef"
       type="button"
       :disabled="disabled"
-      class="flex w-full items-center justify-between gap-2 rounded-md border-0 bg-white px-3 py-1.5 text-left text-sm ring-1 ring-inset ring-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
+      class="flex w-full items-center justify-between gap-2 rounded-md border-0 bg-surface px-3 py-1.5 text-left text-sm ring-1 ring-inset ring-edge-strong focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
       @click="open = !open"
     >
-      <span class="truncate" :class="isUnset ? 'text-gray-400' : 'text-gray-900'">
+      <span class="truncate" :class="isUnset ? 'text-ink-subtle' : 'text-ink'">
         {{ selectedLabel }}
       </span>
-      <ChevronUpDownIcon class="size-4 shrink-0 text-gray-400" />
+      <ChevronUpDownIcon class="size-4 shrink-0 text-ink-subtle" />
     </button>
 
     <Teleport to="body">
@@ -77,7 +77,7 @@ function select(val: OptionValue) {
         <div
           ref="panelRef"
           :style="floatingStyles"
-          class="z-[9999] max-h-60 overflow-auto rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-black/5"
+          class="z-[9999] max-h-60 overflow-auto rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge"
         >
           <button
             v-for="opt in options"
@@ -86,13 +86,13 @@ function select(val: OptionValue) {
             class="flex w-full items-center px-3 py-2 text-left"
             :class="
               opt.value === modelValue
-                ? 'bg-indigo-50 font-medium text-indigo-700'
-                : 'text-gray-900 hover:bg-gray-50'
+                ? 'bg-brand-50 font-medium text-brand-700'
+                : 'text-ink hover:bg-surface-subtle'
             "
             @click="select(opt.value)"
           >
             <CheckIcon
-              class="mr-2 size-4 shrink-0 text-indigo-600 transition-opacity"
+              class="mr-2 size-4 shrink-0 text-brand-600 transition-opacity"
               :class="opt.value === modelValue ? 'opacity-100' : 'opacity-0'"
             />
             {{ opt.label }}

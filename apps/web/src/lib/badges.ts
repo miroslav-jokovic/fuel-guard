@@ -1,38 +1,43 @@
 // Modern "soft" badge styling — light fill + subtle inset ring — used consistently across the app.
-const SOFT: Record<string, string> = {
-  red: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20",
-  orange: "bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-600/20",
-  amber: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20",
-  green: "bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20",
-  indigo: "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20",
-  gray: "bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/20",
-};
+// Tones are semantic (design tokens), not raw palette colors: danger > caution > warning > success…
+const SOFT = {
+  danger: "bg-danger-50 text-danger-700 ring-1 ring-inset ring-danger-600/20",
+  caution: "bg-caution-50 text-caution-700 ring-1 ring-inset ring-caution-600/20",
+  warning: "bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-600/20",
+  success: "bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20",
+  info: "bg-info-50 text-info-700 ring-1 ring-inset ring-info-600/20",
+  brand: "bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-600/20",
+  neutral: "bg-surface-subtle text-ink-muted ring-1 ring-inset ring-neutral-500/20",
+} as const;
+
+export type BadgeTone = keyof typeof SOFT;
 
 /** Base classes for a pill badge; combine with a tone from the helpers below. */
 export const BADGE_BASE = "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium capitalize";
 
-const tone = (key: string): string => SOFT[key] ?? SOFT.gray!;
+/** Soft badge classes for a semantic tone (unknown keys fall back to neutral). */
+export const toneClass = (key: string): string => SOFT[key as BadgeTone] ?? SOFT.neutral;
 
 export function severityTone(sev: string): string {
-  return tone(sev === "critical" ? "red" : sev === "high" ? "orange" : sev === "medium" ? "amber" : "gray");
+  return toneClass(sev === "critical" ? "danger" : sev === "high" ? "caution" : sev === "medium" ? "warning" : "neutral");
 }
 
 export function statusTone(status: string): string {
-  return tone(
-    status === "open" ? "indigo" : status === "investigating" ? "amber" : status === "resolved" ? "green" : "gray",
+  return toneClass(
+    status === "open" ? "brand" : status === "investigating" ? "warning" : status === "resolved" ? "success" : "neutral",
   );
 }
 
 /** Fuel-log transaction status: alert | review | verified | clear. */
 export function txnStatusTone(status: string): string {
-  return tone(status === "alert" ? "red" : status === "review" ? "amber" : status === "verified" ? "green" : "gray");
+  return toneClass(status === "alert" ? "danger" : status === "review" ? "warning" : status === "verified" ? "success" : "neutral");
 }
 
 export function inviteTone(status: string): string {
-  return tone(status === "pending" ? "amber" : status === "accepted" ? "green" : "gray");
+  return toneClass(status === "pending" ? "warning" : status === "accepted" ? "success" : "neutral");
 }
 
 /** Declined-attempt suspicion: alert | review | clear. */
 export function suspicionTone(level: string | null | undefined): string {
-  return tone(level === "alert" ? "red" : level === "review" ? "amber" : "gray");
+  return toneClass(level === "alert" ? "danger" : level === "review" ? "warning" : "neutral");
 }

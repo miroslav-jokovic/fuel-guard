@@ -3,6 +3,8 @@ import { computed } from "vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const session = useSessionStore();
 
@@ -18,13 +20,13 @@ const integrity = computed(() => {
 
 <template>
   <div class="space-y-6">
-    <p class="text-sm text-gray-500">
+    <PageHeader>
       EFS reports and telematics data are ingested automatically — new fuel reports are picked up on a
       schedule, and each import re-scores the affected vehicles so the anomaly report stays current with no
       manual step. Telematics live stats refresh every ~20 min, identity every ~12 h, and a nightly self-heal
       keeps everything consistent. Use these to force a refresh now — each shows its own freshness and live
       progress. Scoring runs through the rate-limited Samsara client, so large batches pace themselves.
-    </p>
+    </PageHeader>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <JobActionCard
@@ -71,15 +73,15 @@ const integrity = computed(() => {
     </div>
 
     <!-- Data integrity (read-only) -->
-    <div class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200">
+    <BaseCard>
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-gray-900">Data integrity</h3>
-        <span class="text-xs" :class="nightly.failed.value ? 'text-red-600' : 'text-gray-400'">{{ nightly.freshnessLabel.value }}</span>
+        <h3 class="text-sm font-semibold text-ink">Data integrity</h3>
+        <span class="text-xs" :class="nightly.failed.value ? 'text-danger-600' : 'text-ink-subtle'">{{ nightly.freshnessLabel.value }}</span>
       </div>
-      <p class="mt-1 text-sm text-gray-500">
+      <p class="mt-1 text-sm text-ink-muted">
         Nightly self-heal (per-org, ~03:00 local): repairs the fuel-event store from the source records, then
         re-scores and rebuilds. {{ integrity }}
       </p>
-    </div>
+    </BaseCard>
   </div>
 </template>

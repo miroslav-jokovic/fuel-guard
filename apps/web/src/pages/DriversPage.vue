@@ -11,9 +11,10 @@ import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import SortableTh from "@/components/SortableTh.vue";
-import TableSkeleton from "@/components/TableSkeleton.vue";
-import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 import DriverForm from "@/features/fleet/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
@@ -100,87 +101,72 @@ async function onSyncSamsara() {
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p class="text-sm text-gray-500">
-        Drivers in your fleet. Assign drivers to vehicles from the Vehicles page.
-      </p>
-      <div v-if="session.canManage" class="flex flex-wrap items-center gap-2">
-        <button
-          class="inline-flex items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:opacity-50"
-          :disabled="syncSamsara.isPending.value"
-          title="Import drivers from Samsara"
-          @click="onSyncSamsara"
-        >
-          <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
-          {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
-        </button>
-        <button
-          class="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-          @click="openNew"
-        >
-          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New driver
-        </button>
-      </div>
-    </div>
+    <PageHeader description="Drivers in your fleet. Assign drivers to vehicles from the Vehicles page.">
+      <template #actions>
+        <template v-if="session.canManage">
+          <BaseButton
+            :disabled="syncSamsara.isPending.value"
+            title="Import drivers from Samsara"
+            @click="onSyncSamsara"
+          >
+            <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+            {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+          </BaseButton>
+          <BaseButton variant="primary" @click="openNew">
+            <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New driver
+          </BaseButton>
+        </template>
+      </template>
+    </PageHeader>
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
       <div class="sm:max-w-xs sm:flex-1">
         <SearchInput v-model="search" placeholder="Search name, employee ID, phone…" />
       </div>
       <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-44" />
-      <span class="text-sm text-gray-500 sm:ml-auto">{{ filtered.length }} total</span>
+      <span class="text-sm text-ink-muted sm:ml-auto">{{ filtered.length }} total</span>
     </div>
 
-    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="6" />
-      <ErrorState
-        v-else-if="isError"
-        :message="error instanceof Error ? error.message : 'Failed to load drivers'"
-        :retrying="isFetching"
-        @retry="refetch"
-      />
-      <div v-else-if="!drivers || drivers.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-        No drivers yet.
-      </div>
-      <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-        No drivers match these filters.
-      </div>
-      <div v-else class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-        <thead class="bg-gray-50 text-left text-gray-500">
-          <tr>
-            <SortableTh label="Name" sort-key="full_name" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[12rem]" @sort="onSort" />
-            <SortableTh label="Employee ID" sort-key="employee_id" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />
-            <th class="px-6 py-3 font-medium min-w-[9rem]">Phone</th>
-            <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicles</th>
-            <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-            <th class="px-6 py-3 w-12"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-for="d in pageRows" :key="d.id" class="hover:bg-gray-50">
-            <td class="px-6 py-3 font-medium text-gray-900">{{ d.full_name }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ d.employee_id ?? "—" }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ d.phone ?? "—" }}</td>
-            <td class="px-6 py-3 text-gray-700">{{ assignedUnits(d.id) }}</td>
-            <td class="px-6 py-3"><StatusBadge :status="d.status" /></td>
-            <td class="px-6 py-3 text-right" @click.stop>
-              <KebabMenu v-if="session.canManage">
-                <button class="kebab-item" @click="openEdit(d)">Edit driver</button>
-              </KebabMenu>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
-      <TablePagination
-        v-if="!isLoading && !isError && filtered.length > 0"
-        :page="page"
-        :page-size="PAGE_SIZE"
-        :total="filtered.length"
-        @update:page="page = $event"
-      />
-    </div>
+    <DataTable
+      :loading="isLoading"
+      :error="isError ? (error instanceof Error ? error.message : 'Failed to load drivers') : null"
+      :retrying="isFetching"
+      :empty="filtered.length === 0"
+      :empty-text="(drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'"
+      :skeleton-cols="6"
+      @retry="refetch"
+    >
+      <template #head>
+        <tr>
+          <SortableTh label="Name" sort-key="full_name" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[12rem]" @sort="onSort" />
+          <SortableTh label="Employee ID" sort-key="employee_id" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />
+          <th class="px-6 py-3 font-medium min-w-[9rem]">Phone</th>
+          <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicles</th>
+          <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
+          <th class="px-6 py-3 w-12"></th>
+        </tr>
+      </template>
+      <tr v-for="d in pageRows" :key="d.id" class="hover:bg-surface-subtle">
+        <td class="px-6 py-3 font-medium text-ink">{{ d.full_name }}</td>
+        <td class="px-6 py-3 text-ink-secondary">{{ d.employee_id ?? "—" }}</td>
+        <td class="px-6 py-3 text-ink-secondary">{{ d.phone ?? "—" }}</td>
+        <td class="px-6 py-3 text-ink-secondary">{{ assignedUnits(d.id) }}</td>
+        <td class="px-6 py-3"><StatusBadge :status="d.status" /></td>
+        <td class="px-6 py-3 text-right" @click.stop>
+          <KebabMenu v-if="session.canManage">
+            <button class="kebab-item" @click="openEdit(d)">Edit driver</button>
+          </KebabMenu>
+        </td>
+      </tr>
+      <template #footer>
+        <TablePagination
+          :page="page"
+          :page-size="PAGE_SIZE"
+          :total="filtered.length"
+          @update:page="page = $event"
+        />
+      </template>
+    </DataTable>
 
     <SlideOver :open="drawerOpen" :title="editing ? 'Edit driver' : 'New driver'" @close="drawerOpen = false">
       <DriverForm

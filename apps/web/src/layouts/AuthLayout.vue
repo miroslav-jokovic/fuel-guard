@@ -8,11 +8,11 @@ import AppLogo from "@/components/AppLogo.vue";
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
       <div class="flex items-center justify-center gap-x-3">
         <AppLogo class="size-10" />
-        <span class="text-2xl font-semibold tracking-tight text-gray-900">FuelGuard</span>
+        <span class="text-2xl font-semibold tracking-tight text-ink">FuelGuard</span>
       </div>
     </div>
     <div class="mt-10 sm:mx-auto sm:w-full sm:max-w-md">
-      <div class="bg-white px-6 py-8 shadow-sm ring-1 ring-gray-200 sm:rounded-lg sm:px-10">
+      <div class="bg-surface px-6 py-8 shadow-sm ring-1 ring-edge sm:rounded-lg sm:px-10">
         <slot />
       </div>
     </div>

@@ -9,6 +9,9 @@ import {
 } from "@fuelguard/shared";
 import { genUuid } from "@/lib/uuid";
 import AppSelect from "@/components/AppSelect.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import FormField from "@/components/ui/FormField.vue";
 
 const props = defineProps<{
   vehicles: Vehicle[];
@@ -96,81 +99,58 @@ function onSubmit() {
 
   emit("submit", { input: result.data, file: file.value });
 }
-
-const inputCls =
-  "mt-1 block w-full rounded-md border-0 px-3 py-2 text-base text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600";
 </script>
 
 <template>
   <form class="space-y-5" @submit.prevent="onSubmit">
-    <div>
-      <label class="block text-sm font-medium text-gray-900">Vehicle</label>
+    <FormField label="Vehicle" :error="errors.vehicle_id">
       <AppSelect
         v-model="form.vehicle_id"
-        class="mt-1"
         :options="vehicles.map((v) => ({ value: v.id, label: `${v.unit_number} — ${[v.make, v.model].filter(Boolean).join(' ')}` }))"
       />
-      <p v-if="errors.vehicle_id" class="mt-1 text-xs text-red-600">{{ errors.vehicle_id }}</p>
-    </div>
+    </FormField>
 
-    <div>
-      <label class="block text-sm font-medium text-gray-900">Date &amp; time</label>
-      <input v-model="form.fueled_at_local" type="datetime-local" :class="inputCls" />
-    </div>
+    <FormField v-slot="{ id: fieldId }" label="Date &amp; time">
+      <BaseInput :id="fieldId" v-model="form.fueled_at_local" type="datetime-local" />
+    </FormField>
 
-    <div>
-      <label class="block text-sm font-medium text-gray-900">Odometer</label>
-      <input v-model="form.odometer" inputmode="decimal" placeholder="Miles" :class="inputCls" />
-      <p v-if="warnings.odometerBelowLast" class="mt-1 text-xs text-red-600">
+    <FormField v-slot="{ id: fieldId }" label="Odometer">
+      <BaseInput :id="fieldId" v-model="form.odometer" inputmode="decimal" placeholder="Miles" />
+      <p v-if="warnings.odometerBelowLast" class="mt-1 text-xs text-danger-600">
         This is below the last recorded reading
         ({{ selectedVehicle?.current_odometer }}).
       </p>
-      <p v-else-if="warnings.odometerMissing" class="mt-1 text-xs text-amber-600">
+      <p v-else-if="warnings.odometerMissing" class="mt-1 text-xs text-warning-600">
         Add the odometer so we can track MPG.
       </p>
-    </div>
+    </FormField>
 
     <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label class="block text-sm font-medium text-gray-900">Gallons</label>
-        <input v-model="form.gallons" inputmode="decimal" :class="inputCls" />
-        <p v-if="errors.gallons" class="mt-1 text-xs text-red-600">{{ errors.gallons }}</p>
-        <p v-if="warnings.exceedsCapacity" class="mt-1 text-xs text-red-600">
+      <FormField v-slot="{ id: fieldId }" label="Gallons" :error="errors.gallons">
+        <BaseInput :id="fieldId" v-model="form.gallons" inputmode="decimal" :invalid="!!errors.gallons" />
+        <p v-if="warnings.exceedsCapacity" class="mt-1 text-xs text-danger-600">
           Exceeds tank capacity ({{ selectedVehicle?.tank_capacity_gal }} gal).
         </p>
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-900">Total cost ($)</label>
-        <input v-model="form.total_cost" inputmode="decimal" :class="inputCls" />
-        <p v-if="pricePreview" class="mt-1 text-xs text-gray-500">≈ ${{ pricePreview }}/gal</p>
-      </div>
+      </FormField>
+      <FormField v-slot="{ id: fieldId }" label="Total cost ($)">
+        <BaseInput :id="fieldId" v-model="form.total_cost" inputmode="decimal" />
+        <p v-if="pricePreview" class="mt-1 text-xs text-ink-muted">≈ ${{ pricePreview }}/gal</p>
+      </FormField>
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-gray-900">Location</label>
-      <input v-model="form.location_text" placeholder="Station / city" :class="inputCls" />
-    </div>
+    <FormField v-slot="{ id: fieldId }" label="Location">
+      <BaseInput :id="fieldId" v-model="form.location_text" placeholder="Station / city" />
+    </FormField>
 
-    <div>
-      <label class="block text-sm font-medium text-gray-900">Receipt photo (optional)</label>
-      <input type="file" accept="image/*" capture="environment" class="mt-1 block w-full text-sm" @change="onFile" />
-    </div>
+    <FormField v-slot="{ id: fieldId }" label="Receipt photo (optional)">
+      <input :id="fieldId" type="file" accept="image/*" capture="environment" class="block w-full text-sm" @change="onFile" />
+    </FormField>
 
     <div class="flex justify-end gap-3 pt-2">
-      <button
-        type="button"
-        class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
-        @click="emit('cancel')"
-      >
-        Cancel
-      </button>
-      <button
-        type="submit"
-        :disabled="submitting"
-        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-      >
+      <BaseButton @click="emit('cancel')">Cancel</BaseButton>
+      <BaseButton type="submit" variant="primary" :disabled="submitting">
         {{ submitting ? "Saving…" : "Log fill-up" }}
-      </button>
+      </BaseButton>
     </div>
   </form>
 </template>

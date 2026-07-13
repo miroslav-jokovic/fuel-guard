@@ -19,17 +19,17 @@ defineEmits<{ "update:modelValue": [value: string]; clear: [] }>();
 </script>
 
 <template>
-  <div class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
+  <div class="rounded-lg bg-surface p-4 shadow-sm ring-1 ring-edge">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <h2 class="text-sm font-semibold text-gray-900">
+      <h2 class="text-sm font-semibold text-ink">
         {{ title }}
-        <span v-if="count != null" class="ml-1 font-normal text-gray-400">· {{ count.toLocaleString() }}</span>
-        <span v-if="subtitle" class="ml-1 font-normal text-gray-400">· {{ subtitle }}</span>
-        <span v-if="activeFilterCount" class="ml-1 font-normal text-indigo-600">· {{ activeFilterCount }} filter{{ activeFilterCount > 1 ? "s" : "" }}</span>
+        <span v-if="count != null" class="ml-1 font-normal text-ink-subtle">· {{ count.toLocaleString() }}</span>
+        <span v-if="subtitle" class="ml-1 font-normal text-ink-subtle">· {{ subtitle }}</span>
+        <span v-if="activeFilterCount" class="ml-1 font-normal text-brand-600">· {{ activeFilterCount }} filter{{ activeFilterCount > 1 ? "s" : "" }}</span>
       </h2>
       <button
         v-if="activeFilterCount"
-        class="text-sm font-medium text-gray-500 hover:text-gray-700"
+        class="text-sm font-medium text-ink-muted hover:text-ink-secondary"
         @click="$emit('clear')"
       >
         Clear filters

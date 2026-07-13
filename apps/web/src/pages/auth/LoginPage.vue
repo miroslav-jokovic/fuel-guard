@@ -2,6 +2,9 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useSessionStore } from "@/stores/session";
+import FormField from "@/components/ui/FormField.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 
 const session = useSessionStore();
 const router = useRouter();
@@ -28,45 +31,25 @@ async function onSubmit() {
 
 <template>
   <div>
-    <h2 class="mb-6 text-lg font-semibold text-gray-900">Sign in to your account</h2>
+    <h2 class="mb-6 text-lg font-semibold text-ink">Sign in to your account</h2>
 
     <form class="space-y-5" @submit.prevent="onSubmit">
-      <div>
-        <label for="email" class="block text-sm font-medium text-gray-900">Email</label>
-        <input
-          id="email"
-          v-model="email"
-          type="email"
-          autocomplete="email"
-          required
-          class="mt-2 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm"
-        />
-      </div>
+      <FormField id="email" label="Email" v-slot="{ id }">
+        <BaseInput :id="id" v-model="email" type="email" autocomplete="email" required />
+      </FormField>
 
-      <div>
-        <label for="password" class="block text-sm font-medium text-gray-900">Password</label>
-        <input
-          id="password"
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          required
-          class="mt-2 block w-full rounded-md border-0 px-3 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm"
-        />
-      </div>
+      <FormField id="password" label="Password" v-slot="{ id }">
+        <BaseInput :id="id" v-model="password" type="password" autocomplete="current-password" required />
+      </FormField>
 
-      <p v-if="error" class="text-sm text-red-600">{{ error }}</p>
+      <p v-if="error" class="text-sm text-danger-600">{{ error }}</p>
 
-      <button
-        type="submit"
-        :disabled="loading"
-        class="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-      >
+      <BaseButton type="submit" variant="primary" block :disabled="loading">
         {{ loading ? "Signing in…" : "Sign in" }}
-      </button>
+      </BaseButton>
     </form>
 
-    <p class="mt-6 text-center text-sm text-gray-500">
+    <p class="mt-6 text-center text-sm text-ink-muted">
       Access is invite-only. Ask your administrator for an invitation.
     </p>
   </div>

@@ -24,7 +24,7 @@ const emit = defineEmits<{ close: [] }>();
         leave-from="opacity-100"
         leave-to="opacity-0"
       >
-        <div class="fixed inset-0 bg-gray-500/60" />
+        <div class="fixed inset-0 bg-neutral-900/60" />
       </TransitionChild>
 
       <div class="fixed inset-0 overflow-hidden">
@@ -40,12 +40,12 @@ const emit = defineEmits<{ close: [] }>();
               leave-to="translate-x-full"
             >
               <DialogPanel class="pointer-events-auto w-screen max-w-md">
-                <div class="flex h-full flex-col bg-white shadow-xl">
-                  <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6">
-                    <DialogTitle class="text-base font-semibold text-gray-900">{{ title }}</DialogTitle>
+                <div class="flex h-full flex-col bg-surface shadow-xl">
+                  <div class="flex items-center justify-between border-b border-edge px-4 py-4 sm:px-6">
+                    <DialogTitle class="text-base font-semibold text-ink">{{ title }}</DialogTitle>
                     <button
                       type="button"
-                      class="rounded-md text-gray-400 hover:text-gray-600"
+                      class="rounded-md text-ink-subtle hover:text-ink-secondary"
                       @click="emit('close')"
                     >
                       <span class="sr-only">Close</span>

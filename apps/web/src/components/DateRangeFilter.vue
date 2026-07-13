@@ -23,16 +23,16 @@ function clear() {
 }
 
 const inputCls =
-  "w-full rounded-md border-0 px-2.5 py-1.5 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:w-auto";
+  "w-full rounded-md border-0 px-2.5 py-1.5 text-sm text-ink ring-1 ring-edge-strong ring-inset focus:ring-2 focus:ring-brand-600 sm:w-auto";
 const chipCls =
-  "rounded-md px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200 ring-inset hover:bg-gray-50";
+  "rounded-md px-2.5 py-1 text-xs font-medium text-ink-secondary ring-1 ring-edge ring-inset hover:bg-surface-subtle";
 </script>
 
 <template>
   <div class="flex flex-wrap items-center gap-2">
     <div class="flex flex-1 items-center gap-2 sm:flex-initial">
       <input type="date" :value="from ?? ''" :class="inputCls" :max="to" aria-label="From date" @change="onFrom" />
-      <span class="text-gray-300">→</span>
+      <span class="text-ink-subtle">→</span>
       <input type="date" :value="to ?? ''" :class="inputCls" :min="from" aria-label="To date" @change="onTo" />
     </div>
     <div v-if="presets" class="flex flex-wrap items-center gap-1.5">

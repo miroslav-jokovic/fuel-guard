@@ -7,8 +7,7 @@ import { useTrailersQuery } from "@/features/fleet/useTrailers";
 import { useDriversQuery } from "@/features/fleet/useDrivers";
 import TableToolbar from "@/components/TableToolbar.vue";
 import AppSelect from "@/components/AppSelect.vue";
-import TableSkeleton from "@/components/TableSkeleton.vue";
-import ErrorState from "@/components/ErrorState.vue";
+import DataTable from "@/components/ui/DataTable.vue";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useReeferCoverage();
 const { data: vehicles } = useVehiclesQuery();
@@ -41,11 +40,11 @@ const reefersByVehicle = computed(() => {
 /** Trailer identity cell: the paired reefer's unit #, "unpaired" when none, or ambiguous when 2+. */
 function trailerFor(vehicleId: string): { text: string; tone: string; title: string } {
   const list = reefersByVehicle.value.get(vehicleId) ?? [];
-  if (list.length === 0) return { text: "unpaired", tone: "text-amber-600", title: "No reefer trailer is assigned to this truck in the fleet list." };
-  if (list.length === 1) return { text: list[0]!.unit_number, tone: "text-gray-900 font-medium", title: "Reefer trailer currently paired to this truck." };
+  if (list.length === 0) return { text: "unpaired", tone: "text-warning-600", title: "No reefer trailer is assigned to this truck in the fleet list." };
+  if (list.length === 1) return { text: list[0]!.unit_number, tone: "text-ink font-medium", title: "Reefer trailer currently paired to this truck." };
   return {
     text: list.map((t) => t.unit_number).join(", "),
-    tone: "text-amber-600 font-medium",
+    tone: "text-warning-600 font-medium",
     title: "Multiple reefer trailers are assigned — fuel can't be attributed to one trailer, so the reefer capacity checks stay off for this truck.",
   };
 }
@@ -89,13 +88,13 @@ const shortDate = (iso: string | null) =>
 /** Flag trucks whose reefer share is far from the fleet baseline (informational, not an alert). */
 function shareTone(pct: number): string {
   const m = median.value;
-  if (m == null) return "text-gray-700";
-  if (pct < m * 0.4) return "text-amber-600"; // much less reefer than peers
-  if (pct > m * 2) return "text-cyan-700"; // much more reefer than peers
-  return "text-gray-700";
+  if (m == null) return "text-ink-secondary";
+  if (pct < m * 0.4) return "text-warning-600"; // much less reefer than peers
+  if (pct > m * 2) return "text-info-700"; // much more reefer than peers
+  return "text-ink-secondary";
 }
 function staleTone(days: number | null): string {
-  return days != null && days > 7 ? "text-amber-600 font-medium" : "text-gray-700";
+  return days != null && days > 7 ? "text-warning-600 font-medium" : "text-ink-secondary";
 }
 </script>
 
@@ -122,9 +121,9 @@ function staleTone(days: number | null): string {
     </TableToolbar>
 
     <!-- No reefer↔truck pairing data at all → tell the user how to establish it. -->
-    <div v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+    <div v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" class="rounded-lg bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
       <p class="font-medium">No reefer trailers are paired to trucks yet.</p>
-      <p class="mt-0.5 text-amber-700">
+      <p class="mt-0.5 text-warning-700">
         Reefer fuel can't be attributed to a specific trailer until each reefer is identified and paired. On the
         <RouterLink to="/trailers" class="font-medium underline">Trailers</RouterLink> page, mark each refrigerated
         trailer as a reefer and set its paired tractor. Samsara auto-pairs trailers that have a powered Asset
@@ -132,53 +131,50 @@ function staleTone(days: number | null): string {
       </p>
     </div>
 
-    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="10" />
-      <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load'" :retrying="isFetching" @retry="refetch" />
-      <div v-else-if="active.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-        No reefer (ULSR) fuel purchases in the last 90 days.
-      </div>
-      <div v-else class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-          <thead class="text-left text-gray-500">
-            <tr>
-              <th class="px-4 py-3 font-medium">Truck</th>
-              <th class="px-4 py-3 font-medium">Reefer trailer</th>
-              <th class="px-4 py-3 font-medium text-right">Tank cap</th>
-              <th class="px-4 py-3 font-medium text-right">Reefer gal</th>
-              <th class="px-4 py-3 font-medium text-right">Fills</th>
-              <th class="px-4 py-3 font-medium text-right">Avg / fill</th>
-              <th class="px-4 py-3 font-medium text-right">Reefer spend</th>
-              <th class="px-4 py-3 font-medium text-right">Share</th>
-              <th class="px-4 py-3 font-medium text-right">vs fleet</th>
-              <th class="px-4 py-3 font-medium text-right">Cadence</th>
-              <th class="px-4 py-3 font-medium">Last reefer</th>
-              <th class="px-4 py-3 font-medium text-right">Days since</th>
-              <th class="px-4 py-3 font-medium">Primary driver</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-            <tr v-for="t in active" :key="t.vehicleId">
-              <td class="px-4 py-3 font-medium text-gray-900">{{ unit(t.vehicleId) }}</td>
-              <td class="px-4 py-3" :class="trailerFor(t.vehicleId).tone" :title="trailerFor(t.vehicleId).title">{{ trailerFor(t.vehicleId).text }}</td>
-              <td class="px-4 py-3 text-right text-gray-700">{{ tankCapFor(t.vehicleId) != null ? tankCapFor(t.vehicleId) + " gal" : "—" }}</td>
-              <td class="px-4 py-3 text-right text-gray-700">{{ t.reeferGal.toLocaleString() }}</td>
-              <td class="px-4 py-3 text-right text-gray-700">{{ t.reeferFills }}</td>
-              <td class="px-4 py-3 text-right text-gray-700">{{ t.avgGalPerFill.toLocaleString() }}</td>
-              <td class="px-4 py-3 text-right text-gray-700">{{ usd(t.reeferSpend) }}</td>
-              <td class="px-4 py-3 text-right font-medium" :class="shareTone(t.reeferSharePct)">{{ t.reeferSharePct }}%</td>
-              <td class="px-4 py-3 text-right text-gray-500">
-                <span v-if="median != null">{{ t.reeferSharePct > median ? "+" : "" }}{{ Math.round(t.reeferSharePct - median) }} pts</span>
-                <span v-else>—</span>
-              </td>
-              <td class="px-4 py-3 text-right text-gray-700">{{ t.avgCadenceDays != null ? "~" + t.avgCadenceDays + "d" : "—" }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ shortDate(t.lastReeferAt) }}</td>
-              <td class="px-4 py-3 text-right" :class="staleTone(t.daysSinceReefer)">{{ t.daysSinceReefer ?? "—" }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ driverName(t.primaryDriverId) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      :loading="isLoading"
+      :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+      :retrying="isFetching"
+      :empty="active.length === 0"
+      empty-text="No reefer (ULSR) fuel purchases in the last 90 days."
+      :skeleton-cols="10"
+      @retry="refetch"
+    >
+      <template #head>
+        <tr>
+          <th class="px-6 py-3 font-medium">Truck</th>
+          <th class="px-6 py-3 font-medium">Reefer trailer</th>
+          <th class="px-6 py-3 font-medium text-right">Tank cap</th>
+          <th class="px-6 py-3 font-medium text-right">Reefer gal</th>
+          <th class="px-6 py-3 font-medium text-right">Fills</th>
+          <th class="px-6 py-3 font-medium text-right">Avg / fill</th>
+          <th class="px-6 py-3 font-medium text-right">Reefer spend</th>
+          <th class="px-6 py-3 font-medium text-right">Share</th>
+          <th class="px-6 py-3 font-medium text-right">vs fleet</th>
+          <th class="px-6 py-3 font-medium text-right">Cadence</th>
+          <th class="px-6 py-3 font-medium">Last reefer</th>
+          <th class="px-6 py-3 font-medium text-right">Days since</th>
+          <th class="px-6 py-3 font-medium">Primary driver</th>
+        </tr>
+      </template>
+      <tr v-for="t in active" :key="t.vehicleId" class="hover:bg-surface-subtle">
+        <td class="px-6 py-3 font-medium text-ink">{{ unit(t.vehicleId) }}</td>
+        <td class="px-6 py-3" :class="trailerFor(t.vehicleId).tone" :title="trailerFor(t.vehicleId).title">{{ trailerFor(t.vehicleId).text }}</td>
+        <td class="px-6 py-3 text-right text-ink-secondary">{{ tankCapFor(t.vehicleId) != null ? tankCapFor(t.vehicleId) + " gal" : "—" }}</td>
+        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.reeferGal.toLocaleString() }}</td>
+        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.reeferFills }}</td>
+        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.avgGalPerFill.toLocaleString() }}</td>
+        <td class="px-6 py-3 text-right text-ink-secondary">{{ usd(t.reeferSpend) }}</td>
+        <td class="px-6 py-3 text-right font-medium" :class="shareTone(t.reeferSharePct)">{{ t.reeferSharePct }}%</td>
+        <td class="px-6 py-3 text-right text-ink-muted">
+          <span v-if="median != null">{{ t.reeferSharePct > median ? "+" : "" }}{{ Math.round(t.reeferSharePct - median) }} pts</span>
+          <span v-else>—</span>
+        </td>
+        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.avgCadenceDays != null ? "~" + t.avgCadenceDays + "d" : "—" }}</td>
+        <td class="px-6 py-3 text-ink-secondary">{{ shortDate(t.lastReeferAt) }}</td>
+        <td class="px-6 py-3 text-right" :class="staleTone(t.daysSinceReefer)">{{ t.daysSinceReefer ?? "—" }}</td>
+        <td class="px-6 py-3 text-ink-secondary">{{ driverName(t.primaryDriverId) }}</td>
+      </tr>
+    </DataTable>
   </div>
 </template>

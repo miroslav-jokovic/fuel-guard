@@ -22,31 +22,31 @@ interface VariantConfig {
 const CONFIG: Record<ToastVariant, VariantConfig> = {
   success: {
     icon: CheckCircleIcon,
-    iconClass: "text-green-500",
+    iconClass: "text-success-500",
     borderClass: "border-l-green-500",
-    barClass: "bg-green-500",
-    bgClass: "bg-white",
+    barClass: "bg-success-500",
+    bgClass: "bg-surface",
   },
   error: {
     icon: XCircleIcon,
-    iconClass: "text-red-500",
+    iconClass: "text-danger-500",
     borderClass: "border-l-red-500",
-    barClass: "bg-red-500",
-    bgClass: "bg-white",
+    barClass: "bg-danger-500",
+    bgClass: "bg-surface",
   },
   warning: {
     icon: ExclamationTriangleIcon,
-    iconClass: "text-amber-500",
+    iconClass: "text-warning-500",
     borderClass: "border-l-amber-500",
-    barClass: "bg-amber-500",
-    bgClass: "bg-white",
+    barClass: "bg-warning-500",
+    bgClass: "bg-surface",
   },
   info: {
     icon: InformationCircleIcon,
-    iconClass: "text-blue-500",
+    iconClass: "text-info-500",
     borderClass: "border-l-blue-500",
-    barClass: "bg-blue-500",
-    bgClass: "bg-white",
+    barClass: "bg-info-500",
+    bgClass: "bg-surface",
   },
 };
 
@@ -75,7 +75,7 @@ function cfg(t: Toast): VariantConfig {
         <div
           v-for="t in toast.toasts"
           :key="t.id"
-          class="pointer-events-auto relative w-full overflow-hidden rounded-lg border-l-4 shadow-lg ring-1 ring-black/5"
+          class="pointer-events-auto relative w-full overflow-hidden rounded-lg border-l-4 shadow-lg ring-1 ring-edge"
           :class="[cfg(t).borderClass, cfg(t).bgClass]"
           role="alert"
         >
@@ -87,14 +87,14 @@ function cfg(t: Toast): VariantConfig {
               aria-hidden="true"
             />
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold text-gray-900">{{ t.title }}</p>
-              <p v-if="t.message" class="mt-0.5 text-sm leading-snug text-gray-500">{{ t.message }}</p>
+              <p class="text-sm font-semibold text-ink">{{ t.title }}</p>
+              <p v-if="t.message" class="mt-0.5 text-sm leading-snug text-ink-muted">{{ t.message }}</p>
             </div>
           </div>
 
           <button
             type="button"
-            class="absolute right-2.5 top-2.5 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            class="absolute right-2.5 top-2.5 rounded-md p-1 text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink-secondary focus:outline-none focus:ring-2 focus:ring-brand-600"
             :aria-label="`Dismiss ${t.variant} notification`"
             @click="toast.dismiss(t.id)"
           >

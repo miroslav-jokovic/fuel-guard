@@ -6,9 +6,10 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import TableToolbar from "@/components/TableToolbar.vue";
 import VehicleSelect from "@/components/VehicleSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import TableSkeleton from "@/components/TableSkeleton.vue";
-import ErrorState from "@/components/ErrorState.vue";
 import TablePagination from "@/components/TablePagination.vue";
+import DataTable from "@/components/ui/DataTable.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useOdometerMismatches();
 const { data: vehicles } = useVehiclesQuery();
@@ -55,29 +56,29 @@ const fmtOdo = (n: number) => `${Math.round(n).toLocaleString()} mi`;
 const signed = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n).toLocaleString()} mi`;
 
 const BASIS: Record<string, { label: string; cls: string }> = {
-  tank_confirmed: { label: "Tank-confirmed", cls: "bg-green-100 text-green-700" },
-  stop_estimated: { label: "Stop-estimated", cls: "bg-blue-100 text-blue-700" },
-  reported: { label: "Reported time", cls: "bg-amber-100 text-amber-700" },
-  date_only: { label: "Date only", cls: "bg-gray-100 text-gray-600" },
+  tank_confirmed: { label: "Tank-confirmed", cls: toneClass("success") },
+  stop_estimated: { label: "Stop-estimated", cls: toneClass("info") },
+  reported: { label: "Reported time", cls: toneClass("warning") },
+  date_only: { label: "Date only", cls: toneClass("neutral") },
 };
-const basis = (b: string | null) => BASIS[b ?? ""] ?? { label: "—", cls: "bg-gray-100 text-gray-500" };
+const basis = (b: string | null) => BASIS[b ?? ""] ?? { label: "—", cls: toneClass("neutral") };
 
 const CONF: Record<string, { label: string; cls: string }> = {
-  gps_confirmed: { label: "GPS confirmed", cls: "text-green-700" },
-  in_state: { label: "In state", cls: "text-green-700" },
-  mismatch: { label: "Location mismatch", cls: "text-red-700" },
-  unknown: { label: "Unverified", cls: "text-gray-500" },
+  gps_confirmed: { label: "GPS confirmed", cls: "text-success-700" },
+  in_state: { label: "In state", cls: "text-success-700" },
+  mismatch: { label: "Location mismatch", cls: "text-danger-700" },
+  unknown: { label: "Unverified", cls: "text-ink-muted" },
 };
 const conf = (c: string | null) => CONF[c ?? ""] ?? CONF.unknown!;
 
 // Where the Samsara odometer came from — OBD (ECU, best), GPS (Samsara estimate), or reconstructed
 // (rebuilt from the nearest reading + driven distance, lowest confidence).
 const SOURCE: Record<string, { label: string; cls: string; title: string }> = {
-  obd: { label: "OBD", cls: "bg-green-100 text-green-700", title: "Read from the truck's ECU — most accurate." },
-  gps: { label: "GPS", cls: "bg-blue-100 text-blue-700", title: "Samsara's GPS-derived odometer (no ECU odometer on this truck)." },
-  reconstructed: { label: "Est.", cls: "bg-amber-100 text-amber-700", title: "Reconstructed from the nearest reading + driven distance — lowest confidence." },
+  obd: { label: "OBD", cls: toneClass("success"), title: "Read from the truck's ECU — most accurate." },
+  gps: { label: "GPS", cls: toneClass("info"), title: "Samsara's GPS-derived odometer (no ECU odometer on this truck)." },
+  reconstructed: { label: "Est.", cls: toneClass("warning"), title: "Reconstructed from the nearest reading + driven distance — lowest confidence." },
 };
-const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: "bg-gray-100 text-gray-500", title: "Unknown source" };
+const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: toneClass("neutral"), title: "Unknown source" };
 </script>
 
 <template>
@@ -97,71 +98,70 @@ const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: "bg
       </div>
     </TableToolbar>
 
-    <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
-      <TableSkeleton v-if="isLoading" :cols="10" />
-      <ErrorState v-else-if="isError" :message="error instanceof Error ? error.message : 'Failed to load'" :retrying="isFetching" @retry="refetch" />
-      <div v-else-if="filtered.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
+    <DataTable
+      :loading="isLoading"
+      :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
+      :retrying="isFetching"
+      :empty="filtered.length === 0"
+      :skeleton-cols="10"
+      @retry="refetch"
+    >
+      <template #empty>
         <p>No confirmed odometer mismatches in the last 90 days — either driver entries agree with telematics, or no fills have a confirmed fueling-time odometer yet.</p>
-        <p class="mt-1 text-gray-400">
-          If you just deployed the fueling-time fix, run a <RouterLink to="/settings/data" class="text-indigo-600 hover:text-indigo-500">Samsara re-sync / backfill</RouterLink>
-          to re-anchor odometer readings, then check <RouterLink to="/coverage" class="text-indigo-600 hover:text-indigo-500">Coverage</RouterLink> to see how many fills could be verified.
+        <p class="mt-1 text-ink-subtle">
+          If you just deployed the fueling-time fix, run a <RouterLink to="/settings/data" class="text-brand-600 hover:text-brand-500">Samsara re-sync / backfill</RouterLink>
+          to re-anchor odometer readings, then check <RouterLink to="/coverage" class="text-brand-600 hover:text-brand-500">Coverage</RouterLink> to see how many fills could be verified.
         </p>
-      </div>
-      <template v-else>
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200 whitespace-nowrap text-sm">
-            <thead class="text-left text-gray-500">
-              <tr>
-                <th class="px-4 py-3 font-medium">Date</th>
-                <th class="px-4 py-3 font-medium">Truck</th>
-                <th class="px-4 py-3 font-medium">Driver</th>
-                <th class="px-4 py-3 font-medium text-right">Entered</th>
-                <th class="px-4 py-3 font-medium text-right">Samsara</th>
-                <th class="px-4 py-3 font-medium">Source</th>
-                <th class="px-4 py-3 font-medium text-right">Offset</th>
-                <th class="px-4 py-3 font-medium text-right">Difference</th>
-                <th class="px-4 py-3 font-medium">Time basis</th>
-                <th class="px-4 py-3 font-medium">Location</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              <tr v-for="r in paged" :key="r.id">
-                <td class="px-4 py-3 text-gray-700">{{ fmtDate(r.fueledAt) }}</td>
-                <td class="px-4 py-3 font-medium text-gray-900">
-                  <RouterLink v-if="r.vehicleId" :to="`/vehicles/${r.vehicleId}`" class="text-indigo-600 hover:text-indigo-500">{{ r.unit ?? "—" }}</RouterLink>
-                  <span v-else>{{ r.unit ?? "—" }}</span>
-                </td>
-                <td class="px-4 py-3 text-gray-700">{{ r.driverName ?? "—" }}</td>
-                <td class="px-4 py-3 text-right text-gray-700">{{ fmtOdo(r.entered) }}</td>
-                <td class="px-4 py-3 text-right text-gray-700">
-                  {{ fmtOdo(r.samsara) }}
-                  <div v-if="r.samsaraOdometerAt" class="text-xs font-normal text-gray-400">read {{ fmtDateTime(r.samsaraOdometerAt) }}</div>
-                </td>
-                <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', source(r.samsaraOdometerSource).cls]" :title="source(r.samsaraOdometerSource).title">{{ source(r.samsaraOdometerSource).label }}</span></td>
-                <td class="px-4 py-3 text-right text-gray-500">{{ r.offset ? signed(r.offset) : "—" }}</td>
-                <td class="px-4 py-3 text-right font-semibold" :class="Math.abs(r.diff) > tolerance * 3 ? 'text-red-700' : 'text-amber-600'">{{ signed(r.diff) }}</td>
-                <td class="px-4 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', basis(r.timeBasis).cls]">{{ basis(r.timeBasis).label }}</span></td>
-                <td class="px-4 py-3 text-xs font-semibold" :class="conf(r.locationConfidence).cls">{{ conf(r.locationConfidence).label }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      </template>
+      <template #head>
+        <tr>
+          <th class="px-4 py-3 font-medium">Date</th>
+          <th class="px-4 py-3 font-medium">Truck</th>
+          <th class="px-4 py-3 font-medium">Driver</th>
+          <th class="px-4 py-3 font-medium text-right">Entered</th>
+          <th class="px-4 py-3 font-medium text-right">Samsara</th>
+          <th class="px-4 py-3 font-medium">Source</th>
+          <th class="px-4 py-3 font-medium text-right">Offset</th>
+          <th class="px-4 py-3 font-medium text-right">Difference</th>
+          <th class="px-4 py-3 font-medium">Time basis</th>
+          <th class="px-4 py-3 font-medium">Location</th>
+        </tr>
+      </template>
+      <tr v-for="r in paged" :key="r.id">
+        <td class="px-4 py-3 text-ink-secondary">{{ fmtDate(r.fueledAt) }}</td>
+        <td class="px-4 py-3 font-medium text-ink">
+          <RouterLink v-if="r.vehicleId" :to="`/vehicles/${r.vehicleId}`" class="text-brand-600 hover:text-brand-500">{{ r.unit ?? "—" }}</RouterLink>
+          <span v-else>{{ r.unit ?? "—" }}</span>
+        </td>
+        <td class="px-4 py-3 text-ink-secondary">{{ r.driverName ?? "—" }}</td>
+        <td class="px-4 py-3 text-right text-ink-secondary">{{ fmtOdo(r.entered) }}</td>
+        <td class="px-4 py-3 text-right text-ink-secondary">
+          {{ fmtOdo(r.samsara) }}
+          <div v-if="r.samsaraOdometerAt" class="text-xs font-normal text-ink-subtle">read {{ fmtDateTime(r.samsaraOdometerAt) }}</div>
+        </td>
+        <td class="px-4 py-3"><span :class="[BADGE_BASE, source(r.samsaraOdometerSource).cls]" :title="source(r.samsaraOdometerSource).title">{{ source(r.samsaraOdometerSource).label }}</span></td>
+        <td class="px-4 py-3 text-right text-ink-muted">{{ r.offset ? signed(r.offset) : "—" }}</td>
+        <td class="px-4 py-3 text-right font-semibold" :class="Math.abs(r.diff) > tolerance * 3 ? 'text-danger-700' : 'text-warning-600'">{{ signed(r.diff) }}</td>
+        <td class="px-4 py-3"><span :class="[BADGE_BASE, basis(r.timeBasis).cls]">{{ basis(r.timeBasis).label }}</span></td>
+        <td class="px-4 py-3 text-xs font-semibold" :class="conf(r.locationConfidence).cls">{{ conf(r.locationConfidence).label }}</td>
+      </tr>
+      <template #footer>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>
-    </div>
+    </DataTable>
 
     <!-- Repeat offenders (drivers who most often mis-enter the odometer) — coaching list, not alerts. -->
-    <div v-if="offenders.length > 1" class="rounded-lg bg-white p-4 shadow-sm ring-1 ring-gray-200">
-      <h3 class="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">Repeat offenders · drivers who most often mis-enter the odometer</h3>
+    <BaseCard v-if="offenders.length > 1" padding="sm">
+      <h3 class="mb-2 text-xs font-semibold tracking-wide text-ink-muted uppercase">Repeat offenders · drivers who most often mis-enter the odometer</h3>
       <div class="flex flex-wrap gap-2">
-        <span v-for="o in offenders" :key="o.key" class="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-sm ring-1 ring-gray-200">
-          <span class="font-medium text-gray-900">{{ o.label }}</span>
-          <span class="text-gray-400">·</span>
-          <span class="text-gray-600">{{ o.mismatches }}×</span>
-          <span class="text-gray-400">·</span>
-          <span class="text-gray-600">max {{ Math.round(o.maxAbsDiff) }} mi</span>
+        <span v-for="o in offenders" :key="o.key" class="inline-flex items-center gap-1.5 rounded-full bg-surface-subtle px-3 py-1 text-sm ring-1 ring-edge">
+          <span class="font-medium text-ink">{{ o.label }}</span>
+          <span class="text-ink-subtle">·</span>
+          <span class="text-ink-secondary">{{ o.mismatches }}×</span>
+          <span class="text-ink-subtle">·</span>
+          <span class="text-ink-secondary">max {{ Math.round(o.maxAbsDiff) }} mi</span>
         </span>
       </div>
-    </div>
+    </BaseCard>
   </div>
 </template>

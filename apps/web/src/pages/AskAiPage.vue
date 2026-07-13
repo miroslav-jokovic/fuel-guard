@@ -2,6 +2,9 @@
 import { ref } from "vue";
 import { PaperAirplaneIcon, SparklesIcon } from "@heroicons/vue/20/solid";
 import { apiFetch } from "@/lib/api";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const question = ref("");
 const answer = ref<string | null>(null);
@@ -36,48 +39,44 @@ async function ask(q?: string) {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <div class="flex items-center gap-2">
-      <SparklesIcon class="size-6 text-indigo-600" />
-      <h1 class="text-lg font-semibold text-gray-900">Ask AI about your fleet</h1>
+      <SparklesIcon class="size-6 text-brand-600" />
+      <h1 class="text-lg font-semibold text-ink">Ask AI about your fleet</h1>
     </div>
-    <p class="text-sm text-gray-500">
+    <PageHeader>
       Ask questions in plain language about theft risk, drivers, vehicles, spend and odometer accuracy.
       Answers come from your own data — the AI can only read pre-defined, org-scoped queries (never raw data access).
-    </p>
+    </PageHeader>
 
     <form class="flex items-end gap-2" @submit.prevent="ask()">
       <textarea
         v-model="question"
         rows="2"
         placeholder="e.g. Which drivers had the most location mismatches this month?"
-        class="flex-1 rounded-md border-0 px-3 py-2 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600"
+        class="block flex-1 rounded-md border-0 bg-surface px-3 py-2 text-sm text-ink ring-1 ring-edge-strong ring-inset placeholder:text-ink-subtle focus:ring-2 focus:ring-brand-600"
         @keydown.enter.exact.prevent="ask()"
       ></textarea>
-      <button
-        type="submit"
-        :disabled="loading || !question.trim()"
-        class="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
-      >
+      <BaseButton variant="primary" type="submit" :disabled="loading || !question.trim()">
         <PaperAirplaneIcon class="size-4" /> {{ loading ? "Thinking…" : "Ask" }}
-      </button>
+      </BaseButton>
     </form>
 
     <div class="flex flex-wrap gap-2">
       <button
         v-for="ex in examples"
         :key="ex"
-        class="rounded-full bg-gray-50 px-3 py-1 text-xs text-gray-600 ring-1 ring-gray-200 ring-inset hover:bg-gray-100"
+        class="rounded-full bg-surface-subtle px-3 py-1 text-xs text-ink-secondary ring-1 ring-edge ring-inset hover:bg-surface-muted"
         @click="ask(ex)"
       >
         {{ ex }}
       </button>
     </div>
 
-    <div v-if="loading" class="rounded-lg bg-white p-5 text-sm text-gray-500 shadow-sm ring-1 ring-gray-200">
+    <BaseCard v-if="loading" class="text-sm text-ink-muted">
       Analyzing your data…
-    </div>
+    </BaseCard>
     <div
       v-else-if="answer"
-      :class="['rounded-lg p-5 text-sm whitespace-pre-wrap shadow-sm ring-1', errored ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-white text-gray-800 ring-gray-200']"
+      :class="['rounded-lg p-5 text-sm whitespace-pre-wrap shadow-sm ring-1', errored ? 'bg-danger-50 text-danger-700 ring-danger-200' : 'bg-surface text-ink-secondary ring-edge']"
     >
       {{ answer }}
     </div>
