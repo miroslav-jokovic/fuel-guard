@@ -231,6 +231,7 @@ export function useCommitImport() {
             card_num: l.card_num,
             tran_date: l.tran_date,
             fueled_at: l.fueled_at,
+            tran_time: l.tran_time,
             invoice: l.invoice,
             unit: l.unit,
             driver_name: l.driver_name,

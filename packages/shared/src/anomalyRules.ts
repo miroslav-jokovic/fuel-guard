@@ -385,12 +385,15 @@ export function localHourMinute(iso: string, tz: string): { h: number; m: number
 }
 
 export function isOffHours(iso: string, oh: OperatingHours): boolean {
-  const { h, m } = localHourMinute(iso, oh.tz);
-  const cur = h * 60 + m;
   const [sh, sm] = oh.start.split(":").map(Number);
   const [eh, em] = oh.end.split(":").map(Number);
   const start = (sh ?? 0) * 60 + (sm ?? 0);
   const end = (eh ?? 0) * 60 + (em ?? 0);
+  // start === end means OPEN 24/7 (e.g. a fleet running around the clock) — there are no off-hours, so the
+  // off_hours rule never fires. This is how the settings UI expresses "24/7".
+  if (start === end) return false;
+  const { h, m } = localHourMinute(iso, oh.tz);
+  const cur = h * 60 + m;
   return start <= end ? cur < start || cur >= end : cur < start && cur >= end;
 }
 

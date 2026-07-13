@@ -443,6 +443,10 @@ export interface EfsTransactionLine {
   card_num: string | null;
   tran_date: string | null; // YYYY-MM-DD
   fueled_at: string | null; // ISO (date anchored noon)
+  /** The station-local time-of-day EXACTLY as printed on the report ("HH:MM", 24h), for faithful display.
+   *  Null for date-only reports. This is the source of truth for the Transactions page's Time column — it
+   *  never round-trips through the tz conversion, so it can't drift. */
+  tran_time: string | null;
   invoice: string | null;
   unit: string | null;
   driver_name: string | null;
@@ -472,11 +476,14 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
     const qty = num(pick(row, "Qty", "Quantity"));
     const amt = num(pick(row, "Amt", "Amount"));
     const state = str(pick(row, "State/ Prov", "State/Prov", "State", "Location State"));
-    const instant = efsInstant(
-      str(pick(row, "Tran Date", "Date", "TransactionPOSDate")),
-      str(pick(row, "TransactionPOSTime", "POS Time", "Time")),
-      state,
-    );
+    const dateRaw = str(pick(row, "Tran Date", "Date", "TransactionPOSDate"));
+    const timeRaw = str(pick(row, "TransactionPOSTime", "POS Time", "Time"));
+    const instant = efsInstant(dateRaw, timeRaw, state);
+    // Faithful station-local time-of-day, EXACTLY as printed (mirror of efsInstant's time extraction, but kept
+    // as the local wall time — never converted to UTC). This is what the Transactions "Time" column shows.
+    const embedded = dateRaw?.match(/\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp][Mm])?/);
+    const hms = parseEfsTime(timeRaw) ?? (embedded ? parseEfsTime(embedded[0]) : null);
+    const tran_time = hms ? hms.slice(0, 5) : null;
     // tran_date is the STATION-LOCAL business date as printed — not the UTC date of the instant
     // (an evening local fill crosses the UTC date boundary). The ref is date-scoped so identical
     // purchases on different days (blank/reused invoice) can never collide.
@@ -486,6 +493,7 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
       card_num: card,
       tran_date: instant?.tranDate ?? null,
       fueled_at: instant?.iso ?? null,
+      tran_time,
       invoice,
       unit: str(pick(row, "Unit")),
       driver_name: str(pick(row, "Driver Name")),
@@ -511,6 +519,7 @@ export interface EfsTransactionRow {
   card_num: string | null;
   tran_date: string | null;
   fueled_at: string | null;
+  tran_time: string | null; // station-local HH:MM exactly as printed (faithful display)
   invoice: string | null;
   unit: string | null;
   driver_name: string | null;

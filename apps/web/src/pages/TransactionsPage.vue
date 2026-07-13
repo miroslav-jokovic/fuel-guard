@@ -101,7 +101,7 @@ const fmtMoney = (v: number | null) => (v == null ? "—" : v.toLocaleString(und
             <tr v-for="t in rows" :key="t.id" class="group hover:bg-gray-50">
               <td class="sticky left-0 z-[1] border-r border-gray-200 bg-white px-4 py-2 font-medium text-gray-900 group-hover:bg-gray-50">{{ t.unit }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.tran_date }}</td>
-              <td class="px-4 py-2 text-gray-700">{{ stationTime(t.fueled_at, t.state) }}</td>
+              <td class="px-4 py-2 text-gray-700">{{ t.tran_time || stationTime(t.fueled_at, t.state) }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.card_num }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.invoice }}</td>
               <td class="px-4 py-2 text-gray-700">{{ t.driver_name }}</td>

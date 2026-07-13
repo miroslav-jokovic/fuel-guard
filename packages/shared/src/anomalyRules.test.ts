@@ -351,6 +351,12 @@ describe("disabledRules + helpers", () => {
     expect(isOffHours("2026-06-10T07:00:00Z", { start: "05:00", end: "20:00", tz: "America/Chicago" })).toBe(true);
     expect(isOffHours("2026-06-10T17:00:00Z", { start: "05:00", end: "20:00", tz: "America/Chicago" })).toBe(false);
   });
+  it("isOffHours: start === end means open 24/7 — nothing is ever off-hours", () => {
+    const allDay = { start: "00:00", end: "00:00", tz: "America/Chicago" };
+    expect(isOffHours("2026-06-10T07:00:00Z", allDay)).toBe(false); // 2am local
+    expect(isOffHours("2026-06-10T09:00:00Z", allDay)).toBe(false); // 4am local
+    expect(isOffHours("2026-06-11T05:30:00Z", allDay)).toBe(false); // 12:30am local
+  });
   it("maxSeverity returns the highest", () => {
     expect(maxSeverity(runAllRules(ctx({ txn: txn({ gallons: 150 }) })))).toBe("critical");
   });

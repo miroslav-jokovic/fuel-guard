@@ -305,6 +305,9 @@ describe("new PascalCase report format (timed)", () => {
     expect(line!.fueled_at).toBe("2026-06-29T20:25:00.000Z");
     expect(line!.tran_date).toBe("2026-06-29");
     expect(line!.qty).toBe(90);
+    // tran_time is the printed STATION-LOCAL time (14:25), NOT the UTC instant (20:25) — this is what the
+    // Transactions page shows verbatim so it matches the EFS report exactly.
+    expect(line!.tran_time).toBe("14:25");
   });
 
   it("keeps the business date even when the local time crosses the UTC date boundary", () => {
