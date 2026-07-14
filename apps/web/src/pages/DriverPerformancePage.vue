@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { TrophyIcon, ArrowDownTrayIcon } from "@heroicons/vue/24/outline";
 import { useSessionStore } from "@/stores/session";
 import { useDriverPerformance, type PerformanceDisplayRow } from "@/features/drivers/useDriverPerformance";
@@ -9,12 +9,18 @@ import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { toneClass } from "@/lib/badges";
+import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const session = useSessionStore();
 const toast = useToastStore();
+
+const PAGE_SIZE = 20;
 
 const selectedWeek = ref<string | null>(null); // null = "This week (live)"
 const isLive = computed(() => selectedWeek.value === null);
@@ -55,6 +61,53 @@ const winners = computed(() => rows.value.filter((r) => r.isWinner).slice(0, 3))
 const isLoading = computed(() => (isLive.value ? live.isLoading.value : frozen.isLoading.value));
 const isError = computed(() => (isLive.value ? live.isError.value : frozen.isError.value));
 
+// ── Toolbar: Week + Status filters, driver search (standard FilterBar, per docs/DESIGN-SYSTEM.md §3) ──
+const weekProxy = computed({
+  get: () => selectedWeek.value ?? "",
+  set: (v: string) => (selectedWeek.value = v || null),
+});
+const weekOptions = computed(() => [
+  { value: "", label: "This week (live)" },
+  ...(weeksList.value ?? []).map((w) => ({ value: w.weekStart, label: `${w.weekStart} → ${w.weekEnd}` })),
+]);
+const statusSel = ref("");
+const statusOptions = [
+  { value: "", label: "All drivers" },
+  { value: "eligible", label: "Eligible only" },
+  { value: "ineligible", label: "Not ranked" },
+];
+const search = ref("");
+
+const filtered = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  let out = rows.value;
+  if (q) out = out.filter((r) => (r.driverName ?? "").toLowerCase().includes(q));
+  if (statusSel.value === "eligible") out = out.filter((r) => r.eligible);
+  else if (statusSel.value === "ineligible") out = out.filter((r) => !r.eligible);
+  return out;
+});
+
+// Column keys are display groupings, so map each to the underlying row field for sorting.
+const sortAccessor = (r: PerformanceDisplayRow, k: string): unknown => {
+  switch (k) {
+    case "rank": return r.rank;
+    case "driverName": return r.driverName;
+    case "safety": return r.safetyScore;
+    case "efficiency": return r.efficiencyScore;
+    case "idling": return r.idleScore;
+    case "final": return r.trailingFinal;
+    case "exposure": return r.miles;
+    case "status": return r.eligible ? 0 : 1;
+    default: return (r as unknown as Record<string, unknown>)[k];
+  }
+};
+const sort = ref<SortState>({ key: null, dir: "asc" });
+const sorted = computed(() => (sort.value.key ? sortRows(filtered.value, sort.value, sortAccessor) : filtered.value));
+
+const page = ref(1);
+const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+watch([filtered, () => selectedWeek.value], () => (page.value = 1));
+
 const weekLabel = computed(() => {
   if (isLive.value) {
     const v = live.data.value;
@@ -85,14 +138,14 @@ const num = (n: number | null, d = 0) => (n == null ? "—" : n.toFixed(d));
 const rankTone = (rank: number | null) => (rank === 1 ? "success" : rank != null && rank <= 3 ? "brand" : "neutral");
 
 const columns: DataTableColumn[] = [
-  { key: "rank", label: "#", headerClass: "w-12" },
-  { key: "driverName", label: "Driver", headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
-  { key: "safety", label: "Safety", numeric: true, headerClass: "min-w-[7rem]" },
-  { key: "efficiency", label: "Efficiency", numeric: true, headerClass: "min-w-[7rem]" },
-  { key: "idling", label: "Idling", numeric: true, headerClass: "min-w-[7rem]" },
-  { key: "final", label: "Final", numeric: true, headerClass: "min-w-[6rem]" },
-  { key: "exposure", label: "Miles / hrs", numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
-  { key: "status", label: "Status", headerClass: "min-w-[8rem]" },
+  { key: "rank", label: "#", sortable: true, headerClass: "w-12" },
+  { key: "driverName", label: "Driver", sortable: true, headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
+  { key: "safety", label: "Safety", sortable: true, numeric: true, headerClass: "min-w-[7rem]" },
+  { key: "efficiency", label: "Efficiency", sortable: true, numeric: true, headerClass: "min-w-[7rem]" },
+  { key: "idling", label: "Idling", sortable: true, numeric: true, headerClass: "min-w-[7rem]" },
+  { key: "final", label: "Final", sortable: true, numeric: true, headerClass: "min-w-[6rem]" },
+  { key: "exposure", label: "Miles / hrs", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[8rem]" },
 ];
 </script>
 
@@ -107,18 +160,22 @@ const columns: DataTableColumn[] = [
       </template>
     </PageHeader>
 
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-2">
-        <label class="text-sm text-ink-secondary" for="weekSel">Week</label>
-        <select id="weekSel" v-model="selectedWeek" class="rounded-md border border-edge bg-surface px-2 py-1 text-sm text-ink">
-          <option :value="null">This week (live)</option>
-          <option v-for="w in weeksList ?? []" :key="w.weekStart" :value="w.weekStart">{{ w.weekStart }} → {{ w.weekEnd }}</option>
-        </select>
-      </div>
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search driver…"
+      :count="filtered.length"
+      count-label="drivers"
+    >
+      <template #filters>
+        <FilterSelect v-model="weekProxy" label="Week" :options="weekOptions" />
+        <FilterSelect v-model="statusSel" label="Status" :options="statusOptions" />
+      </template>
+    </FilterBar>
+
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <p class="text-sm text-ink-muted">{{ weekLabel }} · ranked on {{ trailingWeeks }}-week trailing average · {{ methodLabel }}</p>
       <button class="text-sm text-ink-muted underline-offset-2 hover:underline" @click="showInfo = !showInfo">How scoring works</button>
     </div>
-
-    <p class="text-sm text-ink-muted">{{ weekLabel }} · ranked on {{ trailingWeeks }}-week trailing average · {{ methodLabel }}</p>
 
     <div v-if="showInfo" class="rounded-lg border border-edge bg-surface p-4 text-sm text-ink-secondary">
       Each driver's three sub-scores (0–100, higher is better) are ranked across the fleet for the week, then blended
@@ -149,11 +206,13 @@ const columns: DataTableColumn[] = [
 
     <DataTable
       :columns="columns"
-      :rows="rows"
+      :rows="paged"
       row-key="driverId"
       :loading="isLoading"
       :error="isError ? 'Failed to load driver performance' : null"
+      :sort="sort"
       empty-text="No driver scores yet. Use “Sync scores” to pull this week from Samsara."
+      @sort="sort = toggleSort(sort, $event)"
     >
       <template #cell-rank="{ row }">
         <span v-if="row.rank" :class="['inline-flex min-w-[1.5rem] justify-center rounded px-1 text-xs font-semibold', toneClass(rankTone(row.rank))]">{{ row.rank }}</span>
@@ -161,15 +220,15 @@ const columns: DataTableColumn[] = [
       </template>
       <template #cell-safety="{ row }">
         <span class="text-ink">{{ num(row.safetyScore) }}</span>
-        <span v-if="row.safetyPct != null" class="ml-1 text-xs text-ink-muted">· {{ num(row.safetyPct) }}%ile</span>
+        <span v-if="row.safetyPct != null" class="ml-1 text-xs text-ink-muted">· {{ num(row.safetyPct) }}%</span>
       </template>
       <template #cell-efficiency="{ row }">
         <span class="text-ink">{{ num(row.efficiencyScore) }}</span>
-        <span v-if="row.efficiencyPct != null" class="ml-1 text-xs text-ink-muted">· {{ num(row.efficiencyPct) }}%ile</span>
+        <span v-if="row.efficiencyPct != null" class="ml-1 text-xs text-ink-muted">· {{ num(row.efficiencyPct) }}%</span>
       </template>
       <template #cell-idling="{ row }">
         <span class="text-ink">{{ num(row.idleScore) }}</span>
-        <span v-if="row.idlePct != null" class="ml-1 text-xs text-ink-muted">· {{ num(row.idlePct) }}%ile</span>
+        <span v-if="row.idlePct != null" class="ml-1 text-xs text-ink-muted">· {{ num(row.idlePct) }}%</span>
       </template>
       <template #cell-final="{ row }">
         <span class="font-semibold text-ink">{{ num(row.trailingFinal, 1) }}</span>
@@ -178,6 +237,9 @@ const columns: DataTableColumn[] = [
       <template #cell-status="{ row }">
         <span v-if="row.eligible" :class="['inline-flex rounded px-1.5 py-0.5 text-xs', toneClass('success')]">Eligible</span>
         <span v-else :class="['inline-flex rounded px-1.5 py-0.5 text-xs', toneClass('neutral')]" :title="row.ineligibleReason ?? ''">{{ REASON_LABEL[row.ineligibleReason ?? ''] ?? 'Not ranked' }}</span>
+      </template>
+      <template #footer>
+        <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>
     </DataTable>
   </div>
