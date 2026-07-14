@@ -2,6 +2,7 @@
 import { z } from "zod";
 
 export const NORMALIZATION_METHODS = ["percentile", "zscore", "raw"] as const;
+export const IDLE_SCORE_BASES = ["intensity", "share"] as const;
 
 export const performanceSettingsFormSchema = z
   .object({
@@ -14,6 +15,7 @@ export const performanceSettingsFormSchema = z
     min_drive_hours: z.coerce.number().min(0),
     reward_top_n: z.coerce.number().int().min(1).max(50),
     trailing_weeks: z.coerce.number().int().min(1).max(12),
+    idle_score_basis: z.enum(IDLE_SCORE_BASES),
     settle_hours: z.coerce.number().int().min(0).max(1000),
     efficiency_enabled: z.boolean(),
     week_starts_on: z.coerce.number().int().min(0).max(1),

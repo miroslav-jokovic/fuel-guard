@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { performanceSettingsFormSchema, NORMALIZATION_METHODS, type PerformanceSettingsForm } from "@fuelguard/shared";
+import { performanceSettingsFormSchema, NORMALIZATION_METHODS, IDLE_SCORE_BASES, type PerformanceSettingsForm } from "@fuelguard/shared";
 import { useDriverPerformanceSettings, useSaveDriverPerformanceSettings } from "@/features/drivers/useDriverPerformanceSettings";
 import { useToastStore } from "@/stores/toast";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -27,6 +27,7 @@ const form = reactive<Record<string, unknown>>({
   settle_hours: 96,
   efficiency_enabled: true,
   week_starts_on: 1,
+  idle_score_basis: "intensity",
 });
 
 watch(data, (d) => { if (d) Object.assign(form, d); }, { immediate: true });
@@ -94,6 +95,11 @@ const gateFields = [
             <select :id="id" v-model.number="form.week_starts_on" class="w-full rounded-md border border-edge bg-surface px-2 py-1.5 text-sm text-ink">
               <option :value="1">Monday</option>
               <option :value="0">Sunday</option>
+            </select>
+          </FormField>
+          <FormField v-slot="{ id }" label="Idle score basis" hint="Intensity = avoidable idle vs engine-on time (money-aligned). Share = avoidable vs the driver's own idle.">
+            <select :id="id" v-model="form.idle_score_basis" class="w-full rounded-md border border-edge bg-surface px-2 py-1.5 text-sm text-ink">
+              <option v-for="b in IDLE_SCORE_BASES" :key="b" :value="b">{{ b === "intensity" ? "Intensity (money-aligned)" : "Share (discipline ratio)" }}</option>
             </select>
           </FormField>
           <FormField v-for="f in gateFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">

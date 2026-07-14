@@ -115,7 +115,7 @@ export function useDriverPerformance() {
         ((driversData ?? []) as { id: string; full_name: string }[]).map((d) => [d.id, d.full_name]),
       );
 
-      const idleScoreForWeek = (startIso: string, endIso: string): Map<string, number> => {
+      const idleScoreForWeek = (startIso: string, endIso: string): Map<string, { score: number; discretionaryHours: number; totalIdleHours: number }> => {
         const startMs = Date.parse(startIso);
         const endMs = Date.parse(endIso);
         const rows: IdleRow[] = idleAll
@@ -134,9 +134,10 @@ export function useDriverPerformance() {
             costUsd: r.cost_usd == null ? null : Number(r.cost_usd),
             startedAt: r.started_at,
           }));
-        const m = new Map<string, number>();
+        const m = new Map<string, { score: number; discretionaryHours: number; totalIdleHours: number }>();
         for (const d of aggregateDriverIdle(rows).drivers)
-          if (d.driverId !== "__unattributed__") m.set(d.driverId, d.score);
+          if (d.driverId !== "__unattributed__")
+            m.set(d.driverId, { score: d.score, discretionaryHours: d.discretionaryHours, totalIdleHours: d.totalIdleHours });
         return m;
       };
 
@@ -144,15 +145,21 @@ export function useDriverPerformance() {
         const idle = idleScoreForWeek(w.windowStartIso, w.windowEndIso);
         const inputs: DriverWeekInput[] = scores
           .filter((s) => s.week_start === w.weekStart)
-          .map((r) => ({
-            driverId: r.driver_id,
-            driverName: nameMap.get(r.driver_id) ?? null,
-            safetyScore: r.safety_score,
-            efficiencyScore: cfg.efficiencyEnabled ? r.efficiency_score : null,
-            idleScore: idle.get(r.driver_id) ?? null, // absent idle → missing component (renormalize), not an imputed 100
-            miles: r.drive_distance_mi,
-            driveHours: r.engine_on_hours ?? r.drive_time_hours,
-          }));
+          .map((r) => {
+            const ir = idle.get(r.driver_id) ?? null;
+            const totalIdle = ir?.totalIdleHours ?? 0;
+            return {
+              driverId: r.driver_id,
+              driverName: nameMap.get(r.driver_id) ?? null,
+              safetyScore: r.safety_score,
+              efficiencyScore: cfg.efficiencyEnabled ? r.efficiency_score : null,
+              idleScore: ir?.score ?? null, // absent handled in combineWeek (clean driver → perfect; feed down → missing)
+              idleDiscretionaryHours: ir?.discretionaryHours ?? null,
+              engineOnHours: r.engine_on_hours ?? ((r.drive_time_hours ?? 0) + totalIdle),
+              miles: r.drive_distance_mi,
+              driveHours: r.engine_on_hours ?? r.drive_time_hours,
+            };
+          });
         return combineWeek(inputs, cfg.settings);
       });
 

@@ -55,6 +55,34 @@ export function combineWeek(
       ? "zscore"
       : settings.normalizationMethod;
 
+  // ── Idling sub-score (§3.3a). Compute each eligible driver's effective idle score by the configured basis:
+  //   • "intensity" — avoidable idle as a share of ENGINE-ON hours (drive + idle): exposure-normalized and
+  //     money-aligned, so it grows with ABSOLUTE avoidable waste and is fair across mileage.
+  //   • "share"     — the driver's own discipline ratio (avoidable ÷ their idle), magnitude-blind.
+  // Then a CLEAN driver (real drive activity, zero avoidable idle observed) scores a PERFECT 100 rather than a
+  // missing component — but only when the fleet actually has idle data this week; if idle is absent fleet-wide
+  // (feed down) it stays missing and the grade renormalizes over safety + efficiency.
+  const basis = settings.idleScoreBasis;
+  const clamp01 = (n: number) => Math.max(0, Math.min(100, n));
+  const anyObservedIdle = eligibleIdx.some((i) => inputs[i]!.idleScore != null);
+  for (const i of eligibleIdx) {
+    const inp = inputs[i]!;
+    const row = rows[i]!;
+    if (inp.idleScore != null) {
+      row.idleScore =
+        basis === "intensity" &&
+        inp.idleDiscretionaryHours != null &&
+        inp.engineOnHours != null &&
+        inp.engineOnHours > 0
+          ? r1(clamp01(100 * (1 - inp.idleDiscretionaryHours / inp.engineOnHours)))
+          : inp.idleScore;
+    } else if (anyObservedIdle) {
+      row.idleScore = 100; // eligible + drove, no avoidable idle while the fleet has idle data → perfect discipline
+    } else {
+      row.idleScore = null; // no idle data fleet-wide this week → genuinely missing → renormalize
+    }
+  }
+
   const components: {
     key: "safety" | "efficiency" | "idling";
     get: (r: DriverWeekScore) => number | null;

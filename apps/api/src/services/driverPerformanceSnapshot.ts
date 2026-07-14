@@ -39,7 +39,7 @@ async function idleScoresForWindow(
   admin: SupabaseClient,
   orgId: string,
   wk: WeekWindow,
-): Promise<Map<string, number>> {
+): Promise<Map<string, { score: number; discretionaryHours: number; totalIdleHours: number }>> {
   // Paginate: a full week of fleet idle exceeds PostgREST's 1000-row cap, so a single select truncates the
   // week and skews every frozen idle score. Page through all in-window events.
   const PAGE = 1000;
@@ -71,8 +71,10 @@ async function idleScoresForWindow(
       startedAt: r.started_at,
     }));
   const summary = aggregateDriverIdle(rows);
-  const m = new Map<string, number>();
-  for (const d of summary.drivers) if (d.driverId !== "__unattributed__") m.set(d.driverId, d.score);
+  const m = new Map<string, { score: number; discretionaryHours: number; totalIdleHours: number }>();
+  for (const d of summary.drivers)
+    if (d.driverId !== "__unattributed__")
+      m.set(d.driverId, { score: d.score, discretionaryHours: d.discretionaryHours, totalIdleHours: d.totalIdleHours });
   return m;
 }
 
@@ -91,15 +93,20 @@ async function weekLeaderboard(
   const scoreRows = new Map<string, ScoreRow>();
   for (const r of (data ?? []) as ScoreRow[]) scoreRows.set(r.driver_id, r);
   const idle = await idleScoresForWindow(admin, orgId, wk);
-  const inputs: DriverWeekInput[] = [...scoreRows.values()].map((r) => ({
-    driverId: r.driver_id,
-    safetyScore: r.safety_score,
-    efficiencyScore: cfg.efficiencyEnabled ? r.efficiency_score : null,
-    // Eligible driver with drive activity but no scored idle events → no avoidable idle (100).
-    idleScore: idle.get(r.driver_id) ?? null, // absent idle → missing component (renormalize), never an imputed perfect 100
-    miles: r.drive_distance_mi,
-    driveHours: r.engine_on_hours ?? r.drive_time_hours,
-  }));
+  const inputs: DriverWeekInput[] = [...scoreRows.values()].map((r) => {
+    const ir = idle.get(r.driver_id) ?? null;
+    const totalIdle = ir?.totalIdleHours ?? 0;
+    return {
+      driverId: r.driver_id,
+      safetyScore: r.safety_score,
+      efficiencyScore: cfg.efficiencyEnabled ? r.efficiency_score : null,
+      idleScore: ir?.score ?? null, // absent handled in combineWeek (clean driver → perfect; feed down → missing)
+      idleDiscretionaryHours: ir?.discretionaryHours ?? null,
+      engineOnHours: r.engine_on_hours ?? ((r.drive_time_hours ?? 0) + totalIdle),
+      miles: r.drive_distance_mi,
+      driveHours: r.engine_on_hours ?? r.drive_time_hours,
+    };
+  });
   return { lb: combineWeek(inputs, cfg.settings), scoreRows };
 }
 

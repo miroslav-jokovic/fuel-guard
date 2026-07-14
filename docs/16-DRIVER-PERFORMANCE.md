@@ -41,7 +41,7 @@ Decisions locked with the fleet: fleet size **150–200 drivers**; ranking basis
 
 **DB & RLS:** migrations `supabase/migrations/NNNN_name.sql` + `_deploy/apply_NNNN.sql`; helpers `auth_org_id()`/`auth_role()`. Tenant pattern: select `org_id = auth_org_id()`; write `admin`/`fleet_manager`; config tables (`anomaly_thresholds`) admin-only; `integration_credentials` service-role only. Offline RLS matrix `supabase/tests/rls.test.mjs` applies an **explicit migration list** — new migrations must be appended with assertions.
 
-**Idling (reused, not rebuilt):** `packages/shared/src/idleScoring.ts::aggregateDriverIdle(rows)` → each `IdleScoreRow.score = max(0, round(100 − discretionaryPct))` (0–100, higher better; a **share**, already exposure-fair). Window is caller-controlled → a 7-day weekly idle score = pass that week's events. Backed by `idle_events` (0042, member-read/mgr-write) and `idle_settings` (0044).
+**Idling (reused, not rebuilt):** `packages/shared/src/idleScoring.ts::aggregateDriverIdle(rows)` exposes per-driver `score`, `discretionaryHours` and `totalIdleHours`. The driver-grade idle sub-score is derived in `combineWeek` by the configured **`idleScoreBasis`** (§3.3a): **`intensity`** (default) = `100·(1 − discretionaryHours/engineOnHours)` — avoidable idle as a share of ENGINE-ON time (drive + idle), exposure-normalized + money-aligned; **`share`** = `100 − discretionaryPct` (the older discipline ratio). Window is caller-controlled. Backed by `idle_events` (0042) and `idle_settings` (0044).
 
 **Drivers/identity (reused):** `drivers` (0003+0015) with `samsara_driver_id` (populated by `samsaraDriverSync.ts`) — **our join key** to both Samsara score endpoints (neither returns a reliable name). `organizations.operating_hours->>'tz'` (default `America/Chicago`) → the **week-boundary timezone**.
 
@@ -70,9 +70,11 @@ Decisions locked with the fleet: fleet size **150–200 drivers**; ranking basis
 
 All three inputs are 0–100 higher-is-better and already exposure-normalized by their producers. Remaining fairness risks — spread dominance, small-sample luck, missing components — handled explicitly. Tuned for a 150–200 driver fleet.
 
-**3.1 Per-driver weekly inputs** (driver *d*, ISO week *W* Mon–Sun in org tz): `safetyScore`(0–100) + exposure `miles=driveDistanceMeters/1609.344`, `driveHours=driveTimeMilliseconds/3.6e6`; `efficiencyScore`(0–100 or null) + `engineOnHours` if present; `idleScore`= `aggregateDriverIdle(idle_events in W).score` for *d* (no scored idle events → idle is a MISSING component → weights renormalize over present components; never an imputed 100 that would reward a data gap).
+**3.1 Per-driver weekly inputs** (driver *d*, ISO week *W* Mon–Sun in org tz): `safetyScore`(0–100) + exposure `miles=driveDistanceMeters/1609.344`, `driveHours=driveTimeMilliseconds/3.6e6`; `efficiencyScore`(0–100 or null) + `engineOnHours` if present; `idleScore` derived in `combineWeek` from *d*'s `aggregateDriverIdle(idle_events in W)` by `idleScoreBasis` (§3.3a). A CLEAN eligible driver (real drive activity, zero avoidable idle observed) scores a perfect **100** — **but only when the fleet has idle data that week**; if idle is absent fleet-wide (feed down) it stays a MISSING component and weights renormalize, so a data gap is never rewarded as a 100.
 
 **3.2 Eligibility gate** (configurable): rankable iff `miles ≥ min_distance_mi (500)` AND `exposureHours ≥ min_drive_hours (10)` AND Safety present. `exposureHours = engineOnHours ?? driveHours`. Ineligible drivers still see all sub-scores (coaching) but are excluded from ranking; `ineligible_reason` recorded (`below_min_miles`|`below_min_hours`|`no_safety`).
+
+**3.3a Idle sub-score basis** (`idleScoreBasis`, default `intensity`): per eligible driver, `intensity` = `clamp(100·(1 − discretionaryHours/engineOnHours))` where `engineOnHours = engine_on_hours ?? drive_time_hours + totalIdleHours` — magnitude-aware + fair across mileage (money-aligned); `share` = `100 − discretionaryPct` (magnitude-blind). Clean eligible driver with no avoidable idle → 100 (when the fleet has idle data). Then §3.3:
 
 **3.3 Normalization — fleet-relative percentile** (`method=percentile`, default). Within week *W*, over the eligible cohort that has that component, Hazen mean-rank percentile (ties share mean rank):
 `pct(x) = 100 × (meanRankAscending(x) − 0.5) / N`.
@@ -201,6 +203,7 @@ No remaining assumptions in the scoring logic (fleet size, ranking basis, effici
 | Parameter | Default | Meaning |
 |---|---|---|
 | weight_safety/efficiency/idling | 0.50/0.25/0.25 | Combine weights (renormalized over present components) |
+| idle_score_basis | intensity | Idle sub-score basis: `intensity` (money-aligned, vs engine-on time) or `share` (discipline ratio) — migration 0056 |
 | normalization_method | percentile | percentile \| zscore \| raw |
 | min_cohort_for_percentile | 20 | Below this eligible count → auto z-score |
 | min_distance_mi / min_drive_hours | 500 / 10 | Weekly exposure gate |

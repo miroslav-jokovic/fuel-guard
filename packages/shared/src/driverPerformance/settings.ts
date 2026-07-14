@@ -3,7 +3,7 @@
  * (pure). Shared by the API snapshot/sync and the web live view so both grade with identical rules.
  */
 import { DEFAULT_PERFORMANCE_SETTINGS } from "./types.js";
-import type { NormalizationMethod, PerformanceSettings } from "./types.js";
+import type { IdleScoreBasis, NormalizationMethod, PerformanceSettings } from "./types.js";
 
 export interface PerformanceSettingsRow {
   weight_safety?: number | string | null;
@@ -15,6 +15,7 @@ export interface PerformanceSettingsRow {
   min_drive_hours?: number | string | null;
   reward_top_n?: number | string | null;
   trailing_weeks?: number | string | null;
+  idle_score_basis?: string | null;
   settle_hours?: number | string | null;
   efficiency_enabled?: boolean | null;
   week_starts_on?: number | string | null;
@@ -37,6 +38,8 @@ const asMethod = (v: unknown): NormalizationMethod =>
   v === "zscore" || v === "raw" || v === "percentile"
     ? v
     : DEFAULT_PERFORMANCE_SETTINGS.normalizationMethod;
+const asBasis = (v: unknown): IdleScoreBasis =>
+  v === "share" || v === "intensity" ? v : DEFAULT_PERFORMANCE_SETTINGS.idleScoreBasis;
 
 export function resolvePerformanceConfig(
   row: PerformanceSettingsRow | null | undefined,
@@ -56,6 +59,7 @@ export function resolvePerformanceConfig(
       minDriveHours: num(row?.min_drive_hours, d.minDriveHours),
       rewardTopN: num(row?.reward_top_n, d.rewardTopN),
       trailingWeeks: num(row?.trailing_weeks, d.trailingWeeks),
+      idleScoreBasis: row ? asBasis(row.idle_score_basis) : d.idleScoreBasis,
     },
     weekTimezone: row?.week_timezone || orgTimezone || "America/Chicago",
     weekStartsOn: num(row?.week_starts_on, 1),

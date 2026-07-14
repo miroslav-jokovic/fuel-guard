@@ -8,6 +8,14 @@
 /** How each component is put on a common scale before the weighted combine (§3.3). */
 export type NormalizationMethod = "percentile" | "zscore" | "raw";
 
+/**
+ * How the idling sub-score is computed (§3.3a):
+ *  - "intensity" — avoidable idle as a share of the driver's ENGINE-ON time (drive + idle). Exposure-normalized
+ *                  and money-aligned: it grows with the ABSOLUTE avoidable waste, fair across mileage. DEFAULT.
+ *  - "share"     — avoidable idle as a share of the driver's OWN idle only (magnitude-blind discipline ratio).
+ */
+export type IdleScoreBasis = "intensity" | "share";
+
 export interface PerformanceWeights {
   safety: number;
   efficiency: number;
@@ -26,6 +34,8 @@ export interface PerformanceSettings {
   rewardTopN: number;
   /** Weeks averaged for the trailing rank. */
   trailingWeeks: number;
+  /** How the idling sub-score is computed (money-aligned "intensity" vs discipline "share"). */
+  idleScoreBasis: IdleScoreBasis;
 }
 
 export const DEFAULT_PERFORMANCE_SETTINGS: PerformanceSettings = {
@@ -36,6 +46,7 @@ export const DEFAULT_PERFORMANCE_SETTINGS: PerformanceSettings = {
   minDriveHours: 10,
   rewardTopN: 3,
   trailingWeeks: 3,
+  idleScoreBasis: "intensity",
 };
 
 /** Per-driver raw inputs for one week. Component scores are 0–100 or null (absent). */
@@ -45,6 +56,10 @@ export interface DriverWeekInput {
   safetyScore: number | null;
   efficiencyScore: number | null;
   idleScore: number | null;
+  /** Avoidable (discretionary) idle hours this week — powers the money-aligned "intensity" basis. */
+  idleDiscretionaryHours?: number | null;
+  /** Engine-on hours (driving + idling) — the exposure denominator for the "intensity" basis. */
+  engineOnHours?: number | null;
   /** Exposure, from the Safety feed. */
   miles: number | null;
   driveHours: number | null;

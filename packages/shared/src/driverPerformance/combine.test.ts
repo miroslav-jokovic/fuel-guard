@@ -76,3 +76,61 @@ describe("combineWeek renormalizes over present components", () => {
     expect(lb.coverage).toEqual({ safety: 1, efficiency: 1, idling: 0 });
   });
 });
+
+describe("combineWeek idle basis (intensity vs share) + clean-driver perfect", () => {
+  const raw = base({ normalizationMethod: "raw", minCohortForPercentile: 0, weights: { safety: 0, efficiency: 0, idling: 1 } });
+
+  it("intensity: same avoidable hours but less exposure scores worse (money-aligned)", () => {
+    // Both waste 2h of avoidable idle; A drove far more, so A's waste is a smaller share of engine-on time.
+    const lb = combineWeek(
+      [
+        drv("A", { idleScore: 50, idleDiscretionaryHours: 2, engineOnHours: 50 }), // 100*(1-2/50)=96
+        drv("B", { idleScore: 50, idleDiscretionaryHours: 2, engineOnHours: 10 }), // 100*(1-2/10)=80
+      ],
+      { ...raw, idleScoreBasis: "intensity" },
+    );
+    const by = byId(lb.rows) as Record<string, (typeof lb.rows)[number]>;
+    expect(by.A!.idleScore).toBe(96);
+    expect(by.B!.idleScore).toBe(80);
+    expect(by.A!.weekFinal).toBe(96);
+    expect(by.B!.weekFinal).toBe(80);
+  });
+
+  it("share: identical discipline ratio scores identically regardless of exposure", () => {
+    const lb = combineWeek(
+      [
+        drv("A", { idleScore: 70, idleDiscretionaryHours: 2, engineOnHours: 50 }),
+        drv("B", { idleScore: 70, idleDiscretionaryHours: 2, engineOnHours: 10 }),
+      ],
+      { ...raw, idleScoreBasis: "share" },
+    );
+    const by = byId(lb.rows) as Record<string, (typeof lb.rows)[number]>;
+    expect(by.A!.idleScore).toBe(70);
+    expect(by.B!.idleScore).toBe(70);
+  });
+
+  it("clean eligible driver (no avoidable idle) scores a perfect 100 when the fleet has idle data", () => {
+    const lb = combineWeek(
+      [
+        drv("hasIdle", { idleScore: 40, idleDiscretionaryHours: 5, engineOnHours: 20 }),
+        drv("clean", { idleScore: null }), // eligible, drove, but no scored idle events
+      ],
+      { ...raw, idleScoreBasis: "intensity" },
+    );
+    const by = byId(lb.rows) as Record<string, (typeof lb.rows)[number]>;
+    expect(by.clean!.idleScore).toBe(100);
+    expect(by.clean!.weekFinal).toBe(100);
+    expect(lb.coverage.idling).toBe(2);
+  });
+
+  it("keeps idle a MISSING component when NO driver has idle data (feed down)", () => {
+    const s = base({ normalizationMethod: "raw", minCohortForPercentile: 0, weights: { safety: 0.5, efficiency: 0.25, idling: 0.25 } });
+    const lb = combineWeek([drv("a", { idleScore: null }), drv("b", { idleScore: null })], s);
+    const by = byId(lb.rows) as Record<string, (typeof lb.rows)[number]>;
+    expect(by.a!.idleScore).toBeNull();
+    expect(by.a!.idlePct).toBeNull();
+    expect(lb.coverage.idling).toBe(0);
+    // (0.5*80 + 0.25*60) / 0.75 = 73.3
+    expect(by.a!.weekFinal).toBe(73.3);
+  });
+});
