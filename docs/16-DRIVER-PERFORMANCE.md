@@ -162,33 +162,33 @@ No remaining assumptions in the scoring logic (fleet size, ranking basis, effici
 ## 10. Build checklist (small, ordered tasks — keep in order)
 
 ### Phase A — Shared module + schema (no external deps; fully unit-testable)
-- [ ] A1 · `driverPerformance/types.ts` — contracts + `DEFAULT_PERFORMANCE_SETTINGS`
-- [ ] A2 · `driverPerformance/parse.ts` (+ `parse.test.ts`) — safety/efficiency parsers, unit conversions, A–G handling
-- [ ] A3 · `driverPerformance/normalize.ts` (+ `normalize.test.ts`) — percentile (Hazen), z-score, method switch
-- [ ] A4 · `driverPerformance/combine.ts` (+ `combine.test.ts`) — eligibility, normalize-over-cohort, weighted renorm
-- [ ] A5 · `driverPerformance/trailing.ts` (+ `trailing.test.ts`) — 3-week trailing, ranking, tie-break, winners
-- [ ] A6 · `driverPerformance/weekWindow.ts` (+ `weekWindow.test.ts`) — tz week bounds (confirm shared tz util, §9.6)
-- [ ] A7 · `driverPerformance/index.ts` + export from `packages/shared/src/index.ts`
-- [ ] A8 · Migrations `0053/0054/0055` + `_deploy/apply_0053..55.sql`
-- [ ] A9 · Append `0053/0054/0055` to `supabase/tests/rls.test.mjs` list + assertions
-- [ ] A10 · Gate: `pnpm --filter @fuelguard/shared test`, `pnpm typecheck && pnpm lint && pnpm build` green → **commit**
+- [x] A1 · `driverPerformance/types.ts` — contracts + `DEFAULT_PERFORMANCE_SETTINGS`
+- [x] A2 · `driverPerformance/parse.ts` (+ `parse.test.ts`) — safety/efficiency parsers, unit conversions, A–G handling
+- [x] A3 · `driverPerformance/normalize.ts` (+ `normalize.test.ts`) — percentile (Hazen), z-score, method switch
+- [x] A4 · `driverPerformance/combine.ts` (+ `combine.test.ts`) — eligibility, normalize-over-cohort, weighted renorm
+- [x] A5 · `driverPerformance/trailing.ts` (+ `trailing.test.ts`) — 3-week trailing, ranking, tie-break, winners
+- [x] A6 · `driverPerformance/weekWindow.ts` (+ `weekWindow.test.ts`) — tz week bounds (confirm shared tz util, §9.6)
+- [x] A7 · `driverPerformance/index.ts` + export from `packages/shared/src/index.ts`
+- [x] A8 · Migrations `0053/0054/0055` + `_deploy/apply_0053..55.sql`
+- [x] A9 · Append `0053/0054/0055` to `supabase/tests/rls.test.mjs` list + assertions
+- [x] A10 · Gate: `pnpm --filter @fuelguard/shared test`, `pnpm typecheck && pnpm lint && pnpm build` green → **commit**
 
 ### Phase B — API (starts with the live-schema gate)
-- [ ] B0 · **Verification gate:** extend `samsaraDiagnostics.ts` with the two probes; run against the live org; confirm §9.1–9.3 and `jobs.kind` (§9.4); lock field mappings
-- [ ] B1 · `lib/samsara.ts` — `makeSamsaraSafetyScoreFetcher` + `makeSamsaraDriverEfficiencyFetcher`
-- [ ] B2 · `services/driverScoreSync.ts` (+ test)
-- [ ] B3 · `services/driverPerformanceSnapshot.ts` (+ test)
-- [ ] B4 · `jobs.ts` JobKinds + `routes/integrations.ts` endpoints (+ fold into sync-vehicles) + audit
-- [ ] B5 · `samsaraScheduler.ts` driver-score tier + hourly snapshot; `env.ts`/`.env.example`
-- [ ] B6 · Gate: api tests + `pnpm typecheck && pnpm lint && pnpm build` green → **commit**
+- [x] B0 · **Verification gate:** extend `samsaraDiagnostics.ts` with the two probes; run against the live org; confirm §9.1–9.3 and `jobs.kind` (§9.4); lock field mappings
+- [x] B1 · `lib/samsara.ts` — `makeSamsaraSafetyScoreFetcher` + `makeSamsaraDriverEfficiencyFetcher`
+- [x] B2 · `services/driverScoreSync.ts` (+ test)
+- [x] B3 · `services/driverPerformanceSnapshot.ts` (+ test)
+- [x] B4 · `jobs.ts` JobKinds + `routes/integrations.ts` endpoints (+ fold into sync-vehicles) + audit
+- [x] B5 · `samsaraScheduler.ts` driver-score tier + hourly snapshot; `env.ts`/`.env.example`
+- [x] B6 · Gate: api tests + `pnpm typecheck && pnpm lint && pnpm build` green → **commit**
 
 ### Phase C — Web
-- [ ] C1 · `features/drivers/` hooks (performance, weeks, settings, sync)
-- [ ] C2 · shared `performanceSettingsFormSchema` (Zod) + export
-- [ ] C3 · `pages/DriverPerformancePage.vue` (winners + leaderboard + panels)
-- [ ] C4 · `pages/DriverPerformanceSettingsPage.vue` (admin)
-- [ ] C5 · `router/index.ts` routes + `layouts/AppShell.vue` nav item
-- [ ] C6 · Gate: `pnpm typecheck && pnpm lint && pnpm build` + design-token check green → **commit**
+- [x] C1 · `features/drivers/` hooks (performance, weeks, settings, sync)
+- [x] C2 · shared `performanceSettingsFormSchema` (Zod) + export
+- [x] C3 · `pages/DriverPerformancePage.vue` (winners + leaderboard + panels)
+- [x] C4 · `pages/DriverPerformanceSettingsPage.vue` (admin)
+- [x] C5 · `router/index.ts` routes + `layouts/AppShell.vue` nav item
+- [x] C6 · Gate: `pnpm typecheck && pnpm lint && pnpm build` + design-token check green → **commit**
 
 ### Phase D — Settling + full verification
 - [ ] D1 · End-to-end dry-run on the live org (sync → provisional current week → settle → freeze)
@@ -215,3 +215,16 @@ No remaining assumptions in the scoring logic (fleet size, ranking basis, effici
 
 ## 12. Sources
 Samsara: [Get driver safety scores](https://developers.samsara.com/reference/getdriversafetyscores) · [v1 driver safety score](https://developers.samsara.com/reference/v1getdriversafetyscore) · [Safety Score calc (KB)](https://kb.samsara.com/hc/en-us/articles/360045237852-Safety-Score-Categories-and-Calculation) · [Driver efficiency by drivers](https://developers.samsara.com/reference/getdriverefficiencybydrivers) · [Driver Fuel Efficiency Scores (KB)](https://kb.samsara.com/hc/en-us/articles/360062066752-Driver-Fuel-Efficiency-Scores) · [safety-sample](https://github.com/samsarahq/safety-sample). Fairness: [Geotab Driver Safety Scorecard](https://www.geotab.com/white-paper/driver-safety-scorecard/) · [OECD Composite Indicators](https://www.oecd.org/content/dam/oecd/en/publications/reports/2005/08/handbook-on-constructing-composite-indicators_g17a16e3/533411815016.pdf) · [Empirical Bayes shrinkage](http://varianceexplained.org/r/empirical_bayes_baseball/).
+
+---
+
+## Build status (updated)
+
+- **Phase A** — committed `f672f05`: shared module + migrations 0053–0055. 479 shared tests, offline RLS matrix 38/38.
+- **Phase B** — committed `7f6863b`: Samsara fetchers, `driverScoreSync`, `driverPerformanceSnapshot`, routes/scheduler/diagnostics. **B0 verified live**: Safety field names exact; Driver-Efficiency `overallScore` numeric 0–100 (efficiency ships enabled); both feeds 200/scoped. 103 api tests.
+- **Phase C** — committed `f895490`: web hooks, DriverPerformancePage + DriverPerformanceSettingsPage, router + Analysis nav. vue-tsc + design-tokens + eslint green.
+- **Phase D — deployment (operational, not code):**
+  1. Apply `supabase/_deploy/apply_0053.sql … apply_0055.sql` in the Supabase SQL editor (idempotent).
+  2. Samsara token scopes *Read Safety Events & Scores* + *Read Driver Efficiency* — confirmed present.
+  3. `pnpm build` on macOS (the cloud dev VM can't bundle — it lacks the platform-native lightningcss binary) and deploy API + web.
+  4. Click **Sync scores** (or let the scheduler run every `SAMSARA_DRIVER_SCORE_SYNC_HOURS`); open **Driver Performance**. Weeks freeze automatically ~`settle_hours` (96h) after they end.
