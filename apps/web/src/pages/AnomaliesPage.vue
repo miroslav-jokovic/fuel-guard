@@ -2,7 +2,9 @@
 import { ref, computed, watch } from "vue";
 import { ANOMALY_SEVERITIES, formatRuleId, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useAnomaliesQuery, useAnomalyTransition, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
+import { useTrailersQuery } from "@/features/fleet/useTrailers";
+import { useDriversQuery } from "@/features/fleet/useDrivers";
+import { useAnomaliesQuery, useAnomalyTransition, useAnomalyTxnDrivers, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import { useAiAssessments } from "@/features/ai/useAiVerification";
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
@@ -14,6 +16,8 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -24,10 +28,13 @@ const PAGE_SIZE = 20;
 const session = useSessionStore();
 const toast = useToastStore();
 const { data: vehicles } = useVehiclesQuery();
+const { data: trailers } = useTrailersQuery();
+const { data: drivers } = useDriversQuery();
 const filters = ref<AnomalyFilters>({ status: "open" });
 const search = ref("");
 const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
 const { data: aiMap } = useAiAssessments();
+const { data: txnDriverMap } = useAnomalyTxnDrivers(anomalies);
 const transition = useAnomalyTransition();
 
 const ai = (a: Anomaly) => (a.transaction_id ? (aiMap.value?.[a.transaction_id] ?? null) : null);
@@ -95,6 +102,14 @@ function resetFilters() {
 const unit = (vehicleId: string | null) =>
   vehicleId ? (vehicles.value?.find((v) => v.id === vehicleId)?.unit_number ?? "—") : "Unattributed";
 
+// Reefer tab enrichment: the paired reefer trailer for a truck, and the driver on the flagged fill.
+const reeferTrailer = (vehicleId: string | null): string =>
+  vehicleId ? ((trailers.value ?? []).find((t) => t.assigned_vehicle_id === vehicleId && t.is_reefer)?.unit_number ?? "—") : "—";
+const driverName = (a: Anomaly): string => {
+  const did = a.transaction_id ? (txnDriverMap.value?.[a.transaction_id] ?? null) : null;
+  return did ? (drivers.value?.find((d) => d.id === did)?.full_name ?? "—") : "—";
+};
+
 // Client-side search over the message + vehicle unit.
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -105,7 +120,7 @@ const filtered = computed(() => {
 
 const SEV_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
 
-const columns: DataTableColumn[] = [
+const baseColumns: DataTableColumn[] = [
   { key: "severity", label: "Severity", sortable: true, headerClass: "min-w-[6rem]" },
   { key: "type", label: "Type", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
   { key: "vehicle", label: "Vehicle", sortable: true, headerClass: "min-w-[6rem]" },
@@ -114,6 +129,17 @@ const columns: DataTableColumn[] = [
   { key: "status", label: "Status", sortable: true, headerClass: "min-w-[8rem]" },
   { key: "when", label: "When", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-muted" },
 ];
+// Reefer tab: lead with the assets the reviewer needs — truck, its reefer trailer, and the driver on the fill.
+const reeferColumns: DataTableColumn[] = [
+  { key: "vehicle", label: "Truck", sortable: true, headerClass: "min-w-[5rem]", cellClass: "font-medium text-ink" },
+  { key: "trailer", label: "Trailer", sortable: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
+  { key: "driver", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "severity", label: "Severity", sortable: true, headerClass: "min-w-[6rem]" },
+  { key: "message", label: "Detail", headerClass: "min-w-[16rem]", cellClass: "max-w-md truncate text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[7rem]" },
+  { key: "when", label: "When", sortable: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-muted" },
+];
+const columns = computed(() => (filters.value.reeferOnly ? reeferColumns : baseColumns));
 
 const sort = ref<SortState>({ key: null, dir: "asc" });
 function onSort(key: string) {
@@ -122,6 +148,8 @@ function onSort(key: string) {
 const getVal = (a: Anomaly, key: string): unknown => {
   if (key === "severity") return SEV_RANK[a.severity] ?? 0;
   if (key === "vehicle") return unit(a.vehicle_id);
+  if (key === "trailer") return reeferTrailer(a.vehicle_id);
+  if (key === "driver") return driverName(a);
   if (key === "when") return a.fueled_at ?? a.created_at;
   if (key === "type") return a.rule_id;
   if (key === "status") return a.status;
@@ -182,23 +210,33 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
 
 <template>
   <div class="space-y-6">
-    <!-- Tabs: all alerts vs reefer-fueling cases -->
-    <div class="flex gap-1 border-b border-edge text-sm">
+    <PageHeader description="Fuel-card alerts from anomaly detection — theft, misuse, and data-quality signals across your fleet." />
+
+    <!-- Tabs: all alerts vs reefer-fueling cases (design-system segmented control) -->
+    <div class="flex w-fit gap-1 rounded-lg bg-surface-muted p-1 text-sm">
       <button
-        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-        :class="!filters.reeferOnly ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
+        class="rounded-md px-3 py-1.5 font-medium transition"
+        :class="!filters.reeferOnly ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
         @click="filters = { ...filters, reeferOnly: undefined }"
       >
         All alerts
       </button>
       <button
-        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-        :class="filters.reeferOnly ? 'border-info-600 text-info-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
+        class="rounded-md px-3 py-1.5 font-medium transition"
+        :class="filters.reeferOnly ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
         @click="filters = { ...filters, reeferOnly: true }"
       >
         Reefer fueling
       </button>
     </div>
+
+    <BaseCard v-if="filters.reeferOnly" as="div">
+      <p class="text-sm text-ink-secondary">
+        Reefer-fueling alerts flag trucks that haul a reefer but may be fueling it with ULSD selected at the pump —
+        a reefer-hauling truck buying little or no reefer (ULSR) fuel, or a ULSD fill that didn't fully enter the
+        tractor tank. Each row shows the truck, its paired reefer trailer, and the driver on the flagged fill.
+      </p>
+    </BaseCard>
 
     <FilterBar
       v-model:search="search"
@@ -272,6 +310,8 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
       </template>
       <template #cell-type="{ row }">{{ formatRuleId(row.rule_id) }}</template>
       <template #cell-vehicle="{ row }">{{ unit(row.vehicle_id) }}</template>
+      <template #cell-trailer="{ row }">{{ reeferTrailer(row.vehicle_id) }}</template>
+      <template #cell-driver="{ row }">{{ driverName(row) }}</template>
       <template #cell-ai="{ row }">
         <div v-if="ai(row)" class="flex items-center gap-1.5">
           <span :class="[BADGE_BASE, severityTone(ai(row)!.risk_level)]" :title="`AI risk ${ai(row)!.risk_score}/100`">{{ ai(row)!.risk_level }}</span>

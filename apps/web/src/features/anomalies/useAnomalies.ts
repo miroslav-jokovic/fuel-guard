@@ -1,4 +1,4 @@
-import { type Ref, toValue } from "vue";
+import { type Ref, computed, toValue } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { Anomaly, AnomalyTransition, FuelTransaction } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
@@ -140,6 +140,29 @@ export function useRelatedCardFills(
         .order("fueled_at", { ascending: true });
       if (error) throw new Error(error.message);
       return (data ?? []) as SiblingFill[];
+    },
+  });
+}
+
+/**
+ * Map transaction_id → driver_id for a set of anomalies. Drives the reefer tab's Driver column without
+ * denormalizing the driver onto every anomaly row — one batched query over the loaded anomalies' fills.
+ */
+export function useAnomalyTxnDrivers(anomalies: Ref<Anomaly[] | undefined>) {
+  const ids = computed(() =>
+    [...new Set((toValue(anomalies) ?? []).map((a) => a.transaction_id).filter(Boolean))].sort(),
+  );
+  return useQuery({
+    queryKey: ["anomaly_txn_drivers", ids],
+    enabled: () => ids.value.length > 0,
+    queryFn: async (): Promise<Record<string, string | null>> => {
+      const list = ids.value;
+      if (!list.length) return {};
+      const { data, error } = await supabase.from("fuel_transactions").select("id, driver_id").in("id", list);
+      if (error) throw new Error(error.message);
+      const m: Record<string, string | null> = {};
+      for (const r of (data ?? []) as { id: string; driver_id: string | null }[]) m[r.id] = r.driver_id;
+      return m;
     },
   });
 }
