@@ -12,12 +12,13 @@ import BaseButton from "./BaseButton.vue";
  *   [ search ] [ primary filter controls … ] [⏷ Filters] ······ count · actions
  *   [ chip: Unit 204 ✕ ] [ chip: Dates Jul 1 – 13 ✕ ]  Clear all      ← when active
  *
- * - #filters — the 2–4 PRIMARY dimensions (AppSelect / DateRangeFilter /
- *   VehicleSelect), live-applied.
+ * - #filters — the 2–4 PRIMARY dimensions as compact FilterSelect /
+ *   DateRangeFilter triggers, live-applied (each shows its active value).
  * - #more — secondary filters, shown in the "Filters" popover (only render
  *   the button when the slot is provided). `moreCount` badges active ones.
- * - chips — every active filter as a removable token; emits `remove(key)`
- *   per chip and `clear-all` for the trailing ghost button.
+ * - chips — removable tokens for the SECONDARY (popover) filters only; the
+ *   inline triggers already show their values. Emits `remove(key)` /
+ *   `clear-all`.
  * - count — always-visible result feedback ("1,204 transactions").
  * - #actions — page-level buttons that belong to the table (Export, Rescore…).
  */
@@ -65,7 +66,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
 <template>
   <BaseCard padding="sm">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
-      <div v-if="search !== undefined" class="w-full lg:w-72 lg:shrink-0">
+      <div v-if="search !== undefined" class="w-full lg:w-64 lg:shrink-0">
         <SearchInput
           :model-value="search"
           :placeholder="searchPlaceholder"

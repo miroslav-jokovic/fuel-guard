@@ -4,8 +4,8 @@ import { useDeclinedTransactions, useEfsFacets, EFS_PAGE_SIZE, type EfsFilters }
 import type { DeclinedTransactionRow } from "@fuelguard/shared";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import AppSelect from "@/components/AppSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -75,22 +75,11 @@ const stateOptions = computed(() => withAll("All states", facets.value?.rejState
 const driverOptions = computed(() => withAll("All drivers", facets.value?.rejDrivers));
 const policyOptions = computed(() => withAll("All policies", facets.value?.rejPolicies));
 
-/* Applied-filter chips (search shows live in the input, so no chip for it). */
-const fmtChipDay = (d: string) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-const cap = (s2: string) => s2.charAt(0).toUpperCase() + s2.slice(1);
+// Chips surface only the popover (secondary) filters — the inline triggers
+// already display their own active value.
 const chips = computed<FilterChip[]>(() => {
   const f = filters.value;
   const out: FilterChip[] = [];
-  if (f.suspicion) out.push({ key: "suspicion", label: "Risk", value: cap(f.suspicion) });
-  if (f.unit) out.push({ key: "unit", label: "Unit", value: f.unit });
-  if (f.errorCode) out.push({ key: "errorCode", label: "Error", value: f.errorCode });
-  if (f.from || f.to)
-    out.push({
-      key: "dates",
-      label: "Dates",
-      value: f.from && f.to ? `${fmtChipDay(f.from)} – ${fmtChipDay(f.to)}` : fmtChipDay((f.from ?? f.to)!),
-    });
   if (f.state) out.push({ key: "state", label: "State", value: f.state });
   if (f.driver) out.push({ key: "driver", label: "Driver", value: f.driver });
   if (f.policy) out.push({ key: "policy", label: "Policy", value: f.policy });
@@ -100,8 +89,7 @@ const moreCount = computed(
   () => (filters.value.state ? 1 : 0) + (filters.value.driver ? 1 : 0) + (filters.value.policy ? 1 : 0),
 );
 function removeChip(key: string) {
-  if (key === "dates") filters.value = { ...filters.value, from: undefined, to: undefined };
-  else filters.value = { ...filters.value, [key]: undefined };
+  filters.value = { ...filters.value, [key]: undefined };
 }
 function clearAll() {
   filters.value = { sortKey: filters.value.sortKey, sortDir: filters.value.sortDir };
@@ -162,24 +150,15 @@ const columns: DataTableColumn[] = [
       @clear-all="clearAll"
     >
       <template #filters>
-        <AppSelect v-model="suspicion" :options="suspicionOptions" class="w-36" />
-        <AppSelect v-model="unit" :options="unitOptions" class="w-32" />
-        <AppSelect v-model="errorCode" :options="errorOptions" class="w-44" />
+        <FilterSelect v-model="suspicion" label="Risk" :options="suspicionOptions" />
+        <FilterSelect v-model="unit" label="Unit" :options="unitOptions" />
+        <FilterSelect v-model="errorCode" label="Error" :options="errorOptions" />
         <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
       </template>
       <template #more>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-ink-muted">State</label>
-          <AppSelect v-model="stateF" :options="stateOptions" class="w-full" />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-ink-muted">Driver</label>
-          <AppSelect v-model="driver" :options="driverOptions" class="w-full" />
-        </div>
-        <div>
-          <label class="mb-1 block text-xs font-medium text-ink-muted">Policy</label>
-          <AppSelect v-model="policy" :options="policyOptions" class="w-full" />
-        </div>
+        <FilterSelect v-model="stateF" label="State" :options="stateOptions" block />
+        <FilterSelect v-model="driver" label="Driver" :options="driverOptions" block />
+        <FilterSelect v-model="policy" label="Policy" :options="policyOptions" block />
       </template>
       <template #actions>
         <BaseButton
