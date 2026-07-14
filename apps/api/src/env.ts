@@ -38,6 +38,7 @@ const EnvSchema = z.object({
   SAMSARA_STATS_SYNC_MINUTES: z.coerce.number().min(1).default(20),
   // Tier 2 — identity (vehicles, drivers, assignments): changes slowly, refresh rarely. Hours.
   SAMSARA_IDENTITY_SYNC_HOURS: z.coerce.number().min(0.1).default(12),
+  SAMSARA_DRIVER_SCORE_SYNC_HOURS: z.coerce.number().min(0.1).default(6),
   // Nightly per-org self-heal (EFS-store repair → rescore → quick rebuild → integrity) at org-local 03:00.
   // Set to "false" to disable.
   NIGHTLY_RECONCILE_ENABLED: z

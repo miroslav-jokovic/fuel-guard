@@ -17,7 +17,9 @@ export type JobKind =
   | "sync_idle"
   | "sync_stats"
   | "nightly_reconcile"
-  | "efs_ingest";
+  | "efs_ingest"
+  | "sync_driver_scores"
+  | "snapshot_driver_week";
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
 

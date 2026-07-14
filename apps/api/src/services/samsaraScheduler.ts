@@ -3,6 +3,8 @@ import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { syncVehiclesFromSamsara, syncVehicleStatsFromSamsara, NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
+import { syncDriverScores } from "./driverScoreSync.js";
+import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
 import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus all orgs when a single-tenant env token is set. */
@@ -110,6 +112,22 @@ export function startSamsaraScheduler(env: Env): void {
         const r = await syncVehiclesFromSamsara(admin, env, orgId);
         await admin.from("integration_credentials").update({ last_synced_at: new Date().toISOString() }).eq("org_id", orgId);
         return { total: r.total, created: r.created, updated: r.updated, assigned: r.assigned };
+      });
+    }
+  });
+
+  // Tier 3 — driver performance: refresh the current week's Safety+Efficiency scores, then freeze any settled
+  // weeks into the rewards ledger. Both run through the jobs ledger (no overlap); efficiency degrades gracefully.
+  const driverScoreMs = env.SAMSARA_DRIVER_SCORE_SYNC_HOURS * 3_600_000;
+  startTier(env, "driver-scores", 120_000, driverScoreMs, async (admin) => {
+    for (const orgId of await orgsToSync(admin, env)) {
+      await runOrgTier(admin, orgId, "sync_driver_scores", async () => {
+        const r = await syncDriverScores(admin, env, orgId);
+        return { upserted: r.upserted, safetyOk: r.safetyOk, efficiencyOk: r.efficiencyOk };
+      });
+      await runOrgTier(admin, orgId, "snapshot_driver_week", async () => {
+        const r = await snapshotSettledWeeks(admin, env, orgId);
+        return { weeksFrozen: r.weeksFrozen.length, rowsWritten: r.rowsWritten };
       });
     }
   });

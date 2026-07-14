@@ -41,6 +41,15 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
     }),
   ]);
 
+  // Driver-performance feeds (docs/16): confirm scope + reachability. Efficiency needs end ≤3h before now.
+  const wkStart = new Date(now.getTime() - 7 * 86_400_000);
+  const effStart = new Date(now.getTime() - 8 * 86_400_000);
+  const effEnd = new Date(now.getTime() - 4 * 3_600_000);
+  const [safetyScores, driverEfficiency] = await Promise.all([
+    probe("/safety-scores/drivers", { startTime: wkStart.toISOString(), endTime: now.toISOString() }),
+    probe("/driver-efficiency/drivers", { startTime: effStart.toISOString(), endTime: effEnd.toISOString(), dataFormats: "score" }),
+  ]);
+
   const statsRows = (stats.data ?? []) as { obdOdometerMeters?: { value?: number }; gpsOdometerMeters?: { value?: number }; fuelPercent?: { value?: number }; fuelPercents?: { value?: number } }[];
 
   // ── Our-side reconciliation readiness: recon can ONLY run for a fill whose vehicle is linked to a Samsara
@@ -110,6 +119,8 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
       readVehicleStats: stats.status === 200,
       readDrivers: drivers.status === 200,
       readAssignments: assignments.status === 200,
+      readSafetyScores: safetyScores.status === 200,
+      readDriverEfficiency: driverEfficiency.status === 200,
     },
     vehicles: { status: vehicles.status, error: vehicles.error },
     stats: {
@@ -128,5 +139,7 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
       rawCount: assignments.data?.length ?? null,
       sample: (assignments.data ?? []).slice(0, 2),
     },
+    safetyScores: { status: safetyScores.status, error: safetyScores.error, count: (safetyScores.data ?? []).length },
+    driverEfficiency: { status: driverEfficiency.status, error: driverEfficiency.error, count: (driverEfficiency.data ?? []).length },
   };
 }

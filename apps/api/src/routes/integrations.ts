@@ -10,6 +10,8 @@ import { syncIdleEvents } from "../services/idleSync.js";
 import { syncIdleCapabilities } from "../services/idleCapabilitySync.js";
 import { syncDriversFromSamsara } from "../services/samsaraDriverSync.js";
 import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
+import { syncDriverScores } from "../services/driverScoreSync.js";
+import { snapshotSettledWeeks } from "../services/driverPerformanceSnapshot.js";
 import { startJob, finishJob, JobConflictError } from "../services/jobs.js";
 
 export function integrationsRouter(): Router {
@@ -55,6 +57,13 @@ export function integrationsRouter(): Router {
           console.log(`[integrations] idle sync: ${idle.fetched} events`);
         } catch (e) {
           console.error("[integrations] idle sync failed:", e instanceof Error ? e.message : e);
+        }
+        // Refresh the current week's driver-performance component scores (Safety + Efficiency). Best-effort.
+        try {
+          const dp = await syncDriverScores(admin, env, orgId);
+          console.log(`[integrations] driver-score sync: ${dp.upserted} rows (safety=${dp.safetyOk} efficiency=${dp.efficiencyOk})`);
+        } catch (e) {
+          console.error("[integrations] driver-score sync failed:", e instanceof Error ? e.message : e);
         }
         await writeAudit(admin, {
           orgId,
@@ -211,6 +220,75 @@ export function integrationsRouter(): Router {
       }
     }),
   );
+
+  // Refresh the current week's driver-performance component scores from Samsara (admin + fleet_manager).
+  router.post(
+    "/samsara/sync-driver-scores",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const orgId = req.auth!.orgId!;
+      const admin = getSupabaseAdmin(env);
+      let jobId: string;
+      try {
+        jobId = await startJob(admin, orgId, "sync_driver_scores", { requestedBy: req.auth!.userId });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("job_running", "A driver-score sync is already running."));
+          return;
+        }
+        throw e;
+      }
+      try {
+        const result = await syncDriverScores(admin, env, orgId);
+        await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "integration.samsara.driver_scores_synced", entity: "driver_scores", meta: { ...result } });
+        await finishJob(admin, jobId, { status: "done", stats: { ...result } });
+        res.json(result);
+      } catch (e) {
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        if (e instanceof NoSamsaraTokenError) {
+          res.status(400).json(apiError("no_samsara_token", e.message));
+          return;
+        }
+        console.error("[integrations] samsara driver-score sync failed:", e);
+        res.status(502).json(apiError("samsara_sync_failed", "Could not sync driver scores from Samsara"));
+      }
+    }),
+  );
+
+  // Freeze all settled weeks into the rewards ledger (admin). Idempotent.
+  router.post(
+    "/driver-performance/snapshot",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const orgId = req.auth!.orgId!;
+      const admin = getSupabaseAdmin(env);
+      let jobId: string;
+      try {
+        jobId = await startJob(admin, orgId, "snapshot_driver_week", { requestedBy: req.auth!.userId });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("job_running", "A snapshot is already running."));
+          return;
+        }
+        throw e;
+      }
+      try {
+        const result = await snapshotSettledWeeks(admin, env, orgId);
+        await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "driver_performance.snapshot", entity: "driver_performance_weeks", meta: { weeksFrozen: result.weeksFrozen, rowsWritten: result.rowsWritten } });
+        await finishJob(admin, jobId, { status: "done", stats: { weeksFrozen: result.weeksFrozen.length, rowsWritten: result.rowsWritten } });
+        res.json(result);
+      } catch (e) {
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        console.error("[integrations] driver-performance snapshot failed:", e);
+        res.status(502).json(apiError("snapshot_failed", "Could not snapshot driver performance"));
+      }
+    }),
+  );
+
 
   return router;
 }
