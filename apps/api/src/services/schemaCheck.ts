@@ -25,6 +25,9 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "driver_vehicle_assignments", column: "driver_samsara_id", migration: "0051" },
   { table: "vehicles", column: "idle_states_sec", migration: "0052" },
   { table: "efs_transactions", column: "tran_time", migration: "0047" },
+  { table: "driver_performance_settings", column: "org_id", migration: "0053" },
+  { table: "driver_scores", column: "id", migration: "0054" },
+  { table: "driver_performance_weeks", column: "id", migration: "0055" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */
