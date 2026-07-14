@@ -5,6 +5,7 @@ import { syncVehiclesFromSamsara, syncVehicleStatsFromSamsara, NoSamsaraTokenErr
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 import { syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
+import { syncIdleEvents } from "./idleSync.js";
 import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus all orgs when a single-tenant env token is set. */
@@ -124,6 +125,10 @@ export function startSamsaraScheduler(env: Env): void {
       await runOrgTier(admin, orgId, "sync_driver_scores", async () => {
         const r = await syncRecentDriverScoreWeeks(admin, env, orgId);
         return { weeks: r.weeks, upserted: r.totalUpserted };
+      });
+      await runOrgTier(admin, orgId, "sync_idle", async () => {
+        const r = await syncIdleEvents(admin, env, orgId);
+        return { fetched: r.fetched, upserted: r.upserted };
       });
       await runOrgTier(admin, orgId, "snapshot_driver_week", async () => {
         const r = await snapshotSettledWeeks(admin, env, orgId);

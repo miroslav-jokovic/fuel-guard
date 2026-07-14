@@ -242,6 +242,12 @@ export function integrationsRouter(): Router {
       }
       try {
         const result = await syncRecentDriverScoreWeeks(admin, env, orgId);
+        // Idle feeds the grade too — refresh it here so "Sync scores" makes the whole page current.
+        try {
+          await syncIdleEvents(admin, env, orgId);
+        } catch (e) {
+          console.error("[integrations] driver-score idle refresh failed:", e instanceof Error ? e.message : e);
+        }
         const cur = result.results[0];
         const summary = { weekStart: cur?.weekStart ?? null, weeks: result.weeks, drivers: cur?.drivers ?? 0, upserted: result.totalUpserted, safetyOk: cur?.safetyOk ?? false, efficiencyOk: cur?.efficiencyOk ?? false };
         await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "integration.samsara.driver_scores_synced", entity: "driver_scores", meta: summary });
