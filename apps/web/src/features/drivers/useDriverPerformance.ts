@@ -91,12 +91,24 @@ export function useDriverPerformance() {
       if (se) throw new Error(se.message);
       const scores = (scoresData ?? []) as ScoreRow[];
 
-      const { data: idleData } = await supabase
-        .from("idle_events")
-        .select("driver_id, started_at, duration_sec, classification, fuel_gal, idle_gal, cost_usd")
-        .gte("started_at", oldest.windowStartIso)
-        .lt("started_at", current.windowEndIso);
-      const idleAll = (idleData ?? []) as IdleRowRaw[];
+      // Paginate: idle_events far exceeds PostgREST's 1000-row cap over a multi-week window, so a single
+      // select silently drops most events (and the entire current week), leaving idle blank for everyone.
+      // Loop like the Idling page (useIdleScores) so every in-window event is loaded.
+      const IDLE_PAGE = 1000;
+      const idleAll: IdleRowRaw[] = [];
+      for (let offset = 0; ; offset += IDLE_PAGE) {
+        const { data: idleData, error: ie } = await supabase
+          .from("idle_events")
+          .select("driver_id, started_at, duration_sec, classification, fuel_gal, idle_gal, cost_usd")
+          .gte("started_at", oldest.windowStartIso)
+          .lt("started_at", current.windowEndIso)
+          .order("started_at", { ascending: false })
+          .range(offset, offset + IDLE_PAGE - 1);
+        if (ie) throw new Error(ie.message);
+        const batch = (idleData ?? []) as IdleRowRaw[];
+        idleAll.push(...batch);
+        if (batch.length < IDLE_PAGE) break;
+      }
 
       const { data: driversData } = await supabase.from("drivers").select("id, full_name");
       const nameMap = new Map(

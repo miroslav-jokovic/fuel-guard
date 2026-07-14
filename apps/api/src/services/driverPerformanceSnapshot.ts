@@ -40,13 +40,25 @@ async function idleScoresForWindow(
   orgId: string,
   wk: WeekWindow,
 ): Promise<Map<string, number>> {
-  const { data } = await admin
-    .from("idle_events")
-    .select("driver_id, duration_sec, classification, fuel_gal, idle_gal, cost_usd, started_at")
-    .eq("org_id", orgId)
-    .gte("started_at", wk.windowStartIso)
-    .lt("started_at", wk.windowEndIso);
-  const rows: IdleRow[] = ((data ?? []) as IdleEventRow[])
+  // Paginate: a full week of fleet idle exceeds PostgREST's 1000-row cap, so a single select truncates the
+  // week and skews every frozen idle score. Page through all in-window events.
+  const PAGE = 1000;
+  const data: IdleEventRow[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data: batch, error } = await admin
+      .from("idle_events")
+      .select("driver_id, duration_sec, classification, fuel_gal, idle_gal, cost_usd, started_at")
+      .eq("org_id", orgId)
+      .gte("started_at", wk.windowStartIso)
+      .lt("started_at", wk.windowEndIso)
+      .order("started_at", { ascending: false })
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rowsB = (batch ?? []) as IdleEventRow[];
+    data.push(...rowsB);
+    if (rowsB.length < PAGE) break;
+  }
+  const rows: IdleRow[] = data
     .filter((r) => r.driver_id)
     .map((r) => ({
       driverId: r.driver_id,
