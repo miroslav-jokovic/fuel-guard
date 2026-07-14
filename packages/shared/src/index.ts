@@ -30,3 +30,4 @@ export * from "./idleConfidence.js";
 export * from "./weather.js";
 export * from "./idleBurn.js";
 export * from "./idleEquipment.js";
+export * from "./driverPerformance/index.js";

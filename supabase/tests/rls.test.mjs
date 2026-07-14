@@ -86,6 +86,9 @@ async function main() {
     "migrations/0014_upsert_safe_indexes.sql",
     "migrations/0015_driver_samsara.sql",
     "migrations/0016_vehicle_fuel_level.sql",
+    "migrations/0053_driver_performance_settings.sql",
+    "migrations/0054_driver_scores.sql",
+    "migrations/0055_driver_performance_weeks.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -298,6 +301,34 @@ async function main() {
     )
   ).rows[0].e;
   ok("auth hook adds no org for a non-member (pending state, audit B3)", hk2.claims?.org_id === undefined, JSON.stringify(hk2));
+
+
+  // ── Driver Performance (migrations 0053–0055) ──────────────────────────────
+  const DRV_A = (await db.query(`insert into drivers (org_id, full_name) values ('${ORG_A}','RLS Tester') returning id`)).rows[0].id;
+  await db.query(`insert into driver_scores (org_id, driver_id, week_start, week_end, window_start, window_end) values ('${ORG_A}','${DRV_A}','2026-07-13','2026-07-19', now(), now())`);
+  await db.query(`insert into driver_performance_weeks (org_id, week_start, week_end, driver_id, eligible, is_winner) values ('${ORG_A}','2026-07-13','2026-07-19','${DRV_A}', true, true)`);
+
+  ok("member can read driver_performance_settings", !(await asUser(mgrA, "select count(*)::int n from driver_performance_settings")).error);
+  ok("member can read driver_scores", !(await asUser(mgrA, "select count(*)::int n from driver_scores")).error);
+  ok("member can read driver_performance_weeks", !(await asUser(mgrA, "select count(*)::int n from driver_performance_weeks")).error);
+
+  ok("org B cannot see org A driver_scores (0)", (await asUser(mgrB, "select count(*)::int n from driver_scores where org_id=$1", [ORG_A])).rows?.[0]?.n === 0);
+  ok("org B cannot see org A driver_performance_weeks (0)", (await asUser(mgrB, "select count(*)::int n from driver_performance_weeks where org_id=$1", [ORG_A])).rows?.[0]?.n === 0);
+
+  const dpsAdmin = await asUser(adminA, "insert into driver_performance_settings (org_id) values ($1) returning org_id", [ORG_A]);
+  ok("admin INSERT driver_performance_settings allowed", !dpsAdmin.error && dpsAdmin.rows?.length === 1, JSON.stringify(dpsAdmin));
+  const dpsMgr = await asUser(mgrA, "insert into driver_performance_settings (org_id) values ($1)", [ORG_A]);
+  ok("manager INSERT driver_performance_settings denied (admin-only)", !!dpsMgr.error, JSON.stringify(dpsMgr));
+
+  const dsMgr = await asUser(mgrA, "insert into driver_scores (org_id, driver_id, week_start, week_end, window_start, window_end) values ($1,$2,'2026-07-06','2026-07-12',now(),now()) returning id", [ORG_A, DRV_A]);
+  ok("manager INSERT driver_scores allowed", !dsMgr.error && dsMgr.rows?.length === 1, JSON.stringify(dsMgr));
+  const dsDrv = await asUser(driverA, "insert into driver_scores (org_id, driver_id, week_start, week_end, window_start, window_end) values ($1,$2,'2026-07-06','2026-07-12',now(),now())", [ORG_A, DRV_A]);
+  ok("driver INSERT driver_scores denied", !!dsDrv.error, JSON.stringify(dsDrv));
+
+  const dpwMgr = await asUser(mgrA, "insert into driver_performance_weeks (org_id, week_start, week_end, driver_id) values ($1,'2026-06-29','2026-07-05',$2) returning driver_id", [ORG_A, DRV_A]);
+  ok("manager INSERT driver_performance_weeks allowed", !dpwMgr.error, JSON.stringify(dpwMgr));
+  const dpwDrv = await asUser(driverA, "insert into driver_performance_weeks (org_id, week_start, week_end, driver_id) values ($1,'2026-06-29','2026-07-05',$2)", [ORG_A, DRV_A]);
+  ok("driver INSERT driver_performance_weeks denied", !!dpwDrv.error, JSON.stringify(dpwDrv));
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
