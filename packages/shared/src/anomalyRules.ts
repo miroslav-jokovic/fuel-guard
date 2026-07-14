@@ -35,6 +35,7 @@ export const RULE_IDS = [
   // Tier A — reefer (trailer refrigeration) fuel integrity (reefer/ULSR events only)
   "reefer_exceeds_capacity", // one ULSR purchase > reefer tank capacity — can't fit in the reefer
   "reefer_overfuel_rate", // rolling-window reefer gallons > a reefer could burn + a tank
+  "reefer_fuel_diversion", // reefer-hauling truck buys ULSD but ~no reefer (ULSR) fuel → reefer fueled off ULSD
 ] as const;
 
 export type RuleId = (typeof RULE_IDS)[number];
@@ -76,6 +77,7 @@ export const RULE_LABELS: Record<RuleId, string> = {
   tank_fill_short:            "Tank Fill Short",
   reefer_exceeds_capacity:    "Reefer Fill Exceeds Tank",
   reefer_overfuel_rate:       "Reefer Over-Fueling",
+  reefer_fuel_diversion:      "Reefer Fueled with ULSD",
 };
 
 /** Returns the human-friendly label for a rule ID, with a sensible fallback for unknown IDs. */
@@ -229,6 +231,13 @@ export interface Thresholds {
   maxReeferBurnGph?: number;
   /** Reefer tank capacity to assume when a fill's trailer is unknown/unpaired. Default 50. */
   reeferTankDefaultGal?: number;
+  /** Reefer-diversion lookback window (days) for the reefer-vs-tractor fuel comparison. Default 30. */
+  reeferDiversionWindowDays?: number;
+  /** Min tractor (ULSD) gallons a reefer-hauling truck must buy in the window to be "active" (else a parked
+   *  reefer legitimately needs no fuel). Default 150. */
+  reeferDiversionMinTractorGal?: number;
+  /** Reefer (ULSR) gallons at/below which the reefer is "under-fueled" in the window. Default 0 (bought none). */
+  reeferDiversionMaxReeferGal?: number;
 }
 
 export interface OperatingHours {
@@ -272,6 +281,15 @@ export interface RuleContext {
   reeferTankCapacityGal?: number | null;
   /** For a REEFER fill: sum of reefer gallons for this vehicle within the cumulative window (incl. this txn). */
   reeferWindowGallons?: number;
+  /** This truck currently hauls a reefer (an is_reefer trailer is paired to it). Gates reefer_fuel_diversion. */
+  reeferPaired?: boolean;
+  /** The ORG bought SOME reefer (ULSR) fuel in the window — proves ULSR is a tracked product for this fleet, so
+   *  "this truck bought none" is meaningful rather than "this fleet doesn't code reefer fuel separately". */
+  orgUsesReeferFuel?: boolean;
+  /** This truck's reefer (ULSR) gallons over the reefer-diversion window (ending at this fill). */
+  reeferDiversionReeferGal?: number;
+  /** This truck's tractor (ULSD) gallons over the reefer-diversion window (activity signal). */
+  reeferDiversionTractorGal?: number;
 }
 
 export interface RuleResult {
@@ -936,6 +954,37 @@ function ruleReeferOverfuelRate(ctx: RuleContext): RuleResult {
   return none("reefer_overfuel_rate");
 }
 
+/**
+ * Reefer fueled with ULSD (diversion). A tractor (ULSD) fill on a truck that HAULS a reefer (paired is_reefer
+ * trailer) while the truck bought little/no reefer (ULSR) fuel over the window — the classic "select Ultra Low
+ * Sulfur, then move the gun to the reefer" pattern. Guarded to stay assumption-free:
+ *   • only fires when the ORG actually uses a reefer (ULSR) product code (else "no ULSR" is not informative);
+ *   • only when the truck is ACTIVE (bought real ULSD in the window — a parked/deadhead reefer needs no fuel);
+ *   • only when reefer purchases are at/below the deficiency floor (default 0 → bought none).
+ * Review on its own; escalates to an alert when the same fill also fires tank_fill_short (the ULSD physically
+ * did not all enter the tractor tank — where did it go?), because the reefer + volume axes then agree.
+ */
+function ruleReeferFuelDiversion(ctx: RuleContext): RuleResult {
+  const { txn, thresholds } = ctx;
+  if (txn.tankType === "reefer") return none("reefer_fuel_diversion"); // rule is about ULSD (tractor) fills
+  if (!ctx.reeferPaired) return none("reefer_fuel_diversion"); // truck must actually haul a reefer
+  if (!ctx.orgUsesReeferFuel) return none("reefer_fuel_diversion"); // fleet must track reefer fuel separately
+  const winTractor = ctx.reeferDiversionTractorGal ?? 0;
+  const winReefer = ctx.reeferDiversionReeferGal ?? 0;
+  const minTractor = thresholds.reeferDiversionMinTractorGal ?? 150;
+  const maxReefer = thresholds.reeferDiversionMaxReeferGal ?? 0;
+  const days = thresholds.reeferDiversionWindowDays ?? 30;
+  if (winTractor < minTractor) return none("reefer_fuel_diversion"); // not enough activity to expect reefer fuel
+  if (winReefer > maxReefer) return none("reefer_fuel_diversion"); // reefer IS being fueled → nothing to flag
+  return {
+    ruleId: "reefer_fuel_diversion",
+    fired: true,
+    severity: "medium",
+    message: `This truck hauls a reefer but bought ${winReefer <= 0 ? "no" : `only ${r2(winReefer)} gal of`} reefer (ULSR) fuel in ${days} days while buying ${r2(winTractor)} gal of ULSD — the reefer may be fueled off ULSD selected at the pump.`,
+    evidence: { reeferGalInWindow: r2(winReefer), tractorGalInWindow: r2(winTractor), windowDays: days, minTractorGal: minTractor, maxReeferGal: maxReefer },
+  };
+}
+
 /** One fuel card used across multiple vehicles in the window — classic card-sharing / misuse signal. */
 function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
   const count = ctx.cardVehicleCountInWindow ?? 0;
@@ -984,6 +1033,8 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleCardMultiVehicle,
     ruleLocationMismatch,
     ...(fuel ? [ruleTankFillShort] : []),
+    // Reefer-diversion runs on TRACTOR (ULSD) fills of reefer-hauling trucks (behavioral; no sensor needed).
+    ...(fuel ? [ruleReeferFuelDiversion] : []),
     // Tier A — reefer rules run ONLY on reefer (ULSR) fills (tractor rules were gated off for them).
     ...(ctx.txn.tankType === "reefer" ? [ruleReeferExceedsCapacity, ruleReeferOverfuelRate] : []),
   ];
@@ -1068,6 +1119,9 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   // Reefer — ULSR fuel not going into the reefer tank (gun-switch / container fill)
   reefer_exceeds_capacity:    { axis: "reefer", weight: 90 },
   reefer_overfuel_rate:       { axis: "reefer", weight: 75 },
+  // Behavioral: reefer-hauling truck buying no reefer fuel. Review on its own (weight ≥ REVIEW_WEIGHT); with
+  // tank_fill_short (volume) on the same ULSD fill the two axes agree → alert.
+  reefer_fuel_diversion:      { axis: "reefer", weight: 60 },
 };
 
 /** A signal ≥ this weight is "overwhelming" and raises an alert on its own (e.g. more fuel than fits). */

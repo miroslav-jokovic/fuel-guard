@@ -788,3 +788,54 @@ describe("milesSinceLast — OBD odometer source of truth", () => {
     expect(milesSinceLast(cur, prev)).toBe(700); // entered span, GPS odometer not used
   });
 });
+
+describe("reefer fuel diversion (ULSD pumped into the reefer)", () => {
+  const div = (over = {}) =>
+    ctx({
+      txn: txn({ gallons: 80, tankType: "tractor" }),
+      reeferPaired: true,
+      orgUsesReeferFuel: true,
+      reeferDiversionTractorGal: 300,
+      reeferDiversionReeferGal: 0,
+      ...over,
+    });
+
+  it("fires when a reefer-hauling, active truck buys ULSD but no reefer fuel (fleet uses ULSR)", () => {
+    expect(ids(div())).toContain("reefer_fuel_diversion");
+  });
+
+  it("does NOT fire when the fleet never codes reefer (ULSR) fuel — no basis to accuse", () => {
+    expect(ids(div({ orgUsesReeferFuel: false }))).not.toContain("reefer_fuel_diversion");
+  });
+
+  it("does NOT fire when the truck does not haul a reefer", () => {
+    expect(ids(div({ reeferPaired: false }))).not.toContain("reefer_fuel_diversion");
+  });
+
+  it("does NOT fire when the truck IS buying reefer fuel", () => {
+    expect(ids(div({ reeferDiversionReeferGal: 45 }))).not.toContain("reefer_fuel_diversion");
+  });
+
+  it("does NOT fire when the truck is inactive (little ULSD → parked reefer needs no fuel)", () => {
+    expect(ids(div({ reeferDiversionTractorGal: 40 }))).not.toContain("reefer_fuel_diversion");
+  });
+
+  it("does NOT fire on a reefer (ULSR) fill itself", () => {
+    expect(ids(div({ txn: txn({ gallons: 40, tankType: "reefer" }) }))).not.toContain("reefer_fuel_diversion");
+  });
+
+  it("a lone diversion signal is a review", () => {
+    const c = correlateSignals([{ ruleId: "reefer_fuel_diversion", fired: true, severity: "medium", message: "m", evidence: {} }]);
+    expect(c.level).toBe("review");
+    expect(c.axes).toContain("reefer");
+  });
+
+  it("diversion + tank_fill_short (two axes) escalates to an alert", () => {
+    const c = correlateSignals([
+      { ruleId: "reefer_fuel_diversion", fired: true, severity: "medium", message: "m", evidence: {} },
+      { ruleId: "tank_fill_short", fired: true, severity: "low", message: "m", evidence: {} },
+    ]);
+    expect(c.level).toBe("alert");
+    expect(c.axes).toEqual(expect.arrayContaining(["reefer", "volume"]));
+  });
+});

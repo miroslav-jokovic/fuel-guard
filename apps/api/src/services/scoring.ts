@@ -138,7 +138,7 @@ function toTxnView(r: FtxnRow): TxnView {
 async function loadThresholds(admin: SupabaseClient, orgId: string): Promise<Thresholds> {
   const { data } = await admin
     .from("anomaly_thresholds")
-    .select("mpg_drop_pct, capacity_tolerance_pct, rapid_refuel_hours, max_plausible_mph, cost_min_per_gal, cost_max_per_gal, disabled_rules, odometer_tolerance_miles, max_daily_miles, cumulative_window_hours, max_reefer_burn_gph, reefer_tank_default_gal")
+    .select("mpg_drop_pct, capacity_tolerance_pct, rapid_refuel_hours, max_plausible_mph, cost_min_per_gal, cost_max_per_gal, disabled_rules, odometer_tolerance_miles, max_daily_miles, cumulative_window_hours, max_reefer_burn_gph, reefer_tank_default_gal, reefer_diversion_window_days, reefer_diversion_min_tractor_gal, reefer_diversion_max_reefer_gal")
     .eq("org_id", orgId)
     .maybeSingle();
   return {
@@ -156,6 +156,9 @@ async function loadThresholds(admin: SupabaseClient, orgId: string): Promise<Thr
     cumulativeWindowHours: n(data?.cumulative_window_hours) ?? 48,
     maxReeferBurnGph: n(data?.max_reefer_burn_gph) ?? 1.5,
     reeferTankDefaultGal: n(data?.reefer_tank_default_gal) ?? 50,
+    reeferDiversionWindowDays: n(data?.reefer_diversion_window_days) ?? 30,
+    reeferDiversionMinTractorGal: n(data?.reefer_diversion_min_tractor_gal) ?? 150,
+    reeferDiversionMaxReeferGal: n(data?.reefer_diversion_max_reefer_gal) ?? 0,
   };
 }
 
@@ -536,6 +539,52 @@ export async function scoreTransaction(
     reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce((s, x) => s + Number(x.gallons), 0);
   }
 
+  // Reefer-diversion (TRACTOR/ULSD fills only): does this truck haul a reefer yet buy little/no reefer (ULSR)
+  // fuel while the fleet DOES use reefer fuel? Gated on pairing first so the common (non-reefer) truck pays
+  // just one cheap existence query.
+  let reeferPaired = false;
+  let orgUsesReeferFuel = false;
+  let reeferDiversionReeferGal = 0;
+  let reeferDiversionTractorGal = 0;
+  if (txn.vehicleId && txn.tankType !== "reefer") {
+    const { data: pairedRows } = await admin
+      .from("trailers")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("assigned_vehicle_id", txn.vehicleId)
+      .eq("is_reefer", true)
+      .neq("status", "retired")
+      .limit(1);
+    reeferPaired = ((pairedRows ?? []) as unknown[]).length > 0;
+    if (reeferPaired) {
+      const days = thresholds.reeferDiversionWindowDays ?? 30;
+      const divStart = new Date(Date.parse(r.fueled_at) - days * 86_400_000).toISOString();
+      const { data: divRows } = await admin
+        .from("fuel_transactions")
+        .select("gallons, tank_type")
+        .eq("org_id", orgId)
+        .eq("vehicle_id", txn.vehicleId)
+        .gte("fueled_at", divStart)
+        .lte("fueled_at", r.fueled_at);
+      for (const x of (divRows ?? []) as { gallons: number | string; tank_type: string | null }[]) {
+        const g = Number(x.gallons) || 0;
+        if (x.tank_type === "reefer") reeferDiversionReeferGal += g;
+        else reeferDiversionTractorGal += g;
+      }
+      // The fleet must actually code reefer fuel separately: any ULSR purchase org-wide in the window. Without
+      // this, a fleet that simply never uses a reefer product code would false-flag every reefer-hauling truck.
+      const { data: orgReefer } = await admin
+        .from("fuel_transactions")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("tank_type", "reefer")
+        .gte("fueled_at", divStart)
+        .lte("fueled_at", r.fueled_at)
+        .limit(1);
+      orgUsesReeferFuel = ((orgReefer ?? []) as unknown[]).length > 0;
+    }
+  }
+
   const fired = runAllRules({
     txn,
     vehicle,
@@ -555,6 +604,10 @@ export async function scoreTransaction(
     tankPctBefore,
     reeferTankCapacityGal,
     reeferWindowGallons,
+    reeferPaired,
+    orgUsesReeferFuel,
+    reeferDiversionReeferGal,
+    reeferDiversionTractorGal,
   });
 
   // Correlate the fired signals into ONE per-transaction case (multi-signal model). A lone weak signal
