@@ -190,8 +190,8 @@ async function signOut() {
               <!-- Mobile sidebar body -->
               <div class="flex grow flex-col overflow-y-auto bg-neutral-900 px-4 pb-4">
                 <div class="flex h-16 shrink-0 items-center gap-x-3 border-b border-neutral-800/70 px-1">
-                  <AppLogo class="size-8 shrink-0" />
-                  <span class="text-base font-semibold tracking-tight text-white">FuelGuard</span>
+                  <AppLogo class="size-8 shrink-0" :dark="true" />
+                  <img src="/logo-wordmark.png" alt="FuelGuard" class="h-5 object-contain brightness-0 invert" draggable="false" />
                 </div>
                 <nav class="flex flex-1 flex-col pt-3">
                   <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
@@ -248,8 +248,8 @@ async function signOut() {
           class="flex h-16 shrink-0 items-center border-b border-neutral-800/70"
           :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-3 px-5'"
         >
-          <AppLogo class="size-8 shrink-0" />
-          <span v-if="!sidebarCollapsed" class="text-base font-semibold tracking-tight text-white">FuelGuard</span>
+          <AppLogo class="size-8 shrink-0" :dark="true" />
+          <img v-if="!sidebarCollapsed" src="/logo-wordmark.png" alt="FuelGuard" class="h-5 object-contain brightness-0 invert" draggable="false" />
         </div>
 
         <!-- Nav -->

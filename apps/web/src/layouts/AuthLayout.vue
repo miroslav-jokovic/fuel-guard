@@ -8,7 +8,7 @@ import AppLogo from "@/components/AppLogo.vue";
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
       <div class="flex items-center justify-center gap-x-3">
         <AppLogo class="size-10" />
-        <span class="text-2xl font-semibold tracking-tight text-ink">FuelGuard</span>
+        <img src="/logo-wordmark.png" alt="FuelGuard" class="h-8 object-contain brightness-0" draggable="false" />
       </div>
     </div>
     <div class="mt-10 sm:mx-auto sm:w-full sm:max-w-md">
