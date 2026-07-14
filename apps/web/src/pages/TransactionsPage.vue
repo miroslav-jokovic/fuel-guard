@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useEfsTransactions, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
+import { useEfsTransactions, useEfsFacets, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
 import AppSelect from "@/components/AppSelect.vue";
-import SearchInput from "@/components/SearchInput.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -30,16 +30,56 @@ const unitOptions = computed(() => [
   ...[...new Set((vehicles.value ?? []).map((v) => v.unit_number))].sort().map((u) => ({ value: u, label: u })),
 ]);
 
-const unit = computed({
-  get: () => filters.value.unit ?? "",
-  set: (v: string) => (filters.value = { ...filters.value, unit: v || undefined }),
-});
-const search = computed({
-  get: () => filters.value.search ?? "",
-  set: (v: string) => (filters.value = { ...filters.value, search: v || undefined }),
-});
+const { data: facets } = useEfsFacets();
+
+/** Two-way proxy into the filters object for one key ("" ⇄ undefined). */
+const bind = (key: "unit" | "search" | "item" | "state" | "driver") =>
+  computed({
+    get: () => filters.value[key] ?? "",
+    set: (v: string) => (filters.value = { ...filters.value, [key]: v || undefined }),
+  });
+const unit = bind("unit");
+const search = bind("search");
+const item = bind("item");
+const state = bind("state");
+const driver = bind("driver");
 const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
 const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
+
+const withAll = (label: string, vals: string[] = []) => [
+  { value: "", label },
+  ...vals.map((v) => ({ value: v, label: v })),
+];
+const itemOptions = computed(() => withAll("All items", facets.value?.txnItems));
+const stateOptions = computed(() => withAll("All states", facets.value?.txnStates));
+const driverOptions = computed(() => withAll("All drivers", facets.value?.txnDrivers));
+
+/* Applied-filter chips (search shows live in the input, so no chip for it). */
+const fmtChipDay = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const chips = computed<FilterChip[]>(() => {
+  const f = filters.value;
+  const out: FilterChip[] = [];
+  if (f.unit) out.push({ key: "unit", label: "Unit", value: f.unit });
+  if (f.item) out.push({ key: "item", label: "Item", value: f.item });
+  if (f.from || f.to)
+    out.push({
+      key: "dates",
+      label: "Dates",
+      value: f.from && f.to ? `${fmtChipDay(f.from)} – ${fmtChipDay(f.to)}` : fmtChipDay((f.from ?? f.to)!),
+    });
+  if (f.state) out.push({ key: "state", label: "State", value: f.state });
+  if (f.driver) out.push({ key: "driver", label: "Driver", value: f.driver });
+  return out;
+});
+const moreCount = computed(() => (filters.value.state ? 1 : 0) + (filters.value.driver ? 1 : 0));
+function removeChip(key: string) {
+  if (key === "dates") filters.value = { ...filters.value, from: undefined, to: undefined };
+  else filters.value = { ...filters.value, [key]: undefined };
+}
+function clearAll() {
+  filters.value = { sortKey: filters.value.sortKey, sortDir: filters.value.sortDir };
+}
 
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
@@ -78,14 +118,32 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Every line from your uploaded EFS Transaction reports, exactly as received." />
 
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
-      <div class="lg:max-w-xs lg:flex-1">
-        <SearchInput v-model="search" placeholder="Search driver, location, item…" />
-      </div>
-      <AppSelect v-model="unit" :options="unitOptions" class="lg:w-40" />
-      <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
-      <span class="text-sm text-ink-muted lg:ml-auto">{{ total }} total</span>
-    </div>
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search driver, location, card, invoice…"
+      :count="total"
+      count-label="transactions"
+      :chips="chips"
+      :more-count="moreCount"
+      @remove="removeChip"
+      @clear-all="clearAll"
+    >
+      <template #filters>
+        <AppSelect v-model="unit" :options="unitOptions" class="w-36" />
+        <AppSelect v-model="item" :options="itemOptions" class="w-36" />
+        <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
+      </template>
+      <template #more>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-ink-muted">State</label>
+          <AppSelect v-model="state" :options="stateOptions" class="w-full" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-ink-muted">Driver</label>
+          <AppSelect v-model="driver" :options="driverOptions" class="w-full" />
+        </div>
+      </template>
+    </FilterBar>
 
     <DataTable
       :columns="columns"

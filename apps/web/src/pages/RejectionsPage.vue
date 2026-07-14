@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { useDeclinedTransactions, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
+import { useDeclinedTransactions, useEfsFacets, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
 import type { DeclinedTransactionRow } from "@fuelguard/shared";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import AppSelect from "@/components/AppSelect.vue";
-import SearchInput from "@/components/SearchInput.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -39,20 +39,73 @@ const unitOptions = computed(() => [
   ...[...new Set((vehicles.value ?? []).map((v) => v.unit_number))].sort().map((u) => ({ value: u, label: u })),
 ]);
 
-const unit = computed({
-  get: () => filters.value.unit ?? "",
-  set: (v: string) => (filters.value = { ...filters.value, unit: v || undefined }),
-});
-const suspicion = computed({
-  get: () => filters.value.suspicion ?? "",
-  set: (v: string) => (filters.value = { ...filters.value, suspicion: v || undefined }),
-});
-const search = computed({
-  get: () => filters.value.search ?? "",
-  set: (v: string) => (filters.value = { ...filters.value, search: v || undefined }),
-});
+const { data: facets } = useEfsFacets();
+
+/** Two-way proxy into the filters object for one key ("" ⇄ undefined). */
+const bind = (key: "unit" | "suspicion" | "search" | "errorCode" | "state" | "driver" | "policy") =>
+  computed({
+    get: () => filters.value[key] ?? "",
+    set: (v: string) => (filters.value = { ...filters.value, [key]: v || undefined }),
+  });
+const unit = bind("unit");
+const suspicion = bind("suspicion");
+const search = bind("search");
+const errorCode = bind("errorCode");
+const stateF = bind("state");
+const driver = bind("driver");
+const policy = bind("policy");
 const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
 const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
+
+const suspicionOptions = [
+  { value: "", label: "All risk levels" },
+  { value: "alert", label: "Alert" },
+  { value: "review", label: "Review" },
+  { value: "clear", label: "Clear" },
+];
+const withAll = (label: string, vals: string[] = []) => [
+  { value: "", label },
+  ...vals.map((v) => ({ value: v, label: v })),
+];
+const errorOptions = computed(() => [
+  { value: "", label: "All error codes" },
+  ...(facets.value?.rejErrorCodes ?? []).map((e) => ({ value: e.code, label: e.label })),
+]);
+const stateOptions = computed(() => withAll("All states", facets.value?.rejStates));
+const driverOptions = computed(() => withAll("All drivers", facets.value?.rejDrivers));
+const policyOptions = computed(() => withAll("All policies", facets.value?.rejPolicies));
+
+/* Applied-filter chips (search shows live in the input, so no chip for it). */
+const fmtChipDay = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const cap = (s2: string) => s2.charAt(0).toUpperCase() + s2.slice(1);
+const chips = computed<FilterChip[]>(() => {
+  const f = filters.value;
+  const out: FilterChip[] = [];
+  if (f.suspicion) out.push({ key: "suspicion", label: "Risk", value: cap(f.suspicion) });
+  if (f.unit) out.push({ key: "unit", label: "Unit", value: f.unit });
+  if (f.errorCode) out.push({ key: "errorCode", label: "Error", value: f.errorCode });
+  if (f.from || f.to)
+    out.push({
+      key: "dates",
+      label: "Dates",
+      value: f.from && f.to ? `${fmtChipDay(f.from)} – ${fmtChipDay(f.to)}` : fmtChipDay((f.from ?? f.to)!),
+    });
+  if (f.state) out.push({ key: "state", label: "State", value: f.state });
+  if (f.driver) out.push({ key: "driver", label: "Driver", value: f.driver });
+  if (f.policy) out.push({ key: "policy", label: "Policy", value: f.policy });
+  return out;
+});
+const moreCount = computed(
+  () => (filters.value.state ? 1 : 0) + (filters.value.driver ? 1 : 0) + (filters.value.policy ? 1 : 0),
+);
+function removeChip(key: string) {
+  if (key === "dates") filters.value = { ...filters.value, from: undefined, to: undefined };
+  else filters.value = { ...filters.value, [key]: undefined };
+}
+function clearAll() {
+  filters.value = { sortKey: filters.value.sortKey, sortDir: filters.value.sortDir };
+}
 
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
@@ -98,24 +151,37 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Declined fuel-card attempts from your uploaded EFS Reject reports (a fraud/control signal)." />
 
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
-      <div class="lg:max-w-xs lg:flex-1">
-        <SearchInput v-model="search" placeholder="Search unit, driver, location…" />
-      </div>
-      <AppSelect
-        v-model="suspicion"
-        :options="[
-          { value: '', label: 'All attempts' },
-          { value: 'alert', label: 'Alert' },
-          { value: 'review', label: 'Review' },
-          { value: 'clear', label: 'Clear' },
-        ]"
-        class="lg:w-36"
-      />
-      <AppSelect v-model="unit" :options="unitOptions" class="lg:w-40" />
-      <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
-      <div class="flex items-center gap-3 lg:ml-auto">
-        <span class="text-sm text-ink-muted">{{ total }} total</span>
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search unit, driver, location, error…"
+      :count="total"
+      count-label="declines"
+      :chips="chips"
+      :more-count="moreCount"
+      @remove="removeChip"
+      @clear-all="clearAll"
+    >
+      <template #filters>
+        <AppSelect v-model="suspicion" :options="suspicionOptions" class="w-36" />
+        <AppSelect v-model="unit" :options="unitOptions" class="w-32" />
+        <AppSelect v-model="errorCode" :options="errorOptions" class="w-44" />
+        <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
+      </template>
+      <template #more>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-ink-muted">State</label>
+          <AppSelect v-model="stateF" :options="stateOptions" class="w-full" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-ink-muted">Driver</label>
+          <AppSelect v-model="driver" :options="driverOptions" class="w-full" />
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-ink-muted">Policy</label>
+          <AppSelect v-model="policy" :options="policyOptions" class="w-full" />
+        </div>
+      </template>
+      <template #actions>
         <BaseButton
           v-if="session.canManage"
           size="sm"
@@ -125,8 +191,8 @@ const columns: DataTableColumn[] = [
         >
           {{ rescoring ? "Rescoring…" : "Rescore" }}
         </BaseButton>
-      </div>
-    </div>
+      </template>
+    </FilterBar>
 
     <DataTable
       :columns="columns"

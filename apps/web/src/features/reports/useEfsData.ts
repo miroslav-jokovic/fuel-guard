@@ -19,6 +19,11 @@ export interface EfsFilters {
   to?: string;
   search?: string; // free text (driver / location / item or error)
   suspicion?: string; // declined only: clear | review | alert
+  item?: string; // transactions only: product (ULSD, DEF, …)
+  state?: string;
+  driver?: string; // exact driver_name
+  errorCode?: string; // declined only
+  policy?: string; // declined only: policy_name
   sortKey?: string; // server-side column ordering
   sortDir?: "asc" | "desc";
 }
@@ -43,6 +48,9 @@ export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) 
         .order("line_number", { ascending: true })
         .range(start, start + EFS_PAGE_SIZE - 1);
       if (f.unit) q = q.eq("unit", f.unit);
+      if (f.item) q = q.eq("item", f.item);
+      if (f.state) q = q.eq("state", f.state);
+      if (f.driver) q = q.eq("driver_name", f.driver);
       if (f.from) q = q.gte("tran_date", f.from);
       if (f.to) q = q.lte("tran_date", f.to);
       if (f.search) q = q.or(ilikeOr(f.search, ["unit", "driver_name", "card_num", "invoice", "location_name", "item", "city"]));
@@ -71,6 +79,10 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
         .range(start, start + EFS_PAGE_SIZE - 1);
       if (f.unit) q = q.eq("unit", f.unit);
       if (f.suspicion) q = q.eq("suspicion_level", f.suspicion);
+      if (f.errorCode) q = q.eq("error_code", f.errorCode);
+      if (f.state) q = q.eq("state", f.state);
+      if (f.driver) q = q.eq("driver_name", f.driver);
+      if (f.policy) q = q.eq("policy_name", f.policy);
       if (f.from) q = q.gte("declined_at", f.from);
       if (f.to) q = q.lte("declined_at", f.to);
       if (f.search) {
@@ -84,6 +96,64 @@ export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<numb
       const { data, error, count } = await q;
       if (error) throw new Error(error.message);
       return { rows: (data ?? []) as DeclinedTransactionRow[], total: count ?? 0 };
+    },
+  });
+}
+
+/* ── facet values for the filter dropdowns ──────────────────────────────────
+   Distinct values pulled once and cached; fleet-scale row counts make the
+   client-side dedupe cheap, and RLS scopes the scan to the org. */
+
+export interface EfsFacets {
+  txnItems: string[];
+  txnStates: string[];
+  txnDrivers: string[];
+  rejErrorCodes: { code: string; label: string }[];
+  rejStates: string[];
+  rejDrivers: string[];
+  rejPolicies: string[];
+}
+
+const uniq = (vals: (string | null | undefined)[]): string[] =>
+  [...new Set(vals.filter((v): v is string => !!v && v.trim() !== ""))].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }),
+  );
+
+export function useEfsFacets() {
+  return useQuery({
+    queryKey: ["efs_facets"],
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<EfsFacets> => {
+      const [t, d] = await Promise.all([
+        supabase.from("efs_transactions").select("item, state, driver_name").limit(10_000),
+        supabase
+          .from("declined_transactions")
+          .select("error_code, error_description, state, driver_name, policy_name")
+          .limit(10_000),
+      ]);
+      if (t.error) throw new Error(t.error.message);
+      if (d.error) throw new Error(d.error.message);
+      const txn = t.data ?? [];
+      const rej = d.data ?? [];
+      // One label per error code — first non-empty description, truncated for the menu.
+      const codeLabels = new Map<string, string>();
+      for (const r of rej) {
+        if (r.error_code && !codeLabels.has(r.error_code)) {
+          const desc = (r.error_description ?? "").trim();
+          codeLabels.set(r.error_code, desc ? `${r.error_code} — ${desc.slice(0, 40)}` : r.error_code);
+        }
+      }
+      return {
+        txnItems: uniq(txn.map((r) => r.item)),
+        txnStates: uniq(txn.map((r) => r.state)),
+        txnDrivers: uniq(txn.map((r) => r.driver_name)),
+        rejErrorCodes: [...codeLabels.entries()]
+          .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+          .map(([code, label]) => ({ code, label })),
+        rejStates: uniq(rej.map((r) => r.state)),
+        rejDrivers: uniq(rej.map((r) => r.driver_name)),
+        rejPolicies: uniq(rej.map((r) => r.policy_name)),
+      };
     },
   });
 }

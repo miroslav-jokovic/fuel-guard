@@ -56,6 +56,8 @@ Canvas can't read CSS vars — `features/dashboard/chartTheme.ts` resolves the
 | `FormField` | ad-hoc label/error markup | `label`, `error`, `hint`, `required`; exposes `id` to slot |
 | `BaseCard` | `rounded-lg bg-white shadow-sm ring-1 ring-gray-200` divs | `padding` none·sm·md |
 | `PageHeader` | ad-hoc description/actions rows | `description` + `#actions` |
+| `FilterBar` | loose filter rows above tables | the standard toolbar — see §3 |
+| `FileDropzone` | bare `<input type=file>` uploads | drag & drop + browse; `accept`, `multiple`, `busy`, emits `files` |
 | `DataTable` | raw table + skeleton/error/empty plumbing | column-definition API — see below |
 
 Existing shared components (`AppSelect`, `SearchInput`, `TableToolbar`,
@@ -85,6 +87,14 @@ tokenized — use them, don't fork them.
   Row actions: `#actions="{ row }"` slot with `KebabMenu` items — the
   standard trailing ⋮ column. Widths: fixed-ish columns get
   `headerClass: "min-w-[6rem]"`-style hints; text columns flex.
+- Filtering: every table page uses `FilterBar` directly above its DataTable.
+  Layout: search (w-72, debounced) → 2–4 PRIMARY filter controls inline
+  (AppSelect w-32/w-44, DateRangeFilter) → a "Filters" popover (`#more`) for
+  secondary dimensions with a count badge → result count ("1,204 transactions")
+  and `#actions` on the right. Every active filter renders as a removable
+  chip in a second row with a ghost "Clear all". Filters apply live
+  (per-filter), page resets to 1 on change. Primary = what users reach for
+  daily; secondary = occasionally useful. Never ship a filter no query uses.
 - Dropdowns: one popover recipe everywhere —
   `rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge`
   (KebabMenu, AppSelect, and any Headless UI Menu panels). Menu items use

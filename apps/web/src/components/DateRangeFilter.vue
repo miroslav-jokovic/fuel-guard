@@ -20,11 +20,27 @@ const emit = defineEmits<{ "update:from": [v: string | undefined]; "update:to": 
 const ymd = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-const model = computed<string[] | null>({
-  get: () => (props.from || props.to ? [props.from, props.to].filter((v): v is string => !!v) : null),
+const parseYmd = (s: string): Date => {
+  const [y, m, d] = s.split("-").map(Number) as [number, number, number];
+  return new Date(y, m - 1, d);
+};
+
+const model = computed<Date[] | null>({
+  get: () => {
+    if (!props.from && !props.to) return null;
+    const dates: Date[] = [];
+    if (props.from) dates.push(parseYmd(props.from));
+    if (props.to) dates.push(parseYmd(props.to));
+    return dates;
+  },
   set: (v) => {
-    emit("update:from", v?.[0] ?? undefined);
-    emit("update:to", v?.[1] ?? v?.[0] ?? undefined);
+    if (!v || !v.length) {
+      emit("update:from", undefined);
+      emit("update:to", undefined);
+      return;
+    }
+    emit("update:from", v[0] ? ymd(v[0]) : undefined);
+    emit("update:to", v[1] ? ymd(v[1]) : undefined);
   },
 });
 
@@ -57,8 +73,7 @@ const previewFormat = (dates: Date | Date[]): string => {
 <template>
   <VueDatePicker
     v-model="model"
-    :range="{ partialRange: true }"
-    model-type="yyyy-MM-dd"
+    range
     :enable-time-picker="false"
     :preset-dates="presetDates"
     :format="previewFormat"
