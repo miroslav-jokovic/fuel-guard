@@ -64,3 +64,15 @@ describe("combineWeek normalization method", () => {
     expect(by.hi!.weekFinal).toBe(83.3);
   });
 });
+
+describe("combineWeek renormalizes over present components", () => {
+  it("drops a null idle component and renormalizes over safety+efficiency", () => {
+    const s = base({ normalizationMethod: "raw", minCohortForPercentile: 0, weights: { safety: 0.5, efficiency: 0.25, idling: 0.25 } });
+    const lb = combineWeek([drv("a", { idleScore: null })], s);
+    const r = lb.rows[0]!;
+    expect(r.idlePct).toBeNull();
+    // (0.5*80 + 0.25*60) / (0.5 + 0.25) = 73.3
+    expect(r.weekFinal).toBe(73.3);
+    expect(lb.coverage).toEqual({ safety: 1, efficiency: 1, idling: 0 });
+  });
+});

@@ -88,11 +88,13 @@ export async function syncDriverScores(
 
   let safety: SafetyScoreRow[] = [];
   let safetyOk = false;
-  try {
-    safety = parseSafetyScores(await safetyFetch(startIso, safetyEndIso, driverIds));
-    safetyOk = true;
-  } catch (e) {
-    console.error("[driver-scores] safety fetch failed:", e instanceof Error ? e.message : e);
+  if (Date.parse(safetyEndIso) > startMs) {
+    try {
+      safety = parseSafetyScores(await safetyFetch(startIso, safetyEndIso, driverIds));
+      safetyOk = true;
+    } catch (e) {
+      console.error("[driver-scores] safety fetch failed:", e instanceof Error ? e.message : e);
+    }
   }
 
   let efficiency: EfficiencyScoreRow[] = [];
@@ -156,5 +158,47 @@ export async function syncDriverScores(
     safetyOk,
     efficiencyOk,
     upserted,
+  };
+}
+
+export interface RecentDriverScoreSyncResult {
+  weeks: number;
+  totalUpserted: number;
+  results: DriverScoreSyncResult[];
+}
+
+/**
+ * Refresh driver_scores for the CURRENT week AND recently-ended weeks that could still be in a trailing window
+ * or awaiting settle. Samsara efficiency lags ~72h, so a week must keep re-syncing after it ends until it
+ * settles — otherwise its frozen scores would miss the final days of the week. Covers
+ * max(trailing_weeks, ceil(settle_hours / 168) + 1) weeks back. (docs/16-DRIVER-PERFORMANCE.md §3.6)
+ */
+export async function syncRecentDriverScoreWeeks(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  opts: {
+    nowMs?: number;
+    safetyFetcher?: SamsaraSafetyScoreFetcher;
+    efficiencyFetcher?: SamsaraDriverEfficiencyFetcher;
+  } = {},
+): Promise<RecentDriverScoreSyncResult> {
+  const { data: settingsRow } = await admin
+    .from("driver_performance_settings")
+    .select("trailing_weeks, settle_hours")
+    .eq("org_id", orgId)
+    .maybeSingle();
+  const trailingWeeks = Number(settingsRow?.trailing_weeks) || 3;
+  const settleHours = Number(settingsRow?.settle_hours) || 96;
+  const cover = Math.max(trailingWeeks, Math.ceil(settleHours / 168) + 1);
+
+  const results: DriverScoreSyncResult[] = [];
+  for (let k = 0; k < cover; k++) {
+    results.push(await syncDriverScores(admin, env, orgId, { ...opts, weekOffset: k }));
+  }
+  return {
+    weeks: results.length,
+    totalUpserted: results.reduce((s, r) => s + r.upserted, 0),
+    results,
   };
 }

@@ -104,8 +104,14 @@ export function useDriverPerformance() {
       );
 
       const idleScoreForWeek = (startIso: string, endIso: string): Map<string, number> => {
+        const startMs = Date.parse(startIso);
+        const endMs = Date.parse(endIso);
         const rows: IdleRow[] = idleAll
-          .filter((r) => r.driver_id && r.started_at >= startIso && r.started_at < endIso)
+          .filter((r) => {
+            if (!r.driver_id) return false;
+            const t = Date.parse(r.started_at);
+            return t >= startMs && t < endMs;
+          })
           .map((r) => ({
             driverId: r.driver_id,
             driverName: null,
@@ -131,7 +137,7 @@ export function useDriverPerformance() {
             driverName: nameMap.get(r.driver_id) ?? null,
             safetyScore: r.safety_score,
             efficiencyScore: cfg.efficiencyEnabled ? r.efficiency_score : null,
-            idleScore: idle.get(r.driver_id) ?? 100,
+            idleScore: idle.get(r.driver_id) ?? null, // absent idle → missing component (renormalize), not an imputed 100
             miles: r.drive_distance_mi,
             driveHours: r.engine_on_hours ?? r.drive_time_hours,
           }));

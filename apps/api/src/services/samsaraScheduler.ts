@@ -3,7 +3,7 @@ import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { syncVehiclesFromSamsara, syncVehicleStatsFromSamsara, NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
-import { syncDriverScores } from "./driverScoreSync.js";
+import { syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
 import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
 
@@ -122,8 +122,8 @@ export function startSamsaraScheduler(env: Env): void {
   startTier(env, "driver-scores", 120_000, driverScoreMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       await runOrgTier(admin, orgId, "sync_driver_scores", async () => {
-        const r = await syncDriverScores(admin, env, orgId);
-        return { upserted: r.upserted, safetyOk: r.safetyOk, efficiencyOk: r.efficiencyOk };
+        const r = await syncRecentDriverScoreWeeks(admin, env, orgId);
+        return { weeks: r.weeks, upserted: r.totalUpserted };
       });
       await runOrgTier(admin, orgId, "snapshot_driver_week", async () => {
         const r = await snapshotSettledWeeks(admin, env, orgId);

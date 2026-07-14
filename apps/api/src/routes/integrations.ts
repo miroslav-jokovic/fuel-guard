@@ -10,7 +10,7 @@ import { syncIdleEvents } from "../services/idleSync.js";
 import { syncIdleCapabilities } from "../services/idleCapabilitySync.js";
 import { syncDriversFromSamsara } from "../services/samsaraDriverSync.js";
 import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
-import { syncDriverScores } from "../services/driverScoreSync.js";
+import { syncDriverScores, syncRecentDriverScoreWeeks } from "../services/driverScoreSync.js";
 import { snapshotSettledWeeks } from "../services/driverPerformanceSnapshot.js";
 import { startJob, finishJob, JobConflictError } from "../services/jobs.js";
 
@@ -241,10 +241,12 @@ export function integrationsRouter(): Router {
         throw e;
       }
       try {
-        const result = await syncDriverScores(admin, env, orgId);
-        await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "integration.samsara.driver_scores_synced", entity: "driver_scores", meta: { ...result } });
-        await finishJob(admin, jobId, { status: "done", stats: { ...result } });
-        res.json(result);
+        const result = await syncRecentDriverScoreWeeks(admin, env, orgId);
+        const cur = result.results[0];
+        const summary = { weekStart: cur?.weekStart ?? null, weeks: result.weeks, drivers: cur?.drivers ?? 0, upserted: result.totalUpserted, safetyOk: cur?.safetyOk ?? false, efficiencyOk: cur?.efficiencyOk ?? false };
+        await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "integration.samsara.driver_scores_synced", entity: "driver_scores", meta: summary });
+        await finishJob(admin, jobId, { status: "done", stats: summary });
+        res.json(summary);
       } catch (e) {
         await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
         if (e instanceof NoSamsaraTokenError) {

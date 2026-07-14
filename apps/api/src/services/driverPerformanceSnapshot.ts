@@ -84,7 +84,7 @@ async function weekLeaderboard(
     safetyScore: r.safety_score,
     efficiencyScore: cfg.efficiencyEnabled ? r.efficiency_score : null,
     // Eligible driver with drive activity but no scored idle events → no avoidable idle (100).
-    idleScore: idle.get(r.driver_id) ?? 100,
+    idleScore: idle.get(r.driver_id) ?? null, // absent idle → missing component (renormalize), never an imputed perfect 100
     miles: r.drive_distance_mi,
     driveHours: r.engine_on_hours ?? r.drive_time_hours,
   }));
@@ -116,8 +116,10 @@ export async function snapshotSettledWeeks(
   const orgTz = (orgRow?.operating_hours as { tz?: string } | null | undefined)?.tz ?? "America/Chicago";
   const cfg = resolvePerformanceConfig(settingsRow, orgTz);
   const maxWeeks = opts.maxWeeks ?? 8;
+  // Unsettled weeks at the front, so the oldest freeze candidate still has a FULL trailing window behind it.
+  const frontBuffer = Math.ceil(cfg.settleHours / 168) + 1;
 
-  const weeks = recentWeeks(now, cfg.weekTimezone, maxWeeks + cfg.settings.trailingWeeks, cfg.weekStartsOn);
+  const weeks = recentWeeks(now, cfg.weekTimezone, maxWeeks + cfg.settings.trailingWeeks + frontBuffer, cfg.weekStartsOn);
   const settledEligible = weeks.filter((w) => now >= Date.parse(w.windowEndIso) + cfg.settleHours * HOUR);
 
   const { data: frozenRows } = await admin
@@ -125,7 +127,7 @@ export async function snapshotSettledWeeks(
     .select("week_start")
     .eq("org_id", orgId);
   const frozen = new Set(((frozenRows ?? []) as { week_start: string }[]).map((r) => r.week_start));
-  const toFreeze = settledEligible.filter((w) => !frozen.has(w.weekStart)).slice(0, maxWeeks);
+  const candidates = settledEligible.filter((w) => !frozen.has(w.weekStart));
 
   const lbCache = new Map<string, { lb: WeekLeaderboard; scoreRows: Map<string, ScoreRow> }>();
   const getLb = async (w: WeekWindow) => {
@@ -140,9 +142,10 @@ export async function snapshotSettledWeeks(
   const weeksFrozen: string[] = [];
   let rowsWritten = 0;
 
-  for (const w0 of toFreeze) {
+  for (const w0 of candidates) {
+    if (weeksFrozen.length >= maxWeeks) break;
     const { lb: cur, scoreRows } = await getLb(w0);
-    if (!cur.rows.length) continue;
+    if (!cur.rows.length) continue; // empty settled week → skip WITHOUT consuming a freeze slot
 
     const i0 = weeks.findIndex((w) => w.weekStart === w0.weekStart);
     const windowWeeks = weeks.slice(i0, i0 + cfg.settings.trailingWeeks);

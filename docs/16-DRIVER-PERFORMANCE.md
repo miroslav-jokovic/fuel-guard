@@ -70,7 +70,7 @@ Decisions locked with the fleet: fleet size **150–200 drivers**; ranking basis
 
 All three inputs are 0–100 higher-is-better and already exposure-normalized by their producers. Remaining fairness risks — spread dominance, small-sample luck, missing components — handled explicitly. Tuned for a 150–200 driver fleet.
 
-**3.1 Per-driver weekly inputs** (driver *d*, ISO week *W* Mon–Sun in org tz): `safetyScore`(0–100) + exposure `miles=driveDistanceMeters/1609.344`, `driveHours=driveTimeMilliseconds/3.6e6`; `efficiencyScore`(0–100 or null) + `engineOnHours` if present; `idleScore`= `aggregateDriverIdle(idle_events in W).score` for *d* (eligible driver, drive activity, zero scored idle → `idleScore=100`; no idle data → null).
+**3.1 Per-driver weekly inputs** (driver *d*, ISO week *W* Mon–Sun in org tz): `safetyScore`(0–100) + exposure `miles=driveDistanceMeters/1609.344`, `driveHours=driveTimeMilliseconds/3.6e6`; `efficiencyScore`(0–100 or null) + `engineOnHours` if present; `idleScore`= `aggregateDriverIdle(idle_events in W).score` for *d* (no scored idle events → idle is a MISSING component → weights renormalize over present components; never an imputed 100 that would reward a data gap).
 
 **3.2 Eligibility gate** (configurable): rankable iff `miles ≥ min_distance_mi (500)` AND `exposureHours ≥ min_drive_hours (10)` AND Safety present. `exposureHours = engineOnHours ?? driveHours`. Ineligible drivers still see all sub-scores (coaching) but are excluded from ranking; `ineligible_reason` recorded (`below_min_miles`|`below_min_hours`|`no_safety`).
 
@@ -228,3 +228,36 @@ Samsara: [Get driver safety scores](https://developers.samsara.com/reference/get
   2. Samsara token scopes *Read Safety Events & Scores* + *Read Driver Efficiency* — confirmed present.
   3. `pnpm build` on macOS (the cloud dev VM can't bundle — it lacks the platform-native lightningcss binary) and deploy API + web.
   4. Click **Sync scores** (or let the scheduler run every `SAMSARA_DRIVER_SCORE_SYNC_HOURS`); open **Driver Performance**. Weeks freeze automatically ~`settle_hours` (96h) after they end.
+
+---
+
+## Phase D — audit & hardening
+
+Independent adversarial correctness review before ship. **Verdict: the scoring core is correct** — Hazen
+percentile + z-score/normal-CDF, weight renormalization over present components, eligibility (`== null` so a
+0 safety score is valid), trailing average + deterministic tie-break, `weekWindow` DST/`weekStartsOn` handling,
+upsert `onConflict` targets matching the unique indexes, RLS, snapshot idempotency, the efficiency window clamp,
+and driverIds≤100 batching were all verified correct. No critical/high bugs.
+
+Hardening applied (edge cases found in review):
+1. **Live view idle bucketing** now compares `started_at` by parsed epoch ms, not string (PostgREST returns
+   `+00:00`, not `Z` — a boundary event could otherwise be mis-bucketed so the live view disagreed with the frozen snapshot).
+2. **Safety window guard** — skip the fetch when the computed window is non-positive (first sub-hour of a week /
+   half-hour-offset tz), instead of sending Samsara an invalid `start>end` window.
+3. **Snapshot trailing buffer** — `recentWeeks` now fetches `maxWeeks + trailing_weeks + frontBuffer` so the
+   oldest back-filled freeze week still gets a FULL trailing window.
+4. **No empty-week starvation** — a settled week with no `driver_scores` is skipped without consuming a
+   freeze slot, so older data-bearing weeks are never starved.
+
+Also (Issue 1, precision): the driver-score sync now refreshes the current week **plus** recently-ended weeks
+(`syncRecentDriverScoreWeeks`, covering `max(trailing_weeks, ceil(settle_hours/168)+1)` weeks) so a week's
+stored scores reflect its FULL window once Samsara's ~72h efficiency lag clears — the frozen ledger is complete.
+
+Known, documented subtlety (not a bug): if the eligible cohort crosses `min_cohort_for_percentile` between
+weeks, the trailing average mixes a percentile-normalized week with a z-score-CDF week. Both are 0–100 and
+centered, so ranking is materially unaffected; at 150–200 drivers the eligible cohort is consistently ≥20, so
+percentile is used every week in practice.
+
+**Verification:** shared 483 tests, api 104 tests, offline RLS matrix 38/38, api+web typecheck + design-tokens +
+eslint all green. Remaining (operational, post-push): apply migrations (done), deploy to Railway, Sync scores,
+confirm the leaderboard + a settled-week freeze.

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { syncDriverScores } from "./driverScoreSync.js";
+import { syncDriverScores, syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 import type { Env } from "../env.js";
 
 function makeAdmin(fixtures: Record<string, { data: unknown }>) {
@@ -89,5 +89,18 @@ describe("syncDriverScores", () => {
     const res = await syncDriverScores(admin, env, "org1", { nowMs: NOW, safetyFetcher: safety });
     expect(res.drivers).toBe(0);
     expect(res.upserted).toBe(0);
+  });
+});
+
+describe("syncRecentDriverScoreWeeks", () => {
+  it("syncs the current week plus the trailing/settle cover and aggregates", async () => {
+    const { admin, captured } = makeAdmin(baseFixtures());
+    const efficiency = async () => ({ data: [] });
+    const res = await syncRecentDriverScoreWeeks(admin, env, "org1", { nowMs: NOW, safetyFetcher: safety, efficiencyFetcher: efficiency });
+    expect(res.weeks).toBe(3); // defaults: max(trailing 3, ceil(96/168)+1 = 2) = 3
+    expect(res.results).toHaveLength(3);
+    expect(res.totalUpserted).toBe(6); // 2 known drivers × 3 weeks
+    const weekStarts = new Set((captured.driver_scores ?? []).map((r) => r.week_start));
+    expect(weekStarts.size).toBe(3);
   });
 });
