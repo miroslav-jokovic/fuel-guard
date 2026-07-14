@@ -249,3 +249,46 @@
     @apply text-danger-600;
   }
 }
+
+/* ── VueDatePicker theme (@vuepic/vue-datepicker) ─────────────────────────
+   Maps the picker's --dp-* variables onto the design tokens so it renders
+   like a native part of the system (and will follow a future dark theme). */
+.dp__theme_light {
+  --dp-background-color: var(--surface);
+  --dp-text-color: var(--ink);
+  --dp-hover-color: var(--surface-muted);
+  --dp-hover-text-color: var(--ink);
+  --dp-hover-icon-color: var(--ink-muted);
+  --dp-primary-color: var(--ramp-brand-600);
+  --dp-primary-disabled-color: var(--ramp-brand-300);
+  --dp-primary-text-color: var(--ink-inverse);
+  --dp-secondary-color: var(--ink-subtle);
+  --dp-border-color: var(--edge-strong);
+  --dp-menu-border-color: var(--edge);
+  --dp-border-color-hover: var(--edge-strong);
+  --dp-border-color-focus: var(--ramp-brand-600);
+  --dp-disabled-color: var(--surface-muted);
+  --dp-disabled-color-text: var(--ink-subtle);
+  --dp-scroll-bar-background: var(--surface-subtle);
+  --dp-scroll-bar-color: var(--edge-strong);
+  --dp-success-color: var(--ramp-success-600);
+  --dp-success-color-disabled: var(--ramp-success-300);
+  --dp-icon-color: var(--ink-subtle);
+  --dp-danger-color: var(--ramp-danger-600);
+  --dp-marker-color: var(--ramp-danger-600);
+  --dp-tooltip-color: var(--surface-subtle);
+  --dp-highlight-color: color-mix(in oklab, var(--ramp-brand-600) 10%, transparent);
+  --dp-range-between-dates-background-color: var(--ramp-brand-50);
+  --dp-range-between-dates-text-color: var(--ink);
+  --dp-range-between-border-color: var(--ramp-brand-50);
+}
+.dp__main {
+  /* sizing: match BaseInput / rounded-md controls */
+  --dp-border-radius: 0.375rem;
+  --dp-cell-border-radius: 0.375rem;
+  --dp-font-family: inherit;
+  --dp-font-size: 0.875rem;
+  --dp-preview-font-size: 0.75rem;
+  --dp-input-padding: 5px 30px 5px 34px;
+  --dp-menu-min-width: 16rem;
+}
