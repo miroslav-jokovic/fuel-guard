@@ -80,6 +80,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Drivers" },
   },
   {
+    path: "/driver-performance",
+    name: "driver-performance",
+    component: () => import("@/pages/DriverPerformancePage.vue"),
+    meta: { requiresAuth: true, title: "Driver Performance" },
+  },
+  {
     path: "/fuel-log",
     name: "fuel-log",
     component: () => import("@/pages/FuelLogPage.vue"),
@@ -143,6 +149,12 @@ const routes: RouteRecordRaw[] = [
     name: "thresholds",
     component: () => import("@/pages/ThresholdsPage.vue"),
     meta: { requiresAuth: true, requiresAdmin: true, title: "Anomaly Thresholds", parent: "/settings" },
+  },
+  {
+    path: "/settings/driver-performance",
+    name: "driver-performance-settings",
+    component: () => import("@/pages/DriverPerformanceSettingsPage.vue"),
+    meta: { requiresAuth: true, requiresAdmin: true, title: "Driver Performance", parent: "/settings" },
   },
   {
     path: "/settings/data",

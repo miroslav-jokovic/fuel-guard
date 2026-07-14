@@ -6,3 +6,4 @@ export * from "./combine.js";
 export * from "./trailing.js";
 export * from "./weekWindow.js";
 export * from "./settings.js";
+export * from "./schema.js";

@@ -25,6 +25,7 @@ import {
   SignalIcon,
   ClipboardDocumentCheckIcon,
   ClockIcon,
+  TrophyIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
@@ -80,6 +81,7 @@ const navGroups = computed<NavGroup[]>(() =>
         { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: session.canManage || session.readOnly },
         { name: "Reefer Coverage", to: "/reefer-coverage", icon: CubeIcon, show: session.canManage || session.readOnly },
         { name: "Idling", to: "/idling", icon: ClockIcon, show: session.canManage || session.readOnly },
+        { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: session.canManage || session.readOnly },
         { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: session.canManage || session.readOnly },
         { name: "Reports", to: "/reports", icon: ChartBarIcon, show: session.canManage || session.readOnly },
       ],
