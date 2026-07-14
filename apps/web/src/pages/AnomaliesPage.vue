@@ -102,9 +102,13 @@ function resetFilters() {
 const unit = (vehicleId: string | null) =>
   vehicleId ? (vehicles.value?.find((v) => v.id === vehicleId)?.unit_number ?? "—") : "Unattributed";
 
-// Reefer tab enrichment: the paired reefer trailer for a truck, and the driver on the flagged fill.
-const reeferTrailer = (vehicleId: string | null): string =>
-  vehicleId ? ((trailers.value ?? []).find((t) => t.assigned_vehicle_id === vehicleId && t.is_reefer)?.unit_number ?? "—") : "—";
+// The trailer currently paired to a truck (prefer the reefer), and the driver on the flagged fill.
+const pairedTrailer = (vehicleId: string | null): string => {
+  if (!vehicleId) return "—";
+  const ts = (trailers.value ?? []).filter((t) => t.assigned_vehicle_id === vehicleId);
+  if (!ts.length) return "—";
+  return (ts.find((t) => t.is_reefer) ?? ts[0]!).unit_number ?? "—";
+};
 const driverName = (a: Anomaly): string => {
   const did = a.transaction_id ? (txnDriverMap.value?.[a.transaction_id] ?? null) : null;
   return did ? (drivers.value?.find((d) => d.id === did)?.full_name ?? "—") : "—";
@@ -123,7 +127,9 @@ const SEV_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low:
 const baseColumns: DataTableColumn[] = [
   { key: "severity", label: "Severity", sortable: true, headerClass: "min-w-[6rem]" },
   { key: "type", label: "Type", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
-  { key: "vehicle", label: "Vehicle", sortable: true, headerClass: "min-w-[6rem]" },
+  { key: "vehicle", label: "Truck", sortable: true, headerClass: "min-w-[5rem]", cellClass: "font-medium text-ink" },
+  { key: "trailer", label: "Trailer", sortable: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
+  { key: "driver", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
   { key: "ai", label: "AI", sortable: true, headerClass: "min-w-[10rem]" },
   { key: "message", label: "Detail", headerClass: "min-w-[18rem]", cellClass: "max-w-md truncate text-ink-secondary" },
   { key: "status", label: "Status", sortable: true, headerClass: "min-w-[8rem]" },
@@ -148,7 +154,7 @@ function onSort(key: string) {
 const getVal = (a: Anomaly, key: string): unknown => {
   if (key === "severity") return SEV_RANK[a.severity] ?? 0;
   if (key === "vehicle") return unit(a.vehicle_id);
-  if (key === "trailer") return reeferTrailer(a.vehicle_id);
+  if (key === "trailer") return pairedTrailer(a.vehicle_id);
   if (key === "driver") return driverName(a);
   if (key === "when") return a.fueled_at ?? a.created_at;
   if (key === "type") return a.rule_id;
@@ -310,7 +316,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
       </template>
       <template #cell-type="{ row }">{{ formatRuleId(row.rule_id) }}</template>
       <template #cell-vehicle="{ row }">{{ unit(row.vehicle_id) }}</template>
-      <template #cell-trailer="{ row }">{{ reeferTrailer(row.vehicle_id) }}</template>
+      <template #cell-trailer="{ row }">{{ pairedTrailer(row.vehicle_id) }}</template>
       <template #cell-driver="{ row }">{{ driverName(row) }}</template>
       <template #cell-ai="{ row }">
         <div v-if="ai(row)" class="flex items-center gap-1.5">
