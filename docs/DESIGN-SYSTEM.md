@@ -56,7 +56,7 @@ Canvas can't read CSS vars — `features/dashboard/chartTheme.ts` resolves the
 | `FormField` | ad-hoc label/error markup | `label`, `error`, `hint`, `required`; exposes `id` to slot |
 | `BaseCard` | `rounded-lg bg-white shadow-sm ring-1 ring-gray-200` divs | `padding` none·sm·md |
 | `PageHeader` | ad-hoc description/actions rows | `description` + `#actions` |
-| `DataTable` | raw table + skeleton/error/empty plumbing | `loading/error/empty/emptyText/skeletonCols/dense`, slots `head`/default/`footer`/`empty`, `@retry` |
+| `DataTable` | raw table + skeleton/error/empty plumbing | column-definition API — see below |
 
 Existing shared components (`AppSelect`, `SearchInput`, `TableToolbar`,
 `TablePagination`, `SortableTh`, `SlideOver`, `KebabMenu`, `StatusBadge`,
@@ -67,12 +67,29 @@ tokenized — use them, don't fork them.
 
 - Page root: `<div class="space-y-6">`. Narrow single-column pages add
   `mx-auto max-w-2xl` (settings/forms) or `max-w-3xl` (content). The AppShell
-  provides the outer container (`max-w-[1600px] px-4 sm:px-6 lg:px-8 py-8`).
+  provides the outer container — full width with small gutters
+  (`w-full px-4 sm:px-6 lg:px-8 py-8`), so tables use the whole screen.
 - First row: `PageHeader` (description left, actions right; stacks below `sm`).
-- Tables: always inside `DataTable` (gives `overflow-x-auto` for small screens).
-  Cells: `px-6 py-3`, `th` adds `font-medium`; alignment/min-width per cell.
-  Row hover: `hover:bg-surface-subtle`. Links in cells:
-  `text-brand-600 hover:text-brand-500`.
+- Tables: always inside `DataTable`, driven by a `columns` array
+  (`{ key, label, sortable?, numeric?, align?, headerClass?, cellClass? }`)
+  plus `rows` + `row-key`. The component owns alignment (text left; `numeric`
+  right + tabular-nums; headers follow their column), cell padding
+  (px-4 py-3, px-6 edge gutters), sort indicators (`:sort` + `@sort`),
+  the sticky header (max-h-[70vh] scroll area), horizontal overflow, hover,
+  loading/error/empty states, and the `#footer` pagination slot.
+  Cell content: `#cell-<key>="{ row, value }"`; blank values render an
+  ink-subtle "—" automatically. Links in cells:
+  `text-brand-600 hover:text-brand-500` + `font-medium`.
+  Selection (`selectable` + `v-model:selected` Set) ONLY on tables with bulk
+  actions — never render checkboxes that have nothing to act on.
+  Row actions: `#actions="{ row }"` slot with `KebabMenu` items — the
+  standard trailing ⋮ column. Widths: fixed-ish columns get
+  `headerClass: "min-w-[6rem]"`-style hints; text columns flex.
+- Dropdowns: one popover recipe everywhere —
+  `rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge`
+  (KebabMenu, AppSelect, and any Headless UI Menu panels). Menu items use
+  the global `.kebab-item` classes. KebabMenu accepts a `#trigger` slot
+  for non-⋮ triggers so toolbar dropdowns share the exact same panel.
 - Stat/KPI grids: `grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4`
   (2-up variant: `sm:grid-cols-2`). Filter rows stack: `flex flex-col gap-3
   sm:flex-row sm:items-center`.

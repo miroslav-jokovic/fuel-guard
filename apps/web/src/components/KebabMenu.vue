@@ -3,7 +3,9 @@ import { ref } from "vue";
 import { EllipsisVerticalIcon } from "@heroicons/vue/20/solid";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 
-// A ⋮ actions menu. Put <button class="kebab-item"> children in the default slot.
+// The one dropdown menu. Put <button class="kebab-item"> children in the default slot.
+// Default trigger is the ⋮ icon (table action columns); pass a #trigger slot for
+// custom triggers (toolbar dropdowns) — panel styling stays identical either way.
 const open = ref(false);
 
 const triggerRef = ref<HTMLElement | null>(null);
@@ -21,11 +23,14 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
     <button
       ref="triggerRef"
       type="button"
-      class="rounded-md p-1 text-ink-subtle hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-brand-600 focus:outline-none"
-      aria-label="Actions"
+      :class="$slots.trigger ? '' : 'rounded-md p-1 text-ink-subtle hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-brand-600 focus:outline-none'"
+      :aria-label="$slots.trigger ? undefined : 'Actions'"
+      :aria-expanded="open"
+      aria-haspopup="menu"
       @click.stop="open = !open"
+      @keydown.escape="open = false"
     >
-      <EllipsisVerticalIcon class="size-5" />
+      <slot name="trigger"><EllipsisVerticalIcon class="size-5" /></slot>
     </button>
     <Teleport to="body">
       <template v-if="open">

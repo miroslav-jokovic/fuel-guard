@@ -5,6 +5,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 const PAGE_SIZE = 20;
 const filters = ref<AuditFilters>({});
@@ -21,6 +22,13 @@ function applyFilter() {
 }
 
 const fmt = (iso: string) => new Date(iso).toLocaleString();
+
+const columns: DataTableColumn[] = [
+  { key: "created_at", label: "When", headerClass: "min-w-[11rem]", cellClass: "text-ink-muted" },
+  { key: "action", label: "Action", headerClass: "min-w-[10rem]", cellClass: "font-mono text-xs text-ink" },
+  { key: "entity", label: "Entity", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
+  { key: "meta", label: "Details", headerClass: "min-w-[24rem]", cellClass: "text-ink-muted" },
+];
 </script>
 
 <template>
@@ -36,28 +44,20 @@ const fmt = (iso: string) => new Date(iso).toLocaleString();
     </div>
 
     <DataTable
+      :columns="columns"
+      :rows="pageRows"
+      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load audit log') : null"
       :retrying="isFetching"
-      :empty="!logs || logs.length === 0"
       empty-text="No audit entries."
-      :skeleton-cols="4"
       @retry="refetch"
     >
-      <template #head>
-        <tr>
-          <th scope="col" class="px-6 py-3 font-medium min-w-[11rem]">When</th>
-          <th scope="col" class="px-6 py-3 font-medium min-w-[10rem]">Action</th>
-          <th scope="col" class="px-6 py-3 font-medium min-w-[10rem]">Entity</th>
-          <th scope="col" class="px-6 py-3 font-medium min-w-[24rem]">Details</th>
-        </tr>
+      <template #cell-created_at="{ value }">{{ fmt(value) }}</template>
+      <template #cell-meta="{ row }">
+        <template v-if="Object.keys(row.meta || {}).length">{{ JSON.stringify(row.meta) }}</template>
+        <span v-else class="text-ink-subtle">—</span>
       </template>
-      <tr v-for="l in pageRows" :key="l.id" class="hover:bg-surface-subtle">
-        <td class="px-6 py-3 text-ink-muted">{{ fmt(l.created_at) }}</td>
-        <td class="px-6 py-3 font-mono text-xs text-ink">{{ l.action }}</td>
-        <td class="px-6 py-3 text-ink-secondary">{{ l.entity ?? "—" }}</td>
-        <td class="px-6 py-3 text-ink-muted">{{ Object.keys(l.meta || {}).length ? JSON.stringify(l.meta) : "—" }}</td>
-      </tr>
       <template #footer>
         <TablePagination
           v-if="total > 0"

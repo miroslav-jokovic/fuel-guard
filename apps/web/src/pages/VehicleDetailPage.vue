@@ -10,6 +10,7 @@ import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz } from "@/features/dashboard/chartTheme";
 
 const route = useRoute();
@@ -65,6 +66,12 @@ const mpgChart = computed<ChartConfiguration>(() => ({
 const recent = computed(() => [...(txns.value ?? [])].reverse().slice(0, 15));
 // Station-local date (matches the EFS report; avoids a browser-tz off-by-a-day near midnight).
 const fmt = (iso: string, state: string | null) => stationDate(iso, state);
+
+const fillColumns: DataTableColumn[] = [
+  { key: "fueled_at", label: "Date", cellClass: "text-ink-muted" },
+  { key: "gallons", label: "Gallons", numeric: true },
+  { key: "computed_mpg", label: "MPG", numeric: true, cellClass: "text-ink-secondary" },
+];
 </script>
 
 <template>
@@ -96,16 +103,14 @@ const fmt = (iso: string, state: string | null) => stationDate(iso, state);
     </BaseCard>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <DataTable :empty="recent.length === 0" empty-text="No fills yet." :skeleton-cols="3">
-        <template #head>
-          <tr><th colspan="3" scope="colgroup" class="px-5 py-3 font-semibold text-ink">Recent fills</th></tr>
-        </template>
-        <tr v-for="t in recent" :key="t.id">
-          <td class="px-5 py-2 text-ink-muted">{{ fmt(t.fueled_at, t.state ?? null) }}</td>
-          <td class="px-5 py-2 text-ink">{{ t.gallons }} gal</td>
-          <td class="px-5 py-2 text-ink-secondary">{{ t.computed_mpg ?? "—" }} mpg</td>
-        </tr>
-      </DataTable>
+      <div class="space-y-3">
+        <h3 class="text-sm font-semibold text-ink">Recent fills</h3>
+        <DataTable :columns="fillColumns" :rows="recent" row-key="id" empty-text="No fills yet.">
+          <template #cell-fueled_at="{ row }">{{ fmt(row.fueled_at, row.state ?? null) }}</template>
+          <template #cell-gallons="{ value }">{{ value }} gal</template>
+          <template #cell-computed_mpg="{ value }">{{ value ?? "—" }} mpg</template>
+        </DataTable>
+      </div>
       <BaseCard padding="none">
         <h3 class="border-b border-edge-subtle px-5 py-3 text-sm font-semibold text-ink">Anomalies</h3>
         <ul class="divide-y divide-edge-subtle text-sm">

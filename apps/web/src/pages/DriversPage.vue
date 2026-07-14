@@ -10,9 +10,9 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import SortableTh from "@/components/SortableTh.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DriverForm from "@/features/fleet/DriverForm.vue";
@@ -56,6 +56,14 @@ function onSort(key: string) {
   sort.value = toggleSort(sort.value, key);
 }
 const sorted = computed(() => sortRows(filtered.value, sort.value));
+
+const columns: DataTableColumn[] = [
+  { key: "full_name", label: "Name", sortable: true, headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
+  { key: "employee_id", label: "Employee ID", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "phone", label: "Phone", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "vehicles", label: "Vehicles", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[6rem]" },
+];
 
 const page = ref(1);
 watch([search, statusFilter], () => (page.value = 1));
@@ -128,36 +136,24 @@ async function onSyncSamsara() {
     </div>
 
     <DataTable
+      :columns="columns"
+      :rows="pageRows"
+      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load drivers') : null"
       :retrying="isFetching"
-      :empty="filtered.length === 0"
+      :sort="sort"
       :empty-text="(drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'"
-      :skeleton-cols="6"
+      @sort="onSort"
       @retry="refetch"
     >
-      <template #head>
-        <tr>
-          <SortableTh label="Name" sort-key="full_name" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[12rem]" @sort="onSort" />
-          <SortableTh label="Employee ID" sort-key="employee_id" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />
-          <th class="px-6 py-3 font-medium min-w-[9rem]">Phone</th>
-          <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicles</th>
-          <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-          <th class="px-6 py-3 w-12"></th>
-        </tr>
+      <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
+      <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
+      <template #actions="{ row }">
+        <KebabMenu v-if="session.canManage">
+          <button class="kebab-item" @click="openEdit(row)">Edit driver</button>
+        </KebabMenu>
       </template>
-      <tr v-for="d in pageRows" :key="d.id" class="hover:bg-surface-subtle">
-        <td class="px-6 py-3 font-medium text-ink">{{ d.full_name }}</td>
-        <td class="px-6 py-3 text-ink-secondary">{{ d.employee_id ?? "—" }}</td>
-        <td class="px-6 py-3 text-ink-secondary">{{ d.phone ?? "—" }}</td>
-        <td class="px-6 py-3 text-ink-secondary">{{ assignedUnits(d.id) }}</td>
-        <td class="px-6 py-3"><StatusBadge :status="d.status" /></td>
-        <td class="px-6 py-3 text-right" @click.stop>
-          <KebabMenu v-if="session.canManage">
-            <button class="kebab-item" @click="openEdit(d)">Edit driver</button>
-          </KebabMenu>
-        </td>
-      </tr>
       <template #footer>
         <TablePagination
           :page="page"

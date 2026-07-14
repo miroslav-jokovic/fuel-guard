@@ -8,6 +8,7 @@ import { useDriversQuery } from "@/features/fleet/useDrivers";
 import TableToolbar from "@/components/TableToolbar.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useReeferCoverage();
 const { data: vehicles } = useVehiclesQuery();
@@ -96,6 +97,22 @@ function shareTone(pct: number): string {
 function staleTone(days: number | null): string {
   return days != null && days > 7 ? "text-warning-600 font-medium" : "text-ink-secondary";
 }
+
+const columns: DataTableColumn[] = [
+  { key: "vehicleId", label: "Truck", cellClass: "font-medium text-ink" },
+  { key: "trailer", label: "Reefer trailer" },
+  { key: "tankCap", label: "Tank cap", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reeferGal", label: "Reefer gal", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reeferFills", label: "Fills", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "avgGalPerFill", label: "Avg / fill", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reeferSpend", label: "Reefer spend", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reeferSharePct", label: "Share", numeric: true },
+  { key: "vsFleet", label: "vs fleet", numeric: true, cellClass: "text-ink-muted" },
+  { key: "avgCadenceDays", label: "Cadence", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "lastReeferAt", label: "Last reefer", cellClass: "text-ink-secondary" },
+  { key: "daysSinceReefer", label: "Days since", numeric: true },
+  { key: "primaryDriverId", label: "Primary driver", cellClass: "text-ink-secondary" },
+];
 </script>
 
 <template>
@@ -132,49 +149,36 @@ function staleTone(days: number | null): string {
     </div>
 
     <DataTable
+      :columns="columns"
+      :rows="active"
+      row-key="vehicleId"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
       :retrying="isFetching"
-      :empty="active.length === 0"
       empty-text="No reefer (ULSR) fuel purchases in the last 90 days."
-      :skeleton-cols="10"
       @retry="refetch"
     >
-      <template #head>
-        <tr>
-          <th class="px-6 py-3 font-medium">Truck</th>
-          <th class="px-6 py-3 font-medium">Reefer trailer</th>
-          <th class="px-6 py-3 font-medium text-right">Tank cap</th>
-          <th class="px-6 py-3 font-medium text-right">Reefer gal</th>
-          <th class="px-6 py-3 font-medium text-right">Fills</th>
-          <th class="px-6 py-3 font-medium text-right">Avg / fill</th>
-          <th class="px-6 py-3 font-medium text-right">Reefer spend</th>
-          <th class="px-6 py-3 font-medium text-right">Share</th>
-          <th class="px-6 py-3 font-medium text-right">vs fleet</th>
-          <th class="px-6 py-3 font-medium text-right">Cadence</th>
-          <th class="px-6 py-3 font-medium">Last reefer</th>
-          <th class="px-6 py-3 font-medium text-right">Days since</th>
-          <th class="px-6 py-3 font-medium">Primary driver</th>
-        </tr>
+      <template #cell-vehicleId="{ row }">{{ unit(row.vehicleId) }}</template>
+      <template #cell-trailer="{ row }">
+        <span :class="trailerFor(row.vehicleId).tone" :title="trailerFor(row.vehicleId).title">{{ trailerFor(row.vehicleId).text }}</span>
       </template>
-      <tr v-for="t in active" :key="t.vehicleId" class="hover:bg-surface-subtle">
-        <td class="px-6 py-3 font-medium text-ink">{{ unit(t.vehicleId) }}</td>
-        <td class="px-6 py-3" :class="trailerFor(t.vehicleId).tone" :title="trailerFor(t.vehicleId).title">{{ trailerFor(t.vehicleId).text }}</td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ tankCapFor(t.vehicleId) != null ? tankCapFor(t.vehicleId) + " gal" : "—" }}</td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.reeferGal.toLocaleString() }}</td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.reeferFills }}</td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.avgGalPerFill.toLocaleString() }}</td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ usd(t.reeferSpend) }}</td>
-        <td class="px-6 py-3 text-right font-medium" :class="shareTone(t.reeferSharePct)">{{ t.reeferSharePct }}%</td>
-        <td class="px-6 py-3 text-right text-ink-muted">
-          <span v-if="median != null">{{ t.reeferSharePct > median ? "+" : "" }}{{ Math.round(t.reeferSharePct - median) }} pts</span>
-          <span v-else>—</span>
-        </td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.avgCadenceDays != null ? "~" + t.avgCadenceDays + "d" : "—" }}</td>
-        <td class="px-6 py-3 text-ink-secondary">{{ shortDate(t.lastReeferAt) }}</td>
-        <td class="px-6 py-3 text-right" :class="staleTone(t.daysSinceReefer)">{{ t.daysSinceReefer ?? "—" }}</td>
-        <td class="px-6 py-3 text-ink-secondary">{{ driverName(t.primaryDriverId) }}</td>
-      </tr>
+      <template #cell-tankCap="{ row }">{{ tankCapFor(row.vehicleId) != null ? tankCapFor(row.vehicleId) + " gal" : "—" }}</template>
+      <template #cell-reeferGal="{ value }">{{ value.toLocaleString() }}</template>
+      <template #cell-avgGalPerFill="{ value }">{{ value.toLocaleString() }}</template>
+      <template #cell-reeferSpend="{ value }">{{ usd(value) }}</template>
+      <template #cell-reeferSharePct="{ value }">
+        <span class="font-medium" :class="shareTone(value)">{{ value }}%</span>
+      </template>
+      <template #cell-vsFleet="{ row }">
+        <span v-if="median != null">{{ row.reeferSharePct > median ? "+" : "" }}{{ Math.round(row.reeferSharePct - median) }} pts</span>
+        <span v-else>—</span>
+      </template>
+      <template #cell-avgCadenceDays="{ value }">{{ value != null ? "~" + value + "d" : "—" }}</template>
+      <template #cell-lastReeferAt="{ value }">{{ shortDate(value) }}</template>
+      <template #cell-daysSinceReefer="{ value }">
+        <span :class="staleTone(value)">{{ value ?? "—" }}</span>
+      </template>
+      <template #cell-primaryDriverId="{ row }">{{ driverName(row.primaryDriverId) }}</template>
     </DataTable>
   </div>
 </template>

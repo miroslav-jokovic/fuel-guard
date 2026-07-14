@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { ArrowUpTrayIcon } from "@heroicons/vue/24/outline";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useDriversQuery } from "@/features/fleet/useDrivers";
@@ -11,6 +11,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
@@ -69,6 +70,32 @@ async function onCommit() {
 const reset = () => {
   preview.value = null;
 };
+
+// ── preview tables (first 10 lines, faithful to the uploaded file) ────────────
+const txnColumns: DataTableColumn[] = [
+  { key: "tran_date", label: "Tran Date", cellClass: "text-ink-secondary" },
+  { key: "card_num", label: "Card #", cellClass: "text-ink-secondary" },
+  { key: "unit", label: "Unit", cellClass: "font-medium text-ink" },
+  { key: "driver_name", label: "Driver", cellClass: "text-ink-secondary" },
+  { key: "odometer", label: "Odometer", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "location_name", label: "Location", cellClass: "text-ink-secondary" },
+  { key: "item", label: "Item", cellClass: "text-ink-secondary" },
+  { key: "qty", label: "Qty", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "amt", label: "Amt", numeric: true, cellClass: "text-ink-secondary" },
+];
+const rejColumns: DataTableColumn[] = [
+  { key: "card_ref", label: "Card #", cellClass: "text-ink-secondary" },
+  { key: "unit", label: "Unit", cellClass: "font-medium text-ink" },
+  { key: "driver_name", label: "Driver", cellClass: "text-ink-secondary" },
+  { key: "error_code", label: "Error", cellClass: "text-ink-secondary" },
+  { key: "error_description", label: "Description", cellClass: "text-ink-secondary" },
+];
+const txnPreviewRows = computed(() =>
+  (preview.value?.allLines ?? []).slice(0, 10).map((l, i) => ({ ...l, _key: String(i) })),
+);
+const rejPreviewRows = computed(() =>
+  (preview.value?.newDeclined ?? []).slice(0, 10).map((d, i) => ({ ...d, _key: String(i) })),
+);
 
 // ── repair: re-derive fuel events from the stored EFS lines ────────────────────────────────────────
 // The Transactions page reads the faithful EFS store; the dashboard reads derived fuel events. If the
@@ -218,41 +245,11 @@ async function onRepair() {
       <!-- Faithful preview of the uploaded data (first rows) -->
       <div v-if="preview.kind === 'transaction' && preview.allLines.length" class="space-y-1">
         <p class="text-xs font-medium text-ink-muted">Preview (first {{ Math.min(preview.allLines.length, 10) }} of {{ preview.allLines.length }} lines)</p>
-        <DataTable dense>
-          <template #head>
-            <tr>
-              <th class="px-3 py-2 font-medium">Tran Date</th><th class="px-3 py-2 font-medium">Card #</th><th class="px-3 py-2 font-medium">Unit</th>
-              <th class="px-3 py-2 font-medium">Driver</th><th class="px-3 py-2 font-medium">Odometer</th><th class="px-3 py-2 font-medium">Location</th>
-              <th class="px-3 py-2 font-medium">Item</th><th class="px-3 py-2 font-medium">Qty</th><th class="px-3 py-2 font-medium">Amt</th>
-            </tr>
-          </template>
-          <tr v-for="(l, i) in preview.allLines.slice(0, 10)" :key="i">
-            <td class="px-3 py-1.5 text-ink-secondary">{{ l.tran_date }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ l.card_num }}</td>
-            <td class="px-3 py-1.5 font-medium text-ink">{{ l.unit }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ l.driver_name }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ l.odometer }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ l.location_name }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ l.item }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ l.qty }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ l.amt }}</td>
-          </tr>
-        </DataTable>
+        <DataTable dense :sticky-header="false" :columns="txnColumns" :rows="txnPreviewRows" row-key="_key" />
       </div>
       <div v-else-if="preview.kind === 'reject' && preview.newDeclined.length" class="space-y-1">
         <p class="text-xs font-medium text-ink-muted">Preview (first {{ Math.min(preview.newDeclined.length, 10) }} of {{ preview.newDeclined.length }})</p>
-        <DataTable dense>
-          <template #head>
-            <tr><th class="px-3 py-2 font-medium">Card #</th><th class="px-3 py-2 font-medium">Unit</th><th class="px-3 py-2 font-medium">Driver</th><th class="px-3 py-2 font-medium">Error</th><th class="px-3 py-2 font-medium">Description</th></tr>
-          </template>
-          <tr v-for="(d, i) in preview.newDeclined.slice(0, 10)" :key="i">
-            <td class="px-3 py-1.5 text-ink-secondary">{{ d.card_ref }}</td>
-            <td class="px-3 py-1.5 font-medium text-ink">{{ d.unit }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ d.driver_name }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ d.error_code }}</td>
-            <td class="px-3 py-1.5 text-ink-secondary">{{ d.error_description }}</td>
-          </tr>
-        </DataTable>
+        <DataTable dense :sticky-header="false" :columns="rejColumns" :rows="rejPreviewRows" row-key="_key" />
       </div>
 
       <div class="flex justify-end gap-3">

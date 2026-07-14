@@ -13,9 +13,9 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import SortableTh from "@/components/SortableTh.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import TrailerForm from "@/features/fleet/TrailerForm.vue";
@@ -62,22 +62,17 @@ const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE,
 
 const vehUnit = (id: string | null) => (id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "—");
 
+const columns: DataTableColumn[] = [
+  { key: "unit_number", label: "Unit", sortable: true, cellClass: "font-medium text-ink" },
+  { key: "trailer", label: "Trailer", cellClass: "text-ink-secondary" },
+  { key: "is_reefer", label: "Type", sortable: true },
+  { key: "reefer_tank_capacity_gal", label: "Reefer tank", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "assigned_vehicle_id", label: "Paired tractor", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true },
+];
+
 // ── selection (bulk edit) ─────────────────────────────────────────────────────────
 const selected = ref<Set<string>>(new Set());
-const pageIds = computed(() => pageRows.value.map((t) => t.id));
-const allOnPageSelected = computed(() => pageIds.value.length > 0 && pageIds.value.every((id) => selected.value.has(id)));
-function toggleAll() {
-  const next = new Set(selected.value);
-  if (allOnPageSelected.value) pageIds.value.forEach((id) => next.delete(id));
-  else pageIds.value.forEach((id) => next.add(id));
-  selected.value = next;
-}
-function toggleOne(id: string) {
-  const next = new Set(selected.value);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  selected.value = next;
-}
 const selectedCount = computed(() => selected.value.size);
 
 // ── mutations ─────────────────────────────────────────────────────────────────────
@@ -171,49 +166,35 @@ async function onRetire(t: Trailer) {
     </div>
 
     <DataTable
+      :columns="columns"
+      :rows="pageRows"
+      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load trailers') : null"
       :retrying="isFetching"
-      :empty="filtered.length === 0"
+      :sort="sort"
+      :selectable="session.canManage"
+      :selected="selected"
       :empty-text="(trailers ?? []).length === 0 ? 'No trailers yet. Add one, or sync from Samsara.' : 'No trailers match these filters.'"
-      :skeleton-cols="7"
+      @update:selected="selected = $event"
+      @sort="onSort"
       @retry="refetch"
     >
-      <template #head>
-        <tr>
-          <th v-if="session.canManage" class="px-4 py-3">
-            <input type="checkbox" class="size-4 rounded border-edge-strong accent-brand-600" :checked="allOnPageSelected" @change="toggleAll" />
-          </th>
-          <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-          <th class="px-6 py-3 font-medium">Trailer</th>
-          <SortableTh label="Type" sort-key="is_reefer" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-          <SortableTh label="Reefer tank" sort-key="reefer_tank_capacity_gal" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-          <th class="px-6 py-3 font-medium">Paired tractor</th>
-          <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" @sort="onSort" />
-          <th class="px-6 py-3"></th>
-        </tr>
+      <template #cell-trailer="{ row }">{{ [row.year, row.make, row.model].filter(Boolean).join(" ") || "—" }}</template>
+      <template #cell-is_reefer="{ row }">
+        <span v-if="row.is_reefer" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
+        <span v-else class="text-xs text-ink-subtle">Dry / other</span>
       </template>
-      <tr v-for="t in pageRows" :key="t.id" :class="selected.has(t.id) ? 'bg-brand-50/40' : ''">
-        <td v-if="session.canManage" class="px-4 py-3">
-          <input type="checkbox" class="size-4 rounded border-edge-strong accent-brand-600" :checked="selected.has(t.id)" @change="toggleOne(t.id)" />
-        </td>
-        <td class="px-6 py-3 font-medium text-ink">{{ t.unit_number }}</td>
-        <td class="px-6 py-3 text-ink-secondary">{{ [t.year, t.make, t.model].filter(Boolean).join(" ") || "—" }}</td>
-        <td class="px-6 py-3">
-          <span v-if="t.is_reefer" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
-          <span v-else class="text-xs text-ink-subtle">Dry / other</span>
-        </td>
-        <td class="px-6 py-3 text-ink-secondary">{{ t.is_reefer ? t.reefer_tank_capacity_gal + " gal" : "—" }}</td>
-        <td class="px-6 py-3 text-ink-secondary">{{ vehUnit(t.assigned_vehicle_id) }}</td>
-        <td class="px-6 py-3"><StatusBadge :status="t.status" /></td>
-        <td class="px-6 py-3 text-right">
-          <KebabMenu v-if="session.canManage">
-            <button class="kebab-item" @click="openEdit(t)">Edit</button>
-            <button class="kebab-item" @click="toggleReefer(t)">{{ t.is_reefer ? 'Unmark reefer' : 'Mark as reefer' }}</button>
-            <button v-if="t.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(t)">Retire</button>
-          </KebabMenu>
-        </td>
-      </tr>
+      <template #cell-reefer_tank_capacity_gal="{ row }">{{ row.is_reefer ? row.reefer_tank_capacity_gal + " gal" : "—" }}</template>
+      <template #cell-assigned_vehicle_id="{ row }">{{ vehUnit(row.assigned_vehicle_id) }}</template>
+      <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
+      <template #actions="{ row }">
+        <KebabMenu v-if="session.canManage">
+          <button class="kebab-item" @click="openEdit(row)">Edit</button>
+          <button class="kebab-item" @click="toggleReefer(row)">{{ row.is_reefer ? 'Unmark reefer' : 'Mark as reefer' }}</button>
+          <button v-if="row.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(row)">Retire</button>
+        </KebabMenu>
+      </template>
       <template #footer>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>

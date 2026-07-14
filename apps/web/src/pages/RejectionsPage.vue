@@ -7,8 +7,8 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import SortableTh from "@/components/SortableTh.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -71,6 +71,27 @@ async function rescore() {
   else if (res.status === 409) toast.info("Already running", "A rescore is already in progress — refresh in a moment.");
   else toast.error("Could not start rescore", res.error?.message);
 }
+
+const columns: DataTableColumn[] = [
+  {
+    key: "unit",
+    label: "Unit",
+    sortable: true,
+    headerClass: "sticky left-0 z-20 bg-surface-subtle min-w-[5rem] border-r border-edge",
+    cellClass: "sticky left-0 z-[1] border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
+  },
+  { key: "suspicion_level", label: "Risk", sortable: true, headerClass: "min-w-[5rem]" },
+  { key: "declined_at", label: "Date / Time", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
+  { key: "card_ref", label: "Card #", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
+  { key: "invoice", label: "Invoice", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
+  { key: "driver_name", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "location_text", label: "Location", headerClass: "min-w-[12rem]", cellClass: "text-ink-secondary" },
+  { key: "city", label: "City", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "state", label: "State", sortable: true, headerClass: "min-w-[4rem]", cellClass: "text-ink-secondary" },
+  { key: "error_code", label: "Error", sortable: true, headerClass: "min-w-[5rem]" },
+  { key: "error_description", label: "Description", headerClass: "min-w-[14rem]", cellClass: "max-w-md truncate text-ink-secondary" },
+  { key: "policy_name", label: "Policy", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+];
 </script>
 
 <template>
@@ -108,55 +129,37 @@ async function rescore() {
     </div>
 
     <DataTable
+      :columns="columns"
+      :rows="rows"
+      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load rejections') : null"
       :retrying="isFetching"
-      :empty="rows.length === 0"
+      :sort="sort"
+      :row-class="() => 'group cursor-pointer'"
       empty-text="No declined transactions match — upload an EFS Reject report from the Import page, or adjust filters."
-      :skeleton-cols="6"
+      @sort="onSort"
       @retry="refetch"
+      @row-click="selectedRow = $event"
     >
-      <template #head>
-        <tr>
-          <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" th-class="sticky left-0 z-20 bg-surface-subtle px-4 py-3 font-medium min-w-[5rem] border-r border-edge" @sort="onSort" />
-          <SortableTh label="Risk" sort-key="suspicion_level" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem]" @sort="onSort" />
-          <SortableTh label="Date / Time" sort-key="declined_at" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[10rem]" @sort="onSort" />
-          <th class="px-4 py-3 font-medium min-w-[7rem]">Card #</th>
-          <th class="px-4 py-3 font-medium min-w-[6rem]">Invoice</th>
-          <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[9rem]" @sort="onSort" />
-          <th class="px-4 py-3 font-medium min-w-[12rem]">Location</th>
-          <th class="px-4 py-3 font-medium min-w-[8rem]">City</th>
-          <SortableTh label="State" sort-key="state" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[4rem]" @sort="onSort" />
-          <SortableTh label="Error" sort-key="error_code" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem]" @sort="onSort" />
-          <th class="px-4 py-3 font-medium min-w-[14rem]">Description</th>
-          <th class="px-4 py-3 font-medium min-w-[8rem]">Policy</th>
-        </tr>
+      <template #cell-suspicion_level="{ row }">
+        <span
+          v-if="row.suspicion_level && row.suspicion_level !== 'clear'"
+          :class="[BADGE_BASE, suspicionTone(row.suspicion_level)]"
+          :title="(row.suspicion_reasons ?? []).map((r) => r.detail).join(' · ')"
+          >{{ row.suspicion_level }}</span
+        >
+        <span v-else-if="row.suspicion_level === 'clear'" class="text-xs text-ink-subtle">Clear</span>
+        <span v-else class="text-xs text-ink-subtle">—</span>
       </template>
-      <tr v-for="d in rows" :key="d.id" class="group cursor-pointer hover:bg-surface-subtle" @click="selectedRow = d">
-        <td class="sticky left-0 z-[1] border-r border-edge bg-surface px-4 py-2 font-medium text-ink group-hover:bg-surface-subtle">{{ d.unit }}</td>
-        <td class="px-4 py-2">
-          <span
-            v-if="d.suspicion_level && d.suspicion_level !== 'clear'"
-            :class="[BADGE_BASE, suspicionTone(d.suspicion_level)]"
-            :title="(d.suspicion_reasons ?? []).map((r) => r.detail).join(' · ')"
-            >{{ d.suspicion_level }}</span
-          >
-          <span v-else-if="d.suspicion_level === 'clear'" class="text-xs text-ink-subtle">Clear</span>
-          <span v-else class="text-xs text-ink-subtle">—</span>
-        </td>
-        <td class="px-4 py-2 text-ink-secondary">{{ fmt(d.declined_at, d.state) }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ d.card_ref }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ d.invoice }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ d.driver_name }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ d.location_text }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ d.city }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ d.state }}</td>
-        <td class="px-4 py-2">
-          <span :class="[BADGE_BASE, toneClass('danger')]">{{ d.error_code }}</span>
-        </td>
-        <td class="max-w-md truncate px-4 py-2 text-ink-secondary" :title="d.error_description ?? ''">{{ d.error_description }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ d.policy_name?.trim() }}</td>
-      </tr>
+      <template #cell-declined_at="{ row }">{{ fmt(row.declined_at, row.state) }}</template>
+      <template #cell-error_code="{ row }">
+        <span :class="[BADGE_BASE, toneClass('danger')]">{{ row.error_code }}</span>
+      </template>
+      <template #cell-error_description="{ row }">
+        <span :title="row.error_description ?? ''">{{ row.error_description }}</span>
+      </template>
+      <template #cell-policy_name="{ row }">{{ row.policy_name?.trim() }}</template>
       <template #footer>
         <TablePagination
           :page="page"

@@ -10,12 +10,12 @@ import AppSelect from "@/components/AppSelect.vue";
 import VehicleSelect from "@/components/VehicleSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import SortableTh from "@/components/SortableTh.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
@@ -77,6 +77,17 @@ const filtered = computed(() => {
 });
 
 const SEV_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+
+const columns: DataTableColumn[] = [
+  { key: "severity", label: "Severity", sortable: true, headerClass: "min-w-[6rem]" },
+  { key: "type", label: "Type", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
+  { key: "vehicle", label: "Vehicle", sortable: true, headerClass: "min-w-[6rem]" },
+  { key: "ai", label: "AI", sortable: true, headerClass: "min-w-[10rem]" },
+  { key: "message", label: "Detail", headerClass: "min-w-[18rem]", cellClass: "max-w-md truncate text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[8rem]" },
+  { key: "when", label: "When", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-muted" },
+];
+
 const sort = ref<SortState>({ key: null, dir: "asc" });
 function onSort(key: string) {
   sort.value = toggleSort(sort.value, key);
@@ -98,24 +109,10 @@ const total = computed(() => sorted.value.length);
 const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 // ── selection + bulk actions ────────────────────────────────────────────────
+// DataTable owns the checkboxes + select-all; bulk actions filter to actionable rows.
 const selectedIds = ref<Set<string>>(new Set());
 const isActionable = (a: Anomaly) => a.status === "open" || a.status === "investigating";
-const pageActionable = computed(() => pageRows.value.filter(isActionable));
-const allChecked = computed(() => pageActionable.value.length > 0 && pageActionable.value.every((a) => selectedIds.value.has(a.id)));
 const selectedCount = computed(() => selectedIds.value.size);
-
-function toggleRow(id: string) {
-  const next = new Set(selectedIds.value);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  selectedIds.value = next;
-}
-function toggleAll() {
-  const next = new Set(selectedIds.value);
-  if (allChecked.value) pageActionable.value.forEach((a) => next.delete(a.id));
-  else pageActionable.value.forEach((a) => next.add(a.id));
-  selectedIds.value = next;
-}
 watch([filters, search, page], () => (selectedIds.value = new Set()));
 
 const busy = ref(false);
@@ -251,63 +248,50 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
 
     <!-- Table -->
     <DataTable
+      :columns="columns"
+      :rows="pageRows"
+      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load anomalies') : null"
       :retrying="isFetching"
-      :empty="total === 0"
       empty-text="Nothing here — no alerts match these filters."
-      :skeleton-cols="8"
+      :sort="sort"
+      :selectable="session.canManage"
+      :selected="selectedIds"
+      :row-class="() => 'cursor-pointer'"
+      @update:selected="selectedIds = $event"
+      @sort="onSort"
+      @row-click="selectedRow = $event"
       @retry="refetch"
     >
-      <template #head>
-        <tr>
-          <th class="w-10 px-6 py-3">
-            <input v-if="session.canManage" type="checkbox" :checked="allChecked" class="size-4 rounded border-edge-strong accent-brand-600" @change="toggleAll" />
-          </th>
-          <SortableTh label="Severity" sort-key="severity" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-          <SortableTh label="Type" sort-key="type" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[10rem]" @sort="onSort" />
-          <SortableTh label="Vehicle" sort-key="vehicle" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-          <SortableTh label="AI" sort-key="ai" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[10rem]" @sort="onSort" />
-          <th class="px-6 py-3 font-medium min-w-[18rem]">Detail</th>
-          <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem]" @sort="onSort" />
-          <SortableTh label="When" sort-key="when" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem]" @sort="onSort" />
-          <th class="w-12 px-6 py-3"></th>
-        </tr>
+      <template #cell-severity="{ row }">
+        <span :class="[BADGE_BASE, severityTone(row.severity)]">{{ row.severity }}</span>
       </template>
-      <tr v-for="a in pageRows" :key="a.id" class="cursor-pointer hover:bg-surface-subtle" @click="selectedRow = a">
-        <td class="px-6 py-3" @click.stop>
-          <input
-            v-if="session.canManage && isActionable(a)"
-            type="checkbox"
-            :checked="selectedIds.has(a.id)"
-            class="size-4 rounded border-edge-strong accent-brand-600"
-            @change="toggleRow(a.id)"
-          />
-        </td>
-        <td class="px-6 py-3"><span :class="[BADGE_BASE, severityTone(a.severity)]">{{ a.severity }}</span></td>
-        <td class="px-6 py-3 text-ink-secondary">{{ formatRuleId(a.rule_id) }}</td>
-        <td class="px-6 py-3 text-ink">{{ unit(a.vehicle_id) }}</td>
-        <td class="px-6 py-3">
-          <div v-if="ai(a)" class="flex items-center gap-1.5">
-            <span :class="[BADGE_BASE, severityTone(ai(a)!.risk_level)]" :title="`AI risk ${ai(a)!.risk_score}/100`">{{ ai(a)!.risk_level }}</span>
-            <span v-if="isLikelyFalseAlarm(a)" class="text-xs text-ink-subtle">likely false alarm</span>
-            <span v-else class="text-xs text-ink-muted">{{ ACTION_LABEL[ai(a)!.recommended_action] ?? ai(a)!.recommended_action }}</span>
-          </div>
-          <span v-else class="text-xs text-ink-subtle">—</span>
-        </td>
-        <td class="max-w-md truncate px-6 py-3 text-ink-secondary">{{ a.message }}</td>
-        <td class="px-6 py-3"><span :class="[BADGE_BASE, statusTone(a.status)]">{{ a.status }}</span></td>
-        <td class="px-6 py-3 text-ink-muted" :title="`Detected ${fmt(a.created_at)}`">{{ fmt(a.fueled_at ?? a.created_at) }}</td>
-        <td class="px-6 py-3 text-right" @click.stop>
-          <KebabMenu v-if="session.canManage && isActionable(a)">
-            <button class="kebab-item" @click="selectedRow = a">Review details</button>
-            <button v-if="a.status === 'open'" class="kebab-item" @click="rowAction(a, 'investigating')">Start investigating</button>
-            <button class="kebab-item" @click="rowAction(a, 'resolved')">Resolve</button>
-            <button class="kebab-item kebab-item-danger" @click="rowAction(a, 'dismissed', 'False alarm')">False alarm</button>
-          </KebabMenu>
-          <button v-else class="text-sm font-medium text-brand-600 hover:text-brand-500" @click="selectedRow = a">Review</button>
-        </td>
-      </tr>
+      <template #cell-type="{ row }">{{ formatRuleId(row.rule_id) }}</template>
+      <template #cell-vehicle="{ row }">{{ unit(row.vehicle_id) }}</template>
+      <template #cell-ai="{ row }">
+        <div v-if="ai(row)" class="flex items-center gap-1.5">
+          <span :class="[BADGE_BASE, severityTone(ai(row)!.risk_level)]" :title="`AI risk ${ai(row)!.risk_score}/100`">{{ ai(row)!.risk_level }}</span>
+          <span v-if="isLikelyFalseAlarm(row)" class="text-xs text-ink-subtle">likely false alarm</span>
+          <span v-else class="text-xs text-ink-muted">{{ ACTION_LABEL[ai(row)!.recommended_action] ?? ai(row)!.recommended_action }}</span>
+        </div>
+        <span v-else class="text-xs text-ink-subtle">—</span>
+      </template>
+      <template #cell-status="{ row }">
+        <span :class="[BADGE_BASE, statusTone(row.status)]">{{ row.status }}</span>
+      </template>
+      <template #cell-when="{ row }">
+        <span :title="`Detected ${fmt(row.created_at)}`">{{ fmt(row.fueled_at ?? row.created_at) }}</span>
+      </template>
+      <template #actions="{ row }">
+        <KebabMenu v-if="session.canManage && isActionable(row)">
+          <button class="kebab-item" @click="selectedRow = row">Review details</button>
+          <button v-if="row.status === 'open'" class="kebab-item" @click="rowAction(row, 'investigating')">Start investigating</button>
+          <button class="kebab-item" @click="rowAction(row, 'resolved')">Resolve</button>
+          <button class="kebab-item kebab-item-danger" @click="rowAction(row, 'dismissed', 'False alarm')">False alarm</button>
+        </KebabMenu>
+        <button v-else class="text-sm font-medium text-brand-600 hover:text-brand-500" @click="selectedRow = row">Review</button>
+      </template>
       <template #footer>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />
       </template>

@@ -11,8 +11,8 @@ import FillUpForm from "@/features/fuel/FillUpForm.vue";
 import VehicleSelect from "@/components/VehicleSelect.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import SortableTh from "@/components/SortableTh.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -76,6 +76,16 @@ const mpgValues    = computed(() => rows.value.map((t) => t.computed_mpg).filter
 const avgMpg       = computed(() => mpgValues.value.length ? mpgValues.value.reduce((a, b) => a + b, 0) / mpgValues.value.length : null);
 const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFractionDigits: dec });
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+const columns: DataTableColumn[] = [
+  { key: "fueled_at", label: "When", sortable: true, headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
+  { key: "vehicle_id", label: "Vehicle", headerClass: "min-w-[7rem]" },
+  { key: "odometer", label: "Odometer", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "gallons", label: "Gallons", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
+  { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
+  { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", headerClass: "min-w-[11rem]" },
+];
 </script>
 
 <template>
@@ -132,57 +142,43 @@ const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", cur
     </BaseCard>
 
     <DataTable
+      :columns="columns"
+      :rows="rows"
+      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load fuel log') : null"
       :retrying="isFetching"
-      :empty="rows.length === 0"
+      :sort="sort"
       empty-text="No fill-ups match these filters."
-      :skeleton-cols="7"
+      @sort="onSort"
       @retry="refetch"
     >
-      <template #head>
-        <tr>
-          <SortableTh label="When" sort-key="fueled_at" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[11rem]" @sort="onSort" />
-          <th class="px-6 py-3 font-medium min-w-[7rem]">Vehicle</th>
-          <SortableTh label="Odometer" sort-key="odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem] text-right" @sort="onSort" />
-          <SortableTh label="Gallons" sort-key="gallons" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem] text-right" @sort="onSort" />
-          <SortableTh label="$/gal" sort-key="price_per_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem] text-right" @sort="onSort" />
-          <SortableTh label="MPG" sort-key="computed_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[5rem] text-right" @sort="onSort" />
-          <th class="px-6 py-3 font-medium min-w-[11rem]">Status</th>
-        </tr>
+      <template #cell-fueled_at="{ row }">{{ fmtDate(row.fueled_at, row.state ?? null) }}</template>
+      <template #cell-vehicle_id="{ row }">
+        <span>{{ vehicleLabel(row.vehicle_id) }}</span>
+        <span v-if="row.tank_type === 'reefer'" class="ml-1.5" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
       </template>
-      <tr v-for="t in rows" :key="t.id" class="hover:bg-surface-subtle">
-        <td class="px-6 py-3 whitespace-nowrap text-ink-secondary">{{ fmtDate(t.fueled_at, t.state ?? null) }}</td>
-        <td class="px-6 py-3 text-ink">
-          <span>{{ vehicleLabel(t.vehicle_id) }}</span>
-          <span v-if="t.tank_type === 'reefer'" class="ml-1.5" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
-        </td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.odometer ?? "—" }}</td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.gallons }}</td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.price_per_gal ?? "—" }}</td>
-        <td class="px-6 py-3 text-right text-ink-secondary">{{ t.computed_mpg ?? "—" }}</td>
-        <td class="px-6 py-3">
-          <div class="flex items-center gap-1.5">
-            <span
-              :class="[BADGE_BASE, txnStatusTone(fuelTxnStatus(t).status)]"
-              :title="fuelTxnStatus(t).locationConfirmed ? 'Location confirmed by Samsara' : undefined"
-              >{{ fuelTxnStatus(t).label }}</span
-            >
-            <span
-              v-if="fuelTxnStatus(t).locationConfirmed && !t.has_anomaly"
-              class="text-success-600"
-              title="Location confirmed by Samsara"
-              >✓</span
-            >
-            <span
-              v-if="t.ai_risk_level"
-              :class="[BADGE_BASE, toneClass('brand')]"
-              title="AI risk level"
-              >AI: {{ t.ai_risk_level }}</span
-            >
-          </div>
-        </td>
-      </tr>
+      <template #cell-status="{ row }">
+        <div class="flex items-center gap-1.5">
+          <span
+            :class="[BADGE_BASE, txnStatusTone(fuelTxnStatus(row).status)]"
+            :title="fuelTxnStatus(row).locationConfirmed ? 'Location confirmed by Samsara' : undefined"
+            >{{ fuelTxnStatus(row).label }}</span
+          >
+          <span
+            v-if="fuelTxnStatus(row).locationConfirmed && !row.has_anomaly"
+            class="text-success-600"
+            title="Location confirmed by Samsara"
+            >✓</span
+          >
+          <span
+            v-if="row.ai_risk_level"
+            :class="[BADGE_BASE, toneClass('brand')]"
+            title="AI risk level"
+            >AI: {{ row.ai_risk_level }}</span
+          >
+        </div>
+      </template>
       <template #footer>
         <TablePagination
           :page="page"

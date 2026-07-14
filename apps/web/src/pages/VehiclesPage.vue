@@ -10,9 +10,9 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import SortableTh from "@/components/SortableTh.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
@@ -54,6 +54,18 @@ const getVal = (v: Vehicle, key: string): unknown => {
   return typeof raw === "string" && raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
 };
 const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
+
+const columns: DataTableColumn[] = [
+  { key: "unit_number", label: "Unit", sortable: true, headerClass: "min-w-[5rem]" },
+  { key: "vehicle", label: "Vehicle", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
+  { key: "fuel_type", label: "Fuel", headerClass: "min-w-[5rem]", cellClass: "capitalize text-ink-secondary" },
+  { key: "tank_capacity_gal", label: "Tank", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
+  { key: "baseline_mpg", label: "Baseline MPG", sortable: true, numeric: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "samsara_fuel_percent", label: "Fuel level", sortable: true, numeric: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
+  { key: "current_odometer", label: "Odometer", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "assigned_driver_id", label: "Driver", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[6rem]" },
+];
 
 const page = ref(1);
 watch([search, statusFilter], () => (page.value = 1));
@@ -197,61 +209,47 @@ async function onRetire(v: Vehicle) {
     </div>
 
     <DataTable
+      :columns="columns"
+      :rows="pageRows"
+      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load vehicles') : null"
       :retrying="isFetching"
-      :empty="filtered.length === 0"
+      :sort="sort"
       :empty-text="(vehicles ?? []).length === 0 ? 'No vehicles yet.' : 'No vehicles match these filters.'"
-      :skeleton-cols="10"
+      @sort="onSort"
       @retry="refetch"
     >
-      <template #head>
-        <tr>
-          <SortableTh label="Unit" sort-key="unit_number" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[5rem]" @sort="onSort" />
-          <th class="px-6 py-3 font-medium min-w-[10rem]">Vehicle</th>
-          <th class="px-6 py-3 font-medium min-w-[5rem]">Fuel</th>
-          <SortableTh label="Tank" sort-key="tank_capacity_gal" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-          <SortableTh label="Baseline MPG" sort-key="baseline_mpg" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[9rem]" @sort="onSort" />
-          <SortableTh label="Fuel level" sort-key="samsara_fuel_percent" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[7rem]" @sort="onSort" />
-          <SortableTh label="Odometer" sort-key="current_odometer" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[8rem]" @sort="onSort" />
-          <th class="px-6 py-3 font-medium min-w-[8rem]">Driver</th>
-          <SortableTh label="Status" sort-key="status" :active="sort.key" :dir="sort.dir" th-class="px-6 py-3 font-medium min-w-[6rem]" @sort="onSort" />
-          <th class="px-6 py-3 w-12"></th>
-        </tr>
+      <template #cell-unit_number="{ row }">
+        <RouterLink :to="`/vehicles/${row.id}`" class="font-medium text-brand-600 hover:text-brand-500">{{ row.unit_number }}</RouterLink>
       </template>
-      <tr v-for="v in pageRows" :key="v.id" class="hover:bg-surface-subtle">
-        <td class="px-6 py-3 font-medium">
-          <RouterLink :to="`/vehicles/${v.id}`" class="text-brand-600 hover:text-brand-500">{{ v.unit_number }}</RouterLink>
-        </td>
-        <td class="px-6 py-3 text-ink-secondary">{{ [v.year, v.make, v.model].filter(Boolean).join(" ") || "—" }}</td>
-        <td class="px-6 py-3 capitalize text-ink-secondary">{{ v.fuel_type }}</td>
-        <td class="px-6 py-3 text-ink-secondary">
-          <span v-if="Number(v.tank_capacity_gal) > 0">{{ v.tank_capacity_gal }} gal</span>
-          <span v-else-if="needsSetup(v)" :class="[BADGE_BASE, toneClass('warning')]">Set tank</span>
-          <span v-else class="text-ink-subtle">—</span>
-        </td>
-        <td class="px-6 py-3 text-ink-secondary">
-          <span v-if="v.baseline_mpg">{{ v.baseline_mpg }}</span>
-          <span v-else-if="needsSetup(v)" :class="[BADGE_BASE, toneClass('warning')]">Set MPG</span>
-          <span v-else class="text-ink-subtle">—</span>
-        </td>
-        <td class="px-6 py-3 text-ink-secondary">
-          <span v-if="v.samsara_fuel_percent != null">{{ v.samsara_fuel_percent }}%</span>
-          <span v-else class="text-ink-subtle">—</span>
-        </td>
-        <td class="px-6 py-3 text-ink-secondary">
-          <span v-if="Number(v.current_odometer) > 0">{{ Math.round(Number(v.current_odometer)).toLocaleString() }} mi</span>
-          <span v-else class="text-ink-subtle">—</span>
-        </td>
-        <td class="px-6 py-3 text-ink-secondary">{{ driverName(v.assigned_driver_id) }}</td>
-        <td class="px-6 py-3"><StatusBadge :status="v.status" /></td>
-        <td class="px-6 py-3 text-right" @click.stop>
-          <KebabMenu v-if="session.canManage">
-            <button class="kebab-item" @click="openEdit(v)">Edit vehicle</button>
-            <button v-if="v.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(v)">Retire vehicle</button>
-          </KebabMenu>
-        </td>
-      </tr>
+      <template #cell-vehicle="{ row }">{{ [row.year, row.make, row.model].filter(Boolean).join(" ") || "—" }}</template>
+      <template #cell-tank_capacity_gal="{ row }">
+        <span v-if="Number(row.tank_capacity_gal) > 0">{{ row.tank_capacity_gal }} gal</span>
+        <span v-else-if="needsSetup(row)" :class="[BADGE_BASE, toneClass('warning')]">Set tank</span>
+        <span v-else class="text-ink-subtle">—</span>
+      </template>
+      <template #cell-baseline_mpg="{ row }">
+        <span v-if="row.baseline_mpg">{{ row.baseline_mpg }}</span>
+        <span v-else-if="needsSetup(row)" :class="[BADGE_BASE, toneClass('warning')]">Set MPG</span>
+        <span v-else class="text-ink-subtle">—</span>
+      </template>
+      <template #cell-samsara_fuel_percent="{ value }">
+        <span v-if="value != null">{{ value }}%</span>
+        <span v-else class="text-ink-subtle">—</span>
+      </template>
+      <template #cell-current_odometer="{ row }">
+        <span v-if="Number(row.current_odometer) > 0">{{ Math.round(Number(row.current_odometer)).toLocaleString() }} mi</span>
+        <span v-else class="text-ink-subtle">—</span>
+      </template>
+      <template #cell-assigned_driver_id="{ row }">{{ driverName(row.assigned_driver_id) }}</template>
+      <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
+      <template #actions="{ row }">
+        <KebabMenu v-if="session.canManage">
+          <button class="kebab-item" @click="openEdit(row)">Edit vehicle</button>
+          <button v-if="row.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(row)">Retire vehicle</button>
+        </KebabMenu>
+      </template>
       <template #footer>
         <TablePagination
           :page="page"

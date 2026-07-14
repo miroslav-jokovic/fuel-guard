@@ -8,6 +8,7 @@ import VehicleSelect from "@/components/VehicleSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
@@ -79,6 +80,19 @@ const SOURCE: Record<string, { label: string; cls: string; title: string }> = {
   reconstructed: { label: "Est.", cls: toneClass("warning"), title: "Reconstructed from the nearest reading + driven distance — lowest confidence." },
 };
 const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: toneClass("neutral"), title: "Unknown source" };
+
+const columns: DataTableColumn[] = [
+  { key: "fueledAt", label: "Date", cellClass: "text-ink-secondary" },
+  { key: "unit", label: "Truck", cellClass: "font-medium text-ink" },
+  { key: "driverName", label: "Driver", cellClass: "text-ink-secondary" },
+  { key: "entered", label: "Entered", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "samsara", label: "Samsara", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "samsaraOdometerSource", label: "Source" },
+  { key: "offset", label: "Offset", numeric: true, cellClass: "text-ink-muted" },
+  { key: "diff", label: "Difference", numeric: true },
+  { key: "timeBasis", label: "Time basis" },
+  { key: "locationConfidence", label: "Location" },
+];
 </script>
 
 <template>
@@ -99,11 +113,12 @@ const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: ton
     </TableToolbar>
 
     <DataTable
+      :columns="columns"
+      :rows="paged"
+      row-key="id"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
       :retrying="isFetching"
-      :empty="filtered.length === 0"
-      :skeleton-cols="10"
       @retry="refetch"
     >
       <template #empty>
@@ -113,38 +128,29 @@ const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: ton
           to re-anchor odometer readings, then check <RouterLink to="/coverage" class="text-brand-600 hover:text-brand-500">Coverage</RouterLink> to see how many fills could be verified.
         </p>
       </template>
-      <template #head>
-        <tr>
-          <th class="px-4 py-3 font-medium">Date</th>
-          <th class="px-4 py-3 font-medium">Truck</th>
-          <th class="px-4 py-3 font-medium">Driver</th>
-          <th class="px-4 py-3 font-medium text-right">Entered</th>
-          <th class="px-4 py-3 font-medium text-right">Samsara</th>
-          <th class="px-4 py-3 font-medium">Source</th>
-          <th class="px-4 py-3 font-medium text-right">Offset</th>
-          <th class="px-4 py-3 font-medium text-right">Difference</th>
-          <th class="px-4 py-3 font-medium">Time basis</th>
-          <th class="px-4 py-3 font-medium">Location</th>
-        </tr>
+      <template #cell-fueledAt="{ value }">{{ fmtDate(value) }}</template>
+      <template #cell-unit="{ row }">
+        <RouterLink v-if="row.vehicleId" :to="`/vehicles/${row.vehicleId}`" class="text-brand-600 hover:text-brand-500">{{ row.unit ?? "—" }}</RouterLink>
+        <span v-else>{{ row.unit ?? "—" }}</span>
       </template>
-      <tr v-for="r in paged" :key="r.id">
-        <td class="px-4 py-3 text-ink-secondary">{{ fmtDate(r.fueledAt) }}</td>
-        <td class="px-4 py-3 font-medium text-ink">
-          <RouterLink v-if="r.vehicleId" :to="`/vehicles/${r.vehicleId}`" class="text-brand-600 hover:text-brand-500">{{ r.unit ?? "—" }}</RouterLink>
-          <span v-else>{{ r.unit ?? "—" }}</span>
-        </td>
-        <td class="px-4 py-3 text-ink-secondary">{{ r.driverName ?? "—" }}</td>
-        <td class="px-4 py-3 text-right text-ink-secondary">{{ fmtOdo(r.entered) }}</td>
-        <td class="px-4 py-3 text-right text-ink-secondary">
-          {{ fmtOdo(r.samsara) }}
-          <div v-if="r.samsaraOdometerAt" class="text-xs font-normal text-ink-subtle">read {{ fmtDateTime(r.samsaraOdometerAt) }}</div>
-        </td>
-        <td class="px-4 py-3"><span :class="[BADGE_BASE, source(r.samsaraOdometerSource).cls]" :title="source(r.samsaraOdometerSource).title">{{ source(r.samsaraOdometerSource).label }}</span></td>
-        <td class="px-4 py-3 text-right text-ink-muted">{{ r.offset ? signed(r.offset) : "—" }}</td>
-        <td class="px-4 py-3 text-right font-semibold" :class="Math.abs(r.diff) > tolerance * 3 ? 'text-danger-700' : 'text-warning-600'">{{ signed(r.diff) }}</td>
-        <td class="px-4 py-3"><span :class="[BADGE_BASE, basis(r.timeBasis).cls]">{{ basis(r.timeBasis).label }}</span></td>
-        <td class="px-4 py-3 text-xs font-semibold" :class="conf(r.locationConfidence).cls">{{ conf(r.locationConfidence).label }}</td>
-      </tr>
+      <template #cell-entered="{ value }">{{ fmtOdo(value) }}</template>
+      <template #cell-samsara="{ row }">
+        {{ fmtOdo(row.samsara) }}
+        <div v-if="row.samsaraOdometerAt" class="text-xs font-normal text-ink-subtle">read {{ fmtDateTime(row.samsaraOdometerAt) }}</div>
+      </template>
+      <template #cell-samsaraOdometerSource="{ value }">
+        <span :class="[BADGE_BASE, source(value).cls]" :title="source(value).title">{{ source(value).label }}</span>
+      </template>
+      <template #cell-offset="{ value }">{{ value ? signed(value) : "—" }}</template>
+      <template #cell-diff="{ row }">
+        <span class="font-semibold" :class="Math.abs(row.diff) > tolerance * 3 ? 'text-danger-700' : 'text-warning-600'">{{ signed(row.diff) }}</span>
+      </template>
+      <template #cell-timeBasis="{ value }">
+        <span :class="[BADGE_BASE, basis(value).cls]">{{ basis(value).label }}</span>
+      </template>
+      <template #cell-locationConfidence="{ value }">
+        <span class="text-xs font-semibold" :class="conf(value).cls">{{ conf(value).label }}</span>
+      </template>
       <template #footer>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
       </template>

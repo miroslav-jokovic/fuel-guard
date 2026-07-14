@@ -213,17 +213,17 @@ const EXPORTS = [
             leave-to-class="scale-95 opacity-0"
           >
             <MenuItems
-              class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-lg bg-surface p-1 shadow-lg ring-1 ring-edge focus:outline-none"
+              class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge focus:outline-none"
             >
               <MenuItem v-for="exp in EXPORTS" :key="exp.label" v-slot="{ active }">
                 <button
                   type="button"
-                  :class="['flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left', active ? 'bg-surface-subtle' : '']"
+                  :class="['kebab-item flex items-start gap-3', active ? 'bg-surface-subtle' : '']"
                   @click="exp.run()"
                 >
                   <component :is="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
                   <span>
-                    <span class="block text-sm font-medium text-ink">{{ exp.label }}</span>
+                    <span class="block font-medium text-ink">{{ exp.label }}</span>
                     <span class="block text-xs text-ink-muted">{{ exp.description }}</span>
                   </span>
                 </button>

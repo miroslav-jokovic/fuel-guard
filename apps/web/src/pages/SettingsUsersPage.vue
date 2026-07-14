@@ -6,6 +6,7 @@ import AppSelect from "@/components/AppSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
@@ -121,25 +122,12 @@ const filteredMembers = computed(() => {
   if (!q) return members.value;
   return members.value.filter((m) => (m.email ?? m.userId).toLowerCase().includes(q) || m.role.toLowerCase().includes(q));
 });
-const removableMembers = computed(() => filteredMembers.value.filter((m) => m.userId !== session.userId));
 
+// DataTable owns the checkboxes + select-all; bulk remove never targets yourself.
 const selectedIds = ref<Set<string>>(new Set());
-const allChecked = computed(() => removableMembers.value.length > 0 && removableMembers.value.every((m) => selectedIds.value.has(m.userId)));
-function toggleRow(id: string) {
-  const next = new Set(selectedIds.value);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  selectedIds.value = next;
-}
-function toggleAll() {
-  const next = new Set(selectedIds.value);
-  if (allChecked.value) removableMembers.value.forEach((m) => next.delete(m.userId));
-  else removableMembers.value.forEach((m) => next.add(m.userId));
-  selectedIds.value = next;
-}
 const bulkBusy = ref(false);
 async function bulkRemove() {
-  const ids = [...selectedIds.value];
+  const ids = [...selectedIds.value].filter((id) => id !== session.userId);
   if (ids.length === 0 || !confirm(`Remove ${ids.length} member${ids.length > 1 ? "s" : ""}?`)) return;
   bulkBusy.value = true;
   for (const id of ids) await apiFetch(`/api/members/${id}`, { method: "DELETE" });
@@ -148,6 +136,18 @@ async function bulkRemove() {
   toast.success("Members removed");
   await load();
 }
+
+const memberColumns: DataTableColumn[] = [
+  { key: "email", label: "Email", headerClass: "min-w-[14rem]" },
+  { key: "role", label: "Role", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary capitalize" },
+  { key: "joinedAt", label: "Joined", headerClass: "min-w-[8rem]", cellClass: "text-ink-muted" },
+];
+
+const inviteColumns: DataTableColumn[] = [
+  { key: "email", label: "Email", headerClass: "min-w-[14rem]" },
+  { key: "role", label: "Role", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary capitalize" },
+  { key: "status", label: "Status", headerClass: "min-w-[7rem]" },
+];
 
 onMounted(load);
 </script>
@@ -218,63 +218,39 @@ onMounted(load);
         </div>
       </div>
 
-      <DataTable :loading="loading" :empty="filteredMembers.length === 0" empty-text="No members match." :skeleton-cols="5">
-        <template #head>
-          <tr>
-            <th class="w-10 px-4 py-3">
-              <input type="checkbox" :checked="allChecked" class="size-4 rounded border-edge-strong accent-brand-600" @change="toggleAll" />
-            </th>
-            <th class="px-4 py-3 font-medium min-w-[14rem]">Email</th>
-            <th class="px-4 py-3 font-medium min-w-[7rem]">Role</th>
-            <th class="px-4 py-3 font-medium min-w-[8rem]">Joined</th>
-            <th class="px-4 py-3 w-12"></th>
-          </tr>
+      <DataTable
+        :columns="memberColumns"
+        :rows="filteredMembers"
+        row-key="userId"
+        :loading="loading"
+        empty-text="No members match."
+        selectable
+        :selected="selectedIds"
+        @update:selected="selectedIds = $event"
+      >
+        <template #cell-email="{ row }">{{ row.email ?? row.userId }}</template>
+        <template #cell-joinedAt="{ row }">{{ new Date(row.joinedAt).toLocaleDateString() }}</template>
+        <template #actions="{ row }">
+          <KebabMenu v-if="row.userId !== session.userId">
+            <button class="kebab-item kebab-item-danger" @click="removeMember(row.userId)">Remove member</button>
+          </KebabMenu>
+          <span v-else class="text-xs text-ink-subtle">You</span>
         </template>
-        <tr v-for="m in filteredMembers" :key="m.userId" class="hover:bg-surface-subtle">
-          <td class="px-4 py-3">
-            <input
-              v-if="m.userId !== session.userId"
-              type="checkbox"
-              :checked="selectedIds.has(m.userId)"
-              class="size-4 rounded border-edge-strong accent-brand-600"
-              @change="toggleRow(m.userId)"
-            />
-          </td>
-          <td class="px-4 py-3 text-ink">{{ m.email ?? m.userId }}</td>
-          <td class="px-4 py-3 text-ink-secondary capitalize">{{ m.role }}</td>
-          <td class="px-4 py-3 text-ink-muted">{{ new Date(m.joinedAt).toLocaleDateString() }}</td>
-          <td class="px-4 py-3 text-right">
-            <KebabMenu v-if="m.userId !== session.userId">
-              <button class="kebab-item kebab-item-danger" @click="removeMember(m.userId)">Remove member</button>
-            </KebabMenu>
-            <span v-else class="text-xs text-ink-subtle">You</span>
-          </td>
-        </tr>
       </DataTable>
     </section>
 
     <section class="space-y-3">
       <h3 class="text-base font-semibold text-ink">Invitations</h3>
-      <DataTable :loading="loading" :empty="invites.length === 0" empty-text="No invitations yet." :skeleton-cols="4">
-        <template #head>
-          <tr>
-            <th class="px-6 py-3 font-medium min-w-[14rem]">Email</th>
-            <th class="px-6 py-3 font-medium min-w-[7rem]">Role</th>
-            <th class="px-6 py-3 font-medium min-w-[7rem]">Status</th>
-            <th class="px-6 py-3 w-12"></th>
-          </tr>
+      <DataTable :columns="inviteColumns" :rows="invites" row-key="id" :loading="loading" empty-text="No invitations yet.">
+        <template #cell-status="{ row }">
+          <span :class="[BADGE_BASE, inviteTone(row.status)]">{{ row.status }}</span>
         </template>
-        <tr v-for="inv in invites" :key="inv.id" class="hover:bg-surface-subtle">
-          <td class="px-6 py-3 text-ink">{{ inv.email }}</td>
-          <td class="px-6 py-3 text-ink-secondary capitalize">{{ inv.role }}</td>
-          <td class="px-6 py-3"><span :class="[BADGE_BASE, inviteTone(inv.status)]">{{ inv.status }}</span></td>
-          <td class="px-6 py-3 text-right">
-            <KebabMenu v-if="inv.status === 'pending' || inv.status === 'revoked' || inv.status === 'expired'">
-              <button v-if="inv.status === 'pending'" class="kebab-item kebab-item-danger" @click="revoke(inv.id)">Revoke invite</button>
-              <button v-else class="kebab-item" @click="resend(inv.id)">Resend invite</button>
-            </KebabMenu>
-          </td>
-        </tr>
+        <template #actions="{ row }">
+          <KebabMenu v-if="row.status === 'pending' || row.status === 'revoked' || row.status === 'expired'">
+            <button v-if="row.status === 'pending'" class="kebab-item kebab-item-danger" @click="revoke(row.id)">Revoke invite</button>
+            <button v-else class="kebab-item" @click="resend(row.id)">Resend invite</button>
+          </KebabMenu>
+        </template>
       </DataTable>
     </section>
   </div>

@@ -8,6 +8,7 @@ import AppSelect from "@/components/AppSelect.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { apiFetch } from "@/lib/api";
 import type { DetectionMetrics, RecallMetrics } from "@fuelguard/shared";
 import { useToastStore } from "@/stores/toast";
@@ -68,6 +69,15 @@ async function loadAccuracy() {
 const accTop = computed(() => acc.value.filter((r) => r.checked > 0).slice(0, 10));
 const accTone = (pct: number | null) =>
   pct == null ? "text-ink-subtle" : pct >= 90 ? "text-success-700" : pct >= 70 ? "text-warning-700" : "text-danger-700";
+const accColumns = computed<DataTableColumn[]>(() => [
+  { key: "label", label: by.value === "vehicle" ? "Unit" : "Driver", cellClass: "font-medium text-ink" },
+  { key: "fills", label: "Fills", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "checked", label: "Verifiable", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "mismatches", label: "Off > 5 mi", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "accuracyPct", label: "Accuracy", numeric: true },
+  { key: "avgDeviation", label: "Avg dev", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "maxDeviation", label: "Max dev", numeric: true, cellClass: "text-ink-secondary" },
+]);
 
 watch([from, to, by], loadAccuracy);
 onMounted(loadAccuracy);
@@ -83,6 +93,12 @@ async function loadMetrics() {
 }
 onMounted(loadMetrics);
 const pct = (n: number | null) => (n == null ? "—" : `${Math.round(n * 100)}%`);
+const leadColumns: DataTableColumn[] = [
+  { key: "label", label: "Signal" },
+  { key: "decided", label: "Reviewed", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "confirmed", label: "Confirmed", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "precision", label: "Precision", numeric: true },
+];
 
 // Estimated recall (from the sampled audit) — shown alongside precision to complete the accuracy picture.
 const recall = ref<RecallMetrics | null>(null);
@@ -145,21 +161,10 @@ async function sendDigest() {
 
         <div v-if="metrics.perLeadRule.length" class="mt-5">
           <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Precision by lead signal</p>
-          <DataTable :empty="metrics.perLeadRule.length === 0">
-            <template #head>
-              <tr>
-                <th class="px-6 py-3 font-medium">Signal</th>
-                <th class="px-6 py-3 font-medium text-right">Reviewed</th>
-                <th class="px-6 py-3 font-medium text-right">Confirmed</th>
-                <th class="px-6 py-3 font-medium text-right">Precision</th>
-              </tr>
+          <DataTable :columns="leadColumns" :rows="metrics.perLeadRule" row-key="ruleId" :sticky-header="false">
+            <template #cell-precision="{ value }">
+              <span class="font-medium" :class="value == null ? 'text-ink-subtle' : value >= 0.9 ? 'text-success-700' : value >= 0.75 ? 'text-warning-700' : 'text-danger-700'">{{ pct(value) }}</span>
             </template>
-            <tr v-for="r in metrics.perLeadRule" :key="r.ruleId" class="hover:bg-surface-subtle">
-              <td class="px-6 py-3 text-ink">{{ r.label }}</td>
-              <td class="px-6 py-3 text-right text-ink-secondary">{{ r.decided }}</td>
-              <td class="px-6 py-3 text-right text-ink-secondary">{{ r.confirmed }}</td>
-              <td class="px-6 py-3 text-right font-medium" :class="r.precision == null ? 'text-ink-subtle' : r.precision >= 0.9 ? 'text-success-700' : r.precision >= 0.75 ? 'text-warning-700' : 'text-danger-700'">{{ pct(r.precision) }}</td>
-            </tr>
           </DataTable>
         </div>
         <div class="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-edge-subtle pt-3 text-sm">
@@ -232,31 +237,17 @@ async function sendDigest() {
       </div>
 
       <DataTable
+        :columns="accColumns"
+        :rows="accTop"
+        row-key="key"
         :loading="accLoading"
-        :empty="accTop.length === 0"
         empty-text="No verifiable odometer data yet (needs Samsara odometer readings). Run a Backfill to populate."
-        :skeleton-cols="7"
       >
-        <template #head>
-          <tr>
-            <th class="px-6 py-3 font-medium">{{ by === "vehicle" ? "Unit" : "Driver" }}</th>
-            <th class="px-6 py-3 font-medium">Fills</th>
-            <th class="px-6 py-3 font-medium">Verifiable</th>
-            <th class="px-6 py-3 font-medium">Off &gt; 5 mi</th>
-            <th class="px-6 py-3 font-medium">Accuracy</th>
-            <th class="px-6 py-3 font-medium">Avg dev</th>
-            <th class="px-6 py-3 font-medium">Max dev</th>
-          </tr>
+        <template #cell-accuracyPct="{ value }">
+          <span class="font-medium" :class="accTone(value)">{{ value != null ? `${value}%` : "—" }}</span>
         </template>
-        <tr v-for="r in accTop" :key="r.key" class="hover:bg-surface-subtle">
-          <td class="px-6 py-3 font-medium text-ink">{{ r.label }}</td>
-          <td class="px-6 py-3 text-ink-secondary">{{ r.fills }}</td>
-          <td class="px-6 py-3 text-ink-secondary">{{ r.checked }}</td>
-          <td class="px-6 py-3 text-ink-secondary">{{ r.mismatches }}</td>
-          <td class="px-6 py-3 font-medium" :class="accTone(r.accuracyPct)">{{ r.accuracyPct != null ? `${r.accuracyPct}%` : "—" }}</td>
-          <td class="px-6 py-3 text-ink-secondary">{{ r.avgDeviation != null ? `${r.avgDeviation} mi` : "—" }}</td>
-          <td class="px-6 py-3 text-ink-secondary">{{ r.maxDeviation != null ? `${r.maxDeviation} mi` : "—" }}</td>
-        </tr>
+        <template #cell-avgDeviation="{ value }">{{ value != null ? `${value} mi` : "—" }}</template>
+        <template #cell-maxDeviation="{ value }">{{ value != null ? `${value} mi` : "—" }}</template>
       </DataTable>
     </div>
   </div>

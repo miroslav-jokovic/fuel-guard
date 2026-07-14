@@ -7,12 +7,12 @@ import { useToastStore } from "@/stores/toast";
 import { useLongIdles } from "@/features/fleet/useLongIdles";
 import { useIdleConfidence } from "@/features/fleet/useIdleConfidence";
 import TableToolbar from "@/components/TableToolbar.vue";
-import SortableTh from "@/components/SortableTh.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import AppSelect from "@/components/AppSelect.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
@@ -119,9 +119,25 @@ const drvFiltered = computed(() => {
   return q ? drivers.value.filter((d) => d.driverName.toLowerCase().includes(q)) : drivers.value;
 });
 const drvSorted = computed(() => (drvSort.value.key ? sortRows(drvFiltered.value, drvSort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]) : drvFiltered.value));
-const drvPaged = computed(() => drvSorted.value.slice((drvPage.value - 1) * PAGE_SIZE, drvPage.value * PAGE_SIZE));
 const drvRank = (i: number) => (drvPage.value - 1) * PAGE_SIZE + i + 1;
+const drvPaged = computed(() =>
+  drvSorted.value
+    .slice((drvPage.value - 1) * PAGE_SIZE, drvPage.value * PAGE_SIZE)
+    .map((d, i) => ({ ...d, rank: d.driverId === "__unattributed__" ? null : drvRank(i) })),
+);
 watch(drvFiltered, () => (drvPage.value = 1));
+
+const drvColumns: DataTableColumn[] = [
+  { key: "rank", label: "#", cellClass: "text-ink-subtle" },
+  { key: "driverName", label: "Driver" },
+  { key: "score", label: "Idle score", sortable: true, numeric: true },
+  { key: "discretionaryCost", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "discretionaryHours", label: "Avoidable hrs", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "totalIdleHours", label: "Total idle hrs", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "discretionaryPct", label: "% avoidable", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "longIdleCount", label: "Long idles (1h+)", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "trend", label: "Trend vs last week", align: "center" },
+];
 
 // ── tab 2: longest avoidable idles ───────────────────────────────────────────
 const avSearch = ref("");
@@ -151,6 +167,16 @@ const avPaged = computed(() => avSorted.value.slice((avPage.value - 1) * PAGE_SI
 function clearAv() { avSearch.value = ""; avAvoidableOnly.value = false; }
 watch(avFiltered, () => (avPage.value = 1));
 
+const avRowKey = (r: { unitNumber: string; startedAt: string; driverName: string }) => `${r.unitNumber}|${r.startedAt}|${r.driverName}`;
+const avColumns: DataTableColumn[] = [
+  { key: "driverName", label: "Driver", cellClass: "font-medium text-ink" },
+  { key: "unitNumber", label: "Truck", cellClass: "text-ink-secondary" },
+  { key: "startedAt", label: "Date", sortable: true, cellClass: "text-ink-muted" },
+  { key: "hours", label: "Hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "costUsd", label: "Estimated cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "equipment", label: "Equipment" },
+];
+
 // ── tab 3: truck idle capability ─────────────────────────────────────────────
 const capSearch = ref("");
 const capFilter = ref<string>("");
@@ -174,6 +200,14 @@ const capSorted = computed(() => (capSort.value.key ? sortRows(capFiltered.value
 const capPaged = computed(() => capSorted.value.slice((capPage.value - 1) * PAGE_SIZE, capPage.value * PAGE_SIZE));
 function clearCap() { capSearch.value = ""; capFilter.value = ""; }
 watch(capFiltered, () => (capPage.value = 1));
+
+const capColumns: DataTableColumn[] = [
+  { key: "unit_number", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
+  { key: "recorded", label: "Engine-off capable (recorded)" },
+  { key: "idle_capability", label: "What the data shows" },
+  { key: "idle_optimized_pct", label: "% time engine off/optimized", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "cross_check", label: "Cross-check", align: "center" },
+];
 </script>
 
 <template>
@@ -288,40 +322,31 @@ watch(capFiltered, () => (capPage.value = 1));
         @clear="drvSearch = ''"
       />
       <DataTable
+        :columns="drvColumns"
+        :rows="drvPaged"
+        row-key="driverId"
         :loading="isLoading"
         :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
         :retrying="isFetching"
-        :empty="drvFiltered.length === 0"
+        :sort="drvSort"
         empty-text="No idle events yet — run a Samsara sync from Settings → Data &amp; Sync to pull idling data."
-        :skeleton-cols="9"
+        :row-class="(d) => (d.driverId === '__unattributed__' ? 'bg-surface-subtle/60' : '')"
+        @sort="drvSort = toggleSort(drvSort, $event)"
         @retry="refetch"
       >
-        <template #head>
-          <tr>
-            <th class="px-6 py-3 font-medium">#</th>
-            <th class="px-6 py-3 font-medium">Driver</th>
-            <SortableTh label="Idle score" sort-key="score" :active="drvSort.key" :dir="drvSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-            <SortableTh label="Money wasted" sort-key="discretionaryCost" :active="drvSort.key" :dir="drvSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-            <SortableTh label="Avoidable hrs" sort-key="discretionaryHours" :active="drvSort.key" :dir="drvSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-            <SortableTh label="Total idle hrs" sort-key="totalIdleHours" :active="drvSort.key" :dir="drvSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-            <SortableTh label="% avoidable" sort-key="discretionaryPct" :active="drvSort.key" :dir="drvSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-            <SortableTh label="Long idles (1h+)" sort-key="longIdleCount" :active="drvSort.key" :dir="drvSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="drvSort = toggleSort(drvSort, $event)" />
-            <th class="px-6 py-3 font-medium text-center" title="Avoidable idle this week vs last week">Trend vs last week</th>
-          </tr>
+        <template #cell-driverName="{ row }">
+          <span class="font-medium" :class="row.driverId === '__unattributed__' ? 'text-ink-subtle italic' : 'text-ink'">
+            {{ row.driverName }}<span v-if="row.driverId === '__unattributed__'" class="ml-1 text-xs font-normal">(no driver assigned by Samsara)</span>
+          </span>
         </template>
-        <tr v-for="(d, i) in drvPaged" :key="d.driverId" class="hover:bg-surface-subtle" :class="d.driverId === '__unattributed__' ? 'bg-surface-subtle/60' : ''">
-          <td class="px-6 py-3 text-ink-subtle">{{ d.driverId === '__unattributed__' ? '—' : drvRank(i) }}</td>
-          <td class="px-6 py-3 font-medium" :class="d.driverId === '__unattributed__' ? 'text-ink-subtle italic' : 'text-ink'">
-            {{ d.driverName }}<span v-if="d.driverId === '__unattributed__'" class="ml-1 text-xs font-normal">(no driver assigned by Samsara)</span>
-          </td>
-          <td class="px-6 py-3 text-right font-bold tabular-nums" :class="scoreTone(d.score)">{{ d.score }}</td>
-          <td class="px-6 py-3 text-right font-semibold text-ink tabular-nums">{{ usd2(d.discretionaryCost) }}</td>
-          <td class="px-6 py-3 text-right text-ink-secondary tabular-nums">{{ d.discretionaryHours }}</td>
-          <td class="px-6 py-3 text-right text-ink-muted tabular-nums">{{ d.totalIdleHours }}</td>
-          <td class="px-6 py-3 text-right text-ink-secondary tabular-nums">{{ d.discretionaryPct }}%</td>
-          <td class="px-6 py-3 text-right text-ink-muted tabular-nums">{{ d.longIdleCount }}</td>
-          <td class="px-6 py-3 text-center font-bold" :class="trendCell(d.trend).cls" :title="trendCell(d.trend).title">{{ trendCell(d.trend).icon }}</td>
-        </tr>
+        <template #cell-score="{ row }">
+          <span class="font-bold" :class="scoreTone(row.score)">{{ row.score }}</span>
+        </template>
+        <template #cell-discretionaryCost="{ value }">{{ usd2(value) }}</template>
+        <template #cell-discretionaryPct="{ value }">{{ value }}%</template>
+        <template #cell-trend="{ row }">
+          <span class="font-bold" :class="trendCell(row.trend).cls" :title="trendCell(row.trend).title">{{ trendCell(row.trend).icon }}</span>
+        </template>
         <template #footer>
           <TablePagination :page="drvPage" :page-size="PAGE_SIZE" :total="drvFiltered.length" @update:page="drvPage = $event" />
         </template>
@@ -341,29 +366,19 @@ watch(capFiltered, () => (capPage.value = 1));
         <AppSelect v-model="avAvoidableSel" :options="avAvoidableOptions" />
       </TableToolbar>
       <DataTable
-        :empty="avFiltered.length === 0"
+        :columns="avColumns"
+        :rows="avPaged"
+        :row-key="avRowKey"
+        :sort="avSort"
         empty-text="No long avoidable idles in the last 30 days (2 hours or more)."
+        :row-class="(r) => (r.avoidable ? 'bg-danger-50/40' : '')"
+        @sort="avSort = toggleSort(avSort, $event)"
       >
-        <template #head>
-          <tr>
-            <th class="px-6 py-3 font-medium">Driver</th>
-            <th class="px-6 py-3 font-medium">Truck</th>
-            <SortableTh label="Date" sort-key="startedAt" :active="avSort.key" :dir="avSort.dir" @sort="avSort = toggleSort(avSort, $event)" />
-            <SortableTh label="Hours" sort-key="hours" :active="avSort.key" :dir="avSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="avSort = toggleSort(avSort, $event)" />
-            <SortableTh label="Estimated cost" sort-key="costUsd" :active="avSort.key" :dir="avSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="avSort = toggleSort(avSort, $event)" />
-            <th class="px-6 py-3 font-medium">Equipment</th>
-          </tr>
+        <template #cell-startedAt="{ value }">{{ dateFmt(value) }}</template>
+        <template #cell-costUsd="{ value }">{{ usd2(value) }}</template>
+        <template #cell-equipment="{ value }">
+          <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', equipBadge(value).cls]" :title="equipBadge(value).title">{{ equipBadge(value).label }}</span>
         </template>
-        <tr v-for="(r, i) in avPaged" :key="i" class="hover:bg-surface-subtle" :class="r.avoidable ? 'bg-danger-50/40' : ''">
-          <td class="px-6 py-3 font-medium text-ink">{{ r.driverName }}</td>
-          <td class="px-6 py-3 text-ink-secondary">{{ r.unitNumber }}</td>
-          <td class="px-6 py-3 text-ink-muted">{{ dateFmt(r.startedAt) }}</td>
-          <td class="px-6 py-3 text-right tabular-nums text-ink-secondary">{{ r.hours }}</td>
-          <td class="px-6 py-3 text-right tabular-nums font-semibold text-ink">{{ usd2(r.costUsd) }}</td>
-          <td class="px-6 py-3">
-            <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', equipBadge(r.equipment).cls]" :title="equipBadge(r.equipment).title">{{ equipBadge(r.equipment).label }}</span>
-          </td>
-        </tr>
         <template #footer>
           <TablePagination :page="avPage" :page-size="PAGE_SIZE" :total="avFiltered.length" @update:page="avPage = $event" />
         </template>
@@ -383,28 +398,25 @@ watch(capFiltered, () => (capPage.value = 1));
         <AppSelect v-model="capFilter" :options="capOptions" />
       </TableToolbar>
       <DataTable
-        :empty="capFiltered.length === 0"
+        :columns="capColumns"
+        :rows="capPaged"
+        row-key="unit_number"
+        :sort="capSort"
         empty-text="No trucks match. Set each truck's idle-reduction equipment on the Vehicles page; the data column fills in after a Samsara sync."
+        :row-class="(t) => (t.cross_check === 'disagree' ? 'bg-danger-50/40' : '')"
+        @sort="capSort = toggleSort(capSort, $event)"
       >
-        <template #head>
-          <tr>
-            <SortableTh label="Truck" sort-key="unit_number" :active="capSort.key" :dir="capSort.dir" @sort="capSort = toggleSort(capSort, $event)" />
-            <th class="px-6 py-3 font-medium" title="What you recorded on the Vehicles page">Engine-off capable (recorded)</th>
-            <th class="px-6 py-3 font-medium" title="Learned from the truck's engine on/off pattern">What the data shows</th>
-            <SortableTh label="% time engine off/optimized" sort-key="idle_optimized_pct" :active="capSort.key" :dir="capSort.dir" th-class="px-6 py-3 font-medium text-right" @sort="capSort = toggleSort(capSort, $event)" />
-            <th class="px-6 py-3 font-medium text-center">Cross-check</th>
-          </tr>
+        <template #cell-recorded="{ row }">
+          <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', recordedCls(row)]" title="What you recorded on the Vehicles page">{{ recordedLabel(row) }}</span>
+          <span v-if="row.has_optimized_idle === true" :class="['ml-1 inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', toneClass('success')]" title="OEM optimized idle recorded">Optimized idle</span>
         </template>
-        <tr v-for="t in capPaged" :key="t.unit_number" class="hover:bg-surface-subtle" :class="t.cross_check === 'disagree' ? 'bg-danger-50/40' : ''">
-          <td class="px-6 py-3 font-medium text-ink">{{ t.unit_number }}</td>
-          <td class="px-6 py-3">
-            <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', recordedCls(t)]">{{ recordedLabel(t) }}</span>
-            <span v-if="t.has_optimized_idle === true" :class="['ml-1 inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', toneClass('success')]" title="OEM optimized idle recorded">Optimized idle</span>
-          </td>
-          <td class="px-6 py-3"><span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', capBadge(t.idle_capability).cls]">{{ capBadge(t.idle_capability).label }}</span></td>
-          <td class="px-6 py-3 text-right tabular-nums text-ink-secondary">{{ t.idle_optimized_pct }}%</td>
-          <td class="px-6 py-3 text-center font-semibold" :class="xcheck(t.cross_check).cls" :title="xcheck(t.cross_check).title">{{ xcheck(t.cross_check).label }}</td>
-        </tr>
+        <template #cell-idle_capability="{ value }">
+          <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', capBadge(value).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(value).label }}</span>
+        </template>
+        <template #cell-idle_optimized_pct="{ value }">{{ value }}%</template>
+        <template #cell-cross_check="{ value }">
+          <span class="font-semibold" :class="xcheck(value).cls" :title="xcheck(value).title">{{ xcheck(value).label }}</span>
+        </template>
         <template #footer>
           <TablePagination :page="capPage" :page-size="PAGE_SIZE" :total="capFiltered.length" @update:page="capPage = $event" />
         </template>

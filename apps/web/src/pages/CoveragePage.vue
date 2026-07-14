@@ -4,6 +4,7 @@ import { RouterLink } from "vue-router";
 import { useDetectionCoverage } from "@/features/fuel/useDetectionCoverage";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -26,6 +27,16 @@ const fmtDateTime = (iso: string | null) =>
 // Higher coverage = greener; blind share inverts the scale.
 const covTone = (p: number) => (p >= 85 ? "text-success-700" : p >= 50 ? "text-warning-600" : "text-danger-700");
 const blindTone = (p: number) => (p <= 15 ? "text-success-700" : p <= 50 ? "text-warning-600" : "text-danger-700");
+
+const columns: DataTableColumn[] = [
+  { key: "vehicleId", label: "Truck", cellClass: "font-medium text-ink" },
+  { key: "fills", label: "Fills", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "blindFills", label: "Blind", numeric: true },
+  { key: "reconciledPct", label: "Telematics", numeric: true },
+  { key: "locationPct", label: "Location", numeric: true },
+  { key: "odometerPct", label: "Odometer", numeric: true },
+  { key: "attributedPct", label: "Attributed", numeric: true },
+];
 </script>
 
 <template>
@@ -78,36 +89,34 @@ const blindTone = (p: number) => (p <= 15 ? "text-success-700" : p <= 50 ? "text
     <div class="space-y-2">
       <p v-if="!isLoading && !isError && trucks.length > 0" class="text-xs text-ink-muted">Trucks with the biggest blind spots first — these are where detection is weakest.</p>
       <DataTable
+        :columns="columns"
+        :rows="paged"
+        row-key="vehicleId"
         :loading="isLoading"
         :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
         :retrying="isFetching"
-        :empty="trucks.length === 0"
         empty-text="No fuel activity in the last 90 days."
-        :skeleton-cols="7"
         @retry="refetch"
       >
-        <template #head>
-          <tr>
-            <th class="px-4 py-3 font-medium">Truck</th>
-            <th class="px-4 py-3 font-medium text-right">Fills</th>
-            <th class="px-4 py-3 font-medium text-right">Blind</th>
-            <th class="px-4 py-3 font-medium text-right">Telematics</th>
-            <th class="px-4 py-3 font-medium text-right">Location</th>
-            <th class="px-4 py-3 font-medium text-right">Odometer</th>
-            <th class="px-4 py-3 font-medium text-right">Attributed</th>
-          </tr>
+        <template #cell-vehicleId="{ row }">
+          <RouterLink :to="`/vehicles/${row.vehicleId}`" class="text-brand-600 hover:text-brand-500">{{ unit(row.vehicleId) }}</RouterLink>
         </template>
-        <tr v-for="t in paged" :key="t.vehicleId">
-          <td class="px-4 py-3 font-medium text-ink">
-            <RouterLink :to="`/vehicles/${t.vehicleId}`" class="text-brand-600 hover:text-brand-500">{{ unit(t.vehicleId) }}</RouterLink>
-          </td>
-          <td class="px-4 py-3 text-right text-ink-secondary">{{ t.fills.toLocaleString() }}</td>
-          <td class="px-4 py-3 text-right font-medium" :class="blindTone(t.blindPct)">{{ t.blindFills }} ({{ fmtPct(t.blindPct) }})</td>
-          <td class="px-4 py-3 text-right" :class="covTone(t.reconciledPct)">{{ fmtPct(t.reconciledPct) }}</td>
-          <td class="px-4 py-3 text-right" :class="covTone(t.locationPct)">{{ fmtPct(t.locationPct) }}</td>
-          <td class="px-4 py-3 text-right" :class="covTone(t.odometerPct)">{{ fmtPct(t.odometerPct) }}</td>
-          <td class="px-4 py-3 text-right" :class="covTone(t.attributedPct)">{{ fmtPct(t.attributedPct) }}</td>
-        </tr>
+        <template #cell-fills="{ value }">{{ value.toLocaleString() }}</template>
+        <template #cell-blindFills="{ row }">
+          <span class="font-medium" :class="blindTone(row.blindPct)">{{ row.blindFills }} ({{ fmtPct(row.blindPct) }})</span>
+        </template>
+        <template #cell-reconciledPct="{ value }">
+          <span :class="covTone(value)">{{ fmtPct(value) }}</span>
+        </template>
+        <template #cell-locationPct="{ value }">
+          <span :class="covTone(value)">{{ fmtPct(value) }}</span>
+        </template>
+        <template #cell-odometerPct="{ value }">
+          <span :class="covTone(value)">{{ fmtPct(value) }}</span>
+        </template>
+        <template #cell-attributedPct="{ value }">
+          <span :class="covTone(value)">{{ fmtPct(value) }}</span>
+        </template>
         <template #footer>
           <TablePagination :page="page" :page-size="PAGE_SIZE" :total="trucks.length" @update:page="page = $event" />
         </template>

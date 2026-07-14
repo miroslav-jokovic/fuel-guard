@@ -5,8 +5,8 @@ import { useEfsTransactions, EFS_PAGE_SIZE, type EfsFilters } from "@/features/r
 import AppSelect from "@/components/AppSelect.vue";
 import SearchInput from "@/components/SearchInput.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import SortableTh from "@/components/SortableTh.vue";
 import DataTable from "@/components/ui/DataTable.vue";
+import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
@@ -46,6 +46,32 @@ const total = computed(() => data.value?.total ?? 0);
 // Consistent numeric formatting: thousands separators, "—" for null. Money shows 2 decimals.
 const fmtNum = (v: number | null) => (v == null ? "—" : v.toLocaleString());
 const fmtMoney = (v: number | null) => (v == null ? "—" : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+
+const columns: DataTableColumn[] = [
+  {
+    key: "unit",
+    label: "Unit",
+    sortable: true,
+    headerClass: "sticky left-0 z-20 bg-surface-subtle min-w-[5rem] border-r border-edge",
+    cellClass: "sticky left-0 z-[1] border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
+  },
+  { key: "tran_date", label: "Tran Date", sortable: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
+  { key: "tran_time", label: "Time", headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
+  { key: "card_num", label: "Card #", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
+  { key: "invoice", label: "Invoice", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
+  { key: "driver_name", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "odometer", label: "Odometer", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "location_name", label: "Location", headerClass: "min-w-[12rem]", cellClass: "text-ink-secondary" },
+  { key: "city", label: "City", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "state", label: "State", headerClass: "min-w-[4rem]", cellClass: "text-ink-secondary" },
+  { key: "item", label: "Item", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
+  { key: "unit_price", label: "Unit Price", numeric: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
+  { key: "qty", label: "Qty", sortable: true, numeric: true, headerClass: "min-w-[4rem]", cellClass: "text-ink-secondary" },
+  { key: "amt", label: "Amt", sortable: true, numeric: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
+  { key: "fees", label: "Fees", numeric: true, headerClass: "min-w-[4rem]", cellClass: "text-ink-secondary" },
+  { key: "db", label: "DB", headerClass: "min-w-[4rem]", cellClass: "text-ink-secondary" },
+  { key: "currency", label: "Currency", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
+];
 </script>
 
 <template>
@@ -62,54 +88,25 @@ const fmtMoney = (v: number | null) => (v == null ? "—" : v.toLocaleString(und
     </div>
 
     <DataTable
+      :columns="columns"
+      :rows="rows"
+      row-key="id"
+      dense
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load transactions') : null"
       :retrying="isFetching"
-      :empty="rows.length === 0"
+      :sort="sort"
+      :row-class="() => 'group'"
       empty-text="No transactions match — upload an EFS Transaction report from the Import page, or adjust filters."
-      :skeleton-cols="17"
+      @sort="onSort"
       @retry="refetch"
     >
-      <template #head>
-        <tr>
-          <SortableTh label="Unit" sort-key="unit" :active="sort.key" :dir="sort.dir" th-class="sticky left-0 z-20 bg-surface-subtle px-4 py-3 font-medium min-w-[5rem] border-r border-edge" @sort="onSort" />
-          <SortableTh label="Tran Date" sort-key="tran_date" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[7rem]" @sort="onSort" />
-          <th class="px-4 py-3 font-medium min-w-[5rem]">Time</th>
-          <th class="px-4 py-3 font-medium min-w-[7rem]">Card #</th>
-          <th class="px-4 py-3 font-medium min-w-[6rem]">Invoice</th>
-          <SortableTh label="Driver" sort-key="driver_name" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[9rem]" @sort="onSort" />
-          <SortableTh label="Odometer" sort-key="odometer" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[8rem] text-right" @sort="onSort" />
-          <th class="px-4 py-3 font-medium min-w-[12rem]">Location</th>
-          <th class="px-4 py-3 font-medium min-w-[8rem]">City</th>
-          <th class="px-4 py-3 font-medium min-w-[4rem]">State</th>
-          <th class="px-4 py-3 font-medium min-w-[6rem]">Item</th>
-          <th class="px-4 py-3 font-medium min-w-[7rem] text-right">Unit Price</th>
-          <SortableTh label="Qty" sort-key="qty" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[4rem] text-right" @sort="onSort" />
-          <SortableTh label="Amt" sort-key="amt" :active="sort.key" :dir="sort.dir" th-class="px-4 py-3 font-medium min-w-[5rem] text-right" @sort="onSort" />
-          <th class="px-4 py-3 font-medium min-w-[4rem] text-right">Fees</th>
-          <th class="px-4 py-3 font-medium min-w-[4rem]">DB</th>
-          <th class="px-4 py-3 font-medium min-w-[6rem]">Currency</th>
-        </tr>
-      </template>
-      <tr v-for="t in rows" :key="t.id" class="group hover:bg-surface-subtle">
-        <td class="sticky left-0 z-[1] border-r border-edge bg-surface px-4 py-2 font-medium text-ink group-hover:bg-surface-subtle">{{ t.unit }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.tran_date }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.tran_time || stationTime(t.fueled_at, t.state) }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.card_num }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.invoice }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.driver_name }}</td>
-        <td class="px-4 py-2 text-right text-ink-secondary tabular-nums">{{ fmtNum(t.odometer) }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.location_name }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.city }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.state }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.item }}</td>
-        <td class="px-4 py-2 text-right text-ink-secondary tabular-nums">{{ fmtMoney(t.unit_price) }}</td>
-        <td class="px-4 py-2 text-right text-ink-secondary tabular-nums">{{ fmtNum(t.qty) }}</td>
-        <td class="px-4 py-2 text-right text-ink-secondary tabular-nums">{{ fmtMoney(t.amt) }}</td>
-        <td class="px-4 py-2 text-right text-ink-secondary tabular-nums">{{ fmtMoney(t.fees) }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.db }}</td>
-        <td class="px-4 py-2 text-ink-secondary">{{ t.currency }}</td>
-      </tr>
+      <template #cell-tran_time="{ row }">{{ row.tran_time || stationTime(row.fueled_at, row.state) }}</template>
+      <template #cell-odometer="{ row }">{{ fmtNum(row.odometer) }}</template>
+      <template #cell-unit_price="{ row }">{{ fmtMoney(row.unit_price) }}</template>
+      <template #cell-qty="{ row }">{{ fmtNum(row.qty) }}</template>
+      <template #cell-amt="{ row }">{{ fmtMoney(row.amt) }}</template>
+      <template #cell-fees="{ row }">{{ fmtMoney(row.fees) }}</template>
       <template #footer>
         <TablePagination
           :page="page"
