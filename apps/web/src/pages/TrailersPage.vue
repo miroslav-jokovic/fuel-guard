@@ -10,8 +10,8 @@ import {
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import AppSelect from "@/components/AppSelect.vue";
-import SearchInput from "@/components/SearchInput.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -148,13 +148,17 @@ async function onRetire(t: Trailer) {
       </template>
     </PageHeader>
 
-    <!-- Filters -->
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div class="sm:max-w-xs sm:flex-1"><SearchInput v-model="search" placeholder="Search unit, make, model, plate…" /></div>
-      <AppSelect v-model="reeferFilter" :options="reeferOptions" class="sm:w-44" />
-      <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-40" />
-      <span class="text-sm text-ink-muted sm:ml-auto">{{ filtered.length }} total</span>
-    </div>
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search unit, make, model, plate…"
+      :count="filtered.length"
+      count-label="trailers"
+    >
+      <template #filters>
+        <FilterSelect v-model="reeferFilter" label="Type" :options="reeferOptions" />
+        <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
+      </template>
+    </FilterBar>
 
     <!-- Bulk action bar -->
     <div v-if="session.canManage && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">

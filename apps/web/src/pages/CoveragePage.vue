@@ -6,6 +6,7 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
 
@@ -15,10 +16,16 @@ const { data: vehicles } = useVehiclesQuery();
 const unit = (id: string) => vehicles.value?.find((v) => v.id === id)?.unit_number ?? id;
 const trucks = computed(() => data.value?.perTruck ?? []);
 
+const search = ref("");
+const filtered = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  return q ? trucks.value.filter((t) => unit(t.vehicleId).toLowerCase().includes(q)) : trucks.value;
+});
+
 const PAGE_SIZE = 20;
 const page = ref(1);
-watch(trucks, () => (page.value = 1));
-const paged = computed(() => trucks.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+watch(filtered, () => (page.value = 1));
+const paged = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const fmtPct = (n: number) => `${Math.round(n)}%`;
 const fmtDateTime = (iso: string | null) =>
@@ -86,6 +93,13 @@ const columns: DataTableColumn[] = [
       </div>
     </BaseCard>
 
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search truck…"
+      :count="filtered.length"
+      count-label="trucks"
+    />
+
     <div class="space-y-2">
       <p v-if="!isLoading && !isError && trucks.length > 0" class="text-xs text-ink-muted">Trucks with the biggest blind spots first — these are where detection is weakest.</p>
       <DataTable
@@ -118,7 +132,7 @@ const columns: DataTableColumn[] = [
           <span :class="covTone(value)">{{ fmtPct(value) }}</span>
         </template>
         <template #footer>
-          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="trucks.length" @update:page="page = $event" />
+          <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />
         </template>
       </DataTable>
     </div>

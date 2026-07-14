@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { computed } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import { CalendarIcon, XMarkIcon } from "@heroicons/vue/20/solid";
 
@@ -19,44 +19,13 @@ const props = withDefaults(defineProps<{ from?: string; to?: string; presets?: b
 });
 const emit = defineEmits<{ "update:from": [v: string | undefined]; "update:to": [v: string | undefined] }>();
 
-/** Local-safe YYYY-MM-DD. */
-const ymd = (d: Date): string =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-const parseYmd = (s: string): Date => {
-  const [y, m, d] = s.split("-").map(Number) as [number, number, number];
-  return new Date(y, m - 1, d);
-};
-
-/**
- * Local ref holds the picker's in-progress selection.
- * NOT a computed — avoids the reactivity cascade where mid-range emissions
- * update parent props → getter re-evaluates → new array fed back to
- * VueDatePicker → picker resets and closes after the first date click.
- */
-const localDates = ref<Date[] | null>(null);
-
-watch(
-  () => [props.from, props.to] as const,
-  ([f, t]) => {
-    if (f && t) localDates.value = [parseYmd(f), parseYmd(t)];
-    else if (f) localDates.value = [parseYmd(f)];
-    else localDates.value = null;
+const model = computed<string[] | null>({
+  get: () => (props.from || props.to ? [props.from, props.to].filter((v): v is string => !!v) : null),
+  set: (v) => {
+    emit("update:from", v?.[0] ?? undefined);
+    emit("update:to", v?.[1] ?? v?.[0] ?? undefined);
   },
-  { immediate: true },
-);
-
-function onUpdate(v: Date[] | null) {
-  localDates.value = v;
-  if (!v || !v.length) {
-    emit("update:from", undefined);
-    emit("update:to", undefined);
-  } else if (v.length >= 2 && v[0] && v[1]) {
-    emit("update:from", ymd(v[0]));
-    emit("update:to", ymd(v[1]));
-  }
-  // length === 1 → start picked, waiting for end — keep picker open, no parent emit
-}
+});
 
 const lastDays = (n: number): [Date, Date] => {
   const end = new Date();
@@ -75,16 +44,15 @@ const presetDates = computed(() =>
 );
 
 /* Trigger label, e.g. "Jul 1 – Jul 13" / "Jul 13" */
-const fmtDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const fmtDay = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 const display = computed(() => {
-  if (props.from && props.to && props.from !== props.to)
-    return `${fmtDay(parseYmd(props.from))} – ${fmtDay(parseYmd(props.to))}`;
+  if (props.from && props.to && props.from !== props.to) return `${fmtDay(props.from)} – ${fmtDay(props.to)}`;
   const one = props.from ?? props.to;
-  return one ? fmtDay(parseYmd(one)) : null;
+  return one ? fmtDay(one) : null;
 });
 
 function clear() {
-  localDates.value = null;
   emit("update:from", undefined);
   emit("update:to", undefined);
 }
@@ -92,16 +60,15 @@ function clear() {
 
 <template>
   <VueDatePicker
-    :model-value="localDates"
-    range
+    v-model="model"
+    :range="{ partialRange: true }"
+    model-type="yyyy-MM-dd"
     :enable-time-picker="false"
     :preset-dates="presetDates"
     :max-date="new Date()"
-    :multi-calendars="{ solo: false }"
     auto-apply
     teleport
     :aria-labels="{ input: 'Filter by date range' }"
-    @update:model-value="onUpdate"
   >
     <template #trigger>
       <button

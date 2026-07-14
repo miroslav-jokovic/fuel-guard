@@ -7,8 +7,8 @@ import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle,
 import { useDriversQuery } from "@/features/fleet/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import AppSelect from "@/components/AppSelect.vue";
-import SearchInput from "@/components/SearchInput.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -200,13 +200,16 @@ async function onRetire(v: Vehicle) {
       </template>
     </PageHeader>
 
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div class="sm:max-w-xs sm:flex-1">
-        <SearchInput v-model="search" placeholder="Search unit, make, model, plate, VIN…" />
-      </div>
-      <AppSelect v-model="statusFilter" :options="statusOptions" class="sm:w-44" />
-      <span class="text-sm text-ink-muted sm:ml-auto">{{ filtered.length }} total</span>
-    </div>
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search unit, make, model, plate, VIN…"
+      :count="filtered.length"
+      count-label="vehicles"
+    >
+      <template #filters>
+        <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
+      </template>
+    </FilterBar>
 
     <DataTable
       :columns="columns"

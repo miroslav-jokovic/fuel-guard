@@ -5,8 +5,10 @@ import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useTrailersQuery } from "@/features/fleet/useTrailers";
 import { useDriversQuery } from "@/features/fleet/useDrivers";
-import TableToolbar from "@/components/TableToolbar.vue";
-import AppSelect from "@/components/AppSelect.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
@@ -57,7 +59,13 @@ function tankCapFor(vehicleId: string): number | null {
 
 // ── Search + pairing filter (standard toolbar) ───────────────────────────────
 const search = ref("");
-const pairing = ref<string | undefined>(undefined); // 'paired' | 'unpaired' | 'ambiguous'
+const pairing = ref(""); // '' (all) | 'paired' | 'unpaired' | 'ambiguous'
+const pairingOptions = [
+  { value: "", label: "All pairings" },
+  { value: "paired", label: "Paired (1 reefer)" },
+  { value: "unpaired", label: "Unpaired" },
+  { value: "ambiguous", label: "Ambiguous (2+ reefers)" },
+];
 const pairingOf = (vehicleId: string) => {
   const n = (reefersByVehicle.value.get(vehicleId) ?? []).length;
   return n === 0 ? "unpaired" : n === 1 ? "paired" : "ambiguous";
@@ -68,7 +76,7 @@ const anyReeferPaired = computed(() => activeAll.value.some((t) => reefersByVehi
 const activeFilterCount = computed(() => (pairing.value ? 1 : 0) + (search.value.trim() ? 1 : 0));
 function resetFilters() {
   search.value = "";
-  pairing.value = undefined;
+  pairing.value = "";
 }
 const active = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -117,25 +125,23 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <TableToolbar
-      v-model="search"
-      title="Reefer Coverage"
-      :count="active.length"
-      :subtitle="median != null ? `fleet median ${median}% reefer share` : null"
+    <PageHeader>
+      Reefer (ULSR) fuel by truck over the last 90 days<template v-if="median != null"> — fleet median {{ median }}% reefer share</template>.
+    </PageHeader>
+
+    <FilterBar
+      v-model:search="search"
       search-placeholder="Search truck, trailer or driver…"
-      :active-filter-count="activeFilterCount"
-      @clear="resetFilters"
+      :count="active.length"
+      count-label="trucks"
     >
-      <AppSelect
-        v-model="pairing"
-        :options="[
-          { value: undefined, label: 'All pairings' },
-          { value: 'paired', label: 'Paired (1 reefer)' },
-          { value: 'unpaired', label: 'Unpaired' },
-          { value: 'ambiguous', label: 'Ambiguous (2+ reefers)' },
-        ]"
-      />
-    </TableToolbar>
+      <template #filters>
+        <FilterSelect v-model="pairing" label="Pairing" :options="pairingOptions" />
+      </template>
+      <template #actions>
+        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
+      </template>
+    </FilterBar>
 
     <!-- No reefer↔truck pairing data at all → tell the user how to establish it. -->
     <div v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" class="rounded-lg bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">

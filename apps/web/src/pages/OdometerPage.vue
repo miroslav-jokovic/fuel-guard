@@ -3,13 +3,15 @@ import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useOdometerMismatches } from "@/features/fleet/useOdometerMismatches";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import TableToolbar from "@/components/TableToolbar.vue";
-import VehicleSelect from "@/components/VehicleSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useOdometerMismatches();
@@ -24,6 +26,17 @@ const search = ref("");
 const vehicleId = ref<string | undefined>(undefined);
 const from = ref<string | undefined>(undefined);
 const to = ref<string | undefined>(undefined);
+// Filter by vehicle id (what the rows carry) but show unit numbers.
+const vehicleFilter = computed<string>({
+  get: () => vehicleId.value ?? "",
+  set: (v) => (vehicleId.value = v || undefined),
+});
+const vehicleOptions = computed(() => [
+  { value: "", label: "All vehicles" },
+  ...[...(vehicles.value ?? [])]
+    .sort((a, b) => a.unit_number.localeCompare(b.unit_number))
+    .map((v) => ({ value: v.id, label: v.unit_number })),
+]);
 const activeFilterCount = computed(() => [vehicleId.value, from.value, to.value].filter(Boolean).length + (search.value.trim() ? 1 : 0));
 function resetFilters() {
   search.value = "";
@@ -97,20 +110,22 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <TableToolbar
-      v-model="search"
-      title="Odometer Mismatches"
-      :count="filtered.length"
-      :subtitle="`±${tolerance} mi tolerance`"
+    <PageHeader :description="`Driver-entered odometer readings that disagree with Samsara (±${tolerance} mi tolerance).`" />
+
+    <FilterBar
+      v-model:search="search"
       search-placeholder="Search truck or driver…"
-      :active-filter-count="activeFilterCount"
-      @clear="resetFilters"
+      :count="filtered.length"
+      count-label="readings"
     >
-      <VehicleSelect v-model="vehicleId" :vehicles="vehicles ?? []" />
-      <div class="sm:col-span-2 lg:col-span-2">
+      <template #filters>
+        <FilterSelect v-model="vehicleFilter" label="Vehicle" :options="vehicleOptions" />
         <DateRangeFilter :from="from" :to="to" @update:from="(v) => (from = v)" @update:to="(v) => (to = v)" />
-      </div>
-    </TableToolbar>
+      </template>
+      <template #actions>
+        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
+      </template>
+    </FilterBar>
 
     <DataTable
       :columns="columns"

@@ -6,14 +6,12 @@ import { useAnomaliesQuery, useAnomalyTransition, type AnomalyFilters } from "@/
 import { useAiAssessments } from "@/features/ai/useAiVerification";
 import SlideOver from "@/components/SlideOver.vue";
 import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
-import AppSelect from "@/components/AppSelect.vue";
-import VehicleSelect from "@/components/VehicleSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import SearchInput from "@/components/SearchInput.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { apiFetch } from "@/lib/api";
@@ -56,6 +54,35 @@ async function runTriage() {
 
 const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
 const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
+
+/** Two-way proxy into the filters object for one key ("" ⇄ undefined). */
+const bind = (key: "status" | "severity" | "vehicleId") =>
+  computed({
+    get: () => filters.value[key] ?? "",
+    set: (v: string) => (filters.value = { ...filters.value, [key]: v || undefined }),
+  });
+const status = bind("status");
+const severity = bind("severity");
+const vehicleId = bind("vehicleId");
+
+const statusOptions = [
+  { value: "", label: "All (active)" },
+  { value: "open", label: "Open" },
+  { value: "investigating", label: "Investigating" },
+  { value: "resolved", label: "Resolved" },
+  { value: "dismissed", label: "False alarm / Dismissed" },
+];
+const severityOptions = [
+  { value: "", label: "All severities" },
+  ...ANOMALY_SEVERITIES.map((s) => ({ value: s, label: s })),
+];
+const unitOptions = computed(() => [
+  { value: "", label: "All units" },
+  ...[...(vehicles.value ?? [])]
+    .sort((a, b) => a.unit_number.localeCompare(b.unit_number))
+    .map((v) => ({ value: v.id, label: v.unit_number })),
+]);
+
 const activeFilterCount = computed(() => {
   const f = filters.value;
   return [f.severity, f.vehicleId, f.from, f.to].filter(Boolean).length + (search.value.trim() ? 1 : 0);
@@ -155,82 +182,58 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
 
 <template>
   <div class="space-y-6">
-    <!-- Filter bar -->
-    <BaseCard padding="sm">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 class="text-sm font-semibold text-ink">
-          Alerts
-          <span class="ml-1 font-normal text-ink-subtle">· {{ total }}</span>
-          <span v-if="activeFilterCount" class="ml-1 font-normal text-brand-600">· {{ activeFilterCount }} filter{{ activeFilterCount > 1 ? "s" : "" }}</span>
-        </h2>
-        <div class="flex items-center gap-2">
-          <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
-          <BaseButton
-            v-if="session.canManage"
-            size="sm"
-            :disabled="triaging"
-            title="Run the AI investigator across open cases and rank them by theft likelihood"
-            @click="runTriage"
-          >
-            {{ triaging ? "Triaging…" : "AI triage" }}
-          </BaseButton>
-          <BaseButton
-            v-if="session.canManage"
-            variant="ghost"
-            size="sm"
-            to="/settings/data"
-            title="Rebuild and Re-sync Samsara moved to Settings → Data & Sync (with live progress)"
-          >
-            Rebuild / Re-sync →
-          </BaseButton>
-        </div>
-      </div>
+    <!-- Tabs: all alerts vs reefer-fueling cases -->
+    <div class="flex gap-1 border-b border-edge text-sm">
+      <button
+        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
+        :class="!filters.reeferOnly ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
+        @click="filters = { ...filters, reeferOnly: undefined }"
+      >
+        All alerts
+      </button>
+      <button
+        class="-mb-px border-b-2 px-3 py-1.5 font-medium"
+        :class="filters.reeferOnly ? 'border-info-600 text-info-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
+        @click="filters = { ...filters, reeferOnly: true }"
+      >
+        Reefer fueling
+      </button>
+    </div>
 
-      <!-- Tabs: all alerts vs reefer-fueling cases -->
-      <div class="mt-3 flex gap-1 border-b border-edge text-sm">
-        <button
-          class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-          :class="!filters.reeferOnly ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
-          @click="filters = { ...filters, reeferOnly: undefined }"
-        >
-          All alerts
-        </button>
-        <button
-          class="-mb-px border-b-2 px-3 py-1.5 font-medium"
-          :class="filters.reeferOnly ? 'border-info-600 text-info-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
-          @click="filters = { ...filters, reeferOnly: true }"
-        >
-          Reefer fueling
-        </button>
-      </div>
-
-      <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="sm:col-span-2 lg:col-span-1">
-          <SearchInput v-model="search" placeholder="Search message or vehicle…" />
-        </div>
-        <AppSelect
-          v-model="filters.status"
-          :options="[
-            { value: 'open', label: 'Open' },
-            { value: 'investigating', label: 'Investigating' },
-            { value: 'resolved', label: 'Resolved' },
-            { value: 'dismissed', label: 'False alarm / Dismissed' },
-            { value: undefined, label: 'All (active)' },
-          ]"
-        />
-        <AppSelect
-          v-model="filters.severity"
-          :options="[{ value: undefined, label: 'All severities' }, ...ANOMALY_SEVERITIES.map((s) => ({ value: s, label: s }))]"
-        />
-        <VehicleSelect
-          v-model="filters.vehicleId"
-          :vehicles="vehicles ?? []"
-        />
-      </div>
-      <div class="mt-2">
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search message or vehicle…"
+      :count="total"
+      count-label="alerts"
+    >
+      <template #filters>
+        <FilterSelect v-model="status" label="Status" :options="statusOptions" />
+        <FilterSelect v-model="severity" label="Severity" :options="severityOptions" />
+        <FilterSelect v-model="vehicleId" label="Unit" :options="unitOptions" />
         <DateRangeFilter :from="filters.from" :to="filters.to" @update:from="setFrom" @update:to="setTo" />
-      </div>
-    </BaseCard>
+      </template>
+      <template #actions>
+        <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
+        <BaseButton
+          v-if="session.canManage"
+          size="sm"
+          :disabled="triaging"
+          title="Run the AI investigator across open cases and rank them by theft likelihood"
+          @click="runTriage"
+        >
+          {{ triaging ? "Triaging…" : "AI triage" }}
+        </BaseButton>
+        <BaseButton
+          v-if="session.canManage"
+          variant="ghost"
+          size="sm"
+          to="/settings/data"
+          title="Rebuild and Re-sync Samsara moved to Settings → Data & Sync (with live progress)"
+        >
+          Rebuild / Re-sync →
+        </BaseButton>
+      </template>
+    </FilterBar>
 
     <!-- Bulk action bar -->
     <div

@@ -6,9 +6,9 @@ import { useIdleSettings, useAdoptComfortBand } from "@/features/fleet/useIdleSe
 import { useToastStore } from "@/stores/toast";
 import { useLongIdles } from "@/features/fleet/useLongIdles";
 import { useIdleConfidence } from "@/features/fleet/useIdleConfidence";
-import TableToolbar from "@/components/TableToolbar.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import AppSelect from "@/components/AppSelect.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -113,7 +113,6 @@ const trendCell = (t: string) => TREND[t] ?? TREND.na!;
 const drvSearch = ref("");
 const drvSort = ref<SortState>({ key: null, dir: "asc" });
 const drvPage = ref(1);
-const drvFilterCount = computed(() => (drvSearch.value.trim() ? 1 : 0));
 const drvFiltered = computed(() => {
   const q = drvSearch.value.trim().toLowerCase();
   return q ? drivers.value.filter((d) => d.driverName.toLowerCase().includes(q)) : drivers.value;
@@ -145,13 +144,13 @@ const avAvoidableOnly = ref(false);
 const avSort = ref<SortState>({ key: null, dir: "asc" });
 const avPage = ref(1);
 const avFilterCount = computed(() => (avSearch.value.trim() ? 1 : 0) + (avAvoidableOnly.value ? 1 : 0));
-// AppSelect works with string option values — proxy the boolean "avoidable only" flag.
+// FilterSelect works with string option values ("" = no filter) — proxy the boolean "avoidable only" flag.
 const avAvoidableOptions = [
-  { value: "all", label: "All long idles" },
+  { value: "", label: "All long idles" },
   { value: "avoidable", label: "Avoidable only (has APU)" },
 ];
 const avAvoidableSel = computed({
-  get: () => (avAvoidableOnly.value ? "avoidable" : "all"),
+  get: () => (avAvoidableOnly.value ? "avoidable" : ""),
   set: (v) => (avAvoidableOnly.value = v === "avoidable"),
 });
 const avFiltered = computed(() => {
@@ -312,14 +311,11 @@ const capColumns: DataTableColumn[] = [
 
     <!-- ── TAB: Drivers ──────────────────────────────────────────────────────── -->
     <template v-if="activeTab === 'drivers'">
-      <TableToolbar
-        v-model="drvSearch"
-        title="Driver idle scorecard"
-        :count="drvFiltered.length"
-        :subtitle="data && data.attributedPct < 100 ? `${data.attributedPct}% of wasted money traced to a driver` : null"
+      <FilterBar
+        v-model:search="drvSearch"
         search-placeholder="Search driver…"
-        :active-filter-count="drvFilterCount"
-        @clear="drvSearch = ''"
+        :count="drvFiltered.length"
+        count-label="drivers"
       />
       <DataTable
         :columns="drvColumns"
@@ -355,16 +351,19 @@ const capColumns: DataTableColumn[] = [
 
     <!-- ── TAB: Avoidable idles ──────────────────────────────────────────────── -->
     <template v-else-if="activeTab === 'avoidable'">
-      <TableToolbar
-        v-model="avSearch"
-        title="Biggest idle events to coach · last 30 days"
-        :count="avFiltered.length"
+      <FilterBar
+        v-model:search="avSearch"
         search-placeholder="Search driver or truck…"
-        :active-filter-count="avFilterCount"
-        @clear="clearAv"
+        :count="avFiltered.length"
+        count-label="sessions"
       >
-        <AppSelect v-model="avAvoidableSel" :options="avAvoidableOptions" />
-      </TableToolbar>
+        <template #filters>
+          <FilterSelect v-model="avAvoidableSel" label="Avoidable" :options="avAvoidableOptions" />
+        </template>
+        <template #actions>
+          <BaseButton v-if="avFilterCount" variant="ghost" size="sm" @click="clearAv">Clear filters</BaseButton>
+        </template>
+      </FilterBar>
       <DataTable
         :columns="avColumns"
         :rows="avPaged"
@@ -387,16 +386,19 @@ const capColumns: DataTableColumn[] = [
 
     <!-- ── TAB: Truck capability ─────────────────────────────────────────────── -->
     <template v-else>
-      <TableToolbar
-        v-model="capSearch"
-        title="Truck idle capability"
-        :count="capFiltered.length"
+      <FilterBar
+        v-model:search="capSearch"
         search-placeholder="Search truck…"
-        :active-filter-count="capFilterCount"
-        @clear="clearCap"
+        :count="capFiltered.length"
+        count-label="trucks"
       >
-        <AppSelect v-model="capFilter" :options="capOptions" />
-      </TableToolbar>
+        <template #filters>
+          <FilterSelect v-model="capFilter" label="Capability" :options="capOptions" />
+        </template>
+        <template #actions>
+          <BaseButton v-if="capFilterCount" variant="ghost" size="sm" @click="clearCap">Clear filters</BaseButton>
+        </template>
+      </FilterBar>
       <DataTable
         :columns="capColumns"
         :rows="capPaged"

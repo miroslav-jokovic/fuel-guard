@@ -8,11 +8,12 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import { useFuelTransactions, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
-import VehicleSelect from "@/components/VehicleSelect.vue";
-import AppSelect from "@/components/AppSelect.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -43,6 +44,23 @@ const tankTypeFilter = computed<string>({
   get: () => filters.value.tankType ?? "",
   set: (v) => (filters.value = { ...filters.value, tankType: v === "tractor" || v === "reefer" ? v : undefined }),
 });
+const tankTypeOptions = [
+  { value: "", label: "All fuel" },
+  { value: "tractor", label: "Tractor" },
+  { value: "reefer", label: "Reefer" },
+];
+
+// Filter by vehicle id (what the query uses) but show unit numbers.
+const vehicleFilter = computed<string>({
+  get: () => filters.value.vehicleId ?? "",
+  set: (v) => (filters.value = { ...filters.value, vehicleId: v || undefined }),
+});
+const vehicleOptions = computed(() => [
+  { value: "", label: "All vehicles" },
+  ...[...(vehicles.value ?? [])]
+    .sort((a, b) => a.unit_number.localeCompare(b.unit_number))
+    .map((v) => ({ value: v.id, label: v.unit_number })),
+]);
 
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
@@ -90,23 +108,21 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <VehicleSelect
-          v-model="filters.vehicleId"
-          :vehicles="vehicles ?? []"
-        />
-        <AppSelect
-          v-model="tankTypeFilter"
-          class="w-36"
-          :options="[{ value: '', label: 'All fuel' }, { value: 'tractor', label: 'Tractor' }, { value: 'reefer', label: 'Reefer' }]"
-        />
+    <PageHeader description="Every recorded fill-up with computed MPG and anomaly status.">
+      <template #actions>
+        <BaseButton variant="primary" @click="drawerOpen = true">
+          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> Log fill-up
+        </BaseButton>
+      </template>
+    </PageHeader>
+
+    <FilterBar :count="total" count-label="fill-ups">
+      <template #filters>
+        <FilterSelect v-model="vehicleFilter" label="Vehicle" :options="vehicleOptions" />
+        <FilterSelect v-model="tankTypeFilter" label="Fuel" :options="tankTypeOptions" />
         <DateRangeFilter :from="fromDate" :to="toDate" @update:from="setFrom" @update:to="setTo" />
-      </div>
-      <BaseButton variant="primary" @click="drawerOpen = true">
-        <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> Log fill-up
-      </BaseButton>
-    </div>
+      </template>
+    </FilterBar>
 
     <!-- Summary stats block -->
     <BaseCard v-if="!isLoading && !isError && total > 0" padding="none">
