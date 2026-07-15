@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { reactive, computed } from "vue";
-import { PlusIcon, XMarkIcon, MapIcon } from "@heroicons/vue/24/outline";
+import { reactive, computed, ref } from "vue";
+import { PlusIcon, XMarkIcon, MapIcon, MapPinIcon } from "@heroicons/vue/24/outline";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -8,7 +8,7 @@ import BaseInput from "@/components/ui/BaseInput.vue";
 import ComboSelect from "@/components/ui/ComboSelect.vue";
 import AddressInput from "./AddressInput.vue";
 import FormField from "@/components/ui/FormField.vue";
-import { HAZMAT_OPTIONS, TUNNEL_OPTIONS, type PlanRequest } from "./useFuelPlan";
+import { HAZMAT_OPTIONS, TUNNEL_OPTIONS, fetchVehicleLocation, type PlanRequest } from "./useFuelPlan";
 
 const props = defineProps<{ loading?: boolean }>();
 const emit = defineEmits<{ submit: [req: PlanRequest, labels: { origin: string; destination: string; waypoints: string[] }] }>();
@@ -30,6 +30,24 @@ const form = reactive({
 });
 
 const canSubmit = computed(() => form.vehicleId && form.origin.trim() && form.destination.trim() && !props.loading);
+
+const locating = ref(false);
+const locateError = ref("");
+async function useTruckLocation() {
+  if (!form.vehicleId || locating.value) return;
+  locating.value = true;
+  locateError.value = "";
+  try {
+    const loc = await fetchVehicleLocation(form.vehicleId);
+    if (!loc) { locateError.value = "No current location for this truck."; return; }
+    form.origin = loc.label ?? `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`;
+    form.originCoords = { lat: loc.lat, lng: loc.lng };
+  } catch {
+    locateError.value = "Could not read the truck location.";
+  } finally {
+    locating.value = false;
+  }
+}
 
 function addWaypoint() {
   form.waypoints.push("");
@@ -76,6 +94,16 @@ function submit() {
 :id="id" :model-value="form.origin" placeholder="City, ST or address"
           @update:model-value="(v: string) => { form.origin = v; form.originCoords = null; }"
           @select="(sug) => { form.origin = sug.label; form.originCoords = { lat: sug.lat, lng: sug.lng }; }" />
+        <button
+          type="button"
+          class="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="!form.vehicleId || locating"
+          @click="useTruckLocation"
+        >
+          <MapPinIcon class="size-3.5" aria-hidden="true" />
+          {{ locating ? "Locating…" : "Use truck's current location" }}
+        </button>
+        <p v-if="locateError" class="mt-1 text-xs text-danger-600">{{ locateError }}</p>
       </FormField>
       <FormField v-slot="{ id }" label="Destination">
         <AddressInput

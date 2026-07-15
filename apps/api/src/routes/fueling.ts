@@ -6,6 +6,9 @@ import { getAppLocals } from "../lib/appLocals.js";
 import { planFuelRoute, type PlanRequest } from "../services/fuelPlanning.js";
 import { geocodeSuggest } from "../services/geocode.js";
 import { ingestPilotPrices } from "../services/pilotPriceIngest.js";
+import { fetchVehicleCurrentGps } from "../lib/samsara.js";
+import { loadSamsaraToken } from "../lib/samsaraToken.js";
+import { hereReverseGeocode } from "../lib/hereGeocode.js";
 
 export function fuelingRouter(): Router {
   const router = Router();
@@ -105,6 +108,39 @@ export function fuelingRouter(): Router {
         return;
       }
       res.json(result);
+    }),
+  );
+
+  // Current GPS of the selected vehicle from Samsara, reverse-geocoded — used to prefill the plan Start.
+  router.get(
+    "/vehicle-location",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const vehicleId = String(req.query.vehicleId ?? "");
+      if (!vehicleId) {
+        res.status(400).json(apiError("bad_request", "vehicleId is required"));
+        return;
+      }
+      const { data: veh } = await admin.from("vehicles").select("samsara_vehicle_id").eq("id", vehicleId).eq("org_id", orgId).maybeSingle();
+      if (!veh?.samsara_vehicle_id) {
+        res.status(404).json(apiError("no_telematics", "This truck is not linked to Samsara."));
+        return;
+      }
+      const token = await loadSamsaraToken(admin, env, orgId);
+      if (!token) {
+        res.status(422).json(apiError("no_telematics", "Samsara is not connected."));
+        return;
+      }
+      const gps = await fetchVehicleCurrentGps(env, token, String(veh.samsara_vehicle_id));
+      if (!gps) {
+        res.status(404).json(apiError("no_fix", "No current GPS fix for this truck."));
+        return;
+      }
+      const label = await hereReverseGeocode(env, gps.lat, gps.lng);
+      res.json({ lat: gps.lat, lng: gps.lng, time: gps.time, label });
     }),
   );
 

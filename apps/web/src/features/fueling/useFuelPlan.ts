@@ -74,6 +74,13 @@ export async function fetchAddressSuggestions(q: string): Promise<AddressSuggest
   return res.ok && res.data ? res.data.suggestions : [];
 }
 
+export interface VehicleLocation { lat: number; lng: number; time: string | null; label: string | null }
+/** Current GPS of a vehicle from Samsara (reverse-geocoded). Null if unavailable. */
+export async function fetchVehicleLocation(vehicleId: string): Promise<VehicleLocation | null> {
+  const res = await apiFetch<VehicleLocation>(`/api/fueling/vehicle-location?vehicleId=${encodeURIComponent(vehicleId)}`);
+  return res.ok && res.data ? res.data : null;
+}
+
 /** Whether an interactive HERE tile map is available (key configured server-side). Falls back to false. */
 export async function fetchMapConfig(): Promise<boolean> {
   const res = await apiFetch<{ tilesEnabled: boolean }>("/api/fueling/map-config");

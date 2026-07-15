@@ -24,6 +24,20 @@ export async function hereGeocode(env: Env, query: string): Promise<{ lat: numbe
   }
 }
 
+/** Reverse-geocode a coordinate to a human address label via HERE. Best-effort. */
+export async function hereReverseGeocode(env: Env, lat: number, lng: number): Promise<string | null> {
+  if (!env.HERE_API_KEY) return null;
+  const url = `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${lat},${lng}&limit=1&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { items?: Array<{ address?: { label?: string }; title?: string }> };
+    return body.items?.[0]?.address?.label ?? body.items?.[0]?.title ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Run `worker` over `items` with bounded concurrency; preserves order. */
 export async function mapPool<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);

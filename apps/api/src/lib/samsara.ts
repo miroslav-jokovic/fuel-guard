@@ -126,6 +126,15 @@ export function makeSamsaraVehicleLister(env: Env, token: string): SamsaraVehicl
 /** Fetches the latest odometer stat for every vehicle (obd preferred, gps fallback). */
 export type SamsaraOdometerFetcher = () => Promise<{ data?: unknown[] }>;
 
+/** Current GPS snapshot for one vehicle (types=gps). Returns null if no fix is available. */
+export async function fetchVehicleCurrentGps(env: Env, token: string, vehicleId: string): Promise<{ lat: number; lng: number; time: string | null } | null> {
+  const data = await listAllPages(env, token, "/fleet/vehicles/stats", { types: "gps", vehicleIds: vehicleId });
+  const v = (data as Array<{ id?: string | number; gps?: { latitude?: number; longitude?: number; time?: string } }>).find((x) => String(x.id) === String(vehicleId));
+  const g = v?.gps;
+  if (g && Number.isFinite(g.latitude) && Number.isFinite(g.longitude)) return { lat: g.latitude!, lng: g.longitude!, time: g.time ?? null };
+  return null;
+}
+
 export function makeSamsaraOdometerFetcher(env: Env, token: string): SamsaraOdometerFetcher {
   return async () => {
     // One call for odometer + current fuel level.
