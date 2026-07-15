@@ -45,8 +45,8 @@ async function onFiles(files: File[]) {
     <div v-if="result" class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md bg-success-50 px-3 py-2 text-sm text-success-800">
       <span class="inline-flex items-center gap-1.5 font-medium"><CheckCircleIcon class="size-4" aria-hidden="true" /> Loaded {{ result.effectiveDate }}</span>
       <span>{{ result.pricesInserted.toLocaleString() }} prices</span>
-      <span v-if="result.stationsCreated">{{ result.stationsCreated.toLocaleString() }} new stations</span>
-      <span v-if="result.geocodeFailed" class="text-caution-700">{{ result.geocodeFailed }} sites unplaced</span>
+      <span>{{ result.stationsUpserted.toLocaleString() }} stations placed</span>
+      <span v-if="result.geocodeFailed" class="text-caution-700" title="These sites could not be geocoded and were skipped. Re-uploading retries them.">{{ result.geocodeFailed }} unplaced</span>
     </div>
   </BaseCard>
 </template>

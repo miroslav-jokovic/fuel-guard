@@ -7,15 +7,12 @@ import FuelPlanSummary from "@/features/fueling/FuelPlanSummary.vue";
 import RouteMap from "@/features/fueling/RouteMap.vue";
 import RouteSummary from "@/features/fueling/RouteSummary.vue";
 import RouteDirections from "@/features/fueling/RouteDirections.vue";
-import PriceUploadCard from "@/features/fueling/PriceUploadCard.vue";
-import { useSessionStore } from "@/stores/session";
 import FuelStopsTable from "@/features/fueling/FuelStopsTable.vue";
 import { useFuelPlan, type PlanRequest, type PlanResult } from "@/features/fueling/useFuelPlan";
 import { useToastStore } from "@/stores/toast";
 
 const plan = useFuelPlan();
 const toast = useToastStore();
-const session = useSessionStore();
 const result = ref<PlanResult | null>(null);
 const routeLabels = ref<{ origin: string; destination: string; waypoints: string[] } | null>(null);
 
@@ -33,8 +30,6 @@ async function onSubmit(req: PlanRequest, labels: { origin: string; destination:
 <template>
   <div class="space-y-6">
     <PageHeader description="Enter a route and a truck to get where-to-fuel suggestions — optimized for lowest net cost within the truck's range, reserve, and hours of service. Read-only: the dispatcher decides." />
-
-    <PriceUploadCard v-if="session.canManage" />
 
     <FuelPlanForm :loading="plan.isPending.value" @submit="onSubmit" />
 

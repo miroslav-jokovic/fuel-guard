@@ -24,6 +24,26 @@ export async function hereGeocode(env: Env, query: string): Promise<{ lat: numbe
   }
 }
 
+/** POI search near a focus point (discover.search.hereapi.com). Finds a named place like a Pilot Travel
+ * Center close to `at` — /geocode is address-only and cannot resolve a business name, which is why a bare
+ * "Pilot Travel Center, City, ST" query returns nothing. Best-effort: null on any failure. */
+export async function hereDiscover(env: Env, q: string, at: { lat: number; lng: number }, radiusM = 25000): Promise<{ lat: number; lng: number } | null> {
+  if (!env.HERE_API_KEY) return null;
+  const url =
+    `https://discover.search.hereapi.com/v1/discover?q=${encodeURIComponent(q)}` +
+    `&in=circle:${at.lat},${at.lng};r=${radiusM}&limit=1&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { items?: Array<{ position?: { lat?: number; lng?: number } }> };
+    const pos = body.items?.[0]?.position;
+    if (pos && Number.isFinite(pos.lat) && Number.isFinite(pos.lng)) return { lat: pos.lat!, lng: pos.lng! };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Reverse-geocode a coordinate to a human address label via HERE. Best-effort. */
 export async function hereReverseGeocode(env: Env, lat: number, lng: number): Promise<string | null> {
   if (!env.HERE_API_KEY) return null;

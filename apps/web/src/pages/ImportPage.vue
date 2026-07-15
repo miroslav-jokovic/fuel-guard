@@ -14,6 +14,9 @@ import FileDropzone from "@/components/ui/FileDropzone.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import PriceUploadCard from "@/features/fueling/PriceUploadCard.vue";
+
+const activeTab = ref<"efs" | "prices">("efs");
 
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
@@ -161,11 +164,26 @@ async function onRepair() {
 
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
-    <PageHeader>
-      Upload EFS <strong>Transaction</strong> and <strong>Reject</strong> reports (.xlsx or .csv) —
-      drop both at once and review them together. Fuel lines (diesel/gasoline) are imported; DEF,
-      scales and fees are skipped.
-    </PageHeader>
+    <PageHeader>Upload your fleet's reports and daily fuel prices.</PageHeader>
+
+    <div class="flex gap-1 rounded-lg bg-surface-muted p-1 text-sm">
+      <button
+        class="rounded-md px-3 py-1.5 font-medium transition"
+        :class="activeTab === 'efs' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+        @click="activeTab = 'efs'"
+      >EFS reports</button>
+      <button
+        class="rounded-md px-3 py-1.5 font-medium transition"
+        :class="activeTab === 'prices' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+        @click="activeTab = 'prices'"
+      >Fuel prices</button>
+    </div>
+
+    <div v-show="activeTab === 'efs'" class="space-y-6">
+      <p class="text-sm text-ink-muted">
+        Upload EFS <strong>Transaction</strong> and <strong>Reject</strong> reports (.xlsx or .csv) — drop both
+        at once and review them together. Fuel lines (diesel/gasoline) are imported; DEF, scales and fees are skipped.
+      </p>
 
     <!-- Upload -->
     <FileDropzone
@@ -304,5 +322,10 @@ async function onRepair() {
         </div>
       </BaseCard>
     </template>
+    </div>
+
+    <div v-if="activeTab === 'prices'" class="space-y-4">
+      <PriceUploadCard />
+    </div>
   </div>
 </template>

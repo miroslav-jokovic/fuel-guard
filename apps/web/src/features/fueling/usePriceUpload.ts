@@ -5,7 +5,7 @@ export interface PriceIngestResult {
   account: string | null;
   effectiveDate: string | null;
   totalRows: number;
-  stationsCreated: number;
+  stationsUpserted: number;
   pricesInserted: number;
   geocodeFailed: number;
   skipped: number;

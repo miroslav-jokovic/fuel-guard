@@ -9,6 +9,8 @@ import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
 import FormField from "@/components/ui/FormField.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import { PlusIcon, XMarkIcon } from "@heroicons/vue/24/outline";
+import { useDiscountRules, useSaveDiscountRules, DISCOUNT_TYPES, type DiscountRule } from "@/features/fueling/useDiscountRules";
 
 const { data, isLoading } = useRouteFuelSettings();
 const save = useSaveRouteFuelSettings();
@@ -49,6 +51,23 @@ async function onSave() {
     toast.success("Planned-fueling settings saved");
   } catch (e) {
     toast.error("Could not save settings", e instanceof Error ? e.message : undefined);
+  }
+}
+
+// Per-brand discount rules (independent save; separate table).
+const SELECT_CLS = "w-full rounded-md border border-edge bg-surface px-2 py-1.5 text-sm text-ink";
+const { data: discountData } = useDiscountRules();
+const saveDiscounts = useSaveDiscountRules();
+const rules = ref<DiscountRule[]>([]);
+watch(discountData, (d) => { if (d) rules.value = d.map((r) => ({ ...r })); }, { immediate: true });
+function addRule() { rules.value.push({ brand: "", type: "flat", cents_off: 0 }); }
+function removeRule(i: number) { rules.value.splice(i, 1); }
+async function onSaveDiscounts() {
+  try {
+    await saveDiscounts.mutateAsync(rules.value);
+    toast.success("Discount rules saved");
+  } catch (e) {
+    toast.error("Could not save discount rules", e instanceof Error ? e.message : undefined);
   }
 }
 
@@ -153,5 +172,33 @@ const truck: NumField[] = [
         </BaseButton>
       </div>
     </form>
+
+    <BaseCard>
+      <h3 class="text-sm font-semibold text-ink">Chain discount rules</h3>
+      <p class="mt-1 text-sm text-ink-muted">For chains that quote a posted price plus a contract discount. Pilot isn't needed here — its daily report already gives your net price.</p>
+      <div class="mt-4 space-y-3">
+        <div v-for="(r, i) in rules" :key="i" class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+          <FormField v-slot="{ id }" label="Brand">
+            <BaseInput :id="id" v-model="r.brand" placeholder="ta_petro" />
+          </FormField>
+          <FormField v-slot="{ id }" label="Type">
+            <select :id="id" v-model="r.type" :class="SELECT_CLS">
+              <option v-for="t in DISCOUNT_TYPES" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </FormField>
+          <FormField v-slot="{ id }" label="Cents off / gal">
+            <BaseInput :id="id" v-model="r.cents_off" type="number" step="0.001" inputmode="decimal" />
+          </FormField>
+          <BaseButton variant="ghost" size="sm" type="button" @click="removeRule(i)"><XMarkIcon class="size-4" /></BaseButton>
+        </div>
+        <p v-if="!rules.length" class="text-sm text-ink-muted">No discount rules — planning uses net prices as loaded.</p>
+        <div class="flex items-center justify-between">
+          <BaseButton variant="ghost" size="sm" type="button" @click="addRule"><PlusIcon class="-ml-0.5 size-4" /> Add rule</BaseButton>
+          <BaseButton variant="secondary" size="sm" type="button" :disabled="saveDiscounts.isPending.value" @click="onSaveDiscounts">
+            {{ saveDiscounts.isPending.value ? "Saving…" : "Save discount rules" }}
+          </BaseButton>
+        </div>
+      </div>
+    </BaseCard>
   </div>
 </template>
