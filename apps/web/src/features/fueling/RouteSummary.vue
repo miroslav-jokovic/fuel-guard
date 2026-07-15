@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { MapPinIcon, ClockIcon, TruckIcon, FlagIcon, BoltIcon } from "@heroicons/vue/24/outline";
+import { CheckCircleIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import type { PlanResult } from "./useFuelPlan";
 
@@ -11,6 +12,7 @@ const props = defineProps<{
   waypoints?: string[];
   stopCount?: number;
   truck?: NonNullable<PlanResult["truck"]>;
+  breakAdvice?: NonNullable<PlanResult["breakAdvice"]>;
 }>();
 
 const hoursLabel = (h: number | null | undefined) => (h == null ? "—" : `${h}h`);
@@ -94,6 +96,15 @@ const facts = computed(() => [
             <dd class="text-sm font-semibold text-ink">{{ c.value }}</dd>
           </div>
         </dl>
+      </div>
+      <div v-if="breakAdvice && breakAdvice.breakDueMiles != null" class="mt-3 text-sm">
+        <p v-if="breakAdvice.coincidesStopIndex != null" class="inline-flex items-center gap-1.5 rounded-md bg-success-50 px-2.5 py-1.5 font-medium text-success-800">
+          <CheckCircleIcon class="size-4" aria-hidden="true" />
+          Fuel stop {{ breakAdvice.coincidesStopIndex + 1 }} also covers your 30-min break (~mile {{ breakAdvice.breakDueMiles.toLocaleString() }}) — saves ~{{ breakAdvice.savesMinutes }} min.
+        </p>
+        <p v-else class="text-ink-secondary">
+          Required 30-min break due around mile {{ breakAdvice.breakDueMiles.toLocaleString() }} (~{{ breakAdvice.breakDueHours }}h in). No fuel stop lands there — plan a standalone break, or fuel near it to combine.
+        </p>
       </div>
     </div>
   </BaseCard>

@@ -10,6 +10,7 @@ import {
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { getOrComputeRoute } from "./routeGeometry.js";
+import { breakFuelAdvice } from "@fuelguard/shared";
 import { NoHereKeyError } from "../lib/here.js";
 import { geocodeAddress } from "./geocode.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
@@ -60,6 +61,7 @@ export interface PlanResult {
   };
   route?: { distanceMiles: number; durationHours: number; polyline: LatLng[]; directions: { instruction: string; miles: number }[] };
   truck?: ReturnType<typeof truckStateView>;
+  breakAdvice?: { breakDueMiles: number | null; breakDueHours: number | null; coincidesStopIndex: number | null; savesMinutes: number };
   origin?: LatLng;
   destination?: LatLng;
 }
@@ -111,6 +113,8 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   if (!truckData) return { status: "telematics_unavailable", message: "Could not read live fuel level / HOS for this truck.", route: routeView, origin, destination };
   const truck = truckData.state;
   const truckView = truckStateView(truck, truckData.hos);
+  const avgSpeedMph = routeView.durationHours > 0 ? distanceMiles / routeView.durationHours : 55;
+  const breakDue = breakFuelAdvice({ timeUntilBreakMs: truckData.hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: [] });
 
   // Single-pass bbox — a spread of Math.min(...polyline) overflows the call stack on a long route.
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
@@ -128,7 +132,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     .gte("lat", minLat - pad).lte("lat", maxLat + pad)
     .gte("lng", minLng - pad).lte("lng", maxLng + pad);
   const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
-  if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, origin, destination };
+  if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, breakAdvice: breakDue, origin, destination };
 
   const stationIds = stations.map((s) => s.id);
   const { data: priceRows } = await admin
@@ -164,11 +168,12 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     };
   });
 
+  const breakAdvice = breakFuelAdvice({ timeUntilBreakMs: truckData.hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: plan.stops.map((st) => st.station.milesAhead) });
   const planFlags = stalePrices > 0 ? [...plan.flags, "stale_prices_excluded"] : plan.flags;
   return {
     status: plan.status,
     plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
-    route: routeView, truck: truckView, origin, destination,
+    route: routeView, truck: truckView, breakAdvice, origin, destination,
   };
 }
 

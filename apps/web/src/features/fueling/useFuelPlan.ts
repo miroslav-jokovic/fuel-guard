@@ -37,6 +37,7 @@ export interface PlanResult {
     reachableMiles: number | null;
     fuelRangeMiles: number | null;
   };
+  breakAdvice?: { breakDueMiles: number | null; breakDueHours: number | null; coincidesStopIndex: number | null; savesMinutes: number };
   origin?: { lat: number; lng: number };
   destination?: { lat: number; lng: number };
 }
