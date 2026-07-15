@@ -12,7 +12,7 @@ withDefaults(defineProps<{ description?: string }>(), { description: undefined }
     <p class="text-sm text-ink-muted">
       <slot>{{ description }}</slot>
     </p>
-    <div v-if="$slots.actions" class="flex flex-wrap items-center gap-2">
+    <div v-if="$slots.actions" class="flex shrink-0 flex-wrap items-center gap-2">
       <slot name="actions" />
     </div>
   </div>

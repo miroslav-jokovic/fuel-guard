@@ -192,7 +192,7 @@ async function signOut() {
                 </button>
               </div>
               <!-- Mobile sidebar body -->
-              <div class="flex grow flex-col overflow-y-auto bg-neutral-900 px-4 pb-4">
+              <div class="flex grow flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-neutral-900 px-4 pb-4">
                 <div class="flex h-16 shrink-0 items-center gap-x-3 border-b border-neutral-800/70 px-1">
                   <AppLogo class="size-8 shrink-0" :dark="true" />
                   <img src="/logo-wordmark.png" alt="FuelGuard" class="h-5 object-contain brightness-0 invert" draggable="false" />
@@ -257,7 +257,7 @@ async function signOut() {
         </div>
 
         <!-- Nav -->
-        <nav class="flex flex-1 min-h-0 flex-col overflow-y-auto pt-3" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
+        <nav class="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-3" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
           <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
             <template v-for="group in navGroups" :key="group.label ?? '_top'">
               <li
