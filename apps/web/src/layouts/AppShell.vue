@@ -27,6 +27,7 @@ import {
   ClockIcon,
   TrophyIcon,
   MapIcon,
+  BuildingStorefrontIcon,
 } from "@heroicons/vue/24/outline";
 import type { FunctionalComponent } from "vue";
 import { useSessionStore } from "@/stores/session";
@@ -84,6 +85,7 @@ const navGroups = computed<NavGroup[]>(() =>
         { name: "Idling", to: "/idling", icon: ClockIcon, show: session.canManage || session.readOnly },
         { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: session.canManage || session.readOnly },
         { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: session.canManage },
+        { name: "Truck Stops", to: "/truck-stops", icon: BuildingStorefrontIcon, show: session.canManage || session.readOnly },
         { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: session.canManage || session.readOnly },
         { name: "Reports", to: "/reports", icon: ChartBarIcon, show: session.canManage || session.readOnly },
       ],

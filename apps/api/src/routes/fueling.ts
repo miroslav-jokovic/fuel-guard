@@ -144,5 +144,52 @@ export function fuelingRouter(): Router {
     }),
   );
 
+  // All loaded truck stops + their current net/posted price (latest per station), with staleness vs the
+  // org price-freshness window. Read-only listing for the Truck Stops page.
+  router.get(
+    "/stations",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+
+      const { data: settingsRow } = await admin.from("route_fuel_settings").select("price_ttl_hours").eq("org_id", orgId).maybeSingle();
+      const ttlHours = settingsRow?.price_ttl_hours != null ? Number(settingsRow.price_ttl_hours) : 30;
+
+      // Latest diesel price per station (paginate — a single select is capped at 1000 rows).
+      const latest = new Map<string, { net: number | null; posted: number | null; at: string }>();
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await admin
+          .from("fuel_prices")
+          .select("station_id, net_price, posted_price, observed_at")
+          .eq("org_id", orgId).eq("product", "diesel")
+          .order("observed_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) { res.status(500).json(apiError("db_error", error.message)); return; }
+        for (const p of (data ?? []) as Array<{ station_id: string; net_price: number | string | null; posted_price: number | string | null; observed_at: string }>) {
+          if (!latest.has(p.station_id)) latest.set(p.station_id, { net: p.net_price != null ? Number(p.net_price) : null, posted: p.posted_price != null ? Number(p.posted_price) : null, at: p.observed_at });
+        }
+        if (!data || data.length < PAGE) break;
+      }
+
+      const stationIds = [...latest.keys()];
+      const stations: Record<string, unknown>[] = [];
+      const now = Date.now();
+      for (let i = 0; i < stationIds.length; i += 200) {
+        const part = stationIds.slice(i, i + 200);
+        const { data } = await admin.from("fuel_stations").select("id, brand, store_number, name, state, lat, lng, exit").in("id", part);
+        for (const st of (data ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; state: string | null; lat: number | string; lng: number | string; exit: string | null }>) {
+          const pr = latest.get(st.id)!;
+          const ageHours = Math.round((now - Date.parse(pr.at)) / 3_600_000);
+          stations.push({ id: st.id, brand: st.brand, storeNumber: st.store_number, name: st.name, state: st.state, lat: Number(st.lat), lng: Number(st.lng), exit: st.exit, netPrice: pr.net, postedPrice: pr.posted, observedAt: pr.at, ageHours, stale: ageHours > ttlHours });
+        }
+      }
+      stations.sort((a, b) => String(a.state).localeCompare(String(b.state)) || String(a.name).localeCompare(String(b.name)));
+      res.json({ stations, ttlHours });
+    }),
+  );
+
   return router;
 }

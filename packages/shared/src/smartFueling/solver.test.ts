@@ -49,6 +49,19 @@ describe("planFuelStops", () => {
     for (const s of plan.stops) expect(s.arrivalGal).toBeGreaterThanOrEqual(38 - 1e-6);
   });
 
+  it("caps a CA (avoided-state) emergency fill at emergencyFillGallons and flags avoided_state_fill_used", () => {
+    // Only a CA station is reachable in the gap; the splash must be <= 50 gal, not sized to the destination.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 700,
+      stations: [st("ca1", 300, 4.9, "pilot", "CA")],
+      settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, emergencyFillGallons: 50 },
+    }));
+    expect(plan.stops[0]!.isEmergency).toBe(true);
+    expect(plan.stops[0]!.station.state).toBe("CA");
+    expect(plan.stops[0]!.fillGal).toBeLessThanOrEqual(50 + 1e-6);
+    expect(plan.flags).toContain("avoided_state_fill_used");
+  });
+
   it("uses an EMERGENCY (CA/ONE9) station only when no preferred is reachable, and flags it", () => {
     const plan = planFuelStops(input({ distanceToGoMiles: 500, stations: [st("ca", 300, 4.9, "pilot", "CA"), st("one9", 310, 4.7, "one9", "NV")] }));
     expect(plan.status).toBe("emergency_used");

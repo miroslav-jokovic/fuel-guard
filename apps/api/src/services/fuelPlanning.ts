@@ -170,11 +170,28 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
 
   const breakAdvice = breakFuelAdvice({ timeUntilBreakMs: truckData.hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: plan.stops.map((st) => st.station.milesAhead) });
   const planFlags = stalePrices > 0 ? [...plan.flags, "stale_prices_excluded"] : plan.flags;
+  const planMessage = describePlan(plan.status, planFlags);
   return {
     status: plan.status,
+    message: planMessage,
     plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
     route: routeView, truck: truckView, breakAdvice, origin, destination,
   };
+}
+
+/** Human, actionable explanation for the plan banner — especially why an infeasible/emergency plan happened. */
+function describePlan(status: string, flags: string[]): string | undefined {
+  if (status === "infeasible") {
+    if (flags.includes("no_fuel_reading_cannot_plan"))
+      return "No live fuel level for this truck, so a safe plan can't be built. Check the truck's Samsara fuel sensor or pick a truck with a current reading.";
+    return "The truck can't reach a fuel stop on this route without dropping below its safety reserve. Load stations along this corridor (or widen the corridor buffer in Settings), or the driver must refuel before continuing.";
+  }
+  if (status === "emergency_used") {
+    if (flags.includes("avoided_state_fill_used"))
+      return "Planned to fuel before the avoided state (e.g. California); a capped emergency splash inside it was still needed to reach the destination safely.";
+    return "An emergency stop was needed — no preferred station was reachable in one gap. Buying only enough to reach the next preferred stop.";
+  }
+  return undefined;
 }
 
 /** Read the truck's live fuel samples (last ~3h) + current HOS clocks and compose the TruckFuelState. */

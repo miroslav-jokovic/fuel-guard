@@ -65,6 +65,7 @@ interface GreedyResult {
   reaches: boolean;
   arrivalGal: number | null;
   usedEmergency: boolean;
+  usedAvoidedState: boolean;
   infeasible: boolean;
   droppedNoPrice: boolean;
 }
@@ -87,6 +88,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   let pos = 0;
   let gal = truck.gallonsOnHand ?? 0;
   let usedEmergency = false;
+  let usedAvoidedState = false;
   let droppedNoPrice = false;
 
   for (let guard = 0; guard <= stations.length + 1; guard++) {
@@ -94,11 +96,11 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     const rangeMi = aboveReserve > 0 ? aboveReserve / gpm : 0;
     if (pos + rangeMi + EPS >= dest) {
       const arrivalGal = gal - galFor(dest - pos);
-      return { stops, reaches: true, arrivalGal, usedEmergency, infeasible: false, droppedNoPrice };
+      return { stops, reaches: true, arrivalGal, usedEmergency, usedAvoidedState, infeasible: false, droppedNoPrice };
     }
     const reachable = stations.filter((s) => !used.has(s.id) && s.milesAhead > pos + EPS && (s.milesAhead - pos) + s.detourMiles <= rangeMi + EPS);
     if (reachable.length === 0) {
-      return { stops, reaches: false, arrivalGal: null, usedEmergency, infeasible: true, droppedNoPrice };
+      return { stops, reaches: false, arrivalGal: null, usedEmergency, usedAvoidedState, infeasible: true, droppedNoPrice };
     }
     const preferredPriced = reachable.filter((s) => isPreferred(s, cfg) && s.netPrice != null);
     if (reachable.some((s) => isPreferred(s, cfg) && s.netPrice == null)) droppedNoPrice = true;
@@ -117,7 +119,14 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     const arrivalGal = gal - galFor((pick.milesAhead - pos) + pick.detourMiles);
     const weightCap = truck.weightLegalFillGal;
     let fill: number;
-    if (emergency) {
+    const inAvoidedState = pick.state != null && cfg.avoidStates.includes(pick.state);
+    if (emergency && inAvoidedState) {
+      // Fueling in an avoided state (e.g. CA) is a last-resort splash: policy caps it at the emergency
+      // allowance so the driver buys only enough to reach the destination / an out-of-state stop. The truck
+      // should have filled before the border; this only triggers when it could not safely reach past it.
+      usedAvoidedState = true;
+      fill = Math.min(cfg.emergencyFillGallons, usable - arrivalGal, weightCap);
+    } else if (emergency) {
       // Safety-sized: reach the NEXT preferred station (or the destination) + reserve; soft target the config
       // gallons, but safety always wins; never exceed tank/weight.
       const nextPreferred = stations.find((s) => s.milesAhead > pick.milesAhead + EPS && isPreferred(s, cfg));
@@ -135,7 +144,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     pos = pick.milesAhead;
   }
   // Guard tripped without reaching (should be rare) → treat as not reachable.
-  return { stops, reaches: false, arrivalGal: null, usedEmergency, infeasible: true, droppedNoPrice };
+  return { stops, reaches: false, arrivalGal: null, usedEmergency, usedAvoidedState, infeasible: true, droppedNoPrice };
 }
 
 const cheapest = (opts: SolverStation[]): SolverStation =>
@@ -158,6 +167,7 @@ export function planFuelStops(input: FuelPlanInput): FuelPlan {
   const smart = runGreedy(input, cheapest);
   if (smart.droppedNoPrice) flags.push("some_stations_missing_price");
   if (smart.usedEmergency) flags.push("emergency_fill_used");
+  if (smart.usedAvoidedState) flags.push("avoided_state_fill_used");
 
   if (smart.infeasible) {
     return { status: "infeasible", stops: smart.stops, reachesDestination: false, totalGallons: smart.stops.reduce((t, s) => t + s.fillGal, 0), totalCost: sumCost(smart.stops), arrivalFuelPct: null, savingsVsNaive: null, flags: ["INFEASIBLE_no_reachable_fuel", ...flags, ...input.truck.flags] };
