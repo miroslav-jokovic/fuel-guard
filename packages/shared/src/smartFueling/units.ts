@@ -26,3 +26,6 @@ export const lbFromKg = (kg: number): number => kg / KG_PER_LB;
 // volume
 export const litersFromGallons = (gal: number): number => gal * LITERS_PER_GALLON;
 export const gallonsFromLiters = (l: number): number => l / LITERS_PER_GALLON;
+// time
+export const hoursFromMs = (ms: number): number => ms / 3_600_000;
+export const msFromHours = (h: number): number => h * 3_600_000;

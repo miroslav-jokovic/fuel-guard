@@ -7,3 +7,7 @@ export * from "./flexPolyline.js";
 export * from "./geo.js";
 export * from "./hereRoute.js";
 export * from "./corridor.js";
+export * from "./fuelLevel.js";
+export * from "./hos.js";
+export * from "./consumption.js";
+export * from "./truckState.js";
