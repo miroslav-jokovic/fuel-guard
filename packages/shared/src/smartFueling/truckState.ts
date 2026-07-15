@@ -106,7 +106,9 @@ export function buildTruckFuelState(input: TruckStateInput, cfg: TruckStateConfi
   const reachable =
     fuelRange == null && hosMiles == null ? null : Math.min(fuelRange ?? Infinity, hosMiles ?? Infinity);
 
-  const fillCap = weightLegalFillGal(input.loadGrossLb ?? maxGross, maxGross);
+  // Weight-legal fuel room. When the load is unknown we must NOT assume max gross (that yields 0 gal of room
+  // and blocks all fueling) — fall back to the tank size so weight only binds when a real heavy load is given.
+  const fillCap = input.loadGrossLb != null ? weightLegalFillGal(input.loadGrossLb, maxGross) : effCap;
 
   return {
     gallonsOnHand: onHand,

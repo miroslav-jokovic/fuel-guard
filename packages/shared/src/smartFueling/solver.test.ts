@@ -125,7 +125,28 @@ describe("planFuelStops — HOS integration", () => {
     expect(rest!.fillGal).toBe(0);
   });
 
-  it("rests at a rest area (no fuel) when a reset is due but no station is reachable", () => {
+  it("places the overnight reset NEAR the drive limit, not at an early cheap station", () => {
+    // Full tank (fuel not binding), ~8h drive -> reset due ~440 mi. A cheap station at 100 must NOT trigger an
+    // early overnight; the reset combines with the station near the limit (420).
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 1000,
+      stations: [st("cheap-early", 100, 3.0), st("near-limit", 420, 4.0)],
+      truck: mkTruck({ gallonsOnHand: 190 }),
+      hos: hos(8, 8),
+    }));
+    const overnight = plan.stops.find((x) => x.isOvernight);
+    expect(overnight).toBeTruthy();
+    expect(overnight!.station!.id).toBe("near-limit");
+    expect(plan.stops.some((x) => x.station?.id === "cheap-early")).toBe(false); // no wasteful early stop
+  });
+
+  it("does a real FULL fill (not 0 gallons) at a fuel stop", () => {
+    const plan = planFuelStops(input({ distanceToGoMiles: 700, stations: [st("s", 300, 3.5)], truck: mkTruck({ gallonsOnHand: 100 }) }));
+    expect(plan.stops[0]!.kind).toBe("fuel");
+    expect(plan.stops[0]!.fillGal).toBeGreaterThan(50);
+  });
+
+    it("rests at a rest area (no fuel) when a reset is due but no station is reachable", () => {
     // Full tank, ~8h drive, destination far, and NO stations at all → forced rest-only reset, still progresses.
     const plan = planFuelStops(input({
       distanceToGoMiles: 900,

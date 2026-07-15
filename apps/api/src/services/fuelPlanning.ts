@@ -134,7 +134,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   const directions = route.steps.map((st) => ({ instruction: st.instruction, miles: r1(milesFromMeters(st.lengthMeters)) }));
   const routeView = { distanceMiles: r1(distanceMiles), durationHours: r1(route.durationSeconds / 3600), polyline: route.polyline, directions };
 
-  const truckData = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg);
+  const truckData = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null);
   if (!truckData) return { status: "telematics_unavailable", message: "Could not read live fuel level / HOS for this truck.", route: routeView, origin, destination };
   const truck = truckData.state;
   const truckView = truckStateView(truck, truckData.hos);
@@ -240,7 +240,7 @@ function describePlan(status: string, flags: string[]): string | undefined {
 async function fetchTruckFuelState(
   admin: SupabaseClient, env: Env, orgId: string,
   veh: { samsara_vehicle_id: string | null; tank_capacity_gal: number | string; observed_max_fill_gal: number | string | null; baseline_mpg: number | string | null },
-  isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>,
+  isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null,
 ): Promise<{ state: TruckFuelState; hos: HosClocks } | null> {
   const token = await loadSamsaraToken(admin, env, orgId);
   if (!token || !veh.samsara_vehicle_id) return null;
@@ -262,7 +262,7 @@ async function fetchTruckFuelState(
   const state = buildTruckFuelState(
     {
       fuelSamples, tankCapacityGal: Number(veh.tank_capacity_gal), observedMaxFillGal: veh.observed_max_fill_gal != null ? Number(veh.observed_max_fill_gal) : null,
-      baselineMpg: veh.baseline_mpg != null ? Number(veh.baseline_mpg) : null, hos, isReefer, loadGrossLb: null, lastFillTimeMs: null, nowMs: now,
+      baselineMpg: veh.baseline_mpg != null ? Number(veh.baseline_mpg) : null, hos, isReefer, loadGrossLb, lastFillTimeMs: null, nowMs: now,
     },
     { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor },
   );

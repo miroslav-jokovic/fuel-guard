@@ -145,15 +145,65 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, hosLimited, infeasible, droppedNoPrice,
   });
 
+  const COMBINE_BAND_MI = 75; // a reset combines with a fuel stop within this many miles before the drive limit
+
+  // Apply a fuel stop: drive to it, fill (full / emergency-sized / CA-capped), optionally reset here.
+  const applyFuelStop = (pick: SolverStation, emergency: boolean, overnight: boolean) => {
+    const dist = pick.milesAhead - pos;
+    const arrivalGal = gal - galFor(dist + pick.detourMiles);
+    const legMs = dist * msPerMile;
+    drive -= legMs; shift -= legMs; cycle -= legMs; brk -= legMs;
+    const breakWasDue = hosKnown && brk <= H;
+    const inAvoided = pick.state != null && cfg.avoidStates.includes(pick.state);
+    let fill;
+    if (emergency && inAvoided) {
+      usedAvoidedState = true;
+      fill = Math.min(cfg.emergencyFillGallons, usable - arrivalGal, weightCap);
+    } else if (emergency) {
+      const nextPreferred = stations.find((x) => x.milesAhead > pick.milesAhead + EPS && isPreferred(x, cfg));
+      const nextDist = (nextPreferred ? nextPreferred.milesAhead + nextPreferred.detourMiles : dest) - pick.milesAhead;
+      const needed = galFor(Math.max(0, nextDist)) + reserve - arrivalGal;
+      fill = Math.min(Math.max(cfg.emergencyFillGallons, needed), usable - arrivalGal, weightCap);
+    } else {
+      fill = Math.min(usable - arrivalGal, weightCap); // full fill
+    }
+    fill = Math.max(0, fill);
+    brk = BREAK_INTERVAL_MS; // a fuel stop (>=30 min) covers the break
+    if (overnight) { drive = DRIVE_RESET_MS; shift = SHIFT_RESET_MS; usedReset = true; hosLimited = true; }
+    else { shift -= FUEL_SERVICE_MS; cycle -= FUEL_SERVICE_MS; }
+    gal = arrivalGal + fill;
+    stops.push({
+      milesAhead: pick.milesAhead, station: pick, arrivalGal, fillGal: fill, netPrice: pick.netPrice,
+      cost: pick.netPrice != null ? pick.netPrice * fill : null, isEmergency: emergency, kind: "fuel",
+      coversBreak: breakWasDue, isOvernight: overnight, driveHoursLeftOnArrival: hosKnown ? hoursFromMs(Math.min(drive, shift, cycle)) : null,
+    });
+    used.add(pick.id);
+    pos = pick.milesAhead;
+  };
+
+  const restOvernightAt = (atMile: number) => {
+    gal -= galFor(atMile - pos);
+    drive = DRIVE_RESET_MS; shift = SHIFT_RESET_MS; brk = BREAK_INTERVAL_MS; usedReset = true; hosLimited = true;
+    stops.push({ milesAhead: atMile, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: true, driveHoursLeftOnArrival: 0 });
+    pos = atMile;
+  };
+
+  const pickStop = (opts: SolverStation[]): { pick: SolverStation; emergency: boolean } => {
+    const preferredPriced = opts.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
+    if (opts.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
+    if (preferredPriced.length > 0) return { pick: select(preferredPriced), emergency: false };
+    usedEmergency = true;
+    return { pick: opts.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b)), emergency: true };
+  };
+
   for (let guard = 0; guard <= stations.length * 2 + 6; guard++) {
     const fuelMi = Math.max(0, gal - reserve) / gpm;
     const driveMi = legalDriveMsNow() * miPerMs; // Infinity when HOS unknown
-    const breakMi = brk * miPerMs; // Infinity when unknown
+    const breakMi = brk * miPerMs;
     const remaining = dest - pos;
 
     // Reached — fuel and legal drive both cover the rest of the trip.
     if (fuelMi + EPS >= remaining && driveMi + EPS >= remaining) {
-      // A 30-min break may still fall due before arrival — take it standalone (it never blocks arrival, only adds time).
       if (hosKnown && breakMi + EPS < remaining) {
         const at = pos + breakMi;
         gal -= galFor(breakMi);
@@ -166,14 +216,12 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       return done(true, false, gal - galFor(remaining));
     }
 
-    // Must stop. Hard limit on how far we can go = the tighter of fuel and legal drive.
-    const hardLimit = Math.min(fuelMi, driveMi);
-    const resetBinds = hosKnown && driveMi <= fuelMi + EPS && driveMi + EPS < remaining;
+    const windowMi = Math.min(fuelMi, driveMi);
+    const fuelBinds = fuelMi <= driveMi + EPS;
+    const inWindow = stations.filter((x) => !used.has(x.id) && x.milesAhead > pos + EPS && (x.milesAhead - pos) + x.detourMiles <= windowMi + EPS);
 
-    // If a break falls due strictly before we must fuel/reset, and no station sits inside the break window,
-    // take the break standalone at the break mile, then continue (the next pass fuels/resets).
-    const stationsInWindow = stations.filter((s) => !used.has(s.id) && s.milesAhead > pos + EPS && (s.milesAhead - pos) + s.detourMiles <= hardLimit + EPS);
-    if (hosKnown && breakMi + EPS < hardLimit && !stationsInWindow.some((s) => s.milesAhead - pos <= breakMi + EPS)) {
+    // Break falls due before we must stop and no station sits inside the break window → standalone break.
+    if (hosKnown && breakMi + EPS < windowMi && !inWindow.some((x) => x.milesAhead - pos <= breakMi + EPS)) {
       const at = pos + breakMi;
       gal -= galFor(breakMi);
       drive -= breakMi * msPerMile; shift -= breakMi * msPerMile + BREAK_MS; cycle -= breakMi * msPerMile;
@@ -183,78 +231,20 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       continue;
     }
 
-    if (stationsInWindow.length === 0) {
-      // No fuel station reachable within the binding window.
-      if (resetBinds) {
-        // Legal drive is exhausted before any station and fuel is still fine → rest at a rest area, reset, continue.
-        const at = pos + driveMi;
-        gal -= galFor(driveMi);
-        drive = DRIVE_RESET_MS; shift = SHIFT_RESET_MS; brk = BREAK_INTERVAL_MS; // cycle unchanged (10h off-duty)
-        usedReset = true; hosLimited = true;
-        stops.push({ milesAhead: at, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: true, driveHoursLeftOnArrival: 0 });
-        pos = at;
-        continue;
-      }
-      return done(false, true, null); // fuel binds and nothing reachable → cannot refuel
+    if (!fuelBinds) {
+      // The legal drive clock runs out before fuel → a 10-hour reset is due around the drive limit. Combine it
+      // with a fuel stop only if one sits close to that limit; otherwise rest at a rest area at the limit.
+      const combine = inWindow.filter((x) => x.milesAhead - pos >= driveMi - COMBINE_BAND_MI);
+      if (combine.length === 0) { restOvernightAt(pos + driveMi); continue; }
+      const { pick, emergency } = pickStop(combine);
+      applyFuelStop(pick, emergency, true);
+      continue;
     }
 
-    // Choose the fuel station.
-    const preferredPriced = stationsInWindow.filter((s) => isPreferred(s, cfg) && s.netPrice != null);
-    if (stationsInWindow.some((s) => isPreferred(s, cfg) && s.netPrice == null)) droppedNoPrice = true;
-    let pick: SolverStation;
-    let emergency = false;
-    if (preferredPriced.length > 0) {
-      pick = select(preferredPriced);
-    } else {
-      pick = stationsInWindow.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b)); // nearest of any tier
-      emergency = true;
-      usedEmergency = true;
-    }
-
-    const dist = pick.milesAhead - pos;
-    const arrivalGal = gal - galFor(dist + pick.detourMiles);
-    // Drive to the stop — advance every clock by the main-route driving time.
-    const legMs = dist * msPerMile;
-    drive -= legMs; shift -= legMs; cycle -= legMs; brk -= legMs;
-    // Tag as covering the break when the driver is within an hour of the 8h break at this stop (a fuel stop
-    // >=30 min satisfies it), so combining fuel + break here saves a separate 30-min stop.
-    const breakWasDue = hosKnown && brk <= H;
-
-    // Fill.
-    const inAvoided = pick.state != null && cfg.avoidStates.includes(pick.state);
-    let fill: number;
-    if (emergency && inAvoided) {
-      usedAvoidedState = true;
-      fill = Math.min(cfg.emergencyFillGallons, usable - arrivalGal, weightCap); // last-resort splash, capped
-    } else if (emergency) {
-      const nextPreferred = stations.find((s) => s.milesAhead > pick.milesAhead + EPS && isPreferred(s, cfg));
-      const nextDist = (nextPreferred ? nextPreferred.milesAhead + nextPreferred.detourMiles : dest) - pick.milesAhead;
-      const needed = galFor(Math.max(0, nextDist)) + reserve - arrivalGal;
-      fill = Math.min(Math.max(cfg.emergencyFillGallons, needed), usable - arrivalGal, weightCap);
-    } else {
-      fill = Math.min(usable - arrivalGal, weightCap); // full fill
-    }
-    fill = Math.max(0, fill);
-
-    // Any fuel stop (>=30 min) satisfies the 30-min break → reset the break clock.
-    brk = BREAK_INTERVAL_MS;
-    // Combine a reset here when the legal drive clock is the binder (overnight); else the stop just spends service time.
-    let isOvernight = false;
-    if (resetBinds) {
-      drive = DRIVE_RESET_MS; shift = SHIFT_RESET_MS; // cycle unchanged (off-duty)
-      isOvernight = true; usedReset = true; hosLimited = true;
-    } else {
-      shift -= FUEL_SERVICE_MS; cycle -= FUEL_SERVICE_MS;
-    }
-
-    gal = arrivalGal + fill;
-    stops.push({
-      milesAhead: pick.milesAhead, station: pick, arrivalGal, fillGal: fill, netPrice: pick.netPrice,
-      cost: pick.netPrice != null ? pick.netPrice * fill : null, isEmergency: emergency, kind: "fuel",
-      coversBreak: breakWasDue, isOvernight, driveHoursLeftOnArrival: hosKnown ? hoursFromMs(Math.min(drive, shift, cycle)) : null,
-    });
-    used.add(pick.id);
-    pos = pick.milesAhead;
+    // Fuel is the binding constraint → cheapest reachable fuel stop, full fill, no reset.
+    if (inWindow.length === 0) return done(false, true, null);
+    const { pick, emergency } = pickStop(inWindow);
+    applyFuelStop(pick, emergency, false);
   }
   return done(false, true, null); // guard tripped without reaching
 }

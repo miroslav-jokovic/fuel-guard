@@ -32,7 +32,16 @@ describe("buildTruckFuelState", () => {
     expect(st.hosReachableMiles).toBeCloseTo(55, 0);
     expect(st.reachableMiles).toBe(st.hosReachableMiles); // HOS is the binding constraint
   });
-  it("reefer shortens fuel range vs an identical dry van", () => {
+  it("weight-legal fill is NOT zero when the load is unknown (null) — else the truck can never fuel", () => {
+    const st = buildTruckFuelState({ ...base, loadGrossLb: null }, cfg);
+    expect(st.weightLegalFillGal).toBeGreaterThan(st.usableGal); // weight does not bind below tank capacity
+  });
+  it("weight-legal fill binds for a genuinely heavy load", () => {
+    const st = buildTruckFuelState({ ...base, loadGrossLb: 79900 }, cfg); // 100 lb under max -> ~14 gal room
+    expect(st.weightLegalFillGal).toBeLessThan(20);
+  });
+
+    it("reefer shortens fuel range vs an identical dry van", () => {
     const dry = buildTruckFuelState(base, cfg).fuelRangeMiles!;
     const reefer = buildTruckFuelState({ ...base, isReefer: true }, cfg).fuelRangeMiles!;
     expect(reefer).toBeLessThan(dry);
