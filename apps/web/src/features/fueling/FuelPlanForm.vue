@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, computed, ref } from "vue";
+import { reactive, computed, ref, watch } from "vue";
 import { PlusIcon, XMarkIcon, MapIcon, MapPinIcon } from "@heroicons/vue/24/outline";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import BaseCard from "@/components/ui/BaseCard.vue";
@@ -17,17 +17,35 @@ const { data: vehicles } = useVehiclesQuery();
 const trucks = computed(() => (vehicles.value ?? []).filter((v) => v.status !== "retired"));
 const truckOptions = computed(() => trucks.value.map((t) => ({ value: t.id, label: t.unit_number })));
 
-const form = reactive({
-  vehicleId: "",
-  origin: "",
-  destination: "",
-  originCoords: null as { lat: number; lng: number } | null,
-  destinationCoords: null as { lat: number; lng: number } | null,
-  waypoints: [] as string[],
-  loadGrossLb: "",
-  hazmat: "",
-  tunnelCategory: "",
-});
+const FORM_KEY = "fuelguard:fuelplan:form";
+function blankForm() {
+  return {
+    vehicleId: "",
+    origin: "",
+    destination: "",
+    originCoords: null as { lat: number; lng: number } | null,
+    destinationCoords: null as { lat: number; lng: number } | null,
+    waypoints: [] as string[],
+    loadGrossLb: "",
+    hazmat: "",
+    tunnelCategory: "",
+  };
+}
+const form = reactive(blankForm());
+// Restore the in-progress form across a page refresh (dispatchers lose nothing on reload).
+try {
+  const saved = localStorage.getItem(FORM_KEY);
+  if (saved) Object.assign(form, JSON.parse(saved));
+} catch { /* ignore corrupt storage */ }
+watch(form, () => { try { localStorage.setItem(FORM_KEY, JSON.stringify(form)); } catch { /* quota/private mode */ } }, { deep: true });
+
+/** Clear the form back to blank and drop the persisted copy (used by the page's "New plan" button). */
+function reset() {
+  Object.assign(form, blankForm());
+  locateError.value = "";
+  try { localStorage.removeItem(FORM_KEY); } catch { /* ignore */ }
+}
+defineExpose({ reset });
 
 const canSubmit = computed(() => form.vehicleId && form.origin.trim() && form.destination.trim() && !props.loading);
 
