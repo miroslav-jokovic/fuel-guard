@@ -26,10 +26,15 @@ export function legBurnGal(miles: number, driveHours: number, idleHours: number,
   return miles / m.effMpg + driveHours * m.reeferGalPerHour + idleHours * m.idleGalPerHour;
 }
 
-/** How far `gallons` take the truck, counting reefer burn WHILE driving (gal/mi = 1/mpg + reeferGph/speed). */
+/** Gallons burned per mile: fuel to move + reefer burn spread over the miles driven at avg speed. */
+export function galPerMile(m: BurnModel, avgSpeedMph = 55): number {
+  return 1 / m.effMpg + (avgSpeedMph > 0 ? m.reeferGalPerHour / avgSpeedMph : 0);
+}
+
+/** How far `gallons` take the truck, counting reefer burn WHILE driving. */
 export function rangeMilesOnGallons(gallons: number, m: BurnModel, avgSpeedMph = 55): number {
-  const galPerMile = 1 / m.effMpg + (avgSpeedMph > 0 ? m.reeferGalPerHour / avgSpeedMph : 0);
-  return galPerMile > 0 ? Math.max(0, gallons) / galPerMile : 0;
+  const gpm = galPerMile(m, avgSpeedMph);
+  return gpm > 0 ? Math.max(0, gallons) / gpm : 0;
 }
 
 /** Gallons that can be added without exceeding the legal gross weight (0 when already at/over the cap). */

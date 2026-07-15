@@ -11,3 +11,4 @@ export * from "./fuelLevel.js";
 export * from "./hos.js";
 export * from "./consumption.js";
 export * from "./truckState.js";
+export * from "./solver.js";
