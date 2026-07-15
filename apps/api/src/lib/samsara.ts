@@ -393,3 +393,24 @@ export function makeSamsaraDriverEfficiencyFetcher(
     return { data: out };
   };
 }
+
+
+/** Fetch current HOS clocks and key them by the driver's CURRENT vehicle (Samsara id) — for live route planning. */
+export function makeSamsaraHosFetcher(env: Env, token: string) {
+  return async (): Promise<Map<string, { driveRemainingMs: number | null; shiftRemainingMs: number | null; cycleRemainingMs: number | null; timeUntilBreakMs: number | null }>> => {
+    const rows = await listAllPages(env, token, "/fleet/hos/clocks", {});
+    const out = new Map<string, { driveRemainingMs: number | null; shiftRemainingMs: number | null; cycleRemainingMs: number | null; timeUntilBreakMs: number | null }>();
+    for (const r of rows as Array<{ currentVehicle?: { id?: string }; clocks?: { drive?: { driveRemainingDurationMs?: number }; shift?: { shiftRemainingDurationMs?: number }; cycle?: { cycleRemainingDurationMs?: number }; break?: { timeUntilBreakDurationMs?: number } } }>) {
+      const vid = r.currentVehicle?.id;
+      if (!vid) continue;
+      const c = r.clocks ?? {};
+      out.set(String(vid), {
+        driveRemainingMs: c.drive?.driveRemainingDurationMs ?? null,
+        shiftRemainingMs: c.shift?.shiftRemainingDurationMs ?? null,
+        cycleRemainingMs: c.cycle?.cycleRemainingDurationMs ?? null,
+        timeUntilBreakMs: c.break?.timeUntilBreakDurationMs ?? null,
+      });
+    }
+    return out;
+  };
+}

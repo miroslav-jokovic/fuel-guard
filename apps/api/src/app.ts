@@ -17,6 +17,7 @@ import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
+import { fuelingRouter } from "./routes/fueling.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./routes/jobs.js";
@@ -91,6 +92,7 @@ export function createApp(env: Env): Express {
   app.use("/api/reports", reportsRouter());
   app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
+  app.use("/api/fueling", fuelingRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth

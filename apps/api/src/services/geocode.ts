@@ -134,6 +134,12 @@ async function queryNominatim(env: Env, station: StationQuery, brandLabel: strin
   return cityHit ? { lat: cityHit.lat, lng: cityHit.lng, precision: "city" } : null;
 }
 
+/** Forward-geocode a free-text address/city to coordinates (reuses the shared Nominatim lookup + cache path). */
+export async function geocodeAddress(env: Env, query: string): Promise<{ lat: number; lng: number } | null> {
+  const hit = await lookup(env, [query]);
+  return hit ? { lat: hit.lat, lng: hit.lng } : null;
+}
+
 async function lookup(env: Env, parts: (string | null)[]): Promise<{ lat: number; lng: number; klass: string } | null> {
   const q = parts.map(norm).filter(Boolean).join(", ");
   if (!q) return null;

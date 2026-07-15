@@ -68,6 +68,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Reefer Coverage" },
   },
   {
+    path: "/fuel-planning",
+    name: "fuel-planning",
+    component: () => import("@/pages/FuelPlanningPage.vue"),
+    meta: { requiresAuth: true, title: "Fuel Planning" },
+  },
+  {
     path: "/idling",
     name: "idling",
     component: () => import("@/pages/IdlingPage.vue"),
