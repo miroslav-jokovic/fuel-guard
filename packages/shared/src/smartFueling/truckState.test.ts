@@ -6,7 +6,7 @@ const now = Date.parse("2026-07-15T14:00:00Z");
 const fresh = (value: number) => ({ time: "2026-07-15T13:45:00Z", value }); // 15 min old
 const cfg = { reservePct: 20, mpgSafetyFactor: 0.9 };
 const base = {
-  fuelSamples: [fresh(60), fresh(61), fresh(59)],
+  fuelSamples: [fresh(61), fresh(59), fresh(60)], // latest reading 60% = 120 gal of 200
   tankCapacityGal: 200,
   observedMaxFillGal: null,
   baselineMpg: 6.5,

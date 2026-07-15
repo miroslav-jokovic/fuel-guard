@@ -4,7 +4,7 @@
  * BINDING reachable miles = min(fuel, HOS). Confidence flags surface every degraded input so the solver can
  * abstain / widen reserve rather than plan on data we can't stand behind (assumption-free posture).
  */
-import { smoothFuelPercent, effectiveTankCapacityGal, gallonsOnHand, type FuelSample } from "./fuelLevel.js";
+import { currentFuelPercent, effectiveTankCapacityGal, gallonsOnHand, type FuelSample } from "./fuelLevel.js";
 import { legalDriveMs, combineTeamLegalDriveMs, hosReachableMiles, type HosClocks } from "./hos.js";
 import { effectiveMpg, rangeMilesOnGallons, weightLegalFillGal, DEFAULT_IDLE_GAL_PER_HOUR, DEFAULT_REEFER_GAL_PER_HOUR, type BurnModel } from "./consumption.js";
 
@@ -70,7 +70,7 @@ export function buildTruckFuelState(input: TruckStateInput, cfg: TruckStateConfi
   const flags: string[] = [];
 
   // Fuel level
-  const smoothed = smoothFuelPercent(input.fuelSamples);
+  const smoothed = currentFuelPercent(input.fuelSamples);
   const effCap = effectiveTankCapacityGal(input.tankCapacityGal, input.observedMaxFillGal);
   const usableGal = effCap * usableFraction;
   const onHand = gallonsOnHand(smoothed, effCap);
