@@ -29,6 +29,51 @@ export function fuelingRouter(): Router {
     }),
   );
 
+  // Tells the client whether an interactive HERE tile map is available (key present) or it should keep the
+  // dependency-free SVG route preview. Cheap, org-agnostic.
+  router.get(
+    "/map-config",
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      res.json({ tilesEnabled: Boolean(env.HERE_API_KEY) });
+    }),
+  );
+
+  // HERE raster-tile proxy: the browser map requests /api/fueling/map-tiles/{z}/{x}/{y} and we attach the
+  // HERE key server-side, so the key is never shipped to the client (same privacy posture as the geocoder).
+  // Authenticated (same-origin cookie) so the proxy is not an open tile relay against our HERE quota.
+  router.get(
+    "/map-tiles/:z/:x/:y",
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      if (!env.HERE_API_KEY) {
+        res.status(404).json(apiError("tiles_unavailable", "HERE tiles are not configured"));
+        return;
+      }
+      const z = Number(req.params.z), x = Number(req.params.x), y = Number(req.params.y);
+      if (![z, x, y].every(Number.isInteger) || z < 0 || z > 20 || x < 0 || y < 0) {
+        res.status(400).json(apiError("bad_request", "invalid tile coordinate"));
+        return;
+      }
+      const url =
+        `https://maps.hereapi.com/v3/base/mc/${z}/${x}/${y}/png?style=explore.day&size=512` +
+        `&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
+      try {
+        const upstream = await fetch(url);
+        if (!upstream.ok) {
+          res.status(502).json(apiError("tile_upstream_error", `HERE tile HTTP ${upstream.status}`));
+          return;
+        }
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "image/png");
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        res.send(buf);
+      } catch (e) {
+        res.status(502).json(apiError("tile_upstream_error", e instanceof Error ? e.message : "tile fetch failed"));
+      }
+    }),
+  );
+
   // Address autocomplete for the dispatcher form (server-proxied geocoder — no key/rate exposure to the browser).
   router.get(
     "/geocode-suggest",

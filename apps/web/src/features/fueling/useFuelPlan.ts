@@ -63,6 +63,12 @@ export async function fetchAddressSuggestions(q: string): Promise<AddressSuggest
   return res.ok && res.data ? res.data.suggestions : [];
 }
 
+/** Whether an interactive HERE tile map is available (key configured server-side). Falls back to false. */
+export async function fetchMapConfig(): Promise<boolean> {
+  const res = await apiFetch<{ tilesEnabled: boolean }>("/api/fueling/map-config");
+  return res.ok && res.data ? res.data.tilesEnabled : false;
+}
+
 /** On-demand smart-fuel plan for one truck + route (read-only). */
 export function useFuelPlan() {
   return useMutation({
