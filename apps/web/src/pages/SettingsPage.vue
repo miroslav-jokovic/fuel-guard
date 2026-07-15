@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
-import { UsersIcon, AdjustmentsHorizontalIcon, BuildingOffice2Icon, ClipboardDocumentListIcon, ArrowPathIcon, BellIcon } from "@heroicons/vue/24/outline";
+import { UsersIcon, AdjustmentsHorizontalIcon, BuildingOffice2Icon, ClipboardDocumentListIcon, ArrowPathIcon, BellIcon, MapIcon } from "@heroicons/vue/24/outline";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
@@ -11,6 +11,7 @@ const cards = [
   { name: "Users", to: "/settings/users", icon: UsersIcon, desc: "Invite teammates and manage roles.", show: session.admin },
   { name: "Data & sync", to: "/settings/data", icon: ArrowPathIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.canManage },
   { name: "Anomaly thresholds", to: "/settings/thresholds", icon: AdjustmentsHorizontalIcon, desc: "Tune the detection engine and AI settings.", show: session.admin },
+  { name: "Planned fueling", to: "/settings/fuel-planning", icon: MapIcon, desc: "Reserves, corridor width, price freshness, brand policy, and the default truck profile.", show: session.admin },
   { name: "Audit log", to: "/settings/audit", icon: ClipboardDocumentListIcon, desc: "Who did what, and when.", show: session.admin || session.readOnly },
 ].filter((c) => c.show);
 </script>

@@ -163,6 +163,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: "Driver Performance", parent: "/settings" },
   },
   {
+    path: "/settings/fuel-planning",
+    name: "fuel-planning-settings",
+    component: () => import("@/pages/FuelPlanningSettingsPage.vue"),
+    meta: { requiresAuth: true, requiresAdmin: true, title: "Planned Fueling", parent: "/settings" },
+  },
+  {
     path: "/settings/data",
     name: "data-sync",
     component: () => import("@/pages/DataSyncPage.vue"),

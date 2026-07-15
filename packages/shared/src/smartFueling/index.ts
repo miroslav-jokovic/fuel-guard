@@ -2,6 +2,7 @@ export * from "./types.js";
 export * from "./units.js";
 export * from "./discount.js";
 export * from "./settings.js";
+export * from "./settingsSchema.js";
 export * from "./sources.js";
 export * from "./flexPolyline.js";
 export * from "./geo.js";
