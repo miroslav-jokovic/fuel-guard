@@ -1,6 +1,6 @@
 // Phase 0 — Smart Fueling data-readiness probe (READ-ONLY).
 // Verifies the two hard dependencies before we build the solver:
-//   (1) fuelPercents coverage + quantization per truck, (2) HOS clocks presence/freshness + real field shapes.
+//   (1) fuel level coverage + quantization per truck, (2) HOS clocks presence/freshness + real field shapes + teams.
 // Run on a machine WITH network to api.samsara.com (NOT the cloud sandbox — it's proxy-blocked):
 //   SAMSARA_API_TOKEN=samsara_api_xxx node _probes/phase0-fueling-readiness.mjs
 // Nothing is written anywhere. Paste the printed summary back.
@@ -29,67 +29,65 @@ async function getAll(path) {
   return out;
 }
 
-const hrs = (ms) => (ms == null ? null : Math.round((ms / 3_600_000) * 10) / 10);
 const ageMin = (iso) => (iso ? Math.round((Date.now() - Date.parse(iso)) / 60000) : null);
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : "n/a");
+const readVal = (x) => (x == null ? null : Array.isArray(x) ? x[x.length - 1] : x);
 
 (async () => {
   console.log(`\n=== Phase 0 readiness — ${new Date().toISOString()} — ${BASE} ===\n`);
 
-  // 1) fuelPercents + gps snapshot
-  console.log("## 1. Fuel level (fuelPercents) + GPS coverage");
+  // 1) fuel level + gps snapshot  (Samsara returns 'fuelPercent' singular even though the type is 'fuelPercents')
+  console.log("## 1. Fuel level + GPS coverage");
   const stats = await getAll("/fleet/vehicles/stats?types=gps,fuelPercents");
-  const readVal = (x) => (x == null ? null : Array.isArray(x) ? x[x.length - 1] : x);
   let withFuel = 0, withGps = 0;
-  const fuelVals = [];
-  const gpsAges = [];
+  const fuelVals = [], gpsAges = [];
   for (const v of stats) {
-    const f = readVal(v.fuelPercents);
+    const f = readVal(v.fuelPercent ?? v.fuelPercents);
     const g = readVal(v.gps);
     if (f && f.value != null) { withFuel++; fuelVals.push(Number(f.value)); }
     if (g && (g.time || g.latitude != null)) { withGps++; if (g.time) gpsAges.push(ageMin(g.time)); }
   }
-  console.log(`   vehicles returned:        ${stats.length}`);
-  console.log(`   with a fuelPercents value: ${withFuel}  (${pct(withFuel, stats.length)})   <-- KEY GO/NO-GO`);
+  console.log(`   vehicles returned:         ${stats.length}`);
+  console.log(`   with a fuel level:         ${withFuel}  (${pct(withFuel, stats.length)})   <-- KEY GO/NO-GO`);
   console.log(`   with a gps fix:            ${withGps}  (${pct(withGps, stats.length)})`);
-  // quantization: distinct fractional steps in the sample tells us how coarse the sensor is
-  const distinct = [...new Set(fuelVals.map((n) => n))].sort((a, b) => a - b);
-  console.log(`   distinct fuel% values seen: ${distinct.length} (sample: ${distinct.slice(0, 12).join(", ")}${distinct.length > 12 ? " ..." : ""})`);
+  const distinct = [...new Set(fuelVals)].sort((a, b) => a - b);
+  console.log(`   distinct fuel% values:     ${distinct.length} (sample: ${distinct.slice(0, 14).join(", ")}${distinct.length > 14 ? " ..." : ""})`);
+  const stepGuess = distinct.length > 1 ? Math.min(...distinct.slice(1).map((v, i) => v - distinct[i])) : null;
+  console.log(`   smallest step (quantization ~): ${stepGuess ?? "n/a"}%`);
   const freshGps = gpsAges.filter((m) => m != null && m <= 30).length;
   console.log(`   gps fixes <=30 min old:    ${freshGps}/${gpsAges.length}`);
-  if (stats[0]) console.log(`   RAW sample vehicle stat:\n     ${JSON.stringify(stats[0]).slice(0, 500)}`);
 
   // 2) HOS clocks
-  console.log("\n## 2. HOS clocks presence / freshness / real field shapes");
+  console.log("\n## 2. HOS clocks presence / freshness / field shapes / teams");
   let hos = [];
   try { hos = await getAll("/fleet/hos/clocks"); }
-  catch (e) { console.log(`   !! HOS call FAILED: ${e.message}\n   (missing 'Read ELD Compliance Settings (US)' scope? or no ELD?) `); }
+  catch (e) { console.log(`   !! HOS call FAILED: ${e.message}`); }
   if (hos.length) {
-    let withDrive = 0, withShift = 0, withCycle = 0, withBreak = 0;
+    let d0 = 0, s0 = 0, c0 = 0, b0 = 0;
     const duty = new Set();
     for (const d of hos) {
       const c = d.clocks ?? {};
-      const drive = c.drive?.driveRemainingDurationMs ?? c.driveRemainingDurationMs;
-      const shift = c.shift?.shiftRemainingDurationMs ?? c.shiftRemainingDurationMs;
-      const cycle = c.cycle?.cycleRemainingDurationMs ?? c.cycleRemainingDurationMs;
-      const brk = c.break?.timeUntilBreakDurationMs ?? c.timeUntilBreakDurationMs;
-      if (drive != null) withDrive++;
-      if (shift != null) withShift++;
-      if (cycle != null) withCycle++;
-      if (brk != null) withBreak++;
+      if ((c.drive?.driveRemainingDurationMs ?? c.driveRemainingDurationMs) != null) d0++;
+      if ((c.shift?.shiftRemainingDurationMs ?? c.shiftRemainingDurationMs) != null) s0++;
+      if ((c.cycle?.cycleRemainingDurationMs ?? c.cycleRemainingDurationMs) != null) c0++;
+      if ((c.break?.timeUntilBreakDurationMs ?? c.timeUntilBreakDurationMs) != null) b0++;
       const ds = d.currentDutyStatus?.hosStatusType ?? d.currentDutyStatus?.status;
       if (ds) duty.add(ds);
     }
     console.log(`   drivers returned:          ${hos.length}`);
-    console.log(`   with driveRemaining:       ${withDrive}  (${pct(withDrive, hos.length)})`);
-    console.log(`   with shiftRemaining:       ${withShift}  (${pct(withShift, hos.length)})`);
-    console.log(`   with cycleRemaining:       ${withCycle}  (${pct(withCycle, hos.length)})`);
-    console.log(`   with timeUntilBreak:       ${withBreak}  (${pct(withBreak, hos.length)})`);
-    console.log(`   distinct hosStatusType:    [${[...duty].join(", ")}]   <-- confirms enum spelling (sleeperBerth vs sleeperBed)`);
-    console.log(`   RAW sample HOS clock:\n     ${JSON.stringify(hos[0]).slice(0, 700)}`);
+    console.log(`   with driveRemaining:       ${d0}  (${pct(d0, hos.length)})`);
+    console.log(`   with shiftRemaining:       ${s0}  (${pct(s0, hos.length)})`);
+    console.log(`   with cycleRemaining:       ${c0}  (${pct(c0, hos.length)})`);
+    console.log(`   with timeUntilBreak:       ${b0}  (${pct(b0, hos.length)})`);
+    console.log(`   distinct hosStatusType:    [${[...duty].join(", ")}]`);
+    const active = hos.filter((d) => ["driving", "onDuty", "sleeperBed"].includes(d.currentDutyStatus?.hosStatusType));
+    const byVeh = new Map();
+    for (const d of active) { const id = d.currentVehicle?.id; if (id) byVeh.set(id, (byVeh.get(id) ?? 0) + 1); }
+    const teams = [...byVeh.values()].filter((n) => n >= 2).length;
+    console.log(`   active drivers on a truck: ${active.length};  trucks with 2+ active drivers (teams): ${teams}`);
   }
 
   console.log("\n=== GO/NO-GO ===");
-  console.log("   Solver is buildable from LIVE state if fuelPercents coverage is high (say >80%) AND HOS drive/shift/cycle are present.");
-  console.log("   Low fuel% coverage -> plan from last EFS fill (bounded) or exclude those trucks; decide before Phase 3.\n");
+  console.log("   Buildable from LIVE state if fuel-level coverage is high (>80%) AND HOS drive/shift/cycle present.");
+  console.log("   Low fuel coverage -> plan from last EFS fill (bounded) or exclude those trucks; decide before Phase 3.\n");
 })().catch((e) => { console.error("PROBE ERROR:", e.message); process.exit(1); });
