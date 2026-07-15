@@ -25,7 +25,7 @@ export interface PlanResult {
     stops: PlanStopView[]; totalGallons: number; totalCost: number | null; savingsVsNaive: number | null;
     arrivalFuelPct: number | null; reachesDestination: boolean; flags: string[];
   };
-  route?: { distanceMiles: number; polyline: { lat: number; lng: number }[] };
+  route?: { distanceMiles: number; durationHours: number; polyline: { lat: number; lng: number }[] };
   origin?: { lat: number; lng: number };
   destination?: { lat: number; lng: number };
 }

@@ -28,16 +28,18 @@ function tokenColor(cls: string): string {
   document.body.appendChild(el);
   const raw = window.getComputedStyle(el).color;
   el.remove();
+  // The design tokens are authored in oklch(), which maplibre cannot parse — and canvas serialization
+  // round-trips oklch() unchanged in current Chromium. So rasterize one pixel and read the actual sRGB
+  // bytes back: that always yields an rgb() string maplibre accepts, regardless of the source color space.
   const cv = document.createElement("canvas");
+  cv.width = 1;
+  cv.height = 1;
   const ctx = cv.getContext("2d");
   if (!ctx) return "rgb(37, 99, 235)";
-  ctx.fillStyle = "rgb(37, 99, 235)"; // fallback if the browser rejects the source color string
-  try {
-    ctx.fillStyle = raw;
-  } catch {
-    // keep fallback
-  }
-  return ctx.fillStyle;
+  ctx.fillStyle = raw;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 // The tile proxy is authenticated (Bearer JWT). maplibre fetches tiles from a worker with no auth header,

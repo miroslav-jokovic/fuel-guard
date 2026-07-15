@@ -5,6 +5,7 @@ import FuelPlanForm from "@/features/fueling/FuelPlanForm.vue";
 import PlanStatusBanner from "@/features/fueling/PlanStatusBanner.vue";
 import FuelPlanSummary from "@/features/fueling/FuelPlanSummary.vue";
 import RouteMap from "@/features/fueling/RouteMap.vue";
+import RouteSummary from "@/features/fueling/RouteSummary.vue";
 import FuelStopsTable from "@/features/fueling/FuelStopsTable.vue";
 import { useFuelPlan, type PlanRequest, type PlanResult } from "@/features/fueling/useFuelPlan";
 import { useToastStore } from "@/stores/toast";
@@ -12,10 +13,12 @@ import { useToastStore } from "@/stores/toast";
 const plan = useFuelPlan();
 const toast = useToastStore();
 const result = ref<PlanResult | null>(null);
+const routeLabels = ref<{ origin: string; destination: string; waypoints: string[] } | null>(null);
 
-async function onSubmit(req: PlanRequest) {
+async function onSubmit(req: PlanRequest, labels: { origin: string; destination: string; waypoints: string[] }) {
   try {
     result.value = await plan.mutateAsync(req);
+    routeLabels.value = labels;
   } catch (e) {
     result.value = null;
     toast.error("Could not generate a plan", e instanceof Error ? e.message : undefined);
@@ -32,6 +35,14 @@ async function onSubmit(req: PlanRequest) {
     <template v-if="result">
       <PlanStatusBanner :status="result.status" :message="result.message" />
       <FuelPlanSummary v-if="result.plan" :result="result" />
+      <RouteSummary
+        v-if="result.route"
+        :route="result.route"
+        :origin="routeLabels?.origin"
+        :destination="routeLabels?.destination"
+        :waypoints="routeLabels?.waypoints"
+        :stop-count="result.plan?.stops.length"
+      />
       <RouteMap v-if="result.route" :route="result.route" :stops="result.plan?.stops ?? []" :origin="result.origin" :destination="result.destination" />
       <FuelStopsTable v-if="result.plan" :stops="result.plan.stops" />
     </template>

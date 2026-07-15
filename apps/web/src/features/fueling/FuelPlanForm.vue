@@ -11,7 +11,7 @@ import FormField from "@/components/ui/FormField.vue";
 import { HAZMAT_OPTIONS, TUNNEL_OPTIONS, type PlanRequest } from "./useFuelPlan";
 
 const props = defineProps<{ loading?: boolean }>();
-const emit = defineEmits<{ submit: [req: PlanRequest] }>();
+const emit = defineEmits<{ submit: [req: PlanRequest, labels: { origin: string; destination: string; waypoints: string[] }] }>();
 
 const { data: vehicles } = useVehiclesQuery();
 const trucks = computed(() => (vehicles.value ?? []).filter((v) => v.status !== "retired"));
@@ -39,7 +39,9 @@ function removeWaypoint(i: number) {
 }
 function submit() {
   if (!canSubmit.value) return;
-  emit("submit", {
+  emit(
+    "submit",
+    {
     vehicleId: form.vehicleId,
     origin: form.originCoords ? { lat: form.originCoords.lat, lng: form.originCoords.lng } : { text: form.origin.trim() },
     destination: form.destinationCoords ? { lat: form.destinationCoords.lat, lng: form.destinationCoords.lng } : { text: form.destination.trim() },
@@ -47,7 +49,13 @@ function submit() {
     loadGrossLb: form.loadGrossLb ? Number(form.loadGrossLb) : null,
     hazmat: form.hazmat ? [form.hazmat] : [],
     tunnelCategory: form.tunnelCategory || null,
-  });
+    },
+    {
+      origin: form.origin.trim(),
+      destination: form.destination.trim(),
+      waypoints: form.waypoints.map((w) => w.trim()).filter(Boolean),
+    },
+  );
 }
 </script>
 

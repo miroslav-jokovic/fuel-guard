@@ -58,7 +58,7 @@ export interface PlanResult {
     reachesDestination: boolean;
     flags: string[];
   };
-  route?: { distanceMiles: number; polyline: LatLng[] };
+  route?: { distanceMiles: number; durationHours: number; polyline: LatLng[] };
   origin?: LatLng;
   destination?: LatLng;
 }
@@ -103,7 +103,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { status: "error", message: e instanceof Error ? e.message : "Routing failed", origin, destination };
   }
   const distanceMiles = milesFromMeters(route.distanceMeters);
-  const routeView = { distanceMiles: r1(distanceMiles), polyline: route.polyline };
+  const routeView = { distanceMiles: r1(distanceMiles), durationHours: r1(route.durationSeconds / 3600), polyline: route.polyline };
 
   // Single-pass bbox — a spread of Math.min(...polyline) overflows the call stack on a long route.
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
