@@ -208,3 +208,17 @@ Run against the **real Silvicom Samsara token** and the **HERE console** before 
 - GPS: 100% present, ~73% fresh ≤30 min (stale = parked trucks). 186 vehicles, 1,081 drivers (large driver pool).
 
 **Phase 0 VERDICT (2026-07-15): GO.** Corrected re-run: **fuel level 99%** (185/186), **1% quantization** (high-res — tighter smoothing/reserve OK), HOS 100%, GPS 100%, **0 active teams** (single-driver default is the norm; team override deferrable). Live data supports planning from truck state directly. Remaining (non-blocking for Phase 1 schema): HERE console cost/tier check; one Pilot daily-email format sample. Open micro-decisions carried into Phase 1: the **1 fuel-less truck** and any future no-fuel trucks → EFS-fallback (bounded) or exclude; **DEF** plan-vs-driver.
+
+---
+
+# Route fidelity to Samsara — research + strategy (2026-07)
+
+Goal: our independently-computed HERE truck route should match the route Samsara actually has the driver drive, so the fuel corridor is right. Findings (sources in the agent report):
+
+- **Samsara's maps are HERE-powered** (HERE ↔ Samsara partnership, Aug 2025). So our HERE v8 `transportMode=truck` route shares Samsara's underlying road network + truck-restriction data → strong CORRIDOR-level agreement by default. This validates the recompute-with-HERE approach.
+- **But not turn-by-turn identical:** Samsara layers a proprietary traffic/telemetry model on top, and some drivers navigate via Google Maps (a driver-selectable setting). So the realistic, industry-standard target is **corridor / primary-highway match** (what PC*Miler/ProMiles rely on), not path identity — which is all fuel planning needs (truck stops sit on the interstates both engines pick).
+- **Levers, in order of value:**
+  1. **Match the profile, not the path** — real truck profile (dims/axles/weight/**hazmat**/tunnel) + `routingMode=fast` + tolls/ferries allowed. DONE: profile + hazmat + `routingMode=fast` are set; this maximises shared restriction behaviour.
+  2. **Alternatives + union** — request HERE `alternatives=3` + `routeLabels=true`; take the UNION of corridor stations across the alternatives so an ambiguous highway choice never drops a station on the corridor Samsara actually chose. ROADMAP (Phase 6): needs per-corridor projection so a station on an alternate keeps a correct along-route position — not a drop-in, done right in the live-tracking phase.
+  3. **Breadcrumb calibration** — after/along the trip, pull `GET /fleet/vehicles/stats/history` (gps) or `/fleet/vehicles/locations/history`, map-match the driven breadcrumbs to recover the actual highways, and (a) confirm the chosen corridor or (b) pick the HERE alternative whose labels match. This is the only ground truth (Samsara exposes no planned-route geometry) and is the Phase 6/7 calibration loop. Also detects the Google-Maps-hand-off drivers.
+- **Honest ceiling:** corridor-level match + breadcrumb calibration. Turn-by-turn parity is not achievable (proprietary traffic layer + per-driver nav app).

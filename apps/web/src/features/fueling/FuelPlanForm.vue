@@ -6,7 +6,7 @@ import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import FormField from "@/components/ui/FormField.vue";
-import { HAZMAT_OPTIONS, type PlanRequest } from "./useFuelPlan";
+import { HAZMAT_OPTIONS, TUNNEL_OPTIONS, type PlanRequest } from "./useFuelPlan";
 
 const props = defineProps<{ loading?: boolean }>();
 const emit = defineEmits<{ submit: [req: PlanRequest] }>();
@@ -23,6 +23,7 @@ const form = reactive({
   waypoints: [] as string[],
   loadGrossLb: "",
   hazmat: "",
+  tunnelCategory: "",
 });
 
 const canSubmit = computed(() => form.vehicleId && form.origin.trim() && form.destination.trim() && !props.loading);
@@ -42,6 +43,7 @@ function submit() {
     waypoints: form.waypoints.map((w) => w.trim()).filter(Boolean).map((text) => ({ text })),
     loadGrossLb: form.loadGrossLb ? Number(form.loadGrossLb) : null,
     hazmat: form.hazmat ? [form.hazmat] : [],
+    tunnelCategory: form.tunnelCategory || null,
   });
 }
 </script>
@@ -58,6 +60,11 @@ function submit() {
       <FormField v-slot="{ id }" label="Hazmat class" hint="Per load — changes the legal truck route.">
         <select :id="id" v-model="form.hazmat" :class="SELECT_CLS">
           <option v-for="h in HAZMAT_OPTIONS" :key="h.value" :value="h.value">{{ h.label }}</option>
+        </select>
+      </FormField>
+      <FormField v-if="form.hazmat" v-slot="{ id }" label="Tunnel category" hint="ADR restriction for the placarded load.">
+        <select :id="id" v-model="form.tunnelCategory" :class="SELECT_CLS">
+          <option v-for="t in TUNNEL_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</option>
         </select>
       </FormField>
       <FormField v-slot="{ id }" label="Start">

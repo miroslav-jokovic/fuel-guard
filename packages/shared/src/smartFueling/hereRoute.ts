@@ -34,6 +34,9 @@ export function buildTruckRouteUrl(req: HereRouteRequest, apiKey: string, baseUr
   for (const v of req.via ?? []) params.push(["via", `${v.lat},${v.lng}`]);
   params.push(["destination", `${req.destination.lat},${req.destination.lng}`]);
   params.push(["return", "polyline,summary"]);
+  // "fast" (time-optimal) matches commercial truck-nav behaviour (Samsara markets the fastest route); Samsara's
+  // map is HERE-powered (2025 partnership) so this maximises corridor agreement with the driver's actual route.
+  params.push(["routingMode", "fast"]);
   // Truck restrictions only apply when the vehicle profile is supplied (kg / cm, integer).
   params.push(["vehicle[grossWeight]", String(Math.round(kgFromLb(req.profile.grossWeightLb)))]);
   params.push(["vehicle[height]", String(Math.round(cmFromInches(req.profile.heightIn)))]);

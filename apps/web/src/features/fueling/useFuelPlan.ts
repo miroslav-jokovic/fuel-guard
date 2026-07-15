@@ -45,6 +45,15 @@ export const HAZMAT_OPTIONS: { value: string; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
+/** HERE ADR tunnel category (B least → E most restrictive). Relevant for hazmat loads through tunnels. */
+export const TUNNEL_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Not restricted" },
+  { value: "B", label: "B" },
+  { value: "C", label: "C" },
+  { value: "D", label: "D" },
+  { value: "E", label: "E" },
+];
+
 /** On-demand smart-fuel plan for one truck + route (read-only). */
 export function useFuelPlan() {
   return useMutation({

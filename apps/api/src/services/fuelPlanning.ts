@@ -131,9 +131,16 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
 
   const candidates = stationsAlongRoute(route.polyline, stations.map((s) => ({ id: s.id, lat: Number(s.lat), lng: Number(s.lng) })), origin, { corridorMiles: cfg.corridorMiles });
   const stationById = new Map(stations.map((s) => [s.id, s]));
+  // Price TTL: a price older than the org's window is treated as UNKNOWN (excluded from cheapest-selection),
+  // so the solver won't route to a "cheap" station on a stale quote. Counted + surfaced as a plan flag.
+  const now0 = Date.now();
+  let stalePrices = 0;
   const solverStations: SolverStation[] = candidates.map((c) => {
     const s = stationById.get(c.station.id)!;
-    return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: priceByStation.get(c.station.id)?.net ?? null };
+    const price = priceByStation.get(c.station.id);
+    let net = price?.net ?? null;
+    if (net != null && price && (now0 - Date.parse(price.at)) / 3_600_000 > cfg.priceTtlHours) { net = null; stalePrices += 1; }
+    return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: net };
   });
 
   const truck = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg);
@@ -151,9 +158,10 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     };
   });
 
+  const planFlags = stalePrices > 0 ? [...plan.flags, "stale_prices_excluded"] : plan.flags;
   return {
     status: plan.status,
-    plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: plan.flags },
+    plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
     route: routeView, origin, destination,
   };
 }
