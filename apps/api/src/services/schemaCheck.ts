@@ -34,6 +34,7 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "fuel_prices", column: "net_price", migration: "0058" },
   { table: "route_fuel_settings", column: "org_id", migration: "0058" },
   { table: "vehicles", column: "axle_count", migration: "0058" },
+  { table: "route_geometries", column: "cache_key", migration: "0059" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

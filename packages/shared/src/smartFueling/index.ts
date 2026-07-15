@@ -3,3 +3,7 @@ export * from "./units.js";
 export * from "./discount.js";
 export * from "./settings.js";
 export * from "./sources.js";
+export * from "./flexPolyline.js";
+export * from "./geo.js";
+export * from "./hereRoute.js";
+export * from "./corridor.js";

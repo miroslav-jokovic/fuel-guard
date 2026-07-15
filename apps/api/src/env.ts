@@ -28,6 +28,10 @@ const EnvSchema = z.object({
   // single-tenant fallback. SAMSARA_API_URL lets tests point elsewhere.
   SAMSARA_API_TOKEN: z.string().optional(),
   SAMSARA_API_URL: z.string().url().default("https://api.samsara.com"),
+  // HERE Routing v8 (truck routing for Smart Fueling). Optional: absent -> route planning is unavailable but
+  // the rest of the app boots. HERE_ROUTER_URL lets tests point elsewhere.
+  HERE_API_KEY: z.string().optional(),
+  HERE_ROUTER_URL: z.string().url().default("https://router.hereapi.com/v8/routes"),
   // Base64 secret from the Samsara webhook config — used to verify incoming siphoning-alert webhooks.
   // When unset, the webhook endpoint rejects everything (fail-closed).
   SAMSARA_WEBHOOK_SECRET: z.string().optional(),
