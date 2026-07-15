@@ -28,6 +28,7 @@ export * from "./idleScoring.js";
 export * from "./idleSessions.js";
 export * from "./idleConfidence.js";
 export * from "./weather.js";
+export * from "./smartFueling/index.js";
 export * from "./idleBurn.js";
 export * from "./idleEquipment.js";
 export * from "./driverPerformance/index.js";
