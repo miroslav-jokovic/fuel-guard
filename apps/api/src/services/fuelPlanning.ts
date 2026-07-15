@@ -103,15 +103,21 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   const distanceMiles = milesFromMeters(route.distanceMeters);
   const routeView = { distanceMiles: r1(distanceMiles), polyline: route.polyline };
 
-  const lats = route.polyline.map((p) => p.lat);
-  const lngs = route.polyline.map((p) => p.lng);
+  // Single-pass bbox — a spread of Math.min(...polyline) overflows the call stack on a long route.
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const pt of route.polyline) {
+    if (pt.lat < minLat) minLat = pt.lat;
+    if (pt.lat > maxLat) maxLat = pt.lat;
+    if (pt.lng < minLng) minLng = pt.lng;
+    if (pt.lng > maxLng) maxLng = pt.lng;
+  }
   const pad = 0.1;
   const { data: stationRows } = await admin
     .from("fuel_stations")
     .select("id, brand, store_number, name, lat, lng, state, exit, has_diesel")
     .eq("status", "active")
-    .gte("lat", Math.min(...lats) - pad).lte("lat", Math.max(...lats) + pad)
-    .gte("lng", Math.min(...lngs) - pad).lte("lng", Math.max(...lngs) + pad);
+    .gte("lat", minLat - pad).lte("lat", maxLat + pad)
+    .gte("lng", minLng - pad).lte("lng", maxLng + pad);
   const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
   if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, origin, destination };
 
