@@ -26,6 +26,17 @@ export interface PlanResult {
     arrivalFuelPct: number | null; reachesDestination: boolean; flags: string[];
   };
   route?: { distanceMiles: number; durationHours: number; polyline: { lat: number; lng: number }[]; directions: { instruction: string; miles: number }[] };
+  truck?: {
+    fuelPct: number | null;
+    gallonsOnHand: number | null;
+    tankCapacityGal: number;
+    driveRemainingHours: number | null;
+    breakInHours: number | null;
+    shiftRemainingHours: number | null;
+    cycleRemainingHours: number | null;
+    reachableMiles: number | null;
+    fuelRangeMiles: number | null;
+  };
   origin?: { lat: number; lng: number };
   destination?: { lat: number; lng: number };
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MapPinIcon, ClockIcon, TruckIcon, FlagIcon } from "@heroicons/vue/24/outline";
+import { MapPinIcon, ClockIcon, TruckIcon, FlagIcon, BoltIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import type { PlanResult } from "./useFuelPlan";
 
@@ -10,7 +10,20 @@ const props = defineProps<{
   destination?: string;
   waypoints?: string[];
   stopCount?: number;
+  truck?: NonNullable<PlanResult["truck"]>;
 }>();
+
+const hoursLabel = (h: number | null | undefined) => (h == null ? "—" : `${h}h`);
+const clocks = computed(() =>
+  props.truck
+    ? [
+        { label: "Drive", value: hoursLabel(props.truck.driveRemainingHours) },
+        { label: "Break in", value: hoursLabel(props.truck.breakInHours) },
+        { label: "Shift", value: hoursLabel(props.truck.shiftRemainingHours) },
+        { label: "Cycle", value: hoursLabel(props.truck.cycleRemainingHours) },
+      ]
+    : [],
+);
 
 // HERE's estimated moving time. Legal drive is 11 h/day, so this also hints how many days the run takes.
 const driveTime = computed(() => {
@@ -52,5 +65,36 @@ const facts = computed(() => [
         </div>
       </div>
     </dl>
+
+    <div v-if="truck" class="mt-4 border-t border-edge pt-4">
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div class="flex items-center gap-2">
+          <BoltIcon class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+          <div>
+            <dt class="text-xs text-ink-muted">Fuel level (live)</dt>
+            <dd class="text-sm font-semibold text-ink">
+              {{ truck.fuelPct != null ? truck.fuelPct + "%" : "—" }}
+              <span v-if="truck.gallonsOnHand != null" class="font-normal text-ink-muted">· {{ truck.gallonsOnHand.toLocaleString() }} / {{ truck.tankCapacityGal.toLocaleString() }} gal</span>
+            </dd>
+          </div>
+        </div>
+        <div v-if="truck.reachableMiles != null" class="flex items-center gap-2">
+          <TruckIcon class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+          <div>
+            <dt class="text-xs text-ink-muted">Reachable now</dt>
+            <dd class="text-sm font-semibold text-ink">{{ truck.reachableMiles.toLocaleString() }} mi <span class="font-normal text-ink-muted">(fuel + HOS)</span></dd>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3">
+        <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-ink-muted">Hours of service (remaining)</p>
+        <dl class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div v-for="c in clocks" :key="c.label" class="rounded-md bg-surface-subtle px-3 py-2">
+            <dt class="text-xs text-ink-muted">{{ c.label }}</dt>
+            <dd class="text-sm font-semibold text-ink">{{ c.value }}</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
   </BaseCard>
 </template>

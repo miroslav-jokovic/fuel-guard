@@ -48,6 +48,7 @@ async function onSubmit(req: PlanRequest, labels: { origin: string; destination:
         :destination="routeLabels?.destination"
         :waypoints="routeLabels?.waypoints"
         :stop-count="result.plan?.stops.length"
+        :truck="result.truck"
       />
       <RouteMap v-if="result.route" :route="result.route" :stops="result.plan?.stops ?? []" :origin="result.origin" :destination="result.destination" />
       <RouteDirections v-if="result.route" :directions="result.route.directions" />

@@ -59,6 +59,7 @@ export interface PlanResult {
     flags: string[];
   };
   route?: { distanceMiles: number; durationHours: number; polyline: LatLng[]; directions: { instruction: string; miles: number }[] };
+  truck?: ReturnType<typeof truckStateView>;
   origin?: LatLng;
   destination?: LatLng;
 }
@@ -106,6 +107,11 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   const directions = route.steps.map((st) => ({ instruction: st.instruction, miles: r1(milesFromMeters(st.lengthMeters)) }));
   const routeView = { distanceMiles: r1(distanceMiles), durationHours: r1(route.durationSeconds / 3600), polyline: route.polyline, directions };
 
+  const truckData = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg);
+  if (!truckData) return { status: "telematics_unavailable", message: "Could not read live fuel level / HOS for this truck.", route: routeView, origin, destination };
+  const truck = truckData.state;
+  const truckView = truckStateView(truck, truckData.hos);
+
   // Single-pass bbox — a spread of Math.min(...polyline) overflows the call stack on a long route.
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
   for (const pt of route.polyline) {
@@ -122,7 +128,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     .gte("lat", minLat - pad).lte("lat", maxLat + pad)
     .gte("lng", minLng - pad).lte("lng", maxLng + pad);
   const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
-  if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, origin, destination };
+  if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, origin, destination };
 
   const stationIds = stations.map((s) => s.id);
   const { data: priceRows } = await admin
@@ -146,9 +152,6 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: net };
   });
 
-  const truck = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg);
-  if (!truck) return { status: "telematics_unavailable", message: "Could not read live fuel level / HOS for this truck.", route: routeView, origin, destination };
-
   const plan = planFuelStops({ distanceToGoMiles: distanceMiles, stations: solverStations, truck, settings: cfg });
   const stops: PlanStopView[] = plan.stops.map((st) => {
     const s = stationById.get(st.station.id)!;
@@ -165,7 +168,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   return {
     status: plan.status,
     plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
-    route: routeView, origin, destination,
+    route: routeView, truck: truckView, origin, destination,
   };
 }
 
@@ -174,7 +177,7 @@ async function fetchTruckFuelState(
   admin: SupabaseClient, env: Env, orgId: string,
   veh: { samsara_vehicle_id: string | null; tank_capacity_gal: number | string; observed_max_fill_gal: number | string | null; baseline_mpg: number | string | null },
   isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>,
-): Promise<TruckFuelState | null> {
+): Promise<{ state: TruckFuelState; hos: HosClocks } | null> {
   const token = await loadSamsaraToken(admin, env, orgId);
   if (!token || !veh.samsara_vehicle_id) return null;
   const now = Date.now();
@@ -192,11 +195,33 @@ async function fetchTruckFuelState(
     if (h) hos = h;
   } catch { /* HOS best-effort; solver flags no_hos */ }
 
-  return buildTruckFuelState(
+  const state = buildTruckFuelState(
     {
       fuelSamples, tankCapacityGal: Number(veh.tank_capacity_gal), observedMaxFillGal: veh.observed_max_fill_gal != null ? Number(veh.observed_max_fill_gal) : null,
       baselineMpg: veh.baseline_mpg != null ? Number(veh.baseline_mpg) : null, hos, isReefer, loadGrossLb: null, lastFillTimeMs: null, nowMs: now,
     },
     { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor },
   );
+  return { state, hos };
+}
+
+interface HosClocks { driveRemainingMs: number | null; shiftRemainingMs: number | null; cycleRemainingMs: number | null; timeUntilBreakMs: number | null; }
+
+/** Compact truck telematics view for the Route panel: fuel level + all four HOS clocks (hours). */
+function truckStateView(state: TruckFuelState, hos: HosClocks) {
+  const hrs = (ms: number | null) => (ms != null ? Math.round((ms / 3_600_000) * 10) / 10 : null);
+  const fuelPct = state.gallonsOnHand != null && state.effectiveTankCapacityGal > 0
+    ? Math.round((state.gallonsOnHand / state.effectiveTankCapacityGal) * 100)
+    : null;
+  return {
+    fuelPct,
+    gallonsOnHand: state.gallonsOnHand != null ? r1(state.gallonsOnHand) : null,
+    tankCapacityGal: r1(state.effectiveTankCapacityGal),
+    driveRemainingHours: hrs(hos.driveRemainingMs),
+    breakInHours: hrs(hos.timeUntilBreakMs),
+    shiftRemainingHours: hrs(hos.shiftRemainingMs),
+    cycleRemainingHours: hrs(hos.cycleRemainingMs),
+    reachableMiles: state.reachableMiles != null ? r1(state.reachableMiles) : null,
+    fuelRangeMiles: state.fuelRangeMiles != null ? r1(state.fuelRangeMiles) : null,
+  };
 }
