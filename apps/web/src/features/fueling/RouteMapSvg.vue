@@ -47,7 +47,7 @@ const view = computed(() => {
     d,
     origin: props.origin ? toXY(props.origin.lat, props.origin.lng) : toXY(pts[0]!.lat, pts[0]!.lng),
     destination: props.destination ? toXY(props.destination.lat, props.destination.lng) : last,
-    stops: props.stops.map((s) => ({ ...toXY(s.stationLat, s.stationLng), emergency: s.isEmergency })),
+    stops: props.stops.filter((s) => s.stationLat != null && s.stationLng != null).map((s) => ({ ...toXY(s.stationLat!, s.stationLng!), emergency: s.isEmergency })),
   };
 });
 </script>

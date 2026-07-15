@@ -12,10 +12,13 @@ export interface PlanRequest {
   tunnelCategory?: string | null;
 }
 export interface PlanStopView {
-  stationName: string; brand: string; state: string | null; exit: string | null; storeNumber: string | null;
-  stationLat: number; stationLng: number;
-  milesAhead: number; detourMiles: number; gallons: number; netPrice: number | null; priceAgeHours: number | null;
+  kind: "fuel" | "rest";
+  milesAhead: number;
+  stationLat: number | null; stationLng: number | null;
+  stationName: string | null; brand: string | null; state: string | null; exit: string | null; storeNumber: string | null;
+  detourMiles: number; gallons: number; netPrice: number | null; priceAgeHours: number | null;
   cost: number | null; arrivalGal: number; isEmergency: boolean;
+  coversBreak: boolean; isOvernight: boolean; driveHoursLeftOnArrival: number | null;
 }
 export type PlanResultStatus = "ok" | "emergency_used" | "infeasible" | "routing_unavailable" | "no_stations" | "telematics_unavailable" | "error";
 export interface PlanResult {

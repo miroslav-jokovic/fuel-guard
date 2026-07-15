@@ -9,7 +9,7 @@ import FuelPlanSummary from "@/features/fueling/FuelPlanSummary.vue";
 import RouteMap from "@/features/fueling/RouteMap.vue";
 import RouteSummary from "@/features/fueling/RouteSummary.vue";
 import RouteDirections from "@/features/fueling/RouteDirections.vue";
-import FuelStopsTable from "@/features/fueling/FuelStopsTable.vue";
+import PlanItinerary from "@/features/fueling/PlanItinerary.vue";
 import { useFuelPlan, type PlanRequest, type PlanResult } from "@/features/fueling/useFuelPlan";
 import { useToastStore } from "@/stores/toast";
 
@@ -79,9 +79,18 @@ async function onSubmit(req: PlanRequest, labels: { origin: string; destination:
         :truck="result.truck"
         :break-advice="result.breakAdvice"
       />
-      <RouteMap v-if="result.route" :route="result.route" :stops="result.plan?.stops ?? []" :origin="result.origin" :destination="result.destination" />
+      <PlanItinerary
+        v-if="result.plan"
+        :stops="result.plan.stops"
+        :origin="routeLabels?.origin"
+        :destination="routeLabels?.destination"
+        :start-fuel-pct="result.truck?.fuelPct ?? null"
+        :tank-capacity-gal="result.truck?.tankCapacityGal ?? null"
+        :distance-miles="result.route?.distanceMiles ?? 0"
+        :arrival-fuel-pct="result.plan.arrivalFuelPct"
+      />
+      <RouteMap v-if="result.route" :route="result.route" :stops="(result.plan?.stops ?? []).filter((s) => s.kind === 'fuel')" :origin="result.origin" :destination="result.destination" />
       <RouteDirections v-if="result.route" :directions="result.route.directions" />
-      <FuelStopsTable v-if="result.plan" :stops="result.plan.stops" />
     </template>
   </div>
 </template>

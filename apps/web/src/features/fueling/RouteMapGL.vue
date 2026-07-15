@@ -89,6 +89,7 @@ function drawMarkers() {
   if (start) markers.push(new maplibregl.Marker({ element: markerEl("bg-success-600") }).setLngLat([start.lng, start.lat]).addTo(map));
   if (end) markers.push(new maplibregl.Marker({ element: markerEl("bg-brand-600") }).setLngLat([end.lng, end.lat]).addTo(map));
   for (const s of props.stops) {
+    if (s.stationLng == null || s.stationLat == null) continue;
     markers.push(
       new maplibregl.Marker({ element: markerEl(s.isEmergency ? "bg-warning-500" : "bg-info-500") })
         .setLngLat([s.stationLng, s.stationLat])
