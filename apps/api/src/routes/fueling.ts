@@ -4,6 +4,7 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { planFuelRoute, type PlanRequest } from "../services/fuelPlanning.js";
+import { geocodeSuggest } from "../services/geocode.js";
 
 export function fuelingRouter(): Router {
   const router = Router();
@@ -25,6 +26,17 @@ export function fuelingRouter(): Router {
       }
       const result = await planFuelRoute(admin, env, orgId, body);
       res.json(result);
+    }),
+  );
+
+  // Address autocomplete for the dispatcher form (server-proxied geocoder — no key/rate exposure to the browser).
+  router.get(
+    "/geocode-suggest",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const q = String(req.query.q ?? "");
+      res.json({ suggestions: await geocodeSuggest(env, q) });
     }),
   );
 

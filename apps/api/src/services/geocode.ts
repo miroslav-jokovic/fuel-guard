@@ -134,6 +134,19 @@ async function queryNominatim(env: Env, station: StationQuery, brandLabel: strin
   return cityHit ? { lat: cityHit.lat, lng: cityHit.lng, precision: "city" } : null;
 }
 
+/** Address autocomplete: up to `limit` matches for a partial query (server-side so the geocoder stays private). */
+export async function geocodeSuggest(env: Env, q: string, limit = 5): Promise<{ label: string; lat: number; lng: number }[]> {
+  const query = q.trim();
+  if (query.length < 3) return [];
+  const url = `${env.GEOCODE_URL}?q=${encodeURIComponent(query)}&format=json&limit=${limit}&countrycodes=us,ca&addressdetails=0`;
+  const res = await fetch(url, { headers: { "User-Agent": `FuelGuard/1.0 (${env.MAIL_FROM})` } });
+  if (!res.ok) return [];
+  const arr = (await res.json()) as Array<{ display_name?: string; lat?: string; lon?: string }>;
+  return (arr ?? [])
+    .map((h) => ({ label: h.display_name ?? "", lat: Number(h.lat), lng: Number(h.lon) }))
+    .filter((x) => x.label && Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+
 /** Forward-geocode a free-text address/city to coordinates (reuses the shared Nominatim lookup + cache path). */
 export async function geocodeAddress(env: Env, query: string): Promise<{ lat: number; lng: number } | null> {
   const hit = await lookup(env, [query]);

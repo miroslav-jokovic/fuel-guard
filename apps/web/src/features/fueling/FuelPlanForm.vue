@@ -5,6 +5,7 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
+import AddressInput from "./AddressInput.vue";
 import FormField from "@/components/ui/FormField.vue";
 import { HAZMAT_OPTIONS, TUNNEL_OPTIONS, type PlanRequest } from "./useFuelPlan";
 
@@ -20,6 +21,8 @@ const form = reactive({
   vehicleId: "",
   origin: "",
   destination: "",
+  originCoords: null as { lat: number; lng: number } | null,
+  destinationCoords: null as { lat: number; lng: number } | null,
   waypoints: [] as string[],
   loadGrossLb: "",
   hazmat: "",
@@ -38,8 +41,8 @@ function submit() {
   if (!canSubmit.value) return;
   emit("submit", {
     vehicleId: form.vehicleId,
-    origin: { text: form.origin.trim() },
-    destination: { text: form.destination.trim() },
+    origin: form.originCoords ? { lat: form.originCoords.lat, lng: form.originCoords.lng } : { text: form.origin.trim() },
+    destination: form.destinationCoords ? { lat: form.destinationCoords.lat, lng: form.destinationCoords.lng } : { text: form.destination.trim() },
     waypoints: form.waypoints.map((w) => w.trim()).filter(Boolean).map((text) => ({ text })),
     loadGrossLb: form.loadGrossLb ? Number(form.loadGrossLb) : null,
     hazmat: form.hazmat ? [form.hazmat] : [],
@@ -68,10 +71,16 @@ function submit() {
         </select>
       </FormField>
       <FormField v-slot="{ id }" label="Start">
-        <BaseInput :id="id" v-model="form.origin" placeholder="City, ST or address" />
+        <AddressInput
+:id="id" :model-value="form.origin" placeholder="City, ST or address"
+          @update:model-value="(v: string) => { form.origin = v; form.originCoords = null; }"
+          @select="(sug) => { form.origin = sug.label; form.originCoords = { lat: sug.lat, lng: sug.lng }; }" />
       </FormField>
       <FormField v-slot="{ id }" label="Destination">
-        <BaseInput :id="id" v-model="form.destination" placeholder="City, ST or address" />
+        <AddressInput
+:id="id" :model-value="form.destination" placeholder="City, ST or address"
+          @update:model-value="(v: string) => { form.destination = v; form.destinationCoords = null; }"
+          @select="(sug) => { form.destination = sug.label; form.destinationCoords = { lat: sug.lat, lng: sug.lng }; }" />
       </FormField>
     </div>
 

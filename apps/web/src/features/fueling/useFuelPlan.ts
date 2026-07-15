@@ -13,6 +13,7 @@ export interface PlanRequest {
 }
 export interface PlanStopView {
   stationName: string; brand: string; state: string | null; exit: string | null; storeNumber: string | null;
+  stationLat: number; stationLng: number;
   milesAhead: number; detourMiles: number; gallons: number; netPrice: number | null; priceAgeHours: number | null;
   cost: number | null; arrivalGal: number; isEmergency: boolean;
 }
@@ -53,6 +54,14 @@ export const TUNNEL_OPTIONS: { value: string; label: string }[] = [
   { value: "D", label: "D" },
   { value: "E", label: "E" },
 ];
+
+export interface AddressSuggestion { label: string; lat: number; lng: number }
+
+/** Address autocomplete via our server-proxied geocoder (keeps the geocoder key/rate off the browser). */
+export async function fetchAddressSuggestions(q: string): Promise<AddressSuggestion[]> {
+  const res = await apiFetch<{ suggestions: AddressSuggestion[] }>(`/api/fueling/geocode-suggest?q=${encodeURIComponent(q)}`);
+  return res.ok && res.data ? res.data.suggestions : [];
+}
 
 /** On-demand smart-fuel plan for one truck + route (read-only). */
 export function useFuelPlan() {

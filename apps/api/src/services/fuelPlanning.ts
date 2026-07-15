@@ -32,6 +32,8 @@ export interface PlanStopView {
   state: string | null;
   exit: string | null;
   storeNumber: string | null;
+  stationLat: number;
+  stationLng: number;
   milesAhead: number;
   detourMiles: number;
   gallons: number;
@@ -151,7 +153,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     const s = stationById.get(st.station.id)!;
     const price = priceByStation.get(st.station.id);
     return {
-      stationName: s.name ?? s.brand, brand: s.brand, state: s.state, exit: s.exit, storeNumber: s.store_number,
+      stationName: s.name ?? s.brand, brand: s.brand, state: s.state, exit: s.exit, storeNumber: s.store_number, stationLat: Number(s.lat), stationLng: Number(s.lng),
       milesAhead: r1(st.station.milesAhead), detourMiles: r1(st.station.detourMiles), gallons: r1(st.fillGal),
       netPrice: st.netPrice, priceAgeHours: price ? Math.round((Date.now() - Date.parse(price.at)) / 3_600_000) : null,
       cost: st.cost != null ? Math.round(st.cost * 100) / 100 : null, arrivalGal: r1(st.arrivalGal), isEmergency: st.isEmergency,
