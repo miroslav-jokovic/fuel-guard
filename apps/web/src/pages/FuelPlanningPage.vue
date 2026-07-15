@@ -6,6 +6,7 @@ import PlanStatusBanner from "@/features/fueling/PlanStatusBanner.vue";
 import FuelPlanSummary from "@/features/fueling/FuelPlanSummary.vue";
 import RouteMap from "@/features/fueling/RouteMap.vue";
 import RouteSummary from "@/features/fueling/RouteSummary.vue";
+import RouteDirections from "@/features/fueling/RouteDirections.vue";
 import FuelStopsTable from "@/features/fueling/FuelStopsTable.vue";
 import { useFuelPlan, type PlanRequest, type PlanResult } from "@/features/fueling/useFuelPlan";
 import { useToastStore } from "@/stores/toast";
@@ -44,6 +45,7 @@ async function onSubmit(req: PlanRequest, labels: { origin: string; destination:
         :stop-count="result.plan?.stops.length"
       />
       <RouteMap v-if="result.route" :route="result.route" :stops="result.plan?.stops ?? []" :origin="result.origin" :destination="result.destination" />
+      <RouteDirections v-if="result.route" :directions="result.route.directions" />
       <FuelStopsTable v-if="result.plan" :stops="result.plan.stops" />
     </template>
   </div>

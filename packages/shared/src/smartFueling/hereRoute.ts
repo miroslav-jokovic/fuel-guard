@@ -33,7 +33,7 @@ export function buildTruckRouteUrl(req: HereRouteRequest, apiKey: string, baseUr
   ];
   for (const v of req.via ?? []) params.push(["via", `${v.lat},${v.lng}`]);
   params.push(["destination", `${req.destination.lat},${req.destination.lng}`]);
-  params.push(["return", "polyline,summary"]);
+  params.push(["return", "polyline,summary,actions"]);
   // "fast" (time-optimal) matches commercial truck-nav behaviour (Samsara markets the fastest route); Samsara's
   // map is HERE-powered (2025 partnership) so this maximises corridor agreement with the driver's actual route.
   params.push(["routingMode", "fast"]);
@@ -50,15 +50,28 @@ export function buildTruckRouteUrl(req: HereRouteRequest, apiKey: string, baseUr
   return `${baseUrl}?${qs}`;
 }
 
+/** One turn-by-turn maneuver from HERE (defensively typed: any field may be absent in the response). */
+export interface RouteStep {
+  instruction: string;
+  lengthMeters: number;
+  durationSeconds: number;
+}
 export interface ParsedHereRoute {
   polyline: LatLng[];
   distanceMeters: number;
   durationSeconds: number;
+  steps: RouteStep[];
 }
 
+interface HereAction {
+  instruction?: string;
+  length?: number;
+  duration?: number;
+}
 interface HereSection {
   polyline?: string;
   summary?: { length?: number; duration?: number };
+  actions?: HereAction[];
 }
 interface HereResponse {
   routes?: { sections?: HereSection[] }[];
@@ -70,15 +83,21 @@ export function parseHereRoute(json: unknown): ParsedHereRoute | null {
   const route = (json as HereResponse)?.routes?.[0];
   if (!route || !route.sections || route.sections.length === 0) return null;
   const polyline: LatLng[] = [];
+  const steps: RouteStep[] = [];
   let distanceMeters = 0;
   let durationSeconds = 0;
   for (const s of route.sections) {
     if (s.summary?.length) distanceMeters += s.summary.length;
     if (s.summary?.duration) durationSeconds += s.summary.duration;
+    for (const a of s.actions ?? []) {
+      const instruction = typeof a.instruction === "string" ? a.instruction.trim() : "";
+      if (!instruction) continue;
+      steps.push({ instruction, lengthMeters: a.length ?? 0, durationSeconds: a.duration ?? 0 });
+    }
     if (!s.polyline) continue;
     const pts = decodeFlexPolyline(s.polyline);
     const start = polyline.length > 0 && pts.length > 0 && polyline[polyline.length - 1]!.lat === pts[0]!.lat && polyline[polyline.length - 1]!.lng === pts[0]!.lng ? 1 : 0;
     for (let i = start; i < pts.length; i++) polyline.push(pts[i]!);
   }
-  return { polyline, distanceMeters, durationSeconds };
+  return { polyline, distanceMeters, durationSeconds, steps };
 }
