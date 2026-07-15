@@ -152,3 +152,50 @@ HERE truck routing (cached) ~$10–20/mo; Pilot email parse $0; EFS $0; OSM one-
 
 ## Verification sources
 See `PLANNED-FUELING-PLAN.md` §13 (Samsara/HERE/Pilot/algorithm/HOS citations, verified July 2026) and `PLANNED-FUELING-RISK-ANALYSIS.md` (full assumption/gap/blocker register). This plan folds every Critical + HOS-correctness fix from that review into the invariants above.
+
+---
+
+# Audit — verification findings & plan corrections (2026-07, pre-build)
+
+Two independent passes: **external fact-check** (HERE, Samsara, FMCSA/IFTA, Pilot/OSM — fresh web research, sources below) and **internal repo verification** (what we can actually reuse today). Purpose: remove assumptions/blockers/gaps before Phase 0. Each item is CONFIRMED / CORRECTED / GAP, with the concrete plan change.
+
+## A. External facts — CONFIRMED (build against these)
+- **HERE v8 truck routing** — endpoint `router.hereapi.com/v8/routes?transportMode=truck`, repeatable `via`, `return=polyline,summary` all current. `vehicle[...]` params confirmed: `grossWeight`/`weightPerAxle` **kg**, `height`/`width`/`length` **cm**, `axleCount` int. `shippedHazardousGoods` enum = exactly `explosive, gas, flammable, combustible, organic, poison, radioactive, corrosive, poisonousInhalation, harmfulToWater, other`. `tunnelCategory` = `B, C, D, E` (no A). **Polyline is returned PER SECTION — decode each section, then stitch.** HERE **forward geocoding** (`geocode.search.hereapi.com/v1/geocode`) works with the **same API key** (separate transaction billing).
+- **Samsara** — `GET /fleet/vehicles/stats(/feed)?types=gps,fuelPercents` current; feed cursor-based, **≥5 s** poll floor. **`fuelPercents` is RAW/UNSMOOTHED via the API** (KB 360037502312 still accurate) → we smooth. **Tank capacity is NOT in the API** → keep storing it (we do). `GET /fleet/hos/clocks` fields confirmed: `driveRemainingDurationMs`, `shiftRemainingDurationMs`, `cycleRemainingDurationMs`, `timeUntilBreakDurationMs`, `hosStatusType` (scope **Read ELD Compliance Settings (US)**, cursor paged, `driverIds` filter). **No off-route event** — deviation is client-side (as planned). Limits 150 req/s token / 200 org, 429 + `Retry-After`.
+- **FMCSA HOS (49 CFR 395.3)** — 11-h drive / 14-h shift / 60-70-h cycle all current (last change Sep 2020). **30-min break triggers off 8 h of DRIVING time (not shift)** — implement the trigger on cumulative drive time. A **≥30 consecutive min** non-driving fuel stop resets it (splash-and-go < 30 min does not). **`legalDrive = min(drive, shift, cycle)`** confirmed correct.
+
+## B. External facts — CORRECTED / newly-flagged (change the plan)
+- **[COST — UNVERIFIED, do not commit the ~$20/mo] (Phase 0):** HERE's public pricing no longer exposes clean per-transaction routing numbers; free-tier size (5k vs 30k/mo — sources conflict) and whether **truck routing bills as "advanced" transactions** are both unconfirmed. Verify in the HERE console/quote before forecasting. Volume (~9k/mo) is trivially fine on any tier.
+- **[HERE Base Plan LICENSE — new constraint]:** the Base Plan **excludes route/stop *optimization*** (reordering destinations) and asset-tracking/telematics use. Our solver inserts fuel stops along a **fixed dispatcher-ordered route** = plain point-to-point routing → **within terms**. **Do NOT add multi-stop destination-sequence optimization** without HERE Tour Planning or a different license. Documented as a hard boundary.
+- **[IFTA — savings framing correction]:** "buy in low-tax states" does **NOT** cut an interstate carrier's fuel *tax* — IFTA reconciles tax by **miles driven per state**, crediting pump tax already paid. The **only real routing lever is the lowest NET / tax-adjusted BASE price** (rack + margin), plus the negotiated discount. **California avoidance is still justified — but by real BASE-cost premium** (CARB diesel spec, LCFS, cap-and-trade), not by tax. **Change:** the report + backtest metric must measure **net/base-price** savings and must not claim tax savings. This makes the routing lever even more modest than "cheapest pump price" implies — reinforce the honest expectation.
+- **[Team drivers — Samsara limitation]:** there is **no first-class co-driver/"isTeam" field**; `driver-vehicle-assignments` resolves to a **single** driver per vehicle. **Change:** default to **single-driver HOS (safe, never over-promises range)**; expose an optional **dispatcher "team + 2nd driver" override** in the plan form that widens combined availability. Do not silently assume a team.
+- **[HOS enum]:** verify `hosStatusType` sleeper value spelling (`sleeperBerth` vs `sleeperBed`) against a live response in Phase 0 before hard-coding.
+- **[@here/flexpolyline]:** official but low-activity (last tags ~2021). **Vendor/pin it** (or self-decode — the format is simple) so a decoder gap can't block us.
+- **[Station data source priority]:** OSM **undercounts** US truck stops and has unreliable diesel/DEF/store-number tags. **Change:** primary source = **Pilot's official "Download All Locations"** export (`locations.pilotflyingj.com`, has store #, lat/lng, diesel/DEF lanes) as system of record; OSM/Overpass (**query both `Q1434601` Pilot Flying J AND `Q64130592` Flying J**) only as a supplement/cross-check. **ONE9 has no reliable Wikidata QID** — source ONE9 from Pilot's own directory. Public posted prices exist but are **retail ≠ net** — the daily email stays authoritative.
+- **[CA boundary geometry]:** use the **US Census cartographic boundary file** (`cb_YYYY_us_state_500k`, generalized) for polyline-vs-CA crossing tests — not raw TIGER/Line (coastline over-detailed) and not Natural Earth (too coarse near the line).
+
+## C. Internal repo verification — what we can reuse (CONFIRMED) and the GAPS
+**Reusable (verified in repo):**
+- `lib/samsaraHttp.ts` — rate-limited, honors 429 `Retry-After`, exponential backoff. ✔
+- `services/jobs.ts` + `services/samsaraScheduler.ts` — ledger + tiers. ✔
+- **Forward geocoding EXISTS** — `services/geocode.ts` `lookup()` hits Nominatim (`GEOCODE_URL`, `countrycodes=us,ca`). **Reuse/generalize it for dispatcher-typed origin/dest** (or HERE geocode). Not a blocker. ✔
+- `vehicles.tank_capacity_gal` + `monitored_tank_capacity_gal` + `observed_max_fill_gal` + `baseline_mpg`. ✔
+- `trailers.is_reefer` + `reefer_tank_capacity_gal`. ✔
+- EFS import carries `price_per_gal` per transaction (QA cross-check). ✔
+
+**GAPS (must be built — folded into the phases):**
+- **[GAP-1 — per-truck HERE profile MISSING] (Phase 1 migration):** `vehicles` has **no** height/length/width/axle_count/empty_or_gross_weight/hazmat-capable/tunnel-category. Add these columns (+ `trailers.length` for combined length), with **org defaults in `route_fuel_settings`** when a truck's value is unknown. Required for correct hazmat/height-legal routing.
+- **[GAP-2 — per-LOAD inputs MISSING, cannot be inferred] (Phase 5 form → Phase 2 routing):** hazmat class + gross weight are **per shipment**; there is **no loads/orders table**. The dispatcher plan form MUST capture, per request: **load gross weight** (or "assume ≤80k"), **hazmat class** (dropdown → HERE enum), and **tunnel category**. Without these the hazmat route (a locked requirement) is wrong. This is the single most important build addition from the audit.
+- **[GAP-3 — fuel-level smoothing NOT found] (Phase 0 confirm → Phase 3):** grep found no reusable 7-point median / fuel-smoothing code despite the plan assuming reuse. **Confirm it exists; if not, build it** — it's a trivial pure function (7-point rolling median + post-fill distrust window), fully testable. Do not assume reuse.
+- **[GAP-4 — DEF still open] :** decide plan-DEF vs driver-responsibility (unchanged open item).
+
+## D. Phase 0 checklist (updated by this audit) — the go/no-go gate
+Run against the **real Silvicom Samsara token** and the **HERE console** before writing solver code:
+1. **`fuelPercents` coverage** — % of active trucks returning a fuel level, and its quantization (how coarse). Trucks without it → EFS-fallback or excluded (decide).
+2. **HOS clocks** — % of drivers with fresh clocks; confirm the four `*DurationMs` fields + `hosStatusType` **enum spelling** on a live response.
+3. **HERE console** — create key; confirm truck route + section-polyline decode + forward geocode; **read the actual transaction category + free-tier + overage price for truck routing** (kills the cost assumption).
+4. **Pilot daily email** — confirm columns, that prices are **net**, per-location, and a **row-count completeness** baseline.
+5. **Vehicle-profile data availability** — do we have (or can the fleet provide) per-truck dimensions/axles/weight + hazmat capability? If not, org defaults + per-load form inputs (GAP-1/GAP-2).
+6. **`tank_capacity_gal` / `baseline_mpg` populated** for the active fleet (sparse data → widen reserve / low-confidence).
+
+**Sources (2026-07):** HERE — docs.here.com/routing/docs/routing-v8-truck-routing, geocoding-and-search/docs/geocode, here.com/get-started/pricing + /base-plan-restrictions, npm `@here/flexpolyline`. Samsara — developers.samsara.com /reference/getvehiclestatsfeed, /reference/gethosclocks, /docs/rate-limits, /reference/getdrivervehicleassignments; kb 360037502312. FMCSA — ecfr.gov 49 CFR 395.3, fmcsa.dot.gov HOS summary + 30-min-break guidance. IFTA — iftach.org; CA base cost — CARB/LCFS/cap-and-trade (Stillwater, RMI). Stations — locations.pilotflyingj.com (Download All Locations), Wikidata Q1434601/Q64130592, Census cartographic boundary files.
