@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import BaseCard from "@/components/ui/BaseCard.vue";
+import { supabase } from "@/lib/supabase";
 import type { PlanResult, PlanStopView } from "./useFuelPlan";
 
 const props = defineProps<{
@@ -15,17 +16,38 @@ const props = defineProps<{
 const mapEl = ref<HTMLElement | null>(null);
 let map: maplibregl.Map | null = null;
 let markers: maplibregl.Marker[] = [];
+let authSub: { unsubscribe(): void } | null = null;
 
 // Resolve a semantic token to a concrete color at runtime (no hex literals in source): render a hidden
-// element with the token class and read its computed color. Keeps the map on-brand via the design system.
+// element with the token class, read its computed color, then normalize through a canvas — the design
+// tokens are authored in oklch(), which maplibre's style parser rejects; canvas returns rgb/hex it accepts.
 function tokenColor(cls: string): string {
   const el = document.createElement("span");
   el.className = cls;
   el.style.display = "none";
   document.body.appendChild(el);
-  const c = window.getComputedStyle(el).color;
+  const raw = window.getComputedStyle(el).color;
   el.remove();
-  return c || "rgb(37, 99, 235)";
+  const cv = document.createElement("canvas");
+  const ctx = cv.getContext("2d");
+  if (!ctx) return "rgb(37, 99, 235)";
+  ctx.fillStyle = "rgb(37, 99, 235)"; // fallback if the browser rejects the source color string
+  try {
+    ctx.fillStyle = raw;
+  } catch {
+    // keep fallback
+  }
+  return ctx.fillStyle;
+}
+
+// The tile proxy is authenticated (Bearer JWT). maplibre fetches tiles from a worker with no auth header,
+// so we attach the current Supabase access token via transformRequest. Kept fresh on token refresh.
+let accessToken: string | null = null;
+function attachAuth(url: string): maplibregl.RequestParameters {
+  if (accessToken && url.includes("/api/fueling/map-tiles/")) {
+    return { url, headers: { Authorization: `Bearer ${accessToken}` } };
+  }
+  return { url };
 }
 
 function markerEl(dotClass: string): HTMLElement {
@@ -82,10 +104,16 @@ function syncRoute() {
   if (b) map.fitBounds(b, { padding: 48, duration: 0 });
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (!mapEl.value) return;
+  const { data: sess } = await supabase.auth.getSession();
+  accessToken = sess.session?.access_token ?? null;
+  authSub = supabase.auth.onAuthStateChange((_e, session) => {
+    accessToken = session?.access_token ?? null;
+  }).data.subscription;
   map = new maplibregl.Map({
     container: mapEl.value,
+    transformRequest: attachAuth,
     style: {
       version: 8,
       sources: {
@@ -121,6 +149,8 @@ onMounted(() => {
 watch(() => props.route, syncRoute);
 
 onBeforeUnmount(() => {
+  authSub?.unsubscribe();
+  authSub = null;
   for (const m of markers) m.remove();
   markers = [];
   map?.remove();

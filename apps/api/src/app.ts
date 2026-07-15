@@ -40,6 +40,8 @@ export function createApp(env: Env): Express {
         directives: {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
+          // maplibre-gl runs its tile decoder in a Worker created from a blob: URL.
+          workerSrc: ["'self'", "blob:"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
           connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co"],
