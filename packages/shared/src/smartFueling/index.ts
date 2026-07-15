@@ -6,6 +6,7 @@ export * from "./sources.js";
 export * from "./flexPolyline.js";
 export * from "./geo.js";
 export * from "./hereRoute.js";
+export * from "./pilotPriceReport.js";
 export * from "./corridor.js";
 export * from "./fuelLevel.js";
 export * from "./hos.js";

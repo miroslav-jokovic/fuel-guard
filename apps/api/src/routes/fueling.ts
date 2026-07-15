@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { planFuelRoute, type PlanRequest } from "../services/fuelPlanning.js";
 import { geocodeSuggest } from "../services/geocode.js";
+import { ingestPilotPrices } from "../services/pilotPriceIngest.js";
 
 export function fuelingRouter(): Router {
   const router = Router();
@@ -82,6 +83,28 @@ export function fuelingRouter(): Router {
       const env = getAppLocals(req).env;
       const q = String(req.query.q ?? "");
       res.json({ suggestions: await geocodeSuggest(env, q) });
+    }),
+  );
+
+  // Load a Pilot daily price report (client decodes the .xls to a cell grid; we parse + geocode + upsert).
+  router.post(
+    "/prices",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const grid = (req.body as { grid?: unknown[] })?.grid;
+      if (!Array.isArray(grid)) {
+        res.status(400).json(apiError("bad_request", "Expected { grid: Cell[][] } from the decoded report."));
+        return;
+      }
+      const result = await ingestPilotPrices(admin, env, req.auth!.orgId!, grid as (string | number | null)[][]);
+      if (!result.ok) {
+        res.status(422).json(apiError("ingest_failed", result.error ?? "Could not ingest the report"));
+        return;
+      }
+      res.json(result);
     }),
   );
 
