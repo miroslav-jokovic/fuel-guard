@@ -42,11 +42,17 @@ async function onFiles(files: File[]) {
 
     <p v-if="loading" class="mt-3 text-sm text-ink-secondary">Geocoding sites &amp; loading prices… the first load can take a moment.</p>
 
-    <div v-if="result" class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md bg-success-50 px-3 py-2 text-sm text-success-800">
-      <span class="inline-flex items-center gap-1.5 font-medium"><CheckCircleIcon class="size-4" aria-hidden="true" /> Loaded {{ result.effectiveDate }}</span>
-      <span>{{ result.pricesInserted.toLocaleString() }} prices</span>
-      <span>{{ result.stationsUpserted.toLocaleString() }} stations placed</span>
-      <span v-if="result.geocodeFailed" class="text-caution-700" title="These sites could not be geocoded and were skipped. Re-uploading retries them.">{{ result.geocodeFailed }} unplaced</span>
-    </div>
+    <template v-if="result">
+      <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md bg-success-50 px-3 py-2 text-sm text-success-800">
+        <span class="inline-flex items-center gap-1.5 font-medium"><CheckCircleIcon class="size-4" aria-hidden="true" /> Loaded {{ result.effectiveDate }}</span>
+        <span>{{ result.pricesInserted.toLocaleString() }} prices</span>
+        <span>{{ result.stationsUpserted.toLocaleString() }} stations placed</span>
+        <span v-if="result.duplicatesInFile" title="Repeated site rows in the file were collapsed (last wins).">{{ result.duplicatesInFile }} duplicate rows merged</span>
+        <span v-if="result.geocodeFailed" class="text-caution-700">{{ result.geocodeFailed }} still geocoding</span>
+      </div>
+      <p v-if="result.geocodeFailed" class="mt-2 text-sm text-ink-secondary">
+        {{ result.geocodeFailed.toLocaleString() }} site(s) hit HERE's rate limit this run. Placed sites are cached — <strong>upload the same file again</strong> to finish the rest (it will be quick).
+      </p>
+    </template>
   </BaseCard>
 </template>

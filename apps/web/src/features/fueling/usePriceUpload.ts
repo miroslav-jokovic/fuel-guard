@@ -5,6 +5,8 @@ export interface PriceIngestResult {
   account: string | null;
   effectiveDate: string | null;
   totalRows: number;
+  duplicatesInFile: number;
+  uniqueSites: number;
   stationsUpserted: number;
   pricesInserted: number;
   geocodeFailed: number;
