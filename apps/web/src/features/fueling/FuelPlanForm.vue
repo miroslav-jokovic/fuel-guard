@@ -5,6 +5,7 @@ import { useVehiclesQuery } from "@/features/fleet/useVehicles";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import AddressInput from "./AddressInput.vue";
 import FormField from "@/components/ui/FormField.vue";
 import { HAZMAT_OPTIONS, TUNNEL_OPTIONS, type PlanRequest } from "./useFuelPlan";
@@ -14,8 +15,7 @@ const emit = defineEmits<{ submit: [req: PlanRequest] }>();
 
 const { data: vehicles } = useVehiclesQuery();
 const trucks = computed(() => (vehicles.value ?? []).filter((v) => v.status !== "retired"));
-
-const SELECT_CLS = "w-full rounded-md border border-edge bg-surface px-2 py-1.5 text-sm text-ink";
+const truckOptions = computed(() => trucks.value.map((t) => ({ value: t.id, label: t.unit_number })));
 
 const form = reactive({
   vehicleId: "",
@@ -54,22 +54,20 @@ function submit() {
 <template>
   <BaseCard as="form" @submit.prevent="submit">
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <FormField v-slot="{ id }" label="Truck">
-        <select :id="id" v-model="form.vehicleId" :class="SELECT_CLS">
-          <option value="" disabled>Select a truck…</option>
-          <option v-for="t in trucks" :key="t.id" :value="t.id">{{ t.unit_number }}</option>
-        </select>
-      </FormField>
-      <FormField v-slot="{ id }" label="Hazmat class" hint="Per load — changes the legal truck route.">
-        <select :id="id" v-model="form.hazmat" :class="SELECT_CLS">
-          <option v-for="h in HAZMAT_OPTIONS" :key="h.value" :value="h.value">{{ h.label }}</option>
-        </select>
-      </FormField>
-      <FormField v-if="form.hazmat" v-slot="{ id }" label="Tunnel category" hint="ADR restriction for the placarded load.">
-        <select :id="id" v-model="form.tunnelCategory" :class="SELECT_CLS">
-          <option v-for="t in TUNNEL_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</option>
-        </select>
-      </FormField>
+      <div>
+        <span class="mb-1.5 block text-sm font-medium text-ink-secondary">Truck</span>
+        <FilterSelect v-model="form.vehicleId" label="Unit" :options="truckOptions" block />
+      </div>
+      <div>
+        <span class="mb-1.5 block text-sm font-medium text-ink-secondary">Hazmat class</span>
+        <FilterSelect v-model="form.hazmat" label="Class" :options="HAZMAT_OPTIONS" block />
+        <p class="mt-1 text-xs text-ink-muted">Per load — changes the legal truck route.</p>
+      </div>
+      <div v-if="form.hazmat">
+        <span class="mb-1.5 block text-sm font-medium text-ink-secondary">Tunnel category</span>
+        <FilterSelect v-model="form.tunnelCategory" label="Category" :options="TUNNEL_OPTIONS" block />
+        <p class="mt-1 text-xs text-ink-muted">ADR restriction for the placarded load.</p>
+      </div>
       <FormField v-slot="{ id }" label="Start">
         <AddressInput
 :id="id" :model-value="form.origin" placeholder="City, ST or address"

@@ -32,6 +32,8 @@ const EnvSchema = z.object({
   // the rest of the app boots. HERE_ROUTER_URL lets tests point elsewhere.
   HERE_API_KEY: z.string().optional(),
   HERE_ROUTER_URL: z.string().url().default("https://router.hereapi.com/v8/routes"),
+  // HERE Autosuggest (address autocomplete). Reuses HERE_API_KEY; when the key is unset we fall back to Nominatim.
+  HERE_AUTOSUGGEST_URL: z.string().url().default("https://autosuggest.search.hereapi.com/v1/autosuggest"),
   // Base64 secret from the Samsara webhook config — used to verify incoming siphoning-alert webhooks.
   // When unset, the webhook endpoint rejects everything (fail-closed).
   SAMSARA_WEBHOOK_SECRET: z.string().optional(),

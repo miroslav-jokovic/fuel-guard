@@ -134,10 +134,45 @@ async function queryNominatim(env: Env, station: StationQuery, brandLabel: strin
   return cityHit ? { lat: cityHit.lat, lng: cityHit.lng, precision: "city" } : null;
 }
 
-/** Address autocomplete: up to `limit` matches for a partial query (server-side so the geocoder stays private). */
-export async function geocodeSuggest(env: Env, q: string, limit = 5): Promise<{ label: string; lat: number; lng: number }[]> {
+export interface AddressSuggestion { label: string; lat: number; lng: number }
+
+/**
+ * Address autocomplete: up to `limit` matches for a partial query (server-side so the geocoder stays private).
+ * Prefers HERE Autosuggest when HERE_API_KEY is set — it is the same provider that builds the truck routes, so
+ * the suggestions line up with what the router will accept, and its free tier is generous. Falls back to
+ * Nominatim on any failure or when no HERE key is configured, so autocomplete never hard-fails.
+ */
+export async function geocodeSuggest(env: Env, q: string, limit = 5): Promise<AddressSuggestion[]> {
   const query = q.trim();
   if (query.length < 3) return [];
+  if (env.HERE_API_KEY) {
+    try {
+      const hits = await hereAutosuggest(env, query, limit);
+      if (hits.length) return hits;
+    } catch (e) {
+      console.error("[geocode] HERE autosuggest failed, falling back to Nominatim:", e instanceof Error ? e.message : e);
+    }
+  }
+  return nominatimSuggest(env, query, limit);
+}
+
+// US geographic centre — a required focus point for HERE Autosuggest. Paired with in=countryCode:USA,CAN it
+// yields nationwide US/CA matches without pinning results to any one metro.
+const US_FOCUS = "39.8283,-98.5795";
+
+async function hereAutosuggest(env: Env, query: string, limit: number): Promise<AddressSuggestion[]> {
+  const url =
+    `${env.HERE_AUTOSUGGEST_URL}?q=${encodeURIComponent(query)}&at=${US_FOCUS}` +
+    `&in=countryCode:USA,CAN&limit=${limit}&apiKey=${encodeURIComponent(env.HERE_API_KEY ?? "")}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HERE autosuggest HTTP ${res.status}`);
+  const body = (await res.json()) as { items?: Array<{ title?: string; address?: { label?: string }; position?: { lat?: number; lng?: number } }> };
+  return (body.items ?? [])
+    .map((it) => ({ label: it.address?.label ?? it.title ?? "", lat: Number(it.position?.lat), lng: Number(it.position?.lng) }))
+    .filter((x) => x.label && Number.isFinite(x.lat) && Number.isFinite(x.lng));
+}
+
+async function nominatimSuggest(env: Env, query: string, limit: number): Promise<AddressSuggestion[]> {
   const url = `${env.GEOCODE_URL}?q=${encodeURIComponent(query)}&format=json&limit=${limit}&countrycodes=us,ca&addressdetails=0`;
   const res = await fetch(url, { headers: { "User-Agent": `FuelGuard/1.0 (${env.MAIL_FROM})` } });
   if (!res.ok) return [];
