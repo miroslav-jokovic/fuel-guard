@@ -111,6 +111,11 @@ const EnvSchema = z.object({
   // Microsoft 365 "graph" source — app-only credentials from the Entra app registration. The app needs the
   // Mail.Read APPLICATION permission with admin consent, ideally scoped to just EFS_GRAPH_MAILBOX via an
   // Application Access Policy. EFS_GRAPH_FOLDER (optional) restricts reading to one mail folder by name.
+  // Automated Pilot public posted-price fetch (fuel_prices_posted — global layer, Phase A of
+  // FUEL-PRICE-DATA-PLAN.md). 0 disables. The page updates intra-day; 6h is a respectful cadence.
+  PILOT_POSTED_FETCH_HOURS: z.coerce.number().min(0).default(6),
+  PILOT_POSTED_URL: z.string().default("https://pilotcompany.com/fuel-prices"),
+
   EFS_GRAPH_TENANT_ID: z.string().optional(),
   EFS_GRAPH_CLIENT_ID: z.string().optional(),
   EFS_GRAPH_CLIENT_SECRET: z.string().optional(),

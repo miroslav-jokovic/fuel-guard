@@ -15,6 +15,7 @@ import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import PriceUploadCard from "@/features/fueling/PriceUploadCard.vue";
+import StationDataCard from "@/features/fueling/StationDataCard.vue";
 
 const activeTab = ref<"efs" | "prices">("efs");
 
@@ -326,6 +327,7 @@ async function onRepair() {
 
     <div v-if="activeTab === 'prices'" class="space-y-4">
       <PriceUploadCard />
+      <StationDataCard />
     </div>
   </div>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, computed, watch } from "vue";
-import { routeFuelSettingsFormSchema, ROUTE_FUEL_SETTINGS_DEFAULTS, type RouteFuelSettingsForm } from "@fuelguard/shared";
+import { routeFuelSettingsFormSchema, ROUTE_FUEL_SETTINGS_DEFAULTS, BRAND_LABELS, type RouteFuelSettingsForm } from "@fuelguard/shared";
 import { useRouteFuelSettings, useSaveRouteFuelSettings } from "@/features/fueling/useRouteFuelSettings";
 import { useToastStore } from "@/stores/toast";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -32,6 +32,23 @@ const avoidBrands = csv("avoid_brands");
 const emergencyBrands = csv("emergency_brands");
 const avoidStates = csv("avoid_states", true);
 const fuelBeforeStates = csv("fuel_before_states", true);
+
+// Networks the org has turned ON (hard registry filter). Rendered as checkboxes from the brand catalog;
+// brands already enabled but no longer in the catalog (defensive) still render so they can be turned off.
+const networkOptions = computed(() => {
+  const known = Object.entries(BRAND_LABELS).map(([value, label]) => ({ value, label }));
+  const extra = (form.enabled_brands ?? []).filter((b) => !(b in BRAND_LABELS)).map((b) => ({ value: b, label: b }));
+  return [...known, ...extra];
+});
+function networkOn(brand: string): boolean {
+  return (form.enabled_brands ?? []).includes(brand);
+}
+function toggleNetwork(brand: string, on: boolean) {
+  const set = new Set(form.enabled_brands ?? []);
+  if (on) set.add(brand);
+  else set.delete(brand);
+  form.enabled_brands = [...set];
+}
 
 const fieldErr = ref<Record<string, string>>({});
 async function onSave() {
@@ -127,6 +144,25 @@ const truck: NumField[] = [
             <BaseInput :id="id" v-model="form[f.key] as number" type="number" :step="f.step" inputmode="numeric" :invalid="!!fieldErr[f.key]" />
           </FormField>
         </div>
+      </BaseCard>
+
+      <BaseCard>
+        <h3 class="text-sm font-semibold text-ink">Truck stop networks</h3>
+        <p class="mt-1 text-sm text-ink-muted">
+          Networks turned ON here are the only ones the planner will ever consider — brand preferences below then rank within them.
+          Turn a network on once its locations and prices are loaded and your discount deal (if any) is configured.
+        </p>
+        <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <BaseCheckbox
+            v-for="opt in networkOptions"
+            :key="opt.value"
+            :model-value="networkOn(opt.value)"
+            @update:model-value="(v: boolean) => toggleNetwork(opt.value, v)"
+          >
+            {{ opt.label }}
+          </BaseCheckbox>
+        </div>
+        <p v-if="fieldErr.enabled_brands" class="mt-2 text-sm text-danger-600">{{ fieldErr.enabled_brands }}</p>
       </BaseCard>
 
       <BaseCard>

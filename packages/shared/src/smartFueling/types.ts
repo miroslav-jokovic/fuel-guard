@@ -65,6 +65,9 @@ export interface RouteFuelSettings {
   avoidBrands: string[];
   preferredBrands: string[];
   emergencyBrands: string[];
+  /** Truck-stop networks this org has turned ON — a hard registry filter applied BEFORE the solver
+   *  (the registry may hold more networks than an org uses). Empty is not allowed (resolve falls back). */
+  enabledBrands: string[];
   emergencyFillGallons: number;
   planDef: boolean;
   defaultProfile: TruckProfile;
@@ -84,6 +87,7 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],
   emergencyBrands: ["one9"],
+  enabledBrands: ["pilot", "flying_j", "one9"],
   emergencyFillGallons: 50,
   planDef: false,
   defaultProfile: { heightIn: 162, lengthIn: 840, widthIn: 102, axleCount: 5, grossWeightLb: 80000 },

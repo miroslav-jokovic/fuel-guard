@@ -5,7 +5,7 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { planFuelRoute, type PlanRequest } from "../services/fuelPlanning.js";
-import { estimateStationPrice, median, DEFAULT_PRICE_LOOKBACK_HOURS } from "@fuelguard/shared";
+import { resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, type DiscountRule } from "@fuelguard/shared";
 
 // Validate + bound the plan request (security: reject malformed/oversized input before any Samsara/HERE work).
 const planPointSchema = z.object({ lat: z.number().nullable().optional(), lng: z.number().nullable().optional(), text: z.string().max(300).nullable().optional() });
@@ -27,6 +27,10 @@ const planBodySchema = z.object({
 });
 import { geocodeSuggest } from "../services/geocode.js";
 import { ingestPilotPrices } from "../services/pilotPriceIngest.js";
+import { ingestPilotLocations } from "../services/pilotLocationsIngest.js";
+import { ingestPostedPrices } from "../services/postedPriceIngest.js";
+import { gatePostedBatch, runPostedPriceFetch, POSTED_SOURCE_XLSX } from "../services/postedPriceFetch.js";
+import { parsePilotPublicPricesXlsx } from "@fuelguard/shared";
 import { fetchVehicleCurrentGps } from "../lib/samsara.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { hereReverseGeocode } from "../lib/hereGeocode.js";
@@ -132,6 +136,84 @@ export function fuelingRouter(): Router {
     }),
   );
 
+  // Load the Pilot "Download All Locations" export (exact coordinates for the whole family) into the
+  // GLOBAL station registry. Admin-only: it rewrites shared reference data (brands, precise coords).
+  router.post(
+    "/locations",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const grid = (req.body as { grid?: unknown[] })?.grid;
+      if (!Array.isArray(grid)) {
+        res.status(400).json(apiError("bad_request", "Expected { grid: Cell[][] } from the decoded export."));
+        return;
+      }
+      const result = await ingestPilotLocations(admin, grid as (string | number | null)[][]);
+      if (!result.ok) {
+        res.status(422).json(apiError("ingest_failed", result.error ?? "Could not ingest the locations export"));
+        return;
+      }
+      res.json(result);
+    }),
+  );
+
+  // Load the public "Download Fuel Prices" .xlsx (network-wide POSTED prices — the global layer).
+  // Gated exactly like the automated page fetch: completeness floor + diesel-median sanity band.
+  router.post(
+    "/posted-prices",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const grid = (req.body as { grid?: unknown[] })?.grid;
+      if (!Array.isArray(grid)) {
+        res.status(400).json(apiError("bad_request", "Expected { grid: Cell[][] } from the decoded file."));
+        return;
+      }
+      const parsed = parsePilotPublicPricesXlsx(grid as (string | number | null)[][]);
+      if (!parsed.headerFound) {
+        res.status(422).json(apiError("ingest_failed", "Unrecognized file — expected the public 'Download Fuel Prices' export."));
+        return;
+      }
+      const dieselUsd = parsed.rows.filter((r) => r.product === "diesel" && r.currency === "USD").map((r) => r.price);
+      const gateError = gatePostedBatch(parsed.stationRows, dieselUsd, 700);
+      if (gateError) {
+        res.status(422).json(apiError("ingest_failed", gateError));
+        return;
+      }
+      const result = await ingestPostedPrices(admin, parsed.rows, {
+        source: POSTED_SOURCE_XLSX, observedAt: new Date().toISOString(),
+        stationRows: parsed.stationRows, skipped: parsed.skipped,
+      });
+      if (!result.ok) {
+        res.status(422).json(apiError("ingest_failed", result.error ?? "Could not ingest the posted prices"));
+        return;
+      }
+      res.json(result);
+    }),
+  );
+
+  // Manually trigger the automated posted-price page fetch (same gates as the scheduler) — lets an
+  // admin refresh now and SEE the result instead of waiting for the next tick.
+  router.post(
+    "/posted-prices/fetch",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const result = await runPostedPriceFetch(admin, env);
+      if (!result.ok) {
+        res.status(422).json(apiError("fetch_failed", result.error ?? "Posted-price fetch failed"));
+        return;
+      }
+      res.json(result);
+    }),
+  );
+
   // Current GPS of the selected vehicle from Samsara, reverse-geocoded — used to prefill the plan Start.
   router.get(
     "/vehicle-location",
@@ -165,8 +247,9 @@ export function fuelingRouter(): Router {
     }),
   );
 
-  // All loaded truck stops + their current net/posted price (latest per station), with staleness vs the
-  // org price-freshness window. Read-only listing for the Truck Stops page.
+  // All registry truck stops in the org's ENABLED networks + the diesel price planning would use for
+  // each (fresh tenant net → posted−rule → history → brand median → none), with staleness vs the org
+  // price-freshness window. Read-only listing for the Truck Stops page.
   router.get(
     "/stations",
     requireOrg,
@@ -175,8 +258,13 @@ export function fuelingRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
 
-      const { data: settingsRow } = await admin.from("route_fuel_settings").select("price_ttl_hours").eq("org_id", orgId).maybeSingle();
+      const { data: settingsRow } = await admin
+        .from("route_fuel_settings").select("price_ttl_hours, enabled_brands").eq("org_id", orgId).maybeSingle();
       const ttlHours = settingsRow?.price_ttl_hours != null ? Number(settingsRow.price_ttl_hours) : 30;
+      const enabledBrands: string[] =
+        Array.isArray(settingsRow?.enabled_brands) && settingsRow.enabled_brands.length
+          ? (settingsRow.enabled_brands as string[])
+          : ["pilot", "flying_j", "one9"];
 
       const now = Date.now();
       const lookbackHours = DEFAULT_PRICE_LOOKBACK_HOURS;
@@ -207,15 +295,44 @@ export function fuelingRouter(): Router {
         if (!data || data.length < PAGE) break;
       }
 
-      const stationIds = [...latest.keys()];
-      const meta = new Map<string, { brand: string; store_number: string | null; name: string | null; state: string | null; lat: number | string; lng: number | string; exit: string | null }>();
-      for (let i = 0; i < stationIds.length; i += 200) {
-        const part = stationIds.slice(i, i + 200);
-        const { data } = await admin.from("fuel_stations").select("id, brand, store_number, name, state, lat, lng, exit").in("id", part);
-        for (const st of (data ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; state: string | null; lat: number | string; lng: number | string; exit: string | null }>) meta.set(st.id, st);
+      // The full registry for the enabled networks (not just tenant-priced stations — a station with
+      // only a posted price must appear, with its effective planning price).
+      type StMeta = { id: string; brand: string; store_number: string | null; name: string | null; state: string | null; city: string | null; lat: number | string; lng: number | string; exit: string | null; coord_source: string | null };
+      const meta = new Map<string, StMeta>();
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await admin
+          .from("fuel_stations")
+          .select("id, brand, store_number, name, state, city, lat, lng, exit, coord_source")
+          .eq("status", "active").in("brand", enabledBrands)
+          .range(from, from + PAGE - 1);
+        if (error) { res.status(500).json(apiError("db_error", error.message)); return; }
+        for (const st of (data ?? []) as StMeta[]) meta.set(st.id, st);
+        if (!data || data.length < PAGE) break;
       }
 
-      // Corridor-wide brand medians (fresh quotes only) — the fallback when a station has no usable history.
+      // Latest posted diesel quote per station (global layer) within the lookback.
+      const posted = new Map<string, { price: number; currency: string; unit: string; at: string }>();
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await admin
+          .from("fuel_prices_posted").select("station_id, price, currency, unit, observed_at")
+          .eq("product", "diesel").gte("observed_at", new Date(cutoffMs).toISOString())
+          .order("observed_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) { res.status(500).json(apiError("db_error", error.message)); return; }
+        for (const p of (data ?? []) as Array<{ station_id: string; price: number | string; currency: string; unit: string; observed_at: string }>) {
+          if (!posted.has(p.station_id)) posted.set(p.station_id, { price: Number(p.price), currency: p.currency, unit: p.unit, at: p.observed_at });
+        }
+        if (!data || data.length < PAGE) break;
+      }
+
+      const { data: ruleRows } = await admin.from("fuel_discount_rules").select("brand, type, cents_off").eq("org_id", orgId);
+      const ruleByBrand = new Map<string, DiscountRule>(
+        ((ruleRows ?? []) as Array<{ brand: string; type: DiscountRule["type"]; cents_off: number | string }>).map((r) => [
+          r.brand, { brand: r.brand, type: r.type, centsOff: Number(r.cents_off) },
+        ]),
+      );
+
+      // Brand medians (fresh tenant quotes only) — the fallback when a station has no usable history.
       const freshByBrand = new Map<string, number[]>();
       for (const [id, pr] of latest) {
         const m = meta.get(id);
@@ -224,16 +341,26 @@ export function fuelingRouter(): Router {
       }
 
       const stations: Record<string, unknown>[] = [];
-      for (const id of stationIds) {
-        const st = meta.get(id);
-        if (!st) continue;
-        const pr = latest.get(id)!;
-        const ageHours = Math.round((now - Date.parse(pr.at)) / 3_600_000);
-        const est = estimateStationPrice(samples.get(id) ?? [], now, { ttlHours, lookbackHours, brandMedian: median(freshByBrand.get(st.brand) ?? []) });
+      for (const [id, st] of meta) {
+        const pr = latest.get(id) ?? null;
+        const po = posted.get(id) ?? null;
+        const est = resolveEffectivePrice({
+          tenantSamples: samples.get(id) ?? [],
+          posted: po ? { price: po.price, currency: po.currency, unit: po.unit, observedAtMs: Date.parse(po.at) } : null,
+          discountRule: ruleByBrand.get(st.brand) ?? null,
+          brandMedian: median(freshByBrand.get(st.brand) ?? []),
+          nowMs: now, ttlHours, lookbackHours,
+        });
+        // Freshness reflects the quote the effective price is actually based on.
+        const basisAt = est.basis === "posted_discount" ? (po?.at ?? null) : (pr?.at ?? null);
+        const ageHours = basisAt != null ? Math.round((now - Date.parse(basisAt)) / 3_600_000) : null;
         stations.push({
-          id, brand: st.brand, storeNumber: st.store_number, name: st.name, state: st.state, lat: Number(st.lat), lng: Number(st.lng), exit: st.exit,
+          id, brand: st.brand, storeNumber: st.store_number, name: st.name, state: st.state, city: st.city,
+          lat: Number(st.lat), lng: Number(st.lng), exit: st.exit, coordSource: st.coord_source ?? "geocoded_city",
           netPrice: est.net, priceEstimated: est.estimated, priceConfidence: est.estimated ? est.confidence : null,
-          postedPrice: pr.posted, observedAt: pr.at, ageHours, stale: ageHours > ttlHours,
+          priceBasis: est.basis,
+          postedPrice: po && po.currency === "USD" && po.unit === "gal" ? po.price : null,
+          observedAt: basisAt, ageHours, stale: ageHours != null && ageHours > ttlHours,
         });
       }
       stations.sort((a, b) => String(a.state).localeCompare(String(b.state)) || String(a.name).localeCompare(String(b.name)));

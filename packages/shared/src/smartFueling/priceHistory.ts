@@ -12,8 +12,9 @@ const HOUR = 3_600_000;
 export const DEFAULT_PRICE_LOOKBACK_HOURS = 21 * 24; // 21 days
 
 export type PriceConfidence = "high" | "medium" | "low";
-/** Where the price came from: a fresh quote, this station's older history, a brand median, or nothing. */
-export type PriceBasis = "fresh" | "station_history" | "brand" | "none";
+/** Where the price came from: a fresh tenant quote, a fresh POSTED price with the org's discount rule
+ *  applied, this station's older history, a brand median, or nothing. */
+export type PriceBasis = "fresh" | "posted_discount" | "station_history" | "brand" | "none";
 
 export interface PriceSample {
   net: number | null;

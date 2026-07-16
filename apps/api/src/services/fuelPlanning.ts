@@ -6,8 +6,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   resolveRouteFuelConfig, effectiveTruckProfile, buildTruckFuelState, planFuelStops, stationsAlongRoute,
-  milesFromMeters, estimateStationPrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile,
+  milesFromMeters, resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile,
   type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState, type PriceConfidence,
+  type PostedQuote, type DiscountRule,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { getOrComputeRoute } from "./routeGeometry.js";
@@ -226,10 +227,13 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     if (pt.lng > maxLng) maxLng = pt.lng;
   }
   const pad = 0.1;
+  // Hard registry filter: only networks this org has turned ON participate at all (solver policy —
+  // preferred/avoid/emergency — then ranks within them).
   const { data: stationRows } = await admin
     .from("fuel_stations")
     .select("id, brand, store_number, name, lat, lng, state, exit, has_diesel")
     .eq("status", "active")
+    .in("brand", cfg.enabledBrands)
     .gte("lat", minLat - pad).lte("lat", maxLat + pad)
     .gte("lng", minLng - pad).lte("lng", maxLng + pad);
   const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
@@ -258,6 +262,26 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     }
   }
 
+  // GLOBAL posted layer: latest posted diesel quote per corridor station (currency/unit carried so the
+  // resolver can reject non-USD/gal rows), plus the org's per-brand discount rules to derive net from it.
+  const postedByStation = new Map<string, PostedQuote>();
+  for (let i = 0; i < candidateIds.length; i += 200) {
+    const part = candidateIds.slice(i, i + 200);
+    const { data: postedRows } = await admin
+      .from("fuel_prices_posted").select("station_id, price, currency, unit, observed_at").eq("product", "diesel")
+      .in("station_id", part).gte("observed_at", cutoffIso).order("observed_at", { ascending: false });
+    for (const pr of (postedRows ?? []) as Array<{ station_id: string; price: number | string; currency: string; unit: string; observed_at: string }>) {
+      if (!postedByStation.has(pr.station_id))
+        postedByStation.set(pr.station_id, { price: Number(pr.price), currency: pr.currency, unit: pr.unit, observedAtMs: Date.parse(pr.observed_at) });
+    }
+  }
+  const { data: ruleRows } = await admin.from("fuel_discount_rules").select("brand, type, cents_off").eq("org_id", orgId);
+  const ruleByBrand = new Map<string, DiscountRule>(
+    ((ruleRows ?? []) as Array<{ brand: string; type: DiscountRule["type"]; cents_off: number | string }>).map((r) => [
+      r.brand, { brand: r.brand, type: r.type, centsOff: Number(r.cents_off) },
+    ]),
+  );
+
   // Corridor brand medians (from FRESH quotes only) — the fallback when a station has no usable history of its own.
   const freshByBrand = new Map<string, number[]>();
   for (const c of candidates) {
@@ -268,11 +292,19 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   }
   const brandMedian = (brand: string): number | null => median(freshByBrand.get(brand) ?? []);
 
-  // Estimate a plannable price for each corridor station (fresh quote → history median → brand median → none).
-  const estByStation = new Map<string, ReturnType<typeof estimateStationPrice>>();
+  // Plannable price per corridor station: fresh tenant net → fresh posted−rule → history → brand → none.
+  const estByStation = new Map<string, ReturnType<typeof resolveEffectivePrice>>();
   const solverStations: SolverStation[] = candidates.map((c) => {
     const s = stationById.get(c.station.id)!;
-    const est = estimateStationPrice(historyByStation.get(c.station.id) ?? [], now0, { ttlHours: cfg.priceTtlHours, lookbackHours, brandMedian: brandMedian(s.brand) });
+    const est = resolveEffectivePrice({
+      tenantSamples: historyByStation.get(c.station.id) ?? [],
+      posted: postedByStation.get(c.station.id) ?? null,
+      discountRule: ruleByBrand.get(s.brand) ?? null,
+      brandMedian: brandMedian(s.brand),
+      nowMs: now0,
+      ttlHours: cfg.priceTtlHours,
+      lookbackHours,
+    });
     estByStation.set(c.station.id, est);
     return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: est.net, priceEstimated: est.estimated };
   });

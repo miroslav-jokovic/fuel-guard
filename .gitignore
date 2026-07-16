@@ -43,3 +43,7 @@ _tmp_*
 
 # "Pending delete" holding folder for retired files (delete manually — not part of the project)
 _to_delete/
+
+# Local-only: raw chain data samples + session transfer scratch
+data-samples/
+_staging/

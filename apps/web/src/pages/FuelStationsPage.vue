@@ -16,6 +16,7 @@ const { data, isLoading, isError, error } = useFuelStations();
 
 const search = ref("");
 const stateFilter = ref("");
+const brandFilter = ref("");
 const priceFilter = ref("");
 const page = ref(1);
 const sort = ref<SortState>({ key: "netPrice", dir: "asc" });
@@ -24,6 +25,10 @@ const rows = computed(() => data.value?.stations ?? []);
 const stateOptions = computed(() => {
   const set = [...new Set(rows.value.map((r) => r.state).filter(Boolean))].sort() as string[];
   return [{ value: "", label: "All states" }, ...set.map((s) => ({ value: s, label: s }))];
+});
+const brandOptions = computed(() => {
+  const set = [...new Set(rows.value.map((r) => r.brand))].sort();
+  return [{ value: "", label: "All networks" }, ...set.map((b) => ({ value: b, label: brandLabel(b) }))];
 });
 const priceOptions = [
   { value: "", label: "All prices" },
@@ -37,6 +42,7 @@ const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
   return rows.value.filter((r) => {
     if (stateFilter.value && r.state !== stateFilter.value) return false;
+    if (brandFilter.value && r.brand !== brandFilter.value) return false;
     if (priceFilter.value === "priced" && (r.netPrice == null || r.priceEstimated)) return false;
     if (priceFilter.value === "estimated" && !r.priceEstimated) return false;
     if (priceFilter.value === "stale" && !r.stale) return false;
@@ -78,6 +84,7 @@ const columns: DataTableColumn[] = [
         count-label="truck stops"
       >
         <template #filters>
+          <FilterSelect v-model="brandFilter" label="Network" :options="brandOptions" />
           <FilterSelect v-model="stateFilter" label="State" :options="stateOptions" />
           <FilterSelect v-model="priceFilter" label="Price" :options="priceOptions" />
         </template>
@@ -85,17 +92,30 @@ const columns: DataTableColumn[] = [
 
       <BaseCard padding="none">
         <DataTable :columns="columns" :rows="paged" row-key="id" :sort="sort" empty-text="No truck stops match." @sort="onSort">
-          <template #cell-name="{ row }">{{ (row as FuelStationRow).name ?? "—" }}</template>
+          <template #cell-name="{ row }">
+            {{ (row as FuelStationRow).name ?? "—" }}
+            <span
+              v-if="(row as FuelStationRow).coordSource !== 'exact_export'"
+              :class="[BADGE_BASE, toneClass('warning'), 'ml-1.5']"
+              title="Placed at a city-centroid geocode — load the locations export for exact coordinates."
+            >≈ location</span>
+          </template>
           <template #cell-brand="{ row }">{{ brandLabel((row as FuelStationRow).brand) }}</template>
           <template #cell-netPrice="{ row }">
             <span class="tabular-nums font-medium text-ink">{{ price((row as FuelStationRow).netPrice) }}</span>
-            <span v-if="(row as FuelStationRow).priceEstimated" :class="['ml-1.5', BADGE_BASE, toneClass('neutral')]" :title="`Estimated from history (${(row as FuelStationRow).priceConfidence} confidence)`">est.</span>
+            <span
+              v-if="(row as FuelStationRow).priceEstimated"
+              :class="['ml-1.5', BADGE_BASE, toneClass('neutral')]"
+              :title="(row as FuelStationRow).priceBasis === 'posted_discount'
+                ? `Current posted price with your discount rule applied (${(row as FuelStationRow).priceConfidence} confidence)`
+                : `Estimated from history (${(row as FuelStationRow).priceConfidence} confidence)`"
+            >{{ (row as FuelStationRow).priceBasis === "posted_discount" ? "posted−disc." : "est." }}</span>
           </template>
           <template #cell-postedPrice="{ row }">
             <span class="tabular-nums text-ink-muted">{{ price((row as FuelStationRow).postedPrice) }}</span>
           </template>
           <template #cell-ageHours="{ row }">
-            <span v-if="(row as FuelStationRow).netPrice == null" class="text-ink-subtle">—</span>
+            <span v-if="(row as FuelStationRow).netPrice == null || (row as FuelStationRow).ageHours == null" class="text-ink-subtle">—</span>
             <span v-else :class="[BADGE_BASE, toneClass((row as FuelStationRow).stale ? 'warning' : 'success')]">
               {{ (row as FuelStationRow).ageHours }}h{{ (row as FuelStationRow).stale ? " · stale" : "" }}
             </span>

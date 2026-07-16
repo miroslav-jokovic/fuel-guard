@@ -13,11 +13,11 @@
  * stations upsert on (brand, store_number) — so re-uploads never create duplicate stations or prices.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parsePilotPriceReport, type Cell } from "@fuelguard/shared";
+import { parsePilotPriceReport, PILOT_FAMILY_BRANDS, type Cell } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { hereGeocode, mapPool } from "../lib/hereGeocode.js";
 
-const BRAND = "pilot";
+const BRAND = "pilot"; // default brand for a site the registry has never seen (locations export refines it)
 const SOURCE = "pilot_email";
 const GEOCODE_CONCURRENCY = 6;
 const GEOCODE_BUDGET_MS = 150_000;
@@ -93,17 +93,40 @@ export async function ingestPilotPrices(admin: SupabaseClient, env: Env, orgId: 
   if (parsed.rows.length === 0) return { ok: false, error: "No price rows found in the report.", ...base };
 
   const observedAt = parsed.effectiveDate ? new Date(`${parsed.effectiveDate}T12:00:00Z`).toISOString() : new Date().toISOString();
-  const sites = [...bySite.values()].map((r) => ({ site: r.site, city: r.city, state: r.state }));
 
+  // Resolve report sites against the registry FAMILY-WIDE by store number (store # is unique across the
+  // whole Pilot family; the locations export files sites under their true brand — flying_j, one9, … —
+  // so matching (brand='pilot', site) would re-create those stations as duplicates). Known stations are
+  // never re-geocoded or moved here: the export's exact coordinates always outrank a city centroid.
+  const stationIdBySite = new Map<string, string>();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin
+      .from("fuel_stations").select("id, store_number")
+      .in("brand", PILOT_FAMILY_BRANDS)
+      .range(from, from + PAGE - 1);
+    if (error) return { ok: false, error: `Registry read failed: ${error.message}`, ...base, geocodeFailed: 0 };
+    for (const r of (data ?? []) as Array<{ id: string; store_number: string | null }>) {
+      if (r.store_number != null) stationIdBySite.set(String(r.store_number), r.id);
+    }
+    if (!data || data.length < PAGE) break;
+  }
+
+  // Only sites the registry has never seen need a (city-centroid) geocode + insert.
+  const sites = [...bySite.values()]
+    .filter((r) => !stationIdBySite.has(r.site))
+    .map((r) => ({ site: r.site, city: r.city, state: r.state }));
   const coords = await geocodeSites(admin, env, sites);
   const geocodeFailed = sites.length - coords.size;
 
-  // Upsert stations for every placed site (updates coords for existing rows too).
   const stationRows = sites.filter((s) => coords.has(s.site)).map((s) => {
     const pos = coords.get(s.site)!;
-    return { brand: BRAND, store_number: s.site, name: `Pilot #${s.site}`, lat: pos.lat, lng: pos.lng, state: s.state, has_diesel: true, source: SOURCE, status: "active", updated_at: new Date().toISOString() };
+    return {
+      brand: BRAND, store_number: s.site, name: `Pilot #${s.site}`, lat: pos.lat, lng: pos.lng,
+      state: s.state, has_diesel: true, source: SOURCE, status: "active",
+      coord_source: "geocoded_city", updated_at: new Date().toISOString(),
+    };
   });
-  const stationIdBySite = new Map<string, string>();
   let stationsUpserted = 0;
   for (const part of chunk(stationRows, 500)) {
     const { data, error } = await admin.from("fuel_stations").upsert(part, { onConflict: "brand,store_number" }).select("id, store_number");

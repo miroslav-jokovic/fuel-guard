@@ -23,6 +23,8 @@ export const routeFuelSettingsFormSchema = z.object({
   preferred_brands: brandList,
   avoid_brands: brandList,
   emergency_brands: brandList,
+  // Networks turned ON for this org (hard registry filter). Must keep at least one network enabled.
+  enabled_brands: brandList.refine((v) => v.length >= 1, "Enable at least one truck stop network"),
   avoid_states: stateList,
   fuel_before_states: stateList,
   // Default truck routing profile (HERE) — US customary inches / lb
@@ -50,6 +52,7 @@ export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   preferred_brands: ["pilot", "flying_j"],
   avoid_brands: ["one9"],
   emergency_brands: ["one9"],
+  enabled_brands: ["pilot", "flying_j", "one9"],
   avoid_states: ["CA"],
   fuel_before_states: ["MA"],
   default_height_in: 162,

@@ -6,6 +6,7 @@ import { startRebuildOnBoot } from "./services/rebuildScheduler.js";
 import { startDigestScheduler } from "./services/digestScheduler.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";
 import { startEfsIngestScheduler } from "./services/efsIngestScheduler.js";
+import { startPostedPriceScheduler } from "./services/postedPriceFetch.js";
 import { reclaimInterruptedJobs } from "./services/jobs.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { runSchemaCheck } from "./services/schemaCheck.js";
@@ -27,4 +28,5 @@ app.listen(env.PORT, () => {
   startDigestScheduler(env); // weekly AI theft digest email
   startNightlyReconcileScheduler(env); // per-org 03:00 self-heal: EFS repair → rescore → rebuild → integrity
   startEfsIngestScheduler(env); // per-org auto-ingest of EFS reports delivered to the configured source
+  startPostedPriceScheduler(env); // global posted-price refresh from Pilot's public network-wide table
 });

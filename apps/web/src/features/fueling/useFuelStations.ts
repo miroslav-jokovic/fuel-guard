@@ -7,15 +7,20 @@ export interface FuelStationRow {
   storeNumber: string | null;
   name: string | null;
   state: string | null;
+  city: string | null;
   lat: number;
   lng: number;
   exit: string | null;
+  /** 'exact_export' = chain-published coordinates; 'geocoded_city' = legacy city-centroid placement. */
+  coordSource: string;
   netPrice: number | null;
   priceEstimated: boolean;
   priceConfidence: "high" | "medium" | "low" | null;
+  /** Where the planning price comes from: fresh | posted_discount | station_history | brand | none. */
+  priceBasis: string;
   postedPrice: number | null;
-  observedAt: string;
-  ageHours: number;
+  observedAt: string | null;
+  ageHours: number | null;
   stale: boolean;
 }
 
