@@ -15,7 +15,9 @@ const emit = defineEmits<{ submit: [req: PlanRequest, labels: { origin: string; 
 
 const { data: vehicles } = useVehiclesQuery();
 const trucks = computed(() => (vehicles.value ?? []).filter((v) => v.status !== "retired"));
-const truckOptions = computed(() => trucks.value.map((t) => ({ value: t.id, label: t.unit_number })));
+const truckOptions = computed(() =>
+  trucks.value.map((t) => ({ value: t.id, label: t.samsara_vehicle_id ? t.unit_number : `${t.unit_number} · no live data` })),
+);
 
 const FORM_KEY = "fuelguard:fuelplan:form";
 function blankForm() {

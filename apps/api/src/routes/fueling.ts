@@ -1,9 +1,29 @@
 import { Router } from "express";
+import { z } from "zod";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { planFuelRoute, type PlanRequest } from "../services/fuelPlanning.js";
+
+// Validate + bound the plan request (security: reject malformed/oversized input before any Samsara/HERE work).
+const planPointSchema = z.object({ lat: z.number().nullable().optional(), lng: z.number().nullable().optional(), text: z.string().max(300).nullable().optional() });
+const planBodySchema = z.object({
+  vehicleId: z.string().min(1).max(64),
+  origin: planPointSchema,
+  destination: planPointSchema,
+  waypoints: z.array(planPointSchema).max(12).optional(),
+  loadGrossLb: z.number().min(0).max(200000).nullable().optional(),
+  hazmat: z.array(z.string().max(32)).max(11).optional(),
+  tunnelCategory: z.string().max(4).nullable().optional(),
+  manualFuelPct: z.number().min(0).max(100).nullable().optional(),
+  manualHos: z.object({
+    driveHours: z.number().min(0).max(24).nullable().optional(),
+    breakHours: z.number().min(0).max(24).nullable().optional(),
+    shiftHours: z.number().min(0).max(24).nullable().optional(),
+    cycleHours: z.number().min(0).max(120).nullable().optional(),
+  }).nullable().optional(),
+});
 import { geocodeSuggest } from "../services/geocode.js";
 import { ingestPilotPrices } from "../services/pilotPriceIngest.js";
 import { fetchVehicleCurrentGps } from "../lib/samsara.js";
@@ -23,12 +43,12 @@ export function fuelingRouter(): Router {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
-      const body = req.body as PlanRequest;
-      if (!body?.vehicleId || !body.origin || !body.destination) {
-        res.status(400).json(apiError("bad_request", "vehicleId, origin and destination are required"));
+      const parsed = planBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", parsed.error.issues[0]?.message ?? "Invalid plan request"));
         return;
       }
-      const result = await planFuelRoute(admin, env, orgId, body);
+      const result = await planFuelRoute(admin, env, orgId, parsed.data as PlanRequest);
       res.json(result);
     }),
   );

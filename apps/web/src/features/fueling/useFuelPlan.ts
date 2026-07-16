@@ -10,7 +10,11 @@ export interface PlanRequest {
   loadGrossLb?: number | null;
   hazmat?: string[];
   tunnelCategory?: string | null;
+  manualFuelPct?: number | null;
+  manualHos?: { driveHours?: number | null; breakHours?: number | null; shiftHours?: number | null; cycleHours?: number | null } | null;
 }
+
+export type TelematicsReason = "not_linked" | "not_connected" | "unavailable" | "no_fuel_reading";
 export interface PlanStopView {
   kind: "fuel" | "rest";
   milesAhead: number;
@@ -41,6 +45,8 @@ export interface PlanResult {
     fuelRangeMiles: number | null;
   };
   breakAdvice?: { breakDueMiles: number | null; breakDueHours: number | null; coincidesStopIndex: number | null; savesMinutes: number };
+  telematicsReason?: TelematicsReason;
+  manualFuelUsed?: boolean;
   origin?: { lat: number; lng: number };
   destination?: { lat: number; lng: number };
 }

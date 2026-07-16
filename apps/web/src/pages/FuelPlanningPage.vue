@@ -10,6 +10,7 @@ import RouteMap from "@/features/fueling/RouteMap.vue";
 import RouteSummary from "@/features/fueling/RouteSummary.vue";
 import RouteDirections from "@/features/fueling/RouteDirections.vue";
 import PlanItinerary from "@/features/fueling/PlanItinerary.vue";
+import ManualTelematicsPanel from "@/features/fueling/ManualTelematicsPanel.vue";
 import { useFuelPlan, type PlanRequest, type PlanResult } from "@/features/fueling/useFuelPlan";
 import { useToastStore } from "@/stores/toast";
 
@@ -18,20 +19,22 @@ const toast = useToastStore();
 const formRef = ref<InstanceType<typeof FuelPlanForm> | null>(null);
 const result = ref<PlanResult | null>(null);
 const routeLabels = ref<{ origin: string; destination: string; waypoints: string[] } | null>(null);
+const lastRequest = ref<PlanRequest | null>(null);
 
 // Persist the last plan across a page refresh so a reload never wipes the dispatcher's work.
 const RESULT_KEY = "fuelguard:fuelplan:result";
 try {
   const saved = localStorage.getItem(RESULT_KEY);
   if (saved) {
-    const p = JSON.parse(saved) as { result: PlanResult | null; labels: typeof routeLabels.value };
+    const p = JSON.parse(saved) as { result: PlanResult | null; labels: typeof routeLabels.value; request?: PlanRequest | null };
     result.value = p.result ?? null;
     routeLabels.value = p.labels ?? null;
+    lastRequest.value = p.request ?? null;
   }
 } catch { /* ignore corrupt storage */ }
 watch([result, routeLabels], () => {
   try {
-    if (result.value) localStorage.setItem(RESULT_KEY, JSON.stringify({ result: result.value, labels: routeLabels.value }));
+    if (result.value) localStorage.setItem(RESULT_KEY, JSON.stringify({ result: result.value, labels: routeLabels.value, request: lastRequest.value }));
     else localStorage.removeItem(RESULT_KEY);
   } catch { /* quota/private mode */ }
 }, { deep: true });
@@ -40,17 +43,29 @@ watch([result, routeLabels], () => {
 function newPlan() {
   result.value = null;
   routeLabels.value = null;
+  lastRequest.value = null;
   formRef.value?.reset();
 }
 
-async function onSubmit(req: PlanRequest, labels: { origin: string; destination: string; waypoints: string[] }) {
+async function runPlan(req: PlanRequest) {
   try {
     result.value = await plan.mutateAsync(req);
-    routeLabels.value = labels;
+    lastRequest.value = req;
   } catch (e) {
     result.value = null;
     toast.error("Could not generate a plan", e instanceof Error ? e.message : undefined);
   }
+}
+
+async function onSubmit(req: PlanRequest, labels: { origin: string; destination: string; waypoints: string[] }) {
+  routeLabels.value = labels;
+  await runPlan(req);
+}
+
+/** Re-run the plan with a dispatcher-entered fuel level when live telematics is unavailable. */
+async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manualHos"] }) {
+  if (!lastRequest.value) return;
+  await runPlan({ ...lastRequest.value, manualFuelPct: manual.fuelPct, manualHos: manual.hos });
 }
 </script>
 
@@ -68,6 +83,15 @@ async function onSubmit(req: PlanRequest, labels: { origin: string; destination:
 
     <template v-if="result">
       <PlanStatusBanner :status="result.status" :message="result.message" />
+      <ManualTelematicsPanel
+        v-if="result.status === 'telematics_unavailable'"
+        :message="result.message"
+        :loading="plan.isPending.value"
+        @submit="onManualSubmit"
+      />
+      <p v-if="result.manualFuelUsed" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-800">
+        Planned from a manually-entered fuel level — live Samsara data was unavailable for this truck.
+      </p>
       <FuelPlanSummary v-if="result.plan" :result="result" />
       <RouteSummary
         v-if="result.route"

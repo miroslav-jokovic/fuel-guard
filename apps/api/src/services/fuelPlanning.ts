@@ -25,7 +25,14 @@ export interface PlanRequest {
   loadGrossLb?: number | null;
   hazmat?: HazmatClass[];
   tunnelCategory?: TunnelCategory | null;
+  /** Manual fuel level (0-100), used only when live telematics is unavailable for the truck. */
+  manualFuelPct?: number | null;
+  /** Optional manual HOS clocks (hours), used with manualFuelPct when telematics is unavailable. */
+  manualHos?: { driveHours?: number | null; breakHours?: number | null; shiftHours?: number | null; cycleHours?: number | null } | null;
 }
+
+/** Why live telematics could not drive the plan (drives the UI message + manual-entry fallback). */
+export type TelematicsReason = "not_linked" | "not_connected" | "unavailable" | "no_fuel_reading";
 
 export interface PlanStopView {
   kind: "fuel" | "rest";
@@ -87,6 +94,10 @@ export interface PlanResult {
   route?: { distanceMiles: number; durationHours: number; polyline: LatLng[]; directions: { instruction: string; miles: number }[] };
   truck?: ReturnType<typeof truckStateView>;
   breakAdvice?: { breakDueMiles: number | null; breakDueHours: number | null; coincidesStopIndex: number | null; savesMinutes: number };
+  /** Set on telematics_unavailable: why, so the UI can prompt for manual fuel entry. */
+  telematicsReason?: TelematicsReason;
+  /** True when the plan was built from a manually-entered fuel level (no live telematics). */
+  manualFuelUsed?: boolean;
   origin?: LatLng;
   destination?: LatLng;
 }
@@ -134,12 +145,28 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   const directions = route.steps.map((st) => ({ instruction: st.instruction, miles: r1(milesFromMeters(st.lengthMeters)) }));
   const routeView = { distanceMiles: r1(distanceMiles), durationHours: r1(route.durationSeconds / 3600), polyline: route.polyline, directions };
 
-  const truckData = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null);
-  if (!truckData) return { status: "telematics_unavailable", message: "Could not read live fuel level / HOS for this truck.", route: routeView, origin, destination };
-  const truck = truckData.state;
-  const truckView = truckStateView(truck, truckData.hos);
+  const tele = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null);
+  let truck: TruckFuelState;
+  let hos: HosClocks;
+  let manualFuelUsed = false;
+  if (tele.ok && tele.state.gallonsOnHand != null) {
+    // Live telematics with a real fuel reading — always preferred.
+    truck = tele.state;
+    hos = tele.hos;
+  } else if (req.manualFuelPct != null) {
+    // Fallback: dispatcher-entered fuel level (uses live HOS when present, else typed / none).
+    const m = buildManualTruckState(veh, req.manualFuelPct, req.manualHos ?? null, tele.ok ? tele.hos : NULL_HOS, isReefer, cfg, req.loadGrossLb ?? null);
+    truck = m.state;
+    hos = m.hos;
+    manualFuelUsed = true;
+  } else {
+    // Cannot plan without a fuel level — tell the dispatcher exactly why and prompt for manual entry.
+    const reason: TelematicsReason = tele.ok ? "no_fuel_reading" : tele.reason;
+    return { status: "telematics_unavailable", telematicsReason: reason, message: TELEMATICS_MESSAGE[reason], route: routeView, origin, destination };
+  }
+  const truckView = truckStateView(truck, hos);
   const avgSpeedMph = routeView.durationHours > 0 ? distanceMiles / routeView.durationHours : 55;
-  const breakDue = breakFuelAdvice({ timeUntilBreakMs: truckData.hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: [] });
+  const breakDue = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: [] });
 
   // Single-pass bbox — a spread of Math.min(...polyline) overflows the call stack on a long route.
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
@@ -157,7 +184,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     .gte("lat", minLat - pad).lte("lat", maxLat + pad)
     .gte("lng", minLng - pad).lte("lng", maxLng + pad);
   const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
-  if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, breakAdvice: breakDue, origin, destination };
+  if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, breakAdvice: breakDue, manualFuelUsed, origin, destination };
 
   const stationIds = stations.map((s) => s.id);
   const { data: priceRows } = await admin
@@ -188,10 +215,10 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     settings: cfg,
     avgSpeedMph,
     hos: {
-      driveRemainingMs: truckData.hos.driveRemainingMs,
-      shiftRemainingMs: truckData.hos.shiftRemainingMs,
-      cycleRemainingMs: truckData.hos.cycleRemainingMs,
-      breakRemainingMs: truckData.hos.timeUntilBreakMs,
+      driveRemainingMs: hos.driveRemainingMs,
+      shiftRemainingMs: hos.shiftRemainingMs,
+      cycleRemainingMs: hos.cycleRemainingMs,
+      breakRemainingMs: hos.timeUntilBreakMs,
     },
   });
   const stops: PlanStopView[] = plan.stops.map((st) => {
@@ -210,14 +237,15 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     };
   });
 
-  const breakAdvice = breakFuelAdvice({ timeUntilBreakMs: truckData.hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: plan.stops.filter((st) => st.kind === "fuel").map((st) => st.milesAhead) });
-  const planFlags = stalePrices > 0 ? [...plan.flags, "stale_prices_excluded"] : plan.flags;
+  const breakAdvice = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: plan.stops.filter((st) => st.kind === "fuel").map((st) => st.milesAhead) });
+  const planFlags0 = stalePrices > 0 ? [...plan.flags, "stale_prices_excluded"] : plan.flags;
+  const planFlags = manualFuelUsed ? [...planFlags0, "manual_fuel_entry"] : planFlags0;
   const planMessage = describePlan(plan.status, planFlags);
   return {
     status: plan.status,
     message: planMessage,
     plan: { stops, totalGallons: r1(plan.totalGallons), totalCost: plan.totalCost, savingsVsNaive: plan.savingsVsNaive, arrivalFuelPct: plan.arrivalFuelPct, reachesDestination: plan.reachesDestination, flags: planFlags },
-    route: routeView, truck: truckView, breakAdvice, origin, destination,
+    route: routeView, truck: truckView, breakAdvice, manualFuelUsed, origin, destination,
   };
 }
 
@@ -237,13 +265,21 @@ function describePlan(status: string, flags: string[]): string | undefined {
 }
 
 /** Read the truck's live fuel samples (last ~3h) + current HOS clocks and compose the TruckFuelState. */
+type VehState = { samsara_vehicle_id: string | null; tank_capacity_gal: number | string; observed_max_fill_gal: number | string | null; baseline_mpg: number | string | null };
+type TeleResult =
+  | { ok: true; state: TruckFuelState; hos: HosClocks }
+  | { ok: false; reason: Exclude<TelematicsReason, "no_fuel_reading"> };
+
+const NULL_HOS: HosClocks = { driveRemainingMs: null, shiftRemainingMs: null, cycleRemainingMs: null, timeUntilBreakMs: null };
+
+/** Read live fuel + HOS for the truck, distinguishing WHY it's unavailable so the UI can guide the dispatcher. */
 async function fetchTruckFuelState(
-  admin: SupabaseClient, env: Env, orgId: string,
-  veh: { samsara_vehicle_id: string | null; tank_capacity_gal: number | string; observed_max_fill_gal: number | string | null; baseline_mpg: number | string | null },
+  admin: SupabaseClient, env: Env, orgId: string, veh: VehState,
   isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null,
-): Promise<{ state: TruckFuelState; hos: HosClocks } | null> {
+): Promise<TeleResult> {
+  if (!veh.samsara_vehicle_id) return { ok: false, reason: "not_linked" };
   const token = await loadSamsaraToken(admin, env, orgId);
-  if (!token || !veh.samsara_vehicle_id) return null;
+  if (!token) return { ok: false, reason: "not_connected" };
   const now = Date.now();
   let fuelSamples: { time: string; value: number }[];
   try {
@@ -251,23 +287,47 @@ async function fetchTruckFuelState(
     const v = res.data.find((x) => String(x.id) === String(veh.samsara_vehicle_id)) ?? res.data[0];
     fuelSamples = (v?.fuelPercents ?? []).map((fp) => ({ time: fp.time, value: Number(fp.value) })).filter((fp) => Number.isFinite(fp.value));
   } catch {
-    return null;
+    return { ok: false, reason: "unavailable" };
   }
-  let hos = { driveRemainingMs: null as number | null, shiftRemainingMs: null as number | null, cycleRemainingMs: null as number | null, timeUntilBreakMs: null as number | null };
+  let hos = { ...NULL_HOS };
   try {
     const h = (await makeSamsaraHosFetcher(env, token)()).get(String(veh.samsara_vehicle_id));
     if (h) hos = h;
   } catch { /* HOS best-effort; solver flags no_hos */ }
 
-  const state = buildTruckFuelState(
+  const state = composeTruckState(veh, fuelSamples, hos, isReefer, cfg, loadGrossLb, now);
+  return { ok: true, state, hos };
+}
+
+/** Build a TruckFuelState from raw inputs (shared by live + manual paths). */
+function composeTruckState(veh: VehState, fuelSamples: { time: string; value: number }[], hos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null, nowMs: number): TruckFuelState {
+  return buildTruckFuelState(
     {
       fuelSamples, tankCapacityGal: Number(veh.tank_capacity_gal), observedMaxFillGal: veh.observed_max_fill_gal != null ? Number(veh.observed_max_fill_gal) : null,
-      baselineMpg: veh.baseline_mpg != null ? Number(veh.baseline_mpg) : null, hos, isReefer, loadGrossLb, lastFillTimeMs: null, nowMs: now,
+      baselineMpg: veh.baseline_mpg != null ? Number(veh.baseline_mpg) : null, hos, isReefer, loadGrossLb, lastFillTimeMs: null, nowMs,
     },
     { reservePct: cfg.reservePct, mpgSafetyFactor: cfg.mpgSafetyFactor },
   );
+}
+
+/** Manual fallback: build the truck state from a dispatcher-entered fuel % (+ optional HOS) when telematics is out. */
+function buildManualTruckState(veh: VehState, fuelPct: number, manualHos: PlanRequest["manualHos"], liveHos: HosClocks, isReefer: boolean, cfg: ReturnType<typeof resolveRouteFuelConfig>, loadGrossLb: number | null): { state: TruckFuelState; hos: HosClocks } {
+  const now = Date.now();
+  const clamped = Math.max(0, Math.min(100, fuelPct));
+  const asMs = (h?: number | null) => (h != null && h >= 0 ? h * 3_600_000 : null);
+  const hos: HosClocks = manualHos
+    ? { driveRemainingMs: asMs(manualHos.driveHours), shiftRemainingMs: asMs(manualHos.shiftHours), cycleRemainingMs: asMs(manualHos.cycleHours), timeUntilBreakMs: asMs(manualHos.breakHours) }
+    : liveHos; // fall back to live HOS clocks when the driver didn't type them
+  const state = composeTruckState(veh, [{ time: new Date(now).toISOString(), value: clamped }], hos, isReefer, cfg, loadGrossLb, now);
   return { state, hos };
 }
+
+const TELEMATICS_MESSAGE: Record<TelematicsReason, string> = {
+  not_linked: "This truck isn't linked to Samsara, so there's no live fuel level or hours of service. Enter the current fuel level to plan manually.",
+  not_connected: "Samsara isn't connected for your organization. An admin can connect it, or enter the current fuel level to plan manually.",
+  unavailable: "Samsara is temporarily unavailable. Try again in a moment, or enter the current fuel level to plan manually.",
+  no_fuel_reading: "No recent fuel reading for this truck (the sensor may be offline). Enter the current fuel level to plan manually.",
+};
 
 interface HosClocks { driveRemainingMs: number | null; shiftRemainingMs: number | null; cycleRemainingMs: number | null; timeUntilBreakMs: number | null; }
 
