@@ -24,6 +24,7 @@ export interface PlanStopView {
   cost: number | null; arrivalGal: number; isEmergency: boolean;
   coversBreak: boolean; isOvernight: boolean; driveHoursLeftOnArrival: number | null;
   isBorderTopOff: boolean;
+  borderState: string | null;
   isMinFill: boolean;
   priceEstimated: boolean;
   priceConfidence: "high" | "medium" | "low" | null;

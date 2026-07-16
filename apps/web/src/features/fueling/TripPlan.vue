@@ -46,7 +46,7 @@ const nodes = computed<Node[]>(() => {
       });
     } else {
       const tags: { label: string; tone: string }[] = [];
-      if (s.isBorderTopOff) tags.push({ label: "Top off before CA", tone: "info" });
+      if (s.isBorderTopOff) tags.push({ label: `Top off before ${s.borderState ?? "border"}`, tone: "info" });
       if (s.isMinFill) tags.push({ label: "Partial fill", tone: "caution" });
       if (s.priceEstimated) tags.push({ label: `Est. price${s.priceConfidence ? ` (${s.priceConfidence})` : ""}`, tone: "neutral" });
       if (s.isEmergency) tags.push({ label: "Emergency", tone: "warning" });

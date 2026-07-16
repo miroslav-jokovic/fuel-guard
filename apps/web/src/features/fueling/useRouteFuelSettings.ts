@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
 const COLS =
-  "reserve_pct, mpg_safety_factor, emergency_fill_gallons, min_purchase_gal, corridor_miles, deviation_threshold_mi, price_ttl_hours, always_fill_full, fill_cap_pct, plan_def, preferred_brands, avoid_brands, emergency_brands, avoid_states, default_height_in, default_length_in, default_width_in, default_axle_count, default_gross_weight_lb";
+  "reserve_pct, mpg_safety_factor, emergency_fill_gallons, min_purchase_gal, corridor_miles, deviation_threshold_mi, price_ttl_hours, always_fill_full, fill_cap_pct, plan_def, preferred_brands, avoid_brands, emergency_brands, avoid_states, fuel_before_states, default_height_in, default_length_in, default_width_in, default_axle_count, default_gross_weight_lb";
 
 export type RouteFuelSettings = RouteFuelSettingsForm;
 

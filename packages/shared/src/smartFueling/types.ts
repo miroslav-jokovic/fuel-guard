@@ -60,6 +60,8 @@ export interface RouteFuelSettings {
   /** When min-drawdown is active, cap a non-cheapest partial fill at this % of tank (full fill only at the cheapest reachable stop). */
   fillCapPct: number;
   avoidStates: string[];
+  /** States to top off before entering (sparse fueling — e.g. Massachusetts has one truck stop) — stations here stay usable. */
+  fuelBeforeStates: string[];
   avoidBrands: string[];
   preferredBrands: string[];
   emergencyBrands: string[];
@@ -78,6 +80,7 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   alwaysFillFull: false, // min-drawdown on by default: buy just enough to reach the next cheaper stop
   fillCapPct: 75,
   avoidStates: ["CA"],
+  fuelBeforeStates: ["MA"], // top off before entering — Massachusetts has essentially one truck stop
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],
   emergencyBrands: ["one9"],

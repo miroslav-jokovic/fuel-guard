@@ -314,3 +314,21 @@ describe("planFuelStops — estimated prices (Phase 5)", () => {
     expect(plan.flags).toContain("estimated_prices_used");
   });
 });
+
+describe("planFuelStops — fuel-before state (Massachusetts rule)", () => {
+  it("tops off before the border yet keeps the state's own stations usable as normal fills", () => {
+    // MA is NOT in avoidStates, so its station is a normal preferred fill (not emergency-only like CA). The
+    // border top-off still fires before the line (same avoidedBorderMiles the API computes for a fuel-before state).
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 1400,
+      stations: [st("pre", 140, 3.6), st("ma", 900, 3.4, "pilot", "MA")],
+      avoidedBorderMiles: 150,
+      truck: mkTruck({ gallonsOnHand: 100 }),
+    }));
+    const border = plan.stops.find((s) => s.isBorderTopOff);
+    expect(border?.station?.id).toBe("pre");        // topped off just before the MA border
+    const maStop = plan.stops.find((s) => s.station?.id === "ma");
+    expect(maStop).toBeTruthy();
+    expect(maStop!.isEmergency).toBe(false);         // the MA stop is a normal fill, not an avoided-state splash
+  });
+});

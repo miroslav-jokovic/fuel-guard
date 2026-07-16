@@ -24,6 +24,7 @@ export const routeFuelSettingsFormSchema = z.object({
   avoid_brands: brandList,
   emergency_brands: brandList,
   avoid_states: stateList,
+  fuel_before_states: stateList,
   // Default truck routing profile (HERE) — US customary inches / lb
   default_height_in: z.coerce.number().min(100).max(200),
   default_length_in: z.coerce.number().min(200).max(1000),
@@ -50,6 +51,7 @@ export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   avoid_brands: ["one9"],
   emergency_brands: ["one9"],
   avoid_states: ["CA"],
+  fuel_before_states: ["MA"],
   default_height_in: 162,
   default_length_in: 840,
   default_width_in: 102,

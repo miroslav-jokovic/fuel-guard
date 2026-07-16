@@ -20,7 +20,7 @@ const form = reactive<RouteFuelSettingsForm>({ ...ROUTE_FUEL_SETTINGS_DEFAULTS }
 watch(data, (d) => { if (d) Object.assign(form, d); }, { immediate: true });
 
 // Array fields edit as comma-separated text; brands lower-cased, states upper-cased on save.
-const csv = (key: "preferred_brands" | "avoid_brands" | "emergency_brands" | "avoid_states", upper = false) =>
+const csv = (key: "preferred_brands" | "avoid_brands" | "emergency_brands" | "avoid_states" | "fuel_before_states", upper = false) =>
   computed({
     get: () => (form[key] ?? []).join(", "),
     set: (v: string) => {
@@ -31,6 +31,7 @@ const preferredBrands = csv("preferred_brands");
 const avoidBrands = csv("avoid_brands");
 const emergencyBrands = csv("emergency_brands");
 const avoidStates = csv("avoid_states", true);
+const fuelBeforeStates = csv("fuel_before_states", true);
 
 const fieldErr = ref<Record<string, string>>({});
 async function onSave() {
@@ -152,8 +153,11 @@ const truck: NumField[] = [
             <FormField v-slot="{ id }" label="Emergency brands" hint="Allowed only for an emergency splash.">
               <BaseInput :id="id" v-model="emergencyBrands" placeholder="one9" />
             </FormField>
-            <FormField v-slot="{ id }" label="Avoided states" hint="2-letter, comma-separated (e.g. CA).">
+            <FormField v-slot="{ id }" label="Avoided states" hint="2-letter, comma-separated (e.g. CA). Fuel is avoided here; enter full.">
               <BaseInput :id="id" v-model="avoidStates" placeholder="CA" />
+            </FormField>
+            <FormField v-slot="{ id }" label="Fuel-before states" hint="Top off before entering (sparse fueling, e.g. MA). Stations here stay usable.">
+              <BaseInput :id="id" v-model="fuelBeforeStates" placeholder="MA" />
             </FormField>
           </div>
         </div>

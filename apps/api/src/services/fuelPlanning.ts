@@ -59,8 +59,10 @@ export interface PlanStopView {
   coversBreak: boolean;
   isOvernight: boolean;
   driveHoursLeftOnArrival: number | null;
-  /** This fuel stop is the mandated top-off just before entering an avoided state (e.g. the California border). */
+  /** This fuel stop is the mandated top-off just before entering a border state (e.g. the California border). */
   isBorderTopOff: boolean;
+  /** The state being entered at a border top-off (e.g. "CA", "MA"), for the UI label. null otherwise. */
+  borderState: string | null;
   /** This is a min-drawdown partial fill (bought only enough to reach the next cheaper stop), not a full top-off. */
   isMinFill: boolean;
   /** true = netPrice is a history/brand estimate, not a fresh quote (Phase 5). */
@@ -93,24 +95,27 @@ function pointAtMile(poly: LatLng[], targetMi: number): { lat: number; lng: numb
 /**
  * Locate the route mile at which the truck first crosses INTO an avoided state (e.g. California), so the solver
  * can top the tank off just before the line. Only the "origin outside → destination inside" case qualifies:
- * a route that starts and ends in the avoided state, or never enters it, gets no border top-off.
+ * a route that starts and ends in a border state, or never enters one, gets no border top-off.
  *
- * Costs 2 HERE reverse-geocodes to classify the endpoints, then a bounded binary search (~10 calls) to find the
- * crossing — and ONLY when the destination is actually inside an avoided state, so ordinary routes pay just the
- * 2-call endpoint check. Assumes a single crossing (true for realistic OD pairs entering a state). Best-effort:
- * any HERE failure returns null and the plan proceeds without a pre-border top-off.
+ * `borderStates` is the union of avoid-states (California — enter full to dodge pricey fuel) and fuel-before
+ * states (Massachusetts — enter full because there's essentially one truck stop). Detection is identical for
+ * both: 2 HERE reverse-geocodes to classify the endpoints, then a bounded binary search (~10 calls) to find the
+ * crossing — and ONLY when the destination is inside a border state, so ordinary routes pay just the 2-call
+ * check. Assumes a single crossing (true for realistic OD pairs entering a state). Best-effort: any HERE failure
+ * returns null and the plan proceeds without a pre-border top-off.
  */
-async function findAvoidedBorderMile(
-  env: Env, avoidStates: string[], poly: LatLng[], distanceMiles: number, origin: LatLng, destination: LatLng,
-): Promise<number | null> {
-  if (avoidStates.length === 0 || poly.length < 2 || distanceMiles <= 0) return null;
-  const avoid = new Set(avoidStates.map((s) => s.toUpperCase()));
-  const isAvoided = (s: string | null) => s != null && avoid.has(s.toUpperCase());
+async function findBorderTopOffMile(
+  env: Env, borderStates: string[], poly: LatLng[], distanceMiles: number, origin: LatLng, destination: LatLng,
+): Promise<{ mile: number; state: string } | null> {
+  if (borderStates.length === 0 || poly.length < 2 || distanceMiles <= 0) return null;
+  const set = new Set(borderStates.map((s) => s.toUpperCase()));
+  const inSet = (s: string | null) => s != null && set.has(s.toUpperCase());
   const [originState, destState] = await Promise.all([
     hereReverseGeocodeState(env, origin.lat, origin.lng),
     hereReverseGeocodeState(env, destination.lat, destination.lng),
   ]);
-  if (!isAvoided(destState) || isAvoided(originState)) return null; // not an outside→inside crossing
+  if (!inSet(destState) || inSet(originState)) return null; // not an outside→inside crossing
+  const state = destState!.toUpperCase(); // the border state we're entering (the destination's)
 
   let lo = 0, hi = distanceMiles; // state(lo)=outside, state(hi)=inside → converge on the first inside mile
   for (let i = 0; i < 12 && hi - lo > 1; i++) {
@@ -118,9 +123,9 @@ async function findAvoidedBorderMile(
     const pt = pointAtMile(poly, mid);
     if (!pt) break;
     const s = await hereReverseGeocodeState(env, pt.lat, pt.lng);
-    if (isAvoided(s)) hi = mid; else lo = mid;
+    if (inSet(s)) hi = mid; else lo = mid;
   }
-  return hi < distanceMiles - 1 ? hi : null; // ignore a border that sits essentially at the destination
+  return hi < distanceMiles - 1 ? { mile: hi, state } : null; // ignore a border that sits essentially at the destination
 }
 
 export type PlanResultStatus = "ok" | "emergency_used" | "infeasible" | "routing_unavailable" | "no_stations" | "telematics_unavailable" | "error";
@@ -274,9 +279,9 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: est.net, priceEstimated: est.estimated };
   });
 
-  // California rule: if this route leaves a non-avoided state and enters an avoided one, top the tank off just
-  // before the border (unless the truck would already cross above BORDER_TOP_OFF_PCT).
-  const avoidedBorderMiles = await findAvoidedBorderMile(env, cfg.avoidStates, route.polyline, distanceMiles, origin, destination);
+  // Border top-off: if this route enters a state we must fuel up before (California — pricey fuel; Massachusetts
+  // — one truck stop), top the tank off just before the line (unless it'd already cross above BORDER_TOP_OFF_PCT).
+  const border = await findBorderTopOffMile(env, [...cfg.avoidStates, ...cfg.fuelBeforeStates], route.polyline, distanceMiles, origin, destination);
 
   const plan = planFuelStops({
     distanceToGoMiles: distanceMiles,
@@ -284,7 +289,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     truck,
     settings: cfg,
     avgSpeedMph,
-    avoidedBorderMiles: avoidedBorderMiles ?? undefined,
+    avoidedBorderMiles: border?.mile ?? undefined,
     borderTopOffPct: BORDER_TOP_OFF_PCT,
     hos: {
       driveRemainingMs: hos.driveRemainingMs,
@@ -308,7 +313,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
       priceEstimated: est?.estimated ?? false, priceConfidence: est?.estimated ? est.confidence : null,
       cost: st.cost != null ? Math.round(st.cost * 100) / 100 : null, arrivalGal: r1(st.arrivalGal), isEmergency: st.isEmergency,
       coversBreak: st.coversBreak, isOvernight: st.isOvernight, driveHoursLeftOnArrival: st.driveHoursLeftOnArrival != null ? r1(st.driveHoursLeftOnArrival) : null,
-      isBorderTopOff: st.isBorderTopOff, isMinFill: st.isMinFill,
+      isBorderTopOff: st.isBorderTopOff, borderState: st.isBorderTopOff ? border?.state ?? null : null, isMinFill: st.isMinFill,
     };
   });
 
