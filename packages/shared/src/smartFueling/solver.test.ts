@@ -160,3 +160,68 @@ describe("planFuelStops — HOS integration", () => {
     expect(plan.flags).toContain("overnight_reset_required");
   });
 });
+
+describe("planFuelStops — avoided-state border top-off (California rule)", () => {
+  it("tops off before the border when the truck would enter the avoided state below 85%", () => {
+    // 50% tank could coast to the destination, but the CA border is at mile 150 and the truck would cross it
+    // at ~37% → it must top off at the preferred station just before the line and enter CA full.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 300,
+      stations: [st("pre", 140, 3.5)],
+      avoidedBorderMiles: 150,
+    }));
+    expect(plan.reachesDestination).toBe(true);
+    const border = plan.stops.find((s) => s.isBorderTopOff);
+    expect(border).toBeTruthy();
+    expect(border!.station!.id).toBe("pre");
+    expect(border!.fillGal).toBeGreaterThan(50); // a real full fill, not a splash
+    expect(border!.isEmergency).toBe(false); // preferred + priced → normal (cheap) fill, not emergency
+    expect(plan.flags).toContain("topped_off_before_avoided_state");
+  });
+
+  it("does NOT top off when the truck would already cross the border above 85%", () => {
+    // Near-full tank (95%), border only 30 mi ahead → crosses at ~92% → no top-off inserted.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 250,
+      stations: [st("pre", 25, 3.5)],
+      truck: mkTruck({ gallonsOnHand: 190 }),
+      avoidedBorderMiles: 30,
+    }));
+    expect(plan.reachesDestination).toBe(true);
+    expect(plan.stops.some((s) => s.isBorderTopOff)).toBe(false);
+    expect(plan.flags).not.toContain("topped_off_before_avoided_state");
+  });
+
+  it("respects a custom borderTopOffPct threshold", () => {
+    // Crosses at ~92%; with the threshold raised to 95% the truck is now 'below' it → must top off.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 250,
+      stations: [st("pre", 25, 3.5)],
+      truck: mkTruck({ gallonsOnHand: 190 }),
+      avoidedBorderMiles: 30,
+      borderTopOffPct: 95,
+    }));
+    expect(plan.stops.some((s) => s.isBorderTopOff)).toBe(true);
+    expect(plan.flags).toContain("topped_off_before_avoided_state");
+  });
+
+  it("tops off at the FURTHEST reachable station before the border (closest to the line), not the cheapest", () => {
+    // A cheaper station sits at mile 50 and a dearer one at 130 with the border at 150. To enter CA as full as
+    // possible the truck should fill at the furthest one (130), overriding the usual cheapest-wins rule.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 300,
+      stations: [st("near-cheap", 50, 3.0), st("far-dear", 130, 4.0)],
+      avoidedBorderMiles: 150,
+    }));
+    const border = plan.stops.filter((s) => s.isBorderTopOff);
+    expect(border).toHaveLength(1); // exactly one top-off
+    expect(border[0]!.station!.id).toBe("far-dear");
+    expect(plan.stops.some((s) => s.station?.id === "near-cheap")).toBe(false);
+  });
+
+  it("no border logic runs when avoidedBorderMiles is unset", () => {
+    const plan = planFuelStops(input({ distanceToGoMiles: 300, stations: [st("a", 140, 3.5)] }));
+    expect(plan.stops.some((s) => s.isBorderTopOff)).toBe(false);
+    expect(plan.flags).not.toContain("topped_off_before_avoided_state");
+  });
+});

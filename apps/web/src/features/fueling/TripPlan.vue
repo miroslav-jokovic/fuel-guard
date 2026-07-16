@@ -46,6 +46,7 @@ const nodes = computed<Node[]>(() => {
       });
     } else {
       const tags: { label: string; tone: string }[] = [];
+      if (s.isBorderTopOff) tags.push({ label: "Top off before CA", tone: "info" });
       if (s.isEmergency) tags.push({ label: "Emergency", tone: "warning" });
       if (s.coversBreak) tags.push({ label: "Covers 30-min break", tone: "success" });
       if (s.isOvernight) tags.push({ label: "+ Overnight reset", tone: "info" });

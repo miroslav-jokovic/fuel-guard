@@ -58,6 +58,18 @@ export async function hereReverseGeocode(env: Env, lat: number, lng: number): Pr
   return body?.items?.[0]?.address?.label ?? body?.items?.[0]?.title ?? null;
 }
 
+/**
+ * Reverse-geocode a coordinate to its US/CA state code (e.g. "CA"). Best-effort → null on failure.
+ * Used to locate where a route crosses into an avoided state (California-border top-off).
+ */
+export async function hereReverseGeocodeState(env: Env, lat: number, lng: number): Promise<string | null> {
+  if (!env.HERE_API_KEY) return null;
+  const url = `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${lat},${lng}&limit=1&apiKey=${encodeURIComponent(env.HERE_API_KEY)}`;
+  const body = (await hereGet(url)) as { items?: Array<{ address?: { stateCode?: string } }> } | null;
+  const code = body?.items?.[0]?.address?.stateCode;
+  return code ? code.toUpperCase() : null;
+}
+
 /** Run `worker` over `items` with bounded concurrency; preserves order. Stops starting new work after
  *  `deadlineMs` (epoch) if given, resolving the rest to whatever the worker returns for a skipped item. */
 export async function mapPool<T, R>(items: T[], concurrency: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {

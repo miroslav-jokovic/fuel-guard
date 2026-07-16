@@ -53,6 +53,10 @@ export interface FuelPlanInput {
   settings: RouteFuelSettings;
   avgSpeedMph?: number;
   hos?: HosState;
+  /** Route mile where the truck crosses into an avoided state (e.g. California). undefined = no avoided border ahead. */
+  avoidedBorderMiles?: number;
+  /** Fuel % at/above which the pre-border top-off is skipped (default 85 — enter the avoided state full unless already near-full). */
+  borderTopOffPct?: number;
 }
 
 export type PlanStatus = "ok" | "emergency_used" | "infeasible";
@@ -74,6 +78,8 @@ export interface PlannedStop {
   isOvernight: boolean;
   /** Legal drive hours remaining on arrival (before any reset here) — for the itinerary. */
   driveHoursLeftOnArrival: number | null;
+  /** This fuel stop is the mandated top-off just before entering an avoided state (e.g. the California border). */
+  isBorderTopOff: boolean;
 }
 
 export interface FuelPlan {
@@ -105,6 +111,7 @@ interface GreedyResult {
   hosLimited: boolean;
   infeasible: boolean;
   droppedNoPrice: boolean;
+  usedBorderTopOff: boolean;
 }
 
 /**
@@ -121,6 +128,9 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   const usable = truck.usableGal;
   const reserve = truck.reserveGal;
   const weightCap = truck.weightLegalFillGal;
+  const tankCap = truck.effectiveTankCapacityGal;
+  const avoidedBorderMi = input.avoidedBorderMiles;
+  const topOffPct = input.borderTopOffPct ?? 85;
   const stations = [...input.stations].sort((a, b) => a.milesAhead - b.milesAhead);
 
   const hos = input.hos;
@@ -140,15 +150,17 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   let usedReset = false;
   let hosLimited = false;
   let droppedNoPrice = false;
+  let usedBorderTopOff = false;
+  let borderToppedOff = false; // guard so we top off before the avoided border at most once
 
   const done = (reaches: boolean, infeasible: boolean, arrivalGal: number | null): GreedyResult => ({
-    stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, hosLimited, infeasible, droppedNoPrice,
+    stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, hosLimited, infeasible, droppedNoPrice, usedBorderTopOff,
   });
 
   const COMBINE_BAND_MI = 75; // a reset combines with a fuel stop within this many miles before the drive limit
 
   // Apply a fuel stop: drive to it, fill (full / emergency-sized / CA-capped), optionally reset here.
-  const applyFuelStop = (pick: SolverStation, emergency: boolean, overnight: boolean) => {
+  const applyFuelStop = (pick: SolverStation, emergency: boolean, overnight: boolean, borderTopOff = false) => {
     const dist = pick.milesAhead - pos;
     const arrivalGal = gal - galFor(dist + pick.detourMiles);
     const legMs = dist * msPerMile;
@@ -156,7 +168,9 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     const breakWasDue = hosKnown && brk <= H;
     const inAvoided = pick.state != null && cfg.avoidStates.includes(pick.state);
     let fill;
-    if (emergency && inAvoided) {
+    if (borderTopOff) {
+      fill = Math.min(usable - arrivalGal, weightCap); // enter the avoided state full, whatever the price
+    } else if (emergency && inAvoided) {
       usedAvoidedState = true;
       fill = Math.min(cfg.emergencyFillGallons, usable - arrivalGal, weightCap);
     } else if (emergency) {
@@ -176,6 +190,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       milesAhead: pick.milesAhead, station: pick, arrivalGal, fillGal: fill, netPrice: pick.netPrice,
       cost: pick.netPrice != null ? pick.netPrice * fill : null, isEmergency: emergency, kind: "fuel",
       coversBreak: breakWasDue, isOvernight: overnight, driveHoursLeftOnArrival: hosKnown ? hoursFromMs(Math.min(drive, shift, cycle)) : null,
+      isBorderTopOff: borderTopOff,
     });
     used.add(pick.id);
     pos = pick.milesAhead;
@@ -184,7 +199,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   const restOvernightAt = (atMile: number) => {
     gal -= galFor(atMile - pos);
     drive = DRIVE_RESET_MS; shift = SHIFT_RESET_MS; brk = BREAK_INTERVAL_MS; usedReset = true; hosLimited = true;
-    stops.push({ milesAhead: atMile, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: true, driveHoursLeftOnArrival: 0 });
+    stops.push({ milesAhead: atMile, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: true, driveHoursLeftOnArrival: 0, isBorderTopOff: false });
     pos = atMile;
   };
 
@@ -201,6 +216,33 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     const driveMi = legalDriveMsNow() * miPerMs; // Infinity when HOS unknown
     const breakMi = brk * miPerMs;
     const remaining = dest - pos;
+    const windowMi = Math.min(fuelMi, driveMi);
+
+    // Pre-border top-off (avoided-state rule, e.g. California): if the avoided border lies ahead and the truck
+    // would cross it below the top-off threshold, fill up at the furthest reachable preferred station before the
+    // line so it enters the avoided state as full as possible. Skipped when it would already cross at/above the
+    // threshold (default 85%), or when no station sits between here and the border. Checked BEFORE "reached" so a
+    // truck that could coast into the state on its current tank is still told to top off first.
+    if (avoidedBorderMi != null && !borderToppedOff && pos < avoidedBorderMi - EPS && fuelMi + EPS >= avoidedBorderMi - pos) {
+      const galAtBorder = gal - galFor(avoidedBorderMi - pos);
+      const pctAtBorder = tankCap > 0 ? (galAtBorder / tankCap) * 100 : 0;
+      if (pctAtBorder < topOffPct - EPS) {
+        const preBorder = stations.filter((x) => !used.has(x.id) && x.milesAhead > pos + EPS
+          && x.milesAhead <= avoidedBorderMi + EPS && (x.milesAhead - pos) + x.detourMiles <= windowMi + EPS);
+        if (preBorder.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
+        const preferredPre = preBorder.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
+        const pool = preferredPre.length > 0 ? preferredPre : preBorder;
+        if (pool.length > 0) {
+          const pick = pool.reduce((a, b) => (a.milesAhead >= b.milesAhead ? a : b)); // furthest = closest to the border
+          const emergency = !(isPreferred(pick, cfg) && pick.netPrice != null);
+          if (emergency) usedEmergency = true;
+          borderToppedOff = true;
+          usedBorderTopOff = true;
+          applyFuelStop(pick, emergency, false, true);
+          continue;
+        }
+      }
+    }
 
     // Reached — fuel and legal drive both cover the rest of the trip.
     if (fuelMi + EPS >= remaining && driveMi + EPS >= remaining) {
@@ -209,14 +251,13 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
         gal -= galFor(breakMi);
         drive -= breakMi * msPerMile; shift -= breakMi * msPerMile + BREAK_MS; cycle -= breakMi * msPerMile;
         brk = BREAK_INTERVAL_MS;
-        stops.push({ milesAhead: at, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: false, driveHoursLeftOnArrival: hoursFromMs(legalDriveMsNow()) });
+        stops.push({ milesAhead: at, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: false, driveHoursLeftOnArrival: hoursFromMs(legalDriveMsNow()), isBorderTopOff: false });
         pos = at;
         continue;
       }
       return done(true, false, gal - galFor(remaining));
     }
 
-    const windowMi = Math.min(fuelMi, driveMi);
     const fuelBinds = fuelMi <= driveMi + EPS;
     const inWindow = stations.filter((x) => !used.has(x.id) && x.milesAhead > pos + EPS && (x.milesAhead - pos) + x.detourMiles <= windowMi + EPS);
 
@@ -226,7 +267,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       gal -= galFor(breakMi);
       drive -= breakMi * msPerMile; shift -= breakMi * msPerMile + BREAK_MS; cycle -= breakMi * msPerMile;
       brk = BREAK_INTERVAL_MS;
-      stops.push({ milesAhead: at, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: false, driveHoursLeftOnArrival: hoursFromMs(legalDriveMsNow()) });
+      stops.push({ milesAhead: at, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: false, driveHoursLeftOnArrival: hoursFromMs(legalDriveMsNow()), isBorderTopOff: false });
       pos = at;
       continue;
     }
@@ -268,6 +309,7 @@ export function planFuelStops(input: FuelPlanInput): FuelPlan {
   if (smart.droppedNoPrice) flags.push("some_stations_missing_price");
   if (smart.usedEmergency) flags.push("emergency_fill_used");
   if (smart.usedAvoidedState) flags.push("avoided_state_fill_used");
+  if (smart.usedBorderTopOff) flags.push("topped_off_before_avoided_state");
   if (smart.usedReset) flags.push("overnight_reset_required");
   if (smart.hosLimited) flags.push("hos_limited");
 
