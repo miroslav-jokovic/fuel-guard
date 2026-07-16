@@ -193,3 +193,13 @@ The system was architected for exactly this move — global station registry, pe
 **Web:** Truck stop networks checkboxes (settings, admin), StationDataCard on Import (locations .csv upload, posted .xlsx upload, Fetch now), Truck Stops page shows network filter, ≈ location precision badge, posted−disc. basis.
 
 **Still open (Phase A tail):** confirm the SERVER-rendered fuel-prices HTML with a one-off curl sample (`data-samples/fuel_prices_server.html`) — the parser is structure-validated but the automated fetch stays gate-protected either way; first live `Fetch now` after `apply_0063.sql` is the acceptance test. Then: upload the locations export in Import to fix all coordinates.
+
+# Phase B (regionals) — BUILT (2026-07-16)
+
+**Kwik Trip / Kwik Star** (`kwik_trip`): store-list parser verified on the real page (936 rows, 0 skipped, exact coords). SAFETY FILTER: only the chain's official Truck-Friendly list ∩ sells-diesel enters the registry — **368 stations** (list shipped as versioned constant `kwikTripTruckFriendly.ts`, source PDF + extraction date recorded; 10 list entries not yet in the table are reported, never invented). Admin "Sync Kwik Trip" button; parse + ≥700-row completeness gates. No public prices (locations only, `coord_source='exact_export'`).
+
+**Road Ranger** (`road_ranger`): prices-page parser verified on the real page (56 rows, "Data last updated" Central-time stamp → ISO). Stations keyed by deterministic address slug (page has no store numbers; zero collisions on the real network), geocoded at ADDRESS level via the shared cache (`coord_source='geocoded_address'`). Prices are **truck-diesel CASH** → `fuel_prices_posted.price_kind='cash'` (migration 0064) so cash and card quotes are never blended silently. Runs on the posted-price scheduler tick (independent failure domains) + admin fetch button; parse/≥40-row/median gates.
+
+`PILOT_FAMILY_BRANDS` decoupled from the brand catalog (fixed list) so non-Pilot networks can never be matched into the Pilot numbering space. Both networks appear in the settings toggles (off by default for existing orgs — `enabled_brands` default stays pilot/flying_j/one9). Verified: typecheck, 631 shared+API+web tests, build, E2E on the full real files.
+
+**Follow-up (small):** surface `price_kind` as a "cash" badge on the Truck Stops page and in plan stop rows; consider a weekly auto-sync for Kwik Trip locations.

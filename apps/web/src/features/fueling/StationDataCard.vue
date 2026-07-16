@@ -6,7 +6,7 @@ import BaseButton from "@/components/ui/BaseButton.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
 import {
-  uploadLocationsExport, uploadPostedPrices, fetchPostedPricesNow,
+  uploadLocationsExport, uploadPostedPrices, fetchPostedPricesNow, syncKwikTrip, fetchRoadRanger,
   type LocationsIngestResult, type PostedIngestResult,
 } from "./useStationData";
 
@@ -59,6 +59,40 @@ async function onFetchNow() {
     priceLoading.value = false;
   }
 }
+
+// Regional networks (Kwik Trip locations sync; Road Ranger locations + cash prices).
+const regionalLoading = ref(false);
+const regionalStatus = ref("");
+async function onSyncKwikTrip() {
+  if (regionalLoading.value) return;
+  regionalLoading.value = true;
+  regionalStatus.value = "";
+  try {
+    const r = await syncKwikTrip();
+    regionalStatus.value = `Kwik Trip: ${r.stationsUpserted} truck-friendly stations loaded (from ${r.tableRows} stores)` +
+      (r.truckFriendlyNotInTable ? ` · ${r.truckFriendlyNotInTable} list entries not in the table` : "");
+    toast.success("Kwik Trip synced", `${r.stationsUpserted} truck-friendly stations.`);
+  } catch (e) {
+    toast.error("Kwik Trip sync failed", e instanceof Error ? e.message : undefined);
+  } finally {
+    regionalLoading.value = false;
+  }
+}
+async function onFetchRoadRanger() {
+  if (regionalLoading.value) return;
+  regionalLoading.value = true;
+  regionalStatus.value = "";
+  try {
+    const r = await fetchRoadRanger();
+    regionalStatus.value = `Road Ranger: ${r.pricesInserted} cash prices across ${r.stationsUpserted} stations` +
+      (r.geocodeFailed ? ` · ${r.geocodeFailed} still geocoding (auto-retried)` : "");
+    toast.success("Road Ranger refreshed", `${r.pricesInserted} truck-diesel cash prices.`);
+  } catch (e) {
+    toast.error("Road Ranger fetch failed", e instanceof Error ? e.message : undefined);
+  } finally {
+    regionalLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -97,6 +131,19 @@ async function onFetchNow() {
             <span v-if="priceResult.unmatched" class="text-caution-700"> · {{ priceResult.unmatched }} unmatched (reload locations)</span>
           </p>
         </div>
+      </div>
+    </div>
+
+    <div class="mt-4 border-t border-edge pt-4">
+      <p class="text-xs font-medium text-ink-secondary">Regional networks</p>
+      <p class="mt-1 text-sm text-ink-muted">
+        Kwik Trip loads only the chain's official truck-friendly stores; Road Ranger prices are <strong>cash</strong> prices
+        (marked as such in planning). Enable each network per company in Fuel Planning settings.
+      </p>
+      <div class="mt-2 flex flex-wrap items-center gap-3">
+        <BaseButton variant="secondary" size="sm" type="button" :disabled="regionalLoading" @click="onSyncKwikTrip">Sync Kwik Trip</BaseButton>
+        <BaseButton variant="secondary" size="sm" type="button" :disabled="regionalLoading" @click="onFetchRoadRanger">Fetch Road Ranger prices</BaseButton>
+        <p v-if="regionalStatus" class="text-sm text-success-800">{{ regionalStatus }}</p>
       </div>
     </div>
   </BaseCard>

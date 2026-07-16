@@ -25,8 +25,10 @@ describe("brandFromLocationName", () => {
     expect(brandFromLocationName("")).toEqual({ brand: "unknown", known: false });
   });
 
-  it("keeps the family list in sync with the label catalog", () => {
-    expect(PILOT_FAMILY_BRANDS).toEqual(Object.keys(BRAND_LABELS));
+  it("every Pilot-family brand is in the catalog, and non-family networks are NOT in the family list", () => {
+    for (const b of PILOT_FAMILY_BRANDS) expect(Object.keys(BRAND_LABELS)).toContain(b);
     for (const [, brand] of REAL_EXPORT_NAMES) expect(PILOT_FAMILY_BRANDS).toContain(brand);
+    expect(PILOT_FAMILY_BRANDS).not.toContain("kwik_trip");
+    expect(PILOT_FAMILY_BRANDS).not.toContain("road_ranger");
   });
 });

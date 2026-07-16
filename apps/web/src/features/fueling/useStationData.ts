@@ -42,3 +42,35 @@ export async function fetchPostedPricesNow(): Promise<PostedIngestResult> {
   if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Posted-price fetch failed");
   return res.data;
 }
+
+export interface KwikTripSyncResult {
+  ok: boolean;
+  tableRows: number;
+  stationsUpserted: number;
+  truckFriendlyNoDiesel: number;
+  truckFriendlyNotInTable: number;
+  skipped: number;
+}
+
+/** Sync the Kwik Trip network (official truck-friendly stores only) into the shared registry. */
+export async function syncKwikTrip(): Promise<KwikTripSyncResult> {
+  const res = await apiFetch<KwikTripSyncResult>("/api/fueling/networks/kwiktrip/sync", { method: "POST" });
+  if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Kwik Trip sync failed");
+  return res.data;
+}
+
+export interface RoadRangerFetchResult {
+  ok: boolean;
+  rows: number;
+  stationsUpserted: number;
+  pricesInserted: number;
+  geocodeFailed: number;
+  skipped: number;
+}
+
+/** Fetch Road Ranger stations + today's truck-diesel cash prices. */
+export async function fetchRoadRanger(): Promise<RoadRangerFetchResult> {
+  const res = await apiFetch<RoadRangerFetchResult>("/api/fueling/networks/roadranger/fetch", { method: "POST" });
+  if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Road Ranger fetch failed");
+  return res.data;
+}

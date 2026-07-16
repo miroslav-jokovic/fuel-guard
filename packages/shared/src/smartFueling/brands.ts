@@ -18,6 +18,8 @@ export const BRAND_LABELS: Record<string, string> = {
   pride: "Pride",
   stamart: "Stamart",
   arco: "ARCO",
+  kwik_trip: "Kwik Trip / Kwik Star",
+  road_ranger: "Road Ranger",
 };
 
 /**
@@ -25,8 +27,12 @@ export const BRAND_LABELS: Record<string, string> = {
  * across the whole family — verified on the 2026-07 export). Price feeds that key rows by store number
  * alone (the daily email, the public price page) must match stations across this whole family, never by
  * a single brand — matching on (brand='pilot', store#) would duplicate a Flying J station.
+ * FIXED LIST — deliberately NOT derived from BRAND_LABELS: other networks (Kwik Trip, Road Ranger, …)
+ * have their own numbering spaces and must never be matched into the Pilot family.
  */
-export const PILOT_FAMILY_BRANDS = Object.keys(BRAND_LABELS);
+export const PILOT_FAMILY_BRANDS = [
+  "pilot", "flying_j", "one9", "mr_fuel", "ez_trip", "xpress_fuel", "pride", "stamart", "arco",
+];
 
 /** Location-name prefix -> brand slug. Order matters: first match wins; longest/most specific first. */
 const NAME_TO_BRAND: Array<[RegExp, string]> = [

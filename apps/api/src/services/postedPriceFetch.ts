@@ -19,6 +19,7 @@ import { parsePilotPricesPageHtml, median } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { ingestPostedPrices, type PostedIngestResult } from "./postedPriceIngest.js";
+import { runRoadRangerFetch } from "./roadRangerIngest.js";
 
 export const POSTED_SOURCE_PAGE = "pilot_public_page";
 export const POSTED_SOURCE_XLSX = "pilot_public_xlsx";
@@ -96,9 +97,16 @@ export function startPostedPriceScheduler(env: Env): () => void {
       const admin = getSupabaseAdmin(env);
       const r = await runPostedPriceFetch(admin, env);
       if (r.ok) {
-        console.log(`[posted-prices] loaded ${r.pricesInserted} prices from ${r.stationRows} stations` + (r.unmatched ? ` (${r.unmatched} unmatched — locations export stale?)` : ""));
+        console.log(`[posted-prices] pilot: ${r.pricesInserted} prices from ${r.stationRows} stations` + (r.unmatched ? ` (${r.unmatched} unmatched — locations export stale?)` : ""));
       } else {
-        console.error(`[posted-prices] FAILED: ${r.error}`);
+        console.error(`[posted-prices] pilot FAILED: ${r.error}`);
+      }
+      // Each source fails independently — one bad page never blocks the others' refresh.
+      const rr = await runRoadRangerFetch(admin, env);
+      if (rr.ok) {
+        console.log(`[posted-prices] road-ranger: ${rr.pricesInserted} cash prices, ${rr.stationsUpserted} stations` + (rr.geocodeFailed ? ` (${rr.geocodeFailed} still geocoding — retried next tick)` : ""));
+      } else {
+        console.error(`[posted-prices] road-ranger FAILED: ${rr.error}`);
       }
     } catch (e) {
       console.error("[posted-prices] FAILED:", e instanceof Error ? e.message : e);

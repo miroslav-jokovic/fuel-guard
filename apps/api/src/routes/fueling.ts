@@ -30,6 +30,8 @@ import { ingestPilotPrices } from "../services/pilotPriceIngest.js";
 import { ingestPilotLocations } from "../services/pilotLocationsIngest.js";
 import { ingestPostedPrices } from "../services/postedPriceIngest.js";
 import { gatePostedBatch, runPostedPriceFetch, POSTED_SOURCE_XLSX } from "../services/postedPriceFetch.js";
+import { runKwikTripSync } from "../services/kwikTripIngest.js";
+import { runRoadRangerFetch } from "../services/roadRangerIngest.js";
 import { parsePilotPublicPricesXlsx } from "@fuelguard/shared";
 import { fetchVehicleCurrentGps } from "../lib/samsara.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
@@ -208,6 +210,39 @@ export function fuelingRouter(): Router {
       const result = await runPostedPriceFetch(admin, env);
       if (!result.ok) {
         res.status(422).json(apiError("fetch_failed", result.error ?? "Posted-price fetch failed"));
+        return;
+      }
+      res.json(result);
+    }),
+  );
+
+  // Sync the Kwik Trip / Kwik Star network into the registry (official truck-friendly stores only —
+  // parse + completeness gates refuse a partial table). Admin-only; safe to re-run any time.
+  router.post(
+    "/networks/kwiktrip/sync",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const result = await runKwikTripSync(getSupabaseAdmin(env), env);
+      if (!result.ok) {
+        res.status(422).json(apiError("sync_failed", result.error ?? "Kwik Trip sync failed"));
+        return;
+      }
+      res.json(result);
+    }),
+  );
+
+  // Fetch Road Ranger stations + today's truck-diesel CASH prices now (same gates as the scheduler).
+  router.post(
+    "/networks/roadranger/fetch",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const result = await runRoadRangerFetch(getSupabaseAdmin(env), env);
+      if (!result.ok) {
+        res.status(422).json(apiError("fetch_failed", result.error ?? "Road Ranger fetch failed"));
         return;
       }
       res.json(result);
