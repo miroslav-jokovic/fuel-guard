@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   resolveRouteFuelConfig, effectiveTruckProfile, buildTruckFuelState, planFuelStops, stationsAlongRoute,
-  milesFromMeters, estimateStationPrice, median, DEFAULT_PRICE_LOOKBACK_HOURS,
+  milesFromMeters, estimateStationPrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile,
   type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState, type PriceConfidence,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
@@ -101,8 +101,9 @@ function pointAtMile(poly: LatLng[], targetMi: number): { lat: number; lng: numb
  * states (Massachusetts — enter full because there's essentially one truck stop). Detection is identical for
  * both: 2 HERE reverse-geocodes to classify the endpoints, then a bounded binary search (~10 calls) to find the
  * crossing — and ONLY when the destination is inside a border state, so ordinary routes pay just the 2-call
- * check. Assumes a single crossing (true for realistic OD pairs entering a state). Best-effort: any HERE failure
- * returns null and the plan proceeds without a pre-border top-off.
+ * check. The crossing itself is found by the pure, unit-tested `findFirstBorderCrossingMile` (coarse-scan +
+ * refine, no single-crossing assumption, unknown lookups bias the border earlier = safe). Best-effort: any HERE
+ * failure degrades to null and the plan proceeds without a pre-border top-off.
  */
 async function findBorderTopOffMile(
   env: Env, borderStates: string[], poly: LatLng[], distanceMiles: number, origin: LatLng, destination: LatLng,
@@ -117,15 +118,12 @@ async function findBorderTopOffMile(
   if (!inSet(destState) || inSet(originState)) return null; // not an outside→inside crossing
   const state = destState!.toUpperCase(); // the border state we're entering (the destination's)
 
-  let lo = 0, hi = distanceMiles; // state(lo)=outside, state(hi)=inside → converge on the first inside mile
-  for (let i = 0; i < 12 && hi - lo > 1; i++) {
-    const mid = (lo + hi) / 2;
-    const pt = pointAtMile(poly, mid);
-    if (!pt) break;
-    const s = await hereReverseGeocodeState(env, pt.lat, pt.lng);
-    if (inSet(s)) hi = mid; else lo = mid;
-  }
-  return hi < distanceMiles - 1 ? { mile: hi, state } : null; // ignore a border that sits essentially at the destination
+  const classifyAtMile = async (mile: number): Promise<string | null> => {
+    const pt = pointAtMile(poly, mile);
+    return pt ? hereReverseGeocodeState(env, pt.lat, pt.lng) : null;
+  };
+  const mile = await findFirstBorderCrossingMile(distanceMiles, inSet, classifyAtMile);
+  return mile != null ? { mile, state } : null;
 }
 
 export type PlanResultStatus = "ok" | "emergency_used" | "infeasible" | "routing_unavailable" | "no_stations" | "telematics_unavailable" | "error";

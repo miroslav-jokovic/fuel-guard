@@ -15,4 +15,5 @@ export * from "./hos.js";
 export * from "./consumption.js";
 export * from "./truckState.js";
 export * from "./priceHistory.js";
+export * from "./borderCrossing.js";
 export * from "./solver.js";
