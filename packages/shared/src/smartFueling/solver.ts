@@ -36,6 +36,8 @@ export interface SolverStation {
   detourMiles: number;
   /** Net $/gal (diesel). null = price unknown for this station. */
   netPrice: number | null;
+  /** true = netPrice is a history/brand estimate (Phase 5), not a fresh quote. Biases selection toward real prices. */
+  priceEstimated?: boolean;
 }
 
 /** Live HOS clocks fed to the solver (null → that clock unknown; the solver then plans on fuel alone + flags it). */
@@ -115,6 +117,7 @@ interface GreedyResult {
   droppedNoPrice: boolean;
   usedBorderTopOff: boolean;
   usedMinFill: boolean;
+  usedEstimatedPrice: boolean;
 }
 
 /**
@@ -156,9 +159,10 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   let usedBorderTopOff = false;
   let borderToppedOff = false; // guard so we top off before the avoided border at most once
   let usedMinFill = false;
+  let usedEstimatedPrice = false;
 
   const done = (reaches: boolean, infeasible: boolean, arrivalGal: number | null): GreedyResult => ({
-    stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, hosLimited, infeasible, droppedNoPrice, usedBorderTopOff, usedMinFill,
+    stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, hosLimited, infeasible, droppedNoPrice, usedBorderTopOff, usedMinFill, usedEstimatedPrice,
   });
 
   const COMBINE_BAND_MI = 75; // a reset combines with a fuel stop within this many miles before the drive limit
@@ -170,6 +174,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     const legMs = dist * msPerMile;
     drive -= legMs; shift -= legMs; cycle -= legMs; brk -= legMs;
     const breakWasDue = hosKnown && brk <= H;
+    if (pick.priceEstimated && pick.netPrice != null) usedEstimatedPrice = true;
     const inAvoided = pick.state != null && cfg.avoidStates.includes(pick.state);
     let fill;
     let minFill = false;
@@ -190,7 +195,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       const fullRangeMi = Math.max(0, usable - reserve) / gpm;
       const cheaperAhead = stations
         .filter((x) => !used.has(x.id) && x.id !== pick.id && x.milesAhead > pick.milesAhead + EPS
-          && isPreferred(x, cfg) && x.netPrice != null && pick.netPrice != null && x.netPrice < pick.netPrice - EPS
+          && isPreferred(x, cfg) && x.netPrice != null && pick.netPrice != null && rankPrice(x) < rankPrice(pick) - EPS
           && (x.milesAhead + x.detourMiles - pick.milesAhead) <= fullRangeMi + EPS)
         .sort((a, b) => a.milesAhead - b.milesAhead)[0];
       if (!cheaperAhead) {
@@ -329,8 +334,12 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   return done(false, true, null); // guard tripped without reaching
 }
 
+/** Penalty ($/gal) applied to an ESTIMATED price when ranking, so a real fresh quote wins a near-tie and a
+ *  shaky estimate never quietly beats a known price. Small enough that a clearly cheaper estimate still wins. */
+const ESTIMATE_PENALTY_USD = 0.03;
+const rankPrice = (s: SolverStation): number => s.netPrice! + (s.priceEstimated ? ESTIMATE_PENALTY_USD : 0);
 const cheapest = (opts: SolverStation[]): SolverStation =>
-  opts.reduce((a, b) => (a.netPrice! < b.netPrice! || (a.netPrice! === b.netPrice! && a.milesAhead > b.milesAhead) ? a : b));
+  opts.reduce((a, b) => (rankPrice(a) < rankPrice(b) || (rankPrice(a) === rankPrice(b) && a.milesAhead > b.milesAhead) ? a : b));
 const nearest = (opts: SolverStation[]): SolverStation => opts.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b));
 
 const sumCost = (stops: PlannedStop[]): number | null =>
@@ -350,6 +359,7 @@ export function planFuelStops(input: FuelPlanInput): FuelPlan {
   if (smart.usedAvoidedState) flags.push("avoided_state_fill_used");
   if (smart.usedBorderTopOff) flags.push("topped_off_before_avoided_state");
   if (smart.usedMinFill) flags.push("min_drawdown_partial_fills");
+  if (smart.usedEstimatedPrice) flags.push("estimated_prices_used");
   if (smart.usedReset) flags.push("overnight_reset_required");
   if (smart.hosLimited) flags.push("hos_limited");
 

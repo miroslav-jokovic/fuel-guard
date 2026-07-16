@@ -48,13 +48,15 @@ const nodes = computed<Node[]>(() => {
       const tags: { label: string; tone: string }[] = [];
       if (s.isBorderTopOff) tags.push({ label: "Top off before CA", tone: "info" });
       if (s.isMinFill) tags.push({ label: "Partial fill", tone: "caution" });
+      if (s.priceEstimated) tags.push({ label: `Est. price${s.priceConfidence ? ` (${s.priceConfidence})` : ""}`, tone: "neutral" });
       if (s.isEmergency) tags.push({ label: "Emergency", tone: "warning" });
       if (s.coversBreak) tags.push({ label: "Covers 30-min break", tone: "success" });
       if (s.isOvernight) tags.push({ label: "+ Overnight reset", tone: "info" });
+      const priceStr = s.netPrice != null ? `@ ${money(s.netPrice)}/gal${s.priceEstimated ? " (est.)" : ""}` : "price unknown";
       out.push({
         key: `stop${i}`, icon: BoltIcon, tone: s.isEmergency ? "warning" : "brand",
         title: `Fuel — ${s.stationName ?? s.brand ?? "Station"}`, sub: s.state ?? undefined, mile: s.milesAhead,
-        detail: [`${s.gallons.toLocaleString()} gal`, s.netPrice != null ? `@ ${money(s.netPrice)}/gal` : "price unknown", s.cost != null ? `= ${money(s.cost)}` : null].filter(Boolean).join(" "),
+        detail: [`${s.gallons.toLocaleString()} gal`, priceStr, s.cost != null ? `= ${money(s.cost)}` : null].filter(Boolean).join(" "),
         fuel: arrive != null && after != null ? `Arrive ~${arrive}% → fill to ~${after}%` : undefined, tags,
       });
     }

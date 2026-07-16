@@ -290,3 +290,27 @@ describe("planFuelStops — min-drawdown (partial fills)", () => {
     expect(border.fillGal).toBeGreaterThan(50);
   });
 });
+
+describe("planFuelStops — estimated prices (Phase 5)", () => {
+  const est = (id: string, mi: number, price: number): SolverStation => ({ ...st(id, mi, price), priceEstimated: true });
+
+  it("a real fresh price wins a near-tie over a slightly cheaper ESTIMATE", () => {
+    // est is 1¢ cheaper but only an estimate → the 3¢ estimate penalty makes the real quote win.
+    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("real", 300, 3.5), est("guess", 320, 3.49)] }));
+    expect(plan.stops[0]!.station!.id).toBe("real");
+    expect(plan.flags).not.toContain("estimated_prices_used");
+  });
+
+  it("a clearly cheaper estimate still wins (beats the penalty band)", () => {
+    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("real", 300, 3.6), est("guess", 320, 3.5)] }));
+    expect(plan.stops[0]!.station!.id).toBe("guess");
+    expect(plan.flags).toContain("estimated_prices_used");
+  });
+
+  it("an estimated price is usable (a normal fill, not emergency) when it's the only priced option", () => {
+    const plan = planFuelStops(input({ distanceToGoMiles: 700, stations: [est("only", 300, 3.5)] }));
+    expect(plan.reachesDestination).toBe(true);
+    expect(plan.stops[0]!.isEmergency).toBe(false);
+    expect(plan.flags).toContain("estimated_prices_used");
+  });
+});

@@ -6,7 +6,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   resolveRouteFuelConfig, effectiveTruckProfile, buildTruckFuelState, planFuelStops, stationsAlongRoute,
-  milesFromMeters, type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState,
+  milesFromMeters, estimateStationPrice, median, DEFAULT_PRICE_LOOKBACK_HOURS,
+  type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState, type PriceConfidence,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { getOrComputeRoute } from "./routeGeometry.js";
@@ -62,6 +63,10 @@ export interface PlanStopView {
   isBorderTopOff: boolean;
   /** This is a min-drawdown partial fill (bought only enough to reach the next cheaper stop), not a full top-off. */
   isMinFill: boolean;
+  /** true = netPrice is a history/brand estimate, not a fresh quote (Phase 5). */
+  priceEstimated: boolean;
+  /** Confidence in an estimated price (null when the price is a fresh quote or unknown). */
+  priceConfidence: PriceConfidence | null;
 }
 
 /** Interpolate the lat/lng at a given cumulative mile along the route polyline (positions rest stops on the map). */
@@ -227,26 +232,46 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
   if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, breakAdvice: breakDue, manualFuelUsed, origin, destination };
 
-  const stationIds = stations.map((s) => s.id);
-  const { data: priceRows } = await admin
-    .from("fuel_prices").select("station_id, net_price, observed_at").eq("org_id", orgId).eq("product", "diesel")
-    .in("station_id", stationIds).order("observed_at", { ascending: false });
-  const priceByStation = new Map<string, { net: number | null; at: string }>();
-  for (const pr of (priceRows ?? []) as Array<{ station_id: string; net_price: number | string | null; observed_at: string }>)
-    if (!priceByStation.has(pr.station_id)) priceByStation.set(pr.station_id, { net: pr.net_price != null ? Number(pr.net_price) : null, at: pr.observed_at });
-
+  // Narrow to the on-route corridor FIRST, then pull price history only for those stations (fewer rows).
   const candidates = stationsAlongRoute(route.polyline, stations.map((s) => ({ id: s.id, lat: Number(s.lat), lng: Number(s.lng) })), origin, { corridorMiles: cfg.corridorMiles });
   const stationById = new Map(stations.map((s) => [s.id, s]));
-  // Price TTL: a price older than the org's window is treated as UNKNOWN (excluded from cheapest-selection),
-  // so the solver won't route to a "cheap" station on a stale quote. Counted + surfaced as a plan flag.
+  const candidateIds = candidates.map((c) => c.station.id);
+
+  // Price history within the learning lookback, for estimating stations whose fresh quote is missing/stale.
   const now0 = Date.now();
-  let stalePrices = 0;
+  const lookbackHours = DEFAULT_PRICE_LOOKBACK_HOURS;
+  const cutoffIso = new Date(now0 - lookbackHours * 3_600_000).toISOString();
+  const historyByStation = new Map<string, { net: number | null; observedAtMs: number }[]>();
+  const latestByStation = new Map<string, { net: number | null; at: string }>();
+  for (let i = 0; i < candidateIds.length; i += 200) {
+    const part = candidateIds.slice(i, i + 200);
+    const { data: priceRows } = await admin
+      .from("fuel_prices").select("station_id, net_price, observed_at").eq("org_id", orgId).eq("product", "diesel")
+      .in("station_id", part).gte("observed_at", cutoffIso).order("observed_at", { ascending: false });
+    for (const pr of (priceRows ?? []) as Array<{ station_id: string; net_price: number | string | null; observed_at: string }>) {
+      const net = pr.net_price != null ? Number(pr.net_price) : null;
+      (historyByStation.get(pr.station_id) ?? historyByStation.set(pr.station_id, []).get(pr.station_id)!).push({ net, observedAtMs: Date.parse(pr.observed_at) });
+      if (!latestByStation.has(pr.station_id)) latestByStation.set(pr.station_id, { net, at: pr.observed_at }); // rows are observed_at DESC
+    }
+  }
+
+  // Corridor brand medians (from FRESH quotes only) — the fallback when a station has no usable history of its own.
+  const freshByBrand = new Map<string, number[]>();
+  for (const c of candidates) {
+    const s = stationById.get(c.station.id)!;
+    const latest = latestByStation.get(c.station.id);
+    if (latest?.net != null && (now0 - Date.parse(latest.at)) / 3_600_000 <= cfg.priceTtlHours)
+      (freshByBrand.get(s.brand) ?? freshByBrand.set(s.brand, []).get(s.brand)!).push(latest.net);
+  }
+  const brandMedian = (brand: string): number | null => median(freshByBrand.get(brand) ?? []);
+
+  // Estimate a plannable price for each corridor station (fresh quote → history median → brand median → none).
+  const estByStation = new Map<string, ReturnType<typeof estimateStationPrice>>();
   const solverStations: SolverStation[] = candidates.map((c) => {
     const s = stationById.get(c.station.id)!;
-    const price = priceByStation.get(c.station.id);
-    let net = price?.net ?? null;
-    if (net != null && price && (now0 - Date.parse(price.at)) / 3_600_000 > cfg.priceTtlHours) { net = null; stalePrices += 1; }
-    return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: net };
+    const est = estimateStationPrice(historyByStation.get(c.station.id) ?? [], now0, { ttlHours: cfg.priceTtlHours, lookbackHours, brandMedian: brandMedian(s.brand) });
+    estByStation.set(c.station.id, est);
+    return { id: c.station.id, brand: s.brand, state: s.state, milesAhead: c.alongTrackMiles, detourMiles: c.detourMiles, netPrice: est.net, priceEstimated: est.estimated };
   });
 
   // California rule: if this route leaves a non-avoided state and enters an avoided one, top the tank off just
@@ -270,7 +295,8 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   });
   const stops: PlanStopView[] = plan.stops.map((st) => {
     const s = st.station ? stationById.get(st.station.id) ?? null : null;
-    const price = st.station ? priceByStation.get(st.station.id) : undefined;
+    const latest = st.station ? latestByStation.get(st.station.id) : undefined;
+    const est = st.station ? estByStation.get(st.station.id) : undefined;
     const pos = s ? { lat: Number(s.lat), lng: Number(s.lng) } : pointAtMile(route.polyline, st.milesAhead);
     return {
       kind: st.kind,
@@ -278,7 +304,8 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
       stationLat: pos?.lat ?? null, stationLng: pos?.lng ?? null,
       stationName: s ? (s.name ?? s.brand) : null, brand: s?.brand ?? null, state: s?.state ?? null, exit: s?.exit ?? null, storeNumber: s?.store_number ?? null,
       detourMiles: st.station ? r1(st.station.detourMiles) : 0, gallons: r1(st.fillGal),
-      netPrice: st.netPrice, priceAgeHours: price ? Math.round((Date.now() - Date.parse(price.at)) / 3_600_000) : null,
+      netPrice: st.netPrice, priceAgeHours: latest ? Math.round((Date.now() - Date.parse(latest.at)) / 3_600_000) : null,
+      priceEstimated: est?.estimated ?? false, priceConfidence: est?.estimated ? est.confidence : null,
       cost: st.cost != null ? Math.round(st.cost * 100) / 100 : null, arrivalGal: r1(st.arrivalGal), isEmergency: st.isEmergency,
       coversBreak: st.coversBreak, isOvernight: st.isOvernight, driveHoursLeftOnArrival: st.driveHoursLeftOnArrival != null ? r1(st.driveHoursLeftOnArrival) : null,
       isBorderTopOff: st.isBorderTopOff, isMinFill: st.isMinFill,
@@ -286,8 +313,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   });
 
   const breakAdvice = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: plan.stops.filter((st) => st.kind === "fuel").map((st) => st.milesAhead) });
-  const planFlags0 = stalePrices > 0 ? [...plan.flags, "stale_prices_excluded"] : plan.flags;
-  const planFlags = manualFuelUsed ? [...planFlags0, "manual_fuel_entry"] : planFlags0;
+  const planFlags = manualFuelUsed ? [...plan.flags, "manual_fuel_entry"] : plan.flags;
   const planMessage = describePlan(plan.status, planFlags);
   return {
     status: plan.status,

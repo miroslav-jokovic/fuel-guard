@@ -5,6 +5,7 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { planFuelRoute, type PlanRequest } from "../services/fuelPlanning.js";
+import { estimateStationPrice, median, DEFAULT_PRICE_LOOKBACK_HOURS } from "@fuelguard/shared";
 
 // Validate + bound the plan request (security: reject malformed/oversized input before any Samsara/HERE work).
 const planPointSchema = z.object({ lat: z.number().nullable().optional(), lng: z.number().nullable().optional(), text: z.string().max(300).nullable().optional() });
@@ -177,8 +178,14 @@ export function fuelingRouter(): Router {
       const { data: settingsRow } = await admin.from("route_fuel_settings").select("price_ttl_hours").eq("org_id", orgId).maybeSingle();
       const ttlHours = settingsRow?.price_ttl_hours != null ? Number(settingsRow.price_ttl_hours) : 30;
 
-      // Latest diesel price per station (paginate — a single select is capped at 1000 rows).
+      const now = Date.now();
+      const lookbackHours = DEFAULT_PRICE_LOOKBACK_HOURS;
+      const cutoffMs = now - lookbackHours * 3_600_000;
+      const SAMPLE_CAP = 40; // recent samples kept per station for the estimate (bounds memory)
+
+      // Latest diesel price per station + a bounded recent-history window for estimating stale/missing prices.
       const latest = new Map<string, { net: number | null; posted: number | null; at: string }>();
+      const samples = new Map<string, { net: number | null; observedAtMs: number }[]>();
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await admin
@@ -189,22 +196,45 @@ export function fuelingRouter(): Router {
           .range(from, from + PAGE - 1);
         if (error) { res.status(500).json(apiError("db_error", error.message)); return; }
         for (const p of (data ?? []) as Array<{ station_id: string; net_price: number | string | null; posted_price: number | string | null; observed_at: string }>) {
-          if (!latest.has(p.station_id)) latest.set(p.station_id, { net: p.net_price != null ? Number(p.net_price) : null, posted: p.posted_price != null ? Number(p.posted_price) : null, at: p.observed_at });
+          const net = p.net_price != null ? Number(p.net_price) : null;
+          const atMs = Date.parse(p.observed_at);
+          if (!latest.has(p.station_id)) latest.set(p.station_id, { net, posted: p.posted_price != null ? Number(p.posted_price) : null, at: p.observed_at });
+          if (atMs >= cutoffMs) {
+            const arr = samples.get(p.station_id) ?? samples.set(p.station_id, []).get(p.station_id)!;
+            if (arr.length < SAMPLE_CAP) arr.push({ net, observedAtMs: atMs });
+          }
         }
         if (!data || data.length < PAGE) break;
       }
 
       const stationIds = [...latest.keys()];
-      const stations: Record<string, unknown>[] = [];
-      const now = Date.now();
+      const meta = new Map<string, { brand: string; store_number: string | null; name: string | null; state: string | null; lat: number | string; lng: number | string; exit: string | null }>();
       for (let i = 0; i < stationIds.length; i += 200) {
         const part = stationIds.slice(i, i + 200);
         const { data } = await admin.from("fuel_stations").select("id, brand, store_number, name, state, lat, lng, exit").in("id", part);
-        for (const st of (data ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; state: string | null; lat: number | string; lng: number | string; exit: string | null }>) {
-          const pr = latest.get(st.id)!;
-          const ageHours = Math.round((now - Date.parse(pr.at)) / 3_600_000);
-          stations.push({ id: st.id, brand: st.brand, storeNumber: st.store_number, name: st.name, state: st.state, lat: Number(st.lat), lng: Number(st.lng), exit: st.exit, netPrice: pr.net, postedPrice: pr.posted, observedAt: pr.at, ageHours, stale: ageHours > ttlHours });
-        }
+        for (const st of (data ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; state: string | null; lat: number | string; lng: number | string; exit: string | null }>) meta.set(st.id, st);
+      }
+
+      // Corridor-wide brand medians (fresh quotes only) — the fallback when a station has no usable history.
+      const freshByBrand = new Map<string, number[]>();
+      for (const [id, pr] of latest) {
+        const m = meta.get(id);
+        if (m && pr.net != null && (now - Date.parse(pr.at)) / 3_600_000 <= ttlHours)
+          (freshByBrand.get(m.brand) ?? freshByBrand.set(m.brand, []).get(m.brand)!).push(pr.net);
+      }
+
+      const stations: Record<string, unknown>[] = [];
+      for (const id of stationIds) {
+        const st = meta.get(id);
+        if (!st) continue;
+        const pr = latest.get(id)!;
+        const ageHours = Math.round((now - Date.parse(pr.at)) / 3_600_000);
+        const est = estimateStationPrice(samples.get(id) ?? [], now, { ttlHours, lookbackHours, brandMedian: median(freshByBrand.get(st.brand) ?? []) });
+        stations.push({
+          id, brand: st.brand, storeNumber: st.store_number, name: st.name, state: st.state, lat: Number(st.lat), lng: Number(st.lng), exit: st.exit,
+          netPrice: est.net, priceEstimated: est.estimated, priceConfidence: est.estimated ? est.confidence : null,
+          postedPrice: pr.posted, observedAt: pr.at, ageHours, stale: ageHours > ttlHours,
+        });
       }
       stations.sort((a, b) => String(a.state).localeCompare(String(b.state)) || String(a.name).localeCompare(String(b.name)));
       res.json({ stations, ttlHours });

@@ -11,6 +11,8 @@ export interface FuelStationRow {
   lng: number;
   exit: string | null;
   netPrice: number | null;
+  priceEstimated: boolean;
+  priceConfidence: "high" | "medium" | "low" | null;
   postedPrice: number | null;
   observedAt: string;
   ageHours: number;

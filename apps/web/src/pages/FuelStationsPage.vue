@@ -27,8 +27,9 @@ const stateOptions = computed(() => {
 });
 const priceOptions = [
   { value: "", label: "All prices" },
-  { value: "priced", label: "Has current price" },
-  { value: "stale", label: "Stale price" },
+  { value: "priced", label: "Fresh price" },
+  { value: "estimated", label: "Estimated price" },
+  { value: "stale", label: "Stale quote" },
   { value: "none", label: "No price" },
 ];
 
@@ -36,7 +37,8 @@ const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
   return rows.value.filter((r) => {
     if (stateFilter.value && r.state !== stateFilter.value) return false;
-    if (priceFilter.value === "priced" && (r.netPrice == null || r.stale)) return false;
+    if (priceFilter.value === "priced" && (r.netPrice == null || r.priceEstimated)) return false;
+    if (priceFilter.value === "estimated" && !r.priceEstimated) return false;
     if (priceFilter.value === "stale" && !r.stale) return false;
     if (priceFilter.value === "none" && r.netPrice != null) return false;
     if (!q) return true;
@@ -87,6 +89,7 @@ const columns: DataTableColumn[] = [
           <template #cell-brand="{ row }">{{ brandLabel((row as FuelStationRow).brand) }}</template>
           <template #cell-netPrice="{ row }">
             <span class="tabular-nums font-medium text-ink">{{ price((row as FuelStationRow).netPrice) }}</span>
+            <span v-if="(row as FuelStationRow).priceEstimated" :class="['ml-1.5', BADGE_BASE, toneClass('neutral')]" :title="`Estimated from history (${(row as FuelStationRow).priceConfidence} confidence)`">est.</span>
           </template>
           <template #cell-postedPrice="{ row }">
             <span class="tabular-nums text-ink-muted">{{ price((row as FuelStationRow).postedPrice) }}</span>
