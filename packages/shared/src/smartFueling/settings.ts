@@ -14,6 +14,7 @@ export interface RouteFuelSettingsRow {
   deviation_threshold_mi?: number | string | null;
   price_ttl_hours?: number | string | null;
   always_fill_full?: boolean | null;
+  fill_cap_pct?: number | string | null;
   avoid_states?: string[] | null;
   avoid_brands?: string[] | null;
   preferred_brands?: string[] | null;
@@ -43,6 +44,7 @@ export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefi
     deviationThresholdMi: num(row?.deviation_threshold_mi, d.deviationThresholdMi),
     priceTtlHours: num(row?.price_ttl_hours, d.priceTtlHours),
     alwaysFillFull: row?.always_fill_full ?? d.alwaysFillFull,
+    fillCapPct: num(row?.fill_cap_pct, d.fillCapPct),
     avoidStates: arr(row?.avoid_states, d.avoidStates),
     avoidBrands: arr(row?.avoid_brands, d.avoidBrands),
     preferredBrands: arr(row?.preferred_brands, d.preferredBrands),

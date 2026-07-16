@@ -18,6 +18,7 @@ export const routeFuelSettingsFormSchema = z.object({
   price_ttl_hours: z.coerce.number().int().min(1).max(8760),
   // Policy
   always_fill_full: z.boolean(),
+  fill_cap_pct: z.coerce.number().min(10).max(100),
   plan_def: z.boolean(),
   preferred_brands: brandList,
   avoid_brands: brandList,
@@ -42,7 +43,8 @@ export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   corridor_miles: 2.5,
   deviation_threshold_mi: 3,
   price_ttl_hours: 30,
-  always_fill_full: true,
+  always_fill_full: false,
+  fill_cap_pct: 75,
   plan_def: false,
   preferred_brands: ["pilot", "flying_j"],
   avoid_brands: ["one9"],

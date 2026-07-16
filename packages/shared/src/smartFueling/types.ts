@@ -55,7 +55,10 @@ export interface RouteFuelSettings {
   mpgSafetyFactor: number;
   deviationThresholdMi: number;
   priceTtlHours: number;
+  /** true = top off at every stop. false = min-drawdown: buy only enough to reach the next cheaper stop. */
   alwaysFillFull: boolean;
+  /** When min-drawdown is active, cap a non-cheapest partial fill at this % of tank (full fill only at the cheapest reachable stop). */
+  fillCapPct: number;
   avoidStates: string[];
   avoidBrands: string[];
   preferredBrands: string[];
@@ -72,7 +75,8 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   mpgSafetyFactor: 0.9,
   deviationThresholdMi: 3,
   priceTtlHours: 30,
-  alwaysFillFull: true,
+  alwaysFillFull: false, // min-drawdown on by default: buy just enough to reach the next cheaper stop
+  fillCapPct: 75,
   avoidStates: ["CA"],
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],

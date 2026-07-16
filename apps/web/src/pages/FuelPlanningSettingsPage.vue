@@ -133,8 +133,11 @@ const truck: NumField[] = [
         <div class="mt-4 space-y-4">
           <div>
             <BaseCheckbox v-model="form.always_fill_full">Always fill to full</BaseCheckbox>
-            <p class="mt-1 text-xs text-ink-muted">Off = buy only enough to reach the next cheaper stop.</p>
+            <p class="mt-1 text-xs text-ink-muted">Off (default) = min-drawdown: buy only enough to reach the next cheaper stop, topping off at the cheapest reachable one.</p>
           </div>
+          <FormField v-if="!form.always_fill_full" v-slot="{ id }" label="Partial-fill cap (% of tank)" hint="Non-cheapest stops fill to at most this level (a full top-off still happens at the cheapest reachable stop and the California border)." :error="fieldErr.fill_cap_pct">
+            <BaseInput :id="id" v-model="form.fill_cap_pct as number" type="number" step="1" inputmode="numeric" :invalid="!!fieldErr.fill_cap_pct" class="sm:max-w-xs" />
+          </FormField>
           <div>
             <BaseCheckbox v-model="form.plan_def">Plan DEF stops</BaseCheckbox>
             <p class="mt-1 text-xs text-ink-muted">Include diesel exhaust fluid (DEF) in the plan.</p>

@@ -60,6 +60,8 @@ export interface PlanStopView {
   driveHoursLeftOnArrival: number | null;
   /** This fuel stop is the mandated top-off just before entering an avoided state (e.g. the California border). */
   isBorderTopOff: boolean;
+  /** This is a min-drawdown partial fill (bought only enough to reach the next cheaper stop), not a full top-off. */
+  isMinFill: boolean;
 }
 
 /** Interpolate the lat/lng at a given cumulative mile along the route polyline (positions rest stops on the map). */
@@ -279,7 +281,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
       netPrice: st.netPrice, priceAgeHours: price ? Math.round((Date.now() - Date.parse(price.at)) / 3_600_000) : null,
       cost: st.cost != null ? Math.round(st.cost * 100) / 100 : null, arrivalGal: r1(st.arrivalGal), isEmergency: st.isEmergency,
       coversBreak: st.coversBreak, isOvernight: st.isOvernight, driveHoursLeftOnArrival: st.driveHoursLeftOnArrival != null ? r1(st.driveHoursLeftOnArrival) : null,
-      isBorderTopOff: st.isBorderTopOff,
+      isBorderTopOff: st.isBorderTopOff, isMinFill: st.isMinFill,
     };
   });
 

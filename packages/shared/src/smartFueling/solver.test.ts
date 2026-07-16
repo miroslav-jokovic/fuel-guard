@@ -225,3 +225,68 @@ describe("planFuelStops — avoided-state border top-off (California rule)", () 
     expect(plan.flags).not.toContain("topped_off_before_avoided_state");
   });
 });
+
+describe("planFuelStops — min-drawdown (partial fills)", () => {
+  const fuelStop = (plan: ReturnType<typeof planFuelStops>, id: string) => plan.stops.find((s) => s.station?.id === id);
+
+  it("partial-fills at a pricey stop when a cheaper station is reachable ahead (default policy)", () => {
+    // Only the dear station (a@200, $4.00) is in the initial fuel window; a cheaper one (b@500, $3.00) sits
+    // beyond it. Min-drawdown buys just enough at `a` to reach `b`, then tops off at `b`.
+    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("a", 200, 4.0), st("b", 500, 3.0)] }));
+    expect(plan.reachesDestination).toBe(true);
+    const a = fuelStop(plan, "a")!, b = fuelStop(plan, "b")!;
+    expect(a.isMinFill).toBe(true);
+    expect(a.fillGal).toBeGreaterThanOrEqual(50 - 1e-6); // honors the min purchase
+    expect(a.fillGal).toBeLessThan(100);                 // ...but is NOT a full top-off
+    expect(b.isMinFill).toBe(false);                     // cheapest ahead → full fill
+    expect(b.fillGal).toBeGreaterThan(a.fillGal);
+    expect(plan.flags).toContain("min_drawdown_partial_fills");
+  });
+
+  it("full-fills at the cheapest reachable stop (no cheaper ahead), even with min-drawdown on", () => {
+    // a@200 ($3.00) is cheapest; b@500 ($4.00) is pricier → `a` is the cheapest in the horizon → top off.
+    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("a", 200, 3.0), st("b", 500, 4.0)] }));
+    const a = fuelStop(plan, "a")!;
+    expect(a.isMinFill).toBe(false);
+    expect(a.fillGal).toBeGreaterThan(100); // full fill
+    expect(plan.flags).not.toContain("min_drawdown_partial_fills");
+  });
+
+  it("alwaysFillFull=true disables min-drawdown (full fill even with cheaper fuel ahead)", () => {
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 900,
+      stations: [st("a", 200, 4.0), st("b", 500, 3.0)],
+      settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: true },
+    }));
+    const a = fuelStop(plan, "a")!;
+    expect(a.isMinFill).toBe(false);
+    expect(a.fillGal).toBeGreaterThan(100);            // topped off at the first stop...
+    expect(fuelStop(plan, "b")).toBeUndefined();       // ...so the cheaper station is never needed
+    expect(plan.flags).not.toContain("min_drawdown_partial_fills");
+  });
+
+  it("caps a partial fill at fillCapPct of tank when the next cheaper station is far", () => {
+    // The only cheaper station (b@1000) needs ~94% of tank to reach in one hop; the 75% cap limits the fill so
+    // the truck doesn't haul that much expensive fuel — it refuels again at c on the way.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 1200,
+      stations: [st("a", 100, 4.0), st("c", 600, 4.5), st("b", 1000, 3.0)],
+    }));
+    expect(plan.reachesDestination).toBe(true);
+    const a = fuelStop(plan, "a")!;
+    expect(a.isMinFill).toBe(true);
+    expect(a.arrivalGal + a.fillGal).toBeLessThanOrEqual(0.75 * 200 + 1.5); // onboard capped at ~75% of a 200-gal tank
+    expect(a.arrivalGal + a.fillGal).toBeLessThan(190 - 5);                 // clearly not a full fill (~94% need)
+  });
+
+  it("border top-off is always a FULL fill, overriding min-drawdown", () => {
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 300,
+      stations: [st("pre", 140, 3.5), st("cheaper-in-ca", 200, 2.9, "pilot", "CA")],
+      avoidedBorderMiles: 150,
+    }));
+    const border = plan.stops.find((s) => s.isBorderTopOff)!;
+    expect(border.isMinFill).toBe(false);
+    expect(border.fillGal).toBeGreaterThan(50);
+  });
+});

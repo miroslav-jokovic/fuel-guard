@@ -24,6 +24,7 @@ export interface PlanStopView {
   cost: number | null; arrivalGal: number; isEmergency: boolean;
   coversBreak: boolean; isOvernight: boolean; driveHoursLeftOnArrival: number | null;
   isBorderTopOff: boolean;
+  isMinFill: boolean;
 }
 export type PlanResultStatus = "ok" | "emergency_used" | "infeasible" | "routing_unavailable" | "no_stations" | "telematics_unavailable" | "error";
 export interface PlanResult {
