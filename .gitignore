@@ -37,3 +37,9 @@ TemplatesTailwind/
 # Tooling / probe files
 _probe.txt
 _tmp_*
+
+# Claude Code local (machine-specific tool-permission cache; shared .claude config is still tracked)
+.claude/settings.local.json
+
+# "Pending delete" holding folder for retired files (delete manually — not part of the project)
+_to_delete/
