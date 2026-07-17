@@ -44,11 +44,44 @@ export function resolve(varName: string): string {
   return value;
 }
 
-/** `resolve()` + alpha, for washes/fills (expects the rgb() form resolve returns). */
+/** #rgb / #rrggbb -> channels. */
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const h = hex.replace("#", "").trim();
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  if (full.length !== 6 || /[^0-9a-fA-F]/.test(full)) return null;
+  const n = parseInt(full, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+/**
+ * `resolve()` + alpha, for washes/fills. Canvas needs a color it can parse WITH an alpha, so we add the
+ * alpha in whatever form the browser serialized the base color — getting this wrong collapses every alpha
+ * to the opaque color and turns gradient fills solid, so it is unit-tested. Handles, in order:
+ *   1. a hex (plain, or the `var(--x, #hex)` string jsdom returns unresolved) -> rgba() channels
+ *   2. `rgb()/rgba()` with commas OR spaces (CSS Color 4, what Chrome 2024+ returns) -> rgba() channels
+ *   3. any other CSS color function (oklch/oklab/hsl/lab/color()) -> the Color-4 `<fn>(… / alpha)` form
+ *   4. fallback: this role's known hex constant -> rgba()
+ */
 export function resolveAlpha(varName: string, alpha: number): string {
-  const rgb = resolve(varName);
-  const m = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-  return m ? `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${alpha})` : rgb;
+  const c = resolve(varName).trim();
+  const hex = c.match(/#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/);
+  if (hex) {
+    const rgb = hexToRgb(hex[0]);
+    if (rgb) return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+  }
+  if (/^rgba?\(/i.test(c)) {
+    const nums = c.match(/-?\d*\.?\d+/g);
+    if (nums && nums.length >= 3) return `rgba(${nums[0]}, ${nums[1]}, ${nums[2]}, ${alpha})`;
+  }
+  const fn = c.match(/^([a-z]+)\((.+)\)$/i);
+  if (fn) {
+    const name = fn[1] ?? "";
+    const inner = ((fn[2] ?? "").split("/")[0] ?? "").trim();
+    return `${name}(${inner} / ${alpha})`;
+  }
+  const fbHex = FALLBACK[varName];
+  const fb = fbHex ? hexToRgb(fbHex) : null;
+  return fb ? `rgba(${fb.r}, ${fb.g}, ${fb.b}, ${alpha})` : c;
 }
 
 /** Chart color roles (getters so tokens resolve lazily, post-mount). */
