@@ -9,8 +9,9 @@
  * unplaced by the budget or a transient limit is retried — and instantly resolved — on the next upload. Every
  * report site is (re)placed each load, correcting earlier misses/misplacements.
  *
- * Idempotent per (org, source, effective date): re-loading the same file replaces that day's prices, and
- * stations upsert on (brand, store_number) — so re-uploads never create duplicate stations or prices.
+ * Replace-on-upload per (org, source): a new daily report fully supersedes the org's prior Pilot net prices
+ * (no accumulation of stale nets), and stations upsert on (brand, store_number) — so re-uploads never create
+ * duplicate stations or prices.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parsePilotPriceReport, PILOT_FAMILY_BRANDS, type Cell } from "@fuelguard/shared";
@@ -135,8 +136,10 @@ export async function ingestPilotPrices(admin: SupabaseClient, env: Env, orgId: 
     stationsUpserted += data?.length ?? 0;
   }
 
-  // Replace this effective-date's Pilot prices (idempotent re-load — no duplicate prices).
-  await admin.from("fuel_prices").delete().eq("org_id", orgId).eq("source", SOURCE).eq("observed_at", observedAt);
+  // Replace this org's Pilot net prices ENTIRELY — today's report supersedes all prior daily uploads so
+  // old prices never linger in the table (a station dropped from today's file falls back to posted/estimate,
+  // not a stale net from days ago). A re-upload of the same day is still idempotent.
+  await admin.from("fuel_prices").delete().eq("org_id", orgId).eq("source", SOURCE);
   const priceRows: Record<string, unknown>[] = [];
   for (const [site, row] of bySite) {
     const stationId = stationIdBySite.get(site);
