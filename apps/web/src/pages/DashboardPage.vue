@@ -27,7 +27,7 @@ import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
 import RiskList from "@/features/dashboard/RiskList.vue";
-import { viz, COST_COLORS, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
+import { viz, COST_COLORS, areaFill, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
 
 const session = useSessionStore();
 const days = ref(30);
@@ -119,11 +119,11 @@ const mpgChart = computed<ChartConfiguration>(() => ({
         label: "Fleet MPG",
         data: s.value?.mpgTrend.map((p) => p.value) ?? [],
         borderColor: viz.brand,
-        backgroundColor: viz.brandWash,
+        backgroundColor: areaFill("--viz-brand") as unknown as string,
         fill: true,
-        tension: 0.35,
+        tension: 0.4,
         spanGaps: false,
-        borderWidth: 2,
+        borderWidth: 2.5,
         borderCapStyle: "round",
         borderJoinStyle: "round",
         pointRadius: 0,
@@ -148,11 +148,11 @@ const spendChart = computed<ChartConfiguration>(() => ({
         label: "Spend",
         data: s.value?.spendTrend.map((p) => p.value) ?? [],
         borderColor: viz.spend,
-        backgroundColor: viz.spendWash,
+        backgroundColor: areaFill("--viz-spend") as unknown as string,
         fill: true,
-        tension: 0.35,
+        tension: 0.4,
         spanGaps: false,
-        borderWidth: 2,
+        borderWidth: 2.5,
         borderCapStyle: "round",
         borderJoinStyle: "round",
         pointRadius: 0,
@@ -190,7 +190,9 @@ const costChart = computed<ChartConfiguration>(() => ({
         data: costSlices.value.map((x) => x.value),
         backgroundColor: costSlices.value.map((x) => x.color),
         borderColor: "#ffffff",
-        borderWidth: 2,
+        borderWidth: 0,
+        spacing: 3,
+        borderRadius: 6,
         hoverOffset: 6,
       },
     ],
@@ -198,7 +200,7 @@ const costChart = computed<ChartConfiguration>(() => ({
   options: {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: "64%",
+    cutout: "70%",
     plugins: {
       legend: { display: false },
       tooltip: {

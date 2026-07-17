@@ -103,6 +103,26 @@ export const viz = {
  */
 export const COST_COLORS = { moving: "#059669", idle: "#c2410c", reefer: "#4338ca" } as const;
 
+/**
+ * Scriptable Chart.js fill: a vertical gradient from the series color (soft at the top) fading to
+ * transparent at the baseline — the modern "area under the line" look. Falls back to a flat wash before
+ * the chart area is laid out (and under jsdom, where canvas gradients are unavailable), so it never throws.
+ */
+export function areaFill(varName: string) {
+  const top = resolveAlpha(varName, 0.3);
+  const mid = resolveAlpha(varName, 0.08);
+  const bottom = resolveAlpha(varName, 0);
+  return (context: { chart: { ctx: CanvasRenderingContext2D; chartArea?: { top: number; bottom: number } } }) => {
+    const area = context.chart.chartArea;
+    if (!area) return mid;
+    const g = context.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+    g.addColorStop(0, top);
+    g.addColorStop(0.55, mid);
+    g.addColorStop(1, bottom);
+    return g;
+  };
+}
+
 const FONT = {
   family:
     'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
