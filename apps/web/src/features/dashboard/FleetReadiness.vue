@@ -40,7 +40,11 @@ const rows = computed<Row[]>(() => {
 const gaps = computed(() => rows.value.filter((r) => r.total > 0 && r.ok < r.total).length);
 const pct = (r: Row) => (r.total === 0 ? 0 : Math.round((r.ok / r.total) * 100));
 const meterTone = (r: Row) =>
-  r.ok >= r.total ? "bg-success-500" : pct(r) >= 70 ? "bg-warning-500" : "bg-danger-500";
+  r.ok >= r.total
+    ? "bg-gradient-to-r from-success-500 to-success-300"
+    : pct(r) >= 70
+      ? "bg-gradient-to-r from-warning-500 to-warning-300"
+      : "bg-gradient-to-r from-danger-500 to-danger-300";
 const textTone = (r: Row) =>
   r.ok >= r.total ? "text-success-600" : pct(r) >= 70 ? "text-warning-600" : "text-danger-600";
 </script>

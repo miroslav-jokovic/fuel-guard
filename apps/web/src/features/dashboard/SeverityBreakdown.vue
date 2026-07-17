@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import { CheckCircleIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
-import { viz } from "./chartTheme";
+import { viz, resolveAlpha } from "./chartTheme";
 
 const props = defineProps<{
   severity: Record<"critical" | "high" | "medium" | "low", number>;
@@ -19,15 +19,16 @@ const rows = computed(() =>
     count: props.severity[key],
     pct: total.value === 0 ? 0 : (props.severity[key] / total.value) * 100,
     color: viz.severity[key],
+    colorFade: resolveAlpha(`--viz-severity-${key}`, 0.5),
   })),
 );
 
 const segments = computed(() => rows.value.filter((r) => r.count > 0));
 
 // Style objects built in script — colors are token-resolved via viz.*, never literals.
-const segStyle = (seg: { pct: number; color: string }) => ({
+const segStyle = (seg: { pct: number; color: string; colorFade: string }) => ({
   width: `${seg.pct}%`,
-  backgroundColor: seg.color,
+  background: `linear-gradient(90deg, ${seg.color} 0%, ${seg.colorFade} 100%)`,
   minWidth: "6px",
 });
 const dotStyle = (row: { color: string }) => ({ backgroundColor: row.color });

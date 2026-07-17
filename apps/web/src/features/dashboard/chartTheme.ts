@@ -156,6 +156,34 @@ export function areaFill(varName: string) {
   };
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const rgb = hexToRgb(hex);
+  return rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})` : hex;
+}
+
+/**
+ * Per-slice radial gradient for a doughnut: each arc fades from a soft translucent inner edge to the
+ * solid color at the rim — the modern "transparent" ring. Falls back to the flat color before layout
+ * (and under jsdom). `hexColors` are the slice hexes, index-aligned to the dataset.
+ */
+export function donutGradient(hexColors: string[]) {
+  return (context: {
+    chart: { ctx: CanvasRenderingContext2D; chartArea?: { left: number; right: number; top: number; bottom: number } };
+    dataIndex: number;
+  }) => {
+    const color = hexColors[context.dataIndex] ?? hexColors[0] ?? "#000000";
+    const area = context.chart.chartArea;
+    if (!area) return color;
+    const cx = (area.left + area.right) / 2;
+    const cy = (area.top + area.bottom) / 2;
+    const r = Math.min(area.right - area.left, area.bottom - area.top) / 2;
+    const g = context.chart.ctx.createRadialGradient(cx, cy, Math.max(0, r * 0.62), cx, cy, r);
+    g.addColorStop(0, hexToRgba(color, 0.5));
+    g.addColorStop(1, color);
+    return g;
+  };
+}
+
 const FONT = {
   family:
     'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',

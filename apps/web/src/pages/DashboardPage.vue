@@ -27,7 +27,7 @@ import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
 import RiskList from "@/features/dashboard/RiskList.vue";
-import { viz, COST_COLORS, areaFill, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
+import { viz, COST_COLORS, areaFill, donutGradient, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
 
 const session = useSessionStore();
 const days = ref(30);
@@ -188,7 +188,7 @@ const costChart = computed<ChartConfiguration>(() => ({
     datasets: [
       {
         data: costSlices.value.map((x) => x.value),
-        backgroundColor: costSlices.value.map((x) => x.color),
+        backgroundColor: donutGradient(costSlices.value.map((x) => x.color)) as unknown as string,
         borderColor: "#ffffff",
         borderWidth: 0,
         spacing: 3,
