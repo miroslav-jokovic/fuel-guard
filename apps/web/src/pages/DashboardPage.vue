@@ -200,6 +200,8 @@ const costChart = computed<ChartConfiguration>(() => ({
   options: {
     responsive: true,
     maintainAspectRatio: false,
+    // Reserve a margin >= hoverOffset so the enlarged slice on hover never clips at the canvas edge.
+    layout: { padding: 10 },
     cutout: "70%",
     plugins: {
       legend: { display: false },
