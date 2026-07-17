@@ -67,6 +67,10 @@ export const viz = {
   get spendHover(): string {
     return resolve("--viz-spend-hover");
   },
+  /** Soft fill under the spend area line. */
+  get spendWash(): string {
+    return resolveAlpha("--viz-spend", 0.12);
+  },
   /** Severity scale — ordered, always paired with a visible label + count. */
   get severity(): Record<"critical" | "high" | "medium" | "low", string> {
     return {
@@ -91,6 +95,13 @@ export const viz = {
     return resolve("--ink-inverse");
   },
 };
+
+/**
+ * Cost-composition slices (Moving fuel / Idle waste / Reefer). Fixed hex, validated with the dataviz
+ * palette checker against the card surface: all three PASS lightness, chroma, CVD separation
+ * (worst adjacent deltaE 9.4) and >= 3:1 contrast; always shown with direct labels + a table fallback.
+ */
+export const COST_COLORS = { moving: "#059669", idle: "#c2410c", reefer: "#4338ca" } as const;
 
 const FONT = {
   family:

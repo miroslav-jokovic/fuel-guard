@@ -31,6 +31,15 @@ export interface DashboardSummary {
   anomaliesBySeverity: Record<AnomalySeverity, number>;
   topVehiclesByRisk: RiskRow[];
   topDriversByRisk: RiskRow[];
+  // Range-scoped feature metrics (0/null when their inputs aren't supplied).
+  idleCostUsd: number;
+  idleHours: number;
+  reeferSpend: number;
+  /** Tractor fuel that actually moved the truck (tractor spend minus idle). Donut slice. */
+  movingSpend: number;
+  /** % of fills corroborated by telematics (null when no fills in range). */
+  coveragePct: number | null;
+  declinedCount: number;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -47,6 +56,12 @@ const plausibleMpg = (n: number) => Number.isFinite(n) && n >= MPG_PLAUSIBLE_MIN
 export interface DashboardOptions {
   /** IANA timezone for day bucketing (e.g. "America/Chicago"). Defaults to UTC slicing. */
   tz?: string | null;
+}
+
+/** Secondary inputs so the range-scoped dashboard can also show idle waste, declines, etc. Pure. */
+export interface DashboardExtras {
+  idle?: { durationSec: number; costUsd: number | null }[];
+  declinedCount?: number;
 }
 
 /** YYYY-MM-DD of an instant in a timezone (cached Intl formatter per tz). */
@@ -90,11 +105,15 @@ export function aggregateDashboard(
   vehicles: Pick<Vehicle, "id" | "unit_number">[],
   drivers: Pick<Driver, "id" | "full_name">[],
   opts: DashboardOptions = {},
+  extra: DashboardExtras = {},
 ): DashboardSummary {
   let totalSpend = 0;
   let totalGallons = 0;
   let mpgWeighted = 0;
   let mpgGallons = 0;
+  let reeferSpend = 0;
+  let coveredTxns = 0;
+  let totalTxns = 0;
 
   const spendByDay = new Map<string, number>();
   const mpgGalByDay = new Map<string, { mpgGal: number; gal: number }>();
@@ -104,6 +123,9 @@ export function aggregateDashboard(
     const cost = t.total_cost == null ? 0 : Number(t.total_cost);
     totalGallons += gallons;
     totalSpend += cost;
+    totalTxns += 1;
+    if (t.tank_type === "reefer") reeferSpend += cost;
+    if (t.samsara_recon_at != null) coveredTxns += 1;
 
     const d = dayInTz(t.fueled_at, opts.tz);
     spendByDay.set(d, (spendByDay.get(d) ?? 0) + cost);
@@ -164,6 +186,13 @@ export function aggregateDashboard(
   const byRisk = (a: RiskRow, b: RiskRow) =>
     b.criticalCount - a.criticalCount || b.anomalyCount - a.anomalyCount;
 
+  const idleCostUsd = round2((extra.idle ?? []).reduce((n, e) => n + (e.costUsd ?? 0), 0));
+  const idleHours = round2((extra.idle ?? []).reduce((n, e) => n + e.durationSec, 0) / 3600);
+  const reeferSpendR = round2(reeferSpend);
+  const tractorSpend = round2(totalSpend - reeferSpend);
+  const movingSpend = round2(Math.max(0, tractorSpend - idleCostUsd));
+  const coveragePct = totalTxns > 0 ? Math.round((coveredTxns / totalTxns) * 100) : null;
+
   return {
     totalSpend: round2(totalSpend),
     totalGallons: round2(totalGallons),
@@ -174,6 +203,12 @@ export function aggregateDashboard(
     anomaliesBySeverity,
     topVehiclesByRisk: [...vehRisk.values()].sort(byRisk).slice(0, 5),
     topDriversByRisk: [...drvRisk.values()].sort(byRisk).slice(0, 5),
+    idleCostUsd,
+    idleHours,
+    reeferSpend: reeferSpendR,
+    movingSpend,
+    coveragePct,
+    declinedCount: extra.declinedCount ?? 0,
   };
 }
 

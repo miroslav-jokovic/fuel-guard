@@ -6,10 +6,13 @@ import {
   ArrowPathIcon,
   ChevronDownIcon,
   CurrencyDollarIcon,
-  BeakerIcon,
+  FireIcon,
   ChartBarSquareIcon,
   DocumentChartBarIcon,
   ShieldExclamationIcon,
+  SignalIcon,
+  CubeIcon,
+  NoSymbolIcon,
   TableCellsIcon,
 } from "@heroicons/vue/24/outline";
 import type { ChartConfiguration } from "chart.js";
@@ -24,14 +27,14 @@ import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
 import RiskList from "@/features/dashboard/RiskList.vue";
-import { viz, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
+import { viz, COST_COLORS, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
 
 const session = useSessionStore();
 const days = ref(30);
 const RANGES = [7, 30, 90];
 const { data: s, isLoading, isFetching } = useDashboard(days);
 
-// ── KPI tiles ────────────────────────────────────────────────────────────────
+// KPI hero — the money + risk headline, each tile drilling into its detail page.
 const stats = computed(() => {
   const sev = s.value?.anomaliesBySeverity ?? { low: 0, medium: 0, high: 0, critical: 0 };
   const alerts = sev.critical + sev.high;
@@ -45,14 +48,7 @@ const stats = computed(() => {
       tone: "text-success-600 bg-success-50",
       spark: s.value?.spendTrend.map((p) => p.value),
       sparkColor: viz.spend,
-    },
-    {
-      label: "Gallons",
-      value: s.value ? fmtCompact(s.value.totalGallons) : "—",
-      valueTitle: s.value ? `${s.value.totalGallons.toLocaleString()} gal` : undefined,
-      sub: `last ${days.value} days`,
-      icon: BeakerIcon,
-      tone: "text-info-600 bg-info-50",
+      to: "/transactions",
     },
     {
       label: "Fleet avg MPG",
@@ -62,6 +58,16 @@ const stats = computed(() => {
       tone: "text-brand-600 bg-brand-50",
       spark: s.value?.mpgTrend.map((p) => p.value),
       sparkColor: viz.brand,
+      to: "/driver-performance",
+    },
+    {
+      label: "Idle waste",
+      value: s.value ? `$${fmtCompact(s.value.idleCostUsd)}` : "—",
+      valueTitle: s.value ? fmtMoney(s.value.idleCostUsd) : undefined,
+      sub: s.value ? `${Math.round(s.value.idleHours).toLocaleString()} idle hrs` : undefined,
+      icon: FireIcon,
+      tone: "text-caution-700 bg-caution-50",
+      to: "/idling",
     },
     {
       label: "Active alerts",
@@ -69,11 +75,40 @@ const stats = computed(() => {
       sub: s.value ? `${s.value.openAnomalies} open case${s.value.openAnomalies === 1 ? "" : "s"}` : undefined,
       icon: ShieldExclamationIcon,
       tone: alerts > 0 ? "text-danger-600 bg-danger-50" : "text-ink-muted bg-surface-muted",
+      to: "/anomalies",
     },
   ];
 });
 
-// ── Trend charts ─────────────────────────────────────────────────────────────
+// Trust & leakage strip — makes the numbers above believable and surfaces money left on the table.
+const trust = computed(() => [
+  {
+    label: "Telematics coverage",
+    value: s.value?.coveragePct != null ? `${s.value.coveragePct}%` : "—",
+    sub: "fills corroborated",
+    icon: SignalIcon,
+    tone: "text-info-600 bg-info-50",
+    to: "/coverage",
+  },
+  {
+    label: "Reefer fuel",
+    value: s.value ? `$${fmtCompact(s.value.reeferSpend)}` : "—",
+    valueTitle: s.value ? fmtMoney(s.value.reeferSpend) : undefined,
+    sub: "refrigerated tank",
+    icon: CubeIcon,
+    tone: "text-info-600 bg-info-50",
+    to: "/reefer-coverage",
+  },
+  {
+    label: "Declined attempts",
+    value: s.value ? String(s.value.declinedCount) : "—",
+    sub: "blocked at the pump",
+    icon: NoSymbolIcon,
+    tone: (s.value?.declinedCount ?? 0) > 0 ? "text-caution-700 bg-caution-50" : "text-ink-muted bg-surface-muted",
+    to: "/rejections",
+  },
+]);
+
 // Trends are zero-filled/org-tz-bucketed upstream; null MPG days render as honest GAPS (spanGaps off).
 const mpgChart = computed<ChartConfiguration>(() => ({
   type: "line",
@@ -86,7 +121,7 @@ const mpgChart = computed<ChartConfiguration>(() => ({
         borderColor: viz.brand,
         backgroundColor: viz.brandWash,
         fill: true,
-        tension: 0.3,
+        tension: 0.35,
         spanGaps: false,
         borderWidth: 2,
         borderCapStyle: "round",
@@ -100,36 +135,87 @@ const mpgChart = computed<ChartConfiguration>(() => ({
       },
     ],
   },
-  options: trendOptions({
-    series: "Fleet MPG",
-    format: (v) => `${v} MPG`,
-    tickFormat: (v) => String(v),
-    beginAtZero: false,
-  }),
+  options: trendOptions({ series: "Fleet MPG", format: (v) => `${v} MPG`, tickFormat: (v) => String(v), beginAtZero: false }),
 }));
 
+// Spend as a modern gradient-style area line (single axis — never combined with MPG per viz rules).
 const spendChart = computed<ChartConfiguration>(() => ({
-  type: "bar",
+  type: "line",
   data: {
     labels: s.value?.spendTrend.map((p) => p.date) ?? [],
     datasets: [
       {
         label: "Spend",
         data: s.value?.spendTrend.map((p) => p.value) ?? [],
-        backgroundColor: viz.spend,
-        hoverBackgroundColor: viz.spendHover,
-        borderRadius: { topLeft: 4, topRight: 4 },
-        borderSkipped: false,
-        maxBarThickness: 24,
-        categoryPercentage: 0.8,
-        barPercentage: 0.9,
+        borderColor: viz.spend,
+        backgroundColor: viz.spendWash,
+        fill: true,
+        tension: 0.35,
+        spanGaps: false,
+        borderWidth: 2,
+        borderCapStyle: "round",
+        borderJoinStyle: "round",
+        pointRadius: 0,
+        pointHitRadius: 12,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: viz.spend,
+        pointHoverBorderColor: viz.pointHalo,
+        pointHoverBorderWidth: 2,
       },
     ],
   },
   options: trendOptions({ series: "Spend", format: (v) => fmtMoney(v) }),
 }));
 
-// ── Exports ──────────────────────────────────────────────────────────────────
+// Cost composition — where every fuel dollar goes. Validated 3-hue palette, always with direct labels.
+const costSlices = computed(() => {
+  const m = s.value?.movingSpend ?? 0;
+  const i = s.value?.idleCostUsd ?? 0;
+  const r = s.value?.reeferSpend ?? 0;
+  const tot = m + i + r;
+  const pct = (v: number) => (tot > 0 ? Math.round((v / tot) * 100) : 0);
+  return [
+    { label: "Moving fuel", value: m, pct: pct(m), color: COST_COLORS.moving },
+    { label: "Idle waste", value: i, pct: pct(i), color: COST_COLORS.idle },
+    { label: "Reefer", value: r, pct: pct(r), color: COST_COLORS.reefer },
+  ];
+});
+const costTotal = computed(() => costSlices.value.reduce((n, x) => n + x.value, 0));
+const costChart = computed<ChartConfiguration>(() => ({
+  type: "doughnut",
+  data: {
+    labels: costSlices.value.map((x) => x.label),
+    datasets: [
+      {
+        data: costSlices.value.map((x) => x.value),
+        backgroundColor: costSlices.value.map((x) => x.color),
+        borderColor: "#ffffff",
+        borderWidth: 2,
+        hoverOffset: 6,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: "64%",
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: "#111827",
+        titleColor: "#f9fafb",
+        bodyColor: "#e5e7eb",
+        padding: 10,
+        cornerRadius: 8,
+        callbacks: {
+          label: (item) => `${item.label}: ${fmtMoney(Number(item.parsed))}`,
+        },
+      },
+    },
+  },
+}));
+
+// Exports
 const toast = useToastStore();
 const exporting = ref(false);
 async function exportReport(path: string, filename: string) {
@@ -143,43 +229,25 @@ async function exportReport(path: string, filename: string) {
   }
 }
 const EXPORTS = [
-  {
-    label: "Transactions CSV",
-    description: "Every fill in the selected range",
-    icon: TableCellsIcon,
-    run: () => exportReport("/api/reports/transactions.csv", "transactions.csv"),
-  },
-  {
-    label: "Summary PDF",
-    description: "Executive summary of this dashboard",
-    icon: DocumentChartBarIcon,
-    run: () => exportReport("/api/reports/summary.pdf", "summary.pdf"),
-  },
+  { label: "Transactions CSV", description: "Every fill in the selected range", icon: TableCellsIcon, run: () => exportReport("/api/reports/transactions.csv", "transactions.csv") },
+  { label: "Summary PDF", description: "Executive summary of this dashboard", icon: DocumentChartBarIcon, run: () => exportReport("/api/reports/summary.pdf", "summary.pdf") },
 ];
 </script>
 
 <template>
   <div class="space-y-6">
-    <!-- ── Page header: context + the one filter row that scopes everything below ── -->
+    <!-- Page header: context + the one filter row that scopes everything below -->
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-lg font-semibold tracking-tight text-ink">Fleet overview</h2>
         <p class="mt-0.5 flex items-center gap-1.5 text-sm text-ink-muted">
-          Fuel activity and risk · last {{ days }} days
-          <ArrowPathIcon
-            v-if="isFetching && !isLoading"
-            class="size-3.5 animate-spin text-ink-subtle"
-            aria-hidden="true"
-          />
+          Fuel, waste &amp; risk · last {{ days }} days
+          <ArrowPathIcon v-if="isFetching && !isLoading" class="size-3.5 animate-spin text-ink-subtle" aria-hidden="true" />
         </p>
       </div>
 
       <div class="flex flex-wrap items-center gap-3">
-        <div
-          class="inline-flex gap-0.5 rounded-lg bg-surface-muted p-0.5"
-          role="group"
-          aria-label="Date range"
-        >
+        <div class="inline-flex gap-0.5 rounded-lg bg-surface-muted p-0.5" role="group" aria-label="Date range">
           <button
             v-for="d in RANGES"
             :key="d"
@@ -212,15 +280,9 @@ const EXPORTS = [
             leave-from-class="scale-100 opacity-100"
             leave-to-class="scale-95 opacity-0"
           >
-            <MenuItems
-              class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge focus:outline-none"
-            >
+            <MenuItems class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge focus:outline-none">
               <MenuItem v-for="exp in EXPORTS" :key="exp.label" v-slot="{ active }">
-                <button
-                  type="button"
-                  :class="['kebab-item flex items-start gap-3', active ? 'bg-surface-subtle' : '']"
-                  @click="exp.run()"
-                >
+                <button type="button" :class="['kebab-item flex items-start gap-3', active ? 'bg-surface-subtle' : '']" @click="exp.run()">
                   <component :is="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
                   <span>
                     <span class="block font-medium text-ink">{{ exp.label }}</span>
@@ -234,25 +296,20 @@ const EXPORTS = [
       </div>
     </div>
 
-    <!-- Everything below scopes to the selected range; refetch dims the frame instead of flashing skeletons. -->
-    <div
-      class="space-y-6 transition-opacity duration-200"
-      :class="isFetching && !isLoading ? 'opacity-60' : ''"
-      :aria-busy="isFetching"
-    >
-      <!-- ── KPI row ── -->
+    <div class="space-y-6 transition-opacity duration-200" :class="isFetching && !isLoading ? 'opacity-60' : ''" :aria-busy="isFetching">
+      <!-- KPI hero -->
       <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          v-for="stat in stats"
-          :key="stat.label"
-          v-bind="stat"
-          :loading="isLoading"
-        />
+        <StatCard v-for="stat in stats" :key="stat.label" v-bind="stat" :loading="isLoading" />
+      </dl>
+
+      <!-- Trust & leakage strip -->
+      <dl class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard v-for="stat in trust" :key="stat.label" v-bind="stat" :loading="isLoading" />
       </dl>
 
       <FleetReadiness v-if="session.canManage" />
 
-      <!-- ── Trends ── -->
+      <!-- Trends -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <template v-if="isLoading">
           <BaseCard v-for="i in 2" :key="i">
@@ -261,19 +318,6 @@ const EXPORTS = [
           </BaseCard>
         </template>
         <template v-else>
-          <ChartCard title="Fleet MPG trend" subtitle="Gallon-weighted daily average · gaps mean no valid fills">
-            <BaseChart :config="mpgChart" :height="260" />
-            <table class="sr-only">
-              <caption>Fleet MPG by day</caption>
-              <thead><tr><th scope="col">Day</th><th scope="col">MPG</th></tr></thead>
-              <tbody>
-                <tr v-for="p in s?.mpgTrend ?? []" :key="p.date">
-                  <th scope="row">{{ fmtDay(p.date) }}</th>
-                  <td>{{ p.value ?? "no data" }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </ChartCard>
           <ChartCard title="Fuel spend" subtitle="Daily total across the fleet">
             <BaseChart :config="spendChart" :height="260" />
             <table class="sr-only">
@@ -287,34 +331,65 @@ const EXPORTS = [
               </tbody>
             </table>
           </ChartCard>
+          <ChartCard title="Fleet MPG trend" subtitle="Gallon-weighted daily average · gaps mean no valid fills">
+            <BaseChart :config="mpgChart" :height="260" />
+            <table class="sr-only">
+              <caption>Fleet MPG by day</caption>
+              <thead><tr><th scope="col">Day</th><th scope="col">MPG</th></tr></thead>
+              <tbody>
+                <tr v-for="p in s?.mpgTrend ?? []" :key="p.date">
+                  <th scope="row">{{ fmtDay(p.date) }}</th>
+                  <td>{{ p.value ?? "no data" }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </ChartCard>
         </template>
       </div>
 
-      <!-- ── Risk breakdown ── -->
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <template v-if="isLoading">
-          <BaseCard v-for="i in 3" :key="i">
-            <div class="h-4 w-40 animate-pulse rounded bg-surface-muted" />
-            <div class="mt-4 space-y-3">
-              <div v-for="j in 4" :key="j" class="h-8 animate-pulse rounded-lg bg-surface-subtle" />
+      <!-- Cost composition + severity -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ChartCard title="Where fuel dollars go" subtitle="Moving fuel vs idle waste vs reefer · this range">
+          <div class="flex flex-col items-center gap-5 sm:flex-row">
+            <div class="relative h-44 w-44 shrink-0">
+              <BaseChart :config="costChart" :height="176" />
+              <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span class="text-lg font-semibold text-ink">${{ fmtCompact(costTotal) }}</span>
+                <span class="text-[11px] text-ink-subtle">total</span>
+              </div>
             </div>
-          </BaseCard>
-        </template>
-        <template v-else>
-          <SeverityBreakdown :severity="s?.anomaliesBySeverity ?? { low: 0, medium: 0, high: 0, critical: 0 }" />
-          <RiskList
-            title="Top vehicles by risk"
-            :rows="s?.topVehiclesByRisk ?? []"
-            link-base="/vehicles"
-            empty-label="No flagged vehicles"
-          />
-          <RiskList
-            title="Top drivers by risk"
-            :rows="s?.topDriversByRisk ?? []"
-            empty-label="No flagged drivers"
-            class="md:col-span-2 xl:col-span-1"
-          />
-        </template>
+            <ul class="min-w-0 flex-1 space-y-2.5 self-stretch">
+              <li v-for="slice in costSlices" :key="slice.label" class="flex items-center justify-between gap-3 text-sm">
+                <span class="flex min-w-0 items-center gap-2">
+                  <span class="size-2.5 shrink-0 rounded-full" :style="{ backgroundColor: slice.color }" aria-hidden="true" />
+                  <span class="truncate text-ink-secondary">{{ slice.label }}</span>
+                </span>
+                <span class="shrink-0 tabular-nums font-medium text-ink">
+                  {{ fmtMoney(slice.value) }} <span class="font-normal text-ink-subtle">· {{ slice.pct }}%</span>
+                </span>
+              </li>
+            </ul>
+          </div>
+          <table class="sr-only">
+            <caption>Fuel cost composition</caption>
+            <thead><tr><th scope="col">Category</th><th scope="col">Cost</th><th scope="col">Share</th></tr></thead>
+            <tbody>
+              <tr v-for="slice in costSlices" :key="slice.label">
+                <th scope="row">{{ slice.label }}</th>
+                <td>{{ fmtMoney(slice.value) }}</td>
+                <td>{{ slice.pct }}%</td>
+              </tr>
+            </tbody>
+          </table>
+        </ChartCard>
+
+        <SeverityBreakdown :severity="s?.anomaliesBySeverity ?? { low: 0, medium: 0, high: 0, critical: 0 }" />
+      </div>
+
+      <!-- Risk lists -->
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <RiskList title="Top vehicles by risk" :rows="s?.topVehiclesByRisk ?? []" link-base="/vehicles" empty-label="No flagged vehicles" />
+        <RiskList title="Top drivers by risk" :rows="s?.topDriversByRisk ?? []" empty-label="No flagged drivers" />
       </div>
     </div>
   </div>

@@ -169,3 +169,22 @@ describe("aggregateDashboard — corrupt-MPG guard (dashboard fix)", () => {
     expect(s.totalSpend).toBe(400);
   });
 });
+
+describe("aggregateDashboard extras (idle / reefer / coverage / declines)", () => {
+  it("splits reefer spend and computes idle, coverage, and declines", () => {
+    const rows = [
+      txn({ id: "x1", total_cost: 300, tank_type: "tractor", samsara_recon_at: "2026-06-01T12:00:00Z" }),
+      txn({ id: "x2", total_cost: 100, tank_type: "reefer", samsara_recon_at: null }),
+    ];
+    const s = aggregateDashboard(rows, [], vehicles, drivers, {}, {
+      idle: [{ durationSec: 3600, costUsd: 20 }, { durationSec: 1800, costUsd: 10 }],
+      declinedCount: 4,
+    });
+    expect(s.reeferSpend).toBe(100);
+    expect(s.idleCostUsd).toBe(30);
+    expect(s.idleHours).toBe(1.5);
+    expect(s.movingSpend).toBe(270); // tractor 300 - idle 30
+    expect(s.coveragePct).toBe(50); // 1 of 2 fills corroborated
+    expect(s.declinedCount).toBe(4);
+  });
+});

@@ -51,6 +51,8 @@ export interface FuelTransaction {
   samsara_location_confidence?: string | null;
   /** tractor propulsion tank vs reefer (trailer) tank. Default 'tractor'. */
   tank_type?: "tractor" | "reefer";
+  /** When telematics corroborated this fill (null = uncorroborated). Powers coverage %. */
+  samsara_recon_at?: string | null;
   created_at: string;
 }
 

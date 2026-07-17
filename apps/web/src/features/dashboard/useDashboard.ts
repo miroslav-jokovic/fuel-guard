@@ -38,12 +38,12 @@ export function useDashboard(days: Ref<number>) {
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<DashboardSummary> => {
       const from = new Date(Date.now() - toValue(days) * 86400_000).toISOString();
-      const [txns, anoms, vehRes, drvRes, orgRes] = await Promise.all([
+      const [txns, anoms, vehRes, drvRes, orgRes, idleRows, declinedRes] = await Promise.all([
         // Ordered + paged so every fill in the window is aggregated (not just an arbitrary first 1000).
         fetchAllPaged<FuelTransaction>((lo, hi) =>
           supabase
             .from("fuel_transactions")
-            .select("id, vehicle_id, driver_id, fueled_at, gallons, total_cost, computed_mpg")
+            .select("id, vehicle_id, driver_id, fueled_at, gallons, total_cost, computed_mpg, tank_type, samsara_recon_at")
             .gte("fueled_at", from)
             .order("fueled_at", { ascending: true })
             .range(lo, hi),
@@ -59,6 +59,17 @@ export function useDashboard(days: Ref<number>) {
         supabase.from("vehicles").select("id, unit_number"),
         supabase.from("drivers").select("id, full_name"),
         supabase.from("organizations").select("operating_hours").maybeSingle(),
+        // Idle waste over the same window (paged) -> idle $ + hours.
+        fetchAllPaged<{ duration_sec: number | string; cost_usd: number | string | null }>((lo, hi) =>
+          supabase
+            .from("idle_events")
+            .select("duration_sec, cost_usd")
+            .gte("started_at", from)
+            .order("started_at", { ascending: true })
+            .range(lo, hi),
+        ),
+        // Declined-attempt count over the same window (head count -> no rows pulled).
+        supabase.from("declined_transactions").select("id", { count: "exact", head: true }).gte("declined_at", from),
       ]);
       // Bucket trend days in the ORG's timezone — UTC slicing mis-dated evening fills.
       const tz = (orgRes.data?.operating_hours as { tz?: string } | null)?.tz ?? null;
@@ -68,6 +79,13 @@ export function useDashboard(days: Ref<number>) {
         (vehRes.data ?? []) as { id: string; unit_number: string }[],
         (drvRes.data ?? []) as { id: string; full_name: string }[],
         { tz },
+        {
+          idle: (idleRows ?? []).map((r) => ({
+            durationSec: Number(r.duration_sec),
+            costUsd: r.cost_usd == null ? null : Number(r.cost_usd),
+          })),
+          declinedCount: declinedRes.count ?? 0,
+        },
       );
     },
   });

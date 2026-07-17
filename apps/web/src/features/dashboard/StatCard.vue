@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FunctionalComponent } from "vue";
+import { RouterLink } from "vue-router";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import SparkLine from "@/components/SparkLine.vue";
 import { viz } from "./chartTheme";
@@ -18,34 +19,53 @@ defineProps<{
   spark?: (number | null)[];
   sparkColor?: string;
   loading?: boolean;
+  /** When set, the whole tile is a link to this route — an interactive drill-down into the detail page. */
+  to?: string;
 }>();
 </script>
 
 <template>
-  <BaseCard>
-    <div class="flex items-start justify-between gap-3">
-      <div class="min-w-0">
-        <p class="truncate text-sm font-medium text-ink-muted">{{ label }}</p>
-        <template v-if="loading">
-          <div class="mt-2.5 h-8 w-24 animate-pulse rounded-md bg-surface-muted" />
-          <div class="mt-2 h-3 w-16 animate-pulse rounded bg-surface-muted" />
-        </template>
-        <template v-else>
-          <p class="mt-1.5 text-3xl font-semibold tracking-tight text-ink" :title="valueTitle">
-            {{ value }}
-          </p>
-          <p v-if="sub" class="mt-1 text-xs text-ink-subtle">{{ sub }}</p>
-        </template>
+  <component
+    :is="to ? RouterLink : 'div'"
+    v-bind="to ? { to } : {}"
+    :class="[
+      'block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+      to ? 'group cursor-pointer' : '',
+    ]"
+  >
+    <BaseCard
+      :class="[
+        'h-full',
+        to ? 'transition duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md group-hover:ring-brand-200' : '',
+      ]"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="truncate text-sm font-medium text-ink-muted">{{ label }}</p>
+          <template v-if="loading">
+            <div class="mt-2.5 h-8 w-24 animate-pulse rounded-md bg-surface-muted" />
+            <div class="mt-2 h-3 w-16 animate-pulse rounded bg-surface-muted" />
+          </template>
+          <template v-else>
+            <p class="mt-1.5 text-3xl font-semibold tracking-tight text-ink" :title="valueTitle">
+              {{ value }}
+            </p>
+            <p v-if="sub" class="mt-1 flex items-center gap-1 text-xs text-ink-subtle">
+              {{ sub }}
+              <span v-if="to" class="text-brand-500 opacity-0 transition group-hover:opacity-100">&rarr;</span>
+            </p>
+          </template>
+        </div>
+        <span
+          :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-lg', tone]"
+          aria-hidden="true"
+        >
+          <component :is="icon" class="size-5" />
+        </span>
       </div>
-      <span
-        :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-lg', tone]"
-        aria-hidden="true"
-      >
-        <component :is="icon" class="size-5" />
-      </span>
-    </div>
-    <div v-if="spark && !loading" class="mt-3">
-      <SparkLine :points="spark" :color="sparkColor ?? viz.brand" />
-    </div>
-  </BaseCard>
+      <div v-if="spark && !loading" class="mt-3">
+        <SparkLine :points="spark" :color="sparkColor ?? viz.brand" />
+      </div>
+    </BaseCard>
+  </component>
 </template>
