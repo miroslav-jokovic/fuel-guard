@@ -33,6 +33,8 @@ export const routeFuelSettingsFormSchema = z.object({
   default_width_in: z.coerce.number().min(90).max(130),
   default_axle_count: z.coerce.number().int().min(2).max(12),
   default_gross_weight_lb: z.coerce.number().min(10000).max(200000),
+  // Operation
+  default_equipment_type: z.string().trim().min(1).max(32),
 });
 
 export type RouteFuelSettingsForm = z.infer<typeof routeFuelSettingsFormSchema>;
@@ -45,7 +47,7 @@ export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   min_purchase_gal: 50,
   corridor_miles: 2.5,
   deviation_threshold_mi: 3,
-  price_ttl_hours: 30,
+  price_ttl_hours: 72,
   always_fill_full: false,
   fill_cap_pct: 75,
   plan_def: false,
@@ -60,4 +62,5 @@ export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   default_width_in: 102,
   default_axle_count: 5,
   default_gross_weight_lb: 80000,
+  default_equipment_type: "dry_van",
 };

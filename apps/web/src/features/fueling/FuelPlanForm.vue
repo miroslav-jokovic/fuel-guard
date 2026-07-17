@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { reactive, computed, ref, watch } from "vue";
 import { PlusIcon, XMarkIcon, MapIcon, MapPinIcon } from "@heroicons/vue/24/outline";
+import { EQUIPMENT_TYPES } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useRouteFuelSettings } from "./useRouteFuelSettings";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
 import ComboSelect from "@/components/ui/ComboSelect.vue";
 import AddressInput from "./AddressInput.vue";
 import FormField from "@/components/ui/FormField.vue";
@@ -14,10 +17,12 @@ const props = defineProps<{ loading?: boolean }>();
 const emit = defineEmits<{ submit: [req: PlanRequest, labels: { origin: string; destination: string; waypoints: string[] }] }>();
 
 const { data: vehicles } = useVehiclesQuery();
+const { data: settings } = useRouteFuelSettings();
 const trucks = computed(() => (vehicles.value ?? []).filter((v) => v.status !== "retired"));
 const truckOptions = computed(() =>
   trucks.value.map((t) => ({ value: t.id, label: t.samsara_vehicle_id ? t.unit_number : `${t.unit_number} · no live data` })),
 );
+const equipmentOptions = EQUIPMENT_TYPES.map((e) => ({ value: e.value, label: e.label }));
 
 const FORM_KEY = "fuelguard:fuelplan:form";
 function blankForm() {
@@ -29,7 +34,9 @@ function blankForm() {
     destinationCoords: null as { lat: number; lng: number } | null,
     waypoints: [] as string[],
     loadGrossLb: "",
-    hazmat: "",
+    equipmentType: "",
+    hazmatOn: false,
+    hazmat: [] as string[],
     tunnelCategory: "",
   };
 }
@@ -39,17 +46,32 @@ try {
   const saved = localStorage.getItem(FORM_KEY);
   if (saved) Object.assign(form, JSON.parse(saved));
 } catch { /* ignore corrupt storage */ }
+// Defensive: older persisted forms stored hazmat as a single string — normalize to the array shape.
+if (!Array.isArray(form.hazmat)) form.hazmat = [];
 watch(form, () => { try { localStorage.setItem(FORM_KEY, JSON.stringify(form)); } catch { /* quota/private mode */ } }, { deep: true });
+
+// Pre-fill equipment from the company default (per-plan override still wins) — only when the dispatcher
+// hasn't already got one from a restored draft or a manual pick.
+watch(settings, (s) => {
+  if (s && !form.equipmentType) form.equipmentType = (s.default_equipment_type as string) || "dry_van";
+}, { immediate: true });
 
 /** Clear the form back to blank and drop the persisted copy (used by the page's "New plan" button). */
 function reset() {
   Object.assign(form, blankForm());
+  if (settings.value?.default_equipment_type) form.equipmentType = settings.value.default_equipment_type as string;
   locateError.value = "";
   try { localStorage.removeItem(FORM_KEY); } catch { /* ignore */ }
 }
 defineExpose({ reset });
 
 const canSubmit = computed(() => form.vehicleId && form.origin.trim() && form.destination.trim() && !props.loading);
+
+function toggleHazmat(value: string, on: boolean) {
+  const set = new Set(form.hazmat);
+  if (on) set.add(value); else set.delete(value);
+  form.hazmat = [...set];
+}
 
 const locating = ref(false);
 const locateError = ref("");
@@ -69,24 +91,21 @@ async function useTruckLocation() {
   }
 }
 
-function addWaypoint() {
-  form.waypoints.push("");
-}
-function removeWaypoint(i: number) {
-  form.waypoints.splice(i, 1);
-}
+function addWaypoint() { form.waypoints.push(""); }
+function removeWaypoint(i: number) { form.waypoints.splice(i, 1); }
 function submit() {
   if (!canSubmit.value) return;
   emit(
     "submit",
     {
-    vehicleId: form.vehicleId,
-    origin: form.originCoords ? { lat: form.originCoords.lat, lng: form.originCoords.lng } : { text: form.origin.trim() },
-    destination: form.destinationCoords ? { lat: form.destinationCoords.lat, lng: form.destinationCoords.lng } : { text: form.destination.trim() },
-    waypoints: form.waypoints.map((w) => w.trim()).filter(Boolean).map((text) => ({ text })),
-    loadGrossLb: form.loadGrossLb ? Number(form.loadGrossLb) : null,
-    hazmat: form.hazmat ? [form.hazmat] : [],
-    tunnelCategory: form.tunnelCategory || null,
+      vehicleId: form.vehicleId,
+      origin: form.originCoords ? { lat: form.originCoords.lat, lng: form.originCoords.lng } : { text: form.origin.trim() },
+      destination: form.destinationCoords ? { lat: form.destinationCoords.lat, lng: form.destinationCoords.lng } : { text: form.destination.trim() },
+      waypoints: form.waypoints.map((w) => w.trim()).filter(Boolean).map((text) => ({ text })),
+      loadGrossLb: form.loadGrossLb ? Number(form.loadGrossLb) : null,
+      equipmentType: form.equipmentType || null,
+      hazmat: form.hazmatOn ? [...form.hazmat] : [],
+      tunnelCategory: form.hazmatOn ? (form.tunnelCategory || null) : null,
     },
     {
       origin: form.origin.trim(),
@@ -103,15 +122,12 @@ function submit() {
       <FormField v-slot="{ id }" label="Truck">
         <ComboSelect :id="id" v-model="form.vehicleId" :options="truckOptions" placeholder="Search trucks…" />
       </FormField>
-      <FormField v-slot="{ id }" label="Hazmat class" hint="Per load — changes the legal truck route.">
-        <ComboSelect :id="id" v-model="form.hazmat" :options="HAZMAT_OPTIONS" placeholder="None" />
-      </FormField>
-      <FormField v-if="form.hazmat" v-slot="{ id }" label="Tunnel category" hint="ADR restriction for the placarded load.">
-        <ComboSelect :id="id" v-model="form.tunnelCategory" :options="TUNNEL_OPTIONS" placeholder="Not restricted" />
+      <FormField v-slot="{ id }" label="Equipment / trailer" hint="Defaults to your company's usual load; change it per trip.">
+        <ComboSelect :id="id" v-model="form.equipmentType" :options="equipmentOptions" placeholder="Select equipment…" />
       </FormField>
       <FormField v-slot="{ id }" label="Start">
         <AddressInput
-:id="id" :model-value="form.origin" placeholder="City, ST or address"
+          :id="id" :model-value="form.origin" placeholder="City, ST or address"
           @update:model-value="(v: string) => { form.origin = v; form.originCoords = null; }"
           @select="(sug) => { form.origin = sug.label; form.originCoords = { lat: sug.lat, lng: sug.lng }; }" />
         <button
@@ -127,10 +143,34 @@ function submit() {
       </FormField>
       <FormField v-slot="{ id }" label="Destination">
         <AddressInput
-:id="id" :model-value="form.destination" placeholder="City, ST or address"
+          :id="id" :model-value="form.destination" placeholder="City, ST or address"
           @update:model-value="(v: string) => { form.destination = v; form.destinationCoords = null; }"
           @select="(sug) => { form.destination = sug.label; form.destinationCoords = { lat: sug.lat, lng: sug.lng }; }" />
       </FormField>
+    </div>
+
+    <!-- Placarded hazmat is opt-in: most loads (dry van, reefer, container) are not hazmat, so it never
+         alters the route unless the dispatcher marks the load as placarded. -->
+    <div class="mt-4 rounded-md border border-edge bg-surface-subtle p-3">
+      <BaseCheckbox v-model="form.hazmatOn">This is a placarded hazmat load</BaseCheckbox>
+      <div v-if="form.hazmatOn" class="mt-3 space-y-3">
+        <div>
+          <p class="text-xs font-medium text-ink-secondary">Placard class(es) — select every class shown on the load</p>
+          <div class="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            <BaseCheckbox
+              v-for="opt in HAZMAT_OPTIONS"
+              :key="opt.value"
+              :model-value="form.hazmat.includes(opt.value)"
+              @update:model-value="(v: boolean) => toggleHazmat(opt.value, v)"
+            >
+              {{ opt.label }}
+            </BaseCheckbox>
+          </div>
+        </div>
+        <FormField v-slot="{ id }" label="Tunnel restriction" hint="European (ADR) tunnels only — US routes don't use these codes, so leave it blank.">
+          <ComboSelect :id="id" v-model="form.tunnelCategory" :options="TUNNEL_OPTIONS" placeholder="None / US route" />
+        </FormField>
+      </div>
     </div>
 
     <div v-if="form.waypoints.length" class="mt-4 space-y-2">

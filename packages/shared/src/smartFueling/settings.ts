@@ -4,7 +4,7 @@
  * web view so both plan with identical rules. Mirrors driverPerformance/settings.ts.
  */
 import { DEFAULT_ROUTE_FUEL_SETTINGS } from "./types.js";
-import type { RouteFuelSettings, TruckProfile } from "./types.js";
+import type { RouteFuelSettings, TruckProfile, EquipmentType } from "./types.js";
 
 export interface RouteFuelSettingsRow {
   reserve_pct?: number | string | null;
@@ -28,6 +28,7 @@ export interface RouteFuelSettingsRow {
   default_width_in?: number | string | null;
   default_axle_count?: number | string | null;
   default_gross_weight_lb?: number | string | null;
+  default_equipment_type?: string | null;
 }
 
 const num = (v: unknown, d: number): number => {
@@ -55,6 +56,7 @@ export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefi
     emergencyBrands: arr(row?.emergency_brands, d.emergencyBrands),
     emergencyFillGallons: num(row?.emergency_fill_gallons, d.emergencyFillGallons),
     planDef: row?.plan_def ?? d.planDef,
+    defaultEquipmentType: (row?.default_equipment_type as EquipmentType) || d.defaultEquipmentType,
     defaultProfile: {
       heightIn: num(row?.default_height_in, d.defaultProfile.heightIn),
       lengthIn: num(row?.default_length_in, d.defaultProfile.lengthIn),

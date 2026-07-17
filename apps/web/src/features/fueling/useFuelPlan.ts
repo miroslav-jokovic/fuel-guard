@@ -8,6 +8,7 @@ export interface PlanRequest {
   destination: PlanPoint;
   waypoints?: PlanPoint[];
   loadGrossLb?: number | null;
+  equipmentType?: string | null;
   hazmat?: string[];
   tunnelCategory?: string | null;
   manualFuelPct?: number | null;
@@ -58,27 +59,26 @@ export interface PlanResult {
 
 /** HERE hazmat classes (audit-confirmed) with friendly labels for the dispatcher form. */
 export const HAZMAT_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "None" },
-  { value: "explosive", label: "Explosive" },
-  { value: "gas", label: "Gas" },
-  { value: "flammable", label: "Flammable" },
-  { value: "combustible", label: "Combustible" },
-  { value: "organic", label: "Organic" },
-  { value: "poison", label: "Poison" },
-  { value: "radioactive", label: "Radioactive" },
-  { value: "corrosive", label: "Corrosive" },
-  { value: "poisonousInhalation", label: "Poison (inhalation)" },
-  { value: "harmfulToWater", label: "Harmful to water" },
-  { value: "other", label: "Other" },
+  { value: "explosive", label: "Class 1 — Explosives" },
+  { value: "gas", label: "Class 2 — Gases" },
+  { value: "flammable", label: "Class 3 — Flammable liquids" },
+  { value: "combustible", label: "Combustible liquids" },
+  { value: "organic", label: "Class 5 — Oxidizer / Organic peroxide" },
+  { value: "poison", label: "Class 6.1 — Poison / Toxic" },
+  { value: "poisonousInhalation", label: "Poison Inhalation Hazard (PIH)" },
+  { value: "radioactive", label: "Class 7 — Radioactive" },
+  { value: "corrosive", label: "Class 8 — Corrosive" },
+  { value: "harmfulToWater", label: "Class 9 — Environmentally hazardous / marine pollutant" },
+  { value: "other", label: "Other placarded material" },
 ];
 
 /** HERE ADR tunnel category (B least → E most restrictive). Relevant for hazmat loads through tunnels. */
 export const TUNNEL_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Not restricted" },
-  { value: "B", label: "B" },
-  { value: "C", label: "C" },
-  { value: "D", label: "D" },
-  { value: "E", label: "E" },
+  { value: "", label: "None / US route (leave blank)" },
+  { value: "B", label: "B — most restrictive (EU tunnels)" },
+  { value: "C", label: "C (EU tunnels)" },
+  { value: "D", label: "D (EU tunnels)" },
+  { value: "E", label: "E — least restrictive (EU tunnels)" },
 ];
 
 export interface AddressSuggestion { label: string; lat: number; lng: number }

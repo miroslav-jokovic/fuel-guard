@@ -15,6 +15,7 @@ const planBodySchema = z.object({
   destination: planPointSchema,
   waypoints: z.array(planPointSchema).max(12).optional(),
   loadGrossLb: z.number().min(0).max(200000).nullable().optional(),
+  equipmentType: z.string().max(32).nullable().optional(),
   hazmat: z.array(z.string().max(32)).max(11).optional(),
   tunnelCategory: z.string().max(4).nullable().optional(),
   manualFuelPct: z.number().min(0).max(100).nullable().optional(),

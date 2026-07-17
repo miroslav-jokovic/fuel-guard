@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, computed, watch } from "vue";
-import { routeFuelSettingsFormSchema, ROUTE_FUEL_SETTINGS_DEFAULTS, BRAND_LABELS, type RouteFuelSettingsForm } from "@fuelguard/shared";
+import { routeFuelSettingsFormSchema, ROUTE_FUEL_SETTINGS_DEFAULTS, BRAND_LABELS, EQUIPMENT_TYPES, type RouteFuelSettingsForm } from "@fuelguard/shared";
 import { useRouteFuelSettings, useSaveRouteFuelSettings } from "@/features/fueling/useRouteFuelSettings";
 import { useToastStore } from "@/stores/toast";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -197,6 +197,16 @@ const truck: NumField[] = [
             </FormField>
           </div>
         </div>
+      </BaseCard>
+
+      <BaseCard>
+        <h3 class="text-sm font-semibold text-ink">Default load</h3>
+        <p class="mt-1 text-sm text-ink-muted">Your fleet's usual trailer/equipment. This pre-fills every new plan so hazmat is never assumed — dispatchers can still change it per load.</p>
+        <FormField v-slot="{ id }" label="Default equipment / trailer" class="mt-4 sm:max-w-xs">
+          <select :id="id" v-model="form.default_equipment_type" :class="SELECT_CLS">
+            <option v-for="opt in EQUIPMENT_TYPES" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+        </FormField>
       </BaseCard>
 
       <BaseCard>

@@ -29,6 +29,8 @@ export interface PlanRequest {
   destination: PlanPoint;
   waypoints?: PlanPoint[];
   loadGrossLb?: number | null;
+  /** Carrier's trailer/equipment for this load; 'reefer' turns on reefer-fuel modeling. */
+  equipmentType?: string | null;
   hazmat?: HazmatClass[];
   tunnelCategory?: TunnelCategory | null;
   /** Manual fuel level (0-100), used only when live telematics is unavailable for the truck. */
@@ -171,7 +173,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   if (!veh) return { status: "error", message: "Vehicle not found" };
 
   const { data: reeferTrailers } = await admin.from("trailers").select("id").eq("org_id", orgId).eq("assigned_vehicle_id", req.vehicleId).eq("is_reefer", true).limit(1);
-  const isReefer = ((reeferTrailers ?? []) as unknown[]).length > 0;
+  const isReefer = ((reeferTrailers ?? []) as unknown[]).length > 0 || req.equipmentType === "reefer";
 
   const origin = await resolvePoint(env, req.origin);
   const destination = await resolvePoint(env, req.destination);

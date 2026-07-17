@@ -47,6 +47,21 @@ export interface TruckProfile {
   grossWeightLb: number;
 }
 
+/** Trailer/equipment a carrier typically hauls. Sets the plan form's default so hazmat is never
+ *  presumed; a per-plan selection still overrides. "reefer" additionally enables reefer-fuel modeling. */
+export type EquipmentType =
+  | "dry_van" | "reefer" | "flatbed" | "container" | "tanker" | "auto_carrier" | "bulk" | "other";
+export const EQUIPMENT_TYPES: { value: EquipmentType; label: string }[] = [
+  { value: "dry_van", label: "Dry van" },
+  { value: "reefer", label: "Reefer (refrigerated)" },
+  { value: "flatbed", label: "Flatbed" },
+  { value: "container", label: "Intermodal container" },
+  { value: "tanker", label: "Tanker" },
+  { value: "auto_carrier", label: "Auto carrier" },
+  { value: "bulk", label: "Bulk / pneumatic" },
+  { value: "other", label: "Other" },
+];
+
 /** Per-org planning policy + safety parameters. Every fleet-specific value is configuration, not code. */
 export interface RouteFuelSettings {
   reservePct: number;
@@ -70,6 +85,8 @@ export interface RouteFuelSettings {
   enabledBrands: string[];
   emergencyFillGallons: number;
   planDef: boolean;
+  /** Carrier's usual trailer/equipment — the plan form default (per-plan override wins). */
+  defaultEquipmentType: EquipmentType;
   defaultProfile: TruckProfile;
 }
 
@@ -90,5 +107,6 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   enabledBrands: ["pilot", "flying_j", "one9"],
   emergencyFillGallons: 50,
   planDef: false,
+  defaultEquipmentType: "dry_van",
   defaultProfile: { heightIn: 162, lengthIn: 840, widthIn: 102, axleCount: 5, grossWeightLb: 80000 },
 };
