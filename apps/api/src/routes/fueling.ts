@@ -295,7 +295,7 @@ export function fuelingRouter(): Router {
 
       const { data: settingsRow } = await admin
         .from("route_fuel_settings").select("price_ttl_hours, enabled_brands").eq("org_id", orgId).maybeSingle();
-      const ttlHours = settingsRow?.price_ttl_hours != null ? Number(settingsRow.price_ttl_hours) : 30;
+      const ttlHours = settingsRow?.price_ttl_hours != null ? Number(settingsRow.price_ttl_hours) : 72;
       const enabledBrands: string[] =
         Array.isArray(settingsRow?.enabled_brands) && settingsRow.enabled_brands.length
           ? (settingsRow.enabled_brands as string[])
@@ -394,7 +394,12 @@ export function fuelingRouter(): Router {
           lat: Number(st.lat), lng: Number(st.lng), exit: st.exit, coordSource: st.coord_source ?? "geocoded_city",
           netPrice: est.net, priceEstimated: est.estimated, priceConfidence: est.estimated ? est.confidence : null,
           priceBasis: est.basis,
-          postedPrice: po && po.currency === "USD" && po.unit === "gal" ? po.price : null,
+          // Prefer the global posted layer (USD/gal); until that's populated (waiting on chain feeds),
+          // fall back to the retail price the daily email already carries so the column isn't blank.
+          postedPrice:
+            po && po.currency === "USD" && po.unit === "gal"
+              ? po.price
+              : (pr?.posted ?? null),
           observedAt: basisAt, ageHours, stale: ageHours != null && ageHours > ttlHours,
         });
       }

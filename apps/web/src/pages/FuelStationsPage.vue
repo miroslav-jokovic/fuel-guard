@@ -62,6 +62,7 @@ const columns: DataTableColumn[] = [
   { key: "name", label: "Truck stop", sortable: true, headerClass: "min-w-[9rem]", cellClass: "font-medium text-ink" },
   { key: "brand", label: "Brand", sortable: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
   { key: "state", label: "State", sortable: true, headerClass: "min-w-[4rem]" },
+  { key: "city", label: "Location", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
   { key: "storeNumber", label: "Store #", sortable: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-muted tabular-nums" },
   { key: "netPrice", label: "Net $/gal", sortable: true, numeric: true, headerClass: "min-w-[6rem]" },
   { key: "postedPrice", label: "Posted", sortable: true, numeric: true, headerClass: "min-w-[6rem]" },
@@ -92,15 +93,23 @@ const columns: DataTableColumn[] = [
 
       <BaseCard padding="none">
         <DataTable :columns="columns" :rows="paged" row-key="id" :sort="sort" empty-text="No truck stops match." @sort="onSort">
-          <template #cell-name="{ row }">
-            {{ (row as FuelStationRow).name ?? "—" }}
-            <span
-              v-if="(row as FuelStationRow).coordSource !== 'exact_export'"
-              :class="[BADGE_BASE, toneClass('warning'), 'ml-1.5']"
-              title="Placed at a city-centroid geocode — load the locations export for exact coordinates."
-            >≈ location</span>
-          </template>
+          <template #cell-name="{ row }">{{ (row as FuelStationRow).name ?? "—" }}</template>
           <template #cell-brand="{ row }">{{ brandLabel((row as FuelStationRow).brand) }}</template>
+          <template #cell-city="{ row }">
+            <template v-if="(row as FuelStationRow).city">
+              {{ (row as FuelStationRow).city }}<span v-if="(row as FuelStationRow).exit" class="text-ink-muted"> · Exit {{ (row as FuelStationRow).exit }}</span>
+              <span
+                v-if="(row as FuelStationRow).coordSource !== 'exact_export'"
+                class="ml-1 text-ink-subtle"
+                title="Approximate placement (city-centroid geocode). Upload the Pilot 'Download All Locations' export for exact coordinates."
+              >≈</span>
+            </template>
+            <span
+              v-else
+              class="text-ink-subtle"
+              title="No city on file yet — upload the Pilot 'Download All Locations' export to fill exact location and coordinates."
+            >— ≈</span>
+          </template>
           <template #cell-netPrice="{ row }">
             <span class="tabular-nums font-medium text-ink">{{ price((row as FuelStationRow).netPrice) }}</span>
             <span

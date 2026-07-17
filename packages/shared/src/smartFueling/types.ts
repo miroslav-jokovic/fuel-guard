@@ -79,7 +79,7 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   minPurchaseGal: 50,
   mpgSafetyFactor: 0.9,
   deviationThresholdMi: 3,
-  priceTtlHours: 30,
+  priceTtlHours: 72, // a manually-uploaded daily report can lag 1-2 days; treat quotes within 3 days as current
   alwaysFillFull: false, // min-drawdown on by default: buy just enough to reach the next cheaper stop
   fillCapPct: 75,
   avoidStates: ["CA"],
