@@ -11,6 +11,7 @@ export * from "./effectivePrice.js";
 export * from "./kwikTripTruckFriendly.js";
 export * from "./kwikTripStoreList.js";
 export * from "./roadRangerPrices.js";
+export * from "./lovesExport.js";
 export * from "./flexPolyline.js";
 export * from "./geo.js";
 export * from "./hereRoute.js";

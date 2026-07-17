@@ -33,6 +33,8 @@ import { ingestPostedPrices } from "../services/postedPriceIngest.js";
 import { gatePostedBatch, runPostedPriceFetch, POSTED_SOURCE_XLSX } from "../services/postedPriceFetch.js";
 import { runKwikTripSync } from "../services/kwikTripIngest.js";
 import { runRoadRangerFetch } from "../services/roadRangerIngest.js";
+import { ingestLovesExport } from "../services/lovesIngest.js";
+import { runLovesApiSync } from "../services/lovesApiClient.js";
 import { parsePilotPublicPricesXlsx } from "@fuelguard/shared";
 import { fetchVehicleCurrentGps } from "../lib/samsara.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
@@ -244,6 +246,46 @@ export function fuelingRouter(): Router {
       const result = await runRoadRangerFetch(getSupabaseAdmin(env), env);
       if (!result.ok) {
         res.status(422).json(apiError("fetch_failed", result.error ?? "Road Ranger fetch failed"));
+        return;
+      }
+      res.json(result);
+    }),
+  );
+
+  // Load the Love's "Search Results" .xlsx export — the whole network's exact locations + current posted
+  // diesel/DEF prices in one file. Admin-only; Love's has its own store-number space (never the Pilot family).
+  router.post(
+    "/networks/loves/import",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const grid = (req.body as { grid?: unknown[] })?.grid;
+      if (!Array.isArray(grid)) {
+        res.status(400).json(apiError("bad_request", "Expected { grid: Cell[][] } from the decoded file."));
+        return;
+      }
+      const result = await ingestLovesExport(admin, grid as (string | number | null)[][]);
+      if (!result.ok) {
+        res.status(422).json(apiError("ingest_failed", result.error ?? "Could not ingest the Love's export"));
+        return;
+      }
+      res.json(result);
+    }),
+  );
+
+  // Live Love's Store & Fuel Prices API sync (OAuth). Returns a clear "not configured" message until
+  // credentials + product codes are set, so it is safe to wire a button now.
+  router.post(
+    "/networks/loves/sync",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const result = await runLovesApiSync(getSupabaseAdmin(env), env);
+      if (!result.ok) {
+        res.status(422).json(apiError("sync_failed", result.error ?? "Love's API sync failed"));
         return;
       }
       res.json(result);

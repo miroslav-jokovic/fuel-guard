@@ -74,3 +74,29 @@ export async function fetchRoadRanger(): Promise<RoadRangerFetchResult> {
   if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Road Ranger fetch failed");
   return res.data;
 }
+
+export interface LovesIngestResult {
+  ok: boolean;
+  totalRows: number;
+  stationsUpserted: number;
+  pricesInserted: number;
+  skipped: number;
+  observedAt: string | null;
+}
+
+/** Upload the Love's "Search Results" .xlsx — loads exact locations + current posted diesel/DEF prices. */
+export async function uploadLovesExport(file: File): Promise<LovesIngestResult> {
+  const grid = await readReportGrid(file);
+  const res = await apiFetch<LovesIngestResult>("/api/fueling/networks/loves/import", { method: "POST", body: { grid } });
+  if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the Love's export");
+  return res.data;
+}
+
+export interface LovesSyncResult { ok: boolean; stationsUpserted: number; pricesInserted: number; skipped: number }
+
+/** Trigger the live Love's Store & Fuel Prices API sync (works once credentials are configured server-side). */
+export async function syncLoves(): Promise<LovesSyncResult> {
+  const res = await apiFetch<LovesSyncResult>("/api/fueling/networks/loves/sync", { method: "POST" });
+  if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Love's API sync failed");
+  return res.data;
+}

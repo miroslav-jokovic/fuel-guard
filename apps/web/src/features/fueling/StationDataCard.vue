@@ -7,6 +7,7 @@ import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
 import {
   uploadLocationsExport, uploadPostedPrices, fetchPostedPricesNow, syncKwikTrip, fetchRoadRanger,
+  uploadLovesExport, syncLoves,
   type LocationsIngestResult, type PostedIngestResult,
 } from "./useStationData";
 
@@ -93,6 +94,41 @@ async function onFetchRoadRanger() {
     regionalLoading.value = false;
   }
 }
+
+// Love's network: one .xlsx carries locations + current posted prices; live API sync once approved.
+const lovesLoading = ref(false);
+const lovesStatus = ref("");
+async function onLovesFile(files: File[]) {
+  const file = files[0];
+  if (!file || lovesLoading.value) return;
+  lovesLoading.value = true;
+  lovesStatus.value = "";
+  try {
+    const r = await uploadLovesExport(file);
+    lovesStatus.value =
+      `Love's: ${r.stationsUpserted} stations, ${r.pricesInserted.toLocaleString()} prices` +
+      (r.observedAt ? ` (as of ${new Date(r.observedAt).toLocaleString()})` : "");
+    toast.success("Love's loaded", `${r.stationsUpserted} stations placed.`);
+  } catch (e) {
+    toast.error("Could not load Love's", e instanceof Error ? e.message : undefined);
+  } finally {
+    lovesLoading.value = false;
+  }
+}
+async function onSyncLoves() {
+  if (lovesLoading.value) return;
+  lovesLoading.value = true;
+  lovesStatus.value = "";
+  try {
+    const r = await syncLoves();
+    lovesStatus.value = `Love's API: ${r.stationsUpserted} stations, ${r.pricesInserted.toLocaleString()} prices.`;
+    toast.success("Love's synced", `${r.stationsUpserted} stations.`);
+  } catch (e) {
+    toast.error("Love's API sync failed", e instanceof Error ? e.message : undefined);
+  } finally {
+    lovesLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -144,6 +180,19 @@ async function onFetchRoadRanger() {
         <BaseButton variant="secondary" size="sm" type="button" :disabled="regionalLoading" @click="onSyncKwikTrip">Sync Kwik Trip</BaseButton>
         <BaseButton variant="secondary" size="sm" type="button" :disabled="regionalLoading" @click="onFetchRoadRanger">Fetch Road Ranger prices</BaseButton>
         <p v-if="regionalStatus" class="text-sm text-success-800">{{ regionalStatus }}</p>
+      </div>
+    </div>
+
+    <div class="mt-4 border-t border-edge pt-4">
+      <p class="text-xs font-medium text-ink-secondary">Love's network (~650 stops)</p>
+      <p class="mt-1 text-sm text-ink-muted">
+        Upload the Love's "Search Results" .xlsx — one file loads exact locations <strong>and</strong> current posted
+        diesel/DEF prices. Once your API access is approved, "Sync via API" refreshes prices live instead.
+      </p>
+      <div class="mt-2"><FileDropzone accept=".xlsx" :disabled="lovesLoading" @files="onLovesFile" /></div>
+      <div class="mt-2 flex flex-wrap items-center gap-3">
+        <BaseButton variant="secondary" size="sm" type="button" :disabled="lovesLoading" @click="onSyncLoves">Sync via API</BaseButton>
+        <p v-if="lovesStatus" class="text-sm text-success-800">{{ lovesStatus }}</p>
       </div>
     </div>
   </BaseCard>

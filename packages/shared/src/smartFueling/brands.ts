@@ -20,6 +20,7 @@ export const BRAND_LABELS: Record<string, string> = {
   arco: "ARCO",
   kwik_trip: "Kwik Trip / Kwik Star",
   road_ranger: "Road Ranger",
+  loves: "Love's",
 };
 
 /**

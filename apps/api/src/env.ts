@@ -115,6 +115,12 @@ const EnvSchema = z.object({
   // FUEL-PRICE-DATA-PLAN.md). 0 disables. The page updates intra-day; 6h is a respectful cadence.
   PILOT_POSTED_FETCH_HOURS: z.coerce.number().min(0).default(6),
   PILOT_POSTED_URL: z.string().default("https://pilotcompany.com/fuel-prices"),
+  // Love's "Store & Fuel Prices" Experience API (live prices) — unset until Love's grants access.
+  LOVES_API_BASE_URL: z.string().url().optional(),
+  LOVES_TOKEN_URL: z.string().url().optional(),
+  LOVES_CLIENT_ID: z.string().optional(),
+  LOVES_CLIENT_SECRET: z.string().optional(),
+  LOVES_DIESEL_PRODUCT_CODES: z.string().default(""),
 
   EFS_GRAPH_TENANT_ID: z.string().optional(),
   EFS_GRAPH_CLIENT_ID: z.string().optional(),
