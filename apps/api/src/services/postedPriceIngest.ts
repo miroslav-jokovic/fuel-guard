@@ -65,8 +65,9 @@ export async function ingestPostedPrices(
     });
   }
 
-  // Idempotent replace of this exact batch (same source + observed_at), then insert.
-  const del = await admin.from("fuel_prices_posted").delete().eq("source", meta.source).eq("observed_at", meta.observedAt);
+  // Replace the source's prior prices ENTIRELY — a fresh upload/fetch supersedes the old snapshot, so old
+  // and new prices never coexist (posted prices are a current snapshot; only the latest per station matters).
+  const del = await admin.from("fuel_prices_posted").delete().eq("source", meta.source);
   if (del.error) return { ...base, error: `Posted-price replace failed: ${del.error.message}`, unmatched };
   let pricesInserted = 0;
   for (const part of chunk(inserts, 500)) {

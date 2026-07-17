@@ -100,9 +100,9 @@ export async function runRoadRangerFetch(admin: SupabaseClient, env: Env): Promi
   for (const row of upserted ?? []) if (row.store_number) stationIdByKey.set(String(row.store_number), row.id as string);
   const stationsUpserted = upserted?.length ?? 0;
 
-  // Replace this batch's prices (idempotent per source+observed_at), price_kind=cash.
+  // Replace this source's prices entirely (a fresh fetch supersedes the old snapshot), price_kind=cash.
   const observedAt = parsed.updatedAtIso ?? nowIso;
-  const del = await admin.from("fuel_prices_posted").delete().eq("source", ROAD_RANGER_SOURCE).eq("observed_at", observedAt);
+  const del = await admin.from("fuel_prices_posted").delete().eq("source", ROAD_RANGER_SOURCE);
   if (del.error) return fail(`Posted-price replace failed: ${del.error.message}`, parsed.rows.length);
   const priceRows = placed
     .filter((r) => stationIdByKey.has(r.stationKey))
