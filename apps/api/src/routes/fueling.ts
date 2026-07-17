@@ -40,6 +40,21 @@ import { fetchVehicleCurrentGps } from "../lib/samsara.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { hereReverseGeocode } from "../lib/hereGeocode.js";
 
+/** Add a truck-stop network to the org's enabled_brands so freshly loaded/synced stations show up on the
+ *  Truck Stops page (and its network filter) immediately, instead of staying hidden until an admin toggles
+ *  it on in Fuel Planning settings. Idempotent — a no-op when the brand is already enabled. */
+async function enableNetworkForOrg(admin: ReturnType<typeof getSupabaseAdmin>, orgId: string, brand: string): Promise<void> {
+  const { data } = await admin.from("route_fuel_settings").select("enabled_brands").eq("org_id", orgId).maybeSingle();
+  const current =
+    Array.isArray(data?.enabled_brands) && data.enabled_brands.length
+      ? (data.enabled_brands as string[])
+      : ["pilot", "flying_j", "one9"];
+  if (current.includes(brand)) return;
+  await admin
+    .from("route_fuel_settings")
+    .upsert({ org_id: orgId, enabled_brands: [...current, brand], updated_at: new Date().toISOString() }, { onConflict: "org_id" });
+}
+
 export function fuelingRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -227,11 +242,13 @@ export function fuelingRouter(): Router {
     requireRole("admin"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
-      const result = await runKwikTripSync(getSupabaseAdmin(env), env);
+      const admin = getSupabaseAdmin(env);
+      const result = await runKwikTripSync(admin, env);
       if (!result.ok) {
         res.status(422).json(apiError("sync_failed", result.error ?? "Kwik Trip sync failed"));
         return;
       }
+      await enableNetworkForOrg(admin, req.auth!.orgId!, "kwik_trip");
       res.json(result);
     }),
   );
@@ -243,11 +260,13 @@ export function fuelingRouter(): Router {
     requireRole("admin"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
-      const result = await runRoadRangerFetch(getSupabaseAdmin(env), env);
+      const admin = getSupabaseAdmin(env);
+      const result = await runRoadRangerFetch(admin, env);
       if (!result.ok) {
         res.status(422).json(apiError("fetch_failed", result.error ?? "Road Ranger fetch failed"));
         return;
       }
+      await enableNetworkForOrg(admin, req.auth!.orgId!, "road_ranger");
       res.json(result);
     }),
   );
@@ -271,6 +290,7 @@ export function fuelingRouter(): Router {
         res.status(422).json(apiError("ingest_failed", result.error ?? "Could not ingest the Love's export"));
         return;
       }
+      await enableNetworkForOrg(admin, req.auth!.orgId!, "loves");
       res.json(result);
     }),
   );
@@ -283,11 +303,13 @@ export function fuelingRouter(): Router {
     requireRole("admin"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
-      const result = await runLovesApiSync(getSupabaseAdmin(env), env);
+      const admin = getSupabaseAdmin(env);
+      const result = await runLovesApiSync(admin, env);
       if (!result.ok) {
         res.status(422).json(apiError("sync_failed", result.error ?? "Love's API sync failed"));
         return;
       }
+      await enableNetworkForOrg(admin, req.auth!.orgId!, "loves");
       res.json(result);
     }),
   );
