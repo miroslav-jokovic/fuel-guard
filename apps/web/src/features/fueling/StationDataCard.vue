@@ -156,8 +156,8 @@ async function onSyncLoves() {
       </div>
 
       <div>
-        <p class="text-xs font-medium text-ink-secondary">Posted prices (.xlsx) — or fetch the live table</p>
-        <div class="mt-1.5"><FileDropzone accept=".xlsx" :disabled="priceLoading" @files="onPriceFiles" /></div>
+        <p class="text-xs font-medium text-ink-secondary">Posted prices (.xlsx / .xls) — or fetch the live table</p>
+        <div class="mt-1.5"><FileDropzone accept=".xlsx,.xls,.xlsm" :disabled="priceLoading" @files="onPriceFiles" /></div>
         <div class="mt-2 flex items-center gap-3">
           <BaseButton variant="secondary" size="sm" type="button" :disabled="priceLoading" @click="onFetchNow">
             <ArrowPathIcon class="-ml-0.5 size-4" :class="priceLoading ? 'animate-spin' : ''" aria-hidden="true" /> Fetch now
@@ -186,10 +186,10 @@ async function onSyncLoves() {
     <div class="mt-4 border-t border-edge pt-4">
       <p class="text-xs font-medium text-ink-secondary">Love's network (~650 stops)</p>
       <p class="mt-1 text-sm text-ink-muted">
-        Upload the Love's "Search Results" .xlsx — one file loads exact locations <strong>and</strong> current posted
+        Upload the Love's "Search Results" export (.xlsx / .xls) — one file loads exact locations <strong>and</strong> current posted
         diesel/DEF prices. Once your API access is approved, "Sync via API" refreshes prices live instead.
       </p>
-      <div class="mt-2"><FileDropzone accept=".xlsx" :disabled="lovesLoading" @files="onLovesFile" /></div>
+      <div class="mt-2"><FileDropzone accept=".xlsx,.xls,.xlsm" :disabled="lovesLoading" @files="onLovesFile" /></div>
       <div class="mt-2 flex flex-wrap items-center gap-3">
         <BaseButton variant="secondary" size="sm" type="button" :disabled="lovesLoading" @click="onSyncLoves">Sync via API</BaseButton>
         <p v-if="lovesStatus" class="text-sm text-success-800">{{ lovesStatus }}</p>

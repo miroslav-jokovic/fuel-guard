@@ -37,7 +37,7 @@ async function onFiles(files: File[]) {
     </div>
 
     <div class="mt-3">
-      <FileDropzone accept=".xls,.xlsx" :disabled="loading" @files="onFiles" />
+      <FileDropzone accept=".xls,.xlsx,.xlsm" :disabled="loading" @files="onFiles" />
     </div>
 
     <p v-if="loading" class="mt-3 text-sm text-ink-secondary">Geocoding sites &amp; loading prices… the first load can take a moment.</p>
