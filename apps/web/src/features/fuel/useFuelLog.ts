@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { compressToWebp } from "./imageCompress";
 
 const FUEL_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_confidence, tank_type, created_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, miles_since_last, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_confidence, tank_type, created_at";
 
 export const FUEL_PAGE_SIZE = 20;
 
@@ -47,6 +47,46 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
       const { data, error, count } = await q;
       if (error) throw new Error(error.message);
       return { rows: (data ?? []) as FuelTransaction[], total: count ?? 0 };
+    },
+  });
+}
+
+export interface FuelRangeTotals {
+  /** Sum of stored per-fill miles (odometer delta between fuelings) across ALL matching fills. */
+  totalMiles: number;
+  totalGallons: number;
+}
+
+/**
+ * Range-wide totals across every fill matching the filters (not just the current page). Pages through
+ * two small columns and sums them, so "Total miles" reflects the whole selected date range / vehicle.
+ */
+export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
+  return useQuery({
+    queryKey: ["fuel_range_totals", filters],
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<FuelRangeTotals> => {
+      const f = toValue(filters);
+      const PAGE = 1000;
+      let totalMiles = 0;
+      let totalGallons = 0;
+      for (let start = 0; ; start += PAGE) {
+        let q = supabase.from("fuel_transactions").select("miles_since_last, gallons").range(start, start + PAGE - 1);
+        if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
+        if (f.driverId) q = q.eq("driver_id", f.driverId);
+        if (f.tankType) q = q.eq("tank_type", f.tankType);
+        if (f.from) q = q.gte("fueled_at", f.from);
+        if (f.to) q = q.lte("fueled_at", f.to);
+        const { data, error } = await q;
+        if (error) throw new Error(error.message);
+        const batch = (data ?? []) as { miles_since_last: number | string | null; gallons: number | string | null }[];
+        for (const r of batch) {
+          if (r.miles_since_last != null) totalMiles += Number(r.miles_since_last);
+          if (r.gallons != null) totalGallons += Number(r.gallons);
+        }
+        if (batch.length < PAGE) break;
+      }
+      return { totalMiles, totalGallons };
     },
   });
 }

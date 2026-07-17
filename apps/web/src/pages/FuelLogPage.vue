@@ -5,7 +5,7 @@ import { fuelTxnStatus, type FillUpInput } from "@fuelguard/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useFuelTransactions, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
+import { useFuelTransactions, useFuelRangeTotals, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
@@ -32,6 +32,8 @@ function onSort(key: string) {
   filters.value = { ...filters.value, sortKey: sort.value.key ?? undefined, sortDir: sort.value.dir };
 }
 const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransactions(filters, page);
+// Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
+const { data: rangeTotals } = useFuelRangeTotals(filters);
 
 // Date inputs emit YYYY-MM-DD; make `to` inclusive of the whole day for the timestamped column.
 const fromDate = computed(() => filters.value.from?.slice(0, 10));
@@ -64,6 +66,7 @@ const vehicleOptions = computed(() => [
 
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
+const totalMiles = computed(() => rangeTotals.value?.totalMiles ?? 0);
 
 const vehicleLabel = (id: string | null) =>
   id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "Unattributed";
@@ -99,6 +102,7 @@ const columns: DataTableColumn[] = [
   { key: "fueled_at", label: "When", sortable: true, headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
   { key: "vehicle_id", label: "Vehicle", headerClass: "min-w-[7rem]" },
   { key: "odometer", label: "Odometer", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
   { key: "gallons", label: "Gallons", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
   { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
   { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
@@ -126,11 +130,16 @@ const columns: DataTableColumn[] = [
 
     <!-- Summary stats block -->
     <BaseCard v-if="!isLoading && !isError && total > 0" padding="none">
-      <dl class="grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-5">
+      <dl class="grid grid-cols-2 divide-y divide-edge-subtle sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6">
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total fill-ups</dt>
           <dd class="mt-1 text-2xl font-bold text-ink">{{ total.toLocaleString() }}</dd>
           <dd class="mt-0.5 text-xs text-ink-subtle">matching current filters</dd>
+        </div>
+        <div class="px-5 py-4">
+          <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total miles</dt>
+          <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalMiles, 0) }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-subtle">driven in selected range</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Flagged</dt>
@@ -170,6 +179,7 @@ const columns: DataTableColumn[] = [
       @retry="refetch"
     >
       <template #cell-fueled_at="{ row }">{{ fmtDate(row.fueled_at, row.state ?? null) }}</template>
+      <template #cell-miles_since_last="{ row }">{{ row.miles_since_last != null ? fmtNum(row.miles_since_last, 0) : "—" }}</template>
       <template #cell-vehicle_id="{ row }">
         <span>{{ vehicleLabel(row.vehicle_id) }}</span>
         <span v-if="row.tank_type === 'reefer'" class="ml-1.5" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>

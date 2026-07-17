@@ -45,6 +45,9 @@ export interface FuelTransaction {
   state?: string | null;
   source: string;
   computed_mpg: number | null;
+  /** Miles driven since the previous fill for this vehicle (odometer delta, OBD-preferred; positive-only,
+   *  calibration-aware). Null when there is no prior fill or the odometer is missing/regressing. */
+  miles_since_last?: number | null;
   has_anomaly: boolean;
   max_severity: AnomalySeverity | null;
   ai_risk_level: AnomalySeverity | null;
