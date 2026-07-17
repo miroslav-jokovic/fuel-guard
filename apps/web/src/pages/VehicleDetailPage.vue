@@ -11,7 +11,7 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import { viz } from "@/features/dashboard/chartTheme";
+import { viz, areaFill } from "@/features/dashboard/chartTheme";
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
@@ -56,7 +56,23 @@ const mpgChart = computed<ChartConfiguration>(() => ({
   data: {
     labels: mpgPoints.value.map((t) => t.fueled_at.slice(0, 10)),
     datasets: [
-      { label: "MPG", data: mpgPoints.value.map((t) => Number(t.computed_mpg)), borderColor: viz.brand, backgroundColor: viz.brand, tension: 0.3 },
+      {
+        label: "MPG",
+        data: mpgPoints.value.map((t) => Number(t.computed_mpg)),
+        borderColor: viz.brand,
+        backgroundColor: areaFill("--viz-brand") as unknown as string,
+        fill: true,
+        tension: 0.4,
+        borderWidth: 2.5,
+        borderCapStyle: "round",
+        borderJoinStyle: "round",
+        pointRadius: 0,
+        pointHitRadius: 12,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: viz.brand,
+        pointHoverBorderColor: viz.pointHalo,
+        pointHoverBorderWidth: 2,
+      },
       ...(vehicle.value?.baseline_mpg ? [{ label: "Baseline", data: mpgPoints.value.map(() => Number(vehicle.value!.baseline_mpg)), borderColor: viz.reference, borderDash: [5, 5], pointRadius: 0 }] : []),
     ],
   },

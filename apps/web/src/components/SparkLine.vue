@@ -4,6 +4,8 @@ import { computed } from "vue";
 /**
  * Dependency-free SVG sparkline for stat tiles. Null points render as honest gaps
  * (the polyline splits), matching how the full-size trend charts treat missing days.
+ * Each segment gets a soft top-down gradient fill so the tiles read like the big trend
+ * charts (transparent area under the line).
  */
 const props = defineProps<{
   points: (number | null)[];
@@ -13,6 +15,14 @@ const props = defineProps<{
 const W = 120;
 const H = 36;
 const PAD = 3;
+
+// Unique gradient id per instance so multiple sparklines on a page don't share one <defs>.
+let seq = 0;
+function nextSeq(): number {
+  seq += 1;
+  return seq;
+}
+const gradId = `spark-grad-${nextSeq()}`;
 
 const segments = computed<string[]>(() => {
   const pts = props.points;
@@ -39,6 +49,16 @@ const segments = computed<string[]>(() => {
   return segs;
 });
 
+// Area path per segment: trace the line, drop to the baseline, close — filled with the gradient.
+const areas = computed<string[]>(() =>
+  segments.value.map((seg) => {
+    const pairs = seg.split(" ");
+    const firstX = pairs[0]!.split(",")[0];
+    const lastX = pairs[pairs.length - 1]!.split(",")[0];
+    return `M ${pairs.join(" L ")} L ${lastX},${H} L ${firstX},${H} Z`;
+  }),
+);
+
 const endDot = computed<{ x: number; y: number } | null>(() => {
   const last = segments.value.at(-1)?.split(" ").at(-1);
   if (!last) return null;
@@ -55,6 +75,13 @@ const endDot = computed<{ x: number; y: number } | null>(() => {
     preserveAspectRatio="none"
     aria-hidden="true"
   >
+    <defs>
+      <linearGradient :id="gradId" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" :stop-color="color" stop-opacity="0.22" />
+        <stop offset="100%" :stop-color="color" stop-opacity="0" />
+      </linearGradient>
+    </defs>
+    <path v-for="(d, i) in areas" :key="`a${i}`" :d="d" :fill="`url(#${gradId})`" stroke="none" />
     <polyline
       v-for="(seg, i) in segments"
       :key="i"
