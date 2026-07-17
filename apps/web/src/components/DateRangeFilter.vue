@@ -8,8 +8,11 @@ import { CalendarIcon, XMarkIcon } from "@heroicons/vue/20/solid";
  * style.css). Renders as a compact toolbar trigger — "Dates ▾" when idle,
  * "Jul 1 – Jul 13 ✕" with a brand tint when active — matching FilterSelect.
  * External API: v-model:from / v-model:to, values are "YYYY-MM-DD" strings.
- * Partial ranges are allowed — picking a single day filters on just that
- * date. Quick presets live in the picker's sidebar.
+ * Range mode: pick a start then an end date (auto-applies once both are set).
+ * For a single day, click the same date twice. Quick presets live in the sidebar.
+ * NOTE: partialRange MUST stay false — with auto-apply, partialRange:true makes the
+ * first click a valid (single-date) selection that applies + closes the menu, so a
+ * range can never be picked (vue-datepicker modes-configuration docs).
  */
 const props = withDefaults(defineProps<{ from?: string; to?: string; presets?: boolean; label?: string }>(), {
   from: undefined,
@@ -61,7 +64,7 @@ function clear() {
 <template>
   <VueDatePicker
     v-model="model"
-    :range="{ partialRange: true }"
+    :range="{ partialRange: false }"
     model-type="yyyy-MM-dd"
     :enable-time-picker="false"
     :preset-dates="presetDates"
