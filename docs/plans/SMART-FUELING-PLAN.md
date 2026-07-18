@@ -1,6 +1,6 @@
 # Smart Fueling (Dispatcher-Driven) — Implementation Plan
 
-**Feature:** A standalone module where a **dispatcher enters a start + end (and optional waypoints) and picks a truck**, and FleetGuard returns **where to fuel and how many gallons** along that route — optimized for lowest net cost within the truck's **current fuel, range, reserve, HOS, and consumption**. Output is a **read-only options report** (no write-back to Samsara). Once a plan exists, it **tracks the truck live** and recomputes when it deviates.
+**Feature:** A standalone module where a **dispatcher enters a start + end (and optional waypoints) and picks a truck**, and FuelGuard returns **where to fuel and how many gallons** along that route — optimized for lowest net cost within the truck's **current fuel, range, reserve, HOS, and consumption**. Output is a **read-only options report** (no write-back to Samsara). Once a plan exists, it **tracks the truck live** and recomputes when it deviates.
 
 **Why this shape (vs. the earlier `PLANNED-FUELING-PLAN.md`):** the dispatcher enters the route, so we **no longer depend on Samsara Routes existing** — the single biggest risk in the earlier plan (§0 of `PLANNED-FUELING-RISK-ANALYSIS.md`) is removed. Everything else the earlier docs verified (HERE v8, Samsara stats/HOS reads, Pilot data, the fuel-purchase algorithm, the full risk register) **still applies and is reused here** — this document is the authoritative BUILD PLAN and does not re-verify those facts; it references them.
 

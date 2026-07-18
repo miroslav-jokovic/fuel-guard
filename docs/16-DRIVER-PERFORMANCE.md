@@ -2,7 +2,7 @@
 
 Goal: grade every driver each week by fairly combining **Samsara Safety Score**, **Samsara Driver Efficiency**, and our own **Idling discipline** score; rank the fleet on a **3-week trailing average**; freeze each settled week and lock in the **top 3 winners** for rewards. This is the plan — assumption-free and ready to build. Nothing is built yet.
 
-This doc is the source of truth for the feature. It follows FleetGuard practice: **pure, testable logic in `packages/shared`; thin API services through the jobs ledger + rate-limited Samsara client; RLS-scoped Supabase reads on the web; one self-contained reusable module.** Every parameter has a default; every external dependency is confirmed or flagged as a build-time verification with a resolution step.
+This doc is the source of truth for the feature. It follows FuelGuard practice: **pure, testable logic in `packages/shared`; thin API services through the jobs ledger + rate-limited Samsara client; RLS-scoped Supabase reads on the web; one self-contained reusable module.** Every parameter has a default; every external dependency is confirmed or flagged as a build-time verification with a resolution step.
 
 Decisions locked with the fleet: fleet size **150–200 drivers**; ranking basis **3-week trailing average**; Efficiency **included with graceful degrade** (it's a Samsara beta feed); eligibility gate **500 mi AND 10 drive-hours** (configurable); normalization **fleet-relative percentile**; weights **Safety 0.50 / Efficiency 0.25 / Idling 0.25**.
 

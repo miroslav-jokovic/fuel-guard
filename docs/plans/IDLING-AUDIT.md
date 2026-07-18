@@ -2,7 +2,7 @@
 
 **Prepared for:** Miki
 **Date:** July 13, 2026
-**Scope:** FleetGuard idle tracking — data pipeline, scoring logic, vehicle capability flags, and the on-screen Idling report.
+**Scope:** FuelGuard idle tracking — data pipeline, scoring logic, vehicle capability flags, and the on-screen Idling report.
 
 ---
 

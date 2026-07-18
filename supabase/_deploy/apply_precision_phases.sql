@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════════════
--- FleetGuard — PRECISION PROGRAM schema deploy (docs/12, Phases 1–6)
+-- FuelGuard — PRECISION PROGRAM schema deploy (docs/12, Phases 1–6)
 -- Copy-paste this ENTIRE block into the Supabase SQL editor and run it once.
 -- Idempotent: every statement is "if not exists", so it is safe to re-run and safe if some columns already
 -- exist. Wrapped in a transaction so it all applies or none does.

@@ -1,6 +1,6 @@
 # Planned Fueling — Implementation Plan
 
-**Feature:** A daily, per-truck fuel plan. FleetGuard reconstructs each truck's route, finds the Pilot/Flying J stations along it, and suggests exactly where to fuel and how many gallons — optimized for lowest net cost within the truck's range, reserve, and driver-hours limits. Output is a **read-only report/page** (no write-back to Samsara). Suggestions **auto-recalculate** when a truck deviates from the assumed route.
+**Feature:** A daily, per-truck fuel plan. FuelGuard reconstructs each truck's route, finds the Pilot/Flying J stations along it, and suggests exactly where to fuel and how many gallons — optimized for lowest net cost within the truck's range, reserve, and driver-hours limits. Output is a **read-only report/page** (no write-back to Samsara). Suggestions **auto-recalculate** when a truck deviates from the assumed route.
 
 **Status:** Research verified against live official docs (July 2026). **Reviewed adversarially — see `PLANNED-FUELING-RISK-ANALYSIS.md` for the full assumption/blocker/gap register.** Critical safety fixes from that review are folded in below (emergency sizing subordinate to safety, INFEASIBLE state, HOS min-of-clocks, detour/idle burn, CA edge cases, measurement loop as launch gate). Remaining open items and business decisions are in §12. Supersedes the earlier `planned-fueling-on-route-plan.md` and `PLANNED-FUELING-PILOT-FJ-SPEC.md`.
 
@@ -84,7 +84,7 @@ All jobs run on the existing scheduler + jobs ledger; all reads go through the e
 - **Fixed-route fuel purchasing** is a well-studied problem (Khuller/Malekian/Mestre 2007; Lin et al. 2007). Note the classic *provably optimal* greedy assumes **variable** purchase amounts (buy just enough to reach a cheaper station). Our policy forces **full fills** (rule 4), so we solve the *full-fill station-selection* variant instead — this is a deliberate, driver-friendly policy choice, **not** the theoretical cost optimum, and it carries a small, bounded cost penalty (savings are low-single-digit % regardless). We do not claim provable optimality under full-fill; we test correctness empirically (§10).
 - **HOS 30-minute break:** 49 CFR 395.3(a)(3)(ii) — no driving past **8 cumulative hours** of driving without a ≥30-min break; **on-duty-not-driving (fueling) satisfies it.** So a fuel stop timed near the break due-point carries near-zero time cost.
 
-### 3.5 Existing FleetGuard foundation we reuse (verified in repo)
+### 3.5 Existing FuelGuard foundation we reuse (verified in repo)
 Rate-limited Samsara client (`apps/api/src/lib/samsaraHttp.ts`), tiered scheduler (`services/samsaraScheduler.ts`), jobs ledger with no-overlap index (`services/jobs.ts` + `0027_jobs.sql`), geocode cache (`services/geocode.ts` + `0018`), `vehicles.tank_capacity_gal`/`baseline_mpg` (`0003`), EFS import pipeline (`0011`), `audit_logs`, per-org `integration_credentials` (`0012`), AI verification. Fuel-level smoothing from the fueling-time-precision work should be reused, not rebuilt.
 
 ---
@@ -245,7 +245,7 @@ Whole feature is the low-risk reads-and-report path — no Samsara write path, s
 Samsara: developers.samsara.com — /reference/fetchroute, /reference/patchroute (not used), /docs/route-locations, /reference/getaddress, /reference/getvehiclestats, /reference/getvehiclestatsfeed, /reference/gethosclocks, /docs/capturing-live-route-progress-via-api, /docs/rate-limits; kb.samsara.com 360037502312 (fuelPercents median not applied to API). No off-route event (verified against event/webhook catalog + audit-logs feed).
 HERE: docs.here.com/routing/docs/routing-v8-truck-routing, /routing-v8-route-geometry, /routing-v8-intermediate-waypoints; github.com/heremaps/flexible-polyline; npm @here/flexpolyline; here.com/get-started/pricing (Advanced tier; exact figures confirm in console).
 Pilot/FJ: pilotcompany.com/fuel-prices, locations.pilotflyingj.com, Wikidata Q1434601; daily price email (our existing inbound).
-EFS/WEX: existing FleetGuard import; net price per transaction.
+EFS/WEX: existing FuelGuard import; net price per transaction.
 Algorithm: Khuller/Malekian/Mestre ACM TALG 2011 (cs.umd.edu/projects/gas/gas-station.pdf); Lin et al. ORL 35(3) 2007. HOS: 49 CFR 395.3(a)(3)(ii) (ecfr.gov). Industry pattern (own-route + corridor): Trimble PC*Miler "POIs Along the Route" (2.5 mi default), ProMiles Fuel Opt.
 Foundation (repo, verified): lib/samsaraHttp.ts, services/samsaraScheduler.ts, services/jobs.ts + 0027, services/geocode.ts + 0018, vehicles.tank_capacity_gal/baseline_mpg (0003), EFS import (0011), audit_logs, integration_credentials (0012), trailers/is_reefer (recent migrations).
 
