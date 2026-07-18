@@ -2,7 +2,7 @@
  * Smart Fueling — shared domain contracts + defaults (pure). Distinct from `fuel.ts` (the fuel-transaction
  * domain): this module is about ROUTE fuel PLANNING — stations, prices, discount model, and the per-org
  * planning policy. Chain-agnostic by design; Pilot is loaded as data, never hardcoded in logic.
- * See SMART-FUELING-PLAN.md.
+ * See docs/plans/SMART-FUELING-PLAN.md.
  */
 
 /** A physical truck-stop location (global reference fact). */

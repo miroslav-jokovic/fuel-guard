@@ -100,7 +100,7 @@ const EnvSchema = z.object({
 
   // Automated EFS report ingestion (removes the daily manual upload). "off" (default) disables the
   // scheduler. Sources: "storage" polls a Supabase Storage bucket where reports land under
-  // <orgId>/incoming/; "graph" reads an M365 mailbox via Microsoft Graph (see EFS-MICROSOFT365-SETUP.md).
+  // <orgId>/incoming/; "graph" reads an M365 mailbox via Microsoft Graph (see docs/plans/EFS-MICROSOFT365-SETUP.md).
   // EFS_INGEST_MINUTES sets the poll cadence (Chunk 3).
   EFS_INGEST_SOURCE: z.enum(["off", "storage", "graph"]).default("off"),
   EFS_INGEST_BUCKET: z.string().default("efs-reports"),
@@ -112,7 +112,7 @@ const EnvSchema = z.object({
   // Mail.Read APPLICATION permission with admin consent, ideally scoped to just EFS_GRAPH_MAILBOX via an
   // Application Access Policy. EFS_GRAPH_FOLDER (optional) restricts reading to one mail folder by name.
   // Automated Pilot public posted-price fetch (fuel_prices_posted — global layer, Phase A of
-  // FUEL-PRICE-DATA-PLAN.md). 0 disables. The page updates intra-day; 6h is a respectful cadence.
+  // docs/plans/FUEL-PRICE-DATA-PLAN.md). 0 disables. The page updates intra-day; 6h is a respectful cadence.
   PILOT_POSTED_FETCH_HOURS: z.coerce.number().min(0).default(6),
   PILOT_POSTED_URL: z.string().default("https://pilotcompany.com/fuel-prices"),
   // Love's "Store & Fuel Prices" Experience API (live prices) — unset until Love's grants access.

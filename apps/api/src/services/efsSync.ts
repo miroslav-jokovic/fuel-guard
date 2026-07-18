@@ -9,7 +9,7 @@ import type { Env } from "../env.js";
 import { scoreTransaction } from "./scoring.js";
 
 /**
- * Self-heal fuel_transactions from the faithful EFS store (docs: DATA-RELIABILITY-CHANGES.md).
+ * Self-heal fuel_transactions from the faithful EFS store (docs: docs/plans/DATA-RELIABILITY-CHANGES.md).
  *
  * efs_transactions holds every uploaded line verbatim — the system of record. This routine re-derives
  * the merged fuel events from it and reconciles them against fuel_transactions:

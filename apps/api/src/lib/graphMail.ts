@@ -8,7 +8,7 @@ import type { Artifact, IngestSource } from "./ingestSource.js";
  *
  * The app registration (tenant/client id + secret, Mail.Read application permission, admin consent, and an
  * Application Access Policy scoping it to just the EFS mailbox) is a one-time setup — see
- * EFS-MICROSOFT365-SETUP.md. No new npm dependency: token + Graph calls use the built-in fetch.
+ * docs/plans/EFS-MICROSOFT365-SETUP.md. No new npm dependency: token + Graph calls use the built-in fetch.
  */
 
 /** One mail message with the file attachments Graph reports for it. */

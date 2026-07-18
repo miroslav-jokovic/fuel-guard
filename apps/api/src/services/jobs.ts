@@ -242,7 +242,7 @@ export async function runJob(
  * On boot, fail any jobs still marked queued/running — they were interrupted by the restart (this app is
  * a single in-process instance, so nothing is genuinely running at startup). Clears wedged (org, kind)
  * slots so schedulers and buttons work immediately after a deploy. NOTE: if the app is ever scaled to
- * multiple instances, replace this with a per-instance heartbeat/lease — see AUTOMATION-BUILD-PLAN.md.
+ * multiple instances, replace this with a per-instance heartbeat/lease — see docs/plans/AUTOMATION-BUILD-PLAN.md.
  */
 export async function reclaimInterruptedJobs(admin: SupabaseClient): Promise<number> {
   const now = new Date().toISOString();
