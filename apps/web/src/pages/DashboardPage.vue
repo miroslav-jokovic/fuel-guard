@@ -27,7 +27,7 @@ import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
 import RiskList from "@/features/dashboard/RiskList.vue";
-import { viz, COST_COLORS, areaFill, donutGradient, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
+import { viz, COST_COLORS, resolve, areaFill, donutGradient, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
 
 const session = useSessionStore();
 const days = ref(30);
@@ -189,7 +189,7 @@ const costChart = computed<ChartConfiguration>(() => ({
       {
         data: costSlices.value.map((x) => x.value),
         backgroundColor: donutGradient(costSlices.value.map((x) => x.color)) as unknown as string,
-        borderColor: "#ffffff",
+        borderColor: resolve("--ink-inverse"),
         borderWidth: 0,
         spacing: 3,
         borderRadius: 6,
@@ -206,9 +206,9 @@ const costChart = computed<ChartConfiguration>(() => ({
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: "#111827",
-        titleColor: "#f9fafb",
-        bodyColor: "#e5e7eb",
+        backgroundColor: resolve("--surface-inverse"),
+        titleColor: resolve("--ramp-neutral-50"),
+        bodyColor: resolve("--ramp-neutral-200"),
         padding: 10,
         cornerRadius: 8,
         callbacks: {
@@ -365,7 +365,7 @@ const EXPORTS = [
             <ul class="min-w-0 flex-1 space-y-2.5 self-stretch">
               <li v-for="slice in costSlices" :key="slice.label" class="flex items-center justify-between gap-3 text-sm">
                 <span class="flex min-w-0 items-center gap-2">
-                  <span class="size-2.5 shrink-0 rounded-full" :style="{ backgroundColor: slice.color }" aria-hidden="true" />
+                  <span class="size-2.5 shrink-0 rounded-full" :style="{ backgroundColor: slice.color }" aria-hidden="true" /> <!-- token-check-disable-line: data-driven slice color from COST_COLORS -->
                   <span class="truncate text-ink-secondary">{{ slice.label }}</span>
                 </span>
                 <span class="shrink-0 tabular-nums font-medium text-ink">

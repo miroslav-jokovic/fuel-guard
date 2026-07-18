@@ -28,6 +28,9 @@ jobs:
       - name: File-size budget
         run: pnpm lint:filesize
 
+      - name: Design tokens
+        run: pnpm --filter @fuelguard/web lint:tokens
+
       - name: Typecheck
         run: pnpm typecheck
 
