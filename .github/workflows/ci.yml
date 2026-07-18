@@ -25,6 +25,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: File-size budget
+        run: pnpm lint:filesize
+
       - name: Typecheck
         run: pnpm typecheck
 
