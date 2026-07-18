@@ -28,6 +28,9 @@ const browserGlobals = {
   HTMLElement: "readonly",
   HTMLCanvasElement: "readonly",
   HTMLInputElement: "readonly",
+  FileList: "readonly",
+  DragEvent: "readonly",
+  DataTransfer: "readonly",
 };
 
 export default tseslint.config(
@@ -38,6 +41,9 @@ export default tseslint.config(
       "**/coverage/**",
       "TemplatesTailwind/**",
       "supabase/**",
+      "data-samples/**",
+      "_probes/**",
+      "_to_delete/**",
     ],
   },
   js.configs.recommended,
@@ -57,6 +63,12 @@ export default tseslint.config(
     files: ["apps/web/**/*.ts"],
     languageOptions: {
       globals: browserGlobals,
+    },
+  },
+  {
+    files: ["**/*.mjs", "scripts/**/*.js"],
+    languageOptions: {
+      globals: { process: "readonly", console: "readonly", URL: "readonly", Buffer: "readonly" },
     },
   },
   {
