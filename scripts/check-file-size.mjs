@@ -36,7 +36,7 @@ function walk(dir, out = []) {
 
 const violations = [];
 for (const d of SCAN_DIRS) {
-  let files = [];
+  let files;
   try { files = walk(join(ROOT, d)); } catch { continue; }
   for (const full of files) {
     const rel = relative(ROOT, full);

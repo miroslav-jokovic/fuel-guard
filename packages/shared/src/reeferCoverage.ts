@@ -102,7 +102,7 @@ export function computeReeferCoverage(rows: ReeferCoverageInput[], nowMs: number
     // Primary driver = the id with the most reefer fills (ties resolved by first-seen max).
     let primaryDriverId: string | null = null;
     let best = 0;
-    for (const [id, c] of v.driverCounts) if (c > best) ((best = c), (primaryDriverId = id));
+    for (const [id, c] of v.driverCounts) if (c > best) { best = c; primaryDriverId = id; }
     return {
       vehicleId,
       tractorGal: round1(v.tractorGal),

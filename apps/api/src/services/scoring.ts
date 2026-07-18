@@ -323,6 +323,7 @@ export async function scoreTransaction(
     // toTxnView, so the telematics-recovered instant is applied for rules without touching fueled_at.
   } else if (txn.vehicleId && !opts.reconUnavailable) {
     if (opts.reconHealth) opts.reconHealth.attempts++;
+    // eslint-disable-next-line no-useless-assignment -- reset to null in catch on Samsara outage; keeps recon defined for the if-block
     let recon: Awaited<ReturnType<typeof reconcileWithSamsara>> = null;
     try {
       recon = await reconcileWithSamsara(
@@ -1005,7 +1006,7 @@ export async function backfillOrg(
     while (i < fills.length) {
       if (aborted || canceled) return;
       // Bucket consecutive fills whose windows overlap, capped so one fetch stays bounded.
-      let bStart = fills[i]!.centerMs - winMsOf(fills[i]!);
+      const bStart = fills[i]!.centerMs - winMsOf(fills[i]!);
       let bEnd = fills[i]!.centerMs + winMsOf(fills[i]!);
       const bucket: TxnMeta[] = [fills[i]!];
       let j = i + 1;
