@@ -59,9 +59,14 @@ CI verification of each push (full `vite build` + `vue-tsc` + suites) is the aut
       **USER-GATED remainder:** run the EXPLAIN runbook on a scale-sized tenant to confirm the 2 gaps + decide
       the 3 optional items; adopt the retention policy before those tables get large. `0066` on a live DB
       should be applied with `CREATE INDEX CONCURRENTLY` (see runbook §"Applying on a live DB").
-- [ ] **Phase 7 — YAML SSOT + codegen:** the consistency layer (generate contracts/types/scaffolding from a
-      single source of truth; business logic stays hand-authored). Prereq: Phases 1–6 landed. Prove on one
-      module first.
+- [~] **Phase 7 — YAML SSOT + codegen — PROVEN ON ONE MODULE (this session).** Built the pattern on the
+      anomaly rule catalog: `catalog.yaml` (SSOT) → `scripts/gen-rule-catalog.mjs` (dependency-free) →
+      `catalog.generated.ts`; `ids.ts`/`cases.ts` now consume it, logic stays hand-authored. `pnpm gen:rules`
+      + `lint:codegen` drift guard. Byte-identical to prior constants; 636 shared + 120 api tests green, all
+      packages typecheck. See `docs/plans/PHASE-7-SSOT-CODEGEN.md`. **TWO follow-ups for you:** (1) add the
+      `Codegen up-to-date` step to `.github/workflows/ci.yml` (protected file — snippet in the doc); run
+      `pnpm install` is NOT needed (no new deps). (2) Extend the recipe to the next module when ready —
+      detection thresholds is the best next candidate (zod schema + defaults + type from `thresholds.yaml`).
 
 ## D. Guardrail hygiene (ongoing)
 
