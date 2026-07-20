@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TmsMovementInput, DriverTimeOffInput } from "@fuelguard/shared";
+import { generateIngestToken, hashIngestToken } from "../lib/ingestToken.js";
 
 /**
  * TMS ingest — receives the NEUTRAL rows the on-prem sync agent POSTs (after it reads McLeod LoadMaster's
@@ -16,7 +17,11 @@ export interface IngestResult {
   unmatched: string[];
 }
 
-/** Resolve the org (+ provider) that owns an ingest bearer token, or null if unknown / disabled. */
+/**
+ * Resolve the org (+ provider) that owns an ingest bearer token, or null if unknown / disabled. The token is
+ * matched by HASH — the plaintext is never stored — and only against an ENABLED integration, so a disabled or
+ * rotated token stops working immediately.
+ */
 export async function orgForIngestToken(
   admin: SupabaseClient,
   token: string,
@@ -25,11 +30,84 @@ export async function orgForIngestToken(
   const { data } = await admin
     .from("org_integrations")
     .select("org_id, provider, enabled")
-    .eq("ingest_token", token)
+    .eq("ingest_token_hash", hashIngestToken(token))
     .eq("enabled", true)
     .maybeSingle();
   if (!data) return null;
   return { orgId: (data as { org_id: string }).org_id, provider: (data as { provider: string }).provider };
+}
+
+export interface TmsIntegrationStatus {
+  enabled: boolean;
+  hasToken: boolean;
+  tokenPrefix: string | null;
+  lastSyncedAt: string | null;
+}
+
+/** Non-secret status for the settings UI (never returns the token or its hash). */
+export async function getTmsIntegrationStatus(
+  admin: SupabaseClient,
+  orgId: string,
+  provider: string,
+): Promise<TmsIntegrationStatus> {
+  const { data } = await admin
+    .from("org_integrations")
+    .select("enabled, ingest_token_hash, ingest_token_prefix, last_synced_at")
+    .eq("org_id", orgId)
+    .eq("provider", provider)
+    .maybeSingle();
+  const row = data as { enabled?: boolean; ingest_token_hash?: string | null; ingest_token_prefix?: string | null; last_synced_at?: string | null } | null;
+  return {
+    enabled: row?.enabled ?? false,
+    hasToken: !!row?.ingest_token_hash,
+    tokenPrefix: row?.ingest_token_prefix ?? null,
+    lastSyncedAt: row?.last_synced_at ?? null,
+  };
+}
+
+/**
+ * Enable the integration and issue a fresh ingest token (also the ROTATE path — re-calling invalidates the
+ * previous token, since only the newest hash is stored). Returns the one-time plaintext for the admin to copy
+ * into the agent; only the hash + prefix are persisted.
+ */
+export async function enableTmsIntegration(
+  admin: SupabaseClient,
+  orgId: string,
+  provider: string,
+): Promise<{ token: string; prefix: string }> {
+  const { token, hash, prefix } = generateIngestToken();
+  const { error } = await admin.from("org_integrations").upsert(
+    {
+      org_id: orgId,
+      provider,
+      enabled: true,
+      ingest_token_hash: hash,
+      ingest_token_prefix: prefix,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "org_id,provider" },
+  );
+  if (error) throw new Error(error.message);
+  return { token, prefix };
+}
+
+/** Disable the integration and CLEAR the token hash so no agent can post until it's re-enabled. */
+export async function disableTmsIntegration(admin: SupabaseClient, orgId: string, provider: string): Promise<void> {
+  const { error } = await admin
+    .from("org_integrations")
+    .update({ enabled: false, ingest_token_hash: null, ingest_token_prefix: null, updated_at: new Date().toISOString() })
+    .eq("org_id", orgId)
+    .eq("provider", provider);
+  if (error) throw new Error(error.message);
+}
+
+/** Stamp a successful sync so the UI can show freshness. Best-effort — never fails the ingest. */
+export async function touchLastSynced(admin: SupabaseClient, orgId: string, provider: string): Promise<void> {
+  await admin
+    .from("org_integrations")
+    .update({ last_synced_at: new Date().toISOString() })
+    .eq("org_id", orgId)
+    .eq("provider", provider);
 }
 
 async function unitMap(

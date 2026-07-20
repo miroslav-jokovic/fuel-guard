@@ -23,7 +23,9 @@ export const tmsMovementInputSchema = z.object({
 export type TmsMovementInput = z.infer<typeof tmsMovementInputSchema>;
 
 export const tmsMovementsPayloadSchema = z.object({
-  movements: z.array(tmsMovementInputSchema).max(5000),
+  // Bounded per request; the agent chunks larger syncs into ≤1000-row batches (keeps bodies well under the
+  // ingest size limit and each request cheap + retryable).
+  movements: z.array(tmsMovementInputSchema).max(1000),
 });
 export type TmsMovementsPayload = z.infer<typeof tmsMovementsPayloadSchema>;
 
@@ -41,7 +43,7 @@ export const driverTimeOffInputSchema = z.object({
 export type DriverTimeOffInput = z.infer<typeof driverTimeOffInputSchema>;
 
 export const driverTimeOffPayloadSchema = z.object({
-  windows: z.array(driverTimeOffInputSchema).max(5000),
+  windows: z.array(driverTimeOffInputSchema).max(1000),
 });
 export type DriverTimeOffPayload = z.infer<typeof driverTimeOffPayloadSchema>;
 

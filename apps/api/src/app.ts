@@ -19,6 +19,7 @@ import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { webhooksRouter } from "./routes/webhooks.js";
+import { tmsIngestRouter } from "./routes/tmsIngest.js";
 import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./routes/jobs.js";
 
@@ -54,6 +55,15 @@ export function createApp(env: Env): Express {
     }),
   );
   app.use(cors({ origin: env.ALLOWED_ORIGINS, credentials: true }));
+
+  // TMS agent ingest — token-authenticated (NOT a browser/user), so it's mounted BEFORE the global 1 MB JSON
+  // parser: it brings its own larger body parser (≤1000-row batches) and must not inherit the browser API's
+  // rules. Its own rate limiter guards against abuse / token-guessing. It still 401s unauthenticated requests,
+  // so the route-auth fitness test covers it like any other router.
+  const ingestLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 300, standardHeaders: "draft-7", legacyHeaders: false });
+  app.use("/api/tms", ingestLimiter);
+  app.use("/api/tms", tmsIngestRouter());
+
   // Capture the exact raw body so provider webhooks (Samsara) can be HMAC-verified byte-for-byte.
   app.use(
     express.json({

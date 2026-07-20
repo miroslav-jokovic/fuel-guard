@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ingestMovements, ingestDriverTimeOff, orgForIngestToken } from "./tmsIngest.js";
+import { hashIngestToken } from "../lib/ingestToken.js";
 
 interface Write { table: string; op: "upsert" | "insert"; payload: Record<string, unknown>[] }
 type SelectState = { table: string; eq: Record<string, unknown> };
@@ -47,13 +48,15 @@ describe("tms ingest", () => {
     expect(res.unmatched).toContain("T-999");
   });
 
-  it("resolves a token to its org, and rejects unknown/disabled tokens", async () => {
+  it("resolves a token by HASH (never plaintext) to its org, and rejects unknown/empty tokens", async () => {
     const { admin } = makeAdmin((q) =>
-      q.table === "org_integrations" && q.eq.ingest_token === "tok" ? [{ org_id: "org1", provider: "mcleod", enabled: true }] : [],
+      q.table === "org_integrations" && q.eq.ingest_token_hash === hashIngestToken("tok")
+        ? [{ org_id: "org1", provider: "mcleod", enabled: true }]
+        : [],
     );
     expect(await orgForIngestToken(admin, "tok")).toEqual({ orgId: "org1", provider: "mcleod" });
     expect(await orgForIngestToken(admin, "bad")).toBeNull();
-    expect(await orgForIngestToken(admin, "")).toBeNull();
+    expect(await orgForIngestToken(admin, "")).toBeNull(); // empty short-circuits, never hits the DB
   });
 
   it("upserts driver time-off, matching drivers by employee id", async () => {
