@@ -38,6 +38,29 @@ Access is gated by McLeod: API access must be enabled for the account (and, for 
 credentials issued through their developer portal / partner process). So step one is confirming the carrier's
 edition and getting credentials — this is a customer-configuration prerequisite, not something we can code around.
 
+## Your environment (confirmed)
+
+From the LoadMaster client config: this is **LoadMaster Enterprise 22.10, self-hosted on-premises** (instance
+`sivm-2210-prod`, app server on an internal host/port, RMI on a private 10.x address, Oracle/SQL-Server backend,
+EDI client enabled, `America/Chicago`). That settles the edition question: the integration path is the **classic
+LoadMaster `ws` web-services API** (OrderService / MovementService / StopService / DriverService), **not** the
+cloud Innovation Hub. Two consequences:
+
+- **Network bridging is the real work.** Because LoadMaster runs inside the carrier's private network, a cloud
+  SaaS (FuelGuard on Railway) can't reach it directly. One of these has to be arranged:
+  1. **Expose the `ws` endpoint** to the internet behind a reverse proxy with **IP allowlisting** (only
+     FuelGuard's egress IPs) + TLS + the ws token — simplest for us, needs their IT to open a hole safely.
+  2. **On-prem sync agent** — a tiny outbound-only job that runs on their network (or on the McLeod app server),
+     reads the `ws` API locally, and POSTs the movement/driver-time data to a FuelGuard ingest endpoint. Most
+     secure (no inbound holes), a little more to build/operate. Their IT provider already administers the box, so
+     this is realistic.
+  3. **Site-to-site VPN / tunnel** between FuelGuard's infra and their network — heavier, usually overkill here.
+- **ws API + token must be enabled in LoadMaster.** 22.10 ships the `ws` services; they (or their McLeod
+  admin / IT provider) enable the web-service user and issue a company + token. This is the credential we store.
+
+Recommendation: **option 2 (outbound on-prem agent)** unless their IT prefers to expose the `ws` endpoint with an
+allowlist. It avoids inbound firewall changes and keeps McLeod unreachable from the public internet.
+
 ## Proposed architecture (fits the existing Samsara pattern)
 
 FuelGuard already integrates a third-party telematics system (Samsara) with a clean, copyable shape:
@@ -116,21 +139,24 @@ and stop "expected reefer fuel / expected miles" logic from running during home 
 4. **Webhooks / freshness** — if the carrier is on Innovation Hub, subscribe to load-status webhooks instead of
    polling for near-real-time load context.
 
-## Open questions (needed before Phase 1 — these are carrier-specific)
+## Open questions (needed before Phase 1)
 
-1. **Edition & deployment.** Is the carrier on **LoadMaster Enterprise (on-prem / McLeod-hosted, classic
-   `ws` API)** or the newer **cloud / Innovation Hub (FusionAPI, OAuth)**? This decides the client + auth.
-2. **API access.** Is McLeod API access already enabled for the account, and do we have (or can we get)
-   credentials — a `ws` company+token, or an Innovation Hub `client_id`/`client_secret`? McLeod must turn this on.
-3. **Reefer-load representation.** In their McLeod, what marks a movement as temperature-controlled — an order
+1. ~~**Edition & deployment.**~~ **Resolved:** on-prem LoadMaster Enterprise 22.10 → classic `ws` API.
+2. **Network bridge.** Which of the three above does their IT prefer — expose the `ws` endpoint with an IP
+   allowlist, or run an outbound on-prem sync agent (recommended)? This is the gating decision now.
+3. **ws enablement + credentials.** Enable the LoadMaster web-service user and issue a company + token. Their
+   McLeod admin / IT provider does this; we store the token server-side only.
+4. **Reefer-load representation.** In their McLeod, what marks a movement as temperature-controlled — an order
    **temperature-controlled flag**, a **temperature setpoint** field, specific **commodity codes**, or an
-   **order type**? We map that to `tms_movements.temperature_controlled`.
-4. **Home-time representation.** How is driver time-off / home time recorded — a **driver status**, **time-off
+   **order type**? We map that to `tms_movements.temperature_controlled`. (Best confirmed by pulling a few real
+   movements once connectivity exists.)
+5. **Home-time representation.** How is driver time-off / home time recorded — a **driver status**, **time-off
    records**, or dispatch **availability/planning** data? Determines the `driver_time_off` source.
-5. **Identity mapping.** How do McLeod tractor / trailer / driver ids line up with our units — shared
+6. **Identity mapping.** How do McLeod tractor / trailer / driver ids line up with our units — shared
    **unit numbers**, or do we need to store McLeod external ids on `vehicles` / `trailers` / `drivers`?
 
-Answering 1–5 unblocks Phase 1; Phases 2–3 are the parts that actually fix the Alerts page.
+Answering 2–3 unblocks Phase 1 connectivity; 4–6 get confirmed against real data during Phase 1 and drive
+Phases 2–3 (the parts that actually fix the Alerts page).
 
 ## Sources
 
