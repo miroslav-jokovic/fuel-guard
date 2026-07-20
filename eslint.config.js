@@ -77,6 +77,18 @@ export default tseslint.config(
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      // Module boundary: consume the shared package through its public barrel, not deep internals.
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@fuelguard/shared/*"],
+              message: "Import from the @fuelguard/shared barrel (its index), not deep internal paths.",
+            },
+          ],
+        },
+      ],
     },
   },
   prettier,
