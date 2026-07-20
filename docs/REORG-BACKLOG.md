@@ -76,3 +76,23 @@ Phase 3: split all four god-files (efsImport, anomalyRules, scoring, samsara) ve
 barrels — grandfather list 4 → 1; 636 shared + 115 api tests green throughout. ·
 Phase 4: AnomalyDetail (485→340) + IdlingPage (428→242) logic → composables, templates byte-identical. ·
 Phase 5: schedulers → worker process behind `RUN_SCHEDULERS_IN_PROCESS`.
+
+---
+
+## Progress log (skipped-item cleanup)
+
+- **B3 cross-feature boundary — DONE (9ca4ee6).** Moved `useVehicles`/`useDrivers`/`useOrgSettings` to
+  `@/composables` (updated 18 importers); added `scripts/check-feature-boundaries.mjs` + CI step (a
+  fitness function that blocks new cross-feature imports; `anomalies -> ai` allowlisted). `useTrailers`
+  stays in `features/fleet` — only reached via pages, so no violation.
+- **Phase 4 leftovers — partially done.** AnomaliesPage DONE (361a7f3): 353→168 + `useAnomaliesPage`
+  (placed in `pages/` since it orchestrates across features). **DashboardPage: intentionally skipped** —
+  its script is view-configuration (chart specs + KPI-tile definitions), already under the 500-line budget
+  and already delegating data to `useDashboard`; extracting it would move view code away from the view
+  with no maintainability gain. AppShell (layout) similarly not worth decomposing.
+- **`scoreTransaction` (B1) — NOT started, by design.** It is ~600 lines orchestrating Supabase + Samsara
+  + anomaly persistence with near-zero test coverage. Shallow characterization tests would give false
+  confidence on the most critical path. Correct approach (its own focused session): build a full fake
+  Supabase admin + Samsara mock, characterize the `skipRecon` (rebuild) path first, then the live-recon
+  path, verify green against current behavior, THEN split — keeping tests green. Remains the sole
+  grandfathered file in `scripts/check-file-size.mjs`.
