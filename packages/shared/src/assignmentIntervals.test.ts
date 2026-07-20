@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAssignmentIntervals, matchAssignmentAt } from "./samsara.js";
+import { parseAssignmentIntervals, matchAssignmentAt } from "./samsara/index.js";
 
 describe("parseAssignmentIntervals", () => {
   it("parses grouped assignments into time-ranged intervals", () => {

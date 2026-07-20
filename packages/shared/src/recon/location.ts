@@ -4,7 +4,7 @@ import {
   resolveLocationConfidence,
   type LocationConfidence,
   type SamsaraSample,
-} from "../samsara.js";
+} from "../samsara/index.js";
 
 /** Where the truck actually was at the fill (preferred from the tank-rise event when present). */
 export interface ObservedLocation {

@@ -18,7 +18,7 @@ export * from "./detectionCoverage.js";
 export * from "./recallMetrics.js";
 export * from "./org.js";
 export * from "./email.js";
-export * from "./samsara.js";
+export * from "./samsara/index.js";
 export * from "./recon/tankFuel.js";
 export * from "./recon/odometer.js";
 export * from "./recon/location.js";

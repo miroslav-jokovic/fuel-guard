@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveTankFuel } from "./tankFuel.js";
-import type { TankReading } from "../samsara.js";
+import type { TankReading } from "../samsara/index.js";
 
 const R = (time: string, percent: number): TankReading => ({ time, percent });
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveOdometer } from "./odometer.js";
-import type { SamsaraSample } from "../samsara.js";
+import type { SamsaraSample } from "../samsara/index.js";
 
 const S = (time: string, odo: number, src: "obd" | "gps"): SamsaraSample => ({
   time,

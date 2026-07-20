@@ -1,4 +1,4 @@
-import { tankPercentNear, reconcileTankFill, type TankReading } from "../samsara.js";
+import { tankPercentNear, reconcileTankFill, type TankReading } from "../samsara/index.js";
 
 /**
  * S4 — Tank & fuel-level module. The ONLY place tank levels + the tank-fill reconciliation are computed.

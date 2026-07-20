@@ -1,4 +1,4 @@
-import { odometerAtTimeSourced, type OdometerSource, type SamsaraSample } from "../samsara.js";
+import { odometerAtTimeSourced, type OdometerSource, type SamsaraSample } from "../samsara/index.js";
 
 /**
  * S3 — Odometer-at-fill module. The ONLY place the fueling-time odometer is read. Given the GPS/odometer
