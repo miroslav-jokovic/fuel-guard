@@ -19,8 +19,7 @@ let markers: maplibregl.Marker[] = [];
 let authSub: { unsubscribe(): void } | null = null;
 
 // Resolve a semantic token to a concrete color at runtime (no hex literals in source): render a hidden
-// element with the token class, read its computed color, then normalize through a canvas — the design
-// tokens are authored in oklch(), which maplibre's style parser rejects; canvas returns rgb/hex it accepts.
+// element with the token class and read its computed color, then normalize to rgb() for maplibre.
 function tokenColor(cls: string): string {
   const el = document.createElement("span");
   el.className = cls;
@@ -28,18 +27,36 @@ function tokenColor(cls: string): string {
   document.body.appendChild(el);
   const raw = window.getComputedStyle(el).color;
   el.remove();
-  // The design tokens are authored in oklch(), which maplibre cannot parse — and canvas serialization
-  // round-trips oklch() unchanged in current Chromium. So rasterize one pixel and read the actual sRGB
-  // bytes back: that always yields an rgb() string maplibre accepts, regardless of the source color space.
-  const cv = document.createElement("canvas");
-  cv.width = 1;
-  cv.height = 1;
-  const ctx = cv.getContext("2d");
-  if (!ctx) return "rgb(37, 99, 235)";
-  ctx.fillStyle = raw;
-  ctx.fillRect(0, 0, 1, 1);
-  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-  return `rgb(${r}, ${g}, ${b})`;
+  return toMapColor(raw);
+}
+
+// The design tokens are authored in oklch(), which maplibre's style parser rejects. getComputedStyle returns
+// either rgb()/rgba() (older engines) or oklch() (Chromium/Edge ≥ ~120). Convert oklch → sRGB rgb()
+// DETERMINISTICALLY in JS — the previous canvas round-trip left oklch untouched on some engines (Edge), which
+// is exactly why maplibre threw "color expected, 'oklch(…)'" and the route line failed to render.
+function toMapColor(color: string): string {
+  const s = color.trim();
+  const m = /^oklch\(\s*([\d.]+%?)\s+([\d.]+%?)\s+([\d.]+)/i.exec(s);
+  if (!m) return s || "rgb(37, 99, 235)"; // already rgb()/rgba()/hex (maplibre-safe); literal only guards empty
+  const L = m[1]!.endsWith("%") ? parseFloat(m[1]!) / 100 : parseFloat(m[1]!);
+  const C = m[2]!.endsWith("%") ? (parseFloat(m[2]!) / 100) * 0.4 : parseFloat(m[2]!); // 100% chroma = 0.4 (CSS)
+  const h = (parseFloat(m[3]!) * Math.PI) / 180;
+  const a = C * Math.cos(h);
+  const b = C * Math.sin(h);
+  // OKLab → LMS (cubed) → linear sRGB (Björn Ottosson's matrices) → gamma-encoded sRGB byte.
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m2 = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s2 = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  const lin = [
+    4.0767416621 * l - 3.3077115913 * m2 + 0.2309699292 * s2,
+    -1.2684380046 * l + 2.6097574011 * m2 - 0.3413193965 * s2,
+    -0.0041960863 * l - 0.7034186147 * m2 + 1.707614701 * s2,
+  ];
+  const toByte = (u: number) => {
+    const v = u <= 0.0031308 ? 12.92 * u : 1.055 * Math.pow(u, 1 / 2.4) - 0.055;
+    return Math.round(Math.min(1, Math.max(0, v)) * 255);
+  };
+  return `rgb(${toByte(lin[0]!)}, ${toByte(lin[1]!)}, ${toByte(lin[2]!)})`;
 }
 
 // The tile proxy is authenticated (Bearer JWT). maplibre fetches tiles from a worker with no auth header,
