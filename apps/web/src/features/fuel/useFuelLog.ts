@@ -1,6 +1,6 @@
 import { type Ref, toValue } from "vue";
 import { useQuery, keepPreviousData, useMutation, useQueryClient } from "@tanstack/vue-query";
-import { derivePricePerGal, type FillUpInput, type FuelTransaction } from "@fuelguard/shared";
+import { derivePricePerGal, robustWindowMiles, type FillUpInput, type FuelTransaction } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";
@@ -72,14 +72,20 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
 }
 
 export interface FuelRangeTotals {
-  /** Sum of stored per-fill miles (odometer delta between fuelings) across ALL matching fills. */
+  /** Fleet miles ACTUALLY driven inside the range: per-truck robust odometer span (max−min within range),
+   *  summed. Not the sum of per-fill `miles_since_last` — that over-counts (each fill's delta reaches back
+   *  to the truck's previous fill, usually BEFORE the range start). */
   totalMiles: number;
   totalGallons: number;
 }
 
+const n = (v: number | string | null): number | null => (v == null ? null : Number(v));
+
 /**
- * Range-wide totals across every fill matching the filters (not just the current page). Pages through
- * two small columns and sums them, so "Total miles" reflects the whole selected date range / vehicle.
+ * Range-wide totals across every fill matching the filters (not just the current page). Miles are the
+ * robust per-vehicle odometer span WITHIN the range (via the same `robustWindowMiles` the scoring engine
+ * uses — OBD-preferred, regression- and typo-safe), so "Total miles driven in range" reflects distance
+ * covered between the first and last in-range fill per truck, not the inflated sum of inter-fill deltas.
  */
 export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
   return useQuery({
@@ -88,10 +94,17 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
     queryFn: async (): Promise<FuelRangeTotals> => {
       const f = toValue(filters);
       const PAGE = 1000;
-      let totalMiles = 0;
+      // Group in-range fills by vehicle, OLDEST→NEWEST (robustWindowMiles expects that order).
+      const byVehicle = new Map<string, { enteredOdometer: number | null; samsaraOdometer: number | null; samsaraSource: string | null }[]>();
       let totalGallons = 0;
       for (let start = 0; ; start += PAGE) {
-        let q = supabase.from("fuel_transactions").select("miles_since_last, gallons").range(start, start + PAGE - 1);
+        let q = supabase
+          .from("fuel_transactions")
+          .select("vehicle_id, odometer, samsara_odometer, samsara_odometer_source, gallons")
+          // vehicle_id then fueled_at keeps each truck's readings contiguous AND ordered → stable paging.
+          .order("vehicle_id", { ascending: true })
+          .order("fueled_at", { ascending: true })
+          .range(start, start + PAGE - 1);
         if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
         if (f.driverId) q = q.eq("driver_id", f.driverId);
         if (f.tankType) q = q.eq("tank_type", f.tankType);
@@ -101,12 +114,25 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         if (or) q = q.or(or);
         const { data, error } = await q;
         if (error) throw new Error(error.message);
-        const batch = (data ?? []) as { miles_since_last: number | string | null; gallons: number | string | null }[];
+        const batch = (data ?? []) as {
+          vehicle_id: string | null;
+          odometer: number | string | null;
+          samsara_odometer: number | string | null;
+          samsara_odometer_source: string | null;
+          gallons: number | string | null;
+        }[];
         for (const r of batch) {
-          if (r.miles_since_last != null) totalMiles += Number(r.miles_since_last);
           if (r.gallons != null) totalGallons += Number(r.gallons);
+          if (!r.vehicle_id) continue;
+          const list = byVehicle.get(r.vehicle_id) ?? [];
+          list.push({ enteredOdometer: n(r.odometer), samsaraOdometer: n(r.samsara_odometer), samsaraSource: r.samsara_odometer_source });
+          byVehicle.set(r.vehicle_id, list);
         }
         if (batch.length < PAGE) break;
+      }
+      let totalMiles = 0;
+      for (const rows of byVehicle.values()) {
+        totalMiles += robustWindowMiles(rows).miles ?? 0; // null (data-quality) → contributes 0
       }
       return { totalMiles, totalGallons };
     },
