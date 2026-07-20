@@ -407,12 +407,14 @@ function ruleReeferFuelDiversion(ctx: RuleContext): RuleResult {
   const days = thresholds.reeferDiversionWindowDays ?? 30;
   if (winTractor < minTractor) return none("reefer_fuel_diversion"); // not enough activity to expect reefer fuel
   if (winReefer > maxReefer) return none("reefer_fuel_diversion"); // reefer IS being fueled → nothing to flag
+  // TMS (McLeod) gate (see RuleContext.reeferLoadInWindow): no reefer load pulled → reefer never ran → suppress.
+  if (ctx.reeferLoadInWindow === false) return none("reefer_fuel_diversion");
   return {
     ruleId: "reefer_fuel_diversion",
     fired: true,
     severity: "medium",
     message: `This truck hauls a reefer but bought ${winReefer <= 0 ? "no" : `only ${r2(winReefer)} gal of`} reefer (ULSR) fuel in ${days} days while buying ${r2(winTractor)} gal of ULSD — the reefer may be fueled off ULSD selected at the pump.`,
-    evidence: { reeferGalInWindow: r2(winReefer), tractorGalInWindow: r2(winTractor), windowDays: days, minTractorGal: minTractor, maxReeferGal: maxReefer },
+    evidence: { reeferGalInWindow: r2(winReefer), tractorGalInWindow: r2(winTractor), windowDays: days, minTractorGal: minTractor, maxReeferGal: maxReefer, reeferLoadInWindow: ctx.reeferLoadInWindow ?? null },
   };
 }
 

@@ -182,6 +182,7 @@ export async function scoreTransaction(
   let orgUsesReeferFuel = false;
   let reeferDiversionReeferGal = 0;
   let reeferDiversionTractorGal = 0;
+  let reeferLoadInWindow: boolean | undefined; // McLeod/TMS reefer-load gate; undefined = no feed (unchanged)
   if (txn.vehicleId && txn.tankType !== "reefer") {
     const { data: pairedRows } = await admin
       .from("trailers")
@@ -218,6 +219,30 @@ export async function scoreTransaction(
         .lte("fueled_at", r.fueled_at)
         .limit(1);
       orgUsesReeferFuel = ((orgReefer ?? []) as unknown[]).length > 0;
+
+      // McLeod/TMS reefer-load gate (opt-in): only when the org has an ENABLED TMS feed do we consult it. A
+      // reefer-paired truck that pulled no temperature-controlled load in the window had no reason to buy
+      // reefer fuel, so the rule suppresses the alert. No feed -> reeferLoadInWindow stays undefined and the
+      // fuel-only heuristic is unchanged (one tiny indexed lookup is the only cost for non-TMS orgs).
+      const { data: tmsOn } = await admin
+        .from("org_integrations")
+        .select("enabled")
+        .eq("org_id", orgId)
+        .eq("provider", "mcleod")
+        .eq("enabled", true)
+        .maybeSingle();
+      if (tmsOn) {
+        const { data: tempLoads } = await admin
+          .from("tms_movements")
+          .select("id")
+          .eq("org_id", orgId)
+          .eq("vehicle_id", txn.vehicleId)
+          .eq("temperature_controlled", true)
+          .gte("started_at", divStart)
+          .lte("started_at", r.fueled_at)
+          .limit(1);
+        reeferLoadInWindow = ((tempLoads ?? []) as unknown[]).length > 0;
+      }
     }
   }
 
@@ -244,6 +269,7 @@ export async function scoreTransaction(
     orgUsesReeferFuel,
     reeferDiversionReeferGal,
     reeferDiversionTractorGal,
+    reeferLoadInWindow,
   });
 
   // Correlate the fired signals into ONE per-transaction case (multi-signal model). A lone weak signal

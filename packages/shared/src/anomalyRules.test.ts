@@ -429,6 +429,33 @@ describe("reefer tank split (Phase 0)", () => {
   });
 });
 
+describe("reefer_fuel_diversion — TMS (McLeod) reefer-load gate", () => {
+  // A context that WOULD fire the fuel-only heuristic: reefer-paired, org codes reefer fuel, plenty of ULSD
+  // but zero ULSR in the window.
+  const base = () =>
+    ctx({
+      txn: txn({ tankType: "tractor", gallons: 40 }),
+      reeferPaired: true,
+      orgUsesReeferFuel: true,
+      reeferDiversionTractorGal: 200, // ≥ 150 default min
+      reeferDiversionReeferGal: 0, // ≤ 0 default max → would fire
+    });
+
+  it("fires on the fuel-only heuristic when there is NO TMS feed (undefined)", () => {
+    expect(ids(base())).toContain("reefer_fuel_diversion");
+  });
+
+  it("SUPPRESSES when TMS shows no temperature-controlled load ran in the window (false)", () => {
+    expect(ids({ ...base(), reeferLoadInWindow: false })).not.toContain("reefer_fuel_diversion");
+  });
+
+  it("still fires and cites the load when TMS confirms a reefer load ran (true)", () => {
+    const fired = runAllRules({ ...base(), reeferLoadInWindow: true }).find((r) => r.ruleId === "reefer_fuel_diversion");
+    expect(fired).toBeDefined();
+    expect(fired!.evidence).toMatchObject({ reeferLoadInWindow: true });
+  });
+});
+
 describe("hardening — time confidence (EFS auth-time vs telematics)", () => {
   it("suppresses off-hours + rapid-repeat when the posted time is UNcorroborated (timeConfirmed=false)", () => {
     // 02:00 Chicago posted time would fire off_hours, but we couldn't corroborate it (may be an EFS

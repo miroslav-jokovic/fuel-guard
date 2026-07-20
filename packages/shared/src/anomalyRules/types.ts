@@ -204,6 +204,14 @@ export interface RuleContext {
   reeferDiversionReeferGal?: number;
   /** This truck's tractor (ULSD) gallons over the reefer-diversion window (activity signal). */
   reeferDiversionTractorGal?: number;
+  /**
+   * McLeod/TMS gate — did this truck pull a temperature-controlled (reefer) load in the diversion window?
+   *   undefined = no TMS feed → fall back to the fuel-only heuristic (unchanged for non-TMS orgs);
+   *   false     = TMS connected but NO reefer load ran → buying no reefer fuel is expected → SUPPRESS;
+   *   true      = it hauled cold freight → the signal stands.
+   * Only ever SUPPRESSES the alert; it never raises a new one.
+   */
+  reeferLoadInWindow?: boolean;
 }
 
 export interface RuleResult {
