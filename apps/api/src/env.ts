@@ -98,6 +98,13 @@ const EnvSchema = z.object({
     .default("true")
     .transform((s) => s.toLowerCase() !== "false"),
 
+  // Whether THIS process also runs the background schedulers in-process (default true, single-service
+  // deploy). Set RUN_SCHEDULERS_IN_PROCESS=false on the API service when a dedicated worker runs them.
+  RUN_SCHEDULERS_IN_PROCESS: z
+    .string()
+    .default("true")
+    .transform((s) => s.toLowerCase() !== "false"),
+
   // Automated EFS report ingestion (removes the daily manual upload). "off" (default) disables the
   // scheduler. Sources: "storage" polls a Supabase Storage bucket where reports land under
   // <orgId>/incoming/; "graph" reads an M365 mailbox via Microsoft Graph (see docs/plans/EFS-MICROSOFT365-SETUP.md).
