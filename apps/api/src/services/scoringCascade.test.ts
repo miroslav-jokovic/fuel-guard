@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { affectedVehicleIds } from "./scoring.js";
+import { affectedVehicleIds } from "./scoring/index.js";
 
 /** Fake admin for: from().select().eq().eq().not() → { data }. */
 function makeAdmin(rows: { vehicle_id: string | null }[]) {

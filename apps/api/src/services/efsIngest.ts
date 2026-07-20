@@ -11,7 +11,7 @@ import {
   type ReportKind,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
-import { scoreImportWithCascade } from "./scoring.js";
+import { scoreImportWithCascade } from "./scoring/index.js";
 import { scoreDeclinedImport } from "./declinedScoring.js";
 
 /**

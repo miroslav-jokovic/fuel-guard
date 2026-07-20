@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "./efsSync.js";
-import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring.js";
+import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring/index.js";
 import { startJob, finishJob, latestJob, JobConflictError } from "./jobs.js";
 
 const TARGET_HOUR = 3; // org-local hour to run the nightly self-heal

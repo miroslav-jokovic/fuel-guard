@@ -6,7 +6,7 @@ import {
   type ParsedFuelLine,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
-import { scoreTransaction } from "./scoring.js";
+import { scoreTransaction } from "./scoring/index.js";
 
 /**
  * Self-heal fuel_transactions from the faithful EFS store (docs: docs/plans/DATA-RELIABILITY-CHANGES.md).

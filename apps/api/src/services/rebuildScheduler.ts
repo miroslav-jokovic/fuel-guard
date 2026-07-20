@@ -1,6 +1,6 @@
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring.js";
+import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring/index.js";
 import { writeAudit } from "../lib/audit.js";
 
 /**

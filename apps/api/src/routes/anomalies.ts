@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { verifyTransactionDetailed, type VerifyReason } from "../services/aiVerification.js";
-import { scoreTransaction } from "../services/scoring.js";
+import { scoreTransaction } from "../services/scoring/index.js";
 import { triageOpenCases } from "../services/aiTriage.js";
 
 const REASON_MESSAGE: Record<VerifyReason, string> = {
