@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/vue/20/solid";
+import { CheckCircleIcon, ChevronDownIcon, ExclamationTriangleIcon } from "@heroicons/vue/20/solid";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -38,6 +38,7 @@ const rows = computed<Row[]>(() => {
 });
 
 const gaps = computed(() => rows.value.filter((r) => r.total > 0 && r.ok < r.total).length);
+const open = ref(true); // the checklist starts expanded; collapse it once you've reviewed the gaps
 const pct = (r: Row) => (r.total === 0 ? 0 : Math.round((r.ok / r.total) * 100));
 const meterTone = (r: Row) =>
   r.ok >= r.total
@@ -60,13 +61,27 @@ const textTone = (r: Row) =>
   </BaseCard>
 
   <BaseCard v-else>
-    <div class="mb-4 flex items-center justify-between gap-2">
-      <h3 class="text-sm font-semibold text-ink">Fleet readiness</h3>
+    <button
+      type="button"
+      class="flex w-full items-center justify-between gap-2 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+      :class="open ? 'mb-4' : ''"
+      :aria-expanded="open"
+      aria-controls="fleet-readiness-list"
+      @click="open = !open"
+    >
+      <span class="flex items-center gap-2">
+        <ChevronDownIcon
+          class="size-4 text-ink-subtle transition-transform duration-200"
+          :class="open ? '' : '-rotate-90'"
+          aria-hidden="true"
+        />
+        <h3 class="text-sm font-semibold text-ink">Fleet readiness</h3>
+      </span>
       <span :class="[BADGE_BASE, toneClass('warning'), 'normal-case']">
         <ExclamationTriangleIcon class="size-3.5" aria-hidden="true" /> {{ gaps }} to complete
       </span>
-    </div>
-    <ul class="grid grid-cols-1 gap-x-10 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+    </button>
+    <ul v-show="open" id="fleet-readiness-list" class="grid grid-cols-1 gap-x-10 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
       <li v-for="r in rows" :key="r.label" :title="r.why">
         <div class="flex items-center justify-between gap-3">
           <span class="truncate text-ink-secondary">{{ r.label }}</span>

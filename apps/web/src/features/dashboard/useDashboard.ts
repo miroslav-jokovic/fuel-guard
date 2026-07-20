@@ -28,16 +28,22 @@ async function fetchAllPaged<T>(
   return out;
 }
 
-/** Executive dashboard summary for the last N days (org-scoped via RLS). */
-export function useDashboard(days: Ref<number>) {
+/**
+ * Executive dashboard summary for an explicit date range (org-scoped via RLS). `range` holds inclusive
+ * YYYY-MM-DD bounds (the page defaults them to the last 30 days); the window covers the full local days —
+ * start-of-day `from` through end-of-day `to` — so fills anytime on the boundary days are included.
+ */
+export function useDashboard(range: Ref<{ from: string; to: string }>) {
   return useQuery({
-    queryKey: ["dashboard", days],
+    queryKey: ["dashboard", range],
     // Reflect background sync + nightly-reconcile results without a manual reload.
     refetchInterval: 120_000,
-    // Switching the 7/30/90d range keeps the previous frame (dimmed) instead of a skeleton flash.
+    // Changing the range keeps the previous frame (dimmed) instead of a skeleton flash.
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<DashboardSummary> => {
-      const from = new Date(Date.now() - toValue(days) * 86400_000).toISOString();
+      const { from: fromDay, to: toDay } = toValue(range);
+      const from = new Date(`${fromDay}T00:00:00`).toISOString();
+      const to = new Date(`${toDay}T23:59:59.999`).toISOString();
       const [txns, anoms, vehRes, drvRes, orgRes, idleRows, declinedRes] = await Promise.all([
         // Ordered + paged so every fill in the window is aggregated (not just an arbitrary first 1000).
         fetchAllPaged<FuelTransaction>((lo, hi) =>
@@ -45,6 +51,7 @@ export function useDashboard(days: Ref<number>) {
             .from("fuel_transactions")
             .select("id, vehicle_id, driver_id, fueled_at, gallons, total_cost, computed_mpg, tank_type, samsara_recon_at")
             .gte("fueled_at", from)
+            .lte("fueled_at", to)
             .order("fueled_at", { ascending: true })
             .range(lo, hi),
         ),
@@ -65,11 +72,12 @@ export function useDashboard(days: Ref<number>) {
             .from("idle_events")
             .select("duration_sec, cost_usd")
             .gte("started_at", from)
+            .lte("started_at", to)
             .order("started_at", { ascending: true })
             .range(lo, hi),
         ),
         // Declined-attempt count over the same window (head count -> no rows pulled).
-        supabase.from("declined_transactions").select("id", { count: "exact", head: true }).gte("declined_at", from),
+        supabase.from("declined_transactions").select("id", { count: "exact", head: true }).gte("declined_at", from).lte("declined_at", to),
       ]);
       // Bucket trend days in the ORG's timezone — UTC slicing mis-dated evening fills.
       const tz = (orgRes.data?.operating_hours as { tz?: string } | null)?.tz ?? null;

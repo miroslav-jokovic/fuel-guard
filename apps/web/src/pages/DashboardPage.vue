@@ -22,6 +22,7 @@ import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
 import BaseChart from "@/components/BaseChart.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
 import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
@@ -30,9 +31,23 @@ import RiskList from "@/features/dashboard/RiskList.vue";
 import { viz, COST_COLORS, resolve, areaFill, donutGradient, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
 
 const session = useSessionStore();
-const days = ref(30);
-const RANGES = [7, 30, 90];
-const { data: s, isLoading, isFetching } = useDashboard(days);
+// Date range scoping the whole page (YYYY-MM-DD | undefined). Default window: the last 30 days.
+const from = ref<string>();
+const to = ref<string>();
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const range = computed(() => {
+  const end = new Date();
+  const start = new Date(end.getTime() - 30 * 86400_000);
+  return { from: from.value ?? isoDay(start), to: to.value ?? isoDay(end) };
+});
+const { data: s, isLoading, isFetching } = useDashboard(range);
+
+// Human label for the active window (matches the picker's "Jul 1 – Jul 13" style).
+const labelDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const rangeLabel = computed(() => {
+  const { from: f, to: t } = range.value;
+  return f === t ? labelDay(f) : `${labelDay(f)} – ${labelDay(t)}`;
+});
 
 // KPI hero — the money + risk headline, each tile drilling into its detail page.
 const stats = computed(() => {
@@ -43,7 +58,7 @@ const stats = computed(() => {
       label: "Fuel spend",
       value: s.value ? `$${fmtCompact(s.value.totalSpend)}` : "—",
       valueTitle: s.value ? fmtMoney(s.value.totalSpend) : undefined,
-      sub: `last ${days.value} days`,
+      sub: rangeLabel.value,
       icon: CurrencyDollarIcon,
       tone: "text-success-600 bg-success-50",
       spark: s.value?.spendTrend.map((p) => p.value),
@@ -225,7 +240,10 @@ const exporting = ref(false);
 async function exportReport(path: string, filename: string) {
   exporting.value = true;
   try {
-    await downloadReport(`${path}?days=${days.value}`, filename);
+    // Match the on-screen window exactly (the report endpoints read from/to; the old ?days= was ignored).
+    const fromIso = new Date(`${range.value.from}T00:00:00`).toISOString();
+    const toIso = new Date(`${range.value.to}T23:59:59.999`).toISOString();
+    await downloadReport(`${path}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`, filename);
   } catch (e) {
     toast.error("Export failed", e instanceof Error ? e.message : undefined);
   } finally {
@@ -245,27 +263,13 @@ const EXPORTS = [
       <div>
         <h2 class="text-lg font-semibold tracking-tight text-ink">Fleet overview</h2>
         <p class="mt-0.5 flex items-center gap-1.5 text-sm text-ink-muted">
-          Fuel, waste &amp; risk · last {{ days }} days
+          Fuel, waste &amp; risk · {{ rangeLabel }}
           <ArrowPathIcon v-if="isFetching && !isLoading" class="size-3.5 animate-spin text-ink-subtle" aria-hidden="true" />
         </p>
       </div>
 
       <div class="flex flex-wrap items-center gap-3">
-        <div class="inline-flex gap-0.5 rounded-lg bg-surface-muted p-0.5" role="group" aria-label="Date range">
-          <button
-            v-for="d in RANGES"
-            :key="d"
-            type="button"
-            :aria-pressed="days === d"
-            :class="[
-              'rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
-              days === d ? 'bg-surface text-ink shadow-sm ring-1 ring-edge' : 'text-ink-muted hover:text-ink-secondary',
-            ]"
-            @click="days = d"
-          >
-            {{ d }}d
-          </button>
-        </div>
+        <DateRangeFilter v-model:from="from" v-model:to="to" />
 
         <Menu v-if="session.canManage || session.readOnly" as="div" class="relative">
           <MenuButton

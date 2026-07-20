@@ -162,23 +162,22 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 /**
- * Per-slice radial gradient for a doughnut: each arc fades from a soft translucent inner edge to the
- * solid color at the rim — the modern "transparent" ring. Falls back to the flat color before layout
- * (and under jsdom). `hexColors` are the slice hexes, index-aligned to the dataset.
+ * Per-slice LINEAR gradient for a doughnut: a top→bottom sheen (same axis as areaFill) fading from a soft
+ * translucent tint at the top to the solid color at the base. A linear gradient keeps the ring's color
+ * even across its thickness; a radial one (center-out) washed the inner edge of every slice and read as an
+ * inside-out artifact. Falls back to the flat color before layout (and under jsdom). `hexColors` are the
+ * slice hexes, index-aligned to the dataset.
  */
 export function donutGradient(hexColors: string[]) {
   return (context: {
-    chart: { ctx: CanvasRenderingContext2D; chartArea?: { left: number; right: number; top: number; bottom: number } };
+    chart: { ctx: CanvasRenderingContext2D; chartArea?: { top: number; bottom: number } };
     dataIndex: number;
   }) => {
     const color = hexColors[context.dataIndex] ?? hexColors[0] ?? "#000000";
     const area = context.chart.chartArea;
     if (!area) return color;
-    const cx = (area.left + area.right) / 2;
-    const cy = (area.top + area.bottom) / 2;
-    const r = Math.min(area.right - area.left, area.bottom - area.top) / 2;
-    const g = context.chart.ctx.createRadialGradient(cx, cy, Math.max(0, r * 0.62), cx, cy, r);
-    g.addColorStop(0, hexToRgba(color, 0.5));
+    const g = context.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+    g.addColorStop(0, hexToRgba(color, 0.62));
     g.addColorStop(1, color);
     return g;
   };
