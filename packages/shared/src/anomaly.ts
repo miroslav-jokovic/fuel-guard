@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ANOMALY_DISPOSITIONS, type AnomalyDisposition, type AnomalySeverity, type AnomalyStatus } from "./constants.js";
-import { RULE_IDS } from "./anomalyRules.js";
+import { RULE_IDS } from "./anomalyRules/index.js";
 
 /** An anomaly row as the web reads it. */
 export interface Anomaly {

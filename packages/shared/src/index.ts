@@ -1,5 +1,5 @@
 export * from "./constants.js";
-export * from "./anomalyRules.js";
+export * from "./anomalyRules/index.js";
 export * from "./fillConfidence.js";
 export * from "./auth.js";
 export * from "./apiContract.js";

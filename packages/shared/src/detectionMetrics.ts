@@ -9,7 +9,7 @@
  * We report precision with a WILSON 95% score interval so a small sample is never over-read as a hard
  * number (10/10 confirmed is "70–100%", not "100%"). Recall needs sampled clears and is handled separately.
  */
-import { formatRuleId } from "./anomalyRules.js";
+import { formatRuleId } from "./anomalyRules/index.js";
 import type { AnomalyDisposition } from "./constants.js";
 
 export interface DispositionCaseInput {
