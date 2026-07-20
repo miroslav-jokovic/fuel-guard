@@ -36,6 +36,7 @@ const browserGlobals = {
 export default tseslint.config(
   {
     ignores: [
+      "tools/**", // standalone on-prem agent (own Node runtime; not app-linted)
       "**/dist/**",
       "**/node_modules/**",
       "**/coverage/**",

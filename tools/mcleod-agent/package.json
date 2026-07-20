@@ -1,0 +1,11 @@
+{
+  "name": "fuelguard-mcleod-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "On-prem agent that syncs McLeod LoadMaster movements + driver time-off to FuelGuard.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node --env-file=.env agent.mjs"
+  }
+}
