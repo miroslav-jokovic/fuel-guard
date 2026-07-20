@@ -50,10 +50,15 @@ CI verification of each push (full `vite build` + `vue-tsc` + suites) is the aut
 
 - [ ] **Phase 4 leftovers (optional, lower value):** decompose `DashboardPage.vue` (400, already partly on a
       `useDashboard` composable), `AppShell.vue` (377, layout), `AnomaliesPage.vue` (353).
-- [ ] **Phase 6 — high-growth data review:** `EXPLAIN ANALYZE` the hot queries (anomaly list, fuel log,
-      dashboard aggregates, reconcile) on a scale-sized dataset; add composite indexes only where a seq-scan
-      shows up (core tables are already well-indexed); decide a retention/rollup policy for the highest-volume
-      tables (`idle_events`, `route_geometries`).
+- [~] **Phase 6 — high-growth data review — STATIC PASS DONE (this session).** Cross-checked every hot
+      query (anomaly queue, fuel log, dashboard, idle, driver, vehicle-detail, scoring backfill) against
+      existing indexes — schema is already `org_id`-anchored and almost fully covered. Found 2 real gaps →
+      `supabase/migrations/0066_index_coverage.sql` (anomaly status-tab sort; driver-filtered fuel log) and
+      wrote `docs/plans/PHASE-6-DATA-REVIEW.md` (full cross-check table, EXPLAIN runbook, retention/rollup
+      plan for `idle_events` / `route_geometries` / `fuel_prices_posted`, 3 measure-first optional indexes).
+      **USER-GATED remainder:** run the EXPLAIN runbook on a scale-sized tenant to confirm the 2 gaps + decide
+      the 3 optional items; adopt the retention policy before those tables get large. `0066` on a live DB
+      should be applied with `CREATE INDEX CONCURRENTLY` (see runbook §"Applying on a live DB").
 - [ ] **Phase 7 — YAML SSOT + codegen:** the consistency layer (generate contracts/types/scaffolding from a
       single source of truth; business logic stays hand-authored). Prereq: Phases 1–6 landed. Prove on one
       module first.
