@@ -11,6 +11,21 @@ const optionalNumber = z.preprocess(
 );
 
 /**
+ * Tender used for a MANUAL fill that was NOT bought on an EFS card (EFS-card / imported fills already carry
+ * their card attribution). Stored on fuel_transactions.payment_method; null for EFS-card fills.
+ */
+export const PAYMENT_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "efs_check", label: "EFS check" },
+  { value: "personal_card", label: "Personal card" },
+  { value: "fleet_card", label: "Fleet card (non-EFS)" },
+  { value: "fuel_voucher", label: "Fuel voucher" },
+  { value: "other", label: "Other" },
+] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number]["value"];
+const PAYMENT_METHOD_VALUES = PAYMENT_METHODS.map((p) => p.value) as [PaymentMethod, ...PaymentMethod[]];
+
+/**
  * Manual fill-up entry. `id` is generated CLIENT-SIDE (UUID v4) and reused as the storage path
  * prefix (audit H8/M6). org_id, price_per_gal, entered_by, source are added by the caller on insert.
  */
@@ -26,6 +41,8 @@ export const fillUpInputSchema = z.object({
   gallons: z.coerce.number().positive("Gallons must be greater than 0"),
   total_cost: optionalNumber.pipe(z.number().nonnegative().optional()),
   location_text: optionalText,
+  // Optional: only manual, non-EFS-card fills carry a tender type.
+  payment_method: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.enum(PAYMENT_METHOD_VALUES).optional()),
 });
 
 export type FillUpInput = z.infer<typeof fillUpInputSchema>;
@@ -44,6 +61,10 @@ export interface FuelTransaction {
   /** Station state (2-letter) — used to render fueling times in the station's local timezone. */
   state?: string | null;
   source: string;
+  /** Tender for a manual non-EFS-card fill (see PAYMENT_METHODS); null for EFS-card / imported fills. */
+  payment_method?: string | null;
+  /** Fuel-card reference (EFS card number / manual card tag), when present. */
+  card_ref?: string | null;
   computed_mpg: number | null;
   /** Miles driven since the previous fill for this vehicle (odometer delta, OBD-preferred; positive-only,
    *  calibration-aware). Null when there is no prior fill or the odometer is missing/regressing. */

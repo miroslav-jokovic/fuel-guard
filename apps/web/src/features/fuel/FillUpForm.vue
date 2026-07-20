@@ -4,6 +4,7 @@ import {
   fillUpInputSchema,
   computeFillUpWarnings,
   derivePricePerGal,
+  PAYMENT_METHODS,
   type Vehicle,
   type FillUpInput,
 } from "@fuelguard/shared";
@@ -35,7 +36,10 @@ const form = reactive({
   gallons: "",
   total_cost: "",
   location_text: "",
+  payment_method: "",
 });
+// Tender options for a manual fill (a leading blank = "not specified"); EFS-card fills never reach this form.
+const paymentOptions = [{ value: "", label: "Not specified" }, ...PAYMENT_METHODS.map((p) => ({ value: p.value, label: p.label }))];
 const file = ref<File | null>(null);
 const errors = ref<Record<string, string>>({});
 
@@ -74,6 +78,7 @@ function onSubmit() {
     gallons: form.gallons,
     total_cost: form.total_cost,
     location_text: form.location_text,
+    payment_method: form.payment_method,
   };
   const result = fillUpInputSchema.safeParse(raw);
   if (!result.success) {
@@ -140,6 +145,11 @@ function onSubmit() {
 
     <FormField v-slot="{ id: fieldId }" label="Location">
       <BaseInput :id="fieldId" v-model="form.location_text" placeholder="Station / city" />
+    </FormField>
+
+    <FormField label="Payment method">
+      <AppSelect v-model="form.payment_method" :options="paymentOptions" />
+      <p class="mt-1 text-xs text-ink-muted">How this fill was paid when it wasn't on an EFS card (cash, check, personal/fleet card…).</p>
     </FormField>
 
     <FormField v-slot="{ id: fieldId }" label="Receipt photo (optional)">

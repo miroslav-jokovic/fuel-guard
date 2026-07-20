@@ -6,8 +6,10 @@ import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";
 import { compressToWebp } from "./imageCompress";
 
+// Note: payment_method (migration 0067) is intentionally NOT selected here — it isn't shown in the table,
+// and selecting a not-yet-migrated column would break the whole read path. It's written on insert only.
 const FUEL_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, miles_since_last, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_confidence, tank_type, created_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, miles_since_last, gallons, price_per_gal, total_cost, location_text, state, source, card_ref, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_confidence, tank_type, created_at";
 
 export const FUEL_PAGE_SIZE = 20;
 
@@ -17,8 +19,24 @@ export interface FuelFilters {
   from?: string; // ISO date (inclusive)
   to?: string; // ISO date (inclusive)
   tankType?: "tractor" | "reefer"; // filter tractor vs reefer fills
+  /** Free-text smart search — matched server-side against location & card, plus vehicle/driver via the
+   *  page-resolved id lists below (so a unit number or driver name in the box narrows the log too). */
+  search?: string;
+  searchVehicleIds?: string[]; // vehicle ids whose unit matched `search` (resolved on the page)
+  searchDriverIds?: string[]; // driver ids whose name matched `search` (resolved on the page)
   sortKey?: string; // column to order by (server-side)
   sortDir?: "asc" | "desc";
+}
+
+/** Build the PostgREST `.or(...)` term for the smart search across location/card + resolved vehicle/driver. */
+function searchOr(f: FuelFilters): string | null {
+  if (!f.search) return null;
+  const t = f.search.replace(/[%,()]/g, "").trim();
+  if (!t) return null;
+  const ors = [`location_text.ilike.%${t}%`, `card_ref.ilike.%${t}%`];
+  if (f.searchVehicleIds?.length) ors.push(`vehicle_id.in.(${f.searchVehicleIds.join(",")})`);
+  if (f.searchDriverIds?.length) ors.push(`driver_id.in.(${f.searchDriverIds.join(",")})`);
+  return ors.join(",");
 }
 
 export interface FuelPage {
@@ -44,6 +62,8 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
       if (f.tankType) q = q.eq("tank_type", f.tankType);
       if (f.from) q = q.gte("fueled_at", f.from);
       if (f.to) q = q.lte("fueled_at", f.to);
+      const or = searchOr(f);
+      if (or) q = q.or(or);
       const { data, error, count } = await q;
       if (error) throw new Error(error.message);
       return { rows: (data ?? []) as FuelTransaction[], total: count ?? 0 };
@@ -77,6 +97,8 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         if (f.tankType) q = q.eq("tank_type", f.tankType);
         if (f.from) q = q.gte("fueled_at", f.from);
         if (f.to) q = q.lte("fueled_at", f.to);
+        const or = searchOr(f);
+        if (or) q = q.or(or);
         const { data, error } = await q;
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as { miles_since_last: number | string | null; gallons: number | string | null }[];
@@ -121,6 +143,7 @@ export function useCreateFillUp() {
         total_cost: input.total_cost ?? null,
         price_per_gal: derivePricePerGal(input.gallons, input.total_cost ?? null),
         location_text: input.location_text ?? null,
+        payment_method: input.payment_method ?? null,
         receipt_path: receiptPath,
         source: "manual",
         entered_by: session.userId,

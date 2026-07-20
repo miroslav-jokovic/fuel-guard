@@ -1,4 +1,5 @@
 import { ref, computed, watch } from "vue";
+import { useRoute } from "vue-router";
 import { ANOMALY_SEVERITIES, type Anomaly } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/features/fleet/useTrailers";
@@ -19,7 +20,11 @@ const toast = useToastStore();
 const { data: vehicles } = useVehiclesQuery();
 const { data: trailers } = useTrailersQuery();
 const { data: drivers } = useDriversQuery();
-const filters = ref<AnomalyFilters>({ status: "open" });
+// Deep-link: /anomalies?vehicle=<id> (e.g. from a flagged fuel-log row) opens that truck's cases across
+// ALL statuses so the linked case is visible even if it's already resolved; otherwise default to open.
+const route = useRoute();
+const linkedVehicle = typeof route.query.vehicle === "string" ? route.query.vehicle : undefined;
+const filters = ref<AnomalyFilters>(linkedVehicle ? { vehicleId: linkedVehicle } : { status: "open" });
 const search = ref("");
 const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
 const { data: aiMap } = useAiAssessments();

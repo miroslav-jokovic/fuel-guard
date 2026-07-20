@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import { PlusIcon } from "@heroicons/vue/20/solid";
-import { fuelTxnStatus, type FillUpInput } from "@fuelguard/shared";
+import { fuelTxnStatus, type FillUpInput, type FuelTransaction } from "@fuelguard/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
+import { useDriversQuery } from "@/composables/useDrivers";
+import { useTrailersQuery } from "@/features/fleet/useTrailers";
 import { useFuelTransactions, useFuelRangeTotals, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -20,7 +23,10 @@ import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
 import { useToastStore } from "@/stores/toast";
 
+const router = useRouter();
 const { data: vehicles } = useVehiclesQuery();
+const { data: drivers } = useDriversQuery();
+const { data: trailers } = useTrailersQuery();
 
 const filters = ref<FuelFilters>({});
 const page = ref(1);
@@ -35,6 +41,18 @@ const { data, isLoading, isError, error, refetch, isFetching } = useFuelTransact
 // Range-wide totals (all matching fills, not just this page) — powers the Total miles stat.
 const { data: rangeTotals } = useFuelRangeTotals(filters);
 
+// ── Lookups for the Vehicle / Trailer / Driver columns ────────────────────────────────────────────
+const vehicleLabel = (id: string | null) =>
+  id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "Unattributed";
+const driverName = (id: string | null) =>
+  id ? (drivers.value?.find((d) => d.id === id)?.full_name ?? "—") : "—";
+// Currently-paired trailer for a truck (best available; reflects today's pairing, not the fill date).
+const trailerForVehicle = (vehicleId: string | null) => {
+  if (!vehicleId) return null;
+  return (trailers.value ?? []).find((t) => t.assigned_vehicle_id === vehicleId && t.status !== "retired")?.unit_number ?? null;
+};
+
+// ── Filters ───────────────────────────────────────────────────────────────────────────────────────
 // Date inputs emit YYYY-MM-DD; make `to` inclusive of the whole day for the timestamped column.
 const fromDate = computed(() => filters.value.from?.slice(0, 10));
 const toDate = computed(() => filters.value.to?.slice(0, 10));
@@ -64,12 +82,57 @@ const vehicleOptions = computed(() => [
     .map((v) => ({ value: v.id, label: v.unit_number })),
 ]);
 
+// Driver is a secondary (popover) filter.
+const driverFilter = computed<string>({
+  get: () => filters.value.driverId ?? "",
+  set: (v) => (filters.value = { ...filters.value, driverId: v || undefined }),
+});
+const driverOptions = computed(() => [
+  { value: "", label: "All drivers" },
+  ...[...(drivers.value ?? [])]
+    .sort((a, b) => a.full_name.localeCompare(b.full_name))
+    .map((d) => ({ value: d.id, label: d.full_name })),
+]);
+
+// Smart search: matches location & card server-side, plus vehicle unit / driver name resolved here (so the
+// box narrows by any of those). Resolved id-lists ride along in the filters for the query's OR term.
+const searchBind = computed<string>({
+  get: () => filters.value.search ?? "",
+  set: (raw) => {
+    const t = raw.trim();
+    if (!t) {
+      filters.value = { ...filters.value, search: undefined, searchVehicleIds: undefined, searchDriverIds: undefined };
+      return;
+    }
+    const low = t.toLowerCase();
+    const vIds = (vehicles.value ?? []).filter((v) => v.unit_number.toLowerCase().includes(low)).map((v) => v.id);
+    const dIds = (drivers.value ?? []).filter((d) => d.full_name.toLowerCase().includes(low)).map((d) => d.id);
+    filters.value = {
+      ...filters.value,
+      search: t,
+      searchVehicleIds: vIds.length ? vIds : undefined,
+      searchDriverIds: dIds.length ? dIds : undefined,
+    };
+  },
+});
+
+// Chips surface the secondary (popover) filter; inline triggers show their own value.
+const chips = computed<FilterChip[]>(() => {
+  const out: FilterChip[] = [];
+  if (filters.value.driverId) out.push({ key: "driver", label: "Driver", value: driverName(filters.value.driverId) });
+  return out;
+});
+const moreCount = computed(() => (filters.value.driverId ? 1 : 0));
+function removeChip(key: string) {
+  if (key === "driver") filters.value = { ...filters.value, driverId: undefined };
+}
+function clearAll() {
+  filters.value = { sortKey: filters.value.sortKey, sortDir: filters.value.sortDir };
+}
+
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 const totalMiles = computed(() => rangeTotals.value?.totalMiles ?? 0);
-
-const vehicleLabel = (id: string | null) =>
-  id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "Unattributed";
 
 const toast = useToastStore();
 const drawerOpen = ref(false);
@@ -85,6 +148,12 @@ async function onSubmit(payload: { input: FillUpInput; file: File | null }) {
   }
 }
 
+// A flagged row opens that truck's cases (all statuses) on the Alerts page; clear rows aren't interactive.
+function onRowClick(row: FuelTransaction) {
+  if (row.has_anomaly && row.vehicle_id) router.push({ path: "/anomalies", query: { vehicle: row.vehicle_id } });
+}
+const rowClass = (row: FuelTransaction) => ["group", row.has_anomaly ? "cursor-pointer" : ""].filter(Boolean).join(" ");
+
 // Station-local (matches the EFS report), not the browser's timezone.
 const fmtDate = (iso: string, state: string | null) => stationDateTime(iso, state);
 
@@ -98,12 +167,20 @@ const avgMpg       = computed(() => mpgValues.value.length ? mpgValues.value.red
 const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFractionDigits: dec });
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
+// Vehicle leads (sticky on small screens, like the Transactions table); Trailer + Driver follow.
 const columns: DataTableColumn[] = [
+  {
+    key: "vehicle_id",
+    label: "Vehicle",
+    headerClass: "sticky left-0 z-20 bg-surface-subtle min-w-[7rem] border-r border-edge",
+    cellClass: "sticky left-0 z-[1] border-r border-edge bg-surface font-medium text-ink group-hover:bg-surface-subtle",
+  },
   { key: "fueled_at", label: "When", sortable: true, headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
-  { key: "vehicle_id", label: "Vehicle", headerClass: "min-w-[7rem]" },
+  { key: "trailer", label: "Trailer", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
+  { key: "driver", label: "Driver", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
   { key: "odometer", label: "Odometer", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
   { key: "miles_since_last", label: "Miles", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "gallons", label: "Gallons", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
+  { key: "gallons", label: "Gallons", sortable: true, numeric: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
   { key: "price_per_gal", label: "$/gal", sortable: true, numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
   { key: "computed_mpg", label: "MPG", sortable: true, numeric: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
   { key: "status", label: "Status", headerClass: "min-w-[11rem]" },
@@ -120,11 +197,23 @@ const columns: DataTableColumn[] = [
       </template>
     </PageHeader>
 
-    <FilterBar :count="total" count-label="fill-ups">
+    <FilterBar
+      v-model:search="searchBind"
+      search-placeholder="Search vehicle, driver, location, card…"
+      :count="total"
+      count-label="fill-ups"
+      :chips="chips"
+      :more-count="moreCount"
+      @remove="removeChip"
+      @clear-all="clearAll"
+    >
       <template #filters>
         <FilterSelect v-model="vehicleFilter" label="Vehicle" :options="vehicleOptions" />
         <FilterSelect v-model="tankTypeFilter" label="Fuel" :options="tankTypeOptions" />
         <DateRangeFilter :from="fromDate" :to="toDate" @update:from="setFrom" @update:to="setTo" />
+      </template>
+      <template #more>
+        <FilterSelect v-model="driverFilter" label="Driver" :options="driverOptions" block />
       </template>
     </FilterBar>
 
@@ -170,18 +259,25 @@ const columns: DataTableColumn[] = [
       :columns="columns"
       :rows="rows"
       row-key="id"
+      dense
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load fuel log') : null"
       :retrying="isFetching"
       :sort="sort"
+      :row-class="rowClass"
       empty-text="No fill-ups match these filters."
       @sort="onSort"
       @retry="refetch"
+      @row-click="onRowClick"
     >
+      <template #cell-vehicle_id="{ row }">{{ vehicleLabel(row.vehicle_id) }}</template>
       <template #cell-fueled_at="{ row }">{{ fmtDate(row.fueled_at, row.state ?? null) }}</template>
+      <template #cell-trailer="{ row }">{{ trailerForVehicle(row.vehicle_id) ?? "—" }}</template>
+      <template #cell-driver="{ row }">{{ driverName(row.driver_id) }}</template>
       <template #cell-miles_since_last="{ row }">{{ row.miles_since_last != null ? fmtNum(row.miles_since_last, 0) : "—" }}</template>
-      <template #cell-vehicle_id="{ row }">
-        <span>{{ vehicleLabel(row.vehicle_id) }}</span>
+      <template #cell-gallons="{ row }">
+        <span>{{ row.gallons }}</span>
+        <!-- Reefer = the FUEL is reefer (ULSR), tagged on the gallons — NOT a property of the truck. -->
         <span v-if="row.tank_type === 'reefer'" class="ml-1.5" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
       </template>
       <template #cell-status="{ row }">
