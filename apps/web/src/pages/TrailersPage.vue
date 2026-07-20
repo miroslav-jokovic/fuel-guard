@@ -7,7 +7,7 @@ import {
   useTrailersQuery, useCreateTrailer, useUpdateTrailer, useRetireTrailer,
   useBulkUpdateTrailers, useSyncSamsaraTrailers,
 } from "@/features/fleet/useTrailers";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";

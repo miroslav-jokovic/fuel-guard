@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useDetectionCoverage } from "@/features/fuel/useDetectionCoverage";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";

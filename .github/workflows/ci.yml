@@ -31,6 +31,9 @@ jobs:
       - name: Design tokens
         run: pnpm --filter @fuelguard/web lint:tokens
 
+      - name: Feature boundaries
+        run: pnpm lint:boundaries
+
       - name: Typecheck
         run: pnpm typecheck
 

@@ -2,9 +2,9 @@
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { useReeferCoverage } from "@/features/fuel/useReeferCoverage";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/features/fleet/useTrailers";
-import { useDriversQuery } from "@/features/fleet/useDrivers";
+import { useDriversQuery } from "@/composables/useDrivers";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";

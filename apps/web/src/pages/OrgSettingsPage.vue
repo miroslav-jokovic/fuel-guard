@@ -2,7 +2,7 @@
 import { reactive, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { orgSettingsFormSchema, type OrgSettingsForm } from "@fuelguard/shared";
-import { useOrgSettingsQuery, useSaveOrgSettings } from "@/features/settings/useOrgSettings";
+import { useOrgSettingsQuery, useSaveOrgSettings } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";

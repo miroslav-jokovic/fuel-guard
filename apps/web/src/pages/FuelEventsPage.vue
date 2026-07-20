@@ -4,7 +4,7 @@ import { RouterLink } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import { CASE_RULE_ID } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, severityTone, suspicionTone, toneClass } from "@/lib/badges";
 

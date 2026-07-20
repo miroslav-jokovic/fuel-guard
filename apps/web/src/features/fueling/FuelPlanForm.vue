@@ -2,7 +2,7 @@
 import { reactive, computed, ref, watch } from "vue";
 import { PlusIcon, XMarkIcon, MapIcon, MapPinIcon } from "@heroicons/vue/24/outline";
 import { EQUIPMENT_TYPES } from "@fuelguard/shared";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useRouteFuelSettings } from "./useRouteFuelSettings";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";

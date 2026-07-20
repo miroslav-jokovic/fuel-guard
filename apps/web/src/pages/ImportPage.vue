@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { DocumentTextIcon, XMarkIcon } from "@heroicons/vue/20/solid";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useDriversQuery } from "@/features/fleet/useDrivers";
+import { useVehiclesQuery } from "@/composables/useVehicles";
+import { useDriversQuery } from "@/composables/useDrivers";
 import { analyzeImport, useCommitImport, type ImportPreview } from "@/features/import/useImport";
 import { useToastStore } from "@/stores/toast";
 import { apiFetch } from "@/lib/api";

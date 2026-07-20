@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { useAuditSample, useRecallMetrics, useRecordVerdict, type SampledFill } from "@/features/anomalies/useRecallAudit";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useToastStore } from "@/stores/toast";
 import type { AuditVerdict } from "@fuelguard/shared";
 import TableSkeleton from "@/components/TableSkeleton.vue";

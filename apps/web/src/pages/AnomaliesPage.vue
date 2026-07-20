@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { ANOMALY_SEVERITIES, formatRuleId, type Anomaly } from "@fuelguard/shared";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/features/fleet/useTrailers";
-import { useDriversQuery } from "@/features/fleet/useDrivers";
+import { useDriversQuery } from "@/composables/useDrivers";
 import { useAnomaliesQuery, useAnomalyTransition, useAnomalyTxnDrivers, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import { useAiAssessments } from "@/features/ai/useAiVerification";
 import SlideOver from "@/components/SlideOver.vue";

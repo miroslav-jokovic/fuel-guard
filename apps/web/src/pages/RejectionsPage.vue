@@ -3,7 +3,7 @@ import { ref, computed, watch } from "vue";
 import { useDeclinedTransactions, useEfsFacets, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
 import type { DeclinedTransactionRow } from "@fuelguard/shared";
 import { stationDateTime } from "@/lib/stationTime";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
+import { useVehiclesQuery } from "@/composables/useVehicles";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";

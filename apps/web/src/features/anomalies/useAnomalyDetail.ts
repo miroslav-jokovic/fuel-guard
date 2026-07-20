@@ -1,11 +1,11 @@
 import { ref, computed } from "vue";
 import { ANOMALY_DISPOSITIONS, DISPOSITION_LABELS, type Anomaly, type AnomalyDisposition } from "@fuelguard/shared";
 import { useTransaction, useAnomalyTransition, useRelatedCardFills } from "./useAnomalies";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useDriversQuery } from "@/features/fleet/useDrivers";
+import { useVehiclesQuery } from "@/composables/useVehicles";
+import { useDriversQuery } from "@/composables/useDrivers";
 import { useAiVerification, useAiExamine } from "@/features/ai/useAiVerification";
 import { stationDateTime } from "@/lib/stationTime";
-import { useOrgSettingsQuery } from "@/features/settings/useOrgSettings";
+import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
 
 /** Logic for AnomalyDetail.vue — data fetching, evidence parsing, lookups, formatting, and workflow. */

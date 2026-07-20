@@ -4,9 +4,9 @@ import { RouterLink } from "vue-router";
 import { CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/vue/20/solid";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { useVehiclesQuery } from "@/features/fleet/useVehicles";
-import { useDriversQuery } from "@/features/fleet/useDrivers";
-import { useOrgSettingsQuery } from "@/features/settings/useOrgSettings";
+import { useVehiclesQuery } from "@/composables/useVehicles";
+import { useDriversQuery } from "@/composables/useDrivers";
+import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
