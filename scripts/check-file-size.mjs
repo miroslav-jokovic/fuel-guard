@@ -18,7 +18,6 @@ const GRANDFATHERED = new Set([
   "packages/shared/src/samsara.ts",
   "packages/shared/src/anomalyRules.ts",
   "apps/api/src/services/scoring.ts",
-  "packages/shared/src/efsImport.ts",
 ]);
 
 const isSource = (f) =>

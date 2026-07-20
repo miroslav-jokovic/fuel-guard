@@ -3,7 +3,7 @@
  * Samsara API calls (pure, §3.1). Reuses the tenant's tz machinery (zonedWallTimeToUtcIso) so week edges
  * line up with how the rest of the app treats local time.
  */
-import { zonedWallTimeToUtcIso } from "../efsImport.js";
+import { zonedWallTimeToUtcIso } from "../efsImport/index.js";
 
 export interface WeekWindow {
   /** Local calendar dates (YYYY-MM-DD) for the week. */

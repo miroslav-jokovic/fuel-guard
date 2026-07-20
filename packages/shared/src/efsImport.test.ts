@@ -385,7 +385,7 @@ describe("efsInstant precision semantics", () => {
 });
 
 describe("deriveFuelEventsFromEfsStore (repair path)", () => {
-  const line = (over: Partial<import("./efsImport.js").EfsStoreLine>): import("./efsImport.js").EfsStoreLine => ({
+  const line = (over: Partial<import("./efsImport/index.js").EfsStoreLine>): import("./efsImport/index.js").EfsStoreLine => ({
     card_num: "94507", invoice: "INV1", tran_date: "2026-06-29",
     fueled_at: "2026-06-29T12:00:00.000Z", unit: "691", driver_name: "DONOVAN BOOTHE",
     odometer: 293580, location_name: "PILOT JAMESTOWN 305", city: "JAMESTOWN", state: "NM",
