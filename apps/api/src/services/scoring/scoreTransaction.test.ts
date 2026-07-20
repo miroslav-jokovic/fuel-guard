@@ -66,6 +66,9 @@ const vehicleRow = {
   odometer_offset: 0, odometer_offset_source: "auto",
 };
 
+/** The existing-anomalies read is the only anomalies select that carries "source" in its column list. */
+const isExistingAnomalyRead = (q: SelectState) => q.table === "anomalies" && q.select.includes("source");
+
 describe("scoreTransaction — characterization (skipRecon rebuild path)", () => {
   it("scores a clean tractor fill: updates the transaction, writes no anomaly", async () => {
     const { admin, writes } = makeAdmin((q) => {
@@ -85,5 +88,71 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     const { admin, writes } = makeAdmin(() => []);
     await scoreTransaction(admin, env, "org1", "missing", { skipRecon: true, skipLearn: true });
     expect(writes).toHaveLength(0);
+  });
+
+  it("fires a theft case + flags the transaction when the fill exceeds tank capacity", async () => {
+    // 300 gal into a 150 gal tank (limit 157.5 at the 5% default tolerance) → exceeds_tank_capacity, an
+    // overwhelming lone volume signal → an 'alert' case. No other rule can fire: the window/prev queries
+    // return no rows, so consumption/odometer signals stay silent.
+    const overfill = { ...txnRow, gallons: 300 };
+    const { admin, writes } = makeAdmin((q) => {
+      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [overfill];
+      if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
+      return [];
+    });
+    await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
+
+    const inserts = writes.filter((w) => w.table === "anomalies" && w.op === "insert");
+    expect(inserts, "one theft_case anomaly should be inserted").toHaveLength(1);
+    expect(inserts[0]!.payload!.rule_id).toBe("theft_case");
+    expect(inserts[0]!.payload!.status).toBe("open");
+    expect(inserts[0]!.payload!.transaction_id).toBe("t1");
+
+    const ftxn = writes.find((w) => w.table === "fuel_transactions" && w.op === "update");
+    expect(ftxn!.payload!.has_anomaly).toBe(true);
+    expect(ftxn!.payload!.max_severity).toBe("high"); // single axis → 'high', not 'critical'
+  });
+
+  it("supersedes a stale open case when the fill now scores clean", async () => {
+    // The fill is clean (no rule fires) but an open rules-sourced theft_case still exists from a prior score.
+    // reconcileAnomalies must supersede it (never leave a stale alert) and insert nothing new.
+    const staleCase = { id: "a1", rule_id: "theft_case", status: "open", source: "rules" };
+    const { admin, writes } = makeAdmin((q) => {
+      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [txnRow];
+      if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
+      if (isExistingAnomalyRead(q)) return [staleCase];
+      return [];
+    });
+    await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
+
+    expect(writes.filter((w) => w.table === "anomalies" && w.op === "insert")).toHaveLength(0);
+    const supersede = writes.find((w) => w.table === "anomalies" && w.op === "update");
+    expect(supersede, "the stale open case should be superseded").toBeTruthy();
+    expect(supersede!.payload!.status).toBe("superseded");
+
+    const ftxn = writes.find((w) => w.table === "fuel_transactions" && w.op === "update");
+    expect(ftxn!.payload!.has_anomaly).toBe(false);
+  });
+
+  it("keeps an open case in place (no duplicate insert) when the same signal re-fires", async () => {
+    // Overfill again, but an open theft_case already exists → reconcileAnomalies inserts nothing and the
+    // open case is refreshed in place (an anomalies update to the existing row), not duplicated.
+    const overfill = { ...txnRow, gallons: 300 };
+    const openCase = { id: "a1", rule_id: "theft_case", status: "open", source: "rules" };
+    const { admin, writes } = makeAdmin((q) => {
+      if (q.table === "fuel_transactions" && q.eq.id === "t1") return [overfill];
+      if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
+      if (isExistingAnomalyRead(q)) return [openCase];
+      return [];
+    });
+    await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
+
+    expect(writes.filter((w) => w.table === "anomalies" && w.op === "insert")).toHaveLength(0);
+    const anomalyUpdate = writes.find((w) => w.table === "anomalies" && w.op === "update");
+    expect(anomalyUpdate, "the open case should be refreshed in place").toBeTruthy();
+    expect(anomalyUpdate!.payload!.severity).toBe("high");
+
+    const ftxn = writes.find((w) => w.table === "fuel_transactions" && w.op === "update");
+    expect(ftxn!.payload!.has_anomaly).toBe(true);
   });
 });
