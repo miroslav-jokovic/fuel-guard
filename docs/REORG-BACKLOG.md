@@ -36,16 +36,15 @@ CI verification of each push (full `vite build` + `vue-tsc` + suites) is the aut
 
 ## B. Code — deferred until a prerequisite is met (Owner: Claude)
 
-- [ ] **`scoring/scoreTransaction.ts` (~600 lines) is the last grandfathered god-file.** Correct sequence:
-      add tests for `scoreTransaction`/`learnVehicleValues` FIRST (they're essentially untested), then
-      decompose. Do not refactor it blind.
+- [x] **`scoring/scoreTransaction.ts` — DONE (b3c950c, 68bee10, 2d18910).** Test-then-split: built a fake
+      Supabase admin harness + 5 characterization tests (clean fill, missing row, overfill→theft-case,
+      supersede-stale-case, refresh-in-place) FIRST, then extracted the ~160-line Samsara-reconciliation
+      block into `scoring/reconcile.ts` (`resolveReconciliation`). File 599→463 lines; grandfather list now
+      empty. Behavior-preserving — the 5 tests + full api suite (120) stayed green throughout.
 - [ ] **Wire the RLS test into CI.** `supabase/tests/rls.test.mjs` exists but isn't a required CI job; it
       needs a Supabase test-DB connection secret in CI.
-- [ ] **Tighten the module-boundary rule.** Web features currently reach into siblings
-      (`anomalies→fleet/ai/settings`, `dashboard→fleet/settings`, `fueling→fleet`). Extract the shared
-      composables (`useVehicles`, `useDrivers`, `useOrgSettings`) to a common location, THEN extend the
-      ESLint `no-restricted-imports` rule to block cross-feature reach-ins. (Today it only blocks deep
-      `@fuelguard/shared` imports — zero violations.)
+- [x] **Tighten the module-boundary rule — DONE (9ca4ee6, see progress log B3).** Shared composables moved
+      to `@/composables`; `scripts/check-feature-boundaries.mjs` fitness function wired into CI.
 
 ## C. Remaining plan phases (not started)
 
@@ -61,8 +60,8 @@ CI verification of each push (full `vite build` + `vue-tsc` + suites) is the aut
 
 ## D. Guardrail hygiene (ongoing)
 
-- [ ] The file-size grandfather list in `scripts/check-file-size.mjs` may only **shrink** — currently 1
-      entry (`scoring/scoreTransaction.ts`). Removing it happens in item B-1.
+- [x] The file-size grandfather list in `scripts/check-file-size.mjs` is now **empty** (0 entries) — every
+      source file is under the 500-line budget. The list may only ever grow by deliberate, documented choice.
 - [ ] Design tokens: `DashboardPage` had 5 hardcoded colors (fixed + linter now enforced in CI). Watch for
       new ones as charts are added — CI blocks them.
 
@@ -90,9 +89,14 @@ Phase 5: schedulers → worker process behind `RUN_SCHEDULERS_IN_PROCESS`.
   its script is view-configuration (chart specs + KPI-tile definitions), already under the 500-line budget
   and already delegating data to `useDashboard`; extracting it would move view code away from the view
   with no maintainability gain. AppShell (layout) similarly not worth decomposing.
-- **`scoreTransaction` (B1) — NOT started, by design.** It is ~600 lines orchestrating Supabase + Samsara
-  + anomaly persistence with near-zero test coverage. Shallow characterization tests would give false
-  confidence on the most critical path. Correct approach (its own focused session): build a full fake
-  Supabase admin + Samsara mock, characterize the `skipRecon` (rebuild) path first, then the live-recon
-  path, verify green against current behavior, THEN split — keeping tests green. Remains the sole
-  grandfathered file in `scripts/check-file-size.mjs`.
+- **`scoreTransaction` (B1) — DONE (b3c950c → 68bee10 → 2d18910).** Test-then-split, in that order:
+  (1) a reusable fake Supabase admin query-builder harness + 2 characterization tests on the `skipRecon`
+  rebuild path (clean fill; missing row); (2) expanded to 5 — overfill fires a `theft_case` and flags the
+  row (`has_anomaly`/`max_severity`), a stale open case is superseded when the fill re-scores clean, and an
+  open case is refreshed in place (no duplicate) when the same signal re-fires; (3) extracted the
+  ~160-line Samsara-reconciliation block (rebuild passthrough + live reconcile + wrong-station-pin
+  suppression) into `scoring/reconcile.ts` as `resolveReconciliation`, which also applies the
+  telematics-recovered instant to `txn` in memory. `scoreTransaction.ts` 599→463 lines; the file-size
+  grandfather list is now empty. tsc + eslint clean and all 120 api tests green throughout. `learnVehicleValues`
+  stayed in `scoreTransaction.ts` (still comfortably under budget); it can move to a `learn.ts` sibling later
+  if that file grows.
