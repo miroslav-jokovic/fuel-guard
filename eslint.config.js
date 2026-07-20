@@ -44,6 +44,7 @@ export default tseslint.config(
       "data-samples/**",
       "_probes/**",
       "_to_delete/**",
+      "**/*.generated.ts", // codegen output — authored by scripts/gen-*.mjs, verified by the drift check
     ],
   },
   js.configs.recommended,

@@ -12,9 +12,12 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "gen": "pnpm gen:rules",
+    "gen:rules": "node scripts/gen-rule-catalog.mjs",
     "lint": "eslint .",
     "lint:filesize": "node scripts/check-file-size.mjs",
     "lint:boundaries": "node scripts/check-feature-boundaries.mjs",
+    "lint:codegen": "node scripts/gen-rule-catalog.mjs && git diff --exit-code -- 'packages/**/*.generated.ts'",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

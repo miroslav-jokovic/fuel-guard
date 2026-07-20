@@ -1,0 +1,171 @@
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────
+# ANOMALY RULE CATALOG — single source of truth (Phase 7 SSOT).
+#
+# This file is the ONE place a rule's static spec lives. `pnpm gen:rules` regenerates
+# `catalog.generated.ts` from it (RULE_IDS, RuleId, SignalAxis, RULE_LABELS, SUPPRESSED_RULE_IDS,
+# SIGNAL_META). CI fails if the committed generated file drifts from this catalog.
+#
+# What stays HAND-AUTHORED (business logic, not catalog data): the rule functions in rules.ts, the
+# per-fill severity each emits, precision/gating conditions, and formatRuleId's fallback in ids.ts.
+#
+# Per-rule fields:
+#   id         snake_case identifier (the RuleId union member). Order here == RULE_IDS order.
+#   tier       grouping for humans/UI only (odometer_integrity | volume_capacity | efficiency |
+#              behavioral | reefer). Not a runtime constant today — documents what was a comment.
+#   axis       correlation axis for the multi-signal theft model (SignalAxis).
+#   weight     0–100 directness-of-theft weight. 0 = never contributes to a case (data-quality only).
+#   suppressed true = product decision to never raise this as an anomaly (facts stay on the txn).
+#   label      human-readable label shown wherever the raw key would appear.
+#   note       optional rationale (kept out of the generated code; documentation for maintainers).
+# ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+rules:
+  # ── Tier 1 — odometer integrity ──────────────────────────────────────────────────────────────────
+  - id: odometer_missing
+    tier: odometer_integrity
+    axis: odometer
+    weight: 0
+    suppressed: true
+    label: Missing Odometer
+    note: Blank odometer is a data gap, not misuse — weight 0 and suppressed.
+  - id: odometer_regression
+    tier: odometer_integrity
+    axis: odometer
+    weight: 55
+    label: Odometer Regression
+  - id: odometer_stale
+    tier: odometer_integrity
+    axis: odometer
+    weight: 25
+    label: Stale Odometer
+  - id: odometer_implausible_jump
+    tier: odometer_integrity
+    axis: odometer
+    weight: 35
+    label: Implausible Odometer Jump
+    note: Instant-precision only (uses elapsed hours).
+  - id: odometer_daily_cap
+    tier: odometer_integrity
+    axis: odometer
+    weight: 30
+    label: Daily Mileage Cap Exceeded
+    note: Date-precision (EFS) fallback (miles/day cap).
+  - id: odometer_mismatch
+    tier: odometer_integrity
+    axis: odometer
+    weight: 45
+    label: Odometer / Location Mismatch
+    note: Cross-source ±tolerance reconciliation (the driver-accuracy check).
+  - id: odometer_entry_suspect
+    tier: odometer_integrity
+    axis: odometer
+    weight: 0
+    label: Odometer Entry Needs Review
+    note: Cross-source diff so large it's a data-entry typo / OBD glitch, not theft — weight 0.
+  - id: expected_odometer_band
+    tier: odometer_integrity
+    axis: consumption
+    weight: 40
+    label: Outside Expected Odometer Band
+    note: Single-source — miles vs fuel-implied miles (axis is consumption, not odometer).
+
+  # ── Tier 2 — volume vs capacity ──────────────────────────────────────────────────────────────────
+  - id: exceeds_tank_capacity
+    tier: volume_capacity
+    axis: volume
+    weight: 85
+    label: Exceeds Tank Capacity
+  - id: tank_space_exceeded
+    tier: volume_capacity
+    axis: volume
+    weight: 90
+    label: More Fuel Than Tank Could Hold
+    note: Billed gallons > empty space in the tank before fueling (can't fit in THIS truck).
+  - id: implausible_topoff
+    tier: volume_capacity
+    axis: consumption
+    weight: 50
+    label: Implausible Top-Off
+    note: Same gallons-vs-miles inequality as mpg_deviation — shares the consumption axis (P-3).
+  - id: cumulative_overfuel
+    tier: volume_capacity
+    axis: consumption
+    weight: 75
+    label: Cumulative Overfueling
+    note: Rolling-window gallons vs miles-burnable + a tank.
+
+  # ── Tier 3 — efficiency ──────────────────────────────────────────────────────────────────────────
+  - id: mpg_deviation
+    tier: efficiency
+    axis: consumption
+    weight: 30
+    label: MPG Deviation
+  - id: mpg_sustained_decline
+    tier: efficiency
+    axis: consumption
+    weight: 20
+    label: Sustained MPG Decline
+
+  # ── Tier 4 — behavioral ──────────────────────────────────────────────────────────────────────────
+  - id: rapid_repeat_fueling
+    tier: behavioral
+    axis: behavior
+    weight: 40
+    label: Rapid Repeat Fueling
+    note: Instant-precision only.
+  - id: off_hours_fueling
+    tier: behavioral
+    axis: behavior
+    weight: 20
+    label: Off-Hours Fueling
+    note: Instant-precision only.
+  - id: unattributed_transaction
+    tier: behavioral
+    axis: behavior
+    weight: 0
+    suppressed: true
+    label: Unattributed Transaction
+    note: Fill not matched to a vehicle/driver — data gap, not misuse. Weight 0 and suppressed.
+  - id: cost_outlier
+    tier: behavioral
+    axis: behavior
+    weight: 15
+    label: Cost Outlier
+  - id: card_multi_vehicle
+    tier: behavioral
+    axis: behavior
+    weight: 60
+    label: Card Used on Multiple Vehicles
+    note: One card fueling multiple vehicles in a window.
+  - id: location_mismatch
+    tier: behavioral
+    axis: location
+    weight: 50
+    label: Location Mismatch
+    note: Corroboration-only — telematics location is the least-reliable signal (weight below the lone-review threshold); never raises a case alone but reinforces a volume/consumption signal.
+  - id: tank_fill_short
+    tier: behavioral
+    axis: volume
+    weight: 60
+    label: Tank Fill Short
+    note: Telematics tank rose less than billed gallons (advisory; coarse sensor).
+
+  # ── Tier A — reefer (trailer refrigeration) fuel integrity (reefer/ULSR events only) ─────────────
+  - id: reefer_exceeds_capacity
+    tier: reefer
+    axis: reefer
+    weight: 90
+    label: Reefer Fill Exceeds Tank
+    note: One ULSR purchase > reefer tank capacity — can't fit in the reefer.
+  - id: reefer_overfuel_rate
+    tier: reefer
+    axis: reefer
+    weight: 75
+    label: Reefer Over-Fueling
+    note: Rolling-window reefer gallons > a reefer could burn + a tank.
+  - id: reefer_fuel_diversion
+    tier: reefer
+    axis: reefer
+    weight: 60
+    label: Reefer Fueled with ULSD
+    note: Reefer-hauling truck buys ULSD but ~no reefer (ULSR) fuel → reefer fueled off ULSD.

@@ -2,6 +2,8 @@
 import type { AnomalySeverity } from "../constants.js";
 import type { RuleResult } from "./types.js";
 import type { RuleId } from "./ids.js";
+import { SIGNAL_META } from "./catalog.generated.js";
+import type { SignalAxis } from "./catalog.generated.js";
 
 export const SEVERITY_RANK: Record<AnomalySeverity, number> = { low: 1, medium: 2, high: 3, critical: 4 };
 
@@ -17,51 +19,14 @@ export function maxSeverity(results: RuleResult[]): AnomalySeverity | null {
 // odometer that's a few miles off) never raises a red alert — it stays clear or, if strong on its own,
 // a review. This is what keeps normal fills from all looking flagged.
 
-export type SignalAxis = "location" | "volume" | "consumption" | "odometer" | "behavior" | "reefer";
+// SignalAxis and SIGNAL_META (the axis + directness-of-theft weight per rule) are GENERATED from
+// catalog.yaml — see catalog.generated.ts. To change a weight or add a rule, edit catalog.yaml and run
+// `pnpm gen:rules`; never hand-edit the values here. Re-exported so the public barrel is unchanged.
+export { SIGNAL_META };
+export type { SignalAxis };
 
 /** The single synthetic anomaly id used for a correlated per-transaction case. */
 export const CASE_RULE_ID = "theft_case";
-
-export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> = {
-  // Volume — fuel physically not going into this truck (the hardest to game)
-  tank_space_exceeded:        { axis: "volume", weight: 90 },
-  exceeds_tank_capacity:      { axis: "volume", weight: 85 },
-  tank_fill_short:            { axis: "volume", weight: 60 },
-  // Consumption — buying more than the truck could burn. implausible_topoff (dispensed > consumed since last
-  // fill) and mpg_deviation are the SAME gallons-vs-miles inequality, so they share this axis and can't
-  // double-count across two axes (P-3); the axis takes the max weight, not the sum.
-  implausible_topoff:         { axis: "consumption", weight: 50 },
-  cumulative_overfuel:        { axis: "consumption", weight: 75 },
-  expected_odometer_band:     { axis: "consumption", weight: 40 },
-  mpg_deviation:              { axis: "consumption", weight: 30 },
-  mpg_sustained_decline:      { axis: "consumption", weight: 20 },
-  // Location — card used where the truck isn't. Corroboration-only (weight below the lone-review
-  // threshold): telematics location is the least-reliable signal, so it never raises a case on its own,
-  // but it strongly reinforces a case when a volume/consumption signal also fires.
-  location_mismatch:          { axis: "location", weight: 50 },
-  // Odometer — driver misreporting (masks theft / owner's accuracy concern)
-  odometer_regression:        { axis: "odometer", weight: 55 },
-  odometer_mismatch:          { axis: "odometer", weight: 45 },
-  // Data-quality, NOT theft: an implausibly huge cross-source diff is a typo / OBD glitch (real odometer
-  // fraud is hundreds of miles, not tens of thousands). Weight 0 → never contributes to a theft case.
-  odometer_entry_suspect:     { axis: "odometer", weight: 0 },
-  odometer_implausible_jump:  { axis: "odometer", weight: 35 },
-  odometer_daily_cap:         { axis: "odometer", weight: 30 },
-  odometer_stale:             { axis: "odometer", weight: 25 },
-  odometer_missing:           { axis: "odometer", weight: 0 },
-  // Behavior — card / timing patterns
-  card_multi_vehicle:         { axis: "behavior", weight: 60 },
-  rapid_repeat_fueling:       { axis: "behavior", weight: 40 },
-  off_hours_fueling:          { axis: "behavior", weight: 20 },
-  cost_outlier:               { axis: "behavior", weight: 15 },
-  unattributed_transaction:   { axis: "behavior", weight: 0 },
-  // Reefer — ULSR fuel not going into the reefer tank (gun-switch / container fill)
-  reefer_exceeds_capacity:    { axis: "reefer", weight: 90 },
-  reefer_overfuel_rate:       { axis: "reefer", weight: 75 },
-  // Behavioral: reefer-hauling truck buying no reefer fuel. Review on its own (weight ≥ REVIEW_WEIGHT); with
-  // tank_fill_short (volume) on the same ULSD fill the two axes agree → alert.
-  reefer_fuel_diversion:      { axis: "reefer", weight: 60 },
-};
 
 /** A signal ≥ this weight is "overwhelming" and raises an alert on its own (e.g. more fuel than fits). */
 const OVERWHELMING_WEIGHT = 85;
