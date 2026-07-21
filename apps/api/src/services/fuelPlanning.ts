@@ -240,7 +240,10 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     .select("id, brand, store_number, name, lat, lng, state, exit, has_diesel")
     .eq("status", "active")
     .in("brand", cfg.enabledBrands)
-    .not("has_diesel", "is", false) // never route a truck to a confirmed no-diesel location (null = assume diesel)
+    // NOTE: intentionally NOT filtering on has_diesel. Every enabled brand is a diesel truck-stop network by
+    // definition, and the has_diesel flag is populated unreliably (Pilot locations derive it from an amenities
+    // string; Love's from whether a diesel PRICE was present) — filtering on it dropped real diesel stops and
+    // stranded routes. The brand filter already guarantees diesel.
     .gte("lat", minLat - pad).lte("lat", maxLat + pad)
     .gte("lng", minLng - pad).lte("lng", maxLng + pad);
   const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
