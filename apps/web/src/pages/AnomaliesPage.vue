@@ -102,8 +102,8 @@ const {
       <span class="text-sm font-medium text-brand-900">{{ selectedCount }} selected</span>
       <div class="flex flex-wrap gap-2">
         <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
-        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?')">False alarm</BaseButton>
-        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', undefined, 'Resolve {n} alerts?')">Resolve</BaseButton>
+        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?', 'false_positive')">False alarm</BaseButton>
+        <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', 'Resolved by reviewer', 'Resolve {n} alerts?', 'confirmed')">Resolve</BaseButton>
         <BaseButton variant="ghost" size="sm" @click="selectedIds = new Set()">Clear</BaseButton>
       </div>
     </div>
@@ -151,8 +151,8 @@ const {
         <KebabMenu v-if="session.canManage && isActionable(row)">
           <button class="kebab-item" @click="selectedRow = row">Review details</button>
           <button v-if="row.status === 'open'" class="kebab-item" @click="rowAction(row, 'investigating')">Start investigating</button>
-          <button class="kebab-item" @click="rowAction(row, 'resolved')">Resolve</button>
-          <button class="kebab-item kebab-item-danger" @click="rowAction(row, 'dismissed', 'False alarm')">False alarm</button>
+          <button class="kebab-item" @click="rowAction(row, 'resolved', 'Resolved by reviewer', 'confirmed')">Resolve</button>
+          <button class="kebab-item kebab-item-danger" @click="rowAction(row, 'dismissed', 'False alarm', 'false_positive')">False alarm</button>
         </KebabMenu>
         <button v-else class="text-sm font-medium text-brand-600 hover:text-brand-500" @click="selectedRow = row">Review</button>
       </template>

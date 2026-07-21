@@ -1,6 +1,6 @@
 import { ref, computed, watch } from "vue";
 import { useRoute } from "vue-router";
-import { ANOMALY_SEVERITIES, type Anomaly } from "@fuelguard/shared";
+import { ANOMALY_SEVERITIES, type Anomaly, type AnomalyDisposition } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/features/fleet/useTrailers";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -141,7 +141,7 @@ const reeferColumns: DataTableColumn[] = [
 ];
 const columns = computed(() => (filters.value.reeferOnly ? reeferColumns : baseColumns));
 
-const sort = ref<SortState>({ key: null, dir: "asc" });
+const sort = ref<SortState>({ key: "when", dir: "desc" });
 function onSort(key: string) {
   sort.value = toggleSort(sort.value, key);
 }
@@ -171,31 +171,48 @@ const selectedCount = computed(() => selectedIds.value.size);
 watch([filters, search, page], () => (selectedIds.value = new Set()));
 
 const busy = ref(false);
-async function transitionOne(a: Anomaly, status: "investigating" | "resolved" | "dismissed", note?: string) {
-  await transition.mutateAsync({ id: a.id, status, note, version: a.version });
+async function transitionOne(
+  a: Anomaly,
+  status: "investigating" | "resolved" | "dismissed",
+  note?: string,
+  disposition?: AnomalyDisposition,
+) {
+  await transition.mutateAsync({ id: a.id, status, note, disposition, version: a.version });
 }
-async function bulkTransition(status: "investigating" | "resolved" | "dismissed", note?: string, confirmMsg?: string) {
+async function bulkTransition(
+  status: "investigating" | "resolved" | "dismissed",
+  note?: string,
+  confirmMsg?: string,
+  disposition?: AnomalyDisposition,
+) {
   const targets = (anomalies.value ?? []).filter((a) => selectedIds.value.has(a.id) && isActionable(a));
   if (targets.length === 0) return;
   if (confirmMsg && !confirm(confirmMsg.replace("{n}", String(targets.length)))) return;
   busy.value = true;
   let ok = 0;
+  let lastError: string | undefined;
   for (const a of targets) {
     try {
-      await transitionOne(a, status, note);
+      await transitionOne(a, status, note, disposition);
       ok++;
-    } catch {
-      /* keep going; report at end */
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
     }
   }
   busy.value = false;
   selectedIds.value = new Set();
-  toast.success(`Updated ${ok} of ${targets.length}`);
+  if (ok === targets.length) toast.success(`Updated ${ok} of ${targets.length}`);
+  else toast.error(`Updated ${ok} of ${targets.length}`, lastError);
 }
 
-async function rowAction(a: Anomaly, status: "investigating" | "resolved" | "dismissed", note?: string) {
+async function rowAction(
+  a: Anomaly,
+  status: "investigating" | "resolved" | "dismissed",
+  note?: string,
+  disposition?: AnomalyDisposition,
+) {
   try {
-    await transitionOne(a, status, note);
+    await transitionOne(a, status, note, disposition);
     toast.success("Updated");
   } catch (e) {
     toast.error("Update failed", e instanceof Error ? e.message : undefined);
