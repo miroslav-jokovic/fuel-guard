@@ -372,12 +372,7 @@ export function aggregateDriverIdle(
       }
       let primaryUnit: string | null = null;
       let unitMax = -1;
-      for (const [u, h] of d.units) {
-        if (h > unitMax) {
-          unitMax = h;
-          primaryUnit = u;
-        }
-      }
+      for (const [u, h] of d.units) if (h > unitMax) { unitMax = h; primaryUnit = u; }
       return {
         driverId,
         driverName: d.name,
