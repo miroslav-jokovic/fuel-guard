@@ -337,7 +337,14 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
 const ESTIMATE_PENALTY_USD = 0.03;
 const rankPrice = (s: SolverStation): number => s.netPrice! + (s.priceEstimated ? ESTIMATE_PENALTY_USD : 0);
 const cheapest = (opts: SolverStation[]): SolverStation =>
-  opts.reduce((a, b) => (rankPrice(a) < rankPrice(b) || (rankPrice(a) === rankPrice(b) && a.milesAhead > b.milesAhead) ? a : b));
+  opts.reduce((a, b) => {
+    const ra = rankPrice(a), rb = rankPrice(b);
+    if (Math.abs(ra - rb) > EPS) return ra < rb ? a : b;
+    // Equal effective price → prefer the easier-access stop (less detour, incl. the opposite-side back-track),
+    // then the one further along the route.
+    if (Math.abs(a.detourMiles - b.detourMiles) > EPS) return a.detourMiles < b.detourMiles ? a : b;
+    return a.milesAhead > b.milesAhead ? a : b;
+  });
 const nearest = (opts: SolverStation[]): SolverStation => opts.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b));
 
 const sumCost = (stops: PlannedStop[]): number | null =>

@@ -64,6 +64,14 @@ describe("planFuelStops — fuel", () => {
     expect(plan.flags).toContain("INFEASIBLE_no_reachable_fuel");
   });
 
+  it("breaks a price tie toward the easier-access (lower-detour) station", () => {
+    const plan = planFuelStops(input({ distanceToGoMiles: 700, stations: [
+      st("hard", 300, 3.5, "pilot", "TX", 3), // same price, but a 3-mi opposite-side back-track
+      st("easy", 305, 3.5, "pilot", "TX", 0),
+    ] }));
+    expect(plan.stops[0]!.station!.id).toBe("easy");
+  });
+
   it("savings vs naive is >= 0", () => {
     const plan = planFuelStops(input({ distanceToGoMiles: 700, stations: [st("near-dear", 300, 4.0), st("far-cheap", 350, 3.4)] }));
     expect(plan.savingsVsNaive!).toBeGreaterThanOrEqual(0);

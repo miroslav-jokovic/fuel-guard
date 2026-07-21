@@ -16,6 +16,7 @@ export interface RouteFuelSettingsRow {
   always_fill_full?: boolean | null;
   fill_cap_pct?: number | string | null;
   avoid_states?: string[] | null;
+  opposite_side_access_miles?: number | string | null;
   fuel_before_states?: string[] | null;
   avoid_brands?: string[] | null;
   preferred_brands?: string[] | null;
@@ -49,6 +50,7 @@ export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefi
     alwaysFillFull: row?.always_fill_full ?? d.alwaysFillFull,
     fillCapPct: num(row?.fill_cap_pct, d.fillCapPct),
     avoidStates: arr(row?.avoid_states, d.avoidStates),
+    oppositeSideAccessMiles: num(row?.opposite_side_access_miles, d.oppositeSideAccessMiles),
     fuelBeforeStates: arr(row?.fuel_before_states, d.fuelBeforeStates),
     avoidBrands: arr(row?.avoid_brands, d.avoidBrands),
     preferredBrands: arr(row?.preferred_brands, d.preferredBrands),

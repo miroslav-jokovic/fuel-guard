@@ -25,4 +25,15 @@ describe("stationsAlongRoute", () => {
     expect(ids).not.toContain("behind");
     expect(ids).toContain("ahead");
   });
+  it("charges an opposite-side access penalty and flags the travel side", () => {
+    // North of a west→east route = LEFT = opposite of the US right-side pull-off → penalized; south is natural.
+    const north = stationsAlongRoute(route, [{ id: "n", lat: 40.02, lng: -99 }], null, { corridorMiles: 2.5, oppositeSideAccessMiles: 2 })[0]!;
+    expect(north.side).toBe("left");
+    expect(north.oppositeSide).toBe(true);
+    expect(north.detourMiles).toBeCloseTo(2 * north.crossTrackMiles + 2, 4);
+
+    const south = stationsAlongRoute(route, [{ id: "s", lat: 39.98, lng: -99 }], null, { corridorMiles: 2.5, oppositeSideAccessMiles: 2 })[0]!;
+    expect(south.oppositeSide).toBe(false);
+    expect(south.detourMiles).toBeCloseTo(2 * south.crossTrackMiles, 4); // no penalty on the natural side
+  });
 });

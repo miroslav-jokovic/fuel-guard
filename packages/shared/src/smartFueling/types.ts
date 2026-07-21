@@ -75,6 +75,8 @@ export interface RouteFuelSettings {
   /** When min-drawdown is active, cap a non-cheapest partial fill at this % of tank (full fill only at the cheapest reachable stop). */
   fillCapPct: number;
   avoidStates: string[];
+  /** Extra detour miles charged to an opposite-side (of travel) station — a divided-highway back-track. 0 = off. */
+  oppositeSideAccessMiles: number;
   /** States to top off before entering (sparse fueling — e.g. Massachusetts has one truck stop) — stations here stay usable. */
   fuelBeforeStates: string[];
   avoidBrands: string[];
@@ -100,6 +102,7 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   alwaysFillFull: true, // always top off (full tank). Min-drawdown is opt-in per org, not the default.
   fillCapPct: 75,
   avoidStates: ["CA"],
+  oppositeSideAccessMiles: 2, // interstate truck stops sit at interchanges → opposite side ≈ a real crossover
   fuelBeforeStates: ["MA"], // top off before entering — Massachusetts has essentially one truck stop
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],

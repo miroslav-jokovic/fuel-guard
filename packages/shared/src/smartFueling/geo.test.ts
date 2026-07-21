@@ -23,4 +23,9 @@ describe("geo", () => {
   it("segment projection clamps t to [0,1]", () => {
     expect(pointToSegmentMiles({ lat: 40, lng: -101 }, { lat: 40, lng: -100 }, { lat: 40, lng: -99 }).t).toBe(0);
   });
+  it("labels side of travel: north of a west→east route is LEFT, south is RIGHT", () => {
+    expect(nearestOnRoute({ lat: 40.2, lng: -99.5 }, route).side).toBe("left");
+    expect(nearestOnRoute({ lat: 39.8, lng: -99.5 }, route).side).toBe("right");
+    expect(nearestOnRoute({ lat: 40, lng: -99.5 }, route).side).toBe("on");
+  });
 });

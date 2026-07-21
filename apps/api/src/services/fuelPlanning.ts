@@ -247,7 +247,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   if (stations.length === 0) return { status: "no_stations", message: "No fuel stations are loaded for this corridor yet.", route: routeView, truck: truckView, breakAdvice: breakDue, manualFuelUsed, origin, destination };
 
   // Narrow to the on-route corridor FIRST, then pull price history only for those stations (fewer rows).
-  const candidates = stationsAlongRoute(route.polyline, stations.map((s) => ({ id: s.id, lat: Number(s.lat), lng: Number(s.lng) })), origin, { corridorMiles: cfg.corridorMiles });
+  const candidates = stationsAlongRoute(route.polyline, stations.map((s) => ({ id: s.id, lat: Number(s.lat), lng: Number(s.lng) })), origin, { corridorMiles: cfg.corridorMiles, oppositeSideAccessMiles: cfg.oppositeSideAccessMiles });
   const stationById = new Map(stations.map((s) => [s.id, s]));
   const candidateIds = candidates.map((c) => c.station.id);
 
