@@ -13,6 +13,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useOdometerMismatches();
 const { data: vehicles } = useVehiclesQuery();
@@ -56,11 +57,28 @@ const filtered = computed(() => {
   });
 });
 
+// Sorting — default newest → oldest; headers are clickable to re-sort. "Difference" sorts by magnitude.
+const sort = ref<SortState>({ key: "fueledAt", dir: "desc" });
+function onSort(key: string) {
+  sort.value = toggleSort(sort.value, key);
+}
+const getVal = (r: (typeof rows.value)[number], key: string): unknown => {
+  if (key === "fueledAt") return r.fueledAt; // ISO strings sort chronologically
+  if (key === "unit") return r.unit ?? "";
+  if (key === "driverName") return r.driverName ?? "";
+  if (key === "entered") return r.entered ?? 0;
+  if (key === "samsara") return r.samsara ?? 0;
+  if (key === "offset") return r.offset ?? 0;
+  if (key === "diff") return r.absDiff ?? 0; // biggest mismatch first
+  return (r as unknown as Record<string, unknown>)[key];
+};
+const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
+
 // Client-side pagination over the filtered mismatch list (reuses the shared jump-to-page control).
 const PAGE_SIZE = 20;
 const page = ref(1);
-watch([filtered], () => (page.value = 1));
-const paged = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+watch([filtered, sort], () => (page.value = 1));
+const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -95,17 +113,18 @@ const SOURCE: Record<string, { label: string; cls: string; title: string }> = {
 const source = (s: string | null) => SOURCE[s ?? ""] ?? { label: "—", cls: toneClass("neutral"), title: "Unknown source" };
 
 const columns: DataTableColumn[] = [
-  { key: "fueledAt", label: "Date", cellClass: "text-ink-secondary" },
-  { key: "unit", label: "Truck", cellClass: "font-medium text-ink" },
-  { key: "driverName", label: "Driver", cellClass: "text-ink-secondary" },
-  { key: "entered", label: "Entered", numeric: true, cellClass: "text-ink-secondary" },
-  { key: "samsara", label: "Samsara", numeric: true, cellClass: "text-ink-secondary" },
+  { key: "fueledAt", label: "Date", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "unit", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
+  { key: "driverName", label: "Driver", sortable: true, cellClass: "text-ink-secondary" },
+  { key: "entered", label: "Entered", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "samsara", label: "Samsara", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "samsaraOdometerSource", label: "Source" },
-  { key: "offset", label: "Offset", numeric: true, cellClass: "text-ink-muted" },
-  { key: "diff", label: "Difference", numeric: true },
+  { key: "offset", label: "Offset", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "diff", label: "Difference", sortable: true, numeric: true },
   { key: "timeBasis", label: "Time basis" },
   { key: "locationConfidence", label: "Location" },
 ];
+
 </script>
 
 <template>
@@ -134,6 +153,8 @@ const columns: DataTableColumn[] = [
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
       :retrying="isFetching"
+      :sort="sort"
+      @sort="onSort($event)"
       @retry="refetch"
     >
       <template #empty>
