@@ -18,6 +18,8 @@ import { galPerMile } from "./consumption.js";
 import { hoursFromMs } from "./units.js";
 import type { RouteFuelSettings } from "./types.js";
 import type { TruckFuelState } from "./truckState.js";
+import { isPreferred, cheapest, nearest } from "./stationSelect.js";
+import { chooseFill } from "./fillPolicy.js";
 
 const H = 3_600_000;
 const DRIVE_RESET_MS = 11 * H; // fresh drive clock after a 10-hour reset
@@ -99,12 +101,6 @@ export interface FuelPlan {
 
 const EPS = 1e-6;
 
-function isPreferred(s: SolverStation, cfg: RouteFuelSettings): boolean {
-  if (cfg.avoidBrands.includes(s.brand)) return false;
-  if (s.state && cfg.avoidStates.includes(s.state)) return false;
-  return cfg.preferredBrands.length === 0 || cfg.preferredBrands.includes(s.brand);
-}
-
 interface GreedyResult {
   stops: PlannedStop[];
   reaches: boolean;
@@ -175,55 +171,10 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     drive -= legMs; shift -= legMs; cycle -= legMs; brk -= legMs;
     const breakWasDue = hosKnown && brk <= H;
     if (pick.priceEstimated && pick.netPrice != null) usedEstimatedPrice = true;
-    const inAvoided = pick.state != null && cfg.avoidStates.includes(pick.state);
-    let fill;
-    let minFill = false;
-    if (borderTopOff) {
-      fill = Math.min(usable - arrivalGal, weightCap); // enter the avoided state full, whatever the price
-    } else if (emergency && inAvoided) {
-      usedAvoidedState = true;
-      fill = Math.min(cfg.emergencyFillGallons, usable - arrivalGal, weightCap);
-    } else if (emergency) {
-      // Outside an avoided state, an emergency stop still fills the tank FULL — the driver may not get another
-      // reachable pump. Only California (the avoided-state branch above) is capped at the ~50-gal splash.
-      fill = Math.min(usable - arrivalGal, weightCap);
-    } else if (!cfg.alwaysFillFull && !overnight) {
-      // Min-drawdown: full top-off ONLY when this is the cheapest reachable stop; otherwise buy just enough to
-      // reach the next cheaper station (floored at the min purchase, capped at fillCapPct of tank) so the truck
-      // doesn't haul expensive fuel past a cheaper pump.
-      const fullRangeMi = Math.max(0, usable - reserve) / gpm;
-      const cheaperAhead = stations
-        .filter((x) => !used.has(x.id) && x.id !== pick.id && x.milesAhead > pick.milesAhead + EPS
-          && isPreferred(x, cfg) && x.netPrice != null && pick.netPrice != null && rankPrice(x) < rankPrice(pick) - EPS
-          && (x.milesAhead + x.detourMiles - pick.milesAhead) <= fullRangeMi + EPS)
-        .sort((a, b) => a.milesAhead - b.milesAhead)[0];
-      if (!cheaperAhead) {
-        fill = Math.min(usable - arrivalGal, weightCap); // cheapest in the reachable horizon → top off
-      } else {
-        const capGal = Math.min(usable, (cfg.fillCapPct / 100) * tankCap);
-        const needOnboard = galFor((cheaperAhead.milesAhead + cheaperAhead.detourMiles) - pick.milesAhead) + reserve;
-        // Safety floor: never fill so little that the truck can't reach the next reachable station or the
-        // destination. The cap yields to feasibility, so min-drawdown never strands a route a full fill would make.
-        let nearestReachMi = Infinity;
-        for (const x of stations) {
-          if (used.has(x.id) || x.id === pick.id || x.milesAhead <= pick.milesAhead + EPS) continue;
-          const d2 = x.milesAhead + x.detourMiles - pick.milesAhead;
-          if (d2 <= fullRangeMi + EPS && d2 < nearestReachMi) nearestReachMi = d2;
-        }
-        const destDist = dest - pick.milesAhead;
-        if (destDist <= fullRangeMi + EPS && destDist < nearestReachMi) nearestReachMi = destDist;
-        const safetyOnboard = Number.isFinite(nearestReachMi) ? galFor(nearestReachMi) + reserve : usable;
-        let onboard = Math.max(Math.min(needOnboard, capGal), safetyOnboard, arrivalGal);
-        onboard = Math.min(onboard, usable);
-        let f = onboard - arrivalGal;
-        if (f < cfg.minPurchaseGal) f = Math.min(cfg.minPurchaseGal, usable - arrivalGal); // honor the min purchase
-        fill = Math.min(Math.max(0, f), weightCap);
-        minFill = arrivalGal + fill < usable - EPS; // a genuine partial fill (not forced up to full by safety/min-purchase)
-      }
-    } else {
-      fill = Math.min(usable - arrivalGal, weightCap); // full fill
-    }
-    fill = Math.max(0, fill);
+    const { fillGal: fill, isMinFill: minFill, isAvoidedState } = chooseFill({
+      pick, arrivalGal, emergency, overnight, borderTopOff, cfg, usable, reserve, weightCap, tankCap, gpm, dest, stations, used, galFor,
+    });
+    if (isAvoidedState) usedAvoidedState = true;
     if (minFill) usedMinFill = true;
     brk = BREAK_INTERVAL_MS; // a fuel stop (>=30 min) covers the break
     if (overnight) { drive = DRIVE_RESET_MS; shift = SHIFT_RESET_MS; usedReset = true; hosLimited = true; }
@@ -331,21 +282,6 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   }
   return done(false, true, null); // guard tripped without reaching
 }
-
-/** Penalty ($/gal) applied to an ESTIMATED price when ranking, so a real fresh quote wins a near-tie and a
- *  shaky estimate never quietly beats a known price. Small enough that a clearly cheaper estimate still wins. */
-const ESTIMATE_PENALTY_USD = 0.03;
-const rankPrice = (s: SolverStation): number => s.netPrice! + (s.priceEstimated ? ESTIMATE_PENALTY_USD : 0);
-const cheapest = (opts: SolverStation[]): SolverStation =>
-  opts.reduce((a, b) => {
-    const ra = rankPrice(a), rb = rankPrice(b);
-    if (Math.abs(ra - rb) > EPS) return ra < rb ? a : b;
-    // Equal effective price → prefer the easier-access stop (less detour, incl. the opposite-side back-track),
-    // then the one further along the route.
-    if (Math.abs(a.detourMiles - b.detourMiles) > EPS) return a.detourMiles < b.detourMiles ? a : b;
-    return a.milesAhead > b.milesAhead ? a : b;
-  });
-const nearest = (opts: SolverStation[]): SolverStation => opts.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b));
 
 const sumCost = (stops: PlannedStop[]): number | null =>
   stops.some((s) => s.kind === "fuel" && s.cost == null) ? null : stops.reduce((t, s) => t + (s.cost ?? 0), 0);
