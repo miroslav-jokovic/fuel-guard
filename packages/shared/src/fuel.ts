@@ -142,3 +142,17 @@ export function computeFillUpWarnings(args: {
     exceedsCapacity: args.tankCapacityGal > 0 && args.gallons > args.tankCapacityGal,
   };
 }
+
+/**
+ * A card_ref reliably identifies ONE physical card only when it isn't masked or a bare last-4. Truncated
+ * EFS reports (a masked PAN like "****1234", or a last-4 only) can share the same value across DIFFERENT
+ * cards, so card-IDENTITY rules (one card on multiple trucks) must NOT run on them — they'd conflate
+ * distinct cards into false alerts. Full numbers and real fleet card numbers (5+ unmasked chars) are reliable.
+ */
+export function isReliableCardRef(cardRef: string | null | undefined): boolean {
+  if (!cardRef) return false;
+  const c = cardRef.trim();
+  if (c.length < 5) return false; // a bare last-4 (or shorter) can't distinguish cards
+  if (/[*x\u2022]/i.test(c)) return false; // masked PAN — only the last few digits are real
+  return true;
+}

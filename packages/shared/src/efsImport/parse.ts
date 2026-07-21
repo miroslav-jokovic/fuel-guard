@@ -107,7 +107,14 @@ export function normalizeTransactionRows(rows: RawRow[]): {
       skipped.push({ row_number: rowNumber, reason: "unparseable date", item });
       return;
     }
-    const card = str(pick(row, "Card #", "Card Number"));
+    // Dedup KEY keeps prior behavior (Card # first, else Card Number) so external_refs stay stable across
+    // imports. card_ref (used for card-IDENTITY matching + display) prefers the FULLEST value — some EFS
+    // reports carry the full number, some a truncated one; auto-prefer full so they aren't conflated.
+    const cardShort = str(pick(row, "Card #"));
+    const cardFull = str(pick(row, "Card Number", "CardNumber"));
+    const card = cardShort ?? cardFull;
+    const cardRefVal =
+      [cardFull, cardShort].filter((v): v is string => !!v).sort((a, b) => b.length - a.length)[0] ?? card;
     const invoice = str(pick(row, "Invoice"));
     const txnId = str(pick(row, "TransactionId", "Transaction Id", "Transaction ID"));
     const total = num(pick(row, "Amt", "Amount"));
@@ -137,7 +144,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
         external_ref: ref,
         unit: str(pick(row, "Unit")),
         driver_name: str(pick(row, "Driver Name")),
-        card_ref: card,
+        card_ref: cardRefVal,
         fueled_at: instant.iso,
         tran_date: instant.tranDate,
         fueled_at_precision: instant.precision,

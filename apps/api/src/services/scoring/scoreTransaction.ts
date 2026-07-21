@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   runAllRules, reconcileAnomalies, correlateSignals, CASE_RULE_ID, milesSinceLast, computedMpg,
   effectiveBaseline, learnOdometerOffset, learnTankSensorReliability, learnObservedMaxFill,
-  robustWindowMiles, type TxnView, type VehicleView,
+  robustWindowMiles, isReliableCardRef, type TxnView, type VehicleView,
   type ExistingAnomaly, type RuleResult, type RuleId,
 } from "@fuelguard/shared";
 import type { Env } from "../../env.js";
@@ -135,7 +135,9 @@ export async function scoreTransaction(
     ).miles;
   }
 
-  if (txn.cardRef) {
+  // Only match card identity on a RELIABLE ref — a masked/last-4-only card can be shared by DIFFERENT
+  // cards, which would conflate them into a false "one card, multiple trucks" alert.
+  if (txn.cardRef && isReliableCardRef(txn.cardRef)) {
     const { data: cardRows } = await admin
       .from("fuel_transactions")
       .select("vehicle_id")

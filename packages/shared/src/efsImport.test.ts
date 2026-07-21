@@ -117,6 +117,15 @@ describe("normalizeTransactionRows", () => {
     expect(reefer.external_ref).toBe("1|INV1|2026-06-01|reefer"); // distinct new ref
   });
 
+  it("prefers the full Card Number for card_ref, but keeps the dedup key on Card #", () => {
+    const { fuelLines: fl } = normalizeTransactionRows([
+      { "Card #": "1234", "Card Number": "7083440000001234", Invoice: "INV1", Item: "ULSD", Qty: "100", Amt: "400", "Tran Date": "2026-06-01" },
+    ]);
+    expect(fl).toHaveLength(1);
+    expect(fl[0]!.card_ref).toBe("7083440000001234"); // full number preferred → same-last-4 cards stay distinct
+    expect(fl[0]!.external_ref).toBe("1234|INV1|2026-06-01"); // dedup key unchanged (stable across imports)
+  });
+
   it("merges multiple fuel lines on the same invoice (sum gallons, re-derive price)", () => {
     const merged = normalizeTransactionRows([
       { "Card #": "1", Invoice: "INV1", Unit: "5", Odometer: "1000", Item: "ULSD", "Unit Price": "4.0", Qty: "100", Amt: "400", "Tran Date": "2026-06-01" },

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { isReliableCardRef } from "./fuel.js";
 import { derivePricePerGal, computeFillUpWarnings, fillUpInputSchema } from "./index.js";
 
 describe("derivePricePerGal (audit L3)", () => {
@@ -59,5 +60,19 @@ describe("fillUpInputSchema", () => {
   });
   it("allows a missing odometer (warned, not blocked)", () => {
     expect(fillUpInputSchema.safeParse(valid).success).toBe(true);
+  });
+});
+
+describe("isReliableCardRef", () => {
+  it("accepts full numbers and real fleet card numbers", () => {
+    expect(isReliableCardRef("7083440000094507")).toBe(true);
+    expect(isReliableCardRef("94507")).toBe(true);
+  });
+  it("rejects a bare last-4, masked PANs, and empty", () => {
+    expect(isReliableCardRef("1234")).toBe(false);       // last-4 only
+    expect(isReliableCardRef("****1234")).toBe(false);   // masked
+    expect(isReliableCardRef("7083XXXX1234")).toBe(false);
+    expect(isReliableCardRef(null)).toBe(false);
+    expect(isReliableCardRef("")).toBe(false);
   });
 });
