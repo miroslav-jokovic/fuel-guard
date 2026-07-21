@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { useRouter } from "vue-router";
+import { useRouter, type RouteLocationRaw } from "vue-router";
 import { AppButton } from "@fuelguard/ui";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
 const router = useRouter();
 
-const NAV = [
-  "Customers",
-  "Users & access",
-  "Billing",
-  "Backups",
-  "Settings & flags",
-  "Errors & repairs",
-  "Audit",
+interface NavItem {
+  label: string;
+  to?: RouteLocationRaw;
+}
+const NAV: NavItem[] = [
+  { label: "Customers", to: { name: "customers" } },
+  { label: "Users & access" },
+  { label: "Billing" },
+  { label: "Backups" },
+  { label: "Settings & flags" },
+  { label: "Errors & repairs" },
+  { label: "Audit" },
 ];
 
 async function signOut() {
@@ -40,14 +44,20 @@ async function signOut() {
 
     <div class="mx-auto flex max-w-7xl gap-6 px-4 py-6">
       <nav class="w-56 shrink-0 space-y-1">
-        <div
-          v-for="item in NAV"
-          :key="item"
-          class="rounded-md px-3 py-2 text-sm font-medium text-ink-muted"
-        >
-          {{ item }}
-          <span class="ml-1 text-xs text-ink-subtle">· soon</span>
-        </div>
+        <template v-for="item in NAV" :key="item.label">
+          <RouterLink
+            v-if="item.to"
+            :to="item.to"
+            class="block rounded-md px-3 py-2 text-sm font-medium text-ink-secondary hover:bg-surface-subtle"
+            active-class="bg-surface-subtle text-ink"
+          >
+            {{ item.label }}
+          </RouterLink>
+          <div v-else class="rounded-md px-3 py-2 text-sm font-medium text-ink-muted">
+            {{ item.label }}
+            <span class="ml-1 text-xs text-ink-subtle">· soon</span>
+          </div>
+        </template>
       </nav>
       <main class="min-w-0 flex-1">
         <slot />

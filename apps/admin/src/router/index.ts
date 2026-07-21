@@ -6,6 +6,8 @@ const routes: RouteRecordRaw[] = [
   // MFA is the ONLY authenticated route reachable at aal1 (enroll/challenge to reach aal2).
   { path: "/mfa", name: "mfa", component: () => import("@/pages/MfaPage.vue"), meta: { allowAal1: true } },
   { path: "/", name: "dashboard", component: () => import("@/pages/DashboardPage.vue"), meta: { title: "Overview" } },
+  { path: "/customers", name: "customers", component: () => import("@/pages/CustomersPage.vue"), meta: { title: "Customers" } },
+  { path: "/customers/:id", name: "customer", component: () => import("@/pages/CustomerDetailPage.vue"), meta: { title: "Customer" } },
 ];
 
 export const router = createRouter({ history: createWebHistory(), routes });
