@@ -19,8 +19,8 @@ import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraFetcher, makeSamsaraHosFetcher } from "../lib/samsara.js";
 import { hereReverseGeocodeState } from "../lib/hereGeocode.js";
 
-/** Fuel % at/above which entering an avoided state does NOT require a pre-border top-off (California rule). */
-const BORDER_TOP_OFF_PCT = 85;
+/** Fuel % at/above which entering an avoided state does NOT require a pre-border top-off (California rule). 80% per policy. */
+const BORDER_TOP_OFF_PCT = 80;
 
 export interface PlanPoint { lat?: number | null; lng?: number | null; text?: string | null }
 export interface PlanRequest {

@@ -59,7 +59,7 @@ export interface FuelPlanInput {
   hos?: HosState;
   /** Route mile where the truck crosses into an avoided state (e.g. California). undefined = no avoided border ahead. */
   avoidedBorderMiles?: number;
-  /** Fuel % at/above which the pre-border top-off is skipped (default 85 — enter the avoided state full unless already near-full). */
+  /** Fuel % at/above which the pre-border top-off is skipped (default 80 — enter the avoided state full unless already near-full). */
   borderTopOffPct?: number;
 }
 
@@ -132,7 +132,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   const weightCap = truck.weightLegalFillGal;
   const tankCap = truck.effectiveTankCapacityGal;
   const avoidedBorderMi = input.avoidedBorderMiles;
-  const topOffPct = input.borderTopOffPct ?? 85;
+  const topOffPct = input.borderTopOffPct ?? 80;
   const stations = [...input.stations].sort((a, b) => a.milesAhead - b.milesAhead);
 
   const hos = input.hos;
@@ -275,9 +275,15 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       continue;
     }
 
-    // Fuel is the binding constraint → cheapest reachable fuel stop, full fill, no reset.
+    // Fuel is the binding constraint → refuel (full fill, no reset). DEFER the stop toward the reserve so the
+    // tank runs down (fewest stops) instead of topping off early at a station the truck merely passes: prefer a
+    // preferred, priced station in the last `refuelBandMiles` of range. Fall back to the full reachable set when
+    // that band has no good station (sparse stations) so we never strand the route or skip an emergency option.
     if (inWindow.length === 0) return done(false, true, null);
-    const { pick, emergency } = pickStop(inWindow);
+    const bandStartMi = fuelMi - cfg.refuelBandMiles;
+    const inBand = inWindow.filter((x) => (x.milesAhead - pos) + x.detourMiles >= bandStartMi - EPS);
+    const pool = inBand.some((x) => isPreferred(x, cfg) && x.netPrice != null) ? inBand : inWindow;
+    const { pick, emergency } = pickStop(pool);
     applyFuelStop(pick, emergency, false);
   }
   return done(false, true, null); // guard tripped without reaching

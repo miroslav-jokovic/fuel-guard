@@ -17,6 +17,7 @@ export interface RouteFuelSettingsRow {
   fill_cap_pct?: number | string | null;
   avoid_states?: string[] | null;
   opposite_side_access_miles?: number | string | null;
+  refuel_band_miles?: number | string | null;
   fuel_before_states?: string[] | null;
   avoid_brands?: string[] | null;
   preferred_brands?: string[] | null;
@@ -51,6 +52,7 @@ export function resolveRouteFuelConfig(row: RouteFuelSettingsRow | null | undefi
     fillCapPct: num(row?.fill_cap_pct, d.fillCapPct),
     avoidStates: arr(row?.avoid_states, d.avoidStates),
     oppositeSideAccessMiles: num(row?.opposite_side_access_miles, d.oppositeSideAccessMiles),
+    refuelBandMiles: num(row?.refuel_band_miles, d.refuelBandMiles),
     fuelBeforeStates: arr(row?.fuel_before_states, d.fuelBeforeStates),
     avoidBrands: arr(row?.avoid_brands, d.avoidBrands),
     preferredBrands: arr(row?.preferred_brands, d.preferredBrands),

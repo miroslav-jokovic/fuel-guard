@@ -45,6 +45,19 @@ describe("planFuelStops — fuel", () => {
     expect(plan.stops[0]!.station!.id).toBe("cheap");
   });
 
+  it("defers refueling toward reserve (fewest stops), not an early top-off at a cheaper station", () => {
+    // Full tank (~910 mi range). A cheap station at mile 100 and another at mile 800 are both reachable. The
+    // planner should run the tank down and fuel at the FAR one (near reserve) rather than top off early at 100.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 1000,
+      stations: [st("early-cheap", 100, 3.0), st("late", 800, 4.0)],
+      truck: mkTruck({ gallonsOnHand: 190 }),
+    }));
+    expect(plan.reachesDestination).toBe(true);
+    expect(plan.stops).toHaveLength(1);
+    expect(plan.stops[0]!.station!.id).toBe("late");
+  });
+
   it("INVARIANT: never arrives at a stop below reserve", () => {
     const plan = planFuelStops(input({ distanceToGoMiles: 1200, stations: [st("s1", 300, 3.6), st("s2", 650, 3.4), st("s3", 980, 3.7)] }));
     for (const s of plan.stops) expect(s.arrivalGal).toBeGreaterThanOrEqual(38 - 1e-6);
@@ -180,7 +193,7 @@ describe("planFuelStops — HOS integration", () => {
 });
 
 describe("planFuelStops — avoided-state border top-off (California rule)", () => {
-  it("tops off before the border when the truck would enter the avoided state below 85%", () => {
+  it("tops off before the border when the truck would enter the avoided state below 80%", () => {
     // 50% tank could coast to the destination, but the CA border is at mile 150 and the truck would cross it
     // at ~37% → it must top off at the preferred station just before the line and enter CA full.
     const plan = planFuelStops(input({
@@ -197,7 +210,7 @@ describe("planFuelStops — avoided-state border top-off (California rule)", () 
     expect(plan.flags).toContain("topped_off_before_avoided_state");
   });
 
-  it("does NOT top off when the truck would already cross the border above 85%", () => {
+  it("does NOT top off when the truck would already cross the border above 80%", () => {
     // Near-full tank (95%), border only 30 mi ahead → crosses at ~92% → no top-off inserted.
     const plan = planFuelStops(input({
       distanceToGoMiles: 250,
