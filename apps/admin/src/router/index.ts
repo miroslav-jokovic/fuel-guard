@@ -8,6 +8,7 @@ const routes: RouteRecordRaw[] = [
   { path: "/", name: "dashboard", component: () => import("@/pages/DashboardPage.vue"), meta: { title: "Overview" } },
   { path: "/customers", name: "customers", component: () => import("@/pages/CustomersPage.vue"), meta: { title: "Customers" } },
   { path: "/customers/:id", name: "customer", component: () => import("@/pages/CustomerDetailPage.vue"), meta: { title: "Customer" } },
+  { path: "/customers/:id/view", name: "customer-view", component: () => import("@/pages/CustomerViewPage.vue"), meta: { title: "Customer view" } },
 ];
 
 export const router = createRouter({ history: createWebHistory(), routes });

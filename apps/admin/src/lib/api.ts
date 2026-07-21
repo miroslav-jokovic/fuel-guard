@@ -60,3 +60,23 @@ export interface Me {
   email: string;
   role: string;
 }
+
+export interface Grant {
+  id: string;
+  orgId: string;
+  adminId: string;
+  scope: "read_only" | "read_write";
+  reason: string;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
+export interface ViewAnomaly {
+  id: string;
+  ruleId: string;
+  severity: string;
+  status: string;
+  message: string;
+  createdAt: string;
+}

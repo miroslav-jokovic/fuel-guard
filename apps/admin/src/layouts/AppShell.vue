@@ -1,10 +1,17 @@
 <script setup lang="ts">
+import { onMounted } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import { AppButton } from "@fuelguard/ui";
 import { useSessionStore } from "@/stores/session";
+import { useImpersonationStore } from "@/stores/impersonation";
 
 const session = useSessionStore();
+const imp = useImpersonationStore();
 const router = useRouter();
+
+onMounted(() => {
+  void imp.load().catch(() => {});
+});
 
 interface NavItem {
   label: string;
@@ -41,6 +48,22 @@ async function signOut() {
         </div>
       </div>
     </header>
+
+    <!-- Impersonation banner — always visible while a read-only support session is active. -->
+    <div v-if="imp.grants.length" class="bg-warning-100 text-warning-800">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-sm">
+        <span>
+          <span class="font-semibold">Read-only support session active</span>
+          on {{ imp.grants.length }} customer<span v-if="imp.grants.length > 1">s</span>.
+        </span>
+        <RouterLink
+          :to="{ name: 'customer-view', params: { id: imp.grants[0]!.orgId } }"
+          class="font-semibold underline"
+        >
+          Open
+        </RouterLink>
+      </div>
+    </div>
 
     <div class="mx-auto flex max-w-7xl gap-6 px-4 py-6">
       <nav class="w-56 shrink-0 space-y-1">

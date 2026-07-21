@@ -11,6 +11,7 @@ import { setAppLocals } from "./lib/appLocals.js";
 import { apiError } from "./lib/http.js";
 import { meRouter } from "./routes/me.js";
 import { orgsRouter } from "./routes/orgs.js";
+import { impersonationRouter } from "./routes/impersonation.js";
 
 /**
  * Build the PLATFORM (admin) Express app. Factory with no side effects so tests can construct it freely
@@ -56,6 +57,7 @@ export function createApp(env: Env): Express {
   // fitness test discovers these mounts and proves each rejects unauthenticated (401) + non-admin (403).
   app.use("/admin/me", meRouter());
   app.use("/admin/orgs", orgsRouter());
+  app.use("/admin/impersonation", impersonationRouter());
 
   // ── Serve the built admin SPA (single-service deploy for the platform plane) ────────────────
   const here = path.dirname(fileURLToPath(import.meta.url)); // apps/admin-api/src

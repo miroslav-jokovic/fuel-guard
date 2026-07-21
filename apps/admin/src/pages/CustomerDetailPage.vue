@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { useRoute } from "vue-router";
-import { AppCard, AppButton } from "@fuelguard/ui";
+import { useRoute, useRouter } from "vue-router";
+import { AppCard, AppButton, AppInput } from "@fuelguard/ui";
 import AppShell from "@/layouts/AppShell.vue";
 import { apiGet, apiPost, type OrgDetail, type OrgMember, type Me } from "@/lib/api";
+import { useImpersonationStore } from "@/stores/impersonation";
 import { fmtDate } from "@/lib/format";
 
 const route = useRoute();
+const router = useRouter();
 const id = route.params.id as string;
 
 const org = ref<OrgDetail | null>(null);
@@ -17,6 +19,30 @@ const loading = ref(true);
 const toggling = ref<string | null>(null);
 
 const canManageModules = computed(() => me.value?.role === "platform_owner" || me.value?.role === "platform_admin");
+const canImpersonate = computed(() => me.value?.role !== undefined && me.value.role !== "platform_readonly");
+
+const imp = useImpersonationStore();
+const reason = ref("");
+const starting = ref(false);
+const startError = ref<string | null>(null);
+const activeGrant = computed(() => imp.activeForOrg(id));
+
+async function startSession() {
+  if (reason.value.trim().length < 3) {
+    startError.value = "Please enter a reason (at least 3 characters).";
+    return;
+  }
+  startError.value = null;
+  starting.value = true;
+  try {
+    await imp.start(id, reason.value.trim());
+    await router.push({ name: "customer-view", params: { id } });
+  } catch (e) {
+    startError.value = e instanceof Error ? e.message : "Could not start the session";
+  } finally {
+    starting.value = false;
+  }
+}
 
 onMounted(async () => {
   try {
@@ -28,6 +54,7 @@ onMounted(async () => {
     org.value = detail;
     members.value = mem;
     me.value = whoami;
+    await imp.load().catch(() => {});
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Could not load this customer";
   } finally {
@@ -139,6 +166,27 @@ async function toggleModule(provider: string, enabled: boolean) {
             </tr>
           </tbody>
         </table>
+      </AppCard>
+
+      <AppCard v-if="canImpersonate" class="mt-4">
+        <h2 class="text-sm font-semibold text-ink-secondary">Support access</h2>
+        <p class="mt-1 text-sm text-ink-muted">
+          Open a time-boxed, read-only view of this customer's data. The reason is required and recorded in
+          both our platform log and the customer's own audit trail.
+        </p>
+        <div v-if="activeGrant" class="mt-3 flex items-center gap-3">
+          <span class="text-sm text-success-700">A read-only session is active.</span>
+          <AppButton size="sm" variant="primary" :to="{ name: 'customer-view', params: { id } }">Open view</AppButton>
+        </div>
+        <form v-else class="mt-3 flex items-start gap-2" @submit.prevent="startSession">
+          <div class="flex-1">
+            <AppInput v-model="reason" placeholder="Reason (e.g. investigating a reefer alert)" />
+            <p v-if="startError" class="mt-1 text-sm text-danger-600">{{ startError }}</p>
+          </div>
+          <AppButton type="submit" variant="primary" :disabled="starting">
+            {{ starting ? "Starting…" : "Start read-only session" }}
+          </AppButton>
+        </form>
       </AppCard>
     </template>
   </AppShell>
