@@ -10,7 +10,7 @@
 create table if not exists platform_audit_log (
   id            uuid primary key default gen_random_uuid(),
   admin_id      uuid references platform_admins(id) on delete set null,
-  admin_email   citext not null,                -- denormalized so the trail survives admin-row deletion
+  admin_email   text not null,                  -- denormalized so the trail survives admin-row deletion
   action        text not null,                  -- e.g. 'org.suspend', 'billing.comp', 'impersonation.start'
   target_org_id uuid references organizations(id) on delete set null,
   target_entity text,                           -- table / entity name, when applicable

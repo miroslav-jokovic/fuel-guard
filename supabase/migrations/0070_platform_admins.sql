@@ -7,8 +7,6 @@
 -- table on every admin request — so a stale/stolen token can never carry god-mode, and revocation is
 -- instant (flip status / delete the row). No JWT claim ever encodes platform access.
 
-create extension if not exists citext;  -- case-insensitive email matching
-
 do $$ begin
   create type platform_role as enum
     ('platform_owner', 'platform_admin', 'platform_support', 'platform_readonly');
@@ -16,7 +14,7 @@ exception when duplicate_object then null; end $$;
 
 create table if not exists platform_admins (
   id              uuid primary key default gen_random_uuid(),
-  email           citext not null unique,
+  email           text not null unique,   -- lower-cased on write (case-insensitive, no citext dep)
   -- Linked on first login by email (admin-api stamps user_id the first time it authenticates them).
   user_id         uuid unique references auth.users(id) on delete set null,
   role            platform_role not null default 'platform_readonly',

@@ -55,10 +55,11 @@ export async function lookupPlatformAdmin(
   let row = (byId.data as Row | null) ?? null;
 
   if (!row && identity.email) {
+    // Emails are stored lower-cased (no citext), so match case-insensitively by lower-casing here.
     const byEmail = await admin
       .from("platform_admins")
       .select("id, email, user_id, role, status, mfa_enrolled_at, last_reauth_at")
-      .eq("email", identity.email)
+      .eq("email", identity.email.toLowerCase())
       .is("user_id", null)
       .maybeSingle();
     row = (byEmail.data as Row | null) ?? null;
