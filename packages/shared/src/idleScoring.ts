@@ -204,6 +204,10 @@ export function parseIdlingEvents(response: { data?: unknown[] }): ParsedIdleEve
 export interface IdleScoreRow {
   driverId: string;
   driverName: string;
+  /** The truck (unit number) this driver idled on most in the range; null if unknown. */
+  primaryUnit: string | null;
+  /** How many distinct trucks the driver's idle spanned (1 for the usual single-truck case). */
+  unitCount: number;
   events: number;
   totalIdleHours: number;
   discretionaryHours: number;
@@ -251,6 +255,8 @@ export interface IdleRow {
   idleGal?: number | null;
   /** ISO start time — used for the week-over-week trend. Optional (trend is skipped when absent). */
   startedAt?: string;
+  /** The truck (unit number) this idle event happened on, for the per-driver primary-truck column. */
+  unitNumber?: string | null;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -298,6 +304,7 @@ export function aggregateDriverIdle(
       long: number;
       recentDisc: number;
       priorDisc: number;
+      units: Map<string, number>;
     }
   >();
   let fleetIdle = 0;
@@ -326,9 +333,11 @@ export function aggregateDriverIdle(
       long: 0,
       recentDisc: 0,
       priorDisc: 0,
+      units: new Map<string, number>(),
     };
     d.events += 1;
     d.total += hours;
+    if (row.unitNumber) d.units.set(row.unitNumber, (d.units.get(row.unitNumber) ?? 0) + hours);
     if (row.durationSec >= 3600) d.long += 1;
     if (row.classification === "discretionary") {
       const gal = galFor(row, o);
@@ -361,9 +370,19 @@ export function aggregateDriverIdle(
         const rel = d.priorDisc > 0 ? delta / d.priorDisc : delta > 0 ? 1 : 0;
         trend = rel > 0.15 ? "up" : rel < -0.15 ? "down" : "flat";
       }
+      let primaryUnit: string | null = null;
+      let unitMax = -1;
+      for (const [u, h] of d.units) {
+        if (h > unitMax) {
+          unitMax = h;
+          primaryUnit = u;
+        }
+      }
       return {
         driverId,
         driverName: d.name,
+        primaryUnit,
+        unitCount: d.units.size,
         events: d.events,
         totalIdleHours: r1(d.total),
         discretionaryHours: r1(d.disc),

@@ -1,5 +1,5 @@
 import { computed, ref, watch } from "vue";
-import { useIdleScores } from "./useIdleScores";
+import { useIdleScores, type IdleDateFilter } from "./useIdleScores";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
 import { useLongIdles } from "./useLongIdles";
@@ -17,10 +17,29 @@ const usd2 = (n: number) => n.toLocaleString(undefined, { style: "currency", cur
 const dateFmt = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 const PAGE_SIZE = 20;
 
+// Date range (drives the driver leaderboard, the fleet KPIs, and the avoidable-idles tab). The picker
+// emits YYYY-MM-DD; unset = the default last-30-days window. `to` is made end-of-day inclusive.
+const dateFrom = ref<string | undefined>(undefined);
+const dateTo = ref<string | undefined>(undefined);
+const dateFilter = computed<IdleDateFilter>(() => ({
+  from: dateFrom.value ? `${dateFrom.value}T00:00:00` : undefined,
+  to: dateTo.value ? `${dateTo.value}T23:59:59` : undefined,
+}));
+// Range length (days) for precise annualization; defaults to 30 when no explicit range is set.
+const rangeDays = computed(() => {
+  if (dateFrom.value && dateTo.value) {
+    const d = (Date.parse(`${dateTo.value}T23:59:59`) - Date.parse(`${dateFrom.value}T00:00:00`)) / 86_400_000;
+    return Math.max(1, Math.round(d));
+  }
+  return 30;
+});
+const annualMultiplier = computed(() => 365 / rangeDays.value);
+const rangeLabel = computed(() => (dateFrom.value || dateTo.value ? `selected ${rangeDays.value}-day range` : "last 30 days"));
+
 // Data sources.
-const { data, isLoading, isError, error, refetch, isFetching } = useIdleScores();
+const { data, isLoading, isError, error, refetch, isFetching } = useIdleScores(dateFilter);
 const { data: caps } = useIdleCapabilities();
-const { data: longIdles } = useLongIdles();
+const { data: longIdles } = useLongIdles(dateFilter);
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();
 const adoptBand = useAdoptComfortBand();
@@ -109,7 +128,9 @@ const drvSort = ref<SortState>({ key: null, dir: "asc" });
 const drvPage = ref(1);
 const drvFiltered = computed(() => {
   const q = drvSearch.value.trim().toLowerCase();
-  return q ? drivers.value.filter((d) => d.driverName.toLowerCase().includes(q)) : drivers.value;
+  return q
+    ? drivers.value.filter((d) => d.driverName.toLowerCase().includes(q) || (d.primaryUnit?.toLowerCase().includes(q) ?? false))
+    : drivers.value;
 });
 const drvSorted = computed(() => (drvSort.value.key ? sortRows(drvFiltered.value, drvSort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]) : drvFiltered.value));
 const drvRank = (i: number) => (drvPage.value - 1) * PAGE_SIZE + i + 1;
@@ -123,6 +144,7 @@ watch(drvFiltered, () => (drvPage.value = 1));
 const drvColumns: DataTableColumn[] = [
   { key: "rank", label: "#", cellClass: "text-ink-subtle" },
   { key: "driverName", label: "Driver" },
+  { key: "primaryUnit", label: "Truck", cellClass: "text-ink-secondary" },
   { key: "score", label: "Idle score", sortable: true, numeric: true },
   { key: "discretionaryCost", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   { key: "discretionaryHours", label: "Avoidable hrs", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
@@ -208,6 +230,7 @@ const capColumns: DataTableColumn[] = [
     tabs, activeTab, showInfo, showConfidence,
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
     capBadge, equipBadge, xcheck, trendCell, scoreTone, recordedLabel, recordedCls,
+    dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
     avSearch, avAvoidableSel, avAvoidableOptions, avSort, avPage, avFilterCount, avFiltered, avPaged, avRowKey, clearAv, avColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,

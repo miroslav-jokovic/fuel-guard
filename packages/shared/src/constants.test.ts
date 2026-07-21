@@ -16,10 +16,11 @@ describe("shared constants", () => {
   });
 
   it("declares all anomaly rule ids", () => {
-    expect(RULE_IDS).toHaveLength(24);
+    expect(RULE_IDS).toHaveLength(25);
     expect(RULE_IDS).toContain("reefer_exceeds_capacity");
     expect(RULE_IDS).toContain("reefer_overfuel_rate");
     expect(RULE_IDS).toContain("reefer_fuel_diversion");
+    expect(RULE_IDS).toContain("fuel_while_driver_home");
     expect(RULE_IDS).toContain("odometer_entry_suspect");
   });
 });

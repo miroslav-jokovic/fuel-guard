@@ -1,3 +1,4 @@
+import { type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import {
   topAvoidableIdles,
@@ -6,6 +7,7 @@ import {
   type IdleClassification,
 } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
+import type { IdleDateFilter } from "./useIdleScores";
 
 const PAGE = 1000;
 const WINDOW_DAYS = 30;
@@ -32,14 +34,15 @@ interface RawLongIdleRow {
  * available (the driver could have shut the main engine off). RLS-scoped, read-only; sorting lives in the shared
  * pure helper.
  */
-export function useLongIdles() {
+export function useLongIdles(filters: Ref<IdleDateFilter>) {
   return useQuery({
-    queryKey: ["long_idles"],
+    queryKey: ["long_idles", filters],
     queryFn: async (): Promise<LongIdleRow[]> => {
-      const from = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
+      const f = toValue(filters);
+      const from = f.from ?? new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
       const rows: LongIdleInput[] = [];
       for (let offset = 0; ; offset += PAGE) {
-        const { data, error } = await supabase
+        let q = supabase
           .from("idle_events")
           .select(
             "started_at, duration_sec, classification, fuel_gal, idle_gal, cost_usd, drivers(full_name), vehicles(unit_number, idle_capability, has_apu, has_optimized_idle)",
@@ -48,6 +51,8 @@ export function useLongIdles() {
           .gte("started_at", from)
           .order("duration_sec", { ascending: false })
           .range(offset, offset + PAGE - 1);
+        if (f.to) q = q.lte("started_at", f.to);
+        const { data, error } = await q;
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as unknown as RawLongIdleRow[];
         for (const r of batch) {

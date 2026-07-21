@@ -2,6 +2,7 @@
 import TablePagination from "@/components/TablePagination.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -15,6 +16,7 @@ const {
   usd, usd2, dateFmt, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
   tabs, activeTab, showInfo, showConfidence,
+  dateFrom, dateTo, annualMultiplier, rangeLabel,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
   capBadge, equipBadge, xcheck, trendCell, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
@@ -25,12 +27,12 @@ const {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Avoidable idling costs, driver idle scores, and truck idle-reduction capability — last 30 days." />
+    <PageHeader :description="`Avoidable idling costs, driver idle scores, and truck idle-reduction capability — ${rangeLabel}.`" />
 
     <!-- Fleet money summary (KPIs, always visible) -->
     <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Money wasted idling (last 30 days)</dt>
+        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Money wasted idling ({{ rangeLabel }})</dt>
         <dd class="mt-1 text-2xl font-bold text-danger-700">{{ usd(data.fleetDiscretionaryCost) }}</dd>
         <dd class="mt-0.5 text-xs text-ink-subtle">{{ data.fleetDiscretionaryGal.toLocaleString() }} gal of avoidable idle</dd>
       </BaseCard>
@@ -40,8 +42,8 @@ const {
       </BaseCard>
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Projected yearly waste</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink">{{ usd(data.fleetDiscretionaryCost * 12) }}</dd>
-        <dd class="mt-0.5 text-xs text-ink-subtle">at the current 30-day rate</dd>
+        <dd class="mt-1 text-2xl font-bold text-ink">{{ usd(data.fleetDiscretionaryCost * annualMultiplier) }}</dd>
+        <dd class="mt-0.5 text-xs text-ink-subtle">annualized from the {{ rangeLabel }}</dd>
       </BaseCard>
     </div>
 
@@ -127,10 +129,14 @@ const {
     <template v-if="activeTab === 'drivers'">
       <FilterBar
         v-model:search="drvSearch"
-        search-placeholder="Search driver…"
+        search-placeholder="Search driver or truck…"
         :count="drvFiltered.length"
         count-label="drivers"
-      />
+      >
+        <template #filters>
+          <DateRangeFilter v-model:from="dateFrom" v-model:to="dateTo" />
+        </template>
+      </FilterBar>
       <DataTable
         :columns="drvColumns"
         :rows="drvPaged"
@@ -148,6 +154,12 @@ const {
           <span class="font-medium" :class="row.driverId === '__unattributed__' ? 'text-ink-subtle italic' : 'text-ink'">
             {{ row.driverName }}<span v-if="row.driverId === '__unattributed__'" class="ml-1 text-xs font-normal">(no driver assigned by Samsara)</span>
           </span>
+        </template>
+        <template #cell-primaryUnit="{ row }">
+          <span v-if="row.primaryUnit" class="text-ink-secondary">
+            {{ row.primaryUnit }}<span v-if="row.unitCount > 1" class="ml-1 text-xs text-ink-subtle">+{{ row.unitCount - 1 }}</span>
+          </span>
+          <span v-else class="text-ink-subtle">—</span>
         </template>
         <template #cell-score="{ row }">
           <span class="font-bold" :class="scoreTone(row.score)">{{ row.score }}</span>
@@ -172,6 +184,7 @@ const {
         count-label="sessions"
       >
         <template #filters>
+          <DateRangeFilter v-model:from="dateFrom" v-model:to="dateTo" />
           <FilterSelect v-model="avAvoidableSel" label="Avoidable" :options="avAvoidableOptions" />
         </template>
         <template #actions>

@@ -330,3 +330,25 @@ describe("topAvoidableIdles", () => {
     expect(by.UNK!.equipment).toBe("unknown");
   });
 });
+
+describe("aggregateDriverIdle — primary truck", () => {
+  it("reports the driver's most-idled truck and how many trucks their idle spanned", () => {
+    const s = aggregateDriverIdle([
+      { driverId: "d1", driverName: "Al", unitNumber: "101", durationSec: 3 * 3600, classification: "discretionary", fuelGal: null, costUsd: null, startedAt: "2026-07-10T00:00:00Z" },
+      { driverId: "d1", driverName: "Al", unitNumber: "101", durationSec: 2 * 3600, classification: "justified", fuelGal: null, costUsd: null, startedAt: "2026-07-11T00:00:00Z" },
+      { driverId: "d1", driverName: "Al", unitNumber: "202", durationSec: 1 * 3600, classification: "discretionary", fuelGal: null, costUsd: null, startedAt: "2026-07-12T00:00:00Z" },
+    ]);
+    const al = s.drivers.find((d) => d.driverId === "d1")!;
+    expect(al.primaryUnit).toBe("101"); // 5h on 101 vs 1h on 202
+    expect(al.unitCount).toBe(2);
+  });
+
+  it("leaves primaryUnit null when no truck is attached to the events", () => {
+    const s = aggregateDriverIdle([
+      { driverId: "d2", driverName: "Bo", durationSec: 3600, classification: "discretionary", fuelGal: null, costUsd: null, startedAt: "2026-07-10T00:00:00Z" },
+    ]);
+    const bo = s.drivers.find((d) => d.driverId === "d2")!;
+    expect(bo.primaryUnit).toBeNull();
+    expect(bo.unitCount).toBe(0);
+  });
+});
