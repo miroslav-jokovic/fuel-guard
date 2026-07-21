@@ -8,6 +8,7 @@ import { makeSamsaraFetcher } from "../../lib/samsara.js";
 import { collectTxnIds, loadThresholds, loadOperatingHours } from "./loaders.js";
 import type { BackfillOpts, ScoreOpts } from "./loaders.js";
 import { scoreTransaction, learnVehicleValues } from "./scoreTransaction.js";
+import { reconcileCardMultiForOrg } from "./cardMultiReconcile.js";
 
 export async function scoreWithCascade(admin: SupabaseClient, env: Env, orgId: string, txnId: string): Promise<void> {
   await scoreTransaction(admin, env, orgId, txnId);
@@ -350,5 +351,7 @@ export async function scoreImportWithCascade(
   const vehicleIds = await affectedVehicleIds(admin, orgId, importId);
   let cascaded = 0;
   for (const vId of vehicleIds) cascaded += await scoreVehicle(admin, env, orgId, vId, { skipRecon: true });
+  // Auto-clear "one card, multiple trucks" cases that Samsara explains as one driver changing trucks.
+  await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
   return { scored, cascaded, vehicles: vehicleIds.length };
 }
