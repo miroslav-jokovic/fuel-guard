@@ -18,7 +18,7 @@ trail of everything.
 
 | Question | Decision |
 |---|---|
-| Isolation topology | **Separate frontend app + subdomain** (`apps/admin` → `admin.fuelguard.app`) and a **separate admin API service** (`apps/admin-api` → `admin-api.fuelguard.app`). Strongest blast-radius isolation; platform god-mode never shares a process with customer traffic. |
+| Isolation topology | A **single new deploy for the whole platform plane**: `apps/admin-api` serves the built `apps/admin` SPA *and* exposes the admin API, on its own subdomain (`admin.<domain>`). This mirrors the customer plane, which the audit confirmed is itself **one** service (`apps/api` serves `apps/web/dist`). Isolation is preserved where it matters — platform god-mode runs in a separate service/process/deploy from customer traffic and never shares the customer API process, its env, or its service-role key. |
 | Payments | **Stripe, charged on the marketing website** (checkout/subscription lives there, billing is automatic). The admin dashboard is the **oversight + control layer**: it mirrors Stripe state via webhooks and exposes manual override levers (comp, plan change, pause, retry) — it never takes card payments itself. |
 | Admin sign-in | **`platform_admins` allowlist** (separate from tenant memberships) + **mandatory MFA (AAL2)** + **step-up re-auth ("sudo")** for destructive/sensitive actions. Seeded with a single owner: `developmentteam@uncdevelopment.com`. |
 | Design system | Reuse the customer app's tokens, components, and rules verbatim (`apps/web/src/style.css` semantic roles + Tailwind v4 `@theme`). The admin app looks like FuelGuard, with a distinct accent + persistent "PLATFORM" chrome so operators always know which plane they're in. |
@@ -26,25 +26,23 @@ trail of everything.
 ## 3. Architecture overview
 
 ```
-                 customer plane (unchanged)                 platform plane (new)
-   ┌───────────────────────────────┐        ┌────────────────────────────────────┐
-   │  app.fuelguard.app (apps/web) │        │  admin.fuelguard.app  (apps/admin)  │
-   │  Vue 3 · customer login       │        │  Vue 3 · platform login + MFA       │
-   └───────────────┬───────────────┘        └────────────────┬───────────────────┘
-                   │ Bearer (tenant JWT)                      │ Bearer (admin JWT, AAL2)
-   ┌───────────────▼───────────────┐        ┌────────────────▼───────────────────┐
-   │  api.fuelguard.app (apps/api) │        │  admin-api.fuelguard.app            │
-   │  RLS-scoped, per-tenant       │        │  (apps/admin-api)                   │
-   │  requireAuth/requireOrg/role  │        │  requirePlatformAdmin + AAL2 + RBAC │
-   └───────────────┬───────────────┘        │  + step-up + audit-everything DAL   │
-                   │ RLS enforces org_id     └────────────────┬───────────────────┘
-                   │                                          │ service-role (bypasses RLS),
-                   ▼                                          ▼ but ONLY via the audited DAL
-   ┌───────────────────────────────────────────────────────────────────────────────┐
-   │                              Supabase / Postgres                                │
-   │  tenant tables (RLS unchanged)   ·   platform_* tables (service-role only,      │
-   │                                       deny-by-default RLS, no client grants)    │
-   └───────────────────────────────────────────────────────────────────────────────┘
+        CUSTOMER PLANE (one Railway service — unchanged)     PLATFORM PLANE (one NEW Railway service)
+   ┌───────────────────────────────────────────┐       ┌───────────────────────────────────────────┐
+   │  app.<domain>                               │       │  admin.<domain>                             │
+   │  apps/api  (Express)                        │       │  apps/admin-api  (Express)                  │
+   │    ├─ serves apps/web/dist (SPA)            │       │    ├─ serves apps/admin/dist (SPA)          │
+   │    └─ /api/*  requireAuth→requireOrg→role   │       │    └─ /admin/*  requirePlatformAdmin +      │
+   │       RLS-scoped, one tenant per JWT        │       │        AAL2 + RBAC + step-up + audited DAL  │
+   └───────────────────┬─────────────────────────┘       └───────────────────┬─────────────────────────┘
+                       │ tenant JWT (org_id claim)                            │ admin JWT (aal2, NO org claim)
+                       │ service-role only for its own tasks                  │ service-role (bypasses RLS) —
+                       ▼                                                      ▼ ONLY via the audited DAL
+   ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+   │                                    Supabase / Postgres (one project)                               │
+   │   tenant tables — RLS unchanged (org_id = auth_org_id())                                            │
+   │   platform_* tables — RLS enabled, NO client policy/grant → reachable only by admin-api service-role│
+   │   Supabase Auth — same project; platform admins authenticate here, gated by MFA (aal2)              │
+   └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Two shared foundations are reused, not forked: `packages/shared` (types, zod schemas, design rules) and
@@ -86,6 +84,29 @@ window lapsed. This is the classic GitHub/AWS "sudo" pattern.
 **Session hardening.** Short admin session TTL + absolute timeout, device/session list with one-click
 revoke, optional IP allowlist (configurable per admin), strict CSP + HSTS on the subdomain, and no CORS
 allowance to any customer origin.
+
+**How this maps to the current stack (audited, so these are facts not assumptions):**
+
+- The customer API already verifies Supabase JWTs **asymmetrically against the project JWKS**
+  (`jose` + `createRemoteJWKSet` on `/auth/v1/.well-known/jwks.json`). `admin-api` reuses that verifier
+  verbatim — no new crypto, no shared-secret handling.
+- Supabase access tokens carry an **`aal` claim** (`aal1`/`aal2`) and `amr`. The customer app's
+  `claimsToContext` currently *drops* everything except `sub/email/org_id/user_role`, so `admin-api` uses
+  its own claim reader that keeps `aal` (and `amr`/`session_id`). One tiny addition, no change to the
+  customer path. The `aal2` gate is what makes MFA non-optional.
+- **MFA enrollment is the only action allowed at `aal1`.** A brand-new admin logs in (aal1), enrolls TOTP
+  via supabase-js `auth.mfa.enroll()`, verifies, and is elevated to aal2; every other admin route rejects
+  aal1. Existing enrolled admins must pass the MFA challenge each session to reach aal2.
+- **Step-up "sudo" is tracked by us**, since Supabase has no built-in "re-authed in the last N minutes":
+  a dedicated re-auth endpoint runs `auth.mfa.challengeAndVerify()` and stamps `platform_admins.last_reauth_at`;
+  destructive routes require that stamp to be fresh and fail closed otherwise.
+- **Owner bootstrap** (chicken-and-egg): the first `platform_admins` row (`developmentteam@uncdevelopment.com`,
+  `platform_owner`) is seeded by migration; the matching Supabase auth user is created once (dashboard or a
+  seed script) and linked on first login by email. No self-service admin signup exists — ever.
+- Platform admins have **no tenant membership**, so the access-token hook (`0006`) adds no `org_id` for them
+  and `auth_org_id()` is null — exactly right, because the admin plane never uses tenant RLS.
+- Separate subdomain = separate browser origin, so the admin SPA's Supabase session tokens live in their own
+  storage, fully isolated from the customer app's.
 
 ## 5. RLS & tenant-isolation strategy
 
@@ -166,6 +187,13 @@ The split the product owner chose is the clean, standard SaaS shape:
 - **"With support of our control"** = manual override levers that call the Stripe API server-side, each
   step-up + audited: comp/credit an account (Stripe coupon/credit), change or cancel a plan, pause
   collection, retry a failed payment, or flag an org as comped so automatic suspension skips it.
+- **Reality check (audited):** there is **no marketing website or pricing page yet** — the customer app is
+  auth-only, and the sibling `FleetGuard` folder is empty. This does **not** block the admin billing module,
+  which depends only on the Stripe **webhook endpoint + API keys** (both server-side in `admin-api`). It does
+  mean the *customer-facing subscribe flow* needs a home. Recommended: **Stripe-hosted Checkout + Customer
+  Portal** (or Payment Links) so no full site is required to start — a subscribe link plus Stripe's hosted
+  pages is enough, and the admin dashboard still sees everything via webhooks. Building a branded pricing
+  page can come later without changing the admin plane. (This is the one decision owned by you before Phase 2.)
 - **Entitlement enforcement:** subscription status flows back into the customer app (e.g. `past_due`
   beyond grace → read-only or suspended). The rule engine and features gate on the mirrored status, so
   billing state and product access never drift apart.
@@ -216,8 +244,12 @@ request logging, and per-action metrics are mounted globally, as in `apps/api`.
 
 ## 11. Frontend (`apps/admin`)
 
-A new Vue 3 + Vite + Tailwind v4 app that imports the **same** `style.css` token layer and component
-patterns as `apps/web`, so it inherits the design language for free. Differences are intentional: a
+A new Vue 3 + Vite + Tailwind v4 app. **Audited caveat:** the design *tokens* (`apps/web/src/style.css`)
+are pure CSS and share trivially, but the Vue **components live in `apps/web/src/components` (+ `/ui`), not a
+shareable package** — `packages/` only holds `shared` (types/logic). So Phase 0 extracts a small
+**`packages/ui`** (the token CSS + the handful of base primitives the admin app needs: buttons, inputs,
+tables, cards, `AppSelect`, layout shells) that *both* apps consume. This is a one-time, low-risk lift and it
+stops the two apps from drifting. The admin app then inherits the FuelGuard design language for free. Differences are intentional: a
 distinct accent and a permanent "PLATFORM" top bar + org-context banner during impersonation, so an
 operator is never confused about which plane or which customer they're acting on. Login → MFA → shell
 with the modules from §7 as nav. It talks only to `admin-api`. The service-role key and Stripe secret
@@ -276,10 +308,19 @@ unforeseen; an arbitrary-write SQL path is intentionally *not* built.
 
 ## 15. Phased rollout
 
-- **Phase 0 — Foundations.** Migrations for `platform_admins` + `platform_audit_log`; seed the owner;
-  `apps/admin-api` skeleton with the full auth/MFA/RBAC/audit chain; `apps/admin` skeleton (login → MFA →
-  empty shell on the shared design system); route-auth fitness test. Deploy behind the subdomain. Nothing
-  destructive exists yet. **This phase is the security spine — everything else builds on it.**
+- **Phase 0 — Foundations (the security spine; everything builds on it).** Concretely, in order:
+  (1) extract **`packages/ui`** (token CSS + base primitives) and have `apps/web` consume it unchanged;
+  (2) migration `0070_platform_admins.sql` + `0071_platform_audit_log.sql` (service-role only, deny-by-default),
+  seeding the owner row; (3) create the Supabase auth user for the owner + link-on-first-login;
+  (4) `apps/admin-api` skeleton mirroring `apps/api` (own `env.ts`, service-role client, JWKS verifier reused,
+  an `aal`-aware claim reader, the `requirePlatformAuth → requireAAL2 → requirePlatformAdmin → requireRole →
+  requireStepUp` chain, the audited DAL, structured logs, rate limit, strict CSP/HSTS, `/healthz`);
+  (5) `apps/admin` SPA skeleton (login → MFA enroll/challenge → empty module shell on `packages/ui`);
+  (6) an **`admin-api` route-auth fitness test** — same auto-discovery idea as `apps/api`'s, but asserting every
+  `/admin/*` route rejects both unauthenticated (401) and non-admin/aal1 (403) callers;
+  (7) a **second Railway service** (build `apps/admin`, start `apps/admin-api` serving its dist) on the
+  `admin.<domain>` subdomain, with its own env (service-role key lives ONLY here and in `apps/api`).
+  Nothing destructive exists yet.
 - **Phase 1 — Customer oversight (read).** Org list + detail, users, usage, per-org module toggles
   (`org_integrations`), read-only impersonation. Every view audited.
 - **Phase 2 — Billing oversight.** Stripe webhook ingestion + mirror tables + dashboard views + the
@@ -292,12 +333,75 @@ unforeseen; an arbitrary-write SQL path is intentionally *not* built.
 - **Phase 5 — Hardening.** IP allowlist, session/device management, alerting, and a security review
   (checklist + a pass focused on the cross-tenant DAL) before widening operator access beyond the owner.
 
-## 16. Open questions / future
+## 16. Decisions you still own + external prerequisites (audited — nothing here blocks starting Phase 0)
 
-- Hosting for the two new subdomains (same Railway project vs. separate) and DNS/cert setup.
-- Error tracking: adopt Sentry, or keep the lightweight in-DB sink to start?
-- Do we want a second platform admin soon, or owner-only through Phase 5? (Affects how early RBAC is exercised.)
+The audit closed every internal assumption; what remains is a short, explicit list of things only you can
+decide or provide, each tagged with the phase that first needs it. None block Phase 0.
+
+- **`packages/ui` scope (Phase 0).** Confirm the "extract a small shared UI package" approach (recommended)
+  vs. copying components into `apps/admin`. Recommendation: extract — it prevents drift for a one-time cost.
+- **Admin subdomain + DNS/TLS (Phase 0 deploy).** Provide the real base domain and DNS access so
+  `admin.<domain>` can be pointed at the new Railway service with a cert. (The plan uses `<domain>` as a
+  placeholder — the current app's production domain isn't hard-coded in the repo.)
+- **Customer subscribe-flow home (Phase 2).** Where customers actually subscribe. Recommendation:
+  Stripe-hosted Checkout + Customer Portal / Payment Links — no website build required. A branded pricing
+  page can follow later. The admin billing module is unaffected either way.
+- **Stripe account + keys (Phase 2).** A Stripe account, product/price definitions, secret key, and a webhook
+  signing secret. Test-mode keys are enough to build and validate the whole billing module first.
+- **Supabase MFA (Phase 0).** Confirm TOTP MFA is enabled for the project (TOTP is available on Supabase;
+  we use TOTP, not paid SMS). The `migrate.yml` CI already auto-applies migrations to prod, so 0070+ will
+  apply on merge once its three repo secrets are set.
+- **Error tracking (Phase 3).** Adopt Sentry, or start with the lightweight in-DB `platform_error_events`
+  sink? Recommendation: in-DB sink first (zero new vendors), add Sentry if/when volume warrants.
+- **Second operator (Phase 1+).** Owner-only through the early phases, or add a `platform_support` operator
+  soon? Affects only how early the RBAC tiers get exercised, not the design.
+
+### Future (tracked, out of scope now)
+
 - Multi-org membership for customers is still v1-single; if that changes, the access-token hook and a few
-  reads evolve — independent of this plane, but worth tracking.
-- Notifications channel for platform alerts (email/Slack) — likely folds into the existing scheduled-task
-  and notification plumbing.
+  reads evolve — independent of this plane.
+- Platform alert channel (email/Slack) for anomalous admin activity — folds into the existing
+  scheduled-task + notification plumbing.
+
+## 17. Implementation-readiness audit register
+
+Every load-bearing claim in this plan was checked against the actual repository and infrastructure. This
+register is the "no assumptions, no gaps, no blockers" contract for starting implementation.
+
+**Verified facts (checked in the codebase — safe to build on):**
+
+| Claim | Verified against |
+|---|---|
+| JWTs are asymmetric; verify locally via JWKS | `apps/api/src/lib/auth.ts` (`jose` + `createRemoteJWKSet`) |
+| Customer plane is ONE service (api serves web SPA) | `railway.json` build/start + `apps/api/src/app.ts` static + SPA fallback |
+| `auth_org_id()`/`auth_role()` read JWT claims; hook `0006` injects them | `0002_functions.sql`, `0006_auth_hook.sql` |
+| Role enum = admin/fleet_manager/driver/auditor; one org per user | `0001_extensions_and_enums.sql`, `0003_core_tables.sql` |
+| `audit_logs.org_id` is NOT NULL → needs a separate platform log | `0003_core_tables.sql` (justifies `platform_audit_log`) |
+| Per-org module toggles already exist (reuse) | `org_integrations` (McLeod work) |
+| Migrations auto-apply on merge; next number is **0070** | `.github/workflows/migrate.yml`; `supabase/migrations/` ends at 0069 |
+| CI runs lint/filesize/tokens/boundaries/typecheck/test/build recursively | `.github/workflows/ci.yml` (new apps picked up automatically) |
+| Service-role admin client + `requireAuth/requireOrg/requireRole` exist to mirror | `apps/api/src/lib/supabaseAdmin.ts`, `middleware/auth.ts` |
+
+**Corrections made to the plan during this audit:**
+
+1. Topology: **two Railway services, not four** — customer plane is one service, so the platform plane is one
+   new service (`admin-api` serving `admin/dist`). §2, §3, §15 updated.
+2. The `aal` claim is currently **stripped** by `claimsToContext`; `admin-api` gets its own `aal`-aware claim
+   reader (customer path untouched). §4 updated.
+3. UI components are **not in a shareable package** today; Phase 0 extracts `packages/ui`. §11, §15 updated.
+4. **No marketing website exists** (customer app is auth-only; `FleetGuard` folder empty) → recommend
+   Stripe-hosted Checkout/Portal so billing isn't blocked. §8, §16 updated.
+
+**Gaps closed (now fully specified, previously implicit):** step-up tracked via `last_reauth_at` +
+`mfa.challengeAndVerify()`; MFA-enrollment is the sole `aal1`-permitted path; owner bootstrap sequence
+(seed row + one-time auth user + link-on-login); `admin-api` gets its **own** route-auth fitness test
+(401 *and* 403); cross-org `auth.users` reads go through `supabase.auth.admin`; each service ships its own CSP.
+
+**Blockers to starting Phase 0: none.** The security spine (packages/ui, platform tables, admin-api skeleton
++ gate + fitness test, admin SPA skeleton, second service) can be built entirely from what exists today. The
+only external prerequisites — Stripe account/keys and the customer subscribe-flow decision — are **Phase 2**,
+and the admin subdomain/DNS is needed only at the Phase 0 *deploy* step, not to begin building. All are listed
+and owned in §16.
+
+**Bottom line:** the plan is implementation-ready. Phase 0 can start immediately; each later phase has its
+prerequisites named and assigned, so nothing surfaces as a surprise mid-build.
