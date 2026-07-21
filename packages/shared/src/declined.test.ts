@@ -24,6 +24,20 @@ describe("assessDecline", () => {
     expect(c.score).toBe(85);
     expect(c.level).toBe("review"); // 85 < 110 and top 55 < 75 → review, not alert
   });
+
+  it("wrong_unit_number is exonerating — clear, but still surfaced as a reason", () => {
+    const c = assessDecline([sig("wrong_unit_number", "truck 668 fueled here right after")]);
+    expect(c.level).toBe("clear");
+    expect(c.score).toBe(0);
+    expect(c.reasons).toHaveLength(1);
+    expect(c.reasons[0]!.key).toBe("wrong_unit_number");
+  });
+
+  it("wrong_unit_number does not stop a real signal from scoring", () => {
+    const c = assessDecline([sig("wrong_unit_number"), sig("repeated_declines")]);
+    expect(c.level).toBe("review"); // the repeated-declines signal still scores
+    expect(c.reasons).toHaveLength(2); // both shown
+  });
 });
 
 describe("isRestrictedDeclineReason", () => {

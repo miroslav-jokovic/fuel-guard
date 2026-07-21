@@ -9,7 +9,8 @@ export type DeclineSignalKey =
   | "location_mismatch" // Samsara shows the truck was NOT at the decline's location
   | "approved_elsewhere" // declined here, then an approved fill on the same card elsewhere soon after
   | "repeated_declines" // same card declined several times in a short window (card testing)
-  | "restricted_reason"; // decline reason indicates a site/product/location restriction (weak)
+  | "restricted_reason" // decline reason indicates a site/product/location restriction (weak)
+  | "wrong_unit_number"; // EXONERATING: a different truck fueled at this station right after → likely a mis-typed unit #
 
 export interface DeclineSignal {
   key: DeclineSignalKey;
@@ -30,6 +31,7 @@ const WEIGHTS: Record<DeclineSignalKey, number> = {
   approved_elsewhere: 75,
   repeated_declines: 55,
   restricted_reason: 30,
+  wrong_unit_number: 0, // informational/exonerating — shown but never raises suspicion
 };
 
 /** A signal ≥ this raises an alert on its own. */
@@ -49,16 +51,17 @@ export function isRestrictedDeclineReason(code: string | null, description: stri
 
 /** Correlate decline signals into one suspicion level. Weak lone signals stay clear (no noise). */
 export function assessDecline(reasons: DeclineSignal[]): DeclineAssessment {
-  const sorted = reasons.filter((r) => r.weight > 0).sort((a, b) => b.weight - a.weight);
-  if (sorted.length === 0) return { level: "clear", score: 0, reasons: [] };
+  const all = reasons.slice().sort((a, b) => b.weight - a.weight);
+  const scored = all.filter((r) => r.weight > 0);
+  if (scored.length === 0) return { level: "clear", score: 0, reasons: all };
 
-  const score = sorted.reduce((s, r) => s + r.weight, 0);
-  const top = sorted[0]!.weight;
+  const score = scored.reduce((s, r) => s + r.weight, 0);
+  const top = scored[0]!.weight;
 
   let level: SuspicionLevel;
-  if (top >= OVERWHELMING || (sorted.length >= 2 && score >= ALERT_SCORE)) level = "alert";
+  if (top >= OVERWHELMING || (scored.length >= 2 && score >= ALERT_SCORE)) level = "alert";
   else if (top >= REVIEW) level = "review";
   else level = "clear";
 
-  return { level, score, reasons: sorted };
+  return { level, score, reasons: all };
 }

@@ -38,6 +38,7 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
   let samsaraLocationConfidence: string | null = null;
   let stationLat: number | null = null;
   let stationLng: number | null = null;
+  let locationMismatched = false;
 
   // 1) Location: was the truck actually at the decline's location? (live Samsara reconciliation)
   if (d.vehicle_id) {
@@ -62,13 +63,7 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
         samsaraLocationConfidence = recon.locationConfidence;
         stationLat = recon.stationLat;
         stationLng = recon.stationLng;
-        if (recon.locationMatched === false) {
-          reasons.push({
-            key: "location_mismatch",
-            weight: declineSignalWeight("location_mismatch"),
-            detail: `Samsara shows the truck was not at ${d.city ?? "the decline location"}, ${d.state ?? ""} when the card was declined.`,
-          });
-        }
+        if (recon.locationMatched === false) locationMismatched = true;
       }
     }
   }
@@ -76,6 +71,39 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
   const t = new Date(d.declined_at).getTime();
   const winStart = new Date(t - WINDOW_H * 3_600_000).toISOString();
   const winEnd = new Date(t + WINDOW_H * 3_600_000).toISOString();
+
+  // Wrong-truck-number check: the typed truck wasn't at the station, BUT if a DIFFERENT truck fueled at the
+  // same place right after, the driver almost certainly mis-typed the unit # — EFS blocked a benign typo,
+  // not a theft (no fuel was dispensed). Exonerate it (clear) with a clear label instead of a false alert.
+  let wrongUnit = false;
+  if (locationMismatched && d.vehicle_id && (d.city || d.state)) {
+    const { data: siblings } = await admin
+      .from("fuel_transactions")
+      .select("vehicle_id, city, state")
+      .eq("org_id", orgId)
+      .neq("vehicle_id", d.vehicle_id)
+      .gte("fueled_at", d.declined_at)
+      .lte("fueled_at", winEnd);
+    wrongUnit = ((siblings ?? []) as { vehicle_id: string | null; city: string | null; state: string | null }[]).some(
+      (x) =>
+        x.vehicle_id != null &&
+        (x.city ?? "").toLowerCase() === (d.city ?? "").toLowerCase() &&
+        (x.state ?? "").toLowerCase() === (d.state ?? "").toLowerCase(),
+    );
+  }
+  if (locationMismatched && wrongUnit) {
+    reasons.push({
+      key: "wrong_unit_number",
+      weight: declineSignalWeight("wrong_unit_number"),
+      detail: `Likely a mis-typed unit number — a different truck fueled at ${d.city ?? "this station"}, ${d.state ?? ""} right after, so EFS blocked a wrong-truck-number entry (not a theft).`,
+    });
+  } else if (locationMismatched) {
+    reasons.push({
+      key: "location_mismatch",
+      weight: declineSignalWeight("location_mismatch"),
+      detail: `Samsara shows the truck was not at ${d.city ?? "the decline location"}, ${d.state ?? ""} when the card was declined.`,
+    });
+  }
 
   // 2) Repeated declines on the same card in the window (card testing).
   if (d.card_ref) {
