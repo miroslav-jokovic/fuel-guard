@@ -18,3 +18,12 @@ export function getSupabaseAdmin(env: Env): SupabaseClient {
   }
   return client;
 }
+
+import type { Request } from "express";
+import { getAppLocals } from "./appLocals.js";
+
+/** Resolve the service-role client for a request — the injected test client if present, else the real one. */
+export function adminClient(req: Request): SupabaseClient {
+  const locals = getAppLocals(req);
+  return locals.supabaseAdmin ?? getSupabaseAdmin(locals.env);
+}
