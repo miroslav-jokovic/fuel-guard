@@ -91,6 +91,9 @@ async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manua
       <p v-if="result.manualFuelUsed" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-800">
         Planned from a manually-entered fuel level — live Samsara data was unavailable for this truck.
       </p>
+      <p v-if="result.plan?.flags.includes('fills_uncapped_no_load_weight')" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-800">
+        No load weight entered, so fuel fills aren't capped for legal gross weight. If this truck is running heavy, double-check axle/gross weights before topping off.
+      </p>
       <FuelPlanSummary v-if="result.plan" :result="result" />
       <RouteSummary
         v-if="result.route"

@@ -35,6 +35,11 @@ describe("buildTruckFuelState", () => {
   it("weight-legal fill is NOT zero when the load is unknown (null) — else the truck can never fuel", () => {
     const st = buildTruckFuelState({ ...base, loadGrossLb: null }, cfg);
     expect(st.weightLegalFillGal).toBeGreaterThan(st.usableGal); // weight does not bind below tank capacity
+    expect(st.flags).toContain("load_weight_unknown");            // ...but we flag that fills are uncapped
+  });
+  it("does NOT flag load_weight_unknown when a load weight is provided", () => {
+    const st = buildTruckFuelState({ ...base, loadGrossLb: 72000 }, cfg);
+    expect(st.flags).not.toContain("load_weight_unknown");
   });
   it("weight-legal fill binds for a genuinely heavy load", () => {
     const st = buildTruckFuelState({ ...base, loadGrossLb: 79900 }, cfg); // 100 lb under max -> ~14 gal room

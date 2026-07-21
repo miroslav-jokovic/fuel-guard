@@ -109,6 +109,9 @@ export function buildTruckFuelState(input: TruckStateInput, cfg: TruckStateConfi
   // Weight-legal fuel room. When the load is unknown we must NOT assume max gross (that yields 0 gal of room
   // and blocks all fueling) — fall back to the tank size so weight only binds when a real heavy load is given.
   const fillCap = input.loadGrossLb != null ? weightLegalFillGal(input.loadGrossLb, maxGross) : effCap;
+  // No load weight entered → we cannot cap fills for legal gross weight (we fall back to tank size). Flag it so a
+  // full-tank recommendation on a heavy truck can be double-checked rather than silently risking an overweight.
+  if (input.loadGrossLb == null) flags.push("load_weight_unknown");
 
   return {
     gallonsOnHand: onHand,

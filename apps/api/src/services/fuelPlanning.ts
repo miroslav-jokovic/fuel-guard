@@ -355,7 +355,11 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
   });
 
   const breakAdvice = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: plan.stops.filter((st) => st.kind === "fuel").map((st) => st.milesAhead) });
-  const planFlags = manualFuelUsed ? [...plan.flags, "manual_fuel_entry"] : plan.flags;
+  // Overweight safeguard: with no load weight entered, fills aren't capped for legal gross weight. Only warn when
+  // it actually matters — a large single fill (~700+ lb of diesel) that could push a heavy truck over gross.
+  const uncappedBigFill = truck.flags.includes("load_weight_unknown") && plan.stops.some((st) => st.kind === "fuel" && st.fillGal >= 100);
+  const planFlags = manualFuelUsed ? [...plan.flags, "manual_fuel_entry"] : [...plan.flags];
+  if (uncappedBigFill && !planFlags.includes("fills_uncapped_no_load_weight")) planFlags.push("fills_uncapped_no_load_weight");
   const planMessage = describePlan(plan.status, planFlags);
   return {
     status: plan.status,
