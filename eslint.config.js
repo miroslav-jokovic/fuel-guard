@@ -61,8 +61,8 @@ export default tseslint.config(
     },
   },
   {
-    // Browser globals for the web app's TS modules too (supabase/api/jwt helpers).
-    files: ["apps/web/**/*.ts"],
+    // Browser globals for the web + admin apps' TS modules too (supabase/api/jwt helpers).
+    files: ["apps/web/**/*.ts", "apps/admin/**/*.ts"],
     languageOptions: {
       globals: browserGlobals,
     },

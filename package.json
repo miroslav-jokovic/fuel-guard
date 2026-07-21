@@ -20,7 +20,8 @@
     "lint:codegen": "node scripts/gen-rule-catalog.mjs && git diff --exit-code -- 'packages/**/*.generated.ts'",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "lint:tokens-parity": "node scripts/check-token-parity.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

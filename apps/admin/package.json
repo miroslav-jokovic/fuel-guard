@@ -1,0 +1,29 @@
+{
+  "name": "@fuelguard/admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fuelguard/shared": "workspace:*",
+    "@fuelguard/ui": "workspace:*",
+    "@supabase/supabase-js": "2.110.0",
+    "pinia": "3.0.4",
+    "vue": "3.5.39",
+    "vue-router": "5.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.2",
+    "@types/node": "26.0.1",
+    "@vitejs/plugin-vue": "6.0.7",
+    "tailwindcss": "4.3.2",
+    "typescript": "6.0.3",
+    "vite": "8.1.1",
+    "vue-tsc": "3.3.6"
+  }
+}

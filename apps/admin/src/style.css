@@ -1,0 +1,5 @@
+/* Platform SPA styles. The design language is single-sourced from @fuelguard/ui (which pulls in
+   Tailwind + the FuelGuard token layer). @source makes Tailwind v4 scan the shared UI package's
+   components so their utility classes are generated (node_modules isn't scanned by default). */
+@import "@fuelguard/ui/tokens.css";
+@source "../../../packages/ui/src/**/*.vue";

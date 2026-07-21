@@ -31,6 +31,9 @@ jobs:
       - name: Design tokens
         run: pnpm --filter @fuelguard/web lint:tokens
 
+      - name: Token parity (web ↔ @fuelguard/ui)
+        run: pnpm lint:tokens-parity
+
       - name: Feature boundaries
         run: pnpm lint:boundaries
 
