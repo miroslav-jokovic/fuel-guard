@@ -156,6 +156,19 @@ describe("planFuelStops — HOS integration", () => {
     expect(plan.stops.some((s) => s.kind === "rest")).toBe(false);
     expect(plan.flags).toContain("overnight_reset_required");
   });
+
+  it("does not falsely report infeasible on a long, sparse-station HOS-limited route (loop-guard sizing)", () => {
+    // Huge tank (fuel never binds) + ~2,600 mi with NO loaded stations forces many silent HOS resets/breaks. The
+    // old guard (stations*2 + 6 = 6) tripped and returned infeasible; the distance-aware guard reaches the end.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 2600,
+      stations: [],
+      truck: mkTruck({ gallonsOnHand: 5000, effectiveTankCapacityGal: 6000, usableGal: 6000, reserveGal: 100, usableAboveReserveGal: 5900 }),
+      hos: hos(11, 8),
+    }));
+    expect(plan.reachesDestination).toBe(true);
+    expect(plan.status).not.toBe("infeasible");
+  });
 });
 
 describe("planFuelStops — avoided-state border top-off (California rule)", () => {

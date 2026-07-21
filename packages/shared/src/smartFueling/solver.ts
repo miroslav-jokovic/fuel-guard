@@ -255,7 +255,11 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     return { pick: opts.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b)), emergency: true };
   };
 
-  for (let guard = 0; guard <= stations.length * 2 + 6; guard++) {
+  // Loop guard: every iteration provably advances `pos` (a fuel stop, a silent break, or a silent reset) or
+  // returns, so this only backstops a true bug — size it to also cover HOS break/reset segments on long routes
+  // (a sparse-station cross-country trip needs many silent resets) so a valid plan is never cut off as infeasible.
+  const guardMax = stations.length * 2 + Math.ceil(dest / 50) + 12;
+  for (let guard = 0; guard <= guardMax; guard++) {
     const fuelMi = Math.max(0, gal - reserve) / gpm;
     const driveMi = legalDriveMsNow() * miPerMs; // Infinity when HOS unknown
     const breakMi = brk * miPerMs;

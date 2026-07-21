@@ -219,7 +219,9 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { status: "telematics_unavailable", telematicsReason: reason, message: TELEMATICS_MESSAGE[reason], route: routeView, origin, destination };
   }
   const truckView = truckStateView(truck, hos);
-  const avgSpeedMph = routeView.durationHours > 0 ? distanceMiles / routeView.durationHours : 55;
+  // Derive avg speed from the RAW route seconds (not the 1-decimal-rounded hours) so rounding error does not
+  // bleed into every mile/break estimate downstream.
+  const avgSpeedMph = route.durationSeconds > 0 ? distanceMiles / (route.durationSeconds / 3600) : 55;
   const breakDue = breakFuelAdvice({ timeUntilBreakMs: hos.timeUntilBreakMs, avgSpeedMph, stopsMilesAhead: [] });
 
   // Single-pass bbox — a spread of Math.min(...polyline) overflows the call stack on a long route.
@@ -238,6 +240,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     .select("id, brand, store_number, name, lat, lng, state, exit, has_diesel")
     .eq("status", "active")
     .in("brand", cfg.enabledBrands)
+    .not("has_diesel", "is", false) // never route a truck to a confirmed no-diesel location (null = assume diesel)
     .gte("lat", minLat - pad).lte("lat", maxLat + pad)
     .gte("lng", minLng - pad).lte("lng", maxLng + pad);
   const stations = (stationRows ?? []) as Array<{ id: string; brand: string; store_number: string | null; name: string | null; lat: number | string; lng: number | string; state: string | null; exit: string | null }>;
