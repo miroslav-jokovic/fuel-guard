@@ -58,9 +58,13 @@ const integrity = computed(() => {
         title="Rebuild anomalies"
         kind="rebuild"
         endpoint="/api/transactions/rebuild"
-        action-label="Rebuild now"
-        description="Re-score every transaction with the current rules (reuses stored Samsara values — fast, no live calls). Clears stale/false flags after a rule change; your review notes are kept."
-        confirm="Re-score every transaction with the current rules? Existing false flags will clear; your notes are kept."
+        action-label="Rebuild recent (30 days)"
+        :body="{ sinceDays: 30 }"
+        secondary-label="Rebuild all history"
+        :secondary-body="{}"
+        secondary-confirm="Re-score EVERY transaction in your history? Slower — only needed after a broad rule change. Existing false flags clear; your notes are kept."
+        description="New uploads already score automatically — you don't need to rebuild after a routine upload. Use 'Rebuild recent' to re-apply the current rules to the last 30 days (fast); 'Rebuild all history' re-scores everything. Your review notes are kept."
+        confirm="Re-score the last 30 days with the current rules? Existing false flags will clear; your notes are kept."
       />
       <JobActionCard
         v-if="session.canManage"

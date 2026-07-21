@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -132,9 +133,13 @@ export function transactionsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const actorId = req.auth!.userId;
+      // Optional incremental scope: { sinceDays } re-scores only the last N days (fast — the daily path);
+      // omit it for a full-history rebuild (only needed after a broad rule change).
+      const parsed = z.object({ sinceDays: z.coerce.number().int().positive().max(3650).optional() }).safeParse(req.body ?? {});
+      const sinceDays = parsed.success ? parsed.data.sinceDays : undefined;
       const result = await runJob(admin, orgId, "rebuild", async (report) => {
-        const count = await backfillOrg(admin, env, orgId, { skipRecon: true }, report);
-        await writeAudit(admin, { orgId, actorId, action: "transactions.rebuild", meta: { count } });
+        const count = await backfillOrg(admin, env, orgId, { skipRecon: true, sinceDays }, report);
+        await writeAudit(admin, { orgId, actorId, action: "transactions.rebuild", meta: { count, sinceDays: sinceDays ?? null } });
         return { count };
       }, { requestedBy: actorId });
       jobResponse(res, result);
