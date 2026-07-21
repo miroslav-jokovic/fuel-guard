@@ -120,7 +120,7 @@ const {
       :sort="sort"
       :selectable="session.canManage"
       :selected="selectedIds"
-      :row-class="() => 'cursor-pointer'"
+      :row-class="(row) => isActionable(row) ? 'cursor-pointer' : 'cursor-pointer bg-surface-subtle/50 opacity-60'"
       @update:selected="selectedIds = $event"
       @sort="onSort"
       @row-click="selectedRow = $event"

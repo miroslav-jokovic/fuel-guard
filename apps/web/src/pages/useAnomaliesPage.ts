@@ -156,7 +156,14 @@ const getVal = (a: Anomaly, key: string): unknown => {
   if (key === "ai") return ai(a)?.risk_score ?? -1;
   return (a as unknown as Record<string, unknown>)[key];
 };
-const sorted = computed(() => sortRows(filtered.value, sort.value, getVal));
+const sorted = computed(() => {
+  const rows = sortRows(filtered.value, sort.value, getVal);
+  // Keep the work queue on top: open/investigating float up, resolved/false-alarm sink to the bottom —
+  // each group still in the chosen sort order — so it's clear at a glance what's handled vs still open.
+  const active = rows.filter(isActionable);
+  const closed = rows.filter((a) => !isActionable(a));
+  return [...active, ...closed];
+});
 
 const page = ref(1);
 watch([filters, search], () => (page.value = 1), { deep: true });
