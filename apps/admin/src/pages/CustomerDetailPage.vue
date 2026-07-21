@@ -1,26 +1,53 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { AppCard, AppButton } from "@fuelguard/ui";
 import AppShell from "@/layouts/AppShell.vue";
-import { apiGet, type OrgDetail } from "@/lib/api";
+import { apiGet, apiPost, type OrgDetail, type OrgMember, type Me } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 
 const route = useRoute();
+const id = route.params.id as string;
+
 const org = ref<OrgDetail | null>(null);
+const members = ref<OrgMember[]>([]);
+const me = ref<Me | null>(null);
 const error = ref<string | null>(null);
 const loading = ref(true);
+const toggling = ref<string | null>(null);
+
+const canManageModules = computed(() => me.value?.role === "platform_owner" || me.value?.role === "platform_admin");
 
 onMounted(async () => {
   try {
-    const { org: detail } = await apiGet<{ org: OrgDetail }>(`/admin/orgs/${route.params.id as string}`);
+    const [{ org: detail }, { members: mem }, whoami] = await Promise.all([
+      apiGet<{ org: OrgDetail }>(`/admin/orgs/${id}`),
+      apiGet<{ members: OrgMember[] }>(`/admin/orgs/${id}/members`),
+      apiGet<Me>("/admin/me"),
+    ]);
     org.value = detail;
+    members.value = mem;
+    me.value = whoami;
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Could not load this customer";
   } finally {
     loading.value = false;
   }
 });
+
+async function toggleModule(provider: string, enabled: boolean) {
+  if (!org.value) return;
+  toggling.value = provider;
+  try {
+    await apiPost(`/admin/orgs/${id}/modules/${provider}`, { enabled });
+    const m = org.value.modules.find((x) => x.provider === provider);
+    if (m) m.enabled = enabled;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Could not update the module";
+  } finally {
+    toggling.value = null;
+  }
+}
 </script>
 
 <template>
@@ -67,17 +94,52 @@ onMounted(async () => {
             </div>
           </dl>
         </AppCard>
+
         <AppCard>
           <h2 class="text-sm font-semibold text-ink-secondary">Modules</h2>
           <ul class="mt-3 space-y-2 text-sm">
-            <li v-for="m in org.modules" :key="m.provider" class="flex items-center justify-between">
-              <span class="text-ink capitalize">{{ m.provider }}</span>
-              <span :class="m.enabled ? 'text-success-700' : 'text-ink-muted'">{{ m.enabled ? "enabled" : "off" }}</span>
+            <li v-for="m in org.modules" :key="m.provider" class="flex items-center justify-between gap-2">
+              <span class="capitalize text-ink">{{ m.provider }}</span>
+              <div class="flex items-center gap-2">
+                <span :class="m.enabled ? 'text-success-700' : 'text-ink-muted'">{{ m.enabled ? "enabled" : "off" }}</span>
+                <AppButton
+                  v-if="canManageModules"
+                  size="sm"
+                  :variant="m.enabled ? 'soft' : 'primary'"
+                  :disabled="toggling === m.provider"
+                  @click="toggleModule(m.provider, !m.enabled)"
+                >
+                  {{ m.enabled ? "Disable" : "Enable" }}
+                </AppButton>
+              </div>
             </li>
             <li v-if="org.modules.length === 0" class="text-ink-muted">No optional modules connected.</li>
           </ul>
         </AppCard>
       </div>
+
+      <AppCard padding="none" class="mt-4">
+        <h2 class="px-5 pt-5 text-sm font-semibold text-ink-secondary">Members</h2>
+        <table class="mt-3 w-full text-sm">
+          <thead class="bg-surface-subtle text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            <tr>
+              <th class="px-5 py-2">Email</th>
+              <th class="px-5 py-2">Role</th>
+              <th class="px-5 py-2">Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="mem in members" :key="mem.userId" class="border-t border-edge-subtle">
+              <td class="px-5 py-2 text-ink">{{ mem.email ?? "—" }}</td>
+              <td class="px-5 py-2 capitalize text-ink-secondary">{{ mem.role.replace("_", " ") }}</td>
+              <td class="px-5 py-2 text-ink-secondary">{{ fmtDate(mem.createdAt) }}</td>
+            </tr>
+            <tr v-if="members.length === 0">
+              <td colspan="3" class="px-5 py-6 text-center text-ink-muted">No members.</td>
+            </tr>
+          </tbody>
+        </table>
+      </AppCard>
     </template>
   </AppShell>
 </template>
