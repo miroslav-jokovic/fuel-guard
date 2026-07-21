@@ -149,6 +149,12 @@ rules:
     weight: 60
     label: Tank Fill Short
     note: Telematics tank rose less than billed gallons (advisory; coarse sensor).
+  - id: fuel_while_driver_home
+    tier: behavioral
+    axis: behavior
+    weight: 50
+    label: Fueled While Driver Home
+    note: Corroboration-only (weight below the lone-review threshold — never raises a case alone). Opt-in on McLeod/TMS driver time-off; the fill falls inside the assigned driver's home-time window (±1-day buffer). Reinforces a volume/consumption signal — a card fueling while its driver is off duty.
 
   # ── Tier A — reefer (trailer refrigeration) fuel integrity (reefer/ULSR events only) ─────────────
   - id: reefer_exceeds_capacity

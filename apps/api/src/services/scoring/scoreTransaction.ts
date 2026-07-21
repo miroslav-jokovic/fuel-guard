@@ -8,6 +8,7 @@ import {
 } from "@fuelguard/shared";
 import type { Env } from "../../env.js";
 import { resolveReconciliation } from "./reconcile.js";
+import { deriveDriverHomeAtFill } from "./tmsGates.js";
 import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, loadThresholds, loadOperatingHours, n } from "./loaders.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
 
@@ -246,6 +247,12 @@ export async function scoreTransaction(
     }
   }
 
+  // McLeod/TMS driver-home gate (opt-in, corroboration-only): if a driver owns this fill, was it made
+  // while that driver was on home time / off duty? undefined for non-TMS orgs (fuel-only behavior kept).
+  const driverHomeAtFill = txn.driverId
+    ? await deriveDriverHomeAtFill(admin, orgId, txn.driverId, r.fueled_at)
+    : undefined;
+
   const fired = runAllRules({
     txn,
     vehicle,
@@ -270,6 +277,7 @@ export async function scoreTransaction(
     reeferDiversionReeferGal,
     reeferDiversionTractorGal,
     reeferLoadInWindow,
+    driverHomeAtFill,
   });
 
   // Correlate the fired signals into ONE per-transaction case (multi-signal model). A lone weak signal

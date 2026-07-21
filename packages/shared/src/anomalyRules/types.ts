@@ -212,6 +212,14 @@ export interface RuleContext {
    * Only ever SUPPRESSES the alert; it never raises a new one.
    */
   reeferLoadInWindow?: boolean;
+  /**
+   * McLeod/TMS driver-availability gate (opt-in). Was the fill made while the ASSIGNED driver was on
+   * home time / time off (fill date inside a driver_time_off window, ±1-day buffer)?
+   *   undefined = no TMS feed / no driver on the fill → not evaluated (unchanged for non-TMS orgs);
+   *   false     = driver was on duty → nothing to corroborate;
+   *   true      = a fuel card fired while its driver was home → corroborating signal (never fires alone).
+   */
+  driverHomeAtFill?: boolean;
 }
 
 export interface RuleResult {

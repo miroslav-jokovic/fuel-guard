@@ -456,6 +456,35 @@ describe("reefer_fuel_diversion — TMS (McLeod) reefer-load gate", () => {
   });
 });
 
+describe("fuel_while_driver_home — TMS (McLeod) driver-home gate (opt-in, corroboration-only)", () => {
+  const homeSig = (): RuleResult => ({ ruleId: "fuel_while_driver_home", fired: true, severity: "medium", message: "", evidence: {} });
+
+  it("does NOT fire when there is no TMS feed (driverHomeAtFill undefined)", () => {
+    expect(ids(ctx())).not.toContain("fuel_while_driver_home");
+  });
+
+  it("does NOT fire when the driver was on duty (false)", () => {
+    expect(ids(ctx({ driverHomeAtFill: false }))).not.toContain("fuel_while_driver_home");
+  });
+
+  it("fires and cites the home-time window when the fill landed on home time (true)", () => {
+    const fired = runAllRules(ctx({ driverHomeAtFill: true })).find((r) => r.ruleId === "fuel_while_driver_home");
+    expect(fired).toBeDefined();
+    expect(fired!.severity).toBe("medium");
+    expect(fired!.evidence).toMatchObject({ driverHomeAtFill: true });
+  });
+
+  it("is corroboration-only — a lone driver-home signal never raises a case", () => {
+    expect(correlateSignals([homeSig()]).level).toBe("clear");
+  });
+
+  it("reinforces an independent volume signal into an alert (two axes agree)", () => {
+    const c = correlateSignals([homeSig(), { ruleId: "tank_fill_short", fired: true, severity: "medium", message: "", evidence: {} }]);
+    expect(c.level).toBe("alert");
+    expect(c.axes.sort()).toEqual(["behavior", "volume"]);
+  });
+});
+
 describe("hardening — time confidence (EFS auth-time vs telematics)", () => {
   it("suppresses off-hours + rapid-repeat when the posted time is UNcorroborated (timeConfirmed=false)", () => {
     // 02:00 Chicago posted time would fire off_hours, but we couldn't corroborate it (may be an EFS

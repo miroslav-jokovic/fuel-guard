@@ -29,6 +29,7 @@ export const RULE_IDS = [
   "card_multi_vehicle",
   "location_mismatch",
   "tank_fill_short",
+  "fuel_while_driver_home",
   // Tier A — reefer (trailer refrigeration) fuel integrity (reefer/ULSR events only)
   "reefer_exceeds_capacity",
   "reefer_overfuel_rate",
@@ -62,6 +63,7 @@ export const RULE_LABELS: Record<RuleId, string> = {
   card_multi_vehicle: "Card Used on Multiple Vehicles",
   location_mismatch: "Location Mismatch",
   tank_fill_short: "Tank Fill Short",
+  fuel_while_driver_home: "Fueled While Driver Home",
   reefer_exceeds_capacity: "Reefer Fill Exceeds Tank",
   reefer_overfuel_rate: "Reefer Over-Fueling",
   reefer_fuel_diversion: "Reefer Fueled with ULSD",
@@ -96,6 +98,7 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   card_multi_vehicle: { axis: "behavior", weight: 60 },
   location_mismatch: { axis: "location", weight: 50 },
   tank_fill_short: { axis: "volume", weight: 60 },
+  fuel_while_driver_home: { axis: "behavior", weight: 50 },
   reefer_exceeds_capacity: { axis: "reefer", weight: 90 },
   reefer_overfuel_rate: { axis: "reefer", weight: 75 },
   reefer_fuel_diversion: { axis: "reefer", weight: 60 },

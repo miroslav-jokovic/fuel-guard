@@ -318,16 +318,12 @@ function ruleLocationMismatch(ctx: RuleContext): RuleResult {
  * to review, not proof. Only fires on a measured shortfall.
  */
 function ruleTankFillShort(ctx: RuleContext): RuleResult {
-  // Only fire for trucks whose sensor is LEARNED to reflect the whole fill (observed/billed ≈1). Not-yet-
-  // learned or dual-independent-tank trucks (ratio ≈0.5 / erratic) → suppress: a lone sensor on a two-tank
-  // truck reads ~half the fill and false-flags every full fill. Reliability gate centralized in ruleEligible
-  // (docs/12); gating still means a cheap re-score clears prior false rows without a Samsara re-fetch.
+  // Only fire when the sensor is LEARNED to reflect the whole fill (observed/billed ≈1); two-tank / not-yet-
+  // learned trucks read ~half a fill and false-flag. Reliability gate centralized in ruleEligible (docs/12).
   const short = ctx.tankFillShortGal;
   if (short == null || short <= 0) return none("tank_fill_short");
-  // Samsara's tank-% sensor is COARSE, so a small gap between billed gallons and the observed rise is
-  // sensor noise, not siphoning. Only flag a shortfall that clears a generous tolerance — the LARGER of an
-  // absolute floor or a fraction of the bill. (A few tenths of a gallon off a 168-gal fill must never feed
-  // a theft case.) Mirrors reconcileTankFill's defaults; applied HERE so a cheap re-score fixes prior rows.
+  // Samsara's tank-% sensor is COARSE: only flag a shortfall clearing a generous tolerance (LARGER of an
+  // absolute floor or a fraction of the bill). Mirrors reconcileTankFill; applied HERE for cheap re-score.
   const tol = Math.max(TANK_FILL_MIN_TOLERANCE_GAL, ctx.txn.gallons * TANK_FILL_TOLERANCE_PCT);
   if (short <= tol) return none("tank_fill_short");
   const observed = ctx.tankObservedRiseGal;
@@ -341,19 +337,16 @@ function ruleTankFillShort(ctx: RuleContext): RuleResult {
 }
 
 /**
- * The reefer tank capacity for a fill — ONLY when it's actually known (a paired, reefer-marked trailer).
- * Returns null when unknown; the reefer rules then do NOT fire, because judging "exceeds capacity" or
- * "over-fueled" against an ASSUMED tank size produces false criticals on legitimate large-reefer fills.
- * (The org threshold default is a UI seed for the Trailers page, never a silent detection assumption.)
+ * Reefer tank capacity for a fill — ONLY when actually known (a paired, reefer-marked trailer); null
+ * otherwise, so the reefer rules never judge "exceeds capacity" against an ASSUMED tank size.
  */
 function knownReeferTankGal(ctx: RuleContext): number | null {
   return ctx.reeferTankCapacityGal != null && ctx.reeferTankCapacityGal > 0 ? ctx.reeferTankCapacityGal : null;
 }
 
 /**
- * A single reefer (ULSR) purchase exceeds the reefer tank capacity — the fuel physically cannot fit in
- * the reefer. The strongest single-transaction sign of gun-switching (billed reefer, pumped into the
- * tractor) or a container fill. Only fires when the reefer tank size is KNOWN (paired reefer trailer).
+ * A single reefer (ULSR) purchase exceeds the reefer tank capacity — the fuel can't fit in the reefer
+ * (gun-switching / container fill). Only fires when the reefer tank size is KNOWN (paired trailer).
  */
 function ruleReeferExceedsCapacity(ctx: RuleContext): RuleResult {
   const { txn, thresholds } = ctx;
@@ -428,6 +421,12 @@ function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
   return none("card_multi_vehicle");
 }
 
+/** Fuel bought while the ASSIGNED driver was on home time (opt-in TMS gate) — corroborates misuse; below the lone-review threshold, so never fires alone (see ctx.driverHomeAtFill). */
+function ruleFuelWhileDriverHome(ctx: RuleContext): RuleResult {
+  if (ctx.driverHomeAtFill !== true) return none("fuel_while_driver_home");
+  return { ruleId: "fuel_while_driver_home", fired: true, severity: "medium", message: "Fuel was purchased while the assigned driver was on home time / off duty.", evidence: { driverHomeAtFill: true } };
+}
+
 /**
  * Run the full rule set. Applies fuel-type gating (Tier 2/3 only for diesel/gasoline — audit H1),
  * timestamp-precision gating (time-based rules suppressed for date-only EFS rows — docs/09 P0.1),
@@ -464,6 +463,7 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleUnattributed,
     ruleCostOutlier,
     ruleCardMultiVehicle,
+    ruleFuelWhileDriverHome,
     ruleLocationMismatch,
     ...(fuel ? [ruleTankFillShort] : []),
     // Reefer-diversion runs on TRACTOR (ULSD) fills of reefer-hauling trucks (behavioral; no sensor needed).
