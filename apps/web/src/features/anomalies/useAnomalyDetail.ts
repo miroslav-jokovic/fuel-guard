@@ -3,7 +3,6 @@ import { ANOMALY_DISPOSITIONS, DISPOSITION_LABELS, type Anomaly, type AnomalyDis
 import { useTransaction, useAnomalyTransition, useRelatedCardFills } from "./useAnomalies";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
-import { useAiVerification, useAiExamine } from "@/features/ai/useAiVerification";
 import { stationDateTime } from "@/lib/stationTime";
 import { useOrgSettingsQuery } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
@@ -16,8 +15,6 @@ export function useAnomalyDetail(
 // ── data fetching ────────────────────────────────────────────────────────────
 const txnId = computed(() => props.anomaly.transaction_id);
 const { data: txn } = useTransaction(txnId);
-const { data: assessment, isFetching: aiLoading } = useAiVerification(txnId);
-const aiExamine = useAiExamine();
 const transition = useAnomalyTransition();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
@@ -147,23 +144,8 @@ async function doFalseAlarm() {
   }
 }
 
-async function reexamine() {
-  try {
-    const result = await aiExamine.mutateAsync(props.anomaly.id);
-    if (result.cleared) {
-      toast.success("Anomaly auto-cleared", result.message ?? undefined);
-      emit("changed");
-    } else if (result.assessment) {
-      toast.success("AI assessment ready");
-    } else {
-      toast.info("AI produced no assessment", result.message ?? undefined);
-    }
-  } catch (e) {
-    toast.error("AI verification failed", e instanceof Error ? e.message : undefined);
-  }
-}
   return {
-    txn, assessment, aiLoading, aiExamine, transition,
+    txn, transition,
     caseSignals, isCase, caseScore, caseLevel, caseAxes, evidenceRows,
     hasCardSignal, cardRef, windowHours, siblingFills, siblingLoading,
     driverName, unitNumber, vehicleDesc,
@@ -171,6 +153,6 @@ async function reexamine() {
     axisClass, weightBarClass,
     fmt, fmtShort, fmtOdo, fmtMoney, formatKey,
     note, disposition, DISPOSITION_OPTIONS,
-    doTransition, doFalseAlarm, reexamine,
+    doTransition, doFalseAlarm,
   };
 }

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { formatRuleId, DISPOSITION_LABELS, type Anomaly } from "@fuelguard/shared";
-import AiAssessmentCard from "@/features/ai/AiAssessmentCard.vue";
 import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -11,7 +10,7 @@ const props = defineProps<{ anomaly: Anomaly; vehicleUnit: string }>();
 const emit = defineEmits<{ changed: [] }>();
 
 const {
-  txn, assessment, aiLoading, aiExamine, transition,
+  txn, transition,
   caseSignals, isCase, caseScore, caseLevel, caseAxes, evidenceRows,
   hasCardSignal, cardRef, windowHours, siblingFills, siblingLoading,
   driverName, unitNumber, vehicleDesc,
@@ -19,7 +18,7 @@ const {
   axisClass, weightBarClass,
   fmt, fmtShort, fmtOdo, fmtMoney, formatKey,
   note, disposition, DISPOSITION_OPTIONS,
-  doTransition, doFalseAlarm, reexamine,
+  doTransition, doFalseAlarm,
 } = useAnomalyDetail(props, emit);
 </script>
 
@@ -249,18 +248,6 @@ const {
         <dt class="text-ink-muted">Source</dt>
         <dd class="text-right capitalize text-ink-secondary">{{ txn.source }}</dd>
       </dl>
-    </div>
-
-    <!-- ⑥ AI assessment -->
-    <div class="space-y-2">
-      <AiAssessmentCard :assessment="assessment ?? null" :loading="aiLoading || aiExamine.isPending.value" />
-      <button
-        class="text-xs font-medium text-brand-600 hover:text-brand-500 disabled:opacity-50"
-        :disabled="aiExamine.isPending.value"
-        @click="reexamine"
-      >
-        {{ aiExamine.isPending.value ? "Running…" : "AI re-examine" }}
-      </button>
     </div>
 
     </template>

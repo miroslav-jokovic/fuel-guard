@@ -5,8 +5,6 @@ import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/features/fleet/useTrailers";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useAnomaliesQuery, useAnomalyTransition, useAnomalyTxnDrivers, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
-import { useAiAssessments } from "@/features/ai/useAiVerification";
-import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
@@ -27,31 +25,9 @@ const linkedVehicle = typeof route.query.vehicle === "string" ? route.query.vehi
 const filters = ref<AnomalyFilters>(linkedVehicle ? { vehicleId: linkedVehicle } : { status: "open" });
 const search = ref("");
 const { data: anomalies, isLoading, isError, error, refetch, isFetching } = useAnomaliesQuery(filters);
-const { data: aiMap } = useAiAssessments();
 const { data: txnDriverMap } = useAnomalyTxnDrivers(anomalies);
 const transition = useAnomalyTransition();
 
-const ai = (a: Anomaly) => (a.transaction_id ? (aiMap.value?.[a.transaction_id] ?? null) : null);
-const ACTION_LABEL: Record<string, string> = {
-  block_card: "Block card",
-  contact_driver: "Contact driver",
-  investigate: "Investigate",
-  monitor: "Monitor",
-  none: "No action",
-};
-const isLikelyFalseAlarm = (a: Anomaly) => {
-  const v = ai(a);
-  return !!v && (v.risk_level === "low" || v.recommended_action === "monitor" || v.recommended_action === "none");
-};
-
-const triaging = ref(false);
-async function runTriage() {
-  triaging.value = true;
-  const res = await apiFetch("/api/anomalies/triage", { method: "POST" });
-  triaging.value = false;
-  if (res.ok) toast.success("AI triage started", "Assessing open cases in the background — refresh in a moment.");
-  else toast.error("Could not start triage", res.error?.message);
-}
 
 const setFrom = (v: string | undefined) => (filters.value = { ...filters.value, from: v });
 const setTo = (v: string | undefined) => (filters.value = { ...filters.value, to: v });
@@ -124,7 +100,6 @@ const baseColumns: DataTableColumn[] = [
   { key: "vehicle", label: "Truck", sortable: true, headerClass: "min-w-[5rem]", cellClass: "font-medium text-ink" },
   { key: "trailer", label: "Trailer", sortable: true, headerClass: "min-w-[5rem]", cellClass: "text-ink-secondary" },
   { key: "driver", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "ai", label: "AI", sortable: true, headerClass: "min-w-[10rem]" },
   { key: "message", label: "Detail", headerClass: "min-w-[18rem]", cellClass: "max-w-md truncate text-ink-secondary" },
   { key: "status", label: "Status", sortable: true, headerClass: "min-w-[8rem]" },
   { key: "when", label: "When", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-muted" },
@@ -153,7 +128,6 @@ const getVal = (a: Anomaly, key: string): unknown => {
   if (key === "when") return a.fueled_at ?? a.created_at;
   if (key === "type") return a.rule_id;
   if (key === "status") return a.status;
-  if (key === "ai") return ai(a)?.risk_score ?? -1;
   return (a as unknown as Record<string, unknown>)[key];
 };
 const sorted = computed(() => {
@@ -234,8 +208,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
     filters, search,
     status, severity, vehicleId, statusOptions, severityOptions, unitOptions,
     setFrom, setTo, activeFilterCount, resetFilters,
-    session, triaging, runTriage,
-    ai, ACTION_LABEL, isLikelyFalseAlarm,
+    session,
     unit, pairedTrailer, driverName,
     columns, sort, onSort,
     total, pageRows, page, PAGE_SIZE,

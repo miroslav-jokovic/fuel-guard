@@ -7,7 +7,6 @@ import { writeAudit } from "../lib/audit.js";
 import { scoreWithCascade, backfillOrg, scoreImportWithCascade } from "../services/scoring/index.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "../services/efsSync.js";
 import { scoreDeclinedImport, scoreDeclinedOrg } from "../services/declinedScoring.js";
-import { verifyTransaction } from "../services/aiVerification.js";
 import { notifyForTransaction } from "../services/notifications.js";
 import { runJob, jobCancelRequested } from "../services/jobs.js";
 import { runEfsIngest, buildIngestSource } from "../services/efsAutoIngest.js";
@@ -43,14 +42,6 @@ export function transactionsRouter(): Router {
       }
       await scoreWithCascade(admin, env, orgId, id);
 
-      // Best-effort AI verification (selective trigger inside the service; kill-switch + budget aware).
-      if (env.ANTHROPIC_API_KEY) {
-        try {
-          await verifyTransaction(admin, env, orgId, id);
-        } catch {
-          /* AI is additive — never block scoring */
-        }
-      }
       // Best-effort high/critical email alert (never blocks scoring).
       try {
         await notifyForTransaction(admin, env, orgId, id);

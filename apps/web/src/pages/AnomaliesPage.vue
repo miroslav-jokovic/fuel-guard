@@ -18,8 +18,7 @@ const {
   filters, search,
   status, severity, vehicleId, statusOptions, severityOptions, unitOptions,
   setFrom, setTo, activeFilterCount, resetFilters,
-  session, triaging, runTriage,
-  ai, ACTION_LABEL, isLikelyFalseAlarm,
+  session,
   unit, pairedTrailer, driverName,
   columns, sort, onSort,
   total, pageRows, page, PAGE_SIZE,
@@ -75,15 +74,6 @@ const {
         <BaseButton v-if="activeFilterCount" variant="ghost" size="sm" @click="resetFilters">Clear filters</BaseButton>
         <BaseButton
           v-if="session.canManage"
-          size="sm"
-          :disabled="triaging"
-          title="Run the AI investigator across open cases and rank them by theft likelihood"
-          @click="runTriage"
-        >
-          {{ triaging ? "Triaging…" : "AI triage" }}
-        </BaseButton>
-        <BaseButton
-          v-if="session.canManage"
           variant="ghost"
           size="sm"
           to="/settings/data"
@@ -133,14 +123,6 @@ const {
       <template #cell-vehicle="{ row }">{{ unit(row.vehicle_id) }}</template>
       <template #cell-trailer="{ row }">{{ pairedTrailer(row.vehicle_id) }}</template>
       <template #cell-driver="{ row }">{{ driverName(row) }}</template>
-      <template #cell-ai="{ row }">
-        <div v-if="ai(row)" class="flex items-center gap-1.5">
-          <span :class="[BADGE_BASE, severityTone(ai(row)!.risk_level)]" :title="`AI risk ${ai(row)!.risk_score}/100`">{{ ai(row)!.risk_level }}</span>
-          <span v-if="isLikelyFalseAlarm(row)" class="text-xs text-ink-subtle">likely false alarm</span>
-          <span v-else class="text-xs text-ink-muted">{{ ACTION_LABEL[ai(row)!.recommended_action] ?? ai(row)!.recommended_action }}</span>
-        </div>
-        <span v-else class="text-xs text-ink-subtle">—</span>
-      </template>
       <template #cell-status="{ row }">
         <span :class="[BADGE_BASE, statusTone(row.status)]">{{ row.status }}</span>
       </template>
