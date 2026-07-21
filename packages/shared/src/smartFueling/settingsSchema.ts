@@ -48,7 +48,7 @@ export const ROUTE_FUEL_SETTINGS_DEFAULTS: RouteFuelSettingsForm = {
   corridor_miles: 2.5,
   deviation_threshold_mi: 3,
   price_ttl_hours: 72,
-  always_fill_full: false,
+  always_fill_full: true,
   fill_cap_pct: 75,
   plan_def: false,
   preferred_brands: ["pilot", "flying_j"],

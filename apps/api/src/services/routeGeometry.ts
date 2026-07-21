@@ -10,7 +10,7 @@ import type { Env } from "../env.js";
 import { fetchTruckRoute } from "../lib/here.js";
 
 /** Bump when the routing request shape/logic changes so old cache rows are bypassed. */
-const ENGINE_VERSION = "here-v8-3";
+const ENGINE_VERSION = "here-v8-4";
 
 export interface RouteGeometry {
   polyline: LatLng[];
@@ -30,6 +30,7 @@ function cacheKeyFor(req: HereRouteRequest): string {
     p: req.profile,
     h: [...(req.hazmat ?? [])].sort(),
     t: req.tunnelCategory ?? null,
+    av: req.avoidTunnels ?? false,
   };
   return crypto.createHash("sha1").update(JSON.stringify(norm)).digest("hex");
 }

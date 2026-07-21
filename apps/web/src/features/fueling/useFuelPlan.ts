@@ -11,6 +11,7 @@ export interface PlanRequest {
   equipmentType?: string | null;
   hazmat?: string[];
   tunnelCategory?: string | null;
+  avoidTunnels?: boolean;
   manualFuelPct?: number | null;
   manualHos?: { driveHours?: number | null; breakHours?: number | null; shiftHours?: number | null; cycleHours?: number | null } | null;
 }

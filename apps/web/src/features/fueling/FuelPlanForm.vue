@@ -38,6 +38,7 @@ function blankForm() {
     hazmatOn: false,
     hazmat: [] as string[],
     tunnelCategory: "",
+    avoidTunnels: false,
   };
 }
 const form = reactive(blankForm());
@@ -106,6 +107,7 @@ function submit() {
       equipmentType: form.equipmentType || null,
       hazmat: form.hazmatOn ? [...form.hazmat] : [],
       tunnelCategory: form.hazmatOn ? (form.tunnelCategory || null) : null,
+      avoidTunnels: form.avoidTunnels,
     },
     {
       origin: form.origin.trim(),
@@ -171,6 +173,13 @@ function submit() {
           <ComboSelect :id="id" v-model="form.tunnelCategory" :options="TUNNEL_OPTIONS" placeholder="None / US route" />
         </FormField>
       </div>
+    </div>
+
+    <!-- Avoid all tunnels: independent of hazmat class/ADR category. Hazmat is barred from ~all tunnels, so a
+         dispatcher can force a tunnel-free route for any load that shouldn't run them. -->
+    <div class="mt-4 rounded-md border border-edge bg-surface-subtle p-3">
+      <BaseCheckbox v-model="form.avoidTunnels">Avoid all tunnels</BaseCheckbox>
+      <p class="mt-1 pl-6 text-xs text-ink-muted">Routes around every tunnel — recommended for hazmat and oversized loads. May add miles.</p>
     </div>
 
     <div v-if="form.waypoints.length" class="mt-4 space-y-2">

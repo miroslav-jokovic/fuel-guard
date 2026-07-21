@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from "vue";
-import { FlagIcon, BoltIcon, MoonIcon, ClockIcon, MapPinIcon, ChevronDownIcon, MapIcon } from "@heroicons/vue/24/outline";
+import { FlagIcon, BoltIcon, MapPinIcon, ChevronDownIcon, MapIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import type { PlanStopView } from "./useFuelPlan";
@@ -34,32 +34,24 @@ interface Node {
 const nodes = computed<Node[]>(() => {
   const out: Node[] = [];
   out.push({ key: "start", icon: MapPinIcon, tone: "success", title: "Start", sub: props.origin, fuel: props.startFuelPct != null ? `Departing at ${props.startFuelPct}% fuel` : undefined, tags: [] });
+  // Fuel stops only — start → fuel stops → destination. HOS never appears as its own stop; the one HOS cue we
+  // surface is a "Covers 30-min break" tag when a fuel stop lands where the driver's break comes due (time saved).
   props.stops.forEach((s, i) => {
     const arrive = pct(s.arrivalGal);
     const after = pct(s.arrivalGal + s.gallons);
-    if (s.kind === "rest") {
-      out.push({
-        key: `stop${i}`, icon: s.isOvernight ? MoonIcon : ClockIcon, tone: s.isOvernight ? "info" : "caution",
-        title: s.isOvernight ? "Overnight reset (10 h)" : "30-min break", mile: s.milesAhead,
-        detail: s.isOvernight ? "HOS drive limit reached — required rest before continuing." : "Required 30-minute break.",
-        fuel: arrive != null ? `~${arrive}% fuel on arrival` : undefined, tags: [],
-      });
-    } else {
-      const tags: { label: string; tone: string }[] = [];
-      if (s.isBorderTopOff) tags.push({ label: `Top off before ${s.borderState ?? "border"}`, tone: "info" });
-      if (s.isMinFill) tags.push({ label: "Partial fill", tone: "caution" });
-      if (s.priceEstimated) tags.push({ label: `Est. price${s.priceConfidence ? ` (${s.priceConfidence})` : ""}`, tone: "neutral" });
-      if (s.isEmergency) tags.push({ label: "Emergency", tone: "warning" });
-      if (s.coversBreak) tags.push({ label: "Covers 30-min break", tone: "success" });
-      if (s.isOvernight) tags.push({ label: "+ Overnight reset", tone: "info" });
-      const priceStr = s.netPrice != null ? `@ ${money(s.netPrice)}/gal${s.priceEstimated ? " (est.)" : ""}` : "price unknown";
-      out.push({
-        key: `stop${i}`, icon: BoltIcon, tone: s.isEmergency ? "warning" : "brand",
-        title: `Fuel — ${s.stationName ?? s.brand ?? "Station"}`, sub: s.state ?? undefined, mile: s.milesAhead,
-        detail: [`${s.gallons.toLocaleString()} gal`, priceStr, s.cost != null ? `= ${money(s.cost)}` : null].filter(Boolean).join(" "),
-        fuel: arrive != null && after != null ? `Arrive ~${arrive}% → fill to ~${after}%` : undefined, tags,
-      });
-    }
+    const tags: { label: string; tone: string }[] = [];
+    if (s.isBorderTopOff) tags.push({ label: `Top off before ${s.borderState ?? "border"}`, tone: "info" });
+    if (s.isMinFill) tags.push({ label: "Partial fill", tone: "caution" });
+    if (s.priceEstimated) tags.push({ label: `Est. price${s.priceConfidence ? ` (${s.priceConfidence})` : ""}`, tone: "neutral" });
+    if (s.isEmergency) tags.push({ label: "Emergency", tone: "warning" });
+    if (s.coversBreak) tags.push({ label: "Covers 30-min break", tone: "success" });
+    const priceStr = s.netPrice != null ? `@ ${money(s.netPrice)}/gal${s.priceEstimated ? " (est.)" : ""}` : "price unknown";
+    out.push({
+      key: `stop${i}`, icon: BoltIcon, tone: s.isEmergency ? "warning" : "brand",
+      title: `Fuel — ${s.stationName ?? s.brand ?? "Station"}`, sub: s.state ?? undefined, mile: s.milesAhead,
+      detail: [`${s.gallons.toLocaleString()} gal`, priceStr, s.cost != null ? `= ${money(s.cost)}` : null].filter(Boolean).join(" "),
+      fuel: arrive != null && after != null ? `Arrive ~${arrive}% → fill to ~${after}%` : undefined, tags,
+    });
   });
   out.push({ key: "dest", icon: FlagIcon, tone: "brand", title: "Destination", sub: props.destination, fuel: props.arrivalFuelPct != null ? `Arriving at ~${props.arrivalFuelPct}% fuel` : undefined, tags: [] });
   return out;

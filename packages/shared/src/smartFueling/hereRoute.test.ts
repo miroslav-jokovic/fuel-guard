@@ -24,6 +24,14 @@ describe("buildTruckRouteUrl", () => {
     expect(url).toContain("vehicle%5BtunnelCategory%5D=C");
     expect(url).toContain("apiKey=KEY123");
   });
+  it("omits avoid[features] by default and emits it when avoidTunnels is set", () => {
+    expect(url).not.toContain("avoid%5Bfeatures%5D");
+    const avoided = buildTruckRouteUrl(
+      { origin: { lat: 41.8, lng: -87.6 }, destination: { lat: 39.1, lng: -94.6 }, profile, avoidTunnels: true },
+      "KEY123",
+    );
+    expect(avoided).toContain("avoid%5Bfeatures%5D=tunnel");
+  });
 });
 
 describe("parseHereRoute", () => {

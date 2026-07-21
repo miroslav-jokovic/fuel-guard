@@ -92,7 +92,7 @@ describe("planFuelStops — HOS integration", () => {
       hos: hos(8, 8),
     }));
     expect(plan.reachesDestination).toBe(true);
-    expect(plan.stops.some((s) => s.isOvernight)).toBe(true);
+    expect(plan.stops.some((s) => s.isOvernight && s.kind === "fuel")).toBe(true); // shown as a FUEL stop, not a rest
     expect(plan.flags).toContain("overnight_reset_required");
   });
 
@@ -109,8 +109,9 @@ describe("planFuelStops — HOS integration", () => {
     expect(fuelStop!.coversBreak).toBe(true);
   });
 
-  it("takes a STANDALONE break (rest, no fuel) when the break is due but no fuel is needed yet", () => {
-    // Fuel reaches the destination; break due ~440 mi with no station in the break window → standalone rest.
+  it("never emits a standalone break/rest stop — HOS breaks stay the driver's own (fuel-only itinerary)", () => {
+    // Fuel + drive both reach the destination with a 30-min break due mid-route. We do NOT surface the break as
+    // a stop: the itinerary is fuel stops only.
     const plan = planFuelStops(input({
       distanceToGoMiles: 500,
       stations: [],
@@ -118,11 +119,8 @@ describe("planFuelStops — HOS integration", () => {
       hos: hos(11, 8),
     }));
     expect(plan.reachesDestination).toBe(true);
-    const rest = plan.stops.find((s) => s.kind === "rest");
-    expect(rest).toBeTruthy();
-    expect(rest!.station).toBeNull();
-    expect(rest!.coversBreak).toBe(true);
-    expect(rest!.fillGal).toBe(0);
+    expect(plan.stops.some((s) => s.kind === "rest")).toBe(false);
+    expect(plan.stops.every((s) => s.kind === "fuel")).toBe(true);
   });
 
   it("places the overnight reset NEAR the drive limit, not at an early cheap station", () => {
@@ -146,17 +144,16 @@ describe("planFuelStops — HOS integration", () => {
     expect(plan.stops[0]!.fillGal).toBeGreaterThan(50);
   });
 
-    it("rests at a rest area (no fuel) when a reset is due but no station is reachable", () => {
-    // Full tank, ~8h drive, destination far, and NO stations at all → forced rest-only reset, still progresses.
+    it("applies a required reset SILENTLY when no station is reachable (no rest node, still flags it)", () => {
+    // Full tank, ~8h drive, and NO stations → the 10-hour reset is applied silently so the route stays legal,
+    // but never appears as a rest stop. The reset is still surfaced as a plan flag for the dispatcher.
     const plan = planFuelStops(input({
       distanceToGoMiles: 900,
       stations: [],
       truck: mkTruck({ gallonsOnHand: 190 }),
       hos: hos(8, 8),
     }));
-    const rest = plan.stops.find((s) => s.kind === "rest" && s.isOvernight);
-    expect(rest).toBeTruthy();
-    expect(rest!.station).toBeNull();
+    expect(plan.stops.some((s) => s.kind === "rest")).toBe(false);
     expect(plan.flags).toContain("overnight_reset_required");
   });
 });
@@ -229,10 +226,10 @@ describe("planFuelStops — avoided-state border top-off (California rule)", () 
 describe("planFuelStops — min-drawdown (partial fills)", () => {
   const fuelStop = (plan: ReturnType<typeof planFuelStops>, id: string) => plan.stops.find((s) => s.station?.id === id);
 
-  it("partial-fills at a pricey stop when a cheaper station is reachable ahead (default policy)", () => {
+  it("partial-fills at a pricey stop when a cheaper station is reachable ahead (min-drawdown opt-in)", () => {
     // Only the dear station (a@200, $4.00) is in the initial fuel window; a cheaper one (b@500, $3.00) sits
-    // beyond it. Min-drawdown buys just enough at `a` to reach `b`, then tops off at `b`.
-    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("a", 200, 4.0), st("b", 500, 3.0)] }));
+    // beyond it. With min-drawdown ON, buy just enough at `a` to reach `b`, then top off at `b`.
+    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("a", 200, 4.0), st("b", 500, 3.0)], settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false } }));
     expect(plan.reachesDestination).toBe(true);
     const a = fuelStop(plan, "a")!, b = fuelStop(plan, "b")!;
     expect(a.isMinFill).toBe(true);
@@ -245,7 +242,7 @@ describe("planFuelStops — min-drawdown (partial fills)", () => {
 
   it("full-fills at the cheapest reachable stop (no cheaper ahead), even with min-drawdown on", () => {
     // a@200 ($3.00) is cheapest; b@500 ($4.00) is pricier → `a` is the cheapest in the horizon → top off.
-    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("a", 200, 3.0), st("b", 500, 4.0)] }));
+    const plan = planFuelStops(input({ distanceToGoMiles: 900, stations: [st("a", 200, 3.0), st("b", 500, 4.0)], settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false } }));
     const a = fuelStop(plan, "a")!;
     expect(a.isMinFill).toBe(false);
     expect(a.fillGal).toBeGreaterThan(100); // full fill
@@ -271,6 +268,7 @@ describe("planFuelStops — min-drawdown (partial fills)", () => {
     const plan = planFuelStops(input({
       distanceToGoMiles: 1200,
       stations: [st("a", 100, 4.0), st("c", 600, 4.5), st("b", 1000, 3.0)],
+      settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false },
     }));
     expect(plan.reachesDestination).toBe(true);
     const a = fuelStop(plan, "a")!;
@@ -284,6 +282,7 @@ describe("planFuelStops — min-drawdown (partial fills)", () => {
       distanceToGoMiles: 300,
       stations: [st("pre", 140, 3.5), st("cheaper-in-ca", 200, 2.9, "pilot", "CA")],
       avoidedBorderMiles: 150,
+      settings: { ...DEFAULT_ROUTE_FUEL_SETTINGS, alwaysFillFull: false },
     }));
     const border = plan.stops.find((s) => s.isBorderTopOff)!;
     expect(border.isMinFill).toBe(false);

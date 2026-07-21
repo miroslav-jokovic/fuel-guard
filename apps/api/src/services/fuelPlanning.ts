@@ -33,6 +33,8 @@ export interface PlanRequest {
   equipmentType?: string | null;
   hazmat?: HazmatClass[];
   tunnelCategory?: TunnelCategory | null;
+  /** Route around ALL tunnels (safety for hazmat/oversized loads) — passed straight to HERE. */
+  avoidTunnels?: boolean | null;
   /** Manual fuel level (0-100), used only when live telematics is unavailable for the truck. */
   manualFuelPct?: number | null;
   /** Optional manual HOS clocks (hours), used with manualFuelPct when telematics is unavailable. */
@@ -188,7 +190,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
 
   let route;
   try {
-    route = await getOrComputeRoute(admin, env, { origin, via, destination, profile, hazmat: req.hazmat, tunnelCategory: req.tunnelCategory ?? null });
+    route = await getOrComputeRoute(admin, env, { origin, via, destination, profile, hazmat: req.hazmat, tunnelCategory: req.tunnelCategory ?? null, avoidTunnels: req.avoidTunnels ?? false });
   } catch (e) {
     if (e instanceof NoHereKeyError) return { status: "routing_unavailable", message: "Route planning needs a HERE routing key — configure HERE_API_KEY to enable it.", origin, destination };
     return { status: "error", message: e instanceof Error ? e.message : "Routing failed", origin, destination };

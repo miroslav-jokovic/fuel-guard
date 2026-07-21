@@ -6,12 +6,12 @@
  * clock (min of 11h drive / 14h shift / 60-70h cycle), and the 30-min break interval. Rules (audit-hardened):
  *  1. Never arrive below reserve (incl. detour + reefer burn).                     [safety > cost, always]
  *  2. Prefer discounted, non-avoided stations; California/avoided = emergency only, capped at the 50-gal splash.
- *  3. Full fills (top off — so a truck heading into an avoided state enters it full).
+ *  3. Always full fills (top off) — the only capped fill is the California emergency splash.
  *  4. Cheapest reachable wins among preferred.
- *  5. A fuel stop (>=30 min) satisfies the required 30-min break — combine them; if the break falls due before
- *     any station, take a standalone break, then continue.
- *  6. When the legal drive clock is exhausted before the destination, take a 10-hour reset — at a fuel stop
- *     when one is within reach (fuel + overnight), else at a rest area.
+ *  5. Breaks/resets are NEVER emitted as their own stops — the itinerary is FUEL STOPS ONLY. HOS only TIMES the
+ *     fuel: a fuel stop landing where the 30-min break comes due is tagged coversBreak (fuel + break = time saved).
+ *  6. When the legal drive clock is exhausted before the destination, a fuel stop near that limit is preferred
+ *     (fuel while resting overnight); with no station in reach the reset is applied SILENTLY (never shown).
  * INFEASIBLE is a LOUD state, never a best-guess stop. Correctness is tested empirically.
  */
 import { galPerMile } from "./consumption.js";
@@ -184,10 +184,9 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       usedAvoidedState = true;
       fill = Math.min(cfg.emergencyFillGallons, usable - arrivalGal, weightCap);
     } else if (emergency) {
-      const nextPreferred = stations.find((x) => x.milesAhead > pick.milesAhead + EPS && isPreferred(x, cfg));
-      const nextDist = (nextPreferred ? nextPreferred.milesAhead + nextPreferred.detourMiles : dest) - pick.milesAhead;
-      const needed = galFor(Math.max(0, nextDist)) + reserve - arrivalGal;
-      fill = Math.min(Math.max(cfg.emergencyFillGallons, needed), usable - arrivalGal, weightCap);
+      // Outside an avoided state, an emergency stop still fills the tank FULL — the driver may not get another
+      // reachable pump. Only California (the avoided-state branch above) is capped at the ~50-gal splash.
+      fill = Math.min(usable - arrivalGal, weightCap);
     } else if (!cfg.alwaysFillFull && !overnight) {
       // Min-drawdown: full top-off ONLY when this is the cheapest reachable stop; otherwise buy just enough to
       // reach the next cheaper station (floored at the min purchase, capped at fillCapPct of tank) so the truck
@@ -240,10 +239,11 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     pos = pick.milesAhead;
   };
 
-  const restOvernightAt = (atMile: number) => {
+  // A required 10-hour reset with no fuel stop in reach: apply it SILENTLY (advance + reset the clocks) so the
+  // route stays legal, but never emit a rest node — the itinerary shows fuel stops only.
+  const silentResetAt = (atMile: number) => {
     gal -= galFor(atMile - pos);
     drive = DRIVE_RESET_MS; shift = SHIFT_RESET_MS; brk = BREAK_INTERVAL_MS; usedReset = true; hosLimited = true;
-    stops.push({ milesAhead: atMile, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: true, driveHoursLeftOnArrival: 0, isBorderTopOff: false, isMinFill: false });
     pos = atMile;
   };
 
@@ -290,28 +290,22 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
 
     // Reached — fuel and legal drive both cover the rest of the trip.
     if (fuelMi + EPS >= remaining && driveMi + EPS >= remaining) {
-      if (hosKnown && breakMi + EPS < remaining) {
-        const at = pos + breakMi;
-        gal -= galFor(breakMi);
-        drive -= breakMi * msPerMile; shift -= breakMi * msPerMile + BREAK_MS; cycle -= breakMi * msPerMile;
-        brk = BREAK_INTERVAL_MS;
-        stops.push({ milesAhead: at, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: false, driveHoursLeftOnArrival: hoursFromMs(legalDriveMsNow()), isBorderTopOff: false, isMinFill: false });
-        pos = at;
-        continue;
-      }
+      // Fuel + legal drive both cover the rest of the trip. Any 30-min break still due before the end is the
+      // driver's own to take — it is not emitted as a stop.
       return done(true, false, gal - galFor(remaining));
     }
 
     const fuelBinds = fuelMi <= driveMi + EPS;
     const inWindow = stations.filter((x) => !used.has(x.id) && x.milesAhead > pos + EPS && (x.milesAhead - pos) + x.detourMiles <= windowMi + EPS);
 
-    // Break falls due before we must stop and no station sits inside the break window → standalone break.
+    // Break falls due before we must stop and no station sits inside the break window. Advance the break clock
+    // (so the NEXT fuel stop is correctly tagged coversBreak) but emit NO rest node — a 30-min break leaves the
+    // fuel range and drive clock effectively unchanged, so it never alters WHERE the truck fuels.
     if (hosKnown && breakMi + EPS < windowMi && !inWindow.some((x) => x.milesAhead - pos <= breakMi + EPS)) {
       const at = pos + breakMi;
       gal -= galFor(breakMi);
       drive -= breakMi * msPerMile; shift -= breakMi * msPerMile + BREAK_MS; cycle -= breakMi * msPerMile;
       brk = BREAK_INTERVAL_MS;
-      stops.push({ milesAhead: at, station: null, arrivalGal: gal, fillGal: 0, netPrice: null, cost: null, isEmergency: false, kind: "rest", coversBreak: true, isOvernight: false, driveHoursLeftOnArrival: hoursFromMs(legalDriveMsNow()), isBorderTopOff: false, isMinFill: false });
       pos = at;
       continue;
     }
@@ -320,7 +314,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       // The legal drive clock runs out before fuel → a 10-hour reset is due around the drive limit. Combine it
       // with a fuel stop only if one sits close to that limit; otherwise rest at a rest area at the limit.
       const combine = inWindow.filter((x) => x.milesAhead - pos >= driveMi - COMBINE_BAND_MI);
-      if (combine.length === 0) { restOvernightAt(pos + driveMi); continue; }
+      if (combine.length === 0) { silentResetAt(pos + driveMi); continue; }
       const { pick, emergency } = pickStop(combine);
       applyFuelStop(pick, emergency, true);
       continue;

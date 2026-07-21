@@ -22,6 +22,9 @@ export interface HereRouteRequest {
   profile: TruckProfile;
   hazmat?: HazmatClass[];
   tunnelCategory?: TunnelCategory | null;
+  /** Route around ALL tunnels (HERE avoid[features]=tunnel). Hazmat/oversized safety — hazmat is barred from
+   *  nearly every tunnel, so dispatchers can force a tunnel-free route regardless of the ADR category. */
+  avoidTunnels?: boolean;
 }
 
 /** Build the HERE v8 truck-route URL. apiKey + baseUrl are injected so the pure builder never reads env. */
@@ -45,6 +48,7 @@ export function buildTruckRouteUrl(req: HereRouteRequest, apiKey: string, baseUr
   params.push(["vehicle[axleCount]", String(req.profile.axleCount)]);
   if (req.hazmat && req.hazmat.length) params.push(["vehicle[shippedHazardousGoods]", req.hazmat.join(",")]);
   if (req.tunnelCategory) params.push(["vehicle[tunnelCategory]", req.tunnelCategory]);
+  if (req.avoidTunnels) params.push(["avoid[features]", "tunnel"]);
   params.push(["apiKey", apiKey]);
   const qs = params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
   return `${baseUrl}?${qs}`;

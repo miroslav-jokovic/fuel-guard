@@ -97,7 +97,7 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   mpgSafetyFactor: 0.9,
   deviationThresholdMi: 3,
   priceTtlHours: 72, // a manually-uploaded daily report can lag 1-2 days; treat quotes within 3 days as current
-  alwaysFillFull: false, // min-drawdown on by default: buy just enough to reach the next cheaper stop
+  alwaysFillFull: true, // always top off (full tank). Min-drawdown is opt-in per org, not the default.
   fillCapPct: 75,
   avoidStates: ["CA"],
   fuelBeforeStates: ["MA"], // top off before entering — Massachusetts has essentially one truck stop
