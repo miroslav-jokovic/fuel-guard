@@ -66,6 +66,11 @@ export function buildFuelExternalRef(card: string | null, invoice: string | null
   return [card ?? "", invoice ?? "", item ?? ""].join("|");
 }
 
+/** The EFS Driver Control ID for a row — a stable per-driver identifier printed on the reports. Header
+ *  wording varies by EFS export, so match the common labels (space/punctuation/case-insensitive). */
+export const controlIdOf = (row: RawRow): string | null =>
+  str(pick(row, "Control ID", "Driver Control ID", "Driver Control", "Control Number", "Control No", "Control"));
+
 /**
  * Normalize Transaction Report rows. Keeps only fuel lines (docs/08 §4); multiple fuel lines on the
  * same invoice are MERGED into one fueling event (sum gallons/cost — docs/09 P0.4). Rows with an
@@ -115,6 +120,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
     const card = cardShort ?? cardFull;
     const cardRefVal =
       [cardFull, cardShort].filter((v): v is string => !!v).sort((a, b) => b.length - a.length)[0] ?? card;
+    const controlId = controlIdOf(row);
     const invoice = str(pick(row, "Invoice"));
     const txnId = str(pick(row, "TransactionId", "Transaction Id", "Transaction ID"));
     const total = num(pick(row, "Amt", "Amount"));
@@ -139,12 +145,14 @@ export function normalizeTransactionRows(rows: RawRow[]): {
     if (existing) {
       existing.gallons += gallons;
       existing.total_cost = (existing.total_cost ?? 0) + (total ?? 0);
+      existing.control_id = existing.control_id ?? controlId; // keep the first non-null across merged lines
     } else {
       byInvoice.set(key, {
         external_ref: ref,
         unit: str(pick(row, "Unit")),
         driver_name: str(pick(row, "Driver Name")),
         card_ref: cardRefVal,
+        control_id: controlId,
         fueled_at: instant.iso,
         tran_date: instant.tranDate,
         fueled_at_precision: instant.precision,
@@ -188,6 +196,7 @@ export interface EfsTransactionLine {
   invoice: string | null;
   unit: string | null;
   driver_name: string | null;
+  control_id: string | null;
   odometer: number | null;
   location_name: string | null;
   city: string | null;
@@ -235,6 +244,7 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
       invoice,
       unit: str(pick(row, "Unit")),
       driver_name: str(pick(row, "Driver Name")),
+      control_id: controlIdOf(row),
       odometer: num(pick(row, "Odometer")),
       location_name: str(pick(row, "Location Name")),
       city: str(pick(row, "City", "Location City")),
@@ -261,6 +271,7 @@ export interface EfsTransactionRow {
   invoice: string | null;
   unit: string | null;
   driver_name: string | null;
+  control_id: string | null;
   odometer: number | null;
   location_name: string | null;
   city: string | null;
@@ -309,6 +320,7 @@ export interface ReconciledFuelLine extends ParsedFuelLine {
 /** The subset of a persisted efs_transactions row the derivation needs. */
 export interface EfsStoreLine {
   card_num: string | null;
+  control_id?: string | null;
   invoice: string | null;
   tran_date: string | null; // YYYY-MM-DD (station-local business date)
   fueled_at: string | null; // ISO instant (true UTC or the noon-UTC date-only sentinel)
@@ -380,6 +392,7 @@ export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuel
         unit: str(l.unit),
         driver_name: str(l.driver_name),
         card_ref: str(l.card_num),
+        control_id: str(l.control_id),
         fueled_at: l.fueled_at,
         tran_date: l.tran_date,
         fueled_at_precision: isNoonSentinelIso(l.fueled_at) ? "date" : "instant",

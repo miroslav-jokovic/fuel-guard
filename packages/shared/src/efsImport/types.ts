@@ -41,6 +41,9 @@ export interface ParsedFuelLine {
   unit: string | null;
   driver_name: string | null;
   card_ref: string | null;
+  /** EFS Driver Control ID — a stable per-driver identifier printed on the report. Reliable card/driver
+   *  identity even when EFS masks the card to the last 4 (so same-last-4 drivers aren't conflated). */
+  control_id: string | null;
   fueled_at: string; // ISO instant (true UTC when a POS time + station tz were available)
   /** The EFS business date (station-local, YYYY-MM-DD) — stable across timezones; keys dedupe. */
   tran_date: string;

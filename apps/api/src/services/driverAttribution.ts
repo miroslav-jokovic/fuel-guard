@@ -14,7 +14,7 @@ async function loadEfsLines(admin: SupabaseClient, orgId: string): Promise<EfsSt
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin
       .from("efs_transactions")
-      .select("card_num, invoice, tran_date, fueled_at, unit, driver_name, odometer, location_name, city, state, item, qty, amt")
+      .select("card_num, control_id, invoice, tran_date, fueled_at, unit, driver_name, odometer, location_name, city, state, item, qty, amt")
       .eq("org_id", orgId)
       .range(from, from + PAGE - 1);
     if (error) throw new Error(error.message);

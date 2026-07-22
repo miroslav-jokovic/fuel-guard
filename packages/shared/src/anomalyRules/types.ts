@@ -39,6 +39,9 @@ export interface TxnView {
    *  (those compare against the tractor's tank + MPG). Default 'tractor'. */
   tankType?: "tractor" | "reefer";
   cardRef?: string | null;
+  /** EFS Driver Control ID — reliable per-driver identity used to key the card-on-multiple-trucks rule
+   *  when the card itself is masked to the last 4. */
+  controlId?: string | null;
 }
 
 export interface VehicleView {

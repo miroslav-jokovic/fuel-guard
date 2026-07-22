@@ -135,9 +135,20 @@ export async function scoreTransaction(
     ).miles;
   }
 
-  // Only match card identity on a RELIABLE ref — a masked/last-4-only card can be shared by DIFFERENT
-  // cards, which would conflate them into a false "one card, multiple trucks" alert.
-  if (txn.cardRef && isReliableCardRef(txn.cardRef)) {
+  // Card-on-multiple-trucks identity. Prefer the EFS Driver Control ID — a stable per-driver identifier that
+  // survives EFS masking the card down to the last 4, so two DIFFERENT drivers who happen to share the same
+  // last-4 are never conflated into a false "one card, multiple trucks" alert. Fall back to a full (reliable)
+  // card number; a bare last-4 with NO control id stays silent (we can't tell the cards apart).
+  if (txn.controlId) {
+    const { data: idRows } = await admin
+      .from("fuel_transactions")
+      .select("vehicle_id")
+      .eq("org_id", orgId)
+      .eq("control_id", txn.controlId)
+      .gte("fueled_at", winStart())
+      .lte("fueled_at", r.fueled_at);
+    cardVehicleCountInWindow = new Set((idRows ?? []).map((x) => x.vehicle_id).filter(Boolean)).size;
+  } else if (txn.cardRef && isReliableCardRef(txn.cardRef)) {
     const { data: cardRows } = await admin
       .from("fuel_transactions")
       .select("vehicle_id")
