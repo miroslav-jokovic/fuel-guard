@@ -27,6 +27,16 @@ interface DeclineRow {
 const DECLINE_COLS =
   "id, org_id, vehicle_id, declined_at, card_ref, city, state, location_text, error_code, error_description";
 
+/** A successful fill considered as the "corrective" purchase right after a decline (wrong-unit recovery). */
+interface CorrectiveFill {
+  vehicle_id: string | null;
+  card_ref: string | null;
+  city: string | null;
+  state: string | null;
+  location_text: string | null;
+  fueled_at: string;
+}
+
 /** Score one declined attempt: correlate Samsara location + repeat / approved-elsewhere patterns. */
 export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgId: string, declineId: string): Promise<void> {
   const { data: row } = await admin.from("declined_transactions").select(DECLINE_COLS).eq("id", declineId).eq("org_id", orgId).single();
@@ -72,36 +82,58 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
   const winStart = new Date(t - WINDOW_H * 3_600_000).toISOString();
   const winEnd = new Date(t + WINDOW_H * 3_600_000).toISOString();
 
-  // Wrong-truck-number check: the typed truck wasn't at the station, BUT if a DIFFERENT truck fueled at the
-  // same place right after, the driver almost certainly mis-typed the unit # — EFS blocked a benign typo,
-  // not a theft (no fuel was dispensed). Exonerate it (clear) with a clear label instead of a false alert.
-  let wrongUnit = false;
-  if (locationMismatched && d.vehicle_id && (d.city || d.state)) {
-    const { data: siblings } = await admin
+  // Wrong-truck-number check + corrective-fill confirmation. The typed truck wasn't at the station — so look
+  // for a SUCCESSFUL fill at that same station in the window right after the decline: a mis-typed unit gets
+  // blocked (no fuel dispensed), then the driver completes the purchase on the correct unit moments later.
+  // A same-CARD success is the strongest match (same driver + pump); a different truck at the same city/state
+  // is the fallback. Either way it proves the decline was benign AND names the REAL truck, so the case reads
+  // "entered 632, real truck 633" instead of a vague location alert. Mirrors the manual audit: find who
+  // actually fueled at that place/time and confirm the entered truck was elsewhere.
+  let corrective: CorrectiveFill | null = null;
+  if (locationMismatched && (d.city || d.state)) {
+    const { data: fills } = await admin
       .from("fuel_transactions")
-      .select("vehicle_id, city, state")
+      .select("vehicle_id, card_ref, city, state, location_text, fueled_at")
       .eq("org_id", orgId)
-      .neq("vehicle_id", d.vehicle_id)
       .gte("fueled_at", d.declined_at)
-      .lte("fueled_at", winEnd);
-    wrongUnit = ((siblings ?? []) as { vehicle_id: string | null; city: string | null; state: string | null }[]).some(
-      (x) =>
-        x.vehicle_id != null &&
-        (x.city ?? "").toLowerCase() === (d.city ?? "").toLowerCase() &&
-        (x.state ?? "").toLowerCase() === (d.state ?? "").toLowerCase(),
-    );
+      .lte("fueled_at", winEnd)
+      .order("fueled_at", { ascending: true });
+    const list = (fills ?? []) as CorrectiveFill[];
+    const sameSite = (x: CorrectiveFill) =>
+      (x.city ?? "").toLowerCase() === (d.city ?? "").toLowerCase() &&
+      (x.state ?? "").toLowerCase() === (d.state ?? "").toLowerCase();
+    // Prefer the same card at the same site; otherwise a different truck at the same site.
+    corrective =
+      (d.card_ref ? list.find((x) => sameSite(x) && x.card_ref === d.card_ref) : undefined) ??
+      list.find((x) => sameSite(x) && x.vehicle_id != null && x.vehicle_id !== d.vehicle_id) ??
+      null;
   }
-  if (locationMismatched && wrongUnit) {
+
+  if (locationMismatched && corrective) {
+    // Name the real truck (unit number) that actually fueled, so the reviewer doesn't have to look it up.
+    let realUnit: string | null = null;
+    if (corrective.vehicle_id) {
+      const { data: realVeh } = await admin
+        .from("vehicles").select("unit_number").eq("id", corrective.vehicle_id).eq("org_id", orgId).maybeSingle();
+      realUnit = (realVeh as { unit_number?: string } | null)?.unit_number ?? null;
+    }
+    const minsAfter = Math.max(0, Math.round((new Date(corrective.fueled_at).getTime() - t) / 60_000));
+    const site = corrective.location_text ?? ([d.city, d.state].filter(Boolean).join(", ") || "the same station");
+    const who = realUnit
+      ? `truck ${realUnit}`
+      : d.card_ref && corrective.card_ref === d.card_ref
+        ? "the same card"
+        : "a different truck";
     reasons.push({
       key: "wrong_unit_number",
       weight: declineSignalWeight("wrong_unit_number"),
-      detail: `Likely a mis-typed unit number — a different truck fueled at ${d.city ?? "this station"}, ${d.state ?? ""} right after, so EFS blocked a wrong-truck-number entry (not a theft).`,
+      detail: `Benign mis-typed unit number — ${who} fueled successfully at ${site} ${minsAfter} min after this decline, while Samsara shows the entered truck wasn't there. EFS blocked the wrong-unit entry (no fuel dispensed) and the driver completed the purchase on the correct unit.`,
     });
   } else if (locationMismatched) {
     reasons.push({
       key: "location_mismatch",
       weight: declineSignalWeight("location_mismatch"),
-      detail: `Samsara shows the truck was not at ${d.city ?? "the decline location"}, ${d.state ?? ""} when the card was declined.`,
+      detail: `Samsara shows the truck was not at ${d.city ?? "the decline location"}, ${d.state ?? ""} when the card was declined, and no successful fill at that station followed — treat as a possible wrong-card / location attempt.`,
     });
   }
 
