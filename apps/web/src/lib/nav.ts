@@ -17,6 +17,7 @@ import {
   TrophyIcon,
   MapIcon,
   BuildingStorefrontIcon,
+  ShieldCheckIcon,
 } from "@heroicons/vue/24/outline";
 
 export interface NavItem {
@@ -29,6 +30,8 @@ export interface NavItem {
 export interface NavGroup {
   /** Section label (null = ungrouped top items). */
   label: string | null;
+  /** Section icon shown in the collapsed rail (labeled sections only). */
+  icon?: FunctionalComponent;
   items: NavItem[];
 }
 
@@ -59,6 +62,7 @@ export function buildNavGroups(s: NavSession): NavGroup[] {
     },
     {
       label: "Fuel",
+      icon: BeakerIcon,
       items: [
         { name: "Fuel Log", to: "/fuel-log", icon: BeakerIcon, show: true },
         { name: "Transactions", to: "/transactions", icon: TableCellsIcon, show: manageOrRead },
@@ -68,6 +72,7 @@ export function buildNavGroups(s: NavSession): NavGroup[] {
     },
     {
       label: "Dispatch",
+      icon: MapIcon,
       items: [
         { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: s.canManage },
         { name: "Truck Stops", to: "/truck-stops", icon: BuildingStorefrontIcon, show: manageOrRead },
@@ -75,6 +80,7 @@ export function buildNavGroups(s: NavSession): NavGroup[] {
     },
     {
       label: "Safety",
+      icon: ShieldCheckIcon,
       items: [
         { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: manageOrRead },
         { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: manageOrRead },
@@ -83,6 +89,7 @@ export function buildNavGroups(s: NavSession): NavGroup[] {
     },
     {
       label: "Fleet",
+      icon: TruckIcon,
       items: [
         { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: manageOrRead },
         { name: "Trailers", to: "/trailers", icon: ArchiveBoxIcon, show: manageOrRead },
@@ -92,6 +99,7 @@ export function buildNavGroups(s: NavSession): NavGroup[] {
     },
     {
       label: "Admin",
+      icon: Cog6ToothIcon,
       items: [
         { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: s.canManage },
         { name: "Users", to: "/settings/users", icon: UsersIcon, show: s.admin },

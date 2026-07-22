@@ -7,6 +7,7 @@ import { Bars3Icon, XMarkIcon, ChevronLeftIcon } from "@heroicons/vue/24/outline
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import AppLogo from "@/components/AppLogo.vue";
+import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
 
 const session = useSessionStore();
 const route = useRoute();
@@ -172,25 +173,44 @@ async function signOut() {
 
         <!-- Nav -->
         <nav class="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-3" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
-          <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
+          <!-- Expanded: grouped section labels + full links -->
+          <ul v-if="!sidebarCollapsed" role="list" class="flex flex-1 flex-col gap-y-0.5">
             <template v-for="group in navGroups" :key="group.label ?? '_top'">
               <li
-                v-if="group.label && !sidebarCollapsed"
+                v-if="group.label"
                 class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-500"
               >
                 {{ group.label }}
               </li>
-              <li v-else-if="group.label" class="mt-3" />
               <li v-for="item in group.items" :key="item.name">
                 <RouterLink
                   :to="item.to"
-                  :class="sidebarCollapsed ? navLinkClassCollapsed(item.to) : navLinkClass(item.to)"
-                  :title="sidebarCollapsed ? item.name : undefined"
+                  :class="navLinkClass(item.to)"
                   :aria-current="isCurrent(item.to) ? 'page' : undefined"
                 >
                   <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                  <span v-if="!sidebarCollapsed">{{ item.name }}</span>
+                  <span>{{ item.name }}</span>
                 </RouterLink>
+              </li>
+            </template>
+          </ul>
+          <!-- Collapsed: ungrouped items as icons; each labeled section opens a flyout submenu on hover/click -->
+          <ul v-else role="list" class="flex flex-1 flex-col gap-y-1">
+            <template v-for="group in navGroups" :key="group.label ?? '_top'">
+              <template v-if="!group.label">
+                <li v-for="item in group.items" :key="item.name">
+                  <RouterLink
+                    :to="item.to"
+                    :class="navLinkClassCollapsed(item.to)"
+                    :title="item.name"
+                    :aria-current="isCurrent(item.to) ? 'page' : undefined"
+                  >
+                    <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                  </RouterLink>
+                </li>
+              </template>
+              <li v-else>
+                <SidebarFlyoutSection :group="group" :is-current="isCurrent" />
               </li>
             </template>
           </ul>
