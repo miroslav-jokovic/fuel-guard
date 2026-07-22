@@ -10,7 +10,8 @@ import type { Env } from "../env.js";
 import { fetchTruckRoute } from "../lib/here.js";
 
 /** Bump when the routing request shape/logic changes so old cache rows are bypassed. */
-const ENGINE_VERSION = "here-v8-5"; // v8-5: units=imperial for instruction text
+const ENGINE_VERSION = "here-v8-5"; // request shape unchanged since v8-5. Instruction km/m is stripped on read
+                                    // in fuelPlanning (stripStepDistance) — no request/cache change needed.
 
 export interface RouteGeometry {
   polyline: LatLng[];

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTruckRouteUrl, parseHereRoute } from "./hereRoute.js";
+import { buildTruckRouteUrl, parseHereRoute, stripStepDistance } from "./hereRoute.js";
 import { DEFAULT_ROUTE_FUEL_SETTINGS } from "./types.js";
 
 const profile = DEFAULT_ROUTE_FUEL_SETTINGS.defaultProfile; // 162in, 840in, 102in, 5 axles, 80000 lb
@@ -68,5 +68,24 @@ describe("parseHereRoute", () => {
   it("null on an empty/blank response", () => {
     expect(parseHereRoute({ routes: [] })).toBeNull();
     expect(parseHereRoute({})).toBeNull();
+  });
+});
+
+describe("stripStepDistance", () => {
+  it("removes HERE's trailing 'Go for <n> <metric unit>' clause, keeping the maneuver", () => {
+    expect(stripStepDistance("Head toward 5th Ave on Main St. Go for 84 m.")).toBe("Head toward 5th Ave on Main St.");
+    expect(stripStepDistance("Turn left onto Chausseestraße. Go for 291 m.")).toBe("Turn left onto Chausseestraße.");
+    expect(stripStepDistance("Continue on I-80 West. Go for 8 km.")).toBe("Continue on I-80 West.");
+    expect(stripStepDistance("Continue on I-80 West. Go for 1.2 km")).toBe("Continue on I-80 West."); // no trailing period
+  });
+  it("also strips imperial phrasing (defensive) and a bare 'Continue for' clause", () => {
+    expect(stripStepDistance("Merge onto I-90 E. Go for 3.4 mi.")).toBe("Merge onto I-90 E.");
+    expect(stripStepDistance("Continue for 500 ft.")).toBe(""); // whole thing was just a distance clause
+  });
+  it("leaves instructions without a trailing distance clause untouched", () => {
+    expect(stripStepDistance("Turn right onto 1st Ave.")).toBe("Turn right onto 1st Ave.");
+    expect(stripStepDistance("Arrive at your destination.")).toBe("Arrive at your destination.");
+    expect(stripStepDistance("Take exit 12 toward Springfield.")).toBe("Take exit 12 toward Springfield."); // exit number, no unit
+    expect(stripStepDistance("Take exit 5.")).toBe("Take exit 5."); // bare number, no distance unit
   });
 });

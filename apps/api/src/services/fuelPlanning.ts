@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   resolveRouteFuelConfig, effectiveTruckProfile, buildTruckFuelState, planFuelStops, stationsAlongRoute,
-  milesFromMeters, resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile,
+  milesFromMeters, resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, findFirstBorderCrossingMile, stripStepDistance,
   type SolverStation, type LatLng, type HazmatClass, type TunnelCategory, type TruckFuelState, type PriceConfidence,
   type PostedQuote, type DiscountRule,
 } from "@fuelguard/shared";
@@ -199,7 +199,10 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
     return { status: "error", message: e instanceof Error ? e.message : "Routing failed", origin, destination };
   }
   const distanceMiles = milesFromMeters(route.distanceMeters);
-  const directions = route.steps.map((st) => ({ instruction: st.instruction, miles: r1(milesFromMeters(st.lengthMeters)) }));
+  // Instruction text has HERE's own km/m distance baked in ("… Go for 8 km."); strip it and show miles
+  // ourselves (from lengthMeters) so the turn-by-turn reads in miles only. Applied on read, so cached
+  // routes with the old km text are cleaned too — no cache invalidation needed.
+  const directions = route.steps.map((st) => ({ instruction: stripStepDistance(st.instruction), miles: r1(milesFromMeters(st.lengthMeters)) }));
   const routeView = { distanceMiles: r1(distanceMiles), durationHours: r1(route.durationSeconds / 3600), polyline: route.polyline, directions };
 
   const tele = await fetchTruckFuelState(admin, env, orgId, veh, isReefer, cfg, req.loadGrossLb ?? null);

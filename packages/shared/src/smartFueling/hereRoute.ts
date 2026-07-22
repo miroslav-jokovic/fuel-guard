@@ -54,6 +54,20 @@ export function buildTruckRouteUrl(req: HereRouteRequest, apiKey: string, baseUr
   return `${baseUrl}?${qs}`;
 }
 
+/**
+ * Strip HERE's trailing distance clause from an instruction so the maneuver reads without km/m.
+ * HERE v8 formats en-US instructions as "<maneuver>. Go for <n> <unit>." (metric by default —
+ * `units=imperial` was tried and reverted because HERE rejected it and broke every route). We show
+ * distance ourselves in miles (from `lengthMeters`), so the embedded metric phrase is redundant clutter.
+ * Only a trailing number+distance-unit is removed; exit numbers / street names (no unit) are left intact.
+ * Longer unit words are listed before their abbreviations so the alternation matches greedily.
+ */
+export function stripStepDistance(instruction: string): string {
+  return instruction
+    .replace(/\s*(?:Go|Continue|Drive|Head)?\s*for\s+[\d.,]+\s*(?:kilometers?|meters?|miles?|feet|km|mi|ft|m)\b\.?\s*$/i, "")
+    .trim();
+}
+
 /** One turn-by-turn maneuver from HERE (defensively typed: any field may be absent in the response). */
 export interface RouteStep {
   instruction: string;
