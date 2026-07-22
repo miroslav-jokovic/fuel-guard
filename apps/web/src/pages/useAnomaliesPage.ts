@@ -150,6 +150,12 @@ const selectedIds = ref<Set<string>>(new Set());
 const isActionable = (a: Anomaly) => a.status === "open" || a.status === "investigating";
 const selectedCount = computed(() => selectedIds.value.size);
 watch([filters, search, page], () => (selectedIds.value = new Set()));
+// Explicit setter for the table's update:selected — writing the ref through a function (rather than a
+// template `selectedIds = $event` assignment on a destructured binding) guarantees the composable's ref
+// actually updates, so the bulk bar and bulk actions always see the current selection.
+function setSelected(next: Set<string>) {
+  selectedIds.value = next instanceof Set ? next : new Set();
+}
 
 const busy = ref(false);
 async function transitionOne(
@@ -166,8 +172,23 @@ async function bulkTransition(
   confirmMsg?: string,
   disposition?: AnomalyDisposition,
 ) {
-  const targets = (anomalies.value ?? []).filter((a) => selectedIds.value.has(a.id) && isActionable(a));
-  if (targets.length === 0) return;
+  if (selectedIds.value.size === 0) {
+    toast.error("Select one or more alerts first.");
+    return;
+  }
+  // Match on the STRING key (the table stores String(id)); then keep only the rows that can still transition.
+  const selected = (anomalies.value ?? []).filter((a) => selectedIds.value.has(String(a.id)));
+  const targets = selected.filter(isActionable);
+  if (targets.length === 0) {
+    // Give a reason instead of silently doing nothing (the old behavior read as "the buttons don't work").
+    toast.error(
+      selected.length > 0
+        ? "Those alerts are already resolved or dismissed — nothing to update."
+        : "Your selection is out of date — reselect the alerts and try again.",
+    );
+    selectedIds.value = new Set();
+    return;
+  }
   if (confirmMsg && !confirm(confirmMsg.replace("{n}", String(targets.length)))) return;
   busy.value = true;
   let ok = 0;
@@ -182,8 +203,10 @@ async function bulkTransition(
   }
   busy.value = false;
   selectedIds.value = new Set();
-  if (ok === targets.length) toast.success(`Updated ${ok} of ${targets.length}`);
-  else toast.error(`Updated ${ok} of ${targets.length}`, lastError);
+  const skipped = selected.length - targets.length;
+  const skipNote = skipped > 0 ? ` (${skipped} already closed, skipped)` : "";
+  if (ok === targets.length) toast.success(`Updated ${ok} of ${targets.length}${skipNote}`);
+  else toast.error(`Updated ${ok} of ${targets.length}${skipNote}`, lastError);
 }
 
 async function rowAction(
@@ -213,7 +236,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString();
     columns, sort, onSort,
     total, pageRows, page, PAGE_SIZE,
     isLoading, isError, error, isFetching, refetch,
-    selectedIds, selectedCount, isActionable, busy, bulkTransition, rowAction,
+    selectedIds, setSelected, selectedCount, isActionable, busy, bulkTransition, rowAction,
     selectedRow, fmt,
   };
 }

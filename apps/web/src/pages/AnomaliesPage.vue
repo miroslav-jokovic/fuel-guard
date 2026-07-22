@@ -23,7 +23,7 @@ const {
   columns, sort, onSort,
   total, pageRows, page, PAGE_SIZE,
   isLoading, isError, error, isFetching, refetch,
-  selectedIds, selectedCount, isActionable, busy, bulkTransition, rowAction,
+  selectedIds, setSelected, selectedCount, isActionable, busy, bulkTransition, rowAction,
   selectedRow, fmt,
 } = useAnomaliesPage();
 </script>
@@ -94,7 +94,7 @@ const {
         <BaseButton size="sm" :disabled="busy" @click="bulkTransition('investigating')">Investigate</BaseButton>
         <BaseButton size="sm" :disabled="busy" @click="bulkTransition('dismissed', 'False alarm', 'Mark {n} alerts as false alarm?', 'false_positive')">False alarm</BaseButton>
         <BaseButton size="sm" :disabled="busy" @click="bulkTransition('resolved', 'Resolved by reviewer', 'Resolve {n} alerts?', 'confirmed')">Resolve</BaseButton>
-        <BaseButton variant="ghost" size="sm" @click="selectedIds = new Set()">Clear</BaseButton>
+        <BaseButton variant="ghost" size="sm" @click="setSelected(new Set())">Clear</BaseButton>
       </div>
     </div>
 
@@ -111,7 +111,7 @@ const {
       :selectable="session.canManage"
       :selected="selectedIds"
       :row-class="(row) => isActionable(row) ? 'cursor-pointer' : 'cursor-pointer bg-surface-subtle/50 opacity-60'"
-      @update:selected="selectedIds = $event"
+      @update:selected="setSelected"
       @sort="onSort"
       @row-click="selectedRow = $event"
       @retry="refetch"
