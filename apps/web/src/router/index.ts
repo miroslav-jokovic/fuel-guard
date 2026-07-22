@@ -47,13 +47,13 @@ const routes: RouteRecordRaw[] = [
     path: "/coverage",
     name: "coverage",
     component: () => import("@/pages/CoveragePage.vue"),
-    meta: { requiresAuth: true, title: "Detection Coverage" },
+    meta: { requiresAuth: true, title: "Detection Coverage", parent: "/settings" },
   },
   {
     path: "/recall-audit",
     name: "recall-audit",
     component: () => import("@/pages/RecallAuditPage.vue"),
-    meta: { requiresAuth: true, title: "Recall Audit" },
+    meta: { requiresAuth: true, title: "Recall Audit", parent: "/settings" },
   },
   {
     path: "/trailers",
@@ -65,7 +65,7 @@ const routes: RouteRecordRaw[] = [
     path: "/reefer-coverage",
     name: "reefer-coverage",
     component: () => import("@/pages/ReeferCoveragePage.vue"),
-    meta: { requiresAuth: true, title: "Reefer Coverage" },
+    meta: { requiresAuth: true, title: "Reefer Coverage", parent: "/settings" },
   },
   {
     path: "/fuel-planning",
@@ -142,7 +142,7 @@ const routes: RouteRecordRaw[] = [
     path: "/reports",
     name: "reports",
     component: () => import("@/pages/ReportsPage.vue"),
-    meta: { requiresAuth: true, title: "Reports" },
+    meta: { requiresAuth: true, title: "Reports", parent: "/settings" },
   },
   {
     path: "/settings",

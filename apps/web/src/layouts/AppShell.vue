@@ -3,105 +3,19 @@ import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
-import {
-  HomeIcon,
-  TruckIcon,
-  UserGroupIcon,
-  BeakerIcon,
-  ExclamationTriangleIcon,
-  ChartBarIcon,
-  Cog6ToothIcon,
-  UsersIcon,
-  ArrowUpTrayIcon,
-  TableCellsIcon,
-  NoSymbolIcon,
-  SparklesIcon,
-  Bars3Icon,
-  XMarkIcon,
-  ChevronLeftIcon,
-  CubeIcon,
-  ArchiveBoxIcon,
-  ArrowsRightLeftIcon,
-  SignalIcon,
-  ClipboardDocumentCheckIcon,
-  ClockIcon,
-  TrophyIcon,
-  MapIcon,
-  BuildingStorefrontIcon,
-} from "@heroicons/vue/24/outline";
-import type { FunctionalComponent } from "vue";
+import { Bars3Icon, XMarkIcon, ChevronLeftIcon } from "@heroicons/vue/24/outline";
 import { useSessionStore } from "@/stores/session";
+import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import AppLogo from "@/components/AppLogo.vue";
-
-interface NavItem {
-  name: string;
-  to: string;
-  icon: FunctionalComponent;
-  show: boolean;
-}
-
-interface NavGroup {
-  label: string | null;
-  items: NavItem[];
-}
 
 const session = useSessionStore();
 const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
 
-// Role-aware navigation grouped by category. UI gating only — RLS + API are the real enforcement.
+// Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const navGroups = computed<NavGroup[]>(() =>
-  [
-    {
-      label: null,
-      items: [
-        { name: "Dashboard", to: "/", icon: HomeIcon, show: true },
-        { name: "Fuel Log", to: "/fuel-log", icon: BeakerIcon, show: true },
-      ],
-    },
-    {
-      label: "Data",
-      items: [
-        { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: session.canManage },
-        { name: "Transactions", to: "/transactions", icon: TableCellsIcon, show: session.canManage || session.readOnly },
-        { name: "Rejections", to: "/rejections", icon: NoSymbolIcon, show: session.canManage || session.readOnly },
-      ],
-    },
-    {
-      label: "Fleet",
-      items: [
-        { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: session.canManage || session.readOnly },
-        { name: "Trailers", to: "/trailers", icon: ArchiveBoxIcon, show: session.canManage || session.readOnly },
-        { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: session.canManage || session.readOnly },
-        { name: "Odometer", to: "/odometer", icon: ArrowsRightLeftIcon, show: session.canManage || session.readOnly },
-      ],
-    },
-    {
-      label: "Analysis",
-      items: [
-        { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: session.canManage || session.readOnly },
-        { name: "Reefer Coverage", to: "/reefer-coverage", icon: CubeIcon, show: session.canManage || session.readOnly },
-        { name: "Idling", to: "/idling", icon: ClockIcon, show: session.canManage || session.readOnly },
-        { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: session.canManage || session.readOnly },
-        { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: session.canManage },
-        { name: "Truck Stops", to: "/truck-stops", icon: BuildingStorefrontIcon, show: session.canManage || session.readOnly },
-        { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: session.canManage || session.readOnly },
-        { name: "Reports", to: "/reports", icon: ChartBarIcon, show: session.canManage || session.readOnly },
-      ],
-    },
-    {
-      label: "Admin",
-      items: [
-        { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: session.canManage },
-        { name: "Detection Coverage", to: "/coverage", icon: SignalIcon, show: session.canManage || session.readOnly },
-        { name: "Recall Audit", to: "/recall-audit", icon: ClipboardDocumentCheckIcon, show: session.canManage || session.readOnly },
-        { name: "Users", to: "/settings/users", icon: UsersIcon, show: session.admin },
-      ],
-    },
-  ]
-    .map((g) => ({ ...g, items: g.items.filter((i) => i.show) }))
-    .filter((g) => g.items.length > 0),
+  buildNavGroups({ canManage: session.canManage, readOnly: session.readOnly, admin: session.admin }),
 );
 
 // Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching
