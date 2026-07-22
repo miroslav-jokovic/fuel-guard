@@ -3,6 +3,7 @@ import { computed, reactive } from "vue";
 import { FlagIcon, BoltIcon, MapPinIcon, ChevronDownIcon, MapIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { stripStepDistance } from "@fuelguard/shared";
 import type { PlanStopView } from "./useFuelPlan";
 
 const props = defineProps<{
@@ -116,7 +117,9 @@ const DOT: Record<string, string> = {
             </button>
             <ol v-if="openLegs[i]" class="mt-2 space-y-1.5 border-l border-edge-subtle pl-3">
               <li v-for="(step, si) in legs[i]!.steps" :key="si" class="text-sm text-ink-secondary">
-                <span class="text-ink">{{ step.instruction }}</span>
+                <!-- Defense-in-depth: strip HERE's embedded km/m so the turn-by-turn shows miles only,
+                     even if the API response (cached or stale) still carries the metric distance. -->
+                <span class="text-ink">{{ stripStepDistance(step.instruction) }}</span>
                 <span v-if="step.miles > 0" class="ml-1 text-xs text-ink-muted">· {{ step.miles.toLocaleString() }} mi</span>
               </li>
             </ol>
