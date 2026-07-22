@@ -5,6 +5,7 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { planFuelRoute, type PlanRequest } from "../services/fuelPlanning.js";
+import { saveFuelPlanHistory } from "../services/fuelPlanHistory.js";
 import { resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, type DiscountRule } from "@fuelguard/shared";
 
 // Validate + bound the plan request (security: reject malformed/oversized input before any Samsara/HERE work).
@@ -58,48 +59,6 @@ async function enableNetworkForOrg(admin: ReturnType<typeof getSupabaseAdmin>, o
     .upsert({ org_id: orgId, enabled_brands: [...current, brand], updated_at: new Date().toISOString() }, { onConflict: "org_id" });
 }
 
-/** Persist one generated plan to fuel_plans for the history tab. Only real plans (a route was computed and a
- *  plan produced) are saved; failed/aborted attempts are not. Denormalizes the creator email + truck unit so the
- *  list is a single cheap select. */
-async function saveFuelPlanHistory(
-  admin: ReturnType<typeof getSupabaseAdmin>,
-  orgId: string,
-  userId: string | null,
-  req: PlanRequest,
-  result: Awaited<ReturnType<typeof planFuelRoute>>,
-): Promise<void> {
-  if (!result.plan || !result.route) return; // only save plans that produced a route + itinerary
-  const pointText = (p: PlanRequest["origin"] | undefined): string | null =>
-    p?.text ? p.text : p?.lat != null && p?.lng != null ? `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}` : null;
-  let createdByLabel: string | null = null;
-  if (userId) {
-    const { data } = await admin.auth.admin.getUserById(userId);
-    createdByLabel = data?.user?.email ?? null;
-  }
-  let unitNumber: string | null = null;
-  if (req.vehicleId) {
-    const { data } = await admin.from("vehicles").select("unit_number").eq("id", req.vehicleId).eq("org_id", orgId).maybeSingle();
-    unitNumber = (data as { unit_number?: string } | null)?.unit_number ?? null;
-  }
-  await admin.from("fuel_plans").insert({
-    org_id: orgId,
-    created_by: userId,
-    created_by_label: createdByLabel,
-    vehicle_id: req.vehicleId ?? null,
-    unit_number: unitNumber,
-    origin_label: req.originLabel ?? pointText(req.origin),
-    destination_label: req.destinationLabel ?? pointText(req.destination),
-    distance_miles: result.route?.distanceMiles ?? null,
-    duration_hours: result.route?.durationHours ?? null,
-    status: result.status,
-    stop_count: result.plan?.stops.length ?? 0,
-    total_gallons: result.plan?.totalGallons ?? null,
-    total_cost: result.plan?.totalCost ?? null,
-    arrival_fuel_pct: result.plan?.arrivalFuelPct ?? null,
-    plan: result,
-  });
-}
-
 export function fuelingRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -119,12 +78,11 @@ export function fuelingRouter(): Router {
         return;
       }
       const result = await planFuelRoute(admin, env, orgId, parsed.data as PlanRequest);
-      // Record the plan in history (best-effort — a history write must never fail the plan response).
-      try { await saveFuelPlanHistory(admin, orgId, req.auth!.userId ?? null, parsed.data as PlanRequest, result); } catch { /* history is best-effort */ }
+      // Save to history (best-effort — never fail the plan response on a history write).
+      try { await saveFuelPlanHistory(admin, orgId, req.auth!.userId ?? null, parsed.data as PlanRequest, result); } catch { /* ignore */ }
       res.json(result);
     }),
   );
-
   // Planned-route history — the plans this org has generated, newest first, with the creator + summary data.
   router.get(
     "/plans",
@@ -133,12 +91,9 @@ export function fuelingRouter(): Router {
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
-      const { data } = await admin
-        .from("fuel_plans")
+      const { data } = await admin.from("fuel_plans")
         .select("id, created_at, created_by_label, unit_number, origin_label, destination_label, distance_miles, duration_hours, status, stop_count, total_gallons, total_cost, arrival_fuel_pct")
-        .eq("org_id", orgId)
-        .order("created_at", { ascending: false })
-        .limit(200);
+        .eq("org_id", orgId).order("created_at", { ascending: false }).limit(200);
       res.json({ plans: data ?? [] });
     }),
   );
