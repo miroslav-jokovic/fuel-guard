@@ -6,7 +6,7 @@ import type { Artifact, IngestSource } from "./ingestSource.js";
  * (client-credentials) auth. This is the supported way to read an M365 mailbox from a backend service —
  * Microsoft disabled basic-auth IMAP/POP, so a username+password login is no longer possible.
  *
- * The app registration (tenant/client id + secret, Mail.Read application permission, admin consent, and an
+ * The app registration (tenant/client id + secret, Mail.ReadWrite application permission (read + mark-as-read), admin consent, and an
  * Application Access Policy scoping it to just the EFS mailbox) is a one-time setup — see
  * docs/plans/EFS-MICROSOFT365-SETUP.md. No new npm dependency: token + Graph calls use the built-in fetch.
  */

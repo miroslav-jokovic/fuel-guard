@@ -116,7 +116,7 @@ const EnvSchema = z.object({
   // so a multi-org deployment can't double-read one inbox). Unset = every org uses the configured source.
   EFS_INGEST_ORG_ID: z.string().optional(),
   // Microsoft 365 "graph" source — app-only credentials from the Entra app registration. The app needs the
-  // Mail.Read APPLICATION permission with admin consent, ideally scoped to just EFS_GRAPH_MAILBOX via an
+  // Mail.ReadWrite APPLICATION permission (read + mark-as-read) with admin consent, ideally scoped to just EFS_GRAPH_MAILBOX via an
   // Application Access Policy. EFS_GRAPH_FOLDER (optional) restricts reading to one mail folder by name.
   // Automated Pilot public posted-price fetch (fuel_prices_posted — global layer, Phase A of
   // docs/plans/FUEL-PRICE-DATA-PLAN.md). 0 disables. The page updates intra-day; 6h is a respectful cadence.

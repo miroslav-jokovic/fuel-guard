@@ -6,7 +6,8 @@ imports them automatically. **Time:** ~15 minutes, one-time. **Who:** the last f
 
 ## Why an "app registration" (plain English)
 Microsoft turned off simple email+password login for apps. The supported way for a program to read a 365
-mailbox is **Microsoft Graph** with a registered app that has **read-only mail** permission. That's what
+mailbox is **Microsoft Graph** with a registered app that has **`Mail.ReadWrite`** permission (read the
+reports AND mark them read once imported, so they aren't picked up twice). That's what
 these steps set up. The connector is already built and tested — you just create the app and paste 5 values
 into the settings.
 
@@ -32,11 +33,13 @@ whole inbox, but the folder is cleaner and safer.)
    - **Directory (tenant) ID**
    - **Application (client) ID**
 
-## Step 3 — Give it read-only mail permission (admin)
+## Step 3 — Give it mail read+write permission (admin)
 1. In the app → **API permissions** → **Add a permission** → **Microsoft Graph** → **Application
    permissions**.
-2. Search **`Mail.Read`**, check it, **Add permissions**.
-3. Click **Grant admin consent for Silvicom** → confirm. The Mail.Read row should show a **green
+2. Search **`Mail.ReadWrite`**, check it, **Add permissions**. (Read-only `Mail.Read` is NOT enough — the
+   app marks each report email read after import, which is a write; with read-only it downloads and imports
+   but then errors on the mark-as-read step.)
+3. Click **Grant admin consent for Silvicom** → confirm. The Mail.ReadWrite row should show a **green
    check**. (This step needs an admin.)
 
 ## Step 4 — Create a client secret (the app's password)
@@ -46,7 +49,7 @@ whole inbox, but the folder is cleaner and safer.)
    > ⏰ It expires — set a calendar reminder to create a new one before the expiry date.
 
 ## Step 5 — (Recommended, admin) Restrict the app to ONLY the EFS mailbox
-By default `Mail.Read` lets the app read *every* mailbox in the company. Lock it to just the EFS mailbox
+By default `Mail.ReadWrite` lets the app read/modify *every* mailbox in the company. Lock it to just the EFS mailbox
 with an **Application Access Policy**. In PowerShell as an Exchange admin:
 
 ```powershell
@@ -102,7 +105,7 @@ offer scheduled delivery, call EFS (**888‑824‑7378**) to enable it.
 ---
 
 ## Good to know
-- **Security:** the app is read-only mail, and Step 5 restricts it to the one mailbox. It cannot send email
+- **Security:** the app has read+write on mail (needed to mark reports read), and Step 5 restricts it to the one mailbox. It cannot send email
   or read anything else.
 - **Safe to resend:** re-delivering the same report is a no-op (duplicate detection by file + row), so you
   can forward a report again without double-counting.
