@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/vue-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 
 export interface PlanPoint { lat?: number | null; lng?: number | null; text?: string | null }
@@ -142,5 +142,30 @@ export function useFuelPlanHistory() {
       const res = await apiFetch<{ plans: PlanHistoryRow[] }>("/api/fueling/plans");
       return res.ok && res.data ? res.data.plans : [];
     },
+  });
+}
+
+/** Delete one saved plan from history, then refresh the list. */
+export function useDeleteFuelPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const res = await apiFetch(`/api/fueling/plans/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not delete the plan");
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fuel-plan-history"] }),
+  });
+}
+
+/** Bulk-delete saved plans from history (multi-select), then refresh the list. Returns the deleted count. */
+export function useDeleteFuelPlans() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]): Promise<number> => {
+      const res = await apiFetch<{ ok: boolean; deleted: number }>("/api/fueling/plans/delete", { method: "POST", body: { ids } });
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not delete the selected plans");
+      return res.data?.deleted ?? ids.length;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fuel-plan-history"] }),
   });
 }

@@ -4,6 +4,7 @@ import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
+import { writeAudit } from "../lib/audit.js";
 import { planFuelRoute, type PlanRequest } from "../services/fuelPlanning.js";
 import { saveFuelPlanHistory } from "../services/fuelPlanHistory.js";
 import { resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, type DiscountRule } from "@fuelguard/shared";
@@ -95,6 +96,53 @@ export function fuelingRouter(): Router {
         .select("id, created_at, created_by_label, unit_number, origin_label, destination_label, distance_miles, duration_hours, status, stop_count, total_gallons, total_cost, arrival_fuel_pct")
         .eq("org_id", orgId).order("created_at", { ascending: false }).limit(200);
       res.json({ plans: data ?? [] });
+    }),
+  );
+  // Delete one saved plan from history. Org-scoped via the service-role client (auditor is read-only, so
+  // deletion is limited to the roles that can generate plans). Idempotent — deleting a missing id is a no-op.
+  router.delete(
+    "/plans/:id",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      if (!id) {
+        res.status(400).json(apiError("bad_request", "Missing plan id"));
+        return;
+      }
+      const { error } = await admin.from("fuel_plans").delete().eq("org_id", orgId).eq("id", id);
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not delete the plan"));
+        return;
+      }
+      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "fuel_plan.deleted", entity: "fuel_plans", entityId: id });
+      res.json({ ok: true });
+    }),
+  );
+  // Bulk-delete saved plans from history (multi-select). One org-scoped `in (...)` delete, capped to match the
+  // history page size so a malformed/oversized body can't fan out into a huge statement.
+  router.post(
+    "/plans/delete",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const parsed = z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(200) }).safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Expected { ids: string[] } with 1–200 ids"));
+        return;
+      }
+      const ids = parsed.data.ids;
+      const { error } = await admin.from("fuel_plans").delete().eq("org_id", orgId).in("id", ids);
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not delete the selected plans"));
+        return;
+      }
+      await writeAudit(admin, { orgId, actorId: req.auth!.userId, action: "fuel_plan.bulk_deleted", entity: "fuel_plans", entityId: ids.join(","), meta: { count: ids.length } });
+      res.json({ ok: true, deleted: ids.length });
     }),
   );
 
