@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { detectReportKind } from "@fuelguard/shared";
-import { parseCsv, tokenizeCsv, fileSourceFor } from "./readEfsFile.js";
+import { parseCsv, tokenizeCsv, fileSourceFor, readEfsBuffer } from "./readEfsFile.js";
 
 const TXN_HEADER = "Card #,Tran Date,Invoice,Unit,Driver Name,Odometer,Location Name,City,State/ Prov,Fees,Item,Unit Price,Qty,Amt,DB,Currency";
 const REJECT_HEADER = "Date,Time,Card Number,Invoice,Location ID,Location Name,Location City,State/Prov,Error Code,Error Description,Unit,Driver ID,Driver Name,Policy,Policy Name";
@@ -13,6 +13,16 @@ describe("fileSourceFor", () => {
     expect(fileSourceFor("efs.xls")).toBe("xlsx");
     expect(fileSourceFor("efs.pdf")).toBeNull();
     expect(fileSourceFor("efs")).toBeNull();
+  });
+});
+
+describe("readEfsBuffer — xlsx guard", () => {
+  it("rejects a legacy binary .xls with a clear, actionable reason (not a cryptic exceljs error)", async () => {
+    const ole2 = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]); // OLE2 magic
+    await expect(readEfsBuffer("TransExport-123.xls", ole2)).rejects.toThrow(/legacy binary \.xls/i);
+  });
+  it("rejects a non-zip payload masquerading as .xlsx", async () => {
+    await expect(readEfsBuffer("report.xlsx", Buffer.from("not a zip"))).rejects.toThrow(/not a valid \.xlsx/i);
   });
 });
 

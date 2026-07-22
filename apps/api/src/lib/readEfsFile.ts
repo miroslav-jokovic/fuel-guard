@@ -187,6 +187,15 @@ async function loadExcelJs(): Promise<{ Workbook: new () => { xlsx: { load(b: Bu
  * positionally so an empty header cell mid-row doesn't shift following columns. Faithful to the web reader.
  */
 async function readXlsx(buf: Buffer): Promise<ParsedFile> {
+  // exceljs reads only modern OOXML .xlsx (a ZIP, magic bytes "PK"). A legacy binary .xls (OLE2, magic
+  // D0 CF 11 E0) or any non-zip payload would fail deep inside exceljs with a cryptic error — detect it up
+  // front and quarantine with a clear, actionable reason instead.
+  if (buf.length >= 4 && buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0) {
+    throw new Error("legacy binary .xls is not supported — have EFS send the report as .csv or .xlsx");
+  }
+  if (!(buf.length >= 2 && buf[0] === 0x50 && buf[1] === 0x4b)) {
+    throw new Error("not a valid .xlsx (OOXML/ZIP) file — have EFS send the report as .csv or .xlsx");
+  }
   const ExcelJS = await loadExcelJs();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf);

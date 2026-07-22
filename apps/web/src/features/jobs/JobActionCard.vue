@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import { useJob } from "./useJob";
@@ -20,10 +21,19 @@ const props = defineProps<{
   secondaryLabel?: string;
   secondaryBody?: Record<string, unknown>;
   secondaryConfirm?: string;
+  /** Optional: map the last successful run's stats to a short outcome line (e.g. EFS found/imported/quarantined). */
+  resultSummary?: (stats: Record<string, unknown>) => { label: string; warn?: boolean } | null;
 }>();
 
 const toast = useToastStore();
-const { isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh } = useJob(props.kind);
+const { isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh, lastDone } = useJob(props.kind);
+
+// Outcome of the last successful run (e.g. EFS "found 2, imported 0, quarantined 2"), so a "successful" sync
+// that actually landed nothing is visible instead of a silent green chip.
+const runSummary = computed(() => {
+  if (isRunning.value || !props.resultSummary || !lastDone.value?.stats) return null;
+  return props.resultSummary(lastDone.value.stats);
+});
 
 async function run(body?: Record<string, unknown>, confirmMsg?: string) {
   if (confirmMsg && !window.confirm(confirmMsg)) return;
@@ -84,6 +94,9 @@ async function run(body?: Record<string, unknown>, confirmMsg?: string) {
         aria-hidden="true"
       />
       {{ freshnessLabel }}
+    </p>
+    <p v-if="runSummary" class="mt-1 text-xs" :class="runSummary.warn ? 'text-caution-700' : 'text-ink-muted'">
+      {{ runSummary.label }}
     </p>
   </BaseCard>
 </template>

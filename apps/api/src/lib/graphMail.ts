@@ -143,7 +143,7 @@ export function graphMailClient(cfg: GraphConfig): GraphMailClient {
     async list(): Promise<GraphMessage[]> {
       const seg = await folderSegment();
       const res = await graph(
-        `${base}${seg}/messages?$filter=isRead eq false and hasAttachments eq true&$select=id,subject&$top=25`,
+        `${base}${seg}/messages?$filter=isRead eq false and hasAttachments eq true&$select=id,subject&$top=50`,
       );
       const json = (await res.json()) as { value: { id: string; subject: string }[] };
       const out: GraphMessage[] = [];
@@ -157,8 +157,11 @@ export function graphMailClient(cfg: GraphConfig): GraphMailClient {
     async download(messageId: string, attachmentId: string): Promise<Buffer> {
       const res = await graph(`${base}/messages/${messageId}/attachments/${attachmentId}`);
       const json = (await res.json()) as { contentBytes?: string };
-      if (!json.contentBytes) throw new Error(`Graph attachment ${attachmentId} has no content`);
-      return Buffer.from(json.contentBytes, "base64");
+      if (json.contentBytes) return Buffer.from(json.contentBytes, "base64");
+      // Attachments larger than ~4 MB omit contentBytes in the metadata response — fetch the raw bytes via
+      // the $value endpoint so a big RejectTransactionReport still ingests instead of quarantining.
+      const raw = await graph(`${base}/messages/${messageId}/attachments/${attachmentId}/$value`);
+      return Buffer.from(await raw.arrayBuffer());
     },
     async markRead(messageId: string): Promise<void> {
       await graph(`${base}/messages/${messageId}`, {

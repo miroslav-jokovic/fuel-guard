@@ -10,6 +10,21 @@ const session = useSessionStore();
 
 // Read-only integrity summary from the nightly self-heal job.
 const nightly = useJob("nightly_reconcile");
+/** Turn the last efs_ingest run's stats into a plain outcome line so a "successful" sync that imported
+ *  nothing (all quarantined, or none found) is visible instead of a silent green chip. */
+function efsSummary(stats: Record<string, unknown>) {
+  const n = (v: unknown) => Number(v ?? 0);
+  const found = n(stats.found), ingested = n(stats.ingested), empty = n(stats.empty);
+  const quarantined = n(stats.quarantined), errored = n(stats.errored);
+  if (found === 0) return { label: "Last check: no new report emails found in the mailbox.", warn: false };
+  const parts = [`${found} found`, `${ingested} imported`];
+  if (empty) parts.push(`${empty} empty`);
+  if (quarantined) parts.push(`${quarantined} unrecognized/unreadable`);
+  if (errored) parts.push(`${errored} errored`);
+  const warn = ingested === 0 || quarantined > 0 || errored > 0;
+  return { label: `Last check: ${parts.join(", ")}.`, warn };
+}
+
 const integrity = computed(() => {
   const stats = (nightly.lastDone.value?.stats ?? {}) as { driftFixed?: number };
   const drift = stats.driftFixed;
@@ -34,6 +49,7 @@ const integrity = computed(() => {
         kind="efs_ingest"
         endpoint="/api/transactions/ingest-efs"
         action-label="Check now"
+        :result-summary="efsSummary"
         description="Pick up any EFS fuel reports delivered to the ingestion source and import them — the same batch that runs automatically. New rows are scored and the affected vehicles re-checked."
       />
       <JobActionCard
