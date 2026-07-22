@@ -127,15 +127,24 @@ export function graphMailClient(cfg: GraphConfig): GraphMailClient {
 
   const base = `/users/${encodeURIComponent(cfg.mailbox)}`;
 
-  /** Resolve the optional folder display name to a path segment; empty = whole mailbox. */
+  /** Look up a mail folder id by display name within a given collection (top-level or a parent's children). */
+  async function folderIdByName(name: string, collection: string): Promise<string | null> {
+    const res = await graph(`${base}${collection}?$filter=displayName eq '${name.replace(/'/g, "''")}'&$select=id&$top=1`);
+    const json = (await res.json()) as { value: { id: string }[] };
+    return json.value[0]?.id ?? null;
+  }
+
+  /** Resolve the optional folder display name to a path segment; empty = whole mailbox. Checks top-level
+   *  folders first, then Inbox subfolders — so a folder created via right-click Inbox → New folder (the common
+   *  case, e.g. "FuelGuard EFS") resolves instead of failing as not-found. */
   async function folderSegment(): Promise<string> {
     if (!cfg.folder) return "";
-    const res = await graph(
-      `${base}/mailFolders?$filter=displayName eq '${cfg.folder.replace(/'/g, "''")}'&$select=id&$top=1`,
-    );
-    const json = (await res.json()) as { value: { id: string }[] };
-    const id = json.value[0]?.id;
-    if (!id) throw new Error(`Graph mail folder not found: "${cfg.folder}"`);
+    const id =
+      (await folderIdByName(cfg.folder, "/mailFolders")) ??                    // top-level (sibling of Inbox)
+      (await folderIdByName(cfg.folder, "/mailFolders/inbox/childFolders"));   // subfolder of Inbox
+    if (!id) {
+      throw new Error(`Graph mail folder not found: "${cfg.folder}" — create it at the mailbox root or under Inbox and set EFS_GRAPH_FOLDER to its exact name`);
+    }
     return `/mailFolders/${id}`;
   }
 
