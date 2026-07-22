@@ -29,9 +29,12 @@ describe("chooseFill", () => {
     expect(d.fillGal).toBeLessThanOrEqual(DEFAULT_ROUTE_FUEL_SETTINGS.emergencyFillGallons + 1e-6);
     expect(d.isAvoidedState).toBe(true);
   });
-  it("a non-CA emergency still fills full (no splash)", () => {
+  it("a non-CA (low-fuel) emergency is a MINIMAL splash to reach the next Pilot, not a full fill", () => {
+    // No next preferred station in ctx (dest 900) → splash = enough to reach the destination + reserve, floored
+    // at the emergency splash size — NOT a full top-off (140).
     const d = chooseFill(ctx({ emergency: true }));
-    expect(d.fillGal).toBeCloseTo(140, 6);
+    expect(d.fillGal).toBeGreaterThanOrEqual(DEFAULT_ROUTE_FUEL_SETTINGS.emergencyFillGallons - 1e-6);
+    expect(d.fillGal).toBeLessThan(139); // not a full fill
     expect(d.isAvoidedState).toBe(false);
   });
   it("min-drawdown (opt-in) partial-fills at a pricey stop with a cheaper one reachable ahead", () => {

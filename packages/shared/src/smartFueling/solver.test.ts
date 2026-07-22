@@ -83,6 +83,33 @@ describe("planFuelStops — fuel", () => {
     expect(plan.flags).toContain("avoided_state_fill_used");
   });
 
+  it("no Pilot reachable but truck has fuel → OFF-NETWORK stop (flagged), NOT an emergency", () => {
+    // one9 is an avoid-brand (not preferred) and it's in TX (not avoided). Truck at 50% (well above 10%). The
+    // only reachable pump is off-network → suggest it, flagged, but never call it an emergency.
+    const plan = planFuelStops(input({ distanceToGoMiles: 600, stations: [st("off", 300, 3.5, "one9", "TX")] }));
+    const stop = plan.stops.find((s) => s.station?.id === "off");
+    expect(stop).toBeTruthy();
+    expect(stop!.isEmergency).toBe(false);
+    expect(stop!.isOffNetwork).toBe(true);
+    expect(plan.flags).toContain("off_network_stop_used");
+    expect(plan.flags).not.toContain("emergency_fill_used");
+    expect(plan.status).not.toBe("emergency_used");
+  });
+
+  it("truck under criticalFuelPct with only an off-network pump → TRUE emergency (missed-fill splash)", () => {
+    // 18 gal on a 200-gal tank = 9% (below the 10% critical and below the 38-gal reserve). It reaches the nearest
+    // pump on reserve fuel as an emergency — not stranded, not a normal off-network stop.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 600,
+      stations: [st("off", 100, 3.5, "one9", "TX")],
+      truck: mkTruck({ gallonsOnHand: 18 }),
+    }));
+    const stop = plan.stops.find((s) => s.station?.id === "off");
+    expect(stop).toBeTruthy();
+    expect(stop!.isEmergency).toBe(true);
+    expect(plan.flags).toContain("emergency_fill_used");
+  });
+
   it("LOUD INFEASIBLE (no best-guess stop) when nothing is reachable before reserve", () => {
     const plan = planFuelStops(input({ distanceToGoMiles: 800, stations: [st("far", 500, 3.5)] }));
     expect(plan.status).toBe("infeasible");

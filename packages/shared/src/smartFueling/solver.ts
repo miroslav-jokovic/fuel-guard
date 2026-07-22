@@ -86,6 +86,9 @@ export interface PlannedStop {
   isBorderTopOff: boolean;
   /** This is a min-drawdown partial fill (bought only enough to reach the next cheaper stop), not a full top-off. */
   isMinFill: boolean;
+  /** Not a Pilot/Flying J — an off-network stop suggested only because no preferred station was reachable (a
+   *  Pilot coverage gap). NOT an emergency; surfaced so the dispatcher knows a preferred station is missing. */
+  isOffNetwork: boolean;
 }
 
 export interface FuelPlan {
@@ -114,6 +117,7 @@ interface GreedyResult {
   usedBorderTopOff: boolean;
   usedMinFill: boolean;
   usedEstimatedPrice: boolean;
+  usedOffNetwork: boolean;
 }
 
 /**
@@ -156,15 +160,16 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
   let borderToppedOff = false; // guard so we top off before the avoided border at most once
   let usedMinFill = false;
   let usedEstimatedPrice = false;
+  let usedOffNetwork = false;
 
   const done = (reaches: boolean, infeasible: boolean, arrivalGal: number | null): GreedyResult => ({
-    stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, hosLimited, infeasible, droppedNoPrice, usedBorderTopOff, usedMinFill, usedEstimatedPrice,
+    stops, reaches, arrivalGal, usedEmergency, usedAvoidedState, usedReset, hosLimited, infeasible, droppedNoPrice, usedBorderTopOff, usedMinFill, usedEstimatedPrice, usedOffNetwork,
   });
 
   const COMBINE_BAND_MI = 75; // a reset combines with a fuel stop within this many miles before the drive limit
 
   // Apply a fuel stop: drive to it, fill (full / emergency-sized / CA-capped), optionally reset here.
-  const applyFuelStop = (pick: SolverStation, emergency: boolean, overnight: boolean, borderTopOff = false) => {
+  const applyFuelStop = (pick: SolverStation, emergency: boolean, overnight: boolean, borderTopOff = false, offNetwork = false) => {
     const dist = pick.milesAhead - pos;
     const arrivalGal = gal - galFor(dist + pick.detourMiles);
     const legMs = dist * msPerMile;
@@ -184,7 +189,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       milesAhead: pick.milesAhead, station: pick, arrivalGal, fillGal: fill, netPrice: pick.netPrice,
       cost: pick.netPrice != null ? pick.netPrice * fill : null, isEmergency: emergency, kind: "fuel",
       coversBreak: breakWasDue, isOvernight: overnight, driveHoursLeftOnArrival: hosKnown ? hoursFromMs(Math.min(drive, shift, cycle)) : null,
-      isBorderTopOff: borderTopOff, isMinFill: minFill,
+      isBorderTopOff: borderTopOff, isMinFill: minFill, isOffNetwork: offNetwork,
     });
     used.add(pick.id);
     pos = pick.milesAhead;
@@ -198,12 +203,23 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     pos = atMile;
   };
 
-  const pickStop = (opts: SolverStation[]): { pick: SolverStation; emergency: boolean } => {
+  // Choose among reachable stations, honoring the emergency rule STRICTLY. A stop is only "emergency" when the
+  // truck is genuinely stuck: (a) the nearest reachable pump is inside an avoided state (e.g. already in CA with
+  // no preferred way out), or (b) the truck is under criticalFuelPct with no Pilot/Flying J reachable (a missed
+  // planned fill). Any OTHER no-Pilot stretch is an OFF-NETWORK stop (flagged) — never a fake emergency.
+  const pickStop = (opts: SolverStation[]): { pick: SolverStation; emergency: boolean; offNetwork: boolean } => {
     const preferredPriced = opts.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
     if (opts.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
-    if (preferredPriced.length > 0) return { pick: select(preferredPriced), emergency: false };
-    usedEmergency = true;
-    return { pick: opts.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b)), emergency: true };
+    if (preferredPriced.length > 0) return { pick: select(preferredPriced), emergency: false, offNetwork: false };
+    const near = opts.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b));
+    const nearInAvoided = near.state != null && cfg.avoidStates.includes(near.state);
+    const curPct = tankCap > 0 ? (gal / tankCap) * 100 : 0;
+    if (nearInAvoided || curPct <= cfg.criticalFuelPct + EPS) {
+      usedEmergency = true;
+      return { pick: near, emergency: true, offNetwork: false };
+    }
+    usedOffNetwork = true;
+    return { pick: near, emergency: false, offNetwork: true };
   };
 
   // Loop guard: every iteration provably advances `pos` (a fuel stop, a silent break, or a silent reset) or
@@ -230,16 +246,15 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
           && x.milesAhead <= avoidedBorderMi + EPS && (x.milesAhead - pos) + x.detourMiles <= windowMi + EPS);
         if (preBorder.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
         const preferredPre = preBorder.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
-        const pool = preferredPre.length > 0 ? preferredPre : preBorder;
-        if (pool.length > 0) {
-          const pick = pool.reduce((a, b) => (a.milesAhead >= b.milesAhead ? a : b)); // furthest = closest to the border
-          const emergency = !(isPreferred(pick, cfg) && pick.netPrice != null);
-          if (emergency) usedEmergency = true;
+        if (preferredPre.length > 0) {
+          const pick = preferredPre.reduce((a, b) => (a.milesAhead >= b.milesAhead ? a : b)); // furthest preferred before the line
           borderToppedOff = true;
           usedBorderTopOff = true;
-          applyFuelStop(pick, emergency, false, true);
+          applyFuelStop(pick, false, false, true);
           continue;
         }
+        // No preferred (Pilot/FJ) station reachable before the border — do NOT fabricate an off-network top-off
+        // here. Let the main loop handle the crossing per the real rules (off-network/emergency, or coast in).
       }
     }
 
@@ -270,8 +285,8 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
       // with a fuel stop only if one sits close to that limit; otherwise rest at a rest area at the limit.
       const combine = inWindow.filter((x) => x.milesAhead - pos >= driveMi - COMBINE_BAND_MI);
       if (combine.length === 0) { silentResetAt(pos + driveMi); continue; }
-      const { pick, emergency } = pickStop(combine);
-      applyFuelStop(pick, emergency, true);
+      const { pick, emergency, offNetwork } = pickStop(combine);
+      applyFuelStop(pick, emergency, true, false, offNetwork);
       continue;
     }
 
@@ -279,13 +294,27 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     // tank runs down (fewest stops) instead of topping off early at a station the truck merely passes: prefer a
     // preferred, priced station in the last `refuelBandMiles` of range. Fall back to the full reachable set when
     // that band has no good station (sparse stations) so we never strand the route or skip an emergency option.
-    if (inWindow.length === 0) return done(false, true, null);
+    if (inWindow.length === 0) {
+      // Nothing reachable ABOVE reserve. Case (b): if the truck is critically low (missed a planned fill), let it
+      // dip into the reserve to reach the NEAREST station (any brand) as a genuine emergency, rather than strand.
+      const curPct = tankCap > 0 ? (gal / tankCap) * 100 : 0;
+      const emergencyRangeMi = gpm > 0 ? gal / gpm : 0; // uses reserve fuel too
+      const onReserve = stations.filter((x) => !used.has(x.id) && x.milesAhead > pos + EPS && (x.milesAhead - pos) + x.detourMiles <= emergencyRangeMi + EPS);
+      if (curPct <= cfg.criticalFuelPct + EPS && onReserve.length > 0) {
+        const near = onReserve.reduce((a, b) => (a.milesAhead <= b.milesAhead ? a : b));
+        usedEmergency = true;
+        applyFuelStop(near, true, false, false, false);
+        continue;
+      }
+      return done(false, true, null);
+    }
     if (inWindow.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
     const reachablePreferred = inWindow.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
     let pick: SolverStation;
     let emergency: boolean;
+    let offNetwork = false;
     if (reachablePreferred.length === 0) {
-      ({ pick, emergency } = pickStop(inWindow)); // no preferred station reachable → emergency/nearest fallback
+      ({ pick, emergency, offNetwork } = pickStop(inWindow)); // no Pilot reachable → off-network or true emergency
     } else {
       // Prefer the cheapest preferred station within the last `refuelBandMiles` of range (near reserve). If none
       // sits that close to the reserve, DRIVE AS FAR AS POSSIBLE — take the farthest reachable preferred station,
@@ -296,7 +325,7 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
         ? select(inBand)
         : reachablePreferred.reduce((a, b) => ((a.milesAhead + a.detourMiles) >= (b.milesAhead + b.detourMiles) ? a : b));
     }
-    applyFuelStop(pick, emergency, false);
+    applyFuelStop(pick, emergency, false, false, offNetwork);
   }
   return done(false, true, null); // guard tripped without reaching
 }
@@ -315,6 +344,7 @@ export function planFuelStops(input: FuelPlanInput): FuelPlan {
   const smart = runGreedy(input, cheapest);
   if (smart.droppedNoPrice) flags.push("some_stations_missing_price");
   if (smart.usedEmergency) flags.push("emergency_fill_used");
+  if (smart.usedOffNetwork) flags.push("off_network_stop_used");
   if (smart.usedAvoidedState) flags.push("avoided_state_fill_used");
   if (smart.usedBorderTopOff) flags.push("topped_off_before_avoided_state");
   if (smart.usedMinFill) flags.push("min_drawdown_partial_fills");

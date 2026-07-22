@@ -3,7 +3,7 @@
  * machine so the policy is independently testable. Order of rules:
  *   1. Border top-off  → full (enter an avoided state as full as possible, whatever the price).
  *   2. Emergency in an avoided state (California) → the capped ~50-gal splash.
- *   3. Emergency elsewhere → full (the driver may not get another reachable pump).
+ *   3. Low-fuel emergency elsewhere → a minimal splash: just enough to reach the next preferred station.
  *   4. Min-drawdown (opt-in: alwaysFillFull=false, non-overnight) → buy just enough to reach the next cheaper
  *      station, floored at the min purchase and capped at fillCapPct — but never so little it strands the route.
  *   5. Otherwise → full top-off.
@@ -55,9 +55,13 @@ export function chooseFill(ctx: FillContext): FillDecision {
     isAvoidedState = true;
     fill = Math.min(cfg.emergencyFillGallons, usable - arrivalGal, weightCap);
   } else if (emergency) {
-    // Outside an avoided state, an emergency stop still fills the tank FULL — the driver may not get another
-    // reachable pump. Only California (the avoided-state branch above) is capped at the ~50-gal splash.
-    fill = Math.min(usable - arrivalGal, weightCap);
+    // Low-fuel emergency (driver missed a planned fill, no Pilot reachable): a MINIMAL splash — just enough to
+    // safely reach the next preferred station (or the destination), floored at the emergency splash size. Not a
+    // full fill: we don't want to load a lot of fuel at an off-network/expensive pump beyond what's needed.
+    const nextPreferred = stations.find((x) => x.milesAhead > pick.milesAhead + EPS && isPreferred(x, cfg));
+    const nextDist = (nextPreferred ? nextPreferred.milesAhead + nextPreferred.detourMiles : dest) - pick.milesAhead;
+    const needed = galFor(Math.max(0, nextDist)) + reserve - arrivalGal;
+    fill = Math.min(Math.max(cfg.emergencyFillGallons, needed), usable - arrivalGal, weightCap);
   } else if (!cfg.alwaysFillFull && !overnight) {
     // Min-drawdown: full top-off ONLY when this is the cheapest reachable stop; otherwise buy just enough to
     // reach the next cheaper station (floored at the min purchase, capped at fillCapPct of tank) so the truck

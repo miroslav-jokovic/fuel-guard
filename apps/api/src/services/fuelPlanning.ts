@@ -353,7 +353,7 @@ export async function planFuelRoute(admin: SupabaseClient, env: Env, orgId: stri
       priceEstimated: est?.estimated ?? false, priceConfidence: est?.estimated ? est.confidence : null,
       cost: st.cost != null ? Math.round(st.cost * 100) / 100 : null, arrivalGal: r1(st.arrivalGal), isEmergency: st.isEmergency,
       coversBreak: st.coversBreak, isOvernight: st.isOvernight, driveHoursLeftOnArrival: st.driveHoursLeftOnArrival != null ? r1(st.driveHoursLeftOnArrival) : null,
-      isBorderTopOff: st.isBorderTopOff, borderState: st.isBorderTopOff ? border?.state ?? null : null, isMinFill: st.isMinFill,
+      isBorderTopOff: st.isBorderTopOff, borderState: st.isBorderTopOff ? border?.state ?? null : null, isMinFill: st.isMinFill, isOffNetwork: st.isOffNetwork,
     };
   });
 
@@ -379,6 +379,8 @@ function describePlan(status: string, flags: string[]): string | undefined {
       return "No live fuel level for this truck, so a safe plan can't be built. Check the truck's Samsara fuel sensor or pick a truck with a current reading.";
     return "The truck can't reach a fuel stop on this route without dropping below its safety reserve. Load stations along this corridor (or widen the corridor buffer in Settings), or the driver must refuel before continuing.";
   }
+  if (flags.includes("off_network_stop_used"))
+    return "A stop had to be placed at an off-network station (no Pilot/Flying J was reachable in that stretch). Load a preferred station along that corridor to remove it.";
   if (status === "emergency_used") {
     if (flags.includes("avoided_state_fill_used"))
       return "Planned to fuel before the avoided state (e.g. California); a capped emergency splash inside it was still needed to reach the destination safely.";

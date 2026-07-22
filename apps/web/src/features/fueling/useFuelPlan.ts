@@ -28,6 +28,7 @@ export interface PlanStopView {
   isBorderTopOff: boolean;
   borderState: string | null;
   isMinFill: boolean;
+  isOffNetwork: boolean;
   priceEstimated: boolean;
   priceConfidence: "high" | "medium" | "low" | null;
 }

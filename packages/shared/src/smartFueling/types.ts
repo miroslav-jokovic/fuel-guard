@@ -79,6 +79,9 @@ export interface RouteFuelSettings {
   oppositeSideAccessMiles: number;
   /** Refuel only in the last N miles of range (run the tank down toward reserve → fewest stops, always full). */
   refuelBandMiles: number;
+  /** Below this % of tank with no preferred station reachable = a TRUE emergency (missed-fill splash). Above it,
+   *  a no-preferred stretch is an OFF-NETWORK stop (flagged), never a fake "emergency". */
+  criticalFuelPct: number;
   /** States to top off before entering (sparse fueling — e.g. Massachusetts has one truck stop) — stations here stay usable. */
   fuelBeforeStates: string[];
   avoidBrands: string[];
@@ -106,6 +109,7 @@ export const DEFAULT_ROUTE_FUEL_SETTINGS: RouteFuelSettings = {
   avoidStates: ["CA"],
   oppositeSideAccessMiles: 2, // interstate truck stops sit at interchanges → opposite side ≈ a real crossover
   refuelBandMiles: 150, // defer fueling to the last ~150 mi of range so the truck fuels near reserve, not early
+  criticalFuelPct: 10, // emergency only if under 10% with no Pilot/Flying J reachable (driver missed a planned fill)
   fuelBeforeStates: ["MA"], // top off before entering — Massachusetts has essentially one truck stop
   avoidBrands: ["one9"],
   preferredBrands: ["pilot", "flying_j"],
