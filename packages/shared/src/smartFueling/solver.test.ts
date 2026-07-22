@@ -58,6 +58,18 @@ describe("planFuelStops — fuel", () => {
     expect(plan.stops[0]!.station!.id).toBe("late");
   });
 
+  it("with no station near reserve, drives to the FARTHEST reachable, not a cheap early stop", () => {
+    // Full tank (~910 mi range); a cheap station at mile 100 and a dearer one at 400, neither near reserve. Fewest
+    // stops = run down and take the farther one (400) even though 100 is cheaper.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 1200,
+      stations: [st("near-cheap", 100, 3.0), st("far-dear", 400, 4.0)],
+      truck: mkTruck({ gallonsOnHand: 190 }),
+    }));
+    expect(plan.stops).toHaveLength(1);
+    expect(plan.stops[0]!.station!.id).toBe("far-dear");
+  });
+
   it("INVARIANT: never arrives at a stop below reserve", () => {
     const plan = planFuelStops(input({ distanceToGoMiles: 1200, stations: [st("s1", 300, 3.6), st("s2", 650, 3.4), st("s3", 980, 3.7)] }));
     for (const s of plan.stops) expect(s.arrivalGal).toBeGreaterThanOrEqual(38 - 1e-6);

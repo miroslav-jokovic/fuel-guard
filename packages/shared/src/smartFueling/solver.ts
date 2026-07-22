@@ -280,10 +280,22 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     // preferred, priced station in the last `refuelBandMiles` of range. Fall back to the full reachable set when
     // that band has no good station (sparse stations) so we never strand the route or skip an emergency option.
     if (inWindow.length === 0) return done(false, true, null);
-    const bandStartMi = fuelMi - cfg.refuelBandMiles;
-    const inBand = inWindow.filter((x) => (x.milesAhead - pos) + x.detourMiles >= bandStartMi - EPS);
-    const pool = inBand.some((x) => isPreferred(x, cfg) && x.netPrice != null) ? inBand : inWindow;
-    const { pick, emergency } = pickStop(pool);
+    if (inWindow.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
+    const reachablePreferred = inWindow.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
+    let pick: SolverStation;
+    let emergency: boolean;
+    if (reachablePreferred.length === 0) {
+      ({ pick, emergency } = pickStop(inWindow)); // no preferred station reachable → emergency/nearest fallback
+    } else {
+      // Prefer the cheapest preferred station within the last `refuelBandMiles` of range (near reserve). If none
+      // sits that close to the reserve, DRIVE AS FAR AS POSSIBLE — take the farthest reachable preferred station,
+      // never a cheap early one — so the tank runs down and the plan keeps the fewest stops.
+      emergency = false;
+      const inBand = reachablePreferred.filter((x) => (x.milesAhead - pos) + x.detourMiles >= fuelMi - cfg.refuelBandMiles - EPS);
+      pick = inBand.length > 0
+        ? select(inBand)
+        : reachablePreferred.reduce((a, b) => ((a.milesAhead + a.detourMiles) >= (b.milesAhead + b.detourMiles) ? a : b));
+    }
     applyFuelStop(pick, emergency, false);
   }
   return done(false, true, null); // guard tripped without reaching

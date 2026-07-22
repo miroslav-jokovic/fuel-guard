@@ -15,6 +15,7 @@ describe("buildTruckRouteUrl", () => {
     expect(url).toContain("destination=39.1%2C-94.6");
     expect(url).toContain("via=40.4%2C-91");
     expect(url).toContain("return=polyline%2Csummary%2Cactions%2Cinstructions");
+    expect(url).toContain("units=imperial"); // instruction text in miles, not km
   });
   it("converts US units to HERE kg/cm and passes hazmat/tunnel", () => {
     expect(url).toContain("vehicle%5BgrossWeight%5D=36287"); // 80000 lb -> kg

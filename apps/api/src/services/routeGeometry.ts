@@ -10,7 +10,7 @@ import type { Env } from "../env.js";
 import { fetchTruckRoute } from "../lib/here.js";
 
 /** Bump when the routing request shape/logic changes so old cache rows are bypassed. */
-const ENGINE_VERSION = "here-v8-4";
+const ENGINE_VERSION = "here-v8-5"; // v8-5: units=imperial for instruction text
 
 export interface RouteGeometry {
   polyline: LatLng[];
