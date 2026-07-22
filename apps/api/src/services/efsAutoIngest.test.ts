@@ -189,8 +189,9 @@ describe("runEfsIngest", () => {
     expect(src.quarantined).toEqual([]);
   });
 
-  it("isolates a per-file infrastructure error as ERRORED and finishes the rest of the batch", async () => {
-    // A source whose markDone fails for one file — the batch must still process the other.
+  it("treats a mark-as-read/move failure as IMPORTED (not a failed import) and notes it", async () => {
+    // The rows already landed before markDone; a markRead/move failure (e.g. missing Mail.ReadWrite) must not
+    // mask a successful import. Both files import; a.csv carries a markDoneError note.
     const bad: IngestSource = {
       async list() {
         return [artifact("a.csv"), artifact("b.csv")];
@@ -207,8 +208,11 @@ describe("runEfsIngest", () => {
     const stats = await runEfsIngest(admin, env, bad, deps());
 
     expect(stats.found).toBe(2);
-    expect(stats.errored).toBe(1);
-    expect(stats.ingested).toBe(1); // b.csv still succeeded — one bad file didn't abort the batch
-    expect(stats.outcomes.find((o) => o.status === "errored")?.name).toBe("a.csv");
+    expect(stats.errored).toBe(0);
+    expect(stats.ingested).toBe(2); // both imported — the mark-as-read failure did not fail the import
+    expect(stats.markDoneFailed).toBe(1);
+    const a = stats.outcomes.find((o) => o.name === "a.csv");
+    expect(a?.status).toBe("ingested");
+    expect((a as { markDoneError?: string }).markDoneError).toMatch(/move failed/);
   });
 });

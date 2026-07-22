@@ -14,8 +14,8 @@ import { GraphMailSource, graphMailClient, graphConfigFromEnv } from "../lib/gra
  */
 
 export type ArtifactOutcome =
-  | { name: string; status: "ingested"; result: IngestResult }
-  | { name: string; status: "empty"; reason: string }
+  | { name: string; status: "ingested"; result: IngestResult; markDoneError?: string }
+  | { name: string; status: "empty"; reason: string; markDoneError?: string }
   | { name: string; status: "quarantined"; reason: string }
   | { name: string; status: "errored"; reason: string };
 
@@ -26,8 +26,10 @@ export interface EfsIngestRunStats extends Record<string, unknown> {
   empty: number;
   /** Files moved to error/ because they were unreadable/unsupported/unrecognized. */
   quarantined: number;
-  /** Files that hit an infrastructure error (e.g. a failed move) — left in place, retried next pass. */
+  /** Files that hit an infrastructure error DURING import (e.g. the DB write threw) — retried next pass. */
   errored: number;
+  /** Imported OK, but the source item couldn't be marked done (e.g. Graph markRead needs Mail.ReadWrite). */
+  markDoneFailed: number;
   newFuel: number;
   newDeclined: number;
   shortfalls: number;
@@ -56,6 +58,18 @@ const defaultDeps: AutoIngestDeps = {
  * batch continues. A source infrastructure error (e.g. a failed move) may throw; `runEfsIngest` isolates
  * it per-artifact so one file never aborts the batch.
  */
+/** Mark the source artifact done, treating a failure as NON-fatal: the rows already landed and a re-list is
+ *  idempotent, so a markRead/move failure must never turn a successful import into a failed one. Returns the
+ *  error text when it failed (surfaced as a note), else undefined. */
+async function settleMarkDone(source: IngestSource, artifact: Artifact): Promise<string | undefined> {
+  try {
+    await source.markDone(artifact);
+    return undefined;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
+
 export async function ingestArtifact(
   admin: SupabaseClient,
   env: Env,
@@ -103,12 +117,12 @@ export async function ingestArtifact(
   // mark it handled and COUNT it rather than quarantining — quarantining normal empty reject reports would
   // be a false alarm. An unusual run of empty deliveries still surfaces via the digest.
   if (parsed.rows.length === 0) {
-    await source.markDone(artifact);
-    return { name: artifact.name, status: "empty", reason: "recognized report with no data rows" };
+    const markDoneError = await settleMarkDone(source, artifact);
+    return { name: artifact.name, status: "empty", reason: "recognized report with no data rows", markDoneError };
   }
 
-  await source.markDone(artifact);
-  return { name: artifact.name, status: "ingested", result };
+  const markDoneError = await settleMarkDone(source, artifact);
+  return { name: artifact.name, status: "ingested", result, markDoneError };
 }
 
 /**
@@ -128,6 +142,7 @@ export async function runEfsIngest(
     empty: 0,
     quarantined: 0,
     errored: 0,
+    markDoneFailed: 0,
     newFuel: 0,
     newDeclined: 0,
     shortfalls: 0,
@@ -160,6 +175,13 @@ export async function runEfsIngest(
       case "errored":
         stats.errored += 1;
         break;
+    }
+    if ((outcome.status === "ingested" || outcome.status === "empty") && outcome.markDoneError) stats.markDoneFailed += 1;
+    // Log the actual reason so it's visible in the deploy logs, not just as a count.
+    if (outcome.status === "errored" || outcome.status === "quarantined") {
+      console.error(`[efs-ingest] ${artifact.name}: ${outcome.status} — ${outcome.reason}`);
+    } else if ((outcome.status === "ingested" || outcome.status === "empty") && outcome.markDoneError) {
+      console.warn(`[efs-ingest] ${artifact.name}: imported but could not mark the email read — ${outcome.markDoneError}`);
     }
   }
   return stats;

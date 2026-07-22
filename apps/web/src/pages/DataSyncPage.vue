@@ -15,14 +15,20 @@ const nightly = useJob("nightly_reconcile");
 function efsSummary(stats: Record<string, unknown>) {
   const n = (v: unknown) => Number(v ?? 0);
   const found = n(stats.found), ingested = n(stats.ingested), empty = n(stats.empty);
-  const quarantined = n(stats.quarantined), errored = n(stats.errored);
+  const quarantined = n(stats.quarantined), errored = n(stats.errored), markDoneFailed = n(stats.markDoneFailed);
+  const outcomes = (Array.isArray(stats.outcomes) ? stats.outcomes : []) as Array<{ status?: string; reason?: string }>;
   if (found === 0) return { label: "Last check: no new report emails found in the mailbox.", warn: false };
   const parts = [`${found} found`, `${ingested} imported`];
   if (empty) parts.push(`${empty} empty`);
   if (quarantined) parts.push(`${quarantined} unrecognized/unreadable`);
   if (errored) parts.push(`${errored} errored`);
-  const warn = ingested === 0 || quarantined > 0 || errored > 0;
-  return { label: `Last check: ${parts.join(", ")}.`, warn };
+  // Surface the actual failure reason (not just a count) so the cause is visible on the card.
+  const problem = outcomes.find((o) => o.status === "errored" || o.status === "quarantined");
+  const reason = problem?.reason ? ` — ${String(problem.reason).slice(0, 240)}` : "";
+  let label = `Last check: ${parts.join(", ")}.${reason}`;
+  if (markDoneFailed > 0) label += ` (Imported, but couldn't mark ${markDoneFailed} email(s) read — grant Mail.ReadWrite so they aren't re-checked each run.)`;
+  const warn = ingested === 0 || quarantined > 0 || errored > 0 || markDoneFailed > 0;
+  return { label, warn };
 }
 
 const integrity = computed(() => {
