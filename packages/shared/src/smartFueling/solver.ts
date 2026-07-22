@@ -239,23 +239,25 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     // line so it enters the avoided state as full as possible. Skipped when it would already cross at/above the
     // threshold (default 85%), or when no station sits between here and the border. Checked BEFORE "reached" so a
     // truck that could coast into the state on its current tank is still told to top off first.
-    if (avoidedBorderMi != null && !borderToppedOff && pos < avoidedBorderMi - EPS && fuelMi + EPS >= avoidedBorderMi - pos) {
-      const galAtBorder = gal - galFor(avoidedBorderMi - pos);
-      const pctAtBorder = tankCap > 0 ? (galAtBorder / tankCap) * 100 : 0;
-      if (pctAtBorder < topOffPct - EPS) {
-        const preBorder = stations.filter((x) => !used.has(x.id) && x.milesAhead > pos + EPS
-          && x.milesAhead <= avoidedBorderMi + EPS && (x.milesAhead - pos) + x.detourMiles <= windowMi + EPS);
-        if (preBorder.some((x) => isPreferred(x, cfg) && x.netPrice == null)) droppedNoPrice = true;
-        const preferredPre = preBorder.filter((x) => isPreferred(x, cfg) && x.netPrice != null);
-        if (preferredPre.length > 0) {
-          const pick = preferredPre.reduce((a, b) => (a.milesAhead >= b.milesAhead ? a : b)); // furthest preferred before the line
+    if (avoidedBorderMi != null && !borderToppedOff && pos < avoidedBorderMi - EPS) {
+      // Top off at the LAST preferred (Pilot/FJ) station before the avoided line so the truck ENTERS the state
+      // full. Fire only once that last-before-border station is reachable in the CURRENT window — so on a long
+      // route we do NOT top off hundreds of miles early: the truck drives toward it by normal range planning +
+      // silent rests first, and tops off only when it's genuinely the last stop before the line. Skipped when the
+      // truck would already cross at/above the threshold.
+      const lastPreBorder = stations
+        .filter((x) => !used.has(x.id) && x.milesAhead > pos + EPS && x.milesAhead <= avoidedBorderMi + EPS
+          && isPreferred(x, cfg) && x.netPrice != null)
+        .reduce<SolverStation | null>((best, x) => (best == null || x.milesAhead > best.milesAhead ? x : best), null);
+      if (lastPreBorder != null && (lastPreBorder.milesAhead - pos) + lastPreBorder.detourMiles <= windowMi + EPS) {
+        const galAtBorder = gal - galFor(avoidedBorderMi - pos);
+        const pctAtBorder = tankCap > 0 ? (galAtBorder / tankCap) * 100 : 0;
+        if (pctAtBorder < topOffPct - EPS) {
           borderToppedOff = true;
           usedBorderTopOff = true;
-          applyFuelStop(pick, false, false, true);
+          applyFuelStop(lastPreBorder, false, false, true);
           continue;
         }
-        // No preferred (Pilot/FJ) station reachable before the border — do NOT fabricate an off-network top-off
-        // here. Let the main loop handle the crossing per the real rules (off-network/emergency, or coast in).
       }
     }
 

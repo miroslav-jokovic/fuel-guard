@@ -302,6 +302,23 @@ describe("planFuelStops — avoided-state border top-off (California rule)", () 
     expect(plan.stops.some((s) => s.station?.id === "near-cheap")).toBe(false);
   });
 
+  it("on a LONG route, tops off at the LAST Pilot before the border, not an early one (drive-hours no longer clamp it)", () => {
+    // Border at 1000. An early Pilot at 200 and the last one at 900 (right before the line). The border top-off
+    // must land at 900 — the old logic grabbed the furthest station within the ~440 mi drive window (200), ~700 mi
+    // too early. HOS-limited legs (8h) shouldn't matter: the truck drives toward 900 via silent rests first.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 1100,
+      stations: [st("early", 200, 3.5), st("lastpilot", 900, 3.5)],
+      truck: mkTruck({ gallonsOnHand: 190 }),
+      hos: hos(8, 8),
+      avoidedBorderMiles: 1000,
+    }));
+    const border = plan.stops.find((s) => s.isBorderTopOff);
+    expect(border).toBeTruthy();
+    expect(border!.station!.id).toBe("lastpilot");
+    expect(plan.stops.some((s) => s.station?.id === "early")).toBe(false); // never tops off ~700 mi early
+  });
+
   it("no border logic runs when avoidedBorderMiles is unset", () => {
     const plan = planFuelStops(input({ distanceToGoMiles: 300, stations: [st("a", 140, 3.5)] }));
     expect(plan.stops.some((s) => s.isBorderTopOff)).toBe(false);
