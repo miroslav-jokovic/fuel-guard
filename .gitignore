@@ -47,3 +47,6 @@ _to_delete/
 # Local-only: raw chain data samples + session transfer scratch
 data-samples/
 _staging/
+
+# EFS mailbox diagnostic — local secrets, never commit
+scripts/efs-diag.env

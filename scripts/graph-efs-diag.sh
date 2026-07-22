@@ -15,6 +15,9 @@
 # Share the OUTPUT with me (it does not print your token or secret). Requires: curl, python3.
 
 set -u
+# Auto-load real values from scripts/efs-diag.env when present (copy efs-diag.env.example and fill it in).
+DIAG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+if [ -f "$DIAG_DIR/efs-diag.env" ]; then set -a; . "$DIAG_DIR/efs-diag.env"; set +a; fi
 : "${EFS_GRAPH_TENANT_ID:?set EFS_GRAPH_TENANT_ID}"
 : "${EFS_GRAPH_CLIENT_ID:?set EFS_GRAPH_CLIENT_ID}"
 : "${EFS_GRAPH_CLIENT_SECRET:?set EFS_GRAPH_CLIENT_SECRET}"
