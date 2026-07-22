@@ -108,6 +108,8 @@ function submit() {
       hazmat: form.hazmatOn ? [...form.hazmat] : [],
       tunnelCategory: form.hazmatOn ? (form.tunnelCategory || null) : null,
       avoidTunnels: form.avoidTunnels,
+      originLabel: form.origin.trim() || null,
+      destinationLabel: form.destination.trim() || null,
     },
     {
       origin: form.origin.trim(),

@@ -10,10 +10,12 @@ import RouteMap from "@/features/fueling/RouteMap.vue";
 import RouteSummary from "@/features/fueling/RouteSummary.vue";
 import TripPlan from "@/features/fueling/TripPlan.vue";
 import ManualTelematicsPanel from "@/features/fueling/ManualTelematicsPanel.vue";
+import PlanHistory from "@/features/fueling/PlanHistory.vue";
 import { useFuelPlan, type PlanRequest, type PlanResult } from "@/features/fueling/useFuelPlan";
 import { useToastStore } from "@/stores/toast";
 
 const plan = useFuelPlan();
+const activeTab = ref<"plan" | "history">("plan");
 const toast = useToastStore();
 const formRef = ref<InstanceType<typeof FuelPlanForm> | null>(null);
 const result = ref<PlanResult | null>(null);
@@ -72,12 +74,26 @@ async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manua
   <div class="space-y-6">
     <PageHeader description="Enter a route and a truck to get where-to-fuel suggestions — optimized for lowest net cost within the truck's range, reserve, and hours of service. Read-only: the dispatcher decides.">
       <template #actions>
-        <BaseButton variant="secondary" size="sm" @click="newPlan">
+        <BaseButton v-if="activeTab === 'plan'" variant="secondary" size="sm" @click="newPlan">
           <ArrowPathIcon class="-ml-0.5 size-4" aria-hidden="true" /> New plan
         </BaseButton>
       </template>
     </PageHeader>
 
+    <div class="flex w-fit gap-1 rounded-lg bg-surface-muted p-1 text-sm">
+      <button
+        class="rounded-md px-3 py-1.5 font-medium transition"
+        :class="activeTab === 'plan' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+        @click="activeTab = 'plan'"
+      >Plan</button>
+      <button
+        class="rounded-md px-3 py-1.5 font-medium transition"
+        :class="activeTab === 'history' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+        @click="activeTab = 'history'"
+      >History</button>
+    </div>
+
+    <div v-show="activeTab === 'plan'" class="space-y-6">
     <FuelPlanForm ref="formRef" :loading="plan.isPending.value" @submit="onSubmit" />
 
     <template v-if="result">
@@ -118,5 +134,8 @@ async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manua
         :directions="result.route.directions"
       />
     </template>
+    </div>
+
+    <PlanHistory v-show="activeTab === 'history'" />
   </div>
 </template>

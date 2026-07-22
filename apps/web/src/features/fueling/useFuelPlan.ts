@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/vue-query";
+import { useMutation, useQuery } from "@tanstack/vue-query";
 import { apiFetch } from "@/lib/api";
 
 export interface PlanPoint { lat?: number | null; lng?: number | null; text?: string | null }
@@ -12,6 +12,8 @@ export interface PlanRequest {
   hazmat?: string[];
   tunnelCategory?: string | null;
   avoidTunnels?: boolean;
+  originLabel?: string | null;
+  destinationLabel?: string | null;
   manualFuelPct?: number | null;
   manualHos?: { driveHours?: number | null; breakHours?: number | null; shiftHours?: number | null; cycleHours?: number | null } | null;
 }
@@ -111,6 +113,34 @@ export function useFuelPlan() {
       const res = await apiFetch<PlanResult>("/api/fueling/plan", { method: "POST", body: req });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not generate a plan");
       return res.data;
+    },
+  });
+}
+
+/** One saved plan row for the history tab (summary only; the full plan JSON stays server-side). */
+export interface PlanHistoryRow {
+  id: string;
+  created_at: string;
+  created_by_label: string | null;
+  unit_number: string | null;
+  origin_label: string | null;
+  destination_label: string | null;
+  distance_miles: number | null;
+  duration_hours: number | null;
+  status: string;
+  stop_count: number;
+  total_gallons: number | null;
+  total_cost: number | null;
+  arrival_fuel_pct: number | null;
+}
+
+/** The org's planned-route history, newest first. */
+export function useFuelPlanHistory() {
+  return useQuery({
+    queryKey: ["fuel-plan-history"],
+    queryFn: async (): Promise<PlanHistoryRow[]> => {
+      const res = await apiFetch<{ plans: PlanHistoryRow[] }>("/api/fueling/plans");
+      return res.ok && res.data ? res.data.plans : [];
     },
   });
 }

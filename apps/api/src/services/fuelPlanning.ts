@@ -35,6 +35,9 @@ export interface PlanRequest {
   tunnelCategory?: TunnelCategory | null;
   /** Route around ALL tunnels (safety for hazmat/oversized loads) — passed straight to HERE. */
   avoidTunnels?: boolean | null;
+  /** Readable origin/destination labels (from the form) — stored on the saved plan for the history list. */
+  originLabel?: string | null;
+  destinationLabel?: string | null;
   /** Manual fuel level (0-100), used only when live telematics is unavailable for the truck. */
   manualFuelPct?: number | null;
   /** Optional manual HOS clocks (hours), used with manualFuelPct when telematics is unavailable. */
