@@ -10,8 +10,9 @@
  *  4. Cheapest reachable wins among preferred.
  *  5. Breaks/resets are NEVER emitted as their own stops — the itinerary is FUEL STOPS ONLY. HOS only TIMES the
  *     fuel: a fuel stop landing where the 30-min break comes due is tagged coversBreak (fuel + break = time saved).
- *  6. When the legal drive clock is exhausted before the destination, a fuel stop near that limit is preferred
- *     (fuel while resting overnight); with no station in reach the reset is applied SILENTLY (never shown).
+ *  6. When the legal drive clock is exhausted before the destination, the 10-hour reset is applied SILENTLY. A
+ *     fill is combined into that rest only as a CONVENIENCE — a station near the limit AND a meaningful fill;
+ *     otherwise it just rests (fuel is planned by RANGE, never around break/rest time).
  * INFEASIBLE is a LOUD state, never a best-guess stop. Correctness is tested empirically.
  */
 import { galPerMile } from "./consumption.js";
@@ -281,11 +282,15 @@ function runGreedy(input: FuelPlanInput, select: (opts: SolverStation[]) => Solv
     }
 
     if (!fuelBinds) {
-      // The legal drive clock runs out before fuel → a 10-hour reset is due around the drive limit. Combine it
-      // with a fuel stop only if one sits close to that limit; otherwise rest at a rest area at the limit.
+      // The legal drive clock runs out before fuel does → a 10-hour reset is due. The rest is the driver's HOS
+      // obligation and is applied SILENTLY; fuel is planned by RANGE, never inserted just to line up with a rest.
+      // Combining a fill INTO the rest is a pure convenience — only when a station sits near the limit AND the
+      // truck would take a MEANINGFUL fill (>= the min purchase). If it'd arrive near-full, just rest quietly.
       const combine = inWindow.filter((x) => x.milesAhead - pos >= driveMi - COMBINE_BAND_MI);
       if (combine.length === 0) { silentResetAt(pos + driveMi); continue; }
       const { pick, emergency, offNetwork } = pickStop(combine);
+      const arrivalGalAtPick = gal - galFor((pick.milesAhead - pos) + pick.detourMiles);
+      if (usable - arrivalGalAtPick < cfg.minPurchaseGal) { silentResetAt(pos + driveMi); continue; }
       applyFuelStop(pick, emergency, true, false, offNetwork);
       continue;
     }

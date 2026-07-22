@@ -217,6 +217,19 @@ describe("planFuelStops — HOS integration", () => {
     expect(plan.flags).toContain("overnight_reset_required");
   });
 
+  it("rests silently instead of adding a junk fuel stop when the tank is near-full at the reset (convenience, not a rule)", () => {
+    // Drive clock nearly exhausted (0.5 h) with a station ~25 mi ahead; the truck is essentially full there, so a
+    // "fuel + rest" combine would only add a splash — it must REST silently and NOT emit that near-full stop.
+    const plan = planFuelStops(input({
+      distanceToGoMiles: 400,
+      stations: [st("nearfull", 25, 3.5)],
+      truck: mkTruck({ gallonsOnHand: 190 }),
+      hos: hos(0.5, 8, 0.5),
+    }));
+    expect(plan.reachesDestination).toBe(true);
+    expect(plan.stops.some((s) => s.station?.id === "nearfull")).toBe(false);
+  });
+
   it("does not falsely report infeasible on a long, sparse-station HOS-limited route (loop-guard sizing)", () => {
     // Huge tank (fuel never binds) + ~2,600 mi with NO loaded stations forces many silent HOS resets/breaks. The
     // old guard (stations*2 + 6 = 6) tripped and returned infeasible; the distance-aware guard reaches the end.
