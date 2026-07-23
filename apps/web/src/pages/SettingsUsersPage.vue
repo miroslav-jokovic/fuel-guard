@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { USER_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
+import { USER_ROLES, USER_ROLE_LABELS, APP_SECTIONS, sectionAccess, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import AppSelect from "@/components/AppSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -114,6 +114,38 @@ async function removeMember(userId: string) {
     toast.error("Could not remove member", res.error?.message);
   }
 }
+
+// Change an existing member's role. Backend guards against demoting the last admin. Reloads on cancel/error
+// so the inline picker snaps back to the true value.
+const roleOptions = USER_ROLES.map((r) => ({ value: r, label: USER_ROLE_LABELS[r] }));
+async function changeRole(userId: string, newRole: string) {
+  const m = members.value.find((x) => x.userId === userId);
+  if (!m || m.role === newRole) return;
+  if (userId === session.userId && newRole !== "admin" && !confirm("Change your own role? You may lose admin access after your next sign-in.")) {
+    await load();
+    return;
+  }
+  const res = await apiFetch(`/api/members/${userId}`, { method: "PATCH", body: { role: newRole } });
+  if (res.ok) {
+    toast.success("Role updated", `${m.email ?? userId} is now ${USER_ROLE_LABELS[newRole as UserRole]}`);
+  } else {
+    toast.error("Could not change role", res.error?.message);
+  }
+  await load();
+}
+
+// ── roles & permissions reference (from the shared section-capability matrix) ─────────────────
+const SECTION_LABELS: Record<string, string> = { fuel: "Fuel", dispatch: "Dispatch", safety: "Safety", fleet: "Fleet", admin: "Admin" };
+const showPerms = ref(false);
+const permMatrix = computed(() =>
+  USER_ROLES.map((r) => ({
+    role: r as UserRole,
+    label: USER_ROLE_LABELS[r],
+    cells: APP_SECTIONS.map((s) => ({ section: s, access: sectionAccess(r, s) })),
+  })),
+);
+const accessText = (a: string) => (a === "manage" ? "Manage" : a === "view" ? "View" : "—");
+const accessCls = (a: string) => (a === "manage" ? "font-medium text-success-700" : a === "view" ? "text-ink-secondary" : "text-ink-subtle");
 
 // ── search + multi-select (members) ─────────────────────────────────────────
 const search = ref("");
@@ -229,6 +261,9 @@ onMounted(load);
         @update:selected="selectedIds = $event"
       >
         <template #cell-email="{ row }">{{ row.email ?? row.userId }}</template>
+        <template #cell-role="{ row }">
+          <AppSelect :model-value="row.role" :options="roleOptions" @update:model-value="changeRole(row.userId, String($event))" />
+        </template>
         <template #cell-joinedAt="{ row }">{{ new Date(row.joinedAt).toLocaleDateString() }}</template>
         <template #actions="{ row }">
           <KebabMenu v-if="row.userId !== session.userId">
@@ -237,6 +272,32 @@ onMounted(load);
           <span v-else class="text-xs text-ink-subtle">You</span>
         </template>
       </DataTable>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold text-ink">Roles &amp; permissions</h3>
+        <BaseButton variant="ghost" size="sm" @click="showPerms = !showPerms">{{ showPerms ? "Hide" : "Show" }}</BaseButton>
+      </div>
+      <BaseCard v-if="showPerms" as="section">
+        <p class="mb-3 text-sm text-ink-muted">What each role can access. <span class="font-medium text-success-700">Manage</span> = view + edit; View = read-only. Set a member's role in the table above.</p>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="text-ink-muted">
+              <tr>
+                <th class="py-2 pr-4 text-left font-medium">Role</th>
+                <th v-for="s in APP_SECTIONS" :key="s" class="px-3 py-2 text-center font-medium">{{ SECTION_LABELS[s] }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-edge-subtle">
+              <tr v-for="prow in permMatrix" :key="prow.role">
+                <td class="py-2 pr-4 font-medium text-ink">{{ prow.label }}</td>
+                <td v-for="c in prow.cells" :key="c.section" class="px-3 py-2 text-center" :class="accessCls(c.access)">{{ accessText(c.access) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </BaseCard>
     </section>
 
     <section class="space-y-3">
