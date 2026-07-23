@@ -6,6 +6,7 @@ import {
   learnIdleBurn,
   estimateIdleGallons,
   matchAssignmentAt,
+  mergeOperatorAssignments,
   type IdleThresholds,
   type AssignmentInterval,
 } from "@fuelguard/shared";
@@ -256,6 +257,45 @@ export async function syncIdleEvents(
       },
       { onConflict: "org_id" },
     );
+  }
+
+  // Durable driver attribution: Samsara's formal driver-vehicle-assignments feed is sparse for some fleets,
+  // but every idle event carries an `operator`. Collapse those operators into contiguous driver↔vehicle
+  // intervals and upsert them into driver_vehicle_assignments alongside the endpoint-derived intervals, so
+  // ALL consumers (idle attribution, driver scoring, card reconciliation) get complete coverage — not just the
+  // idle-drivers view. Best-effort: an error here never fails the idle sync.
+  try {
+    const obs = events
+      .filter((e) => e.assetId && e.operatorId && e.startTime)
+      .map((e) => {
+        const startMs = new Date(e.startTime).getTime();
+        return {
+          vehicleSamsaraId: e.assetId as string,
+          driverSamsaraId: e.operatorId as string,
+          startMs,
+          endMs: startMs + Math.max(0, e.durationSec) * 1000,
+        };
+      })
+      .filter((o) => Number.isFinite(o.startMs));
+    const intervals = mergeOperatorAssignments(obs);
+    if (intervals.length) {
+      const now = new Date().toISOString();
+      const arows = intervals.map((iv) => ({
+        org_id: orgId,
+        vehicle_samsara_id: iv.vehicleSamsaraId,
+        driver_samsara_id: iv.driverSamsaraId,
+        start_at: new Date(iv.startMs).toISOString(),
+        end_at: iv.endMs != null ? new Date(iv.endMs).toISOString() : null,
+        updated_at: now,
+      }));
+      for (let i = 0; i < arows.length; i += 500) {
+        await admin
+          .from("driver_vehicle_assignments")
+          .upsert(arows.slice(i, i + 500), { onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at" });
+      }
+    }
+  } catch {
+    /* operator-derived assignments are best-effort — never fail the idle sync over them */
   }
 
   return { fetched: events.length, upserted };

@@ -190,6 +190,50 @@ export function parseAssignmentIntervals(response: {
   return out;
 }
 
+/** A driver↔vehicle observation from a Samsara idle event's operator (both are Samsara ids). */
+export interface OperatorObservation {
+  vehicleSamsaraId: string;
+  driverSamsaraId: string;
+  startMs: number;
+  endMs: number; // start + duration
+}
+
+/**
+ * Collapse operator-tagged idle events into contiguous driver↔vehicle assignment INTERVALS — the durable
+ * source of driver attribution when Samsara's formal driver-vehicle-assignments feed is sparse but every idle
+ * event still carries an `operator`. Per vehicle: sort by time, merge consecutive same-driver events into a
+ * run, then make the runs contiguous (each driver "holds" the truck until the next different-driver event —
+ * last-known-driver), leaving the final run open-ended (current driver). Pure + deterministic (input order
+ * independent). Feed the result into driver_vehicle_assignments alongside the endpoint-derived intervals.
+ */
+export function mergeOperatorAssignments(events: OperatorObservation[]): AssignmentInterval[] {
+  const byVeh = new Map<string, OperatorObservation[]>();
+  for (const e of events) {
+    if (!e.vehicleSamsaraId || !e.driverSamsaraId || !Number.isFinite(e.startMs)) continue;
+    const arr = byVeh.get(e.vehicleSamsaraId) ?? [];
+    arr.push(e);
+    byVeh.set(e.vehicleSamsaraId, arr);
+  }
+  const out: AssignmentInterval[] = [];
+  for (const [veh, evs] of byVeh) {
+    evs.sort((a, b) => a.startMs - b.startMs || a.driverSamsaraId.localeCompare(b.driverSamsaraId));
+    const runs: { driver: string; start: number; end: number }[] = [];
+    for (const e of evs) {
+      const end = Number.isFinite(e.endMs) && e.endMs > e.startMs ? e.endMs : e.startMs;
+      const last = runs[runs.length - 1];
+      if (last && last.driver === e.driverSamsaraId) last.end = Math.max(last.end, end);
+      else runs.push({ driver: e.driverSamsaraId, start: e.startMs, end });
+    }
+    for (let i = 0; i < runs.length; i++) {
+      const r = runs[i]!;
+      // Hold until the next run starts; the newest run stays open (current driver).
+      const endMs = i < runs.length - 1 ? runs[i + 1]!.start : null;
+      out.push({ vehicleSamsaraId: veh, driverSamsaraId: r.driver, startMs: r.start, endMs });
+    }
+  }
+  return out;
+}
+
 /** Which driver had a vehicle at `whenMs`? Prefer the interval that COVERS the time; otherwise the most recent
  *  interval that started before it (last-known driver), but only if within `maxStaleMs` (default 24h) so we don't
  *  attribute an idle to a driver who left the truck days ago. Returns the Samsara driver id, or null. */

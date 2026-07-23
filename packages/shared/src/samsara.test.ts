@@ -12,6 +12,8 @@ import {
   parseVehicleFuelPercents,
   parseSamsaraDrivers,
   parseCurrentAssignments,
+  mergeOperatorAssignments,
+  matchAssignmentAt,
   parseSamsaraTrailers,
   parseTrailerAssignments,
   sampleNearestTime,
@@ -672,5 +674,50 @@ describe("matchFuelingStop (timezone-robust, physical-stop anchored)", () => {
     expect(approxFuelingUtcMs(naive, "TX")).toBe(new Date("2026-06-30T20:30:00Z").getTime());
     // unknown state → unchanged
     expect(approxFuelingUtcMs(naive, null)).toBe(new Date("2026-06-30T14:30:00Z").getTime());
+  });
+});
+
+describe("mergeOperatorAssignments (operator-derived driver↔vehicle intervals)", () => {
+  const t = (h: number) => new Date(2026, 6, 1, h).getTime();
+
+  it("collapses same-driver events into one run and holds the truck until the next driver", () => {
+    const iv = mergeOperatorAssignments([
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D1", startMs: t(6), endMs: t(7) },
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D1", startMs: t(9), endMs: t(10) }, // same driver → merged run
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D2", startMs: t(14), endMs: t(15) }, // handover
+    ]);
+    expect(iv).toEqual([
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D1", startMs: t(6), endMs: t(14) }, // holds until D2's start
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D2", startMs: t(14), endMs: null }, // newest run open-ended
+    ]);
+  });
+
+  it("is order-independent and per-vehicle", () => {
+    const iv = mergeOperatorAssignments([
+      { vehicleSamsaraId: "V2", driverSamsaraId: "D3", startMs: t(8), endMs: t(9) },
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D1", startMs: t(6), endMs: t(7) },
+    ]);
+    expect(iv).toHaveLength(2);
+    expect(iv.find((x) => x.vehicleSamsaraId === "V1")!.driverSamsaraId).toBe("D1");
+    expect(iv.find((x) => x.vehicleSamsaraId === "V2")!.driverSamsaraId).toBe("D3");
+  });
+
+  it("skips events missing a vehicle, driver, or start", () => {
+    const iv = mergeOperatorAssignments([
+      { vehicleSamsaraId: "", driverSamsaraId: "D1", startMs: t(6), endMs: t(7) },
+      { vehicleSamsaraId: "V1", driverSamsaraId: "", startMs: t(6), endMs: t(7) },
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D1", startMs: NaN, endMs: t(7) },
+    ]);
+    expect(iv).toEqual([]);
+  });
+
+  it("its intervals resolve via matchAssignmentAt — a gap between events attributes to the holding driver", () => {
+    const iv = mergeOperatorAssignments([
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D1", startMs: t(6), endMs: t(7) },
+      { vehicleSamsaraId: "V1", driverSamsaraId: "D2", startMs: t(14), endMs: t(15) },
+    ]);
+    // 10:00 has no event but falls in D1's hold window.
+    expect(matchAssignmentAt(iv, "V1", t(10))).toBe("D1");
+    expect(matchAssignmentAt(iv, "V1", t(20))).toBe("D2"); // open-ended newest run
   });
 });

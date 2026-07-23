@@ -6,5 +6,5 @@ export { MIN_MISMATCH_COVERAGE, odometerAtTime, pathDistanceMiles, odometerAtTim
 export type { FuelingStopMatch, FuelingEvent } from "./stops.js";
 export { minSampleDistanceMiles, resolveLocationConfidence, reconcileOdometerMiles, parseFuelPercents, tankPercentNear, reconcileTankFill } from "./reconcile.js";
 export type { LocationConfidence, OdometerReconciliation, TankReading, TankFillReconciliation } from "./reconcile.js";
-export { parseVehicleFuelPercents, parseVehicleStatsOdometer, parseCurrentAssignments, parseAssignmentIntervals, matchAssignmentAt, parseSamsaraTrailers, parseTrailerAssignments, parseSamsaraDrivers, parseSamsaraVehicles, locationDistanceMiles } from "./entities.js";
-export type { SamsaraVehicle, VehicleFuelLevel, SamsaraDriver, VehicleDriverLink, AssignmentInterval, SamsaraTrailer, TrailerVehicleLink } from "./entities.js";
+export { parseVehicleFuelPercents, parseVehicleStatsOdometer, parseCurrentAssignments, parseAssignmentIntervals, mergeOperatorAssignments, matchAssignmentAt, parseSamsaraTrailers, parseTrailerAssignments, parseSamsaraDrivers, parseSamsaraVehicles, locationDistanceMiles } from "./entities.js";
+export type { SamsaraVehicle, VehicleFuelLevel, SamsaraDriver, VehicleDriverLink, AssignmentInterval, OperatorObservation, SamsaraTrailer, TrailerVehicleLink } from "./entities.js";
