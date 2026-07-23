@@ -43,8 +43,9 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
 
   // Driver-performance feeds (docs/16): confirm scope + reachability. Efficiency needs end ≤3h before now.
   const wkStart = new Date(now.getTime() - 7 * 86_400_000);
-  const effStart = new Date(now.getTime() - 8 * 86_400_000);
-  const effEnd = new Date(now.getTime() - 4 * 3_600_000);
+  const floorHourMs = (ms: number) => Math.floor(ms / 3_600_000) * 3_600_000; // efficiency endpoint requires hour-aligned bounds
+  const effStart = new Date(floorHourMs(now.getTime() - 8 * 86_400_000));
+  const effEnd = new Date(floorHourMs(now.getTime() - 4 * 3_600_000));
   const [safetyScores, driverEfficiency] = await Promise.all([
     probe("/safety-scores/drivers", { startTime: wkStart.toISOString(), endTime: now.toISOString() }),
     probe("/driver-efficiency/drivers", { startTime: effStart.toISOString(), endTime: effEnd.toISOString(), dataFormats: "score" }),

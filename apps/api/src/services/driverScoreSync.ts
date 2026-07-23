@@ -80,6 +80,7 @@ export async function syncDriverScores(
   const safetyEndIso = floorHourIso(Math.min(Date.parse(wk.windowEndIso), now));
   const effEndMs = Math.min(Date.parse(wk.windowEndIso), now - 4 * HOUR);
   const efficiencyEndIso = floorHourIso(effEndMs);
+  const efficiencyStartIso = floorHourIso(startMs); // efficiency requires an hour-aligned START too (robust for fractional-hour tz)
 
   const safetyFetch = opts.safetyFetcher ?? makeSamsaraSafetyScoreFetcher(env, token);
   const efficiencyFetch =
@@ -101,7 +102,7 @@ export async function syncDriverScores(
   let efficiencyOk = false;
   if (efficiencyFetch && effEndMs - startMs >= 24 * HOUR) {
     try {
-      efficiency = parseDriverEfficiency(await efficiencyFetch(startIso, efficiencyEndIso, driverIds));
+      efficiency = parseDriverEfficiency(await efficiencyFetch(efficiencyStartIso, efficiencyEndIso, driverIds));
       efficiencyOk = true;
     } catch (e) {
       console.error("[driver-scores] efficiency fetch failed (degrading):", e instanceof Error ? e.message : e);
