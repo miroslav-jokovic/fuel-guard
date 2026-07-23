@@ -1,8 +1,11 @@
-import { type Ref, toValue } from "vue";
+import { computed, type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { computeAvoidable, avoidableCost, idleScore, type IdleMode, type IdleCapability } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
+import type { IdleCostBasis } from "./useIdleCostBasis";
+
+const DEFAULT_COST_BASIS: IdleCostBasis = { idleGalPerHour: 0.8, fuelPricePerGal: 4.0, priceSource: "default" };
 
 const PAGE = 1000;
 const WINDOW_DAYS = 30;
@@ -68,12 +71,14 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
  * foundation tables (vehicle_engine_days + idle_park_sessions) via the shared avoidable algorithm. Fleet
  * avoidable totals count CONFIDENT trucks only, so the headline number is never inflated by thin data.
  */
-export function useIdleBreakdown(filters: Ref<IdleDateFilter>) {
+export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<IdleCostBasis>) {
   return useQuery({
-    queryKey: ["idle_breakdown", filters],
+    queryKey: ["idle_breakdown", filters, computed(() => toValue(costBasis) ?? DEFAULT_COST_BASIS)],
     refetchInterval: 120_000,
     queryFn: async (): Promise<IdleBreakdown> => {
       const { fromDate, toDate, fromIso, toIso, days } = rangeBounds(toValue(filters));
+      const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
+      const costOf = (sec: number) => avoidableCost(sec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd;
 
       // 1) Engine-days summed per vehicle.
       const eng = new Map<string, { drive: number; idle: number; off: number; cov: number }>();
@@ -160,7 +165,7 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>) {
           continuousH: hrs(r.continuousIdleSec),
           avoidableH: hrs(r.avoidableIdleSec),
           unavoidableH: hrs(r.unavoidableIdleSec),
-          avoidableUsd: avoidableCost(r.avoidableIdleSec).usd,
+          avoidableUsd: costOf(r.avoidableIdleSec),
           score: idleScore(r.avoidableIdleSec, r.engineOnSec),
           alternative: r.alternative,
           capability: (v.idle_capability ?? "unknown") as IdleCapability,

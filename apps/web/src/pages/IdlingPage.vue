@@ -19,7 +19,7 @@ const {
   usd, usd2, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
   tabs, activeTab, showInfo, showConfidence,
-  dateFrom, dateTo, rangeLabel,
+  dateFrom, dateTo, rangeLabel, priceNote,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
   capBadge, xcheck, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
@@ -47,6 +47,7 @@ const {
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avoidable idle</dt>
         <dd class="mt-1 text-2xl font-bold text-danger-700">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-subtle">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
         <dd class="mt-0.5 text-xs text-ink-subtle">across {{ fleet.confidentTrucks }}/{{ fleet.totalTrucks }} trucks with confident data</dd>
+        <dd class="mt-0.5 text-xs text-ink-subtle" title="Fuel price the idle cost is figured at">{{ priceNote }}</dd>
       </BaseCard>
     </div>
 

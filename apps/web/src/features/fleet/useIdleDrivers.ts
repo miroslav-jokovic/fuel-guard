@@ -1,4 +1,4 @@
-import { type Ref, toValue } from "vue";
+import { computed, type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import {
   computeAvoidable,
@@ -12,9 +12,11 @@ import {
 } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
+import type { IdleCostBasis } from "./useIdleCostBasis";
 
 const PAGE = 1000;
 const WINDOW_DAYS = 30;
+const DEFAULT_COST_BASIS: IdleCostBasis = { idleGalPerHour: 0.8, fuelPricePerGal: 4.0, priceSource: "default" };
 
 /** One driver's idle scorecard for the range, attributed from the foundation via assignments. */
 export interface DriverIdleRow {
@@ -49,12 +51,13 @@ const hrs = (sec: number) => Math.round(sec / 360) / 10;
  * trucks contribute, so a driver is never scored on thin data. Avoidable is credited per park session (precise
  * timing); engine-on/idle per day (attributed at midday).
  */
-export function useIdleDrivers(filters: Ref<IdleDateFilter>) {
+export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<IdleCostBasis>) {
   return useQuery({
-    queryKey: ["idle_drivers", filters],
+    queryKey: ["idle_drivers", filters, computed(() => toValue(costBasis) ?? DEFAULT_COST_BASIS)],
     refetchInterval: 120_000,
     queryFn: async (): Promise<DriverIdleRow[]> => {
       const { fromDate, toDate, fromIso, toIso, days } = bounds(toValue(filters));
+      const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
 
       // Engine-days (kept per row for per-day attribution + summed per vehicle for the truck verdict).
       type Day = { vehicle_id: string; day: string; drive_sec: number; idle_sec: number; off_sec: number; coverage_sec: number };
@@ -175,7 +178,7 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>) {
           engineOnH: hrs(t.engineOnSec),
           idleH: hrs(t.idleSec),
           avoidableH: hrs(t.avoidableSec),
-          avoidableUsd: avoidableCost(t.avoidableSec).usd,
+          avoidableUsd: avoidableCost(t.avoidableSec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd,
           idlePct: t.engineOnSec > 0 ? Math.round((t.idleSec / t.engineOnSec) * 1000) / 10 : 0,
           score: idleScore(t.avoidableSec, t.engineOnSec),
         };

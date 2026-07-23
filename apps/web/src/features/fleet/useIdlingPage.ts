@@ -2,6 +2,7 @@ import { computed, ref, watch } from "vue";
 import { type IdleDateFilter } from "./useIdleScores";
 import { useIdleBreakdown, type TruckBreakdown } from "./useIdleBreakdown";
 import { useIdleDrivers } from "./useIdleDrivers";
+import { useIdleCostBasis } from "./useIdleCostBasis";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
 import { useIdleConfidence } from "./useIdleConfidence";
@@ -37,10 +38,23 @@ const rangeDays = computed(() => {
 const annualMultiplier = computed(() => 365 / rangeDays.value);
 const rangeLabel = computed(() => (dateFrom.value || dateTo.value ? `selected ${rangeDays.value}-day range` : "last 30 days"));
 
+// Cost basis for idle $: burn rate from idle settings, price from the fleet's daily truck-stop diesel prices.
+const costBasis = useIdleCostBasis();
+const priceSource = computed(() => costBasis.value.priceSource);
+const fuelPricePerGal = computed(() => costBasis.value.fuelPricePerGal);
+const priceNote = computed(() => {
+  const p = usd2(costBasis.value.fuelPricePerGal) + "/gal";
+  return costBasis.value.priceSource === "truck_stops"
+    ? `${p} · live truck-stop prices`
+    : costBasis.value.priceSource === "settings"
+      ? `${p} · from idle settings`
+      : `${p} · default estimate`;
+});
+
 // Data sources. The driver leaderboard now comes from the new model (avoidable attributed via assignments).
-const { data: driverRows, isLoading, isError, error, refetch, isFetching } = useIdleDrivers(dateFilter);
+const { data: driverRows, isLoading, isError, error, refetch, isFetching } = useIdleDrivers(dateFilter, costBasis);
 // New per-truck engine-time + avoidable breakdown (the reworked model).
-const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter);
+const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter, costBasis);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
 const { data: caps } = useIdleCapabilities();
 const { data: settings } = useIdleSettings();
@@ -233,6 +247,7 @@ const capColumns: DataTableColumn[] = [
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
     capBadge, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
+    priceSource, fuelPricePerGal, priceNote,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
   };
