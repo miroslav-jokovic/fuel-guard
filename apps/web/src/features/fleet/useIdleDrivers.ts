@@ -4,10 +4,9 @@ import {
   computeAvoidable,
   avoidableCost,
   idleScore,
-  attributeDriverIdle,
+  driverAt,
   type IdleMode,
   type IdleCapability,
-  type IdleBucket,
   type DriverAssignment,
 } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
@@ -45,10 +44,13 @@ function bounds(f: IdleDateFilter) {
 const hrs = (sec: number) => Math.round(sec / 360) / 10;
 
 /**
- * The driver idle leaderboard on the new model: avoidable idle and engine-on time attributed to whoever was
- * assigned to each truck at the time (shared attributeDriverIdle), scored avoidable ÷ engine-on. Only CONFIDENT
- * trucks contribute, so a driver is never scored on thin data. Avoidable is credited per park session (precise
- * timing); engine-on/idle per day (attributed at midday).
+ * The driver idle leaderboard: engine-on / idle / avoidable time attributed to the driver who had each truck,
+ * scored avoidable ÷ engine-on. Driver resolution is OPERATOR-FIRST — the driver Samsara attaches to each idle
+ * event (idle_events.driver_id), taken as the dominant driver per (vehicle, day) and per vehicle — with the
+ * Samsara driver↔vehicle assignment feed as a fallback. This restores full driver coverage: the assignment
+ * feed alone is sparse for this fleet, but every truck that idles carries an operator. Every truck that ran is
+ * attributed (so all drivers appear); only confident trucks feed the score denominator, so no one is scored on
+ * thin data.
  */
 export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<IdleCostBasis>) {
   return useQuery({
@@ -106,9 +108,50 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
       const { data: ddata, error: derr } = await supabase.from("drivers").select("id, samsara_driver_id, full_name");
       if (derr) throw new Error(derr.message);
       const driverBySamsara = new Map<string, { id: string; full_name: string }>();
+      const driverById = new Map<string, { full_name: string }>();
       for (const d of (ddata ?? []) as { id: string; samsara_driver_id: string | null; full_name: string }[]) {
         if (d.samsara_driver_id) driverBySamsara.set(d.samsara_driver_id, { id: d.id, full_name: d.full_name });
+        driverById.set(d.id, { full_name: d.full_name });
       }
+
+      // PRIMARY driver source: Samsara's operator on each idle event (idle_events.driver_id, already our id) —
+      // the rich signal the old driver view used. Aggregate the dominant driver per (vehicle, day) and per
+      // vehicle overall; the driver_vehicle_assignments feed is a fallback (sparse for this fleet on its own).
+      type Ev = { vehicle_id: string; driver_id: string | null; started_at: string; duration_sec: number | string };
+      const durVehDay = new Map<string, Map<string, number>>(); // `${vehId}|${YYYY-MM-DD}` → driverId → idle sec
+      const durVeh = new Map<string, Map<string, number>>(); //    vehId               → driverId → idle sec
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await supabase
+          .from("idle_events")
+          .select("vehicle_id, driver_id, started_at, duration_sec")
+          .gte("started_at", fromIso)
+          .lte("started_at", toIso)
+          .not("driver_id", "is", null)
+          .order("vehicle_id", { ascending: true })
+          .order("started_at", { ascending: true })
+          .range(offset, offset + PAGE - 1);
+        if (error) throw new Error(error.message);
+        const batch = (data ?? []) as Ev[];
+        for (const e of batch) {
+          if (!e.vehicle_id || !e.driver_id) continue;
+          const dur = Number(e.duration_sec) || 0;
+          const kd = `${e.vehicle_id}|${e.started_at.slice(0, 10)}`;
+          const md = durVehDay.get(kd) ?? new Map<string, number>();
+          md.set(e.driver_id, (md.get(e.driver_id) ?? 0) + dur);
+          durVehDay.set(kd, md);
+          const mv = durVeh.get(e.vehicle_id) ?? new Map<string, number>();
+          mv.set(e.driver_id, (mv.get(e.driver_id) ?? 0) + dur);
+          durVeh.set(e.vehicle_id, mv);
+        }
+        if (batch.length < PAGE) break;
+      }
+      const topDriver = (m: Map<string, number> | undefined): string | null => {
+        if (!m) return null;
+        let best: string | null = null;
+        let bestDur = -1;
+        for (const [d, du] of m) if (du > bestDur) { best = d; bestDur = du; }
+        return best;
+      };
 
       const { data: adata, error: aerr } = await supabase
         .from("driver_vehicle_assignments")
@@ -155,49 +198,61 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
         verdict.set(v.id, { confident: r.confident, hasAlternative: r.hasAlternative });
       }
 
-      // Attribute EVERY truck that ran, so every driver who drove appears (not just those on confident trucks —
-      // that was hiding most of the fleet's drivers). Engine-on/idle are credited for all trucks; avoidable only
-      // where the truck is confident AND has a demonstrated alternative; and confidentEngineOnSec (the score
-      // denominator) only for confident trucks, so an un-judgeable driver still shows but isn't scored.
-      const dayNoonMs = (day: string) => Date.parse(`${day}T12:00:00Z`);
-      const buckets: IdleBucket[] = [];
-      for (const r of sessRows) {
-        const v = vehById.get(r.vehicle_id);
-        const ver = verdict.get(r.vehicle_id);
-        if (!v?.samsara_vehicle_id) continue;
-        const avoidableSec = r.mode === "continuous" && ver?.confident && ver.hasAlternative ? Number(r.idle_sec) : 0;
-        if (avoidableSec > 0) buckets.push({ vehicleSamsaraId: v.samsara_vehicle_id, atMs: Date.parse(r.started_at), avoidableSec, engineOnSec: 0, idleSec: 0 });
-      }
+      // Resolve the driver for a truck at an instant: the day's dominant operator (idle_events) → the vehicle's
+      // overall dominant operator → the Samsara assignment at that time (fallback). Returns OUR driver id.
+      const resolveDriver = (vehId: string, samsaraVehId: string | null, day: string, atMs: number): string | null => {
+        const byDay = topDriver(durVehDay.get(`${vehId}|${day}`));
+        if (byDay) return byDay;
+        const byVeh = topDriver(durVeh.get(vehId));
+        if (byVeh) return byVeh;
+        if (!samsaraVehId) return null;
+        const samsaraDrv = driverAt(assignments, samsaraVehId, atMs);
+        return samsaraDrv ? (driverBySamsara.get(samsaraDrv)?.id ?? null) : null;
+      };
+
+      // Attribute EVERY truck that ran, so every driver who drove appears. Engine-on/idle credited for all
+      // trucks; avoidable only where the truck is confident AND has a demonstrated alternative; the score
+      // denominator (confidentEngineOnSec) counts only confident trucks, so an un-judgeable driver still shows
+      // (engine-on/idle) but isn't scored.
+      type Tot = { engineOnSec: number; idleSec: number; avoidableSec: number; confidentEngineOnSec: number };
+      const byDriver = new Map<string | null, Tot>();
+      const add = (driverId: string | null, p: Partial<Tot>) => {
+        const t = byDriver.get(driverId) ?? { engineOnSec: 0, idleSec: 0, avoidableSec: 0, confidentEngineOnSec: 0 };
+        t.engineOnSec += p.engineOnSec ?? 0;
+        t.idleSec += p.idleSec ?? 0;
+        t.avoidableSec += p.avoidableSec ?? 0;
+        t.confidentEngineOnSec += p.confidentEngineOnSec ?? 0;
+        byDriver.set(driverId, t);
+      };
+      const noon = (day: string) => Date.parse(`${day}T12:00:00Z`);
       for (const r of dayRows) {
         const v = vehById.get(r.vehicle_id);
+        if (!v) continue;
         const ver = verdict.get(r.vehicle_id);
-        if (!v?.samsara_vehicle_id) continue;
         const engineOnSec = Number(r.drive_sec) + Number(r.idle_sec);
-        buckets.push({
-          vehicleSamsaraId: v.samsara_vehicle_id,
-          atMs: dayNoonMs(r.day),
-          avoidableSec: 0,
-          engineOnSec,
-          idleSec: Number(r.idle_sec),
-          confidentEngineOnSec: ver?.confident ? engineOnSec : 0,
-        });
+        const driver = resolveDriver(r.vehicle_id, v.samsara_vehicle_id, r.day, noon(r.day));
+        add(driver, { engineOnSec, idleSec: Number(r.idle_sec), confidentEngineOnSec: ver?.confident ? engineOnSec : 0 });
+      }
+      for (const r of sessRows) {
+        const v = vehById.get(r.vehicle_id);
+        if (!v) continue;
+        const ver = verdict.get(r.vehicle_id);
+        if (!(r.mode === "continuous" && ver?.confident && ver.hasAlternative)) continue;
+        const driver = resolveDriver(r.vehicle_id, v.samsara_vehicle_id, r.started_at.slice(0, 10), Date.parse(r.started_at));
+        add(driver, { avoidableSec: Number(r.idle_sec) });
       }
 
-      const totals = attributeDriverIdle(buckets, assignments);
-      const rows: DriverIdleRow[] = totals.map((t) => {
-        const d = t.driverSamsaraId ? driverBySamsara.get(t.driverSamsaraId) : null;
-        return {
-          driverId: t.driverSamsaraId == null ? "__unattributed__" : d?.id ?? t.driverSamsaraId,
-          driverName: t.driverSamsaraId == null ? "Unattributed" : d?.full_name ?? "Unknown driver",
-          engineOnH: hrs(t.engineOnSec),
-          idleH: hrs(t.idleSec),
-          avoidableH: hrs(t.avoidableSec),
-          avoidableUsd: avoidableCost(t.avoidableSec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd,
-          idlePct: t.engineOnSec > 0 ? Math.round((t.idleSec / t.engineOnSec) * 1000) / 10 : 0,
-          // Score off the JUDGEABLE basis only → null (shown as "—") when none of the driver's trucks were confident.
-          score: idleScore(t.avoidableSec, t.confidentEngineOnSec),
-        };
-      });
+      const rows: DriverIdleRow[] = [...byDriver.entries()].map(([driverId, t]) => ({
+        driverId: driverId == null ? "__unattributed__" : driverId,
+        driverName: driverId == null ? "Unattributed" : driverById.get(driverId)?.full_name ?? "Unknown driver",
+        engineOnH: hrs(t.engineOnSec),
+        idleH: hrs(t.idleSec),
+        avoidableH: hrs(t.avoidableSec),
+        avoidableUsd: avoidableCost(t.avoidableSec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd,
+        idlePct: t.engineOnSec > 0 ? Math.round((t.idleSec / t.engineOnSec) * 1000) / 10 : 0,
+        // Score off the JUDGEABLE basis only → null (shown as "—") when none of the driver's trucks were confident.
+        score: idleScore(t.avoidableSec, t.confidentEngineOnSec),
+      }));
       // Worst first: most avoidable $, then most avoidable hours.
       rows.sort((a, b) => b.avoidableUsd - a.avoidableUsd || b.avoidableH - a.avoidableH);
       return rows;
