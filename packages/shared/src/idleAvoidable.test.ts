@@ -15,26 +15,54 @@ const base: AvoidableInput = {
 };
 
 describe("computeAvoidable", () => {
-  it("APU truck: continuous idle is avoidable; short idle and managed idle are not", () => {
-    const r = computeAvoidable({ ...base, hasApu: true });
+  it("Learned-APU truck: continuous idle is avoidable; short idle and managed idle are not", () => {
+    // Avoidability comes from the LEARNED pattern (apu), not an equipment flag.
+    const r = computeAvoidable({ ...base, learnedCapability: "apu" });
     expect(r.avoidableIdleSec).toBe(5 * H);
     expect(r.unavoidableIdleSec).toBe(0);
     expect(r.continuousIdleSec).toBe(5 * H);
     expect(r.managedIdleSec).toBe(0);
     expect(r.shortIdleSec).toBe(1 * H); // 6h total idle − 5h in the park session
     expect(r.engineOnSec).toBe(14 * H);
-    expect(r.alternative).toBe("apu");
+    expect(r.alternative).toBe("learned_apu");
     expect(r.hasAlternative).toBe(true);
     expect(r.confident).toBe(true);
   });
 
-  it("No-APU, demonstrably continuous-only: same idle is UNAVOIDABLE, not blamed", () => {
+  it("An equipment flag ALONE (no learned pattern) does NOT make idle avoidable — pattern-based only", () => {
+    // has_apu is recorded but the on/off pattern is still unknown → we don't guess; not confident.
+    const r = computeAvoidable({ ...base, hasApu: true, learnedCapability: "unknown" });
+    expect(r.avoidableIdleSec).toBe(0);
+    expect(r.alternative).toBe("unknown");
+    expect(r.hasAlternative).toBe(false);
+    expect(r.confident).toBe(false);
+  });
+
+  it("Demonstrably continuous-only: same idle is UNAVOIDABLE, not blamed", () => {
     const r = computeAvoidable({ ...base, hasApu: null, learnedCapability: "continuous_only" });
     expect(r.avoidableIdleSec).toBe(0);
     expect(r.unavoidableIdleSec).toBe(5 * H);
     expect(r.alternative).toBe("none");
     expect(r.hasAlternative).toBe(false);
     expect(r.confident).toBe(true); // we've established there was no alternative → judgeable
+  });
+
+  it("clamps classified idle to observed idle when park sessions drift above the day totals", () => {
+    // Day-total idle is only 4h, but sessions (independently synced) sum to 8h continuous → must scale to 4h,
+    // so avoidable never exceeds observed idle (the '30h avoidable of a 22h truck' bug).
+    const r = computeAvoidable({
+      ...base,
+      idleSec: 4 * H,
+      driveSec: 2 * H,
+      coverageSec: 10 * H,
+      sessions: [{ idleSec: 8 * H, mode: "continuous" }],
+      learnedCapability: "apu",
+    });
+    expect(r.continuousIdleSec).toBe(4 * H); // scaled down from 8h
+    expect(r.avoidableIdleSec).toBe(4 * H);
+    expect(r.avoidableIdleSec).toBeLessThanOrEqual(r.idleSec);
+    expect(r.avoidableIdleSec).toBeLessThanOrEqual(r.engineOnSec);
+    expect(r.shortIdleSec).toBe(0);
   });
 
   it("Managed idle (apu_or_off + optimized_cycling) is never avoidable, even on an APU truck", () => {
@@ -61,14 +89,14 @@ describe("computeAvoidable", () => {
   });
 
   it("Thin coverage → not confident even when the alternative is known", () => {
-    const r = computeAvoidable({ ...base, coverageSec: 4 * H, periodSec: 24 * H, hasApu: true }); // 0.167 coverage
+    const r = computeAvoidable({ ...base, coverageSec: 4 * H, periodSec: 24 * H, learnedCapability: "apu" }); // 0.167 coverage
     expect(r.coverage).toBeCloseTo(0.167, 2);
     expect(r.confident).toBe(false);
   });
 
-  it("Admin Optimized-Idle flag makes continuous main-engine idle avoidable", () => {
-    const r = computeAvoidable({ ...base, hasApu: null, hasOptimizedIdle: true });
-    expect(r.alternative).toBe("optimized_idle");
+  it("Learned optimized-idle (auto start/stop cycling) makes continuous main-engine idle avoidable", () => {
+    const r = computeAvoidable({ ...base, learnedCapability: "ecu_optimized" });
+    expect(r.alternative).toBe("learned_optimized");
     expect(r.avoidableIdleSec).toBe(5 * H);
   });
 });

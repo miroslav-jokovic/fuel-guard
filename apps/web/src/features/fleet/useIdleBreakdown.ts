@@ -88,6 +88,10 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           .select("vehicle_id, drive_sec, idle_sec, off_sec, coverage_sec")
           .gte("day", fromDate)
           .lte("day", toDate)
+          // Stable total order (unique per row) so range pagination can't drop or DUPLICATE rows across
+          // pages — an unordered .range() was double-counting, which inflated the client-side sums.
+          .order("vehicle_id", { ascending: true })
+          .order("day", { ascending: true })
           .range(offset, offset + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as { vehicle_id: string | null; drive_sec: number; idle_sec: number; off_sec: number; coverage_sec: number }[];
@@ -111,6 +115,10 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           .select("vehicle_id, idle_sec, mode, started_at")
           .gte("started_at", fromIso)
           .lte("started_at", toIso)
+          // Stable total order (vehicle_id, started_at) is unique per row — without it, unordered .range()
+          // paging duplicated sessions, so a truck's continuous idle summed higher than its observed idle.
+          .order("vehicle_id", { ascending: true })
+          .order("started_at", { ascending: true })
           .range(offset, offset + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as { vehicle_id: string | null; idle_sec: number; mode: string }[];

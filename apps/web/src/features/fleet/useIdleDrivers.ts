@@ -67,6 +67,8 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
           .select("vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec")
           .gte("day", fromDate)
           .lte("day", toDate)
+          .order("vehicle_id", { ascending: true }) // stable, unique per row → no dropped/duplicated pages
+          .order("day", { ascending: true })
           .range(offset, offset + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as Day[];
@@ -83,6 +85,8 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
           .select("vehicle_id, started_at, idle_sec, mode")
           .gte("started_at", fromIso)
           .lte("started_at", toIso)
+          .order("vehicle_id", { ascending: true }) // stable, unique per row → no dropped/duplicated pages
+          .order("started_at", { ascending: true })
           .range(offset, offset + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as Sess[];
@@ -151,21 +155,32 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
         verdict.set(v.id, { confident: r.confident, hasAlternative: r.hasAlternative });
       }
 
-      // Build attribution buckets on CONFIDENT trucks only.
+      // Attribute EVERY truck that ran, so every driver who drove appears (not just those on confident trucks —
+      // that was hiding most of the fleet's drivers). Engine-on/idle are credited for all trucks; avoidable only
+      // where the truck is confident AND has a demonstrated alternative; and confidentEngineOnSec (the score
+      // denominator) only for confident trucks, so an un-judgeable driver still shows but isn't scored.
       const dayNoonMs = (day: string) => Date.parse(`${day}T12:00:00Z`);
       const buckets: IdleBucket[] = [];
       for (const r of sessRows) {
         const v = vehById.get(r.vehicle_id);
         const ver = verdict.get(r.vehicle_id);
-        if (!v?.samsara_vehicle_id || !ver?.confident) continue;
-        const avoidableSec = r.mode === "continuous" && ver.hasAlternative ? Number(r.idle_sec) : 0;
+        if (!v?.samsara_vehicle_id) continue;
+        const avoidableSec = r.mode === "continuous" && ver?.confident && ver.hasAlternative ? Number(r.idle_sec) : 0;
         if (avoidableSec > 0) buckets.push({ vehicleSamsaraId: v.samsara_vehicle_id, atMs: Date.parse(r.started_at), avoidableSec, engineOnSec: 0, idleSec: 0 });
       }
       for (const r of dayRows) {
         const v = vehById.get(r.vehicle_id);
         const ver = verdict.get(r.vehicle_id);
-        if (!v?.samsara_vehicle_id || !ver?.confident) continue;
-        buckets.push({ vehicleSamsaraId: v.samsara_vehicle_id, atMs: dayNoonMs(r.day), avoidableSec: 0, engineOnSec: Number(r.drive_sec) + Number(r.idle_sec), idleSec: Number(r.idle_sec) });
+        if (!v?.samsara_vehicle_id) continue;
+        const engineOnSec = Number(r.drive_sec) + Number(r.idle_sec);
+        buckets.push({
+          vehicleSamsaraId: v.samsara_vehicle_id,
+          atMs: dayNoonMs(r.day),
+          avoidableSec: 0,
+          engineOnSec,
+          idleSec: Number(r.idle_sec),
+          confidentEngineOnSec: ver?.confident ? engineOnSec : 0,
+        });
       }
 
       const totals = attributeDriverIdle(buckets, assignments);
@@ -179,7 +194,8 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
           avoidableH: hrs(t.avoidableSec),
           avoidableUsd: avoidableCost(t.avoidableSec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd,
           idlePct: t.engineOnSec > 0 ? Math.round((t.idleSec / t.engineOnSec) * 1000) / 10 : 0,
-          score: idleScore(t.avoidableSec, t.engineOnSec),
+          // Score off the JUDGEABLE basis only → null (shown as "—") when none of the driver's trucks were confident.
+          score: idleScore(t.avoidableSec, t.confidentEngineOnSec),
         };
       });
       // Worst first: most avoidable $, then most avoidable hours.

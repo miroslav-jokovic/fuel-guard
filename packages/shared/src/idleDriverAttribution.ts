@@ -21,6 +21,9 @@ export interface IdleBucket {
   avoidableSec: number;
   engineOnSec: number;
   idleSec: number;
+  /** Engine-on seconds on a JUDGEABLE truck (confident + known capability) — the score denominator. Defaults
+   *  to 0, so a driver whose trucks are all not-yet-judgeable still appears (engine-on/idle) but isn't scored. */
+  confidentEngineOnSec?: number;
 }
 
 export interface DriverIdleTotals {
@@ -28,6 +31,7 @@ export interface DriverIdleTotals {
   avoidableSec: number;
   engineOnSec: number;
   idleSec: number;
+  confidentEngineOnSec: number;
 }
 
 /**
@@ -47,13 +51,14 @@ export function driverAt(assignments: DriverAssignment[], vehicleSamsaraId: stri
 
 /** Credit every bucket to the driver assigned at its instant and total per driver (null = unattributed). */
 export function attributeDriverIdle(buckets: IdleBucket[], assignments: DriverAssignment[]): DriverIdleTotals[] {
-  const by = new Map<string | null, { avoidableSec: number; engineOnSec: number; idleSec: number }>();
+  const by = new Map<string | null, { avoidableSec: number; engineOnSec: number; idleSec: number; confidentEngineOnSec: number }>();
   for (const b of buckets) {
     const driver = driverAt(assignments, b.vehicleSamsaraId, b.atMs);
-    const t = by.get(driver) ?? { avoidableSec: 0, engineOnSec: 0, idleSec: 0 };
+    const t = by.get(driver) ?? { avoidableSec: 0, engineOnSec: 0, idleSec: 0, confidentEngineOnSec: 0 };
     t.avoidableSec += b.avoidableSec;
     t.engineOnSec += b.engineOnSec;
     t.idleSec += b.idleSec;
+    t.confidentEngineOnSec += b.confidentEngineOnSec ?? 0;
     by.set(driver, t);
   }
   return [...by.entries()].map(([driverSamsaraId, t]) => ({ driverSamsaraId, ...t }));

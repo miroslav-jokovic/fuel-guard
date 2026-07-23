@@ -70,13 +70,21 @@ export interface AvoidableResult {
 }
 
 function resolveAlternative(i: AvoidableInput): { hasAlternative: boolean; alternative: IdleAlternative } {
-  if (i.hasApu === true) return { hasAlternative: true, alternative: "apu" };
-  if (i.hasOptimizedIdle === true) return { hasAlternative: true, alternative: "optimized_idle" };
-  if (i.learnedCapability === "apu") return { hasAlternative: true, alternative: "learned_apu" };
-  if (i.learnedCapability === "ecu_optimized") return { hasAlternative: true, alternative: "learned_optimized" };
-  // No alternative: an explicit "no APU", or a truck that DEMONSTRABLY only idles continuously.
-  if (i.hasApu === false || i.learnedCapability === "continuous_only") return { hasAlternative: false, alternative: "none" };
-  return { hasAlternative: false, alternative: "unknown" }; // capability unknown + no admin flag → can't judge
+  // Judge avoidability from DEMONSTRATED behaviour — the capability LEARNED from the truck's own engine
+  // on/off pattern (learnIdleCapability) — not from an equipment flag. We can't rely on a Samsara/record
+  // claim that a truck "has optimized idle / an APU" to decide it could have idled less; we trust what its
+  // own parks show it actually does. The recorded has_apu / has_optimized_idle flags are kept on the input
+  // for the capability-tab cross-check, but they no longer drive the avoidable verdict.
+  switch (i.learnedCapability) {
+    case "apu": // demonstrably rests engine-off on a meaningful share of parks
+      return { hasAlternative: true, alternative: "learned_apu" };
+    case "ecu_optimized": // demonstrably auto start/stop cycles
+      return { hasAlternative: true, alternative: "learned_optimized" };
+    case "continuous_only": // demonstrably only ever idles continuously → no shown alternative
+      return { hasAlternative: false, alternative: "none" };
+    default:
+      return { hasAlternative: false, alternative: "unknown" }; // not enough pattern evidence yet → don't guess
+  }
 }
 
 /** Compute the avoidable-idle verdict for one truck over one period, from stored facts only. */
@@ -90,8 +98,19 @@ export function computeAvoidable(input: AvoidableInput, opts: AvoidableOpts = {}
     if (s.mode === "continuous") continuousIdleSec += s.idleSec;
     else managedIdleSec += s.idleSec; // apu_or_off | optimized_cycling
   }
+  // Park sessions (idle_park_sessions) and the day totals (vehicle_engine_days) are synced independently, so
+  // classified idle can drift ABOVE the observed idle for the period. Never allow that: scale the session
+  // split down to fit the day-total idle, so managed+continuous ≤ idle and therefore
+  // avoidable ≤ continuous ≤ idle ≤ engine-on ALWAYS holds (no more "30 h avoidable of a 22 h engine-on truck").
+  const observedIdle = Math.max(0, input.idleSec);
+  const classifiedIdle = managedIdleSec + continuousIdleSec;
+  if (classifiedIdle > observedIdle && classifiedIdle > 0) {
+    const scale = observedIdle / classifiedIdle;
+    managedIdleSec *= scale;
+    continuousIdleSec *= scale;
+  }
   // Idle the ≥30-min park sessions didn't cover (short stops) — never counted as waste.
-  const shortIdleSec = Math.max(0, input.idleSec - (managedIdleSec + continuousIdleSec));
+  const shortIdleSec = Math.max(0, observedIdle - (managedIdleSec + continuousIdleSec));
 
   const { hasAlternative, alternative } = resolveAlternative(input);
   const avoidableIdleSec = hasAlternative ? continuousIdleSec : 0;

@@ -31,8 +31,8 @@ describe("attributeDriverIdle", () => {
     ];
     const rows = attributeDriverIdle(buckets, assignments);
     const byId = Object.fromEntries(rows.map((r) => [r.driverSamsaraId, r]));
-    expect(byId["D1"]).toEqual({ driverSamsaraId: "D1", avoidableSec: 2 * H, engineOnSec: 10 * H, idleSec: 3 * H });
-    expect(byId["D2"]).toEqual({ driverSamsaraId: "D2", avoidableSec: 1 * H, engineOnSec: 8 * H, idleSec: 2 * H });
+    expect(byId["D1"]).toEqual({ driverSamsaraId: "D1", avoidableSec: 2 * H, engineOnSec: 10 * H, idleSec: 3 * H, confidentEngineOnSec: 0 });
+    expect(byId["D2"]).toEqual({ driverSamsaraId: "D2", avoidableSec: 1 * H, engineOnSec: 8 * H, idleSec: 2 * H, confidentEngineOnSec: 0 });
     expect(byId["D3"]!.avoidableSec).toBe(0);
     expect(byId["D3"]!.engineOnSec).toBe(12 * H);
   });
@@ -54,6 +54,15 @@ describe("attributeDriverIdle", () => {
     ];
     const rows = attributeDriverIdle(buckets, assignments);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toEqual({ driverSamsaraId: "D1", avoidableSec: 3 * H, engineOnSec: 9 * H, idleSec: 3 * H });
+    expect(rows[0]).toEqual({ driverSamsaraId: "D1", avoidableSec: 3 * H, engineOnSec: 9 * H, idleSec: 3 * H, confidentEngineOnSec: 0 });
+  });
+
+  it("tracks confident engine-on separately so unjudgeable trucks still attribute engine-on but no score basis", () => {
+    const buckets: IdleBucket[] = [
+      { vehicleSamsaraId: "V1", atMs: day(3), avoidableSec: 0, engineOnSec: 6 * H, idleSec: 2 * H, confidentEngineOnSec: 6 * H }, // confident
+      { vehicleSamsaraId: "V1", atMs: day(4), avoidableSec: 0, engineOnSec: 4 * H, idleSec: 1 * H }, // not judgeable → 0 basis
+    ];
+    const rows = attributeDriverIdle(buckets, assignments);
+    expect(rows[0]).toEqual({ driverSamsaraId: "D1", avoidableSec: 0, engineOnSec: 10 * H, idleSec: 3 * H, confidentEngineOnSec: 6 * H });
   });
 });
