@@ -146,14 +146,14 @@ function clearTrk() {
 watch(trkFiltered, () => (trkPage.value = 1));
 const trkColumns: DataTableColumn[] = [
   { key: "unit", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
-  { key: "engineOnH", label: "Engine-on h", sortable: true, numeric: true },
-  { key: "driveH", label: "Drove h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "idleH", label: "Idled h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "engineOnH", label: "Engine hours", sortable: true, numeric: true },
+  { key: "driveH", label: "Driving hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
-  { key: "avoidableH", label: "Avoidable h", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
-  { key: "avoidableUsd", label: "Avoidable $", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
-  { key: "capability", label: "Capability" },
-  { key: "coveragePct", label: "Confidence", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "avoidableUsd", label: "Avoidable cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "capability", label: "Idle capability" },
+  { key: "coveragePct", label: "Data confidence", sortable: true, numeric: true, cellClass: "text-ink-muted" },
 ];
 
 // ── collapsible "how scoring works" panel (replaces the always-on top blurb) ──
@@ -208,10 +208,10 @@ const drvColumns: DataTableColumn[] = [
   { key: "rank", label: "#", cellClass: "text-ink-subtle" },
   { key: "driverName", label: "Driver" },
   { key: "score", label: "Idle score", sortable: true, numeric: true },
-  { key: "engineOnH", label: "Engine-on h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "idleH", label: "Idled h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "engineOnH", label: "Engine hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
-  { key: "avoidableH", label: "Avoidable h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "avoidableUsd", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
 ];
 
@@ -241,9 +241,9 @@ watch(capFiltered, () => (capPage.value = 1));
 
 const capColumns: DataTableColumn[] = [
   { key: "unit_number", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
-  { key: "recorded", label: "Engine-off capable (recorded)" },
+  { key: "recorded", label: "Recorded equipment" },
   { key: "idle_capability", label: "What the data shows" },
-  { key: "idle_optimized_pct", label: "% time engine off/optimized", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idle_optimized_pct", label: "Engine off / optimized %", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "cross_check", label: "Cross-check", align: "center" },
 ];
   return {

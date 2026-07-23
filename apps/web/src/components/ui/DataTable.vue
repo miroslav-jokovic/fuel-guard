@@ -125,7 +125,7 @@ const isSelected = (row: Row) => props.selected?.has(keyOf(row)) ?? false;
 
 /* ── alignment & padding (headers follow their column) ────────────────── */
 const alignCls = (col: DataTableColumn): string =>
-  col.numeric || col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left";
+  col.align === "left" ? "text-left" : col.align === "right" ? "text-right" : "text-center";
 
 const pad = computed(() => (props.dense ? "px-4 py-2" : "px-4 py-3"));
 
