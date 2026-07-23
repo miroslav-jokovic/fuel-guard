@@ -68,7 +68,7 @@ export function fuelingRouter(): Router {
   router.post(
     "/plan",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole("admin", "fleet_manager", "dispatcher"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -88,7 +88,7 @@ export function fuelingRouter(): Router {
   router.get(
     "/plans",
     requireOrg,
-    requireRole("admin", "fleet_manager", "auditor"),
+    requireRole("admin", "fleet_manager", "auditor", "dispatcher"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -103,7 +103,7 @@ export function fuelingRouter(): Router {
   router.delete(
     "/plans/:id",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole("admin", "fleet_manager", "dispatcher"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -126,7 +126,7 @@ export function fuelingRouter(): Router {
   router.post(
     "/plans/delete",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole("admin", "fleet_manager", "dispatcher"),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
@@ -206,7 +206,7 @@ export function fuelingRouter(): Router {
   router.post(
     "/prices",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole("admin", "fleet_manager", "dispatcher"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -252,7 +252,7 @@ export function fuelingRouter(): Router {
   router.post(
     "/posted-prices",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole("admin", "fleet_manager", "dispatcher"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

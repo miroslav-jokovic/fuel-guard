@@ -15,7 +15,7 @@ export function anomaliesRouter(): Router {
   router.post(
     "/:id/transition",
     requireOrg,
-    requireRole("admin", "fleet_manager"),
+    requireRole("admin", "fleet_manager", "safety_manager"),
     validateBody(anomalyTransitionSchema),
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);

@@ -14,7 +14,7 @@ export function aiRouter(): Router {
   router.post(
     "/ask",
     requireOrg,
-    requireRole("admin", "fleet_manager", "auditor"),
+    requireRole("admin", "fleet_manager", "auditor", "dispatcher", "safety_manager"),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       if (!env.ANTHROPIC_API_KEY) {
