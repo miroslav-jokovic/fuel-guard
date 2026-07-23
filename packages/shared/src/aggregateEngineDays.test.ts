@@ -16,7 +16,7 @@ describe("aggregateEngineDays", () => {
     ];
     const days = aggregateEngineDays(samples);
     expect(days).toEqual([
-      { day: "2026-03-10", driveSec: 3 * H, idleSec: 1 * H, offSec: 1 * H, coverageSec: 5 * H },
+      { day: "2026-03-10", driveSec: 3 * H, idleSec: 1 * H, offSec: 1 * H, coverageSec: 5 * H, tzOffsetMinutes: 0 },
     ]);
   });
 
@@ -28,8 +28,8 @@ describe("aggregateEngineDays", () => {
     ];
     const days = aggregateEngineDays(samples);
     expect(days).toEqual([
-      { day: "2026-03-10", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H },
-      { day: "2026-03-11", driveSec: 1 * H, idleSec: 2 * H, offSec: 0, coverageSec: 3 * H },
+      { day: "2026-03-10", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H, tzOffsetMinutes: 0 },
+      { day: "2026-03-11", driveSec: 1 * H, idleSec: 2 * H, offSec: 0, coverageSec: 3 * H, tzOffsetMinutes: 0 },
     ]);
   });
 
@@ -40,10 +40,10 @@ describe("aggregateEngineDays", () => {
     ];
     const days = aggregateEngineDays(samples);
     expect(days).toEqual([
-      { day: "2026-03-10", driveSec: 0, idleSec: 0, offSec: 6 * H, coverageSec: 6 * H },
-      { day: "2026-03-11", driveSec: 0, idleSec: 0, offSec: 24 * H, coverageSec: 24 * H },
-      { day: "2026-03-12", driveSec: 0, idleSec: 0, offSec: 24 * H, coverageSec: 24 * H },
-      { day: "2026-03-13", driveSec: 0, idleSec: 0, offSec: 6 * H, coverageSec: 6 * H },
+      { day: "2026-03-10", driveSec: 0, idleSec: 0, offSec: 6 * H, coverageSec: 6 * H, tzOffsetMinutes: 0 },
+      { day: "2026-03-11", driveSec: 0, idleSec: 0, offSec: 24 * H, coverageSec: 24 * H, tzOffsetMinutes: 0 },
+      { day: "2026-03-12", driveSec: 0, idleSec: 0, offSec: 24 * H, coverageSec: 24 * H, tzOffsetMinutes: 0 },
+      { day: "2026-03-13", driveSec: 0, idleSec: 0, offSec: 6 * H, coverageSec: 6 * H, tzOffsetMinutes: 0 },
     ]);
   });
 
@@ -54,12 +54,34 @@ describe("aggregateEngineDays", () => {
       { t: at(2026, 3, 10, 8), state: "Off" },
     ];
     expect(aggregateEngineDays(samples, { tzOffsetMinutes: -360 })).toEqual([
-      { day: "2026-03-09", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H },
-      { day: "2026-03-10", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H },
+      { day: "2026-03-09", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H, tzOffsetMinutes: -360 },
+      { day: "2026-03-10", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H, tzOffsetMinutes: -360 },
     ]);
     // Same data in UTC lands entirely on the 10th.
     expect(aggregateEngineDays(samples)).toEqual([
-      { day: "2026-03-10", driveSec: 0, idleSec: 4 * H, offSec: 0, coverageSec: 4 * H },
+      { day: "2026-03-10", driveSec: 0, idleSec: 4 * H, offSec: 0, coverageSec: 4 * H, tzOffsetMinutes: 0 },
+    ]);
+  });
+
+  it("cuts the day on the zone's REAL local midnight (DST-correct) with an IANA tz", () => {
+    // Winter (CST, -360): local midnight of 01-10 is 06:00Z. 04:00–08:00Z splits 2h/2h across 01-09 / 01-10.
+    const winter: EngineSample[] = [
+      { t: at(2026, 1, 10, 4), state: "Idle" },
+      { t: at(2026, 1, 10, 8), state: "Off" },
+    ];
+    expect(aggregateEngineDays(winter, { tz: "America/Chicago" })).toEqual([
+      { day: "2026-01-09", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H, tzOffsetMinutes: -360 },
+      { day: "2026-01-10", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H, tzOffsetMinutes: -360 },
+    ]);
+    // Summer (CDT, -300): SAME zone, local midnight of 07-10 is 05:00Z. 03:00–07:00Z splits 2h/2h across
+    // 07-09 / 07-10 — the fixed-offset path can't do this; the offset recorded flips to -300.
+    const summer: EngineSample[] = [
+      { t: at(2026, 7, 10, 3), state: "Idle" },
+      { t: at(2026, 7, 10, 7), state: "Off" },
+    ];
+    expect(aggregateEngineDays(summer, { tz: "America/Chicago" })).toEqual([
+      { day: "2026-07-09", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H, tzOffsetMinutes: -300 },
+      { day: "2026-07-10", driveSec: 0, idleSec: 2 * H, offSec: 0, coverageSec: 2 * H, tzOffsetMinutes: -300 },
     ]);
   });
 
@@ -81,6 +103,6 @@ describe("aggregateEngineDays", () => {
       { t: at(2026, 3, 10, 9), state: "Idle" },
       { t: at(2026, 3, 10, 10), state: "Off" },
     ]);
-    expect(days).toEqual([{ day: "2026-03-10", driveSec: 0, idleSec: 1 * H, offSec: 0, coverageSec: 1 * H }]);
+    expect(days).toEqual([{ day: "2026-03-10", driveSec: 0, idleSec: 1 * H, offSec: 0, coverageSec: 1 * H, tzOffsetMinutes: 0 }]);
   });
 });

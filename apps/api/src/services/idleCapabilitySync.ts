@@ -38,6 +38,11 @@ export async function syncIdleCapabilities(
   const vehicles = (vs ?? []) as { id: string; samsara_vehicle_id: string }[];
   if (vehicles.length === 0) return { vehicles: 0, learned: 0, engineDays: 0, parkSessions: 0 };
 
+  // Fleet-local day boundary: bucket engine-days on the org's operating timezone (DST-correct), so "a day" is
+  // the fleet's clock, not UTC. Mirrors driverScoreSync / dashboard; same "America/Chicago" default.
+  const { data: orgRow } = await admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle();
+  const orgTz = (orgRow?.operating_hours as { tz?: string } | null | undefined)?.tz ?? "America/Chicago";
+
   const days = opts.sinceDays ?? 30;
   const endIso = new Date().toISOString();
   const startIso = new Date(Date.now() - days * 86_400_000).toISOString();
@@ -65,8 +70,8 @@ export async function syncIdleCapabilities(
 
       // Foundation: persist the per-day engine-time split (drive/idle/off/coverage) and each classified park
       // session, from THIS same engineStates pass, so the avoidable module reads stored facts (no re-fetch).
-      // tz_offset_minutes 0 = UTC day boundaries for now (a fleet-local boundary can be introduced later).
-      const engDays = aggregateEngineDays(samples).map((d) => ({
+      // Days are cut on the fleet's operating timezone (DST-correct); each row records the offset it used.
+      const engDays = aggregateEngineDays(samples, { tz: orgTz }).map((d) => ({
         org_id: orgId,
         vehicle_id: vehicleId,
         day: d.day,
@@ -74,7 +79,7 @@ export async function syncIdleCapabilities(
         idle_sec: d.idleSec,
         off_sec: d.offSec,
         coverage_sec: d.coverageSec,
-        tz_offset_minutes: 0,
+        tz_offset_minutes: d.tzOffsetMinutes,
         synced_at: nowIso,
       }));
       if (engDays.length) {

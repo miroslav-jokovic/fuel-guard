@@ -9,6 +9,9 @@
  * Off/On/Idle pattern: "On" = driving (splits parks), "Idle" = engine-on idle, "Off" = shut down / APU.
  */
 
+import { dayInTz } from "./dashboard.js";
+import { zonedWallTimeToUtcIso } from "./efsImport/index.js";
+
 export type EngineState = "Off" | "On" | "Idle";
 
 export interface EngineSample {
@@ -182,6 +185,9 @@ export interface EngineDay {
   offSec: number;
   /** Seconds of the day actually accounted for by samples (= drive+idle+off). ÷86400 = data confidence. */
   coverageSec: number;
+  /** The UTC offset (minutes) of the boundary this day was bucketed on — 0 for UTC, e.g. -360 for US Central,
+   *  -300 the same fleet on Central DST. Records the exact clock the day was cut on for auditability. */
+  tzOffsetMinutes: number;
 }
 
 /**
@@ -192,23 +198,44 @@ export interface EngineDay {
  * interval (e.g. a truck left Off over a weekend) contributes to every day it spans. Time before the first
  * sample or after the last is NOT invented — coverage reflects only what the data actually shows.
  *
- * `tzOffsetMinutes` shifts the day boundary off UTC (e.g. -360 for US Central) so "a day" matches the fleet's
- * operating clock; default 0 (UTC) is deterministic and tz-free.
+ * The day boundary matches the fleet's operating clock. Pass `tz` (an IANA zone, e.g. "America/Chicago") for
+ * a DST-correct boundary — the preferred path; each day is cut on that zone's real local midnight, so a truck
+ * left idling across local midnight is split on the right hour even across a DST change. `tzOffsetMinutes` is
+ * the older fixed-offset boundary (e.g. -360 for US Central, no DST). Default (neither given) = UTC, which is
+ * deterministic and tz-free. `tz` wins when both are supplied.
  */
 export function aggregateEngineDays(
   samples: EngineSample[],
-  opts: { tzOffsetMinutes?: number } = {},
+  opts: { tz?: string | null; tzOffsetMinutes?: number } = {},
 ): EngineDay[] {
-  const tzMs = (opts.tzOffsetMinutes ?? 0) * 60_000;
   const s = [...samples].filter((x) => Number.isFinite(x.t)).sort((a, b) => a.t - b.t);
   if (s.length < 2) return [];
 
-  const dayKey = (ms: number): string => new Date(ms + tzMs).toISOString().slice(0, 10);
-  // First real-epoch instant of the NEXT local day after `ms`.
-  const nextLocalMidnight = (ms: number): number => {
-    const d = new Date(ms + tzMs);
-    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) - tzMs;
-  };
+  const tz = opts.tz || null; // IANA zone → DST-correct path
+  const fixedOffMin = opts.tzOffsetMinutes ?? 0;
+  const fixedTzMs = fixedOffMin * 60_000;
+  const utcMidnightMs = (day: string) => Date.parse(`${day}T00:00:00Z`);
+  const addOneDay = (day: string) => new Date(utcMidnightMs(day) + 86_400_000).toISOString().slice(0, 10);
+
+  let dayKey: (ms: number) => string;
+  let nextLocalMidnight: (ms: number) => number;
+  let dayOffsetMin: (day: string) => number;
+
+  if (tz) {
+    // DST-correct: local calendar day + the real UTC instant of each local midnight for this zone.
+    const localMidnightMs = (day: string) => Date.parse(zonedWallTimeToUtcIso(day, "00:00:00", tz));
+    dayKey = (ms) => dayInTz(new Date(ms).toISOString(), tz);
+    nextLocalMidnight = (ms) => localMidnightMs(addOneDay(dayKey(ms)));
+    dayOffsetMin = (day) => Math.round((utcMidnightMs(day) - localMidnightMs(day)) / 60_000);
+  } else {
+    // Fixed-offset (or UTC): simple arithmetic, no DST awareness.
+    dayKey = (ms) => new Date(ms + fixedTzMs).toISOString().slice(0, 10);
+    nextLocalMidnight = (ms) => {
+      const d = new Date(ms + fixedTzMs);
+      return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) - fixedTzMs;
+    };
+    dayOffsetMin = () => fixedOffMin;
+  }
 
   const days = new Map<string, { drive: number; idle: number; off: number }>();
   for (let i = 0; i < s.length - 1; i++) {
@@ -237,5 +264,6 @@ export function aggregateEngineDays(
       idleSec: Math.round(b.idle),
       offSec: Math.round(b.off),
       coverageSec: Math.round(b.drive + b.idle + b.off),
+      tzOffsetMinutes: dayOffsetMin(day),
     }));
 }
