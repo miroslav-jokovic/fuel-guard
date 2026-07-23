@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { USER_ROLES, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
+import { USER_ROLES, USER_ROLE_LABELS, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import AppSelect from "@/components/AppSelect.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
@@ -193,7 +193,7 @@ onMounted(load);
         <FormField label="Role">
           <AppSelect
             v-model="role"
-            :options="USER_ROLES.map((r) => ({ value: r, label: r }))"
+            :options="USER_ROLES.map((r) => ({ value: r, label: USER_ROLE_LABELS[r] }))"
           />
         </FormField>
         <BaseButton variant="primary" type="submit" :disabled="submitting">

@@ -1,4 +1,5 @@
 import type { FunctionalComponent } from "vue";
+import { canViewSection, canManageSection, canManageFleet, isAdmin, type UserRole } from "@fuelguard/shared";
 import {
   HomeIcon,
   TruckIcon,
@@ -35,29 +36,24 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-/** The slice of the session's role capabilities the sidebar needs to decide visibility. */
-export interface NavSession {
-  canManage: boolean;
-  readOnly: boolean;
-  admin: boolean;
-}
-
 /**
  * The single source of truth for the sidebar. Sections mirror the product areas — Fuel, Dispatch, Safety,
  * Fleet — with Dashboard/Ask AI at the top and Admin pinned last. Health/QA/config surfaces (Detection
  * Coverage, Reefer Coverage, Recall Audit, Reports) intentionally live on the Settings page, not here.
  *
- * `show` is UI gating ONLY — RLS + the API's requireRole checks are the real enforcement. When the
- * department roles (dispatcher, safety_manager) land, swap these predicates for section capabilities.
+ * `show` is UI gating ONLY — RLS + the API's requireRole checks are the real enforcement. Visibility is
+ * driven by the shared section-capability matrix (auth.ts): canViewSection opens a section read-only,
+ * canManageSection gates the write surfaces (Import, Fuel Planning). Dashboard + Fuel Log stay ungated so
+ * drivers keep them; Ask AI is any signed-in staff role (not driver).
  */
-export function buildNavGroups(s: NavSession): NavGroup[] {
-  const manageOrRead = s.canManage || s.readOnly;
+export function buildNavGroups(role: UserRole | null): NavGroup[] {
+  const isStaff = role != null && role !== "driver";
   return [
     {
       label: null,
       items: [
         { name: "Dashboard", to: "/", icon: HomeIcon, show: true },
-        { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: manageOrRead },
+        { name: "Ask AI", to: "/ask", icon: SparklesIcon, show: isStaff },
       ],
     },
     {
@@ -65,44 +61,45 @@ export function buildNavGroups(s: NavSession): NavGroup[] {
       icon: BeakerIcon,
       items: [
         { name: "Fuel Log", to: "/fuel-log", icon: BeakerIcon, show: true },
-        { name: "Transactions", to: "/transactions", icon: TableCellsIcon, show: manageOrRead },
-        { name: "Rejections", to: "/rejections", icon: NoSymbolIcon, show: manageOrRead },
-        { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: s.canManage },
+        { name: "Transactions", to: "/transactions", icon: TableCellsIcon, show: canViewSection(role, "fuel") },
+        { name: "Rejections", to: "/rejections", icon: NoSymbolIcon, show: canViewSection(role, "fuel") },
+        { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: canManageSection(role, "fuel") },
       ],
     },
     {
       label: "Dispatch",
       icon: MapIcon,
       items: [
-        { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: s.canManage },
-        { name: "Truck Stops", to: "/truck-stops", icon: BuildingStorefrontIcon, show: manageOrRead },
+        { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: canManageSection(role, "dispatch") },
+        { name: "Truck Stops", to: "/truck-stops", icon: BuildingStorefrontIcon, show: canViewSection(role, "dispatch") },
       ],
     },
     {
       label: "Safety",
       icon: ShieldCheckIcon,
       items: [
-        { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: manageOrRead },
-        { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: manageOrRead },
-        { name: "Idling", to: "/idling", icon: ClockIcon, show: manageOrRead },
+        { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: canViewSection(role, "safety") },
+        { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: canViewSection(role, "safety") },
+        { name: "Idling", to: "/idling", icon: ClockIcon, show: canViewSection(role, "safety") },
       ],
     },
     {
       label: "Fleet",
       icon: TruckIcon,
       items: [
-        { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: manageOrRead },
-        { name: "Trailers", to: "/trailers", icon: ArchiveBoxIcon, show: manageOrRead },
-        { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: manageOrRead },
-        { name: "Odometer", to: "/odometer", icon: ArrowsRightLeftIcon, show: manageOrRead },
+        { name: "Vehicles", to: "/vehicles", icon: TruckIcon, show: canViewSection(role, "fleet") },
+        { name: "Trailers", to: "/trailers", icon: ArchiveBoxIcon, show: canViewSection(role, "fleet") },
+        { name: "Drivers", to: "/drivers", icon: UserGroupIcon, show: canViewSection(role, "fleet") },
+        { name: "Odometer", to: "/odometer", icon: ArrowsRightLeftIcon, show: canViewSection(role, "fleet") },
       ],
     },
     {
       label: "Admin",
       icon: Cog6ToothIcon,
       items: [
-        { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: s.canManage },
-        { name: "Users", to: "/settings/users", icon: UsersIcon, show: s.admin },
+        // Settings = org config (admin + fleet_manager); Users = admin only. Department roles get neither.
+        { name: "Settings", to: "/settings", icon: Cog6ToothIcon, show: canManageFleet(role) },
+        { name: "Users", to: "/settings/users", icon: UsersIcon, show: isAdmin(role) },
       ],
     },
   ]

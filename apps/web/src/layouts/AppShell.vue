@@ -16,7 +16,7 @@ const queryClient = useQueryClient();
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const navGroups = computed<NavGroup[]>(() =>
-  buildNavGroups({ canManage: session.canManage, readOnly: session.readOnly, admin: session.admin }),
+  buildNavGroups(session.role),
 );
 
 // Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching
