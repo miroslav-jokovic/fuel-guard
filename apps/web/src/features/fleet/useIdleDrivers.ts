@@ -4,7 +4,6 @@ import {
   computeAvoidable,
   avoidableCost,
   idleScore,
-  driverAt,
   type IdleMode,
   type IdleCapability,
   type DriverAssignment,
@@ -45,12 +44,12 @@ const hrs = (sec: number) => Math.round(sec / 360) / 10;
 
 /**
  * The driver idle leaderboard: engine-on / idle / avoidable time attributed to the driver who had each truck,
- * scored avoidable ÷ engine-on. Driver resolution is OPERATOR-FIRST — the driver Samsara attaches to each idle
- * event (idle_events.driver_id), taken as the dominant driver per (vehicle, day) and per vehicle — with the
- * Samsara driver↔vehicle assignment feed as a fallback. This restores full driver coverage: the assignment
- * feed alone is sparse for this fleet, but every truck that idles carries an operator. Every truck that ran is
- * attributed (so all drivers appear); only confident trucks feed the score denominator, so no one is scored on
- * thin data.
+ * scored avoidable ÷ engine-on. Driver resolution picks the DOMINANT driver per (vehicle, day) from two rich
+ * Samsara signals combined by time: the operator on each idle event (idle_events.driver_id) plus the day
+ * OVERLAP of the driver↔vehicle assignment intervals (Samsara HOS driving segments). Measuring overlap — rather
+ * than sampling one instant — is what makes the short, scattered HOS segments count, and it covers trucks that
+ * drove but never idled. Falls back to the vehicle's overall dominant driver. Every truck that ran is attributed
+ * (so all drivers appear); only confident trucks feed the score denominator, so no one is scored on thin data.
  */
 export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<IdleCostBasis>) {
   return useQuery({
@@ -166,6 +165,37 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
         endMs: a.end_at ? Date.parse(a.end_at) : null,
       }));
 
+      // Fold the driver↔vehicle assignment intervals (Samsara HOS driving segments + operator-derived) into the
+      // SAME dominant-driver-per-day maps, by day OVERLAP. HOS segments are short and scattered, so sampling a
+      // single instant missed them — measuring each interval's overlap with each day it spans is what makes the
+      // rich assignment data actually count, and it covers trucks that drove but never idled.
+      const samsaraToVeh = new Map<string, string>();
+      for (const v of vehicles) if (v.samsara_vehicle_id) samsaraToVeh.set(v.samsara_vehicle_id, v.id);
+      const winStart = Date.parse(fromIso);
+      const winEnd = Date.parse(toIso);
+      const DAY_MS = 86_400_000;
+      const addDur = (vehId: string, day: string, driverId: string, sec: number) => {
+        const kd = `${vehId}|${day}`;
+        const md = durVehDay.get(kd) ?? new Map<string, number>();
+        md.set(driverId, (md.get(driverId) ?? 0) + sec);
+        durVehDay.set(kd, md);
+        const mv = durVeh.get(vehId) ?? new Map<string, number>();
+        mv.set(driverId, (mv.get(driverId) ?? 0) + sec);
+        durVeh.set(vehId, mv);
+      };
+      for (const a of assignments) {
+        const vehId = samsaraToVeh.get(a.vehicleSamsaraId);
+        const drvId = driverBySamsara.get(a.driverSamsaraId)?.id;
+        if (!vehId || !drvId) continue;
+        const s = Math.max(a.startMs, winStart);
+        const e = Math.min(a.endMs ?? winEnd, winEnd);
+        if (!(e > s)) continue;
+        for (let dayStart = Math.floor(s / DAY_MS) * DAY_MS; dayStart < e; dayStart += DAY_MS) {
+          const ov = Math.min(e, dayStart + DAY_MS) - Math.max(s, dayStart);
+          if (ov > 0) addDur(vehId, new Date(dayStart).toISOString().slice(0, 10), drvId, ov / 1000);
+        }
+      }
+
       // Per-vehicle sums + session lists, to compute the truck verdict (hasAlternative + confident).
       const engByVeh = new Map<string, { drive: number; idle: number; off: number; cov: number }>();
       for (const r of dayRows) {
@@ -198,17 +228,10 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
         verdict.set(v.id, { confident: r.confident, hasAlternative: r.hasAlternative });
       }
 
-      // Resolve the driver for a truck at an instant: the day's dominant operator (idle_events) → the vehicle's
-      // overall dominant operator → the Samsara assignment at that time (fallback). Returns OUR driver id.
-      const resolveDriver = (vehId: string, samsaraVehId: string | null, day: string, atMs: number): string | null => {
-        const byDay = topDriver(durVehDay.get(`${vehId}|${day}`));
-        if (byDay) return byDay;
-        const byVeh = topDriver(durVeh.get(vehId));
-        if (byVeh) return byVeh;
-        if (!samsaraVehId) return null;
-        const samsaraDrv = driverAt(assignments, samsaraVehId, atMs);
-        return samsaraDrv ? (driverBySamsara.get(samsaraDrv)?.id ?? null) : null;
-      };
+      // Resolve a truck's driver for a day: the dominant driver that day (idle-event operators + assignment
+      // overlap, combined above) → the vehicle's overall dominant driver as a last resort. Returns OUR driver id.
+      const resolveDriver = (vehId: string, day: string): string | null =>
+        topDriver(durVehDay.get(`${vehId}|${day}`)) ?? topDriver(durVeh.get(vehId));
 
       // Attribute EVERY truck that ran, so every driver who drove appears. Engine-on/idle credited for all
       // trucks; avoidable only where the truck is confident AND has a demonstrated alternative; the score
@@ -224,21 +247,18 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
         t.confidentEngineOnSec += p.confidentEngineOnSec ?? 0;
         byDriver.set(driverId, t);
       };
-      const noon = (day: string) => Date.parse(`${day}T12:00:00Z`);
       for (const r of dayRows) {
-        const v = vehById.get(r.vehicle_id);
-        if (!v) continue;
+        if (!vehById.has(r.vehicle_id)) continue;
         const ver = verdict.get(r.vehicle_id);
         const engineOnSec = Number(r.drive_sec) + Number(r.idle_sec);
-        const driver = resolveDriver(r.vehicle_id, v.samsara_vehicle_id, r.day, noon(r.day));
+        const driver = resolveDriver(r.vehicle_id, r.day);
         add(driver, { engineOnSec, idleSec: Number(r.idle_sec), confidentEngineOnSec: ver?.confident ? engineOnSec : 0 });
       }
       for (const r of sessRows) {
-        const v = vehById.get(r.vehicle_id);
-        if (!v) continue;
+        if (!vehById.has(r.vehicle_id)) continue;
         const ver = verdict.get(r.vehicle_id);
         if (!(r.mode === "continuous" && ver?.confident && ver.hasAlternative)) continue;
-        const driver = resolveDriver(r.vehicle_id, v.samsara_vehicle_id, r.started_at.slice(0, 10), Date.parse(r.started_at));
+        const driver = resolveDriver(r.vehicle_id, r.started_at.slice(0, 10));
         add(driver, { avoidableSec: Number(r.idle_sec) });
       }
 
