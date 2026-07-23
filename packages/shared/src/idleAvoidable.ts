@@ -70,21 +70,20 @@ export interface AvoidableResult {
 }
 
 function resolveAlternative(i: AvoidableInput): { hasAlternative: boolean; alternative: IdleAlternative } {
-  // Judge avoidability from DEMONSTRATED behaviour — the capability LEARNED from the truck's own engine
-  // on/off pattern (learnIdleCapability) — not from an equipment flag. We can't rely on a Samsara/record
-  // claim that a truck "has optimized idle / an APU" to decide it could have idled less; we trust what its
-  // own parks show it actually does. The recorded has_apu / has_optimized_idle flags are kept on the input
-  // for the capability-tab cross-check, but they no longer drive the avoidable verdict.
-  switch (i.learnedCapability) {
-    case "apu": // demonstrably rests engine-off on a meaningful share of parks
-      return { hasAlternative: true, alternative: "learned_apu" };
-    case "ecu_optimized": // demonstrably auto start/stop cycles
-      return { hasAlternative: true, alternative: "learned_optimized" };
-    case "continuous_only": // demonstrably only ever idles continuously → no shown alternative
-      return { hasAlternative: false, alternative: "none" };
-    default:
-      return { hasAlternative: false, alternative: "unknown" }; // not enough pattern evidence yet → don't guess
-  }
+  // Did the truck HAVE an alternative to main-engine idle? Two evidence sources, most-reliable first:
+  //   1. The curated Vehicles equipment flags (has_apu / has_optimized_idle) — the maintained source of truth
+  //      about what the truck is actually fitted with. NOT a Samsara guess; an admin record.
+  //   2. The capability LEARNED from the truck's own engine on/off pattern — automatic, so trucks not yet
+  //      flagged are still judged from how they demonstrably behave.
+  // A truck that HAS the equipment (flag or learned) but idled continuously still counts as having an
+  // alternative → that continuous idle is avoidable (it should have used the APU / optimized idle).
+  if (i.hasApu === true) return { hasAlternative: true, alternative: "apu" };
+  if (i.hasOptimizedIdle === true) return { hasAlternative: true, alternative: "optimized_idle" };
+  if (i.learnedCapability === "apu") return { hasAlternative: true, alternative: "learned_apu" };
+  if (i.learnedCapability === "ecu_optimized") return { hasAlternative: true, alternative: "learned_optimized" };
+  // No alternative: an explicit "no APU" record, or a truck that DEMONSTRABLY only idles continuously.
+  if (i.hasApu === false || i.learnedCapability === "continuous_only") return { hasAlternative: false, alternative: "none" };
+  return { hasAlternative: false, alternative: "unknown" }; // no flag + pattern not learned yet → can't judge
 }
 
 /** Compute the avoidable-idle verdict for one truck over one period, from stored facts only. */

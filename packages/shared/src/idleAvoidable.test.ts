@@ -29,13 +29,20 @@ describe("computeAvoidable", () => {
     expect(r.confident).toBe(true);
   });
 
-  it("An equipment flag ALONE (no learned pattern) does NOT make idle avoidable — pattern-based only", () => {
-    // has_apu is recorded but the on/off pattern is still unknown → we don't guess; not confident.
+  it("A curated APU flag makes continuous idle avoidable even before the pattern is learned", () => {
+    // has_apu is the maintained source of truth; the truck owns an APU and idled continuously → avoidable.
     const r = computeAvoidable({ ...base, hasApu: true, learnedCapability: "unknown" });
-    expect(r.avoidableIdleSec).toBe(0);
-    expect(r.alternative).toBe("unknown");
-    expect(r.hasAlternative).toBe(false);
-    expect(r.confident).toBe(false);
+    expect(r.avoidableIdleSec).toBe(5 * H);
+    expect(r.alternative).toBe("apu");
+    expect(r.hasAlternative).toBe(true);
+    expect(r.confident).toBe(true);
+  });
+
+  it("A curated Optimized-Idle flag likewise makes continuous main-engine idle avoidable", () => {
+    const r = computeAvoidable({ ...base, hasOptimizedIdle: true });
+    expect(r.alternative).toBe("optimized_idle");
+    expect(r.avoidableIdleSec).toBe(5 * H);
+    expect(r.hasAlternative).toBe(true);
   });
 
   it("Demonstrably continuous-only: same idle is UNAVOIDABLE, not blamed", () => {
