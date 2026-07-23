@@ -3,7 +3,7 @@ import { ref, computed, watch } from "vue";
 import { PlusIcon, ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
 import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
-import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useSyncSamsaraVehicles } from "@/composables/useVehicles";
+import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useSyncSamsaraVehicles, useBulkUpdateVehicles } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -64,6 +64,8 @@ const columns: DataTableColumn[] = [
   { key: "samsara_fuel_percent", label: "Fuel level", sortable: true, numeric: true, headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
   { key: "current_odometer", label: "Odometer", sortable: true, numeric: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
   { key: "assigned_driver_id", label: "Driver", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
+  { key: "has_apu", label: "APU", sortable: true, headerClass: "min-w-[5rem]" },
+  { key: "has_optimized_idle", label: "Optimized idle", sortable: true, headerClass: "min-w-[8rem]" },
   { key: "status", label: "Status", sortable: true, headerClass: "min-w-[6rem]" },
 ];
 
@@ -77,6 +79,23 @@ const retireVehicle = useRetireVehicle();
 const toast = useToastStore();
 const drawerOpen = ref(false);
 const editing = ref<Vehicle | null>(null);
+
+// ── selection (bulk idle-reduction capability edit) ───────────────────────────
+const selected = ref<Set<string>>(new Set());
+const selectedCount = computed(() => selected.value.size);
+const bulkUpdate = useBulkUpdateVehicles();
+async function bulkSetCapability(
+  patch: Partial<Pick<Vehicle, "has_apu" | "has_optimized_idle" | "apu_type">>,
+  label: string,
+) {
+  try {
+    const n = await bulkUpdate.mutateAsync({ ids: [...selected.value], patch });
+    selected.value = new Set();
+    toast.success(`${label} — ${n} truck${n === 1 ? "" : "s"} updated`);
+  } catch (e) {
+    toast.error("Bulk update failed", e instanceof Error ? e.message : undefined);
+  }
+}
 
 const driverName = (id: string | null) =>
   id ? (drivers.value?.find((d) => d.id === id)?.full_name ?? "—") : "—";
@@ -211,10 +230,23 @@ async function onRetire(v: Vehicle) {
       </template>
     </FilterBar>
 
+    <!-- Bulk idle-reduction capability: select trucks, then set APU / Optimized-Idle on all of them at once. -->
+    <div v-if="session.canManage && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">
+      <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
+      <span class="text-xs text-brand-700">Set idle-reduction capability:</span>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_apu: true }, 'Marked as having an APU')">Has APU</BaseButton>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_apu: false, apu_type: 'none' }, 'Marked as no APU')">No APU</BaseButton>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_optimized_idle: true }, 'Marked as having Optimized-Idle')">Has Optimized-Idle</BaseButton>
+      <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_optimized_idle: false }, 'Marked as no Optimized-Idle')">No Optimized-Idle</BaseButton>
+      <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
+    </div>
+
     <DataTable
       :columns="columns"
       :rows="pageRows"
       row-key="id"
+      :selectable="session.canManage"
+      :selected="selected"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load vehicles') : null"
       :retrying="isFetching"
@@ -222,6 +254,7 @@ async function onRetire(v: Vehicle) {
       :empty-text="(vehicles ?? []).length === 0 ? 'No vehicles yet.' : 'No vehicles match these filters.'"
       @sort="onSort"
       @retry="refetch"
+      @update:selected="selected = $event"
     >
       <template #cell-unit_number="{ row }">
         <RouterLink :to="`/vehicles/${row.id}`" class="font-medium text-brand-600 hover:text-brand-500">{{ row.unit_number }}</RouterLink>
@@ -246,6 +279,16 @@ async function onRetire(v: Vehicle) {
         <span v-else class="text-ink-subtle">—</span>
       </template>
       <template #cell-assigned_driver_id="{ row }">{{ driverName(row.assigned_driver_id) }}</template>
+      <template #cell-has_apu="{ value }">
+        <span v-if="value === true" :class="[BADGE_BASE, toneClass('success')]">Yes</span>
+        <span v-else-if="value === false" class="text-ink-subtle">No</span>
+        <span v-else :class="[BADGE_BASE, toneClass('warning')]">Unset</span>
+      </template>
+      <template #cell-has_optimized_idle="{ value }">
+        <span v-if="value === true" :class="[BADGE_BASE, toneClass('success')]">Yes</span>
+        <span v-else-if="value === false" class="text-ink-subtle">No</span>
+        <span v-else :class="[BADGE_BASE, toneClass('warning')]">Unset</span>
+      </template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canManage">

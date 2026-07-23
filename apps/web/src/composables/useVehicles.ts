@@ -89,6 +89,24 @@ export function useSyncSamsaraVehicles() {
   });
 }
 
+/** Bulk-set idle-reduction capability (APU / Optimized-Idle) on many trucks at once. RLS scopes writes to the
+ *  caller's org and to roles that manage the fleet. Only the provided keys are changed. */
+export function useBulkUpdateVehicles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      ids: string[];
+      patch: Partial<Pick<Vehicle, "has_apu" | "has_optimized_idle" | "apu_type">>;
+    }): Promise<number> => {
+      if (!payload.ids.length) return 0;
+      const { error } = await supabase.from("vehicles").update(payload.patch).in("id", payload.ids);
+      if (error) throw new Error(error.message);
+      return payload.ids.length;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: vehiclesKey }),
+  });
+}
+
 /** Soft-delete: vehicles are retired, never hard-deleted while history exists (audit H5). */
 export function useRetireVehicle() {
   const qc = useQueryClient();
