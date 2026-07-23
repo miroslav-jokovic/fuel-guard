@@ -188,10 +188,9 @@ async function onRetire(v: Vehicle) {
     <PageHeader description="Fleet vehicles and their fuel parameters.">
       <template #actions>
         <template v-if="session.canManage">
-          <!-- Diagnostics button hidden; logic kept for future use. Re-enable by removing v-show="false". -->
+          <!-- Samsara diagnostics (admin): probe each endpoint to see counts, scopes, and raw assignment/operator coverage. -->
           <BaseButton
             v-if="session.admin"
-            v-show="false"
             :disabled="diagLoading"
             title="Check what Samsara returns for vehicles, stats, drivers and assignments"
             @click="runDiagnostics"
