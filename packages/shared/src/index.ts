@@ -26,6 +26,7 @@ export * from "./recon/trailerPairing.js";
 export * from "./recon/stationCoord.js";
 export * from "./idleScoring.js";
 export * from "./idleSessions.js";
+export * from "./idleAvoidable.js";
 export * from "./idleConfidence.js";
 export * from "./weather.js";
 export * from "./smartFueling/index.js";
