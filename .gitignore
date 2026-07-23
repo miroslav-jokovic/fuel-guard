@@ -50,3 +50,7 @@ _staging/
 
 # EFS mailbox diagnostic — local secrets, never commit
 scripts/efs-diag.env
+
+# OS / FUSE temp files
+.fuse_hidden*
+mnt_to_delete_*
