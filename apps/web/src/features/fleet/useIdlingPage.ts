@@ -4,7 +4,6 @@ import { useIdleBreakdown, type TruckBreakdown } from "./useIdleBreakdown";
 import { useIdleDrivers } from "./useIdleDrivers";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
-import { useLongIdles } from "./useLongIdles";
 import { useIdleConfidence } from "./useIdleConfidence";
 import { useToastStore } from "@/stores/toast";
 import { toneClass } from "@/lib/badges";
@@ -44,7 +43,6 @@ const { data: driverRows, isLoading, isError, error, refetch, isFetching } = use
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
 const { data: caps } = useIdleCapabilities();
-const { data: longIdles } = useLongIdles(dateFilter);
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();
 const adoptBand = useAdoptComfortBand();
@@ -71,22 +69,12 @@ const CAP: Record<string, { label: string; cls: string }> = {
 };
 const capBadge = (c: string) => CAP[c] ?? CAP.unknown!;
 
-// Equipment badge for the "Biggest idle events to coach" list (from the shared topAvoidableIdles equipment).
-const EQUIP: Record<string, { label: string; cls: string; title: string }> = {
-  apu: { label: "Engine off was possible (APU)", cls: toneClass("danger"), title: "This truck has an APU — the driver could have shut the main engine off and run it" },
-  optimized_idle: { label: "Optimized idle (OEM)", cls: toneClass("success"), title: "OEM optimized idle cycles the engine on purpose — the engine running is the feature working, not driver waste" },
-  none: { label: "No idle-reduction equipment", cls: toneClass("neutral"), title: "No APU or optimized idle — the main engine was the only way to keep the cab comfortable" },
-  unknown: { label: "Equipment not recorded — set it", cls: toneClass("warning"), title: "Set this truck's equipment on the Vehicles page to enable coaching" },
-};
-const equipBadge = (e: string) => EQUIP[e] ?? EQUIP.unknown!;
-
 // ── tabs ─────────────────────────────────────────────────────────────────────
-type TabKey = "trucks" | "drivers" | "avoidable" | "capability";
+type TabKey = "trucks" | "drivers" | "capability";
 const activeTab = ref<TabKey>("trucks");
 const tabs = computed(() => [
   { key: "trucks" as const, label: "Trucks", count: breakdown.value?.trucks.length ?? 0 },
   { key: "drivers" as const, label: "Drivers", count: drivers.value.length },
-  { key: "avoidable" as const, label: "Avoidable idles", count: longIdles.value?.length ?? 0 },
   { key: "capability" as const, label: "Truck capability", count: caps.value?.length ?? 0 },
 ]);
 
@@ -175,13 +163,6 @@ const xcheck = (c: string) => XCHECK[c] ?? XCHECK.na!;
 
 // ── tab 1: driver scorecard ──────────────────────────────────────────────────
 const scoreTone = (s: number) => (s >= 80 ? "text-success-700" : s >= 60 ? "text-warning-600" : "text-danger-700");
-const TREND: Record<string, { icon: string; cls: string; title: string }> = {
-  down: { icon: "▼", cls: "text-success-600", title: "Improving — less avoidable idle than the prior week" },
-  up: { icon: "▲", cls: "text-danger-600", title: "Worsening — more avoidable idle than the prior week" },
-  flat: { icon: "▬", cls: "text-ink-subtle", title: "About the same as the prior week" },
-  na: { icon: "–", cls: "text-ink-subtle", title: "Not enough recent data" },
-};
-const trendCell = (t: string) => TREND[t] ?? TREND.na!;
 
 const drvSearch = ref("");
 const drvSort = ref<SortState>({ key: null, dir: "asc" });
@@ -210,45 +191,7 @@ const drvColumns: DataTableColumn[] = [
   { key: "avoidableUsd", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
 ];
 
-// ── tab 2: longest avoidable idles ───────────────────────────────────────────
-const avSearch = ref("");
-const avAvoidableOnly = ref(false);
-const avSort = ref<SortState>({ key: null, dir: "asc" });
-const avPage = ref(1);
-const avFilterCount = computed(() => (avSearch.value.trim() ? 1 : 0) + (avAvoidableOnly.value ? 1 : 0));
-// FilterSelect works with string option values ("" = no filter) — proxy the boolean "avoidable only" flag.
-const avAvoidableOptions = [
-  { value: "", label: "All long idles" },
-  { value: "avoidable", label: "Avoidable only (has APU)" },
-];
-const avAvoidableSel = computed({
-  get: () => (avAvoidableOnly.value ? "avoidable" : ""),
-  set: (v) => (avAvoidableOnly.value = v === "avoidable"),
-});
-const avFiltered = computed(() => {
-  const q = avSearch.value.trim().toLowerCase();
-  return (longIdles.value ?? []).filter(
-    (r) =>
-      (!avAvoidableOnly.value || r.avoidable) &&
-      (!q || r.driverName.toLowerCase().includes(q) || r.unitNumber.toLowerCase().includes(q)),
-  );
-});
-const avSorted = computed(() => (avSort.value.key ? sortRows(avFiltered.value, avSort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]) : avFiltered.value));
-const avPaged = computed(() => avSorted.value.slice((avPage.value - 1) * PAGE_SIZE, avPage.value * PAGE_SIZE));
-function clearAv() { avSearch.value = ""; avAvoidableOnly.value = false; }
-watch(avFiltered, () => (avPage.value = 1));
-
-const avRowKey = (r: { unitNumber: string; startedAt: string; driverName: string }) => `${r.unitNumber}|${r.startedAt}|${r.driverName}`;
-const avColumns: DataTableColumn[] = [
-  { key: "driverName", label: "Driver", cellClass: "font-medium text-ink" },
-  { key: "unitNumber", label: "Truck", cellClass: "text-ink-secondary" },
-  { key: "startedAt", label: "Date", sortable: true, cellClass: "text-ink-muted" },
-  { key: "hours", label: "Hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "costUsd", label: "Estimated cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
-  { key: "equipment", label: "Equipment" },
-];
-
-// ── tab 3: truck idle capability ─────────────────────────────────────────────
+// ── tab: truck idle capability ───────────────────────────────────────────────
 const capSearch = ref("");
 const capFilter = ref<string>("");
 const capSort = ref<SortState>({ key: null, dir: "asc" });
@@ -288,10 +231,9 @@ const capColumns: DataTableColumn[] = [
     settings, confidence, adoptBand, onAdoptBand,
     tabs, activeTab, showInfo, showConfidence,
     confTone, confBar, suggestionDiffers, fleetOptimizedPct,
-    capBadge, equipBadge, xcheck, trendCell, scoreTone, recordedLabel, recordedCls,
+    capBadge, xcheck, scoreTone, recordedLabel, recordedCls,
     dateFrom, dateTo, rangeDays, annualMultiplier, rangeLabel,
     drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
-    avSearch, avAvoidableSel, avAvoidableOptions, avSort, avPage, avFilterCount, avFiltered, avPaged, avRowKey, clearAv, avColumns,
     capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
   };
 }

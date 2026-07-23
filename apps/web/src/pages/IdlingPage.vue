@@ -16,14 +16,13 @@ const {
   fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
   trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
   trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns,
-  usd, usd2, dateFmt, PAGE_SIZE,
+  usd, usd2, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
   tabs, activeTab, showInfo, showConfidence,
   dateFrom, dateTo, rangeLabel,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
-  capBadge, equipBadge, xcheck, scoreTone, recordedLabel, recordedCls,
+  capBadge, xcheck, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
-  avSearch, avAvoidableSel, avAvoidableOptions, avSort, avPage, avFilterCount, avFiltered, avPaged, avRowKey, clearAv, avColumns,
   capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
 } = useIdlingPage();
 </script>
@@ -216,42 +215,6 @@ const {
         <template #cell-avoidableUsd="{ value }">{{ usd2(value) }}</template>
         <template #footer>
           <TablePagination :page="drvPage" :page-size="PAGE_SIZE" :total="drvFiltered.length" @update:page="drvPage = $event" />
-        </template>
-      </DataTable>
-    </template>
-
-    <!-- ── TAB: Avoidable idles ──────────────────────────────────────────────── -->
-    <template v-else-if="activeTab === 'avoidable'">
-      <FilterBar
-        v-model:search="avSearch"
-        search-placeholder="Search driver or truck…"
-        :count="avFiltered.length"
-        count-label="sessions"
-      >
-        <template #filters>
-          <DateRangeFilter v-model:from="dateFrom" v-model:to="dateTo" />
-          <FilterSelect v-model="avAvoidableSel" label="Avoidable" :options="avAvoidableOptions" />
-        </template>
-        <template #actions>
-          <BaseButton v-if="avFilterCount" variant="ghost" size="sm" @click="clearAv">Clear filters</BaseButton>
-        </template>
-      </FilterBar>
-      <DataTable
-        :columns="avColumns"
-        :rows="avPaged"
-        :row-key="avRowKey"
-        :sort="avSort"
-        empty-text="No long avoidable idles in the last 30 days (2 hours or more)."
-        :row-class="(r) => (r.avoidable ? 'bg-danger-50/40' : '')"
-        @sort="avSort = toggleSort(avSort, $event)"
-      >
-        <template #cell-startedAt="{ value }">{{ dateFmt(value) }}</template>
-        <template #cell-costUsd="{ value }">{{ usd2(value) }}</template>
-        <template #cell-equipment="{ value }">
-          <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', equipBadge(value).cls]" :title="equipBadge(value).title">{{ equipBadge(value).label }}</span>
-        </template>
-        <template #footer>
-          <TablePagination :page="avPage" :page-size="PAGE_SIZE" :total="avFiltered.length" @update:page="avPage = $event" />
         </template>
       </DataTable>
     </template>
