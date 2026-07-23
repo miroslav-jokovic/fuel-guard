@@ -31,10 +31,16 @@ const {
   <div class="space-y-6">
     <PageHeader :description="`Avoidable idling costs, driver idle scores, and truck idle-reduction capability — ${rangeLabel}.`" />
 
+    <!-- Which window every card + table below reflects (the date picker lives in the tab toolbars). -->
+    <div class="flex items-center gap-2 text-sm">
+      <span class="text-ink-muted">Showing</span>
+      <span class="rounded-md bg-surface-muted px-2 py-0.5 font-semibold text-ink">{{ rangeLabel }}</span>
+    </div>
+
     <!-- Fleet engine-time summary: running = drive + idle, with the avoidable slice (new model) -->
     <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time ({{ rangeLabel }})</dt>
+        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time</dt>
         <dd class="mt-1 text-2xl font-bold text-ink">{{ fleet.engineOnH.toLocaleString() }} <span class="text-base font-normal text-ink-subtle">engine-on h</span></dd>
         <dd class="mt-0.5 text-xs text-ink-subtle">{{ fleet.driveH.toLocaleString() }} h driving · {{ fleet.idleH.toLocaleString() }} h idling</dd>
       </BaseCard>

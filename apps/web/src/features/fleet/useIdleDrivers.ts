@@ -31,16 +31,15 @@ export interface DriverIdleRow {
 }
 
 function bounds(f: IdleDateFilter) {
-  const toMs = f.to ? Date.parse(f.to) : Date.now();
-  const fromMs = f.from ? Date.parse(f.from) : toMs - WINDOW_DAYS * 86_400_000;
-  const days = Math.max(1, Math.round((toMs - fromMs) / 86_400_000));
-  return {
-    fromDate: new Date(fromMs).toISOString().slice(0, 10),
-    toDate: new Date(toMs).toISOString().slice(0, 10),
-    fromIso: new Date(fromMs).toISOString(),
-    toIso: new Date(toMs).toISOString(),
-    days,
-  };
+  // Compare on the picked calendar date directly (the `day` column is a fleet-local calendar date). Parsing
+  // the naive "…T23:59:59" as browser-local then converting to UTC rolled the end date forward a day for
+  // browsers west of UTC, so one selected date showed two days. See useIdleBreakdown.rangeBounds.
+  const toDate = f.to ? f.to.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const fromDate = f.from ? f.from.slice(0, 10) : new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const fromIso = `${fromDate}T00:00:00.000Z`;
+  const toIso = `${toDate}T23:59:59.999Z`;
+  const days = Math.max(1, Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 86_400_000));
+  return { fromDate, toDate, fromIso, toIso, days };
 }
 
 const hrs = (sec: number) => Math.round(sec / 360) / 10;

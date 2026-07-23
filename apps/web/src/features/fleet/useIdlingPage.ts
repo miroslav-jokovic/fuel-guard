@@ -36,7 +36,17 @@ const rangeDays = computed(() => {
   return 30;
 });
 const annualMultiplier = computed(() => 365 / rangeDays.value);
-const rangeLabel = computed(() => (dateFrom.value || dateTo.value ? `selected ${rangeDays.value}-day range` : "last 30 days"));
+// Explicit dates so it's unambiguous which window the top cards + tables reflect (the picker lives lower in
+// the tabs). Format the YYYY-MM-DD as a UTC instant so the calendar date isn't shifted by the browser tz.
+const fmtDay = (d: string, withYear = true) =>
+  new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC", ...(withYear ? { year: "numeric" } : {}) });
+const rangeLabel = computed(() => {
+  const f = dateFrom.value, t = dateTo.value;
+  if (f && t) return f === t ? fmtDay(f) : `${fmtDay(f, false)} – ${fmtDay(t)}`;
+  if (f) return `since ${fmtDay(f)}`;
+  if (t) return `through ${fmtDay(t)}`;
+  return "last 30 days";
+});
 
 // Cost basis for idle $: burn rate from idle settings, price from the fleet's daily truck-stop diesel prices.
 const costBasis = useIdleCostBasis();
