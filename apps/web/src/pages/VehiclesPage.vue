@@ -18,7 +18,6 @@ import BaseButton from "@/components/ui/BaseButton.vue";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
 import VehicleSetupImport from "@/features/fleet/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
-import { apiFetch } from "@/lib/api";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
@@ -128,31 +127,6 @@ async function onSubmit(input: VehicleInput) {
   }
 }
 
-// Samsara diagnostics — probe each endpoint and show the raw report.
-const diagOpen = ref(false);
-const diagLoading = ref(false);
-const diagReport = ref("");
-async function runDiagnostics() {
-  diagLoading.value = true;
-  try {
-    const res = await apiFetch("/api/integrations/samsara/diagnostics", { method: "POST" });
-    diagReport.value = JSON.stringify(res.ok ? res.data : res.error, null, 2);
-    diagOpen.value = true;
-  } catch (e) {
-    toast.error("Diagnostics failed", e instanceof Error ? e.message : undefined);
-  } finally {
-    diagLoading.value = false;
-  }
-}
-async function copyDiag() {
-  try {
-    await navigator.clipboard.writeText(diagReport.value);
-    toast.success("Copied to clipboard");
-  } catch {
-    /* clipboard may be blocked */
-  }
-}
-
 const syncSamsara = useSyncSamsaraVehicles();
 async function onSyncSamsara() {
   try {
@@ -188,15 +162,6 @@ async function onRetire(v: Vehicle) {
     <PageHeader description="Fleet vehicles and their fuel parameters.">
       <template #actions>
         <template v-if="session.canManage">
-          <!-- Samsara diagnostics (admin): probe each endpoint to see counts, scopes, and raw assignment/operator coverage. -->
-          <BaseButton
-            v-if="session.admin"
-            :disabled="diagLoading"
-            title="Check what Samsara returns for vehicles, stats, drivers and assignments"
-            @click="runDiagnostics"
-          >
-            {{ diagLoading ? "Checking…" : "Diagnostics" }}
-          </BaseButton>
           <BaseButton
             :disabled="syncSamsara.isPending.value"
             title="Import trucks from Samsara (trailers are excluded)"
@@ -304,17 +269,6 @@ async function onRetire(v: Vehicle) {
         />
       </template>
     </DataTable>
-
-    <SlideOver :open="diagOpen" title="Samsara diagnostics" @close="diagOpen = false">
-      <p class="mb-3 text-sm text-ink-muted">
-        What Samsara returns for each endpoint. Check <code>scopes</code> (403 = missing scope),
-        <code>stats.withFuelPercents</code> (fuel level), and <code>assignments</code> (driver links).
-      </p>
-      <BaseButton variant="soft" size="sm" class="mb-3" @click="copyDiag">
-        Copy report
-      </BaseButton>
-      <pre class="overflow-x-auto rounded-md bg-surface-inverse p-3 text-xs leading-relaxed text-neutral-100">{{ diagReport }}</pre>
-    </SlideOver>
 
     <SlideOver :open="setupOpen" title="Import vehicles" @close="setupOpen = false">
       <VehicleSetupImport :vehicles="vehicles ?? []" @done="setupOpen = false" />
