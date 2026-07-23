@@ -1,5 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { useIdleScores, type IdleDateFilter } from "./useIdleScores";
+import { useIdleBreakdown, type TruckBreakdown } from "./useIdleBreakdown";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
 import { useLongIdles } from "./useLongIdles";
@@ -38,6 +39,9 @@ const rangeLabel = computed(() => (dateFrom.value || dateTo.value ? `selected ${
 
 // Data sources.
 const { data, isLoading, isError, error, refetch, isFetching } = useIdleScores(dateFilter);
+// New per-truck engine-time + avoidable breakdown (the reworked model).
+const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter);
+const fleet = computed(() => breakdown.value?.fleet ?? null);
 const { data: caps } = useIdleCapabilities();
 const { data: longIdles } = useLongIdles(dateFilter);
 const { data: settings } = useIdleSettings();
@@ -76,13 +80,68 @@ const EQUIP: Record<string, { label: string; cls: string; title: string }> = {
 const equipBadge = (e: string) => EQUIP[e] ?? EQUIP.unknown!;
 
 // ── tabs ─────────────────────────────────────────────────────────────────────
-type TabKey = "drivers" | "avoidable" | "capability";
-const activeTab = ref<TabKey>("drivers");
+type TabKey = "trucks" | "drivers" | "avoidable" | "capability";
+const activeTab = ref<TabKey>("trucks");
 const tabs = computed(() => [
+  { key: "trucks" as const, label: "Trucks", count: breakdown.value?.trucks.length ?? 0 },
   { key: "drivers" as const, label: "Drivers", count: drivers.value.length },
   { key: "avoidable" as const, label: "Avoidable idles", count: longIdles.value?.length ?? 0 },
   { key: "capability" as const, label: "Truck capability", count: caps.value?.length ?? 0 },
 ]);
+
+// ── tab: Trucks — engine-on = drive + idle, with avoidable (the reworked view) ─────────────────
+const trkRows = computed<TruckBreakdown[]>(() => breakdown.value?.trucks ?? []);
+const trkSearch = ref("");
+const trkCapFilter = ref("");
+const trkConfidentOnly = ref(false);
+const trkSort = ref<SortState>({ key: null, dir: "asc" });
+const trkPage = ref(1);
+const trkCapOptions = [
+  { value: "", label: "All capability" },
+  { value: "apu", label: "APU" },
+  { value: "ecu_optimized", label: "Optimized idle" },
+  { value: "continuous_only", label: "Continuous only" },
+  { value: "unknown", label: "Unknown" },
+];
+const trkConfOptions = [
+  { value: "", label: "All trucks" },
+  { value: "confident", label: "Confident data only" },
+];
+const trkConfSel = computed({
+  get: () => (trkConfidentOnly.value ? "confident" : ""),
+  set: (v: string) => (trkConfidentOnly.value = v === "confident"),
+});
+const trkFilterCount = computed(() => (trkSearch.value.trim() ? 1 : 0) + (trkCapFilter.value ? 1 : 0) + (trkConfidentOnly.value ? 1 : 0));
+const trkFiltered = computed(() => {
+  const q = trkSearch.value.trim().toLowerCase();
+  return trkRows.value.filter(
+    (t) =>
+      (!q || t.unit.toLowerCase().includes(q)) &&
+      (!trkCapFilter.value || t.capability === trkCapFilter.value) &&
+      (!trkConfidentOnly.value || t.confident),
+  );
+});
+const trkSorted = computed(() =>
+  trkSort.value.key ? sortRows(trkFiltered.value, trkSort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]) : trkFiltered.value,
+);
+const trkPaged = computed(() => trkSorted.value.slice((trkPage.value - 1) * PAGE_SIZE, trkPage.value * PAGE_SIZE));
+function clearTrk() {
+  trkSearch.value = "";
+  trkCapFilter.value = "";
+  trkConfidentOnly.value = false;
+}
+watch(trkFiltered, () => (trkPage.value = 1));
+const trkColumns: DataTableColumn[] = [
+  { key: "unit", label: "Truck", sortable: true, cellClass: "font-medium text-ink" },
+  { key: "engineOnH", label: "Engine-on h", sortable: true, numeric: true },
+  { key: "driveH", label: "Drove h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idleH", label: "Idled h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "avoidableH", label: "Avoidable h", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "avoidableUsd", label: "Avoidable $", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  { key: "capability", label: "Capability" },
+  { key: "coveragePct", label: "Confidence", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+];
 
 // ── collapsible "how scoring works" panel (replaces the always-on top blurb) ──
 const showInfo = ref(false);
@@ -225,6 +284,9 @@ const capColumns: DataTableColumn[] = [
 ];
   return {
     data, isLoading, isError, error, isFetching, refetch,
+    breakdown, fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
+    trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
+    trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns,
     usd, usd2, dateFmt, PAGE_SIZE,
     settings, confidence, adoptBand, onAdoptBand,
     tabs, activeTab, showInfo, showConfidence,

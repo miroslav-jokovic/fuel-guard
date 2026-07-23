@@ -12,11 +12,14 @@ import { toggleSort } from "@/lib/sort";
 import { useIdlingPage } from "@/features/fleet/useIdlingPage";
 
 const {
-  data, isLoading, isError, error, isFetching, refetch,
+  isLoading, isError, error, isFetching, refetch,
+  fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
+  trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
+  trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns,
   usd, usd2, dateFmt, PAGE_SIZE,
   settings, confidence, adoptBand, onAdoptBand,
   tabs, activeTab, showInfo, showConfidence,
-  dateFrom, dateTo, annualMultiplier, rangeLabel,
+  dateFrom, dateTo, rangeLabel,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
   capBadge, equipBadge, xcheck, trendCell, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
@@ -29,21 +32,22 @@ const {
   <div class="space-y-6">
     <PageHeader :description="`Avoidable idling costs, driver idle scores, and truck idle-reduction capability — ${rangeLabel}.`" />
 
-    <!-- Fleet money summary (KPIs, always visible) -->
-    <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <!-- Fleet engine-time summary: running = drive + idle, with the avoidable slice (new model) -->
+    <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Money wasted idling ({{ rangeLabel }})</dt>
-        <dd class="mt-1 text-2xl font-bold text-danger-700">{{ usd(data.fleetDiscretionaryCost) }}</dd>
-        <dd class="mt-0.5 text-xs text-ink-subtle">{{ data.fleetDiscretionaryGal.toLocaleString() }} gal of avoidable idle</dd>
+        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time ({{ rangeLabel }})</dt>
+        <dd class="mt-1 text-2xl font-bold text-ink">{{ fleet.engineOnH.toLocaleString() }} <span class="text-base font-normal text-ink-subtle">engine-on h</span></dd>
+        <dd class="mt-0.5 text-xs text-ink-subtle">{{ fleet.driveH.toLocaleString() }} h driving · {{ fleet.idleH.toLocaleString() }} h idling</dd>
       </BaseCard>
       <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avoidable idle hours</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink">{{ data.fleetDiscretionaryHours.toLocaleString() }}<span class="text-base font-normal text-ink-subtle"> / {{ data.fleetIdleHours.toLocaleString() }} total</span></dd>
+        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Idle share of runtime</dt>
+        <dd class="mt-1 text-2xl font-bold text-ink">{{ fleet.idlePct }}%</dd>
+        <dd class="mt-0.5 text-xs text-ink-subtle">of engine-on time was spent idling ({{ fleet.drivePct }}% driving)</dd>
       </BaseCard>
       <BaseCard>
-        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Projected yearly waste</dt>
-        <dd class="mt-1 text-2xl font-bold text-ink">{{ usd(data.fleetDiscretionaryCost * annualMultiplier) }}</dd>
-        <dd class="mt-0.5 text-xs text-ink-subtle">annualized from the {{ rangeLabel }}</dd>
+        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avoidable idle</dt>
+        <dd class="mt-1 text-2xl font-bold text-danger-700">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-subtle">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
+        <dd class="mt-0.5 text-xs text-ink-subtle">across {{ fleet.confidentTrucks }}/{{ fleet.totalTrucks }} trucks with confident data</dd>
       </BaseCard>
     </div>
 
@@ -125,8 +129,57 @@ const {
       </div>
     </BaseCard>
 
+    <!-- ── TAB: Trucks — engine-on = drive + idle, avoidable ─────────────────── -->
+    <template v-if="activeTab === 'trucks'">
+      <FilterBar
+        v-model:search="trkSearch"
+        search-placeholder="Search truck…"
+        :count="trkFiltered.length"
+        count-label="trucks"
+      >
+        <template #filters>
+          <DateRangeFilter v-model:from="dateFrom" v-model:to="dateTo" />
+          <FilterSelect v-model="trkCapFilter" label="Capability" :options="trkCapOptions" />
+          <FilterSelect v-model="trkConfSel" label="Data" :options="trkConfOptions" />
+        </template>
+        <template #actions>
+          <BaseButton v-if="trkFilterCount" variant="ghost" size="sm" @click="clearTrk">Clear filters</BaseButton>
+        </template>
+      </FilterBar>
+      <DataTable
+        :columns="trkColumns"
+        :rows="trkPaged"
+        row-key="vehicleId"
+        :loading="trkLoading"
+        :error="trkIsError ? (trkError instanceof Error ? trkError.message : 'Failed to load') : null"
+        :retrying="trkFetching"
+        :sort="trkSort"
+        empty-text="No engine-state data yet — run a Samsara sync from Settings → Data &amp; Sync to populate the idle foundation."
+        :row-class="(t) => (t.confident ? '' : 'opacity-60')"
+        @sort="trkSort = toggleSort(trkSort, $event)"
+        @retry="trkRefetch"
+      >
+        <template #cell-idlePct="{ value }">{{ value }}%</template>
+        <template #cell-avoidableUsd="{ value }">{{ usd2(value) }}</template>
+        <template #cell-capability="{ value }">
+          <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', capBadge(value).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(value).label }}</span>
+        </template>
+        <template #cell-coveragePct="{ row }">
+          <span
+            :class="row.confident ? 'text-ink-secondary' : 'text-warning-600'"
+            :title="row.confident ? 'Enough data to trust and score' : 'Thin data — excluded from the fleet avoidable total'"
+          >
+            {{ row.coveragePct }}%<span v-if="!row.confident" class="ml-1 text-xs font-medium">· low</span>
+          </span>
+        </template>
+        <template #footer>
+          <TablePagination :page="trkPage" :page-size="PAGE_SIZE" :total="trkFiltered.length" @update:page="trkPage = $event" />
+        </template>
+      </DataTable>
+    </template>
+
     <!-- ── TAB: Drivers ──────────────────────────────────────────────────────── -->
-    <template v-if="activeTab === 'drivers'">
+    <template v-else-if="activeTab === 'drivers'">
       <FilterBar
         v-model:search="drvSearch"
         search-placeholder="Search driver or truck…"
