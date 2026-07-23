@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseEngineStates, buildIdleSessions, learnIdleCapability } from "@fuelguard/shared";
+import { parseEngineStates, buildIdleSessions, learnIdleCapability, aggregateEngineDays } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraEngineStatesFetcher } from "../lib/samsara.js";
@@ -8,6 +8,8 @@ import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 export interface IdleCapabilityResult {
   vehicles: number;
   learned: number; // trucks we could classify (not 'unknown')
+  engineDays: number; // per-truck/day engine-time rows written
+  parkSessions: number; // park sessions written
 }
 
 /** Trucks per engineStates call (comma-separated vehicleIds), keeps each request bounded. */
@@ -34,7 +36,7 @@ export async function syncIdleCapabilities(
     .eq("org_id", orgId)
     .not("samsara_vehicle_id", "is", null);
   const vehicles = (vs ?? []) as { id: string; samsara_vehicle_id: string }[];
-  if (vehicles.length === 0) return { vehicles: 0, learned: 0 };
+  if (vehicles.length === 0) return { vehicles: 0, learned: 0, engineDays: 0, parkSessions: 0 };
 
   const days = opts.sinceDays ?? 30;
   const endIso = new Date().toISOString();
@@ -43,6 +45,9 @@ export async function syncIdleCapabilities(
   const idBySamsara = new Map(vehicles.map((v) => [v.samsara_vehicle_id, v.id]));
 
   let learned = 0;
+  let engineDays = 0;
+  let parkSessions = 0;
+  const nowIso = new Date().toISOString();
   for (let i = 0; i < vehicles.length; i += BATCH) {
     const batch = vehicles.slice(i, i + BATCH);
     const series = parseEngineStates(
@@ -57,6 +62,46 @@ export async function syncIdleCapabilities(
       if (!vehicleId) continue;
       const sessions = buildIdleSessions(samples);
       const cap = learnIdleCapability(sessions);
+
+      // Foundation: persist the per-day engine-time split (drive/idle/off/coverage) and each classified park
+      // session, from THIS same engineStates pass, so the avoidable module reads stored facts (no re-fetch).
+      // tz_offset_minutes 0 = UTC day boundaries for now (a fleet-local boundary can be introduced later).
+      const engDays = aggregateEngineDays(samples).map((d) => ({
+        org_id: orgId,
+        vehicle_id: vehicleId,
+        day: d.day,
+        drive_sec: d.driveSec,
+        idle_sec: d.idleSec,
+        off_sec: d.offSec,
+        coverage_sec: d.coverageSec,
+        tz_offset_minutes: 0,
+        synced_at: nowIso,
+      }));
+      if (engDays.length) {
+        const { error } = await admin
+          .from("vehicle_engine_days")
+          .upsert(engDays, { onConflict: "org_id,vehicle_id,day" });
+        if (!error) engineDays += engDays.length;
+      }
+      const parkRows = sessions.map((s) => ({
+        org_id: orgId,
+        vehicle_id: vehicleId,
+        started_at: new Date(s.startMs).toISOString(),
+        ended_at: new Date(s.endMs).toISOString(),
+        duration_sec: s.durationSec,
+        idle_sec: s.idleSec,
+        off_sec: s.offSec,
+        cycles: s.cycles,
+        mode: s.mode,
+        synced_at: nowIso,
+      }));
+      if (parkRows.length) {
+        const { error } = await admin
+          .from("idle_park_sessions")
+          .upsert(parkRows, { onConflict: "org_id,vehicle_id,started_at" });
+        if (!error) parkSessions += parkRows.length;
+      }
+
       // CP6: independent idle measure — total engine-on idle seconds from the raw engine-state sessions, stored
       // to cross-validate against the Samsara idle-events total on the Data Confidence panel.
       const statesIdleSec = Math.round(sessions.reduce((acc, s) => acc + s.idleSec, 0));
@@ -78,5 +123,5 @@ export async function syncIdleCapabilities(
       if (cap.capability !== "unknown") learned += 1;
     }
   }
-  return { vehicles: vehicles.length, learned };
+  return { vehicles: vehicles.length, learned, engineDays, parkSessions };
 }
