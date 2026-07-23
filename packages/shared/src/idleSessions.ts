@@ -167,3 +167,75 @@ export function learnIdleCapability(sessions: IdleSession[], opts: { minSessions
   else capability = "continuous_only";
   return { capability, optimizedPct, sessions: sessions.length };
 }
+
+// ── per-day engine-time rollup (the "engine-on = drive + idle" foundation) ────────────────────────────
+
+/** Per-day engine-time split for one truck, derived purely from its engineStates series (see aggregateEngineDays). */
+export interface EngineDay {
+  /** Calendar day (YYYY-MM-DD) in the chosen timezone (UTC unless tzOffsetMinutes is given). */
+  day: string;
+  /** Seconds the engine was running AND moving (Samsara state "On"). */
+  driveSec: number;
+  /** Seconds the engine was running but stationary (state "Idle"). */
+  idleSec: number;
+  /** Seconds the engine was shut down (state "Off"). */
+  offSec: number;
+  /** Seconds of the day actually accounted for by samples (= drive+idle+off). ÷86400 = data confidence. */
+  coverageSec: number;
+}
+
+/**
+ * Roll a truck's engineStates series into per-day drive / idle / off / coverage seconds — the reliable
+ * "engine-on = drive + idle" foundation for the idle module. Samsara samples are STATE CHANGES: sample[i]
+ * holds from sample[i].t until sample[i+1].t, so each interval is attributed to exactly one state. Intervals
+ * that cross a day boundary are split at midnight so no time is double-counted or lost, and a multi-day
+ * interval (e.g. a truck left Off over a weekend) contributes to every day it spans. Time before the first
+ * sample or after the last is NOT invented — coverage reflects only what the data actually shows.
+ *
+ * `tzOffsetMinutes` shifts the day boundary off UTC (e.g. -360 for US Central) so "a day" matches the fleet's
+ * operating clock; default 0 (UTC) is deterministic and tz-free.
+ */
+export function aggregateEngineDays(
+  samples: EngineSample[],
+  opts: { tzOffsetMinutes?: number } = {},
+): EngineDay[] {
+  const tzMs = (opts.tzOffsetMinutes ?? 0) * 60_000;
+  const s = [...samples].filter((x) => Number.isFinite(x.t)).sort((a, b) => a.t - b.t);
+  if (s.length < 2) return [];
+
+  const dayKey = (ms: number): string => new Date(ms + tzMs).toISOString().slice(0, 10);
+  // First real-epoch instant of the NEXT local day after `ms`.
+  const nextLocalMidnight = (ms: number): number => {
+    const d = new Date(ms + tzMs);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) - tzMs;
+  };
+
+  const days = new Map<string, { drive: number; idle: number; off: number }>();
+  for (let i = 0; i < s.length - 1; i++) {
+    const state = s[i]!.state;
+    let from = s[i]!.t;
+    const to = s[i + 1]!.t;
+    if (to <= from) continue;
+    while (from < to) {
+      const boundary = Math.min(to, nextLocalMidnight(from));
+      const sec = (boundary - from) / 1000;
+      const key = dayKey(from);
+      const b = days.get(key) ?? { drive: 0, idle: 0, off: 0 };
+      if (state === "On") b.drive += sec;
+      else if (state === "Idle") b.idle += sec;
+      else b.off += sec;
+      days.set(key, b);
+      from = boundary;
+    }
+  }
+
+  return [...days.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([day, b]) => ({
+      day,
+      driveSec: Math.round(b.drive),
+      idleSec: Math.round(b.idle),
+      offSec: Math.round(b.off),
+      coverageSec: Math.round(b.drive + b.idle + b.off),
+    }));
+}
