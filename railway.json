@@ -9,6 +9,14 @@
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 3
+    "restartPolicyMaxRetries": 3,
+    "watchPatterns": [
+      "apps/api/**",
+      "apps/web/**",
+      "packages/**",
+      "package.json",
+      "pnpm-lock.yaml",
+      "railway.json"
+    ]
   }
 }
