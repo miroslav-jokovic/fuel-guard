@@ -83,5 +83,34 @@ export function useJob(kind: string) {
   /** Force an immediate refetch (e.g. right after enqueuing a run). */
   const refresh = () => qc.invalidateQueries({ queryKey: ["job", kind] });
 
-  return { latest, lastDone, isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh, isLoading: query.isLoading };
+  /**
+   * Optimistically show the job as running the instant it's kicked off. The sync endpoints hold the HTTP
+   * request open for the WHOLE run, so the caller's POST doesn't resolve (and progress can't be shown from it)
+   * until the sync finishes — which made the first click look dead until you clicked again. Seeding a running
+   * row here makes the progress bar + the 4s poll engage immediately; the real job row (created server-side as
+   * the run starts) is picked up on the next tick and takes over with live progress.
+   */
+  const markRunning = () => {
+    const nowIso = new Date().toISOString();
+    qc.setQueryData<JobResponse>(["job", kind], (prev) => ({
+      lastDone: prev?.lastDone ?? null,
+      latest: {
+        id: "pending",
+        kind,
+        status: "running",
+        progress: 0,
+        total: null,
+        error: null,
+        stats: {},
+        started_at: nowIso,
+        finished_at: null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      },
+    }));
+    // Fetch the real row shortly so live progress replaces the placeholder and polling stays engaged.
+    window.setTimeout(() => void qc.invalidateQueries({ queryKey: ["job", kind] }), 1200);
+  };
+
+  return { latest, lastDone, isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh, markRunning, isLoading: query.isLoading };
 }

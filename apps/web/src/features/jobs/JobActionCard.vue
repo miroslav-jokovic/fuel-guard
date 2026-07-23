@@ -26,7 +26,7 @@ const props = defineProps<{
 }>();
 
 const toast = useToastStore();
-const { isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh, lastDone } = useJob(props.kind);
+const { isRunning, failed, progressPct, progressLabel, freshnessLabel, refresh, markRunning, lastDone } = useJob(props.kind);
 
 // Outcome of the last successful run (e.g. EFS "found 2, imported 0, quarantined 2"), so a "successful" sync
 // that actually landed nothing is visible instead of a silent green chip.
@@ -37,15 +37,24 @@ const runSummary = computed(() => {
 
 async function run(body?: Record<string, unknown>, confirmMsg?: string) {
   if (confirmMsg && !window.confirm(confirmMsg)) return;
-  const res = await apiFetch(props.endpoint, { method: "POST", body });
-  if (res.ok) {
-    toast.success(`${props.title} started`, "Running in the background — progress shows here.");
+  // Engage the progress bar + polling on THIS click. The endpoint keeps the request open for the whole run, so
+  // we can't wait on the POST to show progress — the job row is created server-side as the run starts and the
+  // poll takes over from here.
+  markRunning();
+  try {
+    const res = await apiFetch(props.endpoint, { method: "POST", body });
+    if (res.ok) {
+      toast.success(`${props.title} started`, "Running in the background — progress shows here.");
+    } else if (res.status === 409) {
+      toast.info("Already running", "Watch the progress below.");
+    } else {
+      toast.error(`Could not start ${props.title.toLowerCase()}`, res.error?.message);
+    }
+  } catch {
+    // A long sync can outlast the request/proxy timeout; the job keeps running server-side, so let the poll
+    // report the real outcome instead of showing a scary error.
+  } finally {
     refresh();
-  } else if (res.status === 409) {
-    toast.info("Already running", "Watch the progress below.");
-    refresh();
-  } else {
-    toast.error(`Could not start ${props.title.toLowerCase()}`, res.error?.message);
   }
 }
 </script>
