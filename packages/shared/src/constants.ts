@@ -1,9 +1,21 @@
 /** Application-wide constants shared between web and api. */
 export const APP_NAME = "FuelGuard";
 
-/** User roles within an organization (mirrors the `user_role` Postgres enum). */
-export const USER_ROLES = ["admin", "fleet_manager", "driver", "auditor"] as const;
+/** User roles within an organization (mirrors the `user_role` Postgres enum).
+ *  `dispatcher` + `safety_manager` are department roles: scoped write access to one product area (see the
+ *  section-capability matrix in auth.ts), read-only elsewhere. */
+export const USER_ROLES = ["admin", "fleet_manager", "driver", "auditor", "dispatcher", "safety_manager"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** Human labels for the role pickers (invite + user management). */
+export const USER_ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  fleet_manager: "Fleet manager",
+  driver: "Driver",
+  auditor: "Auditor (read-only)",
+  dispatcher: "Dispatcher",
+  safety_manager: "Safety manager",
+};
 
 /** Fuel types (mirrors the `fuel_type` Postgres enum). */
 export const FUEL_TYPES = ["diesel", "gasoline", "def", "electric", "other"] as const;

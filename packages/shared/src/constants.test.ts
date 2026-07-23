@@ -6,9 +6,11 @@ describe("shared constants", () => {
     expect(APP_NAME).toBe("FuelGuard");
   });
 
-  it("defines exactly four user roles", () => {
-    expect(USER_ROLES).toHaveLength(4);
+  it("defines the six user roles (incl. the department roles)", () => {
+    expect(USER_ROLES).toHaveLength(6);
     expect(USER_ROLES).toContain("admin");
+    expect(USER_ROLES).toContain("dispatcher");
+    expect(USER_ROLES).toContain("safety_manager");
   });
 
   it("gates MPG rules to diesel + gasoline only (audit H1)", () => {
