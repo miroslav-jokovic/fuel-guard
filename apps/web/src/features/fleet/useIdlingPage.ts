@@ -1,6 +1,7 @@
 import { computed, ref, watch } from "vue";
-import { useIdleScores, type IdleDateFilter } from "./useIdleScores";
+import { type IdleDateFilter } from "./useIdleScores";
 import { useIdleBreakdown, type TruckBreakdown } from "./useIdleBreakdown";
+import { useIdleDrivers } from "./useIdleDrivers";
 import { useIdleCapabilities } from "./useIdleCapabilities";
 import { useIdleSettings, useAdoptComfortBand } from "./useIdleSettings";
 import { useLongIdles } from "./useLongIdles";
@@ -37,8 +38,8 @@ const rangeDays = computed(() => {
 const annualMultiplier = computed(() => 365 / rangeDays.value);
 const rangeLabel = computed(() => (dateFrom.value || dateTo.value ? `selected ${rangeDays.value}-day range` : "last 30 days"));
 
-// Data sources.
-const { data, isLoading, isError, error, refetch, isFetching } = useIdleScores(dateFilter);
+// Data sources. The driver leaderboard now comes from the new model (avoidable attributed via assignments).
+const { data: driverRows, isLoading, isError, error, refetch, isFetching } = useIdleDrivers(dateFilter);
 // New per-truck engine-time + avoidable breakdown (the reworked model).
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
@@ -59,7 +60,7 @@ async function onAdoptBand() {
   }
 }
 
-const drivers = computed(() => data.value?.drivers ?? []);
+const drivers = computed(() => driverRows.value ?? []);
 
 // Capability badge styling (shared by the capability + avoidable tabs).
 const CAP: Record<string, { label: string; cls: string }> = {
@@ -187,9 +188,7 @@ const drvSort = ref<SortState>({ key: null, dir: "asc" });
 const drvPage = ref(1);
 const drvFiltered = computed(() => {
   const q = drvSearch.value.trim().toLowerCase();
-  return q
-    ? drivers.value.filter((d) => d.driverName.toLowerCase().includes(q) || (d.primaryUnit?.toLowerCase().includes(q) ?? false))
-    : drivers.value;
+  return q ? drivers.value.filter((d) => d.driverName.toLowerCase().includes(q)) : drivers.value;
 });
 const drvSorted = computed(() => (drvSort.value.key ? sortRows(drvFiltered.value, drvSort.value, (r, k) => (r as unknown as Record<string, unknown>)[k]) : drvFiltered.value));
 const drvRank = (i: number) => (drvPage.value - 1) * PAGE_SIZE + i + 1;
@@ -203,14 +202,12 @@ watch(drvFiltered, () => (drvPage.value = 1));
 const drvColumns: DataTableColumn[] = [
   { key: "rank", label: "#", cellClass: "text-ink-subtle" },
   { key: "driverName", label: "Driver" },
-  { key: "primaryUnit", label: "Truck", cellClass: "text-ink-secondary" },
   { key: "score", label: "Idle score", sortable: true, numeric: true },
-  { key: "discretionaryCost", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
-  { key: "discretionaryHours", label: "Avoidable hrs", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "totalIdleHours", label: "Total idle hrs", sortable: true, numeric: true, cellClass: "text-ink-muted" },
-  { key: "discretionaryPct", label: "% avoidable", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
-  { key: "longIdleCount", label: "Long idles (1h+)", sortable: true, numeric: true, cellClass: "text-ink-muted" },
-  { key: "trend", label: "Trend vs last week", align: "center" },
+  { key: "engineOnH", label: "Engine-on h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idleH", label: "Idled h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "avoidableH", label: "Avoidable h", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "avoidableUsd", label: "Money wasted", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
 ];
 
 // ── tab 2: longest avoidable idles ───────────────────────────────────────────
@@ -283,7 +280,7 @@ const capColumns: DataTableColumn[] = [
   { key: "cross_check", label: "Cross-check", align: "center" },
 ];
   return {
-    data, isLoading, isError, error, isFetching, refetch,
+    isLoading, isError, error, isFetching, refetch,
     breakdown, fleet, trkLoading, trkIsError, trkError, trkFetching, trkRefetch,
     trkSearch, trkCapFilter, trkCapOptions, trkConfSel, trkConfOptions, trkSort, trkPage,
     trkFilterCount, trkFiltered, trkPaged, clearTrk, trkColumns,

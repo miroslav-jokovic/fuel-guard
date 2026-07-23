@@ -21,7 +21,7 @@ const {
   tabs, activeTab, showInfo, showConfidence,
   dateFrom, dateTo, rangeLabel,
   confTone, confBar, suggestionDiffers, fleetOptimizedPct,
-  capBadge, equipBadge, xcheck, trendCell, scoreTone, recordedLabel, recordedCls,
+  capBadge, equipBadge, xcheck, scoreTone, recordedLabel, recordedCls,
   drvSearch, drvSort, drvPage, drvFiltered, drvPaged, drvColumns,
   avSearch, avAvoidableSel, avAvoidableOptions, avSort, avPage, avFilterCount, avFiltered, avPaged, avRowKey, clearAv, avColumns,
   capSearch, capFilter, capOptions, capSort, capPage, capFilterCount, capFiltered, capPaged, clearCap, capColumns,
@@ -182,7 +182,7 @@ const {
     <template v-else-if="activeTab === 'drivers'">
       <FilterBar
         v-model:search="drvSearch"
-        search-placeholder="Search driver or truck…"
+        search-placeholder="Search driver…"
         :count="drvFiltered.length"
         count-label="drivers"
       >
@@ -198,7 +198,7 @@ const {
         :error="isError ? (error instanceof Error ? error.message : 'Failed to load') : null"
         :retrying="isFetching"
         :sort="drvSort"
-        empty-text="No idle events yet — run a Samsara sync from Settings → Data &amp; Sync to pull idling data."
+        empty-text="No idle data yet — run a Samsara sync from Settings → Data &amp; Sync to populate the idle foundation."
         :row-class="(d) => (d.driverId === '__unattributed__' ? 'bg-surface-subtle/60' : '')"
         @sort="drvSort = toggleSort(drvSort, $event)"
         @retry="refetch"
@@ -208,20 +208,12 @@ const {
             {{ row.driverName }}<span v-if="row.driverId === '__unattributed__'" class="ml-1 text-xs font-normal">(no driver assigned by Samsara)</span>
           </span>
         </template>
-        <template #cell-primaryUnit="{ row }">
-          <span v-if="row.primaryUnit" class="text-ink-secondary">
-            {{ row.primaryUnit }}<span v-if="row.unitCount > 1" class="ml-1 text-xs text-ink-subtle">+{{ row.unitCount - 1 }}</span>
-          </span>
+        <template #cell-score="{ row }">
+          <span v-if="row.score != null" class="font-bold" :class="scoreTone(row.score)">{{ row.score }}</span>
           <span v-else class="text-ink-subtle">—</span>
         </template>
-        <template #cell-score="{ row }">
-          <span class="font-bold" :class="scoreTone(row.score)">{{ row.score }}</span>
-        </template>
-        <template #cell-discretionaryCost="{ value }">{{ usd2(value) }}</template>
-        <template #cell-discretionaryPct="{ value }">{{ value }}%</template>
-        <template #cell-trend="{ row }">
-          <span class="font-bold" :class="trendCell(row.trend).cls" :title="trendCell(row.trend).title">{{ trendCell(row.trend).icon }}</span>
-        </template>
+        <template #cell-idlePct="{ value }">{{ value }}%</template>
+        <template #cell-avoidableUsd="{ value }">{{ usd2(value) }}</template>
         <template #footer>
           <TablePagination :page="drvPage" :page-size="PAGE_SIZE" :total="drvFiltered.length" @update:page="drvPage = $event" />
         </template>
