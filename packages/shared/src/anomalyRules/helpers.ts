@@ -66,17 +66,34 @@ export function computedMpg(txn: TxnView, prev: TxnView | null, extraGallons = 0
 }
 
 /**
- * Extra percentage points of MPG drop to ALLOW for cold weather, by month, so a legitimate winter economy hit
- * doesn't false-fire mpg_deviation. Documented effect: diesel highway MPG runs ~5–10% worse in severe cold
- * (fueleconomy.gov / fleet studies). This ONLY widens the tolerance (never tightens it), so an imperfect
- * season map can never CREATE a false alarm — worst case it's slightly more lenient in winter. Northern-
- * hemisphere / US calendar (this fleet is ~99.9% US); month read in UTC. Tune per fleet if needed.
+ * Extra percentage points of MPG drop to ALLOW for cold weather, so a legitimate winter economy hit
+ * doesn't false-fire mpg_deviation. Documented effect: diesel highway MPG runs ~5–10% worse in severe
+ * cold (fueleconomy.gov / fleet studies).
+ *
+ * WP6: when the fill's REAL ambient temperature is known (Open-Meteo backfill via weather_cache →
+ * fuel_transactions.ambient_temp_f), it drives the derate: ≤20°F → 10, ≤32°F → 5. The result is the
+ * MAX of the temperature derate and the calendar-month fallback — real cold outside winter months now
+ * gets its allowance, while a warm winter day KEEPS the old leniency (this function only ever WIDENS
+ * tolerance vs the pre-WP6 behavior; it can never create a new false alarm). Month read in UTC;
+ * northern-hemisphere / US calendar (this fleet is ~99.9% US).
  */
-export function coldWeatherDeratePct(fueledAtIso: string): number {
+export function coldWeatherDeratePct(fueledAtIso: string, ambientTempF?: number | null): number {
   const m = new Date(fueledAtIso).getUTCMonth(); // 0=Jan … 11=Dec
-  if (m === 11 || m === 0 || m === 1) return 10; // Dec–Feb: deep winter
-  if (m === 10 || m === 2) return 5; // Nov, Mar: shoulder
-  return 0;
+  const calendar = m === 11 || m === 0 || m === 1 ? 10 : m === 10 || m === 2 ? 5 : 0;
+  const temp = ambientTempF == null ? 0 : ambientTempF <= 20 ? 10 : ambientTempF <= 32 ? 5 : 0;
+  return Math.max(calendar, temp);
+}
+
+/** Baseline-contamination test (WP6): a fill with physical VOLUME-axis evidence (over-capacity /
+ *  tank-space / top-off / over-fuel / fill-short) or a full alert-level case must never train the MPG
+ *  baseline — sustained theft would drag the baseline down until its own deviations stop firing
+ *  (self-normalizing drift). A lone consumption-axis signal (mpg_deviation itself) does NOT
+ *  contaminate: excluding those would ratchet the baseline and alert-storm on legitimate efficiency
+ *  loss (mpg_sustained_decline covers gradual decline). Pure. */
+const VOLUME_AXIS_RULE_IDS = new Set(["exceeds_tank_capacity", "tank_space_exceeded", "implausible_topoff", "cumulative_overfuel", "tank_fill_short"]);
+export function contaminatesBaseline(caseLevel: string | null | undefined, caseSignals: { ruleId: string }[] | null | undefined): boolean {
+  if (caseLevel === "alert") return true;
+  return (caseSignals ?? []).some((s) => VOLUME_AXIS_RULE_IDS.has(s.ruleId));
 }
 
 export function median(nums: number[]): number {

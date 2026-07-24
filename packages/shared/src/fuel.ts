@@ -76,6 +76,8 @@ export interface FuelTransaction {
   case_level?: "clear" | "review" | "alert" | null;
   case_score?: number | null;
   case_signals?: { ruleId: string; axis: string; weight: number; severity: string; message: string }[] | null;
+  /** WP6 — why detection was LIMITED on this fill: gating inputs + rules ineligible to fire. */
+  case_gates?: { tankSensor: string; odoSource: string | null; fillSize: string; ineligible: string[] } | null;
   ai_risk_level: AnomalySeverity | null;
   samsara_location_confidence?: string | null;
   /** tractor propulsion tank vs reefer (trailer) tank. Default 'tractor'. */

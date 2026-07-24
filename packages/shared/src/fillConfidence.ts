@@ -1,3 +1,4 @@
+import { RULE_IDS } from "./anomalyRules/index.js";
 import type { RuleContext, RuleId } from "./anomalyRules/index.js";
 
 /**
@@ -85,4 +86,18 @@ export function ruleEligible(id: RuleId, c: FillConfidence): boolean {
     default:
       return true;
   }
+}
+
+/** Per-fill gating summary (WP6) — persisted on the fill (case_gates) so the UI can say WHY detection
+ *  was limited ("tank rules off: sensor not learned-reliable") instead of a silent absence of alerts. */
+export interface FillGates {
+  tankSensor: FillConfidence["tankSensor"];
+  odoSource: FillConfidence["odoSource"];
+  fillSize: FillConfidence["fillSize"];
+  /** Rules ineligible to fire for this fill's confidence (empty = full coverage). */
+  ineligible: RuleId[];
+}
+
+export function summarizeFillGates(c: FillConfidence): FillGates {
+  return { tankSensor: c.tankSensor, odoSource: c.odoSource, fillSize: c.fillSize, ineligible: RULE_IDS.filter((id) => !ruleEligible(id, c)) };
 }

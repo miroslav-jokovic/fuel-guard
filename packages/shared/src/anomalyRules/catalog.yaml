@@ -102,11 +102,13 @@ rules:
     axis: consumption
     weight: 30
     label: MPG Deviation
+    note: WP6 — cold-weather derate runs off the fill's REAL ambient temperature when backfilled (≤20°F +10, ≤32°F +5), max'd with the calendar fallback (only ever widens). Baseline excludes theft-contaminated fills (volume-axis signals / alert cases) so sustained theft can't drag the baseline down and self-normalize; a lone consumption-axis deviation still trains it (legit efficiency change must move the median).
   - id: mpg_sustained_decline
     tier: efficiency
     axis: consumption
     weight: 20
     label: Sustained MPG Decline
+    note: WP6 — same temperature-aware derate as mpg_deviation.
 
   # ── Tier 4 — behavioral ──────────────────────────────────────────────────────────────────────────
   - id: rapid_repeat_fueling

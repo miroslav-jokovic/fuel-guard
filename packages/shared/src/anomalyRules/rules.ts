@@ -231,7 +231,7 @@ function ruleMpgDeviation(ctx: RuleContext): RuleResult {
   if (mpg == null || baseline == null || baseline <= 0) return none("mpg_deviation");
   // Allow a wider drop in cold months (diesel legitimately loses ~5–10% MPG in severe cold) so winter fills
   // don't false-fire. Derate only widens the band; it never makes the rule fire when it otherwise wouldn't.
-  const coldDerate = coldWeatherDeratePct(txn.fueledAt);
+  const coldDerate = coldWeatherDeratePct(txn.fueledAt, ctx.ambientTempF);
   const effectiveDropPct = thresholds.mpgDropPct + coldDerate;
   const floor = baseline * (1 - effectiveDropPct / 100);
   if (mpg < floor) {
@@ -251,7 +251,7 @@ function ruleMpgSustainedDecline(ctx: RuleContext): RuleResult {
   const prior3 = median(series.slice(-6, -3));
   // Base 10% decline threshold, widened by the cold-weather allowance (P-6b) so a legitimate fall→winter
   // economy decline doesn't false-fire. Only ever widens the band.
-  const coldDerate = coldWeatherDeratePct(txn.fueledAt);
+  const coldDerate = coldWeatherDeratePct(txn.fueledAt, ctx.ambientTempF);
   const declineFactor = 1 - (10 + coldDerate) / 100;
   if (prior3 > 0 && last3 < prior3 * declineFactor) {
     const coldNote = coldDerate ? ` (allowing +${coldDerate}% for cold-weather economy)` : "";

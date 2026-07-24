@@ -177,7 +177,21 @@ function weakSignals(row: FuelTransaction): CaseSignal[] {
 function whyTitle(row: FuelTransaction): string {
   const sigs = weakSignals(row);
   const names = sigs.map((s) => formatRuleId(s.ruleId)).join(", ");
-  return `${names}\n\n${explainCaseOutcome((row.case_level ?? "clear") as CaseLevel, Number(row.case_score ?? 0), sigs)}`;
+  return `${names}\n\n${explainCaseOutcome((row.case_level ?? "clear") as CaseLevel, Number(row.case_score ?? 0), sigs)}${gatesNote(row)}`;
+}
+/** WP6 — honest-absence note: which rule groups were INELIGIBLE for this fill and why. */
+function gatesNote(row: FuelTransaction): string {
+  const g = row.case_gates;
+  if (!g?.ineligible?.length) return "";
+  const why: string[] = [];
+  if (g.tankSensor !== "reliable") why.push("tank sensor not learned-reliable");
+  if (g.odoSource === "other") why.push("odometer cross-check is GPS-derived");
+  if (g.fillSize === "too_small") why.push("fill too small for the sensor to read");
+  return `\n\nChecks limited on this fill (${why.join("; ") || "confidence gates"}): ${g.ineligible.map((r) => formatRuleId(r)).join(", ")} did not run.`;
+}
+/** Show the marker when sub-threshold signals fired OR meaningful checks were gated off. */
+function hasWhy(row: FuelTransaction): boolean {
+  return weakSignals(row).length > 0 || !!row.case_gates?.ineligible?.length;
 }
 
 const columns: DataTableColumn[] = [
@@ -312,11 +326,11 @@ const columns: DataTableColumn[] = [
             >AI: {{ row.ai_risk_level }}</span
           >
           <span
-            v-if="weakSignals(row).length"
+            v-if="hasWhy(row)"
             :class="[BADGE_BASE, toneClass('neutral')]"
             class="cursor-help"
             :title="whyTitle(row)"
-            >{{ weakSignals(row).length }} weak signal{{ weakSignals(row).length > 1 ? "s" : "" }}</span
+            >{{ weakSignals(row).length ? `${weakSignals(row).length} weak signal${weakSignals(row).length > 1 ? "s" : ""}` : "ⓘ" }}</span
           >
         </div>
       </template>

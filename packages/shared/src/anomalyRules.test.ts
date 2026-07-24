@@ -23,7 +23,9 @@ import {
   explainCaseOutcome,
   CORRELATION_THRESHOLDS,
   computedMpg,
+  contaminatesBaseline,
 } from "./index.js";
+import { computeFillConfidence, summarizeFillGates } from "./fillConfidence.js";
 
 const vehicle: VehicleView = { id: "v1", fuelType: "diesel", tankCapacityGal: 120, baselineMpg: 6.4 };
 // A truck whose fills reconcile with the tank sensor — required for the per-fill volume/consumption rules
@@ -1036,5 +1038,57 @@ describe("WP4 intermediate (skipped-fill) gallons enter the consumption math", (
   it("computedMpg includes extra gallons", () => {
     expect(computedMpg(txn(), { ...txn(), id: "p", odometer: 99400 }, 60)).toBeCloseTo(4.0, 1);
     expect(computedMpg(txn(), { ...txn(), id: "p", odometer: 99400 })).toBeCloseTo(6.67, 1);
+  });
+});
+
+// ── WP6 — MPG/baseline integrity ──────────────────────────────────────────────────────────────────
+describe("WP6 temperature-aware cold derate (real cold governs; calendar is the floor)", () => {
+  it("real deep cold outside winter months now earns the allowance (Oct cold snap)", () => {
+    expect(coldWeatherDeratePct("2026-10-15T12:00:00Z", 15)).toBe(10); // ≤20°F
+    expect(coldWeatherDeratePct("2026-10-15T12:00:00Z", 28)).toBe(5); // ≤32°F
+    expect(coldWeatherDeratePct("2026-10-15T12:00:00Z", 60)).toBe(0);
+  });
+  it("a warm winter day KEEPS the calendar leniency — the derate only ever widens vs pre-WP6", () => {
+    expect(coldWeatherDeratePct("2026-01-15T12:00:00Z", 65)).toBe(10); // max(calendar 10, temp 0)
+    expect(coldWeatherDeratePct("2026-01-15T12:00:00Z", null)).toBe(10); // no temp → calendar
+    expect(coldWeatherDeratePct("2026-06-15T12:00:00Z")).toBe(0);
+  });
+  it("mpg_deviation consumes the fill's ambient temperature", () => {
+    // 600 mi / 150 gal = 4.0 mpg vs baseline 6.4 → 37.5% drop; even 15% + 10 cold = 25% floor still fires,
+    // but a summer-temp fill vs a deep-cold fill differ in the evidence derate.
+    const cold = runAllRules(ctx({ vehicle: reliable, intermediateGallons: 60, ambientTempF: 10 })).find((r) => r.ruleId === "mpg_deviation");
+    expect(cold!.evidence.coldWeatherDeratePct).toBe(10);
+    const warm = runAllRules(ctx({ vehicle: reliable, intermediateGallons: 60, ambientTempF: 70 })).find((r) => r.ruleId === "mpg_deviation");
+    expect(warm!.evidence.coldWeatherDeratePct).toBe(0);
+  });
+});
+
+describe("WP6 contaminatesBaseline (sustained theft can't self-normalize)", () => {
+  it("volume-axis signals contaminate; alert-level cases contaminate", () => {
+    expect(contaminatesBaseline("clear", [{ ruleId: "tank_space_exceeded" }])).toBe(true);
+    expect(contaminatesBaseline("clear", [{ ruleId: "cumulative_overfuel" }])).toBe(true);
+    expect(contaminatesBaseline("alert", [])).toBe(true);
+  });
+  it("a lone consumption-axis deviation does NOT contaminate (legit efficiency change must move the median)", () => {
+    expect(contaminatesBaseline("clear", [{ ruleId: "mpg_deviation" }])).toBe(false);
+    expect(contaminatesBaseline("review", [{ ruleId: "card_multi_vehicle" }])).toBe(false);
+    expect(contaminatesBaseline("clear", [])).toBe(false);
+    expect(contaminatesBaseline(null, null)).toBe(false);
+  });
+});
+
+describe("WP6 summarizeFillGates (honest-absence surface)", () => {
+  it("unreliable sensor → tank/MPG rules listed ineligible", () => {
+    const gates = summarizeFillGates(computeFillConfidence(ctx()));
+    expect(gates.tankSensor).toBe("unreliable");
+    expect(gates.ineligible).toEqual(expect.arrayContaining(["tank_space_exceeded", "tank_fill_short", "mpg_deviation", "implausible_topoff", "mpg_sustained_decline"]));
+  });
+  it("reliable sensor + measurable fill + OBD odometer → nothing gated", () => {
+    const gates = summarizeFillGates(computeFillConfidence(ctx({ vehicle: reliable, crossSourceOdometerSource: "obd" })));
+    expect(gates.ineligible).toEqual([]);
+  });
+  it("GPS-derived odometer source gates the absolute mismatch checks", () => {
+    const gates = summarizeFillGates(computeFillConfidence(ctx({ vehicle: reliable, crossSourceOdometerSource: "gps" })));
+    expect(gates.ineligible).toEqual(expect.arrayContaining(["odometer_mismatch", "odometer_entry_suspect"]));
   });
 });

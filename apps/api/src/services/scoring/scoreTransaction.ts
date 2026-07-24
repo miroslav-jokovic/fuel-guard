@@ -2,13 +2,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   runAllRules, reconcileAnomalies, correlateSignals, CASE_RULE_ID, milesSinceLast, computedMpg,
-  effectiveBaseline, learnOdometerOffset, learnTankSensorReliability, learnObservedMaxFill,
-  robustWindowMiles, type TxnView, type VehicleView,
+  effectiveBaseline, robustWindowMiles, contaminatesBaseline, computeFillConfidence, summarizeFillGates,
+  type RuleContext, type TxnView, type VehicleView,
   type ExistingAnomaly, type RuleResult, type RuleId,
 } from "@fuelguard/shared";
 import type { Env } from "../../env.js";
 import { resolveReconciliation } from "./reconcile.js";
 import { resolveCardContext } from "./cardContext.js";
+import { learnVehicleValues } from "./learnVehicle.js";
+
+export { learnVehicleValues } from "./learnVehicle.js"; // re-export: barrel + backfill import path unchanged
 import { deriveDriverHomeAtFill } from "./tmsGates.js";
 import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, loadThresholds, loadOperatingHours, sumIntermediateGallons, n } from "./loaders.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
@@ -101,12 +104,16 @@ export async function scoreTransaction(
         .in("rule_id", ODOMETER_RULE_IDS);
       badIds = new Set((anoms ?? []).map((a) => a.transaction_id as string));
     }
-    // Previous fill = the most recent fill whose odometer is NOT already flagged as anomalous.
-    // Comparing against a known-bad reading (a typo) cascaded false regressions / MPG anomalies onto
-    // every correct entry that followed it — same exclusion recentTxns has always applied.
-    const prevRow = rows.find((x) => !badIds.has(x.id)) ?? null;
+    // Previous fill = the most recent fill whose odometer is NOT already flagged as anomalous (legacy
+    // anomalies rows OR persisted case_signals). Comparing against a known-bad reading cascaded false
+    // regressions / MPG anomalies onto every correct entry after it.
+    const ODO_SIGNALS = new Set(ODOMETER_RULE_IDS);
+    const odoBad = (x: FtxnRow) => badIds.has(x.id) || (x.case_signals ?? []).some((sg) => ODO_SIGNALS.has(sg.ruleId));
+    const prevRow = rows.find((x) => !odoBad(x)) ?? null;
     previousTxn = prevRow ? toTxnView(prevRow) : null;
-    recentTxns = rows.filter((x) => !badIds.has(x.id)).slice(0, 6).map(toTxnView).reverse();
+    // WP6: theft-contaminated fills (volume-axis evidence / alert cases) must not train the baseline —
+    // sustained theft would drag the median down until its own deviations stop firing.
+    recentTxns = rows.filter((x) => !odoBad(x) && !contaminatesBaseline(x.case_level, x.case_signals)).slice(0, 6).map(toTxnView).reverse();
     if (prevRow) intermediateGallons = await sumIntermediateGallons(admin, txn.vehicleId, prevRow.fueled_at, r.fueled_at, txnId); // WP4
 
 
@@ -248,7 +255,7 @@ export async function scoreTransaction(
     ? await deriveDriverHomeAtFill(admin, orgId, txn.driverId, r.fueled_at)
     : undefined;
 
-  const fired = runAllRules({
+  const ruleCtx: RuleContext = {
     txn,
     vehicle,
     previousTxn,
@@ -275,7 +282,9 @@ export async function scoreTransaction(
     reeferDiversionTractorGal,
     reeferLoadInWindow,
     driverHomeAtFill,
-  });
+    ambientTempF: n(r.ambient_temp_f),
+  };
+  const fired = runAllRules(ruleCtx);
 
   // Correlate the fired signals into ONE per-transaction case (multi-signal model). A lone weak signal
   // stays "clear" (no anomaly) so normal fills don't all look flagged; independent corroborating signals
@@ -330,6 +339,9 @@ export async function scoreTransaction(
       case_level: assessment.level,
       case_score: assessment.score,
       case_signals: assessment.signals,
+      // WP6: WHY detection was limited on this fill (ineligible rules + the gating inputs) — the UI's
+      // honest-absence surface ("tank rules off: sensor not learned-reliable").
+      case_gates: summarizeFillGates(computeFillConfidence(ruleCtx)),
       samsara_odometer: crossSourceOdometer,
       samsara_odometer_at: crossSourceOdometerAt,
       samsara_odometer_source: crossSourceOdometerSource,
@@ -394,104 +406,6 @@ export async function scoreTransaction(
     if (!opts.skipLearn) {
       await learnVehicleValues(admin, txn.vehicleId, { odometerOffset: vehicle.odometerOffset ?? 0, odometerOffsetSource });
     }
-  }
-}
-
-/**
- * Learn the per-vehicle values that GATE the rules — odometer offset, tank-sensor reliability, and observed
- * (combined) capacity — from the vehicle's own reconciled history, and persist them. Extracted so a bulk
- * rebuild can run it ONCE per vehicle BEFORE scoring, converging the values in a single pass (fixes the
- * two-pass "rebuild twice" limitation, audit R-3). `ctx` passes the caller's already-loaded offset to avoid a
- * re-fetch; omitted on the pre-pass, where we read it from the vehicle row.
- */
-export async function learnVehicleValues(
-  admin: SupabaseClient,
-  vehicleId: string,
-  ctx?: { odometerOffset: number; odometerOffsetSource: string },
-): Promise<void> {
-  let odometerOffset: number;
-  let odometerOffsetSource: string;
-  if (ctx) {
-    odometerOffset = ctx.odometerOffset;
-    odometerOffsetSource = ctx.odometerOffsetSource;
-  } else {
-    const { data: v } = await admin.from("vehicles").select("odometer_offset, odometer_offset_source").eq("id", vehicleId).single();
-    if (!v) return;
-    odometerOffset = n(v.odometer_offset) ?? 0;
-    odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
-  }
-  const vehUpdate: Record<string, unknown> = {};
-
-  // Odometer offset (dash − Samsara), OBD-only, median over the last 10 clustered pairs. Manual is never
-  // overwritten.
-  if (odometerOffsetSource !== "manual") {
-    const { data: pairRows } = await admin
-      .from("fuel_transactions")
-      .select("odometer, samsara_odometer")
-      .eq("vehicle_id", vehicleId)
-      .eq("samsara_odometer_source", "obd")
-      .not("odometer", "is", null)
-      .not("samsara_odometer", "is", null)
-      .order("fueled_at", { ascending: false })
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false }) // deterministic sample at the limit boundary (audit A2.5)
-      .limit(10);
-    const pairs = ((pairRows ?? []) as { odometer: number | string; samsara_odometer: number | string }[])
-      .map((p) => ({ entered: Number(p.odometer), samsara: Number(p.samsara_odometer) }))
-      .reverse();
-    const learned = learnOdometerOffset(pairs);
-    if (learned && learned.offset !== odometerOffset) {
-      vehUpdate.odometer_offset = learned.offset;
-      vehUpdate.odometer_offset_source = "auto";
-    }
-  }
-
-  // Tank-sensor reliability (observed-rise ÷ billed ≈ 1) — gates the per-fill tank/volume/MPG rules.
-  {
-    const { data: tankRows } = await admin
-      .from("fuel_transactions")
-      .select("samsara_tank_observed_gal, gallons")
-      .eq("vehicle_id", vehicleId)
-      .not("samsara_tank_observed_gal", "is", null)
-      .gt("gallons", 0)
-      .order("fueled_at", { ascending: false })
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(12);
-    const tankPairs = ((tankRows ?? []) as { samsara_tank_observed_gal: number | string; gallons: number | string }[])
-      .map((p) => ({ observedRiseGal: Number(p.samsara_tank_observed_gal), billedGallons: Number(p.gallons) }))
-      .reverse();
-    const rel = learnTankSensorReliability(tankPairs);
-    if (rel) {
-      vehUpdate.tank_sensor_reliable = rel.reliable;
-      vehUpdate.tank_fill_ratio = rel.ratio;
-    }
-  }
-
-  // Observed (combined) capacity — corroborated high single-fill volume; only raises the effective capacity.
-  // Passes the entered nameplate so non-physical fills (typos/pump errors) are discarded before learning, and
-  // the corroboration floor means a lone outlier can never train capacity up (audit A2.1). The created_at,id
-  // tiebreaker makes the sampled fills deterministic across rebuilds (date-only EFS rows share fueled_at).
-  {
-    const { data: veh } = await admin.from("vehicles").select("tank_capacity_gal").eq("id", vehicleId).single();
-    const nameplateGal = veh ? Number(veh.tank_capacity_gal) : undefined;
-    const { data: fillRows } = await admin
-      .from("fuel_transactions")
-      .select("gallons")
-      .eq("vehicle_id", vehicleId)
-      .eq("tank_type", "tractor")
-      .gt("gallons", 0)
-      .order("fueled_at", { ascending: false })
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(30);
-    const gallons = ((fillRows ?? []) as { gallons: number | string }[]).map((r) => Number(r.gallons)).reverse();
-    const learnedCap = learnObservedMaxFill(gallons, { nameplateGal });
-    if (learnedCap) vehUpdate.observed_max_fill_gal = learnedCap.gallons;
-  }
-
-  if (Object.keys(vehUpdate).length) {
-    await admin.from("vehicles").update(vehUpdate).eq("id", vehicleId);
   }
 }
 

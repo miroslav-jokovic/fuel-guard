@@ -9,7 +9,7 @@ import { compressToWebp } from "./imageCompress";
 // Note: payment_method (migration 0067) is intentionally NOT selected here — it isn't shown in the table,
 // and selecting a not-yet-migrated column would break the whole read path. It's written on insert only.
 const FUEL_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, miles_since_last, gallons, price_per_gal, total_cost, location_text, state, source, card_ref, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_confidence, tank_type, case_level, case_score, case_signals, created_at";
+  "id, org_id, vehicle_id, driver_id, fueled_at, odometer, miles_since_last, gallons, price_per_gal, total_cost, location_text, state, source, card_ref, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_confidence, tank_type, case_level, case_score, case_signals, case_gates, created_at";
 
 export const FUEL_PAGE_SIZE = 20;
 

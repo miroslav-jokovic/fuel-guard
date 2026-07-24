@@ -4,6 +4,8 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "./efsSync.js";
 import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring/index.js";
 import { syncCardAssignments } from "./cardAssignments.js";
+import { backfillFillWeather } from "./fillWeather.js";
+import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
 import { startJob, finishJob, latestJob, JobConflictError } from "./jobs.js";
 
 const TARGET_HOUR = 3; // org-local hour to run the nightly self-heal
@@ -44,6 +46,8 @@ export async function runNightlyReconcile(admin: SupabaseClient, env: Env, orgId
   const rebuilt = await backfillOrg(admin, env, orgId, { skipRecon: true, sinceDays: RECENT_REBUILD_DAYS });
   // WP1 D4 — keep the card→truck assignment table current from fill history (feeds decline scoring).
   const cards = await syncCardAssignments(admin, orgId).catch(() => null); // best-effort; never blocks the reconcile
+  // WP6 — real ambient temperature for recent fills (drives the MPG cold-weather derate off real cold).
+  const weatherFilled = await backfillFillWeather(admin, orgId, makeOpenMeteoFetcher(env)).catch(() => null);
   return {
     driftFixed: efs.inserted + efs.updated, // rows the store repair created/corrected (0 = clean)
     efsInserted: efs.inserted,
@@ -51,6 +55,7 @@ export async function runNightlyReconcile(admin: SupabaseClient, env: Env, orgId
     rescored,
     rebuilt,
     cardsAssigned: cards?.assigned ?? null,
+    weatherFilled,
     checkedAt: new Date().toISOString(),
   };
 }

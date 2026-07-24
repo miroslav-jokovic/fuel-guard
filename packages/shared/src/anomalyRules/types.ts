@@ -172,6 +172,9 @@ export interface RuleContext {
   previousTxn: TxnView | null;
   /** Up to the last ~6 VALID fills before txn (odometer-anomalous excluded), OLDEST→NEWEST. */
   recentTxns: TxnView[];
+  /** Ambient temperature (°F) at the fill, when backfilled (Open-Meteo / weather_cache). Drives the
+   *  cold-weather MPG derate; null/undefined falls back to the calendar-month allowance (WP6). */
+  ambientTempF?: number | null;
   /** Gallons from fills BETWEEN previousTxn and txn (exclusive) that were skipped when picking
    *  previousTxn (blank odometer / flagged entry). Their fuel was burned inside the span, so the
    *  per-fill MPG / top-off / band math must include it (WP4) or MPG reads inflated. Default 0. */
