@@ -19,7 +19,7 @@ export function useDetectionCoverage() {
       for (let offset = 0; ; offset += PAGE) {
         const { data, error } = await supabase
           .from("fuel_transactions")
-          .select("vehicle_id, driver_id, fueled_at, tank_type, samsara_recon_at, samsara_odometer, samsara_location_confidence, fueling_time_basis")
+          .select("vehicle_id, driver_id, fueled_at, tank_type, samsara_recon_at, samsara_odometer, samsara_location_confidence, fueling_time_basis, card_ref, control_id")
           .gte("fueled_at", from)
           .order("fueled_at", { ascending: true })
           .range(offset, offset + PAGE - 1);

@@ -55,7 +55,7 @@ const columns: DataTableColumn[] = [
       means "we didn't flag it" carries less weight. This is the honest bound on how much we can catch.
     </PageHeader>
 
-    <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <BaseCard>
         <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Telematics coverage</dt>
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.reconciledPct)">{{ fmtPct(data.reconciledPct) }}</dd>
@@ -75,6 +75,11 @@ const columns: DataTableColumn[] = [
         <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Attributed</dt>
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.attributedPct)">{{ fmtPct(data.attributedPct) }}</dd>
         <dd class="mt-0.5 text-xs text-ink-subtle">{{ data.unattributed.toLocaleString() }} unmatched to a truck/driver</dd>
+      </BaseCard>
+      <BaseCard>
+        <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Card identity</dt>
+        <dd class="mt-1 text-2xl font-bold" :class="covTone(data.cardIdentifiablePct)">{{ fmtPct(data.cardIdentifiablePct) }}</dd>
+        <dd class="mt-0.5 text-xs text-ink-subtle" title="A masked last-4 with no Driver Control ID can't be told apart from another card — those fills are invisible to card-misuse checks">{{ data.cardBlindFills.toLocaleString() }} of {{ data.cardFills.toLocaleString() }} card fills unidentifiable</dd>
       </BaseCard>
     </div>
 

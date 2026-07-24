@@ -71,3 +71,19 @@ describe("computeDetectionCoverage", () => {
     expect(s.lastReconciledAt).toBeNull();
   });
 });
+
+describe("WP3 — card-identity coverage (masked-card blindness surfaced)", () => {
+  it("counts unidentifiable card fills (bare masked last-4, no control id)", async () => {
+    const { computeDetectionCoverage } = await import("./detectionCoverage.js");
+    const base = { vehicle_id: "v1", driver_id: "d1", fueled_at: "2026-07-01T12:00:00Z", samsara_recon_at: null, samsara_odometer: null, samsara_location_confidence: null, fueling_time_basis: null };
+    const s = computeDetectionCoverage([
+      { ...base, card_ref: "7083050030281917521", control_id: null }, // full PAN → identifiable
+      { ...base, card_ref: "7521", control_id: "WCHRISTO" }, // last4 + control → identifiable
+      { ...base, card_ref: "7521", control_id: null }, // bare last-4 → BLIND
+      { ...base, card_ref: null, control_id: null }, // no card at all → not a card fill
+    ]);
+    expect(s.cardFills).toBe(3);
+    expect(s.cardBlindFills).toBe(1);
+    expect(s.cardIdentifiablePct).toBeCloseTo(66.7, 1);
+  });
+});

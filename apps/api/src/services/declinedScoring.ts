@@ -4,8 +4,6 @@ import {
   declineSignalWeight,
   classifyDeclineReason,
   assessCardAssignment,
-  cardIdentityKey,
-  cardLast4,
   cardRefsMatch,
   attributeDeclinedRow,
   isNoonSentinelIso,
@@ -14,7 +12,7 @@ import {
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
-import { syncCardAssignments } from "./cardAssignments.js";
+import { syncCardAssignments, lookupCardAssignment } from "./cardAssignments.js";
 
 const WINDOW_H = 3; // hours around a decline for repeat / approval-elsewhere checks
 
@@ -91,32 +89,7 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
   // 0) The card's ASSIGNED vehicle (fuel_cards — learned from fill history / set manually). The standard
   // EFS reject export does not carry the card-assigned truck (WP1 audit F3), so this table is the
   // card→truck ground truth the assignment check runs against (WP1 D4).
-  let assignedVehicleId: string | null = null;
-  const cardKey = cardIdentityKey(d.card_ref, null);
-  if (cardKey) {
-    const { data: cardRow } = await admin
-      .from("fuel_cards")
-      .select("vehicle_id")
-      .eq("org_id", orgId)
-      .eq("card_ref", cardKey)
-      .maybeSingle();
-    assignedVehicleId = (cardRow?.vehicle_id as string | null) ?? null;
-    if (!assignedVehicleId) {
-      // Masked-ref fallback: match by last4 ONLY when exactly one assigned card carries it (never guess).
-      const last4 = cardLast4(d.card_ref);
-      if (last4) {
-        const { data: byLast4 } = await admin
-          .from("fuel_cards")
-          .select("vehicle_id")
-          .eq("org_id", orgId)
-          .eq("card_last4", last4)
-          .not("vehicle_id", "is", null)
-          .limit(2);
-        const cands = (byLast4 ?? []) as { vehicle_id: string | null }[];
-        if (cands.length === 1) assignedVehicleId = cands[0]!.vehicle_id;
-      }
-    }
-  }
+  const assignedVehicleId: string | null = await lookupCardAssignment(admin, orgId, d.card_ref);
 
   // 1) Location: was the PUMP-UNIT truck actually at the decline's location? (live Samsara reconciliation)
   if (d.vehicle_id) {

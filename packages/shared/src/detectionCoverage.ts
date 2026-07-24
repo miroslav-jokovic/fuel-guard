@@ -21,6 +21,10 @@ export interface CoverageInput {
   samsara_location_confidence: string | null;
   /** tank_confirmed | stop_estimated | reported | date_only | null. */
   fueling_time_basis: string | null;
+  /** Card fields (WP3): a fill whose card can't be identified (masked last-4 with no control id) is
+   *  invisible to every card-identity rule — that blindness must be counted, not hidden. Optional. */
+  card_ref?: string | null;
+  control_id?: string | null;
 }
 
 export type TimeBasisKey = "tank_confirmed" | "stop_estimated" | "reported" | "date_only" | "none";
@@ -51,6 +55,11 @@ export interface CoverageSummary {
   locationConfirmedPct: number; // CONFIRMED at the station (gps_confirmed only)
   blindFills: number;
   blindPct: number;
+  /** Card-identity coverage (WP3): fills that carried a card at all, and how many of those cards are
+   *  UNIDENTIFIABLE (bare masked last-4, no control id) — invisible to card-misuse rules. */
+  cardFills: number;
+  cardBlindFills: number;
+  cardIdentifiablePct: number;
   timeBasis: Record<TimeBasisKey, number>;
   /** Per-truck coverage, worst (most blind) first. Unattributed fills aren't per-truck. */
   perTruck: CoverageTruckRow[];
@@ -88,6 +97,8 @@ export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary
   let odometer = 0;
   let location = 0;
   let confirmed = 0;
+  let cardFills = 0;
+  let cardBlind = 0;
   let lastReconMs: number | null = null;
 
   for (const r of rows) {
@@ -107,6 +118,13 @@ export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary
     if (hasOdo) odometer += 1;
     if (hasLoc) location += 1;
     if (isConfirmed) confirmed += 1;
+    if (r.card_ref) {
+      cardFills += 1;
+      // Same identity rule as cardIdentityKey: ≥8 digits (full PAN) or ≥4 digits + a control id.
+      const digits = r.card_ref.replace(/\D/g, "");
+      const identifiable = digits.length >= 8 || (digits.length >= 4 && !!r.control_id);
+      if (!identifiable) cardBlind += 1;
+    }
     timeBasis[timeBasisKey(r.fueling_time_basis)] += 1;
 
     if (r.vehicle_id != null) {
@@ -150,6 +168,9 @@ export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary
     locationConfirmedPct: pct(confirmed, total),
     blindFills: total - reconciled,
     blindPct: pct(total - reconciled, total),
+    cardFills,
+    cardBlindFills: cardBlind,
+    cardIdentifiablePct: pct(cardFills - cardBlind, cardFills),
     timeBasis,
     perTruck,
     lastReconciledAt: lastReconMs != null ? new Date(lastReconMs).toISOString() : null,

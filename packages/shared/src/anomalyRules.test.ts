@@ -957,3 +957,24 @@ describe("WP2 — explainCaseOutcome (every outcome is explainable, including cl
     expect(c.signals).toHaveLength(1);
   });
 });
+
+// ── WP3 — card_multi_vehicle: true card identity + fuel_cards assignment ──────────────────────────
+describe("WP3 card_multi_vehicle (assignment-aware, card-keyed)", () => {
+  it("fires as a SINGLE event when the fill's truck differs from the card's assigned truck", () => {
+    const c = ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardAssignedVehicleId: "other-truck" });
+    const out = runAllRules(c).find((r) => r.ruleId === "card_multi_vehicle");
+    expect(out).toBeTruthy();
+    expect(out!.evidence.assignedVehicleId).toBe("other-truck");
+  });
+  it("stays silent on the card's own assigned truck (count 1)", () => {
+    expect(ids(ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardAssignedVehicleId: "v1" }))).not.toContain("card_multi_vehicle");
+  });
+  it("a floating card (no assignment) still fires the classic ≥2-vehicles signal", () => {
+    expect(ids(ctx({ txn: txn({ cardRef: "93509" }), cardVehicleCountInWindow: 2 }))).toContain("card_multi_vehicle");
+  });
+  it("an unattributed fill with an assignment does not fire the off-assignment variant", () => {
+    expect(
+      ids(ctx({ txn: txn({ cardRef: "93509", vehicleId: null }), previousTxn: null, cardVehicleCountInWindow: 1, cardAssignedVehicleId: "other-truck" })),
+    ).not.toContain("card_multi_vehicle");
+  });
+});

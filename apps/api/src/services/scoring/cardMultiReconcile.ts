@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CASE_RULE_ID } from "@fuelguard/shared";
+import { CASE_RULE_ID, sameCardFill } from "@fuelguard/shared";
 
 /** Default window (hours) matching the rule's cumulativeWindowHours default. */
 const DEFAULT_WINDOW_H = 48;
@@ -72,22 +72,34 @@ export async function reconcileCardMultiForOrg(
   for (const c of targets) {
     const { data: txn } = await admin
       .from("fuel_transactions")
-      .select("card_ref, fueled_at")
+      .select("card_ref, control_id, fueled_at")
       .eq("id", c.transaction_id)
       .maybeSingle();
-    const t = txn as { card_ref: string | null; fueled_at: string } | null;
+    const t = txn as { card_ref: string | null; control_id: string | null; fueled_at: string } | null;
     if (!t?.card_ref) continue;
     const endMs = Date.parse(t.fueled_at);
 
-    // Every fill on that card in the SAME backward window scoreTransaction used to count the trucks.
-    const { data: fills } = await admin
-      .from("fuel_transactions")
-      .select("vehicle_id, fueled_at")
-      .eq("org_id", orgId)
-      .eq("card_ref", t.card_ref)
-      .gte("fueled_at", new Date(endMs - windowMs).toISOString())
-      .lte("fueled_at", t.fueled_at);
-    const rows = ((fills ?? []) as { vehicle_id: string | null; fueled_at: string }[]).filter((f) => f.vehicle_id);
+    // Every fill on that CARD in the SAME backward window scoreTransaction used to count the trucks —
+    // matched by true card identity (sameCardFill, WP3), mirroring the scorer's count exactly.
+    const winStartIso = new Date(endMs - windowMs).toISOString();
+    const byId = new Map<string, { card_ref: string | null; control_id: string | null; vehicle_id: string | null; fueled_at: string }>();
+    for (const col of ["card_ref", "control_id"] as const) {
+      const val = col === "card_ref" ? t.card_ref : t.control_id;
+      if (!val) continue;
+      const { data: fills } = await admin
+        .from("fuel_transactions")
+        .select("id, card_ref, control_id, vehicle_id, fueled_at")
+        .eq("org_id", orgId)
+        .eq(col, val)
+        .gte("fueled_at", winStartIso)
+        .lte("fueled_at", t.fueled_at);
+      for (const f of (fills ?? []) as { id: string; card_ref: string | null; control_id: string | null; vehicle_id: string | null; fueled_at: string }[]) {
+        byId.set(f.id, f);
+      }
+    }
+    const rows = [...byId.values()].filter(
+      (f) => f.vehicle_id && sameCardFill({ cardRef: f.card_ref, controlId: f.control_id }, { cardRef: t.card_ref, controlId: t.control_id }),
+    );
     if (!rows.length) continue;
 
     // Resolve the Samsara driver for each fill. If every fill maps to the SAME driver, one person moved

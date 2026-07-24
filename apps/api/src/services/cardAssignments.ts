@@ -8,7 +8,36 @@
  * (assignment_source = 'manual') are authoritative and never overwritten.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { learnCardAssignments, type CardFillRow } from "@fuelguard/shared";
+import { learnCardAssignments, cardIdentityKey, cardLast4, type CardFillRow } from "@fuelguard/shared";
+
+/**
+ * The vehicle a card is ASSIGNED to (fuel_cards), or null. Shared by decline scoring and the
+ * card_multi_vehicle rule context. Exact key first; masked-ref fallback matches by last4 ONLY when
+ * exactly one assigned card carries it (never guess).
+ */
+export async function lookupCardAssignment(
+  admin: SupabaseClient,
+  orgId: string,
+  cardRef: string | null,
+  controlId: string | null = null,
+): Promise<string | null> {
+  const key = cardIdentityKey(cardRef, controlId);
+  if (key) {
+    const { data } = await admin.from("fuel_cards").select("vehicle_id").eq("org_id", orgId).eq("card_ref", key).maybeSingle();
+    if (data?.vehicle_id) return data.vehicle_id as string;
+  }
+  const last4 = cardLast4(cardRef);
+  if (!last4) return null;
+  const { data: byLast4 } = await admin
+    .from("fuel_cards")
+    .select("vehicle_id")
+    .eq("org_id", orgId)
+    .eq("card_last4", last4)
+    .not("vehicle_id", "is", null)
+    .limit(2);
+  const cands = (byLast4 ?? []) as { vehicle_id: string | null }[];
+  return cands.length === 1 ? cands[0]!.vehicle_id : null;
+}
 
 /** Trailing window of fill history the assignment is learned from. */
 const WINDOW_DAYS = 60;

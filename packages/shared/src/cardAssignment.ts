@@ -99,6 +99,22 @@ export function cardRefsMatch(a: string | null | undefined, b: string | null | u
   return long.endsWith(short);
 }
 
+/**
+ * Are two FILL rows the same physical card? (WP3 — the card_multi_vehicle identity test.) True when the
+ * card refs match digit-wise (full/masked tolerant) AND the EFS control ids don't contradict: two rows
+ * sharing a last-4 but carrying DIFFERENT control ids are two different drivers' cards (the 0075
+ * conflation), never the same card. A missing control id on either side doesn't block the match. Pure.
+ */
+export function sameCardFill(
+  a: { cardRef: string | null; controlId: string | null },
+  b: { cardRef: string | null; controlId: string | null },
+): boolean {
+  if (!cardRefsMatch(a.cardRef, b.cardRef)) return false;
+  const ca = a.controlId?.trim();
+  const cb = b.controlId?.trim();
+  return !ca || !cb || ca === cb;
+}
+
 // ── decline-time assessment ──────────────────────────────────────────────────────────────────────
 
 export type CardAssignmentVerdict =

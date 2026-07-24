@@ -21,10 +21,12 @@ function fake(scn: Scenario): SupabaseClient {
     { id: "vA", samsara_vehicle_id: "SVA" },
     { id: "vB", samsara_vehicle_id: "SVB" },
   ];
-  const caseTxn = { card_ref: "CARD9", fueled_at: "2026-07-20T12:00:00Z" };
+  // WP3: fills are matched by TRUE card identity (sameCardFill) — the fixture uses a realistic PAN and
+  // carries id/card_ref/control_id, exactly the columns the reconciler now reads.
+  const caseTxn = { card_ref: "7083050030281910009", control_id: null, fueled_at: "2026-07-20T12:00:00Z" };
   const cardFills = [
-    { vehicle_id: "vA", fueled_at: "2026-07-20T08:00:00Z" },
-    { vehicle_id: "vB", fueled_at: "2026-07-20T12:00:00Z" },
+    { id: "f1", card_ref: "7083050030281910009", control_id: null, vehicle_id: "vA", fueled_at: "2026-07-20T08:00:00Z" },
+    { id: "f2", card_ref: "7083050030281910009", control_id: null, vehicle_id: "vB", fueled_at: "2026-07-20T12:00:00Z" },
   ];
 
   const b = (opts: { single?: unknown; list?: unknown; onUpdate?: (patch: unknown) => void }) => {

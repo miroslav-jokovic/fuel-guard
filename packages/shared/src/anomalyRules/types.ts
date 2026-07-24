@@ -182,8 +182,14 @@ export interface RuleContext {
   windowGallons?: number;
   /** Odometer span (max−min) for this vehicle within the cumulative window, if computable. */
   windowMiles?: number | null;
-  /** Distinct vehicles seen on this txn's card within the window (incl. this one). */
+  /** Distinct vehicles seen on this txn's CARD (true card identity — full/masked-tolerant refs with
+   *  non-contradicting control ids, see sameCardFill) within the window, incl. this one. WP3: this is
+   *  a CARD count, never a driver count — a driver moving trucks with different cards doesn't inflate it. */
   cardVehicleCountInWindow?: number;
+  /** The vehicle this card is ASSIGNED to (fuel_cards — learned from history / manual). null/undefined =
+   *  no assignment (floating/slip-seat card, or not enough history). Gates the off-assignment variant of
+   *  card_multi_vehicle (WP3). */
+  cardAssignedVehicleId?: string | null;
   /** From Samsara reconciliation: was the truck actually at the EFS station's location? null = unknown. */
   samsaraLocationMatched?: boolean | null;
   /** Evidence for a location mismatch (EFS vs Samsara city/state at the fueling time). */

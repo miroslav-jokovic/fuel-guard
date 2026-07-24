@@ -23,6 +23,9 @@ export interface DigestStats {
   /** Declines whose EFS reason didn't match the taxonomy (reason_category='unknown') — WP1 D6: a new
    *  EFS phrasing must surface for vocabulary review, never silently score Clear. Optional/additive. */
   declineUnknownReasons?: number;
+  /** WP3 — unattributed fills in the window; clusters = cards with ≥3 of them (misuse hides here). */
+  unattributedFills?: number;
+  unattributedClusters?: { card: string; count: number }[];
   topVehicles: { unit: string; count: number }[];
   appUrl: string;
   /** Optional data-health line from the jobs ledger (nightly reconcile + sync failures). */
@@ -84,6 +87,11 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
     (stats.declineUnknownReasons
       ? `<p style="margin:8px 0 0;color:#d97706;font-size:13px">⚠ ${stats.declineUnknownReasons} decline${stats.declineUnknownReasons === 1 ? "" : "s"} this week carried an unrecognized EFS reason — review them so new phrasings can't hide (Rejections page).</p>`
       : "") +
+    (stats.unattributedClusters?.length
+      ? `<p style="margin:8px 0 0;color:#d97706;font-size:13px">⚠ Chronic unattribution: ` +
+        stats.unattributedClusters.slice(0, 3).map((c) => `${esc(c.card)} × ${c.count}`).join(", ") +
+        ` — unattributed fills are invisible to every vehicle-based check; fix the unit/driver mapping.</p>`
+      : "") +
     `<p style="margin:20px 0 0"><a href="${esc(stats.appUrl)}/anomalies" style="color:#4f46e5">Open FuelGuard →</a></p>` +
     `</div>`;
   const text =
@@ -91,6 +99,7 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
     `High/critical alerts: ${stats.alertCount} | Siphoning: ${stats.siphonCount} | Suspicious declines: ${stats.declineAlertCount}\n\n` +
     (stats.health ? `Data health: ${healthLine(stats.health)}\n\n` : "") +
     (stats.declineUnknownReasons ? `Unrecognized decline reasons this week: ${stats.declineUnknownReasons} (review on the Rejections page)\n\n` : "") +
+    (stats.unattributedClusters?.length ? `Chronic unattribution: ${stats.unattributedClusters.slice(0, 3).map((c) => `${c.card} x ${c.count}`).join(", ")}\n\n` : "") +
     `${summary}\n\n${stats.appUrl}/anomalies`;
   return { subject, html, text };
 }

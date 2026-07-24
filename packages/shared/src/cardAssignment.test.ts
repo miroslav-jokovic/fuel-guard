@@ -5,6 +5,7 @@ import {
   cardRefsMatch,
   learnCardAssignments,
   assessCardAssignment,
+  sameCardFill,
   type CardFillRow,
 } from "./cardAssignment.js";
 
@@ -85,5 +86,21 @@ describe("assessCardAssignment — stale vs typo vs confirmed misuse (audit deci
     expect(assessCardAssignment({ ...base, pumpUnitAtStation: null, assignedAtStation: null }).kind).toBe("mismatch_unverified");
     expect(assessCardAssignment({ ...base, pumpUnitAtStation: false, assignedAtStation: null }).kind).toBe("mismatch_unverified");
     expect(assessCardAssignment({ ...base, pumpUnitAtStation: null, assignedAtStation: false }).kind).toBe("mismatch_unverified");
+  });
+});
+
+describe("sameCardFill (WP3 — the card_multi_vehicle identity test)", () => {
+  it("full PAN matches its masked last-4 (cross-report)", () => {
+    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: null }, { cardRef: "7521", controlId: "WCHRISTO" })).toBe(true);
+  });
+  it("same last-4 with DIFFERENT control ids = two drivers' cards — never the same card (0075)", () => {
+    expect(sameCardFill({ cardRef: "7521", controlId: "AAA" }, { cardRef: "7521", controlId: "BBB" })).toBe(false);
+  });
+  it("same last-4 with matching control ids = same card", () => {
+    expect(sameCardFill({ cardRef: "7521", controlId: "AAA" }, { cardRef: "7521", controlId: "AAA" })).toBe(true);
+  });
+  it("non-matching digits never match; missing refs never match", () => {
+    expect(sameCardFill({ cardRef: "1111", controlId: null }, { cardRef: "2222", controlId: null })).toBe(false);
+    expect(sameCardFill({ cardRef: null, controlId: "AAA" }, { cardRef: "7521", controlId: "AAA" })).toBe(false);
   });
 });

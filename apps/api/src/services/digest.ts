@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, CASE_RULE_ID, renderDigestEmail } from "@fuelguard/shared";
+import { AI_MODELS, CASE_RULE_ID, renderDigestEmail, computeAttributionHealth, type AttributionHealth } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { callClaudeText } from "../lib/anthropic.js";
 import { makeSender } from "../lib/mailer.js";
@@ -27,6 +27,8 @@ export interface DigestData {
   declineAlertCount: number;
   /** Declines with an unrecognized EFS reason (taxonomy 'unknown') this week — must be surfaced (WP1 D6). */
   declineUnknownReasons: number;
+  /** WP3 — chronic unattribution: unattributed fills this week + per-card clusters (where misuse hides). */
+  attribution: AttributionHealth;
   topVehicles: { unit: string; count: number }[];
   health: DigestHealth;
 }
@@ -128,6 +130,17 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     .eq("reason_category", "unknown")
     .gte("declined_at", since);
 
+  // WP3 — unattributed fills this week, clustered by card identity (≥3 on one card escalates).
+  const { data: unattrRows } = await admin
+    .from("fuel_transactions")
+    .select("vehicle_id, driver_id, card_ref, control_id")
+    .eq("org_id", orgId)
+    .gte("fueled_at", since)
+    .or("vehicle_id.is.null,driver_id.is.null");
+  const attribution = computeAttributionHealth(
+    ((unattrRows ?? []) as { vehicle_id: string | null; driver_id: string | null; card_ref: string | null; control_id: string | null }[]),
+  );
+
   const health = await buildDigestHealth(admin, orgId, since);
 
   return {
@@ -138,6 +151,7 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     siphons: siphons.slice(0, 5),
     declineAlertCount: declineAlertCount ?? 0,
     declineUnknownReasons: declineUnknownReasons ?? 0,
+    attribution,
     topVehicles,
     health,
   };
@@ -181,6 +195,8 @@ export async function generateAndSendDigest(
     siphonCount: data.siphonCount,
     declineAlertCount: data.declineAlertCount,
     declineUnknownReasons: data.declineUnknownReasons,
+    unattributedFills: data.attribution.total,
+    unattributedClusters: data.attribution.clusters,
     topVehicles: data.topVehicles,
     appUrl: env.WEB_APP_URL,
     health: data.health,

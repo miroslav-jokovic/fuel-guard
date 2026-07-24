@@ -137,7 +137,7 @@ rules:
     axis: behavior
     weight: 60
     label: Card Used on Multiple Vehicles
-    note: One card fueling multiple vehicles in a window.
+    note: WP3 — counted by true CARD identity (full/masked refs + control-id disambiguation, sameCardFill), never by driver, so a slip-seat driver with per-truck cards can't false-fire; also fires as a single event when the fill's truck differs from the card's fuel_cards assignment. Samsara driver-assignment reconcile auto-clears one-driver-moved-trucks.
   - id: location_mismatch
     tier: behavioral
     axis: location

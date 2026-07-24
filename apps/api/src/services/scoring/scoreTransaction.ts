@@ -3,11 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   runAllRules, reconcileAnomalies, correlateSignals, CASE_RULE_ID, milesSinceLast, computedMpg,
   effectiveBaseline, learnOdometerOffset, learnTankSensorReliability, learnObservedMaxFill,
-  robustWindowMiles, isReliableCardRef, type TxnView, type VehicleView,
+  robustWindowMiles, type TxnView, type VehicleView,
   type ExistingAnomaly, type RuleResult, type RuleId,
 } from "@fuelguard/shared";
 import type { Env } from "../../env.js";
 import { resolveReconciliation } from "./reconcile.js";
+import { resolveCardContext } from "./cardContext.js";
 import { deriveDriverHomeAtFill } from "./tmsGates.js";
 import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, loadThresholds, loadOperatingHours, n } from "./loaders.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
@@ -135,29 +136,11 @@ export async function scoreTransaction(
     ).miles;
   }
 
-  // Card-on-multiple-trucks identity. Prefer the EFS Driver Control ID — a stable per-driver identifier that
-  // survives EFS masking the card down to the last 4, so two DIFFERENT drivers who happen to share the same
-  // last-4 are never conflated into a false "one card, multiple trucks" alert. Fall back to a full (reliable)
-  // card number; a bare last-4 with NO control id stays silent (we can't tell the cards apart).
-  if (txn.controlId) {
-    const { data: idRows } = await admin
-      .from("fuel_transactions")
-      .select("vehicle_id")
-      .eq("org_id", orgId)
-      .eq("control_id", txn.controlId)
-      .gte("fueled_at", winStart())
-      .lte("fueled_at", r.fueled_at);
-    cardVehicleCountInWindow = new Set((idRows ?? []).map((x) => x.vehicle_id).filter(Boolean)).size;
-  } else if (txn.cardRef && isReliableCardRef(txn.cardRef)) {
-    const { data: cardRows } = await admin
-      .from("fuel_transactions")
-      .select("vehicle_id")
-      .eq("org_id", orgId)
-      .eq("card_ref", txn.cardRef)
-      .gte("fueled_at", winStart())
-      .lte("fueled_at", r.fueled_at);
-    cardVehicleCountInWindow = new Set((cardRows ?? []).map((x) => x.vehicle_id).filter(Boolean)).size;
-  }
+  // Card-identity context (WP3): a true CARD-keyed vehicle count + the fuel_cards assignment — see
+  // resolveCardContext for the identity rules (never driver-keyed; unidentifiable cards stay uncounted).
+  const cardCtx = await resolveCardContext(admin, orgId, txn, winStart(), r.fueled_at);
+  cardVehicleCountInWindow = cardCtx.cardVehicleCountInWindow;
+  const cardAssignedVehicleId = cardCtx.cardAssignedVehicleId;
 
   // Reefer (ULSR) fills: resolve the paired trailer's reefer tank capacity (current pairing) and the
   // rolling-window reefer gallons for this truck — inputs to the Tier A reefer rules.
@@ -278,6 +261,7 @@ export async function scoreTransaction(
     windowGallons,
     windowMiles,
     cardVehicleCountInWindow,
+    cardAssignedVehicleId,
     samsaraLocationMatched,
     locationEvidence,
     tankFillShortGal,
