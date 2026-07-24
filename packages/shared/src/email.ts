@@ -26,6 +26,8 @@ export interface DigestStats {
   /** WP3 — unattributed fills in the window; clusters = cards with ≥3 of them (misuse hides here). */
   unattributedFills?: number;
   unattributedClusters?: { card: string; count: number }[];
+  /** WP4 — drivers who routinely skip/repeat the odometer (disables the consumption chain). */
+  odometerHygiene?: { driver: string; missing: number; stale: number; fills: number }[];
   topVehicles: { unit: string; count: number }[];
   appUrl: string;
   /** Optional data-health line from the jobs ledger (nightly reconcile + sync failures). */
@@ -92,6 +94,11 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
         stats.unattributedClusters.slice(0, 3).map((c) => `${esc(c.card)} × ${c.count}`).join(", ") +
         ` — unattributed fills are invisible to every vehicle-based check; fix the unit/driver mapping.</p>`
       : "") +
+    (stats.odometerHygiene?.length
+      ? `<p style="margin:8px 0 0;color:#d97706;font-size:13px">⚠ Odometer hygiene: ` +
+        stats.odometerHygiene.slice(0, 3).map((d) => `${esc(d.driver)} skipped/repeated ${d.missing + d.stale} of ${d.fills} fills`).join("; ") +
+        ` — blank/repeated odometers disable the MPG &amp; consumption checks for those fills.</p>`
+      : "") +
     `<p style="margin:20px 0 0"><a href="${esc(stats.appUrl)}/anomalies" style="color:#4f46e5">Open FuelGuard →</a></p>` +
     `</div>`;
   const text =
@@ -100,6 +107,7 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
     (stats.health ? `Data health: ${healthLine(stats.health)}\n\n` : "") +
     (stats.declineUnknownReasons ? `Unrecognized decline reasons this week: ${stats.declineUnknownReasons} (review on the Rejections page)\n\n` : "") +
     (stats.unattributedClusters?.length ? `Chronic unattribution: ${stats.unattributedClusters.slice(0, 3).map((c) => `${c.card} x ${c.count}`).join(", ")}\n\n` : "") +
+    (stats.odometerHygiene?.length ? `Odometer hygiene: ${stats.odometerHygiene.slice(0, 3).map((d) => `${d.driver} ${d.missing + d.stale}/${d.fills} bad`).join("; ")}\n\n` : "") +
     `${summary}\n\n${stats.appUrl}/anomalies`;
   return { subject, html, text };
 }

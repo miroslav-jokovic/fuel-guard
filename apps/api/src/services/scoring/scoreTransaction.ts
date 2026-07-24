@@ -10,7 +10,7 @@ import type { Env } from "../../env.js";
 import { resolveReconciliation } from "./reconcile.js";
 import { resolveCardContext } from "./cardContext.js";
 import { deriveDriverHomeAtFill } from "./tmsGates.js";
-import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, loadThresholds, loadOperatingHours, n } from "./loaders.js";
+import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, loadThresholds, loadOperatingHours, sumIntermediateGallons, n } from "./loaders.js";
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
 
 export async function scoreTransaction(
@@ -40,8 +40,7 @@ export async function scoreTransaction(
   const thresholds = opts.ctx?.thresholds ?? (await loadThresholds(admin, orgId));
   const operatingHours = opts.ctx?.operatingHours ?? (await loadOperatingHours(admin, orgId));
   const windowMs = (thresholds.cumulativeWindowHours ?? 48) * 3_600_000;
-  // Rolling windows are anchored on the STORED fueled_at (business time) — the same clock every other
-  // row in the DB is on — never on the in-memory telematics-recovered instant.
+  // Rolling windows anchor on the STORED fueled_at (business time) — never the recovered instant.
   const storedTime = new Date(r.fueled_at).getTime();
   const winStart = () => new Date(storedTime - windowMs).toISOString();
 
@@ -72,12 +71,11 @@ export async function scoreTransaction(
 
   let previousTxn: TxnView | null = null;
   let recentTxns: TxnView[] = [];
+  let intermediateGallons = 0;
   let windowGallons = 0;
   let windowMiles: number | null = null;
-  let cardVehicleCountInWindow = 0;
 
-  // The tractor MPG chain + cumulative window consider TRACTOR fills only — reefer (ULSR) gallons must
-  // never enter a tractor's consumption math. Reefer events get no chain (their own rules come later).
+  // TRACTOR fills only — reefer (ULSR) gallons must never enter a tractor's consumption math.
   if (txn.vehicleId && txn.tankType !== "reefer") {
     const { data: prevRows } = await admin
       .from("fuel_transactions")
@@ -109,6 +107,8 @@ export async function scoreTransaction(
     const prevRow = rows.find((x) => !badIds.has(x.id)) ?? null;
     previousTxn = prevRow ? toTxnView(prevRow) : null;
     recentTxns = rows.filter((x) => !badIds.has(x.id)).slice(0, 6).map(toTxnView).reverse();
+    if (prevRow) intermediateGallons = await sumIntermediateGallons(admin, txn.vehicleId, prevRow.fueled_at, r.fueled_at, txnId); // WP4
+
 
     const { data: winRows } = await admin
       .from("fuel_transactions")
@@ -139,7 +139,7 @@ export async function scoreTransaction(
   // Card-identity context (WP3): a true CARD-keyed vehicle count + the fuel_cards assignment — see
   // resolveCardContext for the identity rules (never driver-keyed; unidentifiable cards stay uncounted).
   const cardCtx = await resolveCardContext(admin, orgId, txn, winStart(), r.fueled_at);
-  cardVehicleCountInWindow = cardCtx.cardVehicleCountInWindow;
+  const cardVehicleCountInWindow = cardCtx.cardVehicleCountInWindow;
   const cardAssignedVehicleId = cardCtx.cardAssignedVehicleId;
 
   // Reefer (ULSR) fills: resolve the paired trailer's reefer tank capacity (current pairing) and the
@@ -172,9 +172,8 @@ export async function scoreTransaction(
     reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce((s, x) => s + Number(x.gallons), 0);
   }
 
-  // Reefer-diversion (TRACTOR/ULSD fills only): does this truck haul a reefer yet buy little/no reefer (ULSR)
-  // fuel while the fleet DOES use reefer fuel? Gated on pairing first so the common (non-reefer) truck pays
-  // just one cheap existence query.
+  // Reefer-diversion (TRACTOR/ULSD fills only) — gated on pairing first so the common truck pays one
+  // cheap existence query.
   let reeferPaired = false;
   let orgUsesReeferFuel = false;
   let reeferDiversionReeferGal = 0;
@@ -254,6 +253,7 @@ export async function scoreTransaction(
     vehicle,
     previousTxn,
     recentTxns,
+    intermediateGallons,
     thresholds,
     operatingHours,
     crossSourceOdometer,
@@ -323,7 +323,7 @@ export async function scoreTransaction(
     .from("fuel_transactions")
     .update({
       miles_since_last: milesSinceLast(txn, previousTxn),
-      computed_mpg: computedMpg(txn, previousTxn),
+      computed_mpg: computedMpg(txn, previousTxn, intermediateGallons),
       has_anomaly: assessment.level !== "clear",
       max_severity: assessment.severity,
       // WP2 "why" surface: persist the outcome even when clear, so sub-threshold signals stay visible.

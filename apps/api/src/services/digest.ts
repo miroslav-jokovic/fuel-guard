@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, CASE_RULE_ID, renderDigestEmail, computeAttributionHealth, type AttributionHealth } from "@fuelguard/shared";
+import { AI_MODELS, CASE_RULE_ID, renderDigestEmail, computeAttributionHealth, computeOdometerHygiene, type AttributionHealth, type OdometerHygieneCluster } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { callClaudeText } from "../lib/anthropic.js";
 import { makeSender } from "../lib/mailer.js";
@@ -29,6 +29,8 @@ export interface DigestData {
   declineUnknownReasons: number;
   /** WP3 — chronic unattribution: unattributed fills this week + per-card clusters (where misuse hides). */
   attribution: AttributionHealth;
+  /** WP4 — drivers who routinely skip/repeat odometer entries (with resolved names). */
+  odometerHygiene: (OdometerHygieneCluster & { driverName: string })[];
   topVehicles: { unit: string; count: number }[];
   health: DigestHealth;
 }
@@ -141,6 +143,24 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     ((unattrRows ?? []) as { vehicle_id: string | null; driver_id: string | null; card_ref: string | null; control_id: string | null }[]),
   );
 
+  // WP4 — chronic odometer hygiene (blank/repeated entries disable the consumption chain).
+  const { data: odoRows } = await admin
+    .from("fuel_transactions")
+    .select("vehicle_id, driver_id, odometer, fueled_at, tank_type")
+    .eq("org_id", orgId)
+    .gte("fueled_at", since);
+  const hygiene = computeOdometerHygiene(
+    ((odoRows ?? []) as { vehicle_id: string | null; driver_id: string | null; odometer: number | string | null; fueled_at: string; tank_type: string | null }[]).map(
+      (r) => ({ ...r, odometer: r.odometer == null ? null : Number(r.odometer) }),
+    ),
+  );
+  let odometerHygiene: (OdometerHygieneCluster & { driverName: string })[] = [];
+  if (hygiene.clusters.length) {
+    const { data: drs } = await admin.from("drivers").select("id, full_name").eq("org_id", orgId).in("id", hygiene.clusters.map((c) => c.driverId));
+    const nameById = new Map(((drs ?? []) as { id: string; full_name: string }[]).map((d) => [d.id, d.full_name]));
+    odometerHygiene = hygiene.clusters.map((c) => ({ ...c, driverName: nameById.get(c.driverId) ?? "Unknown driver" }));
+  }
+
   const health = await buildDigestHealth(admin, orgId, since);
 
   return {
@@ -152,6 +172,7 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     declineAlertCount: declineAlertCount ?? 0,
     declineUnknownReasons: declineUnknownReasons ?? 0,
     attribution,
+    odometerHygiene,
     topVehicles,
     health,
   };
@@ -197,6 +218,7 @@ export async function generateAndSendDigest(
     declineUnknownReasons: data.declineUnknownReasons,
     unattributedFills: data.attribution.total,
     unattributedClusters: data.attribution.clusters,
+    odometerHygiene: data.odometerHygiene.map((d) => ({ driver: d.driverName, missing: d.missing, stale: d.stale, fills: d.fills })),
     topVehicles: data.topVehicles,
     appUrl: env.WEB_APP_URL,
     health: data.health,

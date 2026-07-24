@@ -22,6 +22,7 @@ import {
   type SignalAxis,
   explainCaseOutcome,
   CORRELATION_THRESHOLDS,
+  computedMpg,
 } from "./index.js";
 
 const vehicle: VehicleView = { id: "v1", fuelType: "diesel", tankCapacityGal: 120, baselineMpg: 6.4 };
@@ -976,5 +977,59 @@ describe("WP3 card_multi_vehicle (assignment-aware, card-keyed)", () => {
     expect(
       ids(ctx({ txn: txn({ cardRef: "93509", vehicleId: null }), previousTxn: null, cardVehicleCountInWindow: 1, cardAssignedVehicleId: "other-truck" })),
     ).not.toContain("card_multi_vehicle");
+  });
+});
+
+// ── WP4 — odometer hardening: tolerance, OBD arbitration, basis-gated caps, span gallons ──────────
+describe("WP4 odometer_regression (tolerance + OBD arbitration)", () => {
+  it("a regression within the odometer tolerance (10 mi) is entry noise — silent", () => {
+    expect(ids(ctx({ txn: txn({ odometer: 99395 }) }))).not.toContain("odometer_regression"); // −5 mi
+  });
+  it("a regression beyond tolerance still fires (no OBD to arbitrate)", () => {
+    expect(ids(ctx({ txn: txn({ odometer: 99300 }) }))).toContain("odometer_regression"); // −100 mi
+  });
+  it("OBD agrees with THIS entry → the previous entry was wrong — silent (data-quality on prev)", () => {
+    const out = ids(ctx({ txn: txn({ odometer: 99300 }), crossSourceOdometer: 99302, crossSourceOdometerSource: "obd" }));
+    expect(out).not.toContain("odometer_regression");
+  });
+  it("OBD disagrees with THIS entry → the mismatch classifies the defect; regression never double-shows", () => {
+    const out = ids(ctx({ txn: txn({ odometer: 99300 }), crossSourceOdometer: 99500, crossSourceOdometerSource: "obd" }));
+    expect(out).toContain("odometer_mismatch");
+    expect(out).not.toContain("odometer_regression");
+  });
+});
+
+describe("WP4 daily-cap / implausible-jump are ENTERED-basis checks (team drivers on OBD never flag)", () => {
+  it("an OBD miles basis (real driving) suppresses the implied-speed check", () => {
+    // Entered span implies 50,000 mi in 48h, but both fills carry OBD — the OBD span (600 mi) governs.
+    const cur = txn({ odometer: 150000, samsaraOdometer: 100000, samsaraOdometerSource: "obd" });
+    const prev: TxnView = { ...txn(), id: "prev", fueledAt: "2026-06-08T17:00:00Z", odometer: 100000, samsaraOdometer: 99400, samsaraOdometerSource: "obd" };
+    const out = ids(ctx({ txn: cur, previousTxn: prev }));
+    expect(out).not.toContain("odometer_implausible_jump");
+    expect(out).not.toContain("odometer_daily_cap");
+  });
+  it("a genuine team-style OBD span (1,200 mi/day) never fires the daily cap", () => {
+    const cur = txn({ fueledAt: "2026-06-09T17:00:00Z", odometer: 101800, samsaraOdometer: 101800, samsaraOdometerSource: "obd", fueledAtPrecision: "date" });
+    const prev: TxnView = { ...txn(), id: "prev", fueledAt: "2026-06-08T17:00:00Z", odometer: 99400, samsaraOdometer: 99400, samsaraOdometerSource: "obd", fueledAtPrecision: "date" };
+    expect(ids(ctx({ txn: cur, previousTxn: prev }))).not.toContain("odometer_daily_cap");
+  });
+  it("entered-basis implausible jump still fires (fraud check preserved)", () => {
+    expect(ids(ctx({ txn: txn({ odometer: 200000 }) }))).toContain("odometer_implausible_jump");
+  });
+});
+
+describe("WP4 intermediate (skipped-fill) gallons enter the consumption math", () => {
+  // 600 mi span; current fill 90 gal → 6.67 mpg (normal). But a skipped blank-odometer fill added
+  // 60 gal inside the span → true MPG = 600/150 = 4.0, a 40% drop below the 6.4 baseline.
+  it("mpg_deviation catches a drop that vanished gallons used to hide", () => {
+    const out = ids(ctx({ vehicle: reliable, intermediateGallons: 60 }));
+    expect(out).toContain("mpg_deviation");
+  });
+  it("without the intermediate fuel the same fill reads clean (control)", () => {
+    expect(ids(ctx({ vehicle: reliable }))).not.toContain("mpg_deviation");
+  });
+  it("computedMpg includes extra gallons", () => {
+    expect(computedMpg(txn(), { ...txn(), id: "p", odometer: 99400 }, 60)).toBeCloseTo(4.0, 1);
+    expect(computedMpg(txn(), { ...txn(), id: "p", odometer: 99400 })).toBeCloseTo(6.67, 1);
   });
 });

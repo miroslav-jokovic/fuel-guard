@@ -170,6 +170,10 @@ export interface RuleContext {
   previousTxn: TxnView | null;
   /** Up to the last ~6 VALID fills before txn (odometer-anomalous excluded), OLDEST→NEWEST. */
   recentTxns: TxnView[];
+  /** Gallons from fills BETWEEN previousTxn and txn (exclusive) that were skipped when picking
+   *  previousTxn (blank odometer / flagged entry). Their fuel was burned inside the span, so the
+   *  per-fill MPG / top-off / band math must include it (WP4) or MPG reads inflated. Default 0. */
+  intermediateGallons?: number;
   thresholds: Thresholds;
   operatingHours: OperatingHours;
   /** Odometer from the *other* source (manual↔EFS) for the same fueling event, if matched. */

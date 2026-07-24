@@ -17,12 +17,21 @@ function ruleOdometerMissing(ctx: RuleContext): RuleResult {
   return none("odometer_missing");
 }
 
+/** WP4: tolerance + OBD arbitration. A regression within the odometer tolerance is entry noise (driver
+ *  rounded / read the dash mid-move), not a signal. And when THIS fill's entry agrees with its own OBD
+ *  reading (offset-adjusted), the regression means the PREVIOUS entry was inflated — a data-quality
+ *  issue on that fill, not evidence against this one → stays silent. (When this fill's entry disagrees
+ *  with OBD, odometer_mismatch/entry_suspect classify the defect and runAllRules drops the redundant
+ *  regression signal — same axis, same root cause, never double-shown.) */
 function ruleOdometerRegression(ctx: RuleContext): RuleResult {
   const { txn, previousTxn } = ctx;
-  if (txn.odometer != null && previousTxn?.odometer != null && txn.odometer < previousTxn.odometer) {
-    return { ruleId: "odometer_regression", fired: true, severity: "high", message: `Odometer ${txn.odometer} is lower than the previous reading ${previousTxn.odometer}.`, evidence: { previous: previousTxn.odometer, current: txn.odometer } };
-  }
-  return none("odometer_regression");
+  if (txn.odometer == null || previousTxn?.odometer == null) return none("odometer_regression");
+  const tol = ctx.thresholds.odometerToleranceMiles ?? 10;
+  const drop = previousTxn.odometer - txn.odometer;
+  if (drop <= tol) return none("odometer_regression");
+  const d = odometerDiff(ctx);
+  if (d != null && d.diff <= tol) return none("odometer_regression"); // this entry matches OBD → prev was wrong
+  return { ruleId: "odometer_regression", fired: true, severity: "high", message: `Odometer ${txn.odometer} is ${r2(drop)} mi lower than the previous reading ${previousTxn.odometer}.`, evidence: { previous: previousTxn.odometer, current: txn.odometer, dropMiles: r2(drop), toleranceMiles: tol } };
 }
 
 function ruleOdometerStale(ctx: RuleContext): RuleResult {
@@ -106,10 +115,11 @@ function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
   const { txn, vehicle, previousTxn, recentTxns } = ctx;
   const miles = milesSinceLast(txn, previousTxn);
   const baseline = effectiveBaseline(vehicle, recentTxns);
-  if (miles == null || baseline == null || baseline <= 0 || txn.gallons <= 0) return none("expected_odometer_band");
-  const expectedMiles = txn.gallons * baseline;
+  const spanGallons = txn.gallons + (ctx.intermediateGallons ?? 0); // fuel burned across the whole span (WP4)
+  if (miles == null || baseline == null || baseline <= 0 || spanGallons <= 0) return none("expected_odometer_band");
+  const expectedMiles = spanGallons * baseline;
   if (miles > expectedMiles * 2) {
-    return { ruleId: "expected_odometer_band", fired: true, severity: "medium", message: `Miles since last (${miles}) far exceed what ${txn.gallons} gal could cover (~${r2(expectedMiles)} mi) — possible odometer over-reporting or a missed fill.`, evidence: { milesSinceLast: miles, gallons: txn.gallons, baselineMpg: r2(baseline), expectedMiles: r2(expectedMiles) } };
+    return { ruleId: "expected_odometer_band", fired: true, severity: "medium", message: `Miles since last (${miles}) far exceed what ${r2(spanGallons)} gal could cover (~${r2(expectedMiles)} mi) — possible odometer over-reporting or a missed fill.`, evidence: { milesSinceLast: miles, spanGallons: r2(spanGallons), baselineMpg: r2(baseline), expectedMiles: r2(expectedMiles) } };
   }
   return none("expected_odometer_band");
 }
@@ -180,8 +190,9 @@ function ruleImplausibleTopoff(ctx: RuleContext): RuleResult {
   const baseline = effectiveBaseline(vehicle, recentTxns); // rolling, not static seed
   if (miles == null || baseline == null || baseline <= 0) return none("implausible_topoff");
   const expectedConsumed = miles / baseline;
-  if (txn.gallons > expectedConsumed * 1.3 && txn.gallons > 5) {
-    return { ruleId: "implausible_topoff", fired: true, severity: "high", message: `Dispensed ${txn.gallons} gal far exceeds the ~${r2(expectedConsumed)} gal consumed since the last fill.`, evidence: { gallons: txn.gallons, milesSinceLast: miles, baselineMpg: r2(baseline), expectedConsumed: r2(expectedConsumed) } };
+  const spanGallons = txn.gallons + (ctx.intermediateGallons ?? 0); // incl. skipped-fill fuel (WP4)
+  if (spanGallons > expectedConsumed * 1.3 && txn.gallons > 5) {
+    return { ruleId: "implausible_topoff", fired: true, severity: "high", message: `Dispensed ${r2(spanGallons)} gal far exceeds the ~${r2(expectedConsumed)} gal consumed since the last fill.`, evidence: { spanGallons: r2(spanGallons), milesSinceLast: miles, baselineMpg: r2(baseline), expectedConsumed: r2(expectedConsumed) } };
   }
   return none("implausible_topoff");
 }
@@ -215,7 +226,7 @@ function ruleMpgDeviation(ctx: RuleContext): RuleResult {
   // single effective tank). On an irregular / dual-tank fill the gallons are inflated vs the miles, so MPG
   // looks artificially low → false deviation. Gross overfueling is still caught by cumulative_overfuel.
   // Tank-sensor-reliability gate centralized in ruleEligible/computeFillConfidence (docs/12).
-  const mpg = computedMpg(txn, previousTxn);
+  const mpg = computedMpg(txn, previousTxn, ctx.intermediateGallons ?? 0);
   const baseline = effectiveBaseline(vehicle, recentTxns);
   if (mpg == null || baseline == null || baseline <= 0) return none("mpg_deviation");
   // Allow a wider drop in cold months (diesel legitimately loses ~5–10% MPG in severe cold) so winter fills
@@ -272,7 +283,12 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleOdometerMissing,
     ruleOdometerRegression,
     ruleOdometerStale,
-    timeOk && prevTimeOk ? ruleOdometerImplausibleJump : ruleOdometerDailyCap,
+    // Jump/daily-cap are ENTERED-odometer plausibility checks. An OBD miles basis means the distance was
+    // REALLY driven (e.g. a team running 1,200 mi/day) — not entry padding → neither fires (WP4); a bad
+    // entry still surfaces via odometer_mismatch. Entered basis keeps the instant/date-precision split.
+    ...(milesSinceLastSourced(ctx.txn, ctx.previousTxn)?.basis === "obd"
+      ? []
+      : [timeOk && prevTimeOk ? ruleOdometerImplausibleJump : ruleOdometerDailyCap]),
     ruleOdometerMismatch,
     ruleOdometerEntrySuspect,
     ...(fuel ? [ruleExpectedOdometerBand] : []),
@@ -317,6 +333,9 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     const milesDerived = new Set<RuleId>(["mpg_deviation", "implausible_topoff", "expected_odometer_band"]);
     results = results.filter((r) => !milesDerived.has(r.ruleId));
   }
+  // WP4: a mismatch/entry-suspect already CLASSIFIES this fill's bad entry; a regression caused by the
+  // same entry is the same defect on the same axis — never double-shown.
+  if (odoDoubt) results = results.filter((r) => r.ruleId !== "odometer_regression");
   return results;
 }
 

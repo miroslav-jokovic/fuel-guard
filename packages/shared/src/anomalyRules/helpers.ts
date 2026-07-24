@@ -52,10 +52,17 @@ export function milesSinceLastSourced(txn: TxnView, prev: TxnView | null): { mil
   return d > 0 ? { miles: d, basis: "entered" } : null;
 }
 
-export function computedMpg(txn: TxnView, prev: TxnView | null): number | null {
+/**
+ * Per-fill MPG = miles-since-last ÷ fuel consumed over that span. WP4: `extraGallons` is the fuel from
+ * INTERMEDIATE fills that carry no odometer (they're skipped when picking previousTxn, but their fuel
+ * WAS burned inside the span) — omitting it inflated MPG and masked deviations after a blank-odometer
+ * fill. Callers without intermediate data (recentMpgSeries) pass 0 — unchanged behavior.
+ */
+export function computedMpg(txn: TxnView, prev: TxnView | null, extraGallons = 0): number | null {
   const miles = milesSinceLast(txn, prev);
-  if (miles == null || txn.gallons <= 0) return null;
-  return r2(miles / txn.gallons);
+  const gallons = txn.gallons + Math.max(0, extraGallons);
+  if (miles == null || gallons <= 0) return null;
+  return r2(miles / gallons);
 }
 
 /**

@@ -144,6 +144,31 @@ export async function loadOperatingHours(admin: SupabaseClient, orgId: string): 
   return { start: oh.start ?? "05:00", end: oh.end ?? "20:00", tz: oh.tz ?? "America/Chicago" };
 }
 
+/**
+ * Gallons from tractor fills strictly BETWEEN the chosen previous fill and this one (WP4). Those fills
+ * were skipped when picking previousTxn (blank odometer / flagged entry), but their fuel WAS burned
+ * inside the odometer span — omitting it inflates per-fill MPG and masks deviations.
+ */
+export async function sumIntermediateGallons(
+  admin: SupabaseClient,
+  vehicleId: string,
+  prevFueledAt: string,
+  fueledAt: string,
+  excludeId: string,
+): Promise<number> {
+  if (prevFueledAt >= fueledAt) return 0;
+  const { data } = await admin
+    .from("fuel_transactions")
+    .select("id, gallons")
+    .eq("vehicle_id", vehicleId)
+    .eq("tank_type", "tractor")
+    .gt("fueled_at", prevFueledAt)
+    .lt("fueled_at", fueledAt);
+  return ((data ?? []) as { id: string; gallons: number | string }[])
+    .filter((x) => x.id !== excludeId)
+    .reduce((s, x) => s + (Number(x.gallons) || 0), 0);
+}
+
 /** Score a single transaction: assemble context (incl. Samsara reconciliation), run the engine, persist. */
 export interface ScoreOpts {
   /**

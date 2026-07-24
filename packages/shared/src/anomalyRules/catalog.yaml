@@ -33,7 +33,7 @@ rules:
     axis: odometer
     weight: 55
     label: Odometer Regression
-    note: DELIBERATE (WP2) — 55 sits just below the lone-review threshold (60), so a lone regression (usually an entry typo) never raises a case; it stays visible via fuel_transactions.case_signals ("why clear"). Revisit against WP9 disposition data before changing.
+    note: DELIBERATE (WP2) — 55 sits just below the lone-review threshold (60), so a lone regression (usually an entry typo) never raises a case; it stays visible via fuel_transactions.case_signals ("why clear"). WP4 — tolerance (odometerToleranceMiles) absorbs entry noise, and OBD arbitration reroutes explained regressions (this entry matches OBD → prev was wrong → silent; this entry contradicts OBD → mismatch/entry-suspect classify it and the redundant regression is dropped). Revisit weight against WP9 disposition data.
   - id: odometer_stale
     tier: odometer_integrity
     axis: odometer
@@ -44,13 +44,13 @@ rules:
     axis: odometer
     weight: 35
     label: Implausible Odometer Jump
-    note: Instant-precision only (uses elapsed hours).
+    note: Instant-precision only (uses elapsed hours). WP4 — ENTERED-basis only; an OBD miles basis means the distance was really driven, so it never fires on telematics-verified spans.
   - id: odometer_daily_cap
     tier: odometer_integrity
     axis: odometer
     weight: 30
     label: Daily Mileage Cap Exceeded
-    note: Date-precision (EFS) fallback (miles/day cap).
+    note: Date-precision (EFS) fallback (miles/day cap). WP4 — ENTERED-basis only (OBD-verified team ops legitimately exceed 1,000 mi/day and never flag); non-telematics team fleets should tune maxDailyMiles in settings.
   - id: odometer_mismatch
     tier: odometer_integrity
     axis: odometer
