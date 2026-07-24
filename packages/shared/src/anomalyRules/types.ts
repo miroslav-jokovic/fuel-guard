@@ -42,6 +42,11 @@ export interface TxnView {
   /** EFS Driver Control ID — reliable per-driver identity used to key the card-on-multiple-trucks rule
    *  when the card itself is masked to the last 4. */
   controlId?: string | null;
+  /** Station location (WP7): state drives the TRUCK-LOCAL off-hours timezone; site fields power the
+   *  rapid-repeat same-station exemption (a pre-auth split purchase is two swipes at ONE pump). */
+  state?: string | null;
+  city?: string | null;
+  locationText?: string | null;
 }
 
 export interface VehicleView {
@@ -172,6 +177,9 @@ export interface RuleContext {
   previousTxn: TxnView | null;
   /** Up to the last ~6 VALID fills before txn (odometer-anomalous excluded), OLDEST→NEWEST. */
   recentTxns: TxnView[];
+  /** Regional (state, ±3-day) median POSTED diesel price at the fill, when the global posted-price
+   *  layer has enough coverage — powers the market variant of cost_outlier (WP7). null = no market. */
+  marketPricePerGal?: number | null;
   /** Ambient temperature (°F) at the fill, when backfilled (Open-Meteo / weather_cache). Drives the
    *  cold-weather MPG derate; null/undefined falls back to the calendar-month allowance (WP6). */
   ambientTempF?: number | null;

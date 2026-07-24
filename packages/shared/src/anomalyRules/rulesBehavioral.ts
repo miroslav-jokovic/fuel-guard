@@ -1,7 +1,21 @@
 /** Tier 4 (behavioral) + Tier A (reefer) rule bodies — split from rules.ts (file-size budget).
  * Same private-rule contract: each takes RuleContext, returns RuleResult; runAllRules composes them. */
-import type { RuleContext, RuleResult } from "./types.js";
+import type { RuleContext, RuleResult, TxnView } from "./types.js";
 import { hoursBetween, eventTime, timeReliable, isOffHours, none, r2, TANK_FILL_MIN_TOLERANCE_GAL, TANK_FILL_TOLERANCE_PCT } from "./helpers.js";
+import { stateTimeZone } from "../efsImport/dateTime.js";
+
+/** Same physical station? Site name match when both carry one, else city+state. Unknown → false
+ *  (never exempt on a guess — WP7). */
+function sameSite(a: TxnView, b: TxnView): boolean {
+  const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
+  if (a.locationText && b.locationText) return norm(a.locationText) === norm(b.locationText);
+  if (a.city && b.city && a.state && b.state) return norm(a.city) === norm(b.city) && norm(a.state) === norm(b.state);
+  return false;
+}
+
+/** Market cost-outlier margin: a fill priced ≥35% over the regional posted-diesel median is an outlier
+ *  (station spread runs ~±10–15%; 35% is conservative — receipt inflation / collusion territory). */
+export const MARKET_PRICE_OUTLIER_MULT = 1.35;
 
 export function ruleRapidRepeatFueling(ctx: RuleContext): RuleResult {
   const { txn, previousTxn, thresholds } = ctx;
@@ -10,17 +24,25 @@ export function ruleRapidRepeatFueling(ctx: RuleContext): RuleResult {
   // posted time fabricates the interval and false-fires. (txn's own reliability is gated by runAllRules.)
   if (!timeReliable(previousTxn)) return none("rapid_repeat_fueling");
   const hours = hoursBetween(eventTime(previousTxn), eventTime(txn));
-  if (hours < thresholds.rapidRefuelHours) {
-    return { ruleId: "rapid_repeat_fueling", fired: true, severity: "high", message: `Another fill-up occurred ${r2(hours * 60)} minutes after the previous one.`, evidence: { minutesSincePrev: r2(hours * 60), thresholdHours: thresholds.rapidRefuelHours } };
-  }
-  return none("rapid_repeat_fueling");
+  if (hours >= thresholds.rapidRefuelHours) return none("rapid_repeat_fueling");
+  // WP7 — same-STATION exemption: two swipes at one site inside the window are a split purchase (pump
+  // pre-auth cap forces a second transaction) or a pull-forward top-off, not a theft interval. The
+  // volume side is still fully covered by cumulative_overfuel / tank_space_exceeded. Different sites
+  // minutes apart remain exactly the signal this rule exists for. Unknown location never exempts.
+  if (sameSite(txn, previousTxn)) return none("rapid_repeat_fueling");
+  const gallons = r2(txn.gallons + previousTxn.gallons);
+  return { ruleId: "rapid_repeat_fueling", fired: true, severity: "high", message: `Another fill-up occurred ${r2(hours * 60)} minutes after the previous one at a different station (${gallons} gal combined).`, evidence: { minutesSincePrev: r2(hours * 60), thresholdHours: thresholds.rapidRefuelHours, combinedGallons: gallons, prevSite: previousTxn.locationText ?? ([previousTxn.city, previousTxn.state].filter(Boolean).join(", ") || null), site: txn.locationText ?? ([txn.city, txn.state].filter(Boolean).join(", ") || null) } };
 }
 
 export function ruleOffHoursFueling(ctx: RuleContext): RuleResult {
   const { txn, operatingHours } = ctx;
   const at = eventTime(txn); // telematics stop time when corroborated — not a possibly-wrong EFS auth time
-  if (isOffHours(at, operatingHours)) {
-    return { ruleId: "off_hours_fueling", fired: true, severity: "medium", message: `Fueled outside operating hours (${operatingHours.start}–${operatingHours.end} ${operatingHours.tz}).`, evidence: { fueledAt: at, window: `${operatingHours.start}-${operatingHours.end}`, tz: operatingHours.tz } };
+  // WP7 — TRUCK-LOCAL evaluation: the fill's clock is judged in the STATION state's timezone (where the
+  // driver physically is), not the office's. A coast-to-coast fleet's 7pm-Pacific fill is not "9pm
+  // Central". Falls back to the org tz when the station state is unknown.
+  const tz = stateTimeZone(txn.state) ?? operatingHours.tz;
+  if (isOffHours(at, { ...operatingHours, tz })) {
+    return { ruleId: "off_hours_fueling", fired: true, severity: "medium", message: `Fueled outside operating hours (${operatingHours.start}–${operatingHours.end} ${tz === operatingHours.tz ? operatingHours.tz : `${tz}, station-local`}).`, evidence: { fueledAt: at, window: `${operatingHours.start}-${operatingHours.end}`, tz } };
   }
   return none("off_hours_fueling");
 }
@@ -39,9 +61,18 @@ export function ruleUnattributed(ctx: RuleContext): RuleResult {
 export function ruleCostOutlier(ctx: RuleContext): RuleResult {
   const { txn, thresholds } = ctx;
   const { costMinPerGal: min, costMaxPerGal: max } = thresholds;
-  if (txn.pricePerGal == null || (min == null && max == null)) return none("cost_outlier");
+  if (txn.pricePerGal == null) return none("cost_outlier");
+  // Org-configured static bounds (when set) keep firing exactly as before.
   if ((min != null && txn.pricePerGal < min) || (max != null && txn.pricePerGal > max)) {
     return { ruleId: "cost_outlier", fired: true, severity: "low", message: `Price $${txn.pricePerGal}/gal is outside the expected range.`, evidence: { pricePerGal: txn.pricePerGal, min, max } };
+  }
+  // WP7 — market variant: before this, cost_outlier was OFF unless an org configured static bounds
+  // (defaults null). With the global posted-price layer, a fill ≥35% over the regional (state, ±3-day)
+  // posted-diesel median is an outlier on real market data. Above-market only: an inflated price is the
+  // theft-relevant direction (receipt inflation / collusion); cheap fuel is not misuse.
+  const market = ctx.marketPricePerGal;
+  if (market != null && market > 0 && txn.pricePerGal > market * MARKET_PRICE_OUTLIER_MULT) {
+    return { ruleId: "cost_outlier", fired: true, severity: "low", message: `Price $${txn.pricePerGal}/gal is ${r2(((txn.pricePerGal - market) / market) * 100)}% above the regional posted-diesel median ($${r2(market)}/gal).`, evidence: { pricePerGal: txn.pricePerGal, marketMedianPerGal: r2(market), overMarketPct: r2(((txn.pricePerGal - market) / market) * 100), marketOutlierMult: MARKET_PRICE_OUTLIER_MULT } };
   }
   return none("cost_outlier");
 }

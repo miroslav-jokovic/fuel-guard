@@ -10,6 +10,7 @@ import type { Env } from "../../env.js";
 import { resolveReconciliation } from "./reconcile.js";
 import { resolveCardContext } from "./cardContext.js";
 import { learnVehicleValues } from "./learnVehicle.js";
+import { loadMarketPricePerGal } from "./marketPrice.js";
 
 export { learnVehicleValues } from "./learnVehicle.js"; // re-export: barrel + backfill import path unchanged
 import { deriveDriverHomeAtFill } from "./tmsGates.js";
@@ -282,6 +283,12 @@ export async function scoreTransaction(
     reeferLoadInWindow,
     driverHomeAtFill,
     ambientTempF: n(r.ambient_temp_f),
+    // WP7 market cost-outlier input — diesel tractor fills only (a dyed-reefer or gasoline price vs the
+    // highway-diesel posted median would be a category error).
+    marketPricePerGal:
+      vehicle.fuelType === "diesel" && txn.tankType !== "reefer"
+        ? await loadMarketPricePerGal(admin, r.state, r.fueled_at)
+        : null,
   };
   const fired = runAllRules(ruleCtx);
 

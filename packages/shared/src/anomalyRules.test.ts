@@ -1102,3 +1102,63 @@ describe("WP6 summarizeFillGates (honest-absence surface)", () => {
     expect(gates.ineligible).toEqual(expect.arrayContaining(["odometer_mismatch", "odometer_entry_suspect"]));
   });
 });
+
+// ── WP7 — behavioral rules: same-site exemption, truck-local off-hours, market cost outlier ───────
+describe("WP7 rapid_repeat_fueling (same-station split purchases exempt)", () => {
+  const prevAt = { id: "prev", fueledAt: "2026-06-10T16:30:00Z", odometer: 99400 };
+  it("two swipes at the SAME station minutes apart (pre-auth split) never fire", () => {
+    const prev: TxnView = { ...txn(), ...prevAt, locationText: "PILOT RAYVILLE 335", state: "LA", city: "RAYVILLE" };
+    const cur = txn({ locationText: "Pilot Rayville 335 ", state: "LA", city: "RAYVILLE", odometer: 99400 });
+    expect(ids(ctx({ txn: cur, previousTxn: prev }))).not.toContain("rapid_repeat_fueling");
+  });
+  it("same city/state fallback also exempts when site names are missing", () => {
+    const prev: TxnView = { ...txn(), ...prevAt, city: "Dallas", state: "TX" };
+    expect(ids(ctx({ txn: txn({ city: "DALLAS", state: "tx", odometer: 99400 }), previousTxn: prev }))).not.toContain("rapid_repeat_fueling");
+  });
+  it("DIFFERENT stations inside the window still fire, with combined gallons in evidence", () => {
+    const prev: TxnView = { ...txn(), ...prevAt, locationText: "PILOT RAYVILLE 335", city: "RAYVILLE", state: "LA" };
+    const out = runAllRules(ctx({ txn: txn({ locationText: "LOVES #646", city: "WILLINGTON", state: "CT", odometer: 99400 }), previousTxn: prev })).find((r) => r.ruleId === "rapid_repeat_fueling");
+    expect(out).toBeTruthy();
+    expect(out!.evidence.combinedGallons).toBe(180);
+  });
+  it("unknown location never exempts (fires as before)", () => {
+    const prev: TxnView = { ...txn(), ...prevAt };
+    expect(ids(ctx({ txn: txn({ odometer: 99400 }), previousTxn: prev }))).toContain("rapid_repeat_fueling");
+  });
+});
+
+describe("WP7 off_hours_fueling (judged in the STATION state's timezone)", () => {
+  // Org window 05:00–20:00 America/Chicago. 2026-06-10T11:30:00Z = 06:30 Chicago (in hours) but
+  // 04:30 in Nevada (America/Los_Angeles) — off-hours where the truck actually is.
+  it("a fill inside office hours but before dawn at the STATION fires (station-local)", () => {
+    const out = runAllRules(ctx({ txn: txn({ fueledAt: "2026-06-10T11:30:00Z", state: "NV" }) })).find((r) => r.ruleId === "off_hours_fueling");
+    expect(out).toBeTruthy();
+    expect(out!.evidence.tz).toBe("America/Los_Angeles");
+  });
+  it("the same instant with no station state falls back to the org timezone (no fire)", () => {
+    expect(ids(ctx({ txn: txn({ fueledAt: "2026-06-10T11:30:00Z" }) }))).not.toContain("off_hours_fueling");
+  });
+  it("the 24/7 sentinel (unset org config) disables the rule entirely", () => {
+    expect(
+      ids(ctx({ txn: txn({ fueledAt: "2026-06-10T07:00:00Z" }), operatingHours: { start: "00:00", end: "00:00", tz: "America/Chicago" } })),
+    ).not.toContain("off_hours_fueling");
+  });
+});
+
+describe("WP7 cost_outlier (market variant on the posted-price layer)", () => {
+  it("≥35% over the regional posted median fires without any org config", () => {
+    const out = runAllRules(ctx({ txn: txn({ pricePerGal: 6.5 }), marketPricePerGal: 4.2 })).find((r) => r.ruleId === "cost_outlier");
+    expect(out).toBeTruthy();
+    expect(out!.evidence.marketMedianPerGal).toBe(4.2);
+  });
+  it("a normal spread over the median stays silent; below-market never fires", () => {
+    expect(ids(ctx({ txn: txn({ pricePerGal: 4.6 }), marketPricePerGal: 4.2 }))).not.toContain("cost_outlier");
+    expect(ids(ctx({ txn: txn({ pricePerGal: 2.0 }), marketPricePerGal: 4.2 }))).not.toContain("cost_outlier");
+  });
+  it("no market data → variant silent (static org bounds still work)", () => {
+    expect(ids(ctx({ txn: txn({ pricePerGal: 9.99 }) }))).not.toContain("cost_outlier");
+    const c = ctx({ txn: txn({ pricePerGal: 9.99 }) });
+    c.thresholds = { ...c.thresholds, costMaxPerGal: 6 };
+    expect(ids(c)).toContain("cost_outlier");
+  });
+});

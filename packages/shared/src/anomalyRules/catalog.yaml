@@ -116,13 +116,13 @@ rules:
     axis: behavior
     weight: 40
     label: Rapid Repeat Fueling
-    note: Instant-precision only.
+    note: Instant-precision only. WP7 — same-STATION pairs are exempt (a pump pre-auth split purchase / pull-forward top-off is two swipes at one site, not a theft interval; volume stays covered by cumulative_overfuel + tank rules); different-site pairs fire with combined gallons in evidence. Unknown location never exempts.
   - id: off_hours_fueling
     tier: behavioral
     axis: behavior
     weight: 20
     label: Off-Hours Fueling
-    note: Instant-precision only.
+    note: Instant-precision only. WP7 — judged in the STATION state's timezone (where the truck is), org tz fallback; an org that never configured hours gets the 24/7 sentinel (rule OFF) instead of a silently assumed 05:00–20:00 schedule.
   - id: unattributed_transaction
     tier: behavioral
     axis: behavior
@@ -135,6 +135,7 @@ rules:
     axis: behavior
     weight: 15
     label: Cost Outlier
+    note: WP7 — no longer dead-by-default. Org static bounds (when set) fire as before; otherwise a diesel tractor fill ≥35% over the regional (state, ±3-day) POSTED-diesel median from the global price layer fires on real market data. Above-market only (receipt inflation / collusion direction); needs ≥5 station samples, cash quotes never blended.
   - id: card_multi_vehicle
     tier: behavioral
     axis: behavior

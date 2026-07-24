@@ -111,6 +111,9 @@ export function toTxnView(r: FtxnRow): TxnView {
     tankType: r.tank_type === "reefer" ? "reefer" : "tractor",
     cardRef: r.card_ref,
     controlId: r.control_id,
+    state: r.state,
+    city: r.city,
+    locationText: r.location_text,
   };
 }
 
@@ -144,7 +147,11 @@ export async function loadThresholds(admin: SupabaseClient, orgId: string): Prom
 export async function loadOperatingHours(admin: SupabaseClient, orgId: string): Promise<OperatingHours> {
   const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).single();
   const oh = (data?.operating_hours ?? {}) as Partial<OperatingHours>;
-  return { start: oh.start ?? "05:00", end: oh.end ?? "20:00", tz: oh.tz ?? "America/Chicago" };
+  // WP7: an org that never CONFIGURED hours gets the 24/7 sentinel (start === end → off_hours never
+  // fires) — we no longer alert against a silently assumed 05:00–20:00 schedule. Orgs that set hours
+  // keep them verbatim.
+  if (!oh.start || !oh.end) return { start: "00:00", end: "00:00", tz: oh.tz ?? "America/Chicago" };
+  return { start: oh.start, end: oh.end, tz: oh.tz ?? "America/Chicago" };
 }
 
 /**
