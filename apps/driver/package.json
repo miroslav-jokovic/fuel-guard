@@ -9,7 +9,9 @@
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint:tokens": "node scripts/check-driver-tokens.mjs"
+    "lint": "eslint .",
+    "lint:tokens": "node scripts/check-driver-tokens.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fuelguard/shared": "workspace:*",
@@ -33,7 +35,13 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/react": "~19.2.0",
-    "typescript": "6.0.3"
+    "eslint": "10.6.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.62.1",
+    "vitest": "4.1.9"
   }
 }

@@ -67,7 +67,7 @@ invite-takeover path; make encrypted token/outbox storage the default; define of
 
 | Phase | Plan (doc) | Build | Verified | Next action |
 |---|---|---|---|---|
-| 0 — Foundation & Design System | ✅ authored | ◐ **in progress** — spike scaffolded; **B2 verified** (shared `dist` build) | ☐ | User runs the spike on a device (B3/B6), then build the full gallery |
+| 0 — Foundation & Design System | ✅ authored | ◐ **in progress** — spike ✅ (device) + **15 components + design gallery + ramp-parity/shared-smoke tests (cloud-validated) + type-aware ESLint + CI**; token linter green | ☐ | Remaining: nav shell (tab bar + modal capture), on-device gallery a11y pass, tsconfig.base strict flags, commit CI workflow (protected path) |
 | 1 — Identity, Auth & Access Control | ✅ authored | ☐ not started | ☐ | After Phase 0 |
 | 2 — Offline-first Data Layer & Home | ✅ authored | ☐ not started | ☐ | After Phase 1 |
 | 3 — Fuel Capture (the daily job) | ✅ authored | ☐ not started | ☐ | After Phase 2 |

@@ -10,6 +10,7 @@
     --color-surface: 255 255 255;
     --color-surface-subtle: 249 250 251;
     --color-surface-muted: 243 244 246;
+    --color-surface-inverse: 17 24 39;
     --color-ink: 17 24 39;
     --color-ink-secondary: 55 65 81;
     --color-ink-muted: 107 114 128;
@@ -31,6 +32,7 @@
     --color-surface: 31 41 55;
     --color-surface-subtle: 24 31 42;
     --color-surface-muted: 55 65 81;
+    --color-surface-inverse: 229 231 235;
     --color-ink: 249 250 251;
     --color-ink-secondary: 229 231 235;
     --color-ink-muted: 156 163 175;

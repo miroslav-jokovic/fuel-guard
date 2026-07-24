@@ -9,7 +9,12 @@ module.exports = {
     extend: {
       colors: {
         canvas: c('canvas'),
-        surface: { DEFAULT: c('surface'), subtle: c('surface-subtle'), muted: c('surface-muted') },
+        surface: {
+          DEFAULT: c('surface'),
+          subtle: c('surface-subtle'),
+          muted: c('surface-muted'),
+          inverse: c('surface-inverse'),
+        },
         ink: {
           DEFAULT: c('ink'),
           secondary: c('ink-secondary'),
