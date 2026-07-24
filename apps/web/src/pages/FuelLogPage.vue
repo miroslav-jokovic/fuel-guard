@@ -2,7 +2,7 @@
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { PlusIcon } from "@heroicons/vue/20/solid";
-import { fuelTxnStatus, type FillUpInput, type FuelTransaction } from "@fuelguard/shared";
+import { fuelTxnStatus, explainCaseOutcome, formatRuleId, type FillUpInput, type FuelTransaction, type CaseLevel, type CaseSignal } from "@fuelguard/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -168,6 +168,18 @@ const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFracti
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
 // Vehicle leads (sticky on small screens, like the Transactions table); Trailer + Driver follow.
+/** WP2 "why" surface — sub-threshold signals persisted on the fill (case_signals) explained in plain
+ *  language, so a clear fill with a fired-but-weak signal (e.g. a lone odometer regression) is visible. */
+function weakSignals(row: FuelTransaction): CaseSignal[] {
+  if (row.has_anomaly) return []; // flagged fills explain themselves on the Alerts page
+  return (row.case_signals ?? []) as CaseSignal[];
+}
+function whyTitle(row: FuelTransaction): string {
+  const sigs = weakSignals(row);
+  const names = sigs.map((s) => formatRuleId(s.ruleId)).join(", ");
+  return `${names}\n\n${explainCaseOutcome((row.case_level ?? "clear") as CaseLevel, Number(row.case_score ?? 0), sigs)}`;
+}
+
 const columns: DataTableColumn[] = [
   {
     key: "vehicle_id",
@@ -298,6 +310,13 @@ const columns: DataTableColumn[] = [
             :class="[BADGE_BASE, toneClass('brand')]"
             title="AI risk level"
             >AI: {{ row.ai_risk_level }}</span
+          >
+          <span
+            v-if="weakSignals(row).length"
+            :class="[BADGE_BASE, toneClass('neutral')]"
+            class="cursor-help"
+            :title="whyTitle(row)"
+            >{{ weakSignals(row).length }} weak signal{{ weakSignals(row).length > 1 ? "s" : "" }}</span
           >
         </div>
       </template>

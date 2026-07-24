@@ -71,6 +71,11 @@ export interface FuelTransaction {
   miles_since_last?: number | null;
   has_anomaly: boolean;
   max_severity: AnomalySeverity | null;
+  /** WP2 "why" surface — the correlation outcome persisted on every scored fill, INCLUDING clear ones,
+   *  so a fired-but-sub-threshold signal is visible instead of silently discarded. */
+  case_level?: "clear" | "review" | "alert" | null;
+  case_score?: number | null;
+  case_signals?: { ruleId: string; axis: string; weight: number; severity: string; message: string }[] | null;
   ai_risk_level: AnomalySeverity | null;
   samsara_location_confidence?: string | null;
   /** tractor propulsion tank vs reefer (trailer) tank. Default 'tractor'. */

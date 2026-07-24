@@ -30,16 +30,26 @@ export function obdOdometer(t: TxnView): number | null {
  * governs, exactly as before.
  */
 export function milesSinceLast(txn: TxnView, prev: TxnView | null): number | null {
+  return milesSinceLastSourced(txn, prev)?.miles ?? null;
+}
+
+/**
+ * milesSinceLast WITH its provenance (WP2). Which source actually produced the span matters: when the
+ * miles came from the OBD span, they are INDEPENDENT of the driver-entered odometer — so a bogus entry
+ * (odometer_mismatch / entry_suspect) must NOT suppress the consumption rules built on them (see
+ * runAllRules P-1). Same preference/fallback semantics as before, in one place.
+ */
+export function milesSinceLastSourced(txn: TxnView, prev: TxnView | null): { miles: number; basis: "obd" | "entered" } | null {
   if (!prev) return null;
   const tObd = obdOdometer(txn);
   const pObd = obdOdometer(prev);
   if (tObd != null && pObd != null) {
     const d = tObd - pObd;
-    if (d > 0) return d;
+    if (d > 0) return { miles: d, basis: "obd" };
   }
   if (txn.odometer == null || prev.odometer == null) return null;
   const d = txn.odometer - prev.odometer;
-  return d > 0 ? d : null;
+  return d > 0 ? { miles: d, basis: "entered" } : null;
 }
 
 export function computedMpg(txn: TxnView, prev: TxnView | null): number | null {

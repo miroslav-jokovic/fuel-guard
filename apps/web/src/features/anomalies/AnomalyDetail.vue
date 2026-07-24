@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatRuleId, DISPOSITION_LABELS, type Anomaly } from "@fuelguard/shared";
+import { formatRuleId, DISPOSITION_LABELS, type Anomaly, CORRELATION_THRESHOLDS } from "@fuelguard/shared";
 import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -51,6 +51,10 @@ const {
             :style="{ width: `${Math.min(100, (caseScore / 200) * 100)}%` }"
           />
         </div>
+        <p class="text-[11px] leading-4 text-ink-subtle">
+          Alert: one signal ≥ {{ CORRELATION_THRESHOLDS.overwhelming }}, or ≥2 independent axes scoring
+          ≥ {{ CORRELATION_THRESHOLDS.alertScore }} combined · Review: one signal ≥ {{ CORRELATION_THRESHOLDS.review }}
+        </p>
       </div>
       <div class="flex flex-wrap gap-1">
         <span

@@ -33,6 +33,7 @@ rules:
     axis: odometer
     weight: 55
     label: Odometer Regression
+    note: DELIBERATE (WP2) — 55 sits just below the lone-review threshold (60), so a lone regression (usually an entry typo) never raises a case; it stays visible via fuel_transactions.case_signals ("why clear"). Revisit against WP9 disposition data before changing.
   - id: odometer_stale
     tier: odometer_integrity
     axis: odometer
@@ -61,7 +62,7 @@ rules:
     axis: odometer
     weight: 0
     label: Odometer Entry Needs Review
-    note: Cross-source diff so large it's a data-entry typo / OBD glitch, not theft — weight 0.
+    note: Cross-source diff so large it's a data-entry typo / OBD glitch, not theft — weight 0. WP2 — its P-1 suppression of the consumption rules applies ONLY when the per-fill miles came from the entered odometer (an OBD-span basis keeps them alive), closing the enter-garbage-to-silence-checks evasion on telematics-covered trucks.
   - id: expected_odometer_band
     tier: odometer_integrity
     axis: consumption

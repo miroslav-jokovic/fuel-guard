@@ -19,6 +19,9 @@ import {
   type RuleId,
   type TxnView,
   type VehicleView,
+  type SignalAxis,
+  explainCaseOutcome,
+  CORRELATION_THRESHOLDS,
 } from "./index.js";
 
 const vehicle: VehicleView = { id: "v1", fuelType: "diesel", tankCapacityGal: 120, baselineMpg: 6.4 };
@@ -893,5 +896,64 @@ describe("reefer fuel diversion (ULSD pumped into the reefer)", () => {
     ]);
     expect(c.level).toBe("alert");
     expect(c.axes).toEqual(expect.arrayContaining(["reefer", "volume"]));
+  });
+});
+
+// ── WP2 — evasion-vector closure + the exported "why" surface ─────────────────────────────────────
+describe("WP2 P-1 hardening — OBD-basis miles survive a bad odometer entry", () => {
+  // Both fills carry OBD readings → milesSinceLast uses the OBD span (600 mi), which is INDEPENDENT
+  // of the garbage entered odometer. Suppressing the consumption rules here was the evasion vector:
+  // enter a wildly wrong odometer (weight-0 entry_suspect) and mpg/topoff/band go silent for free.
+  const obdTxn = txn({ odometer: 250000, samsaraOdometer: 100000, samsaraOdometerSource: "obd", gallons: 200 });
+  const obdPrev: TxnView = { ...txn(), id: "prev", fueledAt: "2026-06-08T17:00:00Z", odometer: 99400, samsaraOdometer: 99400, samsaraOdometerSource: "obd" };
+
+  it("entry_suspect with an OBD miles basis does NOT suppress the consumption rules", () => {
+    // entered 250,000 vs OBD 100,000 → entry_suspect; OBD span = 600 mi, 200 gal → 3 mpg ≪ baseline.
+    const out = runAllRules(ctx({ vehicle: reliable, txn: obdTxn, previousTxn: obdPrev, crossSourceOdometer: 100000, crossSourceOdometerSource: "obd" }));
+    const idList = out.map((r) => r.ruleId);
+    expect(idList).toContain("odometer_entry_suspect");
+    expect(idList).toContain("mpg_deviation"); // stayed alive — miles came from OBD, not the bad entry
+  });
+
+  it("entered-basis miles still suppress (no trustworthy fallback) — prior behavior preserved", () => {
+    const out = runAllRules(ctx({ vehicle: reliable, txn: txn({ odometer: 99450 }), crossSourceOdometer: 130000 }));
+    const idList = out.map((r) => r.ruleId);
+    expect(idList).toContain("odometer_entry_suspect");
+    expect(idList).not.toContain("mpg_deviation");
+  });
+});
+
+describe("WP2 — explainCaseOutcome (every outcome is explainable, including clear)", () => {
+  const sig = (ruleId: RuleId, axis: string, weight: number) =>
+    ({ ruleId, axis, weight }) as { ruleId: RuleId; axis: SignalAxis; weight: number };
+
+  it("no signals → plain sentence", () => {
+    expect(explainCaseOutcome("clear", 0, [])).toMatch(/No detection signals/);
+  });
+  it("clear with a sub-threshold signal names it and shows the threshold math", () => {
+    const s = explainCaseOutcome("clear", 55, [sig("odometer_regression", "odometer", 55)]);
+    expect(s).toContain("odometer_regression (55)");
+    expect(s).toContain(`< ${CORRELATION_THRESHOLDS.review}`);
+    expect(s).toContain(`< ${CORRELATION_THRESHOLDS.alertScore}`);
+  });
+  it("review explains the missing corroboration", () => {
+    const s = explainCaseOutcome("review", 60, [sig("card_multi_vehicle", "behavior", 60)]);
+    expect(s).toMatch(/review/);
+    expect(s).toContain(`${CORRELATION_THRESHOLDS.alertScore}`);
+  });
+  it("alert explains overwhelming vs corroborated", () => {
+    expect(explainCaseOutcome("alert", 90, [sig("tank_space_exceeded", "volume", 90)])).toMatch(/overwhelming/i);
+    expect(
+      explainCaseOutcome("alert", 125, [sig("cumulative_overfuel", "consumption", 75), sig("location_mismatch", "location", 50)]),
+    ).toMatch(/independent signal axes/);
+  });
+  it("correlateSignals emits the same thresholds it exports (no drift)", () => {
+    const r = (ruleId: RuleId): RuleResult => ({ ruleId, fired: true, severity: "high", message: "", evidence: {} });
+    // weight-90 signal ≥ overwhelming → alert
+    expect(correlateSignals([r("tank_space_exceeded")]).level).toBe("alert");
+    // weight-55 signal < review 60 → clear, but the signal is still present in the assessment
+    const c = correlateSignals([r("odometer_regression")]);
+    expect(c.level).toBe("clear");
+    expect(c.signals).toHaveLength(1);
   });
 });

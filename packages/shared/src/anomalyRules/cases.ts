@@ -28,12 +28,23 @@ export type { SignalAxis };
 /** The single synthetic anomaly id used for a correlated per-transaction case. */
 export const CASE_RULE_ID = "theft_case";
 
-/** A signal ≥ this weight is "overwhelming" and raises an alert on its own (e.g. more fuel than fits). */
-const OVERWHELMING_WEIGHT = 85;
-/** A single signal ≥ this weight is worth a review on its own. */
-const REVIEW_WEIGHT = 60;
-/** Correlated alert: ≥2 independent axes and combined score ≥ this. */
-const ALERT_SCORE = 110;
+/**
+ * Correlation thresholds — EXPORTED (WP2) so the UI can EXPLAIN every outcome ("score 95 < 110 →
+ * review, not alert") instead of leaving them invisible. Deliberately NOT org-tunable: letting an org
+ * detune the theft model silently degrades detection, and per-rule sensitivity already has a proper
+ * home (thresholds table / disabledRules). Changing these is a reviewed code change, in ONE place.
+ */
+export const CORRELATION_THRESHOLDS = {
+  /** A signal ≥ this weight is "overwhelming" and raises an alert on its own (e.g. more fuel than fits). */
+  overwhelming: 85,
+  /** A single signal ≥ this weight is worth a review on its own. */
+  review: 60,
+  /** Correlated alert: ≥2 independent axes and combined score ≥ this. */
+  alertScore: 110,
+} as const;
+const OVERWHELMING_WEIGHT = CORRELATION_THRESHOLDS.overwhelming;
+const REVIEW_WEIGHT = CORRELATION_THRESHOLDS.review;
+const ALERT_SCORE = CORRELATION_THRESHOLDS.alertScore;
 
 export type CaseLevel = "clear" | "review" | "alert";
 
@@ -99,6 +110,40 @@ export function correlateSignals(fired: RuleResult[]): CaseAssessment {
       : `Review: ${lead.message}${others > 0 ? ` (+${others} more)` : ""}`;
 
   return { level, severity, score, axes, signals, summary };
+}
+
+/**
+ * WP2 "why" surface — one human sentence explaining WHY a transaction landed at its case level,
+ * including the threshold math for CLEAR outcomes (previously invisible: a fired-but-sub-threshold
+ * signal produced no trace anywhere). Pure; used by the fuel-log chip and anywhere else the outcome
+ * needs explaining. Works from the persisted (level, score, signals) triple.
+ */
+export function explainCaseOutcome(level: CaseLevel, score: number, signals: Pick<CaseSignal, "ruleId" | "weight" | "axis">[]): string {
+  const T = CORRELATION_THRESHOLDS;
+  if (signals.length === 0) return "No detection signals fired on this fill.";
+  const axes = new Set(signals.map((s) => s.axis));
+  const top = signals.reduce((a, s) => Math.max(a, s.weight), 0);
+  const list = signals
+    .slice()
+    .sort((a, b) => b.weight - a.weight)
+    .map((s) => `${s.ruleId} (${s.weight})`)
+    .join(", ");
+  if (level === "clear") {
+    return (
+      `${signals.length} signal${signals.length > 1 ? "s" : ""} fired but stayed below the case thresholds: ${list}. ` +
+      `Strongest weight ${top} < ${T.review} (lone-review threshold) and combined score ${score} across ` +
+      `${axes.size} ax${axes.size === 1 ? "is" : "es"} < ${T.alertScore} (multi-signal alert threshold).`
+    );
+  }
+  if (level === "review") {
+    return (
+      `One strong signal (${list.split(",")[0]}) ≥ ${T.review} raised a review, but independent corroboration ` +
+      `was insufficient for an alert (score ${score} < ${T.alertScore}, and no signal ≥ ${T.overwhelming}).`
+    );
+  }
+  return top >= T.overwhelming
+    ? `An overwhelming signal (weight ${top} ≥ ${T.overwhelming}) raised an alert on its own: ${list}.`
+    : `${axes.size} independent signal axes corroborate (score ${score} ≥ ${T.alertScore}): ${list}.`;
 }
 
 // ── anomaly reconciliation (audit M5: never wipe workflow state) ────────────────

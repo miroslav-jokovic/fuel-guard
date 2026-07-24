@@ -342,6 +342,10 @@ export async function scoreTransaction(
       computed_mpg: computedMpg(txn, previousTxn),
       has_anomaly: assessment.level !== "clear",
       max_severity: assessment.severity,
+      // WP2 "why" surface: persist the outcome even when clear, so sub-threshold signals stay visible.
+      case_level: assessment.level,
+      case_score: assessment.score,
+      case_signals: assessment.signals,
       samsara_odometer: crossSourceOdometer,
       samsara_odometer_at: crossSourceOdometerAt,
       samsara_odometer_source: crossSourceOdometerSource,

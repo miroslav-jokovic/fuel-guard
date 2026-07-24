@@ -18,6 +18,7 @@ import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, suspicionTone, toneClass } from "@/lib/badges";
+import { useCardAssignments, maskCardRef } from "@/features/fueling/useCardAssignments";
 
 const session = useSessionStore();
 const toast = useToastStore();
@@ -40,6 +41,20 @@ const unitOptions = computed(() => [
 ]);
 
 const { data: facets } = useEfsFacets();
+
+// WP2 — read-only card→truck assignments (the ground truth the decline scorer uses).
+const cardsOpen = ref(false);
+const { data: cardRows } = useCardAssignments();
+const unitByVehicleId = computed(() => new Map((vehicles.value ?? []).map((v) => [v.id, v.unit_number])));
+const cardList = computed(() =>
+  (cardRows.value ?? []).map((c) => ({
+    id: c.id,
+    card: maskCardRef(c.card_ref, c.card_last4),
+    unit: c.vehicle_id ? (unitByVehicleId.value.get(c.vehicle_id) ?? "?") : "—",
+    source: c.assignment_source ?? "manual",
+    updated: c.updated_at,
+  })),
+);
 
 /** Two-way proxy into the filters object for one key ("" ⇄ undefined). */
 const bind = (key: "unit" | "suspicion" | "search" | "errorCode" | "state" | "driver" | "policy") =>
@@ -162,6 +177,14 @@ const columns: DataTableColumn[] = [
       </template>
       <template #actions>
         <BaseButton
+          size="sm"
+          variant="secondary"
+          title="Card → truck assignments learned from fill history (what the decline scorer checks pump units against)"
+          @click="cardsOpen = true"
+        >
+          Cards{{ cardList.length ? ` (${cardList.length})` : "" }}
+        </BaseButton>
+        <BaseButton
           v-if="session.canManage"
           size="sm"
           :disabled="rescoring"
@@ -215,6 +238,38 @@ const columns: DataTableColumn[] = [
         />
       </template>
     </DataTable>
+
+    <!-- Card → truck assignments (read-only; learned from fill history, manual rows authoritative) -->
+    <SlideOver :open="cardsOpen" title="Card assignments" @close="cardsOpen = false">
+      <div class="space-y-3 text-sm">
+        <p class="text-xs text-ink-muted">
+          The card → truck assignments the decline scorer checks pump units against. Learned automatically
+          from attributed fill history (≥5 fills with a ≥70% majority on one truck); a card that floats
+          between trucks gets no assignment. Manual assignments are never overwritten.
+        </p>
+        <p v-if="!cardList.length" class="text-ink-subtle">
+          No assignments learned yet — they appear after enough attributed fill history (or a Rescore).
+        </p>
+        <table v-else class="w-full text-left text-sm">
+          <thead>
+            <tr class="text-xs uppercase tracking-wide text-ink-muted">
+              <th class="py-1.5 pr-3 font-semibold">Card</th>
+              <th class="py-1.5 pr-3 font-semibold">Assigned truck</th>
+              <th class="py-1.5 font-semibold">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="c in cardList" :key="c.id" class="border-t border-neutral-100">
+              <td class="py-1.5 pr-3 font-mono text-ink">{{ c.card }}</td>
+              <td class="py-1.5 pr-3 text-ink">{{ c.unit }}</td>
+              <td class="py-1.5">
+                <span :class="[BADGE_BASE, toneClass(c.source === 'manual' ? 'brand' : 'neutral')]">{{ c.source }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </SlideOver>
 
     <!-- Decline detail drill-down -->
     <SlideOver :open="!!selectedRow" title="Declined attempt" @close="selectedRow = null">

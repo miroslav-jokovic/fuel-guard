@@ -4,7 +4,7 @@ import { computeFillConfidence, ruleEligible } from "../fillConfidence.js";
 import { SUPPRESSED_RULE_IDS, type RuleId } from "./ids.js";
 import type { RuleContext, RuleResult, Rule } from "./types.js";
 import { effectiveCapacityGal } from "./types.js";
-import { hoursBetween, daysBetween, milesSinceLast, computedMpg, coldWeatherDeratePct, recentMpgSeries, effectiveBaseline, isOffHours, isFuelVehicle, eventTime, timeReliable, none, r2, median, TANK_FILL_MIN_TOLERANCE_GAL, TANK_FILL_TOLERANCE_PCT } from "./helpers.js";
+import { hoursBetween, daysBetween, milesSinceLast, milesSinceLastSourced, computedMpg, coldWeatherDeratePct, recentMpgSeries, effectiveBaseline, isOffHours, isFuelVehicle, eventTime, timeReliable, none, r2, median, TANK_FILL_MIN_TOLERANCE_GAL, TANK_FILL_TOLERANCE_PCT } from "./helpers.js";
 
 function ruleOdometerMissing(ctx: RuleContext): RuleResult {
   const { txn, vehicle } = ctx;
@@ -59,8 +59,7 @@ function ruleOdometerDailyCap(ctx: RuleContext): RuleResult {
   return none("odometer_daily_cap");
 }
 
-/** Cross-source odometer reconciliation — the driver-accuracy ±tolerance check (docs/09 §2). */
-/** A cross-source odometer diff this large (miles) is not a plausible theft mask — real odometer padding is
+/** Cross-source odometer reconciliation (docs/09 §2). A cross-source odometer diff this large (miles) is not a plausible theft mask — real odometer padding is
  *  hundreds of miles. It's a driver-entry typo (e.g. a transposed digit) or an OBD glitch → route to the
  *  data-quality rule (odometer_entry_suspect, weight 0), NOT the theft-weighted odometer_mismatch. */
 const ODOMETER_DATA_QUALITY_MILES = 5000;
@@ -100,7 +99,6 @@ function ruleOdometerEntrySuspect(ctx: RuleContext): RuleResult {
   }
   return none("odometer_entry_suspect");
 }
-
 
 /** Single-source odometer plausibility vs fuel: catches odometer padding (drove far more than fuel allows). */
 function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
@@ -485,12 +483,13 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   if (results.some((r) => r.ruleId === "exceeds_tank_capacity")) {
     results = results.filter((r) => r.ruleId !== "implausible_topoff");
   }
-  // P-1: when the entered odometer disagrees with the trusted OBD reading (a mismatch, or a data-quality
-  // entry-suspect), the per-fill miles derived FROM that entered odometer are untrustworthy. Suppress the
-  // miles-based per-fill rules so one bad odometer entry can't stack odometer + consumption + volume signals
-  // into a false theft case. Gross overfuel is still caught by cumulative_overfuel (clean OBD-span window)
-  // and by the tank rules.
-  if (results.some((r) => r.ruleId === "odometer_mismatch" || r.ruleId === "odometer_entry_suspect")) {
+  // P-1: an entered odometer that disagrees with the trusted OBD reading (mismatch / entry-suspect) makes
+  // miles derived FROM that entry untrustworthy → suppress the miles-based per-fill rules so one bad entry
+  // can't stack a false multi-axis case. WP2: suppress ONLY when the miles CAME from the entered odometer —
+  // an OBD-span basis is independent of the bad entry, so those rules stay valid (closes the "enter garbage
+  // >5,000 mi to silence the consumption checks" evasion). No-OBD trucks keep the suppression.
+  const odoDoubt = results.some((r) => r.ruleId === "odometer_mismatch" || r.ruleId === "odometer_entry_suspect");
+  if (odoDoubt && milesSinceLastSourced(ctx.txn, ctx.previousTxn)?.basis !== "obd") {
     const milesDerived = new Set<RuleId>(["mpg_deviation", "implausible_topoff", "expected_odometer_band"]);
     results = results.filter((r) => !milesDerived.has(r.ruleId));
   }
