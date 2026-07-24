@@ -146,8 +146,6 @@ export async function scoreTransaction(
   // Card-identity context (WP3): a true CARD-keyed vehicle count + the fuel_cards assignment — see
   // resolveCardContext for the identity rules (never driver-keyed; unidentifiable cards stay uncounted).
   const cardCtx = await resolveCardContext(admin, orgId, txn, winStart(), r.fueled_at);
-  const cardVehicleCountInWindow = cardCtx.cardVehicleCountInWindow;
-  const cardAssignedVehicleId = cardCtx.cardAssignedVehicleId;
 
   // Reefer (ULSR) fills: resolve the paired trailer's reefer tank capacity (current pairing) and the
   // rolling-window reefer gallons for this truck — inputs to the Tier A reefer rules.
@@ -267,8 +265,9 @@ export async function scoreTransaction(
     crossSourceOdometerSource,
     windowGallons,
     windowMiles,
-    cardVehicleCountInWindow,
-    cardAssignedVehicleId,
+    cardVehicleCountInWindow: cardCtx.cardVehicleCountInWindow,
+    cardAssignedVehicleId: cardCtx.cardAssignedVehicleId,
+    cardManualAssignedVehicleId: cardCtx.cardManualAssignedVehicleId,
     samsaraLocationMatched,
     locationEvidence,
     tankFillShortGal,

@@ -195,10 +195,14 @@ export interface RuleContext {
    *  non-contradicting control ids, see sameCardFill) within the window, incl. this one. WP3: this is
    *  a CARD count, never a driver count — a driver moving trucks with different cards doesn't inflate it. */
   cardVehicleCountInWindow?: number;
-  /** The vehicle this card is ASSIGNED to (fuel_cards — learned from history / manual). null/undefined =
-   *  no assignment (floating/slip-seat card, or not enough history). Gates the off-assignment variant of
-   *  card_multi_vehicle (WP3). */
+  /** AS-OF-FILL-TIME learned assignment (dominant vehicle over the 60 days BEFORE this fill — WP3b).
+   *  Statistical inference: enriches evidence/messages and corroborates, but NEVER fires an alarm alone
+   *  (169-false-alarm lesson: a card era-change or slip-seat secondary truck is not misuse). */
   cardAssignedVehicleId?: string | null;
+  /** MANUAL assignment from fuel_cards (assignment_source='manual') — a human declared this card belongs
+   *  to that truck. Ground truth: a mismatch fires review-grade even as a single event. Only set for
+   *  fills recent enough for the manual record to plausibly apply (WP3b). */
+  cardManualAssignedVehicleId?: string | null;
   /** From Samsara reconciliation: was the truck actually at the EFS station's location? null = unknown. */
   samsaraLocationMatched?: boolean | null;
   /** Evidence for a location mismatch (EFS vs Samsara city/state at the fueling time). */

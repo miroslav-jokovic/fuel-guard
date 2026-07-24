@@ -966,23 +966,33 @@ describe("WP2 — explainCaseOutcome (every outcome is explainable, including cl
   });
 });
 
-// ── WP3 — card_multi_vehicle: true card identity + fuel_cards assignment ──────────────────────────
-describe("WP3 card_multi_vehicle (assignment-aware, card-keyed)", () => {
-  it("fires as a SINGLE event when the fill's truck differs from the card's assigned truck", () => {
+// ── WP3/WP3b — card_multi_vehicle: true card identity; learned = evidence-only, manual = ground truth ─
+describe("WP3b card_multi_vehicle (169-false-alarm regression suite)", () => {
+  it("THE 169 CLASS: a LEARNED-assignment mismatch alone (count 1) NEVER fires — era changes and", () => {
+    // slip-seat secondary trucks are not misuse; statistical inference can't raise an alarm by itself.
     const c = ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardAssignedVehicleId: "other-truck" });
+    expect(runAllRules(c).find((r) => r.ruleId === "card_multi_vehicle")).toBeUndefined();
+  });
+  it("a MANUAL (human-declared) assignment mismatch fires even as a single event", () => {
+    const c = ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "other-truck" });
     const out = runAllRules(c).find((r) => r.ruleId === "card_multi_vehicle");
     expect(out).toBeTruthy();
-    expect(out!.evidence.assignedVehicleId).toBe("other-truck");
+    expect(out!.evidence.manualAssignedVehicleId).toBe("other-truck");
   });
-  it("stays silent on the card's own assigned truck (count 1)", () => {
-    expect(ids(ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardAssignedVehicleId: "v1" }))).not.toContain("card_multi_vehicle");
+  it("manual assignment matching the fill's truck stays silent", () => {
+    expect(ids(ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "v1" }))).not.toContain("card_multi_vehicle");
   });
-  it("a floating card (no assignment) still fires the classic ≥2-vehicles signal", () => {
-    expect(ids(ctx({ txn: txn({ cardRef: "93509" }), cardVehicleCountInWindow: 2 }))).toContain("card_multi_vehicle");
+  it("the classic ≥2-vehicles split-use signal still fires, enriched by the as-of assignment", () => {
+    const out = runAllRules(ctx({ txn: txn({ cardRef: "93509" }), cardVehicleCountInWindow: 2, cardAssignedVehicleId: "other-truck" })).find((r) => r.ruleId === "card_multi_vehicle");
+    expect(out).toBeTruthy();
+    expect(out!.message).toContain("other than the card's usual one");
   });
-  it("an unattributed fill with an assignment does not fire the off-assignment variant", () => {
+  it("count 1 with no assignments of any kind → silent", () => {
+    expect(ids(ctx({ txn: txn({ cardRef: "93509" }), cardVehicleCountInWindow: 1 }))).not.toContain("card_multi_vehicle");
+  });
+  it("an unattributed fill never fires the manual-mismatch variant", () => {
     expect(
-      ids(ctx({ txn: txn({ cardRef: "93509", vehicleId: null }), previousTxn: null, cardVehicleCountInWindow: 1, cardAssignedVehicleId: "other-truck" })),
+      ids(ctx({ txn: txn({ cardRef: "93509", vehicleId: null }), previousTxn: null, cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "other-truck" })),
     ).not.toContain("card_multi_vehicle");
   });
 });

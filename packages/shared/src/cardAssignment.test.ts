@@ -6,6 +6,7 @@ import {
   learnCardAssignments,
   assessCardAssignment,
   sameCardFill,
+  dominantVehicle,
   type CardFillRow,
 } from "./cardAssignment.js";
 
@@ -102,5 +103,18 @@ describe("sameCardFill (WP3 — the card_multi_vehicle identity test)", () => {
   it("non-matching digits never match; missing refs never match", () => {
     expect(sameCardFill({ cardRef: "1111", controlId: null }, { cardRef: "2222", controlId: null })).toBe(false);
     expect(sameCardFill({ cardRef: null, controlId: "AAA" }, { cardRef: "7521", controlId: "AAA" })).toBe(false);
+  });
+});
+
+describe("dominantVehicle (WP3b — as-of-fill-time assignment)", () => {
+  it("needs ≥5 attributed fills and a ≥70% majority", () => {
+    expect(dominantVehicle(["A", "A", "A", "A"])).toBeNull(); // 4 fills — not enough
+    expect(dominantVehicle(["A", "A", "A", "A", "A"])).toBe("A");
+    expect(dominantVehicle(["A", "A", "A", "B", "B"])).toBeNull(); // 60% — floating
+    expect(dominantVehicle(["A", "A", "A", "A", "B"])).toBe("A"); // 80%
+  });
+  it("unattributed fills don't count as evidence", () => {
+    expect(dominantVehicle([null, null, "A", "A", "A", "A", "A"])).toBe("A");
+    expect(dominantVehicle([null, null, null, "A", "A"])).toBeNull();
   });
 });

@@ -100,6 +100,29 @@ export function cardRefsMatch(a: string | null | undefined, b: string | null | u
 }
 
 /**
+ * Dominant vehicle among ONE card's fills (WP3b — the as-of-fill-time assignment). Same evidence bar
+ * as learnCardAssignments (≥ minFills attributed fills, ≥ minShare majority) applied to a caller-scoped
+ * row set — the scorer passes the 60 days BEFORE the fill being scored, so a rebuild judges each fill
+ * against the assignment that was true THEN, never against today's. Returns null without real evidence
+ * (floating/slip-seat card, era change in progress). Pure.
+ */
+export function dominantVehicle(
+  vehicleIds: (string | null)[],
+  opts: { minFills?: number; minShare?: number } = {},
+): string | null {
+  const minFills = opts.minFills ?? 5;
+  const minShare = opts.minShare ?? 0.7;
+  const attributed = vehicleIds.filter((v): v is string => !!v);
+  if (attributed.length < minFills) return null;
+  const counts = new Map<string, number>();
+  for (const v of attributed) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let winner: string | null = null;
+  let win = 0;
+  for (const [v, c] of counts) if (c > win) { win = c; winner = v; }
+  return winner && win / attributed.length >= minShare ? winner : null;
+}
+
+/**
  * Are two FILL rows the same physical card? (WP3 — the card_multi_vehicle identity test.) True when the
  * card refs match digit-wise (full/masked tolerant) AND the EFS control ids don't contradict: two rows
  * sharing a last-4 but carrying DIFFERENT control ids are two different drivers' cards (the 0075

@@ -140,7 +140,7 @@ rules:
     axis: behavior
     weight: 60
     label: Card Used on Multiple Vehicles
-    note: WP3 — counted by true CARD identity (full/masked refs + control-id disambiguation, sameCardFill), never by driver, so a slip-seat driver with per-truck cards can't false-fire; also fires as a single event when the fill's truck differs from the card's fuel_cards assignment. Samsara driver-assignment reconcile auto-clears one-driver-moved-trucks.
+    note: WP3/WP3b — counted by true CARD identity (full/masked refs + control-id disambiguation, sameCardFill), never by driver. WP3b after 169 false alarms — a LEARNED assignment is computed AS OF THE FILL (dominant vehicle over the prior 60d) and is EVIDENCE-ONLY, never firing alone (era changes / slip-seat secondaries are not misuse); only a MANUAL fuel_cards assignment (human ground truth, recent-era fills) fires on a single mismatch. Classic ≥2-trucks-in-window split-use unchanged; Samsara driver-assignment reconcile still auto-clears one-driver-moved-trucks.
   - id: location_mismatch
     tier: behavioral
     axis: location

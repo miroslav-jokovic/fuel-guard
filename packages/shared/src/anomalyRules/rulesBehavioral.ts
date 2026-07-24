@@ -164,19 +164,25 @@ export function ruleReeferFuelDiversion(ctx: RuleContext): RuleResult {
   };
 }
 
-/** Card misuse (WP3): the count is a true CARD identity count (never a driver count — see RuleContext),
- *  and a fill on a truck the card is NOT assigned to (fuel_cards) fires even as a single event. A card
- *  with no assignment that fuels 2+ trucks still fires the classic multi-vehicle signal; Samsara's
- *  driver-assignment reconcile (cardMultiReconcile) auto-clears the one-driver-moved-trucks explanation. */
+/** Card misuse (WP3, hardened in WP3b after 169 false alarms): the count is a true CARD identity count
+ *  (never a driver count). FIRES only on:
+ *    1. a MANUAL (human-declared) assignment mismatch — ground truth, single event is review-grade; or
+ *    2. the card demonstrably fueling ≥2 trucks inside the window — the classic split-use pattern
+ *       (message enriched with the as-of-fill-time learned assignment when one exists).
+ *  A LEARNED assignment mismatch alone NEVER fires: as-of learning is statistical, and a card era-change
+ *  or a slip-seat secondary truck is not misuse. Samsara's driver-assignment reconcile
+ *  (cardMultiReconcile) still auto-clears one-driver-moved-trucks cases. */
 export function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
   const count = ctx.cardVehicleCountInWindow ?? 0;
-  const assigned = ctx.cardAssignedVehicleId ?? null;
+  const asOf = ctx.cardAssignedVehicleId ?? null;
+  const manual = ctx.cardManualAssignedVehicleId ?? null;
   const hrs = ctx.thresholds.cumulativeWindowHours ?? 48;
-  if (ctx.txn.cardRef && assigned != null && ctx.txn.vehicleId != null && ctx.txn.vehicleId !== assigned) {
-    return { ruleId: "card_multi_vehicle", fired: true, severity: "high", message: `This fuel card is assigned to a different truck than the one it fueled${count >= 2 ? ` (and fueled ${count} vehicles within ${hrs}h)` : ""}.`, evidence: { assignedVehicleId: assigned, vehicleId: ctx.txn.vehicleId, vehicleCount: count, windowHours: hrs } };
+  if (ctx.txn.cardRef && manual != null && ctx.txn.vehicleId != null && ctx.txn.vehicleId !== manual) {
+    return { ruleId: "card_multi_vehicle", fired: true, severity: "high", message: `This fuel card is manually assigned to a different truck than the one it fueled${count >= 2 ? ` (and fueled ${count} vehicles within ${hrs}h)` : ""}.`, evidence: { manualAssignedVehicleId: manual, vehicleId: ctx.txn.vehicleId, vehicleCount: count, windowHours: hrs } };
   }
   if (ctx.txn.cardRef && count >= 2) {
-    return { ruleId: "card_multi_vehicle", fired: true, severity: "high", message: `This fuel card fueled ${count} different vehicles within ${hrs}h.`, evidence: { vehicleCount: count, windowHours: hrs, assignedVehicleId: assigned } };
+    const offNote = asOf != null && ctx.txn.vehicleId != null && ctx.txn.vehicleId !== asOf ? " — including this fill on a truck other than the card's usual one" : "";
+    return { ruleId: "card_multi_vehicle", fired: true, severity: "high", message: `This fuel card fueled ${count} different vehicles within ${hrs}h${offNote}.`, evidence: { vehicleCount: count, windowHours: hrs, asOfAssignedVehicleId: asOf } };
   }
   return none("card_multi_vehicle");
 }
