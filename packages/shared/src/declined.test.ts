@@ -50,3 +50,34 @@ describe("isRestrictedDeclineReason", () => {
     expect(isRestrictedDeclineReason(null, "Card expired")).toBe(false);
   });
 });
+
+// ── WP1 additions: proximity + card-assignment signals ────────────────────────────────────────────
+describe("WP1 decline signals", () => {
+  it("a proximity failure ALONE is an alert — EFS's geofence verdict is honored", () => {
+    const c = assessDecline([sig("proximity_failure")]);
+    expect(c.level).toBe("alert");
+  });
+  it("a confirmed card-assignment mismatch alone is an alert (75 ≥ overwhelming)", () => {
+    expect(assessDecline([sig("card_assigned_mismatch")]).level).toBe("alert");
+  });
+  it("an UNVERIFIED card mismatch (45) alone stays clear — corroboration only", () => {
+    const unverified: DeclineSignal = { key: "card_assigned_mismatch", weight: 45, detail: "" };
+    expect(assessDecline([unverified]).level).toBe("clear");
+    // …but it corroborates a real partner into an alert (45 + 75 = 120 ≥ 110, 2 signals)
+    expect(assessDecline([unverified, sig("approved_elsewhere")]).level).toBe("alert");
+  });
+  it("stale assignment / unit typo are exonerating: surfaced, never scored", () => {
+    const c = assessDecline([sig("stale_card_assignment"), sig("card_unit_typo")]);
+    expect(c.level).toBe("clear");
+    expect(c.reasons).toHaveLength(2);
+  });
+  it("card_not_active alone stays clear (retries escalate via repeated_declines)", () => {
+    expect(assessDecline([sig("card_not_active")]).level).toBe("clear");
+  });
+  it("proximity phrasing routes through the taxonomy, not the old restriction regex", () => {
+    // The 0851226257 description does NOT read as a mere restriction…
+    expect(isRestrictedDeclineReason("1", "INVALID TRUCKSTOP|Merchant Position Too Far|")).toBe(false);
+    // …while a genuine restriction still does (back-compat).
+    expect(isRestrictedDeclineReason("1", "INVALID TRUCKSTOP IN53790|Failed restrictions|")).toBe(true);
+  });
+});

@@ -142,10 +142,12 @@ export function normalizeTransactionRows(rows: RawRow[]): {
     const key = `${dateKey}|${tankType}`;
 
     const existing = byInvoice.get(key);
+    const driverExtId = str(pick(row, "DriverId", "Driver Id", "Driver ID"));
     if (existing) {
       existing.gallons += gallons;
       existing.total_cost = (existing.total_cost ?? 0) + (total ?? 0);
       existing.control_id = existing.control_id ?? controlId; // keep the first non-null across merged lines
+      existing.driver_ext_id = existing.driver_ext_id ?? driverExtId;
     } else {
       byInvoice.set(key, {
         external_ref: ref,
@@ -153,6 +155,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
         driver_name: str(pick(row, "Driver Name")),
         card_ref: cardRefVal,
         control_id: controlId,
+        driver_ext_id: driverExtId,
         fueled_at: instant.iso,
         tran_date: instant.tranDate,
         fueled_at_precision: instant.precision,
@@ -197,6 +200,13 @@ export interface EfsTransactionLine {
   unit: string | null;
   driver_name: string | null;
   control_id: string | null;
+  /** EFS numeric DriverId — joins approvals ↔ declines ("Driver ID" on the Reject Report). WP1 D5. */
+  driver_ext_id: string | null;
+  /** Pump-keyed trailer number (52-col export) — ground truth for reefer pairing (WP8 input). */
+  trailer_number: string | null;
+  hubometer: number | null;
+  trip: string | null;
+  subfleet: string | null;
   odometer: number | null;
   location_name: string | null;
   city: string | null;
@@ -245,6 +255,11 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
       unit: str(pick(row, "Unit")),
       driver_name: str(pick(row, "Driver Name")),
       control_id: controlIdOf(row),
+      driver_ext_id: str(pick(row, "DriverId", "Driver Id", "Driver ID")),
+      trailer_number: str(pick(row, "TrailerNumber", "Trailer Number", "Trailer")),
+      hubometer: num(pick(row, "Hubometer")),
+      trip: str(pick(row, "Trip")),
+      subfleet: str(pick(row, "SubFleet", "Sub Fleet")),
       odometer: num(pick(row, "Odometer")),
       location_name: str(pick(row, "Location Name")),
       city: str(pick(row, "City", "Location City")),
@@ -272,6 +287,11 @@ export interface EfsTransactionRow {
   unit: string | null;
   driver_name: string | null;
   control_id: string | null;
+  driver_ext_id?: string | null;
+  trailer_number?: string | null;
+  hubometer?: number | null;
+  trip?: string | null;
+  subfleet?: string | null;
   odometer: number | null;
   location_name: string | null;
   city: string | null;
@@ -304,6 +324,14 @@ export interface DeclinedTransactionRow {
   policy_name: string | null;
   suspicion_level?: string | null; // clear | review | alert (null until scored)
   suspicion_reasons?: { key: string; weight: number; detail: string }[] | null;
+  /** WP1: taxonomy category of the decline reason (declineReason.ts). Written at scoring. */
+  reason_category?: string | null;
+  /** WP1 D2: attributed pump-unit vehicle (matched from `unit`), when unambiguous. */
+  vehicle_id?: string | null;
+  /** WP1 D3: optional EFS alert fields (absent in the standard reject export). */
+  card_assigned_unit?: string | null;
+  efs_proximity_miles?: number | null;
+  efs_truck_position_at?: string | null;
 }
 
 export interface ReconciledFuelLine extends ParsedFuelLine {
@@ -321,6 +349,7 @@ export interface ReconciledFuelLine extends ParsedFuelLine {
 export interface EfsStoreLine {
   card_num: string | null;
   control_id?: string | null;
+  driver_ext_id?: string | null;
   invoice: string | null;
   tran_date: string | null; // YYYY-MM-DD (station-local business date)
   fueled_at: string | null; // ISO instant (true UTC or the noon-UTC date-only sentinel)
@@ -393,6 +422,7 @@ export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuel
         driver_name: str(l.driver_name),
         card_ref: str(l.card_num),
         control_id: str(l.control_id),
+        driver_ext_id: str(l.driver_ext_id),
         fueled_at: l.fueled_at,
         tran_date: l.tran_date,
         fueled_at_precision: isNoonSentinelIso(l.fueled_at) ? "date" : "instant",

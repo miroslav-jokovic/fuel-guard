@@ -25,6 +25,8 @@ export interface DigestData {
   siphonCount: number;
   siphons: { unit: string; dropPct: number | null; at: string }[];
   declineAlertCount: number;
+  /** Declines with an unrecognized EFS reason (taxonomy 'unknown') this week — must be surfaced (WP1 D6). */
+  declineUnknownReasons: number;
   topVehicles: { unit: string; count: number }[];
   health: DigestHealth;
 }
@@ -119,6 +121,13 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     .eq("suspicion_level", "alert")
     .gte("declined_at", since);
 
+  const { count: declineUnknownReasons } = await admin
+    .from("declined_transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("reason_category", "unknown")
+    .gte("declined_at", since);
+
   const health = await buildDigestHealth(admin, orgId, since);
 
   return {
@@ -128,6 +137,7 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     siphonCount: siphons.length,
     siphons: siphons.slice(0, 5),
     declineAlertCount: declineAlertCount ?? 0,
+    declineUnknownReasons: declineUnknownReasons ?? 0,
     topVehicles,
     health,
   };
@@ -170,6 +180,7 @@ export async function generateAndSendDigest(
     alertCount: data.alertCount,
     siphonCount: data.siphonCount,
     declineAlertCount: data.declineAlertCount,
+    declineUnknownReasons: data.declineUnknownReasons,
     topVehicles: data.topVehicles,
     appUrl: env.WEB_APP_URL,
     health: data.health,

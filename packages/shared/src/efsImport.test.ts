@@ -11,6 +11,8 @@ import {
   efsInstant,
   zonedWallTimeToUtcIso,
   deriveFuelEventsFromEfsStore,
+  attributeDeclinedRow,
+  learnEfsDriverIds,
 } from "./index.js";
 
 // Real column headers from the Silvicom EFS exports (docs/08 §0).
@@ -451,5 +453,124 @@ describe("deriveFuelEventsFromEfsStore (repair path)", () => {
     expect(r.events).toHaveLength(0);
     expect(r.skippedBlankInvoice).toBe(1);
     expect(r.skippedUnusable).toBe(2);
+  });
+});
+
+// ── WP1: reject-report golden rows (verbatim from data-samples/RejectTransactionReport-260707092249.xlsx),
+// optional EFS alert fields, decline attribution, and the EFS driver-id learner ──────────────────────────
+describe("normalizeRejectRows — WP1 golden rows + optional alert fields", () => {
+  it("standard 15-column reject export → alert fields are null (they are NOT in this report)", () => {
+    const { declined } = normalizeRejectRows([
+      {
+        Date: "2026-07-17 06:29:00", Time: "2026-07-17 06:29:00",
+        "Card Number": "7083050030485867142      ", Invoice: "53790       ", "Location ID": "545350",
+        "Location Name": "LOVES #646 TRAVEL STOP", "Location City": "WILLINGTON", "State/Prov": "CT",
+        "Error Code": "1", "Error Description": "INVALID TRUCKSTOP IN53790|Failed restrictions|",
+        Unit: "667", "Driver ID": "1995", "Driver Name": "YOEL VALLADARES ALBARENG",
+        Policy: "1", "Policy Name": "Drivers                       ",
+      },
+    ]);
+    expect(declined).toHaveLength(1);
+    const d = declined[0]!;
+    expect(d.unit).toBe("667");
+    expect(d.driver_ext_id).toBe("1995");
+    expect(d.card_assigned_unit).toBeNull();
+    expect(d.efs_proximity_miles).toBeNull();
+    expect(d.efs_truck_position_at).toBeNull();
+  });
+  it("a variant that DOES carry the card-assigned truck + proximity is captured faithfully", () => {
+    const { declined } = normalizeRejectRows([
+      {
+        Date: "2026-07-11 15:37:00", Time: "2026-07-11 15:37:00",
+        "Card Number": "7083050030281917521", Invoice: "0851226257",
+        "Location Name": "PILOT N LAS VEGAS", "Location City": "N LAS VEGAS", "State/Prov": "NV",
+        "Error Code": "1", "Error Description": "INVALID TRUCKSTOP|Merchant Position Too Far|",
+        Unit: "576", "Driver ID": "1988", "Driver Name": "TEHONE CARTER",
+        Truck: "572", Proximity: "644.26", "Truck Location Time": "15:33",
+      },
+    ]);
+    const d = declined[0]!;
+    expect(d.card_assigned_unit).toBe("572");
+    expect(d.efs_proximity_miles).toBe(644.26);
+    expect(d.efs_truck_position_at).toBe("15:33");
+  });
+});
+
+describe("attributeDeclinedRow (WP1 D2 — revives the decline location check)", () => {
+  const vehicles = [
+    { id: "vA", unit_number: "0667" },
+    { id: "vB", unit_number: "691" },
+    { id: "amb1", unit_number: "900" },
+    { id: "amb2", unit_number: "0900" }, // collides with 900 after zero-stripping → ambiguous
+  ];
+  const drivers = [
+    { id: "dA", full_name: "Yoel Valladares Albareng", efs_driver_id: "1995" },
+    { id: "dB", full_name: "Donovan Boothe", efs_driver_id: null },
+  ];
+  it("matches the pump Unit with fuel-line tolerance (leading zeros)", () => {
+    const a = attributeDeclinedRow({ unit: "667", driver_ext_id: null, driver_name: null }, vehicles, drivers);
+    expect(a.vehicle_id).toBe("vA");
+  });
+  it("prefers the stable EFS Driver ID over the name", () => {
+    const a = attributeDeclinedRow({ unit: null, driver_ext_id: "1995", driver_name: "SOMEONE ELSE" }, vehicles, drivers);
+    expect(a.driver_id).toBe("dA");
+  });
+  it("falls back to the tolerant name match (LAST, FIRST ≈ First Last)", () => {
+    const a = attributeDeclinedRow({ unit: null, driver_ext_id: null, driver_name: "BOOTHE, DONOVAN" }, vehicles, drivers);
+    expect(a.driver_id).toBe("dB");
+  });
+  it("ambiguous unit keys never guess", () => {
+    const a = attributeDeclinedRow({ unit: "900", driver_ext_id: null, driver_name: null }, vehicles, drivers);
+    expect(a.vehicle_id).toBeNull();
+  });
+});
+
+describe("learnEfsDriverIds (WP1 D5)", () => {
+  it("learns consistent 1:1 pairings only", () => {
+    const m = learnEfsDriverIds([
+      { driverExtId: "1981", driverId: "dW" },
+      { driverExtId: "1981", driverId: "dW" },
+      { driverExtId: "1999", driverId: "dS" },
+    ]);
+    expect(m.get("1981")).toBe("dW");
+    expect(m.get("1999")).toBe("dS");
+  });
+  it("an ext id seen with two drivers — or a driver with two ext ids — is never learned", () => {
+    const conflictingExt = learnEfsDriverIds([
+      { driverExtId: "1981", driverId: "dW" },
+      { driverExtId: "1981", driverId: "dX" },
+    ]);
+    expect(conflictingExt.size).toBe(0);
+    const conflictingDriver = learnEfsDriverIds([
+      { driverExtId: "1981", driverId: "dW" },
+      { driverExtId: "1982", driverId: "dW" },
+    ]);
+    expect(conflictingDriver.size).toBe(0);
+  });
+  it("blank/unmatched pairs are ignored", () => {
+    expect(learnEfsDriverIds([{ driverExtId: null, driverId: "dW" }, { driverExtId: "77", driverId: null }]).size).toBe(0);
+  });
+});
+
+describe("52-column transexport variant — faithful capture (WP1 D5/F6)", () => {
+  const row = {
+    TransactionId: "1556179899", CardNumber: "7083050030095947565", TransactionPOSDate: "2026-07-17",
+    TransactionPOSTime: "01:33:00", Invoice: "0854555567", Unit: "574", TrailerNumber: "539224",
+    Odometer: "586163", DriverName: "CHRISTOPHER WEAVER", DriverId: "1981", Trip: "0132234",
+    Control: "WCHRISTO", LocationName: "PILOT RAYVILLE 335", LocationCity: "RAYVILLE", LocationState: "LA",
+    ProductCode: "ULSD", ProductDescription: "ULTRA LOW SULFUR DIESEL", PricePerUnit: "4.558",
+    Quantity: "190", Amount: "865.94", Hubometer: "", SubFleet: "",
+  };
+  it("faithful line captures DriverId + TrailerNumber + Trip (reefer-pairing ground truth for WP8)", () => {
+    const [l] = normalizeAllTransactionLines([row]);
+    expect(l!.driver_ext_id).toBe("1981");
+    expect(l!.trailer_number).toBe("539224");
+    expect(l!.trip).toBe("0132234");
+    expect(l!.control_id).toBe("WCHRISTO");
+  });
+  it("merged fuel event carries driver_ext_id for the driver-id learner", () => {
+    const { fuelLines } = normalizeTransactionRows([row]);
+    expect(fuelLines).toHaveLength(1);
+    expect(fuelLines[0]!.driver_ext_id).toBe("1981");
   });
 });

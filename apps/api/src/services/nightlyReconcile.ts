@@ -3,6 +3,7 @@ import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "./efsSync.js";
 import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring/index.js";
+import { syncCardAssignments } from "./cardAssignments.js";
 import { startJob, finishJob, latestJob, JobConflictError } from "./jobs.js";
 
 const TARGET_HOUR = 3; // org-local hour to run the nightly self-heal
@@ -41,12 +42,15 @@ export async function runNightlyReconcile(admin: SupabaseClient, env: Env, orgId
   // re-score the entire history every night as the fleet grows; a manual Rebuild covers older rows after
   // a detection-logic change.
   const rebuilt = await backfillOrg(admin, env, orgId, { skipRecon: true, sinceDays: RECENT_REBUILD_DAYS });
+  // WP1 D4 — keep the card→truck assignment table current from fill history (feeds decline scoring).
+  const cards = await syncCardAssignments(admin, orgId).catch(() => null); // best-effort; never blocks the reconcile
   return {
     driftFixed: efs.inserted + efs.updated, // rows the store repair created/corrected (0 = clean)
     efsInserted: efs.inserted,
     efsUpdated: efs.updated,
     rescored,
     rebuilt,
+    cardsAssigned: cards?.assigned ?? null,
     checkedAt: new Date().toISOString(),
   };
 }

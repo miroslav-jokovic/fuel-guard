@@ -44,6 +44,9 @@ export interface ParsedFuelLine {
   /** EFS Driver Control ID — a stable per-driver identifier printed on the report. Reliable card/driver
    *  identity even when EFS masks the card to the last 4 (so same-last-4 drivers aren't conflated). */
   control_id: string | null;
+  /** EFS numeric DriverId (52-col export variant) — the SAME identity the Reject Report prints as
+   *  "Driver ID", so it joins approvals ↔ declines and trains drivers.efs_driver_id (WP1 D5). */
+  driver_ext_id?: string | null;
   fueled_at: string; // ISO instant (true UTC when a POS time + station tz were available)
   /** The EFS business date (station-local, YYYY-MM-DD) — stable across timezones; keys dedupe. */
   tran_date: string;
@@ -84,4 +87,11 @@ export interface ParsedDeclined {
   error_description: string | null;
   policy: string | null;
   policy_name: string | null;
+  /** Card-ASSIGNED truck, when the export variant / EFS alert carries it (WP1 D3). The standard
+   *  RejectTransactionReport does NOT (verified — 15 columns); nothing may depend on these three. */
+  card_assigned_unit: string | null;
+  /** EFS's reported truck↔merchant distance (miles), when present. */
+  efs_proximity_miles: number | null;
+  /** When EFS last located the card's truck (for the proximity check), when present. */
+  efs_truck_position_at: string | null;
 }

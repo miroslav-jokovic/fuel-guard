@@ -325,4 +325,32 @@ describe("ingestReport — reject report", () => {
     expect(db.tables.declined_transactions).toHaveLength(1);
     expect(calls.scoreDeclined).toEqual([res.importId]);
   });
+
+  it("WP1 D2: attributes the decline to a vehicle (pump Unit) and driver at ingest", async () => {
+    const db = new FakeDb();
+    // Same matcher/tolerance as fuel lines: unit "0691" matches pump unit "691"; driver by EFS Driver ID.
+    db.tables.vehicles.push({ id: "veh-691", org_id: "org1", unit_number: "0691" });
+    db.tables.drivers.push({ id: "drv-boothe", org_id: "org1", full_name: "Donovan Boothe", efs_driver_id: "D1" });
+    const { deps } = spyDeps();
+    await ingestReport(
+      db as unknown as SupabaseClient,
+      env,
+      {
+        orgId: "org1",
+        requestedBy: null,
+        source: "csv",
+        filename: "efs-rejects.csv",
+        fileHash: "HASH_R2",
+        headers: REJECT_HEADERS,
+        rows: rejectRows,
+      },
+      deps,
+    );
+    const d = db.tables.declined_transactions[0]!;
+    expect(d.vehicle_id).toBe("veh-691");
+    expect(d.driver_id).toBe("drv-boothe");
+    // Standard reject export carries no EFS alert fields — stored as null, never fabricated.
+    expect(d.card_assigned_unit).toBeNull();
+    expect(d.efs_proximity_miles).toBeNull();
+  });
 });

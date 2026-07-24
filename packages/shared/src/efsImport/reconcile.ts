@@ -3,7 +3,7 @@ import type { Vehicle, Driver } from "../fleet.js";
 import type { RawRow, ParsedFuelLine, ParsedDeclined, SkippedRow } from "./types.js";
 import type { ReconciledFuelLine } from "./parse.js";
 import type { EfsInstant } from "./dateTime.js";
-import { str, efsInstant, rejectDateToIso } from "./dateTime.js";
+import { str, num, efsInstant, rejectDateToIso } from "./dateTime.js";
 import { pick } from "./parse.js";
 
 /** Known truck-stop chains, matched against the EFS Location Name. Order matters (Flying J before J). */
@@ -196,9 +196,83 @@ export function normalizeRejectRows(rows: RawRow[]): {
       error_description: str(pick(row, "Error Description", "Reject Description", "Reject Reason", "Reason", "Response", "Description")),
       policy: str(pick(row, "Policy")),
       policy_name: str(pick(row, "Policy Name")),
+      // WP1 D3 — OPTIONAL EFS alert fields. The standard RejectTransactionReport does NOT carry them
+      // (verified: 15 columns); some variants / the EFS alert may. Captured faithfully when present,
+      // and nothing downstream depends on them.
+      card_assigned_unit: str(pick(row, "Truck", "Truck Number", "Tractor", "Vehicle", "Assigned Truck")),
+      efs_proximity_miles: num(pick(row, "Proximity", "Proximity Miles", "Distance", "Distance Miles", "Miles")),
+      efs_truck_position_at: str(pick(row, "Truck Location Time", "Truck Position Time", "Position Time")),
     });
   });
   return { declined, skipped };
+}
+
+/** A declined row's attribution result (WP1 D2). */
+export interface DeclineAttribution {
+  vehicle_id: string | null;
+  driver_id: string | null;
+}
+
+/**
+ * WP1 D2 — attribute a declined row to a vehicle (pump Unit) and driver (EFS Driver ID, else name),
+ * with EXACTLY the same tolerance + ambiguity rules as the fuel-line reconciliation (unitMatchKeys /
+ * driverMatchKey; collisions never guess). This is what revives the decline location check — the
+ * schema has had declined_transactions.vehicle_id since migration 0007, but ingest never set it, so
+ * the Samsara "was the truck there?" check was dead code. Pure.
+ */
+export function attributeDeclinedRow(
+  row: { unit: string | null; driver_ext_id: string | null; driver_name: string | null },
+  vehicles: Pick<Vehicle, "id" | "unit_number">[],
+  drivers: (Pick<Driver, "id" | "full_name"> & { efs_driver_id?: string | null })[],
+): DeclineAttribution {
+  const byUnit = buildKeyIndex(vehicles.map((v) => ({ id: v.id, keys: unitMatchKeys(v.unit_number) })));
+  const byName = buildKeyIndex(drivers.map((d) => ({ id: d.id, keys: [driverMatchKey(d.full_name)] })));
+  const byExt = buildKeyIndex(
+    drivers.filter((d) => d.efs_driver_id).map((d) => ({ id: d.id, keys: [(d.efs_driver_id as string).trim()] })),
+  );
+
+  let vehicle_id: string | null = null;
+  if (row.unit) {
+    for (const k of unitMatchKeys(row.unit)) {
+      const hit = byUnit.get(k);
+      if (hit) {
+        vehicle_id = hit;
+        break;
+      }
+    }
+  }
+  // Driver: the stable EFS numeric id wins (same identity as the transaction report's DriverId);
+  // fall back to the tolerant name match.
+  let driver_id: string | null = null;
+  if (row.driver_ext_id) driver_id = byExt.get(row.driver_ext_id.trim()) ?? null;
+  if (!driver_id && row.driver_name) driver_id = byName.get(driverMatchKey(row.driver_name)) ?? null;
+
+  return { vehicle_id, driver_id };
+}
+
+/**
+ * WP1 D5 — learn the EFS numeric driver identity (transaction "DriverId" == reject "Driver ID") for
+ * each matched driver. Returns ext-id → driver_id ONLY when the pairing is CONSISTENT across the
+ * import (an ext id seen with 2+ different matched drivers, or a driver seen with 2+ ext ids, is
+ * dropped — never guess an identity). Pure; the API upserts the result onto drivers.efs_driver_id.
+ */
+export function learnEfsDriverIds(pairs: { driverExtId: string | null; driverId: string | null }[]): Map<string, string> {
+  const byExt = new Map<string, Set<string>>();
+  const byDriver = new Map<string, Set<string>>();
+  for (const p of pairs) {
+    const ext = (p.driverExtId ?? "").trim();
+    if (!ext || !p.driverId) continue;
+    (byExt.get(ext) ?? byExt.set(ext, new Set()).get(ext)!).add(p.driverId);
+    (byDriver.get(p.driverId) ?? byDriver.set(p.driverId, new Set()).get(p.driverId)!).add(ext);
+  }
+  const out = new Map<string, string>();
+  for (const [ext, drivers] of byExt) {
+    if (drivers.size !== 1) continue; // ambiguous ext id → skip
+    const driverId = [...drivers][0]!;
+    if ((byDriver.get(driverId)?.size ?? 0) !== 1) continue; // driver claims 2+ ext ids → skip
+    out.set(ext, driverId);
+  }
+  return out;
 }
 
 /** Fallback for Reject Reports with a combined "YYYY-MM-DD HH:mm:ss" cell — station-local, tz-aware. */
