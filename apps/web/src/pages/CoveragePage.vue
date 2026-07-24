@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
-import { useDetectionCoverage } from "@/features/fuel/useDetectionCoverage";
+import { useDetectionCoverage, useCapacityHealth } from "@/features/fuel/useDetectionCoverage";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -11,6 +11,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
 
 const { data, isLoading, isError, error, refetch, isFetching } = useDetectionCoverage();
+const { data: capacity } = useCapacityHealth();
 const { data: vehicles } = useVehiclesQuery();
 
 const unit = (id: string) => vehicles.value?.find((v) => v.id === id)?.unit_number ?? id;
@@ -55,7 +56,7 @@ const columns: DataTableColumn[] = [
       means "we didn't flag it" carries less weight. This is the honest bound on how much we can catch.
     </PageHeader>
 
-    <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div v-if="!isLoading && !isError && data" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <BaseCard>
         <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Telematics coverage</dt>
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.reconciledPct)">{{ fmtPct(data.reconciledPct) }}</dd>
@@ -75,6 +76,13 @@ const columns: DataTableColumn[] = [
         <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Attributed</dt>
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.attributedPct)">{{ fmtPct(data.attributedPct) }}</dd>
         <dd class="mt-0.5 text-xs text-ink-subtle">{{ data.unattributed.toLocaleString() }} unmatched to a truck/driver</dd>
+      </BaseCard>
+      <BaseCard v-if="capacity">
+        <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Tank capacity set</dt>
+        <dd class="mt-1 text-2xl font-bold" :class="covTone(capacity.setPct)">{{ fmtPct(capacity.setPct) }}</dd>
+        <dd class="mt-0.5 text-xs text-ink-subtle" :title="capacity.missing.map((m) => m.unit).join(', ')">
+          {{ capacity.missing.length ? `${capacity.missing.length} truck${capacity.missing.length > 1 ? "s" : ""} missing (capacity rules dead): ${capacity.missing.slice(0, 4).map((m) => m.unit).join(", ")}${capacity.missing.length > 4 ? "…" : ""}` : "all fuel trucks have a tank capacity" }}
+        </dd>
       </BaseCard>
       <BaseCard>
         <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Card identity</dt>

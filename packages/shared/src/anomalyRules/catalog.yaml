@@ -76,6 +76,7 @@ rules:
     axis: volume
     weight: 85
     label: Exceeds Tank Capacity
+    note: WP5 — DEAD when tank_capacity_gal is unset/0 (cap>0 guard); that gap is now surfaced as data-quality on the Coverage page + digest (capacityHealth) instead of silently reading as "no alerts". Learned capacity can only RAISE the ceiling, now needing 3 corroborating fills (≤2.1× nameplate) so repeated same-size theft can't train itself invisible.
   - id: tank_space_exceeded
     tier: volume_capacity
     axis: volume
@@ -93,7 +94,7 @@ rules:
     axis: consumption
     weight: 75
     label: Cumulative Overfueling
-    note: Rolling-window gallons vs miles-burnable + a tank.
+    note: Rolling-window gallons vs miles-burnable + a tank. WP5 DETECTION FLOOR (documented, deliberate) — the ceiling grants one full empty-to-full tank of slack + 10 gal per window, so sustained theft under ~one tank per 48h is invisible to THIS rule by design (precision over recall); per-fill tank rules + tank_fill_short carry that range where sensors allow.
 
   # ── Tier 3 — efficiency ──────────────────────────────────────────────────────────────────────────
   - id: mpg_deviation
@@ -149,7 +150,7 @@ rules:
     axis: volume
     weight: 60
     label: Tank Fill Short
-    note: Telematics tank rose less than billed gallons (advisory; coarse sensor).
+    note: Telematics tank rose less than billed gallons (advisory; coarse sensor). WP5 DETECTION FLOOR (documented, deliberate) — tolerance is max(15 gal, 30% of billed): on a 100-gal bill a ~29-gal skim sits inside sensor noise and cannot fire. State this floor to customers as the sensor-bound sensitivity, not implied capability; revisit against WP9 dispositions before tightening.
   - id: fuel_while_driver_home
     tier: behavioral
     axis: behavior

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/vue-query";
-import { computeDetectionCoverage, type CoverageInput, type CoverageSummary } from "@fuelguard/shared";
+import { computeDetectionCoverage, computeCapacityHealth, type CoverageInput, type CoverageSummary, type CapacityHealth, type CapacityVehicleRow } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;
@@ -31,5 +31,21 @@ export function useDetectionCoverage() {
       return computeDetectionCoverage(rows);
     },
     refetchInterval: 120_000,
+  });
+}
+
+/** WP5 — tank-capacity setup health: fuel vehicles whose capacity is unset/0 have the weight-85
+ *  exceeds-capacity + tank-space rules silently dead. Surfaced as its own Coverage tile. */
+export function useCapacityHealth() {
+  return useQuery({
+    queryKey: ["capacity_health"],
+    queryFn: async (): Promise<CapacityHealth> => {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("id, unit_number, fuel_type, tank_capacity_gal, status");
+      if (error) throw new Error(error.message);
+      return computeCapacityHealth((data ?? []) as CapacityVehicleRow[]);
+    },
+    refetchInterval: 300_000,
   });
 }

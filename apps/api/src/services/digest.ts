@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, CASE_RULE_ID, renderDigestEmail, computeAttributionHealth, computeOdometerHygiene, type AttributionHealth, type OdometerHygieneCluster } from "@fuelguard/shared";
+import { AI_MODELS, CASE_RULE_ID, renderDigestEmail, computeAttributionHealth, computeOdometerHygiene, computeCapacityHealth, type AttributionHealth, type OdometerHygieneCluster, type CapacityVehicleRow } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { callClaudeText } from "../lib/anthropic.js";
 import { makeSender } from "../lib/mailer.js";
@@ -31,6 +31,8 @@ export interface DigestData {
   attribution: AttributionHealth;
   /** WP4 — drivers who routinely skip/repeat odometer entries (with resolved names). */
   odometerHygiene: (OdometerHygieneCluster & { driverName: string })[];
+  /** WP5 — fuel trucks with no tank capacity set (capacity rules dead until entered). */
+  capacityMissingUnits: string[];
   topVehicles: { unit: string; count: number }[];
   health: DigestHealth;
 }
@@ -161,6 +163,10 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     odometerHygiene = hygiene.clusters.map((c) => ({ ...c, driverName: nameById.get(c.driverId) ?? "Unknown driver" }));
   }
 
+  // WP5 — fuel trucks with no tank capacity: the weight-85 capacity rules are silently OFF for them.
+  const { data: capVehRows } = await admin.from("vehicles").select("id, unit_number, fuel_type, tank_capacity_gal, status").eq("org_id", orgId);
+  const capacityMissingUnits = computeCapacityHealth((capVehRows ?? []) as CapacityVehicleRow[]).missing.map((m) => m.unit);
+
   const health = await buildDigestHealth(admin, orgId, since);
 
   return {
@@ -173,6 +179,7 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     declineUnknownReasons: declineUnknownReasons ?? 0,
     attribution,
     odometerHygiene,
+    capacityMissingUnits,
     topVehicles,
     health,
   };
@@ -219,6 +226,7 @@ export async function generateAndSendDigest(
     unattributedFills: data.attribution.total,
     unattributedClusters: data.attribution.clusters,
     odometerHygiene: data.odometerHygiene.map((d) => ({ driver: d.driverName, missing: d.missing, stale: d.stale, fills: d.fills })),
+    capacityMissingUnits: data.capacityMissingUnits,
     topVehicles: data.topVehicles,
     appUrl: env.WEB_APP_URL,
     health: data.health,

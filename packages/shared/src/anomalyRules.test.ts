@@ -210,23 +210,28 @@ describe("Phase 2 — learned combined tank capacity", () => {
     expect(learnObservedMaxFill(vals)!.gallons).toBe(200);
   });
 
-  it("learnObservedMaxFill requires ≥2 corroborating fills before raising capacity", () => {
+  it("learnObservedMaxFill requires ≥3 corroborating fills before raising capacity (WP5 anti-poisoning)", () => {
     // A single both-tank fill (240) among single-tank 120s must NOT raise capacity — could be a typo/fraud.
     const oneBig = [...Array(11).fill(120), 240];
     expect(learnObservedMaxFill(oneBig)!.gallons).toBe(120);
-    // Two both-tank fills corroborate → capacity is the real combined volume.
+    // TWO matching big fills are still not enough (WP5): a repeated same-size theft pair can't teach the
+    // system that's the tank — the first two keep firing the capacity rules.
     const twoBig = [...Array(10).fill(120), 240, 240];
-    expect(learnObservedMaxFill(twoBig)!.gallons).toBe(240);
+    expect(learnObservedMaxFill(twoBig)!.gallons).toBe(120);
+    // Three corroborating both-tank fills → capacity is the real combined volume.
+    const threeBig = [...Array(9).fill(120), 240, 240, 240];
+    expect(learnObservedMaxFill(threeBig)!.gallons).toBe(240);
   });
 
   it("learnObservedMaxFill discards non-physical fills above the nameplate ceiling", () => {
-    // Even a PAIR of matching 800-gal outliers can't inflate a 200-gal-nameplate truck: ceiling 2.2×200=440
-    // filters both, leaving the corroborated 200. (Without the nameplate, two outliers would defeat corroboration.)
-    const vals = [...Array(12).fill(200), 800, 800];
-    expect(learnObservedMaxFill(vals)!.gallons).toBe(800); // no nameplate → 2nd-largest is the outlier
+    // Even a TRIPLE of matching 800-gal outliers can't inflate a 200-gal-nameplate truck: ceiling
+    // 2.1×200=420 filters them all, leaving the corroborated 200. (Without a nameplate, three matching
+    // outliers would defeat corroboration — the ceiling is the second, independent safeguard.)
+    const vals = [...Array(12).fill(200), 800, 800, 800];
+    expect(learnObservedMaxFill(vals)!.gallons).toBe(800); // no nameplate → 3rd-largest is still the outlier
     expect(learnObservedMaxFill(vals, { nameplateGal: 200 })!.gallons).toBe(200); // ceiling rejects the outliers
-    // Genuine dual-tank raise (240 on a 120 single-tank nameplate) survives the ceiling (2.2×120=264).
-    const dual = [...Array(10).fill(120), 240, 240];
+    // Genuine dual-tank raise (240 on a 120 single-tank nameplate) survives the ceiling (2.1×120=252).
+    const dual = [...Array(9).fill(120), 240, 240, 240];
     expect(learnObservedMaxFill(dual, { nameplateGal: 120 })!.gallons).toBe(240);
   });
 

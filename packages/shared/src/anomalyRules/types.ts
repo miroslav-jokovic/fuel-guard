@@ -89,12 +89,14 @@ export interface ObservedCapacityResult {
  * nameplate (see effectiveCapacityGal). Because this value SUPPRESSES the over-capacity / over-fuel rules, a
  * single bad fill must never be able to train it upward and mask fraud. Two independent safeguards:
  *
- *  1. CORROBORATION — we take the `minCorroboration`-th largest fill (default the 2nd-largest), not the max.
- *     The k-th largest is, by definition, a volume that ≥ k fills reached, so a lone pump-error / theft /
- *     typo (only one fill that big) can never move the capacity — the estimate needs repeated evidence.
+ *  1. CORROBORATION — we take the `minCorroboration`-th largest fill (default the 3rd-largest, WP5 — was
+ *     2nd), not the max. The k-th largest is, by definition, a volume that ≥ k fills reached, so it now
+ *     takes THREE matching over-fills inside one 30-fill window to move the capacity: a lone pump error /
+ *     theft / typo can't, and even a REPEATED same-size theft has to recur three times before it could
+ *     start masking itself — by which point the first two fired the capacity rules.
  *  2. PHYSICAL CEILING — when the entered nameplate is known, fills above `maxMultipleOfNameplate` × nameplate
- *     (default 2.2×, i.e. a dual saddle-tank tractor's combined capacity + margin) are discarded as bad data
- *     before learning, so even a pair of matching outliers can't inflate the ceiling.
+ *     (default 2.1×, WP5 — a dual saddle-tank tractor's combined capacity + ~5% meter margin; was 2.2×)
+ *     are discarded as bad data before learning, so matching outliers can't inflate the ceiling.
  *
  * Returns null (not enough evidence) until ≥ `minSamples` physical fills accumulate, so the caller keeps using
  * the entered capacity during cold-start (behaviour-preserving, and the SAFE direction — a lower effective
@@ -106,8 +108,8 @@ export function learnObservedMaxFill(
 ): ObservedCapacityResult | null {
   const window = opts.window ?? 30;
   const minSamples = opts.minSamples ?? 12;
-  const minCorroboration = opts.minCorroboration ?? 2;
-  const maxMult = opts.maxMultipleOfNameplate ?? 2.2;
+  const minCorroboration = opts.minCorroboration ?? 3;
+  const maxMult = opts.maxMultipleOfNameplate ?? 2.1;
 
   let vals = gallons
     .filter((g) => Number.isFinite(g) && g > 0)
