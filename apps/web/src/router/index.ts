@@ -22,6 +22,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/pages/auth/PendingPage.vue"),
     meta: { requiresAuth: true, allowNoOrg: true, layout: "auth" },
   },
+  {
+    // Drivers are redirected here — they use the Driver app, not the web dashboard.
+    path: "/use-the-app",
+    name: "driver-app",
+    component: () => import("@/pages/auth/DriverAppRedirectPage.vue"),
+    meta: { requiresAuth: true, layout: "auth" },
+  },
 
   // App pages (require auth + org membership).
   { path: "/", name: "dashboard", component: DashboardPage, meta: { requiresAuth: true, title: "Dashboard" } },
@@ -216,8 +223,12 @@ router.beforeEach(async (to) => {
   if (!session.hasOrg) {
     return to.meta.allowNoOrg ? true : { name: "pending" };
   }
+  // Drivers use the Driver app; they may not use the web dashboard (Driver App, Phase 1).
+  if (session.role === "driver") {
+    return to.name === "driver-app" ? true : { name: "driver-app" };
+  }
   // Authenticated with an org.
-  if (to.name === "login" || to.name === "pending") return { name: "dashboard" };
+  if (to.name === "login" || to.name === "pending" || to.name === "driver-app") return { name: "dashboard" };
   if (to.meta.requiresAdmin && !session.admin) return { name: "dashboard" };
   if (to.meta.requiresManage && !session.canManage) return { name: "dashboard" };
   if (to.meta.requiresAuditAccess && !(session.admin || session.readOnly)) return { name: "dashboard" };

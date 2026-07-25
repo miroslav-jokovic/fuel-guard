@@ -89,6 +89,8 @@ async function main() {
     "migrations/0053_driver_performance_settings.sql",
     "migrations/0054_driver_scores.sql",
     "migrations/0055_driver_performance_weeks.sql",
+    "migrations/0083_driver_identity.sql",
+    "migrations/0084_driver_scoped_rls.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -144,14 +146,14 @@ async function main() {
     ).error,
   );
   ok(
-    "driver INSERT fuel_transaction allowed",
-    (
+    "unlinked driver INSERT fuel_transaction denied (needs driver link — 0084/SB1)",
+    !!(
       await asUser(
         driverA,
-        "insert into fuel_transactions (org_id,fueled_at,gallons) values ($1,now(),10) returning id",
+        "insert into fuel_transactions (org_id,fueled_at,gallons) values ($1,now(),10)",
         [ORG_A],
       )
-    ).rows?.length === 1,
+    ).error,
   );
   ok(
     "manager INSERT vehicle allowed",
@@ -329,6 +331,37 @@ async function main() {
   ok("manager INSERT driver_performance_weeks allowed", !dpwMgr.error, JSON.stringify(dpwMgr));
   const dpwDrv = await asUser(driverA, "insert into driver_performance_weeks (org_id, week_start, week_end, driver_id) values ($1,'2026-06-29','2026-07-05',$2)", [ORG_A, DRV_A]);
   ok("driver INSERT driver_performance_weeks denied", !!dpwDrv.error, JSON.stringify(dpwDrv));
+
+
+  // ── Driver-scoped RLS (0083/0084) — the security boundary for the driver app ──
+  const DUID = "00000000-0000-0000-0000-0000000d1111";
+  await db.query(`insert into auth.users (id,email) values ('${DUID}','scoped.driver@example.com')`);
+  const SELF = (await db.query(`insert into drivers (org_id, full_name, user_id) values ('${ORG_A}','Scoped Driver','${DUID}') returning id`)).rows[0].id;
+  const OTHER = (await db.query(`insert into drivers (org_id, full_name) values ('${ORG_A}','Other Driver') returning id`)).rows[0].id;
+  const MYVEH = (await db.query(`insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal, assigned_driver_id) values ('${ORG_A}','SCOPED-1','diesel',120,'${SELF}') returning id`)).rows[0].id;
+  const NOTMY = (await db.query(`insert into vehicles (org_id, unit_number, fuel_type, tank_capacity_gal) values ('${ORG_A}','SCOPED-2','diesel',120) returning id`)).rows[0].id;
+  await db.query(`insert into fuel_transactions (org_id, driver_id, vehicle_id, fueled_at, gallons, source) values ('${ORG_A}','${SELF}','${MYVEH}',now(),10,'manual')`);
+  await db.query(`insert into fuel_transactions (org_id, driver_id, vehicle_id, fueled_at, gallons, source) values ('${ORG_A}','${OTHER}','${NOTMY}',now(),10,'manual')`);
+  await db.query(`insert into driver_performance_weeks (org_id, week_start, week_end, driver_id, eligible) values ('${ORG_A}','2026-07-13','2026-07-19','${SELF}', true)`);
+  const drv = { org_id: ORG_A, user_role: "driver", sub: DUID };
+
+  ok("driver reads only own driver row (1)", (await asUser(drv, "select count(*)::int n from drivers")).rows?.[0]?.n === 1);
+  ok("driver reads only own fills (1)", (await asUser(drv, "select count(*)::int n from fuel_transactions")).rows?.[0]?.n === 1);
+  ok("driver reads only assigned vehicle (1)", (await asUser(drv, "select count(*)::int n from vehicles")).rows?.[0]?.n === 1);
+  ok("driver cannot read anomalies (0)", (await asUser(drv, "select count(*)::int n from anomalies")).rows?.[0]?.n === 0);
+  ok("driver cannot read memberships (0)", (await asUser(drv, "select count(*)::int n from memberships")).rows?.[0]?.n === 0);
+  ok("driver cannot read thresholds (0)", (await asUser(drv, "select count(*)::int n from anomaly_thresholds")).rows?.[0]?.n === 0);
+  ok("driver reads only own performance week (1)", (await asUser(drv, "select count(*)::int n from driver_performance_weeks")).rows?.[0]?.n === 1);
+  ok("driver INSERT own fill on assigned vehicle allowed",
+    (await asUser(drv, "insert into fuel_transactions (org_id,driver_id,vehicle_id,fueled_at,gallons,source) values ($1,$2,$3,now(),12,'manual') returning id", [ORG_A, SELF, MYVEH])).rows?.length === 1);
+  ok("driver INSERT forging another driver_id denied",
+    !!(await asUser(drv, "insert into fuel_transactions (org_id,driver_id,vehicle_id,fueled_at,gallons,source) values ($1,$2,$3,now(),12,'manual')", [ORG_A, OTHER, MYVEH])).error);
+  ok("driver INSERT on unassigned vehicle denied",
+    !!(await asUser(drv, "insert into fuel_transactions (org_id,driver_id,vehicle_id,fueled_at,gallons,source) values ($1,$2,$3,now(),12,'manual')", [ORG_A, SELF, NOTMY])).error);
+  ok("driver INSERT spoofing source denied",
+    !!(await asUser(drv, "insert into fuel_transactions (org_id,driver_id,vehicle_id,fueled_at,gallons,source) values ($1,$2,$3,now(),12,'efs_feed')", [ORG_A, SELF, MYVEH])).error);
+  ok("manager still reads all org fills (restrictive untouched for managers)",
+    ((await asUser(mgrA, "select count(*)::int n from fuel_transactions")).rows?.[0]?.n ?? 0) >= 2);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

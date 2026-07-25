@@ -68,7 +68,7 @@ invite-takeover path; make encrypted token/outbox storage the default; define of
 | Phase | Plan (doc) | Build | Verified | Next action |
 |---|---|---|---|---|
 | 0 — Foundation & Design System | ✅ authored | ◐ **~done** — spike ✅ + 16 components + gallery + tests + ESLint + CI + nav shell + **Material Symbols icon system (D40) + finished components (icons, press animation, haptics, loading)**; token linter green | ☐ device pass | Remaining: on-device verify (shell + gallery, light/dark, a11y), then close Phase 0. Deferred: IBM Plex font (D36), tsconfig.base strict flags (D28, monorepo-wide) |
-| 1 — Identity, Auth & Access Control | ✅ authored | ☐ not started | ☐ | After Phase 0 |
+| 1 — Identity, Auth & Access Control | ✅ authored | ◐ **in progress** — RLS `0083`/`0084` (matrix 50/50) **+ API: driver-branch invites (token-enforced accept D15 + driver linking), `GET /api/me/driver`, `POST /api/me/delete-account`, shared driver contract** | ☐ | Remaining: web dashboard gate (redirect drivers), admin offboarding endpoint (D14), then **app auth** (Supabase client + sign-in + session + accept/set-password + pending/wrong-app + Settings/logout). Office invite flow preserved. Precondition T1. |
 | 2 — Offline-first Data Layer & Home | ✅ authored | ☐ not started | ☐ | After Phase 1 |
 | 3 — Fuel Capture (the daily job) | ✅ authored | ☐ not started | ☐ | After Phase 2 |
 | 4 — My Fuel Log & My Performance | ✅ authored | ☐ not started | ☐ | Optional v1; after Phase 3 |

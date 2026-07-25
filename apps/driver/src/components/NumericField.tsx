@@ -1,6 +1,8 @@
 import { Text, TextInput, View } from 'react-native';
 
 // The app's core interaction (plan §22.4): a big tabular value + unit suffix, native decimal-pad.
+// `items-center` (not baseline — unreliable with a TextInput) keeps the unit aligned to the numeral,
+// and includeFontPadding:false removes the Android gap that pushed the value off-center.
 export function NumericField({
   value,
   onChangeText,
@@ -16,7 +18,7 @@ export function NumericField({
 }) {
   return (
     <View
-      className={`flex-row items-baseline gap-2 rounded-md bg-surface border px-3 min-h-[56px] ${
+      className={`flex-row items-center gap-2 rounded-md bg-surface border px-3 min-h-[56px] ${
         invalid ? 'border-danger' : 'border-edge-strong'
       }`}
     >
@@ -27,9 +29,18 @@ export function NumericField({
         onChangeText={onChangeText}
         placeholder={placeholder}
         className="flex-1 text-3xl font-bold text-ink placeholder:text-ink-subtle"
-        style={{ fontVariant: ['tabular-nums'] }}
+        style={{
+          fontVariant: ['tabular-nums'],
+          paddingVertical: 8,
+          includeFontPadding: false,
+          textAlignVertical: 'center',
+        }}
       />
-      {unit ? <Text className="text-lg text-ink-muted">{unit}</Text> : null}
+      {unit ? (
+        <Text className="text-lg font-medium text-ink-muted" style={{ includeFontPadding: false }}>
+          {unit}
+        </Text>
+      ) : null}
     </View>
   );
 }

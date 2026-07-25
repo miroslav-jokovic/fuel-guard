@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { inviteCreateSchema, isEmailDomainAllowed, renderInviteEmail, type InviteCreateRequest } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
@@ -11,6 +11,14 @@ import { makeSender, sendEmail } from "../lib/mailer.js";
 import type { Env } from "../env.js";
 
 const INVITE_COLS = "id, org_id, email, role, status, expires_at, created_at";
+
+/** Constant-time equality for the invite token (avoids timing leaks). */
+function tokenMatches(provided: string | undefined, stored: string | null): boolean {
+  if (!provided || !stored) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(stored);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export interface InviteDelivery {
   sent: boolean;
@@ -27,8 +35,9 @@ export interface InviteDelivery {
  * Falls back to a recovery link when the user already exists. The link is ALWAYS returned so invites work
  * even when email delivery is misconfigured (the admin can copy + share it directly).
  */
-async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, email: string): Promise<InviteDelivery> {
-  const redirectTo = `${env.WEB_APP_URL}/accept-invite`;
+async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, email: string, token?: string | null): Promise<InviteDelivery> {
+  const base = `${env.WEB_APP_URL}/accept-invite`;
+  const redirectTo = token ? `${base}?token=${encodeURIComponent(token)}` : base;
   let link: string | null = null;
   const invite = await admin.auth.admin.generateLink({ type: "invite", email, options: { redirectTo } });
   if (!invite.error && invite.data?.properties?.action_link) {
@@ -101,7 +110,7 @@ export function invitesRouter(): Router {
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
-      const { email, role } = res.locals.body as InviteCreateRequest;
+      const { email, role, driver_id } = res.locals.body as InviteCreateRequest;
       const orgId = req.auth!.orgId!;
 
       const { data: org } = await admin
@@ -109,7 +118,33 @@ export function invitesRouter(): Router {
         .select("name, allowed_domains")
         .eq("id", orgId)
         .single();
-      if (!org || !isEmailDomainAllowed(email, (org.allowed_domains ?? []) as string[])) {
+      if (!org) {
+        res.status(404).json(apiError("org_not_found", "Organization not found"));
+        return;
+      }
+
+      if (role === "driver") {
+        // Driver invites accept personal emails (D1) but MUST reference an existing, unlinked roster
+        // driver in this org (migration 0083). The domain allowlist does not apply to drivers.
+        if (!driver_id) {
+          res.status(422).json(apiError("driver_required", "A driver_id is required for driver invites"));
+          return;
+        }
+        const { data: drv } = await admin
+          .from("drivers")
+          .select("id, user_id")
+          .eq("id", driver_id)
+          .eq("org_id", orgId)
+          .maybeSingle();
+        if (!drv) {
+          res.status(422).json(apiError("driver_not_found", "No such driver in this organization"));
+          return;
+        }
+        if (drv.user_id) {
+          res.status(409).json(apiError("driver_already_linked", "That driver already has a login"));
+          return;
+        }
+      } else if (!isEmailDomainAllowed(email, (org.allowed_domains ?? []) as string[])) {
         res.status(422).json(apiError("domain_not_allowed", "Email domain is not allowed for this organization"));
         return;
       }
@@ -119,7 +154,7 @@ export function invitesRouter(): Router {
       expiresAt.setDate(expiresAt.getDate() + 7);
       const { data: invite, error } = await admin
         .from("invites")
-        .insert({ org_id: orgId, email, role, invited_by: req.auth!.userId, token, expires_at: expiresAt.toISOString() })
+        .insert({ org_id: orgId, email, role, driver_id: driver_id ?? null, invited_by: req.auth!.userId, token, expires_at: expiresAt.toISOString() })
         .select(INVITE_COLS)
         .single();
       if (error || !invite) {
@@ -127,9 +162,9 @@ export function invitesRouter(): Router {
         return;
       }
 
-      // Deliver via our Resend mailer (branded, reliable for external addresses). The link is returned
-      // regardless so the admin can copy/share it if email delivery is misconfigured.
-      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email);
+      // Deliver via our Resend mailer. Driver invites carry the token in the link so acceptance can
+      // verify inbox possession (D15); office invites keep the domain-based check.
+      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email, role === "driver" ? token : null);
       if (!delivery.sent) console.error(`[invites] email not sent for ${email} (${delivery.reason})`);
 
       await writeAudit(admin, {
@@ -245,11 +280,13 @@ export function invitesRouter(): Router {
         res.status(400).json(apiError("no_email", "Authenticated user has no email"));
         return;
       }
+      const body = (req.body ?? {}) as { token?: unknown };
+      const token = typeof body.token === "string" ? body.token : undefined;
 
       const now = new Date().toISOString();
       const { data: invite } = await admin
         .from("invites")
-        .select("id, org_id, role, status")
+        .select("id, org_id, role, status, token, driver_id")
         .eq("email", email)
         .eq("status", "pending")
         .or(`expires_at.is.null,expires_at.gt.${now}`)
@@ -261,14 +298,23 @@ export function invitesRouter(): Router {
         return;
       }
 
-      const { data: org } = await admin
-        .from("organizations")
-        .select("allowed_domains")
-        .eq("id", invite.org_id)
-        .single();
-      if (!org || !isEmailDomainAllowed(email, org.allowed_domains as string[])) {
-        res.status(422).json(apiError("domain_not_allowed", "Email domain not allowed"));
-        return;
+      if (invite.role === "driver") {
+        // D15: a driver must present the emailed token (proves inbox possession) — closes the
+        // domain-relaxation takeover vector (audit §21 SB6). Office roles keep the domain check.
+        if (!tokenMatches(token, invite.token as string | null)) {
+          res.status(403).json(apiError("invalid_token", "Invalid or missing invitation token"));
+          return;
+        }
+      } else {
+        const { data: org } = await admin
+          .from("organizations")
+          .select("allowed_domains")
+          .eq("id", invite.org_id)
+          .single();
+        if (!org || !isEmailDomainAllowed(email, org.allowed_domains as string[])) {
+          res.status(422).json(apiError("domain_not_allowed", "Email domain not allowed"));
+          return;
+        }
       }
 
       const { error: mErr } = await admin
@@ -282,15 +328,25 @@ export function invitesRouter(): Router {
         return;
       }
 
+      // Link the roster driver to this login (idempotent; never clobber an existing link) — 0083/D3.
+      if (invite.driver_id) {
+        await admin
+          .from("drivers")
+          .update({ user_id: req.auth!.userId })
+          .eq("id", invite.driver_id)
+          .eq("org_id", invite.org_id)
+          .is("user_id", null);
+      }
+
       await admin.from("invites").update({ status: "accepted" }).eq("id", invite.id);
       await writeAudit(admin, {
         orgId: invite.org_id,
         actorId: req.auth!.userId,
         action: "invite.accepted",
         entity: "memberships",
-        meta: { email },
+        meta: { email, role: invite.role, linkedDriver: invite.driver_id ?? null },
       });
-      // The web app must call supabase.auth.refreshSession() after this to pick up the new claims.
+      // The client must call supabase.auth.refreshSession() after this to pick up the new claims.
       res.json({ ok: true, orgId: invite.org_id, role: invite.role });
     }),
   );

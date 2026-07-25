@@ -87,6 +87,44 @@ export function membersRouter(): Router {
     }),
   );
 
+  // Revoke a driver's (or any member's) access (admin, offboarding — plan D14). Removes org access,
+  // deactivates any linked driver record, and audits. NOTE: the user's existing ACCESS token stays
+  // valid until it expires (jwt_expiry, D31 = 1h); membership deletion cuts access on the next refresh.
+  // The auth account itself is kept (re-hire); use delete-account for full identity removal.
+  router.post(
+    "/:userId/revoke",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const userId = String(req.params.userId ?? "");
+
+      if (userId === req.auth!.userId) {
+        res.status(400).json(apiError("cannot_revoke_self", "You cannot revoke your own access"));
+        return;
+      }
+
+      await admin.from("drivers").update({ status: "inactive" }).eq("org_id", orgId).eq("user_id", userId);
+
+      const { error } = await admin.from("memberships").delete().eq("org_id", orgId).eq("user_id", userId);
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not revoke access"));
+        return;
+      }
+
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "member.access_revoked",
+        entity: "memberships",
+        entityId: userId,
+      });
+
+      res.json({ ok: true });
+    }),
+  );
+
   // Change a member's role (admin). Guards against demoting the org's LAST admin, which would lock everyone
   // out of member/settings management. The affected user's permissions update on their next token refresh.
   router.patch(

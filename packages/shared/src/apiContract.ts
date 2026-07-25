@@ -21,6 +21,9 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 export const inviteCreateSchema = z.object({
   email: z.email(),
   role: roleSchema,
+  // Which roster driver this invite provisions. Required by the handler when role === 'driver'
+  // (Driver App, migration 0083); ignored for office roles.
+  driver_id: z.uuid().optional(),
 });
 export type InviteCreateRequest = z.infer<typeof inviteCreateSchema>;
 

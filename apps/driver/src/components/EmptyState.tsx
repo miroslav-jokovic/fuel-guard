@@ -1,30 +1,37 @@
-import { View } from 'react-native';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
+// Empty states teach the next action (plan §22.5/§22.9). An optional icon badge anchors the message.
 export function EmptyState({
-  title, subtitle, icon, actionLabel, actionIcon, onAction,
+  icon,
+  title,
+  subtitle,
+  actionLabel,
+  actionIcon,
+  onAction,
 }: {
+  icon?: MaterialSymbolName;
   title: string;
   subtitle?: string;
-  icon?: MaterialSymbolName;
   actionLabel?: string;
   actionIcon?: MaterialSymbolName;
   onAction?: () => void;
 }) {
   return (
-    <View className="items-center justify-center gap-2 py-12 px-6">
+    <View className="items-center justify-center gap-3 py-10 px-6">
       {icon ? (
-        <View className="w-16 h-16 items-center justify-center rounded-full bg-surface-muted mb-1">
-          <Icon name={icon} size={32} className="text-ink-subtle" />
+        <View className="h-12 w-12 items-center justify-center rounded-2xl bg-surface-muted">
+          <Icon name={icon} size={24} className="text-ink-muted" />
         </View>
       ) : null}
-      <Text className="text-lg font-semibold text-ink text-center">{title}</Text>
-      {subtitle ? <Text className="text-ink-muted text-center">{subtitle}</Text> : null}
+      <View className="items-center gap-1">
+        <Text className="text-center text-lg font-semibold text-ink">{title}</Text>
+        {subtitle ? <Text className="text-center text-ink-muted">{subtitle}</Text> : null}
+      </View>
       {actionLabel && onAction ? (
-        <View className="pt-2">
+        <View className="pt-1">
           <Button label={actionLabel} icon={actionIcon} variant="primary" onPress={onAction} />
         </View>
       ) : null}

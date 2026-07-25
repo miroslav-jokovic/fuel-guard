@@ -1,6 +1,15 @@
-import { Redirect } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
+import { roleColors } from '@/theme/colors';
+import { useTheme } from '@/theme/ThemeProvider';
 
-// The tab shell lives under (tabs); "/" redirects to Home.
+// Splash shown at "/" while the persisted session is restored. The root guard (app/_layout) then
+// redirects to Home, sign-in, pending, or wrong-app based on session status — this screen never
+// navigates itself, so there's no flash of the wrong surface.
 export default function Index() {
-  return <Redirect href="/home" />;
+  const { isDark } = useTheme();
+  return (
+    <View className="flex-1 items-center justify-center bg-canvas">
+      <ActivityIndicator color={isDark ? roleColors.dark.brand : roleColors.light.brand} />
+    </View>
+  );
 }

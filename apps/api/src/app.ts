@@ -12,6 +12,7 @@ import { apiError } from "./lib/http.js";
 import { requireAuth } from "./middleware/auth.js";
 import { invitesRouter } from "./routes/invites.js";
 import { membersRouter } from "./routes/members.js";
+import { meRouter } from "./routes/me.js";
 import { transactionsRouter } from "./routes/transactions.js";
 import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
@@ -82,6 +83,8 @@ export function createApp(env: Env): Express {
   app.use("/api/reports", strictLimiter);
   app.use("/api/integrations", strictLimiter);
   app.use("/api/ai", strictLimiter);
+  const meLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 120, standardHeaders: "draft-7", legacyHeaders: false });
+  app.use("/api/me", meLimiter);
 
   app.get("/healthz", (_req: Request, res: Response) => {
     res.json({ status: "ok", service: `${APP_NAME} API`, env: env.NODE_ENV });
@@ -98,6 +101,7 @@ export function createApp(env: Env): Express {
   });
 
   app.use("/api/invites", invitesRouter());
+  app.use("/api/me", meRouter());
   app.use("/api/members", membersRouter());
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
