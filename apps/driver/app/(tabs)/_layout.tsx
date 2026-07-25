@@ -27,7 +27,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: tabIcon('home') }} />
-      <Tabs.Screen name="fuel-log" options={{ title: 'Fuel Log', tabBarIcon: tabIcon('receipt_long') }} />
+      <Tabs.Screen name="fuel-log" options={{ title: 'Fuel Log', tabBarIcon: tabIcon('history') }} />
       <Tabs.Screen
         name="log"
         options={{ title: 'Log', tabBarIcon: tabIcon('local_gas_station', true) }}
