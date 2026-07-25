@@ -19,6 +19,7 @@
     "expo-constants": "*",
     "expo-dev-client": "*",
     "expo-font": "*",
+    "expo-haptics": "*",
     "expo-linking": "*",
     "expo-router": "*",
     "expo-status-bar": "*",

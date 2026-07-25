@@ -67,7 +67,7 @@ invite-takeover path; make encrypted token/outbox storage the default; define of
 
 | Phase | Plan (doc) | Build | Verified | Next action |
 |---|---|---|---|---|
-| 0 — Foundation & Design System | ✅ authored | ◐ **in progress** — spike ✅ (device) + **15 components + design gallery + ramp-parity/shared-smoke tests (cloud-validated) + type-aware ESLint + CI**; token linter green | ☐ | Remaining: nav shell (tab bar + modal capture), on-device gallery a11y pass, tsconfig.base strict flags, commit CI workflow (protected path) |
+| 0 — Foundation & Design System | ✅ authored | ◐ **~done** — spike ✅ + 16 components + gallery + tests + ESLint + CI + nav shell + **Material Symbols icon system (D40) + finished components (icons, press animation, haptics, loading)**; token linter green | ☐ device pass | Remaining: on-device verify (shell + gallery, light/dark, a11y), then close Phase 0. Deferred: IBM Plex font (D36), tsconfig.base strict flags (D28, monorepo-wide) |
 | 1 — Identity, Auth & Access Control | ✅ authored | ☐ not started | ☐ | After Phase 0 |
 | 2 — Offline-first Data Layer & Home | ✅ authored | ☐ not started | ☐ | After Phase 1 |
 | 3 — Fuel Capture (the daily job) | ✅ authored | ☐ not started | ☐ | After Phase 2 |
@@ -349,6 +349,7 @@ v1 builds none of the map UI — it only reserves the module boundary and adopts
 | **D37** | **Map tiles/styles = MapTiler Cloud** (vector tiles + hosted styles + MapLibre offline packs) for the Phase-5 nav feature; fallback/cost-optimization: self-hosted **Protomaps PMTiles** (a single `.pmtiles` on object storage = an offline pack, no per-tile fees, no lock-in) | Managed, predictable per-MAU pricing for a bounded driver roster, offline support, OpenMapTiles schema → self-host escape hatch is real (§24, resolves O10) |
 | **D38** | **Numeric entry = native `decimal-pad`** in v1 (accessible, fast, familiar) with the large-value display + sticky submit; a custom glove keypad is deferred unless post-launch field data shows a need | Removes the build-time keypad question; native pad is the accessible default (§24, resolves O15) |
 | **D39** | **v1 = Phases 0–3** (foundation → identity → offline+home → fuel capture). **Phase 4 (My Fuel Log + My Score) = v1.1**, the first post-launch increment | Ships the proven pipeline first; the read screens are cheap and follow once capture is validated (§24, resolves O6) |
+| **D40** | **Icon system = Material Symbols** (default **Rounded**, **Outlined** available, **fill** variants), baked at **weight 200 / grade 200 / opsz 24** as subset static font instances (~92KB for all 4), rendered via `<Icon name … variant fill className>` with a generated codepoint map + a `gen-material-symbols.py` regen script. Supersedes the earlier lucide mention (D18/D23) | User spec; RN can't set grade/fill axes at runtime, so instancing is the only precise way. Self-hosted, no runtime dep, token-colored |
 | — | v1 = **Foundation only** (Phases 0–3; Phase 4 = v1.1) | Prove the pipeline end-to-end before feature breadth |
 | — | Delivery = **one living plan doc**, built one phase per session, each phase demoable | Matches team conventions; resumable across chats |
 

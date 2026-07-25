@@ -1,6 +1,7 @@
 export { Screen } from './Screen';
 export { Button, type ButtonProps } from './Button';
 export { Card } from './Card';
+export { Icon, type IconProps } from './Icon';
 export { Badge, severityTone, type Tone } from './Badge';
 export { Banner } from './Banner';
 export { Input } from './Input';

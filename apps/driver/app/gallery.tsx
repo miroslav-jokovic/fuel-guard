@@ -1,24 +1,11 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import {
-  Avatar,
-  Badge,
-  Banner,
-  Button,
-  Card,
-  EmptyState,
-  Field,
-  Input,
-  ListRow,
-  NumericField,
-  Screen,
-  SegmentedControl,
-  Skeleton,
-  StatTile,
-  Toast,
-  severityTone,
+  Avatar, Badge, Banner, Button, Card, EmptyState, Field, Icon, Input, ListRow,
+  NumericField, Screen, SegmentedControl, Skeleton, StatTile, Toast, severityTone,
 } from '@/components';
 import { useTheme } from '@/theme/ThemeProvider';
+import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -29,7 +16,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-// Phase-0 design gallery: renders every primitive in light + dark for the token + a11y audit.
+const DEMO_ICONS: MaterialSymbolName[] = [
+  'local_gas_station', 'local_shipping', 'navigation', 'bolt', 'receipt_long',
+  'check_circle', 'warning', 'error', 'sync', 'star', 'school', 'health_and_safety',
+];
+
 export default function Gallery() {
   const { isDark, setMode } = useTheme();
   const [gallons, setGallons] = useState('42.3');
@@ -39,15 +30,30 @@ export default function Gallery() {
     <Screen>
       <View className="flex-row items-center justify-between">
         <Text className="text-xl font-bold text-ink">Design system</Text>
-        <Button label={isDark ? 'Light' : 'Dark'} size="sm" variant="soft" onPress={() => setMode(isDark ? 'light' : 'dark')} />
+        <Button label={isDark ? 'Light' : 'Dark'} icon={isDark ? 'light_mode' : 'dark_mode'} size="sm" variant="soft" onPress={() => setMode(isDark ? 'light' : 'dark')} />
       </View>
 
+      <Section title="Material Symbols — rounded · weight 200 · grade 200">
+        <Card>
+          <View className="flex-row flex-wrap gap-4">
+            {DEMO_ICONS.map((n) => (
+              <Icon key={n} name={n} size={28} className="text-ink-secondary" />
+            ))}
+          </View>
+          <View className="flex-row items-center gap-4 pt-3">
+            <Icon name="local_gas_station" size={28} className="text-brand" />
+            <Icon name="local_gas_station" size={28} fill className="text-brand" />
+            <Icon name="star" size={28} variant="outlined" className="text-ink-muted" />
+            <Icon name="star" size={28} fill className="text-warning" />
+          </View>
+        </Card>
+      </Section>
+
       <Section title="Buttons">
-        <Button label="Primary" variant="primary" />
-        <Button label="Secondary" variant="secondary" />
-        <Button label="Danger" variant="danger" />
-        <Button label="Soft" variant="soft" />
-        <Button label="Ghost" variant="ghost" />
+        <Button label="Log fill-up" icon="local_gas_station" iconFill variant="primary" />
+        <Button label="Scan receipt" icon="photo_camera" variant="secondary" />
+        <Button label="Delete" icon="delete" variant="danger" />
+        <Button label="Syncing…" loading variant="soft" />
         <Button label="Disabled" variant="primary" disabled />
       </Section>
 
@@ -64,7 +70,6 @@ export default function Gallery() {
           <Badge label="High" tone={severityTone('high')} />
           <Badge label="Medium" tone={severityTone('medium')} />
           <Badge label="Clear" tone="success" />
-          <Badge label="Info" tone="info" />
         </View>
       </Section>
 
@@ -98,12 +103,12 @@ export default function Gallery() {
       <Section title="Banners & toast">
         <Banner tone="warning" message="Offline — your entries are saved and will sync." />
         <Banner tone="danger" message="Exceeds tank capacity (150 gal)." />
-        <Toast tone="success" message="Fill-up saved ✓" />
+        <Toast tone="success" message="Fill-up saved" />
       </Section>
 
       <Section title="List rows">
-        <ListRow title="Unit 4471 — Freightliner Cascadia" subtitle="Odometer 438,795 · Diesel" onPress={() => {}} />
-        <ListRow title="Fuel Log" subtitle="12 fills this week" right={<Badge label="2 pending" tone="warning" />} onPress={() => {}} />
+        <ListRow title="Unit 4471 — Freightliner Cascadia" subtitle="Odometer 438,795 · Diesel" icon="local_shipping" onPress={() => {}} />
+        <ListRow title="Fuel Log" subtitle="12 fills this week" icon="receipt_long" right={<Badge label="2 pending" tone="warning" />} onPress={() => {}} />
       </Section>
 
       <Section title="Card + Avatar">
@@ -128,7 +133,7 @@ export default function Gallery() {
 
       <Section title="Empty state">
         <Card>
-          <EmptyState title="No fill-ups yet" subtitle="Tap the fuel button to log your first — about 30 seconds." actionLabel="Log fill-up" onAction={() => {}} />
+          <EmptyState icon="receipt_long" title="No fill-ups yet" subtitle="Tap to log your first — about 30 seconds." actionLabel="Log fill-up" actionIcon="local_gas_station" onAction={() => {}} />
         </Card>
       </Section>
     </Screen>
