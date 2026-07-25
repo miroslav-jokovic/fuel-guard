@@ -21,7 +21,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:tokens-parity": "node scripts/check-token-parity.mjs"
+    "lint:tokens-parity": "node scripts/check-token-parity.mjs",
+    "postinstall": "node scripts/apply-patches.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
