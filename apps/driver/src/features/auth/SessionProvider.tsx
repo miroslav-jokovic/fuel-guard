@@ -27,6 +27,8 @@ interface SessionValue {
   signOut: () => Promise<void>;
   /** Re-fetch the token so freshly-minted org_id/user_role claims appear after accepting an invite. */
   refresh: () => Promise<void>;
+  /** DEV ONLY — skip Supabase auth and jump straight to the app as a fake driver. */
+  activateDevBypass: () => void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -40,6 +42,7 @@ export function useSession(): SessionValue {
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [devBypass, setDevBypass] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -61,6 +64,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SessionValue>(() => {
+    if (__DEV__ && devBypass) {
+      return {
+        status: 'ready',
+        session: null,
+        userId: 'dev-user',
+        email: 'dev@fuelguard.local',
+        orgId: 'dev-org',
+        role: 'driver',
+        isDriver: true,
+        hasOrg: true,
+        signIn: () => Promise.resolve(),
+        signOut: () => { setDevBypass(false); return Promise.resolve(); },
+        refresh: () => Promise.resolve(),
+        activateDevBypass() { setDevBypass(true); },
+      };
+    }
+
     const claims = decodeClaims(session?.access_token);
     const orgId = claims?.org_id ?? null;
     const role = claims?.user_role ?? null;
@@ -103,8 +123,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const { data } = await supabase.auth.refreshSession();
         if (data.session) setSession(data.session);
       },
+      activateDevBypass() {
+        if (__DEV__) setDevBypass(true);
+      },
     };
-  }, [session, initialized]);
+  }, [session, initialized, devBypass]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

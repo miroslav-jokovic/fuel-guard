@@ -16,6 +16,9 @@ function useProtectedRoute() {
   const { status } = useSession();
   const segments = useSegments();
   const router = useRouter();
+  // Stringify so the effect only fires when the actual path changes,
+  // not on every new array reference expo-router produces each render.
+  const segmentsKey = segments.join('/');
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -31,7 +34,8 @@ function useProtectedRoute() {
       status === 'signedOut' ? '/sign-in' : status === 'pending' ? '/pending' : '/wrong-app';
     const currentAuthScreen = inAuthGroup ? segments[1] : undefined;
     if (currentAuthScreen !== target.slice(1)) router.replace(target);
-  }, [status, segments, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, segmentsKey]);
 }
 
 function RootNavigator() {

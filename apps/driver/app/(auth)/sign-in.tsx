@@ -20,7 +20,7 @@ function friendlyError(e: unknown): string {
 }
 
 export default function SignIn() {
-  const { signIn } = useSession();
+  const { signIn, activateDevBypass } = useSession();
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState('');
@@ -130,6 +130,16 @@ export default function SignIn() {
           Invited by your fleet? Open the link in your invitation email to set your password, then
           sign in here.
         </Text>
+
+        {__DEV__ ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => activateDevBypass()}
+            className="items-center py-3"
+          >
+            <Text className="text-xs text-ink-subtle">⚡ Dev bypass (skip auth)</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
