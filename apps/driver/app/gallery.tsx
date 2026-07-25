@@ -25,6 +25,7 @@ export default function Gallery() {
   const { isDark, setMode } = useTheme();
   const [gallons, setGallons] = useState('42.3');
   const [seg, setSeg] = useState<'day' | 'week' | 'month'>('week');
+  const noop = () => undefined; // gallery previews are non-interactive
 
   return (
     <Screen>
@@ -107,8 +108,8 @@ export default function Gallery() {
       </Section>
 
       <Section title="List rows">
-        <ListRow title="Unit 4471 — Freightliner Cascadia" subtitle="Odometer 438,795 · Diesel" icon="local_shipping" onPress={() => {}} />
-        <ListRow title="Fuel Log" subtitle="12 fills this week" icon="history" right={<Badge label="2 pending" tone="warning" />} onPress={() => {}} />
+        <ListRow title="Unit 4471 — Freightliner Cascadia" subtitle="Odometer 438,795 · Diesel" icon="local_shipping" onPress={noop} />
+        <ListRow title="Fuel Log" subtitle="12 fills this week" icon="history" right={<Badge label="2 pending" tone="warning" />} onPress={noop} />
       </Section>
 
       <Section title="Card + Avatar">
@@ -133,7 +134,7 @@ export default function Gallery() {
 
       <Section title="Empty state">
         <Card>
-          <EmptyState icon="history" title="No fill-ups yet" subtitle="Tap to log your first — about 30 seconds." actionLabel="Log fill-up" actionIcon="local_gas_station" onAction={() => {}} />
+          <EmptyState icon="history" title="No fill-ups yet" subtitle="Tap to log your first — about 30 seconds." actionLabel="Log fill-up" actionIcon="local_gas_station" onAction={noop} />
         </Card>
       </Section>
     </Screen>
