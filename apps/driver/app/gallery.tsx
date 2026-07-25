@@ -17,7 +17,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 const DEMO_ICONS: MaterialSymbolName[] = [
-  'local_gas_station', 'local_shipping', 'navigation', 'bolt', 'receipt_long',
+  'local_gas_station', 'local_shipping', 'navigation', 'bolt', 'history',
   'check_circle', 'warning', 'error', 'sync', 'star', 'school', 'health_and_safety',
 ];
 
@@ -108,7 +108,7 @@ export default function Gallery() {
 
       <Section title="List rows">
         <ListRow title="Unit 4471 — Freightliner Cascadia" subtitle="Odometer 438,795 · Diesel" icon="local_shipping" onPress={() => {}} />
-        <ListRow title="Fuel Log" subtitle="12 fills this week" icon="receipt_long" right={<Badge label="2 pending" tone="warning" />} onPress={() => {}} />
+        <ListRow title="Fuel Log" subtitle="12 fills this week" icon="history" right={<Badge label="2 pending" tone="warning" />} onPress={() => {}} />
       </Section>
 
       <Section title="Card + Avatar">
@@ -133,7 +133,7 @@ export default function Gallery() {
 
       <Section title="Empty state">
         <Card>
-          <EmptyState icon="receipt_long" title="No fill-ups yet" subtitle="Tap to log your first — about 30 seconds." actionLabel="Log fill-up" actionIcon="local_gas_station" onAction={() => {}} />
+          <EmptyState icon="history" title="No fill-ups yet" subtitle="Tap to log your first — about 30 seconds." actionLabel="Log fill-up" actionIcon="local_gas_station" onAction={() => {}} />
         </Card>
       </Section>
     </Screen>

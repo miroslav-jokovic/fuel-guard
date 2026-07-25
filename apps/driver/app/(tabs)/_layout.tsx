@@ -1,4 +1,5 @@
 import { Tabs, useRouter } from 'expo-router';
+import type { ColorValue } from 'react-native';
 import { Icon } from '@/components';
 import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
@@ -7,8 +8,8 @@ import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 // Navigation shell (plan D17): Home · Fuel Log · (center) Log · My Score · More.
 // The center tab opens the capture modal instead of navigating.
 function tabIcon(name: MaterialSymbolName, fill = false) {
-  return function TabBarIcon({ color, size }: { color: string; size: number }) {
-    return <Icon name={name} fill={fill} color={color} size={size} />;
+  return function TabBarIcon({ color, size }: { focused: boolean; color: ColorValue; size: number }) {
+    return <Icon name={name} fill={fill} color={color as string} size={size} />;
   };
 }
 

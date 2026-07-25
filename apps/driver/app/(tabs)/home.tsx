@@ -33,7 +33,7 @@ export default function Home() {
       <View className="gap-2">
         <Text className="text-xs uppercase tracking-wide text-ink-muted">Recent activity</Text>
         <Card>
-          <EmptyState icon="receipt_long" title="No fill-ups yet" subtitle="Tap “Log fill-up” to record your first — about 30 seconds." />
+          <EmptyState icon="history" title="No fill-ups yet" subtitle="Tap “Log fill-up” to record your first — about 30 seconds." />
         </Card>
       </View>
     </Screen>
