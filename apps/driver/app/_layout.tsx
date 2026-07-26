@@ -22,17 +22,21 @@ function useProtectedRoute() {
 
   useEffect(() => {
     if (status === 'loading') return;
-    const inAuthGroup = segments[0] === '(auth)';
+    // Cast to plain string[] — expo-router's inferred literal union is too narrow for
+    // route-name comparisons and produces false "no overlap" TS errors.
+    const segs = segments as string[];
+    const inAuthGroup = segs[0] === '(auth)';
 
     if (status === 'ready') {
-      // A driver with an org must be inside the app, never on the splash or an auth screen.
-      if (inAuthGroup || segments.length === 0) router.replace('/home');
+      // Redirect to home from the splash ("/") or any auth screen.
+      // segs[0] === 'index' covers the loading spinner shown while the session restores.
+      if (inAuthGroup || segs[0] === 'index' || segs[0] === '') router.replace('/home');
       return;
     }
 
     const target =
       status === 'signedOut' ? '/sign-in' : status === 'pending' ? '/pending' : '/wrong-app';
-    const currentAuthScreen = inAuthGroup ? segments[1] : undefined;
+    const currentAuthScreen = inAuthGroup ? segs[1] : undefined;
     if (currentAuthScreen !== target.slice(1)) router.replace(target);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, segmentsKey]);
@@ -57,10 +61,10 @@ function RootNavigator() {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    MaterialSymbolsRounded: require('../assets/fonts/MaterialSymbolsRounded.ttf'),
-    MaterialSymbolsRoundedFill: require('../assets/fonts/MaterialSymbolsRoundedFill.ttf'),
-    MaterialSymbolsOutlined: require('../assets/fonts/MaterialSymbolsOutlined.ttf'),
-    MaterialSymbolsOutlinedFill: require('../assets/fonts/MaterialSymbolsOutlinedFill.ttf'),
+    MaterialSymbolsRounded: require('../assets/fonts/MaterialSymbolsRounded.ttf') as number,
+    MaterialSymbolsRoundedFill: require('../assets/fonts/MaterialSymbolsRoundedFill.ttf') as number,
+    MaterialSymbolsOutlined: require('../assets/fonts/MaterialSymbolsOutlined.ttf') as number,
+    MaterialSymbolsOutlinedFill: require('../assets/fonts/MaterialSymbolsOutlinedFill.ttf') as number,
   });
 
   if (!fontsLoaded) return null;
