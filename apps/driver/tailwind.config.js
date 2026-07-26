@@ -30,6 +30,12 @@ module.exports = {
         success: c('success'),
         info: c('info'),
       },
+      fontFamily: {
+        sans:       ['HankenGrotesk_400Regular', 'system-ui', 'sans-serif'],
+        'sans-md':  ['HankenGrotesk_500Medium',  'system-ui', 'sans-serif'],
+        'sans-sb':  ['HankenGrotesk_600SemiBold','system-ui', 'sans-serif'],
+        'sans-bold':['HankenGrotesk_700Bold',    'system-ui', 'sans-serif'],
+      },
       borderRadius: { md: 6, lg: 8, xl: 12 },
     },
   },

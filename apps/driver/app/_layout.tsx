@@ -1,6 +1,12 @@
 import '../global.css';
 import { useEffect } from 'react';
 import { useFonts } from 'expo-font';
+import {
+  HankenGrotesk_400Regular,
+  HankenGrotesk_500Medium,
+  HankenGrotesk_600SemiBold,
+  HankenGrotesk_700Bold,
+} from '@expo-google-fonts/hanken-grotesk';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,30 +22,22 @@ function useProtectedRoute() {
   const { status } = useSession();
   const segments = useSegments();
   const router = useRouter();
-  // Stringify so the effect only fires when the actual path changes,
-  // not on every new array reference expo-router produces each render.
-  const segmentsKey = segments.join('/');
 
   useEffect(() => {
     if (status === 'loading') return;
-    // Cast to plain string[] — expo-router's inferred literal union is too narrow for
-    // route-name comparisons and produces false "no overlap" TS errors.
-    const segs = segments as string[];
-    const inAuthGroup = segs[0] === '(auth)';
+    const inAuthGroup = segments[0] === '(auth)';
 
     if (status === 'ready') {
-      // Redirect to home from the splash ("/") or any auth screen.
-      // segs[0] === 'index' covers the loading spinner shown while the session restores.
-      if (inAuthGroup || segs[0] === 'index' || segs[0] === '') router.replace('/home');
+      // A driver with an org must be inside the app, never on the splash or an auth screen.
+      if (inAuthGroup || segments.length === 0) router.replace('/home');
       return;
     }
 
     const target =
       status === 'signedOut' ? '/sign-in' : status === 'pending' ? '/pending' : '/wrong-app';
-    const currentAuthScreen = inAuthGroup ? segs[1] : undefined;
+    const currentAuthScreen = inAuthGroup ? segments[1] : undefined;
     if (currentAuthScreen !== target.slice(1)) router.replace(target);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, segmentsKey]);
+  }, [status, segments, router]);
 }
 
 function RootNavigator() {
@@ -49,18 +47,19 @@ function RootNavigator() {
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="log-fuel" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="drive" options={{ presentation: 'modal' }} />
       <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
-      <Stack.Screen
-        name="gallery"
-        options={{ presentation: 'modal', headerShown: true, title: 'Design system' }}
-      />
+      <Stack.Screen name="gallery" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
+    HankenGrotesk_400Regular,
+    HankenGrotesk_500Medium,
+    HankenGrotesk_600SemiBold,
+    HankenGrotesk_700Bold,
     MaterialSymbolsRounded: require('../assets/fonts/MaterialSymbolsRounded.ttf') as number,
     MaterialSymbolsRoundedFill: require('../assets/fonts/MaterialSymbolsRoundedFill.ttf') as number,
     MaterialSymbolsOutlined: require('../assets/fonts/MaterialSymbolsOutlined.ttf') as number,
