@@ -69,7 +69,7 @@ UI — is the authorization boundary.**
 | Phase | Plan (doc) | Build | Verified | Next action |
 |---|---|---|---|---|
 | 0 — Foundation & Design System | ✅ authored | ◐ **~done** — spike ✅ + 16 components + gallery + tests + ESLint + CI + nav shell + Material Symbols (D40); token linter green | ☐ device pass | On-device verify (shell + gallery, light/dark, a11y) + component polish, then close. Deferred: IBM Plex font (D36), tsconfig.base strict flags (D28) |
-| 1 — Identity, Auth & Access Control | ✅ authored | ☑ **built** — RLS `0083`/`0084` (matrix 50/50); API driver-branch invites (token-enforced accept D15) + linking, `GET /api/me/driver`, `POST /api/me/delete-account`, web driver-gate + `revoke` offboarding; **app auth: Supabase client (LargeSecureStore/PKCE), apiFetch, session state machine, sign-in/pending/wrong-app, routing guard, Settings + delete-account** | ◐ device pass pending | Precondition T1 (token hook). One remaining sub-increment: PKCE accept-invite/set-password deep link. Then Phase 2 |
+| 1 — Identity, Auth & Access Control | ✅ authored | ☑ **built (complete)** — RLS `0083`/`0084` (matrix 50/50); API driver-branch invites (token-enforced accept D15) + linking, `GET /api/me/driver`, `POST /api/me/delete-account`, web driver-gate + `revoke` offboarding; app auth (LargeSecureStore/PKCE client, apiFetch, session state machine, sign-in/pending/wrong-app, guard, Settings + delete-account); **accept-invite/set-password flow: driver invites redirect to `fuelguard://accept-invite` (session from link → set password ≥10 → accept w/ token → claim refresh), with a paste-link rescue and the web accept page as fallback (token forwarding + driver resend-token bugs fixed)** | ◐ device pass pending | Ops before real invites: T1 (token hook) + **T9** (allow `fuelguard://accept-invite` in Supabase Redirect URLs). End-to-end invite test on device, then Phase 2 |
 | 2 — Offline-first Data Layer & Home | ✅ authored | ☐ not started | ☐ | **Reframed (D41):** Home = current assignment + nav entry + performance snapshot; outbox now carries load/hazmat photos, not fuel receipts |
 | 3 — Loads & Assignments (the daily job) | ◑ **re-scoped (D41)** | ☐ not started | ☐ | The new core: future / current / previous assignments, accept, per-stop guided photo capture (load / unload / multi-stop). Grounds on `0051_driver_assignments`, `0068_tms_integration`, `shared/tms.ts` |
 | 4 — Planned Navigation & Fueling | ◑ **re-scoped (D41)** | ☐ not started | ☐ | Consume server route (HERE) + `fuel_plans` / `smart_fueling_spine`; MapLibre display, corridor guidance, planned-fueling stop overlays. Grounds on `0059`/`0060_route_geometries`, `0074_fuel_plans`, `0058_smart_fueling_spine` |
@@ -401,6 +401,7 @@ decisions in Round 5 — see §24 for the mapping.)
 | T6 | **Set up private distribution** (D25): Apple Business Manager Custom App (Org ID); Managed Google Play private app (Org ID) | Before submission | Unlisted is the Apple fallback if ABM enrolment isn't possible |
 | T7 | **Verify every native dependency is New-Architecture-ready** on SDK 57 | Phase 0 | Audit the pinned set (MapLibre 11, expo-sqlite, image-manipulator, reanimated 4, gorhom sheet, etc.) |
 | T8 | **Procure the MapTiler account** (D37) + choose the bundled font files (D36: IBM Plex Sans/Mono) | Phase 0 (font) / Phase 5 (tiles) | Both choices are locked; this is provisioning, not selection |
+| T9 | **Add `fuelguard://accept-invite` to the Supabase Redirect URLs allow-list** (prod Dashboard → Auth → URL Configuration; local `config.toml` already updated) | Before the first real driver invite | Without it, GoTrue falls back to `site_url` and the invite link opens the web instead of the app |
 
 ---
 
@@ -672,6 +673,16 @@ $$;
   non-driver signs in; `apiFetch` (`src/lib/api.ts`) Bearer from `getSession()`. **Secure logout:**
   `signOut({ scope:'global' })`, then wipe the encrypted store, delete the SecureStore key, and (on
   deprovision) purge the offline outbox + staged receipts.
+- **Accept-invite entry path (BUILT — records the D11 deep-link choice):** the driver invite's
+  emailed link is Supabase's **https action_link** (survives every email client); its final
+  redirect hop targets **`fuelguard://accept-invite?token=<invite>`** with session tokens in the
+  fragment. The app screen (`app/(auth)/accept-invite.tsx` + `src/features/auth/acceptInvite.ts`)
+  establishes the session (`setSession` / `exchangeCodeForSession` / `verifyOtp` for pasted
+  action links), takes a password (≥10, D16), posts `/api/invites/accept` with the invite token
+  (D15), then refreshes claims; the root guard whitelists the route mid-flow. Fallbacks: a
+  **paste-the-link rescue** on-screen, and the **web accept page** (now forwards the driver token)
+  followed by normal app sign-in. Verified **App Links / Universal Links** upgrade remains a
+  Phase-4-era ops task; the scheme redirect is the v1 mechanism.
 - **CORS** — add any web-hosted auth-callback origin to `ALLOWED_ORIGINS` on `apps/api`.
 
 ### 12.6 File & work breakdown

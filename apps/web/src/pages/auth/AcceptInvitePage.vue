@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
@@ -14,6 +14,7 @@ import BaseButton from "@/components/ui/BaseButton.vue";
 // on the route). The user sets a password, then we create their membership.
 const session = useSessionStore();
 const router = useRouter();
+const route = useRoute();
 
 // If for any reason the session is missing (expired / already-used link slipped past the router),
 // show a friendly error instead of a broken password form.
@@ -39,7 +40,12 @@ async function onSubmit() {
     const { error: pwErr } = await supabase.auth.updateUser({ password: password.value });
     if (pwErr) throw pwErr;
 
-    const res = await apiFetch("/api/invites/accept", { method: "POST", body: {} });
+    // Driver invites carry a ?token= in the redirect (D15 — proves inbox possession); forward it.
+    const inviteToken = typeof route.query.token === "string" ? route.query.token : undefined;
+    const res = await apiFetch("/api/invites/accept", {
+      method: "POST",
+      body: inviteToken ? { token: inviteToken } : {},
+    });
     if (!res.ok) {
       throw new Error(res.error?.message ?? "Could not accept the invitation.");
     }

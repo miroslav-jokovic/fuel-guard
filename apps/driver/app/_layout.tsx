@@ -27,6 +27,11 @@ function useProtectedRoute() {
     if (status === 'loading') return;
     const inAuthGroup = segments[0] === '(auth)';
 
+    // Accept-invite owns its own multi-step state (verify link → session appears (pending) →
+    // set password → accept → claims land). Leave it alone until the flow completes ('ready'),
+    // otherwise the guard would yank the user to /pending the instant the link session lands.
+    if (inAuthGroup && segments[1] === 'accept-invite' && status !== 'ready') return;
+
     if (status === 'ready') {
       // A driver with an org must be inside the app, never on the splash or an auth screen.
       if (inAuthGroup || segments.length === 0) router.replace('/home');

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { AuthError } from '@supabase/supabase-js';
 import { Banner, Button, Field, Icon, Input } from '@/components';
 import { AuthHero } from '@/features/auth/AuthLayout';
@@ -22,6 +23,7 @@ function friendlyError(e: unknown): string {
 export default function SignIn() {
   const { signIn, activateDevBypass } = useSession();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -126,10 +128,15 @@ export default function SignIn() {
           />
         </View>
 
-        <Text className="text-center text-sm leading-relaxed text-ink-muted">
-          Invited by your fleet? Open the link in your invitation email to set your password, then
-          sign in here.
-        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/accept-invite')}
+          className="min-h-[44px] items-center justify-center rounded-xl active:bg-surface-muted"
+        >
+          <Text className="text-center text-sm leading-relaxed text-ink-muted">
+            New here? <Text className="font-sans-sb text-brand">Set up your account from your invite →</Text>
+          </Text>
+        </Pressable>
 
         {__DEV__ ? (
           <Pressable

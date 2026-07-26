@@ -35,8 +35,13 @@ export interface InviteDelivery {
  * Falls back to a recovery link when the user already exists. The link is ALWAYS returned so invites work
  * even when email delivery is misconfigured (the admin can copy + share it directly).
  */
-async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, email: string, token?: string | null): Promise<InviteDelivery> {
-  const base = `${env.WEB_APP_URL}/accept-invite`;
+// Driver invites deep-link straight into the driver app: the emailed link stays https (Supabase's
+// verify endpoint — email clients keep it), and only the final redirect hop targets the app scheme
+// (registered in apps/driver/app.config.ts; must be allow-listed in Supabase auth Redirect URLs — D11).
+const DRIVER_APP_ACCEPT_LINK = "fuelguard://accept-invite";
+
+async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, email: string, token?: string | null, toDriverApp = false): Promise<InviteDelivery> {
+  const base = toDriverApp ? DRIVER_APP_ACCEPT_LINK : `${env.WEB_APP_URL}/accept-invite`;
   const redirectTo = token ? `${base}?token=${encodeURIComponent(token)}` : base;
   let link: string | null = null;
   const invite = await admin.auth.admin.generateLink({ type: "invite", email, options: { redirectTo } });
@@ -164,7 +169,7 @@ export function invitesRouter(): Router {
 
       // Deliver via our Resend mailer. Driver invites carry the token in the link so acceptance can
       // verify inbox possession (D15); office invites keep the domain-based check.
-      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email, role === "driver" ? token : null);
+      const delivery = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email, role === "driver" ? token : null, role === "driver");
       if (!delivery.sent) console.error(`[invites] email not sent for ${email} (${delivery.reason})`);
 
       await writeAudit(admin, {
@@ -221,7 +226,7 @@ export function invitesRouter(): Router {
 
       const { data: existing } = await admin
         .from("invites")
-        .select("id, email, status")
+        .select("id, email, status, role")
         .eq("id", id)
         .eq("org_id", orgId)
         .maybeSingle();
@@ -252,7 +257,14 @@ export function invitesRouter(): Router {
 
       // Deliver via our Resend mailer (invite link, or recovery link if the user already exists).
       const { data: org } = await admin.from("organizations").select("name").eq("id", orgId).maybeSingle();
-      const delivery = await deliverInvite(admin, env, (org?.name as string) ?? "FuelGuard", existing.email);
+      const delivery = await deliverInvite(
+        admin,
+        env,
+        (org?.name as string) ?? "FuelGuard",
+        existing.email,
+        existing.role === "driver" ? token : null,
+        existing.role === "driver",
+      );
       const emailSent = delivery.sent;
       if (!emailSent) console.error(`[invites] resend not sent for ${existing.email} (${delivery.reason})`);
 
