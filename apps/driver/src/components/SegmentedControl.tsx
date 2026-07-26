@@ -62,7 +62,7 @@ export function SegmentedControl<T extends string>({
               className="min-h-[40px] flex-1 items-center justify-center rounded-lg"
             >
               <Text
-                className={`text-sm ${active ? 'font-semibold text-ink' : 'font-medium text-ink-muted'}`}
+                className={`text-sm ${active ? 'font-sans-sb text-ink' : 'font-sans-md text-ink-muted'}`}
               >
                 {o.label}
               </Text>

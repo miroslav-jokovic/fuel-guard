@@ -30,7 +30,7 @@ export function NumericField({
         placeholder={placeholder}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        className="flex-1 text-3xl font-bold text-ink placeholder:text-ink-subtle"
+        className="flex-1 text-3xl font-sans-bold text-ink placeholder:text-ink-subtle"
         style={{
           fontVariant: ['tabular-nums'],
           paddingVertical: 8,
@@ -39,7 +39,7 @@ export function NumericField({
         }}
       />
       {unit ? (
-        <Text className="text-lg font-medium text-ink-muted" style={{ includeFontPadding: false }}>
+        <Text className="text-lg font-sans-md text-ink-muted" style={{ includeFontPadding: false }}>
           {unit}
         </Text>
       ) : null}

@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  Banner,
   Button,
   Card,
+  ConfirmSheet,
   ListRow,
   Screen,
   ScreenHeader,
@@ -20,34 +22,21 @@ export default function Settings() {
   const router = useRouter();
   const { email, role, signOut } = useSession();
   const { mode, setMode } = useTheme();
+  const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function deleteAccount() {
     setDeleting(true);
+    setDeleteError(null);
     const res = await apiFetch('/api/me/delete-account', { method: 'POST' });
     if (res.ok) {
       await signOut(); // the root guard bounces to sign-in
       return;
     }
     setDeleting(false);
-    Alert.alert('Couldn’t delete account', res.error?.message ?? 'Please try again in a moment.');
-  }
-
-  function confirmDelete() {
-    Alert.alert(
-      'Delete your account?',
-      'This permanently removes your driver login and unlinks you from your fleet. Your work history stays with the fleet for their records. This can’t be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete account',
-          style: 'destructive',
-          onPress: () => {
-            void deleteAccount();
-          },
-        },
-      ],
-    );
+    setConfirming(false);
+    setDeleteError(res.error?.message ?? 'Couldn’t delete your account. Please try again in a moment.');
   }
 
   return (
@@ -64,7 +53,7 @@ export default function Settings() {
 
       <SectionLabel>Appearance</SectionLabel>
       <Card>
-        <Text className="pb-2 text-sm font-medium text-ink-secondary">Theme</Text>
+        <Text className="pb-2 text-sm font-sans-md text-ink-secondary">Theme</Text>
         <SegmentedControl<ThemeMode>
           value={mode}
           onChange={setMode}
@@ -89,14 +78,16 @@ export default function Settings() {
         }}
       />
 
+      {deleteError ? <Banner tone="danger" message={deleteError} /> : null}
+
       <View className="gap-1 pt-6">
         <Pressable
           accessibilityRole="button"
           disabled={deleting}
-          onPress={confirmDelete}
+          onPress={() => setConfirming(true)}
           className="min-h-[48px] items-center justify-center rounded-xl active:bg-surface-subtle"
         >
-          <Text className="font-medium text-danger">
+          <Text className="font-sans-md text-danger">
             {deleting ? 'Deleting…' : 'Delete account'}
           </Text>
         </Pressable>
@@ -104,6 +95,22 @@ export default function Settings() {
           Permanently removes your login. Your work history stays with your fleet.
         </Text>
       </View>
+
+      <ConfirmSheet
+        visible={confirming}
+        tone="danger"
+        icon="delete"
+        title="Delete your account?"
+        message="This permanently removes your driver login and unlinks you from your fleet. Your work history stays with the fleet for their records. This can’t be undone."
+        confirmLabel="Delete account"
+        loading={deleting}
+        onConfirm={() => {
+          void deleteAccount();
+        }}
+        onCancel={() => {
+          if (!deleting) setConfirming(false);
+        }}
+      />
     </Screen>
   );
 }

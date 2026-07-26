@@ -18,7 +18,7 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
       accessibilityLabel={name}
     >
       <Text
-        className="font-bold text-brand-fg"
+        className="font-sans-bold text-brand-fg"
         style={{ fontSize: size * 0.38, includeFontPadding: false }}
       >
         {initials(name)}

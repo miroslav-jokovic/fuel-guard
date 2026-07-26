@@ -87,7 +87,7 @@ export function Button({
           style={{ columnGap: s.gap, opacity: loading ? 0 : 1 }}
         >
           {icon ? <Icon name={icon} fill={iconFill} size={s.icon} className={LABEL[variant]} /> : null}
-          <Text className={`font-semibold ${LABEL[variant]} ${s.text}`}>{label}</Text>
+          <Text className={`font-sans-sb ${LABEL[variant]} ${s.text}`}>{label}</Text>
         </View>
         {loading ? (
           <View className="absolute inset-0 items-center justify-center">

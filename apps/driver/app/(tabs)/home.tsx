@@ -31,7 +31,7 @@ export default function Home() {
     <Screen>
       <View className="flex-row items-center gap-3">
         <View className="flex-1 gap-0.5">
-          <Text className="text-2xl font-bold text-ink">
+          <Text className="text-2xl font-sans-bold text-ink">
             {timeGreeting()}, {displayName}
           </Text>
           <Text className="text-sm text-ink-muted">{todayLabel()}</Text>
@@ -64,6 +64,7 @@ export default function Home() {
         <StatTile
           label="Score"
           value="87"
+          spark={[82, 84, 83, 85, 86, 86, 87]}
           trend={{ label: '+3 vs last wk', direction: 'up', positive: true }}
         />
         <StatTile label="Rank" value="#4" unit="of 23" icon="military_tech" />

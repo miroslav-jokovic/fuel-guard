@@ -27,10 +27,10 @@ export function CurrentLoadCard({
     <Card onPress={onOpen}>
       <View className="flex-row items-center gap-2 pb-2">
         <Badge label={s.label} tone={s.tone} dot />
-        <Text className="flex-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+        <Text className="flex-1 text-xs font-sans-sb uppercase tracking-wider text-ink-muted">
           {load.ref}
         </Text>
-        <Text className="text-xs font-medium text-ink-muted" style={{ fontVariant: ['tabular-nums'] }}>
+        <Text className="text-xs font-sans-md text-ink-muted" style={{ fontVariant: ['tabular-nums'] }}>
           Stop {load.progress.current} of {load.progress.total}
         </Text>
       </View>
@@ -51,7 +51,7 @@ export function CurrentLoadCard({
       <View className="mt-3 flex-row items-center gap-2.5 rounded-lg bg-surface-muted px-3 py-2.5">
         <Icon name="pin_drop" size={18} className="text-brand" />
         <View className="flex-1 gap-0.5">
-          <Text className="text-sm font-semibold text-ink">
+          <Text className="text-sm font-sans-sb text-ink">
             Next: {load.nextAction} — {load.nextStop}
           </Text>
           <View className="flex-row items-center gap-1">

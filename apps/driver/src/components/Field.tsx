@@ -17,7 +17,7 @@ export function Field({
 }) {
   return (
     <View className="gap-1.5">
-      <Text className="text-sm font-medium text-ink-secondary">
+      <Text className="text-sm font-sans-md text-ink-secondary">
         {label}
         {required ? <Text className="text-danger"> *</Text> : null}
       </Text>

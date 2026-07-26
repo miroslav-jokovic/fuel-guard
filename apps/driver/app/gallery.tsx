@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  Avatar, Badge, Banner, Button, Card, EmptyState, Field, Icon, IconButton, Input, ListRow,
-  NumericField, Screen, ScreenHeader, SegmentedControl, Skeleton, StatTile, Toast, severityTone,
+  Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field, Icon, IconButton, Input,
+  ListRow, NumericField, ScoreRing, Screen, ScreenHeader, SegmentedControl, Skeleton, StatTile,
+  Toast, severityTone,
 } from '@/components';
 import { LoadCard } from '@/features/loads/LoadCard';
 import { SAMPLE_UPCOMING } from '@/features/loads/sampleLoads';
@@ -13,7 +14,7 @@ import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View className="gap-3">
-      <Text className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{title}</Text>
+      <Text className="text-[11px] font-sans-sb uppercase tracking-wider text-ink-muted">{title}</Text>
       {children}
     </View>
   );
@@ -29,6 +30,7 @@ export default function Gallery() {
   const { isDark, setMode } = useTheme();
   const [gallons, setGallons] = useState('42.3');
   const [seg, setSeg] = useState<'upcoming' | 'current' | 'previous'>('current');
+  const [sheetOpen, setSheetOpen] = useState(false);
   const noop = () => undefined; // gallery previews are non-interactive
   const demoLoad = SAMPLE_UPCOMING[0];
 
@@ -104,11 +106,46 @@ export default function Gallery() {
         />
       </Section>
 
-      <Section title="Stat tiles — trends">
+      <Section title="Data viz — score ring & sparklines">
+        <Card>
+          <View className="items-center py-2">
+            <ScoreRing score={87} sublabel="/ 100" size={132} />
+          </View>
+        </Card>
         <View className="flex-row gap-3">
-          <StatTile label="Score" value="87" trend={{ label: '+3 vs last wk', direction: 'up', positive: true }} />
-          <StatTile label="Idling" value="79" icon="schedule" trend={{ label: '-2', direction: 'down', positive: false }} />
+          <StatTile
+            label="Score"
+            value="87"
+            spark={[82, 84, 83, 85, 86, 86, 87]}
+            trend={{ label: '+3 vs last wk', direction: 'up', positive: true }}
+          />
+          <StatTile
+            label="Idling"
+            value="79"
+            icon="schedule"
+            spark={[83, 82, 81, 80, 80, 79, 79]}
+            trend={{ label: '-2', direction: 'down', positive: false }}
+          />
         </View>
+      </Section>
+
+      <Section title="Confirm sheet (D19 — never a native Alert)">
+        <Button
+          label="Delete something…"
+          icon="delete"
+          variant="danger"
+          onPress={() => setSheetOpen(true)}
+        />
+        <ConfirmSheet
+          visible={sheetOpen}
+          tone="danger"
+          icon="delete"
+          title="Delete this item?"
+          message="This is the tokenized confirm sheet — grabber, icon badge, stacked actions, warning haptic on present."
+          confirmLabel="Delete"
+          onConfirm={() => setSheetOpen(false)}
+          onCancel={() => setSheetOpen(false)}
+        />
       </Section>
 
       <Section title="Badges">
@@ -159,7 +196,7 @@ export default function Gallery() {
           <View className="flex-row items-center gap-3">
             <Avatar name="Miki Jokovic" size={44} />
             <View className="gap-0.5">
-              <Text className="text-base font-semibold text-ink">Miki Jokovic</Text>
+              <Text className="text-base font-sans-sb text-ink">Miki Jokovic</Text>
               <Text className="text-sm text-ink-muted">Driver · Silvicom Inc.</Text>
             </View>
           </View>

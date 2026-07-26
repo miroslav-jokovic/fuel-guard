@@ -27,7 +27,7 @@ export function EmptyState({
         </View>
       ) : null}
       <View className="items-center gap-1">
-        <Text className="text-center text-lg font-semibold text-ink">{title}</Text>
+        <Text className="text-center text-lg font-sans-sb text-ink">{title}</Text>
         {subtitle ? <Text className="text-center text-ink-muted">{subtitle}</Text> : null}
       </View>
       {actionLabel && onAction ? (

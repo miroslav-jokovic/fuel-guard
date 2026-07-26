@@ -40,7 +40,7 @@ export function AuthHero({
       <View className={`h-16 w-16 items-center justify-center rounded-2xl ${RING[tone]}`}>
         <Icon name={icon} size={32} fill className={FG[tone]} />
       </View>
-      <Text className="text-center text-2xl font-bold text-ink">{title}</Text>
+      <Text className="text-center text-2xl font-sans-bold text-ink">{title}</Text>
       {subtitle ? (
         <Text className="text-center text-base leading-relaxed text-ink-muted">{subtitle}</Text>
       ) : null}

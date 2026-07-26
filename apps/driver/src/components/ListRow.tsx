@@ -44,7 +44,7 @@ export function ListRow({
         </View>
       ) : null}
       <View className="flex-1 gap-0.5">
-        <Text className="text-base font-medium text-ink">{title}</Text>
+        <Text className="text-base font-sans-md text-ink">{title}</Text>
         {subtitle ? <Text className="text-sm text-ink-muted">{subtitle}</Text> : null}
       </View>
       {right ?? (onPress ? <Icon name="chevron_right" size={22} className="text-ink-subtle" /> : null)}

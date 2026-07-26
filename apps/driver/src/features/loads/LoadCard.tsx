@@ -45,7 +45,7 @@ export function RouteRail({
       </View>
       <View className="flex-1 justify-between gap-4">
         <View className="flex-row items-baseline justify-between gap-2">
-          <Text className="flex-1 text-base font-semibold text-ink" numberOfLines={1}>
+          <Text className="flex-1 text-base font-sans-sb text-ink" numberOfLines={1}>
             {origin}
           </Text>
           <Text className="text-sm text-ink-muted" style={{ fontVariant: ['tabular-nums'] }}>
@@ -53,7 +53,7 @@ export function RouteRail({
           </Text>
         </View>
         <View className="flex-row items-baseline justify-between gap-2">
-          <Text className="flex-1 text-base font-semibold text-ink" numberOfLines={1}>
+          <Text className="flex-1 text-base font-sans-sb text-ink" numberOfLines={1}>
             {destination}
           </Text>
           <Text className="text-sm text-ink-muted" style={{ fontVariant: ['tabular-nums'] }}>
@@ -71,7 +71,7 @@ export function LoadCard({ load, onPress }: { load: LoadSummary; onPress?: () =>
   return (
     <Card onPress={onPress}>
       <View className="flex-row items-center gap-2 pb-2">
-        <Text className="flex-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+        <Text className="flex-1 text-xs font-sans-sb uppercase tracking-wider text-ink-muted">
           {load.ref}
         </Text>
         {load.hazmat ? <Badge label="Hazmat" tone="warning" icon="warning" /> : null}

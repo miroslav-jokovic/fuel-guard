@@ -53,7 +53,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: rc.brand,
         tabBarInactiveTintColor: rc.inkMuted,
         tabBarStyle: { backgroundColor: rc.surface, borderTopColor: rc.edge },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 11, fontFamily: 'HankenGrotesk_600SemiBold' },
       }}
     >
       <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: tabIcon('home') }} />

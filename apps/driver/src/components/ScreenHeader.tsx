@@ -21,7 +21,7 @@ export function ScreenHeader({
     <View className="flex-row items-center gap-2">
       {onBack ? <IconButton name="arrow_back" label="Back" onPress={onBack} /> : null}
       <View className="flex-1 gap-0.5">
-        <Text className="text-2xl font-bold text-ink" accessibilityRole="header">
+        <Text className="text-2xl font-sans-bold text-ink" accessibilityRole="header">
           {title}
         </Text>
         {subtitle ? <Text className="text-sm text-ink-muted">{subtitle}</Text> : null}

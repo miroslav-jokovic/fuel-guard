@@ -34,6 +34,12 @@ export default function More() {
         icon="local_fire_department"
         right={<Badge label="Soon" tone="info" />}
       />
+      <ListRow
+        title="Ask FuelGuard"
+        subtitle="AI copilot for your loads, route & score"
+        icon="bolt"
+        right={<Badge label="Soon" tone="info" />}
+      />
     </Screen>
   );
 }

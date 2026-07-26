@@ -45,7 +45,7 @@ export function Banner({
           onPress={onAction}
           className="min-h-[32px] justify-center"
         >
-          <Text className={`text-sm font-semibold ${FG[tone]}`}>{actionLabel}</Text>
+          <Text className={`text-sm font-sans-sb ${FG[tone]}`}>{actionLabel}</Text>
         </Pressable>
       ) : null}
     </View>

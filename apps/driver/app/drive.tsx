@@ -1,41 +1,47 @@
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Card, EmptyState, Icon, Screen, ScreenHeader } from '@/components';
-import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
-
-function PreviewRow({ icon, text }: { icon: MaterialSymbolName; text: string }) {
-  return (
-    <View className="flex-row items-center gap-2.5 py-1.5">
-      <Icon name={icon} size={18} className="text-brand" />
-      <Text className="flex-1 text-sm text-ink-secondary">{text}</Text>
-    </View>
-  );
-}
+import { Badge, Banner, ListRow, Screen, ScreenHeader, SectionLabel } from '@/components';
+import { RoutePreview } from '@/features/nav/RoutePreview';
 
 // Navigation modal (Phase 4 shell): opened by the elevated center tab / the load's Navigate CTA.
-// The map + corridor guidance + planned-fueling overlays land here (MapLibre over the server's
-// HERE route — plan §8/§15).
+// Shows the planned route + fuel stops as an honest schematic preview; Phase 4 swaps the preview
+// panel for the live MapLibre view over the server's HERE route (plan §8/§15) and makes the fuel
+// stops live plan data.
 export default function Drive() {
   const router = useRouter();
   return (
     <Screen padTop={false}>
-      <ScreenHeader title="Navigate" subtitle="LD-20481 · Joliet → Columbus" onClose={() => router.back()} />
-
-      <EmptyState
-        icon="navigation"
-        title="Navigation arrives with Phase 4"
-        subtitle="Your truck-safe route renders here, with corridor guidance and your planned fuel stops."
+      <ScreenHeader
+        title="Navigate"
+        subtitle="LD-20481 · Joliet, IL → Columbus, OH"
+        onClose={() => router.back()}
       />
 
-      <Card>
-        <Text className="pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-          What this screen will do
-        </Text>
-        <PreviewRow icon="route" text="Truck-safe route for the active load (axle, weight, hazmat, tunnels)" />
-        <PreviewRow icon="local_gas_station" text="Planned fuel stops — station, price, and gallons to buy" />
-        <PreviewRow icon="pin_drop" text="Arrival hand-off into the stop's photo checklist" />
-        <PreviewRow icon="wifi_off" text="Route cached for the corridor — works with no signal" />
-      </Card>
+      <RoutePreview />
+
+      <SectionLabel>Planned fuel stops</SectionLabel>
+      <ListRow
+        icon="local_gas_station"
+        title="Pilot Travel Center"
+        subtitle="Effingham, IL · $3.42/gal · buy 62 gal"
+        right={<Badge label="in 118 mi" tone="brand" />}
+      />
+      <ListRow
+        icon="local_gas_station"
+        title="Love's Travel Stop"
+        subtitle="Greenfield, IN · $3.51/gal · buy 40 gal"
+        right={<Badge label="in 289 mi" tone="neutral" />}
+      />
+
+      <Banner
+        tone="info"
+        icon="navigation"
+        message="Live truck-safe navigation with corridor guidance lands in Phase 4 — this preview shows your planned route and fuel stops."
+      />
+
+      <Text className="pt-1 text-center text-xs text-ink-subtle">
+        Sample data — the fueling plan comes from your fleet's smart-fueling engine.
+      </Text>
     </Screen>
   );
 }
