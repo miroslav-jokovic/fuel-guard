@@ -6,10 +6,15 @@ import reactHooks from 'eslint-plugin-react-hooks';
 export default tseslint.config(
   { ignores: ['dist', '.expo', 'ios', 'android', 'node_modules', '**/*.generated.ts'] },
   js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
-  ...tseslint.configs.stylisticTypeChecked,
   {
+    // Type-aware rules scoped to TS/TSX only — keeps plain JS config files
+    // (tailwind.config.js, metro.config.js …) out of the type-checked pipeline
+    // and avoids the multi-tsconfig ambiguity error.
     files: ['**/*.{ts,tsx}'],
+    extends: [
+      ...tseslint.configs.recommendedTypeChecked,
+      ...tseslint.configs.stylisticTypeChecked,
+    ],
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
       globals: {
@@ -37,5 +42,4 @@ export default tseslint.config(
       'react/jsx-key': 'error',
     },
   },
-  { files: ['*.config.{js,ts}', 'scripts/**', 'tests/**'], ...tseslint.configs.disableTypeChecked },
 );
