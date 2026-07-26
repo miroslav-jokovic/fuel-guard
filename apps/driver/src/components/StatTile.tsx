@@ -1,16 +1,52 @@
 import { Text, View } from 'react-native';
+import { Icon } from './Icon';
+import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
-// Glanceable metric: big tabular numeral is the signature (plan §22.8).
-export function StatTile({ label, value, unit }: { label: string; value: string; unit?: string }) {
+// Glanceable metric: the big tabular numeral is the app's visual signature (plan §22.8).
+// `trend` gives the number meaning at a glance — direction + whether that direction is GOOD
+// (idling going down is positive), never color alone (arrow icon + text).
+export function StatTile({
+  label,
+  value,
+  unit,
+  icon,
+  trend,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  icon?: MaterialSymbolName;
+  trend?: { label: string; direction: 'up' | 'down'; positive: boolean };
+}) {
   return (
-    <View className="flex-1 rounded-lg bg-surface border border-edge p-4 gap-1">
-      <Text className="text-xs uppercase tracking-wide text-ink-muted">{label}</Text>
+    <View className="flex-1 gap-1.5 rounded-xl border border-edge bg-surface p-4">
+      <View className="flex-row items-center gap-1.5">
+        {icon ? <Icon name={icon} size={14} className="text-ink-muted" /> : null}
+        <Text className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+          {label}
+        </Text>
+      </View>
       <View className="flex-row items-baseline gap-1">
-        <Text className="text-ink font-bold" style={{ fontSize: 32, fontVariant: ['tabular-nums'] }}>
+        <Text
+          className="font-bold text-ink"
+          style={{ fontSize: 30, lineHeight: 34, fontVariant: ['tabular-nums'], includeFontPadding: false }}
+        >
           {value}
         </Text>
         {unit ? <Text className="text-base text-ink-muted">{unit}</Text> : null}
       </View>
+      {trend ? (
+        <View className="flex-row items-center gap-1">
+          <Icon
+            name={trend.direction === 'up' ? 'trending_up' : 'trending_down'}
+            size={14}
+            className={trend.positive ? 'text-success' : 'text-danger'}
+          />
+          <Text className={`text-xs font-medium ${trend.positive ? 'text-success' : 'text-danger'}`}>
+            {trend.label}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }

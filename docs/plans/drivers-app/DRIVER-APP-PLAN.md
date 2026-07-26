@@ -1,10 +1,10 @@
 # FuelGuard Driver App — Master Plan (single source of truth)
 
 > Native mobile app (React Native + Expo) for the people who fuel the trucks.
-> Owner: Silvicom Inc. · Status: **PLANNING COMPLETE — Phases 0–4 authored; Audit Rounds 1–5 complete; every decision LOCKED, zero open research items; build not started — clear the operational pre-build checklist (§10) first** · Last updated: 2026-07-24
+> Owner: Silvicom Inc. · Status: **BUILDING — Phases 0–1 built (foundation + identity/auth); scope pivoted to loads/assignments + planned navigation (D41); Phases 2–7 authored/roadmapped; every decision LOCKED (D1–D41)** · Last updated: 2026-07-25
 >
 > ✅ **Solutions-only.** Every architecture/design/security/UX/compliance choice is a **LOCKED decision
-> (D1–D40)** with a rationale and a documented fallback. **There are no "decide during build" items left**
+> (D1–D41)** with a rationale and a documented fallback. **There are no "decide during build" items left**
 > — §10 is now purely *operational tasks* (confirm a setting, seed an account, host two web pages, run the
 > Phase-0 build spike), not research questions. A builder can implement straight through.
 >
@@ -18,7 +18,7 @@
 > **This is the one and only plan document for the Driver App initiative.** It is self-contained and
 > written to be followed from a fresh chat with zero prior context. Everything that used to live in
 > separate per-phase files now lives here as one continuous plan. **Every decision is LOCKED** (§9,
-> D1–D40); §10 holds only operational pre-build *tasks* (no research required).
+> D1–D41); §10 holds only operational pre-build *tasks* (no research required).
 
 ---
 
@@ -31,7 +31,7 @@ This plan is designed so you (or a new chat, or a new teammate) can stop and con
    `00-…`, `01-…` numbered files, they are superseded copies — ignore them.
 2. Read **§1 Progress Ledger** first — it says which phase is current and what the next action is
    ("you are here").
-3. Read the **Locked Decisions (§9, D1–D40)** and the **operational pre-build checklist (§10)** before doing any work — they
+3. Read the **Locked Decisions (§9, D1–D41)** and the **operational pre-build checklist (§10)** before doing any work — they
    are the fast way to reload context.
 4. Read the **current phase section in full** before building it. Each phase is self-contained: goal,
    changes, file breakdown, exit criteria.
@@ -43,7 +43,7 @@ This plan is designed so you (or a new chat, or a new teammate) can stop and con
    - add a row to the **§18 Build Log** with the commit hash + verification tally.
 7. **Migration discipline:** never edit an applied migration; append new ones from the next free
    number (currently **0083**); add every new policy to the offline RLS matrix.
-8. Every design/architecture choice is already LOCKED (§9, D1–D40); §24 maps the former open questions
+8. Every design/architecture choice is already LOCKED (§9, D1–D41); §24 maps the former open questions
    to their resolutions. If a genuinely new question arises mid-build, record it as a new LOCKED decision
    with a rationale — don't guess, and don't reopen a settled one without cause.
 
@@ -51,32 +51,37 @@ This plan is designed so you (or a new chat, or a new teammate) can stop and con
 
 ## §1. Progress Ledger (you are here)
 
-**Current state:** Planning complete for Phases 0–4; **Audit Rounds 1 (verification, §20), 2 (security,
-§21) and 3 (UI/UX, §22) complete** — findings folded in. **No code written yet.** 12 blockers total:
-build/verification **B1–B6** (§20.1) + security **SB1–SB6** (§21.1). §22 adds the navigation shell,
-modern UX library stack, full component set, screen-state matrix, and the everyday flows the earlier
-drafts omitted. §23 adds the end-to-end **typed contract** (client parses, never casts), the
-reliability/performance patterns (keyset pagination, retry/timeout taxonomy, decoupled scoring,
-parallel bootstrap), the **store-compliance** plan (private distribution + account-deletion + demo
-account + privacy manifest), and the **100% type-safety** hardening (type-aware ESLint, `.d.ts` emit,
-runtime-validation-at-every-boundary). Next action: clear the blockers
-(chiefly confirm the token hook is enabled; land the RESTRICTIVE RLS incl. insert-scoping; fix the
-invite-takeover path; make encrypted token/outbox storage the default; define offboarding) — then begin
-**BUILD of Phase 0**. **Security note:** the driver app hands a low-trust actor the anon key + a JWT, so
-**RLS at the database — not the API endpoints or the UI — is the authorization boundary.**
+**Current state:** Foundation (Phase 0) and Identity/Auth (Phase 1) are **built** — the Expo app, the
+ported design system + Material Symbols icon system (D40), driver-scoped RLS (`0083`/`0084`, matrix
+green), the driver invite/offboarding backend, and the full **app-side auth** (encrypted session,
+sign-in, session state machine, root routing guard, Settings + in-app account deletion) are in the
+repo. **Scope pivot (D41, 2026-07):** the driver app is a **loads / assignments + planned-navigation**
+app — *not* a fuel-capture app. The daily job is: see the loads assigned to you, accept one, navigate
+a truck-safe route (with planned-fueling stops), and upload proof-of-work photos at each stop
+(JB-Hunt-style). **Manual fuel logging is removed** from the driver app (it stays a web/manager
+surface); "fuel" survives only as **planned-fueling stops inside navigation**. The offline data spine
+(Phase 2: read cache + write/photo **outbox** + sync) is retained — it now carries load-step and
+hazmat photos instead of fuel receipts. Next action: finish Phase 2 (data spine + Home reframed around
+the current assignment), then build Phase 3 (Loads & Assignments). **Security note:** the driver app
+hands a low-trust actor the anon key + a JWT, so **RLS at the database — not the API endpoints or the
+UI — is the authorization boundary.**
 
 | Phase | Plan (doc) | Build | Verified | Next action |
 |---|---|---|---|---|
-| 0 — Foundation & Design System | ✅ authored | ◐ **~done** — spike ✅ + 16 components + gallery + tests + ESLint + CI + nav shell + **Material Symbols icon system (D40) + finished components (icons, press animation, haptics, loading)**; token linter green | ☐ device pass | Remaining: on-device verify (shell + gallery, light/dark, a11y), then close Phase 0. Deferred: IBM Plex font (D36), tsconfig.base strict flags (D28, monorepo-wide) |
-| 1 — Identity, Auth & Access Control | ✅ authored | ◐ **in progress** — RLS `0083`/`0084` (matrix 50/50) **+ API: driver-branch invites (token-enforced accept D15 + driver linking), `GET /api/me/driver`, `POST /api/me/delete-account`, shared driver contract** | ☐ | Remaining: web dashboard gate (redirect drivers), admin offboarding endpoint (D14), then **app auth** (Supabase client + sign-in + session + accept/set-password + pending/wrong-app + Settings/logout). Office invite flow preserved. Precondition T1. |
-| 2 — Offline-first Data Layer & Home | ✅ authored | ☐ not started | ☐ | After Phase 1 |
-| 3 — Fuel Capture (the daily job) | ✅ authored | ☐ not started | ☐ | After Phase 2 |
-| 4 — My Fuel Log & My Performance | ✅ authored | ☐ not started | ☐ | Optional v1; after Phase 3 |
-| 5+ — Future features (training, hazmat, fueling nav) | ⏳ not authored | ☐ | ☐ | Author each as its own section when v1 lands |
+| 0 — Foundation & Design System | ✅ authored | ◐ **~done** — spike ✅ + 16 components + gallery + tests + ESLint + CI + nav shell + Material Symbols (D40); token linter green | ☐ device pass | On-device verify (shell + gallery, light/dark, a11y) + component polish, then close. Deferred: IBM Plex font (D36), tsconfig.base strict flags (D28) |
+| 1 — Identity, Auth & Access Control | ✅ authored | ☑ **built** — RLS `0083`/`0084` (matrix 50/50); API driver-branch invites (token-enforced accept D15) + linking, `GET /api/me/driver`, `POST /api/me/delete-account`, web driver-gate + `revoke` offboarding; **app auth: Supabase client (LargeSecureStore/PKCE), apiFetch, session state machine, sign-in/pending/wrong-app, routing guard, Settings + delete-account** | ◐ device pass pending | Precondition T1 (token hook). One remaining sub-increment: PKCE accept-invite/set-password deep link. Then Phase 2 |
+| 2 — Offline-first Data Layer & Home | ✅ authored | ☐ not started | ☐ | **Reframed (D41):** Home = current assignment + nav entry + performance snapshot; outbox now carries load/hazmat photos, not fuel receipts |
+| 3 — Loads & Assignments (the daily job) | ◑ **re-scoped (D41)** | ☐ not started | ☐ | The new core: future / current / previous assignments, accept, per-stop guided photo capture (load / unload / multi-stop). Grounds on `0051_driver_assignments`, `0068_tms_integration`, `shared/tms.ts` |
+| 4 — Planned Navigation & Fueling | ◑ **re-scoped (D41)** | ☐ not started | ☐ | Consume server route (HERE) + `fuel_plans` / `smart_fueling_spine`; MapLibre display, corridor guidance, planned-fueling stop overlays. Grounds on `0059`/`0060_route_geometries`, `0074_fuel_plans`, `0058_smart_fueling_spine` |
+| 5 — Driver Performance (self-view) | ◑ authored (math built) | ☐ | ☐ | Own-row weekly score / sub-scores / rank; RESTRICTIVE self-read policy. Math in `packages/shared/src/driverPerformance/` |
+| 6 — HazmatGuard (in the load flow) | ⏳ stub | ☐ | ☐ | Guided hazmat photo capture as a step **inside** the load flow; entitlement-gated. Authored when reached |
+| 7 — Driver Safety Training (micro-LMS) | ⏳ stub | ☐ | ☐ | Video + quiz LMS. Authored when reached |
+| ~~Fuel Capture~~ | ❌ **removed (D41)** | — | — | Manual fuel logging is not a driver-app feature; it stays the web/manager surface |
 
-**Locked at kickoff:** driver login = personal email + password · styling = NativeWind (locked token
-config + token linter) · v1 = Foundation only (Phases 0–3, Phase 4 optional) · robust offline-first ·
-full-stack (app + backend). See §9 for the full decision register.
+**Locked at kickoff (amended by D41):** driver login = personal email + password · styling = NativeWind
+(locked token config + token linter) · robust offline-first · full-stack (app + backend) · **app scope
+= loads/assignments + planned navigation (+ performance, hazmat, training); manual fuel capture
+removed.** See §9 for the full decision register.
 
 ---
 
@@ -88,17 +93,18 @@ lists native mobile apps as an explicit non-goal ("the web app will be mobile-re
 The only driver surface is a mobile-responsive **web** fill-up form buried in the manager dashboard,
 and the `driver` role is `none` on every section of the web app.
 
-Drivers are the source of the two numbers the entire product is built on — **odometer** and
-**gallons** — yet they have no purpose-built tool. The Driver App turns that thin capture slice into a
-first-class, offline-first mobile experience drivers open every day, and becomes the delivery surface
-for a wave of already-planned features (training, HazmatGuard, smart-fueling navigation) that only
-make sense in the cab.
+Drivers are the field endpoint of every load the fleet runs, yet they have no purpose-built tool. The
+Driver App gives them a first-class, offline-first mobile experience they open every shift — see the
+loads assigned to them, accept one, navigate a truck-safe route with planned-fueling stops, and
+capture proof-of-work photos at each stop (JB-Hunt-style) — and becomes the delivery surface for the
+rest of the already-planned driver features (performance, HazmatGuard, safety training). Fuel is woven
+in as **planned-fueling stops on the route**, not a manual logging chore (D41).
 
 **Product principles (from `docs/00-PRODUCT-OVERVIEW.md §8`, specialized for mobile):**
 
-1. **Simple to use, serious underneath.** A driver logs a fill-up in under 30 seconds; the platform keeps an enterprise audit trail.
-2. **Glanceable over comprehensive.** Big numbers, one primary action per screen, status by color + label. Readable in 1–2 seconds at a fuel island.
-3. **Offline by default.** Drivers lose signal constantly. Core capture never blocks on the network.
+1. **Simple to use, serious underneath.** A driver accepts a load and clears a stop in a few taps; the platform keeps an enterprise audit trail.
+2. **Glanceable over comprehensive.** Big numbers, one primary action per screen, status by color + label. Readable in 1–2 seconds at a dock or fuel island.
+3. **Offline by default.** Drivers lose signal constantly. Accepting loads, navigation, and photo capture never block on the network.
 4. **Design from tokens, never from literals.** No hardcoded colors, no inline styles — enforced in CI, exactly like the web app.
 5. **Reuse the brain, rebuild only the skin.** Domain logic, validation, and rules come from `@fuelguard/shared`; only the UI is new.
 
@@ -106,36 +112,47 @@ make sense in the cab.
 
 ## §3. Scope
 
-### 3.1 v1 — Foundation (LOCKED)
+### 3.1 What the app delivers (LOCKED — D41)
 
-v1 proves the entire pipeline end-to-end — invite → install → log in → capture a fill-up offline →
-sync → see it in the manager dashboard — and lays clean seams for every later feature. It is
-deliberately **not** a feature land-grab.
+The driver app is the in-cab operations app for a fleet driver. Its deliverables, in build order:
 
-**In v1 (Phases 0–3, optionally 4):** Expo app in the monorepo (`apps/driver`) sharing
-`@fuelguard/shared`; the design system ported to RN as NativeWind tokens with CI enforcement; driver
-identity (invite via personal email + password, sign-in, secure session, "account pending", the
-`drivers.user_id` link, web-dashboard gating, driver-scoped RLS); an offline-first data layer (read
-cache + write outbox + sync) and a glanceable Home; **fuel capture** replicating the web flow with
-offline queueing; and (optional) **My Fuel Log** + **My Performance** read screens.
+1. **Foundation & identity** (Phases 0–1, **built**) — the Expo app, ported design system, driver
+   login (personal email + password), secure offline-tolerant session, driver-scoped RLS.
+2. **Offline data spine + Home** (Phase 2) — read cache + durable write/photo **outbox** + sync; a
+   glanceable Home centered on the driver's **current assignment**, with the offline/sync UX.
+3. **Loads & Assignments** (Phase 3 — the daily job) — future / current / previous assignments; accept
+   a load; then a guided, per-stop **photo capture** flow (loading, unloading, and each stop of a
+   multi-stop run), JB-Hunt-style, queued offline through the outbox.
+4. **Planned Navigation & Fueling** (Phase 4) — a truck-safe route (server-side HERE, already built)
+   rendered on-device (MapLibre) with maneuver/corridor guidance and **planned-fueling stop overlays**;
+   fuel lives here, as stops on the route, not as a manual form.
+5. **Driver Performance** (Phase 5) — the driver's own weekly score, sub-scores, and rank (scoring math
+   already built in `@fuelguard/shared`), read-only and self-scoped.
+6. **HazmatGuard** (Phase 6) — guided hazmat documentation captured as a step **inside the load flow**,
+   entitlement-gated.
+7. **Driver Safety Training** (Phase 7) — a micro-LMS (video + quiz).
 
-### 3.2 Explicitly out of v1, but designed-for (extension seams)
+Each phase ends in something runnable and demoable; later phases are authored in full only when
+reached (the incremental rule, §0).
 
-Not built in v1. v1's architecture must leave clean, documented seams so each slots in later as its
-own plan section without rework:
+### 3.2 Removed from scope (D41)
 
-| Future feature | Current state | Seam v1 must leave |
-|---|---|---|
-| **Driver Safety Training (micro-LMS)** — `docs/plans/DRIVER-TRAINING-PLAN.md` | Doc-only. *(Note: "Samsara training" = a self-built video/quiz LMS; "Samsara" is only an example course name, not an integration.)* | A "Training" tab slot; secure-storage token pattern; a media/video-player module boundary; deep-link scheme `fuelguard://`. |
-| **HazmatGuard** — `docs/18-HAZMATGUARD-PLAN.md` | Doc-only, but **API pre-frozen** ("zero new endpoints" for the native app, §H10). | A camera-capture + guided-photo module; offline photo queue keyed by client UUID; entitlement gate (`hazmatguard`); a "Hazmat" tab slot. |
-| **Smart-fueling alerts/reminders** — `docs/plans/SMART-FUELING-PLAN.md` | Solver + HERE truck routing **built** server-side; driver alerts **greenfield**. | Push-notification infra (Expo) + a notifications module; a "My Plan" read screen consuming `POST /fueling/plan`. |
-| **Fueling navigation** — same plan | Truck-safe route + turn-by-turn maneuvers **built** server-side; live in-cab nav **greenfield** (plan notes true turn-by-turn "parity is not achievable" — target corridor guidance). | A maps module boundary (MapLibre/react-native-maps) rendering a HERE polyline + fuel-stop overlays; room to graduate to an on-device nav SDK behind a dev build. |
-| **My Performance** (driver self-view) | Scoring math **built** in `packages/shared/src/driverPerformance/`. | Delivered in **Phase 4** (optional v1). |
+**Manual fuel capture is not a driver-app feature.** The earlier plan made a 30-second fuel-logging
+form the app's daily job; that is **removed**. Fuel entry stays the existing web/manager surface
+(`apps/web` FillUpForm). In the driver app, fuel appears only as **planned-fueling stops within
+navigation** (Phase 4). Consequently the former "Fuel Log" / "Log fill-up" / "My Score" fuel tab shell,
+the `POST /api/me/fillups` capture endpoint (D5), driver receipt storage (D13 — **repurposed** to
+load/hazmat photo storage), the in-motion fuel-entry lockout (D35), and the fuel-write rate limits
+(D32) are **superseded** — see the D41 note in §9. The infrastructure they informed (encrypted outbox,
+client-UUID idempotency, offline photo staging, driver-scoped Storage) is **retained and repurposed**
+for load-step and hazmat photos.
 
 ### 3.3 Non-goals (v1)
 
-Live in-cab turn-by-turn voice navigation; the training video player; hazmat capture; real push
-delivery; multi-language. All are later phases.
+Live in-cab turn-by-turn *voice* navigation (target is corridor/maneuver guidance — §8); the training
+video player and hazmat capture until their phases; real push delivery; multi-language.
+
+
 
 ---
 
@@ -302,7 +319,10 @@ Aligned to the existing HERE investment and Expo constraints:
    SDK Navigate Edition** native bridge behind an Expo **config plugin / dev client**. Consequence for
    v1: **use Expo dev builds from day one** (nav SDKs and several native modules don't run in Expo Go).
 
-v1 builds none of the map UI — it only reserves the module boundary and adopts the dev-build workflow.
+Navigation is now a **core phase (Phase 4, D41)** — but it *consumes* the already-built server-side
+route/plan and only **displays** it (polyline + maneuvers + planned-fueling overlays); the heavy
+routing stays on HERE. Adopt the **dev-build workflow from day one** (nav SDKs and several native
+modules don't run in Expo Go).
 
 ---
 
@@ -326,7 +346,7 @@ v1 builds none of the map UI — it only reserves the module boundary and adopts
 | **D14** | **Offboarding is an explicit atomic action:** deactivate/delete membership **+** `auth.admin.signOut(userId,'global')` **+** `drivers.status='inactive'`; add `on delete set null` to `drivers.user_id`; **lower driver `jwt_expiry`** (~15–30 min) + session timebox | Today `drivers.status` is inert and membership-delete doesn't revoke live tokens → a fired driver keeps access until token expiry; the new FK also blocks `deleteUser` (§21 SB3) |
 | **D15** | **Prove email ownership for driver invites:** enforce the (currently unused) invite **token** in `POST /invites/accept` (bind acceptance to a server-verified secret), and/or require email confirmation for the driver flow | Domain relaxation + `enable_confirmations=false` + accept-by-email = an attacker who knows a driver's personal email could self-register and accept the invite first (§21 SB6) |
 | **D16** | **Supabase auth-hardening config gates (pre-launch):** leaked-password protection (HIBP) on, `minimum_password_length ≥ 10` + complexity, captcha on sign-in/sign-up, app-level lockout after N fails; confirm production **MFA is actually enabled** for platform admins | Personal-email drivers → weaker passwords; current config is min-length 6, no HIBP, per-IP-only limits, captcha off (§21 SB adjacent) |
-| **D17** | **Navigation = bottom tab bar + elevated center capture.** Tabs: **Home · Fuel Log · (center) Log Fill-Up · My Score · More**; capture is a full-screen **modal route** over the shell (one thumb-tap from anywhere). Future features (Training, HazmatGuard, Fueling/Nav) live under **More** until daily-use. expo-router route groups `(auth)`/`(onboarding)`/`(app)`/modals | The plan reserved "tab slots" but never defined the shell — a redesign risk. Mirrors Dasher/Samsara/Motive; leaves clean room for the roadmap without re-teaching the bar (§22.1) |
+| **D17** | **Navigation = bottom tab bar; center action opens the current load.** Tabs (retargeted by D41): **Home · Loads · (center) Navigate · My Score · More**; the per-stop photo capture + hazmat flows are full-screen **modal routes** over the shell. Training lives under **More**; HazmatGuard lives **inside the load flow**. expo-router route groups `(auth)`/`(app)`/modals | The plan reserved "tab slots" but never defined the shell; D41 retargets it from a fuel-capture bar to a loads/navigation bar. Mirrors Dasher/Samsara/Motive (§22.1). *(The Phase-0 shell still shows the old Fuel Log/Log tabs — retargeted in Phase 2–3.)* |
 | **D18** | **Modern UX library stack** (pins in §22.2): Reanimated 4 + worklets, gesture-handler, **FlashList v2**, @gorhom/bottom-sheet v5 (or Expo UI native sheet), **react-hook-form + zod resolver**, **react-native-keyboard-controller**, expo-haptics, **lucide-react-native** (+ expo-symbols on iOS), one bundled **variable typeface** via expo-font, **style-dictionary** token pipeline; Skia only for a gauge/sparkline | Native-thread motion, buttery lists, sticky-keyboard fast entry, and a real identity — the difference between "web app in a shell" and premium (§22.2) |
 | **D19** | **Warning ladder is tokenized, never a native `Alert`.** Inline field caution → summary banner → blocking **confirm sheet** (danger) for over-capacity; every warning pairs **icon + label** (never color alone) | Native `Alert` breaks the design system; color-only warnings fail accessibility + sunlight (§22.4) |
 | **D20** | **Motion + haptics tokens.** 120–200ms ease-out; springs only for physical drag; haptic map (Success on save, Warning on over-capacity confirm, Selection tick on pickers, Light impact on primary CTA). **Visual feedback is always primary; haptics enhance** (silent in iOS Low-Power/off); honor reduce-motion | Undefined motion is where an app drifts generic/janky; haptics can't be the only signal (§22.4) |
@@ -348,9 +368,10 @@ v1 builds none of the map UI — it only reserves the module boundary and adopts
 | **D36** | **Typeface = IBM Plex Sans (UI) + IBM Plex Mono (numeric readouts)**, SIL OFL 1.1, variable, genuine **tabular figures** — bundled via `expo-font`. Fallback: Archivo (OFL, grotesque, tabular) | Industrial/engineered identity (not generic Inter/Roboto), license-clean to bundle, tabular numerals for jitter-free fuel/odometer columns (§24, resolves O16, satisfies D23) |
 | **D37** | **Map tiles/styles = MapTiler Cloud** (vector tiles + hosted styles + MapLibre offline packs) for the Phase-5 nav feature; fallback/cost-optimization: self-hosted **Protomaps PMTiles** (a single `.pmtiles` on object storage = an offline pack, no per-tile fees, no lock-in) | Managed, predictable per-MAU pricing for a bounded driver roster, offline support, OpenMapTiles schema → self-host escape hatch is real (§24, resolves O10) |
 | **D38** | **Numeric entry = native `decimal-pad`** in v1 (accessible, fast, familiar) with the large-value display + sticky submit; a custom glove keypad is deferred unless post-launch field data shows a need | Removes the build-time keypad question; native pad is the accessible default (§24, resolves O15) |
-| **D39** | **v1 = Phases 0–3** (foundation → identity → offline+home → fuel capture). **Phase 4 (My Fuel Log + My Score) = v1.1**, the first post-launch increment | Ships the proven pipeline first; the read screens are cheap and follow once capture is validated (§24, resolves O6) |
+| **D39** | **v1 build order (retargeted by D41):** Phases 0–1 (foundation + identity, **built**) → Phase 2 (offline spine + Home) → Phase 3 (**Loads & Assignments** — the daily job) → Phase 4 (**Planned Navigation & Fueling**). Phases 5 (Performance), 6 (Hazmat), 7 (Training) follow | Ships identity + the loads spine first, then navigation; performance/hazmat/training layer on. Supersedes the former fuel-capture-first order (§24 O6) |
 | **D40** | **Icon system = Material Symbols** (default **Rounded**, **Outlined** available, **fill** variants), baked at **weight 200 / grade 200 / opsz 24** as subset static font instances (~92KB for all 4), rendered via `<Icon name … variant fill className>` with a generated codepoint map + a `gen-material-symbols.py` regen script. Supersedes the earlier lucide mention (D18/D23) | User spec; RN can't set grade/fill axes at runtime, so instancing is the only precise way. Self-hosted, no runtime dep, token-colored |
-| — | v1 = **Foundation only** (Phases 0–3; Phase 4 = v1.1) | Prove the pipeline end-to-end before feature breadth |
+| **D41** | **Scope pivot — the driver app is a loads/assignments + planned-navigation app, not a fuel-capture app.** Deliverables: (0–1) foundation + identity ✅, (2) offline spine + Home, (3) **Loads & Assignments** — see/accept loads + per-stop proof-of-work photos (JB-Hunt-style), (4) **Planned Navigation & Fueling** (route + planned-fueling stops, display-only over HERE), (5) Driver Performance self-view, (6) HazmatGuard **inside the load flow**, (7) Safety Training. **Manual fuel capture is removed** (stays a web/manager surface); fuel = planned-fueling stops in navigation. **Supersedes/repurposes:** D5 (fuel-capture endpoint), D32 (fuel-write rate limits), D35 (in-motion fuel-entry lockout) are **retired as fuel-specific**; D13 (receipt storage) is **repurposed** to driver-scoped load/hazmat photo storage; D17 (tab shell) + D39 (build order) **retargeted** to loads/nav; the Phase-2 outbox + client-UUID idempotency + EXIF-stripped photo staging are **kept and reused** | User direction (2026-07): the daily driver job is running loads, not logging fuel (which already exists on the web). Building around loads/navigation matches how drivers actually work (JB Hunt / Samsara / Motive) and uses the already-built assignment/route/fuel-plan backend (`0051`, `0059`/`0060`, `0074`, `0058`, `0068`, `tms.ts`, `smartFueling/`) |
+| — | v1 build order set by **D41** (foundation → identity → offline+Home → **loads** → **navigation**; performance/hazmat/training follow) | Prove identity + the loads spine before feature breadth |
 | — | Delivery = **one living plan doc**, built one phase per session, each phase demoable | Matches team conventions; resumable across chats |
 
 **Version pins (verified 2026 — supersede any earlier "SDK 54/RN 0.76"):** Expo **SDK 57** (RN 0.86,
@@ -365,7 +386,7 @@ expo-sqlite (SDK-bundled). Full rationale in §20.3.
 
 ## §10. Operational pre-build checklist (tasks, not decisions)
 
-**Every design/architecture/security/UX/compliance choice is now a LOCKED decision (D1–D40).** What
+**Every design/architecture/security/UX/compliance choice is now a LOCKED decision (D1–D41).** What
 remains here are purely *operational tasks* — things to configure, seed, host, or verify. None require
 research or a judgment call at build time. (The former "open items" O1–O20 were all resolved into
 decisions in Round 5 — see §24 for the mapping.)
@@ -745,12 +766,21 @@ permanent failures route to a small "Needs attention" list.
 
 ### 13.5 Home screen
 
-Glanceable, thumb-zone, one primary action: header (driver name from `['me','driver']`, sync/offline
-indicators); **assigned vehicle card** (unit + make/model, current odometer, tank capacity, fuel type
-as big legible values); large (≥56pt) **"Log fill-up"** CTA in the bottom thumb zone (placeholder in
-Phase 2; Phase 3 wires it); **recent activity** (last few fills from cache — date, gallons, odometer,
-MPG/status via `@fuelguard/shared` `fuelTxnStatus`); cached-first empty/loading/error states (offline
-is normal, not an error). Token-only.
+Glanceable, thumb-zone, one primary action — reframed by **D41** around the driver's **current load**,
+not fuel:
+
+- **Header:** greeting + driver name (from `['me','driver']`), org, sync/offline indicators.
+- **Current assignment card:** the active load (origin→destination, next stop + appointment window,
+  status) with a primary **Continue / Navigate** action; if none is active, the next **Upcoming** load
+  with an **Accept** affordance. (Phase 2 renders it from cached `['me','loads']`; Phase 3 wires the
+  actions.)
+- **Assigned vehicle line:** unit + odometer as compact context for the load.
+- **Performance snapshot:** the driver's latest weekly score as a `StatTile` (Phase 5 fills it; a
+  placeholder until then).
+- **Sync state:** offline banner + a pending photo/action count.
+- **States:** cached-first; skeletons only when nothing is cached; offline is normal, not an error.
+
+Everything token-styled; no color literals (token-lint enforced).
 
 ### 13.6 File & work breakdown
 
@@ -780,217 +810,186 @@ read cache only; WatermelonDB deferred (D4).
 
 ---
 
-## §14. Phase 3 — Fuel Capture (the daily job)
+## §14. Phase 3 — Loads & Assignments (the daily job)
 
-> Let a driver log a fill-up in under 30 seconds, offline, with the same validation and anti-theft
-> warnings the web uses — then queue → sync → score through the Phase-2 outbox.
-> Depends on: Phase 2 (outbox) + Phase 1 (identity/RLS) · Blocks: Phase 4
+> The reason the app exists (D41): a driver sees the loads assigned to them, **accepts** one, and works
+> it stop-by-stop — capturing the required **proof-of-work photos** at each pickup, drop, and
+> intermediate stop — all queued offline through the Phase-2 outbox. Modeled on the JB-Hunt driver flow.
+> Depends on: Phase 2 (outbox/photo staging) + Phase 1 (identity/RLS) · Blocks: Phase 4 (navigation
+> launches from an active load)
 
 ### 14.1 Goal & demoable outcome
 
-In airplane mode, a driver taps **Log fill-up**, picks their vehicle, enters odometer + gallons + cost
-(seeing live `$/gal` + warnings), snaps a receipt, submits. It appears instantly (optimistic), sits in
-the outbox as `pending`, and on reconnect uploads the receipt, inserts the `fuel_transactions` row, and
-is **scored server-side**, showing in the manager dashboard like a web-entered fill. Over-capacity
-fills trigger a hard confirm and are flagged for review, identical to web.
+A driver opens **Loads** and sees three groups — **Upcoming**, **Current**, **Previous**. They tap an
+upcoming load, review its details (stops, appointment windows, equipment, commodity, any hazmat flag),
+and **Accept** it — it moves to Current. Working the load, at each stop they follow a **guided photo
+step** (e.g. "Loaded — photo of the sealed trailer", "Delivered — photo of the BOL"), snap the
+required shots, and mark the stop complete. Everything works **offline**: an accept or a stop-photo set
+is captured locally, shows as `pending`, and syncs when signal returns. On the manager side the
+assignment status + photos appear exactly as if entered on the web.
 
-### 14.2 Fidelity principle
+### 14.2 Grounding in existing code (reuse the brain)
 
-This flow exists on the web (`apps/web/src/features/fuel/FillUpForm.vue` + `useFuelLog.ts`) and its
-rules live in `@fuelguard/shared`. **Reuse the brain, rebuild the skin** — same Zod schema, warning
-function, derivation, idempotency — so a mobile and a web fill-up are byte-equivalent domain objects.
+This is **not** greenfield data — the fleet already models assignments and loads server-side:
 
-### 14.3 The form (full screen, thumb-zone, numeric keyboards)
+- **`0051_driver_assignments.sql`** — driver↔vehicle/route assignment records.
+- **`0068_tms_integration.sql`** + **`packages/shared/src/tms.ts`** — the TMS load/stop model (orders,
+  stops, appointment windows, commodity, equipment) the dispatch side already consumes.
+- Web surfaces: `apps/web/src/features/jobs/**` and the dispatch pages render this for managers today.
 
-| Field | Control | Default / behavior | Source |
-|---|---|---|---|
-| Vehicle | large picker | driver's assigned vehicle (from cache); if one, pre-selected as a card | Phase-2 cache |
-| Date/time | native picker | now (local) → ISO on submit | — |
-| Odometer | decimal keypad | optional; drives odometer warnings | — |
-| Gallons | decimal keypad | **required, > 0** | `fillUpInputSchema` |
-| Total cost | decimal keypad | optional; drives live **`≈ $/gal`** via `derivePricePerGal` | `@fuelguard/shared` |
-| Location | text | optional station/city | — |
-| Payment method | picker | `PAYMENT_METHODS` (cash, efs_check, personal_card, fleet_card, fuel_voucher, other) | `@fuelguard/shared` |
-| Receipt photo | camera/library | optional; single image | §14.4 |
+Phase 3 **reuses those types and Zod schemas** from `@fuelguard/shared` (extending `tms.ts` /
+`apiContract.ts` with the driver-facing subset) and rebuilds only the in-cab UI — the same
+reuse-the-brain rule the whole plan follows. *(A short discovery task at the start of this phase reads
+`0051`/`0068` + `tms.ts` + the web jobs feature and records the exact table/column/status model here
+before any UI is written — no assumptions, per §0.)*
 
-**`driver_id` is not a field** — it is the logged-in driver (`auth_driver_id()`), server-resolved.
-**Validation:** `fillUpInputSchema.safeParse` from `packages/shared/src/fuel.ts` — the same schema web
-and API use → offline validation with server parity.
+### 14.3 Screens & flow
 
-### 14.4 Live warnings (anti-theft, reused)
+| Screen | Content |
+|---|---|
+| **Loads list** (`app/(app)/loads/index.tsx`) | Segmented **Upcoming · Current · Previous**; each row a `LoadCard` — origin→destination, next appointment, stop count, equipment, hazmat badge, status. FlashList v2 (§22). |
+| **Load detail** (`loads/[id].tsx`) | Full itinerary: ordered **stops** with type (pickup/drop), address, appointment window, and per-stop **required photo checklist**; commodity + equipment; **Accept** CTA (upcoming) or a stop **progress tracker** (current). |
+| **Stop capture** (`loads/[id]/stop/[stopId].tsx`) | The guided per-stop flow: the required photo set (e.g. trailer, seal, BOL, damage), each a labeled slot; capture → review → mark stop complete. |
 
-Via `computeFillUpWarnings({ gallons, odometer, tankCapacityGal, lastOdometer, fuelType })` from
-`@fuelguard/shared` — a **flat args object**, not `(input, vehicle)` (§20 F3); the RN form assembles it
-from the selected vehicle's `tank_capacity_gal`/`current_odometer`/`fuel_type`, exactly as
-`FillUpForm.vue` does. Reactively as the driver types: **odometerMissing** (amber), **odometerBelowLast**
-(red, vs `current_odometer`), **exceedsCapacity** (red, vs `tank_capacity_gal`). **Over-capacity hard-confirm:** on submit, if
-`exceedsCapacity`, block with a **tokenized confirm sheet** (D19/§22.4 — *not* a native `Alert.alert`,
-which breaks the design system) → "…flagged for review. Submit anyway?"; cancel aborts, confirm proceeds
-(row naturally flagged downstream) with a `Warning` haptic. Preserve this anti-theft gate. All three
-warnings are **icon + label**, never color-only (accessibility + sunlight).
+Multi-stop runs are the ordered `stops` array; the tracker advances stop-by-stop and never lets a
+driver skip a required photo without an explicit "not available" reason (kept, not blocked — never a
+dead-end, mirroring D21's spirit).
 
-### 14.5 Receipt capture (RN rewrite of the web WebP path)
+### 14.4 Accept & stop-photo capture → outbox → sync
 
-Web's `createImageBitmap`+`<canvas>` is DOM-only. Rebuild: capture with `expo-image-picker`/
-`expo-camera` (rear camera); resize/compress with `expo-image-manipulator` **≥12.0.1** (WebP on both platforms; new `manipulate().renderAsync().saveAsync()`
-API — `manipulateAsync` is deprecated; longest edge ~1600px, ≤~200KB — matching web
-`maxDim=1600 / maxBytes=200_000`). **Re-encoding also strips EXIF** — required so receipt photos don't
-leak the driver's home GPS (D12/§21). **Stage** the processed file in the app sandbox and record its URI
-on the outbox record; upload happens in the sync handler (offline photo never lost) and the staged file
-is **deleted on successful sync** (min dwell).
-**Storage security (D13 — corrects §20 F4):** existing `receipts` RLS is only *org*-scoped with
-`upsert:true`, so a driver could read/overwrite/delete **others'** receipts and upload oversized/malicious
-files. A **driver-scoped storage migration IS required** — path `${orgId}/${driverId}/${id}.webp`, per-op
-policies enforcing `split_part(name,'/',2)=auth_driver_id()`, bucket `file_size_limit` (~5MB) +
-`allowed_mime_types` (`image/webp,image/jpeg,image/png`), **no `upsert` for drivers**. Reads via
-short-lived **`createSignedUrl`** (none exists in web — add it).
+Reuses the Phase-2 machinery unchanged (the point of building it generically):
 
-### 14.6 Submit → outbox → sync → score
+1. **Accept** enqueues `{ kind: 'load_accept', id, payload:{ assignment_id } }` and optimistically moves
+   the load to Current.
+2. **Stop completion** stages each photo (rear camera → `expo-image-manipulator` resize/compress, **EXIF
+   stripped** — D12) to the app sandbox and enqueues
+   `{ kind: 'load_stop_photos', id, payload:{ assignment_id, stop_id, checklist }, file_uris:[…] }`.
+3. The sync handler uploads the staged photos to driver-scoped Storage, then calls the driver-scoped
+   endpoint to record the stop status + photo paths; on success it invalidates the load queries and
+   deletes the staged files. Idempotent on the client `id` (client-UUID PK), so retries never
+   double-post. Offline photos are never lost (staged before confirmation, deleted only after sync).
 
-Capture builds the `FillUpInput` (client UUID `id` generated once on mount via `expo-crypto`, the row
-PK **and** receipt path prefix), validates, enqueues `{kind:'fuel_fillup', id, payload, file_uris}` +
-optimistically inserts into `['fuel_transactions','mine']`, closes → toast "Fill-up saved" (works
-offline; no "sent" language until synced).
+### 14.5 Backend additions (additive)
 
-**Sync handler (registered for `kind:'fuel_fillup'`):** per **D5**, uploads staged receipt(s) to the
-`receipts` bucket (client-direct, RLS-scoped), then calls **`POST /api/me/fillups`** (new,
-`requireRole('driver')`) with the validated row + `receipt_path`. The server verifies the driver is
-assigned the vehicle, inserts `fuel_transactions` (`source:'manual'`, `entered_by`, derived
-`price_per_gal`, `driver_id = auth_driver_id()`), and runs `scoreWithCascade` server-side. Idempotent
-upsert on the client `id`. Why a server endpoint: the existing `POST /api/transactions/:id/score` is
-manager-only (403s for drivers), so client-side scoring is impossible; the endpoint keeps scoring
-server-authoritative and centralizes side effects (API-first invariant).
+| Change | Where |
+|---|---|
+| Driver-facing load/stop **read** (caller's assignments + stops, RLS-scoped to `auth_driver_id()`) | `GET /api/me/loads` (or direct PostgREST under a driver `select` policy), shape in `packages/shared` |
+| **Accept** an assignment (state transition, audited) | `POST /api/me/loads/:id/accept` (`requireRole('driver')`, verifies the load is assigned to the caller) |
+| **Record a stop's** status + photo paths (server-derived identity, audited) | `POST /api/me/loads/:id/stops/:stopId` — narrow Zod input, never spread the client body |
+| **RLS** on the assignment/stop tables scoped to the driver; **driver-scoped Storage** for load photos (`${orgId}/${driverId}/${assignmentId}/…`, size/mime limits, no `upsert`) — the D13 pattern, repurposed from receipts | new migration(s) from the next free number; every policy added to `rls.test.mjs` with allow + raw-PostgREST **deny** cases (D10) |
 
-### 14.7 Backend additions (additive)
+No manager/web behavior changes; managers keep their existing assignment surfaces.
 
-`POST /api/me/fillups` (`apps/api/src/routes/meFillups.ts`) — **narrow** Zod input (gallons/odometer/
-cost/location/payment/vehicle_id/receipt_path/client-id only); **server-derive `org_id`, `driver_id`
-(=`auth_driver_id()`), `entered_by`, `source='manual'`** — never spread the client body (mass-assignment,
-§21 SB1); verify `vehicle.assigned_driver_id = auth_driver_id()`; insert → `scoreWithCascade` (reuse
-`services/scoring/*`; **driver-triggered scoring runs the full cascade but SUPPRESSES the immediate
-manager notification email** (anomalies still surface in the dashboard + digest — a driver's own fills
-can't become manager email spam) — §20 F7); **`writeAudit` on insert** (actor = `sub`); **rate-limit
-keyed by JWT `sub`: 12/min (burst 5), 30/hr, + a 20-fills/driver/day business cap** (D32). **Storage migration `0085_driver_receipt_storage` IS required** (driver-scoped
-path + size/mime limits — D13, corrects §20 F4). The DB RESTRICTIVE insert policy (Phase 1) is the real
-guard; the endpoint is convenience — a driver could otherwise POST to PostgREST directly.
+### 14.6 Exit criteria
 
-### 14.8 File & work breakdown
+- ☐ Driver sees Upcoming / Current / Previous loads (own only — RLS allow + deny in the matrix).
+- ☐ Accepting a load offline moves it to Current optimistically and syncs on reconnect (idempotent).
+- ☐ A stop's required photos capture offline, survive relaunch, upload on sync, and appear on the manager side.
+- ☐ Multi-stop run advances stop-by-stop; a missing required photo needs an explicit reason (never a dead-end).
+- ☐ Photos are EXIF-stripped and land under the driver-scoped Storage path (deny test proves isolation).
+- ☐ Screens token-only (lint:tokens green), ≥48pt targets, Dynamic-Type safe, light + dark.
+- ☐ `pnpm -r typecheck && lint && test` green; new migrations in the RLS/storage matrix; API tests for the endpoints.
+- ☐ Doc updated with the discovered load/stop model + a verification tally (offline→online on iOS + Android; a load visible on the manager side).
 
-Screen `app/(app)/fillup.tsx`, `src/features/fuel/FillUpScreen.tsx`; pieces
-`{VehiclePicker,ReceiptCapture,WarningList,PriceHint}.tsx`; logic `useCaptureFillUp.ts`; receipt
-`receipt.ts`; sync handler `src/data/handlers/fuelFillup.ts`; shared imports (`fillUpInputSchema`,
-`computeFillUpWarnings`, `derivePricePerGal`, `PAYMENT_METHODS`, `FuelTransaction`); API
-`meFillups.ts` + schema; migration `0085` + matrix; tests (schema-parity fixture, warning cases,
-over-capacity gate, idempotent replay, handler upload→post sequence).
+### 14.7 Risks & mitigations
 
-### 14.9 Exit criteria
-
-- ☐ Driver logs a complete fill-up **offline**; it appears in recent fills immediately.
-- ☐ Live `$/gal` and all three warnings match web outputs for the same inputs (shared-fixture test).
-- ☐ Over-capacity submit triggers the hard-confirm; confirmed fills flagged downstream.
-- ☐ On reconnect: receipt uploads, `POST /api/me/fillups` inserts + scores, row appears in the dashboard with a score.
-- ☐ Retried sync creates no duplicate (idempotency test).
-- ☐ Offline-captured receipt never lost (staged file survives relaunch, uploads on sync), **EXIF stripped**, staged file **deleted after sync**.
-- ☐ **Security (§21):** a driver **cannot** read/overwrite/delete another driver's receipt (driver-scoped storage policy deny test); receipt upload rejects oversized/disallowed mime; `/api/me/fillups` uses narrow input + server-derived identity + per-`sub` rate limit + audit; the outbox DB is SQLCipher-encrypted.
-- ☐ Screen token-only, ≥48pt targets, decimal keypads, Dynamic-Type safe, light + dark.
-- ☐ `pnpm -r typecheck && lint && test` green; migration in the storage/RLS matrix; API tests for the endpoint.
-- ☐ Doc updated: storage-policy outcome + verification tally (offline→online on iOS + Android, fill visible in the web dashboard).
-
-### 14.10 Risks & mitigations
-
-Scoring silently skipped (web's 403 trap) → driver-scoped endpoint scores server-side (D5; tested).
-Lost receipts offline → staged before confirmation, deleted only after confirmed upload. Domain drift →
-same shared schema/warnings (fixture test). Duplicate fills → client-UUID PK + upsert (tested). Wrong
-attribution → server-resolved `driver_id` + assignment check + RLS.
+Assumed load model → the §14.2 discovery task pins the real schema before UI. Lost photos offline →
+staged before confirmation, deleted only after sync (D12). Cross-driver leakage → RLS + driver-scoped
+Storage with deny tests (D10/D13). Duplicate posts on flaky networks → client-UUID PK + idempotent
+handlers. Scope creep (full dispatch UX) → v1 is see → accept → per-stop photos; planning/optimization
+stays manager-side.
 
 ---
 
-## §15. Phase 4 — My Fuel Log & My Performance (optional v1)
+## §15. Phase 4 — Planned Navigation & Fueling
 
-> The driver's read surfaces: their own fill history (MPG/status) and their weekly performance
-> score/rank. Cheap, because the derivations and scoring math already live in `@fuelguard/shared`.
-> Depends on: Phase 3 · Blocks: nothing (v1 tail)
+> Turn an accepted load into an in-cab **route**: a truck-safe path (already computed server-side on
+> HERE) rendered on-device with maneuver/corridor guidance and **planned-fueling stops** overlaid. This
+> is where "fuel" lives in the driver app (D41) — as stops on the route, never a manual form.
+> Depends on: Phase 3 (a load to navigate) · Blocks: nothing (feature tail of core)
 
 ### 15.1 Goal & demoable outcome
 
-A driver opens **My Fuel Log** and sees their own fills (date, gallons, odometer, computed MPG,
-`$/gal`, status) with simple filters, paginated, working offline from cache. They open **My
-Performance** and see their latest weekly score, its sub-scores (safety / efficiency / idling), their
-rank, and a plain-language coaching line — all read-only, scoped to themselves.
+From a Current load, the driver taps **Navigate**. The app shows a branded map with the truck-safe
+route polyline, the ordered stops, and the **recommended fuel stops** (station, price, gallons to buy)
+from the fleet's fueling plan. As they drive, a maneuver/corridor card advances; arriving at a fuel or
+delivery stop ties back into the Phase-3 stop flow. No manual routing math on-device.
 
-### 15.2 My Fuel Log
+### 15.2 Grounding in existing code (reuse the brain)
 
-- **Data:** `['fuel_transactions','mine', filters, cursor]` — Supabase `fuel_transactions` under the
-  Phase-1 driver `select` policy (own rows only), served from cache offline. **Use true keyset
-  pagination** (seek on `(fueled_at desc, id desc)`, `LIMIT n+1`, **no `count:'exact'`**) — note the web
-  Fuel Log actually uses *offset* `.range()` + exact count (§23.2 F3); the driver app does it right since
-  it's a fresh build. `keepPreviousData`/placeholder for smooth paging on **FlashList v2** (§22).
-- **Row content & derivations reused from `@fuelguard/shared`:** computed **MPG** (from consecutive
-  odometer readings), **`$/gal`** (`derivePricePerGal`), and **status** (`fuelTxnStatus` →
-  Alert/Review/Verified/Clear) rendered with the `Badge` `txnStatusTone` mapping. No new domain logic.
-- **Filters:** vehicle (their assigned set), date range — mirroring the web's filter components,
-  rebuilt as RN `SearchInput`/`DateRangeFilter` equivalents. Tap a fill → a read-only detail
-  (fields + receipt thumbnail from the `receipts` bucket + why it's flagged, if flagged).
-- **Empty/loading/error:** cached-first; a friendly empty state for a new driver.
+The heavy lifting is **already built server-side** — Phase 4 consumes it:
 
-### 15.3 My Performance (driver self-view)
+- **`0059_route_geometries.sql`** + **`0060_route_geometry_steps.sql`** — stored route geometry +
+  turn-by-turn steps (HERE truck profile: axle/weight/hazmat class/tunnel category).
+- **`0074_fuel_plans.sql`**, **`0058_smart_fueling_spine.sql`**, **`0028_fueling_event.sql`** — the
+  smart-fueling plan (which stations, how many gallons, price-optimized) and fueling events.
+- **`packages/shared/src/smartFueling/`** — the `planFuelStops` solver + `RouteFuelSettings` + alert
+  thresholds; `apps/web/src/features/fueling/**` renders it for managers today.
+- Maps approach is **§8** (LOCKED): routing stays on HERE; the app only **displays** the polyline +
+  maneuvers + fuel-stop overlays with MapLibre; corridor guidance, not full voice turn-by-turn, in v1.
 
-The math is already built (`packages/shared/src/driverPerformance/`: `combineWeek`, `rankTrailing`,
-types) and used by the manager-facing web pages — it's **manager-only today**, so this phase adds a
-**driver self-read** (own row only), not new math.
+*(A discovery task at the start of this phase reads the route/fuel-plan tables + `smartFueling` + the
+web fueling feature and records the exact request/response shape here before UI.)*
 
-- **Backend — `0085_driver_perf_self_read.sql`:** `driver_performance_weeks` is currently
-  **member-readable** (`dpw_select` grants any org member — so a driver can already read the whole
-  leaderboard, §20). Add a **RESTRICTIVE** policy `USING (auth_role() <> 'driver' OR driver_id =
-  auth_driver_id())` so drivers see only their own week while managers are unaffected. Optionally a thin
-  **`GET /api/me/performance`** returning the driver's latest settled week + trailing rank. **Register in
-  `rls.test.mjs`** with allow **and** deny cases (a driver cannot read another driver's week).
-- **App — `src/features/performance/`:** a "My Score" screen showing `weekFinal` and the trailing
-  `trailingFinal`/`rank`, the normalized sub-scores (safety 0.50 / efficiency 0.25 / idling 0.25 — the
-  weights from `DEFAULT_PERFORMANCE_SETTINGS`), eligibility/coverage note when a week is ineligible
-  (exposure gates), and a plain-language coaching line derived from the weakest component. Rendered with
-  `StatTile`/`Card`/`Badge` primitives; big glanceable numerals; token-only.
-- **Placement:** a "My Score" entry on Home + its own screen. Reserve, but do **not** build, the future
-  join to training-completion % (a coaching signal per `docs/16-DRIVER-PERFORMANCE.md`).
+### 15.3 Scope
 
-### 15.4 File & work breakdown
+Display + guidance only: fetch the plan/route for a load, render it (MapLibre + MapTiler tiles, D37),
+show maneuver/corridor cards and fuel-stop overlays, and hand off to the Phase-3 stop flow on arrival.
+**Out of v1:** live voice turn-by-turn (graduates later to a HERE Navigate SDK bridge — §8), offline map
+packs beyond the route corridor, re-routing math on-device.
 
-App: `src/features/fuel/MyFuelLogScreen.tsx` + `useMyFills.ts` (pagination/filter), a read-only
-`FillDetail`; `src/features/performance/MyPerformanceScreen.tsx` + `useMyPerformance.ts`. Shared:
-import `driverPerformance` types + `combineWeek`/`rankTrailing` (display only), `fuelTxnStatus`/MPG
-derivations, `Badge` tone maps. Backend: `0085_driver_perf_self_read.sql` (RESTRICTIVE) + matrix;
-optional `apps/api/src/routes/mePerformance.ts` + Zod shape in `packages/shared`. Display the
-server-written `computed_mpg` (per-fill MPG is server-derived — §20 O9), not a client recompute.
+### 15.4 Exit criteria (high-level; detailed when reached)
 
-### 15.5 Exit criteria
+- ☐ A Current load renders its truck-safe route + stops + planned-fueling overlays on-device.
+- ☐ Maneuver/corridor guidance advances along the route; arrival ties into the Phase-3 stop flow.
+- ☐ Map UI is token-styled; tiles/keys provisioned (T8); dev-build native modules verified (T7).
+- ☐ Doc updated with the consumed route/fuel-plan contract + a verification tally.
 
-- ☐ Driver sees a paginated, filterable list of **only their own** fills with correct MPG/`$/gal`/status (matching web derivations — fixture test); works offline from cache.
-- ☐ Fill detail shows fields + receipt + flag reason (if any).
-- ☐ Driver sees their latest weekly score, sub-scores, and rank; **cannot** read another driver's performance (RLS deny-case in the matrix).
-- ☐ Coaching line renders from the weakest component; ineligible weeks explained.
-- ☐ Screens token-only, ≥48pt targets, Dynamic-Type safe, light + dark.
-- ☐ `pnpm -r typecheck && lint && test` green; `0086` in the RLS matrix (X/X).
-- ☐ Doc updated: whether My Performance shipped in v1 or deferred (O6) + verification tally.
+---
 
-### 15.6 Risks & mitigations
+## §15A. Later phases (authored in full when reached)
 
-Performance data leaking across drivers → RLS own-row policy with an explicit deny-case (matrix).
-Derivation drift vs web → same `@fuelguard/shared` functions (fixture test). Scope creep (leaderboards,
-comparisons) → v1 shows the driver **their own** numbers only; fleet leaderboards stay manager-side.
-MPG needs consecutive odometers → reuse the web's derivation exactly; handle gaps gracefully ("—").
+Per the incremental rule (§0), these are scoped now and specified in detail at build time.
+
+### Phase 5 — Driver Performance (self-view)
+
+The scoring math is **already built** (`packages/shared/src/driverPerformance/`: `combineWeek`,
+`rankTrailing`) and used by the manager web pages — so this phase adds a **driver self-read**, not new
+math. A "My Performance" screen shows the driver's latest weekly score, its sub-scores (safety /
+efficiency / idling), and trailing rank, read-only and self-scoped, with a plain-language coaching line
+from the weakest component. **Backend:** a **RESTRICTIVE** self-read policy on `driver_performance_weeks`
+(`USING (auth_role() <> 'driver' OR driver_id = auth_driver_id())`) so a driver reads only their own
+week (today `dpw_select` lets any org member read the whole leaderboard); allow + deny cases in
+`rls.test.mjs`. Optional thin `GET /api/me/performance`.
+
+### Phase 6 — HazmatGuard (inside the load flow)
+
+Guided hazmat **documentation captured as a step within the Phase-3 load flow** when a load carries a
+hazmat commodity — the required placard / shipping-paper / securement photos, entitlement-gated
+(`hazmatguard`). Reuses the same outbox + driver-scoped photo Storage as load-step capture; no new
+capture engine. Grounds on `docs/18-HAZMATGUARD-PLAN.md` (API pre-frozen — "zero new endpoints").
+
+### Phase 7 — Driver Safety Training (micro-LMS)
+
+A video + quiz micro-LMS (`docs/plans/DRIVER-TRAINING-PLAN.md`): a "Training" surface with assigned
+courses, a media/video-player module boundary, quiz capture, and completion tracking (which can later
+feed the performance coaching signal). Self-contained; built last.
 
 ---
 
 ## §16. Cross-cutting backend changes (summary)
 
-All additive — "we add; nothing above is modified destructively." Migrations from **0083**.
+All additive — "we add; nothing above is modified destructively." Migrations from **0083**. **D41
+reframed the feature backend** away from fuel capture toward loads/assignments; the identity/RLS spine
+is unchanged.
 
-- `0083_driver_identity` — `invites.driver_id`; partial-unique `drivers(org_id,user_id) where user_id is not null`; **`drivers.user_id` → `on delete set null`** (D14); link at accept.
-- `0084_driver_scoped_rls` — `auth_driver_id()` + **RESTRICTIVE** driver SELECT **and INSERT** policies (D9/D10; attribution-forgery close) + `fuel_transactions` audit trigger + raw-PostgREST deny cases in the matrix.
-- `0085_driver_receipt_storage` — **RE-ADDED for security (D13, corrects §20 F4):** driver-scoped receipt path `${org}/${driverId}/${id}`, per-op policies (`split_part(name,'/',2)=auth_driver_id()`), bucket `file_size_limit` + `allowed_mime_types`, no driver `upsert`.
-- `0086_driver_perf_self_read` — **RESTRICTIVE** driver self-read on `driver_performance_weeks` (Phase 4).
-- API: relax domain for `role:'driver'` invites **(with token-enforced accept — D15)**; `GET /api/me/driver`; `POST /api/me/fillups` (narrow input, server-derived identity, audited, rate-limited, scores server-side); optional `GET /api/me/performance`; **`revokeDriverAccess()` offboarding action (D14)**.
-- Web: role guard redirecting `driver` away from the dashboard.
+- `0083_driver_identity` — `invites.driver_id`; partial-unique `drivers(org_id,user_id) where user_id is not null`; **`drivers.user_id` → `on delete set null`** (D14); link at accept. **(built)**
+- `0084_driver_scoped_rls` — `auth_driver_id()` + **RESTRICTIVE** driver SELECT policies (D9/D10) + raw-PostgREST deny cases in the matrix. **(built)** *(The fuel-transactions INSERT-scoping is moot now drivers don't insert fuel — D41; the SELECT scoping stays.)*
+- **Loads/Assignments (Phase 3)** — driver-scoped RLS on the assignment/stop tables (`0051`/`0068` model); **driver-scoped Storage** for load photos (`${orgId}/${driverId}/${assignmentId}/…`, size/mime limits, no `upsert` — the D13 pattern repurposed from receipts); new migrations from the next free number, each with allow + deny cases.
+- **Driver Performance (Phase 5)** — RESTRICTIVE driver self-read on `driver_performance_weeks`.
+- API: relax domain for `role:'driver'` invites **(token-enforced accept — D15, built)**; `GET /api/me/driver` **(built)**; `POST /api/me/delete-account` **(built)**; `revokeDriverAccess()` offboarding **(built)**; **Phase 3:** `GET /api/me/loads`, `POST /api/me/loads/:id/accept`, `POST /api/me/loads/:id/stops/:stopId` (narrow input, server-derived identity, audited); **Phase 5 (optional):** `GET /api/me/performance`.
+- ~~`POST /api/me/fillups` + `0085_driver_receipt_storage`~~ — **dropped (D41):** no manual fuel capture in the driver app.
+- Web: role guard redirecting `driver` away from the dashboard **(built)**.
 - Config (pre-launch, D16): HIBP leaked-password on, `minimum_password_length ≥ 10`, captcha on auth, lower driver `jwt_expiry`, confirm admin MFA enabled.
 
 ---
@@ -1570,7 +1569,7 @@ package emits **no `.d.ts`**. Fixes:
 ### §24.3 Standing rule
 
 The plan is **solutions-only**. A builder should implement straight through §11–§15 using the LOCKED
-decisions §9 (D1–D40); the audit sections §20–§23 are folded-in provenance (later sections govern where
+decisions §9 (D1–D41); the audit sections §20–§23 are folded-in provenance (later sections govern where
 noted); §10 is the operational checklist. If a truly new question surfaces, resolve it to a LOCKED
 decision with a rationale and a fallback in the same style — never leave a "we'll research this during
 build" gap. **Net:** nothing in this plan requires a research detour once construction starts.

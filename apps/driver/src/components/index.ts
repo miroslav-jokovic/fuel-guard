@@ -1,5 +1,8 @@
 export { Screen } from './Screen';
+export { ScreenHeader } from './ScreenHeader';
+export { SectionLabel } from './SectionLabel';
 export { Button, type ButtonProps } from './Button';
+export { IconButton } from './IconButton';
 export { Card } from './Card';
 export { Icon, type IconProps } from './Icon';
 export { Badge, severityTone, type Tone } from './Badge';

@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Icon } from './Icon';
 import type { Tone } from './Badge';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
@@ -16,12 +16,38 @@ const ICON: Record<Tone, MaterialSymbolName> = {
   warning: 'warning', success: 'check_circle', info: 'info',
 };
 
-// Inline notice / offline banner. Icon + label (never color alone — a11y + sunlight).
-export function Banner({ tone = 'info', message, icon }: { tone?: Tone; message: string; icon?: MaterialSymbolName }) {
+// Inline notice / offline banner. Icon + label (never color alone — a11y + sunlight), with an
+// optional inline action ("Retry", "View") so a notice is never a dead-end.
+export function Banner({
+  tone = 'info',
+  message,
+  icon,
+  actionLabel,
+  onAction,
+}: {
+  tone?: Tone;
+  message: string;
+  icon?: MaterialSymbolName;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
   return (
-    <View className={`flex-row items-center gap-2 rounded-md px-3 py-2.5 ${BG[tone]}`} accessibilityRole="alert">
+    <View
+      className={`flex-row items-center gap-2.5 rounded-xl px-3.5 py-3 ${BG[tone]}`}
+      accessibilityRole="alert"
+    >
       <Icon name={icon ?? ICON[tone]} size={18} className={FG[tone]} />
-      <Text className="flex-1 text-sm text-ink-secondary">{message}</Text>
+      <Text className="flex-1 text-sm leading-snug text-ink-secondary">{message}</Text>
+      {actionLabel && onAction ? (
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={onAction}
+          className="min-h-[32px] justify-center"
+        >
+          <Text className={`text-sm font-semibold ${FG[tone]}`}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

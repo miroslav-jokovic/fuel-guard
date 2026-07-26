@@ -9,14 +9,18 @@ function initials(name: string): string {
     .join('');
 }
 
+// Initials avatar on the brand fill, with a subtle ring so it holds its shape on any surface.
 export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <View
-      className="items-center justify-center rounded-full bg-brand"
+      className="items-center justify-center rounded-full border border-edge bg-brand"
       style={{ width: size, height: size }}
       accessibilityLabel={name}
     >
-      <Text className="font-bold text-brand-fg" style={{ fontSize: size * 0.4 }}>
+      <Text
+        className="font-bold text-brand-fg"
+        style={{ fontSize: size * 0.38, includeFontPadding: false }}
+      >
         {initials(name)}
       </Text>
     </View>

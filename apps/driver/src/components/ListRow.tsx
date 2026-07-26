@@ -5,7 +5,13 @@ import { haptics } from '@/lib/haptics';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 export function ListRow({
-  title, subtitle, icon, iconFill, right, onPress,
+  title,
+  subtitle,
+  icon,
+  iconFill,
+  right,
+  onPress,
+  disabled = false,
 }: {
   title: string;
   subtitle?: string;
@@ -13,10 +19,13 @@ export function ListRow({
   iconFill?: boolean;
   right?: ReactNode;
   onPress?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityState={onPress ? { disabled } : undefined}
+      disabled={disabled}
       onPress={
         onPress
           ? () => {
@@ -25,10 +34,12 @@ export function ListRow({
             }
           : undefined
       }
-      className="flex-row items-center gap-3 rounded-lg bg-surface border border-edge px-4 min-h-[56px] active:bg-surface-subtle"
+      className={`min-h-[60px] flex-row items-center gap-3 rounded-xl border border-edge bg-surface px-4 py-2.5 active:bg-surface-subtle ${
+        disabled ? 'opacity-50' : ''
+      }`}
     >
       {icon ? (
-        <View className="w-9 h-9 items-center justify-center rounded-md bg-surface-muted">
+        <View className="h-10 w-10 items-center justify-center rounded-lg bg-surface-muted">
           <Icon name={icon} fill={iconFill} size={20} className="text-ink-secondary" />
         </View>
       ) : null}

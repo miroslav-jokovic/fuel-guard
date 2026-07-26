@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, Text, View, type GestureResponderEvent } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Icon } from './Icon';
 import { haptics, type HapticKind } from '@/lib/haptics';
 import { roleColors } from '@/theme/colors';
@@ -7,25 +7,27 @@ import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'soft' | 'ghost';
-type Size = 'sm' | 'md';
+type Size = 'sm' | 'md' | 'lg';
 
 const VIEW: Record<Variant, string> = {
-  primary: 'bg-brand',
-  secondary: 'bg-surface border border-edge-strong',
-  danger: 'bg-danger',
-  soft: 'bg-surface-muted',
-  ghost: '',
+  primary: 'bg-brand active:opacity-90',
+  secondary: 'bg-surface border border-edge-strong active:bg-surface-subtle',
+  danger: 'bg-danger active:opacity-90',
+  soft: 'bg-surface-muted active:bg-surface-subtle',
+  ghost: 'active:bg-surface-muted',
 };
 const LABEL: Record<Variant, string> = {
   primary: 'text-brand-fg',
-  secondary: 'text-ink-secondary',
+  secondary: 'text-ink',
   danger: 'text-ink-inverse',
   soft: 'text-ink-secondary',
-  ghost: 'text-ink-muted',
+  ghost: 'text-ink-secondary',
 };
-const SIZE: Record<Size, { view: string; text: string; icon: number }> = {
-  sm: { view: 'px-3 min-h-[44px] gap-1.5', text: 'text-sm', icon: 18 },
-  md: { view: 'px-4 min-h-[52px] gap-2', text: 'text-base', icon: 20 },
+// 2026 sizing: roomier targets, 12px radius on md/lg (radius token xl), 56pt CTA tier (plan target.cta).
+const SIZE: Record<Size, { view: string; text: string; icon: number; gap: number }> = {
+  sm: { view: 'px-3.5 min-h-[44px] rounded-lg', text: 'text-sm', icon: 18, gap: 6 },
+  md: { view: 'px-5 min-h-[52px] rounded-xl', text: 'text-base', icon: 20, gap: 8 },
+  lg: { view: 'px-6 min-h-[56px] rounded-xl', text: 'text-[17px]', icon: 22, gap: 8 },
 };
 
 export type ButtonProps = {
@@ -58,10 +60,8 @@ export function Button({
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const s = SIZE[size];
   const isDisabled = disabled || loading;
-  const spinnerColor =
-    variant === 'primary' || variant === 'danger'
-      ? roleColors[isDark ? 'dark' : 'light'].inkInverse
-      : roleColors[isDark ? 'dark' : 'light'].inkMuted;
+  const rc = roleColors[isDark ? 'dark' : 'light'];
+  const spinnerColor = variant === 'primary' || variant === 'danger' ? rc.inkInverse : rc.inkMuted;
 
   return (
     <Animated.View style={animatedStyle} className={block ? 'w-full' : 'self-stretch'}>
@@ -70,25 +70,30 @@ export function Button({
         accessibilityState={{ disabled: isDisabled, busy: loading }}
         disabled={isDisabled}
         onPressIn={() => {
-          scale.value = withTiming(0.97, { duration: 90 });
+          scale.value = withSpring(0.97, { damping: 24, stiffness: 380 });
         }}
         onPressOut={() => {
-          scale.value = withTiming(1, { duration: 120 });
+          scale.value = withSpring(1, { damping: 20, stiffness: 320 });
         }}
         onPress={(e) => {
           if (haptic) haptics[haptic]();
           onPress?.(e);
         }}
-        className={`flex-row items-center justify-center rounded-md ${VIEW[variant]} ${s.view} ${isDisabled ? 'opacity-50' : ''}`}
+        className={`items-center justify-center ${VIEW[variant]} ${s.view} ${isDisabled ? 'opacity-50' : ''}`}
       >
+        {/* Content keeps its layout while loading (opacity 0) — no width jump when the spinner shows. */}
+        <View
+          className="flex-row items-center"
+          style={{ columnGap: s.gap, opacity: loading ? 0 : 1 }}
+        >
+          {icon ? <Icon name={icon} fill={iconFill} size={s.icon} className={LABEL[variant]} /> : null}
+          <Text className={`font-semibold ${LABEL[variant]} ${s.text}`}>{label}</Text>
+        </View>
         {loading ? (
-          <ActivityIndicator color={spinnerColor} />
-        ) : (
-          <View className="flex-row items-center" style={{ columnGap: size === 'sm' ? 6 : 8 }}>
-            {icon ? <Icon name={icon} fill={iconFill} size={s.icon} className={LABEL[variant]} /> : null}
-            <Text className={`font-semibold ${LABEL[variant]} ${s.text}`}>{label}</Text>
+          <View className="absolute inset-0 items-center justify-center">
+            <ActivityIndicator color={spinnerColor} />
           </View>
-        )}
+        ) : null}
       </Pressable>
     </Animated.View>
   );

@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Button, Card, ListRow, Screen, SegmentedControl } from '@/components';
+import {
+  Button,
+  Card,
+  ListRow,
+  Screen,
+  ScreenHeader,
+  SectionLabel,
+  SegmentedControl,
+} from '@/components';
 import { apiFetch } from '@/lib/api';
 import { useSession } from '@/features/auth/SessionProvider';
 import { useTheme } from '@/theme/ThemeProvider';
 
 type ThemeMode = 'system' | 'light' | 'dark';
-
-function SectionLabel({ children }: { children: string }) {
-  return <Text className="px-1 pt-2 text-xs uppercase tracking-wide text-ink-muted">{children}</Text>;
-}
 
 export default function Settings() {
   const router = useRouter();
@@ -32,7 +36,7 @@ export default function Settings() {
   function confirmDelete() {
     Alert.alert(
       'Delete your account?',
-      'This permanently removes your driver login and unlinks you from your fleet. Your past fuel entries stay with the fleet for their records. This can’t be undone.',
+      'This permanently removes your driver login and unlinks you from your fleet. Your work history stays with the fleet for their records. This can’t be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -47,11 +51,8 @@ export default function Settings() {
   }
 
   return (
-    <Screen>
-      <View className="flex-row items-center justify-between">
-        <Text className="text-xl font-bold text-ink">Settings</Text>
-        <Button label="Done" variant="ghost" size="sm" onPress={() => router.back()} />
-      </View>
+    <Screen padTop={false}>
+      <ScreenHeader title="Settings" onClose={() => router.back()} />
 
       <SectionLabel>Account</SectionLabel>
       <ListRow
@@ -88,19 +89,19 @@ export default function Settings() {
         }}
       />
 
-      <View className="pt-6 gap-1">
+      <View className="gap-1 pt-6">
         <Pressable
           accessibilityRole="button"
           disabled={deleting}
           onPress={confirmDelete}
-          className="min-h-[48px] items-center justify-center rounded-md active:bg-surface-subtle"
+          className="min-h-[48px] items-center justify-center rounded-xl active:bg-surface-subtle"
         >
           <Text className="font-medium text-danger">
             {deleting ? 'Deleting…' : 'Delete account'}
           </Text>
         </Pressable>
         <Text className="text-center text-xs text-ink-muted">
-          Permanently removes your login. Your fuel history stays with your fleet.
+          Permanently removes your login. Your work history stays with your fleet.
         </Text>
       </View>
     </Screen>
