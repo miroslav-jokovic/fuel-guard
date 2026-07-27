@@ -20,3 +20,5 @@ export { EmptyState } from './EmptyState';
 export { ListRow } from './ListRow';
 export { Avatar } from './Avatar';
 export { Toast } from './Toast';
+export { OfflineBanner } from './OfflineBanner';
+export { SyncStatus, PendingBadge, NeedsAttentionNote } from './SyncStatus';

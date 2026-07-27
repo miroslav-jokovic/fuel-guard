@@ -10,8 +10,18 @@ import {
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import { SessionProvider, useSession } from '@/features/auth/SessionProvider';
+import { queryClient } from '@/lib/queryClient';
+import { persistOptions } from '@/lib/persist';
+import { initConnectivity } from '@/lib/connectivity';
+import { initSync } from '@/data/sync';
+import { registerSyncHandlers } from '@/data/handlers';
+
+// Register outbox handlers once, at module load, so a queued record can always find its handler —
+// even if the engine starts before the feature screen that enqueues it has ever mounted.
+registerSyncHandlers();
 
 /**
  * Redirect the user to the surface their session state allows, reactively (sign-out from anywhere
@@ -45,8 +55,23 @@ function useProtectedRoute() {
   }, [status, segments, router]);
 }
 
+/** Data spine: NetInfo → React Query, and the outbox drain loop. Runs for the app's lifetime. */
+function useDataSpine() {
+  const { status } = useSession();
+
+  useEffect(() => initConnectivity(), []);
+
+  // Only drain while a real driver session exists — an unauthenticated sync would 401 every record
+  // straight into the dead-letter list.
+  useEffect(() => {
+    if (status !== 'ready') return undefined;
+    return initSync(queryClient);
+  }, [status]);
+}
+
 function RootNavigator() {
   useProtectedRoute();
+  useDataSpine();
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
@@ -76,11 +101,15 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ThemeProvider>
-          <SessionProvider>
-            <RootNavigator />
-          </SessionProvider>
-        </ThemeProvider>
+        {/* Restores the persisted query cache BEFORE first paint — a cold start with no signal
+            renders real cached data instead of a spinner (plan §13.2). */}
+        <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+          <ThemeProvider>
+            <SessionProvider>
+              <RootNavigator />
+            </SessionProvider>
+          </ThemeProvider>
+        </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

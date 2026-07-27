@@ -70,7 +70,7 @@ UI — is the authorization boundary.**
 |---|---|---|---|---|
 | 0 — Foundation & Design System | ✅ authored | ◐ **~done** — spike ✅ + 16 components + gallery + tests + ESLint + CI + nav shell + Material Symbols (D40); token linter green | ☐ device pass | On-device verify (shell + gallery, light/dark, a11y) + component polish, then close. Deferred: IBM Plex font (D36), tsconfig.base strict flags (D28) |
 | 1 — Identity, Auth & Access Control | ✅ authored | ☑ **built (complete)** — RLS `0083`/`0084` (matrix 50/50); API driver-branch invites (token-enforced accept D15) + linking, `GET /api/me/driver`, `POST /api/me/delete-account`, web driver-gate + `revoke` offboarding; app auth (LargeSecureStore/PKCE client, apiFetch, session state machine, sign-in/pending/wrong-app, guard, Settings + delete-account); **accept-invite/set-password flow: driver invites redirect to `fuelguard://accept-invite` (session from link → set password ≥10 → accept w/ token → claim refresh), with a paste-link rescue and the web accept page as fallback (token forwarding + driver resend-token bugs fixed)** | ◐ device pass pending | Ops before real invites: T1 (token hook) + **T9** (allow `fuelguard://accept-invite` in Supabase Redirect URLs). End-to-end invite test on device, then Phase 2 |
-| 2 — Offline-first Data Layer & Home | ✅ authored | ☐ not started | ☐ | **Reframed (D41):** Home = current assignment + nav entry + performance snapshot; outbox now carries load/hazmat photos, not fuel receipts |
+| 2 — Offline-first Data Layer & Home | ✅ authored | ☑ **built** — persisted read cache (`queryClient`+AsyncStorage persister, offlineFirst), NetInfo→`onlineManager`/AppState→`focusManager`, **SQLCipher-encrypted outbox** (`db/outbox/fileStaging`), serial **sync engine** w/ handler registry + jittered backoff + dead-letter, sync UX (OfflineBanner/SyncStatus/PendingBadge/NeedsAttention), **Home on real `GET /api/me/driver`** w/ skeletons, dev seeded mutation; 16 policy unit tests green | ◐ device pass pending | Verify on device: cold start in airplane mode, queue→relaunch→reconnect drain, SQLCipher active (`cipher_version` warning), then Phase 3 |
 | 3 — Loads & Assignments (the daily job) | ◑ **re-scoped (D41)** | ☐ not started | ☐ | The new core: future / current / previous assignments, accept, per-stop guided photo capture (load / unload / multi-stop). Grounds on `0051_driver_assignments`, `0068_tms_integration`, `shared/tms.ts` |
 | 4 — Planned Navigation & Fueling | ◑ **re-scoped (D41)** | ☐ not started | ☐ | Consume server route (HERE) + `fuel_plans` / `smart_fueling_spine`; MapLibre display, corridor guidance, planned-fueling stop overlays. Grounds on `0059`/`0060_route_geometries`, `0074_fuel_plans`, `0058_smart_fueling_spine` |
 | 5 — Driver Performance (self-view) | ◑ authored (math built) | ☐ | ☐ | Own-row weekly score / sub-scores / rank; RESTRICTIVE self-read policy. Math in `packages/shared/src/driverPerformance/` |
@@ -731,6 +731,12 @@ cache is exercised by a seeded test mutation to prove the machinery.
 
 - One `QueryClient`: `networkMode: 'offlineFirst'`, generous `staleTime`/`gcTime`, backoff retry;
   persist to disk and **restore on launch**; `onlineManager`→NetInfo, `focusManager`→`AppState`.
+- **Persister choice (RESOLVED — exit criterion):** `@tanstack/query-async-storage-persister` over
+  AsyncStorage, wrapped in `PersistQueryClientProvider` (restore completes before first paint),
+  `maxAge` 7 days + a `buster` string. **Not** encrypted, deliberately: the read cache only holds
+  what the driver may already see and is re-fetchable, whereas the **outbox** holds work that exists
+  nowhere else — that one gets SQLCipher (D12). Keeping the persister simple also keeps cold-start
+  restore fast, which is the requirement that actually matters here.
 - Bootstrap = `GET /api/me/driver` cached under `['me','driver']`; supplementary reads go direct to
   Supabase under the Phase-1 driver policies:
 
@@ -759,7 +765,19 @@ attempts INTEGER · next_attempt_at INTEGER · created_at INTEGER · last_error 
 
 **Idempotency:** each `id` is a client UUID (`expo-crypto` `randomUUID`, the RN port of
 `apps/web/src/lib/uuid.ts`). Duplicate insert collides on PK and no-ops → retry safely without dedup
-bookkeeping.
+bookkeeping. The engine **never regenerates an id on retry** (asserted by test).
+
+> **Build note (encryption is not automatic):** SQLCipher must be compiled in via the config plugin
+> `["expo-sqlite", { "useSQLCipher": true }]` (added to `app.config.ts`) **and the dev client
+> rebuilt**. Plain SQLite *silently ignores* `PRAGMA key`, which would leave the outbox in
+> plaintext — so `db.ts` checks `PRAGMA cipher_version` after opening and warns loudly if the flag
+> is missing rather than failing quietly in the field. **Verify this warning is absent on device.**
+
+**Retry policy (pure + unit-tested — `src/data/policy.ts`):** exponential backoff from 2s, capped at
+5 min, with **±25% jitter** (without it every phone in the fleet retries in lockstep when a tower
+returns). 4xx = permanent → **dead-letter immediately** (a 422 never becomes a 200); network/timeout/
+429/5xx = transient → retry to `MAX_ATTEMPTS` 8, then dead-letter. **A dead-lettered record is never
+discarded** — it surfaces in "needs attention" with a manual retry.
 
 **Sync engine (`src/data/sync.ts`):** triggers on connectivity regained, foreground, successful
 enqueue, and a periodic tick while pending. Takes the oldest eligible record → `in_flight` → executes

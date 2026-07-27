@@ -11,10 +11,15 @@ import {
   ScreenHeader,
   SectionLabel,
   SegmentedControl,
+  SyncStatus,
 } from '@/components';
 import { apiFetch } from '@/lib/api';
 import { useSession } from '@/features/auth/SessionProvider';
 import { useTheme } from '@/theme/ThemeProvider';
+import { enqueue } from '@/data/outbox';
+import { runSync, useSyncState } from '@/data/sync';
+import { DEV_PING_KIND } from '@/data/handlers';
+import { haptics } from '@/lib/haptics';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -22,6 +27,7 @@ export default function Settings() {
   const router = useRouter();
   const { email, role, signOut } = useSession();
   const { mode, setMode } = useTheme();
+  const { pending, needsAttention, lastError } = useSyncState();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -39,6 +45,13 @@ export default function Settings() {
     setDeleteError(res.error?.message ?? 'Couldn’t delete your account. Please try again in a moment.');
   }
 
+  /** Seeded test mutation (plan §13.1) — proves enqueue → relaunch → drain end-to-end. */
+  async function seedTestSync() {
+    await enqueue({ kind: DEV_PING_KIND, payload: { at: Date.now() } });
+    haptics.success();
+    void runSync();
+  }
+
   return (
     <Screen padTop={false}>
       <ScreenHeader title="Settings" onClose={() => router.back()} />
@@ -50,6 +63,19 @@ export default function Settings() {
         title={email ?? 'Signed in'}
         subtitle={role ? `Role: ${role}` : undefined}
       />
+
+      <SectionLabel>Data</SectionLabel>
+      <SyncStatus />
+      {needsAttention > 0 && lastError ? (
+        <Banner
+          tone="danger"
+          message={`Last sync problem: ${lastError}`}
+          actionLabel="Try again"
+          onAction={() => {
+            void runSync();
+          }}
+        />
+      ) : null}
 
       <SectionLabel>Appearance</SectionLabel>
       <Card>
@@ -67,6 +93,20 @@ export default function Settings() {
           System follows your phone. Dark mode is easier on the eyes in a night cab.
         </Text>
       </Card>
+
+      {__DEV__ ? (
+        <>
+          <SectionLabel>Developer</SectionLabel>
+          <ListRow
+            icon="bolt"
+            title="Queue a test sync item"
+            subtitle={`Outbox: ${pending} pending · turn on airplane mode first to see it queue`}
+            onPress={() => {
+              void seedTestSync();
+            }}
+          />
+        </>
+      ) : null}
 
       <SectionLabel>Session</SectionLabel>
       <Button

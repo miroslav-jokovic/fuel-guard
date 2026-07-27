@@ -19,7 +19,15 @@ const config: ExpoConfig = {
     package: 'com.silvicom.fuelguard.driver',
     edgeToEdgeEnabled: true,
   },
-  plugins: ['expo-router', 'expo-dev-client', 'expo-font'],
+  plugins: [
+    'expo-router',
+    'expo-dev-client',
+    'expo-font',
+    'expo-secure-store',
+    // SQLCipher compiles encryption INTO SQLite — without it `PRAGMA key` is silently ignored and
+    // the offline outbox (unsynced driver work) would sit in plaintext on the device (D12/§21).
+    ['expo-sqlite', { useSQLCipher: true }],
+  ],
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
