@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notify, loginForDriver } from "./notify.js";
 import type {
   AssignLoadRequest,
   AssignmentRow,
@@ -293,6 +294,46 @@ export async function transitionLoad(
     toStatus: PATCH[action].status as string,
     ...(reason ? { payload: { reason } } : {}),
   });
+
+  // The whole point of 5N: releasing a load is otherwise invisible until the driver happens to open
+  // the app, and a cancellation reaches a truck that may already be rolling. Both are told, now.
+  if (action === "release" || action === "cancel") {
+    const { data: load } = await admin
+      .from("loads")
+      .select("ref, driver_id, released_at")
+      .eq("id", loadId)
+      .maybeSingle();
+    const row = load as { ref: string; driver_id: string | null; released_at: string | null } | null;
+    if (row?.driver_id) {
+      const userId = await loginForDriver(admin, orgId, row.driver_id);
+      if (userId) {
+        await notify(admin, {
+          orgId,
+          userId,
+          entityType: "load",
+          entityId: loadId,
+          ...(action === "release"
+            ? {
+                category: "load_offered" as const,
+                title: `New load ${row.ref}`,
+                body: "Dispatch sent you a load. Open it to accept.",
+                // The release stamp makes the key specific to THIS release: a decline followed by a
+                // re-release is a genuinely new fact and notifies again, while a retry does not.
+                dedupeKey: `load_offered:${loadId}:${row.released_at ?? now}`,
+              }
+            : {
+                category: "load_canceled" as const,
+                title: `${row.ref} was canceled`,
+                body: reason ?? "Dispatch canceled this load.",
+                // Critical: a load canceled under a driver already driving toward it beats quiet hours.
+                severity: "critical" as const,
+                dedupeKey: `load_canceled:${loadId}:${now}`,
+              }),
+        });
+      }
+    }
+  }
+
   return { ok: true, data: { id: loadId } };
 }
 

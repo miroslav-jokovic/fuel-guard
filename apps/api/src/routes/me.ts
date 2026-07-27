@@ -24,6 +24,8 @@ import {
   startShift,
   type DutyResult,
 } from "../services/dutySessions.js";
+import { revokePushTokens } from "../services/notify.js";
+import { notificationsRouter } from "./notifications.js";
 import {
   acceptLoad,
   completeStop,
@@ -319,6 +321,10 @@ export function meRouter(): Router {
     }),
   );
 
+  // ── Notifications (Phase 5N — D53) ──────────────────────────────────────────
+  // Its own module router (D56), mounted here so the driver app keeps one base path.
+  router.use("/notifications", notificationsRouter());
+
   // In-app account deletion (Apple 5.1.1(v) + Google — plan CG1/D26). Deletes the login + identity
   // (auth user, membership, driver link). Fuel records are retained per employer recordkeeping.
   router.post(
@@ -342,6 +348,8 @@ export function meRouter(): Router {
         });
       }
 
+      // Stop this phone receiving fleet content the moment the account goes (D14/D53).
+      await revokePushTokens(admin, userId);
       await admin.from("drivers").update({ user_id: null }).eq("org_id", orgId).eq("user_id", userId);
       await admin.from("memberships").delete().eq("org_id", orgId).eq("user_id", userId);
       await writeAudit(admin, {

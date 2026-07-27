@@ -6,6 +6,7 @@ import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
+import { revokePushTokens } from "../services/notify.js";
 
 const roleUpdateSchema = z.object({ role: roleSchema });
 
@@ -79,6 +80,47 @@ export function membersRouter(): Router {
         orgId,
         actorId: req.auth!.userId,
         action: "member.removed",
+        entity: "memberships",
+        entityId: userId,
+      });
+
+      res.json({ ok: true });
+    }),
+  );
+
+  // Revoke a driver's (or any member's) access (admin, offboarding — plan D14). Removes org access,
+  // deactivates any linked driver record, and audits. NOTE: the user's existing ACCESS token stays
+  // valid until it expires (jwt_expiry, D31 = 1h); membership deletion cuts access on the next refresh.
+  // The auth account itself is kept (re-hire); use delete-account for full identity removal.
+  router.post(
+    "/:userId/revoke",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const userId = String(req.params.userId ?? "");
+
+      if (userId === req.auth!.userId) {
+        res.status(400).json(apiError("cannot_revoke_self", "You cannot revoke your own access"));
+        return;
+      }
+
+      await admin.from("drivers").update({ status: "inactive" }).eq("org_id", orgId).eq("user_id", userId);
+      // An offboarded driver's PERSONAL phone must stop receiving load and message content
+      // immediately — no token expiry window closes that gap (D14/D53).
+      await revokePushTokens(admin, userId);
+
+      const { error } = await admin.from("memberships").delete().eq("org_id", orgId).eq("user_id", userId);
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not revoke access"));
+        return;
+      }
+
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "member.access_revoked",
         entity: "memberships",
         entityId: userId,
       });

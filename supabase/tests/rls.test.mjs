@@ -97,6 +97,7 @@ async function main() {
     "migrations/0086_duty_sessions.sql",
     "migrations/0087_load_lifecycle.sql",
     "migrations/0088_module_entitlements.sql",
+    "migrations/0089_notifications.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -593,6 +594,78 @@ async function main() {
   ok("disabling a module for one org leaves the other org's grant intact",
     (await db.query(`select enabled from org_modules where org_id = '${ORG_B}' and module_key = 'training'`)).rows?.[0]?.enabled === true
     && (await db.query(`select enabled from org_modules where org_id = '${ORG_A}' and module_key = 'training'`)).rows?.[0]?.enabled === false);
+
+
+  // ── Notifications (0089) — D53 ──────────────────────────────────────────────
+  // A notification is addressed to ONE login. This is the single place in the product where
+  // org-wide read would be wrong, so the policies are per-user rather than per-org, and the matrix
+  // asserts that an ADMIN cannot open somebody else's inbox.
+  const OTHERUID = "00000000-0000-0000-0000-0000000d2222";
+  await db.query(`insert into auth.users (id,email) values ('${OTHERUID}','other.driver@example.com')`);
+  await db.query(`update drivers set user_id = '${OTHERUID}' where id = '${OTHER}'`);
+  await db.query(`insert into org_modules (org_id, module_key, enabled) values ('${ORG_A}','notifications',true)
+                  on conflict (org_id, module_key) do update set enabled = true`);
+
+  const MYNOTIF = (await db.query(
+    `select emit_notification('${ORG_A}','${DUID}','load_offered','New load LD-1','Open it to accept','info','load',null,'/loads','k1') id`
+  )).rows[0].id;
+  await db.query(
+    `select emit_notification('${ORG_A}','${OTHERUID}','load_offered','Not yours',null,'info','load',null,'/loads','k2')`
+  );
+
+  ok("emit_notification writes a row for a granted tenant", !!MYNOTIF);
+  ok("driver reads only their OWN notifications (1)",
+    (await asUser(drv, "select count(*)::int n from notification_events")).rows?.[0]?.n === 1);
+  ok("an ADMIN cannot read another user's inbox (0)",
+    (await asUser(adminA, "select count(*)::int n from notification_events")).rows?.[0]?.n === 0);
+  ok("driver cannot INSERT a notification for themselves",
+    !!(await asUser(drv, "insert into notification_events (org_id, audience_user_id, category, title) values ($1,$2,'system','fake')", [ORG_A, DUID])).error);
+  ok("driver cannot rewrite a notification they were sent",
+    ((await asUser(drv, "update notification_events set title = 'edited' where id = $1 returning id", [MYNOTIF])).rows?.length ?? 0) === 0);
+
+  ok("driver CAN mark their own notification read",
+    ((await asUser(drv, "insert into notification_reads (event_id, user_id) values ($1,$2) returning event_id", [MYNOTIF, DUID])).rows?.length ?? 0) === 1);
+  ok("driver cannot mark a read on someone else's behalf",
+    !!(await asUser(drv, "insert into notification_reads (event_id, user_id) values ($1,$2)", [MYNOTIF, OTHERUID])).error);
+
+  // The dedupe guarantee: one buzz per fact, however many times a worker retries.
+  const dupe = (await db.query(
+    `select emit_notification('${ORG_A}','${DUID}','load_offered','New load LD-1',null,'info','load',null,'/loads','k1') id`
+  )).rows[0].id;
+  ok("a replayed emit with the same dedupe key is a no-op", dupe === null);
+
+  // Preferences are enforced SERVER-side — a device setting cannot keep a phone dark at 03:00.
+  await db.query(`insert into notification_preferences (user_id, org_id, muted_categories)
+                  values ('${DUID}','${ORG_A}', array['performance_week'])
+                  on conflict (user_id) do update set muted_categories = array['performance_week']`);
+  ok("a muted category is suppressed at emit time, not at render time",
+    (await db.query(`select emit_notification('${ORG_A}','${DUID}','performance_week','Week settled',null,'info',null,null,null,'k3') id`)).rows[0].id === null);
+  ok("...while an unmuted category still delivers",
+    !!(await db.query(`select emit_notification('${ORG_A}','${DUID}','training_due','Training due',null,'info',null,null,null,'k4') id`)).rows[0].id);
+
+  // The entitlement gate composes: no module, no notifications at all (D55 + D53).
+  await db.query(`update org_modules set enabled = false where org_id = '${ORG_A}' and module_key = 'notifications'`);
+  ok("a tenant without the notifications module emits nothing",
+    (await db.query(`select emit_notification('${ORG_A}','${DUID}','load_offered','Should not exist',null,'info',null,null,null,'k5') id`)).rows[0].id === null);
+  await db.query(`update org_modules set enabled = true where org_id = '${ORG_A}' and module_key = 'notifications'`);
+
+  // Push tokens: own-row only, and revocable — the offboarding guarantee.
+  await db.query(`insert into device_push_tokens (token, org_id, user_id, platform) values ('ExpoTok-self','${ORG_A}','${DUID}','ios')`);
+  await db.query(`insert into device_push_tokens (token, org_id, user_id, platform) values ('ExpoTok-other','${ORG_A}','${OTHERUID}','ios')`);
+  ok("driver sees only their own device tokens (1)",
+    (await asUser(drv, "select count(*)::int n from device_push_tokens")).rows?.[0]?.n === 1);
+  ok("driver cannot register a token against another user",
+    !!(await asUser(drv, "insert into device_push_tokens (token, org_id, user_id) values ('forged',$1,$2)", [ORG_A, OTHERUID])).error);
+  ok("revoke_push_tokens cuts every live token for a user — the offboarding guarantee",
+    (await db.query(`select revoke_push_tokens('${DUID}') n`)).rows[0].n === 1
+    && (await db.query(`select count(*)::int n from device_push_tokens where user_id = '${DUID}' and revoked_at is null`)).rows[0].n === 0);
+  ok("...and leaves other users' devices alone",
+    (await db.query(`select count(*)::int n from device_push_tokens where user_id = '${OTHERUID}' and revoked_at is null`)).rows[0].n === 1);
+
+  ok("driver reads only their own preferences",
+    (await asUser(drv, "select count(*)::int n from notification_preferences")).rows?.[0]?.n === 1);
+  ok("cross-tenant: org-B sees none of org-A's notifications",
+    (await asUser(mgrB, "select count(*)::int n from notification_events")).rows?.[0]?.n === 0);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
