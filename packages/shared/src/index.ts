@@ -44,4 +44,5 @@ export * from "./driverContract.js";
 export * from "./loadsContract.js";
 export * from "./loadsLifecycle.js";
 export * from "./dispatchContract.js";
+export * from "./entitlements.js";
 export * from "./dutyContract.js";

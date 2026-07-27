@@ -9,6 +9,7 @@ import {
   updateLoadRequestSchema,
 } from "@fuelguard/shared";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
+import { requireModule } from "../middleware/requireModule.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
@@ -39,7 +40,9 @@ import {
  */
 export function dispatchRouter(): Router {
   const router = Router();
-  router.use(requireAuth, requireOrg);
+  // Layer 2 of the entitlement gate (D55). Every dispatch route is behind it, so a tenant without the
+  // module gets one clear 403 instead of an empty board they cannot explain.
+  router.use(requireAuth, requireOrg, requireModule("dispatch"));
 
   const canView = requireRole(...rolesThatCanView("dispatch"));
   const canManage = requireRole(...rolesThatManage("dispatch"));
