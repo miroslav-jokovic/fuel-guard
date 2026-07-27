@@ -184,8 +184,7 @@ export function donutGradient(hexColors: string[]) {
 }
 
 const FONT = {
-  family:
-    'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  family: "'Hanken Grotesk', system-ui, sans-serif",
   size: 11,
 };
 
