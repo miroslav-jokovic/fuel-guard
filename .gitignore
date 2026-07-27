@@ -62,3 +62,4 @@ mnt_to_delete_*
 /android/
 /app.json
 /.expo/
+/tsconfig.json
