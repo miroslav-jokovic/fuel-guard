@@ -1,24 +1,24 @@
 import type { FunctionalComponent } from "vue";
 import { canViewSection, canManageSection, canManageFleet, isAdmin, type UserRole } from "@fuelguard/shared";
 import {
+  ArchiveBoxIcon,
+  ArrowUpTrayIcon,
+  ArrowsRightLeftIcon,
+  BeakerIcon,
+  BuildingStorefrontIcon,
+  ClockIcon,
+  Cog6ToothIcon,
+  ExclamationTriangleIcon,
   HomeIcon,
+  MapIcon,
+  NoSymbolIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+  TableCellsIcon,
+  TrophyIcon,
   TruckIcon,
   UserGroupIcon,
-  BeakerIcon,
-  ExclamationTriangleIcon,
-  Cog6ToothIcon,
   UsersIcon,
-  ArrowUpTrayIcon,
-  TableCellsIcon,
-  NoSymbolIcon,
-  SparklesIcon,
-  ArchiveBoxIcon,
-  ArrowsRightLeftIcon,
-  ClockIcon,
-  TrophyIcon,
-  MapIcon,
-  BuildingStorefrontIcon,
-  ShieldCheckIcon,
 } from "@heroicons/vue/24/outline";
 
 export interface NavItem {
