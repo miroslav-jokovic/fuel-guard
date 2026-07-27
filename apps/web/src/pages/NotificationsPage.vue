@@ -76,11 +76,11 @@ async function onSave() {
           </BaseCheckbox>
         </div>
         <FormField
+          v-slot="{ id }"
           class="mt-4"
           label="Recipient emails (comma-separated)"
           :error="fieldErr['notification_emails.0'] || fieldErr['notification_emails'] ? 'One or more emails are invalid.' : undefined"
           hint="Each address must be a valid email. Leave blank to send to no one."
-          v-slot="{ id }"
         >
           <BaseInput
             :id="id"

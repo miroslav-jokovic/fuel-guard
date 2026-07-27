@@ -34,11 +34,11 @@ async function onSubmit() {
     <h2 class="mb-6 text-lg font-semibold text-ink">Sign in to your account</h2>
 
     <form class="space-y-5" @submit.prevent="onSubmit">
-      <FormField id="email" label="Email" v-slot="{ id }">
+      <FormField id="email" v-slot="{ id }" label="Email">
         <BaseInput :id="id" v-model="email" type="email" autocomplete="email" required />
       </FormField>
 
-      <FormField id="password" label="Password" v-slot="{ id }">
+      <FormField id="password" v-slot="{ id }" label="Password">
         <BaseInput :id="id" v-model="password" type="password" autocomplete="current-password" required />
       </FormField>
 

@@ -81,14 +81,14 @@ async function onSave() {
     <form v-else class="space-y-6" @submit.prevent="onSave">
       <BaseCard as="section">
         <h3 class="text-base font-semibold text-ink">Organization</h3>
-        <FormField class="mt-4" label="Name" :error="fieldErr.name" v-slot="{ id }">
+        <FormField v-slot="{ id }" class="mt-4" label="Name" :error="fieldErr.name">
           <BaseInput :id="id" v-model="form.name" :invalid="Boolean(fieldErr.name)" />
         </FormField>
         <FormField
+          v-slot="{ id }"
           class="mt-4"
           label="Allowed email domains (comma-separated)"
           hint="Only emails from these domains can be invited. Leave empty to allow any domain."
-          v-slot="{ id }"
         >
           <BaseInput
             :id="id"
@@ -105,13 +105,13 @@ async function onSave() {
           <BaseCheckbox v-model="form.open24_7">Open 24/7 (no off-hours)</BaseCheckbox>
         </div>
         <div class="mt-4 grid grid-cols-3 gap-4" :class="form.open24_7 ? 'opacity-50' : ''">
-          <FormField label="Start" :error="fieldErr['operating_hours.start']" v-slot="{ id }">
+          <FormField v-slot="{ id }" label="Start" :error="fieldErr['operating_hours.start']">
             <BaseInput :id="id" v-model="form.start" :disabled="form.open24_7" placeholder="05:00" :invalid="Boolean(fieldErr['operating_hours.start'])" />
           </FormField>
-          <FormField label="End" :error="fieldErr['operating_hours.end']" v-slot="{ id }">
+          <FormField v-slot="{ id }" label="End" :error="fieldErr['operating_hours.end']">
             <BaseInput :id="id" v-model="form.end" :disabled="form.open24_7" placeholder="20:00" :invalid="Boolean(fieldErr['operating_hours.end'])" />
           </FormField>
-          <FormField label="Timezone" v-slot="{ id }">
+          <FormField v-slot="{ id }" label="Timezone">
             <BaseInput :id="id" v-model="form.tz" placeholder="America/Chicago" />
           </FormField>
         </div>

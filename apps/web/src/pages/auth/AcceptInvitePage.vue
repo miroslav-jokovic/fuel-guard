@@ -69,10 +69,10 @@ async function onSubmit() {
     <p class="mb-6 text-sm text-ink-muted">Finish setting up your FuelGuard account.</p>
 
     <form class="space-y-5" @submit.prevent="onSubmit">
-      <FormField id="pw" label="New password" v-slot="{ id }">
+      <FormField id="pw" v-slot="{ id }" label="New password">
         <BaseInput :id="id" v-model="password" type="password" autocomplete="new-password" required />
       </FormField>
-      <FormField id="cf" label="Confirm password" v-slot="{ id }">
+      <FormField id="cf" v-slot="{ id }" label="Confirm password">
         <BaseInput :id="id" v-model="confirm" type="password" autocomplete="new-password" required />
       </FormField>
 

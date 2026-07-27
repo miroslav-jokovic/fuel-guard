@@ -213,7 +213,7 @@ onMounted(load);
         </p>
       </div>
       <form class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end" @submit.prevent="invite">
-        <FormField label="Email" class="flex-1" v-slot="{ id }">
+        <FormField v-slot="{ id }" label="Email" class="flex-1">
           <BaseInput
             :id="id"
             v-model="email"

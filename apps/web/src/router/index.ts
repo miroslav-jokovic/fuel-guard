@@ -81,6 +81,25 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Fuel Planning" },
   },
   {
+    path: "/dispatch/loads",
+    name: "dispatch-loads",
+    component: () => import("@/pages/DispatchLoadsPage.vue"),
+    meta: { requiresAuth: true, title: "Loads" },
+  },
+  {
+    // `new` and an id share the editor — same form, same live approval checklist.
+    path: "/dispatch/loads/:id",
+    name: "dispatch-load",
+    component: () => import("@/pages/DispatchLoadFormPage.vue"),
+    meta: { requiresAuth: true, title: "Load" },
+  },
+  {
+    path: "/dispatch/assignments",
+    name: "dispatch-assignments",
+    component: () => import("@/pages/DispatchAssignmentsPage.vue"),
+    meta: { requiresAuth: true, title: "Assignments" },
+  },
+  {
     path: "/truck-stops",
     name: "truck-stops",
     component: () => import("@/pages/FuelStationsPage.vue"),

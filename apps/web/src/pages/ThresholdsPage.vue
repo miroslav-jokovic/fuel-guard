@@ -87,7 +87,7 @@ const numFields: { key: string; label: string }[] = [
       <BaseCard as="section">
         <h3 class="text-base font-semibold text-ink">Thresholds</h3>
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-for="f in numFields" :key="f.key" :label="f.label" :error="fieldErr[f.key]" v-slot="{ id }">
+          <FormField v-for="f in numFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
             <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="decimal" :invalid="Boolean(fieldErr[f.key])" />
           </FormField>
         </div>
@@ -114,7 +114,7 @@ const numFields: { key: string; label: string }[] = [
             Enable Claude AI verification on flagged transactions
           </BaseCheckbox>
         </div>
-        <FormField class="mt-4 max-w-xs" label="Monthly token budget (optional)" v-slot="{ id }">
+        <FormField v-slot="{ id }" class="mt-4 max-w-xs" label="Monthly token budget (optional)">
           <BaseInput :id="id" v-model="(form.ai_monthly_token_budget as string)" inputmode="numeric" />
         </FormField>
       </BaseCard>
