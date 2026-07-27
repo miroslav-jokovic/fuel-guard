@@ -86,11 +86,13 @@ async function main() {
     "migrations/0014_upsert_safe_indexes.sql",
     "migrations/0015_driver_samsara.sql",
     "migrations/0016_vehicle_fuel_level.sql",
+    "migrations/0030_trailers.sql",
     "migrations/0053_driver_performance_settings.sql",
     "migrations/0054_driver_scores.sql",
     "migrations/0055_driver_performance_weeks.sql",
     "migrations/0083_driver_identity.sql",
     "migrations/0084_driver_scoped_rls.sql",
+    "migrations/0085_driver_loads.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -362,6 +364,42 @@ async function main() {
     !!(await asUser(drv, "insert into fuel_transactions (org_id,driver_id,vehicle_id,fueled_at,gallons,source) values ($1,$2,$3,now(),12,'efs_feed')", [ORG_A, SELF, MYVEH])).error);
   ok("manager still reads all org fills (restrictive untouched for managers)",
     ((await asUser(mgrA, "select count(*)::int n from fuel_transactions")).rows?.[0]?.n ?? 0) >= 2);
+
+  // ── Loads & assignments (0085) — the driver app's daily surface ──────────────
+  // Drivers are READ-ONLY here by design: accepting a load and completing a stop go through the
+  // driver-scoped API (service role), which server-derives identity from the JWT. A driver hitting
+  // PostgREST directly must be able to read their own work and write nothing.
+  const MYLOAD = (await db.query(`insert into loads (org_id, driver_id, ref, status) values ('${ORG_A}','${SELF}','LD-SELF','offered') returning id`)).rows[0].id;
+  const OTHERLOAD = (await db.query(`insert into loads (org_id, driver_id, ref, status) values ('${ORG_A}','${OTHER}','LD-OTHER','offered') returning id`)).rows[0].id;
+  const MYSTOP = (await db.query(`insert into load_stops (org_id, load_id, seq, kind, name, required_photos) values ('${ORG_A}','${MYLOAD}',1,'pickup','My Shipper','{trailer,bol}') returning id`)).rows[0].id;
+  const OTHERSTOP = (await db.query(`insert into load_stops (org_id, load_id, seq, kind, name) values ('${ORG_A}','${OTHERLOAD}',1,'pickup','Other Shipper') returning id`)).rows[0].id;
+  await db.query(`insert into load_stop_photos (id, org_id, load_id, stop_id, driver_id, slot, storage_path) values (gen_random_uuid(),'${ORG_A}','${MYLOAD}','${MYSTOP}','${SELF}','trailer','${ORG_A}/${SELF}/${MYLOAD}/a.webp')`);
+  await db.query(`insert into load_stop_photos (id, org_id, load_id, stop_id, driver_id, slot, storage_path) values (gen_random_uuid(),'${ORG_A}','${OTHERLOAD}','${OTHERSTOP}','${OTHER}','trailer','${ORG_A}/${OTHER}/${OTHERLOAD}/b.webp')`);
+
+  ok("driver reads only own load (1)",
+    (await asUser(drv, "select count(*)::int n from loads")).rows?.[0]?.n === 1);
+  ok("driver reads only own load's stops (1)",
+    (await asUser(drv, "select count(*)::int n from load_stops")).rows?.[0]?.n === 1);
+  ok("driver reads only own stop photos (1)",
+    (await asUser(drv, "select count(*)::int n from load_stop_photos")).rows?.[0]?.n === 1);
+  ok("driver cannot read another driver's load by id (0)",
+    (await asUser(drv, "select count(*)::int n from loads where id = $1", [OTHERLOAD])).rows?.[0]?.n === 0);
+  ok("driver cannot INSERT a load (no driver write policy)",
+    !!(await asUser(drv, "insert into loads (org_id, driver_id, ref) values ($1,$2,'LD-FORGED')", [ORG_A, SELF])).error);
+  ok("driver cannot self-accept a load via PostgREST (API-only transition)",
+    ((await asUser(drv, "update loads set status = 'accepted' where id = $1 returning id", [MYLOAD])).rows?.length ?? 0) === 0);
+  ok("driver cannot mark a stop completed via PostgREST",
+    ((await asUser(drv, "update load_stops set status = 'completed' where id = $1 returning id", [MYSTOP])).rows?.length ?? 0) === 0);
+  ok("driver cannot INSERT a stop-photo row directly (the server records it)",
+    !!(await asUser(drv, "insert into load_stop_photos (id, org_id, load_id, stop_id, driver_id, slot, storage_path) values (gen_random_uuid(),$1,$2,$3,$4,'bol','x')", [ORG_A, MYLOAD, MYSTOP, SELF])).error);
+  ok("driver cannot delete a proof-of-work photo (evidence)",
+    ((await asUser(drv, "delete from load_stop_photos where driver_id = $1 returning id", [SELF])).rows?.length ?? 0) === 0);
+  ok("manager reads all org loads (>=2)",
+    ((await asUser(mgrA, "select count(*)::int n from loads")).rows?.[0]?.n ?? 0) >= 2);
+  ok("manager may create a load (dispatch write policy)",
+    (await asUser(mgrA, "insert into loads (org_id, driver_id, ref) values ($1,$2,'LD-MGR') returning id", [ORG_A, SELF])).rows?.length === 1);
+  ok("cross-tenant: org-B manager sees no org-A loads (0)",
+    (await asUser(mgrB, "select count(*)::int n from loads")).rows?.[0]?.n === 0);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

@@ -71,7 +71,7 @@ UI — is the authorization boundary.**
 | 0 — Foundation & Design System | ✅ authored | ◐ **~done** — spike ✅ + 16 components + gallery + tests + ESLint + CI + nav shell + Material Symbols (D40); token linter green | ☐ device pass | On-device verify (shell + gallery, light/dark, a11y) + component polish, then close. Deferred: IBM Plex font (D36), tsconfig.base strict flags (D28) |
 | 1 — Identity, Auth & Access Control | ✅ authored | ☑ **built (complete)** — RLS `0083`/`0084` (matrix 50/50); API driver-branch invites (token-enforced accept D15) + linking, `GET /api/me/driver`, `POST /api/me/delete-account`, web driver-gate + `revoke` offboarding; app auth (LargeSecureStore/PKCE client, apiFetch, session state machine, sign-in/pending/wrong-app, guard, Settings + delete-account); **accept-invite/set-password flow: driver invites redirect to `fuelguard://accept-invite` (session from link → set password ≥10 → accept w/ token → claim refresh), with a paste-link rescue and the web accept page as fallback (token forwarding + driver resend-token bugs fixed)** | ◐ device pass pending | Ops before real invites: T1 (token hook) + **T9** (allow `fuelguard://accept-invite` in Supabase Redirect URLs). End-to-end invite test on device, then Phase 2 |
 | 2 — Offline-first Data Layer & Home | ✅ authored | ☑ **built** — persisted read cache (`queryClient`+AsyncStorage persister, offlineFirst), NetInfo→`onlineManager`/AppState→`focusManager`, **SQLCipher-encrypted outbox** (`db/outbox/fileStaging`), serial **sync engine** w/ handler registry + jittered backoff + dead-letter, sync UX (OfflineBanner/SyncStatus/PendingBadge/NeedsAttention), **Home on real `GET /api/me/driver`** w/ skeletons, dev seeded mutation; 16 policy unit tests green | ◐ device pass pending | Verify on device: cold start in airplane mode, queue→relaunch→reconnect drain, SQLCipher active (`cipher_version` warning), then Phase 3 |
-| 3 — Loads & Assignments (the daily job) | ◑ **re-scoped (D41)** | ☐ not started | ☐ | The new core: future / current / previous assignments, accept, per-stop guided photo capture (load / unload / multi-stop). Grounds on `0051_driver_assignments`, `0068_tms_integration`, `shared/tms.ts` |
+| 3 — Loads & Assignments (the daily job) | ✅ **re-authored (D41/D42)** | ◐ **in progress** — discovery done (§14.2: the domain was greenfield); **`0085_driver_loads.sql`** (loads/stops/photos + driver-scoped RLS + `load-photos` bucket), **shared `loadsContract.ts`** (parse-not-cast schemas + derivations, 15 tests), RLS matrix **62/62**, deploy bundle + manual seed script | ☐ | Next: driver API (`GET /api/me/loads`, accept, stop-complete) → app screens on real data (list, detail, per-stop photo capture through the Phase-2 outbox) |
 | 4 — Planned Navigation & Fueling | ◑ **re-scoped (D41)** | ☐ not started | ☐ | Consume server route (HERE) + `fuel_plans` / `smart_fueling_spine`; MapLibre display, corridor guidance, planned-fueling stop overlays. Grounds on `0059`/`0060_route_geometries`, `0074_fuel_plans`, `0058_smart_fueling_spine` |
 | 5 — Driver Performance (self-view) | ◑ authored (math built) | ☐ | ☐ | Own-row weekly score / sub-scores / rank; RESTRICTIVE self-read policy. Math in `packages/shared/src/driverPerformance/` |
 | 6 — HazmatGuard (in the load flow) | ⏳ stub | ☐ | ☐ | Guided hazmat photo capture as a step **inside** the load flow; entitlement-gated. Authored when reached |
@@ -371,6 +371,7 @@ modules don't run in Expo Go).
 | **D39** | **v1 build order (retargeted by D41):** Phases 0–1 (foundation + identity, **built**) → Phase 2 (offline spine + Home) → Phase 3 (**Loads & Assignments** — the daily job) → Phase 4 (**Planned Navigation & Fueling**). Phases 5 (Performance), 6 (Hazmat), 7 (Training) follow | Ships identity + the loads spine first, then navigation; performance/hazmat/training layer on. Supersedes the former fuel-capture-first order (§24 O6) |
 | **D40** | **Icon system = Material Symbols** (default **Rounded**, **Outlined** available, **fill** variants), baked at **weight 200 / grade 200 / opsz 24** as subset static font instances (~92KB for all 4), rendered via `<Icon name … variant fill className>` with a generated codepoint map + a `gen-material-symbols.py` regen script. Supersedes the earlier lucide mention (D18/D23) | User spec; RN can't set grade/fill axes at runtime, so instancing is the only precise way. Self-hosted, no runtime dep, token-colored |
 | **D41** | **Scope pivot — the driver app is a loads/assignments + planned-navigation app, not a fuel-capture app.** Deliverables: (0–1) foundation + identity ✅, (2) offline spine + Home, (3) **Loads & Assignments** — see/accept loads + per-stop proof-of-work photos (JB-Hunt-style), (4) **Planned Navigation & Fueling** (route + planned-fueling stops, display-only over HERE), (5) Driver Performance self-view, (6) HazmatGuard **inside the load flow**, (7) Safety Training. **Manual fuel capture is removed** (stays a web/manager surface); fuel = planned-fueling stops in navigation. **Supersedes/repurposes:** D5 (fuel-capture endpoint), D32 (fuel-write rate limits), D35 (in-motion fuel-entry lockout) are **retired as fuel-specific**; D13 (receipt storage) is **repurposed** to driver-scoped load/hazmat photo storage; D17 (tab shell) + D39 (build order) **retargeted** to loads/nav; the Phase-2 outbox + client-UUID idempotency + EXIF-stripped photo staging are **kept and reused** | User direction (2026-07): the daily driver job is running loads, not logging fuel (which already exists on the web). Building around loads/navigation matches how drivers actually work (JB Hunt / Samsara / Motive) and uses the already-built assignment/route/fuel-plan backend (`0051`, `0059`/`0060`, `0074`, `0058`, `0068`, `tms.ts`, `smartFueling/`) |
+| **D42** | **The driver load domain is greenfield — build it, seed it manually, keep the TMS seam open.** New `loads` / `load_stops` / `load_stop_photos` + driver-scoped `load-photos` storage (`0085`). Drivers are **read-only** at the DB; accept + stop-completion go through the driver-scoped API (server-derives identity). Provenance columns (`source`/`provider`/`external_id` + partial unique index) let a McLeod/TMS feed or a web dispatch UI adopt the same tables later with no migration | Discovery (§14.2) disproved the plan's assumption that loads existed: `0051` is idle-attribution telematics, `0068` is reefer context, `features/jobs` is import progress. Building greenfield unblocks the driver app now; the provenance columns mean the eventual TMS feed is an ingest change, not a rewrite |
 | — | v1 build order set by **D41** (foundation → identity → offline+Home → **loads** → **navigation**; performance/hazmat/training follow) | Prove identity + the loads spine before feature breadth |
 | — | Delivery = **one living plan doc**, built one phase per session, each phase demoable | Matches team conventions; resumable across chats |
 
@@ -857,20 +858,38 @@ required shots, and mark the stop complete. Everything works **offline**: an acc
 is captured locally, shows as `pending`, and syncs when signal returns. On the manager side the
 assignment status + photos appear exactly as if entered on the web.
 
-### 14.2 Grounding in existing code (reuse the brain)
+### 14.2 Discovery finding — the load domain was GREENFIELD (2026-07-27)
 
-This is **not** greenfield data — the fleet already models assignments and loads server-side:
+> The discovery task ran first, as §0 requires, and **disproved this section's original premise.** The
+> earlier draft claimed "the fleet already models assignments and loads server-side." It does not.
+> Recorded here so nobody re-derives it:
 
-- **`0051_driver_assignments.sql`** — driver↔vehicle/route assignment records.
-- **`0068_tms_integration.sql`** + **`packages/shared/src/tms.ts`** — the TMS load/stop model (orders,
-  stops, appointment windows, commodity, equipment) the dispatch side already consumes.
-- Web surfaces: `apps/web/src/features/jobs/**` and the dispatch pages render this for managers today.
+| What was assumed to model loads | What it actually is |
+|---|---|
+| `driver_vehicle_assignments` (`0051`) | Samsara-keyed telematics history (`vehicle_samsara_id`, `driver_samsara_id`, time ranges) for attributing **idle events**. Already excluded from driver-app scope by **D30**. |
+| `tms_movements` (`0068`) + `shared/tms.ts` | Exists to answer one question for reefer alerting: *was this a temperature-controlled load?* Columns: `external_id, vehicle_id, trailer_id, started_at, ended_at, temperature_controlled, setpoint_f, commodity, raw`. **No driver, no stops, no addresses, no appointment windows, no status, no proof-of-work.** Read only by `tmsIngest.ts` + the reefer scoring path. |
+| `apps/web/src/features/jobs/**` | Background **processing** jobs (import progress: queued/running/done/failed) — unrelated to dispatch. |
 
-Phase 3 **reuses those types and Zod schemas** from `@fuelguard/shared` (extending `tms.ts` /
-`apiContract.ts` with the driver-facing subset) and rebuilds only the in-cab UI — the same
-reuse-the-brain rule the whole plan follows. *(A short discovery task at the start of this phase reads
-`0051`/`0068` + `tms.ts` + the web jobs feature and records the exact table/column/status model here
-before any UI is written — no assumptions, per §0.)*
+A repo-wide search for stops, appointments, pickup/dropoff, consignee, BOL, or proof-of-delivery
+returned **nothing**. The driver-facing load domain is therefore **new** — schema, RLS, storage, API.
+
+**Decision D42 (LOCKED) — build the load domain greenfield, seed manually, keep the TMS seam open.**
+`0085_driver_loads.sql` creates `loads` / `load_stops` / `load_stop_photos` plus a driver-scoped
+`load-photos` bucket. Loads are seeded manually for now (`supabase/_deploy/seed_driver_load.sql`);
+the tables carry `source`/`provider`/`external_id` provenance columns and a partial unique index on
+`(org_id, provider, external_id)`, so a McLeod/TMS feed — or a future web dispatch UI — can write the
+same rows later **with no migration**. *(Alternatives weighed: extending the on-prem TMS sync agent
+first — rejected because the agent lives outside this repo and would block all driver-side work; and
+building a manager dispatch UI first — rejected as a second full feature before the driver side
+becomes useful.)*
+
+**Authorization shape (built):** drivers are **read-only** on all three tables — RESTRICTIVE policies
+scope every read to their own loads, and there is deliberately **no driver write policy at all**.
+Accepting a load and completing a stop go through the driver-scoped API (service role), which
+server-derives `driver_id` from the JWT. A driver hitting PostgREST directly can read their own work
+and write nothing; storage paths are `${org}/${driver}/${load}/${photo}` so one driver can never read
+or overwrite another's evidence, and drivers cannot delete a photo at all. **12 RLS matrix cases
+assert exactly this (62/62 green).**
 
 ### 14.3 Screens & flow
 
