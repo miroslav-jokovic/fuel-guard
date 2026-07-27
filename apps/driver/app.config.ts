@@ -17,6 +17,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: 'com.silvicom.fuelguard.driver',
+    // @ts-expect-error edgeToEdgeEnabled is valid in Expo 53+ but @expo/config-types lags behind
     edgeToEdgeEnabled: true,
   },
   plugins: [

@@ -1,64 +1,102 @@
 import { useState } from 'react';
-import { Text } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { EmptyState, Screen, ScreenHeader, SegmentedControl } from '@/components';
+import {
+  Banner,
+  EmptyState,
+  OfflineBanner,
+  Screen,
+  ScreenHeader,
+  SegmentedControl,
+  Skeleton,
+} from '@/components';
 import { LoadCard } from '@/features/loads/LoadCard';
 import { CurrentLoadCard } from '@/features/loads/CurrentLoadCard';
-import {
-  SAMPLE_ACTIVE,
-  SAMPLE_PREVIOUS,
-  SAMPLE_UPCOMING,
-} from '@/features/loads/sampleLoads';
+import { bucketLoads, toActive, toSummary } from '@/features/loads/loadViewModel';
+import { useLoads } from '@/features/loads/useLoads';
 
 type Bucket = 'upcoming' | 'current' | 'previous';
 
-// The Loads surface (Phase 3 shell): Upcoming / Current / Previous, JB-Hunt-style. Accept +
-// per-stop photo capture attach here when the Phase-3 endpoints land; sample data until then.
+const EMPTY: Record<Bucket, { title: string; subtitle: string }> = {
+  upcoming: {
+    title: 'No upcoming loads',
+    subtitle: 'New assignments appear here once dispatch releases them.',
+  },
+  current: {
+    title: 'Nothing in transit',
+    subtitle: 'Accept an upcoming load and start it to see it here.',
+  },
+  previous: {
+    title: 'No finished loads yet',
+    subtitle: 'Delivered runs stay here for your records.',
+  },
+};
+
+/**
+ * Assignments (D51 — the tab reads "Loads", the page reads Assignments). Upcoming · Current ·
+ * Previous, on real data. Only loads dispatch approved and released ever reach this list — the
+ * server applies the same predicate the RLS policy does, so there is no client-side idea of a
+ * hidden load to get wrong (D45).
+ */
 export default function Loads() {
   const router = useRouter();
-  const [bucket, setBucket] = useState<Bucket>('current');
-  const noop = () => undefined; // detail route lands with Phase 3
+  const { data, isPending, isError, error, refetch } = useLoads();
+  const buckets = bucketLoads(data?.loads ?? []);
+  // Land on whatever the driver is actually doing.
+  const [bucket, setBucket] = useState<Bucket>(buckets.current.length > 0 ? 'current' : 'upcoming');
+
+  const rows = buckets[bucket];
+  const showSkeletons = isPending && !data;
 
   return (
     <Screen>
-      <ScreenHeader title="Loads" subtitle="Your assignments" />
+      <ScreenHeader title="Assignments" subtitle="Your loads" />
+      <OfflineBanner />
+
       <SegmentedControl<Bucket>
         value={bucket}
         onChange={setBucket}
         options={[
-          { label: 'Upcoming', value: 'upcoming' },
+          { label: `Upcoming${buckets.upcoming.length ? ` (${buckets.upcoming.length})` : ''}`, value: 'upcoming' },
           { label: 'Current', value: 'current' },
           { label: 'Previous', value: 'previous' },
         ]}
       />
 
-      {bucket === 'current' ? (
-        <CurrentLoadCard
-          load={SAMPLE_ACTIVE}
-          onNavigate={() => router.push('/drive')}
-          onOpen={noop}
+      {isError && !data ? (
+        <Banner
+          tone="danger"
+          message={error.message || 'Could not load your assignments.'}
+          actionLabel="Retry"
+          onAction={() => void refetch()}
         />
       ) : null}
 
-      {bucket === 'upcoming' ? (
-        SAMPLE_UPCOMING.length > 0 ? (
-          SAMPLE_UPCOMING.map((l) => <LoadCard key={l.id} load={l} onPress={noop} />)
-        ) : (
-          <EmptyState
-            icon="event"
-            title="No upcoming loads"
-            subtitle="New assignments from dispatch will appear here."
+      {showSkeletons ? (
+        <View className="gap-3">
+          <Skeleton className="h-[180px] w-full rounded-xl" />
+          <Skeleton className="h-[180px] w-full rounded-xl" />
+        </View>
+      ) : rows.length === 0 ? (
+        <EmptyState icon="local_shipping" title={EMPTY[bucket].title} subtitle={EMPTY[bucket].subtitle} />
+      ) : bucket === 'current' ? (
+        rows.map((load) => (
+          <CurrentLoadCard
+            key={load.id}
+            load={toActive(load)}
+            onNavigate={() => router.push(`/loads/${load.id}` as never)}
+            onOpen={() => router.push(`/loads/${load.id}` as never)}
           />
-        )
-      ) : null}
-
-      {bucket === 'previous' ? (
-        SAMPLE_PREVIOUS.map((l) => <LoadCard key={l.id} load={l} onPress={noop} />)
-      ) : null}
-
-      <Text className="pt-1 text-center text-xs text-ink-subtle">
-        Sample data — live assignments arrive with the Loads phase.
-      </Text>
+        ))
+      ) : (
+        rows.map((load) => (
+          <LoadCard
+            key={load.id}
+            load={toSummary(load)}
+            onPress={() => router.push(`/loads/${load.id}` as never)}
+          />
+        ))
+      )}
     </Screen>
   );
 }

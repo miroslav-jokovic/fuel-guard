@@ -9,7 +9,21 @@ import { z } from "zod";
  */
 
 // ── enums (mirror the CHECK constraints in 0085) ──────────────────────────────
-export const LOAD_STATUSES = ["offered", "accepted", "in_transit", "delivered", "canceled"] as const;
+/**
+ * Every state a load can hold, matching the `loads_status_check` constraint in 0087. The first three
+ * are dispatch-only: a driver never receives them, because `loads_driver_scope` filters them out at
+ * the database (D45). `DRIVER_VISIBLE_STATUSES` in `loadsLifecycle.ts` is that narrower set.
+ */
+export const LOAD_STATUSES = [
+  "draft",
+  "pending_approval",
+  "approved",
+  "offered",
+  "accepted",
+  "in_transit",
+  "delivered",
+  "canceled",
+] as const;
 export type LoadStatus = (typeof LOAD_STATUSES)[number];
 
 export const STOP_KINDS = ["pickup", "dropoff"] as const;
@@ -135,9 +149,12 @@ export type CompleteStopRequest = z.infer<typeof completeStopRequestSchema>;
 // ── derivations shared by the app and the web dashboard ───────────────────────
 /** The three buckets the driver app groups loads into. */
 export function loadBucket(status: LoadStatus): "upcoming" | "current" | "previous" {
-  if (status === "offered" || status === "accepted") return "upcoming";
+  // Only `in_transit` is Current — a load the driver has accepted but not started working is still
+  // Upcoming. (This is the pairing that made `in_transit` unreachable before 0087 gave it a writer.)
   if (status === "in_transit") return "current";
-  return "previous";
+  if (status === "delivered" || status === "canceled") return "previous";
+  // Everything else — including the dispatch-only states a driver never receives — is ahead of them.
+  return "upcoming";
 }
 
 /** The next stop a driver should work — the lowest-seq stop that isn't finished. */

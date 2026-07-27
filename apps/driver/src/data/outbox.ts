@@ -91,17 +91,19 @@ export async function listUnfinished(): Promise<OutboxRecord[]> {
  */
 export async function claimNext(now = Date.now()): Promise<OutboxRecord | null> {
   const db = await getDb();
-  return db.withExclusiveTransactionAsync(async (tx) => {
+  let claimed: OutboxRecord | null = null;
+  await db.withExclusiveTransactionAsync(async (tx) => {
     const row = await tx.getFirstAsync<Row>(
       `select * from outbox
         where status in ('pending', 'failed') and next_attempt_at <= ?
         order by created_at asc limit 1;`,
       now,
     );
-    if (!row) return null;
+    if (!row) return;
     await tx.runAsync(`update outbox set status = 'in_flight' where id = ?;`, row.id);
-    return toRecord({ ...row, status: 'in_flight' });
+    claimed = toRecord({ ...row, status: 'in_flight' });
   });
+  return claimed;
 }
 
 /** Mark a record delivered. Kept (not deleted) briefly so the UI can show "All synced". */

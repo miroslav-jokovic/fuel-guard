@@ -13,6 +13,7 @@ import { requireAuth } from "./middleware/auth.js";
 import { invitesRouter } from "./routes/invites.js";
 import { membersRouter } from "./routes/members.js";
 import { meRouter } from "./routes/me.js";
+import { dispatchRouter } from "./routes/dispatch.js";
 import { transactionsRouter } from "./routes/transactions.js";
 import { anomaliesRouter } from "./routes/anomalies.js";
 import { reportsRouter } from "./routes/reports.js";
@@ -102,6 +103,7 @@ export function createApp(env: Env): Express {
 
   app.use("/api/invites", invitesRouter());
   app.use("/api/me", meRouter());
+  app.use("/api/dispatch", dispatchRouter());
   app.use("/api/members", membersRouter());
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());

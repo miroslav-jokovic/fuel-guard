@@ -7,6 +7,7 @@ import { startDigestScheduler } from "./services/digestScheduler.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";
 import { startEfsIngestScheduler } from "./services/efsIngestScheduler.js";
 import { startPostedPriceScheduler } from "./services/postedPriceFetch.js";
+import { startDutySessionSweeper } from "./services/dutySessionSweeper.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,
@@ -30,4 +31,5 @@ export function startAllSchedulers(env: Env): void {
   startNightlyReconcileScheduler(env); // per-org 03:00 self-heal: EFS repair -> rescore -> rebuild
   startEfsIngestScheduler(env); // per-org auto-ingest of EFS reports
   startPostedPriceScheduler(env); // global posted-price refresh from Pilot's public table
+  startDutySessionSweeper(env); // close abandoned driver shifts so their truck is released (D44.5)
 }

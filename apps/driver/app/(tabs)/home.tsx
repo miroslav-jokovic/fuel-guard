@@ -2,9 +2,8 @@ import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   Avatar,
-  Badge,
   Banner,
-  ListRow,
+  EmptyState,
   NeedsAttentionNote,
   OfflineBanner,
   Screen,
@@ -13,8 +12,12 @@ import {
   StatTile,
 } from '@/components';
 import { CurrentLoadCard } from '@/features/loads/CurrentLoadCard';
-import { SAMPLE_ACTIVE } from '@/features/loads/sampleLoads';
-import { firstName, primaryVehicle, useDriverContext } from '@/features/home/useDriverContext';
+import { LoadCard } from '@/features/loads/LoadCard';
+import { bucketLoads, toActive, toSummary } from '@/features/loads/loadViewModel';
+import { useLoads } from '@/features/loads/useLoads';
+import { DutyCard } from '@/features/duty/DutyCard';
+import { dutyView, useShift } from '@/features/duty/useDuty';
+import { firstName, useDriverContext } from '@/features/home/useDriverContext';
 
 function timeGreeting(): string {
   const h = new Date().getHours();
@@ -29,24 +32,24 @@ function todayLabel(): string {
   });
 }
 
-function formatMiles(value: number | null | undefined): string {
-  if (value === null || value === undefined) return '—';
-  return Math.round(value).toLocaleString();
-}
-
 /**
- * Home (plan §13.5, reframed by D41): the driver's current load is the hero, with truck context and
- * a performance snapshot beneath. Cached-first — on a cold start with no signal this renders from
- * the persisted query cache; skeletons appear only when there is genuinely nothing cached yet, and
- * a failed refresh while cached data exists is silent (offline is normal, not an error).
+ * Home (plan §13.5, reframed by D41 and D51): what the driver needs in a two-second glance —
+ * who they are, what they are driving, and what they are working. Cached-first, so a cold start in
+ * airplane mode renders real data; skeletons appear only when there is genuinely nothing cached.
  */
 export default function Home() {
   const router = useRouter();
-  const { data, isPending, isError, error, refetch } = useDriverContext();
+  const driver = useDriverContext();
+  const shift = useShift();
+  const loads = useLoads();
 
-  const driverName = firstName(data?.driver.full_name);
-  const vehicle = primaryVehicle(data);
-  const showSkeletons = isPending && !data;
+  const duty = dutyView(shift.data);
+  const buckets = bucketLoads(loads.data?.loads ?? []);
+  const current = buckets.current[0] ?? null;
+  const nextUp = buckets.upcoming[0] ?? null;
+
+  const driverName = firstName(driver.data?.driver.full_name);
+  const showSkeletons = driver.isPending && !driver.data;
 
   return (
     <Screen>
@@ -69,48 +72,46 @@ export default function Home() {
         {showSkeletons ? (
           <Skeleton className="h-11 w-11 rounded-full" />
         ) : (
-          <Avatar name={data?.driver.full_name ?? driverName} size={44} />
+          <Avatar name={driver.data?.driver.full_name ?? driverName} size={44} />
         )}
       </View>
 
       <OfflineBanner />
       <NeedsAttentionNote />
 
-      {isError && !data ? (
+      {driver.isError && !driver.data ? (
         <Banner
           tone="danger"
-          message={error.message || 'Could not load your profile.'}
+          message={driver.error.message || 'Could not load your profile.'}
           actionLabel="Retry"
-          onAction={() => {
-            void refetch();
-          }}
+          onAction={() => void driver.refetch()}
         />
       ) : null}
 
-      <SectionLabel>Current load</SectionLabel>
-      <CurrentLoadCard
-        load={SAMPLE_ACTIVE}
-        onNavigate={() => router.push('/drive')}
-        onOpen={() => router.push('/loads')}
+      <SectionLabel>Your day</SectionLabel>
+      <DutyCard
+        duty={duty}
+        loading={shift.isPending && !shift.data}
+        onStart={() => router.push('/duty/check-in' as never)}
+        onChange={() => router.push('/duty/check-in?mode=swap' as never)}
       />
 
-      <SectionLabel>My truck</SectionLabel>
-      {showSkeletons ? (
-        <Skeleton className="h-[60px] w-full rounded-xl" />
-      ) : vehicle ? (
-        <ListRow
-          icon="local_shipping"
-          title={`Unit ${vehicle.unit_number}${vehicle.make ? ` — ${vehicle.make}` : ''}${
-            vehicle.model ? ` ${vehicle.model}` : ''
-          }`}
-          subtitle={`Odometer ${formatMiles(vehicle.current_odometer)} mi · ${vehicle.fuel_type}`}
-          right={<Badge label="Assigned" tone="success" dot />}
+      <SectionLabel>{current ? 'Current load' : 'Next load'}</SectionLabel>
+      {loads.isPending && !loads.data ? (
+        <Skeleton className="h-[220px] w-full rounded-xl" />
+      ) : current ? (
+        <CurrentLoadCard
+          load={toActive(current)}
+          onNavigate={() => router.push(`/loads/${current.id}` as never)}
+          onOpen={() => router.push(`/loads/${current.id}` as never)}
         />
+      ) : nextUp ? (
+        <LoadCard load={toSummary(nextUp)} onPress={() => router.push(`/loads/${nextUp.id}` as never)} />
       ) : (
-        <ListRow
+        <EmptyState
           icon="local_shipping"
-          title="No truck assigned"
-          subtitle="Your dispatcher assigns your unit — it appears here"
+          title="Nothing assigned yet"
+          subtitle="New loads from dispatch appear here as soon as they're released."
         />
       )}
 
@@ -124,9 +125,8 @@ export default function Home() {
         />
         <StatTile label="Rank" value="#4" unit="of 23" icon="military_tech" />
       </View>
-
       <Text className="pt-1 text-center text-xs text-ink-subtle">
-        Load and score data are samples — they wire up in the Loads and Performance phases.
+        Score is a sample until the Performance phase.
       </Text>
     </Screen>
   );

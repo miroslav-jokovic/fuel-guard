@@ -35,22 +35,25 @@ function useProtectedRoute() {
 
   useEffect(() => {
     if (status === 'loading') return;
-    const inAuthGroup = segments[0] === '(auth)';
+    // Cast to plain string[] — expo-router's inferred literal union is too narrow for
+    // route-name comparisons and produces false "no overlap" TS errors.
+    const segs = segments as string[];
+    const inAuthGroup = segs[0] === '(auth)';
 
     // Accept-invite owns its own multi-step state (verify link → session appears (pending) →
     // set password → accept → claims land). Leave it alone until the flow completes ('ready'),
     // otherwise the guard would yank the user to /pending the instant the link session lands.
-    if (inAuthGroup && segments[1] === 'accept-invite' && status !== 'ready') return;
+    if (inAuthGroup && segs[1] === 'accept-invite' && status !== 'ready') return;
 
     if (status === 'ready') {
       // A driver with an org must be inside the app, never on the splash or an auth screen.
-      if (inAuthGroup || segments.length === 0) router.replace('/home');
+      if (inAuthGroup || segs[0] === '' || segs[0] === 'index') router.replace('/home');
       return;
     }
 
     const target =
       status === 'signedOut' ? '/sign-in' : status === 'pending' ? '/pending' : '/wrong-app';
-    const currentAuthScreen = inAuthGroup ? segments[1] : undefined;
+    const currentAuthScreen = inAuthGroup ? segs[1] : undefined;
     if (currentAuthScreen !== target.slice(1)) router.replace(target);
   }, [status, segments, router]);
 }
@@ -77,6 +80,9 @@ function RootNavigator() {
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="loads/[id]" />
+      {/* Contextual work is a modal over the shell, never a tab (D51/§22.1). */}
+      <Stack.Screen name="duty/check-in" options={{ presentation: 'modal' }} />
       <Stack.Screen name="drive" options={{ presentation: 'modal' }} />
       <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
       <Stack.Screen name="gallery" options={{ presentation: 'modal' }} />
