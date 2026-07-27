@@ -54,3 +54,11 @@ scripts/efs-diag.env
 # OS / FUSE temp files
 .fuse_hidden*
 mnt_to_delete_*
+
+# Expo artefacts that Expo CLI sometimes drops at the workspace root instead of apps/driver/.
+# The real native projects live in apps/driver/ios and apps/driver/android.
+# Committing these would install a second "FuelGuard" app (com.anonymous.*) alongside the real one.
+/ios/
+/android/
+/app.json
+/.expo/
