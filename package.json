@@ -8,6 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "driver:ios": "pnpm --filter @fuelguard/driver ios",
+    "driver:android": "pnpm --filter @fuelguard/driver android",
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
