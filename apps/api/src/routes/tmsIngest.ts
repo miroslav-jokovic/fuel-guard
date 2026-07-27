@@ -2,8 +2,9 @@ import { Router, json } from "express";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
-import { tmsMovementsPayloadSchema, driverTimeOffPayloadSchema } from "@fuelguard/shared";
+import { tmsMovementsPayloadSchema, driverTimeOffPayloadSchema, tmsLoadsPayloadSchema } from "@fuelguard/shared";
 import { orgForIngestToken, ingestMovements, ingestDriverTimeOff, touchLastSynced } from "../services/tmsIngest.js";
+import { ingestLoads } from "../services/tmsLoadIngest.js";
 
 /**
  * Inbound TMS ingest from the on-prem sync agent. NO user auth — authenticated by the org's ingest token
@@ -64,6 +65,27 @@ export function tmsIngestRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const { orgId, provider } = req.tms!;
       const result = await ingestDriverTimeOff(admin, orgId, provider, parsed.data.windows);
+      await touchLastSynced(admin, orgId, provider);
+      res.json({ ok: true, ...result });
+    }),
+  );
+
+  /**
+   * Dispatchable loads (Phase 3E, D48). Distinct from /movements, which only carries reefer context:
+   * these become rows a driver actually works — and they land in `pending_approval`, so the feed can
+   * never put work on a phone that no human has released.
+   */
+  router.post(
+    "/loads",
+    asyncHandler(async (req, res) => {
+      const parsed = tmsLoadsPayloadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "invalid payload"));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { orgId, provider } = req.tms!;
+      const result = await ingestLoads(admin, orgId, provider, parsed.data.loads);
       await touchLastSynced(admin, orgId, provider);
       res.json({ ok: true, ...result });
     }),
