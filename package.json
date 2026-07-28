@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "driver:start": "pnpm --filter @fuelguard/driver start",
     "driver:ios": "pnpm --filter @fuelguard/driver ios",
     "driver:android": "pnpm --filter @fuelguard/driver android",
     "dev": "pnpm -r --parallel dev",
@@ -24,7 +25,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:tokens-parity": "node scripts/check-token-parity.mjs",
-    "postinstall": "node scripts/apply-patches.mjs"
+    "postinstall": "node scripts/apply-patches.mjs",
+    "driver:doctor": "node scripts/driver-doctor.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

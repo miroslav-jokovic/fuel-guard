@@ -4,9 +4,10 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --dev-client",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "shared": "pnpm --filter @fuelguard/shared build:rn",
+    "start": "pnpm run shared && expo start --dev-client",
+    "android": "pnpm run shared && expo run:android",
+    "ios": "pnpm run shared && expo run:ios",
     "prebuild": "expo prebuild",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
