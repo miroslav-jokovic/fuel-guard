@@ -193,6 +193,17 @@ from `./index`). Batch it with the next `@fuelguard/shared` change.
 Once (1) + (2) + (3) + (4) land, Phase 3 fully satisfies its §14.12 exit criteria (backend items are
 already ☑; app items become ☑) and the daily driver job runs offline end-to-end on device.
 
+**Update — 2026-07-28 (stop capture built).** Items (2) + (3) are done: the per-stop capture screen
+(`app/loads/[id]/stop/[stopId].tsx`), the `load_stop` outbox handler (uploads staged photos to the
+`load-photos` bucket then POSTs the completion — both idempotent), the `useCompleteStop` hook, the
+pure `stopCaptureModel` (9 unit tests), and the OS-camera → JPEG re-encode pipeline (EXIF stripped,
+D12). Verified: driver typecheck clean, token linter clean, ESLint clean, 9/9 model tests. **Requires
+`npx expo install` for the two new native modules (`expo-image-picker`, `expo-image-manipulator`) plus
+a dev-client rebuild** before it runs on device — the only reason typecheck/lint are not 100% green in
+this tree yet. Remaining 3C: item (4) **End shift** wiring (backend already exists). Standing
+follow-ups: the shared `anomalyRules` require-cycle and the `vitest.config.ts` include gap (colocated
+`src/**` tests are dormant).
+
 ---
 
 **Locked at kickoff (amended by D41):** driver login = personal email + password · styling = NativeWind
