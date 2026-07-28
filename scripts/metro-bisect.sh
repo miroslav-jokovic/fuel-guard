@@ -50,11 +50,21 @@ cp "$CFG" "$SAFE"
 
 cleanup() {
   [ -f "$SAFE" ] && mv -f "$SAFE" "$CFG"
-  pkill -f "expo start .*--port $PORT" 2>/dev/null
+  free_port "$PORT"; free_port 8081
   echo ""
   echo "metro.config.js restored. Logs in $LOGDIR/"
 }
 trap cleanup EXIT INT TERM
+
+# Kill whatever holds the port, by PORT rather than by process name. `pnpm run start` spawns
+# pnpm -> bash -> node, so killing the job leaves the grandchild listening and the next variant hits
+# "Port 8081 is running this app in another window" -- which is the very bug this harness found.
+free_port() {
+  local victims
+  victims="$(lsof -ti "tcp:$1" 2>/dev/null)"
+  [ -n "$victims" ] && echo "$victims" | xargs kill -9 2>/dev/null
+  return 0
+}
 
 # Serve /status and you are up; that is the same check the dev client makes.
 probe() {
@@ -64,7 +74,7 @@ probe() {
   local clear_flag="--clear"; [ "${P_CLEAR:-yes}" = "no" ] && clear_flag=""
   local ci="${P_CI:-1}"
   printf '\n── %-3s %s\n' "$label" "$2"
-  pkill -f "${P_KILL:-expo start .*--port $port}" 2>/dev/null; sleep 1
+  free_port "$port"; sleep 1
 
   # DEBUG output goes to the log, not the terminal -- it names the step Metro is on when it stalls.
   if [ -n "${P_CMD:-}" ]; then
@@ -79,7 +89,7 @@ probe() {
   while [ "$t" -lt "$CEILING" ]; do
     if curl -s -m 2 "http://127.0.0.1:$port/status" 2>/dev/null | grep -q 'packager-status:running'; then
       printf '      UP after %ss\n' "$t"
-      kill "$pid" 2>/dev/null; pkill -f "${P_KILL:-expo start .*--port $port}" 2>/dev/null
+      kill "$pid" 2>/dev/null; free_port "$port"
       return 0
     fi
     if ! kill -0 "$pid" 2>/dev/null; then
@@ -93,7 +103,7 @@ probe() {
 
   printf '      STUCK — no /status after %ss\n' "$CEILING"
   printf '      last lines:\n'; tail -6 "$log" | sed 's/^/        /'
-  kill "$pid" 2>/dev/null; pkill -f "${P_KILL:-expo start .*--port $port}" 2>/dev/null
+  kill "$pid" 2>/dev/null; free_port "$port"
   return 1
 }
 

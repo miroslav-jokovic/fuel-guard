@@ -213,17 +213,21 @@ if (process.platform === 'darwin') {
   }
 }
 
-// 10 ─ A previous Metro still holding the port.
-// Every hung `expo start` from before leaves a node process on 8081. The next one either waits on a
-// prompt you cannot see or serves from the old process's stale file map.
+// 10 ─ A previous Metro still holding port 8081.
+// THIS IS THE ONE. It cost a full day on 2026-07-28. When 8081 is taken, `expo start` prints
+// "Port 8081 is running this app in another window" and then asks "Use port 8082 instead?" -- and
+// that question comes AFTER "Starting Metro Bundler". In non-interactive mode it exits and tells
+// you. In a normal terminal it is a prompt that waits forever, so what you see is a build that
+// stopped on "Starting Metro Bundler" with no error, and it survives reinstalls, cache clears and
+// every config change because the process holding the port is simply still running.
 {
-  const lsof = spawnSync('lsof', ['-nP', '-iTCP:8081', '-sTCP:LISTEN'], { encoding: 'utf8', timeout: 5000 });
-  if (lsof.status === 0 && (lsof.stdout ?? '').trim()) {
-    const pids = [...new Set((lsof.stdout.match(/^\S+\s+(\d+)/gm) ?? []).map((l) => l.split(/\s+/)[1]))];
-    warn(
-      'Something is already listening on port 8081',
-      `pid(s) ${pids.join(', ')} — most likely a Metro from an earlier run.`,
-      `kill ${pids.join(' ')}`,
+  const lsof = spawnSync('lsof', ['-ti', 'tcp:8081'], { encoding: 'utf8', timeout: 5000 });
+  const pids = (lsof.stdout ?? '').trim().split('\n').filter(Boolean);
+  if (pids.length) {
+    fail(
+      'Port 8081 is already taken',
+      `pid(s) ${pids.join(', ')}. expo start will stop on "Starting Metro Bundler" waiting for an answer to "Use port 8082 instead?" that you may never see.`,
+      `kill -9 ${pids.join(' ')}`,
     );
   }
 }
