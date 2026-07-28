@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const driver = path.join(root, 'apps/driver');
@@ -168,6 +169,64 @@ const dirSize = (p) => {
   walk(p);
   return bytes;
 };
+
+// 8 ─ watchman.
+// React Native treats watchman as required on macOS and it is the difference between a warm start and
+// a cold full-tree walk: without it metro-file-map falls back to its own Node crawler, which has no
+// persistent cache and re-walks everything on every boot. On a tree this size that is the whole hang.
+if (process.platform === 'darwin') {
+  const which = spawnSync('which', ['watchman'], { encoding: 'utf8' });
+  if (which.status !== 0) {
+    fail(
+      'watchman is not installed',
+      'Metro falls back to its own Node file crawler, which re-walks the whole tree on every start with no cache.',
+      'brew install watchman',
+    );
+  } else if (!exists(path.join(root, '.watchmanconfig'))) {
+    warn(
+      'No .watchmanconfig at the workspace root',
+      'watchman will watch directories Metro never reads (native build output, docs, other apps).',
+      'Restore .watchmanconfig from git — it lists the ignore_dirs.',
+    );
+  }
+}
+
+// 9 ─ Dataless (evicted) files.
+// The one failure here that is a true hang rather than a slowdown: with "Optimize Mac Storage" on,
+// iCloud evicts file contents and leaves a stub. Reading one blocks until iCloud downloads it — and
+// Metro's crawler reads tens of thousands of files. This is not slow, it is stopped.
+if (process.platform === 'darwin') {
+  const found = spawnSync(
+    'sh',
+    ['-c', `find ${JSON.stringify(realRoot)} -flags +dataless -not -path '*/.git/*' 2>/dev/null | head -20`],
+    { encoding: 'utf8', timeout: 20000 },
+  );
+  const dataless = (found.stdout ?? '').trim().split('\n').filter(Boolean);
+  if (dataless.length) {
+    fail(
+      'Some files have been evicted to the cloud (dataless)',
+      `${dataless.length}+ file(s), e.g. ${dataless.slice(0, 3).map((f) => path.relative(root, f)).join(', ')}. Reading one blocks until it downloads.`,
+      'Turn off "Optimize Mac Storage", or move the checkout off the synced path (see the warning above).',
+    );
+  } else if (found.error) {
+    warn('Could not check for evicted files', String(found.error.message), 'Re-run; the scan timed out.');
+  }
+}
+
+// 10 ─ A previous Metro still holding the port.
+// Every hung `expo start` from before leaves a node process on 8081. The next one either waits on a
+// prompt you cannot see or serves from the old process's stale file map.
+{
+  const lsof = spawnSync('lsof', ['-nP', '-iTCP:8081', '-sTCP:LISTEN'], { encoding: 'utf8', timeout: 5000 });
+  if (lsof.status === 0 && (lsof.stdout ?? '').trim()) {
+    const pids = [...new Set((lsof.stdout.match(/^\S+\s+(\d+)/gm) ?? []).map((l) => l.split(/\s+/)[1]))];
+    warn(
+      'Something is already listening on port 8081',
+      `pid(s) ${pids.join(', ')} — most likely a Metro from an earlier run.`,
+      `kill ${pids.join(' ')}`,
+    );
+  }
+}
 
 // ── report ────────────────────────────────────────────────────────────────────
 const gb = (b) => `${(b / 1024 ** 3).toFixed(2)} GB`;

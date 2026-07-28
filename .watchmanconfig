@@ -1,0 +1,19 @@
+{
+  "ignore_dirs": [
+    ".git",
+    ".pnpm-store",
+    "_to_delete",
+    "_probes",
+    "TemplatesTailwind",
+    "data-samples",
+    "docs",
+    "supabase",
+    "patches",
+    "apps/api",
+    "apps/web",
+    "apps/admin",
+    "apps/admin-api",
+    "apps/driver/ios",
+    "apps/driver/android"
+  ]
+}
