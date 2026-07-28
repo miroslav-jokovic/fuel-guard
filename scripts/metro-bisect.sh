@@ -17,8 +17,16 @@
 #   L4  current config, --offline      → Expo makes network calls around server start; on a stalled
 #                                        connection they block with no message. --offline skips them.
 #
+# L0 and L4 both came up in 3s on 2026-07-28, which rules out the config, the file crawl, NativeWind
+# and the network. That leaves the four deltas between this harness and a plain `pnpm start`. L5-L7
+# change exactly one each, so whichever one hangs IS the cause:
+#
+#   L5  port 8081 instead of 8091      → a zombie Metro from an earlier run still holding the port.
+#   L6  interactive (no CI=1)          → Expo's terminal UI, which waits on stdin.
+#   L7  no --clear                     → the existing Metro cache. Every passing run above cleared it.
+#
 # Usage:  bash scripts/metro-bisect.sh            (all four)
-#         CEILING=600 bash scripts/metro-bisect.sh L0 L4
+#         CEILING=600 bash scripts/metro-bisect.sh L5 L6 L7
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,20 +53,23 @@ trap cleanup EXIT INT TERM
 # Serve /status and you are up; that is the same check the dev client makes.
 probe() {
   local label="$1" log="$LOGDIR/$1.log" t=0 pid
-  local EXTRA_ARGS="${3:-}"
+  local args="${3:-}"
+  local port="${P_PORT:-$PORT}"
+  local clear_flag="--clear"; [ "${P_CLEAR:-yes}" = "no" ] && clear_flag=""
+  local ci="${P_CI:-1}"
   printf '\n── %-3s %s\n' "$label" "$2"
-  pkill -f "expo start .*--port $PORT" 2>/dev/null; sleep 1
+  pkill -f "expo start .*--port $port" 2>/dev/null; sleep 1
 
   # DEBUG output goes to the log, not the terminal -- it names the step Metro is on when it stalls.
-  ( cd "$DRIVER" && CI=1 EXPO_NO_TELEMETRY=1 DEBUG='expo:*' \
-      npx expo start --dev-client --clear --port "$PORT" ${EXTRA_ARGS:-} ) \
-    > "$log" 2>&1 &
+  ( cd "$DRIVER" && CI="$ci" EXPO_NO_TELEMETRY=1 DEBUG='expo:*' \
+      npx expo start --dev-client $clear_flag --port "$port" $args ) \
+    > "$log" 2>&1 < /dev/null &
   pid=$!
 
   while [ "$t" -lt "$CEILING" ]; do
-    if curl -s -m 2 "http://127.0.0.1:$PORT/status" 2>/dev/null | grep -q 'packager-status:running'; then
+    if curl -s -m 2 "http://127.0.0.1:$port/status" 2>/dev/null | grep -q 'packager-status:running'; then
       printf '      UP after %ss\n' "$t"
-      kill "$pid" 2>/dev/null; pkill -f "expo start .*--port $PORT" 2>/dev/null
+      kill "$pid" 2>/dev/null; pkill -f "expo start .*--port $port" 2>/dev/null
       return 0
     fi
     if ! kill -0 "$pid" 2>/dev/null; then
@@ -72,7 +83,7 @@ probe() {
 
   printf '      STUCK — no /status after %ss\n' "$CEILING"
   printf '      last lines:\n'; tail -6 "$log" | sed 's/^/        /'
-  kill "$pid" 2>/dev/null; pkill -f "expo start .*--port $PORT" 2>/dev/null
+  kill "$pid" 2>/dev/null; pkill -f "expo start .*--port $port" 2>/dev/null
   return 1
 }
 
@@ -81,7 +92,7 @@ want() { [ "$#" -eq 0 ] && return 0; for a in "$@"; do [ "$a" = "$WANT" ] && ret
 echo "metro-bisect · port $PORT · ceiling ${CEILING}s per variant"
 echo "driver: $DRIVER"
 
-for WANT in L0 L1 L2 L3 L4; do
+for WANT in L0 L1 L2 L3 L4 L5 L6 L7; do
   if [ "$#" -gt 0 ]; then want "$@" || continue; fi
   case "$WANT" in
     L0) rm -f "$CFG"; probe L0 "Expo defaults — no metro.config.js" ;;
@@ -94,5 +105,8 @@ for WANT in L0 L1 L2 L3 L4; do
           echo "── L3  skipped — could not read $OLD_CONFIG_REF:apps/driver/metro.config.js"
         fi ;;
     L4) cp "$SAFE" "$CFG"; probe L4 "our config, --offline (skips Expo's network calls)" "--offline" ;;
+    L5) cp "$SAFE" "$CFG"; P_PORT=8081 probe L5 "same, but on port 8081 (the port a plain start uses)" ;;
+    L6) cp "$SAFE" "$CFG"; P_CI=0    probe L6 "same, but interactive — Expo's terminal UI, no CI=1" ;;
+    L7) cp "$SAFE" "$CFG"; P_CLEAR=no probe L7 "same, but WITHOUT --clear — the existing Metro cache" ;;
   esac
 done
