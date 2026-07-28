@@ -25,8 +25,14 @@
 #   L6  interactive (no CI=1)          → Expo's terminal UI, which waits on stdin.
 #   L7  no --clear                     → the existing Metro cache. Every passing run above cleared it.
 #
+# L5-L7 all came up in 3s too. Every way of invoking `expo start` directly works, so the remaining
+# suspect is the wrapper -- or the bug is already fixed and nothing has re-run the real command since:
+#
+#   L8  `pnpm run start` verbatim      → the actual failing command, nothing changed.
+#   L9  bare `npx expo start` on 8081  → L8 minus the pnpm wrapper. L9 up + L8 stuck = it is pnpm.
+#
 # Usage:  bash scripts/metro-bisect.sh            (all four)
-#         CEILING=600 bash scripts/metro-bisect.sh L5 L6 L7
+#         CEILING=600 bash scripts/metro-bisect.sh L8 L9
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -58,18 +64,22 @@ probe() {
   local clear_flag="--clear"; [ "${P_CLEAR:-yes}" = "no" ] && clear_flag=""
   local ci="${P_CI:-1}"
   printf '\n── %-3s %s\n' "$label" "$2"
-  pkill -f "expo start .*--port $port" 2>/dev/null; sleep 1
+  pkill -f "${P_KILL:-expo start .*--port $port}" 2>/dev/null; sleep 1
 
   # DEBUG output goes to the log, not the terminal -- it names the step Metro is on when it stalls.
-  ( cd "$DRIVER" && CI="$ci" EXPO_NO_TELEMETRY=1 DEBUG='expo:*' \
-      npx expo start --dev-client $clear_flag --port "$port" $args ) \
-    > "$log" 2>&1 < /dev/null &
+  if [ -n "${P_CMD:-}" ]; then
+    ( cd "$DRIVER" && eval "$P_CMD" ) > "$log" 2>&1 < /dev/null &
+  else
+    ( cd "$DRIVER" && CI="$ci" EXPO_NO_TELEMETRY=1 DEBUG='expo:*' \
+        npx expo start --dev-client $clear_flag --port "$port" $args ) \
+      > "$log" 2>&1 < /dev/null &
+  fi
   pid=$!
 
   while [ "$t" -lt "$CEILING" ]; do
     if curl -s -m 2 "http://127.0.0.1:$port/status" 2>/dev/null | grep -q 'packager-status:running'; then
       printf '      UP after %ss\n' "$t"
-      kill "$pid" 2>/dev/null; pkill -f "expo start .*--port $port" 2>/dev/null
+      kill "$pid" 2>/dev/null; pkill -f "${P_KILL:-expo start .*--port $port}" 2>/dev/null
       return 0
     fi
     if ! kill -0 "$pid" 2>/dev/null; then
@@ -83,7 +93,7 @@ probe() {
 
   printf '      STUCK — no /status after %ss\n' "$CEILING"
   printf '      last lines:\n'; tail -6 "$log" | sed 's/^/        /'
-  kill "$pid" 2>/dev/null; pkill -f "expo start .*--port $port" 2>/dev/null
+  kill "$pid" 2>/dev/null; pkill -f "${P_KILL:-expo start .*--port $port}" 2>/dev/null
   return 1
 }
 
@@ -92,7 +102,7 @@ want() { [ "$#" -eq 0 ] && return 0; for a in "$@"; do [ "$a" = "$WANT" ] && ret
 echo "metro-bisect · port $PORT · ceiling ${CEILING}s per variant"
 echo "driver: $DRIVER"
 
-for WANT in L0 L1 L2 L3 L4 L5 L6 L7; do
+for WANT in L0 L1 L2 L3 L4 L5 L6 L7 L8 L9; do
   if [ "$#" -gt 0 ]; then want "$@" || continue; fi
   case "$WANT" in
     L0) rm -f "$CFG"; probe L0 "Expo defaults — no metro.config.js" ;;
@@ -108,5 +118,11 @@ for WANT in L0 L1 L2 L3 L4 L5 L6 L7; do
     L5) cp "$SAFE" "$CFG"; P_PORT=8081 probe L5 "same, but on port 8081 (the port a plain start uses)" ;;
     L6) cp "$SAFE" "$CFG"; P_CI=0    probe L6 "same, but interactive — Expo's terminal UI, no CI=1" ;;
     L7) cp "$SAFE" "$CFG"; P_CLEAR=no probe L7 "same, but WITHOUT --clear — the existing Metro cache" ;;
+    L8) cp "$SAFE" "$CFG"
+        P_CMD='pnpm run start' P_PORT=8081 P_KILL='expo start' \
+          probe L8 "\`pnpm run start\` verbatim — the actual failing command" ;;
+    L9) cp "$SAFE" "$CFG"
+        P_CMD='npx expo start --dev-client' P_PORT=8081 P_KILL='expo start' \
+          probe L9 "bare npx expo start on 8081 — L8 without the pnpm wrapper" ;;
   esac
 done
