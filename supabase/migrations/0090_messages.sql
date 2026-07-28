@@ -79,6 +79,17 @@ create table if not exists message_reports (
 );
 create index if not exists idx_message_reports_org on message_reports (org_id, created_at desc);
 
+-- ── auth helpers ──────────────────────────────────────────────────────────────
+-- Mirrors auth_org_id() / auth_role() from 0002_functions.sql.
+-- Returns the authenticated user's UUID from the JWT `sub` claim (= auth.uid()).
+create or replace function auth_user_id()
+returns uuid
+language sql
+stable
+as $$
+  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid;
+$$;
+
 -- ── the visibility predicate ──────────────────────────────────────────────────
 -- One helper, used by every policy below, so "can this person see this thread" is defined once.
 -- SECURITY DEFINER for the usual reason (0084): the internal read must bypass RLS or the policy on
