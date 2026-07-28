@@ -359,14 +359,28 @@ if (process.platform === 'darwin') {
     }
   }
   if (dirty.length) {
-    const unstrippable = dirty.some((d) => d.startsWith('com.apple.provenance'));
-    fail(
-      'Extended attributes on the iOS build inputs — codesign will refuse them',
-      dirty.join('; '),
-      unstrippable
-        ? 'com.apple.provenance cannot be stripped. Move the checkout off the synced path and reinstall from a clean clone.'
-        : `xattr -cr ${targets.map((t) => path.relative(root, t)).join(' ')} && rm -rf node_modules/expo-modules-jsi/apple/.DerivedData`,
-    );
+    // FinderInfo / ResourceFork / quarantine ARE strippable with `xattr -cr` and DEFINITELY break
+    // codesign — keep those as blocking fails. com.apple.provenance is kernel-managed and cannot
+    // be stripped by any user-space command (Apple developer forums; Flutter tracks same issue).
+    // Some macOS/Xcode combos codesign fine with provenance present, others fail — downgrading
+    // provenance-only to a WARNING lets xcodebuild determine whether it's a real blocker for THIS
+    // setup. If codesign fails, the escalation is documented: build on a case-sensitive APFS disk
+    // image, where the kernel does not stamp provenance.
+    const provenanceOnly = dirty.every((d) => d.startsWith('com.apple.provenance'));
+    const stripCmd = `xattr -cr ${targets.map((t) => path.relative(root, t)).join(' ')} && rm -rf node_modules/expo-modules-jsi/apple/.DerivedData`;
+    if (provenanceOnly) {
+      warn(
+        'com.apple.provenance is stamped on iOS build inputs',
+        `${dirty.length} target(s): ${dirty.slice(0, 2).join('; ')}. This xattr is kernel-managed; sudo xattr -d silently no-ops on it. The build may still succeed — try it. If codesign fails with "resource fork ... detritus not allowed", build on a case-sensitive APFS disk image (provenance is stamped per-volume, so a fresh volume comes back clean).`,
+        'Try the build first. If codesign fails, create a case-sensitive APFS disk image (Disk Utility → New Image → Sparse Bundle, APFS Case-Sensitive) mounted at /Volumes/DevBuild, git clone the repo there, and build from there.',
+      );
+    } else {
+      fail(
+        'Extended attributes on the iOS build inputs — codesign will refuse them',
+        dirty.join('; '),
+        stripCmd,
+      );
+    }
   }
 }
 
