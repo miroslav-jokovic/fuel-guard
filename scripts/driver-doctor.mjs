@@ -327,6 +327,58 @@ if (process.platform === 'darwin') {
   }
 }
 
+// 13 ─ Extended attributes on the iOS build inputs.
+// Since iOS 10 / macOS Sierra, codesign refuses any file in a bundle carrying a resource fork or
+// Finder info (Apple QA1940). The failure reads:
+//
+//     ExpoModulesJSI.framework: resource fork, Finder information, or similar detritus not allowed
+//     Command PhaseScriptExecution failed with a nonzero exit code
+//
+// which names a framework and looks like a native build bug, so it sends you into the wrong library.
+// A cloud file provider stamps these attributes on everything it touches, which is how a sync setting
+// ends up failing a code signature. `xattr -cr` strips them; it does NOT strip com.apple.provenance,
+// and if that one is present the only real answer is to build somewhere the OS does not apply it.
+if (process.platform === 'darwin') {
+  const targets = [path.join(root, 'node_modules/expo-modules-jsi'), path.join(driver, 'ios')].filter(exists);
+  const dirty = [];
+  for (const t of targets) {
+    const out = spawnSync(
+      'sh',
+      ['-c', `xattr -lr ${JSON.stringify(t)} 2>/dev/null | grep -oE 'com\\.apple\\.(FinderInfo|ResourceFork|provenance|quarantine)' | sort -u`],
+      { encoding: 'utf8', timeout: 60000 },
+    );
+    for (const attr of (out.stdout ?? '').trim().split('\n').filter(Boolean)) {
+      dirty.push(`${attr} on ${path.relative(root, t)}`);
+    }
+  }
+  if (dirty.length) {
+    const unstrippable = dirty.some((d) => d.startsWith('com.apple.provenance'));
+    fail(
+      'Extended attributes on the iOS build inputs — codesign will refuse them',
+      dirty.join('; '),
+      unstrippable
+        ? 'com.apple.provenance cannot be stripped. Move the checkout off the synced path and reinstall from a clean clone.'
+        : `xattr -cr ${targets.map((t) => path.relative(root, t)).join(' ')} && rm -rf node_modules/expo-modules-jsi/apple/.DerivedData`,
+    );
+  }
+}
+
+// 14 ─ A half-written xcframework cache from a failed build.
+// The ExpoModulesJSI build script caches into node_modules, outside anything `expo prebuild --clean`
+// or a Xcode clean touches, so a failed run leaves a partial framework that the next run reuses and
+// fails on identically. Deleting it is free; it rebuilds.
+{
+  const derived = path.join(root, 'node_modules/expo-modules-jsi/apple/.DerivedData');
+  const marker = path.join(driver, 'ios/build');
+  if (exists(derived) && exists(marker) && mtime(derived) > mtime(path.join(driver, 'ios/Podfile.lock'))) {
+    warn(
+      'expo-modules-jsi has a DerivedData cache newer than the last pod install',
+      'If the last build failed inside "[CP-User] Build ExpoModulesJSI xcframework", this cache is the half-written output it will reuse.',
+      'rm -rf node_modules/expo-modules-jsi/apple/.DerivedData',
+    );
+  }
+}
+
 // ── report ────────────────────────────────────────────────────────────────────
 const gb = (b) => `${(b / 1024 ** 3).toFixed(2)} GB`;
 const iosDir = path.join(driver, 'ios');
