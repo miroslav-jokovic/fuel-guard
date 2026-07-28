@@ -135,6 +135,38 @@ const EnvSchema = z.object({
   EFS_GRAPH_MAILBOX: z.string().optional(),
   EFS_GRAPH_FOLDER: z.string().optional(),
 
+  // ── EFS SOAP integration (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md) ────────────
+  // In-house EFS webservice for both posted transactions and rejected authorization attempts. Per-org
+  // credentials live in efs_soap_credentials (migration 0091); these env vars are single-tenant
+  // fallbacks (same pattern as SAMSARA_API_TOKEN + integration_credentials.samsara_api_token).
+  //
+  // EFS_SOAP_ENABLED is the master kill switch: false (default) disables the poller entirely — the
+  // whole subsystem stays cold and no calls are made even if credentials happen to exist. Flip to
+  // true only after (a) credentials are stored, (b) IP allowlisting is confirmed with EFS, and
+  // (c) sandbox certification has passed.
+  EFS_SOAP_ENABLED: z
+    .string()
+    .default("false")
+    .transform((s) => s.toLowerCase() === "true"),
+  EFS_SOAP_ENDPOINT_URL: z.string().url().optional(),        // WSDL URL — from EFS at data release
+  EFS_SOAP_USERNAME: z.string().optional(),                  // fallback if per-org row not set
+  EFS_SOAP_PASSWORD: z.string().optional(),                  // fallback if per-org row not set
+  EFS_SOAP_ACCOUNT_ID: z.string().optional(),                // Silvicom's EFS account number
+  // Poll cadences per feed. Defaults are CONSERVATIVE — tighten once EFS confirms the minimum allowed
+  // interval. Rejections are polled more frequently than posted transactions because they're the
+  // fraud/control signal we want fresh.
+  EFS_SOAP_POSTED_POLL_MINUTES: z.coerce.number().min(1).default(15),
+  EFS_SOAP_REJECTED_POLL_MINUTES: z.coerce.number().min(1).default(5),
+  // Rate limiting — mirrors samsaraHttp.ts. Adjust once EFS provides their per-token limits.
+  EFS_SOAP_MAX_RPS: z.coerce.number().min(0.1).default(2),
+  EFS_SOAP_MAX_RETRIES: z.coerce.number().int().min(0).default(4),
+  // First-sync backfill window in days. Bounded so a misconfiguration can't request a decade of history.
+  EFS_SOAP_BACKFILL_DAYS: z.coerce.number().int().min(1).max(730).default(90),
+  // Optional egress proxy URL for the EFS SOAP client ONLY (static IP for EFS's allowlist). When unset,
+  // direct Railway egress is used. When Railway Pro static outbound IPs are enabled at the platform
+  // level, this stays unset and EFS allowlists the Railway IPs directly.
+  EFS_SOAP_EGRESS_PROXY_URL: z.string().url().optional(),
+
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly
   // specified, the provider is activated automatically — no need to set both vars.

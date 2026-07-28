@@ -18,6 +18,8 @@ export type JobKind =
   | "sync_stats"
   | "nightly_reconcile"
   | "efs_ingest"
+  | "efs_soap_posted"      // EFS SOAP posted-feed poller (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md)
+  | "efs_soap_rejected"    // EFS SOAP rejected-feed poller
   | "sync_driver_scores"
   | "snapshot_driver_week";
 
