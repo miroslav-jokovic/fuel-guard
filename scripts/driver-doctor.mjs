@@ -232,6 +232,101 @@ if (process.platform === 'darwin') {
   }
 }
 
+// 11 ─ Native modules the JS imports but the installed dev client does not contain.
+// THE ONE THAT COST THE SECOND DAY. A dev client is a binary: adding `expo-sqlite` to package.json
+// does NOT put SQLite into the app already on the phone. Metro happily serves a bundle that imports
+// it, the bundle loads, and then the app dies on `Cannot find native module 'ExpoSQLite'` — which
+// reads as "Metro broke it" rather than "the binary is out of date".
+//
+// ios/Podfile.lock is the manifest of what the last native build actually linked, so comparing it
+// against the app's own dependencies answers "is the thing on my phone current?" without touching
+// the device.
+{
+  const lockPath = path.join(driver, 'ios/Podfile.lock');
+  const pkgPath = path.join(driver, 'package.json');
+  if (exists(lockPath) && exists(pkgPath)) {
+    const lock = fs.readFileSync(lockPath, 'utf8');
+    const deps = Object.keys(JSON.parse(fs.readFileSync(pkgPath, 'utf8')).dependencies ?? {});
+
+    // A package ships native iOS code iff it contains a .podspec. Skip the sync-conflict copies
+    // ("RNReanimated 2.podspec") — they are not real podspecs and CocoaPods should never see them.
+    const findPodspec = (dir, depth = 0) => {
+      if (depth > 3) return null;
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return null;
+      }
+      for (const e of entries) {
+        if (e.isFile() && e.name.endsWith('.podspec') && !/ \d+\.podspec$/.test(e.name)) {
+          return e.name.replace(/\.podspec$/, '');
+        }
+      }
+      for (const e of entries) {
+        if (e.isDirectory() && !['node_modules', 'android', '.git', 'build'].includes(e.name)) {
+          const hit = findPodspec(path.join(dir, e.name), depth + 1);
+          if (hit) return hit;
+        }
+      }
+      return null;
+    };
+
+    const missing = [];
+    for (const dep of deps) {
+      const dir = path.join(root, 'node_modules', dep);
+      if (!exists(dir)) continue;
+      const pod = findPodspec(dir);
+      if (!pod) continue;
+      const escaped = pod.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!new RegExp(`^  - ${escaped}[ /(]`, 'm').test(lock)) missing.push(`${dep} (${pod})`);
+    }
+
+    if (missing.length) {
+      const built = fs.statSync(lockPath).mtime.toISOString().slice(0, 16).replace('T', ' ');
+      fail(
+        'The dev client on your device is out of date',
+        `Built ${built}. These are imported by the app but were NOT linked into it: ${missing.join(', ')}. The bundle will load and then die on "Cannot find native module".`,
+        'pnpm --filter @fuelguard/driver ios   (or android) — this reruns prebuild + pod install and installs a fresh binary.',
+      );
+    }
+  }
+}
+
+// 12 ─ Sync-conflict copies of .podspec files inside node_modules.
+// CocoaPods and Expo autolinking scan for podspecs by pattern; a stray "RNReanimated 2.podspec" can
+// be picked up as a second pod with the same target and fail the install in a way that reads like a
+// dependency conflict.
+{
+  const stray = [];
+  const scanPods = (dir, depth = 0) => {
+    if (depth > 3 || stray.length > 20) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.isFile() && / \d+\.podspec$/.test(e.name)) stray.push(path.relative(root, path.join(dir, e.name)));
+      else if (e.isDirectory() && e.name !== 'node_modules') scanPods(path.join(dir, e.name), depth + 1);
+    }
+  };
+  const nm = path.join(root, 'node_modules');
+  if (exists(nm)) {
+    for (const e of fs.readdirSync(nm, { withFileTypes: true })) {
+      if (e.isDirectory()) scanPods(path.join(nm, e.name), 1);
+    }
+  }
+  if (stray.length) {
+    fail(
+      'Duplicate .podspec files in node_modules',
+      `${stray.length}, e.g. ${stray.slice(0, 3).join(', ')}. CocoaPods may link the same pod twice.`,
+      'Delete them, then re-run pod install.',
+    );
+  }
+}
+
 // ── report ────────────────────────────────────────────────────────────────────
 const gb = (b) => `${(b / 1024 ** 3).toFixed(2)} GB`;
 const iosDir = path.join(driver, 'ios');
