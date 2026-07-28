@@ -9,8 +9,12 @@
   },
   "scripts": {
     "driver:start": "pnpm --filter @fuelguard/driver start",
+    "driver:start:usb": "pnpm --filter @fuelguard/driver start:usb",
     "driver:ios": "pnpm --filter @fuelguard/driver ios",
     "driver:android": "pnpm --filter @fuelguard/driver android",
+    "driver:adb:reverse": "pnpm --filter @fuelguard/driver adb:reverse",
+    "driver:adb:devices": "pnpm --filter @fuelguard/driver adb:devices",
+    "driver:clean": "pnpm --filter @fuelguard/driver clean",
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
