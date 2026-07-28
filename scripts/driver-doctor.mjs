@@ -191,25 +191,32 @@ if (process.platform === 'darwin') {
   }
 }
 
-// 9 ─ Dataless (evicted) files.
-// The one failure here that is a true hang rather than a slowdown: with "Optimize Mac Storage" on,
-// iCloud evicts file contents and leaves a stub. Reading one blocks until iCloud downloads it — and
-// Metro's crawler reads tens of thousands of files. This is not slow, it is stopped.
+// 9 ─ Dataless (evicted) files ON THE BUNDLE PATH.
+// The failure here is a true hang, not a slowdown: with "Optimize Mac Storage" on, iCloud evicts a
+// file's contents and leaves a stub, and reading one BLOCKS until it downloads. Metro reads every
+// module it bundles, so an evicted file inside node_modules stalls the bundler mid-progress —
+// at a DIFFERENT percentage each run, which is how you tell it apart from a bad module (same
+// percentage every time). Scoped to the paths Metro actually reads; an evicted file in _to_delete
+// harms nothing.
 if (process.platform === 'darwin') {
-  const found = spawnSync(
-    'sh',
-    ['-c', `find ${JSON.stringify(realRoot)} -flags +dataless -not -path '*/.git/*' 2>/dev/null | head -20`],
-    { encoding: 'utf8', timeout: 20000 },
-  );
-  const dataless = (found.stdout ?? '').trim().split('\n').filter(Boolean);
+  const scopes = ['node_modules', 'apps/driver', 'packages/shared']
+    .map((d) => path.join(realRoot, d))
+    .filter(exists);
+  const dataless = [];
+  for (const scope of scopes) {
+    const found = spawnSync(
+      'sh',
+      ['-c', `find ${JSON.stringify(scope)} -flags +dataless -not -path '*/.git/*' 2>/dev/null | head -10`],
+      { encoding: 'utf8', timeout: 25000 },
+    );
+    dataless.push(...(found.stdout ?? '').trim().split('\n').filter(Boolean));
+  }
   if (dataless.length) {
     fail(
-      'Some files have been evicted to the cloud (dataless)',
-      `${dataless.length}+ file(s), e.g. ${dataless.slice(0, 3).map((f) => path.relative(root, f)).join(', ')}. Reading one blocks until it downloads.`,
-      'Turn off "Optimize Mac Storage", or move the checkout off the synced path (see the warning above).',
+      'Files on the bundle path have been evicted to the cloud',
+      `${dataless.length}+ file(s), e.g. ${dataless.slice(0, 3).map((f) => path.relative(realRoot, f)).join(', ')}. Metro will block on the first one it reads and the bundle will stall part-way.`,
+      'Force them back: find node_modules apps/driver packages -type f -print0 | xargs -0 -n50 -P8 cat > /dev/null — then fix it properly by moving the checkout off the synced path.',
     );
-  } else if (found.error) {
-    warn('Could not check for evicted files', String(found.error.message), 'Re-run; the scan timed out.');
   }
 }
 
