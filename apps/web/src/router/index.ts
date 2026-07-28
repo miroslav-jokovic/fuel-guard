@@ -181,6 +181,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresManage: true, title: "Data & Sync", parent: "/settings" },
   },
   {
+    path: "/settings/efs-soap",
+    name: "efs-soap",
+    component: () => import("@/pages/EfsSoapPage.vue"),
+    meta: { requiresAuth: true, requiresAdmin: true, title: "EFS Integration", parent: "/settings" },
+  },
+  {
     path: "/settings/org",
     name: "org-settings",
     component: () => import("@/pages/OrgSettingsPage.vue"),

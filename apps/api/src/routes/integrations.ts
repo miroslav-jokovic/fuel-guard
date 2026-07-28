@@ -14,6 +14,16 @@ import { syncDriverScores, syncRecentDriverScoreWeeks } from "../services/driver
 import { snapshotSettledWeeks } from "../services/driverPerformanceSnapshot.js";
 import { startJob, finishJob, JobConflictError } from "../services/jobs.js";
 import { getTmsIntegrationStatus, enableTmsIntegration, disableTmsIntegration } from "../services/tmsIngest.js";
+import {
+  disableEfsSoapCredentials,
+  getEfsSoapCredentials,
+  getEfsSoapStatus,
+  upsertEfsSoapCredentials,
+  type FeedName,
+} from "../services/efsSoapCredentials.js";
+import { runEfsSoapIngest } from "../services/efsSoapIngest.js";
+import { pingEfsSoap } from "../lib/efsSoap.js";
+import { z } from "zod";
 
 export function integrationsRouter(): Router {
   const router = Router();
@@ -350,6 +360,183 @@ export function integrationsRouter(): Router {
         entity: "org_integrations",
       });
       res.json({ enabled: false });
+    }),
+  );
+
+  // ── EFS SOAP integration config (admin) ────────────────────────────────────────────────────────
+  // Docs: docs/plans/EFS-SOAP-INTEGRATION-PLAN.md §6.6.
+  //
+  // Endpoints:
+  //   GET  /efs-soap/config           — non-secret status (never returns the SOAP password)
+  //   POST /efs-soap/enable           — upsert credentials + enable polling
+  //   POST /efs-soap/disable          — clear password + disable polling
+  //   POST /efs-soap/test-connection  — one probe against EFS; returns success/failure + roundtrip
+  //   POST /efs-soap/sync-now/:feed   — manual trigger for posted or rejected feed
+  //
+  // All admin-only, org-scoped, and audited via writeAudit. The stubbed SOAP operations
+  // (test-connection and sync-now) will surface EFS_SOAP not_implemented errors as a friendly
+  // "waiting for EFS WSDL" response until data release.
+
+  router.get(
+    "/efs-soap/config",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      res.json(await getEfsSoapStatus(admin, env, req.auth!.orgId!));
+    }),
+  );
+
+  const efsEnableSchema = z.object({
+    environment: z.enum(["sandbox", "production"]),
+    endpointUrl: z.string().url(),
+    soapUsername: z.string().min(1),
+    soapPassword: z.string().min(1),
+    accountId: z.string().nullable().optional(),
+  });
+
+  router.post(
+    "/efs-soap/enable",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const parsed = efsEnableSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid body"));
+        return;
+      }
+      const input = parsed.data;
+      await upsertEfsSoapCredentials(admin, orgId, {
+        environment: input.environment,
+        endpointUrl: input.endpointUrl,
+        soapUsername: input.soapUsername,
+        soapPassword: input.soapPassword,
+        accountId: input.accountId ?? null,
+        enabled: true,
+      });
+      // Audit records the environment + username prefix — NEVER the password.
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "integration.efs_soap.enabled",
+        entity: "efs_soap_credentials",
+        meta: {
+          environment: input.environment,
+          endpointUrl: input.endpointUrl,
+          usernamePrefix: input.soapUsername.slice(0, 3),
+          hasAccountId: input.accountId != null,
+        },
+      });
+      res.json({ enabled: true });
+    }),
+  );
+
+  router.post(
+    "/efs-soap/disable",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      await disableEfsSoapCredentials(admin, orgId);
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "integration.efs_soap.disabled",
+        entity: "efs_soap_credentials",
+      });
+      res.json({ enabled: false });
+    }),
+  );
+
+  router.post(
+    "/efs-soap/test-connection",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const creds = await getEfsSoapCredentials(admin, env, orgId);
+      if (!creds) {
+        res.status(400).json(apiError("efs_soap_not_configured", "EFS SOAP credentials are not set"));
+        return;
+      }
+      const started = Date.now();
+      const result = await pingEfsSoap(env, creds);
+      const roundtripMs = Date.now() - started;
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "integration.efs_soap.test_connection",
+        entity: "efs_soap_credentials",
+        meta: { ok: result.ok, roundtripMs, errorCode: result.ok ? null : result.error.code },
+      });
+      if (result.ok) {
+        res.json({ ok: true, roundtripMs });
+      } else {
+        // "not_implemented" is expected pre-WSDL — return 200 with a friendly note so the UI can
+        // display "Waiting on EFS WSDL" rather than "Failed".
+        if (result.error.code === "not_implemented") {
+          res.json({ ok: false, notImplemented: true, message: result.error.message });
+        } else {
+          res.status(502).json(apiError(`efs_soap_${result.error.code}`, result.error.message));
+        }
+      }
+    }),
+  );
+
+  router.post(
+    "/efs-soap/sync-now/:feed",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const feedParam = String(req.params.feed);
+      if (feedParam !== "posted" && feedParam !== "rejected") {
+        res.status(400).json(apiError("invalid_feed", "feed must be 'posted' or 'rejected'"));
+        return;
+      }
+      const feed: FeedName = feedParam;
+      const kind = feed === "posted" ? "efs_soap_posted" : "efs_soap_rejected";
+      let jobId: string;
+      try {
+        jobId = await startJob(admin, orgId, kind, { requestedBy: req.auth!.userId });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("job_running", `A ${kind} sync is already running.`));
+          return;
+        }
+        throw e;
+      }
+      try {
+        const stats = await runEfsSoapIngest(admin, env, orgId, feed);
+        await writeAudit(admin, {
+          orgId,
+          actorId: req.auth!.userId,
+          action: `integration.efs_soap.sync_now.${feed}`,
+          entity: "efs_soap_credentials",
+          meta: {
+            status: stats.status,
+            rowsFetched: stats.rowsFetched,
+            pagesFetched: stats.pagesFetched,
+            error: stats.error ?? null,
+          },
+        });
+        await finishJob(admin, jobId, { status: "done", stats });
+        res.json(stats);
+      } catch (e) {
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        console.error("[integrations] efs-soap sync-now failed:", e);
+        res.status(502).json(apiError("efs_soap_sync_failed", "Could not run EFS SOAP sync"));
+      }
     }),
   );
 

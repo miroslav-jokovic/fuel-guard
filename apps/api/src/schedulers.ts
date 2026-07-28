@@ -6,6 +6,7 @@ import { startRebuildOnBoot } from "./services/rebuildScheduler.js";
 import { startDigestScheduler } from "./services/digestScheduler.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";
 import { startEfsIngestScheduler } from "./services/efsIngestScheduler.js";
+import { startEfsSoapPoller } from "./services/efsSoapPoller.js";
 import { startPostedPriceScheduler } from "./services/postedPriceFetch.js";
 
 /**
@@ -28,6 +29,7 @@ export function startAllSchedulers(env: Env): void {
   startRebuildOnBoot(env); // one-time anomaly rebuild with current rules (rules-only, idempotent)
   startDigestScheduler(env); // weekly AI theft digest email
   startNightlyReconcileScheduler(env); // per-org 03:00 self-heal: EFS repair -> rescore -> rebuild
-  startEfsIngestScheduler(env); // per-org auto-ingest of EFS reports
+  startEfsIngestScheduler(env); // per-org auto-ingest of EFS reports (XLSX/CSV — manual/mailbox source)
+  startEfsSoapPoller(env); // per-org EFS SOAP polling (posted + rejected feeds); gated on EFS_SOAP_ENABLED
   startPostedPriceScheduler(env); // global posted-price refresh from Pilot's public table
 }

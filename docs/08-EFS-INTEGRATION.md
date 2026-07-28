@@ -38,21 +38,29 @@ distinct report types**:
 
 ---
 
-## 1. How EFS actually shares data (grounding)
+## 1. How EFS actually shares data (grounding — confirmed with EFS 2026-07)
 
-Important reality check from research: **EFS is not a developer REST API with an API key.** EFS (a
-WEX subsidiary; Corpay/FLEETCOR are sibling brands) shares transactions through a **portal-authorized
-data feed**: in the EFS portal you add a *Data Sharing Partner* and provide a **Data Feed username &
-password**; the partner then **polls** for new transactions (commonly every ~5 minutes). Corpay/
-FLEETCOR uses a fixed file layout (the **"AC29"** file type). Setup is a portal request that can take
-a few business days to provision.
+**EFS offers four integration channels for an in-house customer**: REST API, **SOAP web service**,
+authorization webhook / push feed, and SFTP transaction+rejection feed. Their REST API returns only
+successfully posted transactions — it does NOT return rejected authorization attempts — so it is
+unusable for us (the fraud/control signal lives in the rejections). EFS recommended the **SOAP web
+service** because it delivers **both** posted and rejected transactions through the same credential
+set.
 
-**Implication for us:**
-- "Future EFS API key" really means **store EFS data-feed credentials per org** and run a **scheduled
-  poller**, not an OAuth token exchange.
-- The **exact column layout must be confirmed against a real EFS/Corpay export** before we hardcode a
-  parser — so the CSV importer is built **column-mapping-driven**, not fixed-position. The same parser
-  then serves the feed.
+**Locked decision (2026-07):** we use the **SOAP web service** as the sole primary integration
+channel, in the **in-house** deployment mode on Silvicom's own EFS account. No fees for the in-house
+setup. Multi-tenant productization would require an NDA + several weeks of provisioning — tracked
+separately.
+
+**Complete integration plan:** `docs/plans/EFS-SOAP-INTEGRATION-PLAN.md` — precise, assumption-free,
+verified against the codebase. That plan is the source of truth for the SOAP integration; this
+document is the pipeline overview + XLSX importer spec (the SOAP source is a drop-in behind the
+same staging → reconcile → score pipeline).
+
+**Prior grounding (superseded):** an earlier version of this document assumed a Fleetio-style
+"portal-authorized data feed with AC29 polling." That assumption is now retracted — EFS provides a
+real SOAP webservice, not a portal-polled fixed-format file drop. The XLSX/CSV importer described
+below remains valid as a manual-upload fallback path.
 
 ---
 
@@ -229,31 +237,66 @@ Re-uploading the same file is safe: every row dedupes on `external_ref`.
 
 ---
 
-## 6. Phase 2 — EFS automated feed (future)
+## 6. Phase 10 — EFS SOAP source (confirmed direction)
 
-When ready to automate:
-- **Provision** in the EFS portal: add FuelGuard as a Data Sharing Partner; obtain the **Data Feed
-  username/password** (allow a few business days).
-- **Store credentials** encrypted per org (new `integration_credentials` table or a secrets manager;
-  never in the browser). One org → one EFS account for Silvicom.
-- **Poller**: a scheduled job (Railway cron / a worker) pulls new transactions on the provider's
-  cadence (~5 min), runs them through the **same parser → staging → reconcile → commit → score**
-  pipeline with `source='efs_feed'`. Auto-commit rows that reconcile cleanly; route exceptions
-  (unattributed / errors) to the same review screen.
-- **No schema change** from phase 1 — only the source + credential store + scheduler are new.
+**Approach:** replace the never-built "portal-polled AC29 feed" with a direct **SOAP webservice
+client** against EFS's in-house webservice. One credential set covers both feeds:
+
+- **Posted transactions** — polled every `EFS_SOAP_POSTED_POLL_MINUTES` (default 15 min), routed
+  through the "backfill" priority lane of the SOAP client.
+- **Rejected authorization attempts** — polled every `EFS_SOAP_REJECTED_POLL_MINUTES` (default 5
+  min, tighter if EFS confirms lower latency is allowed), routed through the "live" lane so a slow
+  posted-backfill can never starve real-time rejection polling.
+
+Both flows feed the SAME `ingestReport()` write path used by the XLSX importer (`efsIngest.ts`).
+Zero rework of the reconcile / score / faithful-store / shortfall / Samsara-recon logic downstream.
+The only new files are:
+
+- `apps/api/src/lib/soapClient.ts` — rate-limited SOAP HTTP client, modeled on `samsaraHttp.ts`
+  (per-credential pacing, Retry-After, exponential backoff, priority lanes, optional egress proxy).
+- `apps/api/src/lib/efsSoap.ts` — EFS-specific SOAP operations. Interface is locked; WSDL-dependent
+  parts throw `EfsSoapError("not_implemented")` until EFS's data release delivers the WSDL.
+- `apps/api/src/services/efsSoapCredentials.ts` — CRUD + non-secret status (`efs_soap_credentials`).
+- `apps/api/src/services/efsSoapIngest.ts` — thin bridge that pipes SOAP rows into `ingestReport()`.
+- `apps/api/src/services/efsSoapPoller.ts` — two-tier scheduler wrapping each org's pass in a
+  jobs-ledger `runJob` call (kinds `efs_soap_posted`, `efs_soap_rejected`).
+- `apps/api/src/routes/integrations.ts` — new admin routes: `GET /efs-soap/config`,
+  `POST /efs-soap/enable`, `POST /efs-soap/disable`, `POST /efs-soap/test-connection`,
+  `POST /efs-soap/sync-now/:feed`.
+
+New credential storage (`supabase/migrations/0091_efs_soap_credentials.sql`):
 
 ```sql
--- phase 2 only
-create table integration_credentials (
-  org_id      uuid primary key references organizations(id) on delete cascade,
-  provider    text not null default 'efs',
-  feed_user   text not null,
-  feed_secret text not null,           -- encrypted at rest / via secrets manager
-  last_polled_at timestamptz,
-  enabled     boolean not null default true,
-  updated_at  timestamptz not null default now()
+create table efs_soap_credentials (
+  org_id                    uuid primary key references organizations(id) on delete cascade,
+  environment               text not null default 'sandbox'
+                              check (environment in ('sandbox', 'production')),
+  endpoint_url              text not null,
+  soap_username             text not null,
+  soap_password             text not null,
+  account_id                text,
+  posted_last_cursor        text,                 -- opaque delta cursor per EFS's contract
+  rejected_last_cursor      text,
+  posted_last_polled_at     timestamptz,
+  rejected_last_polled_at   timestamptz,
+  posted_last_success_at    timestamptz,
+  rejected_last_success_at  timestamptz,
+  posted_last_error         text,
+  rejected_last_error       text,
+  enabled                   boolean not null default false,
+  ...
 );
+alter table efs_soap_credentials enable row level security;
+-- No client policies → service-role only (the password lives here).
 ```
+
+Env vars added to `apps/api/src/env.ts`: `EFS_SOAP_ENABLED` (master kill switch, defaults false),
+`EFS_SOAP_ENDPOINT_URL`, `EFS_SOAP_USERNAME`, `EFS_SOAP_PASSWORD`, `EFS_SOAP_ACCOUNT_ID` (single-
+tenant fallbacks), `EFS_SOAP_POSTED_POLL_MINUTES`, `EFS_SOAP_REJECTED_POLL_MINUTES`,
+`EFS_SOAP_MAX_RPS`, `EFS_SOAP_MAX_RETRIES`, `EFS_SOAP_BACKFILL_DAYS`,
+`EFS_SOAP_EGRESS_PROXY_URL`.
+
+Full implementation plan + timeline: **`docs/plans/EFS-SOAP-INTEGRATION-PLAN.md`**.
 
 ---
 
@@ -269,8 +312,11 @@ create table integration_credentials (
     enqueue scoring in `fueled_at` order.
   - **Reject Report** → `declined_transactions`: dedup, reconcile, surface as a risk feed.
   - Mapping-driven UI with a saved EFS preset; full audit (`import.run`).
-- **EFS feed = a later phase (post-launch)**: credentials store, poller, auto-commit + exception
-  routing. Explicitly deferred; the design guarantees zero rework to the core.
+- **Phase 10 — EFS SOAP source (confirmed direction, in flight 2026-07):** SOAP webservice replaces
+  the never-built "portal polling" plan. Prep work (migration 0091, env schema, credential storage,
+  scheduler wiring, admin routes, plan document) is complete; SOAP operations and end-to-end
+  connectivity land after EFS's data release delivers the WSDL. XLSX importer stays as a manual
+  upload fallback for outages and historical loads.
 
 ---
 
@@ -278,6 +324,11 @@ create table integration_credentials (
 
 - ✅ Real EFS exports obtained — format locked (§0, §4). Layout: EFS standard (not Corpay AC29).
 - ✅ Confirmed: **odometer present**, **no lat/lng**, **date only (no time)** on the Transaction Report.
+- ✅ EFS integration channel locked — SOAP webservice, in-house deployment, no fees (2026-07).
+- ⏳ Awaiting EFS's data release: WSDL, sandbox credentials, endpoint URLs, authentication scheme,
+  delta-cursor mechanism, stable transaction ID field, product-code list, rejection-code list,
+  IP allowlisting format, rate limits. Complete list in
+  `docs/plans/EFS-SOAP-INTEGRATION-PLAN.md` §11.
 - Seed **`fuel_cards`**: provide the `Card # → vehicle/driver` assignment list (the Transaction
   Report's short `Card #` differs from the Reject Report's full PAN — capture both if available).
 - Ensure each FuelGuard vehicle's **`unit_number` matches the EFS `Unit`** value for auto-reconcile.
@@ -287,7 +338,7 @@ create table integration_credentials (
 ---
 
 ## Sources
-- [Fleetio — EFS fuel card integration (Data Feed user/password, 5-min polling)](https://help.fleetio.com/en_US/fuel/efs-fuel-card-integration)
-- [Fleetio — Corpay/FLEETCOR integration (AC29 file type)](https://help.fleetio.com/fuel/fleetcor-fuel-card-integration)
+- **`docs/plans/EFS-SOAP-INTEGRATION-PLAN.md`** — the SOAP integration source of truth.
+- [Fleetio — EFS fuel card integration (superseded reference for the never-built polling path)](https://help.fleetio.com/en_US/fuel/efs-fuel-card-integration)
 - [Motive — Download CSV files from WEX/EFS fuel purchase integration](https://helpcenter.gomotive.com/hc/en-us/articles/6191936452381-Download-CSV-Files-From-WEX-EFS-Fuel-Purchase-Integration)
 - [Geotab — Fleetcor fuel transaction setup](https://support.geotab.com/mygeotab/mygeotab-add-ins/doc/fleet-fuel-transaction)
