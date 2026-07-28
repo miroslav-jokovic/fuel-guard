@@ -96,6 +96,9 @@ async function main() {
     "migrations/0085_driver_loads.sql",
     "migrations/0086_duty_sessions.sql",
     "migrations/0087_load_lifecycle.sql",
+    "migrations/0088_module_entitlements.sql",
+    "migrations/0089_notifications.sql",
+    "migrations/0090_messages.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -544,6 +547,214 @@ async function main() {
   ok("a load inserted with no explicit status defaults to 'draft'", DEFLOAD.status === "draft", DEFLOAD.status);
   ok("...and is therefore invisible to its assigned driver (0)",
     (await asUser(drv, "select count(*)::int n from loads where id = $1", [DEFLOAD.id])).rows?.[0]?.n === 0);
+
+
+  // ── Module entitlements (0088) — D55 ────────────────────────────────────────
+  // The gate is only real if a disabled module is invisible at the DATABASE, not just in the UI.
+  // These cases assert layer 1; the API guard (layer 2) and the render gate (layer 3) sit on top.
+  ok("every existing org was backfilled with the baseline modules (dispatch + navigation)",
+    (await db.query(`select count(*)::int n from org_modules where org_id = '${ORG_A}' and enabled`)).rows?.[0]?.n === 2);
+  ok("a NEW org is seeded with the same baseline by the trigger — signup never ships a crippled product",
+    (await db.query(`select count(*)::int n from org_modules where org_id = '${ORG_B}' and enabled`)).rows?.[0]?.n === 2);
+
+  ok("auth_module_enabled is TRUE for a granted module",
+    (await asUser(mgrA, "select auth_module_enabled('dispatch') e")).rows?.[0]?.e === true);
+  ok("auth_module_enabled is FALSE for a module nobody was sold (absent row = disabled)",
+    (await asUser(mgrA, "select auth_module_enabled('hazmatguard') e")).rows?.[0]?.e === false);
+  ok("...and FALSE for a module explicitly turned off", await (async () => {
+    await db.query(`insert into org_modules (org_id, module_key, enabled) values ('${ORG_A}','training',false)
+                    on conflict (org_id, module_key) do update set enabled = false`);
+    return (await asUser(mgrA, "select auth_module_enabled('training') e")).rows?.[0]?.e === false;
+  })());
+
+  ok("members can READ their own org's entitlements (the UI needs them to decide what to render)",
+    ((await asUser(mgrA, "select count(*)::int n from org_modules")).rows?.[0]?.n ?? 0) >= 2);
+  ok("a driver can read them too — the app hides what the tenant has not bought",
+    ((await asUser(drv, "select count(*)::int n from org_modules")).rows?.[0]?.n ?? 0) >= 2);
+
+  // Entitlements are a COMMERCIAL fact. Nobody inside the tenant grants themselves a module —
+  // not a driver, not a manager, not an org admin. Only the platform control plane (service role).
+  ok("a driver cannot grant themselves a module",
+    !!(await asUser(drv, "insert into org_modules (org_id, module_key) values ($1,'hazmatguard')", [ORG_A])).error);
+  ok("a manager cannot grant a module either",
+    !!(await asUser(mgrA, "insert into org_modules (org_id, module_key) values ($1,'hazmatguard')", [ORG_A])).error);
+  ok("an ADMIN cannot grant a module — however senior, this is not their decision",
+    !!(await asUser(adminA, "insert into org_modules (org_id, module_key) values ($1,'hazmatguard')", [ORG_A])).error);
+  ok("an admin cannot switch one on by UPDATE either",
+    ((await asUser(adminA, "update org_modules set enabled = true where org_id = $1 and module_key = 'training' returning module_key", [ORG_A])).rows?.length ?? 0) === 0);
+  ok("nobody can delete an entitlement to escape a downgrade",
+    ((await asUser(adminA, "delete from org_modules where org_id = $1 returning module_key", [ORG_A])).rows?.length ?? 0) === 0);
+
+  ok("cross-tenant: org-B sees none of org-A's entitlements",
+    (await asUser(mgrB, "select count(*)::int n from org_modules where org_id = $1", [ORG_A])).rows?.[0]?.n === 0);
+
+  // Turning a module off for ONE org must not touch another — the D56 "switch it off and nothing
+  // else breaks" test, at the data layer.
+  await db.query(`insert into org_modules (org_id, module_key, enabled) values ('${ORG_B}','training',true)
+                  on conflict (org_id, module_key) do update set enabled = true`);
+  ok("disabling a module for one org leaves the other org's grant intact",
+    (await db.query(`select enabled from org_modules where org_id = '${ORG_B}' and module_key = 'training'`)).rows?.[0]?.enabled === true
+    && (await db.query(`select enabled from org_modules where org_id = '${ORG_A}' and module_key = 'training'`)).rows?.[0]?.enabled === false);
+
+
+  // ── Notifications (0089) — D53 ──────────────────────────────────────────────
+  // A notification is addressed to ONE login. This is the single place in the product where
+  // org-wide read would be wrong, so the policies are per-user rather than per-org, and the matrix
+  // asserts that an ADMIN cannot open somebody else's inbox.
+  const OTHERUID = "00000000-0000-0000-0000-0000000d2222";
+  await db.query(`insert into auth.users (id,email) values ('${OTHERUID}','other.driver@example.com')`);
+  await db.query(`update drivers set user_id = '${OTHERUID}' where id = '${OTHER}'`);
+  await db.query(`insert into org_modules (org_id, module_key, enabled) values ('${ORG_A}','notifications',true)
+                  on conflict (org_id, module_key) do update set enabled = true`);
+
+  const MYNOTIF = (await db.query(
+    `select emit_notification('${ORG_A}','${DUID}','load_offered','New load LD-1','Open it to accept','info','load',null,'/loads','k1') id`
+  )).rows[0].id;
+  await db.query(
+    `select emit_notification('${ORG_A}','${OTHERUID}','load_offered','Not yours',null,'info','load',null,'/loads','k2')`
+  );
+
+  ok("emit_notification writes a row for a granted tenant", !!MYNOTIF);
+  ok("driver reads only their OWN notifications (1)",
+    (await asUser(drv, "select count(*)::int n from notification_events")).rows?.[0]?.n === 1);
+  ok("an ADMIN cannot read another user's inbox (0)",
+    (await asUser(adminA, "select count(*)::int n from notification_events")).rows?.[0]?.n === 0);
+  ok("driver cannot INSERT a notification for themselves",
+    !!(await asUser(drv, "insert into notification_events (org_id, audience_user_id, category, title) values ($1,$2,'system','fake')", [ORG_A, DUID])).error);
+  ok("driver cannot rewrite a notification they were sent",
+    ((await asUser(drv, "update notification_events set title = 'edited' where id = $1 returning id", [MYNOTIF])).rows?.length ?? 0) === 0);
+
+  ok("driver CAN mark their own notification read",
+    ((await asUser(drv, "insert into notification_reads (event_id, user_id) values ($1,$2) returning event_id", [MYNOTIF, DUID])).rows?.length ?? 0) === 1);
+  ok("driver cannot mark a read on someone else's behalf",
+    !!(await asUser(drv, "insert into notification_reads (event_id, user_id) values ($1,$2)", [MYNOTIF, OTHERUID])).error);
+
+  // The dedupe guarantee: one buzz per fact, however many times a worker retries.
+  const dupe = (await db.query(
+    `select emit_notification('${ORG_A}','${DUID}','load_offered','New load LD-1',null,'info','load',null,'/loads','k1') id`
+  )).rows[0].id;
+  ok("a replayed emit with the same dedupe key is a no-op", dupe === null);
+
+  // Preferences are enforced SERVER-side — a device setting cannot keep a phone dark at 03:00.
+  await db.query(`insert into notification_preferences (user_id, org_id, muted_categories)
+                  values ('${DUID}','${ORG_A}', array['performance_week'])
+                  on conflict (user_id) do update set muted_categories = array['performance_week']`);
+  ok("a muted category is suppressed at emit time, not at render time",
+    (await db.query(`select emit_notification('${ORG_A}','${DUID}','performance_week','Week settled',null,'info',null,null,null,'k3') id`)).rows[0].id === null);
+  ok("...while an unmuted category still delivers",
+    !!(await db.query(`select emit_notification('${ORG_A}','${DUID}','training_due','Training due',null,'info',null,null,null,'k4') id`)).rows[0].id);
+
+  // The entitlement gate composes: no module, no notifications at all (D55 + D53).
+  await db.query(`update org_modules set enabled = false where org_id = '${ORG_A}' and module_key = 'notifications'`);
+  ok("a tenant without the notifications module emits nothing",
+    (await db.query(`select emit_notification('${ORG_A}','${DUID}','load_offered','Should not exist',null,'info',null,null,null,'k5') id`)).rows[0].id === null);
+  await db.query(`update org_modules set enabled = true where org_id = '${ORG_A}' and module_key = 'notifications'`);
+
+  // Push tokens: own-row only, and revocable — the offboarding guarantee.
+  await db.query(`insert into device_push_tokens (token, org_id, user_id, platform) values ('ExpoTok-self','${ORG_A}','${DUID}','ios')`);
+  await db.query(`insert into device_push_tokens (token, org_id, user_id, platform) values ('ExpoTok-other','${ORG_A}','${OTHERUID}','ios')`);
+  ok("driver sees only their own device tokens (1)",
+    (await asUser(drv, "select count(*)::int n from device_push_tokens")).rows?.[0]?.n === 1);
+  ok("driver cannot register a token against another user",
+    !!(await asUser(drv, "insert into device_push_tokens (token, org_id, user_id) values ('forged',$1,$2)", [ORG_A, OTHERUID])).error);
+  ok("revoke_push_tokens cuts every live token for a user — the offboarding guarantee",
+    (await db.query(`select revoke_push_tokens('${DUID}') n`)).rows[0].n === 1
+    && (await db.query(`select count(*)::int n from device_push_tokens where user_id = '${DUID}' and revoked_at is null`)).rows[0].n === 0);
+  ok("...and leaves other users' devices alone",
+    (await db.query(`select count(*)::int n from device_push_tokens where user_id = '${OTHERUID}' and revoked_at is null`)).rows[0].n === 1);
+
+  ok("driver reads only their own preferences",
+    (await asUser(drv, "select count(*)::int n from notification_preferences")).rows?.[0]?.n === 1);
+  ok("cross-tenant: org-B sees none of org-A's notifications",
+    (await asUser(mgrB, "select count(*)::int n from notification_events")).rows?.[0]?.n === 0);
+
+
+  // ── Messages (0090) — D54 ───────────────────────────────────────────────────
+  // Access is by PARTICIPATION, not org membership: a manager who is not in the thread does not read
+  // it. This is correspondence, not fleet data — the same reasoning as notifications.
+  await db.query(`insert into org_modules (org_id, module_key, enabled) values ('${ORG_A}','messages',true)
+                  on conflict (org_id, module_key) do update set enabled = true`);
+  const ADMINUID = "00000000-0000-0000-0000-0000000a1111";
+  await db.query(`insert into auth.users (id,email) values ('${ADMINUID}','admin.a@silvicominc.com')`);
+  const THREAD = "00000000-0000-4000-8000-00000000b001";
+  const MSG1 = "00000000-0000-4000-8000-00000000b002";
+  const MSG2 = "00000000-0000-4000-8000-00000000b003";
+
+  await db.query(`insert into message_threads (id, org_id, subject, created_by) values ('${THREAD}','${ORG_A}','About LD-1','${ADMINUID}')`);
+  await db.query(`insert into thread_participants (thread_id, org_id, user_id, role) values ('${THREAD}','${ORG_A}','${DUID}','driver')`);
+  await db.query(`insert into thread_participants (thread_id, org_id, user_id, role) values ('${THREAD}','${ORG_A}','${ADMINUID}','office')`);
+  await db.query(`insert into messages (id, thread_id, org_id, sender_user_id, body) values ('${MSG1}','${THREAD}','${ORG_A}','${ADMINUID}','Can you take LD-1?')`);
+
+  const drvA = { org_id: ORG_A, user_role: "driver", sub: DUID };
+  const admU = { org_id: ORG_A, user_role: "admin", sub: ADMINUID };
+  const otherDrv = { org_id: ORG_A, user_role: "driver", sub: OTHERUID };
+
+  ok("a participant reads the thread (1)",
+    (await asUser(drvA, "select count(*)::int n from message_threads")).rows?.[0]?.n === 1);
+  ok("a NON-participant in the same org reads nothing (0)",
+    (await asUser(otherDrv, "select count(*)::int n from message_threads")).rows?.[0]?.n === 0);
+  ok("...and cannot read its messages either (0)",
+    (await asUser(otherDrv, "select count(*)::int n from messages")).rows?.[0]?.n === 0);
+  ok("a participant reads the messages (1)",
+    (await asUser(drvA, "select count(*)::int n from messages")).rows?.[0]?.n === 1);
+
+  ok("a participant may send AS THEMSELVES",
+    (await asUser(drvA, "insert into messages (id, thread_id, org_id, sender_user_id, body) values ($1,$2,$3,$4,'On it') returning id",
+      [MSG2, THREAD, ORG_A, DUID])).rows?.length === 1);
+  ok("a participant cannot forge a message from someone else",
+    !!(await asUser(drvA, "insert into messages (id, thread_id, org_id, sender_user_id, body) values (gen_random_uuid(),$1,$2,$3,'forged')",
+      [THREAD, ORG_A, ADMINUID])).error);
+  ok("a non-participant cannot post into the thread",
+    !!(await asUser(otherDrv, "insert into messages (id, thread_id, org_id, sender_user_id, body) values (gen_random_uuid(),$1,$2,$3,'intruding')",
+      [THREAD, ORG_A, OTHERUID])).error);
+
+  // Nobody joins a conversation by inserting a row — the API resolves the audience (D54).
+  ok("nobody can add themselves to a thread",
+    !!(await asUser(otherDrv, "insert into thread_participants (thread_id, org_id, user_id, role) values ($1,$2,$3,'driver')",
+      [THREAD, ORG_A, OTHERUID])).error);
+
+  ok("a participant may move THEIR OWN read boundary",
+    ((await asUser(drvA, "update thread_participants set last_read_at = now() where thread_id = $1 and user_id = $2 returning user_id",
+      [THREAD, DUID])).rows?.length ?? 0) === 1);
+  ok("...and nobody else's",
+    ((await asUser(drvA, "update thread_participants set last_read_at = now() where thread_id = $1 and user_id = $2 returning user_id",
+      [THREAD, ADMINUID])).rows?.length ?? 0) === 0);
+
+  // Message content settles "dispatch told me to" disputes, so it is evidence.
+  ok("a driver cannot edit someone else's message",
+    ((await asUser(drvA, "update messages set body = 'rewritten' where id = $1 returning id", [MSG1])).rows?.length ?? 0) === 0);
+  // asUser() rolls back, so MSG2 is seeded here — the assertion is about what is PERMITTED.
+  await db.query(`insert into messages (id, thread_id, org_id, sender_user_id, body) values ('${MSG2}','${THREAD}','${ORG_A}','${DUID}','On it')`);
+  ok("a driver CAN retract their own (soft delete)",
+    ((await asUser(drvA, "update messages set deleted_at = now() where id = $1 returning id", [MSG2])).rows?.length ?? 0) === 1);
+  const hardDel = await db.query(`delete from messages where id = '${MSG1}'`).then(() => null, (e) => e.message);
+  ok("a message can never be HARD deleted, even by the service role", !!hardDel, String(hardDel));
+
+  // Both sides caught up, then one new inbound message.
+  await db.query(`update thread_participants set last_read_at = now() where thread_id = '${THREAD}'`);
+  ok("a caught-up participant has nothing unread",
+    (await db.query(`select thread_unread_count('${THREAD}','${DUID}') n`)).rows[0].n === 0);
+  await db.query(`insert into messages (id, thread_id, org_id, sender_user_id, body) values (gen_random_uuid(),'${THREAD}','${ORG_A}','${ADMINUID}','Any update?')`);
+  ok("a new inbound message becomes unread for the other side",
+    (await db.query(`select thread_unread_count('${THREAD}','${DUID}') n`)).rows[0].n === 1);
+  ok("...but never for the person who sent it",
+    (await db.query(`select thread_unread_count('${THREAD}','${ADMINUID}') n`)).rows[0].n === 0);
+
+  ok("posting bumps the thread's recency so an inbox sorts without a subquery",
+    (await db.query(`select last_message_at > created_at as bumped from message_threads where id = '${THREAD}'`)).rows[0].bumped === true);
+
+  // Reports: anyone may file one, only admins review them (Apple 1.2 affordance, no more machinery).
+  ok("a driver may report a message",
+    ((await asUser(drvA, "insert into message_reports (org_id, message_id, reported_by, reason) values ($1,$2,$3,'inappropriate') returning id",
+      [ORG_A, MSG1, DUID])).rows?.length ?? 0) === 1);
+  await db.query(`insert into message_reports (org_id, message_id, reported_by, reason) values ('${ORG_A}','${MSG1}','${DUID}','inappropriate')`);
+  ok("an admin reviews the queue",
+    ((await asUser(admU, "select count(*)::int n from message_reports")).rows?.[0]?.n ?? 0) >= 1);
+  ok("a reporter sees their own report but not the whole queue",
+    ((await asUser(drvA, "select count(*)::int n from message_reports")).rows?.[0]?.n ?? 0) === 1);
+
+  ok("cross-tenant: org-B sees none of org-A's threads",
+    (await asUser(mgrB, "select count(*)::int n from message_threads")).rows?.[0]?.n === 0);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
