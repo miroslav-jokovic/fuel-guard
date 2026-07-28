@@ -42,10 +42,10 @@ const STOP_TONE: Record<LoadStop['status'], Tone> = {
 };
 
 /** Ordered stops with their photo checklist — the itinerary a driver actually works. */
-function StopRow({ stop, isNext }: { stop: LoadStop; isNext: boolean }) {
+function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; onPress?: () => void }) {
   const missing = missingPhotoSlots(stop);
   return (
-    <Card>
+    <Card onPress={onPress}>
       <View className="flex-row items-center gap-2 pb-1">
         <View
           className={`h-6 w-6 items-center justify-center rounded-full ${
@@ -73,6 +73,7 @@ function StopRow({ stop, isNext }: { stop: LoadStop; isNext: boolean }) {
         {stop.status !== 'pending' ? (
           <Badge label={stop.status} tone={STOP_TONE[stop.status]} />
         ) : null}
+        {onPress ? <Icon name="chevron_right" size={18} className="text-ink-subtle" /> : null}
       </View>
 
       <View className="gap-1 pl-8">
@@ -105,6 +106,7 @@ function StopRow({ stop, isNext }: { stop: LoadStop; isNext: boolean }) {
  * Load detail — the itinerary, plus the one decision this screen exists for. The accept/decline copy
  * comes from the server-resolved driver type (D46): a company driver sees "I'm ready", an
  * owner-operator sees "Accept", and only the owner-operator's decline returns the load to dispatch.
+ * Once the load is in transit, each open stop opens its capture flow.
  */
 export default function LoadDetail() {
   const router = useRouter();
@@ -140,6 +142,8 @@ export default function LoadDetail() {
     duty.onDuty && load.vehicle_unit !== null && duty.equipmentLabel !== null
       ? !duty.equipmentLabel.includes(load.vehicle_unit)
       : false;
+  const working = load.status === 'in_transit';
+  const openStop = (stopId: string) => router.push(`/loads/${load.id}/stop/${stopId}` as never);
 
   return (
     <Screen>
@@ -156,7 +160,7 @@ export default function LoadDetail() {
           icon="local_shipping"
           message="Confirm your truck before you start this load."
           actionLabel="Confirm"
-          onAction={() => router.push('/duty/check-in' as never)}
+          onAction={() => router.push('/duty/check-in')}
         />
       ) : null}
 
@@ -166,7 +170,7 @@ export default function LoadDetail() {
           icon="route"
           message={`${load.equipment} needs a trailer — add the one you're pulling.`}
           actionLabel="Add"
-          onAction={() => router.push('/duty/check-in?mode=swap' as never)}
+          onAction={() => router.push('/duty/check-in?mode=swap')}
         />
       ) : null}
 
@@ -178,7 +182,7 @@ export default function LoadDetail() {
         />
       ) : null}
 
-      {load.status === 'in_transit' ? (
+      {working ? (
         <View className="gap-1.5">
           <View className="flex-row items-center justify-between">
             <Text className="text-sm font-sans-md text-ink-secondary">
@@ -203,7 +207,16 @@ export default function LoadDetail() {
 
       <SectionLabel>Itinerary</SectionLabel>
       {stops.map((stop) => (
-        <StopRow key={stop.id} stop={stop} isNext={next?.id === stop.id} />
+        <StopRow
+          key={stop.id}
+          stop={stop}
+          isNext={next?.id === stop.id}
+          onPress={
+            working && stop.status !== 'completed' && stop.status !== 'skipped'
+              ? () => openStop(stop.id)
+              : undefined
+          }
+        />
       ))}
 
       {load.commodity || load.notes ? (
@@ -246,9 +259,15 @@ export default function LoadDetail() {
         />
       ) : null}
 
-      <Text className="pb-2 text-center text-xs text-ink-subtle">
-        Per-stop photo capture arrives with the capture phase.
-      </Text>
+      {working && next ? (
+        <Button
+          label={`Work next stop — ${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'}`}
+          size="lg"
+          icon="photo_camera"
+          haptic="success"
+          onPress={() => openStop(next.id)}
+        />
+      ) : null}
 
       {/* Reason first, then confirm — a decline that dispatch cannot explain is worse than none. */}
       {declining && reason === null ? (
@@ -257,8 +276,8 @@ export default function LoadDetail() {
           {copy.reasons.map((r) => (
             <ListRow
               key={r}
-              title={DECLINE_REASON_LABELS[r as DeclineReason]}
-              onPress={() => setReason(r as DeclineReason)}
+              title={DECLINE_REASON_LABELS[r]}
+              onPress={() => setReason(r)}
             />
           ))}
           <Button label="Never mind" variant="ghost" size="sm" onPress={() => setDeclining(false)} />

@@ -1,4 +1,6 @@
+import { File } from 'expo-file-system';
 import { apiFetch } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { registerHandler, SyncError } from './sync';
 
 /**
@@ -20,6 +22,10 @@ export const SHIFT_END_KIND = 'shift_end';
 export const LOAD_ACCEPT_KIND = 'load_accept';
 export const LOAD_DECLINE_KIND = 'load_decline';
 export const LOAD_START_KIND = 'load_start';
+export const LOAD_STOP_KIND = 'load_stop';
+
+/** Storage bucket for proof-of-work photos (migration 0085) — private, path-scoped by org+driver. */
+const LOAD_PHOTOS_BUCKET = 'load-photos';
 
 const SHIFT_KEYS = [['me', 'shift'], ['me', 'equipment']] as const;
 const LOAD_KEYS = [['me', 'loads']] as const;
@@ -44,6 +50,34 @@ function loadHandler(suffix: string) {
       await post(`/api/me/loads/${loadId}/${suffix}`, body);
     },
   };
+}
+
+/** One queued stop photo: the API fields plus the staged local file the handler uploads. */
+interface QueuedStopPhoto {
+  id: string;
+  slot: string;
+  storage_path: string;
+  captured_at?: string;
+  local_uri?: string;
+}
+
+/**
+ * Upload one staged photo to Storage. A retry after a prior success hits "already exists" — which is
+ * success, not failure, since the storage RLS grants a driver INSERT only (no overwrite) and the row
+ * is keyed by the same client UUID either way. Any other error is thrown so the record retries.
+ */
+async function uploadStopPhoto(photo: QueuedStopPhoto): Promise<void> {
+  if (!photo.local_uri) return; // nothing staged (e.g. a plain arrive/skip)
+  const bytes = await new File(photo.local_uri).arrayBuffer();
+  const { error } = await supabase.storage
+    .from(LOAD_PHOTOS_BUCKET)
+    .upload(photo.storage_path, bytes, { contentType: 'image/jpeg', upsert: false });
+  if (error) {
+    const message = (error as { message?: string }).message ?? '';
+    const statusCode = (error as { statusCode?: string }).statusCode;
+    if (statusCode === '409' || /exist|duplicate/i.test(message)) return; // already uploaded — idempotent
+    throw new SyncError(`Photo upload failed: ${message || 'unknown storage error'}`);
+  }
 }
 
 export function registerSyncHandlers(): void {
@@ -77,4 +111,40 @@ export function registerSyncHandlers(): void {
   registerHandler(LOAD_ACCEPT_KIND, loadHandler('accept'));
   registerHandler(LOAD_DECLINE_KIND, loadHandler('decline'));
   registerHandler(LOAD_START_KIND, loadHandler('start'));
+
+  // ── Stop capture (D21, migration 0087) ─────────────────────────────────────
+  // Bytes BEFORE the POST: the API records each photo's storage_path, so the object must already be
+  // in the bucket or the metadata would point at nothing. Both steps are idempotent, so a retry after
+  // a partial success re-uploads (→ "already exists", ignored) and re-POSTs (→ on-conflict-do-nothing).
+  registerHandler(LOAD_STOP_KIND, {
+    invalidates: LOAD_KEYS,
+    run: async (record) => {
+      const payload = (record.payload ?? {}) as {
+        load_id?: string;
+        stop_id?: string;
+        status?: string;
+        skip_reason?: string;
+        occurred_at?: string;
+        photos?: QueuedStopPhoto[];
+      };
+      if (!payload.load_id || !payload.stop_id || !payload.status) {
+        throw new SyncError('Queued stop action is malformed', 422);
+      }
+      const photos = payload.photos ?? [];
+      for (const photo of photos) {
+        await uploadStopPhoto(photo);
+      }
+      await post(`/api/me/loads/${payload.load_id}/stops/${payload.stop_id}`, {
+        status: payload.status,
+        ...(payload.skip_reason ? { skip_reason: payload.skip_reason } : {}),
+        ...(payload.occurred_at ? { occurred_at: payload.occurred_at } : {}),
+        photos: photos.map((p) => ({
+          id: p.id,
+          slot: p.slot,
+          storage_path: p.storage_path,
+          ...(p.captured_at ? { captured_at: p.captured_at } : {}),
+        })),
+      });
+    },
+  });
 }

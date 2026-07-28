@@ -36,6 +36,8 @@
     "expo-file-system": "*",
     "expo-font": "*",
     "expo-haptics": "^57.0.1",
+    "expo-image-manipulator": "*",
+    "expo-image-picker": "*",
     "expo-linking": "*",
     "expo-router": "*",
     "expo-secure-store": "*",

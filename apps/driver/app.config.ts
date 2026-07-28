@@ -28,6 +28,18 @@ const config: ExpoConfig = {
     // SQLCipher compiles encryption INTO SQLite — without it `PRAGMA key` is silently ignored and
     // the offline outbox (unsynced driver work) would sit in plaintext on the device (D12/§21).
     ['expo-sqlite', { useSQLCipher: true }],
+    // Camera for per-stop proof-of-work photos (Phase 3C). Photos are re-encoded (EXIF stripped, D12)
+    // before they ever touch disk or the network. Only the camera permission is declared — no photo
+    // library, no microphone — least-privilege (§21).
+    [
+      'expo-image-picker',
+      {
+        cameraPermission:
+          'FuelGuard Driver uses your camera to photograph load stops — bill of lading, seal, trailer and any damage — as proof of work.',
+        photosPermission: false,
+        microphonePermission: false,
+      },
+    ],
   ],
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,

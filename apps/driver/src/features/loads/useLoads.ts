@@ -8,11 +8,21 @@ import {
   type DeclineReason,
   type DriverType,
   type Load,
+  type LoadStop,
 } from '@fuelguard/shared';
 import { apiFetch } from '@/lib/api';
 import { ApiQueryError } from '@/lib/queryClient';
 import { enqueue, newClientId } from '@/data/outbox';
-import { LOAD_ACCEPT_KIND, LOAD_DECLINE_KIND, LOAD_START_KIND } from '@/data/handlers';
+import { stageFile } from '@/data/fileStaging';
+import {
+  LOAD_ACCEPT_KIND,
+  LOAD_DECLINE_KIND,
+  LOAD_START_KIND,
+  LOAD_STOP_KIND,
+} from '@/data/handlers';
+import { useSession } from '@/features/auth/SessionProvider';
+import { useDriverContext } from '@/features/home/useDriverContext';
+import { buildStopPhotos, type SessionCapture } from './stopCaptureModel';
 
 /**
  * Loads — the daily job (Phase 3B backend, D45/D46).
@@ -87,6 +97,51 @@ function patchLoad(
   );
 }
 
+/**
+ * Optimistically advance ONE stop within a load: set its status, its skip reason, and append the
+ * photos captured this session so the checklist reads as satisfied immediately. The load's own
+ * status transition (accepted → in_transit → delivered) is server-authoritative — the sync
+ * invalidates ['me','loads'] on success, so the real load status comes straight back.
+ */
+function patchStop(
+  qc: ReturnType<typeof useQueryClient>,
+  loadId: string,
+  stopId: string,
+  status: LoadStop['status'],
+  captures: readonly SessionCapture[],
+  skipReason: string | undefined,
+): void {
+  const nowIso = new Date().toISOString();
+  qc.setQueryData<MeLoadsResponse>(ME_LOADS_KEY, (prev) => {
+    if (!prev) return prev;
+    return {
+      ...prev,
+      loads: prev.loads.map((l) => {
+        if (l.id !== loadId) return l;
+        return {
+          ...l,
+          stops: l.stops.map((s) => {
+            if (s.id !== stopId) return s;
+            const optimisticPhotos = captures.map((c) => ({
+              id: c.photoId,
+              slot: c.slot,
+              storage_path: '', // real path lands when the list re-fetches after sync
+              captured_at: c.capturedAt,
+              uploaded_at: nowIso,
+            }));
+            return {
+              ...s,
+              status,
+              ...(skipReason ? { skip_reason: skipReason } : {}),
+              photos: [...s.photos, ...optimisticPhotos],
+            };
+          }),
+        };
+      }),
+    };
+  });
+}
+
 /** Accept / acknowledge. Optimistic, queued, idempotent on the client record id. */
 export function useAcceptLoad() {
   const qc = useQueryClient();
@@ -143,6 +198,59 @@ export function useStartLoad() {
         payload: { load_id: loadId, occurred_at: new Date().toISOString() },
       });
       patchLoad(qc, loadId, { status: 'in_transit' });
+    },
+  });
+}
+
+export interface CompleteStopInput {
+  loadId: string;
+  stopId: string;
+  status: 'arrived' | 'completed' | 'skipped';
+  /** Photos captured this session; empty for a plain arrive/skip. */
+  captures?: readonly SessionCapture[];
+  /** Required when completing with a missing required photo, or when skipping (D21). */
+  skipReason?: string;
+}
+
+/**
+ * Advance a stop (arrive / complete / skip) with the photos captured this session. Each processed
+ * JPEG is STAGED (copied into the durable outbox area) before the record is queued, so it survives a
+ * relaunch and is deleted only after a confirmed sync (D12). The handler uploads the staged files to
+ * Storage and then POSTs the completion; both are idempotent on the client UUIDs.
+ */
+export function useCompleteStop() {
+  const qc = useQueryClient();
+  const { orgId } = useSession();
+  const driver = useDriverContext();
+  return useMutation({
+    mutationFn: async (input: CompleteStopInput) => {
+      const driverId = driver.data?.driver.id;
+      if (!orgId || !driverId) {
+        throw new Error('Your profile is still loading — give it a second and try again.');
+      }
+      const recordId = newClientId();
+      const captures = input.captures ?? [];
+      const photos = buildStopPhotos({ orgId, driverId, loadId: input.loadId, captures });
+      // Stage each processed JPEG under the record id; the staged uri (not the volatile cache uri) is
+      // what the outbox references and the handler uploads.
+      const stagedPhotos = photos.map((p, i) => ({
+        ...p,
+        local_uri: stageFile(p.local_uri, recordId, i),
+      }));
+      await enqueue({
+        id: recordId,
+        kind: LOAD_STOP_KIND,
+        payload: {
+          load_id: input.loadId,
+          stop_id: input.stopId,
+          status: input.status,
+          ...(input.skipReason ? { skip_reason: input.skipReason } : {}),
+          occurred_at: new Date().toISOString(),
+          photos: stagedPhotos,
+        },
+        fileUris: stagedPhotos.map((p) => p.local_uri),
+      });
+      patchStop(qc, input.loadId, input.stopId, input.status, captures, input.skipReason);
     },
   });
 }
