@@ -118,6 +118,83 @@ deny cases, not as API checks.
 | 7 — Driver Safety Training (micro-LMS) | ⏳ stub | ☐ | ☐ | Video + quiz LMS under **More**, gated on `training`. Authored when reached |
 | ~~Fuel Capture~~ | ❌ **removed (D41)** | — | — | Manual fuel logging is not a driver-app feature; it stays the web/manager surface |
 
+### §1.1 Audit corrections (2026-07-28) — Phase 3C is materially further along than the ledger says
+
+A discovery pass against `apps/driver/{app,src}` on 2026-07-28 (right after the first successful
+on-device launch — see the §18 Build Log) found that the "Next action: 3C" row in §1 is **wrong**:
+five of the six surfaces §14.8 promises for 3C are already built, functional, and wired to real APIs.
+This section is the authoritative status until §1 is rewritten.
+
+**Actual Phase 3C state — per §14.8 surface**
+
+| # | Surface | State | Evidence in the tree |
+|---|---------|-------|----------------------|
+| 1 | Home duty card (3 states) | ✅ **built + functional** | `app/(tabs)/home.tsx` renders `DutyCard` from real `useShift`; onStart → `/duty/check-in`, onChange → `/duty/check-in?mode=swap` |
+| 2 | Check-in sheet (409 take-over) | ✅ **built + functional** | `app/duty/check-in.tsx` — truck+trailer picker, "Bobtail / not hooked yet" first-class, real 409 take-over UX via `ConfirmSheet`, submits through `useStartShift` → `shift_start` outbox |
+| 3 | Change equipment (`mode='swap'`) | ✅ **built + functional** | Same file, distinct copy/CTA, `useChangeEquipment` enqueues `shift_equipment`, `clearTrailer` for bobtail swaps |
+| 4 | End shift | ⚠️ **backend done, UI unwired** | `useEndShift` at `src/features/duty/useDuty.ts:202` and `SHIFT_END_KIND` handler registered; **no screen calls it** (`app/(tabs)/more.tsx` and `app/settings.tsx` both audited — no End shift row) |
+| 5 | Loads list (Upcoming/Current/Previous) | ✅ **built + functional** | `app/(tabs)/loads.tsx` — SegmentedControl with counts, lands on the driver's active bucket, real `useLoads` (`GET /api/me/loads`), empty states per bucket, error banner with retry |
+| 6a | Load detail | ✅ **built + functional** | `app/loads/[id].tsx` — ordered stops with photo checklist, D44.3 trailer-gap banner deep-linking to check-in, D47 equipment-differs banner, accept/decline/start-load CTAs, driver-type-aware `acceptanceCopy` (D46), decline reason picker |
+| 6b | Stop capture | ❌ **NOT built** | `app/loads/[id]/stop/[stopId].tsx` absent; load detail displays "Per-stop photo capture arrives with the capture phase."; no `load_stop` handler in `src/data/handlers.ts` |
+
+**Outbox handlers actually registered** (`src/data/handlers.ts`):
+`dev_ping`, `shift_start`, `shift_equipment`, `shift_end`, `load_accept`, `load_decline`, `load_start`.
+Plan §14.8 lists `load_stop` — **not registered**. The registered `load_start` is the
+accepted → `in_transit` transition (from D45's RPC set), not per-stop completion — different concern.
+
+**Tab shell** (`app/(tabs)/_layout.tsx`) matches D51 exactly: Home · Loads · Score · More visible,
+Navigate declared with `href: null` (routable, hidden). Top-bar Messages/Notifications slots are
+noted in the header comment as intended for 5N/5M but not yet a component.
+
+**Built beyond what §14.8 lists — good drift**
+
+- `useStartLoad` hook + "Start this trip" button on load detail (D45 explicit `POST /start` path).
+- D44.3 trailer-gap banner deep-linking back to check-in in `mode=swap`.
+- D47 "Dispatch planned X, you're in Y" info banner on load detail.
+- `dev_ping` outbox kind + Settings dev-tools "Queue a test sync item" for exercising the outbox
+  drain end-to-end (matches plan §13.1 exit criterion).
+
+**Regression discovered — Phase 2 outbox is NOT clean on device**
+
+The 2026-07-28 device launch printed:
+```
+WARN [sync] run aborted: FunctionCallException: Calling the 'prepareAsync' function has failed
+→ Caused by: SQLiteErrorException: Error code 26: file is not a database
+```
+This is SQLite's `SQLITE_NOTADB` — the outbox DB file exists but can't be opened with the current
+SecureStore key. It happens when the on-device DB was created before the current SQLCipher key
+existed (older dev-client build, or a reinstall that wiped the key while leaving files behind).
+`src/data/db.ts` opens optimistically and does not catch `NOTADB` to drop-and-recreate; the sync
+engine dies on every attempt until the app is uninstalled + reinstalled. **Phase 2's `☑ built`
+row therefore does not hold on device.** Fix scope is a ~15-line addition to `db.ts::open()` —
+catch NOTADB, `SQLite.deleteDatabaseAsync(DB_NAME)`, re-`getOrCreateKey()`, re-open. Add a unit test.
+
+**Non-blocking hygiene issue**
+
+Metro warns of a require cycle in the shared build: `packages/shared/dist/anomalyRules/index.js →
+rules.js → fillConfidence.js → index.js`. RN allows cycles; this is a code smell not a defect.
+Fix is a one-line import change (`fillConfidence.js` should import from `./rules` directly, not
+from `./index`). Batch it with the next `@fuelguard/shared` change.
+
+**Corrected outstanding items for Phase 3C** (in build order)
+
+1. **Fix `db.ts` NOTADB recovery** (Phase 2 regression — blocks the outbox on any device with a
+   stale DB). Small, isolated change; ship first.
+2. **Build stop capture** — `app/loads/[id]/stop/[stopId].tsx` guided per-stop flow: each required
+   slot a labelled card, capture → review → complete, missing-required prompts for a reason (never
+   blocks — **D21**), EXIF stripping before staging (**D12**), photos land in `${org}/${driver}/${load}/${photoId}.webp` (**F3**).
+3. **Register `load_stop` outbox handler** — POSTs per-stop completion + queued photos to
+   `POST /api/me/loads/:id/stops/:stopId` (RPC `driver_complete_stop` from D45); registered in
+   `src/data/handlers.ts`; invalidates `LOAD_KEYS`.
+4. **Wire End shift** — add a row to `app/(tabs)/more.tsx` (or a Settings section) that opens a
+   `ConfirmSheet` with an optional end-odometer field and calls `useEndShift`. All plumbing exists.
+5. **(Optional, low-effort)** clean up the shared require cycle.
+
+Once (1) + (2) + (3) + (4) land, Phase 3 fully satisfies its §14.12 exit criteria (backend items are
+already ☑; app items become ☑) and the daily driver job runs offline end-to-end on device.
+
+---
+
 **Locked at kickoff (amended by D41):** driver login = personal email + password · styling = NativeWind
 (locked token config + token linter) · robust offline-first · full-stack (app + backend) · **app scope
 = loads/assignments + planned navigation (+ performance, hazmat, training); manual fuel capture
