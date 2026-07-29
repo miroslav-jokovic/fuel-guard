@@ -69,8 +69,8 @@ async function readXlsGrid(buf: ArrayBuffer): Promise<Grid> {
   const { read, utils } = await import("xlsx");
   const wb = read(new Uint8Array(buf), { type: "array", cellDates: true });
   const name = wb.SheetNames[0];
-  if (!name) throw new Error("The workbook has no sheets.");
-  const ws = wb.Sheets[name];
+  const ws = name ? wb.Sheets[name] : undefined;
+  if (!ws) throw new Error("The workbook has no sheets.");
   const rows = utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, blankrows: true, defval: null });
   return rows.map((row) => (Array.isArray(row) ? row.map(xlsCellToScalar) : []));
 }
