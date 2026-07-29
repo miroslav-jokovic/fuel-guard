@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
+  type Icon,
   BoltIcon,
   ChevronDownIcon,
   FlagIcon,
@@ -29,7 +30,7 @@ const money = (n: number | null) => (n == null ? null : `$${n.toLocaleString(und
 
 interface Node {
   key: string;
-  icon: unknown;
+  icon: Icon;
   tone: "success" | "brand" | "info" | "warning" | "caution";
   title: string;
   sub?: string;

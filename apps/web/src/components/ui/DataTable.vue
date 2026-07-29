@@ -1,4 +1,6 @@
 <script setup lang="ts" generic="Row extends Record<string, any>">
+import { AppIcon } from "@fuelguard/ui";
+import { ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@fuelguard/ui/icons";
 import { computed, useSlots } from "vue";
 import BaseCard from "./BaseCard.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";

@@ -29,10 +29,15 @@
  */
 
 /**
- * Icon type — a HugeIcons icon module (a two-tuple array of [tag, attrs]).
- * Use this when storing icons as data (nav items, stat cards, toast configs).
+ * A HugeIcons icon module — a tuple array of [tag, attrs] describing the SVG.
+ *
+ * Mirrors the shape of core-free-icons' internal `IconSvgObject` (accepting both
+ * mutable and readonly forms). We define it inline rather than re-exporting
+ * from the package because the package's `exports` map doesn't expose the
+ * type subpath cleanly. A structural clone keeps the barrel decoupled from
+ * the vendor's internal type layout.
  */
-export type { IconArray as Icon } from '@hugeicons/vue';
+export type Icon = readonly (readonly [string, { readonly [key: string]: string | number }])[];
 
 
 // prettier-ignore

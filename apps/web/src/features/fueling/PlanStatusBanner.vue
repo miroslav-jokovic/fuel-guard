@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
+  type Icon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon,
@@ -11,7 +12,7 @@ import type { PlanResultStatus } from "./useFuelPlan";
 
 const props = defineProps<{ status: PlanResultStatus; message?: string }>();
 
-const META: Record<PlanResultStatus, { tone: string; icon: unknown; title: string }> = {
+const META: Record<PlanResultStatus, { tone: string; icon: Icon; title: string }> = {
   ok: { tone: "success", icon: CheckCircleIcon, title: "Plan ready" },
   emergency_used: { tone: "warning", icon: ExclamationTriangleIcon, title: "Plan ready — emergency stop used" },
   infeasible: { tone: "danger", icon: XCircleIcon, title: "Cannot plan safely — driver must act" },
