@@ -144,6 +144,15 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 
 **Objective.** Create the separable module skeleton and the guardrails that keep it separable forever.
 
+> **Reconciliation (2026-07-29): entitlements already exist.** H0 items 4 & 6 below (a new
+> `0079_org_entitlements` column, a `requireEntitlement` middleware, and an admin grant endpoint) are
+> **superseded by the shipped Phase-5E entitlements**: migration `0088_module_entitlements` (`org_modules`
+> + `auth_module_enabled()`), the `requireModule()` API middleware, shared `entitlements.ts` with the
+> `hazmatguard` MODULE_KEY, and the web `useModules` gate. HazmatGuard uses that system as-is — API routes
+> guard with `requireModule("hazmatguard")`; the web nav gates with `moduleEnabled(modules, "hazmatguard")`.
+> Do NOT add a second entitlements mechanism. Items 1–3 (the `@hazmat/*` packages + boundary CI) and item 5
+> (the gated page/route) stand; item 7 (the `hazmat` APP_SECTION) defers to H4 where its role matrix is set.
+
 **Deliverables.**
 1. `packages/hazmat-engine` — new pnpm workspace package `@hazmat/engine`. Pure TypeScript,
    strict, **zero runtime dependencies** and **zero imports from any other workspace package**
@@ -1521,3 +1530,52 @@ modes for the API product; Spanish driver UI.
 
 *End of plan. Keep this file authoritative: update decisions inline (marked D#-revised with
 date), tick phase boxes on merge, and record H11 go/no-go numbers directly in §H11.*
+
+---
+
+## Appendix E — SME placard-decision flow (field-documented, 2026-07)
+
+> Source: the placard-decision flowchart authored by our contracted hazmat safety professional
+> (the D11 SME) — the exact yes/no sequence she runs at the dock. This is a **first-class design
+> input** (D11), not a rule source: the engine's verdicts come from the CFR (D1), and where this
+> flow and the CFR disagree the **CFR wins the verdict** — but every disagreement is investigated and
+> logged in the H3 traceability matrix. What the flow governs is the **ordering** of the placard
+> engine (`computePlacards()`, H2) and the **driver-facing question sequence** at the dock (H10).
+
+### E.1 The flow, transcribed verbatim
+
+Sequential gates (each answered from the BOL + a one-tap driver question where the BOL can't answer it):
+
+1. **Do you have an HM load?** — No → **No placards required** (done). Yes ↓
+2. **Is gross over 1001 lbs?** — No → **No placards required** (done). Yes ↓
+3. **Is it marked as Limited Quantity?** — Yes → **No placards required** (done). No ↓
+4. **Is it bulk?** `****` — Yes → **UN number on the placard**. No ↓
+5. **Is this the only thing in the trailer?** — No → **Worded placard**. Yes ↓
+6. **Is gross weight over 8800 lbs?** — Yes → **UN number on the placard**. No → **Worded placard**.
+   (both paths continue ↓)
+7. **Is it a marine pollutant?** — No → **You are finished** (done). Yes ↓
+8. **Is it bulk?** — Yes → **Marine-pollutant placard required**. No ↓
+9. **Is this a port pickup / delivery?** — Yes → **Marine-pollutant placard required**. No → **Marine-pollutant placard NOT required**.
+
+### E.2 CFR mapping (best-effort; each line is SME-verified in H1/H3 before it is encoded)
+
+| Step | Flow gate | Likely CFR basis | Engine hook |
+|---|---|---|---|
+| 2 | Gross > 1001 lb | §172.504(c) — Table 2 materials: no placard when aggregate gross < 454 kg (1001 lb) | weight-threshold gate |
+| 3 | Limited Quantity | §172.315 / §172.504(f) — LQ packages marked, not placarded | LQ exception gate |
+| 4 | Bulk → UN on placard | §172.302(c) + §172.331 — bulk packagings display the ID number on/near the placard | `marks.idNumber` on the placard verdict |
+| 5 | Sole load vs mixed → worded placard | §172.504(b) — the "DANGEROUS" placard for mixed Table-2 loads vs the specific class ("worded") placard | mixed-load placard selection |
+| 6 | Gross > 8800 lb → UN on placard | **No standard §172.504 threshold at ~4000 kg** (the known thresholds are 454 kg / 1001 lb and 1000 kg / 2205 lb, §172.504(b)) | see reconciliation flag R1 |
+| 7–9 | Marine pollutant / bulk / port | §172.322 marking + non-bulk highway exception §171.4(c) + the vessel/port regime flip | matches v4.4 marine-pollutant + port/IMDG logic |
+
+### E.3 Reconciliation flags (D11 — resolve WITH the SME before encoding; CFR wins the verdict)
+
+- **R1 — the 8800 lb (≈4000 kg) threshold (step 6).** No standard highway placarding threshold sits at 4000 kg. Likely a carrier/company-specific rule, a conflation with the 1000 kg (2205 lb) §172.504(b) "DANGEROUS"-placard exception, or a shop convention. **Do not encode until confirmed.**
+- **R2 — "only thing in trailer? No → worded placard" (step 5).** The direction reads inverted against the usual mixed-load rule (mixed Table-2 loads may use one "DANGEROUS" placard; a sole product uses its specific/worded placard). Confirm which she means by "worded placard" here.
+- **R3 — the `****` footnote on "Is it bulk?" (step 4).** The footnote text is not present in the supplied document. Obtain it — it almost certainly qualifies the bulk definition (e.g., IBC vs. cargo tank, ≥ 3500 L / 3785 L capacity).
+
+### E.4 How this shapes the build
+
+- **H2 (`computePlacards`)** takes this as the canonical **gate order**: HM present → weight threshold → LQ exception → bulk ID display → mixed-vs-sole selection → marine-pollutant ladder → port/vessel context. The engine still evaluates the full CFR §172.504/§172.322 logic; the flow fixes the *sequence* and the *early exits* ("No placards required" / "You are finished").
+- **H10 (driver dock UX)** takes the gates that the BOL can't answer as the **one-tap questions** in exactly this order: "only thing in the trailer?", "port pickup/delivery?" — the two facts that flip the regime.
+- **H3 (traceability matrix)** records each gate with its CFR citation and the R1–R3 dispositions, so the SME's flow and the code never silently drift.
