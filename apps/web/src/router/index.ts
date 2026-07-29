@@ -45,6 +45,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Loads" },
   },
   {
+    path: "/hazmat",
+    name: "hazmat",
+    component: () => import("@/pages/HazmatPage.vue"),
+    meta: { requiresAuth: true, title: "HazmatGuard" },
+  },
+  {
     path: "/vehicles",
     name: "vehicles",
     component: () => import("@/pages/VehiclesPage.vue"),

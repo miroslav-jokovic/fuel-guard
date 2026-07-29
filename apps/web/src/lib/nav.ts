@@ -21,6 +21,7 @@ import {
   MapIcon,
   NoSymbolIcon,
   ShieldCheckIcon,
+  ShieldExclamationIcon,
   ClipboardDocumentCheckIcon,
   SparklesIcon,
   TableCellsIcon,
@@ -93,6 +94,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null)
         { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: canViewSection(role, "safety") },
         { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: canViewSection(role, "safety") },
         { name: "Idling", to: "/idling", icon: ClockIcon, show: canViewSection(role, "safety") },
+        { name: "HazmatGuard", to: "/hazmat", icon: ShieldExclamationIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
       ],
     },
     {
