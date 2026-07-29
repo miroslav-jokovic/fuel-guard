@@ -132,27 +132,24 @@ export function useTransitionLoad() {
 }
 
 export interface BulkResult {
-  ok: number;
+  succeeded: number;
   failed: number;
 }
 
 /**
- * Approve / release many loads at once. There is no bulk endpoint by design — each load goes through
- * the SAME audited, gate-checked per-load transition, so the per-row approval gate is never bypassed;
- * we just report partial success. Sequential, so the API is never hit with a burst.
+ * Approve / release many loads at once via the dedicated bulk endpoint. Each load still passes the SAME
+ * per-row gate server-side; partial success is reported, never swallowed (D49). One request, not N.
  */
 export function useBulkTransition() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { ids: string[]; action: LoadAction }): Promise<BulkResult> => {
-      let ok = 0;
-      let failed = 0;
-      for (const id of payload.ids) {
-        const res = await apiFetch(`/api/dispatch/loads/${id}/${payload.action}`, { method: "POST" });
-        if (res.ok) ok += 1;
-        else failed += 1;
-      }
-      return { ok, failed };
+    mutationFn: async (payload: { ids: string[]; action: "approve" | "release" }): Promise<BulkResult> => {
+      const res = await apiFetch<{ succeeded: number; failed: number }>("/api/dispatch/loads/bulk", {
+        method: "POST",
+        body: payload,
+      });
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Bulk action failed.");
+      return { succeeded: res.data.succeeded, failed: res.data.failed };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: loadsKey }),
   });

@@ -109,7 +109,7 @@ async function bulkDo(action: "approve" | "release", ids: string[]) {
   try {
     const r = await bulk.mutateAsync({ ids, action });
     const verb = action === "approve" ? "approved" : "released";
-    toast.success(`${r.ok} ${verb}${r.failed ? `, ${r.failed} couldn't (not ready)` : ""}`);
+    toast.success(`${r.succeeded} ${verb}${r.failed ? `, ${r.failed} couldn't (not ready)` : ""}`);
     selected.value = new Set();
   } catch (e) {
     toast.error("Bulk action failed", e instanceof Error ? e.message : undefined);
