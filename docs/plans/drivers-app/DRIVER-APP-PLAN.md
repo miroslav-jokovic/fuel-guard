@@ -204,6 +204,15 @@ this tree yet. Remaining 3C: item (4) **End shift** wiring (backend already exis
 follow-ups: the shared `anomalyRules` require-cycle and the `vitest.config.ts` include gap (colocated
 `src/**` tests are dormant).
 
+**Update — 2026-07-28 (End shift wired — 3C app surfaces complete).** Item (4) is done: End shift is a
+modal route (`app/duty/end-shift.tsx`, mirroring check-in) with an optional end-odometer, reachable
+from the Home duty card (new `onEnd` action) and the More screen's on-duty section; it drives the
+existing `useEndShift` (outbox `shift_end`). Added the pure `shiftDurationLabel` (4 tests). Verified:
+driver typecheck / eslint / token-linter clean. **All six §14.8 app surfaces are now built.** The only
+thing between here and a full on-device 3C pass is the stop-capture native install + dev-client rebuild
+(`npx expo install expo-image-picker expo-image-manipulator`, then `pnpm driver:ios`). Standing
+follow-ups unchanged: the shared `anomalyRules` require-cycle and the `vitest.config.ts` include gap.
+
 ---
 
 **Locked at kickoff (amended by D41):** driver login = personal email + password · styling = NativeWind
