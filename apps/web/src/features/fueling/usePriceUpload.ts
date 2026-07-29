@@ -51,6 +51,30 @@ async function readXlsxGrid(buf: ArrayBuffer): Promise<Grid> {
   return grid;
 }
 
+/** SheetJS cell → scalar (mirrors cellToScalar): keep numbers/strings, boolean→number, Date→ISO, blank→null. */
+function xlsCellToScalar(v: unknown): Cell {
+  if (v == null) return null;
+  if (typeof v === "number" || typeof v === "string") return v;
+  if (typeof v === "boolean") return Number(v);
+  if (v instanceof Date) return v.toISOString();
+  return String(v);
+}
+
+/**
+ * Legacy binary .xls (BIFF, 1997–2003 — an OLE compound file, NOT a zip, so ExcelJS can't read it).
+ * SheetJS is lazy-loaded (only .xls uploads pull the chunk). We emit the same dense, 0-indexed cell grid
+ * as the ExcelJS path so the shared parser (parsePilotPriceReport) sees identical rows/columns.
+ */
+async function readXlsGrid(buf: ArrayBuffer): Promise<Grid> {
+  const { read, utils } = await import("xlsx");
+  const wb = read(new Uint8Array(buf), { type: "array", cellDates: true });
+  const name = wb.SheetNames[0];
+  if (!name) throw new Error("The workbook has no sheets.");
+  const ws = wb.Sheets[name];
+  const rows = utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, blankrows: true, defval: null });
+  return rows.map((row) => (Array.isArray(row) ? row.map(xlsCellToScalar) : []));
+}
+
 /** Many fuel-price "reports" are an HTML <table> saved with an .xls extension. Parse the biggest table. */
 function readHtmlGrid(text: string): Grid {
   const doc = new DOMParser().parseFromString(text, "text/html");
@@ -81,7 +105,7 @@ function readCsvGrid(text: string): Grid {
  * Decode a fuel-price report into a raw cell grid, client-side, sniffing the ACTUAL format by magic
  * bytes rather than trusting the extension. Enterprise reports are routinely a `.xls` that is really an
  * HTML table (or CSV) — feeding those to ExcelJS threw "can't find end of central directory". Genuine
- * modern spreadsheets go through ExcelJS; legacy binary `.xls` (1997–2003) gets a clear, actionable error.
+ * modern spreadsheets go through ExcelJS; legacy binary `.xls` (1997–2003) is decoded with SheetJS (lazy-loaded).
  */
 export async function readReportGrid(file: File): Promise<Grid> {
   const buf = await file.arrayBuffer();
@@ -91,9 +115,14 @@ export async function readReportGrid(file: File): Promise<Grid> {
 
   if (isZip) return readXlsxGrid(buf);
   if (isOle) {
-    throw new Error(
-      "This is an old-format Excel file (.xls, 1997–2003) we can't read directly. Open it in Excel and choose File → Save As → Excel Workbook (.xlsx), then re-upload.",
-    );
+    try {
+      return await readXlsGrid(buf);
+    } catch {
+      // A genuinely corrupt/password-protected .xls — give the one reliable workaround.
+      throw new Error(
+        "We couldn't read this .xls file. If it keeps failing, open it in Excel and choose File → Save As → Excel Workbook (.xlsx), then re-upload.",
+      );
+    }
   }
 
   const text = new TextDecoder("utf-8").decode(buf);
