@@ -22,6 +22,8 @@ import { webhooksRouter } from "./routes/webhooks.js";
 import { tmsIngestRouter } from "./routes/tmsIngest.js";
 import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./routes/jobs.js";
+import { dispatchRouter } from "./routes/dispatch.js";
+import { hazmatRouter } from "./routes/hazmat/index.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -107,6 +109,8 @@ export function createApp(env: Env): Express {
   app.use("/api/fueling", fuelingRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
+  app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
+  app.use("/api/hazmat", hazmatRouter());
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 
   // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────
