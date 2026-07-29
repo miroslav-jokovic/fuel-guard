@@ -1,105 +1,83 @@
-import { z } from "zod";
+import {
+  ENGINE_VERSION,
+  emptyPlacards,
+  loadInputSchema,
+  type Finding,
+  type LoadInput,
+  type PlacardName,
+  type TraceNode,
+  type Verdict,
+} from "./types.js";
+import {
+  cleanedTankProhibitsGate,
+  determinationWithheldGate,
+  noHazmatLinesGate,
+} from "./placards/rules.js";
+
+export * from "./types.js";
+
+const ALL_PLACARDS: readonly PlacardName[] = [
+  "FLAMMABLE", "GASOLINE", "COMBUSTIBLE", "FUEL_OIL", "FLAMMABLE_GAS", "NON_FLAMMABLE_GAS",
+  "OXYGEN", "POISON_GAS", "FLAMMABLE_SOLID", "SPONTANEOUSLY_COMBUSTIBLE", "DANGEROUS_WHEN_WET",
+  "OXIDIZER", "ORGANIC_PEROXIDE", "POISON", "POISON_INHALATION_HAZARD", "CORROSIVE",
+  "RADIOACTIVE", "CLASS_9", "DANGEROUS",
+];
 
 /**
- * @hazmat/engine — the deterministic HazmatGuard rules engine (Phase H0 skeleton).
+ * evaluateLoad — the deterministic entry point (Phase H2, in progress).
  *
- * A PURE function library: no I/O, no clock (the caller passes `evaluatedAt`), no network, no DB, and —
- * enforced in CI (scripts/check-feature-boundaries.mjs) — ZERO imports from any other workspace package.
- * Zod is the single allowed dependency, for the I/O schemas. Verdicts come from the CFR (D1); this is
- * where that logic will live. H0 ships the contracts + fail-closed stubs only; H1–H3 implement them.
+ * IMPLEMENTED (dataset-independent, definitive): the no-hazmat exit, the cleaned-and-purged prohibition
+ * (§172.502(a)/§172.303), and a fail-closed "determination withheld" gate. The substantive ladder
+ * (steps 2–12: class resolution, Table 1/2 gates, the 1,001-lb aggregate, §172.504(f), DANGEROUS,
+ * ID display, marine pollutant, IMDG) is blocked on H1's certified dataset + the SME's R1–R3 answers.
+ * No verdict CLEARS here — the engine is a pure function with no clearing concept (H4/H7 decide).
  */
+export function evaluateLoad(input: LoadInput): Verdict {
+  const load = loadInputSchema.parse(input);
+  const trace: TraceNode[] = [];
+  const placards = emptyPlacards();
+  const blocks: Finding[] = [];
 
-export const ENGINE_VERSION = "0.1.0";
-
-// ── Dataset contract ──────────────────────────────────────────────────────────
-// The CALLER loads this from @hazmat/data and passes it in; the engine never loads a dataset itself.
-// Shape is opaque at the skeleton stage — H1 locks the 49 CFR 172.101 table + appendices.
-export interface HazmatDataset {
-  /** Dataset release id, e.g. "2026.02" — stored on every verdict for reproducibility (D9). */
-  version: string;
-  readonly entries: readonly unknown[];
-}
-
-// ── Inputs ────────────────────────────────────────────────────────────────────
-export const bolLineSchema = z.object({
-  idNumber: z.string().nullable(),
-  properShippingName: z.string().nullable(),
-  hazardClass: z.string().nullable(),
-  packingGroup: z.string().nullable(),
-  quantity: z.string().nullable(),
-});
-export type BolLine = z.infer<typeof bolLineSchema>;
-
-export const loadInputSchema = z.object({
-  /** The caller's clock — the engine never calls Date.now() (determinism + reproducibility). */
-  evaluatedAt: z.string(),
-  lines: z.array(bolLineSchema).default([]),
-  grossWeightLb: z.number().nullable().default(null),
-  /** Dock facts the BOL can't answer (SME flow, plan Appendix E) — null until the driver confirms. */
-  soleProductInTrailer: z.boolean().nullable().default(null),
-  isPortPickupOrDelivery: z.boolean().nullable().default(null),
-});
-export type LoadInput = z.infer<typeof loadInputSchema>;
-
-// ── Outputs ───────────────────────────────────────────────────────────────────
-/** Fail-closed states (D2): nothing is `cleared` without a fully-green run or a human attestation. */
-export type Verdict = "cleared" | "needs_review" | "blocked" | "not_applicable";
-
-export interface Finding {
-  code: string;
-  /** CFR citation for this finding (D1 — every finding cites the reg). */
-  citation: string | null;
-  message: string;
-}
-
-export interface PlacardResult {
-  verdict: Verdict;
-  placards: readonly string[];
-  marks: { idNumbers: readonly string[]; marinePollutant: boolean };
-  findings: readonly Finding[];
-}
-export interface BolResult {
-  verdict: Verdict;
-  findings: readonly Finding[];
-}
-export interface EligibilityResult {
-  status: "eligible" | "blocked" | "needs_review";
-  findings: readonly Finding[];
-}
-export interface SegregationResult {
-  verdict: Verdict;
-  findings: readonly Finding[];
-}
-export interface LoadEvaluation {
-  engineVersion: string;
-  datasetVersion: string;
-  verdict: Verdict;
-  placards: PlacardResult;
-  bol: BolResult;
-  eligibility: EligibilityResult;
-  segregation: SegregationResult;
-}
-
-// ── Entry points (H0: explicitly not implemented; H1–H3 replace these) ─────────
-export class NotImplementedError extends Error {
-  constructor(fn: string) {
-    super(`${fn}() is not implemented yet — HazmatGuard Phase H0 skeleton`);
-    this.name = "NotImplementedError";
+  const noHm = noHazmatLinesGate(load);
+  trace.push(noHm.trace);
+  if (noHm.finding) {
+    // Definitive clean read: no hazmat, no placards. Nothing to review.
+    return {
+      engineVersion: ENGINE_VERSION,
+      datasetVersion: load.dataset.version,
+      placards,
+      eligibility: { status: "eligible", blocks: [] },
+      segregation: [],
+      trace,
+    };
   }
-}
 
-export function computePlacards(_load: LoadInput, _data: HazmatDataset): PlacardResult {
-  throw new NotImplementedError("computePlacards");
-}
-export function validateBol(_load: LoadInput, _data: HazmatDataset): BolResult {
-  throw new NotImplementedError("validateBol");
-}
-export function checkEligibility(_load: LoadInput, _data: HazmatDataset): EligibilityResult {
-  throw new NotImplementedError("checkEligibility");
-}
-export function checkSegregation(_load: LoadInput, _data: HazmatDataset): SegregationResult {
-  throw new NotImplementedError("checkSegregation");
-}
-export function evaluateLoad(_load: LoadInput, _data: HazmatDataset): LoadEvaluation {
-  throw new NotImplementedError("evaluateLoad");
+  const cleaned = cleanedTankProhibitsGate(load);
+  trace.push(cleaned.trace);
+  if (cleaned.finding) {
+    for (const p of ALL_PLACARDS) placards.prohibited.push({ placard: p, because: cleaned.finding.citations });
+    return {
+      engineVersion: ENGINE_VERSION,
+      datasetVersion: load.dataset.version,
+      placards,
+      eligibility: { status: "eligible", blocks: [] },
+      segregation: [],
+      trace,
+    };
+  }
+
+  // There are lines and it is not a cleaned tank → placards may be required, but the substantive
+  // determination needs the certified dataset. Fail closed: assert NO required placards + a conditional.
+  const withheld = determinationWithheldGate(load);
+  trace.push(withheld.trace);
+  if (withheld.finding) blocks.push(withheld.finding);
+
+  return {
+    engineVersion: ENGINE_VERSION,
+    datasetVersion: load.dataset.version,
+    placards,
+    eligibility: { status: "not_checked", blocks },
+    segregation: [],
+    trace,
+  };
 }
