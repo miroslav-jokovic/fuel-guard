@@ -157,13 +157,14 @@ const rowClass = (row: FuelTransaction) => ["group", row.has_anomaly ? "cursor-p
 // Station-local (matches the EFS report), not the browser's timezone.
 const fmtDate = (iso: string, state: string | null) => stationDateTime(iso, state);
 
-const flaggedCount = computed(() => rows.value.filter((t) => t.has_anomaly).length);
-const clearCount   = computed(() => rows.value.filter((t) => !t.has_anomaly).length);
-const totalGallons = computed(() => rows.value.reduce((s, t) => s + t.gallons, 0));
-const pageCost     = computed(() => rows.value.reduce((s, t) => s + (t.total_cost ?? 0), 0));
-const hasCost      = computed(() => rows.value.some((t) => t.total_cost != null));
-const mpgValues    = computed(() => rows.value.map((t) => t.computed_mpg).filter((v): v is number => v != null));
-const avgMpg       = computed(() => mpgValues.value.length ? mpgValues.value.reduce((a, b) => a + b, 0) / mpgValues.value.length : null);
+// Summary stats reflect the WHOLE filtered range (not just this page) — sourced from useFuelRangeTotals
+// so applying a filter updates every tile, not only the rows currently visible.
+const flaggedCount = computed(() => rangeTotals.value?.flagged ?? 0);
+const clearCount   = computed(() => rangeTotals.value?.clear ?? 0);
+const totalGallons = computed(() => rangeTotals.value?.totalGallons ?? 0);
+const totalCost    = computed(() => rangeTotals.value?.totalCost ?? 0);
+const hasCost      = computed(() => rangeTotals.value?.hasCost ?? false);
+const avgMpg       = computed(() => rangeTotals.value?.fleetMpg ?? null);
 const fmtNum = (n: number, dec = 0) => n.toLocaleString("en-US", { maximumFractionDigits: dec });
 const fmtUsd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
@@ -260,7 +261,7 @@ const columns: DataTableColumn[] = [
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Flagged</dt>
           <dd class="mt-1 text-2xl font-bold" :class="flaggedCount ? 'text-danger-600' : 'text-ink-subtle'">{{ flaggedCount }}</dd>
           <dd class="mt-0.5 text-xs" :class="flaggedCount ? 'text-danger-400' : 'text-ink-subtle'">
-            {{ flaggedCount ? 'anomalies need review' : 'no anomalies this page' }}
+            {{ flaggedCount ? 'anomalies need review' : 'none in selected range' }}
           </dd>
         </div>
         <div class="px-5 py-4">
@@ -271,12 +272,12 @@ const columns: DataTableColumn[] = [
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Gallons</dt>
           <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalGallons, 0) }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-subtle">total this page</dd>
+          <dd class="mt-0.5 text-xs text-ink-subtle">in selected range</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avg MPG</dt>
           <dd class="mt-1 text-2xl font-bold text-ink">{{ avgMpg != null ? avgMpg.toFixed(1) : '—' }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-subtle">{{ hasCost ? fmtUsd(pageCost) + ' total cost' : 'this page' }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-subtle">{{ hasCost ? fmtUsd(totalCost) + ' total cost' : 'gallon-weighted' }}</dd>
         </div>
       </dl>
     </BaseCard>

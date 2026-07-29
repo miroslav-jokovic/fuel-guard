@@ -1,6 +1,13 @@
 import { type Ref, toValue } from "vue";
 import { useQuery, keepPreviousData, useMutation, useQueryClient } from "@tanstack/vue-query";
-import { derivePricePerGal, robustWindowMiles, type FillUpInput, type FuelTransaction } from "@fuelguard/shared";
+import {
+  derivePricePerGal,
+  robustWindowMiles,
+  MPG_PLAUSIBLE_MIN,
+  MPG_PLAUSIBLE_MAX,
+  type FillUpInput,
+  type FuelTransaction,
+} from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";
@@ -72,11 +79,20 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
 }
 
 export interface FuelRangeTotals {
+  /** Fill-ups matching the filters (the whole set, not one page). */
+  fillUps: number;
   /** Fleet miles ACTUALLY driven inside the range: per-truck robust odometer span (max−min within range),
    *  summed. Not the sum of per-fill `miles_since_last` — that over-counts (each fill's delta reaches back
    *  to the truck's previous fill, usually BEFORE the range start). */
   totalMiles: number;
   totalGallons: number;
+  totalCost: number;
+  /** True if any matching fill carried a cost (so the UI can show "—" vs "$0" honestly). */
+  hasCost: boolean;
+  flagged: number;
+  clear: number;
+  /** Gallon-weighted mean of plausible per-fill MPG across the range (matches the dashboard's fleetMpg). */
+  fleetMpg: number | null;
 }
 
 const n = (v: number | string | null): number | null => (v == null ? null : Number(v));
@@ -96,11 +112,17 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
       const PAGE = 1000;
       // Group in-range fills by vehicle, OLDEST→NEWEST (robustWindowMiles expects that order).
       const byVehicle = new Map<string, { enteredOdometer: number | null; samsaraOdometer: number | null; samsaraSource: string | null }[]>();
+      let fillUps = 0;
       let totalGallons = 0;
+      let totalCost = 0;
+      let hasCost = false;
+      let flagged = 0;
+      let mpgWeighted = 0; // Σ(mpg·gallons) over plausible fills → gallon-weighted fleet MPG
+      let mpgGallons = 0;
       for (let start = 0; ; start += PAGE) {
         let q = supabase
           .from("fuel_transactions")
-          .select("vehicle_id, odometer, samsara_odometer, samsara_odometer_source, gallons")
+          .select("vehicle_id, odometer, samsara_odometer, samsara_odometer_source, gallons, total_cost, computed_mpg, has_anomaly")
           // vehicle_id then fueled_at keeps each truck's readings contiguous AND ordered → stable paging.
           .order("vehicle_id", { ascending: true })
           .order("fueled_at", { ascending: true })
@@ -120,9 +142,28 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
           samsara_odometer: number | string | null;
           samsara_odometer_source: string | null;
           gallons: number | string | null;
+          total_cost: number | string | null;
+          computed_mpg: number | string | null;
+          has_anomaly: boolean | null;
         }[];
         for (const r of batch) {
-          if (r.gallons != null) totalGallons += Number(r.gallons);
+          fillUps++;
+          const gallons = r.gallons == null ? 0 : Number(r.gallons);
+          totalGallons += gallons;
+          if (r.total_cost != null) {
+            totalCost += Number(r.total_cost);
+            hasCost = true;
+          }
+          if (r.has_anomaly) flagged++;
+          // Gallon-weight only plausible per-fill MPG (same guard the dashboard uses), so a bogus
+          // computed_mpg can't distort the fleet number.
+          if (r.computed_mpg != null && gallons > 0) {
+            const mpg = Number(r.computed_mpg);
+            if (Number.isFinite(mpg) && mpg >= MPG_PLAUSIBLE_MIN && mpg <= MPG_PLAUSIBLE_MAX) {
+              mpgWeighted += mpg * gallons;
+              mpgGallons += gallons;
+            }
+          }
           if (!r.vehicle_id) continue;
           const list = byVehicle.get(r.vehicle_id) ?? [];
           list.push({ enteredOdometer: n(r.odometer), samsaraOdometer: n(r.samsara_odometer), samsaraSource: r.samsara_odometer_source });
@@ -134,7 +175,16 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
       for (const rows of byVehicle.values()) {
         totalMiles += robustWindowMiles(rows).miles ?? 0; // null (data-quality) → contributes 0
       }
-      return { totalMiles, totalGallons };
+      return {
+        fillUps,
+        totalMiles,
+        totalGallons,
+        totalCost,
+        hasCost,
+        flagged,
+        clear: fillUps - flagged,
+        fleetMpg: mpgGallons > 0 ? mpgWeighted / mpgGallons : null,
+      };
     },
   });
 }

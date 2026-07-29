@@ -14,9 +14,12 @@ import {
   CubeIcon,
   NoSymbolIcon,
   TableCellsIcon,
+  BeakerIcon,
+  TruckIcon,
 } from "@heroicons/vue/24/outline";
 import type { ChartConfiguration } from "chart.js";
 import { useDashboard } from "@/features/dashboard/useDashboard";
+import { useFuelRangeTotals, type FuelFilters } from "@/features/fuel/useFuelLog";
 import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
@@ -41,6 +44,27 @@ const range = computed(() => {
   return { from: from.value ?? isoDay(start), to: to.value ?? isoDay(end) };
 });
 const { data: s, isLoading, isFetching } = useDashboard(range);
+
+// ── Fueling summary (same window; reuses the Fuel Log's range-aware totals so the two pages agree) ──
+const fuelRange = computed<FuelFilters>(() => ({
+  // Same UTC bounds useDashboard uses, so the fill count + miles cover exactly the fills that back the
+  // spend/gallons/MPG numbers taken from the dashboard summary (`s`) — the whole row stays consistent.
+  from: new Date(`${range.value.from}T00:00:00`).toISOString(),
+  to: new Date(`${range.value.to}T23:59:59.999`).toISOString(),
+}));
+const { data: fuelTotals, isLoading: fuelLoading } = useFuelRangeTotals(fuelRange);
+const fmtInt = (nn: number) => Math.round(nn).toLocaleString("en-US");
+const fuelingStats = computed(() => {
+  const t = fuelTotals.value; // fill count + robust miles (not carried on the dashboard summary)
+  const d = s.value;          // spend / gallons / MPG — same source as the hero tiles, so they always agree
+  return [
+    { label: "Fill-ups", value: t ? fmtInt(t.fillUps) : "—", sub: "in selected range", icon: TableCellsIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
+    { label: "Gallons", value: d ? fmtInt(d.totalGallons) : "—", sub: "total fuel", icon: BeakerIcon, tone: "text-info-600 bg-info-50", to: "/fuel-log" },
+    { label: "Miles driven", value: t ? fmtInt(t.totalMiles) : "—", sub: "odometer span in range", icon: TruckIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
+    { label: "Fuel spend", value: d ? `$${fmtCompact(d.totalSpend)}` : "—", valueTitle: d ? fmtMoney(d.totalSpend) : undefined, sub: "total cost", icon: CurrencyDollarIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
+    { label: "Avg MPG", value: d?.fleetMpg != null ? d.fleetMpg.toFixed(1) : "—", sub: "gallon-weighted", icon: ChartBarSquareIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
+  ];
+});
 
 // Human label for the active window (matches the picker's "Jul 1 – Jul 13" style).
 const labelDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -309,6 +333,14 @@ const EXPORTS = [
       <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard v-for="stat in stats" :key="stat.label" v-bind="stat" :loading="isLoading" />
       </dl>
+
+      <!-- Fueling summary — the fuel picture for the selected range -->
+      <div>
+        <h3 class="mb-3 text-sm font-semibold text-ink-secondary">Fueling · {{ rangeLabel }}</h3>
+        <dl class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard v-for="stat in fuelingStats" :key="stat.label" v-bind="stat" :loading="isLoading || fuelLoading" />
+        </dl>
+      </div>
 
       <!-- Trust & leakage strip -->
       <dl class="grid grid-cols-1 gap-4 sm:grid-cols-3">
