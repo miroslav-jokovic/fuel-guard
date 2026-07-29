@@ -1,0 +1,111 @@
+/**
+ * @fuelguard/ui/icons — the curated icon inventory.
+ *
+ * Every icon used anywhere in a FuelGuard app is re-exported from here under a
+ * stable local name. Feature code imports from this barrel; the barrel maps to
+ * whichever HugeIcons glyph we consider canonical for that concept.
+ *
+ * Why the indirection?
+ *   - One-file swap when a designer picks a better variant (e.g. `Truck01Icon`
+ *     → `TruckDeliveryIcon`). No churn across 300 call sites.
+ *   - Pro upgrade path: swap the source package (`@hugeicons/core-free-icons`
+ *     → `@hugeicons-pro/core-*`) here and only here.
+ *   - Enforced vocabulary: adding a new icon means adding it here first, which
+ *     keeps the set from sprawling.
+ *
+ * How to add an icon:
+ *   1. Find the HugeIcons glyph at https://hugeicons.com (Stroke Rounded, free
+ *      tier). Note the export name (e.g. `PackageOpenIcon`).
+ *   2. Add a re-export below under a stable local name.
+ *   3. Import from `@fuelguard/ui/icons` at the call site.
+ *
+ * Naming convention: local names mirror the semantic Heroicons names that
+ * predated this migration, so the pattern is familiar to anyone who worked on
+ * the pre-2026-07 codebase. New icons use direct HugeIcons names.
+ *
+ * Any row marked `// ⚠ verify` should be eyeballed against the HugeIcons
+ * catalog before shipping visually — the concept has multiple variants and the
+ * choice below is a reasonable default, not a designer's pick.
+ */
+
+/**
+ * Icon type — a HugeIcons icon module (a two-tuple array of [tag, attrs]).
+ * Use this when storing icons as data (nav items, stat cards, toast configs).
+ */
+export type { IconArray as Icon } from '@hugeicons/vue';
+
+
+// prettier-ignore
+export {
+  // ── Actions ─────────────────────────────────────────────────────────────
+  PlusSignIcon                as PlusIcon,
+  Cancel01Icon                as XMarkIcon,
+  Delete02Icon                as TrashIcon,
+  Download04Icon              as ArrowDownTrayIcon,
+  Upload04Icon                as ArrowUpTrayIcon,
+  RefreshIcon                 as ArrowPathIcon,
+  Tick02Icon                  as CheckIcon,
+  MoreVerticalIcon            as EllipsisVerticalIcon,
+  Sent02Icon                  as PaperAirplaneIcon,
+  FilterIcon                  as FunnelIcon,
+  Search01Icon                as MagnifyingGlassIcon,
+  Settings02Icon              as AdjustmentsHorizontalIcon,     // ⚠ verify
+  Settings01Icon              as Cog6ToothIcon,
+
+  // ── Navigation / disclosure ─────────────────────────────────────────────
+  Menu01Icon                  as Bars3Icon,
+  ArrowDown01Icon             as ChevronDownIcon,
+  ArrowUp01Icon               as ChevronUpIcon,
+  ArrowLeft01Icon             as ChevronLeftIcon,
+  ArrowRight01Icon            as ChevronRightIcon,
+  ArrowUpDownIcon             as ChevronUpDownIcon,             // ⚠ verify
+  ArrowDataTransferHorizontalIcon as ArrowsRightLeftIcon,       // ⚠ verify
+
+  // ── Status / feedback ───────────────────────────────────────────────────
+  CheckmarkCircle02Icon       as CheckCircleIcon,
+  CancelCircleIcon            as XCircleIcon,
+  Alert01Icon                 as ExclamationTriangleIcon,
+  Alert02Icon                 as ShieldExclamationIcon,          // ⚠ verify (see ADR-001)
+  InformationCircleIcon       as InformationCircleIcon,
+  UnavailableIcon             as NoSymbolIcon,                   // ⚠ verify (⊘ vs. slashed-circle)
+
+  // ── Objects / domain ────────────────────────────────────────────────────
+  TruckIcon                   as TruckIcon,
+  Location04Icon              as MapPinIcon,                     // ⚠ verify (pin vs. dropped-pin)
+  MapsIcon                    as MapIcon,
+  Flag01Icon                  as FlagIcon,
+  FlashIcon                   as BoltIcon,
+  Fire02Icon                  as FireIcon,                       // ⚠ verify (01/02/03 stylistic pick)
+  CubeIcon                    as CubeIcon,
+  Archive02Icon               as ArchiveBoxIcon,
+  Store01Icon                 as BuildingStorefrontIcon,
+  Building02Icon              as BuildingOffice2Icon,
+  Home01Icon                  as HomeIcon,
+  TestTube01Icon              as BeakerIcon,
+  DollarCircleIcon            as CurrencyDollarIcon,
+  Link04Icon                  as LinkIcon,                       // ⚠ verify (01/02/03/04 stylistic)
+  ChampionIcon                as TrophyIcon,                     // ⚠ verify (ChampionIcon vs. Trophy01Icon)
+  SecurityCheckIcon           as ShieldCheckIcon,                // ⚠ verify (shield-with-tick)
+  Wifi01Icon                  as SignalIcon,                     // ⚠ verify (wifi arcs vs. signal bars)
+  AiMagicIcon                 as SparklesIcon,                   // ✨ AI features
+
+  // ── Time / calendar ─────────────────────────────────────────────────────
+  Clock01Icon                 as ClockIcon,
+  Calendar03Icon              as CalendarIcon,
+
+  // ── People ──────────────────────────────────────────────────────────────
+  UserGroupIcon               as UserGroupIcon,
+  UserMultiple02Icon          as UsersIcon,
+
+  // ── Notifications ───────────────────────────────────────────────────────
+  Notification01Icon          as BellIcon,
+
+  // ── Documents / tables / charts ─────────────────────────────────────────
+  File01Icon                  as DocumentTextIcon,
+  ClipboardIcon               as ClipboardDocumentListIcon,      // ⚠ verify
+  TaskDone01Icon              as ClipboardDocumentCheckIcon,
+  Table01Icon                 as TableCellsIcon,
+  AnalyticsUpIcon             as ChartBarIcon,                   // ⚠ verify (many chart variants)
+  Analytics01Icon             as ChartBarSquareIcon,             // ⚠ verify
+  ChartAverageIcon            as DocumentChartBarIcon,           // ⚠ verify
+} from "@hugeicons/core-free-icons";

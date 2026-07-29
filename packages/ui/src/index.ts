@@ -3,3 +3,4 @@
 export { default as AppButton } from "./components/AppButton.vue";
 export { default as AppInput } from "./components/AppInput.vue";
 export { default as AppCard } from "./components/AppCard.vue";
+export { default as AppIcon } from "./components/AppIcon.vue";
