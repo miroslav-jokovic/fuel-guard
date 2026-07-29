@@ -24,6 +24,11 @@ const warnings = [];
 const fail = (title, detail, fix) => problems.push({ title, detail, fix });
 const warn = (title, detail, fix) => warnings.push({ title, detail, fix });
 
+// `--building` = invoked from the `ios`/`android` scripts, which are about to run prebuild + pod
+// install. In that context an out-of-date dev client (check 11) is EXPECTED and about to be fixed, so
+// it is a warning there, not a blocker. For `start`/`start:usb` (Metro only, no rebuild) it stays a fail.
+const BUILDING = process.argv.includes('--building');
+
 const exists = (p) => fs.existsSync(p);
 const mtime = (p) => fs.statSync(p).mtimeMs;
 
@@ -291,9 +296,13 @@ if (process.platform === 'darwin') {
 
     if (missing.length) {
       const built = fs.statSync(lockPath).mtime.toISOString().slice(0, 16).replace('T', ' ');
-      fail(
+      // In build mode the very next step (expo run:ios/android → prebuild + pod install) links these,
+      // so failing here would block the fix. Warn instead. Metro-only starts keep the hard fail.
+      (BUILDING ? warn : fail)(
         'The dev client on your device is out of date',
-        `Built ${built}. These are imported by the app but were NOT linked into it: ${missing.join(', ')}. The bundle will load and then die on "Cannot find native module".`,
+        BUILDING
+          ? `Built ${built}. Not yet linked: ${missing.join(', ')}. This build runs prebuild + pod install and will link them — expected the first build after adding a native module.`
+          : `Built ${built}. These are imported by the app but were NOT linked into it: ${missing.join(', ')}. The bundle will load and then die on "Cannot find native module".`,
         'pnpm --filter @fuelguard/driver ios   (or android) — this reruns prebuild + pod install and installs a fresh binary.',
       );
     }
