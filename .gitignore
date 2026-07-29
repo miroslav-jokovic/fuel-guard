@@ -63,3 +63,4 @@ mnt_to_delete_*
 /app.json
 /.expo/
 /tsconfig.json
+*.removed

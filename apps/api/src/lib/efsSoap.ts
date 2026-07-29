@@ -113,7 +113,7 @@ export async function fetchPostedTransactions(
   // Prove the plumbing works even before the WSDL arrives: build the header + reserve the pacing
   // slot, then throw with the "not_implemented" code. The scheduler treats this specifically as
   // "cold" not "failed" so we don't spam the error dashboard before launch.
-  const _ = buildAuthHeader(creds);
+  void buildAuthHeader(creds);
   await touchPacingSlot(env, creds, opts.priority ?? "backfill");
   void cursor;
   return notYetImplemented("fetchPostedTransactions");
@@ -131,7 +131,7 @@ export async function fetchRejectedTransactions(
   cursor: string | null,
   opts: EfsSoapFetchOptions = {},
 ): Promise<EfsSoapFetchResult> {
-  const _ = buildAuthHeader(creds);
+  void buildAuthHeader(creds);
   await touchPacingSlot(env, creds, opts.priority ?? "live");
   void cursor;
   return notYetImplemented("fetchRejectedTransactions");
@@ -145,8 +145,8 @@ export async function fetchRejectedTransactions(
  * pacing/proxy/TLS/allowlisting; the operation body is stubbed until data-release items #1 + #2.
  */
 export async function pingEfsSoap(
-  env: Env,
-  creds: EfsSoapCredentials,
+  _env: Env,
+  _creds: EfsSoapCredentials,
   _opts: { fetchImpl?: typeof fetch } = {},
 ): Promise<{ ok: true; roundtripMs: number } | { ok: false; error: EfsSoapError }> {
   try {
