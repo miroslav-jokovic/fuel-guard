@@ -28,6 +28,7 @@ import {
   useUpdateLoad,
   useAssignLoad,
   useTransitionLoad,
+  useBulkTransition,
   type DispatchLoad,
   type LoadAction,
 } from "@/features/dispatch/useDispatchLoads";
@@ -50,6 +51,7 @@ const createLoad = useCreateLoad();
 const updateLoad = useUpdateLoad();
 const assignLoad = useAssignLoad();
 const transitionLoad = useTransitionLoad();
+const bulk = useBulkTransition();
 
 const search = ref("");
 const statusFilter = ref("");
@@ -91,6 +93,28 @@ const selectedLoad = computed(() => (loads.value ?? []).find((l) => l.id === sel
 
 const saving = computed(() => createLoad.isPending.value || updateLoad.isPending.value);
 const busy = computed(() => transitionLoad.isPending.value || assignLoad.isPending.value);
+
+// Bulk approve / release over the selection (each still goes through the audited per-load gate).
+const selected = ref<Set<string>>(new Set());
+const selectedLoads = computed(() => (loads.value ?? []).filter((l) => selected.value.has(l.id)));
+const approvableIds = computed(() =>
+  selectedLoads.value.filter((l) => l.status === "pending_approval").map((l) => l.id),
+);
+const releasableIds = computed(() =>
+  selectedLoads.value.filter((l) => l.status === "approved").map((l) => l.id),
+);
+
+async function bulkDo(action: "approve" | "release", ids: string[]) {
+  if (!ids.length) return;
+  try {
+    const r = await bulk.mutateAsync({ ids, action });
+    const verb = action === "approve" ? "approved" : "released";
+    toast.success(`${r.ok} ${verb}${r.failed ? `, ${r.failed} couldn't (not ready)` : ""}`);
+    selected.value = new Set();
+  } catch (e) {
+    toast.error("Bulk action failed", e instanceof Error ? e.message : undefined);
+  }
+}
 
 function openNew() {
   editing.value = null;
@@ -162,15 +186,32 @@ const fmtDate = (s: string) => {
       </template>
     </FilterBar>
 
+    <div
+      v-if="session.canManage && selected.size > 0"
+      class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
+    >
+      <span class="text-sm font-medium text-brand-800">{{ selected.size }} selected</span>
+      <BaseButton size="sm" :disabled="bulk.isPending.value || approvableIds.length === 0" @click="bulkDo('approve', approvableIds)">
+        Approve<span v-if="approvableIds.length"> ({{ approvableIds.length }})</span>
+      </BaseButton>
+      <BaseButton size="sm" :disabled="bulk.isPending.value || releasableIds.length === 0" @click="bulkDo('release', releasableIds)">
+        Send to driver<span v-if="releasableIds.length"> ({{ releasableIds.length }})</span>
+      </BaseButton>
+      <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
+    </div>
+
     <DataTable
       :columns="columns"
       :rows="filtered"
       row-key="id"
+      :selectable="session.canManage"
+      :selected="selected"
       :loading="isLoading"
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load the board') : null"
       :retrying="isFetching"
       :empty-text="(loads ?? []).length === 0 ? 'No loads yet — create one or wait for a TMS feed.' : 'No loads match these filters.'"
       @retry="refetch"
+      @update:selected="selected = $event"
       @row-click="(row: DispatchLoad) => (selectedId = row.id)"
     >
       <template #cell-ref="{ row }">

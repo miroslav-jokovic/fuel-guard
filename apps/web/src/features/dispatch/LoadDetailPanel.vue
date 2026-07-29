@@ -4,6 +4,7 @@ import {
   approvalChecklist,
   canTransition,
   isTerminal,
+  LOAD_EVENT_LABELS,
   LOAD_STATUS_LABELS,
   type AssignLoadRequest,
 } from "@fuelguard/shared";
@@ -11,7 +12,7 @@ import FormField from "@/components/ui/FormField.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import ComboSelect from "@/components/ui/ComboSelect.vue";
-import type { DispatchLoad, LoadAction } from "./useDispatchLoads";
+import { useLoadEvents, type DispatchLoad, type LoadAction } from "./useDispatchLoads";
 
 /**
  * The load detail + action rail. The lifecycle is `draft → needs approval → approved → sent to driver`;
@@ -36,6 +37,14 @@ const emit = defineEmits<{
 
 const checklist = computed(() => approvalChecklist(props.load));
 const statusLabel = computed(() => LOAD_STATUS_LABELS[props.load.status]);
+
+const { data: eventList, isLoading: eventsLoading } = useLoadEvents(computed(() => props.load.id));
+function eventTime(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 const canSubmit = computed(() => canTransition(props.load.status, "pending_approval"));
 const canApprove = computed(
@@ -201,6 +210,25 @@ function apptLabel(start: string | null | undefined, end: string | null | undefi
             </div>
           </li>
         </ol>
+      </div>
+
+      <!-- History -->
+      <div>
+        <h3 class="mb-2 text-sm font-semibold text-ink">History</h3>
+        <p v-if="eventsLoading" class="text-sm text-ink-muted">Loading…</p>
+        <ol v-else-if="(eventList ?? []).length" class="space-y-2">
+          <li v-for="e in eventList" :key="e.id" class="flex gap-2 text-sm">
+            <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-edge-strong" />
+            <div>
+              <p class="text-ink">{{ LOAD_EVENT_LABELS[e.kind] ?? e.kind }}</p>
+              <p class="text-xs text-ink-muted">
+                {{ e.actor_name ?? e.actor_role ?? "System" }} · {{ eventTime(e.occurred_at) }}
+                <span v-if="e.payload && e.payload.reason"> · &ldquo;{{ e.payload.reason }}&rdquo;</span>
+              </p>
+            </div>
+          </li>
+        </ol>
+        <p v-else class="text-sm text-ink-muted">No history yet.</p>
       </div>
     </div>
 

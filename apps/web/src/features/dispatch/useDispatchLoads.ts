@@ -1,7 +1,9 @@
+import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type {
   AssignLoadRequest,
   CreateLoadRequest,
+  LoadEventKind,
   LoadStatus,
   UpdateLoadRequest,
 } from "@fuelguard/shared";
@@ -126,5 +128,60 @@ export function useTransitionLoad() {
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: loadsKey }),
+  });
+}
+
+export interface BulkResult {
+  ok: number;
+  failed: number;
+}
+
+/**
+ * Approve / release many loads at once. There is no bulk endpoint by design — each load goes through
+ * the SAME audited, gate-checked per-load transition, so the per-row approval gate is never bypassed;
+ * we just report partial success. Sequential, so the API is never hit with a burst.
+ */
+export function useBulkTransition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { ids: string[]; action: LoadAction }): Promise<BulkResult> => {
+      let ok = 0;
+      let failed = 0;
+      for (const id of payload.ids) {
+        const res = await apiFetch(`/api/dispatch/loads/${id}/${payload.action}`, { method: "POST" });
+        if (res.ok) ok += 1;
+        else failed += 1;
+      }
+      return { ok, failed };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: loadsKey }),
+  });
+}
+
+/** One row of a load's append-only `load_events` timeline (newest first), with the actor resolved. */
+export interface LoadEventRow {
+  id: string;
+  kind: LoadEventKind;
+  from_status: string | null;
+  to_status: string | null;
+  actor_role: string | null;
+  actor_name: string | null;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+  recorded_at: string;
+}
+
+/** The timeline for one load — enabled only while a load is open in the detail panel. */
+export function useLoadEvents(loadId: Ref<string | null>) {
+  return useQuery({
+    queryKey: ["dispatch", "load-events", loadId] as const,
+    enabled: computed(() => loadId.value != null),
+    queryFn: async (): Promise<LoadEventRow[]> => {
+      const res = await apiFetch<{ events: LoadEventRow[] }>(
+        `/api/dispatch/loads/${loadId.value}/events`,
+      );
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the timeline.");
+      return res.data.events;
+    },
   });
 }

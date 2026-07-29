@@ -13,6 +13,7 @@ import {
   MapIcon,
   NoSymbolIcon,
   ShieldCheckIcon,
+  ClipboardDocumentCheckIcon,
   SparklesIcon,
   TableCellsIcon,
   TrophyIcon,
@@ -71,6 +72,8 @@ export function buildNavGroups(role: UserRole | null): NavGroup[] {
       icon: MapIcon,
       items: [
         { name: "Loads", to: "/loads", icon: ArchiveBoxIcon, show: canViewSection(role, "dispatch") },
+        { name: "Assignments", to: "/assignments", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "dispatch") },
+
         { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: canManageSection(role, "dispatch") },
         { name: "Truck Stops", to: "/truck-stops", icon: BuildingStorefrontIcon, show: canViewSection(role, "dispatch") },
       ],
