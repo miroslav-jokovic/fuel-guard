@@ -17,6 +17,7 @@ export * from "./odometer.js";
 export * from "./ai.js";
 export * from "./anomaly.js";
 export * from "./dashboard.js";
+export * from "./reconcile/pilotFuelReport.js";
 export * from "./reeferCoverage.js";
 export * from "./detectionMetrics.js";
 export * from "./detectionCoverage.js";

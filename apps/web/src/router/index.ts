@@ -129,6 +129,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Fuel Log" },
   },
   {
+    path: "/fuel-reconciliation",
+    name: "fuel-reconciliation",
+    component: () => import("@/pages/FuelReconciliationPage.vue"),
+    meta: { requiresAuth: true, requiresManage: true, title: "Fuel Reconciliation" },
+  },
+  {
     path: "/import",
     name: "import",
     component: () => import("@/pages/ImportPage.vue"),

@@ -74,6 +74,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null)
         { name: "Transactions", to: "/transactions", icon: TableCellsIcon, show: canViewSection(role, "fuel") },
         { name: "Rejections", to: "/rejections", icon: NoSymbolIcon, show: canViewSection(role, "fuel") },
         { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: canManageSection(role, "fuel") },
+        { name: "Reconciliation", to: "/fuel-reconciliation", icon: ArrowsRightLeftIcon, show: canManageSection(role, "fuel") },
       ],
     },
     {
