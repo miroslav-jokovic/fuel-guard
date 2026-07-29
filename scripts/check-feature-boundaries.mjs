@@ -37,9 +37,24 @@ for (const feat of features) {
   }
 }
 
+// ── package boundary: @hazmat/* stay dependency-free of the app and of each other (D3 / G5). ──
+// The engine + data packages must remain extractable to a standalone repo as a copy, not a rename — so
+// they may not import @fuelguard/*, the web `@/` alias, or (crucially) each other.
+for (const rel of ["packages/hazmat-engine", "packages/hazmat-data"]) {
+  const other = rel.endsWith("engine") ? "@hazmat/data" : "@hazmat/engine";
+  const forbidden = new RegExp(`from\\s+["'](@fuelguard/|@/|${other.replace("/", "\\/")})`, "g");
+  let pkgFiles;
+  try { pkgFiles = walk(join(ROOT, rel)); } catch { continue; }
+  for (const file of pkgFiles) {
+    for (const m of readFileSync(file, "utf8").matchAll(forbidden)) {
+      violations.push(`${relative(ROOT, file)}  ->  ${m[1]}…  (hazmat packages must stay dependency-free — D3/G5)`);
+    }
+  }
+}
+
 if (violations.length) {
-  console.error(`✗ ${violations.length} cross-feature import(s) — move shared code to @/composables, or add to ALLOW with a reason:`);
+  console.error(`✗ ${violations.length} boundary violation(s):`);
   for (const v of violations) console.error("  " + v);
   process.exit(1);
 }
-console.log("✓ feature boundaries ok — no unlisted cross-feature imports.");
+console.log("✓ boundaries ok — no unlisted cross-feature or hazmat-package imports.");
