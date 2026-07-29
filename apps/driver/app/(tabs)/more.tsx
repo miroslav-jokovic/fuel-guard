@@ -25,7 +25,7 @@ export default function More() {
             icon="logout"
             title="End shift"
             subtitle="Sign off and release your truck"
-            onPress={() => router.push('/duty/end-shift' as never)}
+            onPress={() => router.push('/duty/end-shift')}
           />
         </>
       ) : null}

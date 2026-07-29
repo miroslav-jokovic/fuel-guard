@@ -18,6 +18,8 @@ import { useLoads } from '@/features/loads/useLoads';
 import { DutyCard } from '@/features/duty/DutyCard';
 import { dutyView, useShift } from '@/features/duty/useDuty';
 import { firstName, useDriverContext } from '@/features/home/useDriverContext';
+import { homeScoreSummary } from '@/features/score/scoreModel';
+import { useDriverScore } from '@/features/score/useDriverScore';
 
 function timeGreeting(): string {
   const h = new Date().getHours();
@@ -42,11 +44,13 @@ export default function Home() {
   const driver = useDriverContext();
   const shift = useShift();
   const loads = useLoads();
+  const score = useDriverScore();
 
   const duty = dutyView(shift.data);
   const buckets = bucketLoads(loads.data?.loads ?? []);
   const current = buckets.current[0] ?? null;
   const nextUp = buckets.upcoming[0] ?? null;
+  const weekScore = homeScoreSummary(score.data);
 
   const driverName = firstName(driver.data?.driver.full_name);
   const showSkeletons = driver.isPending && !driver.data;
@@ -94,7 +98,7 @@ export default function Home() {
         loading={shift.isPending && !shift.data}
         onStart={() => router.push('/duty/check-in')}
         onChange={() => router.push('/duty/check-in?mode=swap')}
-        onEnd={() => router.push('/duty/end-shift' as never)}
+        onEnd={() => router.push('/duty/end-shift')}
       />
 
       <SectionLabel>{current ? 'Current load' : 'Next load'}</SectionLabel>
@@ -116,19 +120,25 @@ export default function Home() {
         />
       )}
 
-      <SectionLabel>This week</SectionLabel>
-      <View className="flex-row gap-3">
-        <StatTile
-          label="Score"
-          value="87"
-          spark={[82, 84, 83, 85, 86, 86, 87]}
-          trend={{ label: '+3 vs last wk', direction: 'up', positive: true }}
-        />
-        <StatTile label="Rank" value="#4" unit="of 23" icon="military_tech" />
-      </View>
-      <Text className="pt-1 text-center text-xs text-ink-subtle">
-        Score is a sample until the Performance phase.
-      </Text>
+      {weekScore ? (
+        <>
+          <SectionLabel>This week</SectionLabel>
+          <View className="flex-row gap-3">
+            <StatTile
+              label="Score"
+              value={weekScore.scoreValue}
+              spark={weekScore.scoreSpark}
+              trend={weekScore.scoreTrend}
+            />
+            <StatTile
+              label="Rank"
+              value={weekScore.rankValue}
+              unit={weekScore.rankUnit}
+              icon="military_tech"
+            />
+          </View>
+        </>
+      ) : null}
     </Screen>
   );
 }
