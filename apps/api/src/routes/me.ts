@@ -33,6 +33,7 @@ import {
   startLoad,
   type LoadResult,
 } from "../services/driverLoads.js";
+import { getDriverScore } from "../services/driverScore.js";
 
 /**
  * Driver self-service endpoints (Driver App, Phases 1 + 3A). Identity is ALWAYS resolved server-side
@@ -198,6 +199,25 @@ export function meRouter(): Router {
       await runShiftMutation(req, res, "duty.shift_ended", (admin, orgId, driverId) =>
         endShift(admin, orgId, driverId, body),
       );
+    }),
+  );
+
+  // ── Score (Phase 5 — D24) ──────────────────────────────────────────
+  // The signed-in driver's own frozen weekly grades. A read: RLS (0084 dpw_driver_scope) scopes the
+  // driver to their own rows and the service layers on the cohort count they could never read
+  // themselves, so "rank #4 of 23" is assembled without leaking a single other row.
+  router.get(
+    "/score",
+    ...driverOnly,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const driverId = await resolveDriverId(admin, orgId, req.auth!.userId);
+      if (!driverId) {
+        res.status(404).json(apiError("no_driver_record", "No driver record is linked to this account"));
+        return;
+      }
+      res.json(await getDriverScore(admin, orgId, driverId));
     }),
   );
 
