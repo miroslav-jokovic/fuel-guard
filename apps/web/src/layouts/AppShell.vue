@@ -6,6 +6,7 @@ import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessu
 import { Bars3Icon, XMarkIcon, ChevronLeftIcon } from "@heroicons/vue/24/outline";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
+import { useModulesQuery } from "@/composables/useModules";
 import AppLogo from "@/components/AppLogo.vue";
 import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
 
@@ -15,8 +16,9 @@ const router = useRouter();
 const queryClient = useQueryClient();
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
+const modules = useModulesQuery();
 const navGroups = computed<NavGroup[]>(() =>
-  buildNavGroups(session.role),
+  buildNavGroups(session.role, modules.data.value ?? null),
 );
 
 // Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching

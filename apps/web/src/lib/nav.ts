@@ -1,5 +1,13 @@
 import type { FunctionalComponent } from "vue";
-import { canViewSection, canManageSection, canManageFleet, isAdmin, type UserRole } from "@fuelguard/shared";
+import {
+  canViewSection,
+  canManageSection,
+  canManageFleet,
+  isAdmin,
+  moduleEnabled,
+  type UserRole,
+  type ModuleSet,
+} from "@fuelguard/shared";
 import {
   ArchiveBoxIcon,
   ArrowUpTrayIcon,
@@ -47,7 +55,7 @@ export interface NavGroup {
  * canManageSection gates the write surfaces (Import, Fuel Planning). Dashboard + Fuel Log stay ungated so
  * drivers keep them; Ask AI is any signed-in staff role (not driver).
  */
-export function buildNavGroups(role: UserRole | null): NavGroup[] {
+export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null): NavGroup[] {
   const isStaff = role != null && role !== "driver";
   return [
     {
@@ -71,8 +79,8 @@ export function buildNavGroups(role: UserRole | null): NavGroup[] {
       label: "Dispatch",
       icon: MapIcon,
       items: [
-        { name: "Loads", to: "/loads", icon: ArchiveBoxIcon, show: canViewSection(role, "dispatch") },
-        { name: "Assignments", to: "/assignments", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "dispatch") },
+        { name: "Loads", to: "/loads", icon: ArchiveBoxIcon, show: canViewSection(role, "dispatch") && moduleEnabled(modules, "dispatch") },
+        { name: "Assignments", to: "/assignments", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "dispatch") && moduleEnabled(modules, "dispatch") },
 
         { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: canManageSection(role, "dispatch") },
         { name: "Truck Stops", to: "/truck-stops", icon: BuildingStorefrontIcon, show: canViewSection(role, "dispatch") },
