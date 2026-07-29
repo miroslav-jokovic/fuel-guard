@@ -16,7 +16,7 @@ function sinceLabel(iso: string | null): string {
  * to check in is a card, never a blocking modal.
  *
  *   off duty   → "Start your day" with the primary CTA
- *   on duty    → the live truck + trailer with a Change action
+ *   on duty    → the live truck + trailer with Change and End actions
  *   pending    → the same, badged, while the outbox record is still in flight (D44.7)
  */
 export function DutyCard({
@@ -25,12 +25,14 @@ export function DutyCard({
   loading,
   onStart,
   onChange,
+  onEnd,
 }: {
   duty: DutyView;
   pending?: boolean;
   loading?: boolean;
   onStart: () => void;
   onChange: () => void;
+  onEnd?: () => void;
 }) {
   if (loading) {
     return <Skeleton className="h-[132px] w-full rounded-xl" />;
@@ -77,6 +79,9 @@ export function DutyCard({
         ) : null}
         <View className="flex-1" />
         <Button label="Change" variant="ghost" size="sm" icon="edit" onPress={onChange} />
+        {onEnd ? (
+          <Button label="End" variant="ghost" size="sm" icon="logout" onPress={onEnd} />
+        ) : null}
       </View>
 
       <ListRow

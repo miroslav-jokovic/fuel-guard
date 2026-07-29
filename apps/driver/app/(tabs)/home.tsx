@@ -92,8 +92,9 @@ export default function Home() {
       <DutyCard
         duty={duty}
         loading={shift.isPending && !shift.data}
-        onStart={() => router.push('/duty/check-in' as never)}
-        onChange={() => router.push('/duty/check-in?mode=swap' as never)}
+        onStart={() => router.push('/duty/check-in')}
+        onChange={() => router.push('/duty/check-in?mode=swap')}
+        onEnd={() => router.push('/duty/end-shift' as never)}
       />
 
       <SectionLabel>{current ? 'Current load' : 'Next load'}</SectionLabel>
