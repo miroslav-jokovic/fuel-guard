@@ -19,6 +19,8 @@ const browserGlobals = {
   sessionStorage: "readonly",
   setTimeout: "readonly",
   clearTimeout: "readonly",
+  setInterval: "readonly",
+  clearInterval: "readonly",
   URL: "readonly",
   crypto: "readonly",
   createImageBitmap: "readonly",
