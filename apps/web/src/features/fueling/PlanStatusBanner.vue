@@ -1,6 +1,12 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+  XCircleIcon,
+} from "@fuelguard/ui/icons";
 import { computed } from "vue";
-import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XCircleIcon } from "@heroicons/vue/24/outline";
 import type { PlanResultStatus } from "./useFuelPlan";
 
 const props = defineProps<{ status: PlanResultStatus; message?: string }>();
@@ -31,7 +37,7 @@ const ICON: Record<string, string> = {
 
 <template>
   <div class="flex items-start gap-3 rounded-lg p-4 ring-1" :class="PANEL[m.tone]">
-    <component :is="m.icon" class="mt-0.5 size-5 shrink-0" :class="ICON[m.tone]" aria-hidden="true" />
+    <AppIcon :icon="m.icon" class="mt-0.5 size-5 shrink-0" :class="ICON[m.tone]" aria-hidden="true" />
     <div class="min-w-0">
       <p class="text-sm font-semibold">{{ m.title }}</p>
       <p v-if="message" class="mt-0.5 text-sm">{{ message }}</p>

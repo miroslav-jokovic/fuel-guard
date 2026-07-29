@@ -1,6 +1,20 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  AdjustmentsHorizontalIcon,
+  ArrowPathIcon,
+  BellIcon,
+  BuildingOffice2Icon,
+  ChartBarIcon,
+  ClipboardDocumentCheckIcon,
+  ClipboardDocumentListIcon,
+  CubeIcon,
+  LinkIcon,
+  MapIcon,
+  SignalIcon,
+  UsersIcon,
+} from "@fuelguard/ui/icons";
 import { RouterLink } from "vue-router";
-import { UsersIcon, AdjustmentsHorizontalIcon, BuildingOffice2Icon, ClipboardDocumentListIcon, ArrowPathIcon, BellIcon, MapIcon, ChartBarIcon, SignalIcon, CubeIcon, ClipboardDocumentCheckIcon, LinkIcon } from "@heroicons/vue/24/outline";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
@@ -38,7 +52,7 @@ const reportCards = [
           :to="c.to"
           class="flex items-start gap-4 rounded-lg bg-surface p-5 shadow-sm ring-1 ring-edge hover:ring-brand-300"
         >
-          <component :is="c.icon" class="size-6 shrink-0 text-brand-500" aria-hidden="true" />
+          <AppIcon :icon="c.icon" class="size-6 shrink-0 text-brand-500" aria-hidden="true" />
           <div>
             <h3 class="text-sm font-semibold text-ink">{{ c.name }}</h3>
             <p class="mt-1 text-sm text-ink-muted">{{ c.desc }}</p>
@@ -56,7 +70,7 @@ const reportCards = [
           :to="c.to"
           class="flex items-start gap-4 rounded-lg bg-surface p-5 shadow-sm ring-1 ring-edge hover:ring-brand-300"
         >
-          <component :is="c.icon" class="size-6 shrink-0 text-brand-500" aria-hidden="true" />
+          <AppIcon :icon="c.icon" class="size-6 shrink-0 text-brand-500" aria-hidden="true" />
           <div>
             <h3 class="text-sm font-semibold text-ink">{{ c.name }}</h3>
             <p class="mt-1 text-sm text-ink-muted">{{ c.desc }}</p>

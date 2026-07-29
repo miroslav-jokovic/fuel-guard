@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ExclamationTriangleIcon,
+} from "@fuelguard/ui/icons";
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { CheckCircleIcon, ChevronDownIcon, ExclamationTriangleIcon } from "@heroicons/vue/20/solid";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -53,7 +58,7 @@ const textTone = (r: Row) =>
 <template>
   <!-- Fully configured → collapse to a slim confirmation strip; detail returns whenever a gap opens. -->
   <BaseCard v-if="gaps === 0" padding="none" class="flex items-center gap-2 px-5 py-3">
-    <CheckCircleIcon class="size-5 text-success-500" aria-hidden="true" />
+    <AppIcon :icon="CheckCircleIcon" class="size-5 text-success-500" aria-hidden="true" />
     <p class="text-sm text-ink-secondary">
       <span class="font-semibold text-ink">Fleet readiness:</span> all set — detection checks have the
       data they need.
@@ -70,7 +75,7 @@ const textTone = (r: Row) =>
       @click="open = !open"
     >
       <span class="flex items-center gap-2">
-        <ChevronDownIcon
+        <AppIcon :icon="ChevronDownIcon"
           class="size-4 text-ink-subtle transition-transform duration-200"
           :class="open ? '' : '-rotate-90'"
           aria-hidden="true"
@@ -78,7 +83,7 @@ const textTone = (r: Row) =>
         <h3 class="text-sm font-semibold text-ink">Fleet readiness</h3>
       </span>
       <span :class="[BADGE_BASE, toneClass('warning'), 'normal-case']">
-        <ExclamationTriangleIcon class="size-3.5" aria-hidden="true" /> {{ gaps }} to complete
+        <AppIcon :icon="ExclamationTriangleIcon" class="size-3.5" aria-hidden="true" /> {{ gaps }} to complete
       </span>
     </button>
     <ul v-show="open" id="fleet-readiness-list" class="grid grid-cols-1 gap-x-10 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
@@ -94,7 +99,7 @@ const textTone = (r: Row) =>
             >
               Fix →
             </RouterLink>
-            <CheckCircleIcon v-else class="size-4 text-success-500" aria-hidden="true" />
+            <AppIcon :icon="CheckCircleIcon" v-else class="size-4 text-success-500" aria-hidden="true" />
           </span>
         </div>
         <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-muted">

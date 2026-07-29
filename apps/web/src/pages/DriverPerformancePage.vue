@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowDownTrayIcon,
+  TrophyIcon,
+} from "@fuelguard/ui/icons";
 import { computed, ref, watch } from "vue";
-import { TrophyIcon, ArrowDownTrayIcon } from "@heroicons/vue/24/outline";
 import { useSessionStore } from "@/stores/session";
 import { useDriverPerformance, type PerformanceDisplayRow } from "@/features/drivers/useDriverPerformance";
 import { useDriverPerformanceWeeksList, useDriverPerformanceWeek } from "@/features/drivers/useDriverPerformanceWeeks";
@@ -154,7 +158,7 @@ const columns: DataTableColumn[] = [
     <PageHeader description="Weekly driver grade combining Samsara safety, Samsara efficiency, and idling discipline. The top 3 each week earn rewards.">
       <template #actions>
         <BaseButton v-if="session.canManage" :disabled="syncScores.isPending.value" @click="onSync">
-          <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+          <AppIcon :icon="ArrowDownTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" />
           {{ syncScores.isPending.value ? "Syncing…" : "Sync scores" }}
         </BaseButton>
       </template>
@@ -189,7 +193,7 @@ const columns: DataTableColumn[] = [
       <BaseCard v-for="w in winners" :key="w.driverId" as="div">
         <div class="flex items-center gap-3">
           <span :class="['inline-flex size-9 items-center justify-center rounded-full', toneClass(rankTone(w.rank))]">
-            <TrophyIcon class="size-5" aria-hidden="true" />
+            <AppIcon :icon="TrophyIcon" class="size-5" aria-hidden="true" />
           </span>
           <div class="min-w-0">
             <p class="truncate text-sm font-semibold text-ink">{{ w.driverName ?? "—" }}</p>

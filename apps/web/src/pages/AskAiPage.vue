@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  PaperAirplaneIcon,
+  SparklesIcon,
+} from "@fuelguard/ui/icons";
 import { ref } from "vue";
-import { PaperAirplaneIcon, SparklesIcon } from "@heroicons/vue/20/solid";
 import { apiFetch } from "@/lib/api";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
@@ -39,7 +43,7 @@ async function ask(q?: string) {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <div class="flex items-center gap-2">
-      <SparklesIcon class="size-6 text-brand-600" />
+      <AppIcon :icon="SparklesIcon" class="size-6 text-brand-600" />
       <h1 class="text-lg font-semibold text-ink">Ask AI about your fleet</h1>
     </div>
     <PageHeader>
@@ -56,7 +60,7 @@ async function ask(q?: string) {
         @keydown.enter.exact.prevent="ask()"
       ></textarea>
       <BaseButton variant="primary" type="submit" :disabled="loading || !question.trim()">
-        <PaperAirplaneIcon class="size-4" /> {{ loading ? "Thinking…" : "Ask" }}
+        <AppIcon :icon="PaperAirplaneIcon" class="size-4" /> {{ loading ? "Thinking…" : "Ask" }}
       </BaseButton>
     </form>
 

@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  MagnifyingGlassIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { ref, watch } from "vue";
-import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/vue/20/solid";
 
 const props = withDefaults(
   defineProps<{ modelValue: string; placeholder?: string; debounce?: number }>(),
@@ -33,7 +37,7 @@ function clear() {
 <template>
   <div class="relative">
     <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-      <MagnifyingGlassIcon class="size-5 text-ink-subtle" aria-hidden="true" />
+      <AppIcon :icon="MagnifyingGlassIcon" class="size-5 text-ink-subtle" aria-hidden="true" />
     </div>
     <input
       v-model="local"
@@ -48,7 +52,7 @@ function clear() {
       aria-label="Clear search"
       @click="clear"
     >
-      <XMarkIcon class="size-5" aria-hidden="true" />
+      <AppIcon :icon="XMarkIcon" class="size-5" aria-hidden="true" />
     </button>
   </div>
 </template>

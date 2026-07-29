@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowDownTrayIcon,
+  PlusIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
-import { PlusIcon, ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery, useCreateDriver, useUpdateDriver, useSyncSamsaraDrivers } from "@/composables/useDrivers";
@@ -117,11 +121,11 @@ async function onSyncSamsara() {
             title="Import drivers from Samsara"
             @click="onSyncSamsara"
           >
-            <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+            <AppIcon :icon="ArrowDownTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" />
             {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
           </BaseButton>
           <BaseButton variant="primary" @click="openNew">
-            <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New driver
+            <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New driver
           </BaseButton>
         </template>
       </template>

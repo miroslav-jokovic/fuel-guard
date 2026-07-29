@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { useToastStore, type Toast, type ToastVariant } from "@/stores/toast";
+import { AppIcon } from "@fuelguard/ui";
 import {
+  type Icon,
   CheckCircleIcon,
-  XCircleIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon,
+  XCircleIcon,
   XMarkIcon,
-} from "@heroicons/vue/20/solid";
-import type { FunctionalComponent } from "vue";
+} from "@fuelguard/ui/icons";
+import { useToastStore, type Toast, type ToastVariant } from "@/stores/toast";
 
 const toast = useToastStore();
 
 interface VariantConfig {
-  icon: FunctionalComponent;
+  icon: Icon;
   iconClass: string;
   borderClass: string;
   barClass: string;
@@ -80,8 +81,7 @@ function cfg(t: Toast): VariantConfig {
           role="alert"
         >
           <div class="flex items-start gap-3 px-4 py-3.5 pr-10">
-            <component
-              :is="cfg(t).icon"
+            <AppIcon :icon="cfg(t).icon"
               class="mt-0.5 size-5 shrink-0"
               :class="cfg(t).iconClass"
               aria-hidden="true"
@@ -98,7 +98,7 @@ function cfg(t: Toast): VariantConfig {
             :aria-label="`Dismiss ${t.variant} notification`"
             @click="toast.dismiss(t.id)"
           >
-            <XMarkIcon class="size-4" aria-hidden="true" />
+            <AppIcon :icon="XMarkIcon" class="size-4" aria-hidden="true" />
           </button>
 
           <div

@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  PlusIcon,
+  TrashIcon,
+} from "@fuelguard/ui/icons";
 import { reactive, ref, computed } from "vue";
-import { PlusIcon, TrashIcon } from "@heroicons/vue/20/solid";
 import { PHOTO_SLOTS, PHOTO_SLOT_LABELS, STOP_KINDS } from "@fuelguard/shared";
 import FormField from "@/components/ui/FormField.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
@@ -194,7 +198,7 @@ function onSubmit() {
         <div class="mb-2 flex items-center justify-between">
           <h3 class="text-sm font-semibold text-ink">Stops</h3>
           <BaseButton type="button" variant="soft" size="sm" @click="addStop">
-            <PlusIcon class="mr-1 h-4 w-4" /> Add stop
+            <AppIcon :icon="PlusIcon" class="mr-1 h-4 w-4" /> Add stop
           </BaseButton>
         </div>
 
@@ -211,7 +215,7 @@ function onSubmit() {
               :aria-label="`Remove stop ${i + 1}`"
               @click="removeStop(i)"
             >
-              <TrashIcon class="h-4 w-4" />
+              <AppIcon :icon="TrashIcon" class="h-4 w-4" />
             </button>
           </div>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">

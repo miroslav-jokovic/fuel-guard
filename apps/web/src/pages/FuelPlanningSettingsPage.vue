@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  PlusIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { reactive, ref, computed, watch } from "vue";
 import { routeFuelSettingsFormSchema, ROUTE_FUEL_SETTINGS_DEFAULTS, BRAND_LABELS, EQUIPMENT_TYPES, type RouteFuelSettingsForm } from "@fuelguard/shared";
 import { useRouteFuelSettings, useSaveRouteFuelSettings } from "@/features/fueling/useRouteFuelSettings";
@@ -9,7 +14,6 @@ import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
 import FormField from "@/components/ui/FormField.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import { PlusIcon, XMarkIcon } from "@heroicons/vue/24/outline";
 import { useDiscountRules, useSaveDiscountRules, DISCOUNT_TYPES, type DiscountRule } from "@/features/fueling/useDiscountRules";
 
 const { data, isLoading } = useRouteFuelSettings();
@@ -242,11 +246,11 @@ const truck: NumField[] = [
           <FormField v-slot="{ id }" label="Cents off / gal">
             <BaseInput :id="id" v-model="r.cents_off" type="number" step="0.001" inputmode="decimal" />
           </FormField>
-          <BaseButton variant="ghost" size="sm" type="button" @click="removeRule(i)"><XMarkIcon class="size-4" /></BaseButton>
+          <BaseButton variant="ghost" size="sm" type="button" @click="removeRule(i)"><AppIcon :icon="XMarkIcon" class="size-4" /></BaseButton>
         </div>
         <p v-if="!rules.length" class="text-sm text-ink-muted">No discount rules — planning uses net prices as loaded.</p>
         <div class="flex items-center justify-between">
-          <BaseButton variant="ghost" size="sm" type="button" @click="addRule"><PlusIcon class="-ml-0.5 size-4" /> Add rule</BaseButton>
+          <BaseButton variant="ghost" size="sm" type="button" @click="addRule"><AppIcon :icon="PlusIcon" class="-ml-0.5 size-4" /> Add rule</BaseButton>
           <BaseButton variant="secondary" size="sm" type="button" :disabled="saveDiscounts.isPending.value" @click="onSaveDiscounts">
             {{ saveDiscounts.isPending.value ? "Saving…" : "Save discount rules" }}
           </BaseButton>

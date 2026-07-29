@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  FunnelIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { ref } from "vue";
-import { FunnelIcon, XMarkIcon } from "@heroicons/vue/20/solid";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 import SearchInput from "@/components/SearchInput.vue";
 import BaseCard from "./BaseCard.vue";
@@ -88,7 +92,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
           @click.stop="moreOpen = !moreOpen"
           @keydown.escape="moreOpen = false"
         >
-          <FunnelIcon class="size-4 text-ink-subtle" aria-hidden="true" />
+          <AppIcon :icon="FunnelIcon" class="size-4 text-ink-subtle" aria-hidden="true" />
           Filters
           <span
             v-if="moreCount"
@@ -134,7 +138,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
       >
         <span class="text-ink-muted">{{ c.label }}:</span>
         {{ c.value }}
-        <XMarkIcon class="size-3.5 text-ink-subtle group-hover:text-ink-secondary" aria-hidden="true" />
+        <AppIcon :icon="XMarkIcon" class="size-3.5 text-ink-subtle group-hover:text-ink-secondary" aria-hidden="true" />
       </button>
       <BaseButton variant="ghost" size="sm" @click="emit('clear-all')">Clear all</BaseButton>
     </div>

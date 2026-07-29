@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowDownTrayIcon,
+  PlusIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
-import { PlusIcon, ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
 import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useSyncSamsaraVehicles, useBulkUpdateVehicles } from "@/composables/useVehicles";
@@ -167,7 +171,7 @@ async function onRetire(v: Vehicle) {
             title="Import trucks from Samsara (trailers are excluded)"
             @click="onSyncSamsara"
           >
-            <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+            <AppIcon :icon="ArrowDownTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" />
             {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
           </BaseButton>
           <BaseButton
@@ -177,7 +181,7 @@ async function onRetire(v: Vehicle) {
             Import vehicles
           </BaseButton>
           <BaseButton variant="primary" @click="openNew">
-            <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New vehicle
+            <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New vehicle
           </BaseButton>
         </template>
       </template>

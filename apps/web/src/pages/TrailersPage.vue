@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowDownTrayIcon,
+  PlusIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
-import { PlusIcon, ArrowDownTrayIcon } from "@heroicons/vue/20/solid";
 import { VEHICLE_STATUSES, type Trailer, type TrailerInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import {
@@ -138,11 +142,11 @@ async function onRetire(t: Trailer) {
             title="Import trailers from Samsara"
             @click="onSync"
           >
-            <ArrowDownTrayIcon class="-ml-0.5 size-5" aria-hidden="true" />
+            <AppIcon :icon="ArrowDownTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" />
             {{ syncTrailers.isPending.value ? "Syncing…" : "Sync from Samsara" }}
           </BaseButton>
           <BaseButton variant="primary" @click="openNew">
-            <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New trailer
+            <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New trailer
           </BaseButton>
         </template>
       </template>

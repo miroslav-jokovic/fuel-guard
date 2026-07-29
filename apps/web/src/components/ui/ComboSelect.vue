@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CheckIcon,
+  ChevronUpDownIcon,
+} from "@fuelguard/ui/icons";
 import { computed, ref, watch } from "vue";
-import { ChevronUpDownIcon } from "@heroicons/vue/20/solid";
-import { CheckIcon } from "@heroicons/vue/20/solid";
 import BaseInput from "./BaseInput.vue";
 
 /**
@@ -83,7 +86,7 @@ function onBlur() {
       @update:model-value="onInput"
     />
     <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5">
-      <ChevronUpDownIcon class="size-5 text-ink-subtle" aria-hidden="true" />
+      <AppIcon :icon="ChevronUpDownIcon" class="size-5 text-ink-subtle" aria-hidden="true" />
     </span>
     <ul
       v-if="open"
@@ -99,7 +102,7 @@ function onBlur() {
         :aria-selected="o.value === modelValue"
         @mousedown.prevent="pick(o)"
       >
-        <CheckIcon class="size-4 shrink-0 text-brand-600" :class="o.value === modelValue ? 'opacity-100' : 'opacity-0'" aria-hidden="true" />
+        <AppIcon :icon="CheckIcon" class="size-4 shrink-0 text-brand-600" :class="o.value === modelValue ? 'opacity-100' : 'opacity-0'" aria-hidden="true" />
         <span class="truncate">{{ o.label }}</span>
       </li>
       <li v-if="filtered.length === 0" class="px-3 py-2 text-ink-muted">No matches</li>

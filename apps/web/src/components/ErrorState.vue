@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { ExclamationTriangleIcon, ArrowPathIcon } from "@heroicons/vue/20/solid";
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
+} from "@fuelguard/ui/icons";
 import BaseButton from "@/components/ui/BaseButton.vue";
 
 withDefaults(defineProps<{ message?: string; retrying?: boolean }>(), {
@@ -10,10 +14,10 @@ const emit = defineEmits<{ retry: [] }>();
 
 <template>
   <div class="flex flex-col items-center gap-3 px-6 py-12 text-center">
-    <ExclamationTriangleIcon class="size-8 text-warning-500" aria-hidden="true" />
+    <AppIcon :icon="ExclamationTriangleIcon" class="size-8 text-warning-500" aria-hidden="true" />
     <p class="max-w-md text-sm text-ink-secondary">{{ message }}</p>
     <BaseButton :disabled="retrying" @click="emit('retry')">
-      <ArrowPathIcon class="size-4" :class="{ 'animate-spin': retrying }" aria-hidden="true" />
+      <AppIcon :icon="ArrowPathIcon" class="size-4" :class="{ 'animate-spin': retrying }" aria-hidden="true" />
       {{ retrying ? "Retrying…" : "Retry" }}
     </BaseButton>
   </div>

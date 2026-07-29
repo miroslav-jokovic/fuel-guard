@@ -1,22 +1,23 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
+import { AppIcon } from "@fuelguard/ui";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
-  ChevronDownIcon,
-  CurrencyDollarIcon,
-  FireIcon,
+  BeakerIcon,
   ChartBarSquareIcon,
+  ChevronDownIcon,
+  CubeIcon,
+  CurrencyDollarIcon,
   DocumentChartBarIcon,
+  FireIcon,
+  NoSymbolIcon,
   ShieldExclamationIcon,
   SignalIcon,
-  CubeIcon,
-  NoSymbolIcon,
   TableCellsIcon,
-  BeakerIcon,
   TruckIcon,
-} from "@heroicons/vue/24/outline";
+} from "@fuelguard/ui/icons";
+import { ref, computed } from "vue";
+import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
 import type { ChartConfiguration } from "chart.js";
 import { useDashboard } from "@/features/dashboard/useDashboard";
 import { useFuelRangeTotals, type FuelFilters } from "@/features/fuel/useFuelLog";
@@ -288,7 +289,7 @@ const EXPORTS = [
         <h2 class="text-lg font-semibold tracking-tight text-ink">Fleet overview</h2>
         <p class="mt-0.5 flex items-center gap-1.5 text-sm text-ink-muted">
           Fuel, waste &amp; risk · {{ rangeLabel }}
-          <ArrowPathIcon v-if="isFetching && !isLoading" class="size-3.5 animate-spin text-ink-subtle" aria-hidden="true" />
+          <AppIcon :icon="ArrowPathIcon" v-if="isFetching && !isLoading" class="size-3.5 animate-spin text-ink-subtle" aria-hidden="true" />
         </p>
       </div>
 
@@ -300,9 +301,9 @@ const EXPORTS = [
             :disabled="exporting"
             class="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-sm font-medium text-ink-secondary shadow-sm ring-1 ring-edge-strong ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50"
           >
-            <ArrowDownTrayIcon class="size-4" aria-hidden="true" />
+            <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
             {{ exporting ? "Exporting…" : "Export" }}
-            <ChevronDownIcon class="size-4 text-ink-subtle" aria-hidden="true" />
+            <AppIcon :icon="ChevronDownIcon" class="size-4 text-ink-subtle" aria-hidden="true" />
           </MenuButton>
           <transition
             enter-active-class="transition duration-100 ease-out"
@@ -315,7 +316,7 @@ const EXPORTS = [
             <MenuItems class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge focus:outline-none">
               <MenuItem v-for="exp in EXPORTS" :key="exp.label" v-slot="{ active }">
                 <button type="button" :class="['kebab-item flex items-start gap-3', active ? 'bg-surface-subtle' : '']" @click="exp.run()">
-                  <component :is="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+                  <AppIcon :icon="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
                   <span>
                     <span class="block font-medium text-ink">{{ exp.label }}</span>
                     <span class="block text-xs text-ink-muted">{{ exp.description }}</span>

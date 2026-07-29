@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { FunctionalComponent } from "vue";
+import { AppIcon } from "@fuelguard/ui";
+import { type Icon } from "@fuelguard/ui/icons";
 import { RouterLink } from "vue-router";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import SparkLine from "@/components/SparkLine.vue";
@@ -12,7 +13,7 @@ defineProps<{
   /** Exact/long-form value for the hover title when `value` is compacted. */
   valueTitle?: string;
   sub?: string;
-  icon: FunctionalComponent;
+  icon: Icon;
   /** Tailwind classes for the icon chip, e.g. "text-success-600 bg-success-50". */
   tone: string;
   /** Optional 30-point trend; nulls render as gaps. */
@@ -60,7 +61,7 @@ defineProps<{
           :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-lg', tone]"
           aria-hidden="true"
         >
-          <component :is="icon" class="size-5" />
+          <AppIcon :icon="icon" class="size-5" />
         </span>
       </div>
       <div v-if="spark && !loading" class="mt-3">

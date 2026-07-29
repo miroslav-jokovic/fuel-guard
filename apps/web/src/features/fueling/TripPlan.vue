@@ -1,6 +1,13 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  BoltIcon,
+  ChevronDownIcon,
+  FlagIcon,
+  MapIcon,
+  MapPinIcon,
+} from "@fuelguard/ui/icons";
 import { computed, reactive } from "vue";
-import { FlagIcon, BoltIcon, MapPinIcon, ChevronDownIcon, MapIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { stripStepDistance } from "@fuelguard/shared";
@@ -90,7 +97,7 @@ const DOT: Record<string, string> = {
         <li class="relative flex gap-3">
           <span v-if="i < nodes.length - 1 || (legs[i] && legs[i].steps.length)" class="absolute left-[15px] top-8 bottom-0 w-px bg-edge" aria-hidden="true" />
           <span class="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full" :class="DOT[n.tone]">
-            <component :is="n.icon" class="size-4.5" aria-hidden="true" />
+            <AppIcon :icon="n.icon" class="size-4.5" aria-hidden="true" />
           </span>
           <div class="min-w-0 flex-1 pb-4 pt-1">
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -110,10 +117,10 @@ const DOT: Record<string, string> = {
           <span class="w-8 shrink-0" aria-hidden="true" />
           <div class="min-w-0 flex-1 pb-4">
             <button type="button" class="inline-flex items-center gap-1.5 rounded-md bg-surface-subtle px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-surface-muted" @click="toggleLeg(i)">
-              <MapIcon class="size-3.5 text-ink-subtle" aria-hidden="true" />
+              <AppIcon :icon="MapIcon" class="size-3.5 text-ink-subtle" aria-hidden="true" />
               Drive {{ legs[i]!.miles.toLocaleString() }} mi
               <span class="text-ink-muted">· {{ legs[i]!.steps.length }} steps</span>
-              <ChevronDownIcon class="size-3.5 transition-transform" :class="openLegs[i] ? 'rotate-180' : ''" aria-hidden="true" />
+              <AppIcon :icon="ChevronDownIcon" class="size-3.5 transition-transform" :class="openLegs[i] ? 'rotate-180' : ''" aria-hidden="true" />
             </button>
             <ol v-if="openLegs[i]" class="mt-2 space-y-1.5 border-l border-edge-subtle pl-3">
               <li v-for="(step, si) in legs[i]!.steps" :key="si" class="text-sm text-ink-secondary">

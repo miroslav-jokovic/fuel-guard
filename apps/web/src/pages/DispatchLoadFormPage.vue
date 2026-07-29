@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  PlusIcon,
+  TrashIcon,
+} from "@fuelguard/ui/icons";
 /**
  * Dispatch → New / edit load (Phase 3D, D49). The form that retires `seed_driver_load.sql`.
  *
@@ -9,7 +14,6 @@
  */
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { PlusIcon, TrashIcon } from "@heroicons/vue/20/solid";
 import { approvalChecklist, PHOTO_SLOTS, photoSlotLabel, type StopInput } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
@@ -268,7 +272,7 @@ async function save() {
           <div class="mb-4 flex items-center justify-between">
             <h2 class="text-sm font-semibold text-ink">Stops</h2>
             <BaseButton size="sm" @click="addStop">
-              <PlusIcon class="-ml-0.5 size-4" aria-hidden="true" />
+              <AppIcon :icon="PlusIcon" class="-ml-0.5 size-4" aria-hidden="true" />
               Add stop
             </BaseButton>
           </div>
@@ -296,7 +300,7 @@ async function save() {
                   :aria-label="`Remove stop ${stop.seq}`"
                   @click="removeStop(i)"
                 >
-                  <TrashIcon class="size-4" aria-hidden="true" />
+                  <AppIcon :icon="TrashIcon" class="size-4" aria-hidden="true" />
                 </button>
               </div>
 

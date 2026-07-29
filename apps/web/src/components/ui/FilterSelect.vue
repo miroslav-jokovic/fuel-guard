@@ -1,6 +1,12 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { computed, ref, watch } from "vue";
-import { CheckIcon, ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from "@heroicons/vue/20/solid";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 
 /**
@@ -91,9 +97,9 @@ function clear() {
         :aria-label="`Clear ${label} filter`"
         @click.stop="clear"
       >
-        <XMarkIcon class="size-3.5" aria-hidden="true" />
+        <AppIcon :icon="XMarkIcon" class="size-3.5" aria-hidden="true" />
       </span>
-      <ChevronDownIcon v-else class="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+      <AppIcon :icon="ChevronDownIcon" v-else class="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
     </button>
 
     <Teleport to="body">
@@ -108,7 +114,7 @@ function clear() {
         >
           <div v-if="searchable" class="border-b border-edge-subtle px-2 pb-2 pt-1.5">
             <div class="relative">
-              <MagnifyingGlassIcon class="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-ink-subtle" aria-hidden="true" />
+              <AppIcon :icon="MagnifyingGlassIcon" class="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-ink-subtle" aria-hidden="true" />
               <input
                 v-model="query"
                 type="text"
@@ -133,7 +139,7 @@ function clear() {
               :aria-selected="opt.value === modelValue"
               @click="select(opt.value)"
             >
-              <CheckIcon
+              <AppIcon :icon="CheckIcon"
                 class="mr-2 size-4 shrink-0 text-brand-600"
                 :class="opt.value === modelValue || (opt.value === '' && !selected) ? 'opacity-100' : 'opacity-0'"
                 aria-hidden="true"

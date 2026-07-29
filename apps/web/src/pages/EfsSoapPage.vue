@@ -1,6 +1,11 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+} from "@fuelguard/ui/icons";
 import { computed, reactive, ref, watch } from "vue";
-import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from "@heroicons/vue/24/outline";
 import {
   useDisableEfsSoap,
   useEfsSoapStatus,
@@ -190,7 +195,7 @@ const testChipClass = computed(() => {
       <BaseCard>
         <div class="flex items-start gap-3">
           <template v-if="overallState === 'enabled'">
-            <CheckCircleIcon class="size-6 shrink-0 text-success-500" />
+            <AppIcon :icon="CheckCircleIcon" class="size-6 shrink-0 text-success-500" />
             <div class="min-w-0">
               <h3 class="text-sm font-semibold text-ink">Enabled</h3>
               <p class="mt-1 text-sm text-ink-muted">
@@ -201,7 +206,7 @@ const testChipClass = computed(() => {
             </div>
           </template>
           <template v-else-if="overallState === 'disabled'">
-            <ExclamationTriangleIcon class="size-6 shrink-0 text-caution-500" />
+            <AppIcon :icon="ExclamationTriangleIcon" class="size-6 shrink-0 text-caution-500" />
             <div class="min-w-0">
               <h3 class="text-sm font-semibold text-ink">Configured but not enabled</h3>
               <p class="mt-1 text-sm text-ink-muted">
@@ -212,7 +217,7 @@ const testChipClass = computed(() => {
             </div>
           </template>
           <template v-else>
-            <InformationCircleIcon class="size-6 shrink-0 text-brand-500" />
+            <AppIcon :icon="InformationCircleIcon" class="size-6 shrink-0 text-brand-500" />
             <div class="min-w-0">
               <h3 class="text-sm font-semibold text-ink">Not configured</h3>
               <p class="mt-1 text-sm text-ink-muted">

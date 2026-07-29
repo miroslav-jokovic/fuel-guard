@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  PlusIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { PlusIcon } from "@heroicons/vue/20/solid";
 import { fuelTxnStatus, explainCaseOutcome, formatRuleId, type FillUpInput, type FuelTransaction, type CaseLevel, type CaseSignal } from "@fuelguard/shared";
 import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
@@ -219,7 +222,7 @@ const columns: DataTableColumn[] = [
     <PageHeader description="Every recorded fill-up with computed MPG and anomaly status.">
       <template #actions>
         <BaseButton variant="primary" @click="drawerOpen = true">
-          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> Log fill-up
+          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> Log fill-up
         </BaseButton>
       </template>
     </PageHeader>

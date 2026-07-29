@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowPathIcon,
+  MapPinIcon,
+} from "@fuelguard/ui/icons";
 import { ref } from "vue";
-import { MapPinIcon, ArrowPathIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
@@ -141,7 +145,7 @@ async function onSyncLoves() {
           network-wide posted retail prices — refreshed automatically, or on demand here.
         </p>
       </div>
-      <MapPinIcon class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+      <AppIcon :icon="MapPinIcon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
     </div>
 
     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -160,7 +164,7 @@ async function onSyncLoves() {
         <div class="mt-1.5"><FileDropzone accept=".xlsx,.xls,.xlsm" :disabled="priceLoading" @files="onPriceFiles" /></div>
         <div class="mt-2 flex items-center gap-3">
           <BaseButton variant="secondary" size="sm" type="button" :disabled="priceLoading" @click="onFetchNow">
-            <ArrowPathIcon class="-ml-0.5 size-4" :class="priceLoading ? 'animate-spin' : ''" aria-hidden="true" /> Fetch now
+            <AppIcon :icon="ArrowPathIcon" class="-ml-0.5 size-4" :class="priceLoading ? 'animate-spin' : ''" aria-hidden="true" /> Fetch now
           </BaseButton>
           <p v-if="priceResult" class="text-sm text-success-800">
             {{ priceResult.pricesInserted.toLocaleString() }} prices · {{ priceResult.stationRows }} stations

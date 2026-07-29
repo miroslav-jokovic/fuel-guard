@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ShieldCheckIcon,
+} from "@fuelguard/ui/icons";
 import { RouterLink } from "vue-router";
-import { ShieldCheckIcon } from "@heroicons/vue/24/outline";
 import type { RiskRow } from "@fuelguard/shared";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -19,7 +22,7 @@ defineProps<{
     <h3 class="text-sm font-semibold text-ink">{{ title }}</h3>
 
     <div v-if="rows.length === 0" class="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
-      <ShieldCheckIcon class="size-8 text-success-500" aria-hidden="true" />
+      <AppIcon :icon="ShieldCheckIcon" class="size-8 text-success-500" aria-hidden="true" />
       <p class="text-sm font-medium text-ink">{{ emptyLabel }}</p>
       <p class="text-xs text-ink-muted">No open cases in this period.</p>
     </div>

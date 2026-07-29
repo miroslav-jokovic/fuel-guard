@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  EllipsisVerticalIcon,
+} from "@fuelguard/ui/icons";
 import { ref } from "vue";
-import { EllipsisVerticalIcon } from "@heroicons/vue/20/solid";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
 
 // The one dropdown menu. Put <button class="kebab-item"> children in the default slot.
@@ -30,7 +33,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
       @click.stop="open = !open"
       @keydown.escape="open = false"
     >
-      <slot name="trigger"><EllipsisVerticalIcon class="size-5" /></slot>
+      <slot name="trigger"><AppIcon :icon="EllipsisVerticalIcon" class="size-5" /></slot>
     </button>
     <Teleport to="body">
       <template v-if="open">

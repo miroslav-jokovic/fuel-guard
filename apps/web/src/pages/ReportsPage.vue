@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowDownTrayIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
-import { ArrowDownTrayIcon } from "@heroicons/vue/24/outline";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import AppSelect from "@/components/AppSelect.vue";
@@ -212,7 +215,7 @@ async function sendDigest() {
         <h3 class="text-sm font-semibold text-ink">{{ r.name }}</h3>
         <p class="mt-1 flex-1 text-sm text-ink-muted">{{ r.desc }}</p>
         <BaseButton variant="primary" class="mt-4" :disabled="busy === r.key" @click="run(r.path, r.file, r.key)">
-          <ArrowDownTrayIcon class="size-4" /> {{ busy === r.key ? "Preparing…" : "Download" }}
+          <AppIcon :icon="ArrowDownTrayIcon" class="size-4" /> {{ busy === r.key ? "Preparing…" : "Download" }}
         </BaseButton>
       </BaseCard>
     </div>
@@ -231,7 +234,7 @@ async function sendDigest() {
             :disabled="busy === 'odo'"
             @click="run('/api/reports/odometer-accuracy.csv', 'fuelguard-odometer-accuracy.csv', 'odo', { by })"
           >
-            <ArrowDownTrayIcon class="size-4" /> CSV
+            <AppIcon :icon="ArrowDownTrayIcon" class="size-4" /> CSV
           </BaseButton>
         </div>
       </div>

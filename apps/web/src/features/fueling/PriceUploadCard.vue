@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowUpTrayIcon,
+  CheckCircleIcon,
+} from "@fuelguard/ui/icons";
 import { ref } from "vue";
-import { ArrowUpTrayIcon, CheckCircleIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
@@ -33,7 +37,7 @@ async function onFiles(files: File[]) {
         <h3 class="text-sm font-semibold text-ink">Daily fuel prices</h3>
         <p class="mt-1 text-sm text-ink-muted">Upload today's Pilot "Better Of Pricing Report" (.xls, .xlsx, or .csv) to load net pump prices for the corridor.</p>
       </div>
-      <ArrowUpTrayIcon class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+      <AppIcon :icon="ArrowUpTrayIcon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
     </div>
 
     <div class="mt-3">
@@ -44,7 +48,7 @@ async function onFiles(files: File[]) {
 
     <template v-if="result">
       <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md bg-success-50 px-3 py-2 text-sm text-success-800">
-        <span class="inline-flex items-center gap-1.5 font-medium"><CheckCircleIcon class="size-4" aria-hidden="true" /> Loaded {{ result.effectiveDate }}</span>
+        <span class="inline-flex items-center gap-1.5 font-medium"><AppIcon :icon="CheckCircleIcon" class="size-4" aria-hidden="true" /> Loaded {{ result.effectiveDate }}</span>
         <span>{{ result.pricesInserted.toLocaleString() }} prices</span>
         <span>{{ result.stationsUpserted.toLocaleString() }} stations placed</span>
         <span v-if="result.duplicatesInFile" title="Repeated site rows in the file were collapsed (last wins).">{{ result.duplicatesInFile }} duplicate rows merged</span>

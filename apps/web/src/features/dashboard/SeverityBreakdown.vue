@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CheckCircleIcon,
+} from "@fuelguard/ui/icons";
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import { CheckCircleIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import { viz, resolveAlpha } from "./chartTheme";
 
@@ -47,7 +50,7 @@ const dotStyle = (row: { color: string }) => ({ backgroundColor: row.color });
     </div>
 
     <div v-if="total === 0" class="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
-      <CheckCircleIcon class="size-8 text-success-500" aria-hidden="true" />
+      <AppIcon :icon="CheckCircleIcon" class="size-8 text-success-500" aria-hidden="true" />
       <p class="text-sm font-medium text-ink">No open cases</p>
       <p class="text-xs text-ink-muted">Nothing needs your attention in this period.</p>
     </div>

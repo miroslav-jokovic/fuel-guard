@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  Bars3Icon,
+  ChevronLeftIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
-import { Bars3Icon, XMarkIcon, ChevronLeftIcon } from "@heroicons/vue/24/outline";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import { useModulesQuery } from "@/composables/useModules";
@@ -105,7 +110,7 @@ async function signOut() {
               <div class="absolute top-0 left-full flex w-16 justify-center pt-5">
                 <button type="button" class="-m-2.5 p-2.5" @click="mobileOpen = false">
                   <span class="sr-only">Close sidebar</span>
-                  <XMarkIcon class="size-6 text-white" aria-hidden="true" />
+                  <AppIcon :icon="XMarkIcon" class="size-6 text-white" aria-hidden="true" />
                 </button>
               </div>
               <!-- Mobile sidebar body -->
@@ -129,7 +134,7 @@ async function signOut() {
                           :class="navLinkClass(item.to)"
                           :aria-current="isCurrent(item.to) ? 'page' : undefined"
                         >
-                          <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                          <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
                           {{ item.name }}
                         </RouterLink>
                       </li>
@@ -190,7 +195,7 @@ async function signOut() {
                   :class="navLinkClass(item.to)"
                   :aria-current="isCurrent(item.to) ? 'page' : undefined"
                 >
-                  <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                  <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
                   <span>{{ item.name }}</span>
                 </RouterLink>
               </li>
@@ -207,7 +212,7 @@ async function signOut() {
                     :title="item.name"
                     :aria-current="isCurrent(item.to) ? 'page' : undefined"
                   >
-                    <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                    <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
                   </RouterLink>
                 </li>
               </template>
@@ -253,7 +258,7 @@ async function signOut() {
         :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
         @click="toggleSidebar"
       >
-        <ChevronLeftIcon
+        <AppIcon :icon="ChevronLeftIcon"
           class="size-3 transition-transform duration-200"
           :class="{ 'rotate-180': sidebarCollapsed }"
           aria-hidden="true"
@@ -274,14 +279,14 @@ async function signOut() {
             @click="mobileOpen = true"
           >
             <span class="sr-only">Open sidebar</span>
-            <Bars3Icon class="size-6" aria-hidden="true" />
+            <AppIcon :icon="Bars3Icon" class="size-6" aria-hidden="true" />
           </button>
           <RouterLink
             v-if="route.meta.parent"
             :to="(route.meta.parent as string)"
             class="-ml-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-ink-muted hover:bg-surface-muted hover:text-ink-secondary"
           >
-            <ChevronLeftIcon class="size-4" aria-hidden="true" />
+            <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
             <span class="hidden sm:inline">Back</span>
           </RouterLink>
           <h1 class="text-base font-semibold text-ink">

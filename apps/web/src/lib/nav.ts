@@ -1,4 +1,26 @@
-import type { FunctionalComponent } from "vue";
+import {
+  type Icon,
+  ArchiveBoxIcon,
+  ArrowUpTrayIcon,
+  ArrowsRightLeftIcon,
+  BeakerIcon,
+  BuildingStorefrontIcon,
+  ClipboardDocumentCheckIcon,
+  ClockIcon,
+  Cog6ToothIcon,
+  ExclamationTriangleIcon,
+  HomeIcon,
+  MapIcon,
+  NoSymbolIcon,
+  ShieldCheckIcon,
+  ShieldExclamationIcon,
+  SparklesIcon,
+  TableCellsIcon,
+  TrophyIcon,
+  TruckIcon,
+  UserGroupIcon,
+  UsersIcon,
+} from "@fuelguard/ui/icons";
 import {
   canViewSection,
   canManageSection,
@@ -8,33 +30,11 @@ import {
   type UserRole,
   type ModuleSet,
 } from "@fuelguard/shared";
-import {
-  ArchiveBoxIcon,
-  ArrowUpTrayIcon,
-  ArrowsRightLeftIcon,
-  BeakerIcon,
-  BuildingStorefrontIcon,
-  ClockIcon,
-  Cog6ToothIcon,
-  ExclamationTriangleIcon,
-  HomeIcon,
-  MapIcon,
-  NoSymbolIcon,
-  ShieldCheckIcon,
-  ShieldExclamationIcon,
-  ClipboardDocumentCheckIcon,
-  SparklesIcon,
-  TableCellsIcon,
-  TrophyIcon,
-  TruckIcon,
-  UserGroupIcon,
-  UsersIcon,
-} from "@heroicons/vue/24/outline";
 
 export interface NavItem {
   name: string;
   to: string;
-  icon: FunctionalComponent;
+  icon: Icon;
   show: boolean;
 }
 
@@ -42,7 +42,7 @@ export interface NavGroup {
   /** Section label (null = ungrouped top items). */
   label: string | null;
   /** Section icon shown in the collapsed rail (labeled sections only). */
-  icon?: FunctionalComponent;
+  icon?: Icon;
   items: NavItem[];
 }
 

@@ -1,6 +1,12 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  MapIcon,
+  MapPinIcon,
+  PlusIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { reactive, computed, ref, watch } from "vue";
-import { PlusIcon, XMarkIcon, MapIcon, MapPinIcon } from "@heroicons/vue/24/outline";
 import { EQUIPMENT_TYPES } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useRouteFuelSettings } from "./useRouteFuelSettings";
@@ -140,7 +146,7 @@ function submit() {
           :disabled="!form.vehicleId || locating"
           @click="useTruckLocation"
         >
-          <MapPinIcon class="size-3.5" aria-hidden="true" />
+          <AppIcon :icon="MapPinIcon" class="size-3.5" aria-hidden="true" />
           {{ locating ? "Locating…" : "Use truck's current location" }}
         </button>
         <p v-if="locateError" class="mt-1 text-xs text-danger-600">{{ locateError }}</p>
@@ -188,21 +194,21 @@ function submit() {
       <FormField v-for="(_, i) in form.waypoints" :key="i" v-slot="{ id }" :label="`Stop ${i + 1}`">
         <div class="flex items-center gap-2">
           <BaseInput :id="id" v-model="form.waypoints[i]" placeholder="City, ST or address" />
-          <BaseButton variant="ghost" size="sm" type="button" @click="removeWaypoint(i)"><XMarkIcon class="size-4" /></BaseButton>
+          <BaseButton variant="ghost" size="sm" type="button" @click="removeWaypoint(i)"><AppIcon :icon="XMarkIcon" class="size-4" /></BaseButton>
         </div>
       </FormField>
     </div>
 
     <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
       <BaseButton variant="ghost" size="sm" type="button" @click="addWaypoint">
-        <PlusIcon class="-ml-0.5 size-4" aria-hidden="true" /> Add stop
+        <AppIcon :icon="PlusIcon" class="-ml-0.5 size-4" aria-hidden="true" /> Add stop
       </BaseButton>
       <div class="flex items-center gap-3">
         <FormField v-slot="{ id }" label="" class="w-40">
           <BaseInput :id="id" v-model="form.loadGrossLb" inputmode="numeric" placeholder="Load lb (opt.)" />
         </FormField>
         <BaseButton variant="primary" type="submit" :disabled="!canSubmit">
-          <MapIcon class="-ml-0.5 size-5" aria-hidden="true" />
+          <AppIcon :icon="MapIcon" class="-ml-0.5 size-5" aria-hidden="true" />
           {{ loading ? "Planning…" : "Generate plan" }}
         </BaseButton>
       </div>

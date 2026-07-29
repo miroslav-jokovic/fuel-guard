@@ -1,7 +1,14 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  BoltIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  FlagIcon,
+  MapPinIcon,
+  TruckIcon,
+} from "@fuelguard/ui/icons";
 import { computed } from "vue";
-import { MapPinIcon, ClockIcon, TruckIcon, FlagIcon, BoltIcon } from "@heroicons/vue/24/outline";
-import { CheckCircleIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import type { PlanResult } from "./useFuelPlan";
 
@@ -46,21 +53,21 @@ const facts = computed(() => [
     <h3 class="text-sm font-semibold text-ink">Route</h3>
     <ol class="mt-3 space-y-2">
       <li v-if="origin" class="flex items-start gap-2 text-sm">
-        <FlagIcon class="mt-0.5 size-4 shrink-0 text-success-600" aria-hidden="true" />
+        <AppIcon :icon="FlagIcon" class="mt-0.5 size-4 shrink-0 text-success-600" aria-hidden="true" />
         <span class="text-ink-secondary"><span class="font-medium text-ink">Start:</span> {{ origin }}</span>
       </li>
       <li v-for="(w, i) in waypoints ?? []" :key="i" class="flex items-start gap-2 text-sm">
-        <MapPinIcon class="mt-0.5 size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+        <AppIcon :icon="MapPinIcon" class="mt-0.5 size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
         <span class="text-ink-secondary"><span class="font-medium text-ink">Stop {{ i + 1 }}:</span> {{ w }}</span>
       </li>
       <li v-if="destination" class="flex items-start gap-2 text-sm">
-        <FlagIcon class="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden="true" />
+        <AppIcon :icon="FlagIcon" class="mt-0.5 size-4 shrink-0 text-brand-600" aria-hidden="true" />
         <span class="text-ink-secondary"><span class="font-medium text-ink">Destination:</span> {{ destination }}</span>
       </li>
     </ol>
     <dl class="mt-4 grid grid-cols-1 gap-3 border-t border-edge pt-4 sm:grid-cols-3">
       <div v-for="f in facts" :key="f.label" class="flex items-center gap-2">
-        <component :is="f.icon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+        <AppIcon :icon="f.icon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
         <div>
           <dt class="text-xs text-ink-muted">{{ f.label }}</dt>
           <dd class="text-sm font-semibold text-ink">{{ f.value }}</dd>
@@ -71,7 +78,7 @@ const facts = computed(() => [
     <div v-if="truck" class="mt-4 border-t border-edge pt-4">
       <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
         <div class="flex items-center gap-2">
-          <BoltIcon class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+          <AppIcon :icon="BoltIcon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
           <div>
             <dt class="text-xs text-ink-muted">Fuel level (live)</dt>
             <dd class="text-sm font-semibold text-ink">
@@ -81,7 +88,7 @@ const facts = computed(() => [
           </div>
         </div>
         <div v-if="truck.reachableMiles != null" class="flex items-center gap-2">
-          <TruckIcon class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+          <AppIcon :icon="TruckIcon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
           <div>
             <dt class="text-xs text-ink-muted">Reachable now</dt>
             <dd class="text-sm font-semibold text-ink">{{ truck.reachableMiles.toLocaleString() }} mi <span class="font-normal text-ink-muted">(fuel + HOS)</span></dd>
@@ -99,7 +106,7 @@ const facts = computed(() => [
       </div>
       <div v-if="breakAdvice && breakAdvice.breakDueMiles != null" class="mt-3 text-sm">
         <p v-if="breakAdvice.coincidesStopIndex != null" class="inline-flex items-center gap-1.5 rounded-md bg-success-50 px-2.5 py-1.5 font-medium text-success-800">
-          <CheckCircleIcon class="size-4" aria-hidden="true" />
+          <AppIcon :icon="CheckCircleIcon" class="size-4" aria-hidden="true" />
           Fuel stop {{ breakAdvice.coincidesStopIndex + 1 }} also covers your 30-min break (~mile {{ breakAdvice.breakDueMiles.toLocaleString() }}) — saves ~{{ breakAdvice.savesMinutes }} min.
         </p>
         <p v-else class="text-ink-secondary">

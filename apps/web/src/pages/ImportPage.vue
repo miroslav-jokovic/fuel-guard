@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  DocumentTextIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { computed, ref } from "vue";
-import { DocumentTextIcon, XMarkIcon } from "@heroicons/vue/20/solid";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { analyzeImport, useCommitImport, type ImportPreview } from "@/features/import/useImport";
@@ -233,7 +237,7 @@ async function onRepair() {
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <h3 class="flex flex-wrap items-center gap-2 text-base font-semibold text-ink">
-              <DocumentTextIcon class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+              <AppIcon :icon="DocumentTextIcon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
               <span class="truncate">{{ preview.filename }}</span>
               <span :class="[BADGE_BASE, toneClass(preview.kind === 'reject' ? 'warning' : 'brand')]">
                 {{ preview.kind === "reject" ? "Reject report" : "Transaction report" }}
@@ -254,7 +258,7 @@ async function onRepair() {
             :disabled="committing"
             @click="removePreview(i)"
           >
-            <XMarkIcon class="size-5" aria-hidden="true" />
+            <AppIcon :icon="XMarkIcon" class="size-5" aria-hidden="true" />
           </button>
         </div>
 

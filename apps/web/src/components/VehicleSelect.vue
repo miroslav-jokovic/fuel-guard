@@ -1,7 +1,13 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CheckIcon,
+  ChevronUpDownIcon,
+  TruckIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed, watch, nextTick } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate, size } from "@floating-ui/vue";
-import { ChevronUpDownIcon, CheckIcon, XMarkIcon, TruckIcon } from "@heroicons/vue/20/solid";
 import type { Vehicle } from "@fuelguard/shared";
 
 const props = withDefaults(
@@ -106,7 +112,7 @@ watch(
       ]"
       @click="openDropdown"
     >
-      <TruckIcon class="size-4 shrink-0 text-ink-subtle" />
+      <AppIcon :icon="TruckIcon" class="size-4 shrink-0 text-ink-subtle" />
 
       <input
         v-if="open"
@@ -133,9 +139,9 @@ watch(
         aria-label="Clear vehicle filter"
         @click="clear"
       >
-        <XMarkIcon class="size-4" />
+        <AppIcon :icon="XMarkIcon" class="size-4" />
       </button>
-      <ChevronUpDownIcon v-else class="ml-auto size-4 shrink-0 text-ink-subtle" />
+      <AppIcon :icon="ChevronUpDownIcon" v-else class="ml-auto size-4 shrink-0 text-ink-subtle" />
     </div>
 
     <!-- Dropdown -->
@@ -154,7 +160,7 @@ watch(
             :class="isUnset ? 'bg-brand-50 font-medium text-brand-700' : 'text-ink-muted hover:bg-surface-subtle'"
             @click="select(undefined)"
           >
-            <CheckIcon
+            <AppIcon :icon="CheckIcon"
               class="mr-2 size-4 shrink-0 text-brand-600 transition-opacity"
               :class="isUnset ? 'opacity-100' : 'opacity-0'"
             />
@@ -179,7 +185,7 @@ watch(
               "
               @click="select(v.id)"
             >
-              <CheckIcon
+              <AppIcon :icon="CheckIcon"
                 class="size-4 shrink-0 text-brand-600 transition-opacity"
                 :class="v.id === modelValue ? 'opacity-100' : 'opacity-0'"
               />

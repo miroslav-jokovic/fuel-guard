@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowUpTrayIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
-import { ArrowUpTrayIcon } from "@heroicons/vue/24/outline";
 import {
   parsePilotFuelReport,
   reconcilePilotFuel,
@@ -155,7 +158,7 @@ const columns: DataTableColumn[] = [
     <!-- Upload -->
     <BaseCard v-if="!report">
       <div class="flex items-start gap-3">
-        <ArrowUpTrayIcon class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+        <AppIcon :icon="ArrowUpTrayIcon" class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
         <div class="min-w-0 flex-1">
           <h3 class="text-sm font-semibold text-ink">Vendor fuel report</h3>
           <p class="mt-1 text-sm text-ink-muted">

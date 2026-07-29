@@ -1,6 +1,5 @@
 <script setup lang="ts" generic="Row extends Record<string, any>">
 import { computed, useSlots } from "vue";
-import { ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@heroicons/vue/20/solid";
 import BaseCard from "./BaseCard.vue";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
@@ -188,9 +187,9 @@ const isBlank = (v: unknown) => v == null || v === "";
                   @click="emit('sort', col.key)"
                 >
                   {{ col.label }}
-                  <ChevronUpIcon v-if="sort?.key === col.key && sort?.dir === 'asc'" class="size-3.5 text-ink-muted" />
-                  <ChevronDownIcon v-else-if="sort?.key === col.key && sort?.dir === 'desc'" class="size-3.5 text-ink-muted" />
-                  <ChevronUpDownIcon v-else class="size-3.5 text-ink-subtle group-hover:text-ink-subtle" />
+                  <AppIcon :icon="ChevronUpIcon" v-if="sort?.key === col.key && sort?.dir === 'asc'" class="size-3.5 text-ink-muted" />
+                  <AppIcon :icon="ChevronDownIcon" v-else-if="sort?.key === col.key && sort?.dir === 'desc'" class="size-3.5 text-ink-muted" />
+                  <AppIcon :icon="ChevronUpDownIcon" v-else class="size-3.5 text-ink-subtle group-hover:text-ink-subtle" />
                 </button>
                 <template v-else>{{ col.label }}</template>
               </th>

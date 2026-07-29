@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  PlusIcon,
+} from "@fuelguard/ui/icons";
 /**
  * Dispatch → Loads (Phase 3D, D49).
  *
@@ -10,7 +14,6 @@
  * item passes, with each failure named. That is the difference between a control and a rubber stamp.
  */
 import { computed, ref } from "vue";
-import { PlusIcon } from "@heroicons/vue/20/solid";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
@@ -105,7 +108,7 @@ function cancelLoad(load: DispatchLoad) {
     >
       <template #actions>
         <BaseButton variant="primary" to="/dispatch/loads/new">
-          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" />
+          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" />
           New load
         </BaseButton>
       </template>

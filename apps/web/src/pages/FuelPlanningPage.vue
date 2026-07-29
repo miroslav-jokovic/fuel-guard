@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowPathIcon,
+} from "@fuelguard/ui/icons";
 import { ref, watch } from "vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
-import { ArrowPathIcon } from "@heroicons/vue/24/outline";
 import FuelPlanForm from "@/features/fueling/FuelPlanForm.vue";
 import PlanStatusBanner from "@/features/fueling/PlanStatusBanner.vue";
 import FuelPlanSummary from "@/features/fueling/FuelPlanSummary.vue";
@@ -75,7 +78,7 @@ async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manua
     <PageHeader description="Enter a route and a truck to get where-to-fuel suggestions — optimized for lowest net cost within the truck's range, reserve, and hours of service. Read-only: the dispatcher decides.">
       <template #actions>
         <BaseButton v-if="activeTab === 'plan'" variant="secondary" size="sm" @click="newPlan">
-          <ArrowPathIcon class="-ml-0.5 size-4" aria-hidden="true" /> New plan
+          <AppIcon :icon="ArrowPathIcon" class="-ml-0.5 size-4" aria-hidden="true" /> New plan
         </BaseButton>
       </template>
     </PageHeader>

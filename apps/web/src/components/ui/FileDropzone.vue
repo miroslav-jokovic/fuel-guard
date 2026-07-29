@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowUpTrayIcon,
+} from "@fuelguard/ui/icons";
 import { ref } from "vue";
-import { ArrowUpTrayIcon } from "@heroicons/vue/24/outline";
 
 /**
  * Drag-and-drop upload area (click / Enter / Space to browse). Emits the
@@ -93,7 +96,7 @@ function browse() {
     @dragleave.prevent="dragging = Math.max(0, dragging - 1)"
     @drop.prevent="onDrop"
   >
-    <ArrowUpTrayIcon
+    <AppIcon :icon="ArrowUpTrayIcon"
       class="mx-auto size-10 transition-colors"
       :class="dragging > 0 ? 'text-brand-500' : 'text-ink-subtle'"
       aria-hidden="true"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
 import { ref, onBeforeUnmount } from "vue";
 import { RouterLink } from "vue-router";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
@@ -53,7 +54,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
       @click="open = !open"
       @keydown.escape="open = false"
     >
-      <component :is="group.icon" v-if="group.icon" class="size-5 shrink-0" aria-hidden="true" />
+      <AppIcon :icon="group.icon" v-if="group.icon" class="size-5 shrink-0" aria-hidden="true" />
     </button>
 
     <Teleport to="body">
@@ -78,7 +79,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
           :aria-current="isCurrent(item.to) ? 'page' : undefined"
           @click="open = false"
         >
-          <component :is="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+          <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
           {{ item.name }}
         </RouterLink>
       </div>

@@ -15,8 +15,10 @@
   "dependencies": {
     "@floating-ui/vue": "^2.0.0",
     "@fuelguard/shared": "workspace:*",
+    "@fuelguard/ui": "workspace:*",
     "@headlessui/vue": "1.7.23",
-    "@heroicons/vue": "2.2.0",
+    "@hugeicons/core-free-icons": "4.2.3",
+    "@hugeicons/vue": "1.0.7",
     "@supabase/supabase-js": "2.110.0",
     "@tanstack/vue-query": "5.101.2",
     "@vee-validate/zod": "4.15.1",

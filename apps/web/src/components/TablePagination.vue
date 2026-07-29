@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from "@fuelguard/ui/icons";
 import { computed, ref, watch } from "vue";
-import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/20/solid";
 import BaseButton from "@/components/ui/BaseButton.vue";
 
 const props = withDefaults(
@@ -65,10 +69,10 @@ const commitJump = () => {
       </label>
       <div class="flex items-center gap-2">
         <BaseButton size="sm" :disabled="!canPrev || loading" @click="go(page - 1)">
-          <ChevronLeftIcon class="size-4" aria-hidden="true" /> Prev
+          <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" /> Prev
         </BaseButton>
         <BaseButton size="sm" :disabled="!canNext || loading" @click="go(page + 1)">
-          Next <ChevronRightIcon class="size-4" aria-hidden="true" />
+          Next <AppIcon :icon="ChevronRightIcon" class="size-4" aria-hidden="true" />
         </BaseButton>
       </div>
     </div>

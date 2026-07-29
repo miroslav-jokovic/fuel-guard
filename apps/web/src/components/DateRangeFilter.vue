@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CalendarIcon,
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import { computed } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
-import { CalendarIcon, XMarkIcon } from "@heroicons/vue/20/solid";
 
 /**
  * From/To date range on VueDatePicker (themed via the --dp-* token block in
@@ -84,7 +88,7 @@ function clear() {
         "
         :aria-label="display ? `Date filter: ${display}` : 'Filter by date range'"
       >
-        <CalendarIcon class="size-4 shrink-0" :class="display ? 'text-brand-600' : 'text-ink-subtle'" aria-hidden="true" />
+        <AppIcon :icon="CalendarIcon" class="size-4 shrink-0" :class="display ? 'text-brand-600' : 'text-ink-subtle'" aria-hidden="true" />
         {{ display ?? label }}
         <span
           v-if="display"
@@ -93,7 +97,7 @@ function clear() {
           aria-label="Clear date filter"
           @click.stop="clear"
         >
-          <XMarkIcon class="size-3.5" aria-hidden="true" />
+          <AppIcon :icon="XMarkIcon" class="size-3.5" aria-hidden="true" />
         </span>
       </button>
     </template>

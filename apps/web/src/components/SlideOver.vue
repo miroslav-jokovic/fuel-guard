@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  XMarkIcon,
+} from "@fuelguard/ui/icons";
 import {
   Dialog,
   DialogPanel,
@@ -6,7 +10,6 @@ import {
   TransitionRoot,
   TransitionChild,
 } from "@headlessui/vue";
-import { XMarkIcon } from "@heroicons/vue/24/outline";
 
 defineProps<{ open: boolean; title: string }>();
 const emit = defineEmits<{ close: [] }>();
@@ -49,7 +52,7 @@ const emit = defineEmits<{ close: [] }>();
                       @click="emit('close')"
                     >
                       <span class="sr-only">Close</span>
-                      <XMarkIcon class="size-6" aria-hidden="true" />
+                      <AppIcon :icon="XMarkIcon" class="size-6" aria-hidden="true" />
                     </button>
                   </div>
                   <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-6">

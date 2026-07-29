@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  PlusIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
-import { PlusIcon } from "@heroicons/vue/20/solid";
 import {
   LOAD_STATUSES,
   LOAD_STATUS_LABELS,
@@ -175,7 +178,7 @@ const fmtDate = (s: string) => {
     <PageHeader description="Create, assign and release loads to drivers. TMS-fed loads appear here too.">
       <template #actions>
         <BaseButton v-if="session.canManage" variant="primary" @click="openNew">
-          <PlusIcon class="-ml-0.5 size-5" aria-hidden="true" /> New load
+          <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New load
         </BaseButton>
       </template>
     </PageHeader>

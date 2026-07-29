@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ChevronDownIcon,
+  ExclamationTriangleIcon,
+} from "@fuelguard/ui/icons";
 import { reactive, ref } from "vue";
-import { ExclamationTriangleIcon, ChevronDownIcon } from "@heroicons/vue/24/outline";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
@@ -33,7 +37,7 @@ function submit() {
 <template>
   <BaseCard>
     <div class="flex items-start gap-3">
-      <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0 text-caution-600" aria-hidden="true" />
+      <AppIcon :icon="ExclamationTriangleIcon" class="mt-0.5 size-5 shrink-0 text-caution-600" aria-hidden="true" />
       <div class="min-w-0 flex-1">
         <h3 class="text-sm font-semibold text-ink">Live truck data unavailable</h3>
         <p v-if="message" class="mt-0.5 text-sm text-ink-secondary">{{ message }}</p>
@@ -48,7 +52,7 @@ function submit() {
         </div>
 
         <button type="button" class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800" @click="showHos = !showHos">
-          <ChevronDownIcon class="size-3.5 transition-transform" :class="showHos ? 'rotate-180' : ''" aria-hidden="true" />
+          <AppIcon :icon="ChevronDownIcon" class="size-3.5 transition-transform" :class="showHos ? 'rotate-180' : ''" aria-hidden="true" />
           {{ showHos ? "Hide" : "Add" }} hours of service (optional)
         </button>
         <div v-if="showHos" class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">

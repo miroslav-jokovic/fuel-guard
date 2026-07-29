@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  CheckIcon,
+  ChevronUpDownIcon,
+} from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate, size } from "@floating-ui/vue";
-import { ChevronUpDownIcon, CheckIcon } from "@heroicons/vue/20/solid";
 
 type OptionValue = string | number | undefined | null;
 
@@ -68,7 +72,7 @@ function select(val: OptionValue) {
       <span class="truncate" :class="isUnset ? 'text-ink-subtle' : 'text-ink'">
         {{ selectedLabel }}
       </span>
-      <ChevronUpDownIcon class="size-4 shrink-0 text-ink-subtle" />
+      <AppIcon :icon="ChevronUpDownIcon" class="size-4 shrink-0 text-ink-subtle" />
     </button>
 
     <Teleport to="body">
@@ -91,7 +95,7 @@ function select(val: OptionValue) {
             "
             @click="select(opt.value)"
           >
-            <CheckIcon
+            <AppIcon :icon="CheckIcon"
               class="mr-2 size-4 shrink-0 text-brand-600 transition-opacity"
               :class="opt.value === modelValue ? 'opacity-100' : 'opacity-0'"
             />
