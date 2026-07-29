@@ -133,9 +133,13 @@ export function sameCardFill(
   b: { cardRef: string | null; controlId: string | null },
 ): boolean {
   if (!cardRefsMatch(a.cardRef, b.cardRef)) return false;
+  // A full PAN (>=8 digits) on either side makes the ref match definitive — control not needed.
+  if (digits(a.cardRef).length >= 8 || digits(b.cardRef).length >= 8) return true;
+  // Both sides are a MASKED last-4 → ambiguous across drivers (migration 0075). Require BOTH control
+  // ids present AND equal; a missing control id cannot confirm same-card, so we never conflate.
   const ca = a.controlId?.trim();
   const cb = b.controlId?.trim();
-  return !ca || !cb || ca === cb;
+  return !!ca && !!cb && ca === cb;
 }
 
 // ── decline-time assessment ──────────────────────────────────────────────────────────────────────

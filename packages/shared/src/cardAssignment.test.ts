@@ -104,6 +104,11 @@ describe("sameCardFill (WP3 — the card_multi_vehicle identity test)", () => {
     expect(sameCardFill({ cardRef: "1111", controlId: null }, { cardRef: "2222", controlId: null })).toBe(false);
     expect(sameCardFill({ cardRef: null, controlId: "AAA" }, { cardRef: "7521", controlId: "AAA" })).toBe(false);
   });
+  it("same last-4 with a MISSING control id cannot confirm same-card (no false conflation → no false 48h alert)", () => {
+    expect(sameCardFill({ cardRef: "7521", controlId: null }, { cardRef: "7521", controlId: "AAA" })).toBe(false);
+    expect(sameCardFill({ cardRef: "7521", controlId: "AAA" }, { cardRef: "7521", controlId: null })).toBe(false);
+    expect(sameCardFill({ cardRef: "7521", controlId: null }, { cardRef: "7521", controlId: null })).toBe(false);
+  });
 });
 
 describe("dominantVehicle (WP3b — as-of-fill-time assignment)", () => {

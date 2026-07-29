@@ -31,13 +31,13 @@ async function onFiles(files: File[]) {
     <div class="flex items-start justify-between gap-4">
       <div>
         <h3 class="text-sm font-semibold text-ink">Daily fuel prices</h3>
-        <p class="mt-1 text-sm text-ink-muted">Upload today's Pilot "Better Of Pricing Report" (.xls) to load net pump prices for the corridor.</p>
+        <p class="mt-1 text-sm text-ink-muted">Upload today's Pilot "Better Of Pricing Report" (.xls, .xlsx, or .csv) to load net pump prices for the corridor.</p>
       </div>
       <ArrowUpTrayIcon class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
     </div>
 
     <div class="mt-3">
-      <FileDropzone accept=".xls,.xlsx,.xlsm" :disabled="loading" @files="onFiles" />
+      <FileDropzone accept=".xls,.xlsx,.xlsm,.csv,.htm,.html" :disabled="loading" @files="onFiles" />
     </div>
 
     <p v-if="loading" class="mt-3 text-sm text-ink-secondary">Geocoding sites &amp; loading prices… the first load can take a moment.</p>
