@@ -1,6 +1,16 @@
 {
   "version": "2026.02",
-  "note": "HazmatGuard dataset skeleton (Phase H0). H1 populates the 49 CFR 172.101 table + appendices (hazardous substances/RQ, marine pollutants) from a human-reviewed release.",
+  "provisional": true,
+  "sourceEcfrDate": null,
+  "sourceSecondaryRef": null,
   "effectiveDate": "2026-02-13",
-  "entries": []
+  "checksum": null,
+  "_note": "PROVISIONAL skeleton (Phase H1). Content arrays are intentionally EMPTY pending the eCFR import + licensed second-source verification + human review (H1 deliverables 2/3/6). Per H1.6/H4, no load may be CLEARED against a provisional dataset. Do not hand-populate regulatory rows here — they come only from the reviewed release pipeline (RELEASING.md).",
+  "entries": [],
+  "placards": [],
+  "segregation": [],
+  "hazSubstances": [],
+  "marinePollutants": [],
+  "erg": [],
+  "specialProvisions": []
 }
