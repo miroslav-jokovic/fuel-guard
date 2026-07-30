@@ -51,11 +51,13 @@ const gasClass2: HmtEntry = {
 const synthetic = parseDataset({ version: "test", entries: [gasoilUN, dieselNA, gasClass2] });
 
 describe("@hazmat/data — loader + schema (H1)", () => {
-  it("ships a PROVISIONAL, empty dataset until the reviewed import lands", () => {
+  it("ships the real §172.101 dataset, provisional until the two-source transcription lands", () => {
     const ds = loadDataset();
     expect(ds.version).toBe(LATEST_DATASET_VERSION);
-    expect(ds.provisional).toBe(true);
-    expect(ds.entries).toEqual([]);
+    expect(ds.provisional).toBe(true); // real content, but not yet second-source-verified (H1.6)
+    expect(ds.entries.length).toBeGreaterThan(1000);
+    expect(ds.placards.length).toBeGreaterThan(0);
+    expect(ds.erg.length).toBeGreaterThan(0);
     expect(listDatasetVersions()).toContain(LATEST_DATASET_VERSION);
   });
 

@@ -7,3 +7,7 @@ datasets/*.pdf
 import/fixtures/*
 !import/fixtures/hmt-fuel-slice.xml
 !import/fixtures/handVerifiedRows.ts
+!import/fixtures/section-172-504.xml
+!import/fixtures/section-177-848.xml
+!import/fixtures/appendix-a-slice.xml
+!import/fixtures/appendix-b-slice.xml

@@ -165,6 +165,49 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H12** ☐ Productization | HazmatGuard branding, standalone deploy, API productization | H11 | Same repo deploys a HazmatGuard-branded instance; entitlement matrix proven. |
 | **B** ☐ Business & GTM | Pricing, legal, ops, marketing guardrails | parallel | §Business complete with owner sign-off. |
 
+## Build status — as of 2026-07-30 (single source of truth for progress)
+
+> Updated each work session. **Done** = built, tested, typechecking. **Provisional** = real and shipped
+> but gated (D2/H1.6). **Pending** = not started. The two launch blockers are HUMAN and on the critical
+> path: the Source-B transcription and the SME's R1–R3 + golden authorship.
+
+**Packages (extractable `@hazmat/*`):** `@hazmat/data` (44 files, 127 tests — done, shipping real data);
+`@hazmat/engine` (6 files, 13 tests — placard core done); `@hazmat/placards` (NEW, 4 files, 5 tests — DOT
+placard SVG art keyed to `PlacardName`; interim artwork, swap to official public-domain SVGs is a
+one-field change per placard).
+
+**H1 — Regulatory data layer — DONE (provisional release shipped).**
+- Schema; parsers each built against a captured real fixture + frozen test: §172.101 HMT (2,479 entries),
+  §172.504 placard tables (23), §177.848(d) segregation grid (173 cells), Appendix A RQ (1,351),
+  Appendix B marine pollutants (554); ERG 2024 (1,988); 6 verified interpretation letters; reference text.
+- Source clients (eCFR / GovInfo / Federal Register) typed + tested; second-source diff engine +
+  `fixtures/handVerifiedRows.ts` Source-B scaffold; assembler `buildDataset.ts` + `RELEASING.md`.
+- **Dataset `2026.07.0` cut + registered as LATEST — real content, `provisional: true`** (fixed the
+  previously-empty `2026.02` skeleton, 2026-07-30). `loadDataset()` now returns real data.
+- PENDING: §172.102 special-provisions parser; `fuelProducts.json` flash-point/ethanol overlay (cited
+  sources); the Source-B transcription + diff-clean to flip provisional→real.
+
+**H2 — Rules engine — IN PROGRESS.**
+- I/O contract + engine v0.3.0; definitive gates (no-hazmat, cleaned-tank §172.502(a)/172.303,
+  determination-withheld). Done.
+- `computePlacards` (fuel scope): class resolution, §172.504 Table 1/2, 1,001-lb aggregate (172.504(c)),
+  sole-vs-mixed DANGEROUS (172.504(b)), GASOLINE/FUEL OIL wording (172.542/.544), bulk ID display
+  (172.302/172.331), ERG guides, HOT mark (172.325). Done + tested against the real dataset; fail-closes
+  on any unresolvable/out-of-scope line.
+- R1 RESOLVED + encoded (§172.301(a)(3) non-bulk single-material ID display, `nonbulk_single_material_id_display`); R2/R3 standard reading + flagged (Appendix E.3).
+- PENDING: `checkEligibility`, `checkSegregation`, `validateBol` (H3); non-fuel classes; multi-fuel
+  lowest-flash-point ID (PHMSA 18-0023); full marine-pollutant/LQ marks; the SME-authored golden suite
+  (independent acceptance gate — the implementer does NOT author it).
+
+**Not yet started (code):** H4 API/storage, H5 dashboard UI (a real-engine-backed placard calculator
+*prototype* exists as a delivered artifact; the `apps/web` Vue integration is the production step),
+H6 extraction, H7 review queue, H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
+
+**Human-gated critical path (start now):** (1) transcribe the ~13 fuel HMT rows from the GovInfo legal PDF
+into `handVerifiedRows.ts` → diff clean → flips the dataset to non-provisional; (2) SME answers R1–R3 +
+authors the independent golden scenarios → unblocks engine certification.
+
+
 ---
 
 ## Phase H0 ☐ — Module foundation & boundaries
@@ -238,7 +281,7 @@ one; D3 satisfied structurally.
 
 ---
 
-## Phase H1 ☐ — Regulatory data layer
+## Phase H1 🟩 DONE (provisional dataset shipped) — Regulatory data layer
 
 **Objective.** A versioned, two-source-verified, machine-readable copy of every regulatory table
 the engine needs. This phase is pure data engineering — no AI, no app code.
@@ -363,7 +406,7 @@ the existing `scripts/*.mjs` pattern. *Goals:* D5, D9, G6 (dataset version on ev
 
 ---
 
-## Phase H2 ☐ — Rules engine: placards, eligibility, segregation
+## Phase H2 🟨 IN PROGRESS (computePlacards done) — Rules engine: placards, eligibility, segregation
 
 **Objective.** The deterministic core. After this phase the hardest correctness problem is solved
 and permanently regression-guarded.
@@ -1622,12 +1665,12 @@ Sequential gates (each answered from the BOL + a one-tap driver question where t
 | 3 | Limited Quantity | §172.315 / §172.504(f) — LQ packages marked, not placarded | LQ exception gate |
 | 4 | Bulk → UN on placard | §172.302(c) + §172.331 — bulk packagings display the ID number on/near the placard | `marks.idNumber` on the placard verdict |
 | 5 | Sole load vs mixed → worded placard | §172.504(b) — the "DANGEROUS" placard for mixed Table-2 loads vs the specific class ("worded") placard | mixed-load placard selection |
-| 6 | Gross > 8800 lb → UN on placard | **No standard §172.504 threshold at ~4000 kg** (the known thresholds are 454 kg / 1001 lb and 1000 kg / 2205 lb, §172.504(b)) | see reconciliation flag R1 |
+| 6 | Gross ≥ 8,820 lb → UN on placard (non-bulk) | **§172.301(a)(3)** — non-bulk, single material (same PSN+ID), one facility, no other material, not Class 1/7 → display the ID number (4,000 kg / 8,820 lb) | `nonbulk_single_material_id_display` gate (R1 resolved) |
 | 7–9 | Marine pollutant / bulk / port | §172.322 marking + non-bulk highway exception §171.4(c) + the vessel/port regime flip | matches v4.4 marine-pollutant + port/IMDG logic |
 
 ### E.3 Reconciliation flags (D11 — resolve WITH the SME before encoding; CFR wins the verdict)
 
-- **R1 — the 8800 lb (≈4000 kg) threshold (step 6).** No standard highway placarding threshold sits at 4000 kg. Likely a carrier/company-specific rule, a conflation with the 1000 kg (2205 lb) §172.504(b) "DANGEROUS"-placard exception, or a shop convention. **Do not encode until confirmed.**
+- **R1 — RESOLVED (2026-07-30): the 8,820 lb (4,000 kg) threshold (step 6) is §172.301(a)(3).** It is the NON-BULK identification-number rule: a vehicle carrying ≥ 4,000 kg (8,820 lb) of a *single* material (same PSN + ID) in non-bulk packages, loaded at one facility, with no other material aboard (not Class 1/7), must display the ID number (orange panel or placard, each side/end). Confirmed against the eCFR §172.301(a)(3) text AND PHMSA Chart 15 (Miki, 2026-07-30). Encoded in `computePlacards`; the loading-facility and no-other-material conditions surface as a conditional. The SME’s "over ~8,800 lb → UN number" was correct — rounded from 8,820.
 - **R2 — "only thing in trailer? No → worded placard" (step 5).** The direction reads inverted against the usual mixed-load rule (mixed Table-2 loads may use one "DANGEROUS" placard; a sole product uses its specific/worded placard). Confirm which she means by "worded placard" here.
 - **R3 — the `****` footnote on "Is it bulk?" (step 4).** The footnote text is not present in the supplied document. Obtain it — it almost certainly qualifies the bulk definition (e.g., IBC vs. cargo tank, ≥ 3500 L / 3785 L capacity).
 

@@ -1,0 +1,143 @@
+import { describe, expect, it } from "vitest";
+import { evaluateLoad } from "../index.js";
+import type { LoadInput } from "../types.js";
+
+/**
+ * Developer unit tests for computePlacards (fuel scope). NOTE: these are the IMPLEMENTER's tests, not
+ * the certification golden suite — that is authored independently by the SME (D11), the same
+ * independence discipline as the dataset's second source.
+ *
+ * A synthetic dataset (only the fields computePlacards reads) is passed through `load.dataset`, matching
+ * the real @hazmat/data shape (entries + §172.504 placards + erg).
+ */
+const DATASET = {
+  version: "test-1", provisional: false,
+  entries: [
+    { entryId: "UN1203-gasoline", psnPrinted: "Gasoline", hazardClass: "3", idPrefix: "UN", idNumber: "1203", pgRows: [{ pg: "II" }] },
+    { entryId: "UN1202-diesel-fuel", psnPrinted: "Diesel fuel", hazardClass: "3", idPrefix: "UN", idNumber: "1202", pgRows: [{ pg: "III" }] },
+    { entryId: "NA1993-fuel-oil", psnPrinted: "Fuel oil", hazardClass: "3", idPrefix: "NA", idNumber: "1993", pgRows: [{ pg: "III" }] },
+    { entryId: "UN1075-lpg", psnPrinted: "Petroleum gases, liquefied", hazardClass: "2.1", idPrefix: "UN", idNumber: "1075", pgRows: [{ pg: null }] },
+    { entryId: "UN3257-hot", psnPrinted: "Elevated temperature liquid, n.o.s.", hazardClass: "9", idPrefix: "UN", idNumber: "3257", pgRows: [{ pg: "III" }] },
+  ],
+  placards: [
+    { classOrDivision: "3", table: 2, placardName: "FLAMMABLE", designRef: "172.542", wordingOptions: ["GASOLINE"] },
+    { classOrDivision: "Combustible liquid", table: 2, placardName: "COMBUSTIBLE", designRef: "172.544", wordingOptions: ["FUEL OIL"] },
+    { classOrDivision: "2.1", table: 2, placardName: "FLAMMABLE GAS", designRef: "172.532", wordingOptions: [] },
+    { classOrDivision: "9", table: 2, placardName: "CLASS 9", designRef: "172.560", wordingOptions: [] },
+  ],
+  erg: [{ idNumber: "1203", guideNumber: "128" }, { idNumber: "1075", guideNumber: "115" }, { idNumber: "3257", guideNumber: "128" }],
+};
+
+const line = (over: Record<string, unknown> = {}): LoadInput["lines"][number] =>
+  ({
+    hmtRef: "UN1203-gasoline#II", reclassedCombustible: false, quantity: { value: 5000, unit: "gal" },
+    grossWeightLb: 32000, compartmentIndex: null, isResidueLine: false, flashPointF: -45, ethanolPct: null,
+    packagingKind: "bulk", packageCount: null, ...over,
+  }) as unknown as LoadInput["lines"][number];
+
+const load = (over: Partial<LoadInput> = {}): LoadInput =>
+  ({
+    evaluatedAt: "2026-07-30T00:00:00Z",
+    vehicle: { kind: "cargo_tank", cargoTankCapacityGal: 9000, compartments: null },
+    tankState: "loaded", lines: [line()],
+    claimedExceptions: { shipperClaimsNoPlacards: false, claimedSpecialPermits: [] },
+    portContext: { vesselConnected: null, imdgPapers: null },
+    tripContext: { previousOrCurrentBusinessDayIds: null, carrierRelationship: "unknown" },
+    policy: null, dataset: DATASET, ...over,
+  }) as unknown as LoadInput;
+
+const names = (v: ReturnType<typeof evaluateLoad>) => v.placards.required.map((r) => r.placard);
+const subs = (v: ReturnType<typeof evaluateLoad>) => v.placards.optionalSubstitutions.map((s) => `${s.instead}->${s.use}`);
+
+describe("computePlacards — fuel scope (§172.504)", () => {
+  it("gasoline cargo tank ≥1,001 lb → FLAMMABLE required, GASOLINE offered, UN1203 displayed, ERG 128", () => {
+    const v = evaluateLoad(load());
+    expect(names(v)).toEqual(["FLAMMABLE"]);
+    expect(subs(v)).toContain("FLAMMABLE->GASOLINE");
+    expect(v.placards.idDisplays.map((d) => d.idNumber)).toEqual(["UN1203"]);
+    expect(v.placards.ergGuides).toContainEqual({ idNumber: "1203", guide: "128" });
+  });
+
+  it("below 1,001 lb aggregate → no placards required (§172.504(c))", () => {
+    const v = evaluateLoad(load({ lines: [line({ grossWeightLb: 800 })] }));
+    expect(v.placards.required).toEqual([]);
+    expect(v.trace.some((t) => t.ruleId === "weight_threshold_1001lb")).toBe(true);
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("aggregate_weight_unknown");
+  });
+
+  it("unknown weight → placard conservatively + a weight-unknown conditional", () => {
+    const v = evaluateLoad(load({ lines: [line({ grossWeightLb: null })] }));
+    expect(names(v)).toEqual(["FLAMMABLE"]);
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("aggregate_weight_unknown");
+  });
+
+  it("diesel elected combustible (§173.150(f)) → COMBUSTIBLE (with FUEL OIL only for actual fuel oil)", () => {
+    const v = evaluateLoad(load({ lines: [line({ hmtRef: "UN1202-diesel-fuel#III", reclassedCombustible: true })] }));
+    expect(names(v)).toEqual(["COMBUSTIBLE"]);
+    expect(subs(v)).not.toContain("COMBUSTIBLE->FUEL_OIL"); // diesel isn't "Fuel oil"
+    const fo = evaluateLoad(load({ lines: [line({ hmtRef: "NA1993-fuel-oil#III", reclassedCombustible: true })] }));
+    expect(subs(fo)).toContain("COMBUSTIBLE->FUEL_OIL");
+  });
+
+  it("mixed gasoline + LPG → both specific placards required + a DANGEROUS option for each (§172.504(b))", () => {
+    const v = evaluateLoad(load({ lines: [line(), line({ hmtRef: "UN1075-lpg#none", grossWeightLb: 4000 })] }));
+    expect(names(v).sort()).toEqual(["FLAMMABLE", "FLAMMABLE_GAS"]);
+    expect(subs(v)).toContain("FLAMMABLE->DANGEROUS");
+    expect(subs(v)).toContain("FLAMMABLE_GAS->DANGEROUS");
+  });
+
+  it("elevated-temperature liquid (UN3257) → CLASS 9 + HOT mark (§172.325)", () => {
+    const v = evaluateLoad(load({ lines: [line({ hmtRef: "UN3257-hot#III" })] }));
+    expect(names(v)).toEqual(["CLASS_9"]);
+    expect(v.placards.marks.map((m) => m.mark)).toContain("HOT");
+  });
+
+  it("a line that does not resolve → determination withheld, never a guess", () => {
+    const v = evaluateLoad(load({ lines: [line({ hmtRef: "UN9999-mystery#II" })] }));
+    expect(v.placards.required).toEqual([]);
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("placard_determination_withheld");
+  });
+
+  it("provisional dataset → placards computed for reference but flagged not-cleared", () => {
+    const v = evaluateLoad(load({ dataset: { ...DATASET, provisional: true } as unknown as LoadInput["dataset"] }));
+    expect(names(v)).toEqual(["FLAMMABLE"]);
+    expect(v.eligibility.status).toBe("not_checked");
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("dataset_provisional");
+  });
+
+  it("stamps the bumped engine version", () => {
+    expect(evaluateLoad(load()).engineVersion).toBe("0.4.0");
+  });
+
+  // §172.301(a)(3) — the non-bulk single-material ID-display rule (R1, resolved from the CFR + PHMSA Chart 15)
+  const flatbed = (over: Record<string, unknown> = {}): Partial<LoadInput> => ({
+    vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+    lines: [line({ packagingKind: "non_bulk", ...over })],
+  });
+
+  it("non-bulk single material ≥ 8,820 lb → display the ID number (§172.301(a)(3))", () => {
+    const v = evaluateLoad(load(flatbed({ grossWeightLb: 10000 })));
+    expect(v.placards.idDisplays.map((d) => d.idNumber)).toEqual(["UN1203"]);
+    expect(v.placards.idDisplays[0]!.because.some((c) => c.cfr === "49 CFR 172.301(a)(3)")).toBe(true);
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("nonbulk_single_material_id_display");
+  });
+
+  it("non-bulk single material below 8,820 lb → no vehicle ID display", () => {
+    const v = evaluateLoad(load(flatbed({ grossWeightLb: 5000 })));
+    expect(v.placards.idDisplays).toEqual([]);
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("nonbulk_single_material_id_display");
+  });
+
+  it("non-bulk with TWO different materials → not a §172.301(a)(3) single-material load", () => {
+    const v = evaluateLoad(
+      load({
+        vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+        lines: [
+          line({ packagingKind: "non_bulk", grossWeightLb: 6000 }),
+          line({ hmtRef: "UN1202-diesel-fuel#III", packagingKind: "non_bulk", grossWeightLb: 6000 }),
+        ],
+      }),
+    );
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("nonbulk_single_material_id_display");
+  });
+});

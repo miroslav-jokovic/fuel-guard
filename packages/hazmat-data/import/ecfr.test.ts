@@ -108,13 +108,13 @@ describe("fetchHmtXml", () => {
 });
 
 describe("importHmtEntries", () => {
-  it("fetches, then fails loudly because the parser is the next step", async () => {
+  it("fetches, then runs the parser — which rejects malformed §172.101 XML", async () => {
     const impl = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("/titles.json")) return new Response(JSON.stringify(titles()), { status: 200 });
       return new Response("<DIV8 N='172.101'/>", { status: 200 });
     }) as unknown as typeof fetch;
     const c = new EcfrClient({ fetchImpl: impl, sleep: () => Promise.resolve() });
-    await expect(importHmtEntries(c)).rejects.toThrow(/parseHmtSection is not implemented/);
+    await expect(importHmtEntries(c)).rejects.toThrow(/no <TABLE>|HMT header/i);
   });
 });

@@ -69,6 +69,21 @@ typecheck:import` (uses `import/tsconfig.json`).
   and gates release via `report.clean` (all in-scope rows `done` + audited + zero unexplained diffs).
   Run: `npx tsx import/diff.ts` (prints the report, exits non-zero until clean) → save to
   `datasets/vX/diff-report.md`. Bounded to the 13 in-scope fuel entries (`IN_SCOPE_ENTRIES`).
+- **`buildDataset.ts`** — the dataset assembler (the "cut" step). `assembleDataset()` composes the
+  validated, sha256-checksummed `Dataset` from its parts; `cutDataset()` parses Source A, loads the
+  frozen ERG table, RE-RUNS the diff gate, and writes `datasets/<version>.json` with `provisional`
+  forced to `!diff.clean`. Populates `entries` + `erg` today; `placards`/`segregation`/App-A/App-B/
+  `specialProvisions` assemble empty until their parsers land (the engine D4-fail-closes an empty
+  table). Run: `npx tsx import/buildDataset.ts <version> <sourceEcfrDate> [effectiveDate]`.
+- **`xmlTable.ts`** — shared tolerant XML-table helpers (decode/strip/extract/rowCells/findTableByHeader) reused by the parsers below (parseHmt keeps its own frozen copies).
+- **`parsePlacards.ts`** — `parsePlacardTables` → `PlacardSpec[]` from §172.504(e): Table 1 (any
+  amount) vs Table 2 (≥1,001 lb), with content-signature guards and the §172.542(c)/§172.544(c)
+  GASOLINE / FUEL OIL wording overlays.
+- **`parseSegregation.ts`** — `parseSegregationGrid` → `SegregationCell[]` from the §177.848(d)
+  18×18 class grid (X/O/*), canonical labels keying both axes.
+- **`parseAppendices.ts`** — `parseHazSubstances` (App. A RQ table, with isomer-inheritance +
+  embedded-RQ recovery) and `parseMarinePollutants` (App. B, PP→severe), selected by header from the
+  §172.101 XML.
 
 ## Data sources (D5 v5 — all official, all free)
 
@@ -108,10 +123,13 @@ reproducible extraction:
    `source`/`transcriber` per row.
 4. `npx tsx import/diff.ts` compares parser output vs transcription — zero unexplained disagreements
    (and every in-scope row `done` + audited) to ship.
-5. Follow `RELEASING.md` to cut the versioned dataset.
+5. `npx tsx import/buildDataset.ts <version> <sourceEcfrDate>` cuts `datasets/<version>.json`
+   (`provisional = !diff.clean`, checksummed); then register it in `src/index.ts`. Full runbook:
+   `RELEASING.md`.
 
 Populated across Phase H1. The API client (step 0), the parser (step 2), and the diff engine (step 4)
-are done and tested; the human transcription (step 3) is the remaining launch blocker.
+and the assembler (step 5) are done and tested; the human transcription (step 3) is the remaining
+launch blocker.
 
 ## Reference text (D12 — display + audit only, never the engine)
 

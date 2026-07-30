@@ -1,0 +1,35 @@
+<DIV><HEAD>Appendix A to §172.101 (RQ) — hand-frozen parser slice (incl. isomer-inheritance case).</HEAD>
+<TABLE>
+<TR>
+<TH class="center border-top-single border-bottom-single border-right-single">Hazardous substance</TH>
+<TH class="center border-top-single border-bottom-single">Reportable<br></br>quantity (RQ)<br></br>pounds<br></br>(kilograms)</TH>
+</TR><TR>
+<TD class="left border-right-single">Acenaphthene</TD>
+<TD class="right">100 (45.4)</TD>
+</TR><TR>
+<TD class="left border-right-single">Acetaldehyde</TD>
+<TD class="right">1000 (454)</TD>
+</TR><TR>
+<TD class="left border-right-single">Ammonia</TD>
+<TD class="right">100 (45.4)</TD>
+</TR><TR>
+<TD class="left border-right-single">Amyl acetate</TD>
+<TD class="right">5000 (2270)</TD>
+</TR><TR>
+<TD class="left border-right-single primary-indent-hanging-2">iso-Amyl acetate</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="left border-right-single primary-indent-hanging-2">sec-Amyl acetate</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="left border-right-single">Benzene</TD>
+<TD class="right">10 (4.54)</TD>
+</TR><TR>
+<TD class="left border-right-single">Chlorine</TD>
+<TD class="right">10 (4.54)</TD>
+</TR><TR>
+<TD class="left border-right-single">Hexamethylphosphoramide</TD>
+<TD class="right">1 (0.454)</TD>
+</TR>
+</TABLE>
+</DIV>

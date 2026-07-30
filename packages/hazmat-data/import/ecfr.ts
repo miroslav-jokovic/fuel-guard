@@ -107,10 +107,9 @@ export function fetchSegregationXml(ctx: ImportContext, client: EcfrClient = new
 /**
  * The top-level importer: resolve date → fetch §172.101 XML → parse into HmtEntry rows.
  *
- * The fetch half is complete and tested. The parse half (`parseHmtSection`) is the next H1 step and
- * throws until it is built against a captured fixture — so calling this today fails with a precise,
- * actionable message rather than returning wrong rows. That is the fail-closed posture the whole
- * module is built on (H1.6): no data ships until it is produced by the reviewed pipeline.
+ * Both halves are complete: the fetch client and `parseHmtSection` (built + frozen against a captured
+ * §172.101 fixture). It rejects loudly on malformed/empty XML rather than returning wrong rows — the
+ * fail-closed posture the module is built on (H1.6): no data ships except through the reviewed pipeline.
  */
 export async function importHmtEntries(client: EcfrClient = new EcfrClient()): Promise<HmtEntry[]> {
   const ctx = await resolveImportContext(client);

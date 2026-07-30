@@ -1,4 +1,5 @@
 import raw202602 from "../datasets/2026.02.json" with { type: "json" };
+import raw202607 from "../datasets/2026.07.0.json" with { type: "json" };
 import rawReferenceText from "../datasets/referenceText.json" with { type: "json" };
 import rawInterpretations from "../datasets/interpretations.json" with { type: "json" };
 import { parseDataset, type Dataset } from "./schema.js";
@@ -21,10 +22,11 @@ export * from "./interpretations.js";
 
 const RAW: Readonly<Record<string, unknown>> = {
   "2026.02": raw202602,
+  "2026.07.0": raw202607,
 };
 
 /** The newest published dataset — the default the API loads unless a caller pins an older version. */
-export const LATEST_DATASET_VERSION = "2026.02";
+export const LATEST_DATASET_VERSION = "2026.07.0";
 
 export function listDatasetVersions(): string[] {
   return Object.keys(RAW);
