@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
-  ArrowDownTrayIcon,
+  DatabaseSyncIcon,
   PlusIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
@@ -171,7 +171,7 @@ async function onRetire(v: Vehicle) {
             title="Import trucks from Samsara (trailers are excluded)"
             @click="onSyncSamsara"
           >
-            <AppIcon :icon="ArrowDownTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" />
+            <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
             {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
           </BaseButton>
           <BaseButton

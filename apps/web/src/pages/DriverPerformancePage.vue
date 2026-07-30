@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
-  ArrowDownTrayIcon,
+  DatabaseSyncIcon,
   TrophyIcon,
 } from "@fuelguard/ui/icons";
 import { computed, ref, watch } from "vue";
@@ -158,7 +158,7 @@ const columns: DataTableColumn[] = [
     <PageHeader description="Weekly driver grade combining Samsara safety, Samsara efficiency, and idling discipline. The top 3 each week earn rewards.">
       <template #actions>
         <BaseButton v-if="session.canManage" :disabled="syncScores.isPending.value" @click="onSync">
-          <AppIcon :icon="ArrowDownTrayIcon" class="-ml-0.5 size-5" aria-hidden="true" />
+          <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
           {{ syncScores.isPending.value ? "Syncing…" : "Sync scores" }}
         </BaseButton>
       </template>

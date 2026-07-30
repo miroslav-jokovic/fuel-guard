@@ -113,4 +113,28 @@ export {
   AnalyticsUpIcon             as ChartBarIcon,                   // ⚠ verify (many chart variants)
   Analytics01Icon             as ChartBarSquareIcon,             // ⚠ verify
   ChartAverageIcon            as DocumentChartBarIcon,           // ⚠ verify
+  // ── Domain-specific (nav items) ─────────────────────────────────────────
+  ContainerIcon               as TrailerIcon,
+  CardExchange01Icon          as TransactionIcon,
+  PetrolPumpIcon              as PetrolPumpIcon,
+  CreditCardNotAcceptIcon     as RejectionIcon,
+  WalletDone02Icon            as ReconciliationIcon,
+  DeliveryTruck01Icon         as LoadsIcon,
+  GasPipeIcon                 as TruckStopIcon,
+  ShippingTruck01Icon         as VehicleIcon,
+  DashboardBrowsingIcon       as OdometerIcon,
+
+  // ── Card & tile icons (domain-specific card look) ───────────────────────
+  Csv02Icon                   as CsvIcon,
+  Pdf02Icon                   as PdfIcon,
+  Invoice02Icon               as InvoiceIcon,
+  WaterEnergyIcon             as GallonsIcon,
+  RoadIcon                    as RoadIcon,
+  GaugeIcon                   as GaugeIcon,
+  DatabaseSync01Icon          as DatabaseSyncIcon,
+  ConnectIcon                 as ConnectIcon,
+  Radar01Icon                 as RadarIcon,
+  ContainerTruck01Icon        as ReeferTruckIcon,
+  ChartLineData01Icon         as ReportChartIcon,
+
 } from "@hugeicons/core-free-icons";

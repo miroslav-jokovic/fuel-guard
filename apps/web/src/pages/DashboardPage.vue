@@ -3,18 +3,19 @@ import { AppIcon } from "@fuelguard/ui";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
-  BeakerIcon,
-  ChartBarSquareIcon,
   ChevronDownIcon,
-  CubeIcon,
+  CsvIcon,
   CurrencyDollarIcon,
-  DocumentChartBarIcon,
   FireIcon,
-  NoSymbolIcon,
+  GallonsIcon,
+  GaugeIcon,
+  InvoiceIcon,
+  PdfIcon,
+  RadarIcon,
+  ReeferTruckIcon,
+  RejectionIcon,
+  RoadIcon,
   ShieldExclamationIcon,
-  SignalIcon,
-  TableCellsIcon,
-  TruckIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
@@ -59,11 +60,11 @@ const fuelingStats = computed(() => {
   const t = fuelTotals.value; // fill count + robust miles (not carried on the dashboard summary)
   const d = s.value;          // spend / gallons / MPG — same source as the hero tiles, so they always agree
   return [
-    { label: "Fill-ups", value: t ? fmtInt(t.fillUps) : "—", sub: "in selected range", icon: TableCellsIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
-    { label: "Gallons", value: d ? fmtInt(d.totalGallons) : "—", sub: "total fuel", icon: BeakerIcon, tone: "text-info-600 bg-info-50", to: "/fuel-log" },
-    { label: "Miles driven", value: t ? fmtInt(t.totalMiles) : "—", sub: "odometer span in range", icon: TruckIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
+    { label: "Fill-ups", value: t ? fmtInt(t.fillUps) : "—", sub: "in selected range", icon: InvoiceIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
+    { label: "Gallons", value: d ? fmtInt(d.totalGallons) : "—", sub: "total fuel", icon: GallonsIcon, tone: "text-info-600 bg-info-50", to: "/fuel-log" },
+    { label: "Miles driven", value: t ? fmtInt(t.totalMiles) : "—", sub: "odometer span in range", icon: RoadIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
     { label: "Fuel spend", value: d ? `$${fmtCompact(d.totalSpend)}` : "—", valueTitle: d ? fmtMoney(d.totalSpend) : undefined, sub: "total cost", icon: CurrencyDollarIcon, tone: "text-success-600 bg-success-50", to: "/fuel-log" },
-    { label: "Avg MPG", value: d?.fleetMpg != null ? d.fleetMpg.toFixed(1) : "—", sub: "gallon-weighted", icon: ChartBarSquareIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
+    { label: "Avg MPG", value: d?.fleetMpg != null ? d.fleetMpg.toFixed(1) : "—", sub: "gallon-weighted", icon: GaugeIcon, tone: "text-brand-600 bg-brand-50", to: "/fuel-log" },
   ];
 });
 
@@ -94,7 +95,7 @@ const stats = computed(() => {
       label: "Fleet avg MPG",
       value: s.value?.fleetMpg != null ? String(s.value.fleetMpg) : "—",
       sub: "gallon-weighted",
-      icon: ChartBarSquareIcon,
+      icon: GaugeIcon,
       tone: "text-brand-600 bg-brand-50",
       spark: s.value?.mpgTrend.map((p) => p.value),
       sparkColor: viz.brand,
@@ -126,7 +127,7 @@ const trust = computed(() => [
     label: "Telematics coverage",
     value: s.value?.coveragePct != null ? `${s.value.coveragePct}%` : "—",
     sub: "fills corroborated",
-    icon: SignalIcon,
+    icon: RadarIcon,
     tone: "text-info-600 bg-info-50",
     to: "/coverage",
   },
@@ -135,7 +136,7 @@ const trust = computed(() => [
     value: s.value ? `$${fmtCompact(s.value.reeferSpend)}` : "—",
     valueTitle: s.value ? fmtMoney(s.value.reeferSpend) : undefined,
     sub: "refrigerated tank",
-    icon: CubeIcon,
+    icon: ReeferTruckIcon,
     tone: "text-info-600 bg-info-50",
     to: "/reefer-coverage",
   },
@@ -143,7 +144,7 @@ const trust = computed(() => [
     label: "Declined attempts",
     value: s.value ? String(s.value.declinedCount) : "—",
     sub: "blocked at the pump",
-    icon: NoSymbolIcon,
+    icon: RejectionIcon,
     tone: (s.value?.declinedCount ?? 0) > 0 ? "text-caution-700 bg-caution-50" : "text-ink-muted bg-surface-muted",
     to: "/rejections",
   },
@@ -276,8 +277,8 @@ async function exportReport(path: string, filename: string) {
   }
 }
 const EXPORTS = [
-  { label: "Transactions CSV", description: "Every fill in the selected range", icon: TableCellsIcon, run: () => exportReport("/api/reports/transactions.csv", "transactions.csv") },
-  { label: "Summary PDF", description: "Executive summary of this dashboard", icon: DocumentChartBarIcon, run: () => exportReport("/api/reports/summary.pdf", "summary.pdf") },
+  { label: "Transactions CSV", description: "Every fill in the selected range", icon: CsvIcon, run: () => exportReport("/api/reports/transactions.csv", "transactions.csv") },
+  { label: "Summary PDF", description: "Executive summary of this dashboard", icon: PdfIcon, run: () => exportReport("/api/reports/summary.pdf", "summary.pdf") },
 ];
 </script>
 

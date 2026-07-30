@@ -2,16 +2,16 @@
 import { AppIcon } from "@fuelguard/ui";
 import {
   AdjustmentsHorizontalIcon,
-  ArrowPathIcon,
   BellIcon,
   BuildingOffice2Icon,
-  ChartBarIcon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentListIcon,
-  CubeIcon,
-  LinkIcon,
+  ConnectIcon,
+  DatabaseSyncIcon,
   MapIcon,
-  SignalIcon,
+  RadarIcon,
+  ReeferTruckIcon,
+  ReportChartIcon,
   UsersIcon,
 } from "@fuelguard/ui/icons";
 import { RouterLink } from "vue-router";
@@ -25,8 +25,8 @@ const configCards = [
   { name: "Organization", to: "/settings/org", icon: BuildingOffice2Icon, desc: "Profile, allowed domains, and operating hours.", show: session.admin },
   { name: "Notifications", to: "/settings/notifications", icon: BellIcon, desc: "Who gets emailed when high/critical anomalies are detected.", show: session.admin },
   { name: "Users", to: "/settings/users", icon: UsersIcon, desc: "Invite teammates and manage roles.", show: session.admin },
-  { name: "Data & sync", to: "/settings/data", icon: ArrowPathIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.canManage },
-  { name: "EFS integration", to: "/settings/efs-soap", icon: LinkIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", show: session.admin },
+  { name: "Data & sync", to: "/settings/data", icon: DatabaseSyncIcon, desc: "Samsara sync, re-sync, rebuild anomalies, and data-integrity status.", show: session.canManage },
+  { name: "EFS integration", to: "/settings/efs-soap", icon: ConnectIcon, desc: "SOAP credentials, connection test, and per-feed sync for the direct EFS webservice.", show: session.admin },
   { name: "Anomaly thresholds", to: "/settings/thresholds", icon: AdjustmentsHorizontalIcon, desc: "Tune the detection engine and AI settings.", show: session.admin },
   { name: "Planned fueling", to: "/settings/fuel-planning", icon: MapIcon, desc: "Reserves, corridor width, price freshness, brand policy, and the default truck profile.", show: session.admin },
   { name: "Audit log", to: "/settings/audit", icon: ClipboardDocumentListIcon, desc: "Who did what, and when.", show: session.admin || session.readOnly },
@@ -34,9 +34,9 @@ const configCards = [
 
 // Reporting & detection-health surfaces — moved off the daily sidebar into Settings.
 const reportCards = [
-  { name: "Reports", to: "/reports", icon: ChartBarIcon, desc: "Fuel spend, MPG, and anomaly summaries to review or export.", show: manageOrRead },
-  { name: "Detection coverage", to: "/coverage", icon: SignalIcon, desc: "Which trucks and rules the anomaly engine can score today.", show: manageOrRead },
-  { name: "Reefer coverage", to: "/reefer-coverage", icon: CubeIcon, desc: "Which trucks have reefer-fueling detection enabled.", show: manageOrRead },
+  { name: "Reports", to: "/reports", icon: ReportChartIcon, desc: "Fuel spend, MPG, and anomaly summaries to review or export.", show: manageOrRead },
+  { name: "Detection coverage", to: "/coverage", icon: RadarIcon, desc: "Which trucks and rules the anomaly engine can score today.", show: manageOrRead },
+  { name: "Reefer coverage", to: "/reefer-coverage", icon: ReeferTruckIcon, desc: "Which trucks have reefer-fueling detection enabled.", show: manageOrRead },
   { name: "Recall audit", to: "/recall-audit", icon: ClipboardDocumentCheckIcon, desc: "Sampled review of how much the detection engine catches.", show: manageOrRead },
 ].filter((c) => c.show);
 </script>

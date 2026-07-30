@@ -6,6 +6,8 @@ import {
   ClockIcon,
   FlagIcon,
   MapPinIcon,
+  PetrolPumpIcon,
+  RoadIcon,
   TruckIcon,
 } from "@fuelguard/ui/icons";
 import { computed } from "vue";
@@ -42,9 +44,9 @@ const driveTime = computed(() => {
 });
 const drivingDays = computed(() => Math.max(1, Math.ceil(props.route.durationHours / 11)));
 const facts = computed(() => [
-  { icon: TruckIcon, label: "Distance", value: `${props.route.distanceMiles.toLocaleString()} mi` },
+  { icon: RoadIcon, label: "Distance", value: `${props.route.distanceMiles.toLocaleString()} mi` },
   { icon: ClockIcon, label: "Est. drive time", value: `${driveTime.value} (~${drivingDays.value} day${drivingDays.value > 1 ? "s" : ""} @ 11h)` },
-  ...(props.stopCount != null ? [{ icon: MapPinIcon, label: "Fuel stops", value: String(props.stopCount) }] : []),
+  ...(props.stopCount != null ? [{ icon: PetrolPumpIcon, label: "Fuel stops", value: String(props.stopCount) }] : []),
 ]);
 </script>
 

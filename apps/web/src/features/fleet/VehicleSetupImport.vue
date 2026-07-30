@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
-  ArrowDownTrayIcon,
+  CsvIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
 import type { Vehicle } from "@fuelguard/shared";
@@ -97,7 +97,7 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
           class="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-brand-300 px-4 py-5 text-center transition-colors hover:border-brand-400 hover:bg-brand-50"
           @click="downloadTemplate"
         >
-          <AppIcon :icon="ArrowDownTrayIcon" class="size-6 text-brand-500" aria-hidden="true" />
+          <AppIcon :icon="CsvIcon" class="size-6 text-brand-500" aria-hidden="true" />
           <span class="text-sm font-semibold text-brand-700">Blank template</span>
           <span class="text-xs text-ink-muted">All fields · 2 example rows</span>
         </button>
@@ -107,7 +107,7 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
           :title="vehicles.length ? 'Export current fleet — fill in tank / MPG and re-import' : 'No vehicles yet'"
           @click="downloadCurrentFleet"
         >
-          <AppIcon :icon="ArrowDownTrayIcon" class="size-6 text-ink-subtle" aria-hidden="true" />
+          <AppIcon :icon="CsvIcon" class="size-6 text-ink-subtle" aria-hidden="true" />
           <span class="text-sm font-semibold text-ink-secondary">Current fleet</span>
           <span class="text-xs text-ink-muted">Edit tank / MPG / idle equipment</span>
         </button>

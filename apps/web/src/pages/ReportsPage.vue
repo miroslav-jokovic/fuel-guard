@@ -2,6 +2,7 @@
 import { AppIcon } from "@fuelguard/ui";
 import {
   ArrowDownTrayIcon,
+  CsvIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
@@ -234,7 +235,7 @@ async function sendDigest() {
             :disabled="busy === 'odo'"
             @click="run('/api/reports/odometer-accuracy.csv', 'fuelguard-odometer-accuracy.csv', 'odo', { by })"
           >
-            <AppIcon :icon="ArrowDownTrayIcon" class="size-4" /> CSV
+            <AppIcon :icon="CsvIcon" class="size-4" /> CSV
           </BaseButton>
         </div>
       </div>
