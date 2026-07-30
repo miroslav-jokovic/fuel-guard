@@ -4,16 +4,21 @@ A dataset is a **human-reviewed, two-source-verified** release. The steps ARE th
 emergency path is the same steps, same day, no shortcuts. Nothing here is hand-edited into
 `datasets/<version>.json`; that file is only ever minted by `import/buildDataset.ts`.
 
-**Two sources, both official, both free (D5 v5 — no paid vendor):**
+**Two sources, both official, both free (D5 v5->v7 - no paid vendor):**
 
 - **Source A (automated, authoritative, scales):** the eCFR versioner API — point-in-time Title 49
   XML — parsed by `import/parseHmt.ts` (`parseHmtSection`), built and frozen against a real captured
   fixture.
-- **Source B (independent, human):** a person transcribes the in-scope rows from the **official
-  GovInfo Title-49 legal PDF** into `import/fixtures/handVerifiedRows.ts`. This is independent of A
-  because it is a different *rendering* read by a different *method* — the only check that catches a
-  source-data error, not just a parse bug. (eCFR and GovInfo XML share the OFR origin, so a second
-  automated feed would not be independent.)
+- **Source B (independent official edition - D5 v7):** the **official GovInfo annual CFR edition**
+  (Title-49 GPO legal edition), captured as XML by `import/captureGovInfo.ts` and diffed automatically
+  row-by-row against Source A by `import/diff.ts` - the primary mechanical gate, exhaustive over ALL rows,
+  catching every parse/transport error and flagging amendment drift (reconciled to the Federal Register +
+  eCFR corrections). Because eCFR and GovInfo share the OFR origin, the automated diff cannot catch a
+  *shared source-data* error, so a **human attestation** of the reconciled report (+ a PDF spot-check) is
+  retained as the independence backstop - reduced from transcribing every in-scope row to signing off a
+  machine-generated report. *(In progress: the GovInfo-format parsers + automated cross-check in
+  `import/diff.ts` are being wired against the captured fixtures; until they land, the interim second
+  source is the retained human transcription in `import/fixtures/handVerifiedRows.ts`.)*
 
 **Prerequisites (run locally — the sandbox/CI cannot reach the gov APIs):** Node 22+, `pnpm install`,
 and `GOVINFO_API_KEY` in the environment for the Source-B PDF.
@@ -38,15 +43,16 @@ Run everything from `packages/hazmat-data/`.
      hand-verified expected `HmtEntry[]` **must pass**. A parser change that moves any expected value
      fails here first. (This is the "parser fixtures must pass" gate referenced from `parseHmt.ts`.)
 
-**3. Transcribe Source B — the human step, the launch blocker.**
-   - Fetch the official PDF: `GOVINFO_API_KEY=… npx tsx import/govinfoSmoke.ts` downloads the §172.101
-     legal PDF and prints its provenance (package/granule id, edition year — record this as each row's
-     `source`).
-   - Fill `import/fixtures/handVerifiedRows.ts`: for each of the 13 in-scope fuel rows, transcribe
-     every column **from the PDF only** — do NOT open the eCFR XML, `parseHmt` output, or
-     `parseHmt.test.ts` while transcribing (reading A's source defeats the independence). Set
-     `status: "done"` and fill `source` + `transcriber` per row. The file header documents the
-     discipline and shows a filled example.
+**3. Capture Source B - the official GovInfo edition (D5 v7, automated).**
+   - `GOVINFO_API_KEY=... npx tsx import/captureGovInfo.ts` - resolves and downloads the official GovInfo
+     annual CFR edition XML for §172.101 / §172.504 / §177.848 into `import/fixtures/govinfo/` plus a
+     `provenance.json` (package/granule id, edition year - record the edition as `sourceSecondaryRef`).
+     Run locally; the sandbox/CI cannot reach `api.govinfo.gov`. The key is never printed; nothing is
+     written to the dataset.
+   - *In progress:* the GovInfo-format parsers + the automated eCFR<->GovInfo cross-check in `import/diff.ts`
+     are being wired against these fixtures. **Until they land**, the interim second source is the retained
+     human transcription in `import/fixtures/handVerifiedRows.ts` (fill it from the PDF only - do NOT read
+     A's XML / `parseHmt` output while transcribing). Either way step 4 is the gate.
 
 **4. Second-source diff — the release gate.**
    - `npx tsx import/diff.ts` compares Source A vs Source B on `prefix+number+name` and prints a
@@ -54,7 +60,7 @@ Run everything from `packages/hazmat-data/`.
      agreement** (`report.clean`). **Zero unexplained disagreements to proceed.**
    - Save the printed report to `datasets/<version>/diff-report.md`. A real disagreement is either a
      parser bug (fix `parseHmt.ts`, re-run step 2) or a transcription error (fix Source B); an
-     *explained* difference (e.g. a known eCFR typo with a citation) is recorded there and allowed.
+     *explained* difference (e.g. a known eCFR typo with a citation) is recorded there and allowed. (Under D5 v7 triangulation the diff's second source is the GovInfo edition; an explained difference is reconciled to a cited Federal Register amendment / eCFR correction and a human attests the reconciled report rather than transcribing rows.)
 
 **5. Cut the versioned dataset.**
    - `npx tsx import/buildDataset.ts <version> <sourceEcfrDate> [effectiveDate]`
@@ -79,8 +85,7 @@ Run everything from `packages/hazmat-data/`.
 
 `provisional: true` until the Source-B transcription + step-4 diff for the in-scope rows is complete
 and clean. A provisional dataset is fine for development and preview, but the clear endpoint (H4/H7)
-refuses ALL clearing — auto or attested — against it in production. The *transcription* is what is
-blocking for launch (bounded in-house work, no procurement), not any vendor license.
+refuses ALL clearing — auto or attested — against it in production. The second-source verification is what is blocking for launch (D5 v7: attesting the automated GovInfo<->eCFR reconciliation report; interim: the human transcription) - bounded in-house work, no procurement, no vendor license.
 
 ## Scope note
 
