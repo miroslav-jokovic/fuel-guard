@@ -5,7 +5,7 @@
   "sourceSecondaryRef": null,
   "effectiveDate": "2026-02-13",
   "checksum": null,
-  "_note": "PROVISIONAL skeleton (Phase H1). Content arrays are intentionally EMPTY pending the eCFR import + licensed second-source verification + human review (H1 deliverables 2/3/6). Per H1.6/H4, no load may be CLEARED against a provisional dataset. Do not hand-populate regulatory rows here — they come only from the reviewed release pipeline (RELEASING.md).",
+  "_note": "PROVISIONAL skeleton (Phase H1). Content arrays are intentionally EMPTY pending the eCFR import + independent human transcription of the in-scope rows (official-only second source, D5 v5 — no paid vendor) + human review (H1 deliverables 2/3/6). Per H1.6/H4, no load may be CLEARED against a provisional dataset. Do not hand-populate regulatory rows here — they come only from the reviewed release pipeline (RELEASING.md).",
   "entries": [],
   "placards": [],
   "segregation": [],

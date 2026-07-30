@@ -1,0 +1,68 @@
+{
+  "edition": "2026-07",
+  "source": "PHMSA Letters of Interpretation — https://www.phmsa.dot.gov/regulations/title49/b/2/1 (per-letter permalink: /regulations/title49/interp/{id})",
+  "note": "PHMSA interpretation letters that modify engine behavior, referenced in rule citations (plan H1). Summaries were curated from the live PHMSA pages AND verified against the downloaded letter PDFs (sha256 below) 2026-07 — 140178 is a scanned image, verified via OCR. `affectsRules` is populated as the H2/H3 rules that rely on each letter are authored. No API — one-time curation via the permalinks.",
+  "verifiedAgainstSource": "2026-07",
+  "interpretations": [
+    {
+      "id": "07-0100",
+      "date": "2007-11-28",
+      "url": "https://www.phmsa.dot.gov/regulations/title49/interp/07-0100",
+      "cfrSections": ["172.101"],
+      "summary": "Biodiesel blends: a shipper may use the PSN \"Diesel fuel\" without the qualifier \"solution\" for diesel/biodiesel blends up to 5% biodiesel (so B2 qualifies); higher blends such as B20 require \"solution\" in the PSN.",
+      "affectsRules": [],
+      "localFile": "datasets/070100.pdf",
+      "sha256": "7841e5be41d557deb6c37e3de4577a04c37cd1636070e721c0235fb43f102fbc"
+    },
+    {
+      "id": "14-0178",
+      "date": "2015-06-26",
+      "url": "https://www.phmsa.dot.gov/regulations/title49/interp/14-0178",
+      "cfrSections": ["172.336(c)", "172.336(c)(6)"],
+      "summary": "When ALL compartments of a multi-compartment cargo tank carry the SAME petroleum distillate fuel, it must be marked with that fuel's identification number (e.g. NA1993) — the lowest-flash-point exception (former §172.336(c)(6), now the 5th item in the §172.336(c) table) applies only when carrying more than one distillate fuel.",
+      "affectsRules": [],
+      "localFile": "datasets/140178.pdf",
+      "sha256": "8b18d3cd849effd4c9a290589b0fc2065698fc55034437b76d8f1e06f1d659fa"
+    },
+    {
+      "id": "15-0187R",
+      "date": "2016-12-21",
+      "url": "https://www.phmsa.dot.gov/regulations/title49/interp/15-0187R",
+      "cfrSections": ["172.101(d)(4)", "172.202(a)(3)(ii)", "173.150(e)", "173.150(f)"],
+      "summary": "Diesel fuel reclassified as a combustible liquid may be described as \"NA1993, Diesel Fuel, Combustible liquid, PG III\" (or the UN1202 equivalent) without including the hazard class — §172.202(a)(3)(ii) drops the class for \"Combustible liquid, n.o.s.\" and §172.101(d)(4) lets a reclassified Class 3 material read \"combustible liquid\".",
+      "affectsRules": [],
+      "localFile": "datasets/150187R.pdf",
+      "sha256": "8e59405a3bf590638db519f9a13d27800ace431356545c3689eee4cc9de15956"
+    },
+    {
+      "id": "18-0023",
+      "date": "2019-02-07",
+      "url": "https://www.phmsa.dot.gov/regulations/title49/interp/18-0023",
+      "cfrSections": ["172.336(c)"],
+      "summary": "Identification-number marking for multi-compartment cargo tanks carrying different petroleum products (e.g. UN3475 ethanol-gasoline, UN1203 gasoline, ± diesel): under §172.336(c) the tank need only display the ID of the petroleum distillate fuel with the lowest flash point. (§172.336(c) is now a table — old (c)(2)–(c)(6) designators are dead; see the plan's citation-resolver note.)",
+      "affectsRules": [],
+      "localFile": "datasets/180023.pdf",
+      "sha256": "e6312cafd428bf977b88456ab97e84e8900f8b3782bec051bed31d20374019b0"
+    },
+    {
+      "id": "18-0096",
+      "date": "2019-02-12",
+      "url": "https://www.phmsa.dot.gov/regulations/title49/interp/18-0096",
+      "cfrSections": ["172.101", "172.302", "172.332", "172.336(c)"],
+      "summary": "When a cargo tank contains more than one petroleum distillate fuel, it need only display the identification number of the distillate with the lowest flash point (§172.302/172.332); confirms the correct ID display for single fuels too (diesel/heating oil → 1993, kerosene → 1223).",
+      "affectsRules": [],
+      "localFile": "datasets/180096.pdf",
+      "sha256": "1d41729bf1a4213c4ae371a11d92aa1d4f1dc3ec278e401ca4ffc11968192aa5"
+    },
+    {
+      "id": "25-0024",
+      "date": "2025-06-05",
+      "url": "https://www.phmsa.dot.gov/regulations/title49/interp/25-0024",
+      "cfrSections": ["172.332(c)", "173.150(f)"],
+      "summary": "Jet fuel (flash point ≥ 38 °C) may be reclassified from flammable to combustible per §173.150(f) and transported as \"UN1863, Fuel, aviation, turbine engine, Combustible liquid, PG III\"; the ID number may be displayed on either a standard §172.332(c)(1)/(c)(2) COMBUSTIBLE placard or the white-background §172.332(c)(4) one (the white-background is required for rail).",
+      "affectsRules": [],
+      "localFile": "datasets/250024.pdf",
+      "sha256": "dac648c0ee295db2cda405af912f725739a7672bba9e995f3f3b72d20973cbc0"
+    }
+  ]
+}

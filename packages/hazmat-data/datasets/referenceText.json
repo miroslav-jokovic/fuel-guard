@@ -1,0 +1,7 @@
+{
+  "version": "0.0.0",
+  "provisional": true,
+  "source": null,
+  "_note": "PROVISIONAL skeleton (Phase H1, D12). Empty until populated by import/referenceTextBuild.ts (runs where eCFR is reachable). Display + AUDIT ONLY — this store is NOT part of the engine Dataset and is never read by evaluateLoad(). Keyed by CFR section number.",
+  "sections": {}
+}

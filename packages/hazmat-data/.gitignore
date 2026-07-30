@@ -1,0 +1,3 @@
+# ERG PDFs and other large reference PDFs — checksums pinned in interpretations.json
+# Re-download via: pnpm tsx import/erg.ts
+datasets/*.pdf

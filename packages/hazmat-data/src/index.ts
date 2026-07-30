@@ -1,5 +1,9 @@
 import raw202602 from "../datasets/2026.02.json" with { type: "json" };
+import rawReferenceText from "../datasets/referenceText.json" with { type: "json" };
+import rawInterpretations from "../datasets/interpretations.json" with { type: "json" };
 import { parseDataset, type Dataset } from "./schema.js";
+import { parseReferenceStore, type ReferenceStore } from "./referenceText.js";
+import { parseInterpretations, type InterpretationsFile } from "./interpretations.js";
 
 /**
  * @hazmat/data — versioned regulatory dataset + typed loader (Phase H1). Ships dataset JSON validated
@@ -11,6 +15,9 @@ import { parseDataset, type Dataset } from "./schema.js";
 export * from "./schema.js";
 export * from "./matchRecords.js";
 export * from "./resolve.js";
+// Reference text (D12) is a SEPARATE export from the Dataset — display + audit only, never the engine.
+export * from "./referenceText.js";
+export * from "./interpretations.js";
 
 const RAW: Readonly<Record<string, unknown>> = {
   "2026.02": raw202602,
@@ -31,4 +38,18 @@ export function loadDataset(version: string = LATEST_DATASET_VERSION): Dataset {
     );
   }
   return parseDataset(raw);
+}
+
+/**
+ * Load the CFR reference-text store (D12) — the citation-keyed display text for "read the rule behind
+ * this finding" and the audit chain. Populated by import/referenceTextBuild.ts; provisional until then.
+ * Intentionally separate from loadDataset(): the engine never receives this.
+ */
+export function loadReferenceText(): ReferenceStore {
+  return parseReferenceStore(rawReferenceText);
+}
+
+/** Load the curated PHMSA interpretation letters (H1) — provenance/display metadata for rule citations. */
+export function loadInterpretations(): InterpretationsFile {
+  return parseInterpretations(rawInterpretations);
 }
