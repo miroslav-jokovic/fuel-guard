@@ -1,0 +1,11 @@
+{
+  "//": "Local typecheck for the Node-only import tooling. The package's own tsconfig.json EXCLUDES import/ so this code never leaks into the published build (package.json `files` = src+datasets). Run: pnpm --filter @hazmat/data typecheck:import",
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "moduleResolution": "bundler"
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "fixtures"]
+}

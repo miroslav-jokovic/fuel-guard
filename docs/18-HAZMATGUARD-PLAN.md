@@ -58,6 +58,32 @@
 > scan (H10), full-screen DO-NOT-LOAD driver result, immediate `hazmat.policy_block` push to
 > dispatcher + safety, and override restricted to `policyBlockOverrideRoles` (default admin
 > only). Golden scenarios: deny-combo matching incl. deny-beats-allow and PG-level splits.
+> v5 (2026-07-29, owner decision — reverses the paid-data plan): **D5 rewritten to official-
+> government-sources-only.** No paid third-party dataset (Hazcheck DGL / 3E) and no paid shadow
+> validator (Labelmaster DGIS) — ever. The two-source *principle* is unchanged and non-negotiable;
+> what changes is HOW the second source is produced. Because every free official source (eCFR,
+> GovInfo) derives from the *same* OFR codification, a second automated feed is not genuinely
+> independent — it catches transport/parse errors but not source-data errors. The only genuinely
+> independent official second source is a **human transcription of the official legal PDF** (the
+> GovInfo Title-49 print edition), which the plan already required as the "human ground-truth
+> anchor" fixture (H1 Tests). v5 promotes that transcription from *test fixture* to *the second
+> source of record*: the diff now runs eCFR-parse vs human-transcription (not vs a vendor CSV), and
+> the transcription is bounded to the in-scope rows — which dovetails with D4's fail-closed scope
+> gate (only two-source-verified rows can ever CLEAR; everything else is recognized + blocked).
+> Consequences threaded through: H1 deliverable 3 (diff target), 5 (release step), 6 (v1 gate);
+> H11 "shadow validator" becomes an official-only self-audit (PHMSA oCFR tool + ERG + published
+> PHMSA examples); Business §costs drops the two paid line-items to ~$0 data spend (cost is now
+> transcription/review *time*); door-3 licensed-API concern (never re-expose vendor data) simply
+> disappears — there is no vendor data to protect. `import/diff.ts` retargeted accordingly.
+> v6 (2026-07-29, owner request — "extract rules to plain text, sorted into numbered sections for
+> faster search?"): verified against the plan and pushed back. The fast, numbered-lookup instinct is
+> already the architecture — but over STRUCTURED keys (the `HmtMatchRecord` hash index / `buildDatasetIndex`,
+> the typed per-table arrays, CFR-numbered citations), never prose search. D1 (AI reads, code decides)
+> means verdicts come from deterministic rules over structured data; regs are not reliably decidable by
+> text-matching (cross-refs, exceptions, conditionals), and perf is already <1 ms/line via hash blocking.
+> The genuinely-useful version of the idea is NEW and added as **D12**: a citation-keyed CFR reference-text
+> store for HUMAN DISPLAY + AUDIT ("read the rule behind this finding"), explicitly never fed to the engine.
+> Built this turn (`src/referenceText.ts` + `import/referenceText*.ts`, tolerant extractor, 9 tests).
 
 ---
 
@@ -82,12 +108,13 @@
 | D3 | **Separable module.** Engine + data live in dependency-free packages; app code depends on them, never the reverse. Enforced in CI (H0). Sellable later as standalone HazmatGuard app and as a licensed API. | Product strategy (3 revenue doors). |
 | D4 *(revised 2026-07-24)* | **Launch scope: Table 2 materials only, fuel-depth BOL validation.** The engine's *placard-logic depth* covers Table 2 classes (Class 3, Combustible liquid, 2.1, 2.2, 4.1, 4.2, 5.1, non-PIH 6.1, 8, 9, 1.4/1.5/1.6 deferred too — see H2). Rationale: the overwhelming majority of carriers haul Table 2 materials only; Table 1 (explosives 1.1–1.3, 2.3 poison gas, 4.3 in bulk contexts, PIH Zone A/B, Yellow-III radioactive) is a specialist niche. **Fail-closed corollary (non-negotiable):** the engine still RECOGNIZES Table 1 materials from the dataset — any Table 1 line produces a blocking `table1_out_of_scope_v1` finding and the load can never be cleared or made eligible in v1. Silence or a wrong verdict on a Table 1 load is forbidden; "we don't cover this yet, do not rely on the tool" is the only allowed answer. Deep BOL description validation ships first for fuel products (Class 3, Combustible liquid, 2.1). Table 1 support = a later expansion pack (Business backlog). | Miki 2026-07-24. |
 | D11 | **The expert audit flow is a first-class input.** A hazmat safety professional (15 yrs trucking-industry hazmat experience, working with Miki) documents her EXACT BOL-audit flow — what she checks, in what order, what fails a load, what she does next. That flow drives: the H3 rule ordering + severity calibration, the H7 review-screen ordering, golden scenarios (her real-world edge cases), and she is the designated SME for independent golden authorship (fills the Business §costs line 7 role). **Conflict rule: where her flow and the CFR disagree, the CFR wins the verdict — but every disagreement is investigated and documented before being resolved** (it's either an exception we missed or a habit that isn't law; both outcomes are valuable and recorded in the traceability matrix, H3). The engine stays deterministic — her flow shapes ordering, calibration, UX, and tests, never replaces rules with intuition. | Miki 2026-07-24. |
-| D5 | **Licensed second data source: YES, budgeted.** eCFR is primary; a licensed maintained 172.101 dataset (Hazcheck DGL Data, or equivalent) is the second source; both must agree before a dataset release ships. Commercial shadow validator (Labelmaster DGIS) evaluated in H11. | Miki 2026-07-23. |
+| D5 *(revised 2026-07-29 — supersedes the 2026-07-23 licensed-source decision)* | **Official government sources ONLY. No paid third-party dataset and no paid shadow validator, ever.** The two-source *principle* stands (a single transcription/parse error must never ship silently); the second source is now produced in-house from official data instead of licensed from a vendor. **Primary source:** the **eCFR versioner API** — point-in-time Title 49 XML, the legally authoritative machine-readable copy; free, no API key. Parsed by `import/ecfr.ts`; scales to the whole HMT. **Independent second source:** a **human transcription of the official legal PDF** (the GovInfo Title-49 print edition — [govinfo.gov/app/collection/cfr](https://www.govinfo.gov/app/collection/cfr)), committed to the repo as `fixtures/handVerifiedRows.ts`. Rationale for a *human* second source rather than a second feed: eCFR and GovInfo both derive from the **same OFR codification**, so a second automated feed is not genuinely independent — it catches transport/parse errors but not source-data errors; only a human reading the official PDF is independent of the XML parse *and* of the XML data. **Release gate:** parser output and transcription must agree with **zero unexplained disagreements** before a dataset ships (`import/diff.ts`, retargeted from vendor-CSV to transcription). **Scope-bounded by design:** the transcription covers the in-scope rows (fuel + Table-2 launch set, ~200 rows incl. 'or'-alternates), which dovetails with D4 — only two-source-verified rows can ever CLEAR; every out-of-scope row is recognized and fail-closed, so unverified rows are safe by construction. Expansion beyond fuel carries a bounded, deliberate transcription cost — that is the honest price of dropping the vendor, and it is acceptable because the engine fails closed outside verified scope. **Shadow validator (was D5 part 2):** an **official-only self-audit** — spot-check engine verdicts against the PHMSA oCFR tool, the ERG, and published PHMSA examples/interpretation letters; no paid engine trial. **Currency:** eCFR `latest_amended_on` poll + Federal Register (agency=PHMSA) monitor; on a change, re-parse and re-transcribe only the affected in-scope rows. **Cost:** ~$0 external data spend; the cost is human transcription + review *time*. | Miki 2026-07-29 (reverses the paid-source plan). |
 | D6 | **Reviewers = customer's own hazmat-trained staff** (49 CFR 172 Subpart H). Product is decision support; attestation is by the customer. Expert-review-as-a-service = possible future paid tier (see §Business), NOT in v1. | Miki 2026-07-23. |
 | D7 | **v1 capture = mobile web in the existing Vue app.** Drivers already have logins; a mobile-first capture flow ships in `apps/web`. The future native driver app reuses the identical API contract (H10 defines it). | Miki 2026-07-23. |
 | D8 | Positioning/legal: outputs labeled **"automated pre-check for review by hazmat-trained personnel"**; named-reviewer attestation to clear/override; full evidence chain stored per run; marketing may never say "guaranteed compliant" (see §Business). | 17 §9; non-delegable duties (49 CFR 171.2). |
 | D9 | Regulatory dataset updates are **human-reviewed releases** (never auto-sync), versioned, with effective dates; every verdict records dataset + engine version so it is reproducible forever. | 17 §6. |
 | D10 | Model usage follows the existing `07-AI-VERIFICATION.md` discipline: pinned model IDs in env, Zod-validated structured output, content-hash caching, per-org token budget, kill-switch, `ANTHROPIC_API_KEY` server-side only. | Consistency with shipped AI layer. |
+| D12 *(2026-07-29)* | **Reference text is display + audit only — never the engine.** The plain, sectioned, citation-keyed text of the CFR sections we cite is stored so a human can read the rule behind a verdict ("show me §172.504(f)") and so the exact text a verdict relied on is captured for audit. It is a SEPARATE store (`@hazmat/data` → `referenceText.json` + `loadReferenceText()`), deliberately NOT part of the `Dataset` schema, so `evaluateLoad()` (which only ever receives a `Dataset`) structurally cannot read it. Every verdict still comes from deterministic rules over the structured dataset (D1); the system never decides by searching regulatory prose. Built by `import/referenceTextBuild.ts` from the eCFR/GovInfo section XML we already fetch, via a tolerant XML→text extractor (display text → a formatting imperfection is cosmetic, not a wrong verdict; the opposite of the HMT parser). | Owner 2026-07-29: fast, numbered rule lookup — answered as a structured index + a display/audit reference store, not prose search. |
 
 ## 2. Goals, non-goals, success criteria
 
@@ -124,7 +151,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | Phase | Goal | Depends on | Demoable outcome |
 |-------|------|------------|------------------|
 | **H0** ☐ Module foundation | Packages, boundaries, entitlements, CI guards | — | Engine package builds standalone; CI fails on boundary violation; org entitlement gates empty Hazmat nav item. |
-| **H1** ☐ Regulatory data layer | Versioned HMT/ERG datasets + import/diff/release tooling | H0 | `hazmat-data` ships dataset v1; two-source diff report runs; product lookup works in a test. |
+| **H1** ☐ Regulatory data layer | Versioned HMT/ERG datasets + import/diff/release tooling | H0 | `hazmat-data` ships dataset v1; two-source diff (eCFR parse vs human transcription) runs clean; product lookup works in a test. |
 | **H2** ☐ Rules engine: placards, eligibility, segregation | The deterministic core + golden suite | H1 | Engine answers every golden scenario with citations; 100% pass. |
 | **H3** ☐ Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ☐ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
@@ -255,21 +282,28 @@ the engine needs. This phase is pure data engineering — no AI, no app code.
 2. **eCFR importer** (`import/ecfr.ts`): pulls Title 49 point-in-time XML from the eCFR versioner
    API, parses Part 172 (HMT table), 172.504(e) tables, 177.848(d) into the schema. Parser has
    its own unit tests with frozen XML fixtures checked into the repo.
-3. **Second-source diff** (`import/diff.ts`): loads the licensed dataset (Hazcheck DGL CSV/Excel
-   per D5 — exact column mapping written when the license lands; the diff tool takes a mapping
-   config) and reports every row-level disagreement with the eCFR parse. **Release rule: zero
-   unexplained disagreements.** Explained ones (e.g., vendor includes guidance rows) are recorded
-   in `datasets/vX/diff-report.md`.
-   **License procurement requirement (do this FIRST in this phase):** obtain, in writing, that
-   the license permits (a) embedding the data in a commercial SaaS, and (b) use in a product
-   competitive with the vendor's own compliance tools — data vendors commonly forbid exactly
-   this, and discovering it at signing time voids the two-source launch rule. If refused:
-   fallback second source = another licensed HMT vendor (3E) or, failing both, a **second
-   independent human transcription** of the fuel-relevant HMT rows + placard/segregation tables
-   (bounded work, ~200 rows) — the two-source *principle* is non-negotiable, the vendor is not.
-   Note for door 3 (H12): the licensed data must never be re-exposed through the public calc API —
-   engine outputs are verdicts, not dataset rows, which keeps the API outside typical
-   redistribution clauses; confirm this reading with the vendor in the same letter.
+3. **Second-source diff** (`import/diff.ts`) *(revised per D5 v5 — official-only)*: loads the
+   **human transcription** (`fixtures/handVerifiedRows.ts` — the in-scope rows typed by a person
+   from the official GovInfo Title-49 legal PDF) and reports every row-level disagreement with the
+   eCFR parse. **Release rule: zero unexplained disagreements.** Explained ones (e.g., a known
+   eCFR footnote the transcription folds into a field) are recorded in `datasets/vX/diff-report.md`.
+   This makes the transcription the **second source of record**, not merely a test fixture — the
+   same rows do double duty (independence check in the diff, ground-truth anchor in the golden
+   suite). **Why a human transcription and not a second automated feed:** eCFR and GovInfo both
+   derive from the same OFR codification, so a second feed only catches transport/parse errors; a
+   human reading the official PDF is the only genuinely independent check against a *source*-data
+   error. **Scope discipline (the whole safety story):** the transcription covers the in-scope set
+   (fuel + Table-2 launch rows, ~200 incl. 'or'-alternates). D4 already forbids CLEARING any
+   out-of-scope row, so a row that has not been two-source-verified can never produce a clear
+   verdict — unverified = fail-closed, by construction. Expanding scope later = transcribe the new
+   in-scope rows first, then the diff gate covers them.
+   *Optional cheap tripwire (not a substitute for the transcription):* a build-time cross-parse of
+   the GovInfo bulk XML vs the eCFR XML can flag a distribution/mirroring corruption at ~zero cost;
+   it does NOT satisfy the independence requirement (same OFR origin) and never gates a release on
+   its own.
+   Note for door 3 (H12): with no licensed input data, the old "never re-expose vendor rows through
+   the public calc API" constraint is **moot** — every byte in the dataset is public-domain U.S.
+   government text, so the engine API carries no third-party redistribution risk at all.
 3b. **Citation resolver check** (build-time): every citation string in the H2/H3 rule catalogs
    must resolve against the current eCFR structure (section + paragraph existence via the eCFR
    API); unresolvable citations fail the dataset build. This is what catches restructurings like
@@ -279,14 +313,25 @@ the engine needs. This phase is pure data engineering — no AI, no app code.
    1268, 1223, 1075, 1978, 3257) + spot-check of 30 random IDs; frozen until ERG 2028.
 5. **Release process** (documented in `packages/hazmat-data/RELEASING.md`): poll eCFR
    `latest_amended_on` (weekly scheduled job in H11; manual until then) → if changed, run importer
-   → run diff vs licensed source → human reviews the delta → bump dataset version
-   (`2026.07.0` calendar-versioned) with `effectiveDate` → full golden suite (H2) must pass →
-   merge. Emergency path: same steps, same day, no shortcuts — the steps ARE the safety.
-6. **Dataset v1 shipped**: built from current eCFR, second-source-verified (or, if license
-   procurement lags: shipped `provisional: true` — the H4/H7 **clear endpoint** then refuses ALL
-   clearing, auto or attested, in production (see H4 state-machine note; the engine itself is a
-   pure function and has no clearing concept). This makes the license genuinely blocking for
-   launch but not for development).
+   → run diff vs the **human transcription** (`fixtures/handVerifiedRows.ts`) → human reviews the
+   delta → bump dataset version (`2026.07.0` calendar-versioned) with `effectiveDate` → full golden
+   suite (H2) must pass → merge. Emergency path: same steps, same day, no shortcuts — the steps ARE
+   the safety.
+6. **Dataset v1 shipped**: built from current eCFR **and** two-source-verified against the human
+   transcription of the in-scope rows. Until that transcription + diff is complete, the dataset
+   ships `provisional: true` and the H4/H7 **clear endpoint** refuses ALL clearing — auto or
+   attested — in production (see H4 state-machine note; the engine itself is a pure function and
+   has no clearing concept). So the *transcription* is now what is genuinely blocking for launch,
+   not a vendor license — and it is bounded, in-house work that can start immediately with no
+   procurement dependency.
+
+7. **Reference text store (D12).** The citation-keyed CFR display text: `src/referenceText.ts`
+   (types + `loadReferenceText()` + `referenceForCitation()`, a SEPARATE export from `Dataset`),
+   `import/referenceText.ts` (a tolerant XML→paragraphs extractor — works on the eCFR `full` XML
+   OR the GovInfo content XML, since it is display-only), `import/referenceTextBuild.ts` (fetches
+   each cited section via the eCFR client → `datasets/referenceText.json`), and a provisional
+   skeleton. Display + AUDIT only, never read by `evaluateLoad()`. Populated by running the build
+   where eCFR is reachable; a missing section links out to eCFR rather than showing nothing.
 
 **Decisions.**
 - Datasets are JSON files inside the package (~2–4 MB acceptable), loaded whole into memory; no
@@ -698,6 +743,11 @@ G4, D2 (conditional tiers + out-of-scope fail-closed), D4-revised (fuel depth, T
 
 **Objective.** Persistence and transport for loads, documents, runs, verdicts, reviews — with the
 same RLS/audit discipline as the rest of the app.
+
+**Reference text serving (D12).** Alongside the run/verdict tables, the API serves the CFR reference
+text by citation (inline on a finding, or `GET /api/hazmat/reference/:section`) from
+`loadReferenceText()`, and each run records the reference-store version it displayed — so "what rule
+text did this verdict show the reviewer" is reproducible. This store never feeds the engine (D1/D12).
 
 **Migrations** (numbered from the next free slot; names below are canonical):
 ```sql
@@ -1360,9 +1410,12 @@ app is mobile-responsive by design (00 §6), drivers have logins, storage upload
    **Known shadow-mode caveat (accepted):** trip-context inputs (business-day IDs, trailer
    last-contained) are only as complete as submitted loads — during shadow the driver-confirmation
    prompts (H8) carry the weight; measure how often drivers correct the pre-fill as a data-quality metric.
-3. **Shadow validator decision (D5 part 2)**: trial Labelmaster DGIS (or equivalent) against a
-   sample of engine verdicts; document agreement; decide keep/drop with cost in Business §.
-   Decision recorded in this file.
+3. **Official-only self-audit (replaces the D5-part-2 paid shadow validator)**: on a fixed sample
+   of engine verdicts, cross-check by hand against the **PHMSA oCFR tool**, the **ERG**, and
+   **published PHMSA examples / interpretation letters** — no paid engine trial (per D5 v5). Every
+   disagreement is investigated (engine bug, dataset error, or a defensible reading difference) and
+   logged in the traceability matrix; the audit is repeated after each dataset release. Result +
+   any fixes recorded in this file.
 4. **External-OCR pass decision**: from corpus metrics, decide whether to add a non-Anthropic
    Pass C (cloud OCR) for critical-digit corroboration; record decision + rationale here.
 5. **Ops runbook** (`docs/hazmat-RUNBOOK.md`): reg-update watch duty (weekly eCFR poll job now
@@ -1465,11 +1518,14 @@ makes this cheaper than usual). Published SLA: uptime target + support response 
 **documented degraded mode** (extraction down → manual entry path keeps the product functional —
 write this into the SLA as the resilience story, it's a genuine differentiator).
 
-**Costs & procurement (owner: Miki; blocks H11 go/no-go).** Named budget lines, quotes obtained
-during H1–H5 so nothing surprises the pilot: (1) **Hazcheck DGL Data license** (or equivalent
-second source) — REQUIRED for production clearing (H1 §6 provisional rule makes this genuinely
-launch-blocking; get the quote in H1, sign before H11); (2) Labelmaster DGIS shadow-validator
-trial (H11 decision input — trial cost only unless kept); (3) model spend per analyzed load
+**Costs & procurement (owner: Miki; blocks H11 go/no-go).** *(revised per D5 v5 — the two paid data
+line-items are removed.)* Named budget lines, quotes obtained during H1–H5 so nothing surprises the
+pilot: (1) **Regulatory data: $0 external spend** — official government sources only (eCFR API +
+GovInfo PDF + ERG + Federal Register), per D5 v5. What was a vendor license is now **in-house
+human-transcription + review time** for the in-scope rows (bounded, ~200 rows for the fuel launch;
+the SME/expert-advisor agreement in line (7) is where this labor is budgeted); (2) **shadow
+validator: $0** — the paid DGIS trial is replaced by the official-only self-audit (H11); (3) model
+spend per analyzed load
 (2 vision passes + placard photos; measured precisely by H11, budgeted from H6 corpus runs
 before that); (4) full-resolution image storage, 3-yr retention (≈ 5–10 MB/load; priced against
 Supabase storage tiers at pilot volume); (5) E&O insurance premium; (6) trademark search + filing; (7) **hazmat SME / expert advisor agreement (D11)** — the 15-yr expert working with Miki fills
@@ -1521,7 +1577,8 @@ modes for the API product; Spanish driver UI.
 | Model deprecation/behavior drift | Pinned versions, corpus gate on every change (H6/H11) |
 | Scope creep into all-hazmat depth before fuel is solid | D4-revised + `out_of_depth_scope`/`table1_out_of_scope_v1` fail-closed findings (H2/H3) |
 | Trademark conflict discovered late | Clearance before H12 public use (Business) |
-| Data-license terms forbid SaaS embedding / competitive use | Written rights confirmation FIRST in H1; named fallbacks (3E, independent transcription) |
+| ~~Data-license terms forbid SaaS embedding / competitive use~~ *(risk retired — D5 v5)* | No licensed data at all: official U.S. government sources only (public domain), so there are no embedding/competitive-use terms to violate. The second source is an in-house human transcription. |
+| Human transcription (D5 v5 second source) lags a reg change → clear endpoint stays blocked | Transcription is bounded to in-scope rows; `latest_amended_on` poll + Federal Register alert flag the change early; only the changed in-scope rows need re-typing; provisional-dataset gate keeps a stale dataset from clearing anything |
 | Expert unavailable / knowledge stays in one head | Flow captured as a written, versioned artifact + traceability matrix (H3 §0) — the document is the asset, not the dependency; advisor agreement secures availability (Business §costs 7) |
 | Table 1 load slips through as "unknown product" instead of the explicit block | `blockOnUnknownProduct` already blocks unknowns; golden scenarios assert BOTH paths (recognized-Table-1 → `table1_out_of_scope_v1`, unresolvable → unknown-product block) |
 | Regulation restructured → shipped citations go stale | Build-time citation resolver (H1 §3b); catalog fails closed |
