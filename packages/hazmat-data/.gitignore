@@ -6,3 +6,4 @@ datasets/*.pdf
 # (kept out of git like the PDFs; only the small hand-frozen parser slices below are committed)
 import/fixtures/*
 !import/fixtures/hmt-fuel-slice.xml
+!import/fixtures/handVerifiedRows.ts

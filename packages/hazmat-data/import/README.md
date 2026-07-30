@@ -62,8 +62,13 @@ typecheck:import` (uses `import/tsconfig.json`).
 - **`fedRegisterSmoke.ts`** — a **live** end-to-end test that needs **no key**, so it runs anywhere
   with network (`npx tsx import/fedRegisterSmoke.ts`): resolves PHMSA, lists recent HMR amendments with
   effective dates, runs a currency check, and re-fetches the known rule 2026-10962 to confirm shapes.
-- **`diff.ts`** — the second-source diff (parser output vs the human transcription). Retargeted from
-  the former licensed-vendor CSV to `fixtures/handVerifiedRows.ts` (D5 v5).
+- **`diff.ts`** — the second-source diff (parser output vs the human transcription), **implemented**.
+  `diffAgainstTranscription()` pairs Source A (`parseHmtSection` over the captured §172.101 XML — the
+  full file if present, else the committed `hmt-fuel-slice.xml`) against Source B
+  (`fixtures/handVerifiedRows.ts`) on `prefix+number+name`, reports every field-level disagreement,
+  and gates release via `report.clean` (all in-scope rows `done` + audited + zero unexplained diffs).
+  Run: `npx tsx import/diff.ts` (prints the report, exits non-zero until clean) → save to
+  `datasets/vX/diff-report.md`. Bounded to the 13 in-scope fuel entries (`IN_SCOPE_ENTRIES`).
 
 ## Data sources (D5 v5 — all official, all free)
 
@@ -97,11 +102,16 @@ reproducible extraction:
 1. `npx tsx import/captureFixtures.ts` on a networked machine → real fixtures land in `fixtures/`.
 2. Inspect `fixtures/section-172-101.xml`; implement `parseHmtSection` against its real shape; freeze
    a slice + hand-typed expected `HmtEntry[]` in `parseHmt.test.ts`.
-3. Hand-transcribe the in-scope rows into `fixtures/handVerifiedRows.ts` (Source B).
-4. `import/diff.ts` compares parser output vs transcription — zero unexplained disagreements to ship.
+3. Hand-transcribe the in-scope rows into `fixtures/handVerifiedRows.ts` (Source B) from the official
+   GovInfo legal PDF ONLY (do not read the eCFR XML or parser output while transcribing). Each row's
+   discipline + a filled example are documented at the top of that file; set `status: "done"` and fill
+   `source`/`transcriber` per row.
+4. `npx tsx import/diff.ts` compares parser output vs transcription — zero unexplained disagreements
+   (and every in-scope row `done` + audited) to ship.
 5. Follow `RELEASING.md` to cut the versioned dataset.
 
-Populated across Phase H1. The API client (step 0) is done and tested; the parser (step 2) is next.
+Populated across Phase H1. The API client (step 0), the parser (step 2), and the diff engine (step 4)
+are done and tested; the human transcription (step 3) is the remaining launch blocker.
 
 ## Reference text (D12 — display + audit only, never the engine)
 
