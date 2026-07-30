@@ -16,9 +16,7 @@ emergency path is the same steps, same day, no shortcuts. Nothing here is hand-e
   eCFR corrections). Because eCFR and GovInfo share the OFR origin, the automated diff cannot catch a
   *shared source-data* error, so a **human attestation** of the reconciled report (+ a PDF spot-check) is
   retained as the independence backstop - reduced from transcribing every in-scope row to signing off a
-  machine-generated report. *(In progress: the GovInfo-format parsers + automated cross-check in
-  `import/diff.ts` are being wired against the captured fixtures; until they land, the interim second
-  source is the retained human transcription in `import/fixtures/handVerifiedRows.ts`.)*
+  machine-generated report. *(D5 v7 BUILT 2026-07-30: the GovInfo-format parsers (`parseHmtGovInfo`/`parsePlacardsGovInfo`/`parseSegregationGovInfo`, sharing `hmtAssemble.ts` with eCFR) + the automated cross-check `import/govinfoCrossCheck.ts` are built and pass CLEAN on all three tables; the remaining step to mint a non-provisional dataset is wiring `crossCheckAll()` into `buildDataset.ts`'s gate + attesting the clean report.)*
 
 **Prerequisites (run locally — the sandbox/CI cannot reach the gov APIs):** Node 22+, `pnpm install`,
 and `GOVINFO_API_KEY` in the environment for the Source-B PDF.
@@ -49,10 +47,10 @@ Run everything from `packages/hazmat-data/`.
      `provenance.json` (package/granule id, edition year - record the edition as `sourceSecondaryRef`).
      Run locally; the sandbox/CI cannot reach `api.govinfo.gov`. The key is never printed; nothing is
      written to the dataset.
-   - *In progress:* the GovInfo-format parsers + the automated eCFR<->GovInfo cross-check in `import/diff.ts`
-     are being wired against these fixtures. **Until they land**, the interim second source is the retained
-     human transcription in `import/fixtures/handVerifiedRows.ts` (fill it from the PDF only - do NOT read
-     A's XML / `parseHmt` output while transcribing). Either way step 4 is the gate.
+   - *D5 v7 (BUILT 2026-07-30):* the GovInfo-format parsers + the automated eCFR<->GovInfo cross-check
+     (`import/govinfoCrossCheck.ts`) are built and pass CLEAN (HMT 2,479/2,479, placards 23/23, segregation
+     173/173). To mint a non-provisional dataset, wire `crossCheckAll()` into `buildDataset.ts`'s provisional
+     gate and attest the clean report. (`handVerifiedRows.ts` remains an optional PDF spot-check anchor.)
 
 **4. Second-source diff — the release gate.**
    - `npx tsx import/diff.ts` compares Source A vs Source B on `prefix+number+name` and prints a
