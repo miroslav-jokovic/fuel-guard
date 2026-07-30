@@ -1,0 +1,389 @@
+<DIV8><HEAD>§ 172.101 Hazardous Materials Table (fuel slice — hand-frozen parser fixture).</HEAD>
+<TABLE>
+<TR>
+<TH rowspan="2" class="center border-top-single border-bottom-single border-right-single">(1)<br></br>Symbols</TH>
+<TH rowspan="2" class="center border-top-single border-bottom-single border-right-single">(2)<br></br>Hazardous materials descriptions and proper shipping names</TH>
+<TH rowspan="2" class="center border-top-single border-bottom-single border-right-single">(3)<br></br>Hazard class or Division</TH>
+<TH rowspan="2" class="center border-top-single border-bottom-single border-right-single">(4)<br></br>Identification Numbers</TH>
+<TH rowspan="2" class="center border-top-single border-bottom-single border-right-single">(5)<br></br>PG</TH>
+<TH rowspan="2" class="center border-top-single border-bottom-single border-right-single">(6)<br></br>Label Codes</TH>
+<TH rowspan="2" class="center border-top-single border-bottom-single border-right-single">(7)<br></br>Special provisions<br></br>(§ 172.102)</TH>
+<TH colspan="3" class="center border-top-single border-bottom-single border-right-single">(8)<br></br>Packaging<br></br>(§ 173.***)<br></br> </TH>
+<TH colspan="2" class="center border-top-single border-bottom-single border-right-single">(9)<br></br>Quantity limitations<br></br>(see §§ 173.27 and 175.75)</TH>
+<TH colspan="2" class="center border-top-single border-bottom-single">(10)<br></br>Vessel<br></br>stowage<br></br> </TH>
+</TR><TR>
+<TH class="center border-bottom-single border-right-single">Exceptions<br></br>(8A)</TH>
+<TH class="center border-bottom-single border-right-single">Non-bulk<br></br>(8B)</TH>
+<TH class="center border-bottom-single border-right-single">Bulk<br></br>(8C)</TH>
+<TH class="center border-bottom-single border-right-single">Passenger aircraft/rail<br></br>(9A)</TH>
+<TH class="center border-bottom-single border-right-single">Cargo aircraft only<br></br>(9B)</TH>
+<TH class="center border-bottom-single border-right-single">Location<br></br>(10A)</TH>
+<TH class="center border-bottom-single">Other<br></br>(10B)
+</TH>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Gasoline <E T="03">includes gasoline mixed with ethyl alcohol, with not more than 10% alcohol</E></TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1203</TD>
+<TD class="center border-right-single">II</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, 177, B1, B33, IB2, T4</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">202</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">5 L</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="left border-right-single">E</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single">I</TD>
+<TD class="left border-right-single">Diesel fuel</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1202</TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, B1, IB3, T2, TP1</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Gas oil</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1202</TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, B1, IB3, T2, TP1</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Heating oil, light</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1202</TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">B1, IB3, T2, TP1</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A
+</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single">D G
+</TD>
+<TD class="left border-right-single">Combustible liquid, n.o.s.
+</TD>
+<TD class="right border-right-single">Comb liq
+</TD>
+<TD class="left border-right-single">NA1993
+</TD>
+<TD class="center border-right-single">III
+</TD>
+<TD class="left border-right-single">None
+</TD>
+<TD class="right border-right-single">148, IB3, T1, TP1
+</TD>
+<TD class="left border-right-single">150
+</TD>
+<TD class="left border-right-single">203
+</TD>
+<TD class="left border-right-single">241
+</TD>
+<TD class="right border-right-single">60 L
+</TD>
+<TD class="right border-right-single">220 L
+</TD>
+<TD class="left border-right-single">A
+</TD>
+<TD class="right">
+</TD>
+</TR><TR>
+<TD class="center border-right-single">D</TD>
+<TD class="left border-right-single">Diesel fuel</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">NA1993</TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">None</TD>
+<TD class="right border-right-single">144, B1, IB3, T4, TP1, TP29</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single">D</TD>
+<TD class="left border-right-single">Fuel oil <E T="03">(No. 1, 2, 4, 5, or 6)</E></TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">NA1993</TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, B1, IB3, T4, TP1, TP29</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A
+</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Ethanol and gasoline mixture <E T="03">or</E> Ethanol and motor spirit mixture <E T="03">or</E> Ethanol and petrol mixture, <E T="03">with more than 10% ethanol</E></TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN3475</TD>
+<TD class="center border-right-single">II</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, 177, IB2, T4, TP1</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">202</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">5 L</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="left border-right-single">E</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Ethanol <E T="03">or</E> Ethyl alcohol <E T="03">or</E> Ethanol solutions <E T="03">or</E> Ethyl alcohol solutions</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1170</TD>
+<TD class="center border-right-single">II</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">24, IB2, T4, TP1</TD>
+<TD class="left border-right-single">4b, 150</TD>
+<TD class="left border-right-single">202</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">5 L</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single"></TD>
+<TD class="right border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">24, B1, IB3, T2, TP1</TD>
+<TD class="left border-right-single">4b, 150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Alcohols, n.o.s.</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1987</TD>
+<TD class="center border-right-single">I</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">172, T11, TP1, TP8, TP27</TD>
+<TD class="left border-right-single">4b</TD>
+<TD class="left border-right-single">201</TD>
+<TD class="left border-right-single">243</TD>
+<TD class="right border-right-single">1 L</TD>
+<TD class="right border-right-single">30 L</TD>
+<TD class="left border-right-single">E</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single"></TD>
+<TD class="right border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="center border-right-single">II</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">172, IB2, T7, TP1, TP8, TP28</TD>
+<TD class="left border-right-single">4b, 150</TD>
+<TD class="left border-right-single">202</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">5 L</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="left border-right-single">B</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single"></TD>
+<TD class="right border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">172, B1, IB3, T4, TP1, TP29</TD>
+<TD class="left border-right-single">4b, 150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Fuel, aviation, turbine engine</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1863</TD>
+<TD class="center border-right-single">I</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, T11, TP1, TP8, TP28</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">201</TD>
+<TD class="left border-right-single">243</TD>
+<TD class="right border-right-single">1 L</TD>
+<TD class="right border-right-single">30 L</TD>
+<TD class="left border-right-single">E</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="right border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="center border-right-single">II</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, IB2, T4, TP1, TP8</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">202</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">5 L</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="left border-right-single">B</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="right border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, B1, IB3, T2, TP1</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Petroleum distillates, n.o.s. <E T="03">or</E> Petroleum products, n.o.s.</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1268</TD>
+<TD class="center border-right-single">I</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, T11, TP1, TP8</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">201</TD>
+<TD class="left border-right-single">243</TD>
+<TD class="right border-right-single">1 L</TD>
+<TD class="right border-right-single">30 L</TD>
+<TD class="left border-right-single">E</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="right border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="center border-right-single">II</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, IB2, T7, TP1, TP8, TP28</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">202</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">5 L</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="left border-right-single">B</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="right border-right-single"> </TD>
+<TD class="left border-right-single"> </TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, B1, IB3, T4, TP1, TP29</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A
+</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Kerosene</TD>
+<TD class="right border-right-single">3</TD>
+<TD class="left border-right-single">UN1223</TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">3</TD>
+<TD class="right border-right-single">144, B1, IB3, T2, TP2</TD>
+<TD class="left border-right-single">150</TD>
+<TD class="left border-right-single">203</TD>
+<TD class="left border-right-single">242</TD>
+<TD class="right border-right-single">60 L</TD>
+<TD class="right border-right-single">220 L</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right"></TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Petroleum gases, liquefied <E T="03">or</E> Liquefied petroleum gas</TD>
+<TD class="right border-right-single">2.1</TD>
+<TD class="left border-right-single">UN1075</TD>
+<TD class="center border-right-single"></TD>
+<TD class="left border-right-single">2.1</TD>
+<TD class="right border-right-single">T50, N95</TD>
+<TD class="left border-right-single">306</TD>
+<TD class="left border-right-single">304</TD>
+<TD class="left border-right-single">314, 315</TD>
+<TD class="right border-right-single">Forbidden</TD>
+<TD class="right border-right-single">150 kg</TD>
+<TD class="left border-right-single">E</TD>
+<TD class="right">40
+</TD>
+</TR><TR>
+<TD class="center border-right-single"> </TD>
+<TD class="left border-right-single">Propane, <E T="03">see also</E> Petroleum gases, liquefied</TD>
+<TD class="right border-right-single">2.1</TD>
+<TD class="left border-right-single">UN1978</TD>
+<TD class="center border-right-single"></TD>
+<TD class="left border-right-single">2.1</TD>
+<TD class="right border-right-single">19, T50, N95</TD>
+<TD class="left border-right-single">306</TD>
+<TD class="left border-right-single">304</TD>
+<TD class="left border-right-single">314, 315</TD>
+<TD class="right border-right-single">Forbidden</TD>
+<TD class="right border-right-single">150 kg</TD>
+<TD class="left border-right-single">E</TD>
+<TD class="right">40
+</TD>
+</TR><TR>
+<TD class="center border-right-single">G</TD>
+<TD class="left border-right-single">Elevated temperature liquid, n.o.s., <E T="03">at or above 100 C and below its flash point (including molten metals, molten salts, etc.)</E></TD>
+<TD class="right border-right-single">9</TD>
+<TD class="left border-right-single">UN3257</TD>
+<TD class="center border-right-single">III</TD>
+<TD class="left border-right-single">9</TD>
+<TD class="right border-right-single">IB1, T3, TP3, TP29</TD>
+<TD class="left border-right-single">None</TD>
+<TD class="left border-right-single">None</TD>
+<TD class="left border-right-single">247</TD>
+<TD class="right border-right-single">Forbidden</TD>
+<TD class="right border-right-single">Forbidden</TD>
+<TD class="left border-right-single">A</TD>
+<TD class="right">85</TD>
+</TR>
+</TABLE>
+</DIV8>

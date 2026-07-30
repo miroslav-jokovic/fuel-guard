@@ -1,3 +1,8 @@
 # ERG PDFs and other large reference PDFs — checksums pinned in interpretations.json
 # Re-download via: pnpm tsx import/erg.ts
 datasets/*.pdf
+
+# Large captured eCFR / GovInfo / structure fixtures — regenerate via: pnpm tsx import/captureFixtures.ts
+# (kept out of git like the PDFs; only the small hand-frozen parser slices below are committed)
+import/fixtures/*
+!import/fixtures/hmt-fuel-slice.xml
