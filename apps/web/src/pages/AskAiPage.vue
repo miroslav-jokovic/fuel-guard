@@ -16,11 +16,13 @@ const loading = ref(false);
 const errored = ref(false);
 
 const examples = [
+  "How much did we spend on fuel last month, and what's our fleet MPG?",
+  "Which drivers have the worst MPG this quarter?",
+  "Top 5 fuel stations by spend in the last 30 days.",
+  "Idle hours and cost this month — who are the worst idlers?",
+  "What % of our fills are corroborated by telematics?",
+  "Best and worst drivers by safety score.",
   "How many high or critical theft alerts in the last 30 days?",
-  "Which drivers had the most flagged fills this month?",
-  "How many open cases involve tank_space_exceeded?",
-  "Show odometer accuracy — worst drivers.",
-  "How much did we spend on fuel in the last week?",
 ];
 
 async function ask(q?: string) {
@@ -47,8 +49,8 @@ async function ask(q?: string) {
       <h1 class="text-lg font-semibold text-ink">Ask AI about your fleet</h1>
     </div>
     <PageHeader>
-      Ask questions in plain language about theft risk, drivers, vehicles, spend and odometer accuracy.
-      Answers come from your own data — the AI can only read pre-defined, org-scoped queries (never raw data access).
+      Ask questions in plain language about fuel spend and MPG, drivers and idling, theft alerts,
+      telematics coverage, imports and your fleet. Answers come from your own data — the AI can only read pre-defined, org-scoped queries (never raw data access).
     </PageHeader>
 
     <form class="flex items-end gap-2" @submit.prevent="ask()">
