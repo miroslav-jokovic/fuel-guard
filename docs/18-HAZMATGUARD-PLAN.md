@@ -172,7 +172,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 > path: the Source-B transcription and the SME's R1–R3 + golden authorship.
 
 **Packages (extractable `@hazmat/*`):** `@hazmat/data` (44 files, 127 tests — done, shipping real data);
-`@hazmat/engine` (6 files, 13 tests — placard core done); `@hazmat/placards` (NEW, 4 files, 5 tests — DOT
+`@hazmat/engine` (10 files, 29 tests — placards + segregation + BOL compliance done); `@hazmat/placards` (NEW, 4 files, 5 tests — DOT
 placard SVG art keyed to `PlacardName`; interim artwork, swap to official public-domain SVGs is a
 one-field change per placard).
 
@@ -195,7 +195,9 @@ one-field change per placard).
   (172.302/172.331), ERG guides, HOT mark (172.325). Done + tested against the real dataset; fail-closes
   on any unresolvable/out-of-scope line.
 - R1 RESOLVED + encoded (§172.301(a)(3) non-bulk single-material ID display, `nonbulk_single_material_id_display`); R2/R3 standard reading + flagged (Appendix E.3).
-- PENDING: `checkEligibility`, `checkSegregation`, `validateBol` (H3); non-fuel classes; multi-fuel
+- `checkSegregation` (§177.848(d) load-compatibility grid): X→violation (blocks), O→'away from' conditional, *→special-note conditional, class 9/combustible not in grid. Done + tested against the real dataset (gasoline+ammonium-nitrate → prohibited; gasoline+oxidizer → away-from; two fuels → clean).
+- `validateBol` (H3, §172.202/172.203 shipping-paper compliance): builds the required basic description per line (ID, PSN, class, PG order; combustible-liquid reclassification per PHMSA 15-0187R) + additional-description requirements (technical name §172.203(k), Marine Pollutant, RQ with the CERCLA fuel exclusion) + load-level required elements (ER phone §172.604, certification §172.204, identification §172.201). Done + tested against the real dataset.
+- PENDING: `checkEligibility` (needs the H8 policy shape); the printed-BOL comparison + auto-clear (needs H6 BolFields); non-fuel placard classes; multi-fuel
   lowest-flash-point ID (PHMSA 18-0023); full marine-pollutant/LQ marks; the SME-authored golden suite
   (independent acceptance gate — the implementer does NOT author it).
 
@@ -1051,7 +1053,19 @@ features/ boundary, packages/ui, Tailwind templates, Playwright config all exist
 cannot silently pass (D1/D2).
 
 **Pipeline (service `apps/api/src/services/hazmatExtraction/`, invoked by the H4 in-process `analysisOrchestrator`):**
-1. **Usability gate** (before any model call): server-side image checks — resolution floor
+0. **Image normalization (pre-gate, deterministic code — no AI).** Each captured page is first
+   normalized to a clean, flat, evenly-lit image, CONSERVATIVELY (legibility only — it must never alter
+   a character’s shape): auto-orient (EXIF + text-orientation); detect the document quadrilateral and
+   perspective-warp it to a flat rectangle (de-warp / deskew + auto-crop to the paper); illumination-
+   normalize (background/shadow removal + CLAHE adaptive contrast on the luminance channel); gentle
+   denoise. **NO binarization, NO super-resolution / inpainting, NO sharpening that could merge or invent
+   strokes** — a "3" must never become an "8". Both the ORIGINAL and the normalized image are stored (the
+   review UI shows both). Pinned OpenCV; the ruleset is versioned as `imageNormalizerVersion` and stored
+   on every run (like `psnNormalizerVersion`) so a verdict is reproducible. **This raises capture YIELD
+   and read precision — it is NOT trusted as correctness: the decisive safety is still the dual-pass
+   agreement (step 3) + deterministic cross-validation (step 4); a wrong read cannot pass no matter how
+   clean the image. If normalization cannot yield a usable page, the gate (step 1) still fails → recapture.**
+1. **Usability gate** (on the normalized image, before any model call): server-side image checks — resolution floor
    (min 1200 px long edge), blur (variance of Laplacian, threshold tuned on corpus), glare
    (specular highlight area %), skew estimate. Fail → `quality.usable=false`, load flagged
    `recapture_needed` with the specific reason, no extraction attempted.
@@ -1406,8 +1420,9 @@ app (D7), with the API contract that the future native app will reuse unchanged.
    hours) → guided special-permit capture when applicable (own doc kind; extraction reads the
    SP number, grantee, and **expiration date** — expired permit → violation flag; grantee not
    matching the shipper/carrier → conditional) → guided BOL capture (frame overlay,
-   live blur/glare hinting via canvas checks, page-by-page for multi-page, auto-crop preview,
-   retake loop) → securement checklist angles (H9 list, one screen per angle with example
+   live blur/glare hinting via canvas checks, page-by-page for multi-page, **auto-capture when the page is
+   framed, still, and sharp (edge + stability detection), a low-light torch/exposure prompt,** auto-crop
+   preview, retake loop; heavy de-warp/lighting correction runs server-side in H6 step 0) → securement checklist angles (H9 list, one screen per angle with example
    silhouette) → confirm tank state + relationship prompts (H8, pre-filled) → submit → live
    status (extracting → verdict/flags) with plain-language result: green "Cleared — placards:
    [graphics]" / flagged "Sent to review — you'll be notified" / recapture instructions naming

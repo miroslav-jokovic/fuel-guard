@@ -106,7 +106,7 @@ describe("computePlacards — fuel scope (§172.504)", () => {
   });
 
   it("stamps the bumped engine version", () => {
-    expect(evaluateLoad(load()).engineVersion).toBe("0.4.0");
+    expect(evaluateLoad(load()).engineVersion).toBe("0.6.0");
   });
 
   // §172.301(a)(3) — the non-bulk single-material ID-display rule (R1, resolved from the CFR + PHMSA Chart 15)

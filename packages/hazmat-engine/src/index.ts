@@ -10,9 +10,12 @@ import {
 } from "./types.js";
 import { cleanedTankProhibitsGate, noHazmatLinesGate } from "./placards/rules.js";
 import { computePlacards } from "./placards/compute.js";
+import { checkSegregation } from "./segregation/check.js";
 
 export * from "./types.js";
 export { computePlacards } from "./placards/compute.js";
+export { checkSegregation } from "./segregation/check.js";
+export { validateBol, type BolValidation, type BolLineCompliance } from "./bol/validate.js";
 
 const ALL_PLACARDS: readonly PlacardName[] = [
   "FLAMMABLE", "GASOLINE", "COMBUSTIBLE", "FUEL_OIL", "FLAMMABLE_GAS", "NON_FLAMMABLE_GAS",
@@ -51,17 +54,22 @@ export function evaluateLoad(input: LoadInput): Verdict {
 
   const computed = computePlacards(load);
   trace.push(...computed.trace);
+  const seg = checkSegregation(load);
+  trace.push(...seg.trace);
+
   const blocks: Finding[] = computed.findings.filter((f) => f.tier === "conditional" || f.tier === "violation");
-  const status: Verdict["eligibility"]["status"] = blocks.some((f) => f.tier === "violation") ? "blocked" : "not_checked";
+  // A §177.848(d) segregation prohibition (X) blocks the load; placard/eligibility conditionals leave it
+  // `not_checked`. Eligibility (product/policy) is a separate H2 deliverable — until it lands the engine
+  // surfaces the conditionals so the app never auto-clears on assumptions.
+  const anyViolation = blocks.some((f) => f.tier === "violation") || seg.hasViolation;
+  const status: Verdict["eligibility"]["status"] = anyViolation ? "blocked" : "not_checked";
 
   return {
     engineVersion: ENGINE_VERSION,
     datasetVersion: version,
     placards: computed.placards,
-    // Eligibility (product/policy) is a separate H2 deliverable; until it lands the engine reports
-    // `not_checked` and surfaces the placard conditionals so the app never auto-clears on assumptions.
     eligibility: { status, blocks },
-    segregation: [],
+    segregation: seg.findings,
     trace,
   };
 }
