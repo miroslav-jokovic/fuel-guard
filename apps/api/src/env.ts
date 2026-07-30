@@ -167,6 +167,10 @@ const EnvSchema = z.object({
   // level, this stays unset and EFS allowlists the Railway IPs directly.
   EFS_SOAP_EGRESS_PROXY_URL: z.string().url().optional(),
 
+  // GovInfo API (api.govinfo.gov) — used for HMDB/regulatory data lookups. Optional; features
+  // that need it will fail clearly when unset.
+  GOVINFO_API_KEY: z.string().optional(),
+
   // Phase 8 — email notifications. Default 'none' = no-op (the app still runs).
   // Auto-detected: if RESEND_API_KEY or BREVO_API_KEY is set and MAIL_PROVIDER is not explicitly
   // specified, the provider is activated automatically — no need to set both vars.
