@@ -134,6 +134,51 @@ export interface HazmatRegisterDocumentResponse {
 export const hazmatPolicyPutRequestSchema = z.object({ policy: z.record(z.string(), z.unknown()) });
 export type HazmatPolicyPutRequest = z.infer<typeof hazmatPolicyPutRequestSchema>;
 
+// ── cargo-tank profiles (plan H5) — capacity + compartment plan per truck/trailer ────────────────
+// Produces the engine `vehicle` block (H2): capacity → 4-sided ID display threshold; compartments →
+// per-compartment arithmetic. Exactly one of vehicleId/trailerId (mirrors the 0092 check constraint).
+export const hazmatCompartmentSchema = z.object({
+  index: z.number().int().min(1),
+  capacityGal: z.number().nonnegative(),
+});
+export type HazmatCompartment = z.infer<typeof hazmatCompartmentSchema>;
+
+export const hazmatCargoTankProfileCreateSchema = z
+  .object({
+    id: z.string().uuid(), // client-generated (idempotent replay)
+    vehicleId: z.string().uuid().nullable().default(null),
+    trailerId: z.string().uuid().nullable().default(null),
+    cargoCapacityGal: z.number().nonnegative().nullable().default(null),
+    compartments: z.array(hazmatCompartmentSchema).default([]),
+  })
+  .refine((v) => (v.vehicleId === null) !== (v.trailerId === null), {
+    message: "Provide exactly one of vehicleId or trailerId.",
+  });
+export type HazmatCargoTankProfileCreateRequest = z.infer<typeof hazmatCargoTankProfileCreateSchema>;
+
+// Equipment binding is immutable once set (it's the profile's identity); only capacity/compartments edit.
+export const hazmatCargoTankProfileUpdateSchema = z
+  .object({
+    cargoCapacityGal: z.number().nonnegative().nullable().default(null),
+    compartments: z.array(hazmatCompartmentSchema).default([]),
+  })
+  .strict();
+export type HazmatCargoTankProfileUpdateRequest = z.infer<typeof hazmatCargoTankProfileUpdateSchema>;
+
+export interface HazmatCargoTankProfileRow {
+  id: string;
+  org_id: string;
+  vehicle_id: string | null;
+  trailer_id: string | null;
+  cargo_capacity_gal: number | null;
+  compartments: HazmatCompartment[];
+  created_at: string;
+  updated_at: string;
+}
+export interface HazmatCargoTankProfilesResponse {
+  profiles: HazmatCargoTankProfileRow[];
+}
+
 
 // ── POST /hazmat/loads/:id/analyze — kicks off the in-process manual analysis (202 + runId) ─────
 export interface HazmatAnalyzeResponse {

@@ -165,7 +165,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H2** 🟨 Rules engine: placards, eligibility, segregation | The deterministic core + golden suite | H1 | Engine answers every golden scenario with citations; 100% pass. |
 | **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
-| **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Placard Calculator + Load Workspace built; cargo-tank CRUD + e2e pending.)* |
+| **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Placard Calculator + Load Workspace + cargo-tank CRUD built; per-compartment inputs + e2e pending.)* |
 | **H6** ☐ Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. |
 | **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
@@ -283,7 +283,7 @@ awaiting Marija's scenarios).
   (the route logic is typechecked + the state-machine/orchestrator/RLS layers are tested); and an atomic
   clear (transition+review in one SECURITY DEFINER RPC).
 
-**H5 — Manual UI — IN PROGRESS (Placard Calculator + Load Workspace built 2026-07-31).**
+**H5 — Manual UI — IN PROGRESS (Placard Calculator + Load Workspace + cargo-tank CRUD built 2026-07-31).**
 - **Placard Calculator shipped in `apps/web`** (`/hazmat/calculator`): a real-engine-backed, stateless
   calculator wired to `POST /api/hazmat/calc`. Feature dir `apps/web/src/features/hazmat/` — pure form
   model + `buildCalcRequest` (`calcModel.ts`, 6 web unit tests), Vue Query composables (`useHazmatCalc.ts`),
@@ -308,10 +308,19 @@ awaiting Marija's scenarios).
   `GET /api/hazmat/loads/:id/runs` (`listRuns` service + `HazmatLoadRow`/`HazmatRunRow`/list+runs response
   DTOs in `hazmatApi.ts`; `HAZMAT_LOAD_STATUS_LABELS` in `hazmatLifecycle.ts`). Verdict rendered via the
   shared `VerdictPanel`; `{error}` runs and the `provisional_dataset` flag are surfaced.
-- All touched packages typecheck; api-hazmat (13) + web-hazmat (11) + shared suites green; eslint/boundaries/tokens clean.
-- PENDING in H5: **cargo-tank profile CRUD** (table `hazmat_cargo_tank_profiles` exists in 0092; no CRUD
-  routes/UI yet — the analysis orchestrator already looks one up when present), per-compartment quantity
-  inputs on the manual forms, trailer picker on the create form, and the two **Playwright e2e** flows (§B.6 traps).
+- **Cargo-tank profile CRUD shipped** (`/hazmat/settings/equipment`): capacity + compartment plan per
+  truck/trailer — the producer for the engine `vehicle` block (H2). `GET/POST/PUT/DELETE /api/hazmat/profiles`
+  (`hazmatProfiles.ts` service; one-profile-per-equipment enforced since 0092 has no unique index + the
+  orchestrator reads a single row; write gated admin/fleet_manager/safety_manager + audited). Shared
+  create/update Zod schemas (exactly-one-equipment refine, mirroring the 0092 check) + row/response DTOs.
+  Web: pure `profileFormModel.ts` (6 unit tests), `useHazmatProfiles.ts` (+ a boundary-safe minimal
+  trailers query — features can't import each other), `HazmatEquipmentPage.vue` (list + add/edit with a
+  compartments editor + delete), route + nav item + hub card. **No load-flow wiring needed** — the analysis
+  orchestrator already auto-looks-up the profile by the load's vehicle/trailer, so a saved profile takes
+  effect on the next analysis automatically.
+- All touched packages typecheck; api-hazmat (13) + web-hazmat (17) + shared suites green; eslint/boundaries/tokens clean.
+- PENDING in H5: per-compartment quantity inputs on the manual forms (declare product per compartment),
+  a trailer picker on the load create form, and the two **Playwright e2e** flows (§B.6 traps).
 
 **Not yet started (code):** H5 cargo-tank profile CRUD + e2e (above), H6 extraction, H7 review queue,
 H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
@@ -1105,7 +1114,7 @@ confirm exact name/PK in migration. *Goals:* G2 (async analyze ≤60 s), G6 (evi
 
 ---
 
-## Phase H5 🟨 IN PROGRESS (Placard Calculator + Load Workspace built 2026-07-31; cargo-tank CRUD + e2e pending) — Manual UI: placard calculator + load workspace
+## Phase H5 🟨 IN PROGRESS (Placard Calculator + Load Workspace + cargo-tank CRUD built 2026-07-31; per-compartment inputs + e2e pending) — Manual UI: placard calculator + load workspace
 
 **Objective.** Full product value with zero AI: dispatchers build/declare loads by hand and get
 verdicts. This hardens the engine against real use before extraction exists, and remains forever

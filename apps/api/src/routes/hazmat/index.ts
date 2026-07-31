@@ -11,6 +11,8 @@ import {
   hazmatReviewRequestSchema, type HazmatReviewRequest,
   hazmatClearRequestSchema, type HazmatClearRequest,
   hazmatProductsQuerySchema, type HazmatProductsResponse,
+  hazmatCargoTankProfileCreateSchema, type HazmatCargoTankProfileCreateRequest,
+  hazmatCargoTankProfileUpdateSchema, type HazmatCargoTankProfileUpdateRequest,
   type HazmatAnalyzeResponse,
   HAZMAT_REVIEW_ROLES,
   rolesThatCanView, rolesThatManage,
@@ -29,6 +31,7 @@ import {
 } from "../../services/hazmatLoads.js";
 import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
 import { searchProducts } from "../../services/hazmatProducts.js";
+import { listProfiles, createProfile, updateProfile, deleteProfile } from "../../services/hazmatProfiles.js";
 
 /**
  * HazmatGuard API (plan H4). Mounted at `/api/hazmat/*` behind auth + the `hazmatguard` module
@@ -42,7 +45,8 @@ const isServiceError = (v: unknown): v is ServiceError =>
 const httpFor = (code: string): number =>
   code === "not_found" ? 404 :
   code === "not_editable" || code === "illegal_transition" || code === "provisional_dataset" ? 409 :
-  code === "sign_failed" || code === "insert_failed" || code === "update_failed" || code === "upsert_failed" || code === "query_failed" ? 500 : 400;
+  code === "sign_failed" || code === "insert_failed" || code === "update_failed" || code === "upsert_failed" || code === "query_failed" || code === "delete_failed" ? 500 :
+  code === "profile_exists" ? 409 : 400;
 
 export function hazmatRouter(): Router {
   const router = Router();
@@ -216,6 +220,40 @@ export function hazmatRouter(): Router {
     const result = await putPolicy(admin, orgOf(req), userOf(req), body.policy);
     if (isServiceError(result)) { fail(res, result); return; }
     await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.policy_updated", entity: "hazmat_policies", entityId: orgOf(req) });
+    res.json({ ok: true });
+  }));
+
+  // ── cargo-tank profiles (H5) — capacity + compartment plan per truck/trailer ─
+  router.get("/profiles", canView, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await listProfiles(admin, orgOf(req));
+    if (isServiceError(result)) { fail(res, result); return; }
+    res.json({ profiles: result.rows });
+  }));
+
+  router.post("/profiles", canManage, validateBody(hazmatCargoTankProfileCreateSchema), asyncHandler(async (req: Request, res: Response) => {
+    const body = res.locals.body as HazmatCargoTankProfileCreateRequest;
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await createProfile(admin, orgOf(req), body);
+    if (isServiceError(result)) { fail(res, result); return; }
+    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.profile_created", entity: "hazmat_cargo_tank_profiles", entityId: result.id });
+    res.status(201).json({ id: result.id });
+  }));
+
+  router.put("/profiles/:id", canManage, validateBody(hazmatCargoTankProfileUpdateSchema), asyncHandler(async (req: Request, res: Response) => {
+    const body = res.locals.body as HazmatCargoTankProfileUpdateRequest;
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await updateProfile(admin, orgOf(req), param(req, "id"), body);
+    if (isServiceError(result)) { fail(res, result); return; }
+    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.profile_updated", entity: "hazmat_cargo_tank_profiles", entityId: param(req, "id") });
+    res.json({ ok: true });
+  }));
+
+  router.delete("/profiles/:id", canManage, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await deleteProfile(admin, orgOf(req), param(req, "id"));
+    if (isServiceError(result)) { fail(res, result); return; }
+    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.profile_deleted", entity: "hazmat_cargo_tank_profiles", entityId: param(req, "id") });
     res.json({ ok: true });
   }));
 
