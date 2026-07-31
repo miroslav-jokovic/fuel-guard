@@ -166,7 +166,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
 | **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Calculator + Load Workspace + cargo-tank CRUD built & audited; remaining: per-compartment inputs — blocked on engine H2; e2e run in seeded CI.)* |
-| **H6** ☐ Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. |
+| **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(resolveHmtLine() — the deterministic cross-validation cornerstone — built + tested; vision/opencv/orchestrator wiring pending.)* |
 | **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
 | **H9** ☐ Securement & placard-photo verification | Truck photo vs computed placards + checklist | H2, H6 | Photo of placarded truck → match/mismatch against required set. |
@@ -347,7 +347,29 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   UI first would be inert. **Run the e2e in seeded CI** — authored + compiling; execution needs a seeded
   `hazmatguard` org (same status as the repo's existing full-path smoke scenario).
 
-**Not yet started (code):** H6 extraction, H7 review queue, H8 policy, H9 securement, H10 driver capture,
+**H6 — Extraction service — IN PROGRESS (deterministic cornerstone built 2026-07-31).**
+- **`resolveHmtLine()` shipped in `@hazmat/data`** (`resolveLine.ts`, 25 tests vs the real 2026.07.1
+  dataset) — the LOCKED-SPEC BOL↔library resolver that cross-validation step 4a depends on. Turns an
+  extracted/typed (id, psn, class, pg) line into a canonical `hmtRef` or a NAMED failure a reviewer acts
+  on. Deterministic blocking (`buildDatasetIndex` — hash on prefix+id, memoized), a versioned
+  reg-authorized normalizer (`PSN_NORMALIZER_VERSION`; casefold, n.o.s.-fold, leading Waste/RQ/HOT strip,
+  G-entry-only trailing-parenthetical strip, singular/plural fold safe under blocking), conditional PG
+  (Class-2-gas no-PG, single-PG missing/mismatch findings, multi-PG selection), class check incl.
+  §173.150(f) Combustible-liquid reclass, and **D/I symbol-variant collapse** (UN1230 Methanol resolves;
+  UN1202's three distinct products stay ambiguous without a PSN). NO fuzzy scores in the accept path — the
+  named near-miss pairs (1206/1208, 1267/1268, 1203↔1230) are permanent regression fixtures; a wrong id+psn
+  fails `psn_no_match`, never a look-alike pick. **A real bug was caught by the suite:** `parseIdText`'s
+  `\b(UN|NA)\b` never matched a glued id like "UN1993" (no word boundary before the digits) → fixed to a
+  start-anchor. Reconciliation: the plan said "lives in `@hazmat/engine`"; it lives in `@hazmat/data` where
+  the resolver machinery already is and which the engine can't import (see the H6 spec note below).
+- PENDING in H6 (needs API keys / real photos / OpenCV — built to the 07 discipline, run in a real env):
+  image normalization (OpenCV, `imageNormalizerVersion`), the usability gate, the pinned dual-pass vision
+  (`HAZMAT_MODEL_A/B`, Zod-structured, temp 0), the deterministic cross-validation battery (agreement,
+  arithmetic, pre-printed-catalog lines, declared-vs-extracted), the `BolFields → LoadInput` mapper, and
+  the orchestrator's extraction branch feeding the H6 outcome table. `resolveHmtLine()` is the pure core
+  those checks call; the AI halves are the "AI reads" side of D1.
+
+**Not yet started (code):** H7 review queue, H8 policy, H9 securement, H10 driver capture,
 H11 shadow, H12 product. (H2 also owes the capacity/compartment engine rules that the cargo-tank profiles
 and calculator capacity field already capture data for.)
 
@@ -1204,7 +1226,7 @@ features/ boundary, packages/ui, Tailwind templates, Playwright config all exist
 
 ---
 
-## Phase H6 ☐ — Extraction service (photo → validated BolFields)
+## Phase H6 🟨 IN PROGRESS (resolveHmtLine() — the deterministic cornerstone — built + tested 2026-07-31; vision/opencv/orchestrator wiring pending) — Extraction service (photo → validated BolFields)
 
 **Objective.** The only AI in the system, wrapped in enough independent checks that a wrong read
 cannot silently pass (D1/D2).
@@ -1298,10 +1320,14 @@ cannot silently pass (D1/D2).
    product still fully functions (mirrors the AI-layer independence rule).
 
 **`resolveHmtLine()` — the BOL↔library resolution algorithm (LOCKED SPEC; audited against the
-live 172.101 table 2026-07-24).** Lives in `@hazmat/engine` (pure; operates on the injected
-`Dataset`; `buildDatasetIndex(dataset)` is exported and the caller memoizes it per dataset
-version). Used by the extraction pipeline here and by anything else that must turn
-(id, psn, class, pg) text into an `hmtRef`.
+live 172.101 table 2026-07-24).** **BUILT 2026-07-31 in `@hazmat/data`** (`resolveLine.ts`) — NOT
+`@hazmat/engine` as originally written: resolution machinery already lives in `@hazmat/data`
+(`resolveEntry`/`normalizePsn`/`buildMatchRecords`), the engine cannot import `@hazmat/data` (D3
+boundary) and never resolves from text (callers pass pre-resolved `hmtRef`s), so building it in the
+engine would duplicate the normalizer and split resolution across two packages. It is pure (no I/O),
+so the "pure" requirement holds. `buildDatasetIndex(dataset)` (hash blocking on prefix+id) is exported
+and memoized per dataset version; the normalizer is versioned `PSN_NORMALIZER_VERSION`. Used by the
+extraction pipeline here and by anything else that must turn (id, psn, class, pg) text into an `hmtRef`.
 
 *Design doctrine (Fellegi–Sunter / Christen, record-linkage practice for safety-critical
 domains): deterministic matching with blocking on the strongest key; near-miss = clerical
