@@ -2,14 +2,7 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/web/dist && pnpm --filter @fuelguard/web build"
-  },
-  "deploy": {
-    "startCommand": "pnpm --filter @fuelguard/api start",
-    "healthcheckPath": "/healthz",
-    "healthcheckTimeout": 100,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 3,
+    "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/web/dist && pnpm --filter @fuelguard/web build",
     "watchPatterns": [
       "**",
       "!**/*.md",
@@ -30,5 +23,12 @@
       "!**/*.spec.tsx",
       "!**/__tests__/**"
     ]
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @fuelguard/api start",
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 100,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
   }
 }
