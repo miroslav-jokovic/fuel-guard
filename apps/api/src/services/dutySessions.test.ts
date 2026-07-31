@@ -15,21 +15,21 @@ import { changeEquipment, endShift, getEquipmentPickList, startShift } from "./d
 type TableRows = Record<string, unknown[]>;
 
 /** Minimal chainable stand-in for the PostgREST builder: every filter is a no-op, the rows are fixed. */
-function stubAdmin(opts: { rpcError?: { code: string; message: string }; tables?: TableRows }): SupabaseClient {
+function stubAdmin(opts: { rpcError?: { code: string; message: string }; queryError?: { message: string }; tables?: TableRows }): SupabaseClient {
   const tables = opts.tables ?? {};
-  const builder = (rows: unknown[]): Record<string, unknown> => {
+  const builder = (rows: unknown[], error: { message: string } | null = null): Record<string, unknown> => {
     const self: Record<string, unknown> = {};
     for (const m of ["select", "eq", "is", "in", "order", "not", "neq", "gte", "lte"]) {
       self[m] = () => self;
     }
-    self.maybeSingle = () => Promise.resolve({ data: rows[0] ?? null, error: null });
-    self.single = () => Promise.resolve({ data: rows[0] ?? null, error: null });
-    self.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
-      resolve({ data: rows, error: null });
+    self.maybeSingle = () => Promise.resolve({ data: rows[0] ?? null, error });
+    self.single = () => Promise.resolve({ data: rows[0] ?? null, error });
+    self.then = (resolve: (v: { data: unknown[]; error: { message: string } | null }) => unknown) =>
+      resolve({ data: rows, error });
     return self;
   };
   return {
-    from: (table: string) => builder(tables[table] ?? []),
+    from: (table: string) => builder(tables[table] ?? [], table === "vehicles" ? (opts.queryError ?? null) : null),
     rpc: () => Promise.resolve({ data: null, error: opts.rpcError ?? null }),
   } as unknown as SupabaseClient;
 }
@@ -139,6 +139,12 @@ describe("changeEquipment / endShift", () => {
 });
 
 describe("getEquipmentPickList", () => {
+  it("surfaces fleet query failures instead of returning an empty picker", async () => {
+    await expect(
+      getEquipmentPickList(stubAdmin({ queryError: { message: "vehicles table unavailable" } }), ORG, DRIVER),
+    ).rejects.toThrow("Could not load fleet vehicles: vehicles table unavailable");
+  });
+
   const admin = stubAdmin({
     tables: {
       vehicles: [

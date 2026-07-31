@@ -68,6 +68,17 @@ export default tseslint.config(
     },
   },
   {
+    // Keep type-aware parsing anchored to the monorepo root so nested app tsconfigs do not produce
+    // ambiguous project-root errors in IDE ESLint integrations.
+    files: ["apps/api/**/*.ts", "apps/admin-api/**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
     files: ["**/*.mjs", "scripts/**/*.js"],
     languageOptions: {
       globals: { process: "readonly", console: "readonly", URL: "readonly", Buffer: "readonly" },

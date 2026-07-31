@@ -86,6 +86,10 @@ export async function getEquipmentPickList(
       .eq("seat", "driver"),
   ]);
 
+  if (vehicles.error) throw new Error(`Could not load fleet vehicles: ${vehicles.error.message}`);
+  if (trailers.error) throw new Error(`Could not load fleet trailers: ${trailers.error.message}`);
+  if (held.error) throw new Error(`Could not load active equipment assignments: ${held.error.message}`);
+
   type HeldRow = {
     vehicle_id: string | null;
     trailer_id: string | null;
