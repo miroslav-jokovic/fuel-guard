@@ -166,7 +166,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
 | **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Calculator + Load Workspace + cargo-tank CRUD built & audited; remaining: per-compartment inputs — blocked on engine H2; e2e run in seeded CI.)* |
-| **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(Deterministic core — resolveHmtLine + BolFields + mapper + cross-validation — built + tested; vision/OpenCV/orchestrator wiring pending.)* |
+| **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(Full photo→verdict pipeline built + tested — resolveHmtLine, BolFields, mapper, cross-validation, image gate, dual-pass vision, orchestrator, route dispatch; only a live key + photo corpus remain to run/tune.)* |
 | **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
 | **H9** ☐ Securement & placard-photo verification | Truck photo vs computed placards + checklist | H2, H6 | Photo of placarded truck → match/mismatch against required set. |
@@ -373,12 +373,36 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   count×per-package, line-sum-vs-total, page completeness — and `reconcileDeclaredVsExtracted` at the
   canonical-`hmtRef` level with a 2% quantity tolerance). `flashPointF`/`ethanolPct` stay `null` (the
   `fuelProducts.json` overlay is still pending, H1) exactly as the manual path leaves them.
-- PENDING in H6 (needs API keys / real photos / OpenCV — will be built to the 07 discipline but can only be
-  RUN in a real env): image normalization (OpenCV, `imageNormalizerVersion`), the usability gate, the pinned
-  dual-pass vision (`HAZMAT_MODEL_A/B`, Zod-structured `BolFields`, temp 0, content-hash cache + token
-  budget + kill-switch), and the orchestrator's extraction branch that calls the pure battery above and
-  feeds the H6 outcome table (the manual outcome rows already exist; extraction adds rows 1–4 + the
-  auto-clear boundary). The entire deterministic core those AI passes depend on is now built + verified.
+- **Image pipeline shipped** (`image.ts`, 5 tests on synthetic images via real `sharp`): `normalizeImage`
+  (EXIF auto-orient + illumination normalize + gentle median denoise — CONSERVATIVE, no binarize/superres/
+  sharpen; `IMAGE_NORMALIZER_VERSION`) and `usabilityGate` (resolution floor, variance-of-Laplacian blur,
+  glare fraction) — a bad page is rejected for recapture BEFORE any model call. (`sharp`/libvips, not
+  OpenCV — chosen because it installs reliably with prebuilt binaries; the one OpenCV-only step, quadrilateral
+  perspective de-warp, is a bounded yield-only follow-up: it improves capture yield, NOT correctness, and the
+  usability gate + dual-pass + cross-validation already carry the safety.)
+- **Vision dual-pass shipped** (`vision.ts`): pinned `HAZMAT_MODEL_A/B` (env, added to `EnvSchema`), a FORCED
+  `report_bol_fields` tool so output is structured, **temperature 0**, two independently-worded
+  untrusted-data prompts (prompt-injection discipline, 07 §8), strict Zod validation on receipt
+  (`HAZMAT_EXTRACTION_PROMPT_VERSION`). The extractor is an INJECTED interface, so the whole pipeline is
+  testable with a fake — only the live Claude call needs a key.
+- **Extraction pipeline + outcome table + orchestrator shipped** (`extract.ts` / `outcome.ts` /
+  `orchestrate.ts`, 12 tests incl. the fail-closed "no model call on a bad page", dual-pass disagreement,
+  `lines_unconfirmed`, and the outcome-table green/flagged boundary against the REAL engine). `runExtraction`
+  wires usability → dual-pass → `checkAgreement`/`checkArithmetic` → `resolveHmtLine`-backed `mapBolLines` →
+  declared-vs-extracted reconcile → engine lines. `computeExtractionFlags` is the H6 outcome table, sharing
+  the manual path's `computeManualFlags` so both paths fail closed identically (nothing auto-clears while
+  eligibility is `not_checked`, D2). `startExtractionAnalysis` mirrors the manual orchestrator: entitlement
+  re-check, kill-switch (`policy.extractionEnabled`), per-org monthly token budget (`withinBudget`),
+  content-hash cache (normalized bytes + models + prompt/normalizer versions), signed-URL download → normalize
+  → base64, run + `hazmat_runs` write + state-machine transition; `extraction_failed` on any model/decoding
+  error. The `/analyze` route now DISPATCHES to the photo path when the load has a BOL document + the
+  kill-switch is on, else the manual path — identical outcome table either way.
+- REMAINING in H6 — only the parts that inherently need a live environment, NOT missing code: a real
+  `ANTHROPIC_API_KEY` + a real BOL-photo corpus to exercise the live vision call end-to-end and tune the
+  blur/glare/confidence thresholds (the plan already scopes the corpus harness to H11/a seeded env), and the
+  optional OpenCV perspective de-warp (yield, not correctness). Every deterministic seam is built + tested
+  (62 hazmat tests across `@hazmat/data` + `apps/api`); the code path from photo → verdict is complete and
+  typechecks — it runs as soon as a key + images are present.
 
 **Not yet started (code):** H7 review queue, H8 policy, H9 securement, H10 driver capture,
 H11 shadow, H12 product. (H2 also owes the capacity/compartment engine rules that the cargo-tank profiles
@@ -1237,7 +1261,7 @@ features/ boundary, packages/ui, Tailwind templates, Playwright config all exist
 
 ---
 
-## Phase H6 🟨 IN PROGRESS (the full DETERMINISTIC core — resolveHmtLine + BolFields + mapper + cross-validation — built + tested 2026-07-31; vision/OpenCV/orchestrator wiring pending) — Extraction service (photo → validated BolFields)
+## Phase H6 🟨 CODE-COMPLETE (full photo→verdict pipeline — resolveHmtLine + BolFields + mapper + cross-validation + image gate + dual-pass vision + orchestrator + route dispatch — built + tested 2026-07-31; only a live key + photo corpus remain to RUN it) — Extraction service (photo → validated BolFields)
 
 **Objective.** The only AI in the system, wrapped in enough independent checks that a wrong read
 cannot silently pass (D1/D2).

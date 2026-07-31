@@ -30,6 +30,7 @@ import {
   getPolicy, putPolicy, recordReview, clearLoad, type ServiceError,
 } from "../../services/hazmatLoads.js";
 import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
+import { startExtractionAnalysis } from "../../services/hazmatExtraction/orchestrate.js";
 import { searchProducts } from "../../services/hazmatProducts.js";
 import { listProfiles, createProfile, updateProfile, deleteProfile } from "../../services/hazmatProfiles.js";
 
@@ -161,9 +162,13 @@ export function hazmatRouter(): Router {
     res.json({ status: result.to });
   }));
 
-  // ── analysis (in-process manual path — 202 + runId, executes async) ──────────
+  // ── analysis (in-process — 202 + runId, executes async) ──────────────────────
+  // Dispatches to the PHOTO path (H6 extraction) when the load carries a BOL document and the extraction
+  // kill-switch is on; otherwise the MANUAL path (H4). Either way the outcome table + fail-closed rules are
+  // identical — extraction just fills the fields a human would otherwise type.
   router.post("/loads/:id/analyze", canManage, asyncHandler(async (req: Request, res: Response) => {
-    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const env = getAppLocals(req).env;
+    const admin = getSupabaseAdmin(env);
     const loadId = param(req, "id");
     const { data: load } = await admin.from("hazmat_loads").select("status").eq("org_id", orgOf(req)).eq("id", loadId).maybeSingle();
     if (!load) { res.status(404).json(apiError("not_found", "Load not found.")); return; }
@@ -172,8 +177,13 @@ export function hazmatRouter(): Router {
       res.status(409).json(apiError("illegal_transition", `Analysis runs from a submitted load; this load is "${status}".`));
       return;
     }
-    const { runId } = startManualAnalysis(admin, orgOf(req), loadId);
-    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_analyzed", entity: "hazmat_loads", entityId: loadId, meta: { runId } });
+    const { count } = await admin.from("hazmat_documents").select("id", { count: "exact", head: true })
+      .eq("org_id", orgOf(req)).eq("load_id", loadId).eq("kind", "bol");
+    const { data: pol } = await admin.from("hazmat_policies").select("policy").eq("org_id", orgOf(req)).maybeSingle();
+    const extractionEnabled = ((pol as { policy?: { extractionEnabled?: boolean } } | null)?.policy?.extractionEnabled) !== false;
+    const usePhoto = (count ?? 0) > 0 && extractionEnabled;
+    const { runId } = usePhoto ? startExtractionAnalysis(admin, orgOf(req), loadId, env) : startManualAnalysis(admin, orgOf(req), loadId);
+    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_analyzed", entity: "hazmat_loads", entityId: loadId, meta: { runId, path: usePhoto ? "extraction" : "manual" } });
     const response: HazmatAnalyzeResponse = { runId };
     res.status(202).json(response);
   }));

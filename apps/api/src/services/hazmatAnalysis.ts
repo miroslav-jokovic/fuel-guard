@@ -38,6 +38,7 @@ export interface CargoTankProfileRow {
 
 export function buildManualLoadInput(
   load: ManualLoadRow, profile: CargoTankProfileRow | null, dataset: Dataset, evaluatedAt: string,
+  linesOverride?: unknown[],
 ): LoadInput {
   return {
     evaluatedAt,
@@ -47,7 +48,7 @@ export function buildManualLoadInput(
       compartments: (profile?.compartments as LoadInput["vehicle"]["compartments"]) ?? null,
     },
     tankState: load.tank_state,
-    lines: load.declared_lines,
+    lines: linesOverride ?? load.declared_lines,
     claimedExceptions: {
       shipperClaimsNoPlacards: load.claimed_no_placards,
       claimedSpecialPermits: load.special_permit_numbers ?? [],
@@ -114,18 +115,20 @@ function release(): void {
 const LOAD_COLUMNS_FOR_ANALYSIS =
   "declared_lines, tank_state, carrier_relationship, claimed_no_placards, special_permit_numbers, vehicle_id, trailer_id";
 
-async function insertRun(
+/** Insert a run row. `models` carries per-pass model+token usage for extraction runs (null for manual). */
+export async function insertHazmatRun(
   admin: SupabaseClient, runId: string, orgId: string, loadId: string,
   engineVersion: string, datasetVersion: string, verdict: unknown, outcome: "green" | "flagged",
-  flags: string[], inputHash: string,
+  flags: string[], inputHash: string, models: unknown = null,
 ): Promise<void> {
   const { error } = await admin.from("hazmat_runs").insert({
     id: runId, org_id: orgId, load_id: loadId,
     engine_version: engineVersion, dataset_version: datasetVersion,
-    verdict, outcome, flags, models: null, input_hash: inputHash,
+    verdict, outcome, flags, models, input_hash: inputHash,
   });
   if (error) console.error(`[hazmat] run insert failed for ${runId}: ${error.message}`);
 }
+const insertRun = insertHazmatRun;
 
 /** The async body — runs under the semaphore, records a run + transitions the load. Never throws out. */
 async function runManualAnalysis(

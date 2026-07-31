@@ -15,6 +15,7 @@ export type Provenance = "extracted" | "declared" | "dataset_default";
 export interface DeclaredLineRef {
   hmtRef: string;
   reclassedCombustible?: boolean;
+  quantityValue?: number | null;
 }
 
 export interface MappedLine {

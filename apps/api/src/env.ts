@@ -24,6 +24,12 @@ const EnvSchema = z.object({
   // Phase 5.5 (Anthropic).
   ANTHROPIC_API_KEY: z.string().optional(),
 
+  // HazmatGuard extraction (plan H6, D10). Vision models are PINNED in env (not the shipped AI layer's
+  // in-code strings) because a verdict must record the exact model id on every run for reproducibility.
+  // Pass A = a Sonnet-class vision model; Pass B = a Haiku-class model (independent-prompt cross-read).
+  HAZMAT_MODEL_A: z.string().default("claude-sonnet-4-6"),
+  HAZMAT_MODEL_B: z.string().default("claude-haiku-4-5"),
+
   // Samsara telematics (docs/10). Per-org tokens live in integration_credentials; this env var is a
   // single-tenant fallback. SAMSARA_API_URL lets tests point elsewhere.
   SAMSARA_API_TOKEN: z.string().optional(),
