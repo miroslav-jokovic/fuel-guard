@@ -1,0 +1,53 @@
+{
+  "hmt": {
+    "source": "govinfo",
+    "collectionCode": "CFR",
+    "cfrTitle": 49,
+    "section": "172.101",
+    "packageId": "CFR-2025-title49-vol2",
+    "granuleId": "CFR-2025-title49-vol2-sec172-101",
+    "editionYear": 2025,
+    "volume": 2,
+    "dateIssued": "2025-10-01",
+    "lastModified": "2026-07-27T18:46:21Z",
+    "pdfLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec172-101/pdf",
+    "xmlLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec172-101/xml",
+    "modsLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec172-101/mods",
+    "detailsLink": "https://www.govinfo.gov/app/details/CFR-2025-title49-vol2/CFR-2025-title49-vol2-sec172-101",
+    "resolvedBy": "direct"
+  },
+  "placardTables": {
+    "source": "govinfo",
+    "collectionCode": "CFR",
+    "cfrTitle": 49,
+    "section": "172.504",
+    "packageId": "CFR-2025-title49-vol2",
+    "granuleId": "CFR-2025-title49-vol2-sec172-504",
+    "editionYear": 2025,
+    "volume": 2,
+    "dateIssued": "2025-10-01",
+    "lastModified": "2026-07-27T18:46:21Z",
+    "pdfLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec172-504/pdf",
+    "xmlLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec172-504/xml",
+    "modsLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec172-504/mods",
+    "detailsLink": "https://www.govinfo.gov/app/details/CFR-2025-title49-vol2/CFR-2025-title49-vol2-sec172-504",
+    "resolvedBy": "direct"
+  },
+  "segregation": {
+    "source": "govinfo",
+    "collectionCode": "CFR",
+    "cfrTitle": 49,
+    "section": "177.848",
+    "packageId": "CFR-2025-title49-vol2",
+    "granuleId": "CFR-2025-title49-vol2-sec177-848",
+    "editionYear": 2025,
+    "volume": 2,
+    "dateIssued": "2025-10-01",
+    "lastModified": "2026-07-27T18:46:21Z",
+    "pdfLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec177-848/pdf",
+    "xmlLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec177-848/xml",
+    "modsLink": "https://api.govinfo.gov/packages/CFR-2025-title49-vol2/granules/CFR-2025-title49-vol2-sec177-848/mods",
+    "detailsLink": "https://www.govinfo.gov/app/details/CFR-2025-title49-vol2/CFR-2025-title49-vol2-sec177-848",
+    "resolvedBy": "direct"
+  }
+}

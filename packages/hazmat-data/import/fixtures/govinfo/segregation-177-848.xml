@@ -1,0 +1,704 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="cfr.xsl"?>
+<CFRGRANULE xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="CFRMergedXML.xsd">
+    <FDSYS>
+        <CFRTITLE>49</CFRTITLE>
+        <CFRTITLETEXT>Transportation</CFRTITLETEXT>
+        <VOL>2</VOL>
+        <DATE>2025-10-01</DATE>
+        <COVERONLY>false</COVERONLY>
+        <ORIGINALDATE>2025-10-01</ORIGINALDATE>
+        <TITLE>Editorial Note:</TITLE>
+        <ANCESTORS>
+            <PARENT HEADING="Title 49" SEQ="5">Transportation</PARENT>
+            <PARENT HEADING="Subtitle B" SEQ="4">Other Regulations Relating to Transportation</PARENT>
+            <PARENT HEADING="CHAPTER I" SEQ="3">PIPELINE AND HAZARDOUS MATERIALS SAFETY ADMINISTRATION, DEPARTMENT OF TRANSPORTATION</PARENT>
+            <PARENT HEADING="SUBCHAPTER C" SEQ="2">HAZARDOUS MATERIALS REGULATIONS</PARENT>
+            <PARENT HEADING="PART 177" SEQ="1">CARRIAGE BY PUBLIC HIGHWAY</PARENT>
+            <PARENT HEADING="Subpart C" SEQ="0">Segregation and Separation Chart of Hazardous Materials</PARENT>
+        </ANCESTORS>
+    </FDSYS>
+    <SECTION>
+        <SECTNO>§ 177.848</SECTNO>
+        <SUBJECT>Segregation of hazardous materials.</SUBJECT>
+        <P>(a) This section applies to materials which meet one or more of the hazard classes defined in this subchapter and are:</P>
+        <P>
+            (1) In packages that must be labeled or placarded in accordance with part 172 of this subchapter;
+            <PRTPAGE P="957"/>
+        </P>
+        <P>(2) In a compartment within a multi-compartmented cargo tank subject to the restrictions in § 173.33 of this subchapter; or</P>
+        <P>(3) In a portable tank loaded in a transport vehicle or freight container.</P>
+        <P>(b) When a transport vehicle is to be transported by vessel, other than a ferry vessel, hazardous materials on or within that vehicle must be stowed and segregated in accordance with § 176.83(b) of this subchapter.</P>
+        <P>(c) In addition to the provisions of paragraph (d) of this section and except as provided in § 173.12(e) of this subchapter, cyanides, cyanide mixtures or solutions may not be stored, loaded and transported with acids if a mixture of the materials would generate hydrogen cyanide; Division 4.2 materials may not be stored, loaded and transported with Class 8 liquids; and Division 6.1 Packing Group I, Hazard Zone A material may not be stored, loaded and transported with Class 3 material, Class 8 liquids, and Division 4.1, 4.2, 4.3, 5.1 or 5.2 materials.</P>
+        <P>
+            (d) Except as otherwise provided in this subchapter, hazardous materials must be stored, loaded or transported in accordance with the following table and other provisions of this section:
+            <PRTPAGE P="958"/>
+        </P>
+        <GPOTABLE COLS="21" OPTS="L2" CDEF="s25n,6,xls24,xls12,xls12,xls12,xls12,xls12,xls12,xls12,xls24,xls24,xls12,xls12,xls12,xls12,xls12,xls12,xls24,xls12,xls24">
+            <TTITLE>Segregation Table for Hazardous Materials</TTITLE>
+            <BOXHD>
+                <CHED H="1">Class or division</CHED>
+                <CHED H="1"> </CHED>
+                <CHED H="1">Notes</CHED>
+                <CHED H="1">1.1 1.2</CHED>
+                <CHED H="1">1.3</CHED>
+                <CHED H="1">1.4</CHED>
+                <CHED H="1">1.5</CHED>
+                <CHED H="1">1.6</CHED>
+                <CHED H="1">2.1</CHED>
+                <CHED H="1">2.2</CHED>
+                <CHED H="1">2.3 gas zone A</CHED>
+                <CHED H="1">2.3 gas Zone B</CHED>
+                <CHED H="1">3</CHED>
+                <CHED H="1">4.1</CHED>
+                <CHED H="1">4.2</CHED>
+                <CHED H="1">4.3</CHED>
+                <CHED H="1">5.1</CHED>
+                <CHED H="1">5.2</CHED>
+                <CHED H="1">6.1 liquids PG I zone A</CHED>
+                <CHED H="1">7</CHED>
+                <CHED H="1">8 liquids only</CHED>
+            </BOXHD>
+            <ROW>
+                <ENT I="01">Explosives</ENT>
+                <ENT>1.1 and 1.2</ENT>
+                <ENT>A</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Explosives</ENT>
+                <ENT>1.3</ENT>
+                <ENT> </ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Explosives</ENT>
+                <ENT>1.4</ENT>
+                <ENT> </ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Very insensitive explosives</ENT>
+                <ENT>1.5</ENT>
+                <ENT>A</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Extremely insensitive explosives</ENT>
+                <ENT>1.6</ENT>
+                <ENT> </ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+                <ENT>*</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Flammable gases</ENT>
+                <ENT>2.1</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Non-toxic, non-flammable gases</ENT>
+                <ENT>2.2</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Poisonous gas Zone A</ENT>
+                <ENT>2.3</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Poisonous gas Zone B</ENT>
+                <ENT>2.3</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Flammable liquids</ENT>
+                <ENT>3</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Flammable solids</ENT>
+                <ENT>4.1</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Spontaneously combustible materials</ENT>
+                <ENT>4.2</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Dangerous when wet materials</ENT>
+                <ENT>4.3</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Oxidizers</ENT>
+                <ENT>5.1</ENT>
+                <ENT>A</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Organic peroxides</ENT>
+                <ENT>5.2</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Poisonous liquids PG I Zone A</ENT>
+                <ENT>6.1</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Radioactive materials</ENT>
+                <ENT>7</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">Corrosive liquids</ENT>
+                <ENT>8</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT> </ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT>O</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT/>
+            </ROW>
+        </GPOTABLE>
+        <PRTPAGE P="959"/>
+        <P>(e) lnstructions for using the segregation table for hazardous materials are as follows:</P>
+        <P>(1) The absence of any hazard class or division or a blank space in the table indicates that no restrictions apply.</P>
+        <P>(2) The letter “X” in the table indicates that these materials may not be loaded, transported, or stored together in the same transport vehicle or storage facility during the course of transportation.</P>
+        <P>(3) The letter “O” in the table indicates that these materials may not be loaded, transported, or stored together in the same transport vehicle or storage facility during the course of transportation unless separated in a manner that, in the event of leakage from packages under conditions normally incident to transportation, commingling of hazardous materials would not occur. Notwithstanding the methods of separation employed, Class 8 (corrosive) liquids may not be loaded above or adjacent to Class 4 (flammable) or Class 5 (oxidizing) materials; except that shippers may load truckload shipments of such materials together when it is known that the mixture of contents would not cause a fire or a dangerous evolution of heat or gas.</P>
+        <P>(4) The “*” in the table indicates that segregation among different Class 1 (explosive) materials is governed by the compatibility table in paragraph (f) of this section.</P>
+        <P>(5) The note “A” in the second column of the table means that, notwithstanding the requirements of the letter “X”, ammonium nitrate (UN1942) and ammonium nitrate fertilizer may be loaded or stored with Division 1.1 (explosive) or Division 1.5 materials, unless otherwise prohibited by § 177.835(c).</P>
+        <P>(6) When the § 172.101 table or § 172.402 of this subchapter requires a package to bear a subsidiary hazard label, segregation appropriate to the subsidiary hazard must be applied when that segregation is more restrictive than that required by the primary hazard. However, hazardous materials of the same class may be stored together without regard to segregation required for any secondary hazard if the materials are not capable of reacting dangerously with each other and causing combustion or dangerous evolution of heat, evolution of flammable, poisonous, or asphyxiant gases, or formation of corrosive or unstable materials.</P>
+        <P>(f) Class 1 (explosive) materials shall not be loaded, transported, or stored together, except as provided in this section, and in accordance with the following table:</P>
+        <GPOTABLE COLS="14" OPTS="L2" CDEF="s40,4,4,4,4,4,4,4,4,4,4,4,4,4">
+            <TTITLE>Compatibility Table For Class 1 (Explosive) Materials</TTITLE>
+            <BOXHD>
+                <CHED H="1">Compatibility group</CHED>
+                <CHED H="1">A</CHED>
+                <CHED H="1">B</CHED>
+                <CHED H="1">C</CHED>
+                <CHED H="1">D</CHED>
+                <CHED H="1">E</CHED>
+                <CHED H="1">F</CHED>
+                <CHED H="1">G</CHED>
+                <CHED H="1">H</CHED>
+                <CHED H="1">J</CHED>
+                <CHED H="1">K</CHED>
+                <CHED H="1">L</CHED>
+                <CHED H="1">N</CHED>
+                <CHED H="1">S</CHED>
+            </BOXHD>
+            <ROW>
+                <ENT I="01">A</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">B</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>
+                    X
+                    <E T="52">(4)</E>
+                </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">C</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>2</ENT>
+                <ENT>2</ENT>
+                <ENT>X</ENT>
+                <ENT>6</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>3</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">D</ENT>
+                <ENT>X</ENT>
+                <ENT>
+                    X
+                    <E T="52">(4)</E>
+                </ENT>
+                <ENT>2</ENT>
+                <ENT> </ENT>
+                <ENT>2</ENT>
+                <ENT>X</ENT>
+                <ENT>6</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>3</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">E</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>2</ENT>
+                <ENT>2</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>6</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>3</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">F</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">G</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>6</ENT>
+                <ENT>6</ENT>
+                <ENT>6</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">H</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">J</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">K</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">L</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>1</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">N</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>3</ENT>
+                <ENT>3</ENT>
+                <ENT>3</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT>X</ENT>
+                <ENT> </ENT>
+                <ENT>4/5</ENT>
+            </ROW>
+            <ROW>
+                <ENT I="01">S</ENT>
+                <ENT>X</ENT>
+                <ENT>4/5</ENT>
+                <ENT>4/5</ENT>
+                <ENT>4/5</ENT>
+                <ENT>4/5</ENT>
+                <ENT>4/5</ENT>
+                <ENT>4/5</ENT>
+                <ENT>4/5</ENT>
+                <ENT>4/5</ENT>
+                <ENT>4/5</ENT>
+                <ENT>X</ENT>
+                <ENT>4/5</ENT>
+                <ENT> </ENT>
+            </ROW>
+        </GPOTABLE>
+        <P>(g) Instructions for using the compatibility table for Class 1 (explosive) materials are as follows:</P>
+        <P>(1) A blank space in the table indicates that no restrictions apply.</P>
+        <P>(2) The letter “X” in the table indicates that explosives of different compatibility groups may not be carried on the same transport vehicle.</P>
+        <P>(3) The numbers in the table mean the following:</P>
+        <P>(i) “1” means an explosive from compatibility group L shall only be carried on the same transport vehicle with an identical explosive.</P>
+        <P>
+            (ii) “2” means any combination of explosives from compatibility groups C, 
+            <PRTPAGE P="960"/>
+            D, or E is assigned to compatibility group E.
+        </P>
+        <P>(iii) “3” means any combination of explosives from compatibility groups C, D, or E with those in compatibility group N is assigned to compatibility group D.</P>
+        <P>(iv) “4” means see § 177.835(g) when transporting detonators.</P>
+        <P>(v) “5” means Division 1.4S fireworks may not be loaded on the same transport vehicle with Division 1.1 or 1.2 (explosive) materials.</P>
+        <P>(vi) “6” means explosive articles in compatibility group G, other than fireworks and those requiring special handling, may be loaded, transported and stored with other explosive articles of compatibility groups C, D and E, provided that explosive substances (such as those not contained in articles) are not carried in the same transport vehicle.</P>
+        <P>(h) Except as provided in paragraph (i) of this section, explosives of the same compatibility group but of different divisions may be transported together provided that the whole shipment is transported as though its entire contents were of the lower numerical division (i.e., Division 1.1 being lower than Division 1.2). For example, a mixed shipment of Division 1.2 (explosive) materials and Division 1.4 (explosive) materials, both of compatibility group D, must be transported as Division 1.2 (explosive) materials.</P>
+        <P>(i) When Division 1.5 materials, compatibility group D, are transported in the same freight container as Division 1.2 (explosive) materials, compatibility group D, the shipment must be transported as Division 1.1 (explosive) materials, compatibility group D.</P>
+        <CITA>[Amdt. 177-78, 55 FR 52712, Dec. 21, 1990]</CITA>
+        <EDNOTE>
+            <HD SOURCE="HED">Editorial Note:</HD>
+            <P>
+                For 
+                <E T="04">Federal Register</E>
+                 citations affecting § 177.848, see the List of CFR Sections Affected, which appears in the Finding Aids section of the printed volume and at 
+                <E T="03">www.govinfo.gov.</E>
+            </P>
+        </EDNOTE>
+    </SECTION>
+</CFRGRANULE>

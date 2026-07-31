@@ -1,0 +1,5523 @@
+{
+  "ecfr_corrections": [
+    {
+      "id": 61,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.315",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "G",
+            "section": "173.315"
+          }
+        }
+      ],
+      "corrective_action": "(i)(8) revised",
+      "error_corrected": "2005-12-08",
+      "error_occurred": "2001-06-21",
+      "fr_citation": "66 FR 33436",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2005,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 62,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 192.614",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "192",
+            "subpart": "L",
+            "section": "192.614"
+          }
+        }
+      ],
+      "corrective_action": "(c)(5) corrected",
+      "error_corrected": "2005-09-30",
+      "error_occurred": "1998-07-20",
+      "fr_citation": "63 FR 38758",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2005,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 63,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 541.3",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "541",
+            "section": "541.3"
+          }
+        }
+      ],
+      "corrective_action": "Amendments at 69 FR 17960 and 69 FR 31612 reinstated",
+      "error_corrected": "2005-06-01",
+      "error_occurred": "2005-05-19",
+      "fr_citation": "70 FR 28843",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2005,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 64,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 543.3",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "543",
+            "section": "543.3"
+          }
+        }
+      ],
+      "corrective_action": "Amendments at 69 FR 17960 reinstated",
+      "error_corrected": "2005-06-01",
+      "error_occurred": "2005-05-19",
+      "fr_citation": "70 FR 28843",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2005,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 65,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 543.5",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "543",
+            "section": "543.5"
+          }
+        }
+      ],
+      "corrective_action": "Amendments at 69 FR 17960 reinstated",
+      "error_corrected": "2005-06-01",
+      "error_occurred": "2005-05-19",
+      "fr_citation": "70 FR 28843",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2005,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 66,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.111",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.111"
+          }
+        }
+      ],
+      "corrective_action": "S9.2 and S9.3 revised",
+      "error_corrected": "2005-12-12",
+      "error_occurred": "2004-04-08",
+      "fr_citation": "68 FR 18497",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2005,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 67,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 1572",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "XII",
+            "subchapter": "D",
+            "part": "1572"
+          }
+        }
+      ],
+      "corrective_action": "Authority citation revised",
+      "error_corrected": "2005-10-04",
+      "error_occurred": "2005-01-31",
+      "fr_citation": "70 FR 2558",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2005,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 201,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 107",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "A",
+            "part": "107"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 54390 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 54390",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 202,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 107.801",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "A",
+            "part": "107",
+            "subpart": "I",
+            "section": "107.801"
+          }
+        }
+      ],
+      "corrective_action": "(a) revised",
+      "error_corrected": "2006-09-25",
+      "error_occurred": "2006-09-11",
+      "fr_citation": "71 FR 33874",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 203,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 171",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "171"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 32256 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 32256",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 204,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 171",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "171"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 54390 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 54390",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 205,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 172",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 14601 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 14601",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 206,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 172",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 32256 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 32256",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 207,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 172",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 54391 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 54391",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 208,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.102",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.102"
+          }
+        }
+      ],
+      "corrective_action": "(c)(2) amended",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 56895",
+      "position": 8,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 209,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 173",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 14602 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 14602",
+      "position": 9,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 210,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 173",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 32258 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 32258",
+      "position": 10,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 211,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 173",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 54395 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 54395",
+      "position": 11,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 212,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.153",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "D",
+            "section": "173.153"
+          }
+        }
+      ],
+      "corrective_action": "(b) introductory text revised",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 54938",
+      "position": 12,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 213,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.302",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "G",
+            "section": "173.302"
+          }
+        }
+      ],
+      "corrective_action": "(d) amended",
+      "error_corrected": "2006-12-18",
+      "error_occurred": "2005-08-12",
+      "fr_citation": "70 FR 34075",
+      "position": 13,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 214,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 175",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "175"
+          }
+        }
+      ],
+      "corrective_action": "Revised",
+      "error_corrected": "2006-10-02",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 14604",
+      "position": 14,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 215,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 175",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "175"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 32263 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 32263",
+      "position": 15,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 216,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 175",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "175"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 54395 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 54395",
+      "position": 16,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 217,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 177",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "177"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 54397 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 54397",
+      "position": 17,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 218,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 180",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180"
+          }
+        }
+      ],
+      "corrective_action": "Superseded regulations at 71 FR 54397 removed",
+      "error_corrected": "2006-10-10",
+      "error_occurred": "2006-10-01",
+      "fr_citation": "71 FR 54397",
+      "position": 18,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 219,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 192",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "192"
+          }
+        }
+      ],
+      "corrective_action": "Nomenclature change",
+      "error_corrected": "2006-10-11",
+      "error_occurred": "2006-07-10",
+      "fr_citation": "71 FR 33406",
+      "position": 19,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 220,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 192",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "192"
+          }
+        }
+      ],
+      "corrective_action": "Subpart O heading revised",
+      "error_corrected": "2006-10-11",
+      "error_occurred": "2006-07-10",
+      "fr_citation": "71 FR 33408",
+      "position": 20,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 221,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 193",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "193"
+          }
+        }
+      ],
+      "corrective_action": "Nomenclature change",
+      "error_corrected": "2006-10-11",
+      "error_occurred": "2006-07-10",
+      "fr_citation": "71 FR 33408",
+      "position": 21,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 222,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 195",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "195"
+          }
+        }
+      ],
+      "corrective_action": "Nomenclature change",
+      "error_corrected": "2006-10-11",
+      "error_occurred": "2006-07-10",
+      "fr_citation": "71 FR 33409",
+      "position": 22,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 223,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 213.241",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "213",
+            "subpart": "F",
+            "section": "213.241"
+          }
+        }
+      ],
+      "corrective_action": "(b) revised",
+      "error_corrected": "2006-10-01",
+      "error_occurred": "2005-12-02",
+      "fr_citation": "71 FR 66298",
+      "position": 23,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 224,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 234",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "234"
+          }
+        }
+      ],
+      "corrective_action": "Authority citation revised",
+      "error_corrected": "2006-04-13",
+      "error_occurred": "2004-06-28",
+      "fr_citation": "69 FR 30595",
+      "position": 24,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 225,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.101"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2006-10-23",
+      "error_occurred": "2006-09-01",
+      "fr_citation": "71 FR 27971",
+      "position": 25,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2006,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 348,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 40.209",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "A",
+            "part": "40",
+            "subpart": "I",
+            "section": "40.209"
+          }
+        }
+      ],
+      "corrective_action": "Heading revised",
+      "error_corrected": "2007-09-25",
+      "error_occurred": "2001-08-01",
+      "fr_citation": "66 FR 51954",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 349,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 71.5",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "A",
+            "part": "71",
+            "section": "71.5"
+          }
+        }
+      ],
+      "corrective_action": "(b) revised",
+      "error_corrected": "2007-10-09",
+      "error_occurred": "2007-03-11",
+      "fr_citation": "72 FR 6177",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 350,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Table amended",
+      "error_corrected": "2007-10-11",
+      "error_occurred": "2007-10-01",
+      "fr_citation": "72 FR 55684",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 351,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.150",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "D",
+            "section": "173.150"
+          }
+        }
+      ],
+      "corrective_action": "(d)(2) revised",
+      "error_corrected": "2007-10-11",
+      "error_occurred": "2007-10-01",
+      "fr_citation": "72 FR 55692",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 352,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 192.227",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "192",
+            "subpart": "E",
+            "section": "192.227"
+          }
+        }
+      ],
+      "corrective_action": "(a) revised",
+      "error_corrected": "2007-07-24",
+      "error_occurred": "2007-02-01",
+      "fr_citation": "72 FR 4656",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 353,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 209.105",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "209",
+            "subpart": "B",
+            "subject_group": "ECFR360309aaa2377e5",
+            "section": "209.105"
+          }
+        }
+      ],
+      "corrective_action": "(c) amended",
+      "error_corrected": "2007-10-01",
+      "error_occurred": "2006-12-26",
+      "fr_citation": "71 FR77295",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 354,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 238",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "238"
+          }
+        }
+      ],
+      "corrective_action": "App. A amended",
+      "error_corrected": "2007-10-01",
+      "error_occurred": "2006-12-18",
+      "fr_citation": "71 FR 61863",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 355,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 375.401",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "375",
+            "subpart": "D",
+            "section": "375.401"
+          }
+        }
+      ],
+      "corrective_action": "(e) revised",
+      "error_corrected": "2007-10-16",
+      "error_occurred": "2007-09-04",
+      "fr_citation": "72 FR 36772",
+      "position": 8,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 356,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 386",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386"
+          }
+        }
+      ],
+      "corrective_action": "App. A amended",
+      "error_corrected": "2007-09-28",
+      "error_occurred": "2005-11-14",
+      "fr_citation": "70 FR 28486",
+      "position": 9,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 357,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 386",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386"
+          }
+        }
+      ],
+      "corrective_action": "App. B amended",
+      "error_corrected": "2007-10-10",
+      "error_occurred": "2007-09-28",
+      "fr_citation": "72 FR 55102",
+      "position": 10,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 358,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.101"
+          }
+        }
+      ],
+      "corrective_action": "Table 2 reinstated",
+      "error_corrected": "2007-10-19",
+      "error_occurred": "2007-06-05",
+      "fr_citation": "72 FR 17305",
+      "position": 11,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2007,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 578,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Table amended",
+      "error_corrected": "2008-03-12",
+      "error_occurred": "2008-01-01",
+      "fr_citation": "72 FR 44948",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2008,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 579,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Table amended",
+      "error_corrected": "2008-11-10",
+      "error_occurred": "2008-10-01",
+      "fr_citation": "73 FR 57008",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2008,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 580,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 593",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "593"
+          }
+        }
+      ],
+      "corrective_action": "App. A revised",
+      "error_corrected": "2008-02-20",
+      "error_occurred": "2007-09-27",
+      "fr_citation": "72 FR 54849",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2008,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 581,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 594.9",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "594",
+            "section": "594.9"
+          }
+        }
+      ],
+      "corrective_action": "(c) revised",
+      "error_corrected": "2008-12-08",
+      "error_occurred": "2008-10-01",
+      "fr_citation": "73 FR 54986",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2008,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 582,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 1507.3",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "XII",
+            "subchapter": "A",
+            "part": "1507",
+            "section": "1507.3"
+          }
+        }
+      ],
+      "corrective_action": "(k) added",
+      "error_corrected": "2008-09-24",
+      "error_occurred": "2007-12-10",
+      "fr_citation": "72 FR 63709",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2008,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 777,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Table amended",
+      "error_corrected": "2009-07-06",
+      "error_occurred": "2009-02-13",
+      "fr_citation": "74 FR 2233",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 778,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Table amended",
+      "error_corrected": "2009-10-27",
+      "error_occurred": "2009-02-13",
+      "fr_citation": "74 FR 2235",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 779,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.115",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "D",
+            "section": "173.115"
+          }
+        }
+      ],
+      "corrective_action": "(k) added",
+      "error_corrected": "2009-05-28",
+      "error_occurred": "2009-02-13",
+      "fr_citation": "74 FR 2256",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 780,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 215",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "215"
+          }
+        }
+      ],
+      "corrective_action": "App. B corrected",
+      "error_corrected": "2009-12-03",
+      "error_occurred": "2009-03-02",
+      "fr_citation": "73 FR 79701",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 781,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 232",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "232"
+          }
+        }
+      ],
+      "corrective_action": "App. A corrected",
+      "error_corrected": "2009-12-03",
+      "error_occurred": "2008-12-15",
+      "fr_citation": "73 FR 61556",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 782,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 232",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "232"
+          }
+        }
+      ],
+      "corrective_action": "App. A corrected",
+      "error_corrected": "2009-12-03",
+      "error_occurred": "2009-03-02",
+      "fr_citation": "73 FR 79703",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 783,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 234",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "234"
+          }
+        }
+      ],
+      "corrective_action": "Footnote 1 amended",
+      "error_corrected": "2009-10-16",
+      "error_occurred": "2009-03-02",
+      "fr_citation": "73 FR 79704",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 784,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 239.11",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "239",
+            "subpart": "A",
+            "section": "239.11"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2009-12-03",
+      "error_occurred": "2009-03-02",
+      "fr_citation": "73 FR 79704",
+      "position": 8,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 785,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.73",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "E",
+            "section": "383.73"
+          }
+        }
+      ],
+      "corrective_action": "(j) added",
+      "error_corrected": "2009-09-17",
+      "error_occurred": "2009-01-30",
+      "fr_citation": "73 FR 73124",
+      "position": 9,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 786,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 385.405",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385",
+            "subpart": "E",
+            "section": "385.405"
+          }
+        }
+      ],
+      "corrective_action": "(a) revised",
+      "error_corrected": "2009-12-02",
+      "error_occurred": "2009-02-17",
+      "fr_citation": "73 FR 76491",
+      "position": 10,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 787,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.11",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "B",
+            "section": "393.11"
+          }
+        }
+      ],
+      "corrective_action": "(d) removed; Table 1 heading revised",
+      "error_corrected": "2009-09-15",
+      "error_occurred": "2007-07-11",
+      "fr_citation": "72 FR 32014",
+      "position": 11,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 788,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 451.1",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "IV",
+            "subchapter": "B",
+            "part": "451",
+            "subpart": "A",
+            "section": "451.1"
+          }
+        }
+      ],
+      "corrective_action": "(a) amended",
+      "error_corrected": "2009-12-16",
+      "error_occurred": "2009-09-25",
+      "fr_citation": "74 FR 49241",
+      "position": 12,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 789,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 452.7",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "IV",
+            "subchapter": "B",
+            "part": "452",
+            "section": "452.7"
+          }
+        }
+      ],
+      "corrective_action": "(a) amended",
+      "error_corrected": "2009-12-16",
+      "error_occurred": "2009-09-25",
+      "fr_citation": "74 FR 49241",
+      "position": 13,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 790,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 952.204-73",
+          "hierarchy": {
+            "title": "49",
+            "section": "952.204-73"
+          }
+        }
+      ],
+      "corrective_action": "(f) corrected",
+      "error_corrected": "2009-12-01",
+      "error_occurred": "2009-08-21",
+      "fr_citation": "74 FR 36378",
+      "position": 14,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 791,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 970.1706-1",
+          "hierarchy": {
+            "title": "49",
+            "section": "970.1706-1"
+          }
+        }
+      ],
+      "corrective_action": "(c) corrected",
+      "error_corrected": "2009-12-01",
+      "error_occurred": "2009-08-21",
+      "fr_citation": "74 FR 36378",
+      "position": 15,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 792,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 970.3204-1",
+          "hierarchy": {
+            "title": "49",
+            "section": "970.3204-1"
+          }
+        }
+      ],
+      "corrective_action": "(a) corrected",
+      "error_corrected": "2009-12-01",
+      "error_occurred": "2009-08-21",
+      "fr_citation": "74 FR 36373",
+      "position": 16,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2009,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 925,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 39",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "A",
+            "part": "39"
+          }
+        }
+      ],
+      "corrective_action": "Stayed until 1-3-2011",
+      "error_corrected": "2010-11-09",
+      "error_occurred": "2010-11-08",
+      "fr_citation": "75 FR 68467",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2010,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 926,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 39.39",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "A",
+            "part": "39",
+            "subpart": "B",
+            "section": "39.39"
+          }
+        }
+      ],
+      "corrective_action": "Stayed until 1-3-2012",
+      "error_corrected": "2010-11-09",
+      "error_occurred": "2010-11-08",
+      "fr_citation": "75 FR 68467",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2010,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 927,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 213.15",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "213",
+            "subpart": "A",
+            "section": "213.15"
+          }
+        }
+      ],
+      "corrective_action": "(a) amended",
+      "error_corrected": "2010-01-13",
+      "error_occurred": "2009-03-02",
+      "fr_citation": "73 FR 79701",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2010,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 928,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 236",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "236"
+          }
+        }
+      ],
+      "corrective_action": "App. A amended",
+      "error_corrected": "2010-01-13",
+      "error_occurred": "2009-03-02",
+      "fr_citation": "73 FR 79704",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2010,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 929,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 238",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "238"
+          }
+        }
+      ],
+      "corrective_action": "App. F added",
+      "error_corrected": "2010-09-09",
+      "error_occurred": "2010-03-09",
+      "fr_citation": "75 FR 1230",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2010,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1081,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 26.51",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "A",
+            "part": "26",
+            "subpart": "C",
+            "section": "26.51"
+          }
+        }
+      ],
+      "corrective_action": "(f)(1) revised",
+      "error_corrected": "2011-12-22",
+      "error_occurred": "2011-02-28",
+      "fr_citation": "76 FR 5098",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2011,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1082,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 40.97",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "A",
+            "part": "40",
+            "subpart": "F",
+            "section": "40.97"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2011-04-01",
+      "error_occurred": "2010-10-01",
+      "fr_citation": "75 FR 59107",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2011,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1083,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 178.35",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "178",
+            "subpart": "C",
+            "section": "178.35"
+          }
+        }
+      ],
+      "corrective_action": "(h) removed",
+      "error_corrected": "2011-12-20",
+      "error_occurred": "2011-08-19",
+      "fr_citation": "76 FR 43531",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2011,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1084,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.202a",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.202a"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2011-11-17",
+      "error_occurred": "2011-01-03",
+      "fr_citation": "75 FR 67246",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2011,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1243,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 385.11",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385",
+            "subpart": "A",
+            "section": "385.11"
+          }
+        }
+      ],
+      "corrective_action": "(g) removed",
+      "error_corrected": "2012-09-26",
+      "error_occurred": "2012-05-14",
+      "fr_citation": "77 FR 28450",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2012,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1244,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 535.4",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "535",
+            "section": "535.4"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2012-12-14",
+      "error_occurred": "2012-11-14",
+      "fr_citation": "76 FR 65971",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2012,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1245,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 535.6",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "535",
+            "section": "535.6"
+          }
+        }
+      ],
+      "corrective_action": "(a)(4)(ii) and (c)(4)(ii) revised",
+      "error_corrected": "2012-12-14",
+      "error_occurred": "2012-11-14",
+      "fr_citation": "76 FR 59922",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2012,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1246,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.403",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.403"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2012-08-01",
+      "error_occurred": "2012-02-06",
+      "fr_citation": "77 FR 769",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2012,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1397,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 171.7",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "171",
+            "subpart": "A",
+            "section": "171.7"
+          }
+        }
+      ],
+      "corrective_action": "(dd)(2) revised",
+      "error_corrected": "2013-11-01",
+      "error_occurred": "2013-10-31",
+      "fr_citation": "78 FR 65468",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1398,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 171.8",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "171",
+            "subpart": "A",
+            "section": "171.8"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2013-11-18",
+      "error_occurred": "2013-10-31",
+      "fr_citation": "78 FR 65468",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1399,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Table amended",
+      "error_corrected": "2013-07-29",
+      "error_occurred": "2013-05-10",
+      "fr_citation": "78 FR 15322",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1400,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 214",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "214"
+          }
+        }
+      ],
+      "corrective_action": "Authority citation reinstated",
+      "error_corrected": "2013-05-31",
+      "error_occurred": "2012-07-01",
+      "fr_citation": "76 FR 74614",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1401,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 214.4",
+          "hierarchy": {
+            "title": "49",
+            "section": "214.4"
+          }
+        }
+      ],
+      "corrective_action": "Reinstated",
+      "error_corrected": "2013-05-31",
+      "error_occurred": "2012-07-01",
+      "fr_citation": "76 FR 74614",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1402,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 214.7",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "214",
+            "subpart": "A",
+            "section": "214.7"
+          }
+        }
+      ],
+      "corrective_action": "Introductory text removed",
+      "error_corrected": "2013-05-31",
+      "error_occurred": "2012-07-01",
+      "fr_citation": "76 FR 74614",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1403,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 214.315",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "214",
+            "subpart": "C",
+            "section": "214.315"
+          }
+        }
+      ],
+      "corrective_action": "(a) revised",
+      "error_corrected": "2013-05-31",
+      "error_occurred": "2012-07-01",
+      "fr_citation": "76 FR 74614",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1404,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 214.335",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "214",
+            "subpart": "C",
+            "section": "214.335"
+          }
+        }
+      ],
+      "corrective_action": "(c) reinstated",
+      "error_corrected": "2013-05-31",
+      "error_occurred": "2012-07-01",
+      "fr_citation": "76 FR 74614",
+      "position": 8,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1405,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 214.336",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "214",
+            "subpart": "C",
+            "section": "214.336"
+          }
+        }
+      ],
+      "corrective_action": "Removed",
+      "error_corrected": "2013-05-31",
+      "error_occurred": "2012-07-01",
+      "fr_citation": "76 FR 74615",
+      "position": 9,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1406,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 214",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "214"
+          }
+        }
+      ],
+      "corrective_action": "App. A corrected",
+      "error_corrected": "2013-05-31",
+      "error_occurred": "2012-07-01",
+      "fr_citation": "76 FR 74615",
+      "position": 10,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1407,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 372.117",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "372",
+            "subpart": "A",
+            "section": "372.117"
+          }
+        }
+      ],
+      "corrective_action": "(a) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58478",
+      "position": 11,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1408,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.3",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "A",
+            "section": "383.3"
+          }
+        }
+      ],
+      "corrective_action": "2nd (f)(3)(i)(A) removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58479",
+      "position": 12,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1409,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.51",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "D",
+            "section": "383.51"
+          }
+        }
+      ],
+      "corrective_action": "(c) table corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58479",
+      "position": 13,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1410,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.53",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "D",
+            "section": "383.53"
+          }
+        }
+      ],
+      "corrective_action": "(b)(2) and (c) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58480",
+      "position": 14,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1411,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.71",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "E",
+            "section": "383.71"
+          }
+        }
+      ],
+      "corrective_action": "(a)(1) introductory text, (2) introductory text, (b)(1) introductory text, (g) and (h) introductory text corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58480",
+      "position": 15,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1412,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.73",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "E",
+            "section": "383.73"
+          }
+        }
+      ],
+      "corrective_action": "(a)(1), (2) introductory text, (vii), (b)(3)(v), (5), (c)(8), (d)(8), (e)(6), (o)(1)(i), (4)(ii) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58480",
+      "position": 16,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1413,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.153",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "J",
+            "section": "383.153"
+          }
+        }
+      ],
+      "corrective_action": "(g) and (h) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58480",
+      "position": 17,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1414,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 384.206",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "384",
+            "subpart": "B",
+            "section": "384.206"
+          }
+        }
+      ],
+      "corrective_action": "(a)(1)(ii) and (2)(iii) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58480",
+      "position": 18,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1415,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 384.216",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "384",
+            "subpart": "B",
+            "section": "384.216"
+          }
+        }
+      ],
+      "corrective_action": "(b) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58480",
+      "position": 19,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1416,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 384.223",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "384",
+            "subpart": "B",
+            "section": "384.223"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58480",
+      "position": 20,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1417,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 384.225",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "384",
+            "subpart": "B",
+            "section": "384.225"
+          }
+        }
+      ],
+      "corrective_action": "(a)(2)(i) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58480",
+      "position": 21,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1418,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 384.226",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "384",
+            "subpart": "B",
+            "section": "384.226"
+          }
+        }
+      ],
+      "corrective_action": "2nd (a) removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 22,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1419,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 384.309",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "384",
+            "subpart": "C",
+            "section": "384.309"
+          }
+        }
+      ],
+      "corrective_action": "(a)(2) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 23,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1420,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 384.403",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "384",
+            "subpart": "D",
+            "section": "384.403"
+          }
+        }
+      ],
+      "corrective_action": "(a) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 24,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1421,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 385",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385"
+          }
+        }
+      ],
+      "corrective_action": "Authority citation revised",
+      "error_corrected": "2013-09-16",
+      "error_occurred": "2013-09-13",
+      "fr_citation": "76 FR 74615",
+      "position": 25,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1422,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 385.3",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385",
+            "subpart": "A",
+            "section": "385.3"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 26,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1423,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 385.4",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385",
+            "subpart": "A",
+            "section": "385.4"
+          }
+        }
+      ],
+      "corrective_action": "(b)(1)  revised",
+      "error_corrected": "2013-09-16",
+      "error_occurred": "2013-09-13",
+      "fr_citation": "76 FR 74615",
+      "position": 27,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1424,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 385.4",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385",
+            "subpart": "A",
+            "section": "385.4"
+          }
+        }
+      ],
+      "corrective_action": "(a) corrected; 2nd (b) introductory text removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 28,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1425,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 385.407",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385",
+            "subpart": "E",
+            "section": "385.407"
+          }
+        }
+      ],
+      "corrective_action": "2nd (c) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 29,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1426,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 385.421",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385",
+            "subpart": "E",
+            "section": "385.421"
+          }
+        }
+      ],
+      "corrective_action": "(a)(9) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 30,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1427,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.2",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "A",
+            "section": "386.2"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 31,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1428,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.7",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "A",
+            "section": "386.7"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 32,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1429,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.8",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "A",
+            "section": "386.8"
+          }
+        }
+      ],
+      "corrective_action": "(c)(2) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 33,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1430,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.11",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "B",
+            "section": "386.11"
+          }
+        }
+      ],
+      "corrective_action": "(a) introductory text, (b) introductory text and (3) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 34,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1431,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.13",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "B",
+            "section": "386.13"
+          }
+        }
+      ],
+      "corrective_action": "2nd (a)(5) removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 35,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1432,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.48",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "D",
+            "section": "386.48"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 36,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1433,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.73",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "F",
+            "section": "386.73"
+          }
+        }
+      ],
+      "corrective_action": "(g)(8)(iii) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 37,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1434,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.83",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "G",
+            "section": "386.83"
+          }
+        }
+      ],
+      "corrective_action": "2nd (c) removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58481",
+      "position": 38,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1435,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 387.5",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "387",
+            "subpart": "A",
+            "section": "387.5"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58482",
+      "position": 39,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1436,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 387.29",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "387",
+            "subpart": "B",
+            "section": "387.29"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58482",
+      "position": 40,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1437,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 387.307",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "387",
+            "subpart": "C",
+            "section": "387.307"
+          }
+        }
+      ],
+      "corrective_action": "(d)(1) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58482",
+      "position": 41,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1438,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 387.315",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "387",
+            "subpart": "C",
+            "section": "387.315"
+          }
+        }
+      ],
+      "corrective_action": "(a), (b) and (c) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58482",
+      "position": 42,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1439,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 387.409",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "387",
+            "subpart": "D",
+            "section": "387.409"
+          }
+        }
+      ],
+      "corrective_action": "(a), (b) and (c) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58482",
+      "position": 43,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1440,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 390.21",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "390",
+            "subpart": "B",
+            "section": "390.21"
+          }
+        }
+      ],
+      "corrective_action": "(g)(4)(i)(A)(i) and (iii) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58482",
+      "position": 44,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1441,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 390.40",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "390",
+            "subpart": "C",
+            "section": "390.40"
+          }
+        }
+      ],
+      "corrective_action": "(f) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58482",
+      "position": 45,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1442,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 390.47",
+          "hierarchy": {
+            "title": "49",
+            "section": "390.47"
+          }
+        }
+      ],
+      "corrective_action": "(c), (d)(1), (2) and (f) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58483",
+      "position": 46,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1443,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 391.65",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "391",
+            "subpart": "G",
+            "section": "391.65"
+          }
+        }
+      ],
+      "corrective_action": "2nd (a) introductory text, (1), (2) introductory text, (i), (iii) and (vii) removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58483",
+      "position": 47,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1444,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.3",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "A",
+            "section": "393.3"
+          }
+        }
+      ],
+      "corrective_action": "2nd section removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 48,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1445,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.11",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "B",
+            "section": "393.11"
+          }
+        }
+      ],
+      "corrective_action": "(c) table corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 49,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1446,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.63",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "D",
+            "section": "393.63"
+          }
+        }
+      ],
+      "corrective_action": "(a)(2), (3) and (c)(9) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 50,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1447,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.71",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "F",
+            "section": "393.71"
+          }
+        }
+      ],
+      "corrective_action": "(h)(7) corrected; authority citation removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 51,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1448,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.77",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "G",
+            "section": "393.77"
+          }
+        }
+      ],
+      "corrective_action": "(c) correctly designated",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 52,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1449,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.95",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "H",
+            "section": "393.95"
+          }
+        }
+      ],
+      "corrective_action": "(j) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 53,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1450,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.118",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "I",
+            "subject_group": "ECFR4edbddd531bf160",
+            "section": "393.118"
+          }
+        }
+      ],
+      "corrective_action": "(d)(3)(iv)(B)(2)(i) corrected; (e) correctly designated",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 54,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1451,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.120",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "I",
+            "subject_group": "ECFR4edbddd531bf160",
+            "section": "393.120"
+          }
+        }
+      ],
+      "corrective_action": "(b)(1)(iv) and (d)(3)(iv) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 55,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1452,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.124",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "I",
+            "subject_group": "ECFR4edbddd531bf160",
+            "section": "393.124"
+          }
+        }
+      ],
+      "corrective_action": "(e) correctly designated",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 56,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1453,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 393.203",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "393",
+            "subpart": "J",
+            "section": "393.203"
+          }
+        }
+      ],
+      "corrective_action": "(a) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 57,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1454,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 395.1",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "395",
+            "subpart": "A",
+            "section": "395.1"
+          }
+        }
+      ],
+      "corrective_action": "2nd (g)(1)(i)(B) and (C) removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58484",
+      "position": 58,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1455,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 397.65",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "397",
+            "subpart": "C",
+            "section": "397.65"
+          }
+        }
+      ],
+      "corrective_action": "Corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58485",
+      "position": 59,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1456,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 397.67",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "397",
+            "subpart": "C",
+            "section": "397.67"
+          }
+        }
+      ],
+      "corrective_action": "(b) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58485",
+      "position": 60,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1457,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 397.71",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "397",
+            "subpart": "C",
+            "section": "397.71"
+          }
+        }
+      ],
+      "corrective_action": "(b)(2)(ii) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58485",
+      "position": 61,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1458,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 397.73",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "397",
+            "subpart": "C",
+            "section": "397.73"
+          }
+        }
+      ],
+      "corrective_action": "(a) and (b) corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58485",
+      "position": 62,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1459,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 397.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "397",
+            "subpart": "D",
+            "section": "397.101"
+          }
+        }
+      ],
+      "corrective_action": "(d) introductory text corrected; (g) removed",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58485",
+      "position": 63,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1460,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 397.201",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "397",
+            "subpart": "E",
+            "section": "397.201"
+          }
+        }
+      ],
+      "corrective_action": "(c) corrected",
+      "error_corrected": "2013-09-27",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58486",
+      "position": 64,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1461,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 397.213",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "397",
+            "subpart": "E",
+            "section": "397.213"
+          }
+        }
+      ],
+      "corrective_action": "(b)(4) corrected",
+      "error_corrected": "2013-09-27",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58486",
+      "position": 65,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1462,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Chapter III",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III"
+          }
+        }
+      ],
+      "corrective_action": "Subch. B, App. G. corrected",
+      "error_corrected": "2013-11-07",
+      "error_occurred": "2013-09-24",
+      "fr_citation": "78 FR 58485",
+      "position": 66,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2013,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1593,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Table amended",
+      "error_corrected": "2014-10-17",
+      "error_occurred": "2013-10-31",
+      "fr_citation": "78 FR 65469",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2014,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1594,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.6",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "A",
+            "section": "173.6"
+          }
+        }
+      ],
+      "corrective_action": "(a)(6) amended",
+      "error_corrected": "2014-10-20",
+      "error_occurred": "2013-10-31",
+      "fr_citation": "78 FR 65478",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2014,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1595,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.22",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "B",
+            "section": "173.22"
+          }
+        }
+      ],
+      "corrective_action": "(b) reinstated",
+      "error_corrected": "2014-02-10",
+      "error_occurred": "2013-10-31",
+      "fr_citation": "78 FR 65478",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2014,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1596,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.150",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "D",
+            "section": "173.150"
+          }
+        }
+      ],
+      "corrective_action": "(d)(1)(ii) and (iii) corrected",
+      "error_corrected": "2014-03-26",
+      "error_occurred": "2013-10-31",
+      "fr_citation": "78 FR 65481",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2014,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1597,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.150",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "D",
+            "section": "173.150"
+          }
+        }
+      ],
+      "corrective_action": "(d)(2)(ii),(iii) revised",
+      "error_corrected": "2014-03-26",
+      "error_occurred": "2013-10-31",
+      "fr_citation": "78 FR 65481",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2014,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1598,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 579.22",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "579",
+            "subpart": "C",
+            "section": "579.22"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2014-08-19",
+      "error_occurred": "2014-07-28",
+      "fr_citation": "79 FR 43671",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2014,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1599,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 579.22",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "579",
+            "subpart": "C",
+            "section": "579.22"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2014-08-19",
+      "error_occurred": "2014-08-14",
+      "fr_citation": "79 FR 47591",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2014,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1817,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.415",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "I",
+            "section": "173.415"
+          }
+        }
+      ],
+      "corrective_action": "(d) correctly revised",
+      "error_corrected": "2015-05-12",
+      "error_occurred": "2015-01-08",
+      "fr_citation": "80 FR 1163",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2015,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1818,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 178.71",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "178",
+            "subpart": "C",
+            "section": "178.71"
+          }
+        }
+      ],
+      "corrective_action": "(g)(3) revised",
+      "error_corrected": "2015-11-27",
+      "error_occurred": "2015-01-01",
+      "fr_citation": "80 FR 1166",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2015,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1819,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 225",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "225"
+          }
+        }
+      ],
+      "corrective_action": "Authority citation revised",
+      "error_corrected": "2015-05-18",
+      "error_occurred": "2014-12-24",
+      "fr_citation": "79 FR 77399",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2015,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1820,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 389.25",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "389",
+            "subpart": "B",
+            "section": "389.25"
+          }
+        }
+      ],
+      "corrective_action": "Duplicate removed",
+      "error_corrected": "2015-05-13",
+      "error_occurred": null,
+      "fr_citation": "N/A",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2015,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1821,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 391.2",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "391",
+            "subpart": "A",
+            "section": "391.2"
+          }
+        }
+      ],
+      "corrective_action": "(a) introductory text, (b) and (c) corrected",
+      "error_corrected": "2015-11-12",
+      "error_occurred": "2015-08-14",
+      "fr_citation": "80 FR 48765",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2015,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1822,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.101"
+          }
+        }
+      ],
+      "corrective_action": "Table 2 reinstated",
+      "error_corrected": "2015-09-01",
+      "error_occurred": "2015-08-23",
+      "fr_citation": "80 FR 36100",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2015,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1965,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.306",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "G",
+            "section": "173.306"
+          }
+        }
+      ],
+      "corrective_action": "(k)(1) revised",
+      "error_corrected": "2016-07-11",
+      "error_occurred": "2016-07-05",
+      "fr_citation": "81 FR 35542",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2016,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1966,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 209",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "209"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2016-09-20",
+      "error_occurred": "2016-08-01",
+      "fr_citation": "81 FR 43108",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2016,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1967,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 214",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "214"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2016-09-20",
+      "error_occurred": "2016-08-01",
+      "fr_citation": "81 FR 43109",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2016,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1968,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 386",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2016-10-20",
+      "error_occurred": "2016-08-01",
+      "fr_citation": "81 FR 41463",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2016,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1969,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 501",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "501"
+          }
+        }
+      ],
+      "corrective_action": "Reinstated",
+      "error_corrected": "2016-02-05",
+      "error_occurred": "2016-02-04",
+      "fr_citation": "81 FR 5938",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2016,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 1970,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 1242.87",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "X",
+            "subchapter": "C",
+            "part": "1242",
+            "subject_group": "ECFR8990c7177072e63",
+            "section": "1242.87"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2016-11-04",
+      "error_occurred": "2016-03-25",
+      "fr_citation": "81 FR 8856",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2016,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2233,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 11",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "A",
+            "part": "11"
+          }
+        }
+      ],
+      "corrective_action": "Revised",
+      "error_corrected": "2017-01-25",
+      "error_occurred": "2017-01-19",
+      "fr_citation": "82 FR 7274",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2234,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Table (HAZMAT Table) amended",
+      "error_corrected": "2017-07-10",
+      "error_occurred": "2017-03-30",
+      "fr_citation": "82 FR 15838",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2235,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 190",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "190"
+          }
+        }
+      ],
+      "corrective_action": "Authority citation revised",
+      "error_corrected": "2017-12-06",
+      "error_occurred": "2016-10-14",
+      "fr_citation": "81 FR 70981",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2236,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 195.446",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "195",
+            "subpart": "F",
+            "section": "195.446"
+          }
+        }
+      ],
+      "corrective_action": "(i) and (j) reinstated",
+      "error_corrected": "2017-05-31",
+      "error_occurred": "2017-03-24",
+      "fr_citation": "82 FR 7999",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2237,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 243.7",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "243",
+            "subpart": "A",
+            "section": "243.7"
+          }
+        }
+      ],
+      "corrective_action": "(a) corrected",
+      "error_corrected": "2017-03-30",
+      "error_occurred": "2016-08-01",
+      "fr_citation": "81 FR 43113",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2238,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 270",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "270"
+          }
+        }
+      ],
+      "corrective_action": "Effective date note corrected and resotred",
+      "error_corrected": "2017-06-07",
+      "error_occurred": "2017-05-22",
+      "fr_citation": "82 FR 23150",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2239,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 350.206",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "350",
+            "subpart": "B",
+            "section": "350.206"
+          }
+        }
+      ],
+      "corrective_action": "Added",
+      "error_corrected": "2017-12-06",
+      "error_occurred": "2016-10-14",
+      "fr_citation": "81 FR 71002",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2240,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 360.3T",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "360",
+            "section": "360.3T"
+          }
+        }
+      ],
+      "corrective_action": "Second section removed",
+      "error_corrected": "2017-01-17",
+      "error_occurred": "2017-01-17",
+      "fr_citation": "82 FR 5298",
+      "position": 8,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2241,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 360.5T",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "360",
+            "section": "360.5T"
+          }
+        }
+      ],
+      "corrective_action": "Added",
+      "error_corrected": "2017-01-17",
+      "error_occurred": "2017-01-17",
+      "fr_citation": "82 FR 5298",
+      "position": 9,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2242,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 365.105",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "365",
+            "subpart": "A",
+            "section": "365.105"
+          }
+        }
+      ],
+      "corrective_action": "(b) revised",
+      "error_corrected": "2017-12-06",
+      "error_occurred": "2017-01-14",
+      "fr_citation": "81 FR 68344",
+      "position": 10,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2243,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 384.235",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "384",
+            "subpart": "B",
+            "section": "384.235"
+          }
+        }
+      ],
+      "corrective_action": "Section designation corrected",
+      "error_corrected": "2017-05-23",
+      "error_occurred": "2017-01-10",
+      "fr_citation": "81 FR 87730",
+      "position": 11,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2244,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 390",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "390"
+          }
+        }
+      ],
+      "corrective_action": "Removed",
+      "error_corrected": "2017-02-15",
+      "error_occurred": "2017-01-13",
+      "fr_citation": "81 FR 49553",
+      "position": 12,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2245,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 578",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "578"
+          }
+        }
+      ],
+      "corrective_action": "Authority citation revised",
+      "error_corrected": "2017-01-30",
+      "error_occurred": "2017-01-27",
+      "fr_citation": "81 FR 95492",
+      "position": 13,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2246,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 578.6",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "578",
+            "section": "578.6"
+          }
+        }
+      ],
+      "corrective_action": "(h) revised",
+      "error_corrected": "2017-01-30",
+      "error_occurred": "2017-01-27",
+      "fr_citation": "81 FR 95492",
+      "position": 14,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2017,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2322,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 270",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "270"
+          }
+        }
+      ],
+      "corrective_action": "Part 270 stay extended",
+      "error_corrected": "2018-12-07",
+      "error_occurred": "2018-12-04",
+      "fr_citation": "83 FR 63109",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2018,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2323,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 390.115",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "390",
+            "subpart": "D",
+            "subject_group": "ECFRb2fe09fed5cadb6",
+            "section": "390.115"
+          }
+        }
+      ],
+      "corrective_action": "(d)(1) and (2) added",
+      "error_corrected": "2018-07-03",
+      "error_occurred": "2018-06-18",
+      "fr_citation": "83 FR 22878",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2018,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2435,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.93",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "F",
+            "section": "383.93"
+          }
+        }
+      ],
+      "corrective_action": "(b)(4) corrected",
+      "error_corrected": "2019-11-01",
+      "error_occurred": "2019-10-31",
+      "fr_citation": "84 FR 52034",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2019,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 2666,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 1152.29",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "X",
+            "subchapter": "B",
+            "part": "1152",
+            "subpart": "C",
+            "section": "1152.29"
+          }
+        }
+      ],
+      "corrective_action": "(c)(1) revised; (g) amended",
+      "error_corrected": "2020-03-31",
+      "error_occurred": "2020-02-02",
+      "fr_citation": "84 FR 66326",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2020,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3650,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 180.203",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180",
+            "subpart": "C",
+            "section": "180.203"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2021-01-28",
+      "error_occurred": "2021-01-27",
+      "fr_citation": "85 FR 85432",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3651,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 180.205",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180",
+            "subpart": "C",
+            "section": "180.205"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2021-01-28",
+      "error_occurred": "2021-01-27",
+      "fr_citation": "85 FR 85432",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3652,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 180.207",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180",
+            "subpart": "C",
+            "section": "180.207"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2021-01-28",
+      "error_occurred": "2021-01-27",
+      "fr_citation": "85 FR 85434",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3653,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 180.209",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180",
+            "subpart": "C",
+            "section": "180.209"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2021-01-28",
+      "error_occurred": "2021-01-27",
+      "fr_citation": "85 FR 85434",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3654,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 180.212",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180",
+            "subpart": "C",
+            "section": "180.212"
+          }
+        }
+      ],
+      "corrective_action": "(a)(3) added",
+      "error_corrected": "2021-01-28",
+      "error_occurred": "2021-01-27",
+      "fr_citation": "85 FR 85435",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3655,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 180.213",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180",
+            "subpart": "C",
+            "section": "180.213"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2021-01-28",
+      "error_occurred": "2021-01-27",
+      "fr_citation": "85 FR 85435",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3656,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 180.215",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180",
+            "subpart": "C",
+            "section": "180.215"
+          }
+        }
+      ],
+      "corrective_action": "Amended",
+      "error_corrected": "2021-01-28",
+      "error_occurred": "2021-01-27",
+      "fr_citation": "85 FR 85436",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3657,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 380.723",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "380",
+            "subpart": "G",
+            "section": "380.723"
+          }
+        }
+      ],
+      "corrective_action": "(c) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57069",
+      "position": 8,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3658,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 382.305",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "382",
+            "subpart": "C",
+            "section": "382.305"
+          }
+        }
+      ],
+      "corrective_action": "(b)(2) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57069",
+      "position": 9,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3659,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 385.207",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "385",
+            "subpart": "C",
+            "section": "385.207"
+          }
+        }
+      ],
+      "corrective_action": "Removed undesignated non-regulatory text/signature block authority statement from the end of the section",
+      "error_corrected": "2021-08-30",
+      "error_occurred": "2021-08-27",
+      "fr_citation": "86 FR 48044",
+      "position": 10,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3660,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.73",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "F",
+            "section": "386.73"
+          }
+        }
+      ],
+      "corrective_action": "(c), (d), (f), (g), (h) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57071",
+      "position": 11,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3661,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.135",
+          "hierarchy": {
+            "title": "49",
+            "section": "386.135"
+          }
+        }
+      ],
+      "corrective_action": "(c), (d), (e), (f) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57074",
+      "position": 12,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3662,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 390.115",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "390",
+            "subpart": "D",
+            "subject_group": "ECFRb2fe09fed5cadb6",
+            "section": "390.115"
+          }
+        }
+      ],
+      "corrective_action": "(c), (d), (e), (f)  amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57074",
+      "position": 13,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3663,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 390.135",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "390",
+            "subpart": "D",
+            "subject_group": "ECFR7b908695218f593",
+            "section": "390.135"
+          }
+        }
+      ],
+      "corrective_action": "(c), (d), (e), (f) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57074",
+      "position": 14,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3664,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 391.47",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "391",
+            "subpart": "E",
+            "section": "391.47"
+          }
+        }
+      ],
+      "corrective_action": "(f) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57074",
+      "position": 15,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3665,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 396.17",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "396",
+            "section": "396.17"
+          }
+        }
+      ],
+      "corrective_action": "(g) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57077",
+      "position": 16,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3666,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 396.19",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "396",
+            "section": "396.19"
+          }
+        }
+      ],
+      "corrective_action": "(a)(1) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57077",
+      "position": 17,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3667,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 396.21",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "396",
+            "section": "396.21"
+          }
+        }
+      ],
+      "corrective_action": "(a)(5) amended",
+      "error_corrected": "2021-10-21",
+      "error_occurred": "2021-10-14",
+      "fr_citation": "86 FR 57077",
+      "position": 18,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3687,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 192.507",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "192",
+            "subpart": "J",
+            "section": "192.507"
+          }
+        }
+      ],
+      "corrective_action": "Revise paragraph (d)",
+      "error_corrected": "2021-12-15",
+      "error_occurred": "2021-03-21",
+      "fr_citation": "86 FR 12836",
+      "position": 19,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2021,
+      "last_modified": "2021-12-22"
+    },
+    {
+      "id": 3804,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 192.8",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "192",
+            "subpart": "A",
+            "section": "192.8"
+          }
+        }
+      ],
+      "corrective_action": " Paragraph (c) added\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n",
+      "error_corrected": "2022-11-03",
+      "error_occurred": "2022-05-04",
+      "fr_citation": "87 FR 26299",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2022,
+      "last_modified": "2022-11-04"
+    },
+    {
+      "id": 3731,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.108",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.108"
+          }
+        }
+      ],
+      "corrective_action": "Table XXI correctly added",
+      "error_corrected": "2022-03-22",
+      "error_occurred": "2022-02-22",
+      "fr_citation": "87 FR 10012",
+      "position": 2,
+      "display_in_toc": true,
+      "title": 49,
+      "year": 2022,
+      "last_modified": "2022-11-04"
+    },
+    {
+      "id": 4006,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 40.127",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "A",
+            "part": "40",
+            "subpart": "G",
+            "section": "40.127"
+          }
+        }
+      ],
+      "corrective_action": "(g)(2) corrected",
+      "error_corrected": "2023-11-08",
+      "error_occurred": "2023-06-01",
+      "fr_citation": "88 FR 27645",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2023,
+      "last_modified": "2023-11-09"
+    },
+    {
+      "id": 3950,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 192.714",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "D",
+            "part": "192",
+            "subpart": "M",
+            "section": "192.714"
+          }
+        }
+      ],
+      "corrective_action": "Paragraphs (b), (d)(1) introductory text, and (d)(3)(i) corrected",
+      "error_corrected": "2023-07-17",
+      "error_occurred": "2023-05-24",
+      "fr_citation": "88 FR 24712",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2023,
+      "last_modified": "2023-11-09"
+    },
+    {
+      "id": 4010,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 383.75",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "383",
+            "subpart": "E",
+            "section": "383.75"
+          }
+        }
+      ],
+      "corrective_action": "Section heading corrected",
+      "error_corrected": "2023-11-27",
+      "error_occurred": "2023-11-17",
+      "fr_citation": "88 FR 80181",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2023,
+      "last_modified": "2023-11-28"
+    },
+    {
+      "id": 4011,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 386",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386"
+          }
+        }
+      ],
+      "corrective_action": "Nomenclature change completed",
+      "error_corrected": "2023-11-27",
+      "error_occurred": "2023-11-17",
+      "fr_citation": "88 FR 80182",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2023,
+      "last_modified": "2023-11-28"
+    },
+    {
+      "id": 4202,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 171.1",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "171",
+            "subpart": "A",
+            "section": "171.1"
+          }
+        }
+      ],
+      "corrective_action": "(g) reinstated",
+      "error_corrected": "2024-09-24",
+      "error_occurred": "2023-12-28",
+      "fr_citation": "88 FR 89560",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-09-25"
+    },
+    {
+      "id": 4121,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 171.25",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "171",
+            "subpart": "C",
+            "section": "171.25"
+          }
+        }
+      ],
+      "corrective_action": "(b) restored, (c)(3), (4) revised and (c)(5) added",
+      "error_corrected": "2024-05-30",
+      "error_occurred": "2024-05-10",
+      "fr_citation": "89 FR 25471",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-09-25"
+    },
+    {
+      "id": 4117,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.101",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.101"
+          }
+        }
+      ],
+      "corrective_action": "Hazardous materials table corrected",
+      "error_corrected": "2024-05-23",
+      "error_occurred": "2024-05-10",
+      "fr_citation": "89 FR 39573",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-09-25"
+    },
+    {
+      "id": 4136,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.102",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "B",
+            "section": "172.102"
+          }
+        }
+      ],
+      "corrective_action": "(c)(1) amended",
+      "error_corrected": "2024-06-04",
+      "error_occurred": "2024-04-03",
+      "fr_citation": "89 FR 15665",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-09-25"
+    },
+    {
+      "id": 4118,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 173.225",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "173",
+            "subpart": "E",
+            "section": "173.225"
+          }
+        }
+      ],
+      "corrective_action": "Table 4 to paragraph (g) corrected",
+      "error_corrected": "2024-05-23",
+      "error_occurred": "2024-05-10",
+      "fr_citation": "89 FR 39575",
+      "position": 5,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-09-25"
+    },
+    {
+      "id": 4042,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR Part 209",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "209"
+          }
+        }
+      ],
+      "corrective_action": "Appendix B to part 209 corrected",
+      "error_corrected": "2024-02-01",
+      "error_occurred": "2023-12-28",
+      "fr_citation": "88 FR 89561",
+      "position": 6,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-09-25"
+    },
+    {
+      "id": 4240,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 229.5",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "229",
+            "subpart": "A",
+            "section": "229.5"
+          }
+        }
+      ],
+      "corrective_action": "Definition of “Event recorder” restored; incorrect second definition of “Event recorder memory module” removed",
+      "error_corrected": "2024-12-02",
+      "error_occurred": "2023-11-13",
+      "fr_citation": "88 FR 70761",
+      "position": 7,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-12-03"
+    },
+    {
+      "id": 4043,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 213.15",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "213",
+            "subpart": "A",
+            "section": "213.15"
+          }
+        }
+      ],
+      "corrective_action": "(a) corrected",
+      "error_corrected": "2024-02-01",
+      "error_occurred": "2023-12-28",
+      "fr_citation": "88 FR 89561",
+      "position": 8,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-12-03"
+    },
+    {
+      "id": 4044,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 272.11",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "II",
+            "part": "272",
+            "subpart": "A",
+            "section": "272.11"
+          }
+        }
+      ],
+      "corrective_action": "(a) corrected",
+      "error_corrected": "2024-02-01",
+      "error_occurred": "2023-12-28",
+      "fr_citation": "88 FR 89561",
+      "position": 9,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-12-03"
+    },
+    {
+      "id": 4233,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 386.12",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "386",
+            "subpart": "B",
+            "section": "386.12"
+          }
+        }
+      ],
+      "corrective_action": "(b) introductory text and (c) introductory text corrected",
+      "error_corrected": "2024-11-13",
+      "error_occurred": "2023-11-17",
+      "fr_citation": "88 FR 80182",
+      "position": 10,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2024,
+      "last_modified": "2024-12-03"
+    },
+    {
+      "id": 4389,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 172.336",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "172",
+            "subpart": "D",
+            "section": "172.336"
+          }
+        }
+      ],
+      "corrective_action": "(d) reinstated",
+      "error_corrected": "2026-03-23",
+      "error_occurred": "2026-02-13",
+      "fr_citation": "91 FR 1446",
+      "position": null,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2026,
+      "last_modified": "2026-03-24"
+    },
+    {
+      "id": 4379,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 180.209",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "I",
+            "subchapter": "C",
+            "part": "180",
+            "subpart": "C",
+            "section": "180.209"
+          }
+        }
+      ],
+      "corrective_action": "(a) duplicate table removed",
+      "error_corrected": "2026-02-18",
+      "error_occurred": "2024-04-03",
+      "fr_citation": "89 FR 15667",
+      "position": 1,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2026,
+      "last_modified": "2026-02-19"
+    },
+    {
+      "id": 4385,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 387.307T",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "III",
+            "subchapter": "B",
+            "part": "387",
+            "subpart": "C",
+            "section": "387.307T"
+          }
+        }
+      ],
+      "corrective_action": "Section removed",
+      "error_corrected": "2026-03-12",
+      "error_occurred": "2026-01-16",
+      "fr_citation": "89 FR 107021",
+      "position": 2,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2026,
+      "last_modified": "2026-03-13"
+    },
+    {
+      "id": 4380,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.217a",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.217a"
+          }
+        }
+      ],
+      "corrective_action": "S5. revised",
+      "error_corrected": "2026-02-25",
+      "error_occurred": "2026-01-15",
+      "fr_citation": "91 FR 1715",
+      "position": 3,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2026,
+      "last_modified": "2026-03-13"
+    },
+    {
+      "id": 4394,
+      "cfr_references": [
+        {
+          "cfr_reference": "49 CFR 571.208",
+          "hierarchy": {
+            "title": "49",
+            "subtitle": "B",
+            "chapter": "V",
+            "part": "571",
+            "subpart": "B",
+            "section": "571.208"
+          }
+        }
+      ],
+      "corrective_action": "S4.1.5.7.2 corrected",
+      "error_corrected": "2026-04-10",
+      "error_occurred": "2026-04-06",
+      "fr_citation": "91 FR 17158",
+      "position": 4,
+      "display_in_toc": false,
+      "title": 49,
+      "year": 2026,
+      "last_modified": "2026-04-13"
+    }
+  ]
+}
