@@ -75,6 +75,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "HazmatGuard" },
   },
   {
+    path: "/hazmat/calculator",
+    name: "hazmat-calculator",
+    component: () => import("@/pages/HazmatCalculatorPage.vue"),
+    meta: { requiresAuth: true, title: "Placard Calculator", parent: "/hazmat" },
+  },
+  {
     path: "/vehicles",
     name: "vehicles",
     component: () => import("@/pages/VehiclesPage.vue"),

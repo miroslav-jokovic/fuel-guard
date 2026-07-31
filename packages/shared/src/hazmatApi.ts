@@ -20,6 +20,42 @@ export interface HazmatCalcResponse {
   verdict: unknown;
 }
 
+// ── GET /hazmat/products — HMT product lookup for the manual pickers (plan H5) ────────────────────
+// The web app cannot import @hazmat/data (Node-only, ~2–4 MB whole-file JSON), so the picker resolves
+// products through the API. One row per (HMT entry × pg-row) so a selection yields a canonical `hmtRef`
+// directly (no second PG step in the common case). With no `q`, the curated fuel shortlist is returned
+// (D4 launch scope); with `q`, the full HMT is searched by UN/NA number, PSN, or 'or'-alternate name.
+export const hazmatProductsQuerySchema = z.object({
+  q: z.string().trim().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export type HazmatProductsQuery = z.infer<typeof hazmatProductsQuerySchema>;
+
+export interface HazmatProduct {
+  /** Canonical engine reference `${entryId}#${pg ?? 'none'}` — drop straight into a LoadInput line. */
+  hmtRef: string;
+  entryId: string;
+  idPrefix: "UN" | "NA";
+  idNumber: string;
+  /** Display id, e.g. "UN1203". */
+  idLabel: string;
+  /** Proper shipping name as printed (§172.101(c)). */
+  psn: string;
+  hazardClass: string | null;
+  subsidiaryClasses: string[];
+  pg: "I" | "II" | "III" | null;
+  symbols: string[];
+  /** Human-readable one-line label for the picker, e.g. "UN1203 · Gasoline · Class 3 · PG II". */
+  label: string;
+  /** true when this is one of the curated common-fuel rows (the no-query default set). */
+  isFuelCommon: boolean;
+}
+
+export interface HazmatProductsResponse {
+  datasetVersion: string;
+  products: HazmatProduct[];
+}
+
 // ── role sets ─────────────────────────────────────────────────────────────────
 // The `hazmat` SECTION (auth.ts) gates general management (loads CRUD, documents). Clearing + review is
 // TIGHTER — separation of duties (D6): dispatchers create loads, they do NOT clear them.

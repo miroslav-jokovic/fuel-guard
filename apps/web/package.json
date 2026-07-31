@@ -16,6 +16,8 @@
     "@floating-ui/vue": "^2.0.0",
     "@fuelguard/shared": "workspace:*",
     "@fuelguard/ui": "workspace:*",
+    "@hazmat/engine": "workspace:*",
+    "@hazmat/placards": "workspace:*",
     "@headlessui/vue": "1.7.23",
     "@hugeicons/core-free-icons": "4.2.3",
     "@hugeicons/vue": "1.0.7",

@@ -207,6 +207,12 @@ importers:
       '@fuelguard/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@hazmat/engine':
+        specifier: workspace:*
+        version: link:../../packages/hazmat-engine
+      '@hazmat/placards':
+        specifier: workspace:*
+        version: link:../../packages/hazmat-placards
       '@headlessui/vue':
         specifier: 1.7.23
         version: 1.7.23(vue@3.5.39(typescript@6.0.3))

@@ -165,7 +165,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H2** 🟨 Rules engine: placards, eligibility, segregation | The deterministic core + golden suite | H1 | Engine answers every golden scenario with citations; 100% pass. |
 | **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
-| **H5** ☐ Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. |
+| **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Placard Calculator built; Load Workspace + cargo-tank CRUD pending.)* |
 | **H6** ☐ Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. |
 | **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
@@ -283,9 +283,27 @@ awaiting Marija's scenarios).
   (the route logic is typechecked + the state-machine/orchestrator/RLS layers are tested); and an atomic
   clear (transition+review in one SECURITY DEFINER RPC).
 
-**Not yet started (code):** H5 dashboard UI (a real-engine-backed placard calculator
-*prototype* exists as a delivered artifact; the `apps/web` Vue integration is the production step),
-H6 extraction, H7 review queue, H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
+**H5 — Manual UI — IN PROGRESS (Placard Calculator slice built 2026-07-31).**
+- **Placard Calculator shipped in `apps/web`** (`/hazmat/calculator`): a real-engine-backed, stateless
+  calculator wired to `POST /api/hazmat/calc`. Feature dir `apps/web/src/features/hazmat/` — pure form
+  model + `buildCalcRequest` (`calcModel.ts`, 6 web unit tests), Vue Query composables (`useHazmatCalc.ts`),
+  `ProductPicker.vue` (debounced HMT search), `PlacardDiamond.vue` (renders the shared `@hazmat/placards`
+  art), `CitationText.vue`/`FindingRow.vue`/`VerdictPanel.vue` (placards, ID displays, substitutions,
+  prohibited, marks, ERG, eligibility, segregation, full rule trace — each with its CFR citation, G4).
+  Route + `hazmat-calculator` nav item (module-gated) + `/hazmat` turned into a hub; `HazmatPage` updated.
+- **Product-picker gap closed:** new `GET /api/hazmat/products` (`hazmatProductsQuerySchema` +
+  `HazmatProduct`/`HazmatProductsResponse` DTOs in `packages/shared/src/hazmatApi.ts`) backed by a pure
+  `searchProducts()` service (`apps/api/src/services/hazmatProducts.ts`, 8 tests vs the real dataset).
+  Curated fuel shortlist when blank; full-HMT search by UN/NA number or name when typing; exact-substring
+  only (never fuzzy — resolveHmtLine discipline). This replaces the still-pending `fuelProducts.json`
+  overlay for v1 (that overlay adds flash-point/ethanol *engine inputs* later; it is not needed to pick).
+- All touched packages typecheck; api-hazmat + web-hazmat + shared suites green; eslint/boundaries/tokens clean.
+- PENDING in H5: the **Load Workspace** (`/hazmat/loads` list/create/detail → analyze → verdict, on the
+  H4 CRUD + state machine), **cargo-tank profile CRUD** (table `hazmat_cargo_tank_profiles` exists in 0092;
+  no CRUD routes/UI yet), per-compartment quantity inputs, and the two **Playwright e2e** flows (§B.6 traps).
+
+**Not yet started (code):** H5 Load Workspace + cargo-tank CRUD (above), H6 extraction, H7 review queue,
+H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
 
 **Human-gated critical path:** (1) ✅ DONE — the dataset was flipped to non-provisional via the automated eCFR↔GovInfo triangulation (ALL CLEAN) + SME attestation (Marija Varmeda, 2026-07-31), which superseded the manual transcription route. (2) STILL OPEN — the SME answers R1–R3 + authors the independent golden acceptance scenarios (0 authored; target ≥400) → unblocks engine certification. (The engine `table1_out_of_scope_v1` fail-closed gate — previously the one open non-human item — was implemented 2026-07-31 in engine 0.7.0; the remaining H2 blocker is the human-authored golden suite.)
 
@@ -1076,11 +1094,17 @@ confirm exact name/PK in migration. *Goals:* G2 (async analyze ≤60 s), G6 (evi
 
 ---
 
-## Phase H5 ☐ — Manual UI: placard calculator + load workspace
+## Phase H5 🟨 IN PROGRESS (Placard Calculator built 2026-07-31; Load Workspace + cargo-tank CRUD pending) — Manual UI: placard calculator + load workspace
 
 **Objective.** Full product value with zero AI: dispatchers build/declare loads by hand and get
 verdicts. This hardens the engine against real use before extraction exists, and remains forever
 as the fallback path and the sales demo.
+
+> **Build note (2026-07-31): the product-picker data source was a real gap** — the calculator spec below
+> assumes a `fuelProducts.json` overlay, but that overlay is still PENDING in H1 and there was no HMT
+> lookup endpoint, so the picker had nothing to read. Closed by a new `GET /api/hazmat/products` (curated
+> fuel shortlist + full-HMT search; `searchProducts()` service + `HazmatProduct` DTO). The `fuelProducts.json`
+> overlay remains a later add — it supplies flash-point/ethanol *engine inputs*, not picker data.
 
 **Deliverables.**
 1. `features/hazmat/` pages (Tailwind UI v4 components, existing app shell):
@@ -1099,9 +1123,12 @@ as the fallback path and the sales demo.
      tier with citations, eligibility verdict, placard set, segregation warnings. Status chip per
      `hazmat_load_status`. Loads that flag anyway are **view-only until H7 ships the review
      queue** (state machine allows it; nothing can clear them — acceptable within this phase).
-2. Placard SVG library: all Table 1/Table 2 placard designs + GASOLINE/FUEL OIL wordings +
-   orange panel + white square-on-point, each parameterized by ID number. Lives in
-   `packages/ui` (it's brandable product UI, not engine).
+2. Placard SVG library: all Table 1/Table 2 placard designs + GASOLINE/FUEL OIL wordings. **SHIPPED as
+   `@hazmat/placards`** (`placardArt`/`placardSvg`/`renderPlacardSvg`, keyed to the engine `PlacardName`
+   enum) — NOT `packages/ui` as originally written: it is framework-agnostic, zero-dep art the driver app
+   (react-native-svg) reuses too, so it lives beside the engine, not in the Vue UI kit. The web wraps it in
+   a thin `PlacardDiamond.vue`. (Interim artwork for a few pictograms is `symbolProvisional`-flagged; the
+   orange-panel / white-square-on-point ID displays are rendered as instructions in `VerdictPanel.vue`.)
 3. **Cargo-tank profile CRUD** (`/hazmat/settings/equipment` or embedded in trailer/vehicle
    forms): capacity + compartment plan per trailer/straight-truck → `hazmat_cargo_tank_profiles`
    (H4). The load workspace requires a profile (or an explicit "capacity unknown" choice, which

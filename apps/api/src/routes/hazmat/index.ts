@@ -10,6 +10,7 @@ import {
   hazmatPolicyPutRequestSchema, type HazmatPolicyPutRequest,
   hazmatReviewRequestSchema, type HazmatReviewRequest,
   hazmatClearRequestSchema, type HazmatClearRequest,
+  hazmatProductsQuerySchema, type HazmatProductsResponse,
   type HazmatAnalyzeResponse,
   HAZMAT_REVIEW_ROLES,
   rolesThatCanView, rolesThatManage,
@@ -27,6 +28,7 @@ import {
   getPolicy, putPolicy, recordReview, clearLoad, type ServiceError,
 } from "../../services/hazmatLoads.js";
 import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
+import { searchProducts } from "../../services/hazmatProducts.js";
 
 /**
  * HazmatGuard API (plan H4). Mounted at `/api/hazmat/*` behind auth + the `hazmatguard` module
@@ -82,6 +84,16 @@ export function hazmatRouter(): Router {
       engineVersion: verdict.engineVersion, datasetVersion: dataset.version,
       datasetProvisional: dataset.provisional, verdict,
     };
+    res.json(response);
+  }));
+
+  // ── HMT product lookup (manual pickers — H5 calculator + load workspace) ─────
+  router.get("/products", canView, asyncHandler(async (req: Request, res: Response) => {
+    const parsed = hazmatProductsQuerySchema.safeParse(req.query);
+    if (!parsed.success) { res.status(400).json(apiError("invalid_query", parsed.error.issues[0]?.message ?? "Invalid query")); return; }
+    const dataset = loadDataset();
+    const products = searchProducts(dataset.entries, { q: parsed.data.q, limit: parsed.data.limit });
+    const response: HazmatProductsResponse = { datasetVersion: dataset.version, products };
     res.json(response);
   }));
 

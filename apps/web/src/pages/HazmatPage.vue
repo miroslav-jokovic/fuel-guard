@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import PageHeader from "@/components/ui/PageHeader.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 
 /**
- * HazmatGuard (Phase H0). An entitlement-gated placeholder that proves the module is enabled for this
- * org and reachable in the nav. The BOL pre-check, load-eligibility and placard-calculator surfaces
- * arrive with H2–H5.
+ * HazmatGuard hub. Entitlement-gated (module `hazmatguard`). The Placard Calculator (H5) is the first live
+ * surface — a manual, deterministic placard/segregation/eligibility check. The Load Workspace, extraction
+ * and review queue arrive with H5's remaining slices and H6–H7.
  */
 </script>
 
@@ -12,12 +14,28 @@ import PageHeader from "@/components/ui/PageHeader.vue";
   <div class="space-y-6">
     <PageHeader description="Bill-of-lading pre-check, load eligibility & placarding." />
 
-    <div class="rounded-lg border border-dashed border-edge bg-surface-muted/40 px-6 py-12 text-center">
-      <p class="text-sm font-medium text-ink">HazmatGuard is being built.</p>
-      <p class="mx-auto mt-1 max-w-md text-sm text-ink-muted">
-        The BOL pre-check, load-eligibility and placard-calculator surfaces arrive with Phases H2–H5.
-        This page confirms your plan includes HazmatGuard and the module is enabled for your organization.
-      </p>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <BaseCard>
+        <h2 class="text-sm font-semibold text-ink">Placard Calculator</h2>
+        <p class="mt-1 text-sm text-ink-muted">
+          Declare a load by hand and get the required placards, ID-number displays, load-compatibility
+          checks and eligibility — each with its 49 CFR citation. No photos needed.
+        </p>
+        <div class="mt-4">
+          <BaseButton variant="primary" size="sm" to="/hazmat/calculator">Open calculator</BaseButton>
+        </div>
+      </BaseCard>
+
+      <BaseCard class="opacity-70">
+        <h2 class="text-sm font-semibold text-ink">Load Workspace</h2>
+        <p class="mt-1 text-sm text-ink-muted">
+          Create and track hazmat loads, run analysis, and review findings with attestation. Arriving in a
+          later H5 slice.
+        </p>
+        <div class="mt-4">
+          <BaseButton variant="soft" size="sm" disabled>Coming soon</BaseButton>
+        </div>
+      </BaseCard>
     </div>
   </div>
 </template>
