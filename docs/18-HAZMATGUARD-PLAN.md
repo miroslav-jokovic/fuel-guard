@@ -184,7 +184,9 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 **Packages (extractable `@hazmat/*`):** `@hazmat/data` (54 files, 147 tests — done, shipping real data);
 `@hazmat/engine` (10 files, 29 tests — placards + segregation + BOL compliance done); `@hazmat/placards` (NEW, 4 files, 5 tests — DOT
 placard SVG art keyed to `PlacardName`; interim artwork, swap to official public-domain SVGs is a
-one-field change per placard).
+one-field change per placard); `@hazmat/golden` (NEW, 15 files — the SME-authorable acceptance harness:
+YAML scenario schema + runner + Vitest gate + negative control, wiring the real engine to the real dataset;
+awaiting Marija's scenarios).
 
 **H1 — Regulatory data layer — DONE (non-provisional release `2026.07.1` shipped).**
 - Schema; parsers each built against a captured real fixture + frozen test: §172.101 HMT (2,479 entries),
@@ -220,8 +222,12 @@ one-field change per placard).
 - `checkSegregation` (§177.848(d) load-compatibility grid): X→violation (blocks), O→'away from' conditional, *→special-note conditional, class 9/combustible not in grid. Done + tested against the real dataset (gasoline+ammonium-nitrate → prohibited; gasoline+oxidizer → away-from; two fuels → clean).
 - `validateBol` (H3, §172.202/172.203 shipping-paper compliance): builds the required basic description per line (ID, PSN, class, PG order; combustible-liquid reclassification per PHMSA 15-0187R) + additional-description requirements (technical name §172.203(k), Marine Pollutant, RQ with the CERCLA fuel exclusion) + load-level required elements (ER phone §172.604, certification §172.204, identification §172.201). Done + tested against the real dataset.
 - PENDING: `checkEligibility` (needs the H8 policy shape); the printed-BOL comparison + auto-clear (needs H6 BolFields); non-fuel placard classes; multi-fuel
-  lowest-flash-point ID (PHMSA 18-0023); full marine-pollutant/LQ marks; the SME-authored golden suite
-  (independent acceptance gate — the implementer does NOT author it).
+  lowest-flash-point ID (PHMSA 18-0023); full marine-pollutant/LQ marks. The golden acceptance
+  gate is now **scaffolded** (`packages/hazmat-golden`: schema + runner + Vitest gate + non-vacuous negative
+  control, verified against the real engine + `2026.07.1` dataset with 2 implementer examples); the
+  **SME-authored scenarios themselves are still pending** (independent acceptance gate — the implementer does
+  NOT author them). **First finding surfaced:** a Table-1 material computes a placard and does NOT block —
+  the D4 `table1_out_of_scope_v1` fail-closed gate is not yet implemented in the engine (H2 work).
 
 **Not yet started (code):** H4 API/storage, H5 dashboard UI (a real-engine-backed placard calculator
 *prototype* exists as a delivered artifact; the `apps/web` Vue integration is the production step),
@@ -646,8 +652,12 @@ are shorthand for the current locations; the catalog is what ships.)
 - Everything returns `trace` — the engine never answers without showing its work.
 
 **Golden test suite (the heart of the phase).**
-- Format: YAML scenario files in `packages/hazmat-engine/test/golden/` — `{ name, docRef, input, expect }` —
-  loaded by one Vitest runner. Human-readable so a hazmat-knowledgeable reviewer (not only a dev) can audit them.
+- Format: YAML scenario files (`{ name, docRef, verifiedBy, input, expect }`) loaded by one Vitest runner.
+  Human-readable so a hazmat-knowledgeable reviewer (not only a dev) can author + audit them. **Location
+  (revised 2026-07-31): `packages/hazmat-golden/scenarios/`, its own package** — NOT the engine's test dir:
+  the boundary CI forbids `@hazmat/engine` from importing `@hazmat/data`, and the golden suite legitimately
+  needs both, so it lives in a dedicated consumer package (`@hazmat/golden`). Harness built + verified; see
+  its `AUTHORING.md` for the coverage budget + independent-authorship rule.
 - Mandatory coverage with per-category budgets (minimum **400 scenarios total**; dedupe rule: the
   ~289-cell segregation grid and per-row HMT field values are already asserted cell-by-cell in H1
   fixtures — H2 does NOT re-enumerate them, it covers only *interactions*): every Table 2 row

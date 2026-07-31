@@ -1,0 +1,30 @@
+# HARNESS EXAMPLE (implementer-authored) — demonstrates the runner. NOT part of the SME acceptance
+# suite. The leading "_" marks it as an example; the gate excludes "_" files from the acceptance count.
+name: "EXAMPLE — gasoline cargo tank, bulk, placarded"
+docRef: "49 CFR 172.504 Table 2 (Class 3, ≥1,001 lb → FLAMMABLE); 172.542(c) (may read GASOLINE); 172.302 (bulk ID); ERG 2024 UN1203→Guide 128"
+description: >
+  Single-compartment cargo tank, ~8,000 gal gasoline (UN1203, Class 3, PG II), bulk. Grounded in the
+  CFR + ERG, not in engine output.
+verifiedBy: "EXAMPLE (implementer) — replace with SME-authored acceptance scenarios"
+verifiedOn: "2026-07-31"
+runBol: true
+input:
+  vehicle: { kind: cargo_tank, cargoTankCapacityGal: 9000, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 8000, unit: gal }
+      grossWeightLb: 50000
+      packagingKind: bulk
+expect:
+  eligibility: not_checked
+  placardsRequired: [FLAMMABLE]
+  optionalSubstitutions:
+    - { instead: FLAMMABLE, use: GASOLINE }
+  idDisplays: ["UN1203"]
+  ergGuides:
+    - { idNumber: "1203", guide: "128" }
+  segregationRuleIds: [segregation_none]
+  bol:
+    basicDescriptions: ["UN1203, Gasoline, 3, II"]
+    findingRuleIds: [bol_emergency_phone_required, bol_certification_required]

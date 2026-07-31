@@ -1,0 +1,26 @@
+# HARNESS EXAMPLE (implementer-authored) — demonstrates the segregation-interaction path. NOT part of
+# the SME acceptance suite.
+name: "EXAMPLE — gasoline + Division 5.1 oxidizer, segregate 'away from'"
+docRef: "49 CFR 177.848(d) — Class 3 vs Division 5.1 = 'O' (segregate 'away from', a conditional, not a prohibition)"
+description: >
+  A cargo tank carrying gasoline (UN1203, Class 3) together with an oxidizer (UN1438 Aluminum nitrate,
+  Division 5.1). Per the §177.848(d) grid, 3↔5.1 is 'O' — must be kept 'away from', a conditional that
+  does not block the load. Grounded in the CFR segregation table.
+verifiedBy: "EXAMPLE (implementer) — replace with SME-authored acceptance scenarios"
+verifiedOn: "2026-07-31"
+input:
+  vehicle: { kind: cargo_tank, cargoTankCapacityGal: 9000, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 5000, unit: gal }
+      grossWeightLb: 30000
+      packagingKind: bulk
+    - hmtRef: "UN1438-aluminum-nitrate#III"
+      quantity: { value: 10000, unit: lb }
+      grossWeightLb: 10000
+      packagingKind: bulk
+expect:
+  eligibility: not_checked
+  segregationRuleIds: [segregation_away_from]
+  absentRuleIds: [segregation_prohibited]

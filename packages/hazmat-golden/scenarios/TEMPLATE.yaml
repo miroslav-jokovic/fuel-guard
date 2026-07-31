@@ -1,0 +1,50 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GOLDEN SCENARIO TEMPLATE — copy this file to a NEW name (e.g. gasoline-999lb.yaml,
+# NOT starting with "_") and fill it in. One scenario per file. See AUTHORING.md.
+#
+# INDEPENDENT-AUTHORSHIP RULE (D11 / plan H2): the `expect` values below must be written
+# from the CFR text / doc-17 by the hazmat SME — NEVER by running the engine and pasting
+# its output, and NEVER by the engine implementer. `verifiedBy` records who authored them.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: "SHORT DESCRIPTIVE NAME"
+docRef: "49 CFR §… (and/or doc-17 §…) — the rule your expected outcome is grounded in"
+description: >
+  Plain-language description of the real-world load / case.
+verifiedBy: "Your name"          # REQUIRED — proves a human authored the expectation
+verifiedOn: "YYYY-MM-DD"
+runBol: false                    # set true to also check the `expect.bol` block below
+
+# The load being evaluated (the engine LoadInput minus `dataset` and `evaluatedAt`, which the
+# runner injects). A line needs at least: hmtRef, quantity, packagingKind.
+#   hmtRef  = "<entryId>#<PG or 'none'>", e.g. "UN1203-gasoline#II" (use the dataset entryId).
+#   units   = gal | lb | kg | L
+#   packagingKind = bulk | non_bulk
+#   vehicle.kind  = cargo_tank | van_or_flatbed
+#   tankState     = loaded | residue_uncleaned | cleaned_and_purged
+input:
+  vehicle: { kind: cargo_tank, cargoTankCapacityGal: 9000, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 8000, unit: gal }
+      grossWeightLb: 50000
+      packagingKind: bulk
+
+# What the verdict MUST show. Only include the keys you want to assert; omit the rest.
+expect:
+  eligibility: not_checked        # eligible | blocked | not_checked
+  placardsRequired: []            # e.g. [FLAMMABLE]
+  placardsProhibited: []
+  placardsAbsent: []              # placards that must NOT be required
+  optionalSubstitutions: []       # e.g. [{ instead: FLAMMABLE, use: GASOLINE }]
+  idDisplays: []                  # e.g. ["UN1203"]
+  ergGuides: []                   # e.g. [{ idNumber: "1203", guide: "128" }]
+  marks: []                       # HOT | MARINE_POLLUTANT | LIMITED_QUANTITY
+  findingRuleIds: []              # rule IDs that must appear (blocks ∪ segregation)
+  segregationRuleIds: []          # e.g. [segregation_away_from], [segregation_prohibited]
+  absentRuleIds: []               # rule IDs that must NOT appear
+  # bol:                          # only checked when runBol: true
+  #   basicDescriptions: ["UN1203, Gasoline, 3, II"]
+  #   mustContain: []
+  #   findingRuleIds: []
