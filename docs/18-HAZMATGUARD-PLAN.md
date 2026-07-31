@@ -269,10 +269,17 @@ awaiting Marija's scenarios).
   restricted to `HAZMAT_REVIEW_ROLES` (separation of duties). Pure decision logic (`computeManualFlags`,
   `manualInputHash`, `buildManualLoadInput`) unit-tested against the real engine (`hazmatAnalysis.test.ts`);
   `apps/api` typechecks clean.
-- PENDING (H4 tail, non-blocking): the reference-text endpoint (`GET /hazmat/reference/:section` from D12) and
-  the **SDK-based route contract + RLS-matrix + immutability tests** against local Supabase (the RLS policies
-  themselves are already Postgres-verified in 0092's 12-scenario functional test; this is the client-SDK
-  regression layer). An atomic clear (transition+review in one SECURITY DEFINER RPC) is a post-pilot refinement.
+- **H4 tail (done).** (a) **Reference-text endpoint** `GET /hazmat/reference/:section` (D12) — serves the
+  citation-keyed CFR text from `loadReferenceText()` for display/audit, never fed to the engine; `apps/api`
+  typechecks. (b) **RLS-matrix + immutability regression test** `supabase/tests/hazmat_rls.test.mjs` — a
+  self-contained PGlite (WASM Postgres) harness in the repo's `rls.test.mjs` style: applies 0092 + shims,
+  runs 16 scenarios AS A NON-PRIVILEGED ROLE (driver-create gating, ownership scoping, cross-org isolation,
+  dispatcher↮reviews separation of duties, reviewer-identity check, service-only run inserts, run/review
+  **immutability**, admin-only policy writes, storage org+own-load folder scoping) — **16/16 green**. Run:
+  `node supabase/tests/hazmat_rls.test.mjs` (needs `@electric-sql/pglite`, same as the existing harness).
+- PENDING (optional, post-pilot): authenticated-route contract tests via supertest + a minted-JWT harness
+  (the route logic is typechecked + the state-machine/orchestrator/RLS layers are tested); and an atomic
+  clear (transition+review in one SECURITY DEFINER RPC).
 
 **Not yet started (code):** H5 dashboard UI (a real-engine-backed placard calculator
 *prototype* exists as a delivered artifact; the `apps/web` Vue integration is the production step),
@@ -858,7 +865,7 @@ G4, D2 (conditional tiers + out-of-scope fail-closed), D4-revised (fuel depth, T
 
 ---
 
-## Phase H4 ◐ — Schema, API & storage  *(increments 1–4 done: calc + schema/RLS + loads/state-machine + orchestrator/review/clear; reference-text endpoint + SDK test matrix remain)*
+## Phase H4 ☑ — Schema, API & storage  *(done: calc + 0092 schema/RLS + loads/state-machine + orchestrator/review/clear + reference-text + RLS regression test; supertest route-contract layer optional post-pilot)*
 
 **Objective.** Persistence and transport for loads, documents, runs, verdicts, reviews — with the
 same RLS/audit discipline as the rest of the app.
