@@ -6,10 +6,12 @@ import type {
 import type { ServiceError } from "./hazmatLoads.js";
 
 /**
- * Cargo-tank profile service (plan H5). Capacity + compartment plan per truck/trailer — the producer for
- * the engine `vehicle` block (H2: capacity → 4-sided ID display; compartments → per-compartment math).
- * The analysis orchestrator reads at most ONE profile per equipment (`maybeSingle`), and the 0092 table
- * has no unique constraint, so this service enforces one-profile-per-equipment at write time.
+ * Cargo-tank profile service (plan H5). Capacity + compartment plan per truck/trailer — fed into the
+ * engine `vehicle` block by the analysis orchestrator. NOTE (verified 2026-07-31): the engine does not yet
+ * READ capacity/compartments (that is H2: capacity → ID-display threshold; compartments → per-compartment
+ * math); this captures the data + audit trail so it takes effect when that logic lands. The orchestrator
+ * reads at most ONE profile per equipment (`maybeSingle`) and 0092 has no unique index, so this service
+ * enforces one-profile-per-equipment at write time.
  */
 const err = (code: string, error: string): ServiceError => ({ error, code });
 

@@ -12,6 +12,7 @@ import ComboSelect from "@/components/ui/ComboSelect.vue";
 import ProductPicker from "@/features/hazmat/ProductPicker.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
+import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatProfiles";
 import {
   emptyLine,
   QUANTITY_UNIT_OPTIONS,
@@ -38,10 +39,15 @@ const create = useCreateHazmatLoad();
 
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
+const { data: trailers } = useHazmatTrailersQuery();
 
 const vehicleOptions = computed(() => [
   { value: "", label: "— none —" },
   ...(vehicles.value ?? []).map((v) => ({ value: v.id, label: `Unit ${v.unit_number}` })),
+]);
+const trailerOptions = computed(() => [
+  { value: "", label: "— none —" },
+  ...(trailers.value ?? []).map((t) => ({ value: t.id, label: `Trailer ${t.unit_number}` })),
 ]);
 const driverOptions = computed(() => [
   { value: "", label: "— none —" },
@@ -84,6 +90,9 @@ async function save() {
         <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField v-slot="{ id }" label="Vehicle">
             <ComboSelect :id="id" v-model="form.vehicleId" :options="vehicleOptions" placeholder="Search vehicles…" />
+          </FormField>
+          <FormField v-slot="{ id }" label="Trailer">
+            <ComboSelect :id="id" v-model="form.trailerId" :options="trailerOptions" placeholder="Search trailers…" />
           </FormField>
           <FormField v-slot="{ id }" label="Driver">
             <ComboSelect :id="id" v-model="form.driverId" :options="driverOptions" placeholder="Search drivers…" />

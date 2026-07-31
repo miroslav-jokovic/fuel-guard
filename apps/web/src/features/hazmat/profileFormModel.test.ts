@@ -41,7 +41,7 @@ describe("profileFormModel — cargo-tank profile form logic (plan H5)", () => {
     ]);
   });
 
-  it("blank capacity → null (engine conservative path)", () => {
+  it("blank capacity → null (not 0)", () => {
     expect(buildCreateProfileRequest("id", formWith({ equipment: "vehicle:v1" })).cargoCapacityGal).toBeNull();
     expect(buildUpdateProfileRequest(formWith({ cargoCapacityGal: "" })).cargoCapacityGal).toBeNull();
   });

@@ -14,7 +14,7 @@ import {
   hazmatCargoTankProfileCreateSchema, type HazmatCargoTankProfileCreateRequest,
   hazmatCargoTankProfileUpdateSchema, type HazmatCargoTankProfileUpdateRequest,
   type HazmatAnalyzeResponse,
-  HAZMAT_REVIEW_ROLES,
+  HAZMAT_REVIEW_ROLES, HAZMAT_EQUIPMENT_WRITE_ROLES,
   rolesThatCanView, rolesThatManage,
 } from "@fuelguard/shared";
 import { evaluateLoad, type LoadInput } from "@hazmat/engine";
@@ -55,6 +55,7 @@ export function hazmatRouter(): Router {
   const canView = requireRole(...rolesThatCanView("hazmat"));
   const canManage = requireRole(...rolesThatManage("hazmat"));
   const canReview = requireRole(...HAZMAT_REVIEW_ROLES);
+  const canWriteEquipment = requireRole(...HAZMAT_EQUIPMENT_WRITE_ROLES); // matches 0092 RLS (no dispatcher)
   const orgOf = (req: Request): string => req.auth!.orgId!;
   const userOf = (req: Request): string => req.auth!.userId;
   const param = (req: Request, name: string): string => {
@@ -231,7 +232,7 @@ export function hazmatRouter(): Router {
     res.json({ profiles: result.rows });
   }));
 
-  router.post("/profiles", canManage, validateBody(hazmatCargoTankProfileCreateSchema), asyncHandler(async (req: Request, res: Response) => {
+  router.post("/profiles", canWriteEquipment, validateBody(hazmatCargoTankProfileCreateSchema), asyncHandler(async (req: Request, res: Response) => {
     const body = res.locals.body as HazmatCargoTankProfileCreateRequest;
     const admin = getSupabaseAdmin(getAppLocals(req).env);
     const result = await createProfile(admin, orgOf(req), body);
@@ -240,7 +241,7 @@ export function hazmatRouter(): Router {
     res.status(201).json({ id: result.id });
   }));
 
-  router.put("/profiles/:id", canManage, validateBody(hazmatCargoTankProfileUpdateSchema), asyncHandler(async (req: Request, res: Response) => {
+  router.put("/profiles/:id", canWriteEquipment, validateBody(hazmatCargoTankProfileUpdateSchema), asyncHandler(async (req: Request, res: Response) => {
     const body = res.locals.body as HazmatCargoTankProfileUpdateRequest;
     const admin = getSupabaseAdmin(getAppLocals(req).env);
     const result = await updateProfile(admin, orgOf(req), param(req, "id"), body);
@@ -249,7 +250,7 @@ export function hazmatRouter(): Router {
     res.json({ ok: true });
   }));
 
-  router.delete("/profiles/:id", canManage, asyncHandler(async (req: Request, res: Response) => {
+  router.delete("/profiles/:id", canWriteEquipment, asyncHandler(async (req: Request, res: Response) => {
     const admin = getSupabaseAdmin(getAppLocals(req).env);
     const result = await deleteProfile(admin, orgOf(req), param(req, "id"));
     if (isServiceError(result)) { fail(res, result); return; }

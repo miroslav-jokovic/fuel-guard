@@ -25,9 +25,10 @@ import {
 } from "@/features/hazmat/profileFormModel";
 
 /**
- * Cargo-tank profiles (plan H5) — capacity + compartment plan per truck/trailer. The analysis engine
- * reads a load's equipment profile automatically (H2 vehicle block); without one, it takes the
- * conservative unknown-capacity path. Write access is admin/fleet_manager/safety_manager (RLS + route).
+ * Cargo-tank profiles (plan H5) — capacity + compartment plan per truck/trailer. The analysis orchestrator
+ * looks up a load's equipment profile and passes it into the engine's `vehicle` block; the engine's
+ * capacity/compartment RULES are pending (H2), so today this is recorded + carried on the run for the audit
+ * trail and takes effect the moment that logic lands. Write access is admin/fleet_manager/safety_manager.
  */
 const { data: profiles, isLoading } = useHazmatProfilesQuery();
 const { data: vehicles } = useVehiclesQuery();
@@ -95,7 +96,7 @@ async function del(row: HazmatCargoTankProfileRow) {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Capacity & compartment plans per truck/trailer. Analysis uses these automatically.">
+    <PageHeader description="Capacity & compartment plans per truck/trailer, recorded per equipment and attached to each load's analysis.">
       <template #actions>
         <BaseButton variant="ghost" size="sm" to="/hazmat">← HazmatGuard</BaseButton>
       </template>
@@ -109,7 +110,7 @@ async function del(row: HazmatCargoTankProfileRow) {
           <FormField v-slot="{ id }" label="Equipment" hint="One profile per truck or trailer.">
             <ComboSelect :id="id" v-model="form.equipment" :options="equipmentOptions" :disabled="Boolean(editingId)" placeholder="Search equipment…" />
           </FormField>
-          <FormField v-slot="{ id }" label="Total tank capacity (gal)" hint="Blank = unknown → engine takes the conservative path.">
+          <FormField v-slot="{ id }" label="Total tank capacity (gal)" hint="Optional. Recorded and attached to analysis; the engine's capacity/compartment rules are pending (H2).">
             <BaseInput :id="id" v-model="form.cargoCapacityGal" type="number" inputmode="decimal" min="0" placeholder="9200" />
           </FormField>
 

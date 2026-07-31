@@ -8,6 +8,7 @@ import { buildEngineLines, emptyLine, type CalcLineForm } from "./calcModel";
  */
 export interface LoadForm {
   vehicleId: string; // "" = none
+  trailerId: string; // "" = none
   driverId: string;
   tankState: string;
   carrierRelationship: string;
@@ -27,6 +28,7 @@ export const CARRIER_RELATIONSHIP_OPTIONS: Array<{ value: string; label: string 
 export function emptyLoadForm(): LoadForm {
   return {
     vehicleId: "",
+    trailerId: "",
     driverId: "",
     tankState: "loaded",
     carrierRelationship: "unknown",
@@ -57,7 +59,7 @@ export function buildCreateLoadRequest(id: string, form: LoadForm): HazmatCreate
   const body = {
     id,
     vehicleId: form.vehicleId || null,
-    trailerId: null,
+    trailerId: form.trailerId || null,
     driverId: form.driverId || null,
     tankState: form.tankState,
     carrierRelationship: form.carrierRelationship,

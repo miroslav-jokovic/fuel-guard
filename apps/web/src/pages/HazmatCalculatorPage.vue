@@ -79,7 +79,7 @@ function resetAll() {
             <FormField v-slot="{ id }" label="Vehicle type">
               <ComboSelect :id="id" v-model="form.vehicleKind" :options="VEHICLE_KIND_OPTIONS" />
             </FormField>
-            <FormField v-if="form.vehicleKind === 'cargo_tank'" v-slot="{ id }" label="Cargo tank capacity (gal)" hint="Blank = unknown; the engine assumes the conservative 4-sided ID display.">
+            <FormField v-if="form.vehicleKind === 'cargo_tank'" v-slot="{ id }" label="Cargo tank capacity (gal)" hint="Optional. A cargo tank already gets the 4-sided bulk ID display today; capacity-specific rules are pending (H2).">
               <BaseInput :id="id" v-model="form.cargoTankCapacityGal" type="number" inputmode="decimal" min="0" placeholder="9200" />
             </FormField>
             <FormField v-slot="{ id }" label="Tank state">

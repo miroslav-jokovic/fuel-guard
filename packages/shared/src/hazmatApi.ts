@@ -61,6 +61,12 @@ export interface HazmatProductsResponse {
 // TIGHTER — separation of duties (D6): dispatchers create loads, they do NOT clear them.
 export const HAZMAT_REVIEW_ROLES: readonly UserRole[] = ["admin", "fleet_manager", "safety_manager"];
 
+// Cargo-tank profile WRITES must match the 0092 table RLS (admin/fleet_manager/safety_manager). A
+// dispatcher "manages" the hazmat section (creates loads) but NOT equipment config — gating profile
+// writes with the generic canManage would let a dispatcher write through the service-role API what RLS
+// denies them directly. Keep these two sets in lockstep with the migration.
+export const HAZMAT_EQUIPMENT_WRITE_ROLES: readonly UserRole[] = ["admin", "fleet_manager", "safety_manager"];
+
 // ── shared enums (mirror the migration check constraints) ─────────────────────
 export const hazmatTankStateSchema = z.enum(["loaded", "residue_uncleaned", "cleaned_and_purged"]);
 export const hazmatCarrierRelationshipSchema = z.enum([
@@ -135,8 +141,10 @@ export const hazmatPolicyPutRequestSchema = z.object({ policy: z.record(z.string
 export type HazmatPolicyPutRequest = z.infer<typeof hazmatPolicyPutRequestSchema>;
 
 // ── cargo-tank profiles (plan H5) — capacity + compartment plan per truck/trailer ────────────────
-// Produces the engine `vehicle` block (H2): capacity → 4-sided ID display threshold; compartments →
-// per-compartment arithmetic. Exactly one of vehicleId/trailerId (mirrors the 0092 check constraint).
+// Feeds the engine `vehicle` block. NOTE (verified 2026-07-31): the engine does not yet READ capacity or
+// compartments — those rules are H2 (capacity → ID-display threshold; compartments → per-compartment math).
+// Captured now so the data + audit trail exist and take effect when that logic lands. Exactly one of
+// vehicleId/trailerId (mirrors the 0092 check constraint).
 export const hazmatCompartmentSchema = z.object({
   index: z.number().int().min(1),
   capacityGal: z.number().nonnegative(),

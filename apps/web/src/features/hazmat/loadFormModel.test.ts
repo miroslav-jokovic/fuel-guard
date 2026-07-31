@@ -31,14 +31,16 @@ describe("loadFormModel — form → POST /hazmat/loads (plan H5)", () => {
     expect((req.declaredLines[0] as { hmtRef: string }).hmtRef).toBe("UN1203-gasoline#II");
   });
 
-  it("nulls empty vehicle/driver and passes context through", () => {
-    const req = buildCreateLoadRequest("id", formWith({ vehicleId: "", driverId: "d1", tankState: "residue_uncleaned", carrierRelationship: "private_carrier" }));
+  it("nulls empty vehicle/trailer/driver and passes context + set equipment through", () => {
+    const req = buildCreateLoadRequest("id", formWith({ vehicleId: "", trailerId: "t1", driverId: "d1", tankState: "residue_uncleaned", carrierRelationship: "private_carrier" }));
     expect(req.vehicleId).toBeNull();
+    expect(req.trailerId).toBe("t1");
     expect(req.driverId).toBe("d1");
     expect(req.tankState).toBe("residue_uncleaned");
     expect(req.carrierRelationship).toBe("private_carrier");
-    expect(req.trailerId).toBeNull();
     expect(req.supersedesLoadId).toBeNull();
+    // both empty → both null
+    expect(buildCreateLoadRequest("id", formWith({ vehicleId: "", trailerId: "" })).trailerId).toBeNull();
   });
 
   it("parses special-permit lists and ISO-normalizes planned pickup", () => {

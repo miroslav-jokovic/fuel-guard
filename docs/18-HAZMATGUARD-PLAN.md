@@ -165,7 +165,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H2** 🟨 Rules engine: placards, eligibility, segregation | The deterministic core + golden suite | H1 | Engine answers every golden scenario with citations; 100% pass. |
 | **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
-| **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Placard Calculator + Load Workspace + cargo-tank CRUD built; per-compartment inputs + e2e pending.)* |
+| **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Calculator + Load Workspace + cargo-tank CRUD built & audited; remaining: per-compartment inputs — blocked on engine H2; e2e run in seeded CI.)* |
 | **H6** ☐ Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. |
 | **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
@@ -283,7 +283,12 @@ awaiting Marija's scenarios).
   (the route logic is typechecked + the state-machine/orchestrator/RLS layers are tested); and an atomic
   clear (transition+review in one SECURITY DEFINER RPC).
 
-**H5 — Manual UI — IN PROGRESS (Placard Calculator + Load Workspace + cargo-tank CRUD built 2026-07-31).**
+**H5 — Manual UI — SUBSTANTIALLY COMPLETE (all manual-UI surfaces built + audited 2026-07-31).** The
+three surfaces (Placard Calculator, Load Workspace, cargo-tank profiles) are shipped, the picker/runs/
+profile-write gaps are closed, and the whole surface passed an assumption-free audit (below). Two honest
+remainders, both with a named reason: **per-compartment quantity inputs are blocked on the engine** (see
+the audit finding — the engine does not read compartments yet, H2), and the **Playwright e2e run in a
+seeded CI** (authored, not executed in the offline gate — repo convention, per `smoke.spec.ts`).
 - **Placard Calculator shipped in `apps/web`** (`/hazmat/calculator`): a real-engine-backed, stateless
   calculator wired to `POST /api/hazmat/calc`. Feature dir `apps/web/src/features/hazmat/` — pure form
   model + `buildCalcRequest` (`calcModel.ts`, 6 web unit tests), Vue Query composables (`useHazmatCalc.ts`),
@@ -315,15 +320,36 @@ awaiting Marija's scenarios).
   create/update Zod schemas (exactly-one-equipment refine, mirroring the 0092 check) + row/response DTOs.
   Web: pure `profileFormModel.ts` (6 unit tests), `useHazmatProfiles.ts` (+ a boundary-safe minimal
   trailers query — features can't import each other), `HazmatEquipmentPage.vue` (list + add/edit with a
-  compartments editor + delete), route + nav item + hub card. **No load-flow wiring needed** — the analysis
-  orchestrator already auto-looks-up the profile by the load's vehicle/trailer, so a saved profile takes
-  effect on the next analysis automatically.
+  compartments editor + delete), route + nav item + hub card. The analysis orchestrator already
+  auto-looks-up the profile by the load's vehicle/trailer and passes it to the engine, so no load-flow
+  wiring is needed — but see the audit finding: the engine does not yet *act* on capacity/compartments.
+- **Trailer picker added** to the load create form (reuses the in-feature trailers query); `trailerId` now
+  flows through `loadFormModel` (test updated).
+- **H5 e2e authored** (`apps/web/e2e/hazmat.spec.ts`): two calculator scenarios — gasoline+diesel split →
+  `FLAMMABLE` + `1203`; residue-uncleaned tank keeps placards. Env-gated (skips without `E2E_EMAIL`), run
+  against a seeded `hazmatguard` org like `smoke.spec.ts`; both compile + register (`playwright test --list`).
+- **Assumption-free audit (2026-07-31), all verified against the real dataset + engine:** (a) all 13 curated
+  fuel IDs exist in `2026.07.1` (default picker = 37 rows / 13 IDs, 0 missing); (b) a calculator-shaped
+  request is engine-valid end-to-end (gasoline cargo tank → `FLAMMABLE` + `UN1203`); (c) residue tank keeps
+  placards (`FLAMMABLE`) — so the e2e assertions are grounded, not assumed. **Correctness fixes made in the
+  same pass:** (d) **precision** — the engine consumes ONLY `vehicle.kind` (`isTank`) + `packagingKind` for
+  ID display; `cargoTankCapacityGal`, `vehicle.compartments`, and line `compartmentIndex` are read
+  *nowhere* (grep-verified across placards/segregation/bol). So per-compartment inputs are **deferred to H2**
+  (shipping them would be a false feature), and every UI/comment that implied capacity/compartments affect
+  today's verdict was corrected (calculator hint, equipment page, hub card, DTO/service docs). (e) **security
+  consistency** — profile-write routes were gated by the generic `canManage`, which for the `hazmat` section
+  includes **dispatcher**, but the 0092 RLS grants profile writes only to admin/fleet_manager/safety_manager;
+  because the API uses the service-role client this let a dispatcher write what RLS denies. Fixed: a dedicated
+  `HAZMAT_EQUIPMENT_WRITE_ROLES` gates POST/PUT/DELETE `/profiles`, matching the RLS exactly.
 - All touched packages typecheck; api-hazmat (13) + web-hazmat (17) + shared suites green; eslint/boundaries/tokens clean.
-- PENDING in H5: per-compartment quantity inputs on the manual forms (declare product per compartment),
-  a trailer picker on the load create form, and the two **Playwright e2e** flows (§B.6 traps).
+- REMAINING in H5 (both with a named reason, not silent gaps): **per-compartment quantity inputs** — blocked
+  on the engine reading `vehicle.compartments`/`compartmentIndex` (H2 compartment arithmetic); building the
+  UI first would be inert. **Run the e2e in seeded CI** — authored + compiling; execution needs a seeded
+  `hazmatguard` org (same status as the repo's existing full-path smoke scenario).
 
-**Not yet started (code):** H5 cargo-tank profile CRUD + e2e (above), H6 extraction, H7 review queue,
-H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
+**Not yet started (code):** H6 extraction, H7 review queue, H8 policy, H9 securement, H10 driver capture,
+H11 shadow, H12 product. (H2 also owes the capacity/compartment engine rules that the cargo-tank profiles
+and calculator capacity field already capture data for.)
 
 **Human-gated critical path:** (1) ✅ DONE — the dataset was flipped to non-provisional via the automated eCFR↔GovInfo triangulation (ALL CLEAN) + SME attestation (Marija Varmeda, 2026-07-31), which superseded the manual transcription route. (2) STILL OPEN — the SME answers R1–R3 + authors the independent golden acceptance scenarios (0 authored; target ≥400) → unblocks engine certification. (The engine `table1_out_of_scope_v1` fail-closed gate — previously the one open non-human item — was implemented 2026-07-31 in engine 0.7.0; the remaining H2 blocker is the human-authored golden suite.)
 
@@ -1114,7 +1140,7 @@ confirm exact name/PK in migration. *Goals:* G2 (async analyze ≤60 s), G6 (evi
 
 ---
 
-## Phase H5 🟨 IN PROGRESS (Placard Calculator + Load Workspace + cargo-tank CRUD built 2026-07-31; per-compartment inputs + e2e pending) — Manual UI: placard calculator + load workspace
+## Phase H5 🟨 SUBSTANTIALLY COMPLETE (all manual-UI surfaces built + audited 2026-07-31; remaining: per-compartment inputs blocked on engine H2, e2e in seeded CI) — Manual UI: placard calculator + load workspace
 
 **Objective.** Full product value with zero AI: dispatchers build/declare loads by hand and get
 verdicts. This hardens the engine against real use before extraction exists, and remains forever
@@ -1128,12 +1154,15 @@ as the fallback path and the sales demo.
 
 **Deliverables.**
 1. `features/hazmat/` pages (Tailwind UI v4 components, existing app shell):
-   - **Placard Calculator** (`/hazmat/calculator`): product picker (curated `fuelProducts.json`
-     overlay + full HMT search by UN number or name), per-compartment quantities, tank state,
-     business-day IDs → renders required placards as visual placard graphics (SVG set built once for
-     all placard designs), ID-display instruction ("1203 on each side and each end — orange panel
-     or on placard"), optional substitutions, prohibited list, ERG guides, and the full citation
-     trace behind a "why?" expander per item. Stateless (calls `POST /hazmat/calc`).
+   - **Placard Calculator** (`/hazmat/calculator`): product picker (HMT search via `GET /hazmat/products`
+     — a curated fuel shortlist + full UN/NA/name search; the `fuelProducts.json` overlay was NOT required
+     for the picker), tank state, business-day IDs → required placards as visual graphics
+     (`@hazmat/placards`), ID-display instruction, optional substitutions, prohibited list, ERG guides, and
+     the full citation trace behind a "why?" expander. Stateless (calls `POST /hazmat/calc`). **Built.**
+     ⚠️ *Per-compartment quantities are DEFERRED to H2:* the engine reads only `vehicle.kind` + `packagingKind`
+     for ID display and does not consume `vehicle.compartments`/line `compartmentIndex` at all (grep-verified
+     2026-07-31), so a per-compartment input would not change any verdict today. It lands with the H2
+     compartment-arithmetic rules. The optional capacity field is captured now but is likewise not yet read.
    - **Load Workspace** (`/hazmat/loads`, `/hazmat/loads/:id` — web routes; API is under
      `/api/hazmat/*`): create load → pick vehicle/trailer/driver (existing fleet data) → declare
      lines manually (same pickers) → **manual context fields: tank state, carrier relationship,

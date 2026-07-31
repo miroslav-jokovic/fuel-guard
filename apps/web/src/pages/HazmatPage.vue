@@ -40,8 +40,8 @@ import BaseButton from "@/components/ui/BaseButton.vue";
       <BaseCard>
         <h2 class="text-sm font-semibold text-ink">Cargo-Tank Profiles</h2>
         <p class="mt-1 text-sm text-ink-muted">
-          Record capacity and compartment plans per truck/trailer. Analysis uses them automatically for
-          ID-display and per-compartment logic; without one, it takes the conservative path.
+          Record capacity and compartment plans per truck/trailer. Each is attached to that equipment's
+          load analyses for the audit trail; the engine's capacity/compartment rules land with H2.
         </p>
         <div class="mt-4">
           <BaseButton variant="soft" size="sm" to="/hazmat/settings/equipment">Manage equipment</BaseButton>
