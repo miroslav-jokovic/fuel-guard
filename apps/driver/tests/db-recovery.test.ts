@@ -31,7 +31,7 @@ vi.mock('expo-crypto', () => ({
   randomUUID: () => '00000000-0000-0000-0000-000000000000',
 }));
 
-import { getDb, isNotADbError, resetDbHandle } from '@/data/db';
+import { getDb, isNotADbError, recoverCorruptDb, resetDbHandle } from '@/data/db';
 
 const NOTADB = () => new Error('Error code 26: file is not a database (at SQLiteModule.swift:382)');
 
@@ -92,6 +92,23 @@ describe('getDb NOTADB recovery', () => {
     expect(h.deleteDatabaseAsync).toHaveBeenCalledTimes(1); // dropped exactly once
     expect(bad.closeAsync).toHaveBeenCalledTimes(1); // the half-open bad handle was closed first
     expect(call).toBe(2); // opened twice: fail, then recreate
+  });
+
+  it('repairs an already-open handle when native validation is deferred until a later statement', async () => {
+    const old = fakeDb();
+    const good = fakeDb();
+    let call = 0;
+    h.openImpl.current = () => {
+      call += 1;
+      return Promise.resolve(call === 1 ? old.handle : good.handle);
+    };
+
+    await getDb();
+    await recoverCorruptDb();
+
+    expect(h.deleteDatabaseAsync).toHaveBeenCalledTimes(1);
+    expect(old.closeAsync).toHaveBeenCalledTimes(1);
+    expect(call).toBe(2);
   });
 
   it('does NOT delete the DB for a non-NOTADB error (a transient lock must not lose the queue)', async () => {

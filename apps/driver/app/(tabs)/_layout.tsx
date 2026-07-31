@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router';
-import type { ColorValue } from 'react-native';
+import { View, type ColorValue } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components';
 import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
+import { layout, radius, type as typeScale } from '@/theme/tokens';
 
 /**
  * Navigation shell (D51). Four tabs — Home · Loads · Score · More — with the center slot RESERVED
@@ -26,6 +28,7 @@ function tabIcon(name: MaterialSymbolName, fill = false) {
 
 export default function TabsLayout() {
   const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const rc = isDark ? roleColors.dark : roleColors.light;
 
   return (
@@ -35,23 +38,34 @@ export default function TabsLayout() {
         tabBarActiveTintColor: rc.brand,
         tabBarInactiveTintColor: rc.inkMuted,
         tabBarStyle: {
-          position: 'absolute',
-          left: 16,
-          right: 16,
-          bottom: 12,
-          height: 64,
+          height: 84 + insets.bottom,
           paddingTop: 8,
-          paddingBottom: 8,
+          paddingBottom: insets.bottom + 12,
           borderTopWidth: 0,
-          borderRadius: 16,
-          backgroundColor: rc.surface,
-          shadowColor: rc.ink,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.14,
-          shadowRadius: 12,
-          elevation: 8,
+          backgroundColor: 'transparent',
+          shadowOpacity: 0,
+          elevation: 0,
         },
-        tabBarLabelStyle: { fontSize: 11, fontFamily: 'HankenGrotesk_600SemiBold' },
+        tabBarBackground: () => (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: layout.screenInset,
+              bottom: insets.bottom + 12,
+              left: layout.screenInset,
+              borderRadius: radius.lg,
+              backgroundColor: rc.surface,
+              shadowColor: rc.ink,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.14,
+              shadowRadius: 12,
+              elevation: 8,
+            }}
+          />
+        ),
+        tabBarLabelStyle: { fontSize: typeScale.size.micro, fontFamily: 'HankenGrotesk_600SemiBold' },
         tabBarHideOnKeyboard: true,
       }}
     >

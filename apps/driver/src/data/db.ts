@@ -143,3 +143,21 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
 export function resetDbHandle(): void {
   dbPromise = null;
 }
+
+/**
+ * Recover an already-open handle that surfaced SQLITE_NOTADB during a later statement. This is the
+ * second safety net for older dev clients: some native SQLite builds defer page/key validation until
+ * `prepareAsync`, after the initial catalog read. Recovery is explicit and bounded, never a retry loop.
+ */
+export async function recoverCorruptDb(): Promise<void> {
+  const current = dbPromise;
+  dbPromise = null;
+  const handle = await current?.catch(() => null);
+  await handle?.closeAsync().catch(() => {
+    /* best effort; deleteDatabaseAsync remains the source of truth */
+  });
+  await SQLite.deleteDatabaseAsync(DB_NAME).catch(() => {
+    /* the file may already be gone */
+  });
+  await getDb();
+}

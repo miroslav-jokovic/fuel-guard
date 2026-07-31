@@ -11,6 +11,7 @@ import {
   retryNow,
 } from './outbox';
 import { discardStagedFiles, sweepOrphans } from './fileStaging';
+import { isNotADbError, recoverCorruptDb } from './db';
 import { countNeedsAttention, countPending, outcomeAfterFailure, type OutboxRecord } from './policy';
 
 /**
@@ -149,10 +150,24 @@ export async function runSync(): Promise<void> {
     updateState({ lastSyncAt: Date.now() });
   } catch (e) {
     // A storage-layer fault must not surface as an unhandled rejection from a fire-and-forget
-    // trigger; the records are still on disk and the next trigger will retry.
+    // trigger. A stale SQLCipher/plaintext DB is recoverable, even when native SQLite defers the
+    // failure until claimNext() prepares its first statement.
     const message = e instanceof Error ? e.message : 'Sync failed';
-    console.warn('[sync] run aborted:', message);
-    updateState({ lastError: message });
+    if (isNotADbError(message)) {
+      try {
+        await recoverCorruptDb();
+        await refreshCounters();
+        updateState({ lastError: null });
+        console.warn('[sync] repaired an unreadable offline queue; new work can sync normally');
+      } catch (recoveryError) {
+        const recoveryMessage = recoveryError instanceof Error ? recoveryError.message : message;
+        console.warn('[sync] offline queue recovery failed:', recoveryMessage);
+        updateState({ lastError: recoveryMessage });
+      }
+    } else {
+      console.warn('[sync] run aborted:', message);
+      updateState({ lastError: message });
+    }
   } finally {
     running = false;
     updateState({ running: false });
