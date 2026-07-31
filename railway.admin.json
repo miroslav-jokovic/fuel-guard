@@ -1,5 +1,4 @@
 {
-  "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
     "buildCommand": "corepack enable && pnpm install --frozen-lockfile --prod=false && rm -rf apps/admin/dist && pnpm --filter @fuelguard/admin build",
