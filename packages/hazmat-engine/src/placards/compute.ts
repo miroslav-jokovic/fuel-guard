@@ -108,6 +108,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
 
   // 1) resolve each line to its HMT entry + its placard category (fail closed on any miss)
   const resolved: Resolved[] = [];
+  const table1Hits: { hmtRef: string; classOrDivision: string }[] = [];
   for (const line of load.lines) {
     const [entryId] = line.hmtRef.split("#");
     const entry = ds.entries.find((e) => e.entryId === entryId);
@@ -124,6 +125,16 @@ export function computePlacards(load: LoadInput): PlacardComputation {
       return { placards, findings, trace };
     }
     const spec = matches[0] as DsPlacard;
+    // 1b) Table 1 gate (D4-revised, D2 fail-closed): the fuel-scope engine RECOGNIZES 49 CFR 172.504 Table 1
+    //     materials (explosives 1.1–1.3, 2.3 poison gas, 4.3, PIH 6.1, organic-peroxide 5.2, radioactive) from
+    //     the dataset but does NOT compute their placards — Table 1 *logic* is a later expansion pack. Recognition
+    //     is total and dataset-driven: capture any Table 1 row HERE (by its matched spec.table, regardless of
+    //     whether its placard name maps to a known design) and block the whole load below.
+    if (spec.table === 1) {
+      table1Hits.push({ hmtRef: line.hmtRef, classOrDivision: spec.classOrDivision });
+      trace.push({ ruleId: "table1_recognized", fired: true, inputs: { hmtRef: line.hmtRef, class: entry.hazardClass, classOrDivision: spec.classOrDivision }, citations: [{ cfr: "49 CFR 172.504" }], note: "Table 1 material — out of v1 scope (D4-revised)" });
+      continue;
+    }
     const placard = toPlacardName(spec.placardName);
     if (placard == null) {
       // e.g. 6.2 → "NONE": a recognized material that takes no placard
@@ -134,14 +145,32 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     trace.push({ ruleId: "class_to_placard", fired: true, inputs: { hmtRef: line.hmtRef, class: entry.hazardClass, placard, table: spec.table }, citations: [{ cfr: `49 CFR ${spec.designRef ?? "172.504"}` }] });
   }
 
+  // Table 1 gate verdict (D4-revised): any Table 1 line blocks the WHOLE load — no placards computed, a
+  // `violation` finding (→ eligibility forced `blocked` in evaluateLoad). "We don't cover this — do not rely on
+  // the tool" is the only allowed answer; silence or a partial placard set on a Table 1 load is forbidden.
+  if (table1Hits.length > 0) {
+    const classes = [...new Set(table1Hits.map((h) => h.classOrDivision))];
+    findings.push({
+      ruleId: "table1_out_of_scope_v1",
+      tier: "violation",
+      message:
+        `This load contains a 49 CFR 172.504 Table 1 material (${classes.join(", ")}), which is outside ` +
+        `HazmatGuard's v1 scope. Placards cannot be computed and the load cannot be cleared — route it to a ` +
+        `hazmat-trained reviewer; do not rely on the tool for this load.`,
+      citations: [{ cfr: "49 CFR 172.504" }, { cfr: "internal: Table 1 out of scope (plan D4-revised / D2)" }],
+      evidence: { table1Classes: classes, lines: table1Hits.map((h) => h.hmtRef) },
+    });
+    trace.push({ ruleId: "table1_out_of_scope_v1", fired: true, inputs: { table1Classes: classes, count: table1Hits.length }, citations: [{ cfr: "49 CFR 172.504" }], note: "Table 1 recognized and blocked; no placards computed for the load." });
+    return { placards, findings, trace };
+  }
+
   if (resolved.length === 0) {
     trace.push({ ruleId: "any_placardable_line", fired: false, inputs: {}, citations: [] });
     return { placards, findings, trace }; // recognized, none placardable → no placards, nothing withheld
   }
 
   // 2) §172.504(c) weight gate — Table-2 materials need placards only at ≥ 454 kg (1,001 lb) aggregate
-  const table2 = resolved.filter((r) => r.spec.table === 2);
-  const table1 = resolved.filter((r) => r.spec.table === 1);
+  const table2 = resolved.filter((r) => r.spec.table === 2); // Table 1 already gated out above
   const weights = table2.map((r) => r.line.grossWeightLb);
   const weightKnown = weights.every((w) => w != null);
   const aggregateLb = weights.reduce<number>((s, w) => s + (w ?? 0), 0);
@@ -162,7 +191,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
       evidence: { table2Lines: table2.length },
     });
   }
-  if (weightKnown && aggregateLb < 1001 && table1.length === 0) {
+  if (weightKnown && aggregateLb < 1001) {
     findings.push({
       ruleId: "below_1001lb_no_placard",
       tier: "info",
@@ -173,7 +202,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   }
 
   // 3) which categories actually require a placard, deduped by placard name
-  const requiring: Resolved[] = [...table1, ...(table2Placards ? table2 : [])];
+  const requiring: Resolved[] = table2Placards ? table2 : [];
   const distinct = new Map<PlacardName, Resolved[]>();
   for (const r of requiring) {
     const arr = distinct.get(r.placard) ?? [];

@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { parseHmtGovInfoSection } from "./parseHmtGovInfo.js";
 
-const XML = readFileSync(new URL("./fixtures/govinfo/hmt-172-101.xml", import.meta.url), "utf8");
-const entries = parseHmtGovInfoSection(XML);
+// The full GovInfo captures are gitignored (large); regenerate via `pnpm tsx import/captureGovInfo.ts`.
+// Skip (never fail) when absent — e.g. a fresh CI checkout — so this stays an integration test.
+const FIXTURE = new URL("./fixtures/govinfo/hmt-172-101.xml", import.meta.url);
+const PRESENT = existsSync(FIXTURE);
+if (!PRESENT) console.warn("[hazmat-data] SKIP parseHmtGovInfo — captured fixture absent (run import/captureGovInfo.ts)");
+const entries = PRESENT ? parseHmtGovInfoSection(readFileSync(FIXTURE, "utf8")) : [];
 const byId = (id: string) => entries.filter((e) => e.idNumber === id);
 const find = (prefix: string, id: string, psn: string) =>
   entries.find((e) => e.idPrefix === prefix && e.idNumber === id && e.psnPrinted === psn);
 
-describe("parseHmtGovInfoSection — official GovInfo GPO §172.101 parse", () => {
+describe.skipIf(!PRESENT)("parseHmtGovInfoSection — official GovInfo GPO §172.101 parse", () => {
   it("parses the whole table into the same count as the eCFR parser (2479)", () => {
     expect(entries.length).toBe(2479);
   });

@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { crossCheckAll, crossCheckDefault, crossCheckHmt, govInfoEntryToSourceB } from "./govinfoCrossCheck.js";
 import { parseHmtGovInfoSection } from "./parseHmtGovInfo.js";
 import { compareEntry } from "./diff.js";
 
-describe("govinfoCrossCheck — automated eCFR↔GovInfo triangulation (D5 v7)", () => {
+// The full GovInfo captures are gitignored (large); regenerate via `pnpm tsx import/captureGovInfo.ts`.
+// Skip (never fail) when absent — e.g. a fresh CI checkout — so triangulation stays an integration test.
+const has = (p: string) => existsSync(new URL(p, import.meta.url));
+const PRESENT = has("./fixtures/govinfo/hmt-172-101.xml") && has("./fixtures/govinfo/placardTables-172-504.xml") && has("./fixtures/govinfo/segregation-177-848.xml");
+if (!PRESENT) console.warn("[hazmat-data] SKIP govinfoCrossCheck — captured GovInfo fixtures absent (run import/captureGovInfo.ts)");
+
+describe.skipIf(!PRESENT)("govinfoCrossCheck — automated eCFR↔GovInfo triangulation (D5 v7)", () => {
   it("the in-scope fuel gate is CLEAN against the real fixtures", () => {
     const r = crossCheckDefault();
     expect(r.inScope.missing).toEqual([]);

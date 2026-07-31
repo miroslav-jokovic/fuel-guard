@@ -18,12 +18,14 @@ const DATASET = {
     { entryId: "NA1993-fuel-oil", psnPrinted: "Fuel oil", hazardClass: "3", idPrefix: "NA", idNumber: "1993", pgRows: [{ pg: "III" }] },
     { entryId: "UN1075-lpg", psnPrinted: "Petroleum gases, liquefied", hazardClass: "2.1", idPrefix: "UN", idNumber: "1075", pgRows: [{ pg: null }] },
     { entryId: "UN3257-hot", psnPrinted: "Elevated temperature liquid, n.o.s.", hazardClass: "9", idPrefix: "UN", idNumber: "3257", pgRows: [{ pg: "III" }] },
+    { entryId: "UN0027-blackpowder", psnPrinted: "Black powder", hazardClass: "1.1D", idPrefix: "UN", idNumber: "0027", pgRows: [{ pg: "II" }] },
   ],
   placards: [
     { classOrDivision: "3", table: 2, placardName: "FLAMMABLE", designRef: "172.542", wordingOptions: ["GASOLINE"] },
     { classOrDivision: "Combustible liquid", table: 2, placardName: "COMBUSTIBLE", designRef: "172.544", wordingOptions: ["FUEL OIL"] },
     { classOrDivision: "2.1", table: 2, placardName: "FLAMMABLE GAS", designRef: "172.532", wordingOptions: [] },
     { classOrDivision: "9", table: 2, placardName: "CLASS 9", designRef: "172.560", wordingOptions: [] },
+    { classOrDivision: "1.1", table: 1, placardName: "EXPLOSIVES 1.1", designRef: "172.522", wordingOptions: [] },
   ],
   erg: [{ idNumber: "1203", guideNumber: "128" }, { idNumber: "1075", guideNumber: "115" }, { idNumber: "3257", guideNumber: "128" }],
 };
@@ -106,7 +108,25 @@ describe("computePlacards — fuel scope (§172.504)", () => {
   });
 
   it("stamps the bumped engine version", () => {
-    expect(evaluateLoad(load()).engineVersion).toBe("0.6.0");
+    expect(evaluateLoad(load()).engineVersion).toBe("0.7.0");
+  });
+
+  // D4-revised Table 1 gate: recognized and blocked, never assessed (fail-closed, D2).
+  it("Table 1 material (explosive 1.1) → blocked, NO placards computed", () => {
+    const v = evaluateLoad(load({ lines: [line({ hmtRef: "UN0027-blackpowder#II" })] }));
+    expect(v.placards.required).toEqual([]);
+    expect(v.placards.idDisplays).toEqual([]);
+    expect(v.eligibility.status).toBe("blocked");
+    const block = v.eligibility.blocks.find((b) => b.ruleId === "table1_out_of_scope_v1");
+    expect(block?.tier).toBe("violation");
+    expect(v.trace.some((t) => t.ruleId === "table1_out_of_scope_v1" && t.fired)).toBe(true);
+  });
+
+  it("a single Table 1 line poisons the whole load → no fuel placards emitted either", () => {
+    const v = evaluateLoad(load({ lines: [line(), line({ hmtRef: "UN0027-blackpowder#II", grossWeightLb: 500 })] }));
+    expect(v.placards.required).toEqual([]); // the in-scope gasoline placard is withheld too
+    expect(v.eligibility.status).toBe("blocked");
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("table1_out_of_scope_v1");
   });
 
   // §172.301(a)(3) — the non-bulk single-material ID-display rule (R1, resolved from the CFR + PHMSA Chart 15)

@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { parsePlacardTablesGovInfo } from "./parsePlacardsGovInfo.js";
 import { parseSegregationGridGovInfo } from "./parseSegregationGovInfo.js";
 
+// The full GovInfo captures are gitignored (large); regenerate via `pnpm tsx import/captureGovInfo.ts`.
+// Skip (never fail) when absent — e.g. a fresh CI checkout.
 const rd = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
-const placards = parsePlacardTablesGovInfo(rd("./fixtures/govinfo/placardTables-172-504.xml"));
-const seg = parseSegregationGridGovInfo(rd("./fixtures/govinfo/segregation-177-848.xml"));
+const has = (p: string) => existsSync(new URL(p, import.meta.url));
+const PRESENT = has("./fixtures/govinfo/placardTables-172-504.xml") && has("./fixtures/govinfo/segregation-177-848.xml");
+if (!PRESENT) console.warn("[hazmat-data] SKIP parseGovInfoTables — captured fixtures absent (run import/captureGovInfo.ts)");
+const placards = PRESENT ? parsePlacardTablesGovInfo(rd("./fixtures/govinfo/placardTables-172-504.xml")) : [];
+const seg = PRESENT ? parseSegregationGridGovInfo(rd("./fixtures/govinfo/segregation-177-848.xml")) : [];
 
-describe("parsePlacardTablesGovInfo — official GovInfo §172.504", () => {
+describe.skipIf(!PRESENT)("parsePlacardTablesGovInfo — official GovInfo §172.504", () => {
   it("parses both tables into 23 specs with correct table signatures", () => {
     expect(placards.length).toBe(23);
     const t1 = placards.filter((s) => s.table === 1);
@@ -34,7 +39,7 @@ describe("parsePlacardTablesGovInfo — official GovInfo §172.504", () => {
   });
 });
 
-describe("parseSegregationGridGovInfo — official GovInfo §177.848(d)", () => {
+describe.skipIf(!PRESENT)("parseSegregationGridGovInfo — official GovInfo §177.848(d)", () => {
   it("parses the 18×18 grid into 173 non-blank cells", () => {
     expect(seg.length).toBe(173);
   });

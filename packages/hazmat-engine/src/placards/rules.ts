@@ -12,29 +12,6 @@ export interface RuleOutcome {
   trace: TraceNode;
 }
 
-/**
- * Dataset-provisional / engine-incomplete gate (H1.6 / D2). Until the dataset is a certified two-source
- * release AND the substantive ladder is implemented, the engine will not assert a placard set — it
- * fail-closes with a conditional finding and asserts NO required placards (never under-placard, never
- * fabricate). The app refuses to CLEAR on a conditional/violation finding.
- */
-export function determinationWithheldGate(load: LoadInput): RuleOutcome {
-  const provisional = load.dataset.provisional === true;
-  const citations: Citation[] = [{ cfr: "internal: determination withheld (plan H1.6 / D2)" }];
-  return {
-    finding: {
-      ruleId: "placard_determination_withheld",
-      tier: "conditional",
-      message: provisional
-        ? "The regulatory dataset is provisional (not yet two-source-verified) and the placard ladder is not yet certified — placard determination is withheld. Route to a hazmat-trained reviewer."
-        : "The substantive placard ladder is not yet implemented for this material — placard determination is withheld. Route to a hazmat-trained reviewer.",
-      citations,
-      evidence: { datasetVersion: load.dataset.version, provisional },
-    },
-    trace: { ruleId: "placard_determination_withheld", fired: true, inputs: { provisional }, citations },
-  };
-}
-
 /** No lines → no hazmat load → no placards (SME flow gate 1; dataset-independent, definitive). */
 export function noHazmatLinesGate(load: LoadInput): RuleOutcome {
   const fired = load.lines.length === 0;
