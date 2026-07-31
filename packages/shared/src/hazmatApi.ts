@@ -97,3 +97,27 @@ export interface HazmatRegisterDocumentResponse {
 // ── GET/PUT /hazmat/policy (admin-only write; H8 locks the OrgHazmatPolicy shape) ───────────────
 export const hazmatPolicyPutRequestSchema = z.object({ policy: z.record(z.string(), z.unknown()) });
 export type HazmatPolicyPutRequest = z.infer<typeof hazmatPolicyPutRequestSchema>;
+
+
+// ── POST /hazmat/loads/:id/analyze — kicks off the in-process manual analysis (202 + runId) ─────
+export interface HazmatAnalyzeResponse {
+  runId: string;
+}
+
+// ── POST /hazmat/loads/:id/review — reviewer field action (the clear itself is POST /clear) ─────
+export const hazmatReviewActionSchema = z.enum(["field_confirmed", "field_corrected", "cant_read", "rejected", "override"]);
+export const hazmatReviewRequestSchema = z.object({
+  runId: z.string().uuid(),
+  action: hazmatReviewActionSchema,
+  fieldPath: z.string().optional(),
+  oldValue: z.unknown().optional(),
+  newValue: z.unknown().optional(),
+});
+export type HazmatReviewRequest = z.infer<typeof hazmatReviewRequestSchema>;
+
+// ── POST /hazmat/loads/:id/clear — named attestation required; refused on a provisional dataset ─
+export const hazmatClearRequestSchema = z.object({
+  runId: z.string().uuid(),
+  attestation: z.string().min(1),
+});
+export type HazmatClearRequest = z.infer<typeof hazmatClearRequestSchema>;

@@ -4,6 +4,7 @@ import {
   type HazmatLoadStatus, type HazmatLoadEvent,
   type HazmatCreateLoadRequest, type HazmatUpdateLoadRequest, type HazmatListLoadsQuery,
   type HazmatRegisterDocumentRequest, type HazmatRegisterDocumentResponse,
+  type HazmatReviewRequest,
 } from "@fuelguard/shared";
 
 /**
@@ -139,4 +140,43 @@ export async function putPolicy(
   });
   if (error) return err("upsert_failed", error.message);
   return { ok: true };
+}
+
+
+export async function recordReview(
+  admin: SupabaseClient, orgId: string, userId: string, loadId: string, req: HazmatReviewRequest,
+): Promise<{ ok: true; to?: HazmatLoadStatus } | ServiceError> {
+  const { data: run } = await admin.from("hazmat_runs").select("id").eq("org_id", orgId).eq("load_id", loadId).eq("id", req.runId).maybeSingle();
+  if (!run) return err("not_found", "Run not found for this load.");
+  const { error } = await admin.from("hazmat_reviews").insert({
+    org_id: orgId, load_id: loadId, run_id: req.runId, reviewer_id: userId,
+    action: req.action, field_path: req.fieldPath ?? null, old_value: req.oldValue ?? null, new_value: req.newValue ?? null,
+  });
+  if (error) return err("insert_failed", error.message);
+  if (req.action === "rejected") {
+    const t = await transitionLoad(admin, orgId, loadId, "review_rejected");
+    if ("error" in t) return t;
+    return { ok: true, to: t.to };
+  }
+  return { ok: true };
+}
+
+/**
+ * Clear a load after review — the ONLY auto/attested path to `cleared` from `needs_review`. Refused on a
+ * provisional dataset (H1.6/D2, via transitionLoad). The attestation is recorded as an immutable review
+ * row; the route additionally writes it to audit_logs, so the attestation survives even if this insert
+ * races (a future SECURITY DEFINER RPC would make the transition+review atomic — noted for post-pilot).
+ */
+export async function clearLoad(
+  admin: SupabaseClient, orgId: string, userId: string, loadId: string, runId: string, attestation: string, datasetProvisional: boolean,
+): Promise<{ to: HazmatLoadStatus } | ServiceError> {
+  const { data: run } = await admin.from("hazmat_runs").select("id").eq("org_id", orgId).eq("load_id", loadId).eq("id", runId).maybeSingle();
+  if (!run) return err("not_found", "Run not found for this load.");
+  const t = await transitionLoad(admin, orgId, loadId, "review_cleared", { datasetProvisional });
+  if ("error" in t) return t;
+  const { error } = await admin.from("hazmat_reviews").insert({
+    org_id: orgId, load_id: loadId, run_id: runId, reviewer_id: userId, action: "cleared", attestation,
+  });
+  if (error) return err("insert_failed", error.message);
+  return { to: t.to };
 }

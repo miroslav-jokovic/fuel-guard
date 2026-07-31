@@ -257,10 +257,22 @@ awaiting Marija's scenarios).
   driver: none) + `SECTION_LABELS`; the HazmatGuard nav item already existed (module-gated). `HAZMAT_REVIEW_ROLES`
   (admin/fleet_manager/safety_manager) reserves clear/review for H4-4 (separation of duties). `@fuelguard/shared`
   typechecks. (`apps/api` typecheck pends the one `pnpm install` from increment 1.)
-- PENDING (next increment, H4-4): the in-process `analysisOrchestrator` (manual path — `POST /analyze` 202
-  + runId, concurrency-limited, entitlement re-check, retries → writes `hazmat_runs`), the `/review` + `/clear`
-  routes (using `HAZMAT_REVIEW_ROLES` + the provisional guard), and the SDK-based **RLS-matrix + contract +
-  immutability tests**.
+- **Increment 4 (done): in-process analysis orchestrator + review/clear.** `services/hazmatAnalysis.ts` —
+  `POST /loads/:id/analyze` returns **202 + runId** and runs async in-process under a concurrency semaphore
+  (max 4), re-checks entitlement at execution start (aborts `entitlement_revoked`, no token spend), writes
+  ONLY to `hazmat_runs` + the load status (never `jobs`), and transitions via the state machine. Manual path:
+  builds the engine `LoadInput` from `declared_lines` (+ cargo-tank-profile lookup), runs the engine, computes
+  flags, writes the run. **FAIL-CLOSED (D2):** any non-definitive verdict is flagged → `needs_review`; with
+  today's engine (eligibility always `not_checked`) the manual path never auto-clears — the safe default until
+  H6/H8. `POST /loads/:id/review` (field actions, `rejected`→state transition) and `POST /loads/:id/clear`
+  (named attestation required, refused on a provisional dataset, records an immutable review row + audit) are
+  restricted to `HAZMAT_REVIEW_ROLES` (separation of duties). Pure decision logic (`computeManualFlags`,
+  `manualInputHash`, `buildManualLoadInput`) unit-tested against the real engine (`hazmatAnalysis.test.ts`);
+  `apps/api` typechecks clean.
+- PENDING (H4 tail, non-blocking): the reference-text endpoint (`GET /hazmat/reference/:section` from D12) and
+  the **SDK-based route contract + RLS-matrix + immutability tests** against local Supabase (the RLS policies
+  themselves are already Postgres-verified in 0092's 12-scenario functional test; this is the client-SDK
+  regression layer). An atomic clear (transition+review in one SECURITY DEFINER RPC) is a post-pilot refinement.
 
 **Not yet started (code):** H5 dashboard UI (a real-engine-backed placard calculator
 *prototype* exists as a delivered artifact; the `apps/web` Vue integration is the production step),
@@ -846,7 +858,7 @@ G4, D2 (conditional tiers + out-of-scope fail-closed), D4-revised (fuel depth, T
 
 ---
 
-## Phase H4 ◐ — Schema, API & storage  *(in progress: /hazmat/calc shipped)*
+## Phase H4 ◐ — Schema, API & storage  *(increments 1–4 done: calc + schema/RLS + loads/state-machine + orchestrator/review/clear; reference-text endpoint + SDK test matrix remain)*
 
 **Objective.** Persistence and transport for loads, documents, runs, verdicts, reviews — with the
 same RLS/audit discipline as the rest of the app.
