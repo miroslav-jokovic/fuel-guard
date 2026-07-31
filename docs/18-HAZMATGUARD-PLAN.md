@@ -160,11 +160,11 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 
 | Phase | Goal | Depends on | Demoable outcome |
 |-------|------|------------|------------------|
-| **H0** ☐ Module foundation | Packages, boundaries, entitlements, CI guards | — | Engine package builds standalone; CI fails on boundary violation; org entitlement gates empty Hazmat nav item. |
-| **H1** ☐ Regulatory data layer | Versioned HMT/ERG datasets + import/diff/release tooling | H0 | `hazmat-data` ships dataset v1; two-source diff (eCFR parse vs human transcription) runs clean; product lookup works in a test. |
-| **H2** ☐ Rules engine: placards, eligibility, segregation | The deterministic core + golden suite | H1 | Engine answers every golden scenario with citations; 100% pass. |
-| **H3** ☐ Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
-| **H4** ☐ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
+| **H0** ✅ Module foundation | Packages, boundaries, entitlements, CI guards | — | Engine package builds standalone; CI fails on boundary violation; org entitlement gates empty Hazmat nav item. |
+| **H1** ✅ Regulatory data layer | Versioned HMT/ERG datasets + import/diff/release tooling | H0 | `hazmat-data` ships dataset v1; two-source diff (eCFR parse vs human transcription) runs clean; product lookup works in a test. |
+| **H2** 🟨 Rules engine: placards, eligibility, segregation | The deterministic core + golden suite | H1 | Engine answers every golden scenario with citations; 100% pass. |
+| **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
+| **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
 | **H5** ☐ Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. |
 | **H6** ☐ Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. |
 | **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
@@ -175,7 +175,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H12** ☐ Productization | HazmatGuard branding, standalone deploy, API productization | H11 | Same repo deploys a HazmatGuard-branded instance; entitlement matrix proven. |
 | **B** ☐ Business & GTM | Pricing, legal, ops, marketing guardrails | parallel | §Business complete with owner sign-off. |
 
-## Build status — as of 2026-07-30 (single source of truth for progress)
+## Build status — as of 2026-07-31 (single source of truth for progress)
 
 > Updated each work session. **Done** = built, tested, typechecking. **Provisional** = real and shipped
 > but gated (D2/H1.6). **Pending** = not started. The two launch blockers are HUMAN and on the critical
@@ -229,7 +229,7 @@ awaiting Marija's scenarios).
   NOT author them). **First finding surfaced:** a Table-1 material computes a placard and does NOT block —
   the D4 `table1_out_of_scope_v1` fail-closed gate is not yet implemented in the engine (H2 work).
 
-**H4 — API & storage — IN PROGRESS.**
+**H4 — API & storage — DONE (pilot scope; only optional post-pilot items deferred).**
 - **Increment 1 (done): stateless `POST /api/hazmat/calc`** — the placard/segregation/eligibility
   calculator (also the H12 licensed-API surface). Shared DTO in `packages/shared/src/hazmatApi.ts`
   (barrel-exported); route added to the existing entitlement-gated `hazmatRouter`; `apps/api` now
@@ -277,6 +277,7 @@ awaiting Marija's scenarios).
   dispatcher↮reviews separation of duties, reviewer-identity check, service-only run inserts, run/review
   **immutability**, admin-only policy writes, storage org+own-load folder scoping) — **16/16 green**. Run:
   `node supabase/tests/hazmat_rls.test.mjs` (needs `@electric-sql/pglite`, same as the existing harness).
+- **Deploy (2026-07-31): production is green.** `apps/api` links `@hazmat/data` + `@hazmat/engine`; fixed a missing runtime `zod` dependency on `@hazmat/data` (it imports zod but declared none) that crashed API boot under Node/tsx with `ERR_MODULE_NOT_FOUND` — invisible to `tsc`/`vitest`, only the runtime enforces it (commit 0c93cd7). Hardened Railway `watchPatterns` from an allow-list to a fail-safe deny-list so a legitimate change can no longer be silently SKIPPED (commit 3441542). Clean-install re-run of every hazmat suite is green: engine 29, placards 5, golden 4, shared 853, api-hazmat 5, RLS 16/16; `@hazmat/data` 141/145 (the 4 are the gitignored large GovInfo capture fixtures — pass on the maintainer's machine, regenerate via `captureGovInfo.ts`).
 - PENDING (optional, post-pilot): authenticated-route contract tests via supertest + a minted-JWT harness
   (the route logic is typechecked + the state-machine/orchestrator/RLS layers are tested); and an atomic
   clear (transition+review in one SECURITY DEFINER RPC).
@@ -285,14 +286,12 @@ awaiting Marija's scenarios).
 *prototype* exists as a delivered artifact; the `apps/web` Vue integration is the production step),
 H6 extraction, H7 review queue, H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
 
-**Human-gated critical path (start now):** (1) transcribe the ~13 fuel HMT rows from the GovInfo legal PDF
-into `handVerifiedRows.ts` → diff clean → flips the dataset to non-provisional; (2) SME answers R1–R3 +
-authors the independent golden scenarios → unblocks engine certification.
+**Human-gated critical path:** (1) ✅ DONE — the dataset was flipped to non-provisional via the automated eCFR↔GovInfo triangulation (ALL CLEAN) + SME attestation (Marija Varmeda, 2026-07-31), which superseded the manual transcription route. (2) STILL OPEN — the SME answers R1–R3 + authors the independent golden acceptance scenarios (0 authored; target ≥400) → unblocks engine certification. Also OPEN (engine, not human-gated): the D4 `table1_out_of_scope_v1` fail-closed gate — a Table-1 material currently computes a placard instead of blocking.
 
 
 ---
 
-## Phase H0 ☐ — Module foundation & boundaries
+## Phase H0 ✅ DONE — Module foundation & boundaries
 
 **Objective.** Create the separable module skeleton and the guardrails that keep it separable forever.
 
@@ -363,7 +362,7 @@ one; D3 satisfied structurally.
 
 ---
 
-## Phase H1 🟩 DONE (provisional dataset shipped) — Regulatory data layer
+## Phase H1 ✅ DONE (non-provisional dataset 2026.07.1 shipped) — Regulatory data layer
 
 **Objective.** A versioned, two-source-verified, machine-readable copy of every regulatory table
 the engine needs. This phase is pure data engineering — no AI, no app code.
@@ -485,7 +484,7 @@ the existing `scripts/*.mjs` pattern. *Goals:* D5, D9, G6 (dataset version on ev
 
 ---
 
-## Phase H2 🟨 IN PROGRESS (computePlacards done) — Rules engine: placards, eligibility, segregation
+## Phase H2 🟨 IN PROGRESS (computePlacards + checkSegregation done; OPEN: table1_out_of_scope fail-closed gate, SME golden scenarios; checkEligibility deferred to H8) — Rules engine: placards, eligibility, segregation
 
 **Objective.** The deterministic core. After this phase the hardest correctness problem is solved
 and permanently regression-guarded.
@@ -745,7 +744,7 @@ citations), D1, D4-revised (Table 2 depth + total Table 1 recognition-and-block)
 
 ---
 
-## Phase H3 ☐ — Rules engine: BOL compliance findings
+## Phase H3 🟨 CODE DONE (validateBol shipped + 7 tests); PENDING: D11 expert-flow doc + traceability matrix (human-gated) — Rules engine: BOL compliance findings
 
 **Objective.** `validateBol()` — the shipping-paper ruleset with calibrated severity tiers, fuel
 depth first (D4).
