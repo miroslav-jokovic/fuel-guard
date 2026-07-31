@@ -166,7 +166,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
 | **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Calculator + Load Workspace + cargo-tank CRUD built & audited; remaining: per-compartment inputs — blocked on engine H2; e2e run in seeded CI.)* |
-| **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(resolveHmtLine() — the deterministic cross-validation cornerstone — built + tested; vision/opencv/orchestrator wiring pending.)* |
+| **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(Deterministic core — resolveHmtLine + BolFields + mapper + cross-validation — built + tested; vision/OpenCV/orchestrator wiring pending.)* |
 | **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
 | **H9** ☐ Securement & placard-photo verification | Truck photo vs computed placards + checklist | H2, H6 | Photo of placarded truck → match/mismatch against required set. |
@@ -362,12 +362,23 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   `\b(UN|NA)\b` never matched a glued id like "UN1993" (no word boundary before the digits) → fixed to a
   start-anchor. Reconciliation: the plan said "lives in `@hazmat/engine`"; it lives in `@hazmat/data` where
   the resolver machinery already is and which the engine can't import (see the H6 spec note below).
-- PENDING in H6 (needs API keys / real photos / OpenCV — built to the 07 discipline, run in a real env):
-  image normalization (OpenCV, `imageNormalizerVersion`), the usability gate, the pinned dual-pass vision
-  (`HAZMAT_MODEL_A/B`, Zod-structured, temp 0), the deterministic cross-validation battery (agreement,
-  arithmetic, pre-printed-catalog lines, declared-vs-extracted), the `BolFields → LoadInput` mapper, and
-  the orchestrator's extraction branch feeding the H6 outcome table. `resolveHmtLine()` is the pure core
-  those checks call; the AI halves are the "AI reads" side of D1.
+- **`BolFields` contract + mapper + cross-validation battery shipped** (`apps/api/src/services/hazmatExtraction/`,
+  25 tests) — the rest of the DETERMINISTIC "code decides" half of H6, all pure + fully tested:
+  `bolFields.ts` (the extraction contract: Zod `BolFields`/`BolLineFields`, printed-unit normalization to
+  the engine's closed set, the pre-printed-catalog `classifyLineLoadState`, page-completeness);
+  `mapBolLines.ts` (BolFields lines → engine lines via `resolveHmtLine` — fail-closed: an unresolved line
+  or an unrecognized unit yields a NAMED flag and NO engine line; the §173.150(f) Combustible election is
+  honored ONLY when a declared line confirms it, else flagged + defaulted to Class 3; per-field provenance);
+  `crossValidate.ts` (dual-pass `checkAgreement` on the safety-critical fields, `checkArithmetic` —
+  count×per-package, line-sum-vs-total, page completeness — and `reconcileDeclaredVsExtracted` at the
+  canonical-`hmtRef` level with a 2% quantity tolerance). `flashPointF`/`ethanolPct` stay `null` (the
+  `fuelProducts.json` overlay is still pending, H1) exactly as the manual path leaves them.
+- PENDING in H6 (needs API keys / real photos / OpenCV — will be built to the 07 discipline but can only be
+  RUN in a real env): image normalization (OpenCV, `imageNormalizerVersion`), the usability gate, the pinned
+  dual-pass vision (`HAZMAT_MODEL_A/B`, Zod-structured `BolFields`, temp 0, content-hash cache + token
+  budget + kill-switch), and the orchestrator's extraction branch that calls the pure battery above and
+  feeds the H6 outcome table (the manual outcome rows already exist; extraction adds rows 1–4 + the
+  auto-clear boundary). The entire deterministic core those AI passes depend on is now built + verified.
 
 **Not yet started (code):** H7 review queue, H8 policy, H9 securement, H10 driver capture,
 H11 shadow, H12 product. (H2 also owes the capacity/compartment engine rules that the cargo-tank profiles
@@ -1226,7 +1237,7 @@ features/ boundary, packages/ui, Tailwind templates, Playwright config all exist
 
 ---
 
-## Phase H6 🟨 IN PROGRESS (resolveHmtLine() — the deterministic cornerstone — built + tested 2026-07-31; vision/opencv/orchestrator wiring pending) — Extraction service (photo → validated BolFields)
+## Phase H6 🟨 IN PROGRESS (the full DETERMINISTIC core — resolveHmtLine + BolFields + mapper + cross-validation — built + tested 2026-07-31; vision/OpenCV/orchestrator wiring pending) — Extraction service (photo → validated BolFields)
 
 **Objective.** The only AI in the system, wrapped in enough independent checks that a wrong read
 cannot silently pass (D1/D2).
