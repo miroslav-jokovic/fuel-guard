@@ -41,8 +41,32 @@ const routes: RouteRecordRaw[] = [
   {
     path: "/loads",
     name: "loads",
-    component: () => import("@/pages/LoadsPage.vue"),
+    component: () => import("@/pages/DispatchLoadsPage.vue"),
     meta: { requiresAuth: true, title: "Loads" },
+  },
+  {
+    path: "/loads/new",
+    name: "load-new",
+    component: () => import("@/pages/DispatchLoadsPage.vue"),
+    meta: { requiresAuth: true, requiresManage: true, title: "New Load" },
+  },
+  {
+    path: "/loads/:id",
+    name: "load-detail",
+    component: () => import("@/pages/DispatchLoadsPage.vue"),
+    meta: { requiresAuth: true, title: "Load Details" },
+  },
+  {
+    path: "/dispatch/loads",
+    redirect: { name: "loads" },
+  },
+  {
+    path: "/dispatch/loads/new",
+    redirect: { name: "load-new" },
+  },
+  {
+    path: "/dispatch/loads/:id",
+    redirect: (to) => ({ name: "load-detail", params: { id: to.params.id } }),
   },
   {
     path: "/hazmat",

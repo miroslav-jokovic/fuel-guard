@@ -1,11 +1,15 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type {
-  AssignLoadRequest,
-  CreateLoadRequest,
-  LoadEventKind,
-  LoadStatus,
-  UpdateLoadRequest,
+import {
+  approvalChecklist,
+  canTransition,
+  LOAD_STATUS_LABELS,
+  type AssignLoadRequest,
+  type ApprovalChecklist,
+  type CreateLoadRequest,
+  type LoadEventKind,
+  type LoadStatus,
+  type UpdateLoadRequest,
 } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 
@@ -50,6 +54,11 @@ export interface DispatchLoad {
   driver_name: string | null;
   vehicle_unit: string | null;
   trailer_unit: string | null;
+  source: string;
+  provider: string | null;
+  submitted_at: string | null;
+  declined_at: string | null;
+  cancel_reason: string | null;
   notes: string | null;
   created_at: string;
   stops: DispatchStop[];
@@ -171,7 +180,7 @@ export interface LoadEventRow {
 /** The timeline for one load — enabled only while a load is open in the detail panel. */
 export function useLoadEvents(loadId: Ref<string | null>) {
   return useQuery({
-    queryKey: ["dispatch", "load-events", loadId] as const,
+    queryKey: computed(() => ["dispatch", "load-events", loadId.value] as const),
     enabled: computed(() => loadId.value != null),
     queryFn: async (): Promise<LoadEventRow[]> => {
       const res = await apiFetch<{ events: LoadEventRow[] }>(
@@ -181,4 +190,72 @@ export function useLoadEvents(loadId: Ref<string | null>) {
       return res.data.events;
     },
   });
+}
+
+export type QueueTab = "needs_approval" | "approved" | "dispatched" | "active" | "delivered" | "exceptions";
+
+export const QUEUE_TABS: { value: QueueTab; label: string }[] = [
+  { value: "needs_approval", label: "Needs approval" },
+  { value: "approved", label: "Approved" },
+  { value: "dispatched", label: "Dispatched" },
+  { value: "active", label: "Active" },
+  { value: "delivered", label: "Delivered" },
+  { value: "exceptions", label: "Exceptions" },
+];
+
+export function isException(load: DispatchLoad, nowMs: number): boolean {
+  if (load.declined_at) return true;
+  return load.status === "pending_approval" && nowMs - Date.parse(load.created_at) > 24 * 3_600_000;
+}
+
+export function tabFor(load: DispatchLoad): Exclude<QueueTab, "exceptions"> {
+  switch (load.status) {
+    case "draft":
+    case "pending_approval":
+      return "needs_approval";
+    case "approved":
+      return "approved";
+    case "offered":
+      return "dispatched";
+    case "accepted":
+    case "in_transit":
+      return "active";
+    default:
+      return "delivered";
+  }
+}
+
+export function checklistFor(load: DispatchLoad): ApprovalChecklist {
+  return approvalChecklist({
+    driver_id: load.driver_id,
+    vehicle_id: load.vehicle_id,
+    trailer_id: load.trailer_id,
+    equipment: load.equipment,
+    commodity: load.commodity,
+    hazmat: load.hazmat,
+    stops: load.stops,
+  });
+}
+
+export function statusLabel(status: LoadStatus): string {
+  return LOAD_STATUS_LABELS[status];
+}
+
+export function availableActions(load: DispatchLoad): {
+  submit: boolean;
+  approve: boolean;
+  reject: boolean;
+  release: boolean;
+  cancel: boolean;
+  approveBlockedBy: string[];
+} {
+  const checklist = checklistFor(load);
+  return {
+    submit: canTransition(load.status, "pending_approval"),
+    approve: canTransition(load.status, "approved") && checklist.canApprove,
+    reject: load.status === "pending_approval",
+    release: canTransition(load.status, "offered"),
+    cancel: canTransition(load.status, "canceled"),
+    approveBlockedBy: checklist.blockers.map((b) => b.detail ?? b.label),
+  };
 }
