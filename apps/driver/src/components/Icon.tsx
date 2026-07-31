@@ -9,7 +9,7 @@ const FAMILY = {
   outlined: { outline: 'MaterialSymbolsOutlined', fill: 'MaterialSymbolsOutlinedFill' },
 } as const;
 
-export type IconProps = {
+export interface IconProps {
   name: MaterialSymbolName;
   size?: number;
   variant?: 'rounded' | 'outlined';
@@ -17,7 +17,7 @@ export type IconProps = {
   className?: string;
   color?: string;
   style?: StyleProp<TextStyle>;
-};
+}
 
 export function Icon({
   name,

@@ -36,6 +36,10 @@ module.exports = {
         'sans-sb':  ['HankenGrotesk_600SemiBold','system-ui', 'sans-serif'],
         'sans-bold':['HankenGrotesk_700Bold',    'system-ui', 'sans-serif'],
       },
+      fontSize: {
+        micro: ['11px', { lineHeight: '16px' }],
+        cta: ['17px', { lineHeight: '24px' }],
+      },
       borderRadius: { md: 6, lg: 8, xl: 12 },
     },
   },

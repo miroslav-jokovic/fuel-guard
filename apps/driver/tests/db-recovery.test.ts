@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Hoisted so the vi.mock factories (which are hoisted above imports) can reach them.
 const h = vi.hoisted(() => ({
   openImpl: { current: null as null | (() => Promise<unknown>) },
-  deleteDatabaseAsync: vi.fn(async () => {}),
+  deleteDatabaseAsync: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('expo-sqlite', () => ({
@@ -21,8 +21,8 @@ vi.mock('expo-sqlite', () => ({
 }));
 
 vi.mock('expo-secure-store', () => ({
-  getItemAsync: vi.fn(async () => 'ab'.repeat(32)), // an existing key → getOrCreateKey returns it
-  setItemAsync: vi.fn(async () => {}),
+  getItemAsync: vi.fn(() => Promise.resolve('ab'.repeat(32))), // an existing key → getOrCreateKey returns it
+  setItemAsync: vi.fn(() => Promise.resolve()),
   AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'afterFirstUnlockThisDeviceOnly',
 }));
 
@@ -37,11 +37,11 @@ const NOTADB = () => new Error('Error code 26: file is not a database (at SQLite
 
 /** A fake db handle. `failVerifyWith` throws on the sqlite_master verification read. */
 function fakeDb(opts: { failVerifyWith?: Error } = {}) {
-  const closeAsync = vi.fn(async () => {});
+  const closeAsync = vi.fn(() => Promise.resolve());
   return {
     handle: {
-      execAsync: vi.fn(async () => {}),
-      getFirstAsync: vi.fn(async (sql: string) => {
+      execAsync: vi.fn(() => Promise.resolve()),
+      getFirstAsync: vi.fn((sql: string) => {
         if (sql.includes('cipher_version')) return { cipher_version: '4.5.0' };
         if (sql.includes('sqlite_master')) {
           if (opts.failVerifyWith) throw opts.failVerifyWith;

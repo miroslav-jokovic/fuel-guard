@@ -87,7 +87,7 @@ export default function CheckIn() {
 
   const loading = equipment.isPending && !equipment.data;
   // Vehicle is required to be on duty at all; in swap mode the driver already has one.
-  const canConfirm = mode === 'swap' ? Boolean(vehicle || trailer || bobtail) : Boolean(vehicle);
+  const canConfirm = mode === 'swap' ? Boolean(vehicle ?? trailer ?? bobtail) : Boolean(vehicle);
 
   const pick = (option: EquipmentOption, kind: 'vehicle' | 'trailer') => {
     // Never a silent steal (D44.6) — the driver is shown who holds it and decides.
@@ -117,7 +117,7 @@ export default function CheckIn() {
   const submit = async () => {
     const odo = Number.parseFloat(odometer);
     const tookOver = Boolean(
-      (vehicle && vehicle.in_use_by) || (trailer && trailer.in_use_by),
+      vehicle?.in_use_by ?? trailer?.in_use_by,
     );
 
     if (mode === 'start' && vehicle) {

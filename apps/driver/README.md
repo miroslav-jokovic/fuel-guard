@@ -1,6 +1,10 @@
 # FuelGuard Driver App
 
 React Native + Expo app for drivers. Part of the FuelGuard monorepo; reuses `@fuelguard/shared`.
+
+**UI contract:** read [`DESIGN.md`](./DESIGN.md) before creating or changing any driver UI. It is the
+source of truth for the FuelGuard visual language, Apple-inspired layout rules, component contracts,
+states, accessibility, and AI implementation constraints.
 See the full plan: `docs/plans/drivers-app/DRIVER-APP-PLAN.md`.
 
 The app uses a **custom development build** (dev client), not Expo Go — several native modules

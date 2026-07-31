@@ -27,10 +27,10 @@ const LABEL: Record<Variant, string> = {
 const SIZE: Record<Size, { view: string; text: string; icon: number; gap: number }> = {
   sm: { view: 'px-3.5 min-h-[44px] rounded-lg', text: 'text-sm', icon: 18, gap: 6 },
   md: { view: 'px-5 min-h-[52px] rounded-xl', text: 'text-base', icon: 20, gap: 8 },
-  lg: { view: 'px-6 min-h-[56px] rounded-xl', text: 'text-[17px]', icon: 22, gap: 8 },
+  lg: { view: 'px-6 min-h-14 rounded-xl', text: 'text-cta', icon: 22, gap: 8 },
 };
 
-export type ButtonProps = {
+export interface ButtonProps {
   label: string;
   variant?: Variant;
   size?: Size;
@@ -41,7 +41,7 @@ export type ButtonProps = {
   haptic?: HapticKind | null;
   onPress?: (e: GestureResponderEvent) => void;
   block?: boolean;
-};
+}
 
 export function Button({
   label,

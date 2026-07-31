@@ -79,7 +79,7 @@ export function parseInviteUrl(url: string): InviteLinkParams {
 
 /** True when the URL carries anything we could turn into a session. */
 export function hasSessionMaterial(p: InviteLinkParams): boolean {
-  return !!((p.accessToken && p.refreshToken) || p.code || p.verifyTokenHash);
+  return !!((p.accessToken && p.refreshToken) ?? p.code ?? p.verifyTokenHash);
 }
 
 /**

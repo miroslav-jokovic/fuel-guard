@@ -177,7 +177,7 @@ export default function StopCapture() {
                       />
                     ) : (
                       <View
-                        className={`h-14 w-14 items-center justify-center rounded-[10px] ${
+                        className={`h-14 w-14 items-center justify-center rounded-lg ${
                           done ? 'bg-success/10' : 'bg-surface-muted'
                         }`}
                       >

@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Icon } from './Icon';
 import { haptics } from '@/lib/haptics';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
+import { ui } from '@/theme/classes';
 
 export function ListRow({
   title,
@@ -34,9 +35,7 @@ export function ListRow({
             }
           : undefined
       }
-      className={`min-h-[60px] flex-row items-center gap-3 rounded-xl border border-edge bg-surface px-4 py-2.5 active:bg-surface-subtle ${
-        disabled ? 'opacity-50' : ''
-      }`}
+      className={`${ui.listRow} active:bg-surface-subtle ${disabled ? 'opacity-50' : ''}`}
     >
       {icon ? (
         <View className="h-10 w-10 items-center justify-center rounded-lg bg-surface-muted">

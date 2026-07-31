@@ -34,7 +34,7 @@ export function Badge({
 }) {
   const t = TONE[tone];
   return (
-    <View className={`flex-row items-center gap-1 self-start rounded-full px-2.5 py-[3px] ${t.bg}`}>
+    <View className={`flex-row items-center gap-1 self-start rounded-full px-2.5 py-1 ${t.bg}`}>
       {dot ? <View className={`h-1.5 w-1.5 rounded-full ${t.dot}`} /> : null}
       {icon ? <Icon name={icon} size={13} className={t.text} /> : null}
       <Text className={`text-xs font-sans-sb ${t.text}`}>{label}</Text>

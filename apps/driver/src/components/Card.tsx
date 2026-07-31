@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { haptics } from '@/lib/haptics';
+import { ui } from '@/theme/classes';
 
 // Surface card with a hairline edge ring (plan §11.6) at the system 12px radius. Pass `onPress`
 // to make the whole card a target (≥ list-row size) with press feedback. Token-only.
@@ -13,7 +14,7 @@ export function Card({
   onPress?: () => void;
   padded?: boolean;
 }) {
-  const base = `rounded-xl border border-edge bg-surface ${padded ? 'p-4 gap-1.5' : ''}`;
+  const base = `${ui.card} ${padded ? ui.cardContent : ''}`;
   if (onPress) {
     return (
       <Pressable

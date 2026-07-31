@@ -2,6 +2,7 @@ import { Text, View } from 'react-native';
 import { Icon } from './Icon';
 import { Sparkline } from './Sparkline';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
+import { type as typeScale } from '@/theme/tokens';
 
 // Glanceable metric: the big tabular numeral is the app's visual signature (plan §22.8).
 // `trend` gives the number meaning at a glance — direction + whether that direction is GOOD
@@ -25,14 +26,19 @@ export function StatTile({
     <View className="flex-1 gap-1.5 rounded-xl border border-edge bg-surface p-4">
       <View className="flex-row items-center gap-1.5">
         {icon ? <Icon name={icon} size={14} className="text-ink-muted" /> : null}
-        <Text className="text-[11px] font-sans-sb uppercase tracking-wider text-ink-muted">
+        <Text className="text-micro font-sans-sb uppercase tracking-wider text-ink-muted">
           {label}
         </Text>
       </View>
       <View className="flex-row items-baseline gap-1">
         <Text
           className="font-sans-bold text-ink"
-          style={{ fontSize: 30, lineHeight: 34, fontVariant: ['tabular-nums'], includeFontPadding: false }}
+          style={{
+            fontSize: typeScale.size.stat,
+            lineHeight: typeScale.line.stat,
+            fontVariant: ['tabular-nums'],
+            includeFontPadding: false,
+          }}
         >
           {value}
         </Text>

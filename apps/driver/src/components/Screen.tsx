@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { layout } from '@/theme/tokens';
+import { ui } from '@/theme/classes';
 
 // Safe-area + canvas background wrapper (plan §11.6). Scrolls by default; `scroll={false}` gives
 // a fixed flex column (map/nav screens). Consistent 16pt gutters + 4-unit vertical rhythm.
@@ -14,23 +16,23 @@ export function Screen({
   padTop?: boolean;
 }) {
   const insets = useSafeAreaInsets();
-  const top = padTop ? insets.top + 16 : 16;
+  const top = padTop ? insets.top + layout.screenInset : layout.screenInset;
 
   if (!scroll) {
     return (
       <View
-        className="flex-1 gap-4 bg-canvas px-4"
-        style={{ paddingTop: top, paddingBottom: insets.bottom + 16 }}
+        className={ui.fixedContent}
+        style={{ paddingTop: top, paddingBottom: insets.bottom + layout.screenInset }}
       >
         {children}
       </View>
     );
   }
   return (
-    <View className="flex-1 bg-canvas">
+    <View className={ui.screen}>
       <ScrollView
-        contentContainerClassName="p-4 gap-4"
-        contentContainerStyle={{ paddingTop: top, paddingBottom: insets.bottom + 32 }}
+        contentContainerClassName={ui.scrollContent}
+        contentContainerStyle={{ paddingTop: top, paddingBottom: insets.bottom + layout.scrollBottomInset }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

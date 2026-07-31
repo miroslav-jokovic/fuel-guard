@@ -20,13 +20,13 @@ function ensureDir(): Directory {
 }
 
 /** Copy a captured file into the staging area under a deterministic, record-scoped name. */
-export function stageFile(sourceUri: string, recordId: string, index = 0): string {
+export async function stageFile(sourceUri: string, recordId: string, index = 0): Promise<string> {
   const dir = ensureDir();
   const source = new File(sourceUri);
   const extension = source.extension || '.jpg';
   const target = new File(dir, `${recordId}-${index}${extension}`);
   if (target.exists) target.delete();
-  source.copy(target);
+  await source.copy(target);
   return target.uri;
 }
 

@@ -130,7 +130,7 @@ export default function SignIn() {
 
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push('/accept-invite' as never)}
+          onPress={() => router.push('/accept-invite')}
           className="min-h-[44px] items-center justify-center rounded-xl active:bg-surface-muted"
         >
           <Text className="text-center text-sm leading-relaxed text-ink-muted">

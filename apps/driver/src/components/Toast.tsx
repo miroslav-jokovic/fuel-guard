@@ -1,4 +1,4 @@
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Icon } from './Icon';
 import type { Tone } from './Badge';

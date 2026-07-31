@@ -2,6 +2,7 @@
   "name": "@fuelguard/driver",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "main": "expo-router/entry",
   "scripts": {
     "shared": "pnpm --filter @fuelguard/shared build:rn",
@@ -17,6 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "lint:tokens": "node scripts/check-driver-tokens.mjs",
+    "lint:design": "node scripts/check-driver-design.mjs",
     "test": "vitest run"
   },
   "dependencies": {

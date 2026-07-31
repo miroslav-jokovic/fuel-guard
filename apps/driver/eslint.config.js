@@ -4,7 +4,7 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
-  { ignores: ['dist', '.expo', 'ios', 'android', 'node_modules', '**/*.generated.ts'] },
+  { ignores: ['dist', '.expo', 'ios', 'android', 'node_modules', 'scripts/**', '**/*.generated.ts'] },
   js.configs.recommended,
   {
     // Type-aware rules scoped to TS/TSX only — keeps plain JS config files
@@ -41,5 +41,20 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'warn',
       'react/jsx-key': 'error',
     },
+  },
+  {
+    files: ['**/*.{js,mjs}'],
+    languageOptions: {
+      globals: {
+        __dirname: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+      },
+    },
+    rules: { 'no-undef': 'off' },
   },
 );

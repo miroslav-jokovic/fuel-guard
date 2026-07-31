@@ -233,10 +233,12 @@ export function useCompleteStop() {
       const photos = buildStopPhotos({ orgId, driverId, loadId: input.loadId, captures });
       // Stage each processed JPEG under the record id; the staged uri (not the volatile cache uri) is
       // what the outbox references and the handler uploads.
-      const stagedPhotos = photos.map((p, i) => ({
-        ...p,
-        local_uri: stageFile(p.local_uri, recordId, i),
-      }));
+      const stagedPhotos = await Promise.all(
+        photos.map(async (p, i) => ({
+          ...p,
+          local_uri: await stageFile(p.local_uri, recordId, i),
+        })),
+      );
       await enqueue({
         id: recordId,
         kind: LOAD_STOP_KIND,

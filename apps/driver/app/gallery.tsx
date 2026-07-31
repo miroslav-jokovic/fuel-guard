@@ -3,8 +3,8 @@ import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field, Icon, IconButton, Input,
-  ListRow, NumericField, ScoreRing, Screen, ScreenHeader, SegmentedControl, Skeleton, StatTile,
-  Toast, severityTone,
+  ListRow, NumericField, ScoreRing, Screen, ScreenHeader, SectionLabel, SegmentedControl, Skeleton,
+  StatTile, Toast, severityTone,
 } from '@/components';
 import { LoadCard } from '@/features/loads/LoadCard';
 import { SAMPLE_UPCOMING } from '@/features/loads/sampleLoads';
@@ -14,7 +14,7 @@ import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View className="gap-3">
-      <Text className="text-[11px] font-sans-sb uppercase tracking-wider text-ink-muted">{title}</Text>
+      <SectionLabel>{title}</SectionLabel>
       {children}
     </View>
   );

@@ -78,7 +78,7 @@ export default function AcceptInvite() {
     return undefined;
   }, [url, session]);
 
-  async function usePastedLink() {
+  async function pasteInviteLink() {
     setError(null);
     const params = parseInviteUrl(pastedLink.trim());
     if (params.inviteToken) setInviteToken(params.inviteToken);
@@ -249,7 +249,7 @@ export default function AcceptInvite() {
                 loading={submitting}
                 disabled={pastedLink.trim().length === 0 || submitting}
                 onPress={() => {
-                  void usePastedLink();
+                  void pasteInviteLink();
                 }}
               />
             </View>
