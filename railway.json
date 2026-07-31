@@ -11,12 +11,24 @@
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3,
     "watchPatterns": [
-      "apps/api/**",
-      "apps/web/**",
-      "packages/**",
-      "package.json",
-      "pnpm-lock.yaml",
-      "railway.json"
+      "**",
+      "!**/*.md",
+      "!**/*.mdx",
+      "!docs/**",
+      "!.github/**",
+      "!.claude/**",
+      "!.vscode/**",
+      "!.idea/**",
+      "!.editorconfig",
+      "!.gitignore",
+      "!.gitattributes",
+      "!**/.DS_Store",
+      "!**/*.test.ts",
+      "!**/*.test.tsx",
+      "!**/*.test.mjs",
+      "!**/*.spec.ts",
+      "!**/*.spec.tsx",
+      "!**/__tests__/**"
     ]
   }
 }
