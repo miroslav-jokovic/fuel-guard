@@ -92,7 +92,7 @@ export default function Home() {
         />
       ) : null}
 
-      <SectionLabel>Your day</SectionLabel>
+      <SectionLabel>Today</SectionLabel>
       <DutyCard
         duty={duty}
         loading={shift.isPending && !shift.data}
@@ -101,7 +101,7 @@ export default function Home() {
         onEnd={() => router.push('/duty/end-shift')}
       />
 
-      <SectionLabel>{current ? 'Current load' : 'Next load'}</SectionLabel>
+      <SectionLabel>{current ? 'Active work' : 'Next assignment'}</SectionLabel>
       {loads.isPending && !loads.data ? (
         <Skeleton className="h-[220px] w-full rounded-xl" />
       ) : current ? (

@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { EquipmentOption } from '@fuelguard/shared';
 import {
+  ActionBar,
   Badge,
   Banner,
   Button,
@@ -17,6 +18,8 @@ import {
   ScreenHeader,
   SectionLabel,
   Skeleton,
+  TaskStepper,
+  type TaskStep,
 } from '@/components';
 import {
   dutyView,
@@ -88,6 +91,17 @@ export default function CheckIn() {
   const loading = equipment.isPending && !equipment.data;
   // Vehicle is required to be on duty at all; in swap mode the driver already has one.
   const canConfirm = mode === 'swap' ? Boolean(vehicle ?? trailer ?? bobtail) : Boolean(vehicle);
+  const equipmentSteps: TaskStep[] = mode === 'swap'
+    ? [
+        { label: 'Truck', state: vehicle ? 'complete' : 'current' },
+        { label: 'Trailer', state: vehicle && (trailer || bobtail) ? 'complete' : vehicle ? 'current' : 'upcoming' },
+        { label: 'Save', state: vehicle && (trailer || bobtail) ? 'current' : 'upcoming' },
+      ]
+    : [
+        { label: 'Truck', state: vehicle ? 'complete' : 'current' },
+        { label: 'Trailer', state: vehicle && (trailer || bobtail) ? 'complete' : vehicle ? 'current' : 'upcoming' },
+        { label: 'Odometer', state: vehicle && (trailer || bobtail) ? 'current' : 'upcoming' },
+      ];
 
   const pick = (option: EquipmentOption, kind: 'vehicle' | 'trailer') => {
     // Never a silent steal (D44.6) — the driver is shown who holds it and decides.
@@ -151,6 +165,8 @@ export default function CheckIn() {
         }
         onClose={() => router.back()}
       />
+
+      <TaskStepper steps={equipmentSteps} />
 
       {equipment.isError && !equipment.data ? (
         <Banner
@@ -254,8 +270,9 @@ export default function CheckIn() {
         </>
       ) : null}
 
-      <Button
-        label={mode === 'swap' ? 'Save equipment' : 'Start my shift'}
+      <ActionBar>
+        <Button
+          label={mode === 'swap' ? 'Save equipment' : 'Start my shift'}
         size="lg"
         icon="check"
         disabled={!canConfirm}
@@ -263,9 +280,10 @@ export default function CheckIn() {
         haptic="success"
         onPress={() => void submit()}
       />
-      <Text className="pb-2 text-center text-xs text-ink-subtle">
-        Works offline — this syncs when you get signal.
-      </Text>
+        <Text className="pb-2 text-center text-xs text-ink-subtle">
+          Works offline — this syncs when you get signal.
+        </Text>
+      </ActionBar>
 
       <ConfirmSheet
         visible={takeOver !== null}

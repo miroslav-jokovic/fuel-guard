@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field, Icon, IconButton, Input,
-  ListRow, NumericField, ScoreRing, Screen, ScreenHeader, SectionLabel, SegmentedControl, Skeleton,
-  StatTile, Toast, severityTone,
+  ActionBar, Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field, Icon, IconButton,
+  Input, ListRow, NumericField, Progress, ScoreRing, Screen, ScreenHeader, SectionLabel,
+  SegmentedControl, Skeleton, StatTile, TaskStepper, Toast, severityTone,
 } from '@/components';
 import { LoadCard } from '@/features/loads/LoadCard';
 import { SAMPLE_UPCOMING } from '@/features/loads/sampleLoads';
@@ -104,6 +104,21 @@ export default function Gallery() {
             { label: 'Previous', value: 'previous' },
           ]}
         />
+      </Section>
+
+      <Section title="Task flow — progress, steps, and next action">
+        <TaskStepper
+          steps={[
+            { label: 'Assigned', state: 'complete' },
+            { label: 'In transit', state: 'current' },
+            { label: 'Complete', state: 'upcoming' },
+          ]}
+        />
+        <Progress label="Stop progress" detail="2 of 4 stops" value={0.5} />
+        <ActionBar>
+          <Button label="Work next stop" icon="photo_camera" size="lg" variant="primary" onPress={noop} />
+          <Text className="text-center text-xs text-ink-muted">Saved locally, syncs automatically.</Text>
+        </ActionBar>
       </Section>
 
       <Section title="Data viz — score ring & sparklines">

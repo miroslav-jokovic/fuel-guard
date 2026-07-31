@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import { Badge, Button, Card, Icon } from '@/components';
+import { Badge, Button, Card, Icon, Progress } from '@/components';
 import { LOAD_STATUS, RouteRail, type LoadSummary } from './LoadCard';
 
 export interface ActiveLoad extends LoadSummary {
@@ -42,9 +42,8 @@ export function CurrentLoadCard({
         destTime={load.destTime}
       />
 
-      {/* Stop progress */}
-      <View className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-muted">
-        <View className="h-full rounded-full bg-brand" style={{ width: `${Math.round(pct * 100)}%` }} />
+      <View className="mt-3">
+        <Progress label="Route progress" detail={`${load.progress.current} of ${load.progress.total} stops`} value={pct} />
       </View>
 
       {/* Next stop focus */}

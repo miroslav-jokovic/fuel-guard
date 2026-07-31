@@ -7,6 +7,7 @@ import {
   Screen,
   ScoreRing,
   ScreenHeader,
+  SectionLabel,
   Skeleton,
   StatTile,
 } from '@/components';
@@ -38,6 +39,8 @@ export default function Score() {
           onAction={() => void q.refetch()}
         />
       ) : null}
+
+      {!loading && view.state !== 'empty' ? <SectionLabel>This week</SectionLabel> : null}
 
       {loading ? (
         <>
@@ -95,7 +98,12 @@ export default function Score() {
             ))}
           </View>
 
-          {view.coaching ? <Banner tone="info" icon="bolt" message={view.coaching} /> : null}
+          {view.coaching ? (
+            <>
+              <SectionLabel>Next opportunity</SectionLabel>
+              <Banner tone="info" icon="bolt" message={view.coaching} />
+            </>
+          ) : null}
         </>
       )}
     </Screen>

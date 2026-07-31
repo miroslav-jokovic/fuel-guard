@@ -10,9 +10,9 @@ type Variant = 'primary' | 'secondary' | 'danger' | 'soft' | 'ghost';
 type Size = 'sm' | 'md' | 'lg';
 
 const VIEW: Record<Variant, string> = {
-  primary: 'bg-brand active:opacity-90',
-  secondary: 'bg-surface border border-edge-strong active:bg-surface-subtle',
-  danger: 'bg-danger active:opacity-90',
+  primary: 'bg-brand shadow-sm active:opacity-90',
+  secondary: 'bg-surface border border-edge-strong shadow-sm active:bg-surface-subtle',
+  danger: 'bg-danger shadow-sm active:opacity-90',
   soft: 'bg-surface-muted active:bg-surface-subtle',
   ghost: 'active:bg-surface-muted',
 };

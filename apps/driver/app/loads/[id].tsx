@@ -14,14 +14,18 @@ import {
 import {
   Badge,
   Banner,
+  ActionBar,
   Button,
   Card,
   ConfirmSheet,
   Icon,
   ListRow,
+  Progress,
   Screen,
   ScreenHeader,
   SectionLabel,
+  TaskStepper,
+  type TaskStep,
   type Tone,
 } from '@/components';
 import { appointmentLabel, placeLabel, stopTime } from '@/features/loads/loadViewModel';
@@ -143,6 +147,11 @@ export default function LoadDetail() {
       ? !duty.equipmentLabel.includes(load.vehicle_unit)
       : false;
   const working = load.status === 'in_transit';
+  const taskIndex = load.status === 'offered' ? 1 : load.status === 'accepted' ? 2 : working ? 3 : load.status === 'delivered' ? 4 : 0;
+  const taskSteps: TaskStep[] = ['Assigned', 'Accepted', 'In transit', 'Stops', 'Complete'].map((label, index) => ({
+    label,
+    state: load.status === 'delivered' || index < taskIndex ? 'complete' : index === taskIndex ? 'current' : 'upcoming',
+  }));
   const openStop = (stopId: string) => router.push(`/loads/${load.id}/stop/${stopId}` as never);
 
   return (
@@ -182,27 +191,14 @@ export default function LoadDetail() {
         />
       ) : null}
 
+      <TaskStepper steps={taskSteps} />
+
       {working ? (
-        <View className="gap-1.5">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-sm font-sans-md text-ink-secondary">
-              Stop {progress.current} of {progress.total}
-            </Text>
-            {next ? (
-              <Text className="text-sm text-ink-muted">
-                Next: {next.kind === 'dropoff' ? 'Deliver' : 'Pick up'} — {placeLabel(next)}
-              </Text>
-            ) : null}
-          </View>
-          <View className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
-            <View
-              className="h-full rounded-full bg-brand"
-              style={{
-                width: `${Math.round((progress.current / Math.max(progress.total, 1)) * 100)}%`,
-              }}
-            />
-          </View>
-        </View>
+        <Progress
+          label={`Stop ${progress.current} of ${progress.total}`}
+          detail={next ? `Next: ${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'} — ${placeLabel(next)}` : undefined}
+          value={progress.current / Math.max(progress.total, 1)}
+        />
       ) : null}
 
       <SectionLabel>Itinerary</SectionLabel>
@@ -230,7 +226,7 @@ export default function LoadDetail() {
       ) : null}
 
       {load.status === 'offered' ? (
-        <View className="gap-2 pt-1">
+        <ActionBar>
           <Button
             label={copy.primary}
             size="lg"
@@ -245,28 +241,32 @@ export default function LoadDetail() {
             size="md"
             onPress={() => setDeclining(true)}
           />
-        </View>
+        </ActionBar>
       ) : null}
 
       {load.status === 'accepted' ? (
-        <Button
-          label="Start this trip"
-          size="lg"
-          icon="play_arrow"
-          haptic="success"
-          loading={start.isPending}
-          onPress={() => void start.mutateAsync(load.id)}
-        />
+        <ActionBar>
+          <Button
+            label="Start this trip"
+            size="lg"
+            icon="play_arrow"
+            haptic="success"
+            loading={start.isPending}
+            onPress={() => void start.mutateAsync(load.id)}
+          />
+        </ActionBar>
       ) : null}
 
       {working && next ? (
-        <Button
-          label={`Work next stop — ${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'}`}
-          size="lg"
-          icon="photo_camera"
-          haptic="success"
-          onPress={() => openStop(next.id)}
-        />
+        <ActionBar>
+          <Button
+            label={`Work next stop — ${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'}`}
+            size="lg"
+            icon="photo_camera"
+            haptic="success"
+            onPress={() => openStop(next.id)}
+          />
+        </ActionBar>
       ) : null}
 
       {/* Reason first, then confirm — a decline that dispatch cannot explain is worse than none. */}

@@ -3,6 +3,7 @@ import { Image, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { photoSlotLabel } from '@fuelguard/shared';
 import {
+  ActionBar,
   Badge,
   Banner,
   Button,
@@ -10,6 +11,7 @@ import {
   EmptyState,
   Icon,
   Input,
+  Progress,
   Screen,
   ScreenHeader,
   SectionLabel,
@@ -151,11 +153,14 @@ export default function StopCapture() {
         </Card>
       ) : (
         <>
-          <SectionLabel>
-            {requiredSlots.length > 0
-              ? `Photos · ${requiredSlots.length - outstanding.length} of ${requiredSlots.length}`
-              : 'Photos'}
-          </SectionLabel>
+          <SectionLabel>Capture</SectionLabel>
+          {requiredSlots.length > 0 ? (
+            <Progress
+              label="Required photos"
+              detail={`${requiredSlots.length - outstanding.length} of ${requiredSlots.length}`}
+              value={(requiredSlots.length - outstanding.length) / requiredSlots.length}
+            />
+          ) : null}
 
           {requiredSlots.length === 0 ? (
             <EmptyState
@@ -209,7 +214,7 @@ export default function StopCapture() {
             })
           )}
 
-          <View className="gap-2 pt-2">
+          <ActionBar>
             <Button
               label="Complete stop"
               size="lg"
@@ -236,7 +241,7 @@ export default function StopCapture() {
                 setReasonMode('skipped');
               }}
             />
-          </View>
+          </ActionBar>
 
           <Text className="pb-2 text-center text-xs text-ink-subtle">
             Photos and completion sync automatically — this works with no signal.

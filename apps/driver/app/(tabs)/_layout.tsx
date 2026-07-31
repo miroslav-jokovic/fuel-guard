@@ -34,8 +34,25 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: rc.brand,
         tabBarInactiveTintColor: rc.inkMuted,
-        tabBarStyle: { backgroundColor: rc.surface, borderTopColor: rc.edge },
+        tabBarStyle: {
+          position: 'absolute',
+          left: 16,
+          right: 16,
+          bottom: 12,
+          height: 64,
+          paddingTop: 8,
+          paddingBottom: 8,
+          borderTopWidth: 0,
+          borderRadius: 16,
+          backgroundColor: rc.surface,
+          shadowColor: rc.ink,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.14,
+          shadowRadius: 12,
+          elevation: 8,
+        },
         tabBarLabelStyle: { fontSize: 11, fontFamily: 'HankenGrotesk_600SemiBold' },
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: tabIcon('home') }} />

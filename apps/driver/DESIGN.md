@@ -96,10 +96,11 @@ new pattern. Do not silently add a one-off value.
 
 Always check `src/components` before writing markup. The canonical primitives are:
 
-- Layout: `Screen`, `ScreenHeader`, `SectionLabel`, `Card`, `ListRow`
+- Layout: `Screen`, `ScreenHeader`, `SectionLabel`, `Card`, `ListRow`, `ActionBar`
 - Actions: `Button`, `IconButton`, `ConfirmSheet`
 - Forms: `Field`, `Input`, `NumericField`
 - Status and feedback: `Badge`, `Banner`, `Toast`, `OfflineBanner`, `SyncStatus`
+- Progress and workflow: `Progress`, `TaskStepper`
 - Data display: `StatTile`, `ScoreRing`, `Sparkline`
 - State handling: `Skeleton`, `EmptyState`
 - Choice controls: `SegmentedControl`

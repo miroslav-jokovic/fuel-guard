@@ -24,7 +24,7 @@ export const layout = {
   sectionGap: 24,
   cardPadding: 16,
   modalHorizontalInset: 20,
-  scrollBottomInset: 32,
+  scrollBottomInset: 96,
 } as const;
 
 export const type = {
