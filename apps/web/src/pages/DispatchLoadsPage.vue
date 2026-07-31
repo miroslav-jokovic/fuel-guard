@@ -293,6 +293,24 @@ onUnmounted(() => {
       </template>
     </PageHeader>
 
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <nav class="flex gap-1 rounded-lg bg-surface-muted p-1 text-sm" role="tablist" aria-label="Load queue">
+        <button
+          v-for="queue in QUEUE_TABS"
+          :key="queue.value"
+          type="button"
+          role="tab"
+          class="rounded-md px-3 py-1.5 font-medium transition"
+          :class="tab === queue.value ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+          :aria-selected="tab === queue.value"
+          @click="tab = queue.value"
+        >
+          {{ queue.label }}
+          <span class="ml-0.5 text-ink-subtle">{{ counts[queue.value] }}</span>
+        </button>
+      </nav>
+    </div>
+
     <FilterBar
       v-model:search="search"
       search-placeholder="Search load #, driver, unit, commodity…"
@@ -304,21 +322,6 @@ onUnmounted(() => {
       @clear-all="clearFilters"
     >
       <template #filters>
-        <nav class="flex flex-wrap items-center gap-1 rounded-lg bg-surface-muted p-1" role="tablist" aria-label="Load queue">
-          <button
-            v-for="queue in QUEUE_TABS"
-            :key="queue.value"
-            type="button"
-            role="tab"
-            class="rounded-md px-2.5 py-1.5 text-sm font-medium transition"
-            :class="tab === queue.value ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
-            :aria-selected="tab === queue.value"
-            @click="tab = queue.value"
-          >
-            {{ queue.label }}
-            <span class="ml-1 tabular-nums text-xs opacity-70">{{ counts[queue.value] }}</span>
-          </button>
-        </nav>
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
         <FilterSelect v-model="sourceFilter" label="Source" :options="sourceOptions" />
       </template>
