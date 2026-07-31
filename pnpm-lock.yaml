@@ -297,6 +297,10 @@ importers:
         version: 3.3.6(typescript@6.0.3)
 
   packages/hazmat-data:
+    dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 26.0.1
