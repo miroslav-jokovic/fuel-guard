@@ -229,7 +229,40 @@ awaiting Marija's scenarios).
   NOT author them). **First finding surfaced:** a Table-1 material computes a placard and does NOT block —
   the D4 `table1_out_of_scope_v1` fail-closed gate is not yet implemented in the engine (H2 work).
 
-**Not yet started (code):** H4 API/storage, H5 dashboard UI (a real-engine-backed placard calculator
+**H4 — API & storage — IN PROGRESS.**
+- **Increment 1 (done): stateless `POST /api/hazmat/calc`** — the placard/segregation/eligibility
+  calculator (also the H12 licensed-API surface). Shared DTO in `packages/shared/src/hazmatApi.ts`
+  (barrel-exported); route added to the existing entitlement-gated `hazmatRouter`; `apps/api` now
+  depends on `@hazmat/engine` + `@hazmat/data`. Server injects the shipped dataset + clock; the client
+  sends `LoadInput` minus `dataset`; the engine validates the body. Logic verified against the real
+  engine + `2026.07.1` dataset; `@fuelguard/shared` typechecks. (Needs one `pnpm install` to link the
+  new deps before `apps/api` typechecks.)
+- **Increment 2 (done): `0092_hazmat_core.sql`** — the 6 tables (`hazmat_loads`/`_documents`/`_runs`/
+  `_reviews`/`_cargo_tank_profiles`/`_policies`), the enums, the full 6-role **RLS matrix**, immutability
+  (no update policy on runs/reviews), and the insert-only `hazmat` storage bucket (served via API signed
+  URLs; deleted only by the service-role retention job). **Verified against real Postgres** (applies clean)
+  and **RLS functionally tested** (12 matrix scenarios: driver-create gated on `driversMayCreateLoads`,
+  ownership scoping, dispatcher↮reviews separation of duties, service-only run inserts, immutable reviews,
+  cross-org isolation, admin-only policy writes, storage folder scoping). Apply locally with
+  `supabase db reset` / migration-up. (Migrations were at 0091; 0092 is now taken — the plan's earlier
+  "0079" was stale.)
+- **Increment 3 (done): load state machine + CRUD routes + `hazmat` section.** The **locked state machine**
+  is a pure, tested module in `@fuelguard/shared` (`hazmatLifecycle.ts` — 6 tests: every legal transition,
+  illegal-transition rejection, draft-only edit, terminal states, clearing-event flags for the provisional
+  guard). Routes on the entitlement-gated `hazmatRouter`: `POST/GET/PATCH /hazmat/loads`, `/loads/:id/submit`,
+  `/loads/:id/cancel`, `/loads/:id/documents` (registers a row + returns a Supabase signed upload URL),
+  `GET/PUT /hazmat/policy` — thin over `services/hazmatLoads.ts`, state-machine-enforced, PATCH refused on a
+  non-draft, clearing refused on a provisional dataset. Added the **`hazmat` section** to
+  `APP_SECTIONS`/`SECTION_ACCESS` (manage: admin/fleet_manager/dispatcher/safety_manager; view: +auditor;
+  driver: none) + `SECTION_LABELS`; the HazmatGuard nav item already existed (module-gated). `HAZMAT_REVIEW_ROLES`
+  (admin/fleet_manager/safety_manager) reserves clear/review for H4-4 (separation of duties). `@fuelguard/shared`
+  typechecks. (`apps/api` typecheck pends the one `pnpm install` from increment 1.)
+- PENDING (next increment, H4-4): the in-process `analysisOrchestrator` (manual path — `POST /analyze` 202
+  + runId, concurrency-limited, entitlement re-check, retries → writes `hazmat_runs`), the `/review` + `/clear`
+  routes (using `HAZMAT_REVIEW_ROLES` + the provisional guard), and the SDK-based **RLS-matrix + contract +
+  immutability tests**.
+
+**Not yet started (code):** H5 dashboard UI (a real-engine-backed placard calculator
 *prototype* exists as a delivered artifact; the `apps/web` Vue integration is the production step),
 H6 extraction, H7 review queue, H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
 
@@ -813,7 +846,7 @@ G4, D2 (conditional tiers + out-of-scope fail-closed), D4-revised (fuel depth, T
 
 ---
 
-## Phase H4 ☐ — Schema, API & storage
+## Phase H4 ◐ — Schema, API & storage  *(in progress: /hazmat/calc shipped)*
 
 **Objective.** Persistence and transport for loads, documents, runs, verdicts, reviews — with the
 same RLS/audit discipline as the rest of the app.

@@ -130,6 +130,12 @@ importers:
       '@fuelguard/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@hazmat/data':
+        specifier: workspace:*
+        version: link:../../packages/hazmat-data
+      '@hazmat/engine':
+        specifier: workspace:*
+        version: link:../../packages/hazmat-engine
       '@supabase/supabase-js':
         specifier: 2.110.0
         version: 2.110.0

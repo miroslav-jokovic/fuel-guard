@@ -135,7 +135,7 @@ async function changeRole(userId: string, newRole: string) {
 }
 
 // ── roles & permissions reference (from the shared section-capability matrix) ─────────────────
-const SECTION_LABELS: Record<string, string> = { fuel: "Fuel", dispatch: "Dispatch", safety: "Safety", fleet: "Fleet", admin: "Admin" };
+const SECTION_LABELS: Record<string, string> = { fuel: "Fuel", dispatch: "Dispatch", safety: "Safety", hazmat: "HazmatGuard", fleet: "Fleet", admin: "Admin" };
 const showPerms = ref(false);
 const permMatrix = computed(() =>
   USER_ROLES.map((r) => ({

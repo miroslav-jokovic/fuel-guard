@@ -3,6 +3,8 @@ export * from "./anomalyRules/index.js";
 export * from "./fillConfidence.js";
 export * from "./auth.js";
 export * from "./apiContract.js";
+export * from "./hazmatApi.js";
+export * from "./hazmatLifecycle.js";
 export * from "./fleet.js";
 export * from "./vehicleSetupCsv.js";
 export * from "./fuel.js";

@@ -41,7 +41,7 @@ export function isEmailDomainAllowed(email: string, allowedDomains: readonly str
 
 // ── Section-scoped capabilities ───────────────────────────────────────────────
 // The product areas the sidebar + routes are organized into. `admin` = org settings / user management.
-export const APP_SECTIONS = ["fuel", "dispatch", "safety", "fleet", "admin"] as const;
+export const APP_SECTIONS = ["fuel", "dispatch", "safety", "hazmat", "fleet", "admin"] as const;
 export type AppSection = (typeof APP_SECTIONS)[number];
 export type SectionAccess = "none" | "view" | "manage";
 
@@ -55,12 +55,12 @@ export type SectionAccess = "none" | "view" | "manage";
  * not section-scoped surfaces.
  */
 const SECTION_ACCESS: Record<UserRole, Record<AppSection, SectionAccess>> = {
-  admin: { fuel: "manage", dispatch: "manage", safety: "manage", fleet: "manage", admin: "manage" },
-  fleet_manager: { fuel: "manage", dispatch: "manage", safety: "manage", fleet: "manage", admin: "none" },
-  dispatcher: { fuel: "view", dispatch: "manage", safety: "none", fleet: "view", admin: "none" },
-  safety_manager: { fuel: "view", dispatch: "none", safety: "manage", fleet: "manage", admin: "none" },
-  auditor: { fuel: "view", dispatch: "view", safety: "view", fleet: "view", admin: "none" },
-  driver: { fuel: "none", dispatch: "none", safety: "none", fleet: "none", admin: "none" },
+  admin: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", fleet: "manage", admin: "manage" },
+  fleet_manager: { fuel: "manage", dispatch: "manage", safety: "manage", hazmat: "manage", fleet: "manage", admin: "none" },
+  dispatcher: { fuel: "view", dispatch: "manage", safety: "none", hazmat: "manage", fleet: "view", admin: "none" },
+  safety_manager: { fuel: "view", dispatch: "none", safety: "manage", hazmat: "manage", fleet: "manage", admin: "none" },
+  auditor: { fuel: "view", dispatch: "view", safety: "view", hazmat: "view", fleet: "view", admin: "none" },
+  driver: { fuel: "none", dispatch: "none", safety: "none", hazmat: "none", fleet: "none", admin: "none" },
 };
 
 export const sectionAccess = (role: UserRole | null | undefined, section: AppSection): SectionAccess =>
