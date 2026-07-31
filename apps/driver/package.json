@@ -23,6 +23,8 @@
   "dependencies": {
     "@expo-google-fonts/hanken-grotesk": "^0.4.3",
     "@fuelguard/shared": "workspace:*",
+    "@hugeicons/core-free-icons": "4.2.3",
+    "@hugeicons/react-native": "1.0.15",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "*",
     "@supabase/supabase-js": "2.110.0",
@@ -65,6 +67,7 @@
     "@types/react": "~19.2.0",
     "eslint": "10.6.0",
     "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "5.2.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.62.1",
     "vitest": "4.1.9"

@@ -14,7 +14,7 @@ consumer dashboard.
 The visual signature is:
 
 - Hanken Grotesk typography.
-- Material Symbols Rounded / Outlined icons from the bundled font files.
+- HugeIcons SVG icons through the single `Icon` adapter.
 - Semantic neutral surfaces with indigo FuelGuard brand accents.
 - Restrained borders and surfaces instead of decorative gradients or floating glass effects.
 - Strong operational status communication: text + icon + tone, never color alone.
@@ -22,7 +22,7 @@ The visual signature is:
 - Contextual work in modal routes; the four-tab shell remains stable.
 
 Do not replace these traits with Inter, Roboto, generic dashboard gradients, arbitrary illustrations,
-emoji, or a new icon library.
+emoji, or ad-hoc icon imports outside the HugeIcons adapter.
 
 ## Apple-inspired layout rules
 
@@ -55,6 +55,7 @@ that Apple mandates one universal numeric grid.
 ### Typography and accessibility
 
 - Use the bundled Hanken Grotesk weights through the `font-sans-*` classes.
+- Use semantic icon names through `src/components/Icon.tsx`; do not import HugeIcons directly in screens.
 - Use the existing type scale. Do not invent arbitrary text sizes for a one-off screen.
 - Support Dynamic Type and readable text hierarchy. The icon component may disable font scaling
   only because it renders a fixed glyph box; content text must remain scalable.
@@ -192,7 +193,7 @@ A driver UI change is complete only when:
 - It uses the approved tokens and primitives.
 - It is correct in light mode, dark mode, and offline/empty/error states.
 - It respects safe areas, the 8pt grid, and minimum touch targets.
-- It uses Hanken Grotesk and the bundled Material Symbols.
+- It uses Hanken Grotesk and the HugeIcons adapter.
 - It has a realistic gallery or screen example.
 - It passes `pnpm --filter @fuelguard/driver typecheck`.
 - It passes `pnpm --filter @fuelguard/driver lint` and `lint:tokens`.

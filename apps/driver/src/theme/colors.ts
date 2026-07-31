@@ -8,6 +8,7 @@ export const roleColors = {
   light: {
     brand: ramps.brand[600],
     ink: ramps.neutral[900],
+    inkSecondary: ramps.neutral[700],
     inkMuted: ramps.neutral[500],
     inkInverse: '#ffffff',
     surface: '#ffffff',
@@ -22,6 +23,7 @@ export const roleColors = {
   dark: {
     brand: ramps.brand[500],
     ink: ramps.neutral[50],
+    inkSecondary: ramps.neutral[200],
     inkMuted: ramps.neutral[400],
     inkInverse: ramps.neutral[900],
     surface: ramps.neutral[800],

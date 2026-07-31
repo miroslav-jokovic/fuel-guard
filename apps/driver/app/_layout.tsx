@@ -96,10 +96,6 @@ export default function RootLayout() {
     HankenGrotesk_500Medium,
     HankenGrotesk_600SemiBold,
     HankenGrotesk_700Bold,
-    MaterialSymbolsRounded: require('../assets/fonts/MaterialSymbolsRounded.ttf') as number,
-    MaterialSymbolsRoundedFill: require('../assets/fonts/MaterialSymbolsRoundedFill.ttf') as number,
-    MaterialSymbolsOutlined: require('../assets/fonts/MaterialSymbolsOutlined.ttf') as number,
-    MaterialSymbolsOutlinedFill: require('../assets/fonts/MaterialSymbolsOutlinedFill.ttf') as number,
   });
 
   if (!fontsLoaded) return null;

@@ -1,5 +1,5 @@
-// AUTO-GENERATED — Material Symbols codepoints (wght 200, grade 200, opsz 24).
-// Regenerate via scripts/gen-material-symbols.mjs after editing the icon set.
+// Legacy semantic icon-name contract. Rendering is provided by HugeIcons in src/theme/hugeIcons.ts.
+// Keep these names stable so screens and domain view models do not depend on vendor icon names.
 export const MATERIAL_SYMBOLS = {
   'account_circle': 0xF20B,
   'add': 0xE145,

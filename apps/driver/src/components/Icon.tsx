@@ -1,22 +1,42 @@
-import { Text, type StyleProp, type TextStyle } from 'react-native';
-import { MATERIAL_SYMBOLS, type MaterialSymbolName } from '@/theme/materialSymbols.generated';
-
-// Material Symbols — Rounded/Outlined, weight 200, grade 200, opsz 24 baked into the fonts (see
-// scripts/gen-material-symbols.py). Color comes from a token `className` (e.g. "text-ink-muted");
-// the `color` prop is only for runtime nav tints. Never pass hex.
-const FAMILY = {
-  rounded: { outline: 'MaterialSymbolsRounded', fill: 'MaterialSymbolsRoundedFill' },
-  outlined: { outline: 'MaterialSymbolsOutlined', fill: 'MaterialSymbolsOutlinedFill' },
-} as const;
+import { HugeiconsIcon } from '@hugeicons/react-native';
+import { type StyleProp, type ViewStyle } from 'react-native';
+import { HUGE_ICONS } from '@/theme/hugeIcons';
+import { roleColors } from '@/theme/colors';
+import { useTheme } from '@/theme/ThemeProvider';
+import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 export interface IconProps {
+  /** Stable FuelGuard semantic icon name; mapped to HugeIcons in one adapter. */
   name: MaterialSymbolName;
   size?: number;
   variant?: 'rounded' | 'outlined';
+  /** Kept for screen API compatibility; HugeIcons uses consistent stroked SVG icons. */
   fill?: boolean;
   className?: string;
   color?: string;
-  style?: StyleProp<TextStyle>;
+  style?: StyleProp<ViewStyle>;
+}
+
+function colorFor(className: string | undefined, explicit: string | undefined, isDark: boolean): string {
+  if (explicit) return explicit;
+  const rc = roleColors[isDark ? 'dark' : 'light'];
+  const token = className?.match(/(?:^|\s)text-([a-z-]+)/)?.[1];
+  switch (token) {
+    case 'brand': return rc.brand;
+    case 'brand-fg': return rc.inkInverse;
+    case 'danger': return rc.danger;
+    case 'warning': return rc.warning;
+    case 'caution': return rc.caution;
+    case 'success': return rc.success;
+    case 'info': return rc.info;
+    case 'ink': return rc.ink;
+    case 'ink-secondary': return rc.inkSecondary;
+    case 'ink-inverse': return rc.inkInverse;
+    case 'ink-muted':
+    case 'ink-subtle':
+    case undefined:
+    default: return rc.inkMuted;
+  }
 }
 
 export function Icon({
@@ -28,32 +48,16 @@ export function Icon({
   color,
   style,
 }: IconProps) {
-  const family = FAMILY[variant][fill ? 'fill' : 'outline'];
+  const { isDark } = useTheme();
   return (
-    <Text
+    <HugeiconsIcon
+      icon={HUGE_ICONS[name]}
+      size={size}
+      color={colorFor(className, color, isDark)}
+      strokeWidth={fill ? 2.1 : variant === 'outlined' ? 1.5 : 1.8}
+      style={style}
       accessibilityElementsHidden
       importantForAccessibility="no"
-      suppressHighlighting
-      allowFontScaling={false}
-      className={className}
-      // Box the glyph in an exact size×size square and kill Android font padding so it sits dead
-      // center inside flex rows (buttons, list rows, banners, tabs) on both platforms.
-      style={[
-        {
-          fontFamily: family,
-          fontSize: size,
-          lineHeight: size,
-          width: size,
-          height: size,
-          textAlign: 'center',
-          textAlignVertical: 'center',
-          includeFontPadding: false,
-        },
-        color ? { color } : null,
-        style,
-      ]}
-    >
-      {String.fromCodePoint(MATERIAL_SYMBOLS[name])}
-    </Text>
+    />
   );
 }

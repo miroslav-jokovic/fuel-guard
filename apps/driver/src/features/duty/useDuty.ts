@@ -69,7 +69,10 @@ export function useEquipment(): UseQueryResult<MeEquipmentResponse, Error> {
       return res.data;
     },
     // A driver may check in before this ever succeeds; a stale list is far better than a blocked sheet.
+    // Refresh on each check-in screen mount so newly added trucks appear without requiring a relaunch.
     staleTime: 5 * 60_000,
+    refetchOnMount: 'always',
+    refetchOnReconnect: true,
   });
 }
 

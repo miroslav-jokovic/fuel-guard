@@ -10,7 +10,7 @@ import { RoutePreview } from '@/features/nav/RoutePreview';
 export default function Drive() {
   const router = useRouter();
   return (
-    <Screen padTop={false}>
+    <Screen>
       <ScreenHeader
         title="Navigate"
         subtitle="LD-20481 · Joliet, IL → Columbus, OH"

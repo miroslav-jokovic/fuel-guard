@@ -50,7 +50,7 @@ export default function Gallery() {
         }
       />
 
-      <Section title="Icons — Material Symbols · rounded · wght 200 · grade 200">
+      <Section title="Icons — HugeIcons · semantic FuelGuard adapter">
         <Card>
           <View className="flex-row flex-wrap gap-4">
             {DEMO_ICONS.map((n) => (
