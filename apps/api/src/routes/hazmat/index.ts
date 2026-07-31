@@ -24,7 +24,7 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import {
-  createLoad, listLoads, getLoad, updateLoad, transitionLoad, registerDocument,
+  createLoad, listLoads, getLoad, listRuns, updateLoad, transitionLoad, registerDocument,
   getPolicy, putPolicy, recordReview, clearLoad, type ServiceError,
 } from "../../services/hazmatLoads.js";
 import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
@@ -42,7 +42,7 @@ const isServiceError = (v: unknown): v is ServiceError =>
 const httpFor = (code: string): number =>
   code === "not_found" ? 404 :
   code === "not_editable" || code === "illegal_transition" || code === "provisional_dataset" ? 409 :
-  code === "sign_failed" || code === "insert_failed" || code === "update_failed" || code === "upsert_failed" ? 500 : 400;
+  code === "sign_failed" || code === "insert_failed" || code === "update_failed" || code === "upsert_failed" || code === "query_failed" ? 500 : 400;
 
 export function hazmatRouter(): Router {
   const router = Router();
@@ -120,6 +120,14 @@ export function hazmatRouter(): Router {
     const load = await getLoad(admin, orgOf(req), param(req, "id"));
     if (!load) { res.status(404).json(apiError("not_found", "Load not found.")); return; }
     res.json(load);
+  }));
+
+  // ── analysis runs for a load (immutable history — powers the H5 verdict view) ─
+  router.get("/loads/:id/runs", canView, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await listRuns(admin, orgOf(req), param(req, "id"));
+    if (isServiceError(result)) { fail(res, result); return; }
+    res.json({ runs: result.rows });
   }));
 
   router.patch("/loads/:id", canManage, validateBody(hazmatUpdateLoadRequestSchema), asyncHandler(async (req: Request, res: Response) => {

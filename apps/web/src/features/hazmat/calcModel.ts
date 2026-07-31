@@ -106,30 +106,36 @@ export function hasResolvedLine(form: CalcForm): boolean {
   return form.lines.some((l) => l.product !== null);
 }
 
+/** Map one resolved form line to a canonical engine `LoadInput` line (also used for a load's declared_lines). */
+export function buildEngineLine(l: CalcLineForm): Record<string, unknown> {
+  const product = l.product as HazmatProduct;
+  const compartment = numOrNull(l.compartmentIndex);
+  return {
+    hmtRef: product.hmtRef,
+    reclassedCombustible: l.reclassedCombustible,
+    quantity: { value: numOrNull(l.quantityValue) ?? 0, unit: l.quantityUnit },
+    grossWeightLb: numOrNull(l.grossWeightLb),
+    compartmentIndex: compartment === null ? null : Math.trunc(compartment),
+    isResidueLine: l.isResidueLine,
+    flashPointF: null,
+    ethanolPct: null,
+    packagingKind: l.packagingKind,
+    packageCount: null,
+  };
+}
+
+/** Resolved lines only (unknown products dropped, never guessed — fail-closed at the source). */
+export function buildEngineLines(lines: CalcLineForm[]): Record<string, unknown>[] {
+  return lines.filter((l) => l.product !== null).map(buildEngineLine);
+}
+
 /**
  * Build the `POST /hazmat/calc` body from the form. `evaluatedAt` + `dataset` are injected server-side;
  * `policy` is null (pure calculator mode → eligibility is `not_checked`). Lines without a resolved product
  * are dropped, never guessed.
  */
 export function buildCalcRequest(form: CalcForm): HazmatCalcRequest {
-  const lines = form.lines
-    .filter((l) => l.product !== null)
-    .map((l) => {
-      const product = l.product as HazmatProduct;
-      const compartment = numOrNull(l.compartmentIndex);
-      return {
-        hmtRef: product.hmtRef,
-        reclassedCombustible: l.reclassedCombustible,
-        quantity: { value: numOrNull(l.quantityValue) ?? 0, unit: l.quantityUnit },
-        grossWeightLb: numOrNull(l.grossWeightLb),
-        compartmentIndex: compartment === null ? null : Math.trunc(compartment),
-        isResidueLine: l.isResidueLine,
-        flashPointF: null,
-        ethanolPct: null,
-        packagingKind: l.packagingKind,
-        packageCount: null,
-      };
-    });
+  const lines = buildEngineLines(form.lines);
 
   const load = {
     vehicle: {

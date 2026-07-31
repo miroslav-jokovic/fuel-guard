@@ -15,6 +15,18 @@ export const HAZMAT_LOAD_STATUSES = [
 ] as const;
 export type HazmatLoadStatus = (typeof HAZMAT_LOAD_STATUSES)[number];
 
+/** Human labels for the load statuses (UI chips + copy). */
+export const HAZMAT_LOAD_STATUS_LABELS: Record<HazmatLoadStatus, string> = {
+  draft: "Draft",
+  submitted: "Submitted",
+  extracting: "Analyzing",
+  needs_review: "Needs review",
+  cleared: "Cleared",
+  rejected: "Rejected",
+  superseded: "Superseded",
+  cancelled: "Cancelled",
+};
+
 export const HAZMAT_LOAD_EVENTS = [
   "submit", "start_extraction", "analysis_green", "analysis_flagged",
   "review_cleared", "review_rejected", "cancel", "supersede", "resubmit", "rerun",

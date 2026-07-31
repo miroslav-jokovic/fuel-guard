@@ -165,7 +165,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H2** 🟨 Rules engine: placards, eligibility, segregation | The deterministic core + golden suite | H1 | Engine answers every golden scenario with citations; 100% pass. |
 | **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
-| **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Placard Calculator built; Load Workspace + cargo-tank CRUD pending.)* |
+| **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Placard Calculator + Load Workspace built; cargo-tank CRUD + e2e pending.)* |
 | **H6** ☐ Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. |
 | **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
@@ -283,7 +283,7 @@ awaiting Marija's scenarios).
   (the route logic is typechecked + the state-machine/orchestrator/RLS layers are tested); and an atomic
   clear (transition+review in one SECURITY DEFINER RPC).
 
-**H5 — Manual UI — IN PROGRESS (Placard Calculator slice built 2026-07-31).**
+**H5 — Manual UI — IN PROGRESS (Placard Calculator + Load Workspace built 2026-07-31).**
 - **Placard Calculator shipped in `apps/web`** (`/hazmat/calculator`): a real-engine-backed, stateless
   calculator wired to `POST /api/hazmat/calc`. Feature dir `apps/web/src/features/hazmat/` — pure form
   model + `buildCalcRequest` (`calcModel.ts`, 6 web unit tests), Vue Query composables (`useHazmatCalc.ts`),
@@ -297,12 +297,23 @@ awaiting Marija's scenarios).
   Curated fuel shortlist when blank; full-HMT search by UN/NA number or name when typing; exact-substring
   only (never fuzzy — resolveHmtLine discipline). This replaces the still-pending `fuelProducts.json`
   overlay for v1 (that overlay adds flash-point/ethanol *engine inputs* later; it is not needed to pick).
-- All touched packages typecheck; api-hazmat + web-hazmat + shared suites green; eslint/boundaries/tokens clean.
-- PENDING in H5: the **Load Workspace** (`/hazmat/loads` list/create/detail → analyze → verdict, on the
-  H4 CRUD + state machine), **cargo-tank profile CRUD** (table `hazmat_cargo_tank_profiles` exists in 0092;
-  no CRUD routes/UI yet), per-compartment quantity inputs, and the two **Playwright e2e** flows (§B.6 traps).
+- **Load Workspace shipped in `apps/web`** (`/hazmat/loads`, `/loads/new`, `/loads/:id`): list → create
+  draft → submit → analyze → verdict, on the H4 CRUD + state machine (hazmatLifecycle). `useHazmatLoads.ts`
+  (list/one/runs queries + create/submit/analyze/cancel mutations; polls while a load is `submitted`/
+  `extracting` and stops when it settles), pure `loadFormModel.ts` (`buildCreateLoadRequest`, reuses
+  calcModel's engine-line builder — 5 web unit tests), `LoadStatusBadge.vue`, and three pages that reuse
+  `ProductPicker`/`VerdictPanel`. Fleet pickers reuse `useVehiclesQuery`/`useDriversQuery`. Clearing/review
+  stays out (H7): flagged loads are view-only, nothing clears from this page. Nav item + hub card enabled.
+- **Runs-fetch gap closed:** H4 exposed no way to read an analysis run, so the workspace added
+  `GET /api/hazmat/loads/:id/runs` (`listRuns` service + `HazmatLoadRow`/`HazmatRunRow`/list+runs response
+  DTOs in `hazmatApi.ts`; `HAZMAT_LOAD_STATUS_LABELS` in `hazmatLifecycle.ts`). Verdict rendered via the
+  shared `VerdictPanel`; `{error}` runs and the `provisional_dataset` flag are surfaced.
+- All touched packages typecheck; api-hazmat (13) + web-hazmat (11) + shared suites green; eslint/boundaries/tokens clean.
+- PENDING in H5: **cargo-tank profile CRUD** (table `hazmat_cargo_tank_profiles` exists in 0092; no CRUD
+  routes/UI yet — the analysis orchestrator already looks one up when present), per-compartment quantity
+  inputs on the manual forms, trailer picker on the create form, and the two **Playwright e2e** flows (§B.6 traps).
 
-**Not yet started (code):** H5 Load Workspace + cargo-tank CRUD (above), H6 extraction, H7 review queue,
+**Not yet started (code):** H5 cargo-tank profile CRUD + e2e (above), H6 extraction, H7 review queue,
 H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
 
 **Human-gated critical path:** (1) ✅ DONE — the dataset was flipped to non-provisional via the automated eCFR↔GovInfo triangulation (ALL CLEAN) + SME attestation (Marija Varmeda, 2026-07-31), which superseded the manual transcription route. (2) STILL OPEN — the SME answers R1–R3 + authors the independent golden acceptance scenarios (0 authored; target ≥400) → unblocks engine certification. (The engine `table1_out_of_scope_v1` fail-closed gate — previously the one open non-human item — was implemented 2026-07-31 in engine 0.7.0; the remaining H2 blocker is the human-authored golden suite.)
@@ -1094,7 +1105,7 @@ confirm exact name/PK in migration. *Goals:* G2 (async analyze ≤60 s), G6 (evi
 
 ---
 
-## Phase H5 🟨 IN PROGRESS (Placard Calculator built 2026-07-31; Load Workspace + cargo-tank CRUD pending) — Manual UI: placard calculator + load workspace
+## Phase H5 🟨 IN PROGRESS (Placard Calculator + Load Workspace built 2026-07-31; cargo-tank CRUD + e2e pending) — Manual UI: placard calculator + load workspace
 
 **Objective.** Full product value with zero AI: dispatchers build/declare loads by hand and get
 verdicts. This hardens the engine against real use before extraction exists, and remains forever

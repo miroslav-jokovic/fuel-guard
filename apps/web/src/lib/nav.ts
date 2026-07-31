@@ -101,6 +101,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null)
         { name: "Idling", to: "/idling", icon: ClockIcon, show: canViewSection(role, "safety") },
         { name: "HazmatGuard", to: "/hazmat", icon: ShieldExclamationIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
         { name: "Placard Calculator", to: "/hazmat/calculator", icon: ClipboardDocumentCheckIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
+        { name: "Hazmat Loads", to: "/hazmat/loads", icon: LoadsIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
       ],
     },
     {

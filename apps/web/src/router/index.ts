@@ -81,6 +81,24 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Placard Calculator", parent: "/hazmat" },
   },
   {
+    path: "/hazmat/loads",
+    name: "hazmat-loads",
+    component: () => import("@/pages/HazmatLoadsPage.vue"),
+    meta: { requiresAuth: true, title: "Hazmat Loads", parent: "/hazmat" },
+  },
+  {
+    path: "/hazmat/loads/new",
+    name: "hazmat-load-new",
+    component: () => import("@/pages/HazmatLoadFormPage.vue"),
+    meta: { requiresAuth: true, requiresManage: true, title: "New Hazmat Load", parent: "/hazmat/loads" },
+  },
+  {
+    path: "/hazmat/loads/:id",
+    name: "hazmat-load-detail",
+    component: () => import("@/pages/HazmatLoadDetailPage.vue"),
+    meta: { requiresAuth: true, title: "Hazmat Load", parent: "/hazmat/loads" },
+  },
+  {
     path: "/vehicles",
     name: "vehicles",
     component: () => import("@/pages/VehiclesPage.vue"),

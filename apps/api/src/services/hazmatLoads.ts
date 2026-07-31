@@ -60,6 +60,23 @@ export async function getLoad(admin: SupabaseClient, orgId: string, loadId: stri
   return data ?? null;
 }
 
+export const HAZMAT_RUN_COLUMNS =
+  "id, load_id, engine_version, dataset_version, verdict, outcome, flags, input_hash, created_at";
+
+/** Runs for a load, newest first — the analysis history (immutable). Powers the H5 detail verdict view. */
+export async function listRuns(
+  admin: SupabaseClient, orgId: string, loadId: string,
+): Promise<{ rows: unknown[] } | ServiceError> {
+  const { data: load } = await admin.from("hazmat_loads").select("id").eq("org_id", orgId).eq("id", loadId).maybeSingle();
+  if (!load) return err("not_found", "Load not found.");
+  const { data, error } = await admin
+    .from("hazmat_runs").select(HAZMAT_RUN_COLUMNS)
+    .eq("org_id", orgId).eq("load_id", loadId)
+    .order("created_at", { ascending: false });
+  if (error) return err("query_failed", error.message);
+  return { rows: (data ?? []) as unknown[] };
+}
+
 function mapPatch(patch: HazmatUpdateLoadRequest): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (patch.vehicleId !== undefined) out.vehicle_id = patch.vehicleId;

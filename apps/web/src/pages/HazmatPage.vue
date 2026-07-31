@@ -26,14 +26,14 @@ import BaseButton from "@/components/ui/BaseButton.vue";
         </div>
       </BaseCard>
 
-      <BaseCard class="opacity-70">
+      <BaseCard>
         <h2 class="text-sm font-semibold text-ink">Load Workspace</h2>
         <p class="mt-1 text-sm text-ink-muted">
-          Create and track hazmat loads, run analysis, and review findings with attestation. Arriving in a
-          later H5 slice.
+          Create and track hazmat loads, run the analysis engine, and see placards, findings and flags per
+          load. Field-by-field review + attestation arrives with H7.
         </p>
         <div class="mt-4">
-          <BaseButton variant="soft" size="sm" disabled>Coming soon</BaseButton>
+          <BaseButton variant="primary" size="sm" to="/hazmat/loads">Open loads</BaseButton>
         </div>
       </BaseCard>
     </div>

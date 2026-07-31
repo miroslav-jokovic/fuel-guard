@@ -140,6 +140,51 @@ export interface HazmatAnalyzeResponse {
   runId: string;
 }
 
+// ── load + run read shapes (GET /hazmat/loads, /loads/:id, /loads/:id/runs) — plan H5 workspace ──
+// Typed views of the DB rows (snake_case as returned by the service). The web app reads these; the
+// verdict is the engine's Verdict (opaque here to keep @fuelguard/shared free of @hazmat/* deps).
+export interface HazmatLoadRow {
+  id: string;
+  org_id: string;
+  vehicle_id: string | null;
+  trailer_id: string | null;
+  driver_id: string | null;
+  status: string;
+  tank_state: string;
+  carrier_relationship: string;
+  planned_pickup_at: string | null;
+  declared_lines: unknown[];
+  bol_fields: unknown | null;
+  special_permit_numbers: string[] | null;
+  claimed_no_placards: boolean;
+  supersedes_load_id: string | null;
+  version: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HazmatRunRow {
+  id: string;
+  load_id: string;
+  engine_version: string;
+  dataset_version: string;
+  /** The engine Verdict (or `{ error }` when analysis threw). Opaque at the shared boundary. */
+  verdict: unknown;
+  outcome: "green" | "flagged";
+  flags: string[];
+  input_hash: string;
+  created_at: string;
+}
+
+export interface HazmatLoadsListResponse {
+  loads: HazmatLoadRow[];
+  nextCursor: string | null;
+}
+export interface HazmatRunsResponse {
+  runs: HazmatRunRow[];
+}
+
 // ── POST /hazmat/loads/:id/review — reviewer field action (the clear itself is POST /clear) ─────
 export const hazmatReviewActionSchema = z.enum(["field_confirmed", "field_corrected", "cant_read", "rejected", "override"]);
 export const hazmatReviewRequestSchema = z.object({
