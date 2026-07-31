@@ -10,21 +10,22 @@ const WINDOW_DAYS = 5;
 /** How many trucks per Samsara GPS call (comma-separated vehicleIds); keeps each request bounded. */
 const TRUCK_BATCH = 40;
 
-export interface ReeferPairingResult {
-  /** Reefer trailers eligible for inference (reefer, has a gateway, not manually pinned). */
+export interface TrailerPairingResult {
+  /** Trailers eligible for inference (has a gateway reporting GPS, not manually pinned). */
   candidates: number;
   /** Trailers we set a confident inferred pairing for. */
   paired: number;
 }
 
 /**
- * Pair reefer trailers to the tractor they travel with, by GPS CO-LOCATION — the reliable path when drivers
- * don't select the trailer in the Samsara app but the reefer has an Asset Gateway reporting GPS. Fetches each
- * reefer's GPS + all trucks' GPS over a recent window and runs the pure matcher. NEVER touches a trailer whose
- * pairing was set manually (pairing_source = 'manual'). Best-effort: a Samsara fetch failure throws and the
- * caller can log it, but it never corrupts existing data.
+ * Pair a trailer to the tractor it travels with, by GPS CO-LOCATION — the reliable path when drivers
+ * don't select the trailer in the Samsara app but the trailer has an Asset Gateway reporting GPS. Covers
+ * EVERY trailer with a gateway (reefer OR dry/other — they report GPS the same way), not just trailers.
+ * Fetches each trailer's GPS + all trucks' GPS over a recent window and runs the pure matcher. NEVER
+ * touches a trailer whose pairing was set manually (pairing_source = 'manual'). Best-effort: a Samsara
+ * fetch failure throws and the caller can log it, but it never corrupts existing data.
  */
-export async function inferReeferPairings(admin: SupabaseClient, env: Env, orgId: string): Promise<ReeferPairingResult> {
+export async function inferTrailerPairings(admin: SupabaseClient, env: Env, orgId: string): Promise<TrailerPairingResult> {
   const token = await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
 
@@ -32,24 +33,23 @@ export async function inferReeferPairings(admin: SupabaseClient, env: Env, orgId
     .from("trailers")
     .select("id, samsara_asset_id, pairing_source")
     .eq("org_id", orgId)
-    .eq("is_reefer", true)
     .neq("status", "retired")
     .not("samsara_asset_id", "is", null);
   // Manual pairings are authoritative — never overwrite them.
-  const reefers = ((trs ?? []) as { id: string; samsara_asset_id: string; pairing_source: string | null }[]).filter(
+  const trailers = ((trs ?? []) as { id: string; samsara_asset_id: string; pairing_source: string | null }[]).filter(
     (t) => t.pairing_source !== "manual",
   );
-  if (reefers.length === 0) return { candidates: 0, paired: 0 };
+  if (trailers.length === 0) return { candidates: 0, paired: 0 };
 
   const { data: vs } = await admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).not("samsara_vehicle_id", "is", null);
   const vehicles = (vs ?? []) as { id: string; samsara_vehicle_id: string }[];
-  if (vehicles.length === 0) return { candidates: reefers.length, paired: 0 };
+  if (vehicles.length === 0) return { candidates: trailers.length, paired: 0 };
 
   const endIso = new Date().toISOString();
   const startIso = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
 
-  // Reefer GPS (all reefers in one paginated call set).
-  const trailerGps = parseAssetGps(await makeSamsaraTrailerGpsFetcher(env, token)(reefers.map((r) => r.samsara_asset_id), startIso, endIso));
+  // Reefer GPS (all trailers in one paginated call set).
+  const trailerGps = parseAssetGps(await makeSamsaraTrailerGpsFetcher(env, token)(trailers.map((r) => r.samsara_asset_id), startIso, endIso));
 
   // Truck GPS, batched, keyed by our vehicle id.
   const truckFetcher = makeSamsaraVehiclesGpsFetcher(env, token);
@@ -64,7 +64,7 @@ export async function inferReeferPairings(admin: SupabaseClient, env: Env, orgId
   }
 
   let paired = 0;
-  for (const r of reefers) {
+  for (const r of trailers) {
     const match = inferTrailerPairing(trailerGps.get(r.samsara_asset_id) ?? [], tracks);
     if (match) {
       await admin
@@ -75,5 +75,5 @@ export async function inferReeferPairings(admin: SupabaseClient, env: Env, orgId
       paired++;
     }
   }
-  return { candidates: reefers.length, paired };
+  return { candidates: trailers.length, paired };
 }

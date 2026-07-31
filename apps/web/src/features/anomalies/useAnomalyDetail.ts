@@ -40,6 +40,7 @@ const hasCardSignal = computed(
     caseSignals.value.some((s) => s.ruleId === "card_multi_vehicle"),
 );
 const cardRef    = computed(() => txn.value?.card_ref ?? null);
+const controlId  = computed(() => txn.value?.control_id ?? null);
 const fueledAt   = computed(() => txn.value?.fueled_at ?? undefined);
 const windowHours = computed(() => {
   if (props.anomaly.rule_id === "card_multi_vehicle")
@@ -48,6 +49,7 @@ const windowHours = computed(() => {
 });
 const { data: siblingFills, isLoading: siblingLoading } = useRelatedCardFills(
   cardRef,
+  controlId,
   fueledAt,
   txnId,
   windowHours,

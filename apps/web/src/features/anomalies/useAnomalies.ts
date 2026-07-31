@@ -1,12 +1,14 @@
 import { type Ref, computed, toValue } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { Anomaly, AnomalyTransition, FuelTransaction } from "@fuelguard/shared";
+import { sameCardFill } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 
 /** Extended transaction row for the anomaly detail view (includes card/geo + fueling-event audit fields). */
 export interface AnomalyTxnDetail extends FuelTransaction {
   card_ref: string | null;
+  control_id: string | null;
   city: string | null;
   state: string | null;
   samsara_location_matched: boolean | null;
@@ -28,6 +30,7 @@ export interface AnomalyTxnDetail extends FuelTransaction {
 /** A lighter sibling-fill row — other transactions on the same card in the same window. */
 export interface SiblingFill {
   id: string;
+  control_id: string | null;
   vehicle_id: string | null;
   driver_id: string | null;
   fueled_at: string;
@@ -102,7 +105,7 @@ export function useTransaction(transactionId: Ref<string | null>) {
       const { data, error } = await supabase
         .from("fuel_transactions")
         .select(
-          "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, city, state, card_ref, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_matched, samsara_location_confidence, samsara_odometer, samsara_recon_at, station_lat, station_lng, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, samsara_fuel_pct_before, samsara_fuel_pct_after, fueling_time_basis, created_at",
+          "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, city, state, card_ref, control_id, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_matched, samsara_location_confidence, samsara_odometer, samsara_recon_at, station_lat, station_lng, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, samsara_fuel_pct_before, samsara_fuel_pct_after, fueling_time_basis, created_at",
         )
         .eq("id", id)
         .maybeSingle();
@@ -118,15 +121,17 @@ export function useTransaction(transactionId: Ref<string | null>) {
  */
 export function useRelatedCardFills(
   cardRef: Ref<string | null | undefined>,
+  controlId: Ref<string | null | undefined>,
   fueledAt: Ref<string | undefined>,
   _currentTxnId: Ref<string | null>,
   windowHours: Ref<number>,
 ) {
   return useQuery({
-    queryKey: ["related_card_fills", cardRef, fueledAt, windowHours],
+    queryKey: ["related_card_fills", cardRef, controlId, fueledAt, windowHours],
     enabled: () => !!toValue(cardRef) && !!toValue(fueledAt),
     queryFn: async (): Promise<SiblingFill[]> => {
       const ref = toValue(cardRef);
+      const ctrl = toValue(controlId) ?? null;
       const at = toValue(fueledAt);
       if (!ref || !at) return [];
       const hrs = toValue(windowHours);
@@ -135,13 +140,17 @@ export function useRelatedCardFills(
       const end   = new Date(base + hrs * 3_600_000).toISOString();
       const { data, error } = await supabase
         .from("fuel_transactions")
-        .select("id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, location_text, city, state")
+        .select("id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, location_text, city, state, card_ref, control_id")
         .eq("card_ref", ref)
         .gte("fueled_at", start)
         .lte("fueled_at", end)
         .order("fueled_at", { ascending: true });
       if (error) throw new Error(error.message);
-      return (data ?? []) as SiblingFill[];
+      // Same last-4 can belong to DIFFERENT physical cards (EFS masks to 4 digits). Keep only fills that are
+      // the same card by the control-number-aware identity test (migration 0075), so a foreign card sharing
+      // the last 4 no longer pollutes the sibling table — the display half of the card_multi_vehicle fix.
+      const rows = (data ?? []) as (SiblingFill & { card_ref: string | null })[];
+      return rows.filter((r) => sameCardFill({ cardRef: r.card_ref, controlId: r.control_id }, { cardRef: ref, controlId: ctrl }));
     },
   });
 }
