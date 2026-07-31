@@ -28,7 +28,6 @@ import { useToastStore } from "@/stores/toast";
 import BaseChart from "@/components/BaseChart.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
 import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
@@ -290,7 +289,7 @@ const EXPORTS = [
         <h2 class="text-lg font-semibold tracking-tight text-ink">Fleet overview</h2>
         <p class="mt-0.5 flex items-center gap-1.5 text-sm text-ink-muted">
           Fuel, waste &amp; risk · {{ rangeLabel }}
-          <AppIcon :icon="ArrowPathIcon" v-if="isFetching && !isLoading" class="size-3.5 animate-spin text-ink-subtle" aria-hidden="true" />
+          <AppIcon v-if="isFetching && !isLoading" :icon="ArrowPathIcon" class="size-3.5 animate-spin text-ink-subtle" aria-hidden="true" />
         </p>
       </div>
 
@@ -348,8 +347,6 @@ const EXPORTS = [
       <dl class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard v-for="stat in trust" :key="stat.label" v-bind="stat" :loading="isLoading" />
       </dl>
-
-      <FleetReadiness v-if="session.canManage" />
 
       <!-- Trends -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">

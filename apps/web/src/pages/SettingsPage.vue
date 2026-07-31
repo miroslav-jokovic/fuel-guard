@@ -15,6 +15,7 @@ import {
   UsersIcon,
 } from "@fuelguard/ui/icons";
 import { RouterLink } from "vue-router";
+import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
@@ -59,6 +60,16 @@ const reportCards = [
           </div>
         </RouterLink>
       </div>
+    </section>
+
+    <section v-if="session.canManage" class="space-y-3">
+      <div>
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Fleet readiness</h2>
+        <p class="mt-1 text-sm text-ink-muted">
+          Complete the fleet configuration required for reliable fuel and anomaly detection.
+        </p>
+      </div>
+      <FleetReadiness />
     </section>
 
     <section v-if="reportCards.length" class="space-y-3">

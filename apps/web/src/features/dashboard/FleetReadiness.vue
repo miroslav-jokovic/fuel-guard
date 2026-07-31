@@ -60,8 +60,7 @@ const textTone = (r: Row) =>
   <BaseCard v-if="gaps === 0" padding="none" class="flex items-center gap-2 px-5 py-3">
     <AppIcon :icon="CheckCircleIcon" class="size-5 text-success-500" aria-hidden="true" />
     <p class="text-sm text-ink-secondary">
-      <span class="font-semibold text-ink">Fleet readiness:</span> all set — detection checks have the
-      data they need.
+      <span class="font-semibold text-ink">All set</span> — detection checks have the data they need.
     </p>
   </BaseCard>
 
@@ -75,12 +74,13 @@ const textTone = (r: Row) =>
       @click="open = !open"
     >
       <span class="flex items-center gap-2">
-        <AppIcon :icon="ChevronDownIcon"
+        <AppIcon
+          :icon="ChevronDownIcon"
           class="size-4 text-ink-subtle transition-transform duration-200"
           :class="open ? '' : '-rotate-90'"
           aria-hidden="true"
         />
-        <h3 class="text-sm font-semibold text-ink">Fleet readiness</h3>
+        <span class="text-sm font-semibold text-ink">Setup gaps</span>
       </span>
       <span :class="[BADGE_BASE, toneClass('warning'), 'normal-case']">
         <AppIcon :icon="ExclamationTriangleIcon" class="size-3.5" aria-hidden="true" /> {{ gaps }} to complete
@@ -99,7 +99,7 @@ const textTone = (r: Row) =>
             >
               Fix →
             </RouterLink>
-            <AppIcon :icon="CheckCircleIcon" v-else class="size-4 text-success-500" aria-hidden="true" />
+            <AppIcon v-else :icon="CheckCircleIcon" class="size-4 text-success-500" aria-hidden="true" />
           </span>
         </div>
         <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-muted">
