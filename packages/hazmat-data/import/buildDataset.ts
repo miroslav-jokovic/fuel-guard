@@ -32,7 +32,8 @@ import {
   type SpecialProvisionText,
 } from "../src/schema.js";
 import { z } from "zod";
-import { defaultSourceA, diffAgainstTranscription, formatDiffReport } from "./diff.js";
+import { defaultSourceA } from "./diff.js";
+import { crossCheckAll, formatTriangulation, type TriangulationResult } from "./govinfoCrossCheck.js";
 import { parsePlacardTables } from "./parsePlacards.js";
 import { parseSegregationGrid } from "./parseSegregation.js";
 import { parseHazSubstances, parseMarinePollutants } from "./parseAppendices.js";
@@ -125,19 +126,29 @@ function requireFixture(...names: string[]): string {
 export interface CutResult {
   dataset: Dataset;
   path: string;
-  clean: boolean;
-  diffReport: string;
+  /** The automated D5 v7 mechanical gate: eCFR↔GovInfo triangulation clean across all three tables. */
+  triangulationClean: boolean;
+  /** Whether a named human attestation was supplied (required, with a clean gate, to ship non-provisional). */
+  attested: boolean;
+  triangulation: TriangulationResult;
+  report: string;
 }
 
 /**
- * The full cut: parse Source A, load ERG, run the second-source gate, and assemble. `provisional` is
- * forced to `!diff.clean`. Writes `datasets/<version>.json` and returns the result + the diff report
- * (to be saved as `datasets/<version>/diff-report.md`).
+ * The full cut (D5 v7): parse Source A, load ERG, run the AUTOMATED eCFR↔GovInfo triangulation as the
+ * mechanical second-source gate, and assemble. `provisional` is forced true unless BOTH (a) the
+ * triangulation is clean across all three verified tables AND (b) a named human attestation of that
+ * clean report is supplied (`attestedBy`). Fail-closed: a dirty gate can never ship non-provisional,
+ * even with an attestation. Writes `datasets/<version>.json` and returns the triangulation report (to be
+ * saved as `datasets/<version>/triangulation-report.md`).
  */
 export function cutDataset(opts: {
   version: string;
   sourceEcfrDate?: string | null;
   effectiveDate?: string | null;
+  /** Named human attestor of the clean triangulation report (+ PDF spot-check). Omit → provisional. */
+  attestedBy?: string | null;
+  attestedOn?: string | null;
 }): CutResult {
   const entries = defaultSourceA();
   const erg = loadErgEntries();
@@ -147,7 +158,21 @@ export function cutDataset(opts: {
   const segregation = parseSegregationGrid(requireFixture("section-177-848.xml"));
   const hazSubstances = parseHazSubstances(fixture("section-172-101.xml") ?? requireFixture("appendix-a-slice.xml"));
   const marinePollutants = parseMarinePollutants(fixture("section-172-101.xml") ?? requireFixture("appendix-b-slice.xml"));
-  const diff = diffAgainstTranscription();
+
+  const triangulation = crossCheckAll();
+  const attested = !!(opts.attestedBy && opts.attestedBy.trim());
+  const provisional = !(triangulation.allClean && attested);
+
+  const t = triangulation;
+  const attestClause = attested
+    ? `; attested by ${opts.attestedBy} on ${opts.attestedOn ?? "(date not given)"}`
+    : "; UNATTESTED (ships provisional)";
+  const sourceSecondaryRef =
+    `${t.hmt.sourceRef}; automated eCFR↔GovInfo triangulation (D5 v7) ` +
+    `${t.allClean ? "ALL CLEAN" : "NOT CLEAN"} — HMT ${t.hmt.full.matched}/${t.hmt.totals.aKeys} keys, ` +
+    `placards ${t.placards.matched}/${t.placards.aCount}, segregation ${t.segregation.matched}/${t.segregation.aCount}` +
+    attestClause;
+
   const dataset = assembleDataset({
     version: opts.version,
     entries,
@@ -156,43 +181,56 @@ export function cutDataset(opts: {
     segregation,
     hazSubstances,
     marinePollutants,
-    provisional: !diff.clean,
+    provisional,
     sourceEcfrDate: opts.sourceEcfrDate ?? null,
-    sourceSecondaryRef:
-      "GovInfo Title-49 legal PDF — independent human transcription (import/fixtures/handVerifiedRows.ts)",
+    sourceSecondaryRef,
     effectiveDate: opts.effectiveDate ?? null,
   });
   const path = datasetPath(`${opts.version}.json`);
   writeFileSync(path, JSON.stringify(dataset, null, 2) + "\n");
-  return { dataset, path, clean: diff.clean, diffReport: formatDiffReport(diff) };
+  return { dataset, path, triangulationClean: triangulation.allClean, attested, triangulation, report: formatTriangulation(triangulation) };
 }
 
-// `npx tsx import/buildDataset.ts <version> [sourceEcfrDate] [effectiveDate]`
+// `npx tsx import/buildDataset.ts <version> [sourceEcfrDate] [effectiveDate] [--attested-by "Name"] [--attested-on YYYY-MM-DD]`
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const version = process.argv[2];
+  const argv = process.argv.slice(2);
+  const flag = (name: string): string | null => {
+    const i = argv.indexOf(name);
+    return i >= 0 ? (argv[i + 1] ?? null) : null;
+  };
+  const positional = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && argv[i - 1]!.startsWith("--")));
+  const version = positional[0];
   if (!version) {
-    process.stderr.write("usage: tsx import/buildDataset.ts <version> [sourceEcfrDate] [effectiveDate]\n");
+    process.stderr.write('usage: tsx import/buildDataset.ts <version> [sourceEcfrDate] [effectiveDate] [--attested-by "Name"] [--attested-on YYYY-MM-DD]\n');
     process.exit(2);
   }
   const res = cutDataset({
     version,
-    sourceEcfrDate: process.argv[3] ?? null,
-    effectiveDate: process.argv[4] ?? null,
+    sourceEcfrDate: positional[1] ?? null,
+    effectiveDate: positional[2] ?? null,
+    attestedBy: flag("--attested-by"),
+    attestedOn: flag("--attested-on"),
   });
   const ds = res.dataset;
+  const gate = res.triangulationClean
+    ? res.attested
+      ? "(triangulation CLEAN + attested → non-provisional)"
+      : "(triangulation CLEAN but UNATTESTED → provisional; pass --attested-by to ship real)"
+    : "(triangulation NOT CLEAN → provisional; reconcile before release)";
   process.stdout.write(
     [
       `Wrote ${res.path}`,
       `  version:      ${ds.version}`,
-      `  provisional:  ${ds.provisional}  ${res.clean ? "(second-source gate CLEAN)" : "(gate NOT clean — see diff report)"}`,
+      `  provisional:  ${ds.provisional}  ${gate}`,
       `  entries:      ${ds.entries.length}`,
       `  erg:          ${ds.erg.length}`,
       `  placards:     ${ds.placards.length}   segregation: ${ds.segregation.length}   hazSubstances: ${ds.hazSubstances.length}   marinePollutants: ${ds.marinePollutants.length}`,
       `  specialProvisions: ${ds.specialProvisions.length} (§172.102 parser still pending)`,
+      `  secondary:    ${ds.sourceSecondaryRef}`,
       `  checksum:     ${ds.checksum}`,
       "",
-      `Next: save the diff report to datasets/${version}/diff-report.md, then register the version in`,
-      `src/index.ts (RAW map + LATEST_DATASET_VERSION) and run the package tests.`,
+      `Next: save the triangulation report to datasets/${version}/triangulation-report.md, then register the`,
+      `version in src/index.ts (RAW map + LATEST_DATASET_VERSION) and run the package tests.`,
       "",
     ].join("\n"),
   );

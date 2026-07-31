@@ -61,12 +61,14 @@ Run everything from `packages/hazmat-data/`.
      *explained* difference (e.g. a known eCFR typo with a citation) is recorded there and allowed. (Under D5 v7 triangulation the diff's second source is the GovInfo edition; an explained difference is reconciled to a cited Federal Register amendment / eCFR correction and a human attests the reconciled report rather than transcribing rows.)
 
 **5. Cut the versioned dataset.**
-   - `npx tsx import/buildDataset.ts <version> <sourceEcfrDate> [effectiveDate]`
-     (e.g. `… 2026.07.0 2026-07-28 2026-08-15`).
+   - `npx tsx import/buildDataset.ts <version> <sourceEcfrDate> [effectiveDate] --attested-by "Name" --attested-on YYYY-MM-DD`
+     (e.g. `… 2026.07.1 2026-07-28 2026-08-15 --attested-by "Marija Varmeda" --attested-on 2026-07-31`).
    - It parses Source A, loads the frozen ERG table (`datasets/erg2024.json`), **re-runs the step-4
-     gate**, and writes `datasets/<version>.json` with a sha256 content `checksum`. **`provisional` is
-     forced to `!diff.clean`** — you cannot mint a non-provisional dataset while the gate is red, even
-     by hand. Version format: `YYYY.MM.n`.
+     triangulation gate** (`crossCheckAll()`), and writes `datasets/<version>.json` with a sha256 content
+     `checksum`. **`provisional` is forced true unless the triangulation is CLEAN across all three tables
+     AND a named `--attested-by` is supplied** — you cannot mint a non-provisional dataset while the gate
+     is red or unattested, even by hand (fail-closed). Omitting `--attested-by` cuts a clean-but-provisional
+     dataset. Version format: `YYYY.MM.n`. **First non-provisional cut: `2026.07.1`, attested by Marija Varmeda 2026-07-31.**
 
 **6. Register the version.**
    - Add the new file to the `RAW` map in `src/index.ts` and bump `LATEST_DATASET_VERSION`. This is

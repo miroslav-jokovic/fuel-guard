@@ -186,24 +186,28 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 placard SVG art keyed to `PlacardName`; interim artwork, swap to official public-domain SVGs is a
 one-field change per placard).
 
-**H1 — Regulatory data layer — DONE (provisional release shipped).**
+**H1 — Regulatory data layer — DONE (non-provisional release `2026.07.1` shipped).**
 - Schema; parsers each built against a captured real fixture + frozen test: §172.101 HMT (2,479 entries),
   §172.504 placard tables (23), §177.848(d) segregation grid (173 cells), Appendix A RQ (1,351),
   Appendix B marine pollutants (554); ERG 2024 (1,988); 6 verified interpretation letters; reference text.
 - Source clients (eCFR / GovInfo / Federal Register) typed + tested; second-source diff engine +
   `fixtures/handVerifiedRows.ts` Source-B scaffold; assembler `buildDataset.ts` + `RELEASING.md`.
-- **Dataset `2026.07.0` cut + registered as LATEST — real content, `provisional: true`** (fixed the
-  previously-empty `2026.02` skeleton, 2026-07-30). `loadDataset()` now returns real data.
+- **Dataset `2026.07.1` cut + registered as LATEST — real content, `provisional: false` (D5 v7
+  two-source verified).** Attested by **Marija Varmeda (SME)** on 2026-07-31 on the CLEAN eCFR<->GovInfo
+  triangulation; provenance in `sourceSecondaryRef` + `datasets/2026.07.1/triangulation-report.md`.
+  `2026.07.0` remains the prior provisional cut; `loadDataset()` now returns the verified data, so the
+  clear endpoint (H4/H7) is no longer blocked by a provisional dataset.
 - **D5 v7 automated triangulation - BUILT + CLEAN (2026-07-30).** The official GovInfo 2025 edition
   (CFR-2025-title49-vol2, revised Oct 1) was captured (`captureGovInfo.ts`) and parsed by format-specific
   GovInfo parsers (`parseHmtGovInfo`, `parsePlacardsGovInfo`, `parseSegregationGovInfo`) that share the
   eCFR regulation-semantics layer (`hmtAssemble.ts`); `govinfoCrossCheck.ts` diffs eCFR<->GovInfo
   row-by-row. Result: **ALL CLEAN** - HMT 2,479/2,479 entries (0 disagreements, identical key sets),
   §172.504 placards 23/23, §177.848 segregation 173/173. +18 tests incl. a drift-detection negative
-  control and collision safety; device typecheck green.
-- PENDING to flip provisional->real: wire `crossCheckAll()` into `buildDataset.ts`'s provisional gate
-  (replacing the `handVerifiedRows` scaffold) + a human attestation of the CLEAN triangulation report
-  (D5 v7); plus the §172.102 special-provisions parser and the `fuelProducts.json` flash-point/ethanol overlay.
+  control and collision safety; device typecheck green. **Now wired as the `buildDataset.ts` release gate**
+  (`crossCheckAll()` + a named attestation gate provisional->real; fail-closed on a dirty gate).
+- PENDING (non-blocking for the fuel launch): the §172.102 special-provisions parser and the
+  `fuelProducts.json` flash-point/ethanol overlay. Extending the triangulation gate to the appendix
+  RQ/marine-pollutant tables before a full non-fuel release is tracked in RELEASING.md.
 
 **H2 — Rules engine — IN PROGRESS.**
 - I/O contract + engine v0.3.0; definitive gates (no-hazmat, cleaned-tank §172.502(a)/172.303,
