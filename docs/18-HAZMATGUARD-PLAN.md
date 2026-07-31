@@ -182,7 +182,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 > path: the Source-B transcription and the SME's R1–R3 + golden authorship.
 
 **Packages (extractable `@hazmat/*`):** `@hazmat/data` (54 files, 147 tests — done, shipping real data);
-`@hazmat/engine` (10 files, 29 tests — placards + segregation + BOL compliance done); `@hazmat/placards` (NEW, 4 files, 5 tests — DOT
+`@hazmat/engine` (v0.7.0, 10 files, 31 tests — placards + segregation + BOL + Table 1 fail-closed gate done); `@hazmat/placards` (NEW, 4 files, 5 tests — DOT
 placard SVG art keyed to `PlacardName`; interim artwork, swap to official public-domain SVGs is a
 one-field change per placard); `@hazmat/golden` (NEW, 15 files — the SME-authorable acceptance harness:
 YAML scenario schema + runner + Vitest gate + negative control, wiring the real engine to the real dataset;
@@ -226,8 +226,9 @@ awaiting Marija's scenarios).
   gate is now **scaffolded** (`packages/hazmat-golden`: schema + runner + Vitest gate + non-vacuous negative
   control, verified against the real engine + `2026.07.1` dataset with 2 implementer examples); the
   **SME-authored scenarios themselves are still pending** (independent acceptance gate — the implementer does
-  NOT author them). **First finding surfaced:** a Table-1 material computes a placard and does NOT block —
-  the D4 `table1_out_of_scope_v1` fail-closed gate is not yet implemented in the engine (H2 work).
+  NOT author them). **First finding — RESOLVED (2026-07-31, engine 0.7.0):** the D4 `table1_out_of_scope_v1` fail-closed
+  gate is now implemented — any §172.504 Table 1 line blocks the whole load (no placards, eligibility forced
+  blocked; recognition total and dataset-driven). Engine tests 29 → 31.
 
 **H4 — API & storage — DONE (pilot scope; only optional post-pilot items deferred).**
 - **Increment 1 (done): stateless `POST /api/hazmat/calc`** — the placard/segregation/eligibility
@@ -286,7 +287,7 @@ awaiting Marija's scenarios).
 *prototype* exists as a delivered artifact; the `apps/web` Vue integration is the production step),
 H6 extraction, H7 review queue, H8 policy, H9 securement, H10 driver capture, H11 shadow, H12 product.
 
-**Human-gated critical path:** (1) ✅ DONE — the dataset was flipped to non-provisional via the automated eCFR↔GovInfo triangulation (ALL CLEAN) + SME attestation (Marija Varmeda, 2026-07-31), which superseded the manual transcription route. (2) STILL OPEN — the SME answers R1–R3 + authors the independent golden acceptance scenarios (0 authored; target ≥400) → unblocks engine certification. Also OPEN (engine, not human-gated): the D4 `table1_out_of_scope_v1` fail-closed gate — a Table-1 material currently computes a placard instead of blocking.
+**Human-gated critical path:** (1) ✅ DONE — the dataset was flipped to non-provisional via the automated eCFR↔GovInfo triangulation (ALL CLEAN) + SME attestation (Marija Varmeda, 2026-07-31), which superseded the manual transcription route. (2) STILL OPEN — the SME answers R1–R3 + authors the independent golden acceptance scenarios (0 authored; target ≥400) → unblocks engine certification. (The engine `table1_out_of_scope_v1` fail-closed gate — previously the one open non-human item — was implemented 2026-07-31 in engine 0.7.0; the remaining H2 blocker is the human-authored golden suite.)
 
 
 ---
@@ -484,7 +485,7 @@ the existing `scripts/*.mjs` pattern. *Goals:* D5, D9, G6 (dataset version on ev
 
 ---
 
-## Phase H2 🟨 IN PROGRESS (computePlacards + checkSegregation done; OPEN: table1_out_of_scope fail-closed gate, SME golden scenarios; checkEligibility deferred to H8) — Rules engine: placards, eligibility, segregation
+## Phase H2 🟨 IN PROGRESS (computePlacards + checkSegregation + Table 1 fail-closed gate done; OPEN: SME golden scenarios; checkEligibility deferred to H8) — Rules engine: placards, eligibility, segregation
 
 **Objective.** The deterministic core. After this phase the hardest correctness problem is solved
 and permanently regression-guarded.
