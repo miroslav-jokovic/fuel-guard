@@ -52,7 +52,8 @@ export function NavMap() {
           <Layer
             id="route-line"
             type="line"
-            style={{ lineColor: rc.brand, lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
+            paint={{ 'line-color': rc.brand, 'line-width': 5 }}
+            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
           />
         </GeoJSONSource>
         <Marker lngLat={START}>

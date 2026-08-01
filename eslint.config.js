@@ -50,6 +50,17 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    // Anchor project-service discovery for IDE linting across the monorepo. Without this explicit
+    // root, editors can see both the root and nested app tsconfigs and report ambiguous roots.
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
   ...pluginVue.configs["flat/recommended"],
   {
     files: ["**/*.vue"],
@@ -70,7 +81,7 @@ export default tseslint.config(
   {
     // Keep type-aware parsing anchored to the monorepo root so nested app tsconfigs do not produce
     // ambiguous project-root errors in IDE ESLint integrations.
-    files: ["apps/api/**/*.ts", "apps/admin-api/**/*.ts"],
+    files: ["apps/api/**/*.ts", "apps/admin-api/**/*.ts", "packages/shared/**/*.ts"],
     languageOptions: {
       parserOptions: {
         projectService: true,
