@@ -14,6 +14,7 @@
     "ios": "pnpm run shared && node ../../scripts/driver-doctor.mjs --building && expo run:ios --device",
     "clean": "rm -rf ios/build android/build android/.gradle .expo node_modules/.cache && (watchman watch-del-all 2>/dev/null || true)",
     "prebuild": "expo prebuild",
+    "gen:tab-icons": "node scripts/gen-tab-icons.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "lint:tokens": "node scripts/check-driver-tokens.mjs",
@@ -68,6 +69,7 @@
     "eslint": "10.6.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "5.2.0",
+    "sharp": "^0.35.3",
     "typescript": "6.0.3",
     "typescript-eslint": "8.62.1",
     "vitest": "4.1.9"

@@ -39,7 +39,7 @@ export function ListRow({
     >
       {icon ? (
         <View className="h-10 w-10 items-center justify-center rounded-lg bg-surface-muted">
-          <Icon name={icon} fill={iconFill} size={20} className="text-ink-secondary" />
+          <Icon name={icon} fill={iconFill} size={20} className="text-ink" />
         </View>
       ) : null}
       <View className="flex-1 gap-0.5">

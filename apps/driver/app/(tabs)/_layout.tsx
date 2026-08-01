@@ -1,76 +1,58 @@
-import { Tabs } from 'expo-router';
-import { View, type ColorValue } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon } from '@/components';
-import { roleColors } from '@/theme/colors';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { useTheme } from '@/theme/ThemeProvider';
-import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
-import { layout, radius, type as typeScale } from '@/theme/tokens';
+import { roleColors } from '@/theme/colors';
+import homeIcon from '../../assets/tab-icons/home.png';
+import homeIconSelected from '../../assets/tab-icons/home-selected.png';
+import loadsIcon from '../../assets/tab-icons/loads.png';
+import loadsIconSelected from '../../assets/tab-icons/loads-selected.png';
+import navigateIcon from '../../assets/tab-icons/navigate.png';
+import navigateIconSelected from '../../assets/tab-icons/navigate-selected.png';
+import scoreIcon from '../../assets/tab-icons/score.png';
+import scoreIconSelected from '../../assets/tab-icons/score-selected.png';
+import moreIcon from '../../assets/tab-icons/more.png';
+import moreIconSelected from '../../assets/tab-icons/more-selected.png';
 
 /**
- * Navigation shell (D51). Five task-oriented tabs — Home · Loads · Navigate · Score · More.
- * Labels are intentionally hidden in the compact mobile bar, but accessibility labels remain explicit.
- * Navigation is a first-class task surface, not a placeholder or an action hidden in a load card.
+ * Native navigation shell (D51). Five task-oriented tabs — Home · Loads · Navigate · Score · More.
  *
- * Messages and Notifications live in the TOP bar (D51), not here: they are interrupt-driven and
- * would sit badged and idle in a permanent slot. Contextual work — stop capture, the hazmat step,
- * the duty check-in — is a modal route over this shell, never a tab.
+ * React Navigation's native tab implementation is used through Expo Router's NativeTabs wrapper.
+ * This delegates safe-area geometry, platform alignment, selected states, scroll-to-top behavior,
+ * and iOS/Android native tab rendering to the platform instead of maintaining a custom tab bar.
+ * Labels remain accessible but are visually hidden for the compact driver shell.
  */
-function tabIcon(name: MaterialSymbolName, fill = false) {
-  return function TabBarIcon({ color }: { focused: boolean; color: ColorValue; size: number }) {
-    return <Icon name={name} fill={fill} color={color as string} size={28} />;
-  };
-}
-
 export default function TabsLayout() {
   const { isDark } = useTheme();
-  const insets = useSafeAreaInsets();
   const rc = isDark ? roleColors.dark : roleColors.light;
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: rc.brand,
-        tabBarInactiveTintColor: rc.inkMuted,
-        tabBarStyle: {
-          height: 84 + insets.bottom,
-          paddingTop: 8,
-          paddingBottom: insets.bottom + 12,
-          borderTopWidth: 0,
-          backgroundColor: 'transparent',
-          shadowOpacity: 0,
-          elevation: 0,
-        },
-        tabBarBackground: () => (
-          <View
-            pointerEvents="none"
-            className="absolute bg-surface"
-            style={{
-              top: 8,
-              right: layout.screenInset,
-              bottom: insets.bottom + 12,
-              left: layout.screenInset,
-              borderRadius: radius.lg,
-              shadowColor: rc.ink,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.14,
-              shadowRadius: 12,
-              elevation: 8,
-            }}
-          />
-        ),
-        tabBarShowLabel: false,
-        tabBarLabelStyle: { fontSize: typeScale.size.micro, fontFamily: 'HankenGrotesk_600SemiBold' },
-        tabBarItemStyle: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-        tabBarHideOnKeyboard: true,
-      }}
+    <NativeTabs
+      tintColor={rc.brand}
+      iconColor={{ default: rc.inkSecondary, selected: rc.brand }}
+      backgroundColor={rc.surface}
+      labelVisibilityMode="unlabeled"
+      tabBarRespectsIMEInsets
+      disableTransparentOnScrollEdge
     >
-      <Tabs.Screen name="home" options={{ title: 'Home', tabBarAccessibilityLabel: 'Home', tabBarIcon: tabIcon('home') }} />
-      <Tabs.Screen name="loads" options={{ title: 'Loads', tabBarAccessibilityLabel: 'Loads', tabBarIcon: tabIcon('local_shipping') }} />
-      <Tabs.Screen name="navigate" options={{ title: 'Navigate', tabBarAccessibilityLabel: 'Navigate', tabBarIcon: tabIcon('navigation') }} />
-      <Tabs.Screen name="score" options={{ title: 'Score', tabBarAccessibilityLabel: 'Score', tabBarIcon: tabIcon('speed') }} />
-      <Tabs.Screen name="more" options={{ title: 'More', tabBarAccessibilityLabel: 'More', tabBarIcon: tabIcon('more_horiz') }} />
-    </Tabs>
+      <NativeTabs.Trigger name="home" accessibilityLabel="Home">
+        <NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={{ default: homeIcon, selected: homeIconSelected }} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="loads" accessibilityLabel="Loads">
+        <NativeTabs.Trigger.Label hidden>Loads</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={{ default: loadsIcon, selected: loadsIconSelected }} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="navigate" accessibilityLabel="Navigate">
+        <NativeTabs.Trigger.Label hidden>Navigate</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={{ default: navigateIcon, selected: navigateIconSelected }} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="score" accessibilityLabel="Score">
+        <NativeTabs.Trigger.Label hidden>Score</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={{ default: scoreIcon, selected: scoreIconSelected }} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="more" accessibilityLabel="More">
+        <NativeTabs.Trigger.Label hidden>More</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon src={{ default: moreIcon, selected: moreIconSelected }} />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }
