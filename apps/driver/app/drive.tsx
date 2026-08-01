@@ -1,7 +1,7 @@
 import { Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Badge, Banner, ListRow, Screen, ScreenHeader, SectionLabel } from '@/components';
-import { RoutePreview } from '@/features/nav/RoutePreview';
+import { NavMap } from '@/features/nav/NavMap';
 
 // Navigation modal (Phase 4 shell): opened by the elevated center tab / the load's Navigate CTA.
 // Shows the planned route + fuel stops as an honest schematic preview; Phase 4 swaps the preview
@@ -17,7 +17,7 @@ export default function Drive() {
         onClose={() => router.back()}
       />
 
-      <RoutePreview />
+      <NavMap />
 
       <SectionLabel>Planned fuel stops</SectionLabel>
       <ListRow
@@ -36,7 +36,7 @@ export default function Drive() {
       <Banner
         tone="info"
         icon="navigation"
-        message="Live truck-safe navigation with corridor guidance lands in Phase 4 — this preview shows your planned route and fuel stops."
+        message="Early map preview on free basemap tiles, showing a sample route. The live truck-safe route for your accepted load lands next (NP1)."
       />
 
       <Text className="pt-1 text-center text-xs text-ink-subtle">

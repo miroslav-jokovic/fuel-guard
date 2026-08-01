@@ -84,12 +84,12 @@ export function LoadCard({ load, onPress }: { load: LoadSummary; onPress?: () =>
         destTime={load.destTime}
       />
       <View className="mt-3 flex-row items-center gap-2 border-t border-edge-subtle pt-3">
-        <Icon name="route" size={14} className="text-ink-subtle" />
+        <Icon name="route" size={14} className="text-ink" />
         <Text className="text-sm text-ink-muted">
           {load.stops} stops · {load.miles} · {load.equipment}
         </Text>
         <View className="flex-1" />
-        {onPress ? <Icon name="chevron_right" size={20} className="text-ink-subtle" /> : null}
+        {onPress ? <Icon name="chevron_right" size={20} className="text-ink" /> : null}
       </View>
     </Card>
   );

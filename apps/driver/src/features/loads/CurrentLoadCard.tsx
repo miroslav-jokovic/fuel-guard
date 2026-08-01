@@ -54,7 +54,7 @@ export function CurrentLoadCard({
             Next: {load.nextAction} — {load.nextStop}
           </Text>
           <View className="flex-row items-center gap-1">
-            <Icon name="schedule" size={13} className="text-ink-muted" />
+            <Icon name="schedule" size={13} className="text-ink" />
             <Text className="text-xs text-ink-muted" style={{ fontVariant: ['tabular-nums'] }}>
               {load.appointment}
             </Text>

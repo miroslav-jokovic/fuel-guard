@@ -43,7 +43,7 @@ export function DutyCard({
       <Card>
         <View className="flex-row items-center gap-3 pb-1">
           <View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-muted">
-            <Icon name="local_shipping" size={22} className="text-ink-muted" />
+            <Icon name="local_shipping" size={22} className="text-ink" />
           </View>
           <View className="flex-1 gap-0.5">
             <Text className="text-base font-sans-sb text-ink">Start your day</Text>

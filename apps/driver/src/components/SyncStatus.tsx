@@ -52,7 +52,7 @@ export function SyncStatus() {
         ) : pending > 0 ? (
           <Badge label={String(pending)} tone="info" />
         ) : (
-          <Icon name="refresh" size={20} className="text-ink-subtle" />
+          <Icon name="refresh" size={20} className="text-ink" />
         )
       }
     />

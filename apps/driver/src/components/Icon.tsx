@@ -5,11 +5,11 @@ import type { IconSvgElement } from '@hugeicons/react-native';
 import { HUGE_ICONS } from '@/theme/hugeIcons';
 import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
-import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
+import type { IconName } from '@/theme/hugeIcons';
 
 export interface IconProps {
   /** Stable FuelGuard semantic icon name; mapped to HugeIcons in one adapter. */
-  name: MaterialSymbolName;
+  name: IconName;
   size?: number;
   variant?: 'rounded' | 'outlined';
   /** Kept for screen API compatibility; HugeIcons uses consistent stroked SVG icons. */
@@ -35,9 +35,9 @@ function colorFor(className: string | undefined, explicit: string | undefined, i
     case 'ink-secondary': return rc.inkSecondary;
     case 'ink-inverse': return rc.inkInverse;
     case 'ink-subtle': return rc.inkSubtle;
-    case 'ink-muted':
+    case 'ink-muted': return rc.inkMuted;
     case undefined:
-    default: return rc.inkMuted;
+    default: return rc.ink;
   }
 }
 

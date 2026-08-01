@@ -40,11 +40,25 @@ const config: ExpoConfig = {
         microphonePermission: false,
       },
     ],
+    // MapLibre native map SDK (NAV NP0) — free/open vector tiles, no access token. Requires a dev
+    // build (not Expo Go); the config plugin wires the native maps dependency.
+    '@maplibre/maplibre-react-native',
+    // Foreground location for the 'you-are-here' puck + off-route detection (NAV NP2). Background
+    // location is deferred (NAV N8) until true turn-by-turn needs it.
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission:
+          'FuelGuard Driver uses your location to show your position on the route and keep navigation centered while you drive.',
+      },
+    ],
   ],
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
+    mapStyleUrl: process.env.EXPO_PUBLIC_MAP_STYLE_URL,
+    mapStyleUrlDark: process.env.EXPO_PUBLIC_MAP_STYLE_URL_DARK,
   },
 };
 

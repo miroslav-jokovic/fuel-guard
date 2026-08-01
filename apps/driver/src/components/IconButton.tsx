@@ -41,7 +41,7 @@ export function IconButton({
         variant === 'tonal' ? 'bg-surface-muted' : ''
       } ${disabled ? 'opacity-40' : ''}`}
     >
-      <Icon name={name} size={size} fill={fill} className="text-ink-secondary" />
+      <Icon name={name} size={size} fill={fill} className="text-ink" />
     </Pressable>
   );
 }

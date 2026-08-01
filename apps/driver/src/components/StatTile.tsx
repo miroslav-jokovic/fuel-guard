@@ -25,7 +25,7 @@ export function StatTile({
   return (
     <View className="flex-1 gap-1.5 rounded-xl border border-edge bg-surface p-4">
       <View className="flex-row items-center gap-1.5">
-        {icon ? <Icon name={icon} size={14} className="text-ink-muted" /> : null}
+        {icon ? <Icon name={icon} size={14} className="text-ink" /> : null}
         <Text className="text-micro font-sans-sb uppercase tracking-wider text-ink-muted">
           {label}
         </Text>

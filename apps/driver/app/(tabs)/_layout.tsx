@@ -1,58 +1,25 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useTheme } from '@/theme/ThemeProvider';
-import { roleColors } from '@/theme/colors';
-import homeIcon from '../../assets/tab-icons/home.png';
-import homeIconSelected from '../../assets/tab-icons/home-selected.png';
-import loadsIcon from '../../assets/tab-icons/loads.png';
-import loadsIconSelected from '../../assets/tab-icons/loads-selected.png';
-import navigateIcon from '../../assets/tab-icons/navigate.png';
-import navigateIconSelected from '../../assets/tab-icons/navigate-selected.png';
-import scoreIcon from '../../assets/tab-icons/score.png';
-import scoreIconSelected from '../../assets/tab-icons/score-selected.png';
-import moreIcon from '../../assets/tab-icons/more.png';
-import moreIconSelected from '../../assets/tab-icons/more-selected.png';
+import { Tabs } from 'expo-router';
+import { TabBar } from '@/components/TabBar';
 
 /**
- * Native navigation shell (D51). Five task-oriented tabs — Home · Loads · Navigate · Score · More.
+ * Bottom tab shell — Home · Loads · Navigate · Score · More.
  *
- * React Navigation's native tab implementation is used through Expo Router's NativeTabs wrapper.
- * This delegates safe-area geometry, platform alignment, selected states, scroll-to-top behavior,
- * and iOS/Android native tab rendering to the platform instead of maintaining a custom tab bar.
- * Labels remain accessible but are visually hidden for the compact driver shell.
+ * Uses expo-router's stable <Tabs> navigator with a fully custom JS tab bar (`TabBar`), replacing
+ * the former `expo-router/unstable-native-tabs`. Rationale: the native tab bar can only host
+ * rasterized PNG icons and relies on OS template-tinting (which differed across iOS/Android and
+ * produced off-color glyphs); the custom bar renders our HugeIcons SVG directly through the `Icon`
+ * component, so tab-icon color follows the design tokens exactly and looks identical on both
+ * platforms. Per-tab state is preserved by the underlying tabs navigator. Labels are hidden for the
+ * compact driver shell (accessibility labels are kept on each tab).
  */
 export default function TabsLayout() {
-  const { isDark } = useTheme();
-  const rc = isDark ? roleColors.dark : roleColors.light;
-
   return (
-    <NativeTabs
-      tintColor={rc.brand}
-      iconColor={{ default: rc.inkSecondary, selected: rc.brand }}
-      backgroundColor={rc.surface}
-      labelVisibilityMode="unlabeled"
-      tabBarRespectsIMEInsets
-      disableTransparentOnScrollEdge
-    >
-      <NativeTabs.Trigger name="home" accessibilityLabel="Home">
-        <NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={{ default: homeIcon, selected: homeIconSelected }} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="loads" accessibilityLabel="Loads">
-        <NativeTabs.Trigger.Label hidden>Loads</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={{ default: loadsIcon, selected: loadsIconSelected }} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="navigate" accessibilityLabel="Navigate">
-        <NativeTabs.Trigger.Label hidden>Navigate</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={{ default: navigateIcon, selected: navigateIconSelected }} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="score" accessibilityLabel="Score">
-        <NativeTabs.Trigger.Label hidden>Score</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={{ default: scoreIcon, selected: scoreIconSelected }} />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="more" accessibilityLabel="More">
-        <NativeTabs.Trigger.Label hidden>More</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon src={{ default: moreIcon, selected: moreIconSelected }} />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
+      <Tabs.Screen name="home" options={{ title: 'Home' }} />
+      <Tabs.Screen name="loads" options={{ title: 'Loads' }} />
+      <Tabs.Screen name="navigate" options={{ title: 'Navigate' }} />
+      <Tabs.Screen name="score" options={{ title: 'Score' }} />
+      <Tabs.Screen name="more" options={{ title: 'More' }} />
+    </Tabs>
   );
 }

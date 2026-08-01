@@ -87,13 +87,23 @@ import {
   UserIcon,
   Wifi01Icon,
   WifiOffIcon,
+  Analytics02Icon,
+  MapsGlobal02Icon,
+  RankingIcon,
 } from '@hugeicons/core-free-icons';
 import type { MaterialSymbolName } from './materialSymbols.generated';
 
 // Semantic icon names stay stable for screens while the visual library is HugeIcons. This keeps
 // product vocabulary independent from vendor-specific icon names and makes future icon updates a
 // single-adapter change rather than a screen-by-screen migration.
-export const HUGE_ICONS: Record<MaterialSymbolName, IconSvgElement> = {
+// App icon vocabulary = the Material-Symbol name set plus a few HugeIcons that have no Material
+// Symbols equivalent (used by the bottom tab bar). Everything still renders through this adapter.
+export type IconName = MaterialSymbolName | 'analytics' | 'maps_global' | 'ranking';
+
+export const HUGE_ICONS: Record<IconName, IconSvgElement> = {
+  analytics: Analytics02Icon,
+  maps_global: MapsGlobal02Icon,
+  ranking: RankingIcon,
   account_circle: UserCircleIcon,
   add: AccountSettingIcon,
   add_a_photo: CameraAdd01Icon,

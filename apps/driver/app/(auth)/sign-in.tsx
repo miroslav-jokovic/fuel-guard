@@ -110,7 +110,7 @@ export default function SignIn() {
                 <Icon
                   name={showPassword ? 'visibility_off' : 'visibility'}
                   size={22}
-                  className="text-ink-muted"
+                  className="text-ink"
                 />
               </Pressable>
             </View>
