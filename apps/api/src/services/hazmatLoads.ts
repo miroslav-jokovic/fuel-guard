@@ -142,6 +142,25 @@ export async function registerDocument(
   return { documentId: req.id, storagePath, uploadUrl: signed.signedUrl, token: signed.token };
 }
 
+/** BOL/securement documents for a load, each with a short-lived signed DOWNLOAD url (review evidence, H7). */
+export async function listDocuments(
+  admin: SupabaseClient, orgId: string, loadId: string,
+): Promise<{ rows: Array<{ id: string; kind: string; page: number; contentType: string | null; url: string | null }> } | ServiceError> {
+  const { data: load } = await admin.from("hazmat_loads").select("id").eq("org_id", orgId).eq("id", loadId).maybeSingle();
+  if (!load) return err("not_found", "Load not found.");
+  const { data, error } = await admin
+    .from("hazmat_documents").select("id, kind, page, content_type, storage_path")
+    .eq("org_id", orgId).eq("load_id", loadId).order("page", { ascending: true });
+  if (error) return err("query_failed", error.message);
+  const rows = await Promise.all(
+    ((data ?? []) as Array<{ id: string; kind: string; page: number; content_type: string | null; storage_path: string }>).map(async (d) => {
+      const { data: signed } = await admin.storage.from("hazmat").createSignedUrl(d.storage_path, 300); // 5-min TTL
+      return { id: d.id, kind: d.kind, page: d.page, contentType: d.content_type, url: signed?.signedUrl ?? null };
+    }),
+  );
+  return { rows };
+}
+
 export async function getPolicy(admin: SupabaseClient, orgId: string): Promise<unknown | null> {
   const { data } = await admin
     .from("hazmat_policies").select("policy, updated_at, updated_by")

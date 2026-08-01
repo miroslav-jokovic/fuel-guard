@@ -99,6 +99,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Hazmat Load", parent: "/hazmat/loads" },
   },
   {
+    path: "/hazmat/review",
+    name: "hazmat-review",
+    component: () => import("@/pages/HazmatReviewPage.vue"),
+    meta: { requiresAuth: true, title: "Hazmat Review", parent: "/hazmat" },
+  },
+  {
     path: "/hazmat/settings/equipment",
     name: "hazmat-equipment",
     component: () => import("@/pages/HazmatEquipmentPage.vue"),

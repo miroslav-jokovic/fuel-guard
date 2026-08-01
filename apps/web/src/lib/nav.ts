@@ -102,6 +102,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null)
         { name: "HazmatGuard", to: "/hazmat", icon: ShieldExclamationIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
         { name: "Placard Calculator", to: "/hazmat/calculator", icon: ClipboardDocumentCheckIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
         { name: "Hazmat Loads", to: "/hazmat/loads", icon: LoadsIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
+        { name: "Hazmat Review", to: "/hazmat/review", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
         { name: "Cargo-Tank Profiles", to: "/hazmat/settings/equipment", icon: TrailerIcon, show: canManageSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
       ],
     },

@@ -167,7 +167,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
 | **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Calculator + Load Workspace + cargo-tank CRUD built & audited; remaining: per-compartment inputs — blocked on engine H2; e2e run in seeded CI.)* |
 | **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(Full photo→verdict pipeline built + tested — resolveHmtLine, BolFields, mapper, cross-validation, image gate, dual-pass vision, orchestrator, route dispatch; only a live key + photo corpus remain to run/tune.)* |
-| **H7** ☐ Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. |
+| **H7** 🟨 Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. *(Queue + attestation/override/reject clearing workflow built + tested; field-level correction + pixel crops + notifications pending on H6 bbox persistence.)* |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
 | **H9** ☐ Securement & placard-photo verification | Truck photo vs computed placards + checklist | H2, H6 | Photo of placarded truck → match/mismatch against required set. |
 | **H10** ☐ Driver capture (mobile web) | Guided capture flow + API contract for future native app | H6, H7 | Driver submits BOL+securement photos from a phone; load lands analyzed. |
@@ -404,7 +404,26 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   (62 hazmat tests across `@hazmat/data` + `apps/api`); the code path from photo → verdict is complete and
   typechecks — it runs as soon as a key + images are present.
 
-**Not yet started (code):** H7 review queue, H8 policy, H9 securement, H10 driver capture,
+**H7 — Review queue & attestation — IN PROGRESS (fail-closed clearing workflow built 2026-07-31).**
+- **Review queue + attestation/override/reject workflow shipped** (`apps/web`, 9 tests): the safety-critical
+  fail-closed core (D2/D8). Pure `reviewModel.ts` — the exact attestation string, `deriveReviewItems`
+  (run flags → human-labeled items, violations first, unknown codes never hidden), and the clearing gate
+  (`clearGate`/`canSubmitClear`/`buildAttestation`: a provisional dataset hard-blocks clearing; a violation
+  demands a typed override reason ≥ 20 chars; a special-permit load additionally needs the dedicated SP
+  attestation). `HazmatReviewPage` (`/hazmat/review`, oldest-first queue) + `ReviewPanel` (flags to work,
+  BOL document evidence via the new signed-download endpoint, the attestation checkbox(es) + override reason,
+  and Attest-&-clear / Override-&-clear / Reject wired to the H4 `/review` + `/clear` endpoints). Wired into
+  the load detail (review-role users only; RLS is the real gate) + nav item + hub card.
+- **New API:** `GET /api/hazmat/loads/:id/documents` (`listDocuments` — short-lived signed download urls +
+  `HazmatDocumentRow`/response DTOs) so the review screen shows the BOL as evidence.
+- PENDING in H7 (each with a named dependency, not a silent gap): **field-by-field correction + pixel-crop
+  bbox evidence + re-run-on-correction** — needs H6 to persist per-field `BolFields` + bboxes (bboxes come
+  from the live vision model, so this rides on the H6 live-run) and a re-run-with-human-values endpoint; the
+  **driver/dispatcher notifications** on flag/clear/reject — hooks into the existing notification service;
+  and the **nav badge count** of pending reviews (the shared nav component needs a badge slot first). The
+  clearing workflow — the part that must be fail-closed — is complete + tested.
+
+**Not yet started (code):** H8 policy, H9 securement, H10 driver capture,
 H11 shadow, H12 product. (H2 also owes the capacity/compartment engine rules that the cargo-tank profiles
 and calculator capacity field already capture data for.)
 
@@ -1451,7 +1470,7 @@ and mechanically measurable from day one.
 
 ---
 
-## Phase H7 ☐ — Review queue & attestation
+## Phase H7 🟨 IN PROGRESS (fail-closed clearing workflow — queue + attestation/override/reject — built + tested 2026-07-31; field-level correction + pixel crops + notifications pending) — Review queue & attestation
 
 **Objective.** The fail-closed workflow where humans resolve flags — designed so reviewing is
 faster than re-reading the BOL.

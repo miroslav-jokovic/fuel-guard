@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
-import type { HazmatRunRow } from "@fuelguard/shared";
+import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@fuelguard/shared";
+import { useSessionStore } from "@/stores/session";
+import ReviewPanel from "@/features/hazmat/ReviewPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -93,6 +95,8 @@ const runError = computed<string | null>(() => {
   return v && typeof v === "object" && "error" in v ? (v.error ?? "Analysis failed.") : null;
 });
 
+const session = useSessionStore();
+const canReview = computed(() => session.role != null && HAZMAT_REVIEW_ROLES.includes(session.role));
 const canCancel = computed(() => ["draft", "submitted", "needs_review"].includes(load.value?.status ?? ""));
 const primaryLabel = computed(() =>
   load.value?.status === "draft" ? "Submit & analyze" : load.value?.status === "submitted" ? "Analyze" : "Re-analyze",
@@ -162,11 +166,12 @@ function declaredLine(l: unknown): { hmtRef: string; qty: string } {
         </ul>
       </BaseCard>
 
-      <!-- review-queue note -->
-      <BaseCard v-if="load.status === 'needs_review'">
+      <!-- review + attestation (H7) — review-role users only; RLS is the real gate -->
+      <ReviewPanel v-if="load.status === 'needs_review' && canReview && latestRun" :load="load" :run="latestRun" />
+      <BaseCard v-else-if="load.status === 'needs_review'">
         <p class="text-sm text-ink-secondary">
-          This load is flagged and needs review. The field-by-field review + attestation queue arrives with
-          H7 — for now the findings below are the decision support; nothing can be cleared from this page.
+          This load is flagged and needs review by a trained reviewer (49 CFR 172 Subpart H). The findings
+          below are the decision support.
         </p>
       </BaseCard>
 

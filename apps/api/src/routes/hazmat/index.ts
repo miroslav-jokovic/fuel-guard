@@ -26,7 +26,7 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import {
-  createLoad, listLoads, getLoad, listRuns, updateLoad, transitionLoad, registerDocument,
+  createLoad, listLoads, getLoad, listRuns, listDocuments, updateLoad, transitionLoad, registerDocument,
   getPolicy, putPolicy, recordReview, clearLoad, type ServiceError,
 } from "../../services/hazmatLoads.js";
 import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
@@ -134,6 +134,14 @@ export function hazmatRouter(): Router {
     const result = await listRuns(admin, orgOf(req), param(req, "id"));
     if (isServiceError(result)) { fail(res, result); return; }
     res.json({ runs: result.rows });
+  }));
+
+  // ── documents for a load (signed download urls — H7 review evidence) ─────────
+  router.get("/loads/:id/documents", canView, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await listDocuments(admin, orgOf(req), param(req, "id"));
+    if (isServiceError(result)) { fail(res, result); return; }
+    res.json({ documents: result.rows });
   }));
 
   router.patch("/loads/:id", canManage, validateBody(hazmatUpdateLoadRequestSchema), asyncHandler(async (req: Request, res: Response) => {

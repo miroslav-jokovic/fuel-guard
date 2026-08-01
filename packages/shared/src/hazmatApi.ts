@@ -238,6 +238,19 @@ export interface HazmatRunsResponse {
   runs: HazmatRunRow[];
 }
 
+// ── GET /hazmat/loads/:id/documents — signed download urls for review evidence (plan H7) ──────────
+export interface HazmatDocumentRow {
+  id: string;
+  kind: string;
+  page: number;
+  contentType: string | null;
+  /** Short-lived signed download url (null if signing failed). */
+  url: string | null;
+}
+export interface HazmatDocumentsResponse {
+  documents: HazmatDocumentRow[];
+}
+
 // ── POST /hazmat/loads/:id/review — reviewer field action (the clear itself is POST /clear) ─────
 export const hazmatReviewActionSchema = z.enum(["field_confirmed", "field_corrected", "cant_read", "rejected", "override"]);
 export const hazmatReviewRequestSchema = z.object({

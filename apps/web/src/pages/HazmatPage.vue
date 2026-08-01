@@ -38,6 +38,17 @@ import BaseButton from "@/components/ui/BaseButton.vue";
       </BaseCard>
 
       <BaseCard>
+        <h2 class="text-sm font-semibold text-ink">Review Queue</h2>
+        <p class="mt-1 text-sm text-ink-muted">
+          Flagged loads awaiting a trained reviewer. Work the flags, check the BOL evidence, then clear on the
+          49 CFR 172 Subpart H attestation — override a violation with a reason, or reject.
+        </p>
+        <div class="mt-4">
+          <BaseButton variant="soft" size="sm" to="/hazmat/review">Open review queue</BaseButton>
+        </div>
+      </BaseCard>
+
+      <BaseCard>
         <h2 class="text-sm font-semibold text-ink">Cargo-Tank Profiles</h2>
         <p class="mt-1 text-sm text-ink-muted">
           Record capacity and compartment plans per truck/trailer. Each is attached to that equipment's
