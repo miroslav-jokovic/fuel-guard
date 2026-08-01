@@ -64,3 +64,46 @@ test.describe("HazmatGuard — Placard Calculator (H5)", () => {
     await expect(page.getByLabel(/placard$/i).first()).toBeVisible();
   });
 });
+
+/**
+ * HazmatGuard H7 review-queue e2e. Verifies the fail-closed review workspace renders for a review-role
+ * user: the queue page loads, the filter toolbar is present, and either loads or the empty state show.
+ * When a load is waiting, the truck filter narrows the list and the row links to the load's review panel.
+ * Same env gate as above — skips cleanly without a seeded org, so credential-less CI stays green.
+ */
+test.describe("HazmatGuard — Review queue (H7)", () => {
+  test.skip(!EMAIL, "Set E2E_EMAIL / E2E_PASSWORD and BASE_URL to a seeded hazmatguard org to run.");
+
+  async function login(page: Page) {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(EMAIL!);
+    await page.getByLabel("Password").fill(PASSWORD);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page).not.toHaveURL(/\/login/);
+  }
+
+  test("queue renders with the filter toolbar and either loads or the empty state", async ({ page }) => {
+    await login(page);
+    await page.goto("/hazmat/review");
+
+    // Header + toolbar always render for a review-role user (fail-closed: nothing auto-clears).
+    await expect(page.getByText(/awaiting a trained reviewer/i)).toBeVisible();
+    await expect(page.getByPlaceholder("Search load #, product…")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Truck/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Driver/ })).toBeVisible();
+
+    // The body is one of two known terminal states — a populated queue or the empty card.
+    const firstReview = page.getByRole("link", { name: /Review/ }).first();
+    const empty = page.getByText(/Nothing awaiting review|No loads match/);
+    await expect(firstReview.or(empty)).toBeVisible();
+  });
+
+  test("a search that matches nothing shows the no-match empty state", async ({ page }) => {
+    await login(page);
+    await page.goto("/hazmat/review");
+
+    await page.getByPlaceholder("Search load #, product…").fill("zzz-no-such-load-zzz");
+    // With a queue present the no-match message shows; with an already-empty queue the 🎉 message shows.
+    await expect(page.getByText(/No loads match|Nothing awaiting review/)).toBeVisible();
+  });
+});

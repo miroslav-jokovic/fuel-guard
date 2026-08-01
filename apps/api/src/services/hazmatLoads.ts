@@ -40,10 +40,12 @@ export async function createLoad(
 export async function listLoads(
   admin: SupabaseClient, orgId: string, q: HazmatListLoadsQuery,
 ): Promise<{ rows: unknown[]; nextCursor: string | null }> {
+  const asc = q.order === "asc";
   let query = admin.from("hazmat_loads").select(HAZMAT_LOAD_COLUMNS).eq("org_id", orgId);
   if (q.status) query = query.eq("status", q.status);
-  if (q.cursor) query = query.lt("created_at", q.cursor); // keyset (01 §9): older than the last row seen
-  query = query.order("created_at", { ascending: false }).limit(q.limit + 1);
+  // keyset (01 §9): asc → newer than the last seen (oldest-first); desc → older than the last seen.
+  if (q.cursor) query = asc ? query.gt("created_at", q.cursor) : query.lt("created_at", q.cursor);
+  query = query.order("created_at", { ascending: asc }).limit(q.limit + 1);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as unknown as Array<{ created_at: string }>;

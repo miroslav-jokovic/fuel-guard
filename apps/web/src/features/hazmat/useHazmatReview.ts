@@ -29,10 +29,21 @@ export function useReviewQueueQuery() {
   return useQuery({
     queryKey: [...reviewKey, "queue"] as const,
     queryFn: async (): Promise<HazmatLoadRow[]> => {
-      const res = await call<HazmatLoadsListResponse>("/api/hazmat/loads?status=needs_review&limit=100");
-      return res.loads.slice().sort((a, b) => a.created_at.localeCompare(b.created_at));
+      // Server-side oldest-first (order=asc) — correct beyond the first page, unlike a client sort of a DESC page.
+      const res = await call<HazmatLoadsListResponse>("/api/hazmat/loads?status=needs_review&order=asc&limit=100");
+      return res.loads;
     },
     refetchInterval: 30_000,
+  });
+}
+
+/** Count of loads awaiting review — drives the nav badge. Gated by `enabled` (module + view access). */
+export function useHazmatReviewCountQuery(enabled: Ref<boolean>) {
+  return useQuery({
+    queryKey: [...reviewKey, "count"] as const,
+    enabled,
+    queryFn: async (): Promise<number> => (await call<{ count: number }>("/api/hazmat/review-count")).count,
+    refetchInterval: 60_000,
   });
 }
 

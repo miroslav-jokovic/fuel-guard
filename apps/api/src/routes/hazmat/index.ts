@@ -33,6 +33,7 @@ import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
 import { startExtractionAnalysis } from "../../services/hazmatExtraction/orchestrate.js";
 import { searchProducts } from "../../services/hazmatProducts.js";
 import { listProfiles, createProfile, updateProfile, deleteProfile } from "../../services/hazmatProfiles.js";
+import { notifyDriverOfOutcome } from "../../services/hazmatNotify.js";
 
 /**
  * HazmatGuard API (plan H4). Mounted at `/api/hazmat/*` behind auth + the `hazmatguard` module
@@ -136,6 +137,14 @@ export function hazmatRouter(): Router {
     res.json({ runs: result.rows });
   }));
 
+  // ── pending-review count (H7 nav badge) ──────────────────────────────────────
+  router.get("/review-count", canView, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const { count } = await admin.from("hazmat_loads").select("id", { count: "exact", head: true })
+      .eq("org_id", orgOf(req)).eq("status", "needs_review");
+    res.json({ count: count ?? 0 });
+  }));
+
   // ── documents for a load (signed download urls — H7 review evidence) ─────────
   router.get("/loads/:id/documents", canView, asyncHandler(async (req: Request, res: Response) => {
     const admin = getSupabaseAdmin(getAppLocals(req).env);
@@ -204,6 +213,10 @@ export function hazmatRouter(): Router {
     if (isServiceError(result)) { fail(res, result); return; }
     const action = body.action === "rejected" ? "hazmat.load_rejected" : body.action === "override" ? "hazmat.load_overridden" : "hazmat.load_reviewed";
     await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action, entity: "hazmat_loads", entityId: param(req, "id"), meta: { action: body.action, runId: body.runId, reason: body.newValue ?? null, fieldPath: body.fieldPath ?? null } });
+    if (body.action === "rejected") {
+      const { data: ld } = await admin.from("hazmat_loads").select("driver_id").eq("org_id", orgOf(req)).eq("id", param(req, "id")).maybeSingle();
+      await notifyDriverOfOutcome(admin, orgOf(req), param(req, "id"), (ld as { driver_id: string | null } | null)?.driver_id ?? null, "rejected");
+    }
     res.json({ ok: true, ...(result.to ? { status: result.to } : {}) });
   }));
 
@@ -216,6 +229,8 @@ export function hazmatRouter(): Router {
     });
     if (isServiceError(result)) { fail(res, result); return; }
     await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_cleared", entity: "hazmat_loads", entityId: param(req, "id"), meta: { runId: body.runId, attestation: body.attestation, overrideReason: body.overrideReason, datasetVersion: dataset.version } });
+    const { data: ld } = await admin.from("hazmat_loads").select("driver_id").eq("org_id", orgOf(req)).eq("id", param(req, "id")).maybeSingle();
+    await notifyDriverOfOutcome(admin, orgOf(req), param(req, "id"), (ld as { driver_id: string | null } | null)?.driver_id ?? null, "cleared");
     res.json({ status: result.to });
   }));
 

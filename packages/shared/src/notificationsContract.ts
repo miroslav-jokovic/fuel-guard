@@ -21,6 +21,10 @@ export const NOTIFICATION_CATEGORIES = [
   "performance_week",
   "training_due",
   "system",
+  // HazmatGuard (plan H7): a load needing a trained reviewer, and the driver-facing outcome.
+  "hazmat_review",
+  "hazmat_cleared",
+  "hazmat_rejected",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -36,6 +40,9 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   performance_week: "Weekly score",
   training_due: "Training reminders",
   system: "Service updates",
+  hazmat_review: "Hazmat reviews",
+  hazmat_cleared: "Hazmat cleared",
+  hazmat_rejected: "Hazmat rejected",
 };
 
 /**
@@ -115,6 +122,11 @@ export function deepLinkFor(
     case "load_changed":
     case "load_canceled":
       return entityId ? `/loads/${entityId}` : "/loads";
+    case "hazmat_review":
+      return entityId ? `/hazmat/loads/${entityId}` : "/hazmat/review";
+    case "hazmat_cleared":
+    case "hazmat_rejected":
+      return entityId ? `/hazmat/loads/${entityId}` : "/hazmat/loads";
     case "message_received":
       return entityId ? `/messages/${entityId}` : "/messages";
     case "performance_week":

@@ -9,9 +9,11 @@ import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useQueryClient } from "@tanstack/vue-query";
 import { Dialog, DialogPanel, TransitionRoot, TransitionChild } from "@headlessui/vue";
+import { canViewSection, moduleEnabled } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import { useModulesQuery } from "@/composables/useModules";
+import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
 import AppLogo from "@/components/AppLogo.vue";
 import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
 
@@ -22,8 +24,13 @@ const queryClient = useQueryClient();
 
 // Role-aware navigation, defined declaratively in @/lib/nav. UI gating only — RLS + API are the real enforcement.
 const modules = useModulesQuery();
+// Pending-hazmat-review count for the nav badge (only queried when the module + view access are present).
+const hazmatVisible = computed(() =>
+  canViewSection(session.role, "hazmat") && moduleEnabled(modules.data.value ?? null, "hazmatguard"),
+);
+const reviewCount = useHazmatReviewCountQuery(hazmatVisible);
 const navGroups = computed<NavGroup[]>(() =>
-  buildNavGroups(session.role, modules.data.value ?? null),
+  buildNavGroups(session.role, modules.data.value ?? null, { hazmatReview: reviewCount.data.value ?? 0 }),
 );
 
 // Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching
@@ -135,7 +142,8 @@ async function signOut() {
                           :aria-current="isCurrent(item.to) ? 'page' : undefined"
                         >
                           <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                          {{ item.name }}
+                          <span class="flex-1">{{ item.name }}</span>
+                          <span v-if="item.badge" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-ink-inverse">{{ item.badge }}</span>
                         </RouterLink>
                       </li>
                     </template>
@@ -196,7 +204,8 @@ async function signOut() {
                   :aria-current="isCurrent(item.to) ? 'page' : undefined"
                 >
                   <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                  <span>{{ item.name }}</span>
+                  <span class="flex-1">{{ item.name }}</span>
+                  <span v-if="item.badge" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-ink-inverse">{{ item.badge }}</span>
                 </RouterLink>
               </li>
             </template>
@@ -258,7 +267,8 @@ async function signOut() {
         :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
         @click="toggleSidebar"
       >
-        <AppIcon :icon="ChevronLeftIcon"
+        <AppIcon
+          :icon="ChevronLeftIcon"
           class="size-3 transition-transform duration-200"
           :class="{ 'rotate-180': sidebarCollapsed }"
           aria-hidden="true"

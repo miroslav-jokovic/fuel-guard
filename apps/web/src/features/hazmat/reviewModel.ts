@@ -15,6 +15,8 @@ export {
   type HazmatClearCheck,
 } from "@fuelguard/shared";
 
+import type { HazmatLoadRow } from "@fuelguard/shared";
+
 export type ReviewTier = "violation" | "conditional" | "warning" | "info";
 export interface ReviewItem {
   code: string;
@@ -73,4 +75,26 @@ export function labelForFlag(code: string): ReviewItem {
 export function deriveReviewItems(flags: string[]): ReviewItem[] {
   const rank: Record<ReviewTier, number> = { violation: 0, conditional: 1, warning: 2, info: 3 };
   return flags.map(labelForFlag).sort((a, b) => rank[a.tier] - rank[b.tier]);
+}
+
+// ── queue filters (plan H7 deliverable 1) ────────────────────────────────────────────────────────
+export interface QueueFilter {
+  vehicleId: string; // "" = any
+  driverId: string; // "" = any
+  search: string; // matches the load id or a declared line's text
+}
+export const emptyQueueFilter = (): QueueFilter => ({ vehicleId: "", driverId: "", search: "" });
+
+/** Client-side queue filter by vehicle, driver, and a free-text search (over id + declared lines). */
+export function filterReviewQueue(loads: HazmatLoadRow[], f: QueueFilter): HazmatLoadRow[] {
+  const q = f.search.trim().toLowerCase();
+  return loads.filter((l) => {
+    if (f.vehicleId && l.vehicle_id !== f.vehicleId) return false;
+    if (f.driverId && l.driver_id !== f.driverId) return false;
+    if (q) {
+      const hay = `${l.id} ${Array.isArray(l.declared_lines) ? JSON.stringify(l.declared_lines) : ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
 }

@@ -11,6 +11,7 @@ import { usabilityGate } from "./image.js";
 import { anthropicVisionExtractor, HAZMAT_EXTRACTION_PROMPT_VERSION, type ImageInput } from "./vision.js";
 import { runExtraction } from "./extract.js";
 import { computeExtractionFlags, isGreen } from "./outcome.js";
+import { notifyReviewersOfFlag } from "../hazmatNotify.js";
 import type { DeclaredLineRef } from "./mapBolLines.js";
 
 /**
@@ -61,6 +62,7 @@ async function run(admin: SupabaseClient, orgId: string, loadId: string, env: En
     const hash = "sha256:extraction:" + runId; // recomputed below for the real path; placeholder on abort
     await insertHazmatRun(admin, runId, orgId, loadId, verdict?.engineVersion ?? "n/a", dataset.version, verdict ?? { extraction: "no_verdict" }, outcome, flags, hash, models);
     await transitionLoad(admin, orgId, loadId, outcome === "green" ? "analysis_green" : "analysis_flagged", { datasetProvisional: dataset.provisional });
+    if (outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
   };
 
   try {
@@ -115,6 +117,7 @@ async function run(admin: SupabaseClient, orgId: string, loadId: string, env: En
       const c = cached as { verdict: unknown; outcome: "green" | "flagged"; flags: string[]; engine_version: string; models: unknown };
       await insertHazmatRun(admin, runId, orgId, loadId, c.engine_version, dataset.version, c.verdict, c.outcome, c.flags, inputHash, c.models);
       await transitionLoad(admin, orgId, loadId, c.outcome === "green" ? "analysis_green" : "analysis_flagged", { datasetProvisional: dataset.provisional });
+      if (c.outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
       return;
     }
 
@@ -144,6 +147,7 @@ async function run(admin: SupabaseClient, orgId: string, loadId: string, env: En
     const outcome = isGreen(flags) ? "green" : "flagged";
     await insertHazmatRun(admin, runId, orgId, loadId, verdict?.engineVersion ?? "n/a", dataset.version, verdict ?? { extraction: extract.usabilityReasons.length ? "unusable" : "no_lines" }, outcome, flags, inputHash, models);
     await transitionLoad(admin, orgId, loadId, outcome === "green" ? "analysis_green" : "analysis_flagged", { datasetProvisional: dataset.provisional });
+    if (outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
   } catch (e) {
     // Model down / retries exhausted / decode error → extraction_failed (reviewer gets a manual-entry action).
     console.error(`[hazmat] extraction crashed for load ${loadId}: ${e instanceof Error ? e.message : e}`);

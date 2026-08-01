@@ -40,6 +40,13 @@ export interface NavItem {
   to: string;
   icon: Icon;
   show: boolean;
+  /** Optional count badge (e.g. pending hazmat reviews). Rendered only when > 0. */
+  badge?: number;
+}
+
+/** Live counts injected into the nav (kept out of the static section map). */
+export interface NavCounts {
+  hazmatReview?: number;
 }
 
 export interface NavGroup {
@@ -60,7 +67,7 @@ export interface NavGroup {
  * canManageSection gates the write surfaces (Import, Fuel Planning). Dashboard + Fuel Log stay ungated so
  * drivers keep them; Ask AI is any signed-in staff role (not driver).
  */
-export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null): NavGroup[] {
+export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null, counts: NavCounts = {}): NavGroup[] {
   const isStaff = role != null && role !== "driver";
   return [
     {
@@ -102,7 +109,7 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null)
         { name: "HazmatGuard", to: "/hazmat", icon: ShieldExclamationIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
         { name: "Placard Calculator", to: "/hazmat/calculator", icon: ClipboardDocumentCheckIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
         { name: "Hazmat Loads", to: "/hazmat/loads", icon: LoadsIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
-        { name: "Hazmat Review", to: "/hazmat/review", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
+        { name: "Hazmat Review", to: "/hazmat/review", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard"), badge: counts.hazmatReview },
         { name: "Cargo-Tank Profiles", to: "/hazmat/settings/equipment", icon: TrailerIcon, show: canManageSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
       ],
     },

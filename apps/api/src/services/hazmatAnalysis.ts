@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { evaluateLoad, type LoadInput, type Verdict } from "@hazmat/engine";
 import { loadDataset, type Dataset } from "@hazmat/data";
 import { transitionLoad } from "./hazmatLoads.js";
+import { notifyReviewersOfFlag } from "./hazmatNotify.js";
 
 /**
  * HazmatGuard analysis orchestrator (plan H4-4) — the MANUAL path. The `jobs` ledger (0027) is a
@@ -172,6 +173,7 @@ async function runManualAnalysis(
 
     await insertRun(admin, runId, orgId, loadId, engineVersion, dataset.version, verdict, outcome, flags, manualInputHash(l, engineVersion, dataset.version));
     await transitionLoad(admin, orgId, loadId, outcome === "green" ? "analysis_green" : "analysis_flagged", { datasetProvisional: dataset.provisional });
+    if (outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
   } catch (e) {
     console.error(`[hazmat] manual analysis crashed for load ${loadId}: ${e instanceof Error ? e.message : e}`);
   } finally {

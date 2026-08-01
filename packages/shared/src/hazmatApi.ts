@@ -111,6 +111,8 @@ export const hazmatListLoadsQuerySchema = z.object({
   status: z.string().optional(),
   cursor: z.string().optional(), // opaque: the created_at of the last row on the previous page
   limit: z.coerce.number().int().min(1).max(100).default(25),
+  /** "asc" = oldest-first (the review queue: longest-waiting at the top); default newest-first. */
+  order: z.enum(["asc", "desc"]).default("desc"),
 });
 export type HazmatListLoadsQuery = z.infer<typeof hazmatListLoadsQuerySchema>;
 

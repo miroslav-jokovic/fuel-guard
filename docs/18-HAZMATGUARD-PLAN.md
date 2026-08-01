@@ -167,7 +167,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
 | **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Calculator + Load Workspace + cargo-tank CRUD built & audited; remaining: per-compartment inputs — blocked on engine H2; e2e run in seeded CI.)* |
 | **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(Full photo→verdict pipeline built + tested — resolveHmtLine, BolFields, mapper, cross-validation, image gate, dual-pass vision, orchestrator, route dispatch; only a live key + photo corpus remain to run/tune.)* |
-| **H7** 🟨 Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. *(Queue + attestation/override/reject clearing workflow built + SERVER-ENFORCED + tested; field-level correction + pixel crops + notifications pending on H6 bbox persistence.)* |
+| **H7** 🟨 Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. *(Queue + filters + nav badge + attestation/override/reject clearing workflow + notifications built + SERVER-ENFORCED + tested; field-level correction + pixel crops pending on the H6 live bbox run.)* |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
 | **H9** ☐ Securement & placard-photo verification | Truck photo vs computed placards + checklist | H2, H6 | Photo of placarded truck → match/mismatch against required set. |
 | **H10** ☐ Driver capture (mobile web) | Guided capture flow + API contract for future native app | H6, H7 | Driver submits BOL+securement photos from a phone; load lands analyzed. |
@@ -404,7 +404,7 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   (62 hazmat tests across `@hazmat/data` + `apps/api`); the code path from photo → verdict is complete and
   typechecks — it runs as soon as a key + images are present.
 
-**H7 — Review queue & attestation — IN PROGRESS (fail-closed clearing workflow built 2026-07-31; server-side enforcement hardened after audit 2026-08-01).**
+**H7 — Review queue & attestation — IN PROGRESS (fail-closed clearing workflow built 2026-07-31; server-side enforcement hardened after audit 2026-08-01; queue filters + nav badge + notifications + review-journey e2e added 2026-08-01; only field-level correction + pixel crops remain, blocked on the H6 live run).**
 - **Review queue + attestation/override/reject workflow shipped** (`apps/web`): the safety-critical
   fail-closed core (D2/D8). `HazmatReviewPage` (`/hazmat/review`, oldest-first queue) + `ReviewPanel` (flags
   to work — violations first; BOL document evidence via the new signed-download endpoint; the attestation
@@ -423,16 +423,34 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   reject path now records the `illegible_document` reason. `hazmatClearRequestSchema` gained explicit
   `overrideReason`/`spAcknowledged` (the attestation string is no longer trusted to imply them).
 - **New API:** `GET /api/hazmat/loads/:id/documents` (`listDocuments` — short-lived signed download urls +
-  `HazmatDocumentRow`/response DTOs) so the review screen shows the BOL as evidence.
+  `HazmatDocumentRow`/response DTOs) so the review screen shows the BOL as evidence; `GET
+  /api/hazmat/review-count` (drives the nav badge); `GET /api/hazmat/loads?status=…&order=asc` (server-side
+  oldest-first, correct beyond the first page).
+- **Notifications wired (Deliverable 4):** `apps/api/services/hazmatNotify.ts` — on the load→flagged
+  transition (manual, extraction, cache-hit, and the fail-closed `finish` paths all call it)
+  `notifyReviewersOfFlag` notifies every review-role member (`hazmat_review`, deduped per load); on clear /
+  reject `notifyDriverOfOutcome` notifies the submitting driver (`hazmat_cleared` / `hazmat_rejected`). Three
+  categories + deep-links added to the shared notifications contract; DB check-constraint extended in
+  migration `0093_hazmat_notifications.sql`.
+- **Nav badge (Deliverable 1):** `NavItem.badge` + `buildNavGroups(role, modules, counts)`; `AppShell`
+  drives the Hazmat Review count via `useHazmatReviewCountQuery` (gated on module + view access, 60 s
+  refetch).
+- **Queue filters + server-side sort (Deliverable 1):** `HazmatReviewPage` now has the standard `FilterBar`
+  toolbar — truck + driver `FilterSelect` + free-text search over load id / declared lines — backed by the
+  pure `filterReviewQueue` helper in `reviewModel.ts` (7 UI tests); the queue query fetches
+  `?status=needs_review&order=asc&limit=100` (server oldest-first, no client re-sort of a DESC page).
+- **Review-journey e2e (Deliverable / Tests):** `apps/web/e2e/hazmat.spec.ts` H7 block — queue renders with
+  the filter toolbar + resolves to either a populated queue or the empty state; a no-match search shows the
+  empty state. Env-gated on `E2E_EMAIL` like the H5 suite (credential-less CI stays green); compiles under
+  `playwright test --list`.
 - PENDING in H7 (each with a named dependency, verified by the audit — not silent gaps): **field-by-field
   correction + pixel-crop bbox evidence + re-run-on-correction** — needs H6 to persist per-field `BolFields`
   + bboxes (bboxes come from the live vision model, so this rides on the H6 live-run) and a
-  re-run-with-human-values endpoint; **driver/dispatcher notifications** on flag/clear/reject (hooks into the
-  existing notification service); the **nav badge count** (the shared nav needs a badge slot); **queue
-  filters** (flag/vehicle/driver) and a server-side oldest-first sort for >100 pending; the **D11 expert
-  audit-flow ordering** (blocked on the SME's documented flow, H3 Deliverable 0 — interim ordering is
-  by tier); and the **Playwright review journey** (seeded-CI, like the H5 e2e). The clearing workflow — the
-  part that must be fail-closed — is complete, server-enforced, and tested.
+  re-run-with-human-values endpoint; the **D11 expert audit-flow ordering** (blocked on the SME's documented
+  flow, H3 Deliverable 0 — interim ordering is by tier); and the **full submit→correct→re-run→clear
+  Playwright journey + the <90 s review-time exit metric** (both ride on the field-correction path above, so
+  they land with the H6 live run — the current e2e covers the queue/filter surface that exists today). The
+  clearing workflow — the part that must be fail-closed — is complete, server-enforced, and tested.
 
 **Not yet started (code):** H8 policy, H9 securement, H10 driver capture,
 H11 shadow, H12 product. (H2 also owes the capacity/compartment engine rules that the cargo-tank profiles
@@ -1481,14 +1499,17 @@ and mechanically measurable from day one.
 
 ---
 
-## Phase H7 🟨 IN PROGRESS (fail-closed clearing workflow — queue + attestation/override/reject — built + tested 2026-07-31; server-side enforcement hardened after audit 2026-08-01; field-level correction + pixel crops + notifications pending) — Review queue & attestation
+## Phase H7 🟨 IN PROGRESS (fail-closed clearing workflow — queue + filters + nav badge + attestation/override/reject + notifications — built + tested 2026-07-31…2026-08-01; server-side enforcement hardened after audit 2026-08-01; field-level correction + pixel crops pending on the H6 live bbox run) — Review queue & attestation
 
 **Objective.** The fail-closed workflow where humans resolve flags — designed so reviewing is
 faster than re-reading the BOL.
 
 **Deliverables.**
-1. **Queue** (`/hazmat/review`): loads in `needs_review`, sorted oldest-first, filter by
-   flag type/vehicle/driver; badge count in nav. Modeled on the anomaly queue UX users already know.
+1. ✅ **Queue** (`/hazmat/review`): loads in `needs_review`, sorted oldest-first (server-side `order=asc`),
+   filter by vehicle/driver + free-text search (`FilterBar`; `filterReviewQueue` + 7 tests); badge count in
+   nav (`NavItem.badge` + `useHazmatReviewCountQuery` + `GET /api/hazmat/review-count`). Modeled on the
+   anomaly queue UX users already know. *(Flag-type filter folded into the free-text search for now; the D11
+   audit-flow ordering still overrides tier-ordering when the SME flow lands.)*
 2. **Review screen** (the core): left = document image (zoom/rotate); right = flagged items
    only, **ordered per the expert audit flow (D11/H3 Deliverable 0) — the reviewer works the
    flags in the same sequence a veteran auditor works a BOL**, each showing: extracted value,
@@ -1510,8 +1531,11 @@ faster than re-reading the BOL.
    Only then `status='cleared'`. **Override** (clearing despite a `violation` finding) requires a
    typed reason ≥ 20 chars, writes `action='override'`, and is surfaced in the H12 compliance report and per-load audit bundle — possible because the customer owns the duty (D6), loud because we must be able to
    prove we flagged it.
-4. Driver/dispatcher notification hooks into the existing email/notification service (Phase-8
-   infra): flagged → assigned reviewers; cleared/rejected → submitting driver.
+4. ✅ Driver/dispatcher notification hooks into the existing email/notification service (Phase-8
+   infra): flagged → assigned reviewers; cleared/rejected → submitting driver. Built in
+   `apps/api/services/hazmatNotify.ts` (`notifyReviewersOfFlag` / `notifyDriverOfOutcome`), fired from every
+   flagged transition (manual + all extraction paths) and from clear/reject; three categories + deep-links in
+   the shared contract; DB check-constraint extended in `0093_hazmat_notifications.sql`.
 
 **Tests.** Playwright: full journey — submit fixture load → flag → confirm one field, correct one
 field → re-run → green → attest → cleared; override journey with audit assertion; RLS/role test
