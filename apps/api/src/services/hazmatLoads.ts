@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  hazmatTransition, canEditLoad, isClearingEvent,
+  hazmatTransition, canEditLoad, isClearingEvent, checkHazmatClear,
   type HazmatLoadStatus, type HazmatLoadEvent,
   type HazmatCreateLoadRequest, type HazmatUpdateLoadRequest, type HazmatListLoadsQuery,
   type HazmatRegisterDocumentRequest, type HazmatRegisterDocumentResponse,
@@ -203,15 +203,47 @@ export async function recordReview(
  * row; the route additionally writes it to audit_logs, so the attestation survives even if this insert
  * races (a future SECURITY DEFINER RPC would make the transition+review atomic — noted for post-pilot).
  */
+export interface ClearOptions {
+  attestation: string;
+  overrideReason: string | null;
+  spAcknowledged: boolean;
+  datasetProvisional: boolean;
+}
+/**
+ * Clear a load — the ONLY attested path to `cleared`. The FULL fail-closed gate (D2/D8) is enforced HERE,
+ * server-side, via the shared `checkHazmatClear`: a UI-only guard is not a guard. A violation run demands
+ * an override reason (and records an `override` review row for the H12 report); a special-permit load
+ * demands the SP acknowledgement; an unusable-read or provisional-dataset run cannot clear at all.
+ */
 export async function clearLoad(
-  admin: SupabaseClient, orgId: string, userId: string, loadId: string, runId: string, attestation: string, datasetProvisional: boolean,
+  admin: SupabaseClient, orgId: string, userId: string, loadId: string, runId: string, opts: ClearOptions,
 ): Promise<{ to: HazmatLoadStatus } | ServiceError> {
-  const { data: run } = await admin.from("hazmat_runs").select("id").eq("org_id", orgId).eq("load_id", loadId).eq("id", runId).maybeSingle();
+  const { data: run } = await admin
+    .from("hazmat_runs").select("id, flags").eq("org_id", orgId).eq("load_id", loadId).eq("id", runId).maybeSingle();
   if (!run) return err("not_found", "Run not found for this load.");
-  const t = await transitionLoad(admin, orgId, loadId, "review_cleared", { datasetProvisional });
+  const { data: load } = await admin
+    .from("hazmat_loads").select("special_permit_numbers").eq("org_id", orgId).eq("id", loadId).maybeSingle();
+  const flags = ((run as { flags?: string[] }).flags ?? []) as string[];
+  const specialPermits = ((load as { special_permit_numbers?: string[] } | null)?.special_permit_numbers ?? []) as string[];
+
+  const check = checkHazmatClear({ flags, datasetProvisional: opts.datasetProvisional, specialPermits, overrideReason: opts.overrideReason, spAcknowledged: opts.spAcknowledged });
+  if (!check.ok) {
+    // provisional/unusable → 409 (state); missing override/SP → 400 (bad request).
+    const code = check.code === "provisional_dataset" ? "provisional_dataset" : check.code === "document_unusable" ? "not_clearable" : "attestation_incomplete";
+    return err(code, check.message ?? "This load cannot be cleared.");
+  }
+
+  // A cleared violation is recorded as an explicit override review row (surfaced in the H12 report).
+  if (check.requiresOverride) {
+    await admin.from("hazmat_reviews").insert({
+      org_id: orgId, load_id: loadId, run_id: runId, reviewer_id: userId, action: "override", new_value: (opts.overrideReason ?? "").trim(),
+    });
+  }
+
+  const t = await transitionLoad(admin, orgId, loadId, "review_cleared", { datasetProvisional: opts.datasetProvisional });
   if ("error" in t) return t;
   const { error } = await admin.from("hazmat_reviews").insert({
-    org_id: orgId, load_id: loadId, run_id: runId, reviewer_id: userId, action: "cleared", attestation,
+    org_id: orgId, load_id: loadId, run_id: runId, reviewer_id: userId, action: "cleared", attestation: opts.attestation,
   });
   if (error) return err("insert_failed", error.message);
   return { to: t.to };

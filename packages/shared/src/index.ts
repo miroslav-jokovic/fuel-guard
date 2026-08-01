@@ -5,6 +5,7 @@ export * from "./auth.js";
 export * from "./apiContract.js";
 export * from "./hazmatApi.js";
 export * from "./hazmatLifecycle.js";
+export * from "./hazmatReview.js";
 export * from "./fleet.js";
 export * from "./vehicleSetupCsv.js";
 export * from "./fuel.js";

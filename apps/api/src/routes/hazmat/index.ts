@@ -45,7 +45,7 @@ const isServiceError = (v: unknown): v is ServiceError =>
   typeof v === "object" && v !== null && "code" in v && "error" in v;
 const httpFor = (code: string): number =>
   code === "not_found" ? 404 :
-  code === "not_editable" || code === "illegal_transition" || code === "provisional_dataset" ? 409 :
+  code === "not_editable" || code === "illegal_transition" || code === "provisional_dataset" || code === "not_clearable" ? 409 :
   code === "sign_failed" || code === "insert_failed" || code === "update_failed" || code === "upsert_failed" || code === "query_failed" || code === "delete_failed" ? 500 :
   code === "profile_exists" ? 409 : 400;
 
@@ -203,7 +203,7 @@ export function hazmatRouter(): Router {
     const result = await recordReview(admin, orgOf(req), userOf(req), param(req, "id"), body);
     if (isServiceError(result)) { fail(res, result); return; }
     const action = body.action === "rejected" ? "hazmat.load_rejected" : body.action === "override" ? "hazmat.load_overridden" : "hazmat.load_reviewed";
-    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action, entity: "hazmat_loads", entityId: param(req, "id"), meta: { action: body.action, runId: body.runId } });
+    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action, entity: "hazmat_loads", entityId: param(req, "id"), meta: { action: body.action, runId: body.runId, reason: body.newValue ?? null, fieldPath: body.fieldPath ?? null } });
     res.json({ ok: true, ...(result.to ? { status: result.to } : {}) });
   }));
 
@@ -211,9 +211,11 @@ export function hazmatRouter(): Router {
     const body = res.locals.body as HazmatClearRequest;
     const admin = getSupabaseAdmin(getAppLocals(req).env);
     const dataset = loadDataset();
-    const result = await clearLoad(admin, orgOf(req), userOf(req), param(req, "id"), body.runId, body.attestation, dataset.provisional);
+    const result = await clearLoad(admin, orgOf(req), userOf(req), param(req, "id"), body.runId, {
+      attestation: body.attestation, overrideReason: body.overrideReason, spAcknowledged: body.spAcknowledged, datasetProvisional: dataset.provisional,
+    });
     if (isServiceError(result)) { fail(res, result); return; }
-    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_cleared", entity: "hazmat_loads", entityId: param(req, "id"), meta: { runId: body.runId, attestation: body.attestation, datasetVersion: dataset.version } });
+    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_cleared", entity: "hazmat_loads", entityId: param(req, "id"), meta: { runId: body.runId, attestation: body.attestation, overrideReason: body.overrideReason, datasetVersion: dataset.version } });
     res.json({ status: result.to });
   }));
 

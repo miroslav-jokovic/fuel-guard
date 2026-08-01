@@ -1,20 +1,19 @@
 /**
- * Review + attestation model (plan H7). Pure, import-light (no supabase) so it unit-tests headless. The
- * clearing rules are the fail-closed core (D2/D8): a load can only clear on a NAMED attestation, an
- * override of a violation demands a typed reason, a special-permit load needs the dedicated SP attestation,
- * and a provisional dataset blocks clearing entirely. The web mirrors these so a reviewer never sees an
- * enabled Clear button they aren't actually allowed to press — but the API + RLS are the real enforcement.
+ * Review UI model (plan H7). The CLEARING RULES now live in `@fuelguard/shared` (hazmatReview) so the web
+ * and the API `clearLoad` enforce ONE fail-closed definition — the server is the real gate, this only
+ * decides what the reviewer sees. This file keeps the UI-only concern: turning run flags into readable,
+ * ordered review items. The gate functions are re-exported for the panel under familiar names.
  */
-
-/** The exact attestation string stored in hazmat_reviews.attestation (D8) — do not paraphrase in the UI. */
-export const ATTESTATION_TEXT =
-  "I attest I am trained under 49 CFR 172 Subpart H and have reviewed this assessment.";
-export const OVERRIDE_MIN_REASON = 20;
-
-export function spAttestationText(permits: string[]): string {
-  const list = permits.length ? permits.join(", ") : "the special permit";
-  return `I have read ${list} and confirm it covers this deviation for this shipper/carrier.`;
-}
+export {
+  HAZMAT_ATTESTATION_TEXT as ATTESTATION_TEXT,
+  HAZMAT_OVERRIDE_MIN_REASON as OVERRIDE_MIN_REASON,
+  hazmatSpAttestationText as spAttestationText,
+  hazmatHasViolation as hasViolation,
+  hazmatUnclearableReason,
+  checkHazmatClear,
+  buildHazmatAttestation,
+  type HazmatClearCheck,
+} from "@fuelguard/shared";
 
 export type ReviewTier = "violation" | "conditional" | "warning" | "info";
 export interface ReviewItem {
@@ -31,16 +30,16 @@ const FLAG_LABELS: Record<string, { label: string; tier: ReviewTier }> = {
   provisional_dataset: { label: "Regulatory dataset is provisional — clearing is blocked.", tier: "violation" },
   lines_unconfirmed: { label: "Lines not confirmed (driver self-created load).", tier: "conditional" },
   reclassification_unconfirmed: { label: "Combustible-liquid reclassification not confirmed by a declared line.", tier: "conditional" },
-  recapture_needed: { label: "Photo unusable — recapture required.", tier: "violation" },
-  extraction_failed: { label: "Extraction failed — enter the fields manually.", tier: "violation" },
+  recapture_needed: { label: "Photo unusable — recapture required (cannot be cleared as-is).", tier: "violation" },
+  extraction_failed: { label: "Extraction failed — re-run or enter the fields manually (cannot be cleared as-is).", tier: "violation" },
   quantity_missing: { label: "A line is missing its quantity.", tier: "conditional" },
   quantity_unit_unrecognized: { label: "A line's quantity unit was not recognized.", tier: "violation" },
   total_weight_mismatch: { label: "Line weights do not sum to the printed total.", tier: "conditional" },
   page_incomplete: { label: "A multi-page shipping paper is missing pages.", tier: "conditional" },
   has_preprinted_lines: { label: "Dormant pre-printed template lines — confirm they are not loaded.", tier: "warning" },
-  no_documents: { label: "No BOL document is attached to this load.", tier: "violation" },
-  document_unreadable: { label: "A BOL document could not be read from storage.", tier: "violation" },
-  budget_exhausted: { label: "Extraction token budget exhausted for this month.", tier: "conditional" },
+  no_documents: { label: "No BOL document is attached to this load (cannot be cleared as-is).", tier: "violation" },
+  document_unreadable: { label: "A BOL document could not be read from storage (cannot be cleared as-is).", tier: "violation" },
+  budget_exhausted: { label: "Extraction token budget exhausted — re-run after topping up (cannot be cleared as-is).", tier: "violation" },
   entitlement_revoked: { label: "HazmatGuard entitlement was revoked mid-run.", tier: "violation" },
   extraction_disabled: { label: "Extraction is turned off — use the manual path.", tier: "conditional" },
 };
@@ -66,50 +65,12 @@ export function labelForFlag(code: string): ReviewItem {
   return { code, tier: "conditional", label: code.replace(/_/g, " ") };
 }
 
-/** The flags of a run as ordered review items (violations first — the order a reviewer should work them). */
+/**
+ * Run flags → ordered review items. Ordered violations-first as an interim proxy for the D11 expert
+ * audit-flow ordering (H3 Deliverable 0 — the SME's documented sequence — is not authored yet; when it
+ * lands, sort by that sequence here). Unknown codes are surfaced, never hidden.
+ */
 export function deriveReviewItems(flags: string[]): ReviewItem[] {
   const rank: Record<ReviewTier, number> = { violation: 0, conditional: 1, warning: 2, info: 3 };
   return flags.map(labelForFlag).sort((a, b) => rank[a.tier] - rank[b.tier]);
-}
-
-export function hasViolation(flags: string[]): boolean {
-  return deriveReviewItems(flags).some((i) => i.tier === "violation" && i.code !== "dataset_provisional" && i.code !== "provisional_dataset");
-}
-
-export interface ClearGate {
-  /** false when a hard block (provisional dataset) makes clearing impossible regardless of attestation. */
-  canAttest: boolean;
-  hardBlockReason: string | null;
-  requiresOverride: boolean;
-  requiresSpAttestation: boolean;
-}
-export function clearGate(flags: string[], datasetProvisional: boolean, specialPermits: string[]): ClearGate {
-  const provisional = datasetProvisional || flags.includes("dataset_provisional") || flags.includes("provisional_dataset");
-  return {
-    canAttest: !provisional,
-    hardBlockReason: provisional ? "The active regulatory dataset is provisional — no load can be cleared against it." : null,
-    requiresOverride: hasViolation(flags),
-    requiresSpAttestation: specialPermits.length > 0,
-  };
-}
-
-export interface ClearAttempt {
-  attested: boolean;
-  spAttested: boolean;
-  overrideReason: string;
-}
-/** Whether the reviewer has satisfied every gate to submit a clear. */
-export function canSubmitClear(gate: ClearGate, a: ClearAttempt): boolean {
-  if (!gate.canAttest || !a.attested) return false;
-  if (gate.requiresSpAttestation && !a.spAttested) return false;
-  if (gate.requiresOverride && a.overrideReason.trim().length < OVERRIDE_MIN_REASON) return false;
-  return true;
-}
-
-/** The exact attestation string to store for this clear (base + SP + override reason, as applicable). */
-export function buildAttestation(gate: ClearGate, a: ClearAttempt, permits: string[]): string {
-  const parts = [ATTESTATION_TEXT];
-  if (gate.requiresSpAttestation) parts.push(spAttestationText(permits));
-  if (gate.requiresOverride) parts.push(`OVERRIDE: ${a.overrideReason.trim()}`);
-  return parts.join(" ");
 }

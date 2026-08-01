@@ -262,9 +262,13 @@ export const hazmatReviewRequestSchema = z.object({
 });
 export type HazmatReviewRequest = z.infer<typeof hazmatReviewRequestSchema>;
 
-// ── POST /hazmat/loads/:id/clear — named attestation required; refused on a provisional dataset ─
+// ── POST /hazmat/loads/:id/clear — named attestation; the server enforces the full clearing gate ─
+// (provisional block, unusable-read block, SP attestation, override reason) via checkHazmatClear — the
+// attestation string is NOT trusted to imply those; `overrideReason`/`spAcknowledged` are explicit.
 export const hazmatClearRequestSchema = z.object({
   runId: z.string().uuid(),
   attestation: z.string().min(1),
+  overrideReason: z.string().nullable().default(null),
+  spAcknowledged: z.boolean().default(false),
 });
 export type HazmatClearRequest = z.infer<typeof hazmatClearRequestSchema>;

@@ -7,9 +7,8 @@ import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
   ATTESTATION_TEXT,
-  buildAttestation,
-  canSubmitClear,
-  clearGate,
+  buildHazmatAttestation,
+  checkHazmatClear,
   deriveReviewItems,
   OVERRIDE_MIN_REASON,
   spAttestationText,
@@ -20,18 +19,24 @@ import { useClearLoad, useLoadDocumentsQuery, useRecordReview } from "./useHazma
 /**
  * The review + attestation panel (plan H7). Shown on a load in `needs_review` to a review-role user. The
  * reviewer works the flags (violations first), sees the BOL evidence, and clears ONLY on the named
- * attestation — a violation demands a typed override reason, a special-permit load the SP attestation, and a
- * provisional dataset can't clear at all (D2/D8). Field-by-field correction + pixel-crop evidence arrive when
- * H6 persists per-field bboxes; this panel is the fail-closed clearing core.
+ * attestation. The clearing rules are enforced SERVER-SIDE (shared checkHazmatClear in clearLoad); this
+ * panel mirrors them so a disabled button is explained. Field-by-field correction + pixel-crop evidence
+ * arrive when H6 persists per-field bboxes.
  */
 const props = defineProps<{ load: HazmatLoadRow; run: HazmatRunRow }>();
 
 const items = computed(() => deriveReviewItems(props.run.flags));
 const permits = computed(() => props.load.special_permit_numbers ?? []);
-const gate = computed(() => clearGate(props.run.flags, false, permits.value));
 
 const attempt = reactive({ attested: false, spAttested: false, overrideReason: "" });
-const canSubmit = computed(() => canSubmitClear(gate.value, attempt));
+// The SAME gate the server enforces (datasetProvisional is detected from the run's flags; the API re-checks live).
+const gate = computed(() =>
+  checkHazmatClear({ flags: props.run.flags, datasetProvisional: false, specialPermits: permits.value, overrideReason: attempt.overrideReason, spAcknowledged: attempt.spAttested }),
+);
+const hardBlock = computed(() =>
+  gate.value.code === "provisional_dataset" || gate.value.code === "document_unusable" ? gate.value.message ?? "This load cannot be cleared." : null,
+);
+const attestedGate = computed(() => attempt.attested && gate.value.ok);
 
 const { data: documents } = useLoadDocumentsQuery(computed(() => props.load.id));
 const bolImages = computed(() => (documents.value ?? []).filter((d) => (d.contentType ?? "").startsWith("image/") && d.url));
@@ -46,10 +51,15 @@ const TONE: Record<ReviewTier, string> = { violation: "danger", conditional: "wa
 async function clear() {
   actionError.value = null;
   try {
-    if (gate.value.requiresOverride) {
-      await recordReview.mutateAsync({ loadId: props.load.id, body: { runId: props.run.id, action: "override", newValue: attempt.overrideReason.trim() } });
-    }
-    await clearLoad.mutateAsync({ loadId: props.load.id, body: { runId: props.run.id, attestation: buildAttestation(gate.value, attempt, permits.value) } });
+    await clearLoad.mutateAsync({
+      loadId: props.load.id,
+      body: {
+        runId: props.run.id,
+        attestation: buildHazmatAttestation(gate.value, permits.value, attempt.overrideReason),
+        overrideReason: gate.value.requiresOverride ? attempt.overrideReason.trim() : null,
+        spAcknowledged: attempt.spAttested,
+      },
+    });
   } catch (e) {
     actionError.value = e instanceof Error ? e.message : "Could not clear the load.";
   }
@@ -57,7 +67,7 @@ async function clear() {
 async function reject() {
   actionError.value = null;
   try {
-    await recordReview.mutateAsync({ loadId: props.load.id, body: { runId: props.run.id, action: "rejected" } });
+    await recordReview.mutateAsync({ loadId: props.load.id, body: { runId: props.run.id, action: "rejected", newValue: "illegible_document" } });
   } catch (e) {
     actionError.value = e instanceof Error ? e.message : "Could not reject the load.";
   }
@@ -87,10 +97,12 @@ async function reject() {
       </div>
     </div>
 
-    <!-- hard block -->
-    <p v-if="gate.hardBlockReason" class="mt-4 rounded-md bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20">
-      {{ gate.hardBlockReason }}
-    </p>
+    <!-- hard block: provisional dataset or unusable read — cannot clear, must reject/re-run -->
+    <div v-if="hardBlock" class="mt-4 space-y-3 border-t border-edge pt-4">
+      <p class="rounded-md bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20">{{ hardBlock }}</p>
+      <BaseButton variant="danger" size="sm" :disabled="busy" @click="reject">Reject (illegible / wrong document)</BaseButton>
+      <p v-if="actionError" class="text-sm text-danger-600">{{ actionError }}</p>
+    </div>
 
     <!-- clearing controls -->
     <div v-else class="mt-4 space-y-3 border-t border-edge pt-4">
@@ -108,7 +120,7 @@ async function reject() {
       </div>
 
       <div class="flex flex-wrap items-center gap-3">
-        <BaseButton variant="primary" size="sm" :disabled="!canSubmit || busy" @click="clear">
+        <BaseButton variant="primary" size="sm" :disabled="!attestedGate || busy" @click="clear">
           {{ gate.requiresOverride ? "Override & clear" : "Attest & clear" }}
         </BaseButton>
         <BaseButton variant="danger" size="sm" :disabled="busy" @click="reject">Reject (illegible / wrong document)</BaseButton>
