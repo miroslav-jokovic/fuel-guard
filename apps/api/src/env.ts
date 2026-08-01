@@ -24,6 +24,12 @@ const EnvSchema = z.object({
   // Phase 5.5 (Anthropic).
   ANTHROPIC_API_KEY: z.string().optional(),
 
+  // Sentry error monitoring (optional; no-op when unset). DSN is a project ingest key; traces
+  // sampling defaults to 0 (errors only) to bound event volume/cost. See instrument.ts.
+  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
+
   // HazmatGuard extraction (plan H6, D10). Vision models are PINNED in env (not the shipped AI layer's
   // in-code strings) because a verdict must record the exact model id on every run for reproducibility.
   // Pass A = a Sonnet-class vision model; Pass B = a Haiku-class model (independent-prompt cross-read).

@@ -3,6 +3,7 @@ import type { UserRole } from "@fuelguard/shared";
 import { apiError } from "../lib/http.js";
 import { verifyAccessToken, getProjectJwks } from "../lib/auth.js";
 import { getAppLocals } from "../lib/appLocals.js";
+import * as Sentry from "@sentry/node";
 
 /**
  * Authenticate the request from its Bearer token. Attaches req.auth (audit B5: org_id/role come
@@ -23,6 +24,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   verify(token)
     .then((ctx) => {
       req.auth = ctx;
+      // Enrich the Sentry request scope (no-op unless initialised): user id only (no email/PII),
+      // org_id + role as searchable tags.
+      Sentry.setUser({ id: ctx.userId });
+      if (ctx.orgId) Sentry.setTag("org_id", ctx.orgId);
+      if (ctx.role) Sentry.setTag("role", ctx.role);
       next();
     })
     .catch(() => {

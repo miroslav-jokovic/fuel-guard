@@ -5,6 +5,7 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import * as Sentry from "@sentry/node";
 import { APP_NAME } from "@fuelguard/shared";
 import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
@@ -139,6 +140,10 @@ export function createApp(env: Env): Express {
       res.sendFile(path.join(webDist, "index.html"));
     });
   }
+
+  // Sentry captures unhandled route errors here (no-op unless SENTRY_DSN is set), before our own
+  // handler formats the client response. Must be after all routes, before the error responder.
+  Sentry.setupExpressErrorHandler(app);
 
   // Structured error handler — never echo upstream errors verbatim (audit L8).
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

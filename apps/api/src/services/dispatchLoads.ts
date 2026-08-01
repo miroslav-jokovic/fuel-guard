@@ -119,7 +119,7 @@ async function replaceStops(
   stops: StopInput[],
 ): Promise<void> {
   // Only stops the driver has not touched may be dropped; a completed stop carries evidence.
-  await admin.from("load_stops").delete().eq("load_id", loadId).eq("status", "pending");
+  await admin.from("load_stops").delete().eq("org_id", orgId).eq("load_id", loadId).eq("status", "pending");
   if (stops.length === 0) return;
   const { error } = await admin.from("load_stops").upsert(
     stops.map((s) => ({
@@ -230,11 +230,22 @@ export async function updateLoad(
     if (v !== undefined) patch[k] = v;
   }
 
-  const { error } = await admin.from("loads").update(patch).eq("org_id", orgId).eq("id", loadId);
+  const { data: updated, error } = await admin
+    .from("loads")
+    .update(patch)
+    .eq("org_id", orgId)
+    .eq("id", loadId)
+    .select("id")
+    .maybeSingle();
   if (error) {
     const mapped = toDispatchError<{ id: string }>(error);
     if (mapped) return mapped;
     throw new Error(error.message);
+  }
+  // Ownership gate: a 0-row update is NOT an error, so without this a caller could PATCH another
+  // org's load id, fall through to replaceStops, and delete that org's pending stops (audit P1-A).
+  if (!updated) {
+    return { ok: false, status: 404, code: "not_found", message: "That load no longer exists" };
   }
   if (stops) await replaceStops(admin, orgId, loadId, stops);
   return { ok: true, data: { id: loadId } };

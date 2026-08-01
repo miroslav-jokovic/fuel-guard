@@ -16,6 +16,7 @@
     "@fuelguard/shared": "workspace:*",
     "@hazmat/data": "workspace:*",
     "@hazmat/engine": "workspace:*",
+    "@sentry/node": "^10.69.0",
     "@supabase/supabase-js": "2.110.0",
     "cors": "2.8.6",
     "dotenv": "17.4.2",

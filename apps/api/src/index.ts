@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "./instrument.js"; // Sentry init — must load before the app + its instrumented libs
 import { createApp } from "./app.js";
 import { loadEnv } from "./env.js";
 import { runSchemaCheck } from "./services/schemaCheck.js";

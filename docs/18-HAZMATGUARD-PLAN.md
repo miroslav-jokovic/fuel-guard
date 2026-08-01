@@ -166,7 +166,7 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H3** 🟨 Rules engine: BOL compliance findings | Expert audit-flow capture (D11) + shipping-paper ruleset (fuel depth) + severity tiers | H2 | BOL field-set in → tiered findings with citations out; trap tests pass. |
 | **H4** ✅ Schema, API & storage | Tables, RLS, routes, storage buckets | H0 | Load CRUD via API with RLS-verified isolation; documents upload. |
 | **H5** 🟨 Manual UI: placard calculator + load workspace | Value before AI; dispatcher manual path | H2–H4 | Dispatcher enters a load by hand → placards, eligibility, findings on screen. *(Calculator + Load Workspace + cargo-tank CRUD built & audited; remaining: per-compartment inputs — blocked on engine H2; e2e run in seeded CI.)* |
-| **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(Full photo→verdict pipeline built + tested — resolveHmtLine, BolFields, mapper, cross-validation, image gate, dual-pass vision, orchestrator, route dispatch; only a live key + photo corpus remain to run/tune.)* |
+| **H6** 🟨 Extraction service | Vision dual-pass + quality gate + cross-validation | H3, H4 | Photo in → validated fields or precise review flags; corpus harness runs. *(Full photo→verdict pipeline built + tested — resolveHmtLine, BolFields, mapper, cross-validation, image gate, dual-pass vision, orchestrator, route dispatch. Live client + key already shared with the risk-scoring AI; what remains is a surface to inject a real BOL photo + a photo corpus to tune accuracy.)* |
 | **H7** 🟨 Review queue & attestation | Fail-closed workflow UX | H5, H6 | Flagged load reviewed field-by-field with pixel evidence; attestation recorded. *(Queue + filters + nav badge + attestation/override/reject clearing workflow + notifications built + SERVER-ENFORCED + tested; field-level correction + pixel crops pending on the H6 live bbox run.)* |
 | **H8** ☐ Company policy & trip context | Allowed products, carrier relationship, tank state, business-day IDs | H2, H4 | Policy blocks an ineligible product; residue/same-day rules change placard output correctly. |
 | **H9** ☐ Securement & placard-photo verification | Truck photo vs computed placards + checklist | H2, H6 | Photo of placarded truck → match/mismatch against required set. |
@@ -384,7 +384,8 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   `report_bol_fields` tool so output is structured, **temperature 0**, two independently-worded
   untrusted-data prompts (prompt-injection discipline, 07 §8), strict Zod validation on receipt
   (`HAZMAT_EXTRACTION_PROMPT_VERSION`). The extractor is an INJECTED interface, so the whole pipeline is
-  testable with a fake — only the live Claude call needs a key.
+  testable with a fake; the live path uses the SAME shared `anthropicClient` + `ANTHROPIC_API_KEY` that
+  already powers the system's risk-scoring AI (`lib/anthropic.ts`) — no separate key or client to stand up.
 - **Extraction pipeline + outcome table + orchestrator shipped** (`extract.ts` / `outcome.ts` /
   `orchestrate.ts`, 12 tests incl. the fail-closed "no model call on a bad page", dual-pass disagreement,
   `lines_unconfirmed`, and the outcome-table green/flagged boundary against the REAL engine). `runExtraction`
@@ -397,12 +398,17 @@ seeded CI** (authored, not executed in the offline gate — repo convention, per
   → base64, run + `hazmat_runs` write + state-machine transition; `extraction_failed` on any model/decoding
   error. The `/analyze` route now DISPATCHES to the photo path when the load has a BOL document + the
   kill-switch is on, else the manual path — identical outcome table either way.
-- REMAINING in H6 — only the parts that inherently need a live environment, NOT missing code: a real
-  `ANTHROPIC_API_KEY` + a real BOL-photo corpus to exercise the live vision call end-to-end and tune the
-  blur/glare/confidence thresholds (the plan already scopes the corpus harness to H11/a seeded env), and the
-  optional OpenCV perspective de-warp (yield, not correctness). Every deterministic seam is built + tested
-  (62 hazmat tests across `@hazmat/data` + `apps/api`); the code path from photo → verdict is complete and
-  typechecks — it runs as soon as a key + images are present.
+- REMAINING in H6 — NOT a missing key and NOT missing code. The `ANTHROPIC_API_KEY` + shared client are
+  already live (same one the risk-scoring AI uses), so the vision call will execute the moment it receives a
+  photo. What is genuinely absent is (1) a **surface that puts a real BOL photo onto a load** — no reachable
+  UI calls `POST /loads/:id/documents` or PUTs bytes to the returned signed upload URL, so today the photo
+  path can only be driven by a script/harness or a not-yet-built capture affordance; and (2) a **real
+  BOL-photo corpus** to measure field-level accuracy and tune the blur/glare/confidence thresholds (the plan
+  scopes the corpus harness to H11/a seeded env). Plus the optional OpenCV perspective de-warp (yield, not
+  correctness). Every deterministic seam is built + tested (62 hazmat tests across `@hazmat/data` +
+  `apps/api`); the code path from photo → verdict is complete and typechecks. NOTE: whether this pipeline has
+  actually been executed against a live photo yet is a runtime fact not knowable from the code — treat it as
+  unrun until a harness/corpus run is recorded here, rather than assumed either way.
 
 **H7 — Review queue & attestation — IN PROGRESS (fail-closed clearing workflow built 2026-07-31; server-side enforcement hardened after audit 2026-08-01; queue filters + nav badge + notifications + review-journey e2e added 2026-08-01; only field-level correction + pixel crops remain, blocked on the H6 live run).**
 - **Review queue + attestation/override/reject workflow shipped** (`apps/web`): the safety-critical
@@ -1309,7 +1315,7 @@ features/ boundary, packages/ui, Tailwind templates, Playwright config all exist
 
 ---
 
-## Phase H6 🟨 CODE-COMPLETE (full photo→verdict pipeline — resolveHmtLine + BolFields + mapper + cross-validation + image gate + dual-pass vision + orchestrator + route dispatch — built + tested 2026-07-31; only a live key + photo corpus remain to RUN it) — Extraction service (photo → validated BolFields)
+## Phase H6 🟨 CODE-COMPLETE (full photo→verdict pipeline — resolveHmtLine + BolFields + mapper + cross-validation + image gate + dual-pass vision + orchestrator + route dispatch — built + tested 2026-07-31; live client + key already shared with the risk-scoring AI, so what remains is a surface to inject a real BOL photo + a photo corpus to tune/validate accuracy — NOT a missing key) — Extraction service (photo → validated BolFields)
 
 **Objective.** The only AI in the system, wrapped in enough independent checks that a wrong read
 cannot silently pass (D1/D2).
