@@ -1,7 +1,8 @@
-import { Redirect } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { NavigationScreen } from '@/features/nav/NavigationScreen';
 
-// Dummy route for the elevated center tab — the tab's press listener intercepts and opens the
-// /drive modal instead; if reached directly (deep link), redirect there too.
+// Navigation is a real tab surface so the bottom bar remains available while viewing the route.
 export default function NavigateTab() {
-  return <Redirect href="/drive" />;
+  const router = useRouter();
+  return <NavigationScreen onClose={() => router.replace('/home')} />;
 }

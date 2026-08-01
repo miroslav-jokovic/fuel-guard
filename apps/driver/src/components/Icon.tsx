@@ -41,19 +41,10 @@ function colorFor(className: string | undefined, explicit: string | undefined, i
   }
 }
 
-// HugeIcons ships every path with `stroke="currentColor"`, resolved at the native layer by
-// react-native-svg walking up to the root <Svg color=...>. On Fabric/iOS that resolution reads
-// mutable state on a view-recycling pool (RNSVGSvgView) that isn't reset between recycled
-// instances, so icons intermittently render with a stale color from a previous, unrelated icon
-// after navigating around — see software-mansion/react-native-svg issue 2566 (fixed upstream by
-// PR 2991, not yet in a published release). Rather than depend on an unreleased native patch, we
-// render each path/shape ourselves and bake the resolved color in as a literal prop instead of
-// "currentColor" — Fabric then diffs it like any other prop, with no per-view color lookup
-// involved, so there is nothing left to leak between recycled views.
+// Resolve each HugeIcons path to a literal stroke color instead of currentColor. This avoids the
+// Fabric/iOS react-native-svg recycle-pool color bug and keeps icon colors independent from native
+// view reuse during navigation.
 const SVG_TAGS = { path: Path, circle: Circle, rect: Rect, ellipse: Ellipse, line: Line } as const;
-
-// The source data's own stroke/strokeWidth/fill/key are dropped so our literal, explicit props
-// below always win — HugeIcons' stroke-only glyphs rely on fill="none" from the parent <Svg>.
 const OMITTED_ATTRS = new Set(['stroke', 'strokeWidth', 'fill', 'key']);
 
 function renderElements(icon: IconSvgElement, color: string, strokeWidth: number) {
@@ -61,7 +52,7 @@ function renderElements(icon: IconSvgElement, color: string, strokeWidth: number
     const Component = SVG_TAGS[tag as keyof typeof SVG_TAGS] as ComponentType<SvgProps> | undefined;
     if (!Component) return null;
     const rest = Object.fromEntries(
-      Object.entries(attrs).filter(([attrKey]) => !OMITTED_ATTRS.has(attrKey))
+      Object.entries(attrs).filter(([attrKey]) => !OMITTED_ATTRS.has(attrKey)),
     );
     return (
       <Component

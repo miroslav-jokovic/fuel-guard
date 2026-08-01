@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useColorScheme } from 'nativewind';
+import { View, useColorScheme as useSystemColorScheme } from 'react-native';
+import { colorScheme, vars } from 'nativewind';
+import { themeVars } from './colors';
 
 type Mode = 'light' | 'dark' | 'system';
 interface ThemeContextValue {
@@ -13,19 +15,24 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 // Follows the device scheme by default; a manual override is exposed for the night-mode
 // toggle drivers get in Settings (plan D23 / §22.8).
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const nativewind = useColorScheme();
+  const systemColorScheme = useSystemColorScheme();
   const [mode, setMode] = useState<Mode>('system');
+  const isDark = mode === 'dark' || (mode === 'system' && systemColorScheme === 'dark');
 
   useEffect(() => {
-    nativewind.setColorScheme(mode);
-  }, [mode, nativewind]);
+    colorScheme.set(mode);
+  }, [mode]);
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ mode, isDark: nativewind.colorScheme === 'dark', setMode }),
-    [mode, nativewind.colorScheme],
+    () => ({ mode, isDark, setMode }),
+    [mode, isDark],
   );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>
+      <View style={[vars(themeVars[isDark ? 'dark' : 'light']), { flex: 1 }]}>{children}</View>
+    </ThemeContext.Provider>
+  );
 }
 
 export function useTheme(): ThemeContextValue {
