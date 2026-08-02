@@ -21,7 +21,9 @@ export type JobKind =
   | "efs_soap_posted"      // EFS SOAP posted-feed poller (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md)
   | "efs_soap_rejected"    // EFS SOAP rejected-feed poller
   | "sync_driver_scores"
-  | "snapshot_driver_week";
+  | "snapshot_driver_week"
+  | "hazmat_extract"
+  | "hazmat_analyze";
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
 

@@ -12,6 +12,7 @@ import { anthropicVisionExtractor, HAZMAT_EXTRACTION_PROMPT_VERSION, type ImageI
 import { runExtraction } from "./extract.js";
 import { computeExtractionFlags, isGreen } from "./outcome.js";
 import { notifyReviewersOfFlag } from "../hazmatNotify.js";
+import { enqueueJob } from "../queue/enqueue.js";
 import type { DeclaredLineRef } from "./mapBolLines.js";
 
 /**
@@ -53,8 +54,7 @@ async function tokensUsedThisMonth(admin: SupabaseClient, orgId: string, nowIso:
 }
 
 /** The async body — records exactly one run + transitions the load. Never throws out (fail-closed). */
-async function run(admin: SupabaseClient, orgId: string, loadId: string, env: Env, runId: string): Promise<void> {
-  await acquire();
+export async function executeExtraction(admin: SupabaseClient, orgId: string, loadId: string, env: Env, runId: string): Promise<void> {
   const dataset = loadDataset();
   const now = new Date().toISOString();
   const finish = async (verdict: Verdict | null, flags: string[], models: unknown) => {
@@ -152,14 +152,33 @@ async function run(admin: SupabaseClient, orgId: string, loadId: string, env: En
     // Model down / retries exhausted / decode error → extraction_failed (reviewer gets a manual-entry action).
     console.error(`[hazmat] extraction crashed for load ${loadId}: ${e instanceof Error ? e.message : e}`);
     await finish(null, ["extraction_failed"], null);
+  }
+}
+
+/** In-process execution (inprocess mode): the module semaphore (MAX_CONCURRENT) bounds concurrency
+ *  here. Queue mode runs executeExtraction on the worker under the per-kind cap instead, so the
+ *  semaphore is inprocess-only. */
+async function run(admin: SupabaseClient, orgId: string, loadId: string, env: Env, runId: string): Promise<void> {
+  await acquire();
+  try {
+    await executeExtraction(admin, orgId, loadId, env, runId);
   } finally {
     release();
   }
 }
 
-/** Kick off an extraction analysis. Returns the runId immediately; the work runs async in-process. */
+/** Kick off an extraction analysis. Returns the runId immediately. In queue mode the work is enqueued as
+ *  a `hazmat_extract` job (worker per-kind cap, retiring the semaphore); in inprocess mode it runs now. */
 export function startExtractionAnalysis(admin: SupabaseClient, orgId: string, loadId: string, env: Env): { runId: string } {
   const runId = randomUUID();
-  void run(admin, orgId, loadId, env, runId);
+  if (env.JOB_EXECUTION_MODE === "queue") {
+    // Unique per-run dedup_key: never collides + doesn't block other loads. (Per-load dedup is a later
+    // improvement; this preserves today's "each analyze is a fresh run" behavior exactly.)
+    void enqueueJob(admin, "hazmat_extract", { orgId, payload: { loadId, runId }, dedupKey: `hazmat:${runId}` }).catch(
+      (e) => console.error(`[hazmat] enqueue extract failed for load ${loadId}: ${e instanceof Error ? e.message : e}`),
+    );
+  } else {
+    void run(admin, orgId, loadId, env, runId);
+  }
   return { runId };
 }

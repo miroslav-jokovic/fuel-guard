@@ -1,6 +1,7 @@
 import { registerHandler } from "../registry.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { efsSoapHandler } from "./efsSoap.js";
+import { hazmatExtractHandler } from "./hazmat.js";
 import {
   backfillHandler,
   rebuildHandler,
@@ -18,6 +19,7 @@ export function registerAllHandlers(): void {
   registerHandler("efs_ingest", efsIngestHandler);
   registerHandler("efs_soap_posted", efsSoapHandler);
   registerHandler("efs_soap_rejected", efsSoapHandler);
+  registerHandler("hazmat_extract", hazmatExtractHandler);
   registerHandler("rebuild", rebuildHandler);
   registerHandler("backfill", backfillHandler);
   registerHandler("score_import", scoreImportHandler);
