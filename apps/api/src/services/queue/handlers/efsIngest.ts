@@ -1,4 +1,5 @@
 import { buildIngestSource, runEfsIngest } from "../../efsAutoIngest.js";
+import { writeAudit } from "../../../lib/audit.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -10,5 +11,14 @@ export const efsIngestHandler: JobHandler = async (ctx, job) => {
   const orgId = typeof job.payload.orgId === "string" ? job.payload.orgId : job.org_id;
   const source = buildIngestSource(ctx.admin, ctx.env, orgId);
   if (!source) return { skipped: "efs ingest source disabled/unconfigured" };
-  return await runEfsIngest(ctx.admin, ctx.env, source);
+  const stats = await runEfsIngest(ctx.admin, ctx.env, source);
+  // Manual trigger (route passes actorId) writes the same audit the old route closure did.
+  const actorId = typeof job.payload.actorId === "string" ? job.payload.actorId : null;
+  if (actorId) {
+    await writeAudit(ctx.admin, {
+      orgId, actorId, action: "transactions.ingest_efs",
+      meta: { found: stats.found, ingested: stats.ingested, quarantined: stats.quarantined },
+    });
+  }
+  return stats;
 };

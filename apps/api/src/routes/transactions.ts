@@ -8,9 +8,8 @@ import { writeAudit } from "../lib/audit.js";
 import { scoreWithCascade } from "../services/scoring/index.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "../services/efsSync.js";
 import { notifyForTransaction } from "../services/notifications.js";
-import { runJob } from "../services/jobs.js";
 import { dispatchJob } from "../services/queue/dispatch.js";
-import { runEfsIngest, buildIngestSource } from "../services/efsAutoIngest.js";
+import { buildIngestSource } from "../services/efsAutoIngest.js";
 
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running. */
 function jobResponse(res: import("express").Response, result: { jobId: string } | { conflict: true }): void {
@@ -99,22 +98,9 @@ export function transactionsRouter(): Router {
         res.status(400).json(apiError("not_configured", "Automated EFS ingestion is not configured (set EFS_INGEST_SOURCE)"));
         return;
       }
-      const result = await runJob(
-        admin,
-        orgId,
-        "efs_ingest",
-        async () => {
-          const stats = await runEfsIngest(admin, env, source);
-          await writeAudit(admin, {
-            orgId,
-            actorId,
-            action: "transactions.ingest_efs",
-            meta: { found: stats.found, ingested: stats.ingested, quarantined: stats.quarantined },
-          });
-          return stats;
-        },
-        { requestedBy: actorId },
-      );
+      const result = await dispatchJob(admin, env, "efs_ingest", {
+        orgId, payload: { orgId, actorId }, requestedBy: actorId,
+      });
       jobResponse(res, result);
     }),
   );

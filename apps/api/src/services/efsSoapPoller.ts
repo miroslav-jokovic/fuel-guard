@@ -1,8 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { runJob } from "./jobs.js";
-import { runEfsSoapIngest } from "./efsSoapIngest.js";
+import { dispatchJob } from "./queue/dispatch.js";
 import { orgsWithEfsSoap } from "./efsSoapCredentials.js";
 
 /**
@@ -63,20 +62,10 @@ async function ingestOrgFeed(
   feed: "posted" | "rejected",
 ): Promise<void> {
   const jobKind = feed === "posted" ? "efs_soap_posted" : "efs_soap_rejected";
-  const outcome = await runJob(admin, orgId, jobKind, async () => {
-    const stats = await runEfsSoapIngest(admin, env, orgId, feed);
-    // Only log noisy things (real ingests or real failures) — pre-WSDL "not_implemented" is silent.
-    if (stats.status === "ingested" && stats.rowsFetched > 0) {
-      console.log(
-        `[efs-soap-sched] org ${orgId} ${feed}: ingested ${stats.rowsFetched} rows across ${stats.pagesFetched} page(s)`,
-      );
-    } else if (stats.status === "failed") {
-      console.error(`[efs-soap-sched] org ${orgId} ${feed}: FAILED — ${stats.error ?? "unknown"}`);
-    }
-    return stats;
-  });
-  // A conflict (a run of this feed for this org is already active) is normal + expected and
-  // silently ignored — the currently-running job will finish and the next tick will pick up.
+  // Queue mode enqueues; inprocess runs the handler now (which does the ingest + logging). A conflict
+  // (a run of this feed+org is already active) is normal and silently ignored — the running job
+  // finishes and the next tick picks up.
+  const outcome = await dispatchJob(admin, env, jobKind, { orgId, payload: { feed } });
   if ("conflict" in outcome) return;
 }
 
