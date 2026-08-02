@@ -1,12 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseStationIdentity, learnStationCoord } from "@fuelguard/shared";
+import { eachPage } from "../lib/paging.js";
 
 export interface StationGeocodeLearnResult {
   stations: number; // distinct stations examined
   learned: number; // stations upgraded to a learned 'site' coordinate
 }
-
-const PAGE = 1000;
 
 interface FillLoc {
   location_text: string | null;
@@ -28,25 +27,25 @@ interface FillLoc {
 export async function learnStationGeocodes(admin: SupabaseClient, orgId: string): Promise<StationGeocodeLearnResult> {
   // 1) Gather each fill's station identity + the truck's observed stop position.
   const byStation = new Map<string, { positions: { lat: number; lng: number }[]; name: string | null; city: string | null; state: string | null }>();
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("fuel_transactions")
-      .select("location_text, city, state, samsara_observed_lat, samsara_observed_lng")
-      .eq("org_id", orgId)
-      .not("samsara_observed_lat", "is", null)
-      .not("samsara_observed_lng", "is", null)
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as FillLoc[];
-    for (const r of batch) {
-      const id = parseStationIdentity(r.location_text, r.city, r.state);
-      if (!id.siteKey) continue;
-      const cur = byStation.get(id.siteKey) ?? { positions: [], name: r.location_text, city: r.city, state: r.state };
-      cur.positions.push({ lat: Number(r.samsara_observed_lat), lng: Number(r.samsara_observed_lng) });
-      byStation.set(id.siteKey, cur);
-    }
-    if (batch.length < PAGE) break;
-  }
+  await eachPage<FillLoc>(
+    (from, to) =>
+      admin
+        .from("fuel_transactions")
+        .select("location_text, city, state, samsara_observed_lat, samsara_observed_lng")
+        .eq("org_id", orgId)
+        .not("samsara_observed_lat", "is", null)
+        .not("samsara_observed_lng", "is", null)
+        .range(from, to),
+    (batch) => {
+      for (const r of batch) {
+        const id = parseStationIdentity(r.location_text, r.city, r.state);
+        if (!id.siteKey) continue;
+        const cur = byStation.get(id.siteKey) ?? { positions: [], name: r.location_text, city: r.city, state: r.state };
+        cur.positions.push({ lat: Number(r.samsara_observed_lat), lng: Number(r.samsara_observed_lng) });
+        byStation.set(id.siteKey, cur);
+      }
+    },
+  );
   if (byStation.size === 0) return { stations: 0, learned: 0 };
 
   // 2) Skip stations we already have a 'site' coordinate for: either the shared provider geocode resolved this

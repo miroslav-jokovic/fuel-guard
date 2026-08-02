@@ -54,7 +54,12 @@ Samsara/SOAP pacing is a module-level `Map` (`apps/api/src/lib/samsaraHttp.ts:17
 > behavior-identical (scoring + cascade tests green); a **max-function-length** guardrail
 > (`scripts/check-function-size.mjs`, `lint:funcsize`, wired into CI) fails any function over 200 lines and
 > pins the remaining offenders (`runTool`, `planFuelRoute`, `syncIdleEvents`, `scoreDeclinedAttempt`) as a
-> ratchet-down grandfather list. CI already gates `lint:filesize` (answers A's open question). Below:
+> ratchet-down grandfather list. CI already gates `lint:filesize` (answers A's open question). **D (partial):**
+> the 1000-row paging loop — hand-rolled in 6 services — is now the shared `apps/api/src/lib/paging.ts`
+> (`eachPage` incremental + `fetchAllPaged`, unit-tested); 5 sites migrated (driverAttribution,
+> stationGeocodeLearning, pilot/posted/pilotLocations ingest). Still open in D: the `resolveCorridorPrices`
+> effective-price transform (duplicated across `fueling/stations.ts` ↔ `fuelPlanning.ts`) and the
+> `@fuelguard/shared` subpath-entrypoints (156-consumer barrel). Below:
 > File-size guardrail is green — `fueling.ts` split into
 > `routes/fueling/{plans,mapProxies,networks,stations}.ts` and `dispatchLoads.ts` into
 > `services/dispatchLoads/{shared,queries,mutations}.ts` (0 files over budget). `integrations.ts` was

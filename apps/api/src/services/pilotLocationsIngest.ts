@@ -13,6 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parsePilotLocationsExport, PILOT_FAMILY_BRANDS, type Cell, type PilotLocationRow } from "@fuelguard/shared";
+import { eachPage } from "../lib/paging.js";
 
 const SOURCE = "pilot_locations_export";
 
@@ -82,17 +83,15 @@ export async function ingestPilotLocations(admin: SupabaseClient, grid: Cell[][]
 
   // Existing family stations, keyed by store # (family-wide — includes legacy rows filed under 'pilot').
   const existing = new Map<string, { id: string; lat: number; lng: number }>();
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("fuel_stations").select("id, store_number, lat, lng")
-      .in("brand", PILOT_FAMILY_BRANDS)
-      .range(from, from + PAGE - 1);
-    if (error) return { ...base, error: `Registry read failed: ${error.message}` };
-    for (const r of (data ?? []) as Array<{ id: string; store_number: string | null; lat: number | string; lng: number | string }>) {
-      if (r.store_number != null) existing.set(String(r.store_number), { id: r.id, lat: Number(r.lat), lng: Number(r.lng) });
-    }
-    if (!data || data.length < PAGE) break;
+  try {
+    await eachPage<{ id: string; store_number: string | null; lat: number | string; lng: number | string }>(
+      (from, to) => admin.from("fuel_stations").select("id, store_number, lat, lng").in("brand", PILOT_FAMILY_BRANDS).range(from, to),
+      (rows) => {
+        for (const r of rows) if (r.store_number != null) existing.set(String(r.store_number), { id: r.id, lat: Number(r.lat), lng: Number(r.lng) });
+      },
+    );
+  } catch (e) {
+    return { ...base, error: `Registry read failed: ${e instanceof Error ? e.message : String(e)}` };
   }
 
   const nowIso = new Date().toISOString();
