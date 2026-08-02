@@ -49,9 +49,13 @@ function makeFake(opts: { conflictOnInsert?: boolean; activeRow?: { id: string; 
               updates.push({ id, patch });
               return chain;
             },
-            in() {
-              return { select: async () => ({ data: [{ id: "swept-1" }], error: null }) };
+            is() {
+              return chain;
             },
+            in() {
+              return chain;
+            },
+            select: async () => ({ data: [{ id: "swept-1" }], error: null }),
           };
           return chain;
         },

@@ -7,21 +7,35 @@ import { registerAllHandlers } from "./services/queue/handlers/index.js";
 import { startQueueWorker } from "./services/queue/worker.js";
 
 /**
- * Dedicated worker process — owns all background schedulers so the API service can scale horizontally.
- * Deploy as a SINGLE-replica Railway service with the same env as the API, and set
- * RUN_SCHEDULERS_IN_PROCESS=false on the API service. See docs/WORKER-DEPLOYMENT.md.
+ * Dedicated worker process. Its role is set by WORKER_ROLE (plan WQ3):
+ *   • `scheduler` — owns the setInterval schedulers (Samsara sync, digest, reconcile, EFS…). Deploy as a
+ *     SINGLE replica: schedulers must tick exactly once (the boot sweep + rebuild-on-boot assume one owner).
+ *   • `consumer`  — claims + executes enqueued jobs from Postgres. Horizontally scalable to N replicas;
+ *     the claim RPC's FOR UPDATE SKIP LOCKED + per-job leases make concurrent claiming safe.
+ *   • `both`      — the default single-worker deploy (schedulers + consumer in one process).
+ * See docs/WORKER-DEPLOYMENT.md.
  */
 const env = loadEnv();
-console.log(`[FuelGuard worker] starting background schedulers (${env.NODE_ENV})`);
+const role = env.WORKER_ROLE;
+console.log(`[FuelGuard worker] role=${role} (${env.NODE_ENV})`);
 void runSchemaCheck(env);
-startAllSchedulers(env);
 
-// Queue consumer (plan WQ0): when JOB_EXECUTION_MODE=queue, this worker claims + executes enqueued
-// jobs from Postgres. Per-kind caps bound cost/vendor load (plan Q12). Safe no-op in inprocess mode.
-if (env.JOB_EXECUTION_MODE === "queue" && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
-  registerAllHandlers();
-  const admin = getSupabaseAdmin(env);
-  startQueueWorker(admin, env, { kindCaps: { hazmat_extract: 2, hazmat_analyze: 4 } });
-  console.log("[FuelGuard worker] queue consumer started (JOB_EXECUTION_MODE=queue)");
+const runsSchedulers = role === "scheduler" || role === "both";
+const runsConsumer = role === "consumer" || role === "both";
+
+if (runsSchedulers) {
+  startAllSchedulers(env);
+  console.log("[FuelGuard worker] schedulers started");
 }
-// The schedulers' setInterval/setTimeout timers keep the event loop (and this process) alive.
+
+// Queue consumer (plan WQ0/WQ3): claims + executes enqueued jobs. Per-kind caps bound cost/vendor load
+// (plan Q12). Requires queue mode + Supabase config; otherwise there is nothing to consume.
+if (runsConsumer && env.JOB_EXECUTION_MODE === "queue" && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+  registerAllHandlers();
+  startQueueWorker(getSupabaseAdmin(env), env, { kindCaps: { hazmat_extract: 2, hazmat_analyze: 4 } });
+  console.log("[FuelGuard worker] queue consumer started (JOB_EXECUTION_MODE=queue)");
+} else if (runsConsumer && env.JOB_EXECUTION_MODE !== "queue") {
+  console.warn("[FuelGuard worker] WORKER_ROLE includes consumer but JOB_EXECUTION_MODE!=queue — nothing to consume.");
+}
+
+// A consumer-only process is kept alive by the queue loop's timers; a scheduler process by its intervals.

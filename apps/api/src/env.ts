@@ -122,6 +122,11 @@ const EnvSchema = z.object({
   // Migrated per-kind; reversible by flipping this flag.
   JOB_EXECUTION_MODE: z.enum(["inprocess", "queue"]).default("inprocess"),
 
+  // Worker role split (plan WQ3): a worker process runs schedulers, the queue consumer, or both.
+  // Deploy 1 `scheduler` replica (owns the setInterval schedulers, single-owner) + N `consumer`
+  // replicas (claim + execute jobs, horizontally scalable). Default `both` = the single-worker deploy.
+  WORKER_ROLE: z.enum(["scheduler", "consumer", "both"]).default("both"),
+
   // Automated EFS report ingestion (removes the daily manual upload). "off" (default) disables the
   // scheduler. Sources: "storage" polls a Supabase Storage bucket where reports land under
   // <orgId>/incoming/; "graph" reads an M365 mailbox via Microsoft Graph (see docs/plans/EFS-MICROSOFT365-SETUP.md).

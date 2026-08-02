@@ -250,10 +250,15 @@ export async function runJob(
  */
 export async function reclaimInterruptedJobs(admin: SupabaseClient): Promise<number> {
   const now = new Date().toISOString();
+  // Multi-replica-safe (plan WQ3/Q4): fail ONLY running jobs with no active lease — i.e. inprocess-mode
+  // jobs whose process died (lease_expires_at is null). Queue-mode jobs carry a lease and are recovered
+  // by the claim RPC when it expires (a retry, not a failure), so a restarting worker never fails another
+  // live worker's leased job; queued jobs are left to be claimed.
   const { data } = await admin
     .from("jobs")
-    .update({ status: "failed", error: "interrupted (server restart)", finished_at: now, updated_at: now })
-    .in("status", ["queued", "running"])
+    .update({ status: "failed", error: "interrupted (process restart, no lease)", finished_at: now, updated_at: now })
+    .eq("status", "running")
+    .is("lease_expires_at", null)
     .select("id");
   return (data ?? []).length;
 }

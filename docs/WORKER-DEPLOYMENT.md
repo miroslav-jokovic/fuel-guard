@@ -32,3 +32,23 @@ Running schedulers in-process is only safe on ONE instance — scale the API pas
 ## Rollback
 Set `RUN_SCHEDULERS_IN_PROCESS=true` (or unset) on the API and remove the worker service — the app returns
 to single-service behavior immediately. No data migration involved.
+
+## Horizontal scaling with the durable queue (WQ3 — `docs/plans/P0-WORKER-QUEUE-PLAN.md`)
+Once `JOB_EXECUTION_MODE=queue` (and migration `0095` is applied), heavy work is enqueued and executed by
+a worker pool instead of running in-process. The worker's `WORKER_ROLE` env sets what a process does:
+
+- **`scheduler`** — runs the `setInterval` schedulers (which now *enqueue* jobs). Deploy as a **single
+  replica** — schedulers must tick exactly once (rebuild-on-boot + the boot sweep assume one owner).
+- **`consumer`** — claims + executes enqueued jobs via the `SELECT … FOR UPDATE SKIP LOCKED` claim RPC.
+  **Scale to N replicas freely** — concurrent claiming is safe, and per-job leases mean a crashed
+  consumer's job is re-claimed by another when its lease expires (a retry, not a lost job).
+- **`both`** (default) — the current single-worker deploy (schedulers + consumer in one process).
+
+Recommended scaled topology: **API** (`RUN_SCHEDULERS_IN_PROCESS=false`, N replicas) · **1× scheduler
+worker** (`WORKER_ROLE=scheduler`) · **N× consumer workers** (`WORKER_ROLE=consumer`, `JOB_EXECUTION_MODE=queue`).
+
+### Boot sweep is now lease-aware (safe under multiple replicas)
+`reclaimInterruptedJobs` no longer fails *every* queued/running job on boot. It fails **only running jobs
+with no active lease** (inprocess-mode jobs whose process died); leased queue jobs are recovered by lease
+expiry and queued jobs are left to be claimed — so a restarting worker can never fail another live
+worker's job. This removes the "single-instance only" constraint the old boot sweep imposed.
