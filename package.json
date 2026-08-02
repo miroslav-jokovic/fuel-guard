@@ -18,6 +18,7 @@
     "gen:rules": "node scripts/gen-rule-catalog.mjs",
     "lint": "eslint .",
     "lint:filesize": "node scripts/check-file-size.mjs",
+    "lint:funcsize": "node scripts/check-function-size.mjs",
     "lint:boundaries": "node scripts/check-feature-boundaries.mjs",
     "lint:codegen": "node scripts/gen-rule-catalog.mjs && git diff --exit-code -- 'packages/**/*.generated.ts'",
     "lint:fix": "eslint . --fix",

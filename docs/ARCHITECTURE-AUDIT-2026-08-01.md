@@ -49,7 +49,13 @@ Samsara/SOAP pacing is a module-level `Map` (`apps/api/src/lib/samsaraHttp.ts:17
 
 ## P2 — Guardrail coverage & maintainability
 
-> **Status (2026-08-02):** **A, C, E resolved.** File-size guardrail is green — `fueling.ts` split into
+> **Status (2026-08-02):** **A, B, C, E resolved; D open.** **B:** `scoreTransaction` (397 lines) refactored
+> into a lean orchestrator + `scoring/context.ts` (DB stage-loaders) + `scoring/persist.ts` (writes),
+> behavior-identical (scoring + cascade tests green); a **max-function-length** guardrail
+> (`scripts/check-function-size.mjs`, `lint:funcsize`, wired into CI) fails any function over 200 lines and
+> pins the remaining offenders (`runTool`, `planFuelRoute`, `syncIdleEvents`, `scoreDeclinedAttempt`) as a
+> ratchet-down grandfather list. CI already gates `lint:filesize` (answers A's open question). Below:
+> File-size guardrail is green — `fueling.ts` split into
 > `routes/fueling/{plans,mapProxies,networks,stations}.ts` and `dispatchLoads.ts` into
 > `services/dispatchLoads/{shared,queries,mutations}.ts` (0 files over budget). `integrations.ts` was
 > re-slimmed 545→361 in WQ1c (dispatchJob replaced the copy-pasted job envelope). The boundary linter now
