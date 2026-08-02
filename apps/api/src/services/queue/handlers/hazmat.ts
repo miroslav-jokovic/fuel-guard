@@ -1,4 +1,5 @@
 import { executeExtraction } from "../../hazmatExtraction/orchestrate.js";
+import { executeManualAnalysis } from "../../hazmatAnalysis.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -16,5 +17,16 @@ export const hazmatExtractHandler: JobHandler = async (ctx, job) => {
   const { data: existing } = await ctx.admin.from("hazmat_runs").select("id").eq("id", runId).maybeSingle();
   if (existing) return { loadId, runId, skipped: "run already recorded" };
   await executeExtraction(ctx.admin, job.org_id, loadId, ctx.env, runId);
+  return { loadId, runId };
+};
+
+/** Manual (declared-lines) analysis handler (WQ2b) — same idempotent guard; no vision, so no env-gated
+ *  model spend. */
+export const hazmatAnalyzeHandler: JobHandler = async (ctx, job) => {
+  const loadId = typeof job.payload.loadId === "string" ? job.payload.loadId : "";
+  const runId = typeof job.payload.runId === "string" ? job.payload.runId : job.id;
+  const { data: existing } = await ctx.admin.from("hazmat_runs").select("id").eq("id", runId).maybeSingle();
+  if (existing) return { loadId, runId, skipped: "run already recorded" };
+  await executeManualAnalysis(ctx.admin, job.org_id, loadId, runId);
   return { loadId, runId };
 };

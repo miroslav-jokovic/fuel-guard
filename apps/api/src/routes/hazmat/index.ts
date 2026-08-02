@@ -199,7 +199,7 @@ export function hazmatRouter(): Router {
     const { data: pol } = await admin.from("hazmat_policies").select("policy").eq("org_id", orgOf(req)).maybeSingle();
     const extractionEnabled = ((pol as { policy?: { extractionEnabled?: boolean } } | null)?.policy?.extractionEnabled) !== false;
     const usePhoto = (count ?? 0) > 0 && extractionEnabled;
-    const { runId } = usePhoto ? startExtractionAnalysis(admin, orgOf(req), loadId, env) : startManualAnalysis(admin, orgOf(req), loadId);
+    const { runId } = usePhoto ? startExtractionAnalysis(admin, orgOf(req), loadId, env) : startManualAnalysis(admin, orgOf(req), loadId, env);
     await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_analyzed", entity: "hazmat_loads", entityId: loadId, meta: { runId, path: usePhoto ? "extraction" : "manual" } });
     const response: HazmatAnalyzeResponse = { runId };
     res.status(202).json(response);

@@ -4,6 +4,8 @@ import { evaluateLoad, type LoadInput, type Verdict } from "@hazmat/engine";
 import { loadDataset, type Dataset } from "@hazmat/data";
 import { transitionLoad } from "./hazmatLoads.js";
 import { notifyReviewersOfFlag } from "./hazmatNotify.js";
+import type { Env } from "../env.js";
+import { enqueueJob } from "./queue/enqueue.js";
 
 /**
  * HazmatGuard analysis orchestrator (plan H4-4) — the MANUAL path. The `jobs` ledger (0027) is a
@@ -132,10 +134,9 @@ export async function insertHazmatRun(
 const insertRun = insertHazmatRun;
 
 /** The async body — runs under the semaphore, records a run + transitions the load. Never throws out. */
-async function runManualAnalysis(
+export async function executeManualAnalysis(
   admin: SupabaseClient, orgId: string, loadId: string, runId: string,
 ): Promise<void> {
-  await acquire();
   try {
     // Re-check entitlement at execution start (no token spend on the manual path anyway).
     const { data: enabled } = await admin.rpc("org_module_enabled", { p_org: orgId, p_module: "hazmatguard" });
@@ -176,16 +177,32 @@ async function runManualAnalysis(
     if (outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
   } catch (e) {
     console.error(`[hazmat] manual analysis crashed for load ${loadId}: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
+/** In-process execution (inprocess mode) behind the module semaphore; queue mode runs
+ *  executeManualAnalysis on the worker under the per-kind cap instead. */
+async function run(admin: SupabaseClient, orgId: string, loadId: string, runId: string): Promise<void> {
+  await acquire();
+  try {
+    await executeManualAnalysis(admin, orgId, loadId, runId);
   } finally {
     release();
   }
 }
 
-/** Kick off a manual analysis. Returns the runId immediately; the work runs async in-process. */
+/** Kick off a manual analysis. Returns the runId immediately. Queue mode enqueues a `hazmat_analyze`
+ *  job (worker per-kind cap, retiring the semaphore); inprocess mode runs it now. */
 export function startManualAnalysis(
-  admin: SupabaseClient, orgId: string, loadId: string,
+  admin: SupabaseClient, orgId: string, loadId: string, env: Env,
 ): { runId: string } {
   const runId = randomUUID();
-  void runManualAnalysis(admin, orgId, loadId, runId);
+  if (env.JOB_EXECUTION_MODE === "queue") {
+    void enqueueJob(admin, "hazmat_analyze", { orgId, payload: { loadId, runId }, dedupKey: `hazmat:${runId}` }).catch(
+      (e) => console.error(`[hazmat] enqueue analyze failed for load ${loadId}: ${e instanceof Error ? e.message : e}`),
+    );
+  } else {
+    void run(admin, orgId, loadId, runId);
+  }
   return { runId };
 }
