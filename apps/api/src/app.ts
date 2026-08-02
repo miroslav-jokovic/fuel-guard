@@ -50,7 +50,7 @@ export function createApp(env: Env): Express {
           workerSrc: ["'self'", "blob:"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
-          connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co"],
+          connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.sentry.io"],
           fontSrc: ["'self'", "data:"],
           objectSrc: ["'none'"],
           baseUri: ["'self'"],
