@@ -5,6 +5,7 @@ import { startAllSchedulers } from "./schedulers.js";
 import { getSupabaseAdmin } from "./lib/supabaseAdmin.js";
 import { registerAllHandlers } from "./services/queue/handlers/index.js";
 import { startQueueWorker } from "./services/queue/worker.js";
+import { startQueueMetricsLogger } from "./services/queue/metrics.js";
 
 /**
  * Dedicated worker process. Its role is set by WORKER_ROLE (plan WQ3):
@@ -26,6 +27,11 @@ const runsConsumer = role === "consumer" || role === "both";
 if (runsSchedulers) {
   startAllSchedulers(env);
   console.log("[FuelGuard worker] schedulers started");
+  // Passive queue-health log (plan A1) — single-owner on the scheduler process, queue mode only.
+  if (env.JOB_EXECUTION_MODE === "queue" && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+    startQueueMetricsLogger(env);
+    console.log("[FuelGuard worker] queue metrics logger started");
+  }
 }
 
 // Queue consumer (plan WQ0/WQ3): claims + executes enqueued jobs. Per-kind caps bound cost/vendor load

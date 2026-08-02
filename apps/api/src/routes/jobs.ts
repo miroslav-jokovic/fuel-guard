@@ -4,6 +4,7 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { latestJob, lastDoneJob, requestJobCancel, type JobKind } from "../services/jobs.js";
+import { queueMetrics } from "../services/queue/metrics.js";
 
 const KNOWN_KINDS = new Set<JobKind>([
   "rebuild",
@@ -61,6 +62,20 @@ export function jobsRouter(): Router {
       }
       const flagged = await requestJobCancel(admin, orgId, kind);
       res.json({ canceled: flagged });
+    }),
+  );
+
+  // Queue health for the caller's org (plan A1 / WQ4 validation): backlog depth, oldest-queued age, and a
+  // 24h failed count, per kind. Read-only; drives the cutover canary check + an ops freshness view.
+  router.get(
+    "/queue-metrics",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const metrics = await queueMetrics(admin, req.auth!.orgId!);
+      res.json({ mode: env.JOB_EXECUTION_MODE, ...metrics });
     }),
   );
 
