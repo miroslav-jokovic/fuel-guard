@@ -9,8 +9,9 @@ import { VEHICLE_STATUSES, type Trailer, type TrailerInput } from "@fuelguard/sh
 import { useSessionStore } from "@/stores/session";
 import {
   useTrailersQuery, useCreateTrailer, useUpdateTrailer, useRetireTrailer,
-  useBulkUpdateTrailers, useSyncSamsaraTrailers,
+  useBulkUpdateTrailers,
 } from "@/features/fleet/useTrailers";
+import { useBackgroundSync } from "@/features/jobs/useBackgroundSync";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -84,7 +85,6 @@ const createTrailer = useCreateTrailer();
 const updateTrailer = useUpdateTrailer();
 const retireTrailer = useRetireTrailer();
 const bulkUpdate = useBulkUpdateTrailers();
-const syncTrailers = useSyncSamsaraTrailers();
 const saving = computed(() => createTrailer.isPending.value || updateTrailer.isPending.value);
 
 const drawerOpen = ref(false);
@@ -109,12 +109,19 @@ async function bulkSet(patch: { is_reefer?: boolean; status?: Trailer["status"] 
   } catch (e) { toast.error("Bulk update failed", e instanceof Error ? e.message : undefined); }
 }
 
-async function onSync() {
-  try {
-    const r = await syncTrailers.mutateAsync();
-    toast.success(`Synced ${r.total} trailers`, `${r.created} added, ${r.updated} updated, ${r.paired} paired. Mark which ones are reefers.`);
-  } catch (e) { toast.error("Could not sync trailers", e instanceof Error ? e.message : undefined); }
-}
+const syncTrailers = useBackgroundSync({
+  kind: "sync_trailers",
+  endpoint: "/api/integrations/samsara/sync-trailers",
+  label: "Trailer sync",
+  invalidate: [["trailers"]],
+  done: (s) => {
+    const n = (v: unknown) => Number(v ?? 0);
+    return {
+      title: `Synced ${n(s.total)} trailers`,
+      body: `${n(s.created)} added, ${n(s.updated)} updated, ${n(s.paired)} paired. Mark which ones are reefers.`,
+    };
+  },
+});
 
 async function toggleReefer(t: Trailer) {
   try {
@@ -138,12 +145,12 @@ async function onRetire(t: Trailer) {
         <template v-if="session.canManage">
           <BaseButton
             v-if="session.admin"
-            :disabled="syncTrailers.isPending.value"
+            :disabled="syncTrailers.isRunning.value"
             title="Import trailers from Samsara"
-            @click="onSync"
+            @click="syncTrailers.trigger"
           >
             <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
-            {{ syncTrailers.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+            {{ syncTrailers.isRunning.value ? "Syncing…" : "Sync from Samsara" }}
           </BaseButton>
           <BaseButton variant="primary" @click="openNew">
             <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New trailer

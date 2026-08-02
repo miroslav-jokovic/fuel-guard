@@ -30,9 +30,30 @@ if (runsSchedulers) {
 
 // Queue consumer (plan WQ0/WQ3): claims + executes enqueued jobs. Per-kind caps bound cost/vendor load
 // (plan Q12). Requires queue mode + Supabase config; otherwise there is nothing to consume.
+//
+// Q7 — bounded rate-limit lane. Every vendor-calling kind is pinned to a low fleet-wide in-flight cap so
+// the vendor RPS holds GLOBALLY (not N×-per-process as the old per-process limiter did once the API/worker
+// scales past one replica): the Samsara sync kinds + the EFS SOAP pollers each cap at 1, so at most one run
+// of each is in flight across the whole fleet. hazmat caps bound Anthropic vision spend. To harden further
+// at high consumer counts, run these kinds on a dedicated single-replica consumer group (see
+// docs/WORKER-DEPLOYMENT.md) — the serial loop then serializes ALL vendor calls through one limiter.
+const KIND_CAPS: Record<string, number> = {
+  sync_vehicles: 1,
+  sync_stats: 1,
+  sync_trailers: 1,
+  sync_idle: 1,
+  sync_drivers: 1,
+  sync_driver_scores: 1,
+  snapshot_driver_week: 1,
+  nightly_reconcile: 1,
+  efs_soap_posted: 1,
+  efs_soap_rejected: 1,
+  hazmat_extract: 2,
+  hazmat_analyze: 4,
+};
 if (runsConsumer && env.JOB_EXECUTION_MODE === "queue" && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
   registerAllHandlers();
-  startQueueWorker(getSupabaseAdmin(env), env, { kindCaps: { hazmat_extract: 2, hazmat_analyze: 4 } });
+  startQueueWorker(getSupabaseAdmin(env), env, { kindCaps: KIND_CAPS });
   console.log("[FuelGuard worker] queue consumer started (JOB_EXECUTION_MODE=queue)");
 } else if (runsConsumer && env.JOB_EXECUTION_MODE !== "queue") {
   console.warn("[FuelGuard worker] WORKER_ROLE includes consumer but JOB_EXECUTION_MODE!=queue — nothing to consume.");

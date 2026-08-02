@@ -16,6 +16,7 @@ export type JobKind =
   | "sync_trailers"
   | "sync_idle"
   | "sync_stats"
+  | "sync_drivers"
   | "nightly_reconcile"
   | "efs_ingest"
   | "efs_soap_posted"      // EFS SOAP posted-feed poller (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md)

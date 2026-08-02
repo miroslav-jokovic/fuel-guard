@@ -15,6 +15,9 @@ const KNOWN_KINDS = new Set<JobKind>([
   "sync_trailers",
   "sync_idle",
   "sync_stats",
+  "sync_drivers",
+  "sync_driver_scores",
+  "snapshot_driver_week",
   "nightly_reconcile",
   "efs_ingest",
 ]);

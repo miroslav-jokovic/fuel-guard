@@ -7,7 +7,8 @@ import {
 import { ref, computed, watch } from "vue";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
-import { useDriversQuery, useCreateDriver, useUpdateDriver, useSyncSamsaraDrivers } from "@/composables/useDrivers";
+import { useDriversQuery, useCreateDriver, useUpdateDriver } from "@/composables/useDrivers";
+import { useBackgroundSync } from "@/features/jobs/useBackgroundSync";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -100,15 +101,16 @@ async function onSubmit(input: DriverInput) {
   }
 }
 
-const syncSamsara = useSyncSamsaraDrivers();
-async function onSyncSamsara() {
-  try {
-    const r = await syncSamsara.mutateAsync();
-    toast.success(`Synced ${r.total} drivers from Samsara`, `${r.created} added, ${r.updated} updated`);
-  } catch (e) {
-    toast.error("Could not sync from Samsara", e instanceof Error ? e.message : undefined);
-  }
-}
+const syncSamsara = useBackgroundSync({
+  kind: "sync_drivers",
+  endpoint: "/api/integrations/samsara/sync-drivers",
+  label: "Samsara sync",
+  invalidate: [["drivers"]],
+  done: (s) => {
+    const n = (v: unknown) => Number(v ?? 0);
+    return { title: `Synced ${n(s.total)} drivers from Samsara`, body: `${n(s.created)} added, ${n(s.updated)} updated` };
+  },
+});
 </script>
 
 <template>
@@ -117,12 +119,12 @@ async function onSyncSamsara() {
       <template #actions>
         <template v-if="session.canManage">
           <BaseButton
-            :disabled="syncSamsara.isPending.value"
+            :disabled="syncSamsara.isRunning.value"
             title="Import drivers from Samsara"
-            @click="onSyncSamsara"
+            @click="syncSamsara.trigger"
           >
             <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
-            {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+            {{ syncSamsara.isRunning.value ? "Syncing…" : "Sync from Samsara" }}
           </BaseButton>
           <BaseButton variant="primary" @click="openNew">
             <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New driver

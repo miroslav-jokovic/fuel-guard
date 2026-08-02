@@ -7,7 +7,8 @@ import {
 import { ref, computed, watch } from "vue";
 import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
-import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useSyncSamsaraVehicles, useBulkUpdateVehicles } from "@/composables/useVehicles";
+import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
+import { useBackgroundSync } from "@/features/jobs/useBackgroundSync";
 import { useDriversQuery } from "@/composables/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -131,21 +132,23 @@ async function onSubmit(input: VehicleInput) {
   }
 }
 
-const syncSamsara = useSyncSamsaraVehicles();
-async function onSyncSamsara() {
-  try {
-    const r = await syncSamsara.mutateAsync();
-    const parts = [`${r.created} added`, `${r.updated} updated`, `${r.assigned} driver assignment(s)`];
-    toast.success(
-      `Synced ${r.total} vehicles from Samsara`,
-      r.needsCompletion.length
-        ? `${parts.join(", ")}. Set tank capacity + baseline MPG for ${r.needsCompletion.length} new truck(s).`
+const syncSamsara = useBackgroundSync({
+  kind: "sync_vehicles",
+  endpoint: "/api/integrations/samsara/sync-vehicles",
+  label: "Samsara sync",
+  invalidate: [["vehicles"], ["drivers"]],
+  done: (s) => {
+    const n = (v: unknown) => Number(v ?? 0);
+    const needs = n(s.needsCompletion);
+    const parts = [`${n(s.created)} added`, `${n(s.updated)} updated`, `${n(s.assigned)} driver assignment(s)`];
+    return {
+      title: `Synced ${n(s.total)} vehicles from Samsara`,
+      body: needs
+        ? `${parts.join(", ")}. Set tank capacity + baseline MPG for ${needs} new truck(s).`
         : parts.join(", "),
-    );
-  } catch (e) {
-    toast.error("Could not sync from Samsara", e instanceof Error ? e.message : undefined);
-  }
-}
+    };
+  },
+});
 
 const setupOpen = ref(false);
 
@@ -167,12 +170,12 @@ async function onRetire(v: Vehicle) {
       <template #actions>
         <template v-if="session.canManage">
           <BaseButton
-            :disabled="syncSamsara.isPending.value"
+            :disabled="syncSamsara.isRunning.value"
             title="Import trucks from Samsara (trailers are excluded)"
-            @click="onSyncSamsara"
+            @click="syncSamsara.trigger"
           >
             <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
-            {{ syncSamsara.isPending.value ? "Syncing…" : "Sync from Samsara" }}
+            {{ syncSamsara.isRunning.value ? "Syncing…" : "Sync from Samsara" }}
           </BaseButton>
           <BaseButton
             title="Import vehicles from CSV — download a blank template, fill it in, and upload"

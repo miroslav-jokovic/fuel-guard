@@ -1,14 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { Trailer, TrailerInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
-import { apiFetch } from "@/lib/api";
-
-export interface TrailerSyncResult {
-  total: number;
-  created: number;
-  updated: number;
-  paired: number;
-}
 
 const COLS =
   "id, org_id, unit_number, make, model, year, plate, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at";
@@ -76,15 +68,5 @@ export function useRetireTrailer() {
   });
 }
 
-export function useSyncSamsaraTrailers() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (): Promise<TrailerSyncResult> => {
-      const res = await apiFetch<TrailerSyncResult>("/api/integrations/samsara/sync-trailers", { method: "POST" });
-      if (res.status === 409) throw new Error("A trailer sync is already running — it'll finish shortly.");
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not sync trailers from Samsara");
-      return res.data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: trailersKey }),
-  });
-}
+// Samsara trailer sync now runs as a background job (kind `sync_trailers`) — the Trailers page drives it
+// via useBackgroundSync + the jobs ledger, so there's no inline-mutation hook here anymore (plan WQ1c).

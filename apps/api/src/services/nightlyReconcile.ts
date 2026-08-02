@@ -7,6 +7,7 @@ import { syncCardAssignments } from "./cardAssignments.js";
 import { backfillFillWeather } from "./fillWeather.js";
 import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
 import { startJob, finishJob, latestJob, JobConflictError } from "./jobs.js";
+import { enqueueJob } from "./queue/enqueue.js";
 
 const TARGET_HOUR = 3; // org-local hour to run the nightly self-heal
 
@@ -93,6 +94,20 @@ export function startNightlyReconcileScheduler(env: Env): void {
       for (const o of orgs) {
         const last = await latestJob(admin, o.id, "nightly_reconcile");
         if (!shouldRunNightly(now, o.tz, last?.created_at ?? null)) continue;
+        // Queue mode (plan WQ1c): enqueue for the worker; the enqueued row's created_at marks tonight's
+        // attempt, so shouldRunNightly won't re-fire it on the next 30-min tick. A conflict = already
+        // queued/running for this org → skip.
+        if (env.JOB_EXECUTION_MODE === "queue") {
+          try {
+            await enqueueJob(admin, "nightly_reconcile", { orgId: o.id });
+          } catch (e) {
+            if (!(e instanceof JobConflictError)) {
+              console.error(`[nightly-reconcile] enqueue failed for org ${o.id}:`, e instanceof Error ? e.message : e);
+            }
+          }
+          continue;
+        }
+        // In-process mode (default today): run inline through the ledger, exactly as before.
         let jobId: string;
         try {
           jobId = await startJob(admin, o.id, "nightly_reconcile");

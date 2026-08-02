@@ -8,8 +8,7 @@ import { computed, ref, watch } from "vue";
 import { useSessionStore } from "@/stores/session";
 import { useDriverPerformance, type PerformanceDisplayRow } from "@/features/drivers/useDriverPerformance";
 import { useDriverPerformanceWeeksList, useDriverPerformanceWeek } from "@/features/drivers/useDriverPerformanceWeeks";
-import { useSyncDriverScores } from "@/features/drivers/useSyncDriverScores";
-import { useToastStore } from "@/stores/toast";
+import { useBackgroundSync } from "@/features/jobs/useBackgroundSync";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
@@ -22,7 +21,6 @@ import { toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
 const session = useSessionStore();
-const toast = useToastStore();
 
 const PAGE_SIZE = 20;
 
@@ -127,15 +125,16 @@ const methodLabel = computed(() => {
 const weights = computed(() => live.data.value?.weights ?? { safety: 0.5, efficiency: 0.25, idling: 0.25 });
 const trailingWeeks = computed(() => live.data.value?.trailingWeeks ?? 3);
 
-const syncScores = useSyncDriverScores();
-async function onSync() {
-  try {
-    const r = await syncScores.mutateAsync();
-    toast.success(`Synced ${r.upserted} driver scores`, `safety ${r.safetyOk ? "ok" : "—"}, efficiency ${r.efficiencyOk ? "ok" : "—"}`);
-  } catch (e) {
-    toast.error("Could not sync driver scores", e instanceof Error ? e.message : undefined);
-  }
-}
+const syncScores = useBackgroundSync({
+  kind: "sync_driver_scores",
+  endpoint: "/api/integrations/samsara/sync-driver-scores",
+  label: "Driver-score sync",
+  invalidate: [["driver_performance_current"]],
+  done: (s) => ({
+    title: `Synced ${Number(s.upserted ?? 0)} driver scores`,
+    body: `safety ${s.safetyOk ? "ok" : "—"}, efficiency ${s.efficiencyOk ? "ok" : "—"}`,
+  }),
+});
 
 const showInfo = ref(false);
 const num = (n: number | null, d = 0) => (n == null ? "—" : n.toFixed(d));
@@ -157,9 +156,9 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Weekly driver grade combining Samsara safety, Samsara efficiency, and idling discipline. The top 3 each week earn rewards.">
       <template #actions>
-        <BaseButton v-if="session.canManage" :disabled="syncScores.isPending.value" @click="onSync">
+        <BaseButton v-if="session.canManage" :disabled="syncScores.isRunning.value" @click="syncScores.trigger">
           <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
-          {{ syncScores.isPending.value ? "Syncing…" : "Sync scores" }}
+          {{ syncScores.isRunning.value ? "Syncing…" : "Sync scores" }}
         </BaseButton>
       </template>
     </PageHeader>

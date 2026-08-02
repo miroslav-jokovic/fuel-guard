@@ -7,6 +7,7 @@ import { syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
 import { syncIdleEvents } from "./idleSync.js";
 import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
+import { enqueueJob } from "./queue/enqueue.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus all orgs when a single-tenant env token is set. */
 async function orgsToSync(admin: SupabaseClient, env: Env): Promise<string[]> {
@@ -25,16 +26,31 @@ async function orgsToSync(admin: SupabaseClient, env: Env): Promise<string[]> {
 }
 
 /**
- * Run one org's tier through the jobs ledger: claim the (org, kind) slot (so a manual run or a still-
- * running prior tick can't overlap), do the work, and record done/failed with stats. A conflict just
- * means "already running" → skip quietly. NoSamsaraToken records as done+skipped, not a failure.
+ * Run one org's tier through the jobs ledger, honoring the execution mode (plan WQ1c):
+ *  - **queue** — ENQUEUE the kind for the worker pool and return. The worker runs the handler under the
+ *    bounded Samsara lane (Q7), so vendor RPS holds globally instead of N-per-scheduler-process. The
+ *    handler reconstructs the work from the kind (empty payload); `work` is unused in this mode.
+ *  - **inprocess** (default today) — claim the (org, kind) slot and run `work` inline, recording
+ *    done/failed with stats, exactly as before this migration.
+ * A conflict (a manual run or a still-running prior tick owns the slot) just means "already running" →
+ * skip quietly. NoSamsaraToken records as done+skipped, not a failure.
  */
 async function runOrgTier(
   admin: SupabaseClient,
+  env: Env,
   orgId: string,
   kind: JobKind,
   work: () => Promise<Record<string, unknown>>,
 ): Promise<void> {
+  if (env.JOB_EXECUTION_MODE === "queue") {
+    try {
+      await enqueueJob(admin, kind, { orgId }); // scheduler runs carry no actor + an empty payload
+    } catch (e) {
+      if (e instanceof JobConflictError) return; // already queued/running for this (org, kind)
+      console.error(`[samsara-sched] ${kind} enqueue failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+    }
+    return;
+  }
   let jobId: string;
   try {
     jobId = await startJob(admin, orgId, kind); // scheduler runs have no requested_by
@@ -97,7 +113,7 @@ export function startSamsaraScheduler(env: Env): void {
   // Tier 1 — live stats. Shares the "sync_vehicles" slot? No: distinct kind so it never blocks identity.
   startTier(env, "stats", 30_000, statsMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
-      await runOrgTier(admin, orgId, "sync_stats", async () => {
+      await runOrgTier(admin, env, orgId, "sync_stats", async () => {
         const r = await syncVehicleStatsFromSamsara(admin, env, orgId);
         return { updated: r.updated };
       });
@@ -108,7 +124,7 @@ export function startSamsaraScheduler(env: Env): void {
   // "Sync from Samsara" and this scheduled refresh share ONE active-run slot (no concurrent double-sync).
   startTier(env, "identity", 90_000, identityMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
-      await runOrgTier(admin, orgId, "sync_vehicles", async () => {
+      await runOrgTier(admin, env, orgId, "sync_vehicles", async () => {
         try { await syncDriversFromSamsara(admin, env, orgId); } catch { /* non-fatal */ }
         const r = await syncVehiclesFromSamsara(admin, env, orgId);
         await admin.from("integration_credentials").update({ last_synced_at: new Date().toISOString() }).eq("org_id", orgId);
@@ -122,15 +138,15 @@ export function startSamsaraScheduler(env: Env): void {
   const driverScoreMs = env.SAMSARA_DRIVER_SCORE_SYNC_HOURS * 3_600_000;
   startTier(env, "driver-scores", 120_000, driverScoreMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
-      await runOrgTier(admin, orgId, "sync_driver_scores", async () => {
+      await runOrgTier(admin, env, orgId, "sync_driver_scores", async () => {
         const r = await syncRecentDriverScoreWeeks(admin, env, orgId);
         return { weeks: r.weeks, upserted: r.totalUpserted };
       });
-      await runOrgTier(admin, orgId, "sync_idle", async () => {
+      await runOrgTier(admin, env, orgId, "sync_idle", async () => {
         const r = await syncIdleEvents(admin, env, orgId);
         return { fetched: r.fetched, upserted: r.upserted };
       });
-      await runOrgTier(admin, orgId, "snapshot_driver_week", async () => {
+      await runOrgTier(admin, env, orgId, "snapshot_driver_week", async () => {
         const r = await snapshotSettledWeeks(admin, env, orgId);
         return { weeksFrozen: r.weeksFrozen.length, rowsWritten: r.rowsWritten };
       });

@@ -9,11 +9,22 @@ import {
   scoreDeclinedImportHandler,
   scoreImportHandler,
 } from "./scoring.js";
+import {
+  nightlyReconcileHandler,
+  snapshotDriverWeekHandler,
+  syncDriverScoresHandler,
+  syncDriversHandler,
+  syncIdleHandler,
+  syncStatsHandler,
+  syncTrailersHandler,
+  syncVehiclesHandler,
+} from "./samsara.js";
 
 /**
  * Register every queue job handler. Called once at process startup — on the worker (queue mode) AND on
  * the API (so `dispatchJob`'s in-process path can find handlers). Idempotent. As more kinds migrate off
- * the in-process `runJob` closures (WQ1b: efs_soap, sync_*, nightly_reconcile), their handlers land here.
+ * the in-process `runJob` closures, their handlers land here. WQ1c added the Samsara sync kinds +
+ * `nightly_reconcile`, so every job kind now has a single handler definition served in both modes.
  */
 export function registerAllHandlers(): void {
   registerHandler("efs_ingest", efsIngestHandler);
@@ -26,4 +37,13 @@ export function registerAllHandlers(): void {
   registerHandler("score_import", scoreImportHandler);
   registerHandler("score_declined_import", scoreDeclinedImportHandler);
   registerHandler("rescore_declined", rescoreDeclinedHandler);
+  // WQ1c — Samsara/telematics sync + nightly reconcile (vendor-calling; bounded lane via Q7 kindCaps).
+  registerHandler("sync_vehicles", syncVehiclesHandler);
+  registerHandler("sync_stats", syncStatsHandler);
+  registerHandler("sync_trailers", syncTrailersHandler);
+  registerHandler("sync_idle", syncIdleHandler);
+  registerHandler("sync_drivers", syncDriversHandler);
+  registerHandler("sync_driver_scores", syncDriverScoresHandler);
+  registerHandler("snapshot_driver_week", snapshotDriverWeekHandler);
+  registerHandler("nightly_reconcile", nightlyReconcileHandler);
 }
