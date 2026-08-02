@@ -49,6 +49,14 @@ Samsara/SOAP pacing is a module-level `Map` (`apps/api/src/lib/samsaraHttp.ts:17
 
 ## P2 — Guardrail coverage & maintainability
 
+> **Status (2026-08-02):** **A, C, E resolved.** File-size guardrail is green — `fueling.ts` split into
+> `routes/fueling/{plans,mapProxies,networks,stations}.ts` and `dispatchLoads.ts` into
+> `services/dispatchLoads/{shared,queries,mutations}.ts` (0 files over budget). `integrations.ts` was
+> re-slimmed 545→361 in WQ1c (dispatchJob replaced the copy-pasted job envelope). The boundary linter now
+> covers the driver app (forward-looking; activates on merge), catches relative + dynamic-`import()` +
+> no-slash-barrel cross-feature leaks, and enforces `@hazmat/engine` determinism/purity — with a self-test
+> proving it fires. **B, D remain open** (max-function-length rule + the shared price/paging util).
+
 **A. The file-size fitness check is currently RED and its allowlist is empty.**
 `scripts/check-file-size.mjs` — `GRANDFATHERED` is empty, so `routes/fueling.ts` (546) and `routes/integrations.ts` (545) are **active, un-waived violations**, not "grandfathered" as previously assumed. Confirm whether CI gates on `lint:filesize`; if so it's red, if not the guardrail is decorative. *Fix:* split the two files (below) — the right move — rather than re-adding them to the allowlist.
 

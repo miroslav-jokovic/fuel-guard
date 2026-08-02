@@ -17,7 +17,7 @@ import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";
 import { genUuid } from "@/lib/uuid";
-import { readFile } from "./readFile";
+import { readFile } from "@/lib/readFile";
 
 export interface ImportPreview {
   kind: ReportKind;

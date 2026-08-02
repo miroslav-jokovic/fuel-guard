@@ -9,7 +9,7 @@ import {
   type ApuType,
 } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
-import { readFile } from "../import/readFile";
+import { readFile } from "@/lib/readFile";
 
 /** One vehicle whose tank capacity and/or baseline MPG will change on commit. */
 export interface SetupChange {
