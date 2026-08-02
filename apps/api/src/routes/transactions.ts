@@ -5,11 +5,11 @@ import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
-import { scoreWithCascade, backfillOrg, scoreImportWithCascade } from "../services/scoring/index.js";
+import { scoreWithCascade } from "../services/scoring/index.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "../services/efsSync.js";
-import { scoreDeclinedImport, scoreDeclinedOrg } from "../services/declinedScoring.js";
 import { notifyForTransaction } from "../services/notifications.js";
-import { runJob, jobCancelRequested } from "../services/jobs.js";
+import { runJob } from "../services/jobs.js";
+import { dispatchJob } from "../services/queue/dispatch.js";
 import { runEfsIngest, buildIngestSource } from "../services/efsAutoIngest.js";
 
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running. */
@@ -74,11 +74,9 @@ export function transactionsRouter(): Router {
         res.status(404).json(apiError("not_found", "Import not found"));
         return;
       }
-      const result = await runJob(admin, orgId, "score_import", async (report) => {
-        const r = await scoreImportWithCascade(admin, env, orgId, importId, report);
-        await writeAudit(admin, { orgId, actorId, action: "transactions.score_import", meta: { importId, ...r } });
-        return r;
-      }, { requestedBy: actorId });
+      const result = await dispatchJob(admin, env, "score_import", {
+        orgId, payload: { importId, actorId }, requestedBy: actorId,
+      });
       jobResponse(res, result);
     }),
   );
@@ -137,11 +135,9 @@ export function transactionsRouter(): Router {
       // omit it for a full-history rebuild (only needed after a broad rule change).
       const parsed = z.object({ sinceDays: z.coerce.number().int().positive().max(3650).optional() }).safeParse(req.body ?? {});
       const sinceDays = parsed.success ? parsed.data.sinceDays : undefined;
-      const result = await runJob(admin, orgId, "rebuild", async (report) => {
-        const count = await backfillOrg(admin, env, orgId, { skipRecon: true, sinceDays }, report);
-        await writeAudit(admin, { orgId, actorId, action: "transactions.rebuild", meta: { count, sinceDays: sinceDays ?? null } });
-        return { count };
-      }, { requestedBy: actorId });
+      const result = await dispatchJob(admin, env, "rebuild", {
+        orgId, payload: { sinceDays, actorId }, requestedBy: actorId,
+      });
       jobResponse(res, result);
     }),
   );
@@ -162,11 +158,9 @@ export function transactionsRouter(): Router {
         res.status(400).json(apiError("bad_request", "importId is required"));
         return;
       }
-      const result = await runJob(admin, orgId, "score_declined_import", async () => {
-        const count = await scoreDeclinedImport(admin, env, orgId, importId);
-        await writeAudit(admin, { orgId, actorId, action: "declined.score_import", meta: { importId, count } });
-        return { count };
-      }, { requestedBy: actorId });
+      const result = await dispatchJob(admin, env, "score_declined_import", {
+        orgId, payload: { importId, actorId }, requestedBy: actorId,
+      });
       jobResponse(res, result);
     }),
   );
@@ -181,11 +175,9 @@ export function transactionsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const actorId = req.auth!.userId;
-      const result = await runJob(admin, orgId, "rescore_declined", async () => {
-        const count = await scoreDeclinedOrg(admin, env, orgId);
-        await writeAudit(admin, { orgId, actorId, action: "declined.rescore", meta: { count } });
-        return { count };
-      }, { requestedBy: actorId });
+      const result = await dispatchJob(admin, env, "rescore_declined", {
+        orgId, payload: { actorId }, requestedBy: actorId,
+      });
       jobResponse(res, result);
     }),
   );
@@ -232,14 +224,9 @@ export function transactionsRouter(): Router {
       // the fleet grows instead of re-fetching Samsara for the entire history every time. `full: true`
       // forces a complete re-reconcile (use after a detection-logic change that must re-touch old rows).
       const full = (req.body as { full?: boolean } | undefined)?.full === true;
-      const result = await runJob(admin, orgId, "backfill", async (report, jobId) => {
-        const count = await backfillOrg(admin, env, orgId, full ? {} : { onlyUnreconciled: true }, report, () =>
-          jobCancelRequested(admin, jobId),
-        );
-        const canceled = await jobCancelRequested(admin, jobId);
-        await writeAudit(admin, { orgId, actorId, action: "transactions.backfill", meta: { count, full, canceled } });
-        return { count, full, canceled };
-      }, { requestedBy: actorId });
+      const result = await dispatchJob(admin, env, "backfill", {
+        orgId, payload: { full, actorId }, requestedBy: actorId,
+      });
       jobResponse(res, result);
     }),
   );

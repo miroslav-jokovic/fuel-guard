@@ -57,7 +57,7 @@
 | Phase | Scope | Build | Next action |
 |-------|-------|-------|-------------|
 | **WQ0** — Queue foundations | `jobs` schema evolution + claim/lease RPCs + worker claim loop + handler registry, behind `JOB_EXECUTION_MODE`, proven on `efs_ingest` | ◐ code + migration 0095 + unit tests landed (api typecheck + 206 tests green) | **apply 0095 + run in queue mode on a live DB to verify claim/lease/concurrency** |
-| **WQ1** — Migrate ledger kinds | request + scheduler call sites enqueue; per-kind handlers reconstruct from payload; dedup/progress/cancel preserved | ☐ | after WQ0 |
+| **WQ1** — Migrate ledger kinds | request + scheduler call sites enqueue; per-kind handlers reconstruct from payload; dedup/progress/cancel preserved | ◐ scoring kinds done (rebuild/backfill/score_import/score_declined_import/rescore_declined via `dispatchJob` + handlers + tests; A2 held — imports are persisted) | **WQ1b: efs_soap_\*, sync_\* (integrations.ts, startJob pattern), nightly_reconcile, manual efs_ingest** |
 | **WQ2** — Hazmat → queue kinds | extraction/analysis become `hazmat_extract`/`hazmat_analyze`; semaphores → pool concurrency; per-load dedup | ☐ | after WQ1 |
 | **WQ3** — Multi-replica + leases + rate limits | remove boot-sweep; N worker replicas; distributed/pinned Samsara+SOAP limits; scheduler leader lane | ☐ | after WQ2 |
 | **WQ4** — Cutover & cleanup | default `queue` mode; remove in-process path; update WORKER-DEPLOYMENT.md; job metrics + Sentry | ☐ | after WQ3 |

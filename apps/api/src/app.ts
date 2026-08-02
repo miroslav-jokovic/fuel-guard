@@ -11,6 +11,7 @@ import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
 import { apiError } from "./lib/http.js";
 import { requireAuth } from "./middleware/auth.js";
+import { registerAllHandlers } from "./services/queue/handlers/index.js";
 import { invitesRouter } from "./routes/invites.js";
 import { membersRouter } from "./routes/members.js";
 import { transactionsRouter } from "./routes/transactions.js";
@@ -33,6 +34,7 @@ import { hazmatRouter } from "./routes/hazmat/index.js";
 export function createApp(env: Env): Express {
   const app = express();
   setAppLocals(app, { env });
+  registerAllHandlers(); // queue handlers available for dispatchJob (both execution modes)
   app.set("trust proxy", 1); // Railway runs behind a proxy
 
   // CSP tuned for the single-service deploy where this server also serves the SPA: the browser talks

@@ -25,7 +25,7 @@ export interface JobContext {
   env: Env;
 }
 
-export type ProgressReporter = (done: number, total?: number | null) => Promise<void>;
+export type ProgressReporter = (done: number, total?: number) => Promise<void>;
 
 export type JobHandler = (
   ctx: JobContext,

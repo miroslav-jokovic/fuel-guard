@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { JobConflictError } from "../jobs.js";
 import { clearHandlers, getHandler, registerHandler, registeredKinds } from "./registry.js";
 import { enqueueJob } from "./enqueue.js";
+import { dispatchJob } from "./dispatch.js";
 import { backoffSeconds, executeJob } from "./worker.js";
 import type { JobContext, QueueDriver, QueueJob } from "./types.js";
 
@@ -101,6 +102,21 @@ describe("queue — executeJob", () => {
     const { driver, calls } = fakeDriver();
     await executeJob(driver, ctx, job(), execOpts);
     expect(calls.progress).toEqual([{ id: "job-1", done: 5 }]);
+  });
+});
+
+describe("queue — dispatchJob (mode routing)", () => {
+  it("queue mode enqueues via the RPC and returns the job id", async () => {
+    const admin = { rpc: async () => ({ data: "job-q", error: null }) } as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const env = { JOB_EXECUTION_MODE: "queue" } as never;
+    const res = await dispatchJob(admin, env, "rebuild", { orgId: "o1", payload: { actorId: "u1" } });
+    expect(res).toEqual({ jobId: "job-q" });
+  });
+  it("queue mode maps a dedup 23505 to { conflict: true }", async () => {
+    const admin = { rpc: async () => ({ data: null, error: { code: "23505", message: "dup" } }) } as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const env = { JOB_EXECUTION_MODE: "queue" } as never;
+    const res = await dispatchJob(admin, env, "rebuild", { orgId: "o1" });
+    expect(res).toEqual({ conflict: true });
   });
 });
 
