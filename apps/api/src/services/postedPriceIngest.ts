@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PILOT_FAMILY_BRANDS, type PostedPriceRow } from "@fuelguard/shared";
+import { eachPage } from "../lib/paging.js";
 
 export interface PostedIngestResult {
   ok: boolean;
@@ -38,17 +39,15 @@ export async function ingestPostedPrices(
 
   // Resolve station ids by store number, family-wide.
   const stationIdByStore = new Map<string, string>();
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("fuel_stations").select("id, store_number")
-      .in("brand", PILOT_FAMILY_BRANDS)
-      .range(from, from + PAGE - 1);
-    if (error) return { ...base, error: `Registry read failed: ${error.message}` };
-    for (const r of (data ?? []) as Array<{ id: string; store_number: string | null }>) {
-      if (r.store_number != null) stationIdByStore.set(String(r.store_number), r.id);
-    }
-    if (!data || data.length < PAGE) break;
+  try {
+    await eachPage<{ id: string; store_number: string | null }>(
+      (from, to) => admin.from("fuel_stations").select("id, store_number").in("brand", PILOT_FAMILY_BRANDS).range(from, to),
+      (rows) => {
+        for (const r of rows) if (r.store_number != null) stationIdByStore.set(String(r.store_number), r.id);
+      },
+    );
+  } catch (e) {
+    return { ...base, error: `Registry read failed: ${e instanceof Error ? e.message : String(e)}` };
   }
 
   let unmatched = 0;

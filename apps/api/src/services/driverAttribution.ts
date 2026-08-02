@@ -1,28 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deriveFuelEventsFromEfsStore, reconcileFuelLines, driversToProvision, type EfsStoreLine } from "@fuelguard/shared";
+import { fetchAllPaged } from "../lib/paging.js";
 
 export interface DriverAttributionResult {
   provisioned: number; // driver records auto-created from EFS names
   attributed: number; // previously-unattributed fills now linked to a driver
 }
 
-const PAGE = 1000;
+const PAGE = 1000; // batch size for the .in(external_ref) attribution update below
 
 /** Load every faithful EFS line for the org (the raw driver-name source), paged. */
 async function loadEfsLines(admin: SupabaseClient, orgId: string): Promise<EfsStoreLine[]> {
-  const out: EfsStoreLine[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
+  return fetchAllPaged<EfsStoreLine>((from, to) =>
+    admin
       .from("efs_transactions")
       .select("card_num, control_id, invoice, tran_date, fueled_at, unit, driver_name, odometer, location_name, city, state, item, qty, amt")
       .eq("org_id", orgId)
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const batch = (data ?? []) as EfsStoreLine[];
-    out.push(...batch);
-    if (batch.length < PAGE) break;
-  }
-  return out;
+      .range(from, to),
+  );
 }
 
 /**

@@ -15,6 +15,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parsePilotPriceReport, PILOT_FAMILY_BRANDS, type Cell } from "@fuelguard/shared";
+import { eachPage } from "../lib/paging.js";
 import type { Env } from "../env.js";
 import { hereGeocode, mapPool } from "../lib/hereGeocode.js";
 
@@ -100,17 +101,15 @@ export async function ingestPilotPrices(admin: SupabaseClient, env: Env, orgId: 
   // so matching (brand='pilot', site) would re-create those stations as duplicates). Known stations are
   // never re-geocoded or moved here: the export's exact coordinates always outrank a city centroid.
   const stationIdBySite = new Map<string, string>();
-  const PAGE = 1000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("fuel_stations").select("id, store_number")
-      .in("brand", PILOT_FAMILY_BRANDS)
-      .range(from, from + PAGE - 1);
-    if (error) return { ok: false, error: `Registry read failed: ${error.message}`, ...base, geocodeFailed: 0 };
-    for (const r of (data ?? []) as Array<{ id: string; store_number: string | null }>) {
-      if (r.store_number != null) stationIdBySite.set(String(r.store_number), r.id);
-    }
-    if (!data || data.length < PAGE) break;
+  try {
+    await eachPage<{ id: string; store_number: string | null }>(
+      (from, to) => admin.from("fuel_stations").select("id, store_number").in("brand", PILOT_FAMILY_BRANDS).range(from, to),
+      (rows) => {
+        for (const r of rows) if (r.store_number != null) stationIdBySite.set(String(r.store_number), r.id);
+      },
+    );
+  } catch (e) {
+    return { ok: false, error: `Registry read failed: ${e instanceof Error ? e.message : String(e)}`, ...base, geocodeFailed: 0 };
   }
 
   // Only sites the registry has never seen need a (city-centroid) geocode + insert.
