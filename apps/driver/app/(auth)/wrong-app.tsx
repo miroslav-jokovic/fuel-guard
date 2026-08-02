@@ -1,6 +1,6 @@
 import { Button } from '@/components';
 import { AuthScreen } from '@/features/auth/AuthLayout';
-import { useSession } from '@/features/auth/SessionProvider';
+import { useSession } from '@/session/SessionProvider';
 
 // Defense in depth (mirrors the web's driver gate): a non-driver account somehow signed in here.
 // RLS is the real boundary; this is the friendly UI stop.

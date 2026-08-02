@@ -14,7 +14,7 @@ import {
   SyncStatus,
 } from '@/components';
 import { apiFetch } from '@/lib/api';
-import { useSession } from '@/features/auth/SessionProvider';
+import { useSession } from '@/session/SessionProvider';
 import { useTheme } from '@/theme/ThemeProvider';
 import { enqueue } from '@/data/outbox';
 import { runSync, useSyncState } from '@/data/sync';

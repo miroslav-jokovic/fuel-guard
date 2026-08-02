@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { AuthError } from '@supabase/supabase-js';
 import { Banner, Button, Field, Icon, Input } from '@/components';
 import { AuthHero } from '@/features/auth/AuthLayout';
-import { useSession } from '@/features/auth/SessionProvider';
+import { useSession } from '@/session/SessionProvider';
 
 /** Map Supabase auth errors to plain, non-leaky copy (never echo raw provider strings to drivers). */
 function friendlyError(e: unknown): string {

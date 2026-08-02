@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useURL } from 'expo-linking';
 import { Banner, Button, Field, Icon, Input } from '@/components';
 import { AuthHero } from '@/features/auth/AuthLayout';
-import { useSession } from '@/features/auth/SessionProvider';
+import { useSession } from '@/session/SessionProvider';
 import {
   establishSession,
   hasSessionMaterial,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components';
 import { AuthScreen } from '@/features/auth/AuthLayout';
-import { useSession } from '@/features/auth/SessionProvider';
+import { useSession } from '@/session/SessionProvider';
 
 // Signed in, but no org membership/claims yet (audit B3). Usually a brief moment right after
 // accepting an invite before the refreshed token carries org_id/user_role.

@@ -12,7 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { ThemeProvider } from '@/theme/ThemeProvider';
-import { SessionProvider, useSession } from '@/features/auth/SessionProvider';
+import { SessionProvider, useSession } from '@/session/SessionProvider';
 import { queryClient } from '@/lib/queryClient';
 import { persistOptions } from '@/lib/persist';
 import { initConnectivity } from '@/lib/connectivity';

@@ -17,7 +17,7 @@ import { bucketLoads, toActive, toSummary } from '@/features/loads/loadViewModel
 import { useLoads } from '@/features/loads/useLoads';
 import { DutyCard } from '@/features/duty/DutyCard';
 import { dutyView, useShift } from '@/features/duty/useDuty';
-import { firstName, useDriverContext } from '@/features/home/useDriverContext';
+import { firstName, useDriverContext } from '@/session/useDriverContext';
 import { homeScoreSummary } from '@/features/score/scoreModel';
 import { useDriverScore } from '@/features/score/useDriverScore';
 

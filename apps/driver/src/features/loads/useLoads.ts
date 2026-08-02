@@ -20,8 +20,8 @@ import {
   LOAD_START_KIND,
   LOAD_STOP_KIND,
 } from '@/data/handlers';
-import { useSession } from '@/features/auth/SessionProvider';
-import { useDriverContext } from '@/features/home/useDriverContext';
+import { useSession } from '@/session/SessionProvider';
+import { useDriverContext } from '@/session/useDriverContext';
 import { buildStopPhotos, type SessionCapture } from './stopCaptureModel';
 
 /**
