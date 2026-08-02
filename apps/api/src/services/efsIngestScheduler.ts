@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { runJob } from "./jobs.js";
+import { runJob, JobConflictError } from "./jobs.js";
+import { enqueueJob } from "./queue/enqueue.js";
 import { runEfsIngest, buildIngestSource } from "./efsAutoIngest.js";
 
 /**
@@ -27,6 +28,16 @@ async function allOrgIds(admin: SupabaseClient): Promise<string[]> {
 
 /** Ingest one org's delivered reports through the jobs ledger. Never throws — failures land on the job. */
 async function ingestOrg(admin: SupabaseClient, env: Env, orgId: string): Promise<void> {
+  if (env.JOB_EXECUTION_MODE === "queue") {
+    // Queue mode: enqueue; a worker runs the efs_ingest handler. The (org, efs_ingest) dedup still
+    // refuses an overlap (JobConflictError → ignored, a run is already active for this org).
+    try {
+      await enqueueJob(admin, "efs_ingest", { orgId, payload: { orgId } });
+    } catch (e) {
+      if (!(e instanceof JobConflictError)) throw e;
+    }
+    return;
+  }
   const source = buildIngestSource(admin, env, orgId);
   if (!source) return; // source disabled/unconfigured for this env
   // runJob claims the (org, efs_ingest) slot, runs the batch in the background, and ALWAYS finishes the
