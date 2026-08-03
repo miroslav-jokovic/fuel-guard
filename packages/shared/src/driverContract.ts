@@ -31,3 +31,50 @@ export const meDriverResponseSchema = z.object({
   modules: z.array(orgModuleSchema).default([]),
 });
 export type MeDriverResponse = z.infer<typeof meDriverResponseSchema>;
+
+// ── Driver Performance self-view (Phase 5 / docs/16-DRIVER-PERFORMANCE.md) ──────────────────────
+// The signed-in driver's OWN frozen weekly grades from driver_performance_weeks. The API scopes the
+// read to this driver server-side and returns each week's rank plus the cohort size — a count the
+// driver could never read themselves (RLS hides every other driver's row), so "rank #4 of 23" is
+// possible without leaking the leaderboard. Numeric columns arrive as number|string from PostgREST.
+
+export const performanceWeightsSchema = z.object({
+  safety: z.coerce.number(),
+  efficiency: z.coerce.number(),
+  idling: z.coerce.number(),
+});
+export type PerformanceWeightsView = z.infer<typeof performanceWeightsSchema>;
+
+export const meScoreWeekSchema = z.object({
+  week_start: z.string(),
+  week_end: z.string(),
+  /** Raw 0–100 sub-scores (higher = better), null when the feed is absent. */
+  safety_score: z.coerce.number().nullable(),
+  efficiency_score: z.coerce.number().nullable(),
+  idle_score: z.coerce.number().nullable(),
+  /** Fleet-relative normalized components (0–100) among the eligible cohort; null when absent/ineligible. */
+  safety_pct: z.coerce.number().nullable(),
+  efficiency_pct: z.coerce.number().nullable(),
+  idle_pct: z.coerce.number().nullable(),
+  /** Weighted combine of present normalized components — the week's grade. null → not rankable. */
+  week_final: z.coerce.number().nullable(),
+  /** Trailing-window average the rank is computed on. */
+  trailing_final: z.coerce.number().nullable(),
+  drive_distance_mi: z.coerce.number().nullable(),
+  drive_time_hours: z.coerce.number().nullable(),
+  eligible: z.boolean(),
+  ineligible_reason: z.string().nullable(),
+  rank: z.number().int().nullable(),
+  is_winner: z.boolean(),
+  /** Ranked (eligible) drivers in this week — the "of N" in the rank line. null when not computed. */
+  cohort_size: z.number().int().nullable(),
+});
+export type MeScoreWeek = z.infer<typeof meScoreWeekSchema>;
+
+export const meScoreResponseSchema = z.object({
+  /** Most-recent settled week first, up to 8 weeks. Empty until the driver's first week settles. */
+  weeks: z.array(meScoreWeekSchema),
+  /** The latest week's weighting (or defaults) — powers the "biggest opportunity" coaching line. */
+  weights: performanceWeightsSchema,
+});
+export type MeScoreResponse = z.infer<typeof meScoreResponseSchema>;

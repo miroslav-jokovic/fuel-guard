@@ -26,6 +26,8 @@ import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { dispatchRouter } from "./routes/dispatch.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
+import { meRouter } from "./routes/me.js";
+import { messagesRouter } from "./routes/messages.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -103,6 +105,8 @@ export function createApp(env: Env): Express {
   });
 
   app.use("/api/invites", invitesRouter());
+  app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
+  app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
   app.use("/api/members", membersRouter());
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
