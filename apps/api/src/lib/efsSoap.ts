@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { DOMParser, type Element as XmlElement, type Node as XmlNode } from "@xmldom/xmldom";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials, FeedName } from "../services/efsSoapCredentials.js";
-import { buildWsSecurityUsernameTokenHeader, soapFetch, type SoapPriority } from "./soapClient.js";
+import { buildWsSecurityUsernameTokenHeader, classifyTlsError, describeTlsMaterial, soapFetch, type EfsTlsMaterial, type SoapPriority } from "./soapClient.js";
 
 /**
  * EFS CardManagementWS operations. The production WSDL defines SOAP 1.1 operations:
@@ -50,7 +50,8 @@ export class EfsSoapError extends Error {
       | "soap_fault"
       | "auth"
       | "malformed_response"
-      | "rate_limited",
+      | "rate_limited"
+      | "tls",
     public detail?: unknown,
   ) {
     super(message);
@@ -82,22 +83,30 @@ export async function fetchRejectedTransactions(
   return fetchFeed(env, creds, "rejected", cursor, opts);
 }
 
-/** Login is the smallest legal EFS call and proves credentials, TLS, allowlisting and SOAP routing. */
+/**
+ * Login is the smallest legal EFS call and proves, in one round trip: DNS, egress allowlisting, the
+ * TLS handshake (INCLUDING mutual-TLS client-certificate acceptance), SOAP routing, and credentials.
+ * That is exactly why it is the pre-activation gate for a new client certificate — pass `tlsOverride`
+ * to prove a PENDING certificate against the live endpoint before it takes over from the working one.
+ */
 export async function pingEfsSoap(
   env: Env,
   creds: EfsSoapCredentials,
-  opts: { fetchImpl?: typeof fetch } = {},
-): Promise<{ ok: true; roundtripMs: number } | { ok: false; error: EfsSoapError }> {
+  opts: { fetchImpl?: typeof fetch; tlsOverride?: EfsTlsMaterial | null } = {},
+): Promise<{ ok: true; roundtripMs: number; tls: string } | { ok: false; error: EfsSoapError; tls: string }> {
+  const effective: EfsSoapCredentials =
+    opts.tlsOverride === undefined ? creds : { ...creds, tls: opts.tlsOverride };
+  const tls = describeTlsMaterial(effective.tls);
   const started = Date.now();
   try {
-    const session = await login(env, creds, "live", opts.fetchImpl);
-    await logout(env, creds, session.clientId, "live", opts.fetchImpl, session.cookie);
-    return { ok: true, roundtripMs: Date.now() - started };
+    const session = await login(env, effective, "live", opts.fetchImpl);
+    await logout(env, effective, session.clientId, "live", opts.fetchImpl, session.cookie);
+    return { ok: true, roundtripMs: Date.now() - started, tls };
   } catch (e) {
     const error = e instanceof EfsSoapError
       ? e
       : new EfsSoapError(e instanceof Error ? e.message : String(e), "transport", e);
-    return { ok: false, error };
+    return { ok: false, error, tls };
   }
 }
 
@@ -230,6 +239,9 @@ async function requestXml(
       soapAction: operation,
       headers: cookie ? { Cookie: cookie } : undefined,
       priority,
+      // Per-org client certificate resolved by getEfsSoapCredentials; undefined means "fall back to
+      // the deploy-wide env material", which is what a single-tenant install uses.
+      tls: creds.tls,
       fetchImpl,
       retry,
     });
@@ -248,6 +260,17 @@ async function requestXml(
     return { body: response.body, headers: response.headers };
   } catch (error) {
     if (error instanceof EfsSoapError) throw error;
+    // A handshake failure is the single most likely mTLS symptom and the least self-explanatory, so
+    // it never reaches the operator as a bare "transport" error. classifyTlsError turns an OpenSSL
+    // alert code into the action that fixes it.
+    const tlsFailure = classifyTlsError(error);
+    if (tlsFailure.kind !== "unknown") {
+      throw new EfsSoapError(
+        `EFS ${operation} failed at the TLS layer: ${tlsFailure.message}`,
+        tlsFailure.kind === "network" ? "transport" : "tls",
+        { code: tlsFailure.code, kind: tlsFailure.kind },
+      );
+    }
     throw new EfsSoapError(`EFS ${operation} request failed`, "transport", error);
   }
 }

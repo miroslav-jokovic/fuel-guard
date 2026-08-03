@@ -28,6 +28,7 @@ const creds: EfsSoapCredentials = {
   rejectedLastError: null,
   enabled: true,
   fromEnvFallback: false,
+  tls: null,
 };
 
 const soap = (body: string) => `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>${body}</soap:Body></soap:Envelope>`;

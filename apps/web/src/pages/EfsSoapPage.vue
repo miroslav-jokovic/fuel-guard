@@ -23,6 +23,7 @@ import FormField from "@/components/ui/FormField.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import AppSelect, { type SelectOption } from "@/components/AppSelect.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
+import EfsClientCertCard from "@/features/settings/EfsClientCertCard.vue";
 
 /**
  * EFS SOAP integration — admin settings page.
@@ -310,6 +311,12 @@ const testChipClass = computed(() => {
           </BaseButton>
         </div>
       </BaseCard>
+
+      <!-- ── Client certificate (mutual TLS) ──────────────────────────────────── -->
+      <!-- Its own component: the certificate lifecycle is a staged rotation (upload → test →
+           activate → roll back), not a field on the credentials form, and inlining it here would
+           push this page past the 500-line budget the file-size fitness function enforces. -->
+      <EfsClientCertCard v-if="isConfigured" />
 
       <!-- ── Test connection ──────────────────────────────────────────────────── -->
       <BaseCard as="section" v-if="isConfigured">

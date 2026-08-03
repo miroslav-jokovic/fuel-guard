@@ -195,6 +195,13 @@ const EnvSchema = z.object({
   // level, this stays unset and EFS allowlists the Railway IPs directly.
   EFS_SOAP_EGRESS_PROXY_URL: z.string().url().optional(),
 
+  // ── Secret sealing (lib/secretBox.ts) ──────────────────────────────────────────────────────────
+  // 32-byte key, base64 or hex: `openssl rand -base64 32`. Required to STORE a TLS private key in
+  // Postgres — without it the client-certificate upload endpoint refuses rather than writing key
+  // material in the clear. Nothing else depends on it, so an existing deploy keeps booting unchanged.
+  // Rotating it makes previously-sealed values unreadable; they report which key id they need.
+  SECRETS_ENCRYPTION_KEY: z.string().optional(),
+
   // ── Optional mutual TLS (client certificate) for the EFS SOAP endpoint ─────────────────────────
   // EFS has not yet confirmed whether their production endpoint requires a client certificate. This
   // block is INERT until a cert is supplied: with all three unset the client uses ordinary TLS and

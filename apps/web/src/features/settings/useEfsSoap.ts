@@ -29,6 +29,19 @@ export interface EfsSoapStatus {
   accountId: string | null;
   posted: EfsSoapFeedStatus;
   rejected: EfsSoapFeedStatus;
+  /** Transport security. Present since mutual-TLS support; never carries key material. */
+  tls: EfsSoapTlsStatus;
+}
+
+/** What identity (if any) we present to EFS at the TLS layer. */
+export interface EfsSoapTlsStatus {
+  /** Human summary, e.g. "client certificate (PEM, CN=…) + per-org". */
+  description: string;
+  /** "org" = a stored certificate, "env" = the deploy-wide fallback, null = ordinary TLS. */
+  source: "org" | "env" | null;
+  /** Metadata for the active stored certificate — see useEfsClientCert for the full lifecycle. */
+  activeCert: { fingerprintSha256: string; subject: string; notAfter: string; daysUntilExpiry: number } | null;
+  expiringSoon: boolean;
 }
 
 const QUERY_KEY = ["efs_soap", "config"];
@@ -95,7 +108,7 @@ export function useDisableEfsSoap() {
 /** Test-connection response — three shapes: success, expected-pre-WSDL (200 with notImplemented),
  *  or hard failure (thrown). */
 export type TestConnectionResult =
-  | { kind: "success"; roundtripMs: number }
+  | { kind: "success"; roundtripMs: number; tls?: string }
   | { kind: "not_implemented"; message: string }
   | { kind: "failure"; message: string };
 
@@ -109,10 +122,12 @@ export function useTestEfsSoapConnection() {
         roundtripMs?: number;
         notImplemented?: boolean;
         message?: string;
+        /** What was presented at the TLS layer — surfaced so a handshake problem is visible here. */
+        tls?: string;
       }>("/api/integrations/efs-soap/test-connection", { method: "POST" });
 
       if (res.ok && res.data?.ok) {
-        return { kind: "success", roundtripMs: res.data.roundtripMs ?? 0 };
+        return { kind: "success", roundtripMs: res.data.roundtripMs ?? 0, tls: res.data.tls };
       }
       if (res.ok && res.data?.notImplemented) {
         return { kind: "not_implemented", message: res.data.message ?? "EFS SOAP client not yet implemented" };

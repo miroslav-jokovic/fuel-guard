@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
+import { describeTlsMaterial, envTlsMaterial, type EfsTlsMaterial } from "../lib/soapClient.js";
+import { CERT_EXPIRY_WARN_DAYS, listCerts, loadActiveMaterial, type StoredCertSummary } from "./efsSoapClientCerts.js";
 
 /**
  * EFS SOAP integration credentials — CRUD + non-secret status.
@@ -36,6 +38,13 @@ export interface EfsSoapCredentials {
   enabled: boolean;
   /** True when credentials came from Railway env vars and still need durable DB state. */
   fromEnvFallback: boolean;
+  /**
+   * Mutual-TLS material to present on every call for this org, or null for ordinary TLS.
+   * Resolved once here — per-org `efs_soap_client_certs` row first, then the deploy-wide env vars —
+   * so every downstream caller (poller, manual sync, test-connection) presents the same identity
+   * without each having to know the precedence rules.
+   */
+  tls: EfsTlsMaterial | null;
 }
 
 export interface EfsSoapStatus {
@@ -54,10 +63,21 @@ export interface EfsSoapStatus {
     lastSuccessAt: string | null;
     lastError: string | null;
   };
+  /** Transport security, described without exposing any key material. */
+  tls: {
+    /** Human summary, e.g. "client certificate (PEM, CN=...) + per-org". */
+    description: string;
+    /** "org" when a stored certificate is presenting, "env" for the deploy-wide fallback, else null. */
+    source: "org" | "env" | null;
+    /** The active stored certificate, when there is one. Never includes the private key. */
+    activeCert: StoredCertSummary | null;
+    /** True when a certificate is presenting and it expires within the warning band. */
+    expiringSoon: boolean;
+  };
 }
 
 /** Zero-configured status — reported to the UI when no row exists AND no env fallback is set. */
-const EMPTY_STATUS: Omit<EfsSoapStatus, "configured" | "enabled"> = {
+const EMPTY_STATUS: Omit<EfsSoapStatus, "configured" | "enabled" | "tls"> = {
   environment: null,
   endpointUrl: null,
   accountId: null,
@@ -83,7 +103,7 @@ interface DbRow {
   enabled: boolean;
 }
 
-function fromRow(row: DbRow): EfsSoapCredentials {
+function fromRow(row: DbRow, tls: EfsTlsMaterial | null): EfsSoapCredentials {
   return {
     orgId: row.org_id,
     environment: row.environment === "production" ? "production" : "sandbox",
@@ -101,7 +121,33 @@ function fromRow(row: DbRow): EfsSoapCredentials {
     rejectedLastError: row.rejected_last_error,
     enabled: row.enabled,
     fromEnvFallback: false,
+    tls,
   };
+}
+
+/**
+ * Which client certificate this org presents. Per-org stored certificate wins; the deploy-wide env
+ * vars are the single-tenant fallback; null means ordinary TLS.
+ *
+ * Never throws. A certificate we cannot unseal (SECRETS_ENCRYPTION_KEY rotated or missing) must NOT
+ * take the whole integration down silently-but-mysteriously — it logs loudly, and the caller proceeds
+ * with whatever the fallback is. EFS then either accepts the connection (mTLS was optional) or
+ * rejects it with a classified TLS error that names the problem. Both are better than a crash inside
+ * a scheduler tick.
+ */
+async function resolveTls(admin: SupabaseClient, env: Env, orgId: string): Promise<EfsTlsMaterial | null> {
+  try {
+    const orgMaterial = await loadActiveMaterial(admin, env, orgId);
+    if (orgMaterial) return orgMaterial;
+  } catch (e) {
+    console.error(`[efs-soap-tls] org ${orgId}: stored client certificate unusable — ${e instanceof Error ? e.message : e}`);
+  }
+  try {
+    return envTlsMaterial(env);
+  } catch (e) {
+    console.error(`[efs-soap-tls] deploy TLS env vars are invalid — ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
 }
 
 /**
@@ -122,7 +168,8 @@ export async function getEfsSoapCredentials(
     .select("*")
     .eq("org_id", orgId)
     .maybeSingle();
-  if (data) return fromRow(data as DbRow);
+  const tls = await resolveTls(admin, env, orgId);
+  if (data) return fromRow(data as DbRow, tls);
 
   // Env-var fallback (single-tenant deploy). Endpoint, username, and password must be present.
   if (env.EFS_SOAP_ORG_ID && env.EFS_SOAP_ORG_ID !== orgId) return null;
@@ -144,6 +191,7 @@ export async function getEfsSoapCredentials(
       rejectedLastError: null,
       enabled: env.EFS_SOAP_ENABLED,
       fromEnvFallback: true,
+      tls,
     };
   }
   return null;
@@ -230,7 +278,8 @@ export async function getEfsSoapStatus(
   orgId: string,
 ): Promise<EfsSoapStatus> {
   const creds = await getEfsSoapCredentials(admin, env, orgId);
-  if (!creds) return { configured: false, enabled: false, ...EMPTY_STATUS };
+  const tls = await tlsStatus(admin, orgId, creds?.tls ?? null);
+  if (!creds) return { configured: false, enabled: false, ...EMPTY_STATUS, tls };
   return {
     configured: true,
     enabled: creds.enabled && env.EFS_SOAP_ENABLED, // both must be true for the poller to run
@@ -247,6 +296,34 @@ export async function getEfsSoapStatus(
       lastSuccessAt: creds.rejectedLastSuccessAt,
       lastError: creds.rejectedLastError,
     },
+    tls,
+  };
+}
+
+/**
+ * Transport-security block for the settings UI. Reads the ACTIVE certificate's metadata (never its
+ * key) so an admin can see, in one place: what identity we present, who issued it, when it expires,
+ * and whether the last handshake actually worked. That last field is what makes an EFS-side
+ * enrolment problem visible before it becomes a silent gap in the fuel feed.
+ */
+async function tlsStatus(
+  admin: SupabaseClient,
+  orgId: string,
+  material: EfsTlsMaterial | null,
+): Promise<EfsSoapStatus["tls"]> {
+  let activeCert: StoredCertSummary | null = null;
+  if (material?.source === "org") {
+    const certs = await listCerts(admin, orgId, new Date(), 5);
+    activeCert = certs.find((c) => c.status === "active") ?? null;
+  }
+  const expiringSoon = activeCert
+    ? activeCert.expiryState === "expiring" || activeCert.expiryState === "expired"
+    : !!material?.notAfter && Date.parse(material.notAfter) - Date.now() <= CERT_EXPIRY_WARN_DAYS * 86_400_000;
+  return {
+    description: describeTlsMaterial(material),
+    source: material?.source ?? null,
+    activeCert,
+    expiringSoon,
   };
 }
 
