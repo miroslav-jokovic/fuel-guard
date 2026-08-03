@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
 import type { Env } from "../env.js";
 
 /**
@@ -14,6 +16,10 @@ import type { Env } from "../env.js";
  *    5xx/network errors back off with jitter, up to EFS_SOAP_MAX_RETRIES.
  *  - **Direct or platform-static egress.** EFS allowlists the Railway static outbound IPv4s; direct
  *    fetch is used by default. The proxy variable remains available for a future dedicated hop.
+ *  - **Optional mutual TLS.** When a client certificate / private CA is configured (see
+ *    `efsTlsOptions`), requests go over `node:https` with that material. Unconfigured — the default —
+ *    nothing changes and plain `fetch` is used, so this is safe to ship before EFS confirms whether
+ *    they require mTLS.
  *
  * We deliberately model this at the HTTP layer so pacing and retries are testable in isolation.
  * The EFS-specific operations layer (`efsSoap.ts`) owns the WSDL operation bodies and response mapping.
@@ -56,6 +62,138 @@ export function parseRetryAfter(value: string | null): number | null {
 }
 
 // ── SOAP dispatch shape (independent of the `soap` library so it's unit-testable) ──────────────
+
+// ── Optional mutual TLS / client certificate ────────────────────────────────────────────────────
+//
+// EFS has not confirmed whether their production endpoint requires a client certificate. Rather than
+// wait, the capability ships INERT: with no TLS env vars set, `efsTlsOptions()` returns null and every
+// request goes through plain `fetch` exactly as before. The moment EFS says "yes, mTLS", the operator
+// pastes the PEMs into the env vars and redeploys — no code change, no redeploy risk to the non-mTLS
+// path, and `pingEfsSoap` proves the handshake immediately.
+//
+// Implemented on `node:https` rather than a fetch dispatcher deliberately: `node:https` accepts
+// cert/key/ca/pfx natively, so no new runtime dependency enters the tree for a feature that may turn
+// out to be unnecessary. It is used ONLY when TLS material is configured.
+
+/** Normalise a PEM supplied either as literal text (possibly with escaped \n) or base64. */
+function readPem(text: string | undefined, b64: string | undefined): string | undefined {
+  if (b64) return Buffer.from(b64, "base64").toString("utf8");
+  if (!text) return undefined;
+  return text.includes("\\n") ? text.replace(/\\n/g, "\n") : text;
+}
+
+export interface EfsTlsOptions {
+  cert?: string;
+  key?: string;
+  passphrase?: string;
+  ca?: string;
+  pfx?: Buffer;
+  rejectUnauthorized: boolean;
+}
+
+/**
+ * The TLS material configured for EFS, or null when none is set (→ ordinary TLS via `fetch`).
+ * Throws on a half-configured client identity, because silently falling back to anonymous TLS would
+ * surface later as an opaque 403 from EFS rather than a config error at boot.
+ */
+export function efsTlsOptions(env: Env): EfsTlsOptions | null {
+  const cert = readPem(env.EFS_SOAP_CLIENT_CERT_PEM, env.EFS_SOAP_CLIENT_CERT_B64);
+  const key = readPem(env.EFS_SOAP_CLIENT_KEY_PEM, env.EFS_SOAP_CLIENT_KEY_B64);
+  const ca = readPem(env.EFS_SOAP_CA_PEM, env.EFS_SOAP_CA_B64);
+  const pfx = env.EFS_SOAP_CLIENT_PFX_B64 ? Buffer.from(env.EFS_SOAP_CLIENT_PFX_B64, "base64") : undefined;
+  const insecure = env.EFS_SOAP_TLS_INSECURE === true;
+  if (!cert && !key && !ca && !pfx && !insecure) return null;
+  if ((cert && !key) || (key && !cert)) {
+    throw new Error(
+      "EFS SOAP mTLS is half-configured: set BOTH EFS_SOAP_CLIENT_CERT_PEM/_B64 and EFS_SOAP_CLIENT_KEY_PEM/_B64 (or use EFS_SOAP_CLIENT_PFX_B64), or neither.",
+    );
+  }
+  return {
+    ...(cert ? { cert } : {}),
+    ...(key ? { key } : {}),
+    ...(env.EFS_SOAP_CLIENT_KEY_PASSPHRASE ? { passphrase: env.EFS_SOAP_CLIENT_KEY_PASSPHRASE } : {}),
+    ...(ca ? { ca } : {}),
+    ...(pfx ? { pfx, passphrase: env.EFS_SOAP_CLIENT_PFX_PASSPHRASE } : {}),
+    rejectUnauthorized: !insecure,
+  };
+}
+
+/** One-line, secret-free description for boot logs / the integrations status endpoint. */
+export function describeEfsTls(env: Env): string {
+  let tls: EfsTlsOptions | null;
+  try {
+    tls = efsTlsOptions(env);
+  } catch (e) {
+    return `misconfigured — ${e instanceof Error ? e.message : String(e)}`;
+  }
+  if (!tls) return "standard TLS (no client certificate configured)";
+  const parts: string[] = [];
+  if (tls.cert || tls.pfx) parts.push(`client certificate (${tls.pfx ? "PKCS#12" : "PEM"})`);
+  if (tls.ca) parts.push("custom CA bundle");
+  if (!tls.rejectUnauthorized) parts.push("⚠️ CERTIFICATE VERIFICATION DISABLED — do not use in production");
+  return parts.join(" + ") || "standard TLS";
+}
+
+/** Agents are pooled per TLS identity — a fresh Agent per request would kill connection reuse. */
+const agents = new Map<string, HttpsAgent>();
+
+function agentFor(tls: EfsTlsOptions): HttpsAgent {
+  // Key on a digest of the material so distinct credentials with equal lengths cannot share a stale
+  // agent, without ever putting the key material in a log line.
+  const key = createHash("sha256")
+    .update(
+      JSON.stringify({
+        cert: tls.cert ?? null,
+        key: tls.key ?? null,
+        ca: tls.ca ?? null,
+        pfx: tls.pfx?.toString("base64") ?? null,
+        passphrase: tls.passphrase ?? null,
+        rejectUnauthorized: tls.rejectUnauthorized,
+      }),
+    )
+    .digest("hex");
+  let agent = agents.get(key);
+  if (!agent) {
+    agent = new HttpsAgent({ keepAlive: true, ...tls });
+    agents.set(key, agent);
+  }
+  return agent;
+}
+
+/** POST over node:https with the configured client certificate. Same result shape as fetch. */
+function httpsPost(url: string, headers: Record<string, string>, body: string, tls: EfsTlsOptions): Promise<SoapResponse> {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const req = httpsRequest(
+      {
+        protocol: target.protocol,
+        hostname: target.hostname,
+        port: target.port || 443,
+        path: `${target.pathname}${target.search}`,
+        method: "POST",
+        headers: { ...headers, "Content-Length": Buffer.byteLength(body).toString() },
+        agent: agentFor(tls),
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => {
+          const out = new Headers();
+          for (const [k, v] of Object.entries(res.headers)) {
+            if (v == null) continue;
+            // set-cookie arrives as an array; cookieHeader() in efsSoap.ts re-splits a joined value.
+            out.set(k, Array.isArray(v) ? v.join(", ") : String(v));
+          }
+          resolve({ status: res.statusCode ?? 0, headers: out, body: Buffer.concat(chunks).toString("utf8") });
+        });
+        res.on("error", reject);
+      },
+    );
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
 
 export type SoapPriority = "live" | "backfill";
 
@@ -110,6 +248,8 @@ export async function soapFetch(
   const slotKey = `${credentialKey}:${priority}`;
   const maxRetries = opts.retry === false ? 0 : env.EFS_SOAP_MAX_RETRIES;
   const doFetch = opts.fetchImpl ?? fetch;
+  // An injected fetch (tests) always wins, so the mTLS path never interferes with the suite.
+  const tls = opts.fetchImpl ? null : efsTlsOptions(env);
 
   const headers: Record<string, string> = {
     "Content-Type": 'text/xml; charset="utf-8"',
@@ -121,23 +261,33 @@ export async function soapFetch(
   for (;;) {
     const wait = reserveSlot(slotKey, rps);
     if (wait > 0) await sleep(wait);
-    let res: Response;
+    let out: SoapResponse;
     try {
-      res = await doFetch(opts.url, { method: "POST", headers, body: opts.body });
+      if (tls) {
+        out = await httpsPost(opts.url, headers, opts.body, tls);
+      } else {
+        const res = await doFetch(opts.url, { method: "POST", headers, body: opts.body });
+        if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
+          const ra = parseRetryAfter(res.headers.get("retry-after"));
+          await sleep(ra ?? backoffMs(attempt));
+          attempt++;
+          continue;
+        }
+        // Read the body once; downstream parses XML regardless of status (faults are in the body).
+        return { status: res.status, headers: res.headers, body: await res.text() };
+      }
     } catch (e) {
       if (attempt >= maxRetries) throw e;
       await sleep(backoffMs(attempt++));
       continue;
     }
-    if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
-      const ra = parseRetryAfter(res.headers.get("retry-after"));
+    if ((out.status === 429 || out.status >= 500) && attempt < maxRetries) {
+      const ra = parseRetryAfter(out.headers.get("retry-after"));
       await sleep(ra ?? backoffMs(attempt));
       attempt++;
       continue;
     }
-    // Read the body once; downstream parses XML regardless of status (SOAP faults are in the body).
-    const body = await res.text();
-    return { status: res.status, headers: res.headers, body };
+    return out;
   }
 }
 

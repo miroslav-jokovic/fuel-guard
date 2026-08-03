@@ -1,14 +1,43 @@
 import { describe, it, expect } from "vitest";
 import {
   cardIdentityKey,
+  cardIsIdentifiable,
+  cardDigits,
   cardLast4,
   cardRefsMatch,
+  cardRefsDefinitelyMatch,
+  isFullCardNumber,
+  isMaskedCardRef,
   learnCardAssignments,
   assessCardAssignment,
   sameCardFill,
   dominantVehicle,
   type CardFillRow,
 } from "./cardAssignment.js";
+
+describe("mask detection (WP3c — EFS stopped sending full card numbers)", () => {
+  it("recognises every masked shape EFS emits and keeps only the card's own digits", () => {
+    expect(isMaskedCardRef("708305XXXXXX1234")).toBe(true);
+    expect(isMaskedCardRef("****1234")).toBe(true);
+    expect(isMaskedCardRef("••••1234")).toBe(true);
+    expect(isMaskedCardRef("7083050030485867142")).toBe(false);
+    expect(cardDigits("708305XXXXXX1234")).toBe("1234");
+    expect(cardDigits("****1234")).toBe("1234");
+    expect(cardDigits("7083050030485867142  ")).toBe("7083050030485867142");
+  });
+  it("a masked ref is NEVER a full card number, however many digits survive the mask", () => {
+    // `708305XXXXXX1234` → 10 digits under a naive digits-only view. That is what the pre-WP3c
+    // ≥8-digit test misread as a PAN, silencing the control id and conflating every card that
+    // shares this BIN + last-4.
+    expect(isFullCardNumber("708305XXXXXX1234")).toBe(false);
+    expect(isFullCardNumber("7083050030485867142")).toBe(true);
+    expect(isFullCardNumber("1234")).toBe(false);
+  });
+  it("leaves genuinely alphanumeric fleet refs alone ('x' only masks in an otherwise-numeric ref)", () => {
+    expect(isMaskedCardRef("TX1234")).toBe(false);
+    expect(cardDigits("TX1234")).toBe("1234");
+  });
+});
 
 describe("cardIdentityKey / cardLast4 / cardRefsMatch", () => {
   it("full PAN (EFS pads with spaces) → digits key", () => {
@@ -19,6 +48,22 @@ describe("cardIdentityKey / cardLast4 / cardRefsMatch", () => {
     expect(cardIdentityKey("7521", "WCHRISTO")).toBe("7521|WCHRISTO");
     expect(cardIdentityKey("7521", null)).toBeNull();
     expect(cardIdentityKey(null)).toBeNull();
+    expect(cardIsIdentifiable("7521", null)).toBe(false);
+    expect(cardIsIdentifiable("7521", "WCHRISTO")).toBe(true);
+  });
+  it("every masked shape of ONE card + control id collapses to ONE identity key", () => {
+    expect(cardIdentityKey("708305XXXXXX1234", "WCHRISTO")).toBe("1234|WCHRISTO");
+    expect(cardIdentityKey("****1234", "WCHRISTO")).toBe("1234|WCHRISTO");
+    expect(cardIdentityKey("1234", "WCHRISTO")).toBe("1234|WCHRISTO");
+  });
+  it("a masked ref never yields a PAN-shaped key (the 0075 conflation)", () => {
+    expect(cardIdentityKey("708305XXXXXX1234", "AAA")).not.toBe(cardIdentityKey("708305XXXXXX1234", "BBB"));
+    expect(cardIdentityKey("708305XXXXXX1234", null)).toBeNull();
+  });
+  it("cardRefsDefinitelyMatch only trusts two unmasked full numbers", () => {
+    expect(cardRefsDefinitelyMatch("7083050030281917521", "7083050030281917521 ")).toBe(true);
+    expect(cardRefsDefinitelyMatch("7083050030281917521", "7521")).toBe(false);
+    expect(cardRefsDefinitelyMatch("7521", "7521")).toBe(false);
   });
   it("cardRefsMatch handles full-vs-masked (F5): full PAN matches its own last-4", () => {
     expect(cardRefsMatch("7083050030281917521", "7521")).toBe(true);
@@ -91,8 +136,28 @@ describe("assessCardAssignment — stale vs typo vs confirmed misuse (audit deci
 });
 
 describe("sameCardFill (WP3 — the card_multi_vehicle identity test)", () => {
-  it("full PAN matches its masked last-4 (cross-report)", () => {
-    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: null }, { cardRef: "7521", controlId: "WCHRISTO" })).toBe(true);
+  it("a full PAN vs a bare last-4 is NOT proof of one card — a suffix is shared by every card ending in it", () => {
+    // Pre-WP3c this returned true, so one masked fill collected every full-PAN fill ending in 7521
+    // (i.e. other drivers' trucks) and fired card_multi_vehicle at high severity.
+    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: null }, { cardRef: "7521", controlId: "WCHRISTO" })).toBe(false);
+  });
+  it("cross-era (PAN history vs masked present) resolves when BOTH carry the same control id", () => {
+    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: "WCHRISTO" }, { cardRef: "708305XXXXXX7521", controlId: "WCHRISTO" })).toBe(true);
+    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: "WCHRISTO" }, { cardRef: "708305XXXXXX7521", controlId: "OTHERDRV" })).toBe(false);
+  });
+  it("two unmasked PANs are decided by their digits alone", () => {
+    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: null }, { cardRef: "7083050030281917521 ", controlId: null })).toBe(true);
+    expect(sameCardFill({ cardRef: "7083050030281917521", controlId: "AAA" }, { cardRef: "7083050030999917521", controlId: "AAA" })).toBe(false);
+  });
+  it("BIN-prefixed masks sharing a last-4 are two cards unless the control ids agree", () => {
+    expect(sameCardFill({ cardRef: "708305XXXXXX1234", controlId: "AAA" }, { cardRef: "708305XXXXXX1234", controlId: "BBB" })).toBe(false);
+    expect(sameCardFill({ cardRef: "708305XXXXXX1234", controlId: "AAA" }, { cardRef: "708305XXXXXX1234", controlId: null })).toBe(false);
+    expect(sameCardFill({ cardRef: "708305XXXXXX1234", controlId: "AAA" }, { cardRef: "****1234", controlId: "AAA" })).toBe(true);
+  });
+  it("is symmetric", () => {
+    const a = { cardRef: "7083050030281917521", controlId: null };
+    const b = { cardRef: "7521", controlId: "WCHRISTO" };
+    expect(sameCardFill(a, b)).toBe(sameCardFill(b, a));
   });
   it("same last-4 with DIFFERENT control ids = two drivers' cards — never the same card (0075)", () => {
     expect(sameCardFill({ cardRef: "7521", controlId: "AAA" }, { cardRef: "7521", controlId: "BBB" })).toBe(false);

@@ -62,6 +62,9 @@ function ctx(over: Partial<RuleContext> = {}): RuleContext {
       disabledRules: [],
     },
     operatingHours: { start: "05:00", end: "20:00", tz: "America/Chicago" },
+    // WP3c: the fixture models a fill whose card IS identifiable (unmasked full number, or last-4 +
+    // a control number). Card-keyed rules are hard-gated on this; the gate itself is covered below.
+    cardIdentifiable: true,
     ...over,
   };
 }
@@ -994,6 +997,27 @@ describe("WP3b card_multi_vehicle (169-false-alarm regression suite)", () => {
     expect(
       ids(ctx({ txn: txn({ cardRef: "93509", vehicleId: null }), previousTxn: null, cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "other-truck" })),
     ).not.toContain("card_multi_vehicle");
+  });
+});
+
+// ── WP3c — EFS masked the PAN: a card we cannot NAME is a card we never accuse ───────────────────
+describe("WP3c card_multi_vehicle identifiability gate (masked-card false-alert class)", () => {
+  it("an unidentifiable card (masked ref, no control number) never fires, whatever the count says", () => {
+    const c = ctx({ txn: txn({ cardRef: "708305XXXXXX1234" }), cardIdentifiable: false, cardVehicleCountInWindow: 4 });
+    expect(ids(c)).not.toContain("card_multi_vehicle");
+  });
+  it("…and never fires the manual-mismatch variant either", () => {
+    const c = ctx({ txn: txn({ cardRef: "708305XXXXXX1234" }), cardIdentifiable: false, cardVehicleCountInWindow: 1, cardManualAssignedVehicleId: "other-truck" });
+    expect(ids(c)).not.toContain("card_multi_vehicle");
+  });
+  it("fails CLOSED when the caller never resolved card context at all", () => {
+    const c = ctx({ txn: txn({ cardRef: "93509" }), cardVehicleCountInWindow: 3 });
+    delete (c as { cardIdentifiable?: boolean }).cardIdentifiable;
+    expect(runAllRules(c).find((r) => r.ruleId === "card_multi_vehicle")).toBeUndefined();
+  });
+  it("still fires normally once the card IS identifiable", () => {
+    const c = ctx({ txn: txn({ cardRef: "7083050030281917521" }), cardIdentifiable: true, cardVehicleCountInWindow: 3 });
+    expect(ids(c)).toContain("card_multi_vehicle");
   });
 });
 

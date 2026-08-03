@@ -4,7 +4,8 @@ import {
   declineSignalWeight,
   classifyDeclineReason,
   assessCardAssignment,
-  cardRefsMatch,
+  cardRefsDefinitelyMatch,
+  isFullCardNumber,
   attributeDeclinedRow,
   isNoonSentinelIso,
   CARD_MISMATCH_UNVERIFIED_WEIGHT,
@@ -73,6 +74,38 @@ async function vehicleAtDeclineLocation(
   return { matched: recon.locationMatched, confidence: recon.locationConfidence, stationLat: recon.stationLat, stationLng: recon.stationLng };
 }
 
+/** Resolve the decline's stable EFS driver identity when the row has no internal driver id. */
+async function resolveDeclineDriverId(admin: SupabaseClient, orgId: string, d: DeclineRow): Promise<string | null> {
+  let declineDriverId: string | null = d.driver_id;
+  if (!declineDriverId && d.driver_ext_id) {
+    const { data: drv } = await admin
+      .from("drivers")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("efs_driver_id", d.driver_ext_id)
+      .maybeSingle();
+    declineDriverId = (drv?.id as string | null) ?? null;
+  }
+  return declineDriverId;
+}
+
+/**
+ * Same card or same resolved driver — the F5-safe "same actor" test.
+ *
+ * WP3c: the card half now requires BOTH refs to be unmasked full card numbers. Decline reports carry
+ * no control number, so a masked ref cannot name a card, and the old `cardRefsMatch` accepted any two
+ * refs sharing a last-4. That cut both ways: it wrongly EXONERATED a decline by treating a stranger's
+ * fill as the corrective fill, and wrongly FIRED `approved_elsewhere` on a stranger's approval. When
+ * the card can't be identified, the resolved driver id is the only actor evidence we act on.
+ */
+function sameDeclineActor(
+  candidate: { card_ref: string | null; driver_id: string | null },
+  decline: DeclineRow,
+  declineDriverId: string | null,
+): boolean {
+  return cardRefsDefinitelyMatch(candidate.card_ref, decline.card_ref) || (declineDriverId != null && candidate.driver_id === declineDriverId);
+}
+
 /** Score one declined attempt: correlate Samsara location + card-assignment + repeat / approval patterns. */
 export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgId: string, declineId: string): Promise<void> {
   const { data: row } = await admin.from("declined_transactions").select(DECLINE_COLS).eq("id", declineId).eq("org_id", orgId).single();
@@ -114,19 +147,9 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
 
   // The decline's driver identity, resolved via the stable EFS numeric id when possible (WP1 D5) —
   // used to match same-driver approvals even when EFS masks one report's card number (F5).
-  let declineDriverId: string | null = d.driver_id;
-  if (!declineDriverId && d.driver_ext_id) {
-    const { data: drv } = await admin
-      .from("drivers")
-      .select("id")
-      .eq("org_id", orgId)
-      .eq("efs_driver_id", d.driver_ext_id)
-      .maybeSingle();
-    declineDriverId = (drv?.id as string | null) ?? null;
-  }
-  /** Same card (format-tolerant) or same resolved driver — the F5-safe "same actor" test. */
+  const declineDriverId = await resolveDeclineDriverId(admin, orgId, d);
   const sameActor = (x: { card_ref: string | null; driver_id: string | null }): boolean =>
-    cardRefsMatch(x.card_ref, d.card_ref) || (declineDriverId != null && x.driver_id === declineDriverId);
+    sameDeclineActor(x, d, declineDriverId);
 
   // Wrong-truck-number check + corrective-fill confirmation. The typed truck wasn't at the station — so look
   // for a SUCCESSFUL fill at that same station in the window right after the decline: a mis-typed unit gets
@@ -225,7 +248,11 @@ export async function scoreDeclinedAttempt(admin: SupabaseClient, env: Env, orgI
   }
 
   // 2) Repeated declines on the same card in the window (card testing).
-  if (d.card_ref) {
+  // WP3c: only counted when the ref is an unmasked full card number. On a masked ref an exact match
+  // pools EVERY driver sharing that last-4, so three drivers with one decline each looked like one
+  // card being tested three times — a fabricated signal. (It also splits across formats, so it was
+  // unreliable in the other direction too.) No identity → no card-testing claim.
+  if (d.card_ref && isFullCardNumber(d.card_ref)) {
     const { count } = await admin
       .from("declined_transactions")
       .select("id", { count: "exact", head: true })

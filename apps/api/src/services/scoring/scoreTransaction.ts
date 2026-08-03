@@ -73,6 +73,7 @@ export async function scoreTransaction(
     cardVehicleCountInWindow: cardCtx.cardVehicleCountInWindow,
     cardAssignedVehicleId: cardCtx.cardAssignedVehicleId,
     cardManualAssignedVehicleId: cardCtx.cardManualAssignedVehicleId,
+    cardIdentifiable: cardCtx.cardIdentifiable,
     samsaraLocationMatched: recon.samsaraLocationMatched,
     locationEvidence: recon.locationEvidence,
     tankFillShortGal: recon.tankFillShortGal,

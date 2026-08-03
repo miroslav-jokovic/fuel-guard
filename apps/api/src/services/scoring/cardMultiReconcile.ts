@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CASE_RULE_ID, sameCardFill } from "@fuelguard/shared";
+import { CASE_RULE_ID, isFullCardNumber, sameCardFill } from "@fuelguard/shared";
 
 /** Default window (hours) matching the rule's cumulativeWindowHours default. */
 const DEFAULT_WINDOW_H = 48;
@@ -81,9 +81,16 @@ export async function reconcileCardMultiForOrg(
 
     // Every fill on that CARD in the SAME backward window scoreTransaction used to count the trucks —
     // matched by true card identity (sameCardFill, WP3), mirroring the scorer's count exactly.
+    // WP3c: scan the SAME columns resolveCardContext scans (control_id always; card_ref only for an
+    // unmasked full number), or this pass would pull in other drivers' last-4 twins — and here the
+    // failure mode is worse than a miscount: an extra truck Samsara can't resolve sets allResolved
+    // false and BLOCKS the auto-clear, making the false alert permanent.
     const winStartIso = new Date(endMs - windowMs).toISOString();
+    const scanCols: ("card_ref" | "control_id")[] = [];
+    if (t.control_id) scanCols.push("control_id");
+    if (isFullCardNumber(t.card_ref)) scanCols.push("card_ref");
     const byId = new Map<string, { card_ref: string | null; control_id: string | null; vehicle_id: string | null; fueled_at: string }>();
-    for (const col of ["card_ref", "control_id"] as const) {
+    for (const col of scanCols) {
       const val = col === "card_ref" ? t.card_ref : t.control_id;
       if (!val) continue;
       const { data: fills } = await admin

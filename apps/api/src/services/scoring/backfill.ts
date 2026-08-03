@@ -126,9 +126,16 @@ export async function backfillOrg(
       done++;
       if (done % 50 === 0 || done === total) {
         if (onProgress) await onProgress(done, total);
-        if (shouldCancel && (await shouldCancel())) return done; // F6: stop gracefully; processed rows persist
+        if (shouldCancel && (await shouldCancel())) {
+          await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
+          return done; // F6: stop gracefully; processed rows persist
+        }
       }
     }
+    // Same post-pass the import path runs: auto-clear "one card, multiple trucks" cases that Samsara
+    // explains as ONE driver moving between trucks. Previously only scoreImportWithCascade did this,
+    // so a full Rebuild left every such case sitting open with nothing to clear it.
+    await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
     return total;
   }
 
@@ -257,6 +264,9 @@ export async function backfillOrg(
   };
   await Promise.all(Array.from({ length: concurrency }, () => worker()));
   if (aborted) throw aborted; // F1: surface a systemic outage loudly
+  // Auto-clear "one card, multiple trucks" cases Samsara explains as one driver changing trucks —
+  // the live path needs it for exactly the same reason the rebuild path does.
+  await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
   return canceled ? done : total;
 }
 

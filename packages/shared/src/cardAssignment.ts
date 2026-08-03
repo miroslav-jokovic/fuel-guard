@@ -7,25 +7,82 @@
  * does the queries/upserts.
  */
 
-/** Digits-only view of a card ref (EFS pads with trailing spaces; some exports mask to last 4). */
+/** Digits-only view of a string (EFS pads refs with trailing spaces). */
 const digits = (s: string | null | undefined): string => (s ?? "").replace(/\D/g, "");
 
+/** A card number this long (unmasked) is a full PAN and identifies the card on its own. */
+export const FULL_PAN_MIN_DIGITS = 8;
+
 /**
- * Stable identity key for one physical card. Full PAN (≥8 digits) when the export carries it; else
- * last4 + the EFS Driver Control ID (migration 0075: EFS sometimes masks cards to the last 4, which
- * collides across drivers — the control id disambiguates). Returns null when the row can't identify a
- * card reliably (bare last-4 with no control id) — callers must stay silent rather than guess.
+ * Mask detection (WP3c). EFS reports now truncate the PAN, and the masking is NOT always a bare
+ * last-4: refs arrive as `1234`, `****1234`, `••••1234` and `708305XXXXXX1234`. The last form is the
+ * dangerous one — a naive digits-only view yields `7083051234` (10 digits), which the old ≥8-digit
+ * test read as a FULL PAN, so the control id was never consulted and every card sharing a BIN prefix
+ * + last-4 was conflated into one identity. `x` counts as a mask character only when the ref carries
+ * no other letters (so a genuinely alphanumeric fleet ref like "TX1234" is left alone).
  */
-export function cardIdentityKey(cardRef: string | null | undefined, controlId?: string | null): string | null {
-  const d = digits(cardRef);
-  if (d.length >= 8) return d;
-  if (d.length >= 4 && controlId) return `${d}|${controlId.trim()}`;
+const UNAMBIGUOUS_MASK = /[*•·#]/;
+const NON_X_LETTER = /[a-wyz]/i;
+
+function maskSplitter(ref: string): RegExp | null {
+  if (UNAMBIGUOUS_MASK.test(ref)) return /[*•·#xX]+/g;
+  if (/x/i.test(ref) && !NON_X_LETTER.test(ref)) return /[xX]+/g;
   return null;
 }
 
-/** Last 4 digits of a card ref (for the fuel_cards.card_last4 lookup path), or null. */
+/** True when the ref is masked/truncated — only its trailing digits are the card's own. */
+export function isMaskedCardRef(cardRef: string | null | undefined): boolean {
+  return maskSplitter((cardRef ?? "").trim()) != null;
+}
+
+/**
+ * The digits of a ref that really belong to the card. For a masked ref that is ONLY the trailing run
+ * after the last mask character (`708305XXXXXX1234` → `1234`); for an unmasked ref it is every digit.
+ * This is what every identity comparison must be built on. Pure.
+ */
+export function cardDigits(cardRef: string | null | undefined): string {
+  const s = (cardRef ?? "").trim();
+  if (!s) return "";
+  const splitter = maskSplitter(s);
+  if (!splitter) return digits(s);
+  const parts = s.split(splitter);
+  return digits(parts[parts.length - 1] ?? "");
+}
+
+/**
+ * True when the ref is an UNMASKED full card number — the only case where the ref alone identifies
+ * one physical card. A masked ref is never full, however many digits survive the mask.
+ */
+export function isFullCardNumber(cardRef: string | null | undefined): boolean {
+  const s = (cardRef ?? "").trim();
+  if (!s || maskSplitter(s)) return false;
+  return digits(s).length >= FULL_PAN_MIN_DIGITS;
+}
+
+/**
+ * Stable identity key for one physical card. Full unmasked PAN when the export carries it; else
+ * last4 + the EFS Driver Control ID (migration 0075: EFS masks cards to the last 4, which collides
+ * across drivers — the control id disambiguates). Returns null when the row can't identify a card
+ * reliably (masked/short ref with no control id) — callers must stay silent rather than guess.
+ *
+ * The masked key is keyed on the LAST 4 (not on every surviving digit) so `1234`, `****1234` and
+ * `708305XXXXXX1234` collapse to ONE identity for the same card + control id.
+ */
+export function cardIdentityKey(cardRef: string | null | undefined, controlId?: string | null): string | null {
+  if (isFullCardNumber(cardRef)) return digits(cardRef);
+  const l4 = cardLast4(cardRef);
+  const ctrl = controlId?.trim();
+  return l4 && ctrl ? `${l4}|${ctrl}` : null;
+}
+
+/** Convenience predicate: can this row identify a physical card at all? */
+export function cardIsIdentifiable(cardRef: string | null | undefined, controlId?: string | null): boolean {
+  return cardIdentityKey(cardRef, controlId) != null;
+}
+
+/** Last 4 digits of a card ref (for the fuel_cards.card_last4 lookup path), or null. Mask-aware. */
 export function cardLast4(cardRef: string | null | undefined): string | null {
-  const d = digits(cardRef);
+  const d = cardDigits(cardRef);
   return d.length >= 4 ? d.slice(-4) : null;
 }
 
@@ -86,17 +143,30 @@ export function learnCardAssignments(
 }
 
 /**
- * Do two card refs denote the same physical card? Handles EFS's mixed formats (F5): full 19-digit PAN
- * on one report, masked last-4 on the other, padding/whitespace. True when the digit strings are equal
- * OR one (≥4 digits) is the trailing suffix of the other (a masked ref vs its full PAN). Pure.
+ * Are two card refs COMPATIBLE — i.e. could they be the same physical card? Handles EFS's mixed
+ * formats (F5): full PAN on one report, masked last-4 on the other, padding/whitespace. True when the
+ * card-owned digit strings are equal OR one (≥4 digits) is the trailing suffix of the other.
+ *
+ * ⚠️ This is a COMPATIBILITY test, not an identity test. Two different drivers' cards sharing a last-4
+ * are "compatible" and this returns true for them. Anything that decides "these two rows are the SAME
+ * card" must use `sameCardFill` (or compare `cardIdentityKey`s) instead. Pure.
  */
 export function cardRefsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
-  const da = digits(a);
-  const db = digits(b);
+  const da = cardDigits(a);
+  const db = cardDigits(b);
   if (da.length < 4 || db.length < 4) return false;
   if (da === db) return true;
   const [short, long] = da.length <= db.length ? [da, db] : [db, da];
   return long.endsWith(short);
+}
+
+/**
+ * Do two refs identify the same card WITHOUT any help from a control id? Only true when BOTH sides
+ * are unmasked full card numbers and their digits are equal. Used where no control id exists at all
+ * (the decline reports), so those paths can stay silent instead of guessing on a last-4.
+ */
+export function cardRefsDefinitelyMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  return isFullCardNumber(a) && isFullCardNumber(b) && digits(a) === digits(b);
 }
 
 /**
@@ -123,20 +193,32 @@ export function dominantVehicle(
 }
 
 /**
- * Are two FILL rows the same physical card? (WP3 — the card_multi_vehicle identity test.) True when the
- * card refs match digit-wise (full/masked tolerant) AND the EFS control ids don't contradict: two rows
- * sharing a last-4 but carrying DIFFERENT control ids are two different drivers' cards (the 0075
- * conflation), never the same card. A missing control id on either side doesn't block the match. Pure.
+ * Are two FILL rows the same physical card? (WP3 — the card_multi_vehicle identity test, corrected in
+ * WP3c.) Symmetric, and it NEVER short-circuits past the control id on a masked ref:
+ *
+ *   • both sides unmasked full card numbers → the digits decide, control not needed;
+ *   • otherwise (either side masked or a bare last-4) the ref alone cannot identify a card, so the
+ *     last 4 must agree AND both control ids must be present and equal.
+ *
+ * The old rule accepted "one side has ≥8 digits" as definitive. That was wrong twice over: a masked
+ * ref like `708305XXXXXX1234` has ≥8 digits but is not a PAN, and a genuine PAN compared against a
+ * bare last-4 is a suffix match shared by every card ending in those digits — which is exactly how a
+ * single fill collected other drivers' trucks and fired `card_multi_vehicle`.
+ *
+ * Deliberately asymmetric in its failure mode: an unresolvable pair returns FALSE (the card's own
+ * history goes uncounted) rather than TRUE (another driver's fill gets counted as this card's). An
+ * undercount costs recall on an unidentifiable card; an overcount fabricates a high-severity alert.
+ * Pure.
  */
 export function sameCardFill(
   a: { cardRef: string | null; controlId: string | null },
   b: { cardRef: string | null; controlId: string | null },
 ): boolean {
-  if (!cardRefsMatch(a.cardRef, b.cardRef)) return false;
-  // A full PAN (>=8 digits) on either side makes the ref match definitive — control not needed.
-  if (digits(a.cardRef).length >= 8 || digits(b.cardRef).length >= 8) return true;
-  // Both sides are a MASKED last-4 → ambiguous across drivers (migration 0075). Require BOTH control
-  // ids present AND equal; a missing control id cannot confirm same-card, so we never conflate.
+  const da = cardDigits(a.cardRef);
+  const db = cardDigits(b.cardRef);
+  if (da.length < 4 || db.length < 4) return false;
+  if (isFullCardNumber(a.cardRef) && isFullCardNumber(b.cardRef)) return da === db;
+  if (da.slice(-4) !== db.slice(-4)) return false;
   const ca = a.controlId?.trim();
   const cb = b.controlId?.trim();
   return !!ca && !!cb && ca === cb;

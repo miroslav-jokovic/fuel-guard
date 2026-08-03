@@ -203,6 +203,11 @@ export interface RuleContext {
    *  non-contradicting control ids, see sameCardFill) within the window, incl. this one. WP3: this is
    *  a CARD count, never a driver count — a driver moving trucks with different cards doesn't inflate it. */
   cardVehicleCountInWindow?: number;
+  /** WP3c — can this fill's card be identified AT ALL (unmasked full number, or last-4 + a control
+   *  number)? EFS now masks the PAN, and a masked ref is shared by every card with that last-4, so
+   *  every card-keyed rule must stay SILENT when this is false rather than judge a card it can't
+   *  name. Undefined is treated as not-identifiable (fail closed). */
+  cardIdentifiable?: boolean;
   /** AS-OF-FILL-TIME learned assignment (dominant vehicle over the 60 days BEFORE this fill — WP3b).
    *  Statistical inference: enriches evidence/messages and corroborates, but NEVER fires an alarm alone
    *  (169-false-alarm lesson: a card era-change or slip-seat secondary truck is not misuse). */

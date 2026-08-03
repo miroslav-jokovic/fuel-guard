@@ -1,0 +1,63 @@
+Companion code change for supabase/migrations/0105_external_ref_canonical_card.sql
+==================================================================================
+
+Apply BOTH or NEITHER, in the same deploy. Three edits, all in
+packages/shared/src/efsImport/parse.ts. Each makes the leading <card> segment of an
+external_ref the card's LAST 4 DIGITS, so a file import (masked card) and the SOAP
+feed (full card number) produce the SAME ref for the same transaction.
+
+Add to the imports at the top of the file:
+
+    import { cardLast4 } from "../cardAssignment.js";
+
+--------------------------------------------------------------------------------
+1) normalizeTransactionRows — the merged fuel events (fuel_transactions.external_ref)
+
+   Move the cardRefVal line ABOVE the `card` line, then:
+
+-  const card = cardShort ?? cardFull;
+-  const cardRefVal =
+-    [cardFull, cardShort].filter((v): v is string => !!v).sort((a, b) => b.length - a.length)[0] ?? card;
++  const cardRefVal =
++    [cardFull, cardShort].filter((v): v is string => !!v).sort((a, b) => b.length - a.length)[0] ??
++    (cardShort ?? cardFull);
++  // Canonical ref segment: the last 4 digits — the ONLY form both the masked file report and the
++  // full-number SOAP feed can produce for the same card. Keeps one transaction to one external_ref
++  // regardless of which channel delivered it. See migration 0105.
++  const card = cardLast4(cardRefVal) ?? cardShort ?? cardFull;
+
+--------------------------------------------------------------------------------
+2) normalizeAllTransactionLines — the faithful store (efs_transactions.external_ref)
+
+   `card` is used BOTH for the ref and for the stored card_num. Only the ref changes:
+
+   const card = str(pick(row, "Card #", "Card Number"));
++  const refCard = cardLast4(card) ?? card;   // canonical ref segment (migration 0105)
+
+   ...then in the returned object:
+
+-    external_ref: txnId
+-      ? [card ?? "", txnId, item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|")
+-      : [card ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|"),
++    external_ref: txnId
++      ? [refCard ?? "", txnId, item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|")
++      : [refCard ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|"),
+
+   (card_num keeps the verbatim value — the faithful store must stay faithful.)
+
+--------------------------------------------------------------------------------
+3) deriveFuelEventsFromEfsStore — re-derivation from the faithful store
+
+-  const dateKey = `${str(l.card_num) ?? ""}|${invoice}|${l.tran_date}`;
++  // Must match normalizeTransactionRows byte-for-byte or a re-derive creates duplicates.
++  const dateKey = `${cardLast4(l.card_num) ?? str(l.card_num) ?? ""}|${invoice}|${l.tran_date}`;
+
+--------------------------------------------------------------------------------
+Verification after applying both
+
+  * `pnpm --filter @fuelguard/shared test` — efsImport.test.ts asserts on external_ref values and
+    WILL fail until its expected refs are updated to the last-4 form. That failure is the intended
+    signal, not a regression: update the fixtures to match.
+  * Re-import a file you have already imported. Expect `duplicate_rows` to equal the row count and
+    `newFuel` to be 0. If you see new rows, code and data are out of sync — stop and re-check.
+  * Only then enable the SOAP feed.

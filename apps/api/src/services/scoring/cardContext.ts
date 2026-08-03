@@ -1,11 +1,11 @@
 /** Card-identity context for scoring one fill (WP3, hardened WP3b) — true-card vehicle count, the
  * AS-OF-FILL-TIME learned assignment, and any manual (human) assignment.
  *
- * Counted by the TRUE CARD, never by driver: candidate fills are fetched by card_ref or control_id,
- * then filtered with sameCardFill — a digit-tolerant ref match (full PAN vs masked last-4) with
- * control-id disambiguation, so two drivers sharing a last-4 are never conflated and a slip-seat
- * driver's DIFFERENT per-truck cards never inflate one card's count. A bare last-4 with no control id
- * stays uncounted (unidentifiable — surfaced in detection coverage, never guessed at).
+ * Counted by the TRUE CARD, never by driver: candidate fills are fetched by control_id (and by
+ * card_ref only when this fill carries an UNMASKED full card number — see below), then filtered with
+ * sameCardFill, so two drivers sharing a last-4 are never conflated and a slip-seat driver's
+ * DIFFERENT per-truck cards never inflate one card's count. A masked ref with no control id stays
+ * uncounted (unidentifiable — surfaced in detection coverage, never guessed at).
  *
  * WP3b (169-false-alarm fix): the learned assignment is computed AS OF THE FILL — the dominant vehicle
  * over the 60 days BEFORE it — so a rebuild judges each fill against the assignment true THEN, never
@@ -13,7 +13,7 @@
  * MANUAL assignments (human ground truth), and only for fills recent enough for the record to apply.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardIdentityKey, sameCardFill, dominantVehicle, type TxnView } from "@fuelguard/shared";
+import { cardIdentityKey, isFullCardNumber, sameCardFill, dominantVehicle, type TxnView } from "@fuelguard/shared";
 
 /** As-of learning window (days before the fill) — matches the nightly learner's window. */
 const ASSIGN_WINDOW_DAYS = 60;
@@ -28,7 +28,16 @@ export interface CardContext {
   cardAssignedVehicleId: string | null;
   /** Manual (human-declared) assignment applicable to this fill, or null. */
   cardManualAssignedVehicleId: string | null;
+  /** WP3c — could this fill's card be identified at all? Card-keyed rules stay silent when false. */
+  cardIdentifiable: boolean;
 }
+
+const UNIDENTIFIABLE: CardContext = {
+  cardVehicleCountInWindow: 0,
+  cardAssignedVehicleId: null,
+  cardManualAssignedVehicleId: null,
+  cardIdentifiable: false,
+};
 
 export async function resolveCardContext(
   admin: SupabaseClient,
@@ -37,16 +46,29 @@ export async function resolveCardContext(
   winStartIso: string,
   fueledAt: string,
 ): Promise<CardContext> {
-  if (!cardIdentityKey(txn.cardRef, txn.controlId)) {
-    return { cardVehicleCountInWindow: 0, cardAssignedVehicleId: null, cardManualAssignedVehicleId: null };
-  }
+  const identityKey = cardIdentityKey(txn.cardRef, txn.controlId);
+  if (!identityKey) return { ...UNIDENTIFIABLE };
   const me = { cardRef: txn.cardRef ?? null, controlId: txn.controlId ?? null };
   const assignStartIso = new Date(Date.parse(fueledAt) - ASSIGN_WINDOW_DAYS * 86_400_000).toISOString();
 
   // ONE fetch covers both needs: the card's fills over the trailing 60 days (as-of assignment) — the
   // short misuse window (count) is a subset filtered in code.
+  //
+  // WP3c — WHICH COLUMNS WE MAY SCAN BY:
+  //   • control_id is always safe: it is the disambiguator, and sameCardFill still filters the result.
+  //   • card_ref is scanned ONLY when this fill carries an unmasked full card number. Since EFS began
+  //     masking, a card_ref scan on a bare/masked ref returns EVERY card in the org ending in those 4
+  //     digits. That was not just wasted work: the `limit(400)` is applied by Postgres (fueled_at desc)
+  //     BEFORE sameCardFill runs here, so on a busy shared last-4 the card's own fills were evicted
+  //     from the page — silently corrupting both the count and the as-of assignment.
+  // An identifiable masked fill always has a control id (that is what makes it identifiable), so
+  // dropping the ref scan for those loses no candidates.
+  const scanCols: ("card_ref" | "control_id")[] = [];
+  if (txn.controlId) scanCols.push("control_id");
+  if (txn.cardRef && isFullCardNumber(txn.cardRef)) scanCols.push("card_ref");
+
   const seen = new Map<string, { card_ref: string | null; control_id: string | null; vehicle_id: string | null; fueled_at: string; id: string }>();
-  for (const col of ["card_ref", "control_id"] as const) {
+  for (const col of scanCols) {
     const val = col === "card_ref" ? txn.cardRef : txn.controlId;
     if (!val) continue;
     const { data: rows } = await admin
@@ -76,19 +98,16 @@ export async function resolveCardContext(
   let cardManualAssignedVehicleId: string | null = null;
   const fillAgeDays = (Date.now() - Date.parse(fueledAt)) / 86_400_000;
   if (fillAgeDays <= MANUAL_APPLICABLE_DAYS) {
-    const key = cardIdentityKey(txn.cardRef, txn.controlId);
-    if (key) {
-      const { data: manualRow } = await admin
-        .from("fuel_cards")
-        .select("vehicle_id")
-        .eq("org_id", orgId)
-        .eq("card_ref", key)
-        .eq("assignment_source", "manual")
-        .not("vehicle_id", "is", null)
-        .maybeSingle();
-      cardManualAssignedVehicleId = (manualRow?.vehicle_id as string | null) ?? null;
-    }
+    const { data: manualRow } = await admin
+      .from("fuel_cards")
+      .select("vehicle_id")
+      .eq("org_id", orgId)
+      .eq("card_ref", identityKey)
+      .eq("assignment_source", "manual")
+      .not("vehicle_id", "is", null)
+      .maybeSingle();
+    cardManualAssignedVehicleId = (manualRow?.vehicle_id as string | null) ?? null;
   }
 
-  return { cardVehicleCountInWindow, cardAssignedVehicleId, cardManualAssignedVehicleId };
+  return { cardVehicleCountInWindow, cardAssignedVehicleId, cardManualAssignedVehicleId, cardIdentifiable: true };
 }

@@ -7,6 +7,7 @@
  *
  * Pure + testable; the web pages fuel rows and passes them here.
  */
+import { cardIsIdentifiable } from "./cardAssignment.js";
 
 export interface CoverageInput {
   vehicle_id: string | null;
@@ -120,10 +121,10 @@ export function computeDetectionCoverage(rows: CoverageInput[]): CoverageSummary
     if (isConfirmed) confirmed += 1;
     if (r.card_ref) {
       cardFills += 1;
-      // Same identity rule as cardIdentityKey: ≥8 digits (full PAN) or ≥4 digits + a control id.
-      const digits = r.card_ref.replace(/\D/g, "");
-      const identifiable = digits.length >= 8 || (digits.length >= 4 && !!r.control_id);
-      if (!identifiable) cardBlind += 1;
+      // Delegate to the ONE identity rule (cardAssignment.ts) instead of re-deriving it. The old
+      // inline copy read a masked ref like `708305XXXXXX1234` as a full PAN, so card-blind fills were
+      // under-reported — precisely the blindness this metric exists to surface.
+      if (!cardIsIdentifiable(r.card_ref, r.control_id)) cardBlind += 1;
     }
     timeBasis[timeBasisKey(r.fueling_time_basis)] += 1;
 

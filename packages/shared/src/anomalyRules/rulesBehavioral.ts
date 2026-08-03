@@ -202,12 +202,19 @@ export function ruleReeferFuelDiversion(ctx: RuleContext): RuleResult {
  *       (message enriched with the as-of-fill-time learned assignment when one exists).
  *  A LEARNED assignment mismatch alone NEVER fires: as-of learning is statistical, and a card era-change
  *  or a slip-seat secondary truck is not misuse. Samsara's driver-assignment reconcile
- *  (cardMultiReconcile) still auto-clears one-driver-moved-trucks cases. */
+ *  (cardMultiReconcile) still auto-clears one-driver-moved-trucks cases.
+ *
+ *  WP3c: hard-gated on card IDENTIFIABILITY. Since EFS stopped printing full card numbers, a bare or
+ *  masked ref is shared by every card ending in those 4 digits — so a card we cannot name is a card we
+ *  never accuse. */
 export function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
   const count = ctx.cardVehicleCountInWindow ?? 0;
   const asOf = ctx.cardAssignedVehicleId ?? null;
   const manual = ctx.cardManualAssignedVehicleId ?? null;
   const hrs = ctx.thresholds.cumulativeWindowHours ?? 48;
+  // Fail closed: undefined (a caller that never resolved card context) is treated as unidentifiable.
+  // Belt-and-braces — the scorer already reports a count of 0 for an unidentifiable card.
+  if (ctx.cardIdentifiable !== true) return none("card_multi_vehicle");
   if (ctx.txn.cardRef && manual != null && ctx.txn.vehicleId != null && ctx.txn.vehicleId !== manual) {
     return { ruleId: "card_multi_vehicle", fired: true, severity: "high", message: `This fuel card is manually assigned to a different truck than the one it fueled${count >= 2 ? ` (and fueled ${count} vehicles within ${hrs}h)` : ""}.`, evidence: { manualAssignedVehicleId: manual, vehicleId: ctx.txn.vehicleId, vehicleCount: count, windowHours: hrs } };
   }

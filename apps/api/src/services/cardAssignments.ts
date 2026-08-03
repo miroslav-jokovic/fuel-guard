@@ -8,12 +8,21 @@
  * (assignment_source = 'manual') are authoritative and never overwritten.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { learnCardAssignments, cardIdentityKey, cardLast4, type CardFillRow } from "@fuelguard/shared";
+import { learnCardAssignments, cardIdentityKey, cardLast4, isFullCardNumber, type CardFillRow } from "@fuelguard/shared";
 
 /**
  * The vehicle a card is ASSIGNED to (fuel_cards), or null. Shared by decline scoring and the
- * card_multi_vehicle rule context. Exact key first; masked-ref fallback matches by last4 ONLY when
- * exactly one assigned card carries it (never guess).
+ * card_multi_vehicle rule context.
+ *
+ * WP3c — the last-4 fallback is now gated. It used to run whenever the exact-key lookup missed, and
+ * returned a truck whenever exactly one KNOWN card carried that last-4. That guard is an illusion
+ * once EFS masks the PAN: a second physical card sharing the last-4 that simply isn't in `fuel_cards`
+ * yet is invisible to the `limit(2)` check, so the lookup happily returned another driver's truck —
+ * which the decline scorer then raised as a weight-75 "card assigned to a different truck" signal.
+ *
+ * The fallback now runs only when the CALLER's ref is an unmasked full card number AND the matched
+ * row's own ref is a full number ending in the same digits, i.e. when the match is provable. Anything
+ * ambiguous returns null (stay silent, don't guess) — the same posture as the rest of the engine.
  */
 export async function lookupCardAssignment(
   admin: SupabaseClient,
@@ -26,17 +35,23 @@ export async function lookupCardAssignment(
     const { data } = await admin.from("fuel_cards").select("vehicle_id").eq("org_id", orgId).eq("card_ref", key).maybeSingle();
     if (data?.vehicle_id) return data.vehicle_id as string;
   }
+  if (!isFullCardNumber(cardRef)) return null; // masked/short ref → the last-4 cannot name a card
   const last4 = cardLast4(cardRef);
   if (!last4) return null;
   const { data: byLast4 } = await admin
     .from("fuel_cards")
-    .select("vehicle_id")
+    .select("card_ref, vehicle_id")
     .eq("org_id", orgId)
     .eq("card_last4", last4)
     .not("vehicle_id", "is", null)
     .limit(2);
-  const cands = (byLast4 ?? []) as { vehicle_id: string | null }[];
-  return cands.length === 1 ? cands[0]!.vehicle_id : null;
+  const cands = (byLast4 ?? []) as { card_ref: string | null; vehicle_id: string | null }[];
+  if (cands.length !== 1) return null;
+  const only = cands[0]!;
+  // The stored ref must itself be a full number that agrees with ours — a row keyed by "1234|CTRL"
+  // or by a bare last-4 proves nothing about which physical card it is.
+  if (!isFullCardNumber(only.card_ref) || cardLast4(only.card_ref) !== last4) return null;
+  return only.vehicle_id;
 }
 
 /** Trailing window of fill history the assignment is learned from. */

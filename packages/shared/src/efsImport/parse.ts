@@ -144,6 +144,43 @@ export function normalizeTransactionRows(rows: RawRow[]): {
 
     const existing = byInvoice.get(key);
     const driverExtId = str(pick(row, "DriverId", "Driver Id", "Driver ID"));
+    // WP3c collision guard. The merge key is Card | Invoice | date | tank, and since EFS masks the
+    // PAN the "Card" component is only a last-4. Two DIFFERENT drivers' cards sharing a last-4 that
+    // also share an invoice number on the same business date would merge into one event with their
+    // gallons SUMMED — a fabricated oversized fill that then trips the tank-capacity and cumulative-
+    // overfuel rules. Contradicting control numbers prove that happened, so keep the rows apart.
+    if (existing && existing.control_id && controlId && existing.control_id.trim() !== controlId.trim()) {
+      const collisionKey = `${key}|${controlId.trim()}`;
+      const twin = byInvoice.get(collisionKey);
+      if (twin) {
+        twin.gallons += gallons;
+        twin.total_cost = (twin.total_cost ?? 0) + (total ?? 0);
+        twin.driver_ext_id = twin.driver_ext_id ?? driverExtId;
+        return;
+      }
+      byInvoice.set(collisionKey, {
+        external_ref: `${ref}|${controlId.trim()}`,
+        unit: str(pick(row, "Unit")),
+        driver_name: str(pick(row, "Driver Name")),
+        card_ref: cardRefVal,
+        control_id: controlId,
+        driver_ext_id: driverExtId,
+        fueled_at: instant.iso,
+        tran_date: instant.tranDate,
+        fueled_at_precision: instant.precision,
+        odometer: num(pick(row, "Odometer")),
+        gallons,
+        price_per_gal: num(pick(row, "Unit Price", "PricePerUnit")),
+        total_cost: total,
+        fuel_type: fuelType,
+        tank_type: tankType,
+        item,
+        location_text: str(pick(row, "Location Name")),
+        city: str(pick(row, "City", "Location City")),
+        state,
+      });
+      return;
+    }
     if (existing) {
       existing.gallons += gallons;
       existing.total_cost = (existing.total_cost ?? 0) + (total ?? 0);

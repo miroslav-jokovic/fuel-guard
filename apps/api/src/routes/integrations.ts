@@ -13,6 +13,7 @@ import {
   upsertEfsSoapCredentials,
 } from "../services/efsSoapCredentials.js";
 import { pingEfsSoap } from "../lib/efsSoap.js";
+import { describeEfsTls } from "../lib/soapClient.js";
 import { dispatchJob } from "../services/queue/dispatch.js";
 import type { RunJobResult } from "../services/jobs.js";
 import { z } from "zod";
@@ -225,7 +226,9 @@ export function integrationsRouter(): Router {
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
-      res.json(await getEfsSoapStatus(admin, env, req.auth!.orgId!));
+      // `tls` is derived from deploy env vars, not the credential row — it tells an admin at a
+      // glance whether the client certificate EFS may require is actually loaded.
+      res.json({ ...(await getEfsSoapStatus(admin, env, req.auth!.orgId!)), tls: describeEfsTls(env) });
     }),
   );
 
@@ -319,7 +322,7 @@ export function integrationsRouter(): Router {
         meta: { ok: result.ok, roundtripMs, errorCode: result.ok ? null : result.error.code },
       });
       if (result.ok) {
-        res.json({ ok: true, roundtripMs });
+        res.json({ ok: true, roundtripMs, tls: describeEfsTls(env) });
       } else {
         // Keep the legacy response shape for clients that still understand the pre-WSDL state.
         if (result.error.code === "not_implemented") {

@@ -195,6 +195,33 @@ const EnvSchema = z.object({
   // level, this stays unset and EFS allowlists the Railway IPs directly.
   EFS_SOAP_EGRESS_PROXY_URL: z.string().url().optional(),
 
+  // ── Optional mutual TLS (client certificate) for the EFS SOAP endpoint ─────────────────────────
+  // EFS has not yet confirmed whether their production endpoint requires a client certificate. This
+  // block is INERT until a cert is supplied: with all three unset the client uses ordinary TLS and
+  // behaves exactly as before, so it is safe to ship ahead of their answer. When EFS says "yes,
+  // mTLS", drop the PEMs into these vars and redeploy — no code change.
+  //
+  // Values are PEM TEXT, not paths (Railway/Docker have no persistent secret files). Newlines may be
+  // supplied literally or escaped as \n; both are normalised. Use *_B64 for a base64-encoded PEM when
+  // the platform's env editor mangles multi-line values.
+  EFS_SOAP_CLIENT_CERT_PEM: z.string().optional(),      // client certificate chain (leaf first)
+  EFS_SOAP_CLIENT_KEY_PEM: z.string().optional(),       // matching private key
+  EFS_SOAP_CLIENT_KEY_PASSPHRASE: z.string().optional(),// only if the key is encrypted
+  EFS_SOAP_CLIENT_CERT_B64: z.string().optional(),
+  EFS_SOAP_CLIENT_KEY_B64: z.string().optional(),
+  // Extra CA bundle, if EFS's endpoint is signed by a private/enterprise root Node doesn't trust.
+  EFS_SOAP_CA_PEM: z.string().optional(),
+  EFS_SOAP_CA_B64: z.string().optional(),
+  // PKCS#12 alternative (some issuers only hand out a .pfx). Base64 of the .p12/.pfx file.
+  EFS_SOAP_CLIENT_PFX_B64: z.string().optional(),
+  EFS_SOAP_CLIENT_PFX_PASSPHRASE: z.string().optional(),
+  // Escape hatch for a staging endpoint with a self-signed cert. NEVER set this in production — it
+  // disables certificate verification for EFS calls. Boot logs a loud warning when it is on.
+  EFS_SOAP_TLS_INSECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+
   // GovInfo API (api.govinfo.gov) — used for HMDB/regulatory data lookups. Optional; features
   // that need it will fail clearly when unset.
   GOVINFO_API_KEY: z.string().optional(),
