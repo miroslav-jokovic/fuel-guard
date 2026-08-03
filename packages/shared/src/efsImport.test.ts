@@ -351,10 +351,18 @@ describe("normalizeRejectRows", () => {
   ];
   const { declined, skipped } = normalizeRejectRows(rows);
 
-  it("parses a declined attempt with a real (tz-converted) timestamp and trimmed card", () => {
+  it("reads a naive reject timestamp as CENTRAL, not as station-local", () => {
     const d = declined[0]!;
-    // 12:15 station wall clock in GA (Eastern, DST) → 16:15Z.
-    expect(d.declined_at).toBe("2026-06-29T16:15:00.000Z");
+    // The EFS Card Web Service Integration Guide defines the reject feed's timestamp as
+    //   tranDate  dateTime  "The reject date/time, Central Time zone."
+    // so 12:15 is 12:15 CENTRAL (→ 17:15Z in June DST) even though the station is in Georgia.
+    //
+    // This assertion previously expected 16:15Z — Eastern, inferred from the station state. That is
+    // what the transaction feed does, because a POS time genuinely belongs to the station; the reject
+    // feed does not work that way. Reading it as station-local put every non-Central decline an hour
+    // out, which is enough to move it outside the window the "was the truck at this station?" check
+    // searches, quietly turning a real signal into a miss.
+    expect(d.declined_at).toBe("2026-06-29T17:15:00.000Z");
     expect(d.card_ref).toBe("7083050030485897149");
     expect(d.error_code).toBe("3");
     expect(d.driver_ext_id).toBe("1967");

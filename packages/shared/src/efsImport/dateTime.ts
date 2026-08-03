@@ -146,6 +146,15 @@ export function efsInstant(
   date: string | null | undefined,
   time?: string | null,
   state?: string | null,
+  /**
+   * Timezone a NAIVE wall time should be read in when the station state can't supply one — or when
+   * the feed documents a fixed zone regardless of station. The EFS guide specifies reject timestamps
+   * this way: `tranDate  dateTime  "The reject date/time, Central Time zone."` A decline in Georgia
+   * therefore arrives as Eastern-looking wall time that is actually Central, and reading it as
+   * station-local shifts it an hour — enough to move a decline outside the window the "was the truck
+   * at this station?" check searches, turning a real signal into a miss.
+   */
+  fallbackTz?: string | null,
 ): EfsInstant | null {
   const d = str(date);
   if (!d) return null;
@@ -162,7 +171,9 @@ export function efsInstant(
   const embedded = d.match(/\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp][Mm])?/);
   const hms = parseEfsTime(time) ?? (embedded ? parseEfsTime(embedded[0]) : null);
   if (!hms) return { iso: `${ymd}T12:00:00.000Z`, precision: "date", tranDate: ymd };
-  const tz = stateTimeZone(state);
+  // fallbackTz WINS over the station state when supplied: it means "this feed publishes in a fixed
+  // zone", which is a stronger statement than "guess from where the pump was".
+  const tz = fallbackTz ?? stateTimeZone(state);
   const iso = tz ? zonedWallTimeToUtcIso(ymd, hms, tz) : `${ymd}T${hms}.000Z`;
   return { iso, precision: "instant", tranDate: ymd };
 }

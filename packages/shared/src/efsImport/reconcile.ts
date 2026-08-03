@@ -4,6 +4,16 @@ import type { RawRow, ParsedFuelLine, ParsedDeclined, SkippedRow } from "./types
 import type { ReconciledFuelLine } from "./parse.js";
 import type { EfsInstant } from "./dateTime.js";
 import { str, num, efsInstant, rejectDateToIso } from "./dateTime.js";
+
+/**
+ * EFS publishes REJECT timestamps in Central Time, per the Card Web Service Integration Guide:
+ *
+ *   tranDate  dateTime  "The reject date/time, Central Time zone."
+ *
+ * Transactions are different — those carry a POS time that belongs to the station — so this applies
+ * to the decline path only. An explicit ISO offset on the value still wins over this default.
+ */
+const EFS_REJECT_TZ = "America/Chicago";
 import { pick } from "./parse.js";
 
 /** Known truck-stop chains, matched against the EFS Location Name. Order matters (Flying J before J). */
@@ -175,6 +185,7 @@ export function normalizeRejectRows(rows: RawRow[]): {
         str(pick(row, "Date", "Tran Date", "TransactionPOSDate")),
         str(pick(row, "Time", "TransactionPOSTime", "POS Time")),
         state,
+        EFS_REJECT_TZ,
       ) ?? rejectInstant(str(pick(row, "Date", "Time")), state);
     if (!instant) {
       skipped.push({ row_number: i + 1, reason: "unparseable date" });
@@ -282,7 +293,7 @@ function rejectInstant(date: string | null, state: string | null): EfsInstant | 
   // rejectDateToIso treated the naive wall time as UTC; re-derive via efsInstant for tz correctness.
   const s = str(date);
   if (s) {
-    const viaEfs = efsInstant(s, null, state);
+    const viaEfs = efsInstant(s, null, state, EFS_REJECT_TZ);
     if (viaEfs?.precision === "instant") return viaEfs;
   }
   return { iso, precision: "instant", tranDate: iso.slice(0, 10) };
