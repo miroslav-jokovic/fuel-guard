@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { AuthContext } from "@fuelguard/shared";
@@ -21,6 +21,7 @@ import { loadEnv } from "../../env.js";
 
 let server: Server;
 let baseUrl: string;
+let errorLog: ReturnType<typeof vi.spyOn>;
 
 const CTX: Record<string, AuthContext> = {
   admin: { userId: "u-admin", email: "a@silvicominc.com", orgId: "org-1", role: "admin" },
@@ -33,6 +34,13 @@ const CTX: Record<string, AuthContext> = {
 };
 
 beforeAll(async () => {
+  // The "passes the gate" cases deliberately reach the handler, which then calls getSupabaseAdmin()
+  // and throws "Supabase admin not configured" — there is no DB in the test env, and per the house
+  // rule we do not mock one. That is the EXPECTED outcome (it proves the request got past the guards),
+  // but the app's error middleware prints a stack for each, burying the real signal in `pnpm test`.
+  // Silence just this suite's expected stderr; every assertion below is on the HTTP status, not the log.
+  errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
   const app = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
   app.locals.verifyToken = async (t: string): Promise<AuthContext> => {
     const ctx = CTX[t];
@@ -48,6 +56,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  errorLog.mockRestore();
   await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
 });
 
@@ -77,14 +86,11 @@ describe("GET /api/roster/drivers — read gate (fleet: view)", () => {
     expect((await call("/", { token: "pending" })).status).toBe(403);
   });
 
-  it.each(["admin", "fleet", "safety", "dispatcher", "auditor"])(
-    "passes the gate for %s",
-    async (token) => {
-      // Reaches the handler (and then the DB, which is absent in test) — the point is it is NOT 401/403.
-      const res = await call("/", { token });
-      expect([401, 403]).not.toContain(res.status);
-    },
-  );
+  it.each(["admin", "fleet", "safety", "dispatcher", "auditor"])("passes the gate for %s", async (token) => {
+    // Reaches the handler (and then the DB, which is absent in test) — the point is it is NOT 401/403.
+    const res = await call("/", { token });
+    expect([401, 403]).not.toContain(res.status);
+  });
 });
 
 describe("POST /api/roster/drivers — write gate (fleet: manage)", () => {
@@ -94,12 +100,9 @@ describe("POST /api/roster/drivers — write gate (fleet: manage)", () => {
     expect((await call("/", { method: "POST", body })).status).toBe(401);
   });
 
-  it.each(["driver", "dispatcher", "auditor"])(
-    "403 for %s (read-only or no access)",
-    async (token) => {
-      expect((await call("/", { method: "POST", body, token })).status).toBe(403);
-    },
-  );
+  it.each(["driver", "dispatcher", "auditor"])("403 for %s (read-only or no access)", async (token) => {
+    expect((await call("/", { method: "POST", body, token })).status).toBe(403);
+  });
 
   it.each(["admin", "fleet", "safety"])("passes the gate for %s", async (token) => {
     const res = await call("/", { method: "POST", body, token });
@@ -107,11 +110,7 @@ describe("POST /api/roster/drivers — write gate (fleet: manage)", () => {
   });
 
   it("400 on a body that satisfies neither full_name nor first+last", async () => {
-    const res = await call("/", {
-      method: "POST",
-      body: JSON.stringify({ first_name: "Only" }),
-      token: "admin",
-    });
+    const res = await call("/", { method: "POST", body: JSON.stringify({ first_name: "Only" }), token: "admin" });
     expect(res.status).toBe(400);
   });
 });
@@ -138,11 +137,7 @@ describe("POST /api/roster/drivers/:id/invite — enrollment gate (admin + fleet
   });
 
   it("400 on a malformed email", async () => {
-    const res = await call(path, {
-      method: "POST",
-      body: JSON.stringify({ email: "nope" }),
-      token: "admin",
-    });
+    const res = await call(path, { method: "POST", body: JSON.stringify({ email: "nope" }), token: "admin" });
     expect(res.status).toBe(400);
   });
 });
@@ -153,9 +148,7 @@ describe("driverCreateSchema + deriveFullName (pure contract)", () => {
   });
 
   it("accepts first + last without full_name", () => {
-    expect(
-      driverCreateSchema.safeParse({ first_name: "Aaron", last_name: "Rothenberg" }).success,
-    ).toBe(true);
+    expect(driverCreateSchema.safeParse({ first_name: "Aaron", last_name: "Rothenberg" }).success).toBe(true);
   });
 
   it("rejects a partial name with no full_name", () => {
@@ -170,21 +163,17 @@ describe("driverCreateSchema + deriveFullName (pure contract)", () => {
   });
 
   it("rejects a status outside the canonical vocabulary", () => {
-    expect(driverCreateSchema.safeParse({ full_name: "A B", status: "vacationing" }).success).toBe(
-      false,
-    );
+    expect(driverCreateSchema.safeParse({ full_name: "A B", status: "vacationing" }).success).toBe(false);
   });
 
   it("derives full_name from the structured parts, skipping the blanks", () => {
-    expect(deriveFullName({ first_name: "Aaron", last_name: "Rothenberg" })).toBe(
-      "Aaron Rothenberg",
-    );
+    expect(deriveFullName({ first_name: "Aaron", last_name: "Rothenberg" })).toBe("Aaron Rothenberg");
     expect(deriveFullName({ first_name: "Aaron", middle_name: "J", last_name: "Rothenberg" })).toBe(
       "Aaron J Rothenberg",
     );
-    expect(
-      deriveFullName({ first_name: " Aaron ", middle_name: "  ", last_name: "Rothenberg" }),
-    ).toBe("Aaron Rothenberg");
+    expect(deriveFullName({ first_name: " Aaron ", middle_name: "  ", last_name: "Rothenberg" })).toBe(
+      "Aaron Rothenberg",
+    );
     expect(deriveFullName({})).toBe("");
   });
 });

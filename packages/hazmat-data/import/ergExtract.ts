@@ -32,7 +32,12 @@ function pdftotextLayout(pdfPath: string): string {
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code === "ENOENT") {
-      throw new Error("`pdftotext` not found — install poppler (macOS: `brew install poppler`; Debian: `apt install poppler-utils`).");
+      // Keep the original ENOENT as `cause`: the actionable install hint is the message, but the
+      // underlying errno is what you need if the failure is something other than a missing binary.
+      throw new Error(
+        "`pdftotext` not found — install poppler (macOS: `brew install poppler`; Debian: `apt install poppler-utils`).",
+        { cause: err },
+      );
     }
     throw err;
   }

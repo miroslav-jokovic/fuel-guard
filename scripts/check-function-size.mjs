@@ -12,7 +12,7 @@
  * or a grandfathered one that grew, fails.
  */
 import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
 

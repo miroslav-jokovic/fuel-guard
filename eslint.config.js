@@ -54,6 +54,18 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   ...pluginVue.configs["flat/recommended"],
   {
+    // typescript-eslint infers the TSConfig root by walking up from each file. `apps/driver` carries its
+    // own tsconfig (Expo/RN needs one), so from inside that subtree there are TWO candidate roots — the
+    // workspace root and the driver app — and the parser refuses to guess, failing EVERY file in the repo
+    // with "No tsconfigRootDir was set". Pinning it to this config's own directory is the documented fix
+    // and is correct for a monorepo: the root is where this flat config lives, always.
+    languageOptions: {
+      parserOptions: {
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
     files: ["**/*.vue"],
     languageOptions: {
       globals: browserGlobals,
