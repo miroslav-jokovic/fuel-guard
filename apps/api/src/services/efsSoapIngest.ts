@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
-import { ingestReport, type IngestResult } from "./efsIngest.js";
+import { ingestReport, type IngestDeps, type IngestResult } from "./efsIngest.js";
+import { dispatchJob } from "./queue/dispatch.js";
 import {
   getEfsSoapCredentials,
   upsertEfsSoapCredentials,
@@ -43,9 +44,41 @@ export interface EfsSoapIngestResult extends Record<string, unknown> {
   ingest?: IngestResult;
   error?: string;
   cursorAdvancedTo?: string | null;
+  /** A per-poll budget stopped this pass short; the next tick resumes from the advanced cursor. */
+  moreAvailable?: boolean;
+  /** Windows still between the cursor and now when this poll began — backfill progress. */
+  windowsOutstanding?: number;
+  /** True when this poll ingested WITHOUT scoring (catch-up); a rebuild runs when the backfill ends. */
+  scoringDeferred?: boolean;
 }
 
 const SOURCE_FOR_INGEST = "efs_feed" as const;
+
+async function queueBackfillScoring(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  feed: FeedName,
+  result: EfsSoapFetchResult,
+): Promise<void> {
+  if (result.moreAvailable || result.windowsOutstanding <= 1) return;
+  const kind = feed === "posted" ? "rebuild" : "rescore_declined";
+  try {
+    const job = await dispatchJob(admin, env, kind, {
+      orgId,
+      payload: { reason: `efs_soap_${feed}_backfill_complete` },
+    });
+    console.log(
+      `[efs-soap] ${feed} backfill complete for org=${orgId} — ` +
+        ("conflict" in job ? `${kind} already running` : `${kind} queued`),
+    );
+  } catch (e) {
+    console.error(
+      `[efs-soap] could not queue ${kind} after ${feed} backfill for org=${orgId}:`,
+      e instanceof Error ? e.message : e,
+    );
+  }
+}
 
 /**
  * Run ONE ingest pass for one org + one feed. Called by the poller (§efsSoapPoller.ts) for each
@@ -99,8 +132,8 @@ export async function runEfsSoapIngest(
   try {
     result =
       feed === "posted"
-        ? await fetchPostedTransactions(env, creds, cursor, { priority, maxPages: opts.maxPages ?? 1 })
-        : await fetchRejectedTransactions(env, creds, cursor, { priority, maxPages: opts.maxPages ?? 1 });
+        ? await fetchPostedTransactions(env, creds, cursor, { priority, maxPages: opts.maxPages })
+        : await fetchRejectedTransactions(env, creds, cursor, { priority, maxPages: opts.maxPages });
   } catch (e) {
     if (e instanceof EfsSoapError && e.code === "not_implemented") {
       // Retained for safe rollout/rollback if an older operation implementation is deployed.
@@ -122,12 +155,15 @@ export async function runEfsSoapIngest(
     // No new rows since the last cursor — advance nothing (the SOAP layer's nextCursor may still
     // change), stamp success, and move on. Do NOT create an empty `imports` row.
     await recordFeedSuccess(admin, orgId, feed, result.nextCursor ?? cursor);
+    await queueBackfillScoring(admin, env, orgId, feed, result);
     return {
       feed,
       status: "empty",
       pagesFetched: result.pagesFetched,
       rowsFetched: 0,
       cursorAdvancedTo: result.nextCursor ?? cursor,
+      moreAvailable: result.moreAvailable,
+      windowsOutstanding: result.windowsOutstanding,
     };
   }
 
@@ -138,6 +174,20 @@ export async function runEfsSoapIngest(
   const headers = Array.from(
     new Set(result.rows.flatMap((r) => Object.keys(r))),
   );
+  // ── Ingest-only while catching up ──────────────────────────────────────────────────────────────
+  // ingestReport scores inline via scoreImportWithCascade, which re-scores every new row AND cascades
+  // across each affected vehicle's whole history. That is right for a ~40-row daily poll. On a
+  // backfill window of up to EFS_SOAP_MAX_ROWS_PER_POLL rows it is ruinous — tens of thousands of
+  // sequential DB round trips inside one poll — and it is wasted work besides: rows scored in window
+  // N are re-scored anyway when window N+1 arrives carrying their neighbouring fills.
+  //
+  // So while `moreAvailable` is true we INGEST ONLY, and run scoring ONCE at the end. The final poll
+  // of a catch-up dispatches a full rebuild (below) so no window is left unscored.
+  const deferScoring = result.moreAvailable;
+  const ingestOnly: IngestDeps = {
+    scoreImport: async () => undefined,
+    scoreDeclined: async () => undefined,
+  };
   let ingest: IngestResult;
   try {
     ingest = await ingestReport(admin, env, {
@@ -149,7 +199,7 @@ export async function runEfsSoapIngest(
       headers,
       rows: result.rows,
       channel: "auto",
-    });
+    }, deferScoring ? ingestOnly : undefined);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await recordFeedFailure(admin, orgId, feed, msg);
@@ -163,6 +213,18 @@ export async function runEfsSoapIngest(
   }
 
   await recordFeedSuccess(admin, orgId, feed, result.nextCursor);
+  // One line per poll that answers "is the backfill progressing, and how much is left?" — otherwise
+  // a multi-hour catch-up is indistinguishable from a feed that has quietly stopped finding rows.
+  console.log(
+    `[efs-soap] ${feed} org=${orgId} pages=${result.pagesFetched} rows=${result.rows.length} ` +
+      `new=${ingest.newFuel ?? ingest.newDeclined ?? 0} cursor→${result.nextCursor} ` +
+      (deferScoring ? "scoring=deferred " : "scoring=inline ") +
+      (result.moreAvailable
+        ? `— catching up, ~${result.windowsOutstanding - result.pagesFetched} window(s) left`
+        : "— up to date"),
+  );
+
+  await queueBackfillScoring(admin, env, orgId, feed, result);
   return {
     feed,
     status: "ingested",
@@ -170,5 +232,8 @@ export async function runEfsSoapIngest(
     rowsFetched: result.rows.length,
     ingest,
     cursorAdvancedTo: result.nextCursor,
+    moreAvailable: result.moreAvailable,
+    windowsOutstanding: result.windowsOutstanding,
+    scoringDeferred: deferScoring,
   };
 }

@@ -114,3 +114,106 @@ describe("EFS SOAP operations", () => {
     }
   });
 });
+
+// ── Catch-up paging (backfill throughput) ────────────────────────────────────────────────────────
+// A first backfill is 180 days at 7-day windows = 26 requests. One window per poll at a 15-minute
+// cadence is 6.5 hours of waiting on timers, not on EFS. These tests pin the behaviour that makes a
+// catch-up drain in minutes while leaving steady state at exactly one window per poll.
+
+const pagingEnv = {
+  EFS_SOAP_MAX_RPS: 1000,
+  EFS_SOAP_MAX_RETRIES: 0,
+  EFS_SOAP_BACKFILL_DAYS: 90,
+  EFS_SOAP_MAX_DAYS_PER_REQUEST: 7,
+  EFS_SOAP_BACKFILL_MAX_PAGES: 5,
+  EFS_SOAP_BACKFILL_MAX_MS: 60_000,
+  EFS_SOAP_MAX_ROWS_PER_POLL: 5_000,
+} as Env;
+
+/** A posted response carrying `n` single-line-item transactions. */
+const postedPage = (n: number, tag: string): string =>
+  soap(`<getMCTransExtLocV2Response><result>${Array.from({ length: n }, (_, i) =>
+    `<value><transactionId>${tag}-${i}</transactionId><POSDate>2026-06-01T10:00:00Z</POSDate>` +
+    `<cardNumber>7083050030281917521</cardNumber><invoice>INV-${tag}-${i}</invoice>` +
+    `<lineItems><category>ULSD</category><quantity>50</quantity><ppu>3.5</ppu><amount>175</amount></lineItems>` +
+    `</value>`).join("")}</result></getMCTransExtLocV2Response>`);
+
+/** login + `pages` data responses + logout. */
+const pagedSequence = (perPage: number[]) =>
+  fetchSequence(
+    soap("<loginResponse><result>s</result></loginResponse>"),
+    ...perPage.map((n, i) => postedPage(n, `p${i}`)),
+    soap("<logoutResponse/>"),
+  );
+
+describe("catch-up paging", () => {
+  afterEach(() => __resetSoapPacing());
+
+  it("fetches ONE window in steady state (cursor already near now)", async () => {
+    const seq = pagedSequence([1]);
+    const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1h old cursor
+    const r = await fetchPostedTransactions(pagingEnv, creds, recent, { fetchImpl: seq.fetchImpl });
+    // The 48h look-back is inside one 7-day window, so a single request — no change from before.
+    expect(r.pagesFetched).toBe(1);
+    expect(r.moreAvailable).toBe(false);
+    expect(r.windowsOutstanding).toBe(1);
+  });
+
+  it("pages up to the page budget when the cursor is far behind", async () => {
+    const seq = pagedSequence([1, 1, 1, 1, 1, 1, 1]);
+    const r = await fetchPostedTransactions(pagingEnv, creds, null, { fetchImpl: seq.fetchImpl });
+    // 90 days of backfill ÷ 7-day windows = 13 outstanding; the budget caps this poll at 5.
+    expect(r.windowsOutstanding).toBe(13);
+    expect(r.pagesFetched).toBe(5);
+    expect(r.rows).toHaveLength(5);
+    // …and it says so, rather than looking like a feed that found nothing.
+    expect(r.moreAvailable).toBe(true);
+  });
+
+  it("advances the cursor past every COMPLETED page, so the next poll resumes with no gap", async () => {
+    const seq = pagedSequence([1, 1, 1, 1, 1]);
+    const first = await fetchPostedTransactions(pagingEnv, creds, null, { fetchImpl: seq.fetchImpl });
+    const seq2 = pagedSequence([1, 1, 1, 1, 1]);
+    const second = await fetchPostedTransactions(pagingEnv, creds, first.nextCursor, { fetchImpl: seq2.fetchImpl });
+    expect(new Date(second.nextCursor!).getTime()).toBeGreaterThan(new Date(first.nextCursor!).getTime());
+    // The second poll's first request starts one 48h look-back before where the first one stopped —
+    // deliberate overlap for late settlements, made safe by external_ref dedupe.
+    const begDate = /<begDate>([^<]+)<\/begDate>/.exec(seq2.bodies[1] ?? "")?.[1];
+    const gap = new Date(first.nextCursor!).getTime() - new Date(begDate!).getTime();
+    expect(gap).toBe(48 * 60 * 60 * 1000);
+  });
+
+  it("stops on the row budget so one poll never builds an unbounded upsert", async () => {
+    const tight = { ...pagingEnv, EFS_SOAP_MAX_ROWS_PER_POLL: 3 } as Env;
+    const seq = pagedSequence([2, 2, 2, 2, 2]);
+    const r = await fetchPostedTransactions(tight, creds, null, { fetchImpl: seq.fetchImpl });
+    // Page 1 → 2 rows (under budget, continue). Page 2 → 4 rows (at/over budget, stop).
+    expect(r.pagesFetched).toBe(2);
+    expect(r.rows).toHaveLength(4);
+    expect(r.moreAvailable).toBe(true);
+  });
+
+  it("always fetches at least one page, even with the budgets already exhausted", async () => {
+    const zero = { ...pagingEnv, EFS_SOAP_MAX_ROWS_PER_POLL: 1, EFS_SOAP_BACKFILL_MAX_MS: 1 } as Env;
+    const seq = pagedSequence([2]);
+    const r = await fetchPostedTransactions(zero, creds, null, { fetchImpl: seq.fetchImpl });
+    // Budgets are checked only after the first page — a poll must never be a no-op that still
+    // advances nothing and logs nothing.
+    expect(r.pagesFetched).toBe(1);
+    expect(r.rows).toHaveLength(2);
+  });
+
+  it("an explicit maxPages from the caller overrides the catch-up budget", async () => {
+    const seq = pagedSequence([1, 1, 1, 1, 1]);
+    const r = await fetchPostedTransactions(pagingEnv, creds, null, { fetchImpl: seq.fetchImpl, maxPages: 2 });
+    expect(r.pagesFetched).toBe(2);
+  });
+
+  it("degrades to single-page when the env predates these keys (no NaN loop)", async () => {
+    const legacy = { EFS_SOAP_MAX_RPS: 1000, EFS_SOAP_MAX_RETRIES: 0, EFS_SOAP_BACKFILL_DAYS: 90 } as Env;
+    const seq = pagedSequence([1, 1]);
+    const r = await fetchPostedTransactions(legacy, creds, null, { fetchImpl: seq.fetchImpl });
+    expect(r.pagesFetched).toBe(1);
+    expect(r.rows).toHaveLength(1);
+  });
+});

@@ -38,6 +38,9 @@ export type EfsTimePrecision = "instant" | "date";
 
 export interface ParsedFuelLine {
   external_ref: string;
+  /** EFS transactionId — the vendor's unique identifier. Null when the report omits it (older file
+   *  exports), in which case dedupe falls back to external_ref exactly as before. */
+  transaction_id: string | null;
   unit: string | null;
   driver_name: string | null;
   card_ref: string | null;

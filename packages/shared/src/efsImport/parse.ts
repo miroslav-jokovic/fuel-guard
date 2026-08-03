@@ -160,6 +160,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
       }
       byInvoice.set(collisionKey, {
         external_ref: `${ref}|${controlId.trim()}`,
+        transaction_id: txnId,
         unit: str(pick(row, "Unit")),
         driver_name: str(pick(row, "Driver Name")),
         card_ref: cardRefVal,
@@ -189,6 +190,10 @@ export function normalizeTransactionRows(rows: RawRow[]): {
     } else {
       byInvoice.set(key, {
         external_ref: ref,
+        // EFS's own unique identifier for the transaction (guide: "unique for each transaction and
+        // can be used as the unique identifier"). Stored alongside external_ref rather than replacing
+        // it, so existing refs stay stable while identity becomes enforceable — see migration 0107.
+        transaction_id: txnId,
         unit: str(pick(row, "Unit")),
         driver_name: str(pick(row, "Driver Name")),
         card_ref: cardRefVal,
@@ -227,6 +232,8 @@ export function normalizeTransactionRows(rows: RawRow[]): {
 export interface EfsTransactionLine {
   external_ref: string;
   line_number: number;
+  /** EFS transactionId — several line items share one id (see migration 0107). */
+  transaction_id: string | null;
   card_num: string | null;
   tran_date: string | null; // YYYY-MM-DD
   fueled_at: string | null; // ISO (date anchored noon)
@@ -290,6 +297,7 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
         ? [card ?? "", txnId, item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|")
         : [card ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|"),
       line_number: i + 1,
+      transaction_id: txnId,
       card_num: card,
       tran_date: instant?.tranDate ?? null,
       fueled_at: instant?.iso ?? null,
@@ -391,6 +399,9 @@ export interface ReconciledFuelLine extends ParsedFuelLine {
 /** The subset of a persisted efs_transactions row the derivation needs. */
 export interface EfsStoreLine {
   card_num: string | null;
+  /** EFS transactionId as stored on efs_transactions — carried through so a repair pass rebuilt
+   *  from the faithful store keeps the vendor identity instead of blanking it. */
+  transaction_id?: string | null;
   control_id?: string | null;
   driver_ext_id?: string | null;
   invoice: string | null;
@@ -461,6 +472,7 @@ export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuel
     } else {
       byKey.set(key, {
         external_ref: ref,
+        transaction_id: str(l.transaction_id),
         unit: str(l.unit),
         driver_name: str(l.driver_name),
         card_ref: str(l.card_num),

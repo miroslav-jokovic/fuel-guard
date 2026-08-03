@@ -29,6 +29,10 @@ export interface EfsSoapFetchResult {
   responseHash: string;
   /** How many pages we fetched in this call — the poller uses this for logging + backfill limits. */
   pagesFetched: number;
+  /** A budget stopped this poll before the cursor reached now; the next poll continues from here. */
+  moreAvailable: boolean;
+  /** Windows still between the cursor and now when this poll began — backfill progress, for logs. */
+  windowsOutstanding: number;
 }
 
 export interface EfsSoapFetchOptions {
@@ -397,7 +401,19 @@ function rejectedRows(values: Record<string, unknown>[]): Record<string, string 
 async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cursor: string | null, opts: EfsSoapFetchOptions): Promise<EfsSoapFetchResult> {
   const { start, end } = dateWindow(env, cursor);
   const priority = opts.priority ?? (feed === "posted" ? "backfill" : "live");
-  const maxPages = Math.max(1, opts.maxPages ?? 1);
+  // How many windows does the outstanding range cover? One (or less) means we are in steady state
+  // and a single page is correct. More means we are catching up — a first backfill, or a feed that
+  // was disabled for a while — and waiting a full poll interval per window would turn a 180-day
+  // backfill into a six-hour wait on timers rather than on EFS.
+  const windowMs = maxRequestDays(env) * 24 * 60 * 60 * 1000;
+  const windowsOutstanding = Math.ceil(Math.max(0, end.getTime() - start.getTime()) / windowMs);
+  // Fall back to single-page / unbounded rather than NaN if a caller hands us a partial Env (tests,
+  // or an older deploy that predates these keys). Degrading to the previous behaviour is safe;
+  // arithmetic on undefined silently disables the loop, which is not.
+  const catchUpPages = env.EFS_SOAP_BACKFILL_MAX_PAGES ?? 1;
+  const maxPages = Math.max(1, opts.maxPages ?? (windowsOutstanding > 1 ? catchUpPages : 1));
+  const deadline = env.EFS_SOAP_BACKFILL_MAX_MS ? Date.now() + env.EFS_SOAP_BACKFILL_MAX_MS : Infinity;
+  const rowBudget = env.EFS_SOAP_MAX_ROWS_PER_POLL ?? Infinity;
   const session = await login(env, creds, priority, opts.fetchImpl);
   const rows: Record<string, string | number | null>[] = [];
   const responseHash = createHash("sha256");
@@ -406,8 +422,12 @@ async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cu
   let nextCursor = cursor;
   try {
     while (pagesFetched < maxPages && pageStart < end) {
-      // EFS confirmed a 30-day maximum for this production account. The cursor lets a bounded poll
-      // walk a larger initial backfill over multiple scheduler/manual runs.
+      // Stop cleanly on either budget. The cursor has already advanced past every COMPLETED page, so
+      // the next poll resumes exactly here — no gap, no re-fetch. Checked before dispatching rather
+      // than after, so we never start a request we know we can't afford to finish.
+      if (pagesFetched > 0 && (Date.now() >= deadline || rows.length >= rowBudget)) break;
+      // Window size is capped by EFS_SOAP_MAX_DAYS_PER_REQUEST (7 per the EFS guide). The cursor
+      // lets a larger initial backfill walk across several polls.
       const pageEnd = new Date(Math.min(
         pageStart.getTime() + maxRequestDays(env) * 24 * 60 * 60 * 1000,
         end.getTime(),
@@ -428,6 +448,10 @@ async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cu
       nextCursor,
       responseHash: responseHash.digest("hex"),
       pagesFetched,
+      // True when a budget stopped us short. The caller logs it so a long backfill is visibly
+      // "still working" rather than indistinguishable from "finished and found nothing".
+      moreAvailable: pageStart < end,
+      windowsOutstanding,
     };
   } finally {
     await logout(env, creds, session.clientId, priority, opts.fetchImpl, session.cookie);

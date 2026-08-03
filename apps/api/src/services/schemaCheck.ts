@@ -48,6 +48,7 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // EFS mutual TLS. Probed because an unapplied 0106 makes certificate upload fail at the DB layer
   // with a schema-cache error that reads like an application bug.
   { table: "efs_soap_client_certs", column: "fingerprint_sha256", migration: "0106" },
+  { table: "fuel_transactions", column: "transaction_id", migration: "0107" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

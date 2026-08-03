@@ -196,6 +196,24 @@ const EnvSchema = z.object({
   // default follows the published limit rather than an informal larger one. The ceiling stays at 30
   // only so an account with WRITTEN confirmation from EFS can raise it; do not exceed 7 otherwise.
   EFS_SOAP_MAX_DAYS_PER_REQUEST: z.coerce.number().int().min(1).max(30).default(7),
+
+  // ── Catch-up paging ────────────────────────────────────────────────────────────────────────────
+  // A poll normally fetches ONE window. That is right in steady state (a 48h look-back every 15 min)
+  // but wrong for a backfill: 180 days at 7-day windows is 26 windows, i.e. 6.5 hours of waiting for
+  // timers rather than for EFS. So when the cursor is more than one window behind, the poll keeps
+  // paging until it catches up or hits one of the two budgets below — whichever comes first.
+  //
+  // Both budgets exist to bound ONE poll, not to limit total throughput: the cursor advances after
+  // every completed page, so a poll that stops early simply resumes from there on the next tick.
+  // Nothing is re-fetched and nothing is lost.
+  EFS_SOAP_BACKFILL_MAX_PAGES: z.coerce.number().int().min(1).max(50).default(12),
+  // Wall-clock budget. The poller's in-flight guard already prevents overlap, so a long pass only
+  // delays the next tick — but an unbounded one would hide a slow endpoint behind "still running".
+  EFS_SOAP_BACKFILL_MAX_MS: z.coerce.number().int().min(5_000).max(600_000).default(240_000),
+  // Row budget. Every page of a poll is ingested as ONE import with ONE upsert; a 26-window pass
+  // would put ~100k rows in a single request. 5k is comfortably inside what the existing file
+  // imports already do (a 3,703-line report upserts fine), with headroom.
+  EFS_SOAP_MAX_ROWS_PER_POLL: z.coerce.number().int().min(100).max(50_000).default(5_000),
   // Optional egress proxy URL for the EFS SOAP client ONLY (static IP for EFS's allowlist). When unset,
   // direct Railway egress is used. When Railway Pro static outbound IPs are enabled at the platform
   // level, this stays unset and EFS allowlists the Railway IPs directly.

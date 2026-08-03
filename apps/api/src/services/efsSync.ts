@@ -46,7 +46,7 @@ async function loadAllEfsLines(admin: SupabaseClient, orgId: string): Promise<Ef
   for (let fromRow = 0; ; fromRow += PAGE) {
     const { data, error } = await admin
       .from("efs_transactions")
-      .select("card_num, control_id, invoice, tran_date, fueled_at, unit, driver_name, odometer, location_name, city, state, item, qty, amt")
+      .select("card_num, control_id, transaction_id, invoice, tran_date, fueled_at, unit, driver_name, odometer, location_name, city, state, item, qty, amt")
       .eq("org_id", orgId)
       .order("tran_date", { ascending: true })
       .order("line_number", { ascending: true })
@@ -57,6 +57,7 @@ async function loadAllEfsLines(admin: SupabaseClient, orgId: string): Promise<Ef
       out.push({
         card_num: (r.card_num as string) ?? null,
         control_id: (r.control_id as string) ?? null,
+        transaction_id: (r.transaction_id as string) ?? null,
         invoice: (r.invoice as string) ?? null,
         tran_date: (r.tran_date as string) ?? null,
         fueled_at: (r.fueled_at as string) ?? null,
