@@ -187,9 +187,15 @@ const EnvSchema = z.object({
   EFS_SOAP_MAX_RETRIES: z.coerce.number().int().min(0).default(4),
   // First-sync backfill window in days. Bounded so a misconfiguration can't request a decade of history.
   EFS_SOAP_BACKFILL_DAYS: z.coerce.number().int().min(1).max(730).default(90),
-  // EFS confirmed a 30-day maximum for this production account; keep it configurable for QA/accounts
-  // with a smaller limit.
-  EFS_SOAP_MAX_DAYS_PER_REQUEST: z.coerce.number().int().min(1).max(30).default(30),
+  // Maximum days of history per SOAP request. The EFS Card Web Service Integration Guide (p.11,
+  // "Pulling Transactional Data") states: "Pull a maximum of 7 days of data at once", and warns that
+  // "requests for longer periods may time out (the server stores 15 minutes of data in memory)".
+  //
+  // A timeout would be loud, but a SILENTLY TRUNCATED response is not — we would ingest a partial
+  // window, advance the cursor past it, and never know which transactions were dropped. So the
+  // default follows the published limit rather than an informal larger one. The ceiling stays at 30
+  // only so an account with WRITTEN confirmation from EFS can raise it; do not exceed 7 otherwise.
+  EFS_SOAP_MAX_DAYS_PER_REQUEST: z.coerce.number().int().min(1).max(30).default(7),
   // Optional egress proxy URL for the EFS SOAP client ONLY (static IP for EFS's allowlist). When unset,
   // direct Railway egress is used. When Railway Pro static outbound IPs are enabled at the platform
   // level, this stays unset and EFS allowlists the Railway IPs directly.
