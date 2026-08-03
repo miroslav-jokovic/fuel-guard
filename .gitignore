@@ -64,3 +64,8 @@ mnt_to_delete_*
 /.expo/
 /tsconfig.json
 *.removed
+
+# Delivery/scratch artifacts — never commit (session bundle workflow)
+*.bundle
+*.bundle.lock
+*.tar

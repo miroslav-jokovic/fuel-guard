@@ -11,7 +11,7 @@
  *      .magnitude is the unambiguous Double property equivalent)
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,27 +19,42 @@ const root = dirname(fileURLToPath(import.meta.url)).replace(/\/scripts$/, "");
 
 const patches = [
   {
-    file: "expo-modules-jsi/apple/Sources/ExpoModulesJSI/Coding/JavaScriptCodable+Date.swift",
+    package: "expo-modules-jsi",
+    file: "apple/Sources/ExpoModulesJSI/Coding/JavaScriptCodable+Date.swift",
     from: "abs(milliseconds) <=",
     to: "milliseconds.magnitude <=",
   },
 ];
 
-for (const { file, from, to } of patches) {
-  const filePath = join(root, "node_modules", file);
-  if (!existsSync(filePath)) {
-    console.log(`[apply-patches] skip ${file} — not installed`);
+function installedCopies(packageName, relativeFile) {
+  const candidates = [join(root, "node_modules", packageName, relativeFile)];
+  const pnpmStore = join(root, "node_modules", ".pnpm");
+  if (existsSync(pnpmStore)) {
+    for (const entry of readdirSync(pnpmStore, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !entry.name.startsWith(`${packageName}@`)) continue;
+      candidates.push(join(pnpmStore, entry.name, "node_modules", packageName, relativeFile));
+    }
+  }
+  return [...new Set(candidates)];
+}
+
+for (const patch of patches) {
+  const targets = installedCopies(patch.package, patch.file).filter(existsSync);
+  if (!targets.length) {
+    console.log(`[apply-patches] skip ${patch.package}/${patch.file} — not installed`);
     continue;
   }
-  const original = readFileSync(filePath, "utf8");
-  if (original.includes(to)) {
-    console.log(`[apply-patches] ✓ already applied: ${file}`);
-    continue;
+  for (const filePath of targets) {
+    const original = readFileSync(filePath, "utf8");
+    if (original.includes(patch.to)) {
+      console.log(`[apply-patches] ✓ already applied: ${filePath}`);
+      continue;
+    }
+    if (!original.includes(patch.from)) {
+      console.warn(`[apply-patches] ⚠ patch target not found in ${filePath} — may need updating`);
+      continue;
+    }
+    writeFileSync(filePath, original.replace(patch.from, patch.to), "utf8");
+    console.log(`[apply-patches] ✓ patched: ${filePath}`);
   }
-  if (!original.includes(from)) {
-    console.warn(`[apply-patches] ⚠ patch target not found in ${file} — may need updating`);
-    continue;
-  }
-  writeFileSync(filePath, original.replace(from, to), "utf8");
-  console.log(`[apply-patches] ✓ patched: ${file}`);
 }
