@@ -144,6 +144,33 @@ export function normalizeTransactionRows(rows: RawRow[]): {
 
     const existing = byInvoice.get(key);
     const driverExtId = str(pick(row, "DriverId", "Driver Id", "Driver ID"));
+    /** One merged fueling event from this row. Only the ref differs between the two call sites. */
+    const newLine = (refValue: string): ParsedFuelLine => ({
+      external_ref: refValue,
+      // EFS's own unique identifier for the transaction (guide: "unique for each transaction and can
+      // be used as the unique identifier"). Stored alongside external_ref rather than replacing it, so
+      // existing refs stay stable while identity becomes enforceable — see migration 0107.
+      transaction_id: txnId,
+      unit: str(pick(row, "Unit")),
+      driver_name: str(pick(row, "Driver Name")),
+      card_ref: cardRefVal,
+      control_id: controlId,
+      driver_ext_id: driverExtId,
+      fueled_at: instant.iso,
+      tran_date: instant.tranDate,
+      fueled_at_precision: instant.precision,
+      odometer: num(pick(row, "Odometer")),
+      gallons,
+      price_per_gal: num(pick(row, "Unit Price", "PricePerUnit")),
+      total_cost: total,
+      fuel_type: fuelType,
+      tank_type: tankType,
+      item,
+      location_text: str(pick(row, "Location Name")),
+      city: str(pick(row, "City", "Location City")),
+      state,
+    });
+
     // WP3c collision guard. The merge key is Card | Invoice | date | tank, and since EFS masks the
     // PAN the "Card" component is only a last-4. Two DIFFERENT drivers' cards sharing a last-4 that
     // also share an invoice number on the same business date would merge into one event with their
@@ -158,28 +185,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
         twin.driver_ext_id = twin.driver_ext_id ?? driverExtId;
         return;
       }
-      byInvoice.set(collisionKey, {
-        external_ref: `${ref}|${controlId.trim()}`,
-        transaction_id: txnId,
-        unit: str(pick(row, "Unit")),
-        driver_name: str(pick(row, "Driver Name")),
-        card_ref: cardRefVal,
-        control_id: controlId,
-        driver_ext_id: driverExtId,
-        fueled_at: instant.iso,
-        tran_date: instant.tranDate,
-        fueled_at_precision: instant.precision,
-        odometer: num(pick(row, "Odometer")),
-        gallons,
-        price_per_gal: num(pick(row, "Unit Price", "PricePerUnit")),
-        total_cost: total,
-        fuel_type: fuelType,
-        tank_type: tankType,
-        item,
-        location_text: str(pick(row, "Location Name")),
-        city: str(pick(row, "City", "Location City")),
-        state,
-      });
+      byInvoice.set(collisionKey, newLine(`${ref}|${controlId.trim()}`));
       return;
     }
     if (existing) {
@@ -188,31 +194,7 @@ export function normalizeTransactionRows(rows: RawRow[]): {
       existing.control_id = existing.control_id ?? controlId; // keep the first non-null across merged lines
       existing.driver_ext_id = existing.driver_ext_id ?? driverExtId;
     } else {
-      byInvoice.set(key, {
-        external_ref: ref,
-        // EFS's own unique identifier for the transaction (guide: "unique for each transaction and
-        // can be used as the unique identifier"). Stored alongside external_ref rather than replacing
-        // it, so existing refs stay stable while identity becomes enforceable — see migration 0107.
-        transaction_id: txnId,
-        unit: str(pick(row, "Unit")),
-        driver_name: str(pick(row, "Driver Name")),
-        card_ref: cardRefVal,
-        control_id: controlId,
-        driver_ext_id: driverExtId,
-        fueled_at: instant.iso,
-        tran_date: instant.tranDate,
-        fueled_at_precision: instant.precision,
-        odometer: num(pick(row, "Odometer")),
-        gallons,
-        price_per_gal: num(pick(row, "Unit Price", "PricePerUnit")),
-        total_cost: total,
-        fuel_type: fuelType,
-        tank_type: tankType,
-        item,
-        location_text: str(pick(row, "Location Name")),
-        city: str(pick(row, "City", "Location City")),
-        state,
-      });
+      byInvoice.set(key, newLine(ref));
     }
   });
 
