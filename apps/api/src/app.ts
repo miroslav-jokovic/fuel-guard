@@ -28,6 +28,7 @@ import { dispatchRouter } from "./routes/dispatch.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
 import { meRouter } from "./routes/me.js";
 import { messagesRouter } from "./routes/messages.js";
+import { rosterDriversRouter } from "./routes/roster/drivers.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -52,7 +53,12 @@ export function createApp(env: Env): Express {
           workerSrc: ["'self'", "blob:"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
-          connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.sentry.io"],
+          connectSrc: [
+            "'self'",
+            "https://*.supabase.co",
+            "wss://*.supabase.co",
+            "https://*.sentry.io",
+          ],
           fontSrc: ["'self'", "data:"],
           objectSrc: ["'none'"],
           baseUri: ["'self'"],
@@ -67,7 +73,12 @@ export function createApp(env: Env): Express {
   // parser: it brings its own larger body parser (≤1000-row batches) and must not inherit the browser API's
   // rules. Its own rate limiter guards against abuse / token-guessing. It still 401s unauthenticated requests,
   // so the route-auth fitness test covers it like any other router.
-  const ingestLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 300, standardHeaders: "draft-7", legacyHeaders: false });
+  const ingestLimiter = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: 300,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  });
   app.use("/api/tms", ingestLimiter);
   app.use("/api/tms", tmsIngestRouter());
 
@@ -82,8 +93,18 @@ export function createApp(env: Env): Express {
   );
 
   // Rate limiting (audit M8): a general API cap + a stricter cap on sensitive/expensive routes.
-  const apiLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 600, standardHeaders: "draft-7", legacyHeaders: false });
-  const strictLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: "draft-7", legacyHeaders: false });
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: 600,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  });
+  const strictLimiter = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: 30,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  });
   app.use("/api", apiLimiter);
   app.use("/api/invites", strictLimiter);
   app.use("/api/reports", strictLimiter);
@@ -108,6 +129,7 @@ export function createApp(env: Env): Express {
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
   app.use("/api/members", membersRouter());
+  app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());

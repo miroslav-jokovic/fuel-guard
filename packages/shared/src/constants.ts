@@ -4,7 +4,14 @@ export const APP_NAME = "FuelGuard";
 /** User roles within an organization (mirrors the `user_role` Postgres enum).
  *  `dispatcher` + `safety_manager` are department roles: scoped write access to one product area (see the
  *  section-capability matrix in auth.ts), read-only elsewhere. */
-export const USER_ROLES = ["admin", "fleet_manager", "driver", "auditor", "dispatcher", "safety_manager"] as const;
+export const USER_ROLES = [
+  "admin",
+  "fleet_manager",
+  "driver",
+  "auditor",
+  "dispatcher",
+  "safety_manager",
+] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 /** Human labels for the role pickers (invite + user management). */
@@ -47,8 +54,15 @@ export const APU_TYPE_LABELS: Record<ApuType, string> = {
 export const VEHICLE_STATUSES = ["active", "maintenance", "retired"] as const;
 export type VehicleStatus = (typeof VEHICLE_STATUSES)[number];
 
-/** Driver status (free text in DB; constrained here for the UI). */
-export const DRIVER_STATUSES = ["active", "inactive"] as const;
+/**
+ * Driver status (free text in DB; constrained here for the UI).
+ *
+ * Deliberately NOT a Postgres enum (master-data decision #8) — `drivers.status` stays `text` so the
+ * ~100 telematics-synced rows never needed a backfill, and this list is the canonical vocabulary the
+ * roster UI and API agree on. NOTE: `auth_driver_id()` (0083) resolves only `status = 'active'`, so
+ * a driver on leave or terminated keeps their roster record but stops resolving in the driver app.
+ */
+export const DRIVER_STATUSES = ["active", "inactive", "on_leave", "terminated"] as const;
 export type DriverStatus = (typeof DRIVER_STATUSES)[number];
 
 /** Anomaly severities (mirrors the `anomaly_severity` Postgres enum). */

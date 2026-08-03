@@ -52,3 +52,4 @@ export * from "./entitlements.js";
 export * from "./notificationsContract.js";
 export * from "./dutyContract.js";
 export * from "./messagesContract.js";
+export * from "./rosterContract.js";

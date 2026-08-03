@@ -35,6 +35,16 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "route_fuel_settings", column: "org_id", migration: "0058" },
   { table: "vehicles", column: "axle_count", migration: "0058" },
   { table: "route_geometries", column: "cache_key", migration: "0059" },
+  // Master Data & Identity (M1). One probe per migration — enough to prove the file ran, and
+  // `invites.driver_id` in particular is the column the driver app's whole login→roster link needs.
+  { table: "terminals", column: "code", migration: "0097" },
+  { table: "drivers", column: "identity_source", migration: "0098" },
+  { table: "driver_endorsements", column: "code", migration: "0098" },
+  { table: "vehicles", column: "identity_source", migration: "0099" },
+  { table: "trailers", column: "identity_source", migration: "0100" },
+  { table: "compliance_items", column: "item_type", migration: "0101" },
+  { table: "master_documents", column: "doc_type", migration: "0101" },
+  { table: "invites", column: "driver_id", migration: "0102" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

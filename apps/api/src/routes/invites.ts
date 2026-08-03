@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { inviteCreateSchema, isEmailDomainAllowed, renderInviteEmail, type InviteCreateRequest } from "@fuelguard/shared";
+import {
+  inviteCreateSchema,
+  isEmailDomainAllowed,
+  renderInviteEmail,
+  type InviteCreateRequest,
+} from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { validateBody, apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -27,22 +32,44 @@ export interface InviteDelivery {
  * Falls back to a recovery link when the user already exists. The link is ALWAYS returned so invites work
  * even when email delivery is misconfigured (the admin can copy + share it directly).
  */
-async function deliverInvite(admin: SupabaseClient, env: Env, orgName: string, email: string): Promise<InviteDelivery> {
+export async function deliverInvite(
+  admin: SupabaseClient,
+  env: Env,
+  orgName: string,
+  email: string,
+): Promise<InviteDelivery> {
   const redirectTo = `${env.WEB_APP_URL}/accept-invite`;
   let link: string | null = null;
-  const invite = await admin.auth.admin.generateLink({ type: "invite", email, options: { redirectTo } });
+  const invite = await admin.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: { redirectTo },
+  });
   if (!invite.error && invite.data?.properties?.action_link) {
     link = invite.data.properties.action_link;
   } else {
-    const recovery = await admin.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo } });
-    if (!recovery.error && recovery.data?.properties?.action_link) link = recovery.data.properties.action_link;
-    else console.error(`[invites] generateLink failed for ${email}: ${invite.error?.message ?? ""} ${recovery.error?.message ?? ""}`);
+    const recovery = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo },
+    });
+    if (!recovery.error && recovery.data?.properties?.action_link)
+      link = recovery.data.properties.action_link;
+    else
+      console.error(
+        `[invites] generateLink failed for ${email}: ${invite.error?.message ?? ""} ${recovery.error?.message ?? ""}`,
+      );
   }
   if (!link) return { sent: false, link: null, reason: "link_failed" };
   if (env.MAIL_PROVIDER === "none") return { sent: false, link, reason: "mail_disabled" };
 
   const mail = renderInviteEmail(orgName, link);
-  const sent = await makeSender(env)({ to: [email], subject: mail.subject, html: mail.html, text: mail.text });
+  const sent = await makeSender(env)({
+    to: [email],
+    subject: mail.subject,
+    html: mail.html,
+    text: mail.text,
+  });
   return { sent, link, reason: sent ? null : "send_failed" };
 }
 
@@ -110,7 +137,11 @@ export function invitesRouter(): Router {
         .eq("id", orgId)
         .single();
       if (!org || !isEmailDomainAllowed(email, (org.allowed_domains ?? []) as string[])) {
-        res.status(422).json(apiError("domain_not_allowed", "Email domain is not allowed for this organization"));
+        res
+          .status(422)
+          .json(
+            apiError("domain_not_allowed", "Email domain is not allowed for this organization"),
+          );
         return;
       }
 
@@ -119,7 +150,14 @@ export function invitesRouter(): Router {
       expiresAt.setDate(expiresAt.getDate() + 7);
       const { data: invite, error } = await admin
         .from("invites")
-        .insert({ org_id: orgId, email, role, invited_by: req.auth!.userId, token, expires_at: expiresAt.toISOString() })
+        .insert({
+          org_id: orgId,
+          email,
+          role,
+          invited_by: req.auth!.userId,
+          token,
+          expires_at: expiresAt.toISOString(),
+        })
         .select(INVITE_COLS)
         .single();
       if (error || !invite) {
@@ -130,7 +168,8 @@ export function invitesRouter(): Router {
       // Deliver via our Resend mailer (branded, reliable for external addresses). The link is returned
       // regardless so the admin can copy/share it if email delivery is misconfigured.
       const delivery = await deliverInvite(admin, env, (org.name as string) ?? "FuelGuard", email);
-      if (!delivery.sent) console.error(`[invites] email not sent for ${email} (${delivery.reason})`);
+      if (!delivery.sent)
+        console.error(`[invites] email not sent for ${email} (${delivery.reason})`);
 
       await writeAudit(admin, {
         orgId,
@@ -196,7 +235,11 @@ export function invitesRouter(): Router {
         return;
       }
       if (!["pending", "revoked", "expired"].includes(existing.status)) {
-        res.status(409).json(apiError("invalid_status", "Only pending, revoked, or expired invites can be resent"));
+        res
+          .status(409)
+          .json(
+            apiError("invalid_status", "Only pending, revoked, or expired invites can be resent"),
+          );
         return;
       }
 
@@ -206,7 +249,12 @@ export function invitesRouter(): Router {
 
       const { error } = await admin
         .from("invites")
-        .update({ status: "pending", token, expires_at: expiresAt.toISOString(), invited_by: req.auth!.userId })
+        .update({
+          status: "pending",
+          token,
+          expires_at: expiresAt.toISOString(),
+          invited_by: req.auth!.userId,
+        })
         .eq("id", id)
         .eq("org_id", orgId);
 
@@ -216,10 +264,20 @@ export function invitesRouter(): Router {
       }
 
       // Deliver via our Resend mailer (invite link, or recovery link if the user already exists).
-      const { data: org } = await admin.from("organizations").select("name").eq("id", orgId).maybeSingle();
-      const delivery = await deliverInvite(admin, env, (org?.name as string) ?? "FuelGuard", existing.email);
+      const { data: org } = await admin
+        .from("organizations")
+        .select("name")
+        .eq("id", orgId)
+        .maybeSingle();
+      const delivery = await deliverInvite(
+        admin,
+        env,
+        (org?.name as string) ?? "FuelGuard",
+        existing.email,
+      );
       const emailSent = delivery.sent;
-      if (!emailSent) console.error(`[invites] resend not sent for ${existing.email} (${delivery.reason})`);
+      if (!emailSent)
+        console.error(`[invites] resend not sent for ${existing.email} (${delivery.reason})`);
 
       await writeAudit(admin, {
         orgId,
@@ -249,7 +307,7 @@ export function invitesRouter(): Router {
       const now = new Date().toISOString();
       const { data: invite } = await admin
         .from("invites")
-        .select("id, org_id, role, status")
+        .select("id, org_id, role, status, driver_id")
         .eq("email", email)
         .eq("status", "pending")
         .or(`expires_at.is.null,expires_at.gt.${now}`)
@@ -282,13 +340,48 @@ export function invitesRouter(): Router {
         return;
       }
 
+      // Bind login → roster driver (0102 / plan §3.2). THIS is what makes the driver app work: without
+      // it `drivers.user_id` stays null, `auth_driver_id()` (0083) returns null, and GET /api/me/driver
+      // 404s `no_driver_record`. Runs BEFORE the invite is marked accepted so a failure here leaves the
+      // invite pending and retryable rather than burning it on a half-linked account.
+      // A generic office invite has `driver_id` null and skips this entirely.
+      if (invite.driver_id) {
+        const { data: drv } = await admin
+          .from("drivers")
+          .select("id, user_id")
+          .eq("id", invite.driver_id)
+          .eq("org_id", invite.org_id)
+          .maybeSingle();
+        if (!drv) {
+          res.status(404).json(apiError("no_driver_record", "Invited driver no longer exists"));
+          return;
+        }
+        // Idempotent for the SAME user (a re-accept is harmless); a DIFFERENT user is a hijack attempt
+        // or a mis-sent invite — either way, refuse rather than move the link.
+        if (drv.user_id && drv.user_id !== req.auth!.userId) {
+          res
+            .status(409)
+            .json(apiError("already_linked", "This driver is already linked to another account"));
+          return;
+        }
+        const { error: linkErr } = await admin
+          .from("drivers")
+          .update({ user_id: req.auth!.userId, app_access_enabled: true })
+          .eq("id", invite.driver_id)
+          .eq("org_id", invite.org_id);
+        if (linkErr) {
+          res.status(500).json(apiError("db_error", "Could not link driver"));
+          return;
+        }
+      }
+
       await admin.from("invites").update({ status: "accepted" }).eq("id", invite.id);
       await writeAudit(admin, {
         orgId: invite.org_id,
         actorId: req.auth!.userId,
         action: "invite.accepted",
         entity: "memberships",
-        meta: { email },
+        meta: { email, driverId: invite.driver_id ?? null },
       });
       // The web app must call supabase.auth.refreshSession() after this to pick up the new claims.
       res.json({ ok: true, orgId: invite.org_id, role: invite.role });

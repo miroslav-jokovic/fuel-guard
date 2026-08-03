@@ -1,23 +1,23 @@
-import '../global.css';
-import { useEffect } from 'react';
-import { useFonts } from 'expo-font';
+import "../global.css";
+import { useEffect } from "react";
+import { useFonts } from "expo-font";
 import {
   HankenGrotesk_400Regular,
   HankenGrotesk_500Medium,
   HankenGrotesk_600SemiBold,
   HankenGrotesk_700Bold,
-} from '@expo-google-fonts/hanken-grotesk';
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { ThemeProvider } from '@/theme/ThemeProvider';
-import { SessionProvider, useSession } from '@/session/SessionProvider';
-import { queryClient } from '@/lib/queryClient';
-import { persistOptions } from '@/lib/persist';
-import { initConnectivity } from '@/lib/connectivity';
-import { initSync } from '@/data/sync';
-import { registerSyncHandlers } from '@/data/handlers';
+} from "@expo-google-fonts/hanken-grotesk";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { ThemeProvider } from "@/theme/ThemeProvider";
+import { SessionProvider, useSession } from "@/session/SessionProvider";
+import { queryClient } from "@/lib/queryClient";
+import { persistOptions } from "@/lib/persist";
+import { initConnectivity } from "@/lib/connectivity";
+import { initSync } from "@/data/sync";
+import { registerSyncHandlers } from "@/data/handlers";
 
 // Register outbox handlers once, at module load, so a queued record can always find its handler —
 // even if the engine starts before the feature screen that enqueues it has ever mounted.
@@ -34,25 +34,30 @@ function useProtectedRoute() {
   const router = useRouter();
 
   useEffect(() => {
-    if (status === 'loading') return;
+    if (status === "loading") return;
     // Cast to plain string[] — expo-router's inferred literal union is too narrow for
     // route-name comparisons and produces false "no overlap" TS errors.
     const segs = segments as string[];
-    const inAuthGroup = segs[0] === '(auth)';
+    const inAuthGroup = segs[0] === "(auth)";
 
     // Accept-invite owns its own multi-step state (verify link → session appears (pending) →
     // set password → accept → claims land). Leave it alone until the flow completes ('ready'),
     // otherwise the guard would yank the user to /pending the instant the link session lands.
-    if (inAuthGroup && segs[1] === 'accept-invite' && status !== 'ready') return;
+    if (inAuthGroup && segs[1] === "accept-invite" && status !== "ready") return;
 
-    if (status === 'ready') {
-      // A driver with an org must be inside the app, never on the splash or an auth screen.
-      if (inAuthGroup || segs[0] === '' || segs[0] === 'index') router.replace('/home');
+    if (status === "ready") {
+      // A driver with an org must be inside the app, never on the splash or an auth screen. At the
+      // root path "/" (the splash, app/index.tsx) expo-router yields an EMPTY segments array — so
+      // segs[0] is `undefined`, NOT '' or 'index'. The old check compared against '' / 'index' and
+      // therefore never matched the splash, stranding a fully-ready driver on the spinner (it never
+      // called replace('/home')). Treat "no segments" as the splash too.
+      const onSplashOrAuth = inAuthGroup || segs.length === 0 || segs[0] === "index";
+      if (onSplashOrAuth) router.replace("/home");
       return;
     }
 
     const target =
-      status === 'signedOut' ? '/sign-in' : status === 'pending' ? '/pending' : '/wrong-app';
+      status === "signedOut" ? "/sign-in" : status === "pending" ? "/pending" : "/wrong-app";
     const currentAuthScreen = inAuthGroup ? segs[1] : undefined;
     if (currentAuthScreen !== target.slice(1)) router.replace(target);
   }, [status, segments, router]);
@@ -67,7 +72,7 @@ function useDataSpine() {
   // Only drain while a real driver session exists — an unauthenticated sync would 401 every record
   // straight into the dead-letter list.
   useEffect(() => {
-    if (status !== 'ready') return undefined;
+    if (status !== "ready") return undefined;
     return initSync(queryClient);
   }, [status]);
 }
@@ -82,10 +87,10 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="loads/[id]" />
       {/* Contextual work is a modal over the shell, never a tab (D51/§22.1). */}
-      <Stack.Screen name="duty/check-in" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="drive" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="gallery" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="duty/check-in" options={{ presentation: "modal" }} />
+      <Stack.Screen name="drive" options={{ presentation: "modal" }} />
+      <Stack.Screen name="settings" options={{ presentation: "modal" }} />
+      <Stack.Screen name="gallery" options={{ presentation: "modal" }} />
     </Stack>
   );
 }
