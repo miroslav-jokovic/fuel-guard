@@ -13,7 +13,8 @@ import { scoreImportWithCascade } from "./scoring/index.js";
 import { scoreDeclinedImport } from "./declinedScoring.js";
 import { ingestReject } from "./efsIngestReject.js";
 import {
-  loc, emptyResult, existingRefs, countByImport, createImport, dateSpan, countByDay, computeShortfall,
+  loc, emptyResult, existingRefs, resolveTxnIdentitySplit, enrichExistingFills, reconcileImportCounts,
+  createImport, dateSpan, countByDay,
 } from "./efsIngestShared.js";
 import type { IngestInput, IngestResult } from "./efsIngestShared.js";
 
@@ -72,7 +73,14 @@ export async function ingestReport(
   // file_hash column predates migration 0017 (treat as not-yet-imported, same as the client path).
   let alreadyImported = false;
   try {
-    const { data } = await admin.from("imports").select("id").eq("file_hash", input.fileHash).limit(1);
+    // Org-scoped: file_hash is only unique within a tenant, and two carriers can legitimately
+    // receive byte-identical empty/short reports. Unscoped, org B's import would suppress org A's.
+    const { data } = await admin
+      .from("imports")
+      .select("id")
+      .eq("org_id", input.orgId)
+      .eq("file_hash", input.fileHash)
+      .limit(1);
     alreadyImported = ((data ?? []) as unknown[]).length > 0;
   } catch {
     /* file_hash column not present yet — fall through and rely on row-level external_ref dedup */
@@ -138,10 +146,14 @@ async function ingestTransaction(
   }
 
   const [fuelSeen, efsSeen] = await Promise.all([
-    existingRefs(admin, "fuel_transactions", reconciled.map((l) => l.external_ref)),
-    existingRefs(admin, "efs_transactions", allLines.map((l) => l.external_ref)),
+    existingRefs(admin, "fuel_transactions", input.orgId, reconciled.map((l) => l.external_ref)),
+    existingRefs(admin, "efs_transactions", input.orgId, allLines.map((l) => l.external_ref)),
   ]);
   const newFuel = reconciled.filter((l) => !fuelSeen.has(l.external_ref));
+
+  // Cross-channel identity (migration 0107) — see resolveTxnIdentitySplit.
+  const { toInsert, toEnrich, known: knownIdentities } = await resolveTxnIdentitySplit(admin, input.orgId, newFuel);
+
   const duplicateEfs = allLines.filter((l) => efsSeen.has(l.external_ref)).length;
   const span = dateSpan(allLines.map((l) => l.tran_date));
   const rowsByDay = countByDay(allLines.map((l) => l.tran_date));
@@ -156,7 +168,7 @@ async function ingestTransaction(
       status: "completed",
       total_rows: input.rows.length,
       inserted_rows: allLines.length,
-      duplicate_rows: reconciled.length - newFuel.length,
+      duplicate_rows: reconciled.length - toInsert.length,
       skipped_rows: skipped.length,
       created_by: input.requestedBy,
     },
@@ -203,9 +215,21 @@ async function ingestTransaction(
   }
 
   // 2) Derived fuel events for the anomaly engine.
+  //
+  // Cross-channel identity (migration 0107). `external_ref` only dedupes WITHIN a delivery channel:
+  // a file report builds it from the Invoice column, the SOAP feed from the Stable Transaction ID, so
+  // the same physical fill arriving both ways yields two refs that can never collide. EFS's own
+  // `transactionId` is the identifier that spans both — so before inserting, split the batch:
+  //
+  //   • identity already stored → ENRICH that row (don't insert a twin). The later delivery is usually
+  //     the richer one — the SOAP feed carries an unmasked card number where the file is masked — and
+  //     an unmasked card is exactly what the card-identity rules need to stop going blind.
+  //   • identity new (or absent) → insert as before, with external_ref still guarding re-delivery.
+  const enriched = await enrichExistingFills(admin, toEnrich, knownIdentities);
+
   let scoreError: string | null = null;
-  if (newFuel.length) {
-    const fuelRows = newFuel.map((l) => ({
+  if (toInsert.length) {
+    const fuelRows = toInsert.map((l) => ({
       org_id: input.orgId,
       vehicle_id: l.vehicle_id,
       driver_id: l.driver_id,
@@ -242,45 +266,28 @@ async function ingestTransaction(
     }
   }
 
-  // 3) Post-commit reconciliation — verify what landed vs the file, persist it, surface any shortfall.
-  const [dbEfs, dbFuel] = await Promise.all([
-    countByImport(admin, "efs_transactions", importId),
-    countByImport(admin, "fuel_transactions", importId),
-  ]);
-  const expectedNewEfs = allLines.length - duplicateEfs;
-  const shortEfs = computeShortfall(expectedNewEfs, dbEfs);
-  const shortFuel = computeShortfall(newFuel.length, dbFuel);
-  const shortfallRows = shortEfs == null && shortFuel == null ? null : (shortEfs ?? 0) + (shortFuel ?? 0);
-
-  await admin
-    .from("imports")
-    .update({
-      summary: {
-        channel: input.channel ?? "auto",
-        report_from: span.from,
-        report_to: span.to,
-        rows_by_day: rowsByDay,
-        file_lines: allLines.length,
-        expected_new_efs_lines: expectedNewEfs,
-        expected_new_fuel_events: newFuel.length,
-        db_efs_lines: dbEfs,
-        db_fuel_events: dbFuel,
-        shortfall_efs_lines: shortEfs,
-        shortfall_fuel_events: shortFuel,
-        score_error: scoreError,
-      },
-    })
-    .eq("id", importId);
+  // 3) Post-commit reconciliation — verify what landed vs the file and surface any shortfall.
+  const { shortfallRows } = await reconcileImportCounts(admin, importId, {
+    channel: input.channel ?? "auto",
+    span,
+    rowsByDay,
+    fileLines: allLines.length,
+    expectedNewEfs: allLines.length - duplicateEfs,
+    expectedNewFuel: toInsert.length,
+    enriched,
+    scoreError,
+  });
 
   return {
     kind: "transaction",
     alreadyImported: false,
     importId,
     efsLines: allLines.length,
-    newFuel: newFuel.length,
-    duplicateFuel: reconciled.length - newFuel.length,
+    newFuel: toInsert.length,
+    duplicateFuel: reconciled.length - toInsert.length,
+    enrichedFuel: enriched,
     duplicateEfs,
-    unattributed: newFuel.filter((l) => l.vehicle_id == null).length,
+    unattributed: toInsert.filter((l) => l.vehicle_id == null).length,
     newDeclined: 0,
     duplicateDeclined: 0,
     skipped: skipped.length,

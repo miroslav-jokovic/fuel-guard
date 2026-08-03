@@ -19,7 +19,7 @@ export async function ingestReject(
   drivers: unknown[],
 ): Promise<IngestResult> {
   const { declined, skipped } = normalizeRejectRows(input.rows);
-  const seen = await existingRefs(admin, "declined_transactions", declined.map((d) => d.external_ref));
+  const seen = await existingRefs(admin, "declined_transactions", input.orgId, declined.map((d) => d.external_ref));
   const newDeclined = declined.filter((d) => !seen.has(d.external_ref));
   const span = dateSpan(declined.map((d) => d.declined_at));
   const rowsByDay = countByDay(declined.map((d) => d.declined_at));
