@@ -1,8 +1,8 @@
 # FuelGuard — Fuel-Card Integration (XLSX/CSV upload now, EFS data feed later)
 
-> Ingest fuel-card transactions. **Phase one: file upload** (XLSX or CSV, manual). **Phase two: EFS
-> automated data feed** (portal-authorized, polling). Designed so the second is a drop-in source
-> behind the same staging → reconcile → score pipeline.
+> Ingest fuel-card transactions. **Primary source: EFS CardManagementWS SOAP** (posted transactions and
+> rejected authorizations). **Fallback: XLSX/CSV upload** (manual). Both sources use the same staging →
+> reconcile → score pipeline.
 
 ---
 
@@ -254,8 +254,8 @@ The only new files are:
 
 - `apps/api/src/lib/soapClient.ts` — rate-limited SOAP HTTP client, modeled on `samsaraHttp.ts`
   (per-credential pacing, Retry-After, exponential backoff, priority lanes, optional egress proxy).
-- `apps/api/src/lib/efsSoap.ts` — EFS-specific SOAP operations. Interface is locked; WSDL-dependent
-  parts throw `EfsSoapError("not_implemented")` until EFS's data release delivers the WSDL.
+- `apps/api/src/lib/efsSoap.ts` — EFS-specific SOAP operations. Uses `login`/`clientId`,
+  `getMCTransExtLocV2`, `getTranRejects`, and best-effort `logout`, with XML response normalization.
 - `apps/api/src/services/efsSoapCredentials.ts` — CRUD + non-secret status (`efs_soap_credentials`).
 - `apps/api/src/services/efsSoapIngest.ts` — thin bridge that pipes SOAP rows into `ingestReport()`.
 - `apps/api/src/services/efsSoapPoller.ts` — two-tier scheduler wrapping each org's pass in a
@@ -291,10 +291,10 @@ alter table efs_soap_credentials enable row level security;
 ```
 
 Env vars added to `apps/api/src/env.ts`: `EFS_SOAP_ENABLED` (master kill switch, defaults false),
-`EFS_SOAP_ENDPOINT_URL`, `EFS_SOAP_USERNAME`, `EFS_SOAP_PASSWORD`, `EFS_SOAP_ACCOUNT_ID` (single-
-tenant fallbacks), `EFS_SOAP_POSTED_POLL_MINUTES`, `EFS_SOAP_REJECTED_POLL_MINUTES`,
-`EFS_SOAP_MAX_RPS`, `EFS_SOAP_MAX_RETRIES`, `EFS_SOAP_BACKFILL_DAYS`,
-`EFS_SOAP_EGRESS_PROXY_URL`.
+`EFS_SOAP_ENVIRONMENT`, `EFS_SOAP_ENDPOINT_URL`, `EFS_SOAP_USERNAME`, `EFS_SOAP_PASSWORD`,
+`EFS_SOAP_ACCOUNT_ID` (optional single-tenant fallback), `EFS_SOAP_POSTED_POLL_MINUTES`,
+`EFS_SOAP_REJECTED_POLL_MINUTES`, `EFS_SOAP_MAX_RPS`, `EFS_SOAP_MAX_RETRIES`,
+`EFS_SOAP_BACKFILL_DAYS`, and optional `EFS_SOAP_EGRESS_PROXY_URL`.
 
 Full implementation plan + timeline: **`docs/plans/EFS-SOAP-INTEGRATION-PLAN.md`**.
 

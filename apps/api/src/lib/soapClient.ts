@@ -12,14 +12,11 @@ import type { Env } from "../env.js";
  *    backfill can therefore never starve real-time rejection polling. Mirrors samsaraHttp.ts.
  *  - **Retry with Retry-After + exponential backoff.** 429s honor the Retry-After header;
  *    5xx/network errors back off with jitter, up to EFS_SOAP_MAX_RETRIES.
- *  - **Optional egress proxy.** When EFS_SOAP_EGRESS_PROXY_URL is set, the SOAP HTTP dispatch is
- *    routed through it so the request egresses from a static IP that EFS has allowlisted. When
- *    unset (Railway Pro native static IPs, or dev), direct egress is used.
+ *  - **Direct or platform-static egress.** EFS allowlists the Railway static outbound IPv4s; direct
+ *    fetch is used by default. The proxy variable remains available for a future dedicated hop.
  *
- * We deliberately model this at the HTTP layer (an `undici.Dispatcher`-shaped interface) rather
- * than around the `soap` library so the pacing, retries and proxying are testable in isolation
- * without spinning up a WSDL client. The EFS-specific operations layer (`efsSoap.ts`) constructs
- * the soap Client and passes our dispatcher to it via its `request` option.
+ * We deliberately model this at the HTTP layer so pacing and retries are testable in isolation.
+ * The EFS-specific operations layer (`efsSoap.ts`) owns the WSDL operation bodies and response mapping.
  *
  * NOTHING WSDL-SPECIFIC LIVES HERE. This file has no assumptions about EFS's SOAP operations,
  * response schemas, or field names — it only handles HTTP, auth-header injection, pacing and
@@ -95,13 +92,13 @@ export function soapLaneRps(env: Env, priority: SoapPriority, liveFraction = 0.7
  * Send one SOAP request with pacing + retries. The caller owns:
  *   • building the envelope (efsSoap.ts wraps this so operations look normal)
  *   • parsing the response body (envelope + operation-specific unwrap)
- *   • injecting the WS-Security UsernameToken (via the headers option)
+ *   • sending the already-authenticated SOAP body supplied by the EFS operation layer
  *
  * This function ONLY does: pace → dispatch → retry-on-transient → return.
  *
- * Egress proxy: currently a NOTE — Node 22's built-in fetch does not accept a proxy directly.
- * When EFS_SOAP_EGRESS_PROXY_URL is set we install a global `Undici.setGlobalDispatcher` with a
- * `ProxyAgent` (see efsSoap.ts). Wiring it here would tie tests to undici; keep it in efsSoap.ts.
+ * Egress proxying is intentionally not enabled in this client yet; Railway's static outbound IPs are
+ * the production path. If a dedicated proxy is introduced, it should be wired here without changing
+ * the EFS operation layer.
  */
 export async function soapFetch(
   env: Env,
@@ -149,12 +146,10 @@ export function __resetSoapPacing(): void {
   nextFreeAt.clear();
 }
 
-// ── WS-Security UsernameToken header helper ────────────────────────────────────────────────────
+// ── Legacy WS-Security helper ───────────────────────────────────────────────────────────────────
 //
-// EFS's authentication scheme is NOT yet confirmed (see docs/plans/EFS-SOAP-INTEGRATION-PLAN.md §11
-// Q3). WS-Security UsernameToken is the overwhelmingly common choice for enterprise SOAP webservices
-// like EFS's; if EFS instead returns HTTP Basic or another scheme we swap this helper for the right
-// one (soap library supports all of them). Isolated here so the swap is a one-line change.
+// Kept for compatibility with the initial integration seam. The EFS CardManagementWS contract uses
+// login(user,password) and a returned clientId, so the active EFS client does not call this helper.
 
 export interface WsSecurityUsernameToken {
   username: string;

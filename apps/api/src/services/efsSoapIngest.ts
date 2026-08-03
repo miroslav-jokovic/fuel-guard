@@ -25,9 +25,8 @@ import {
  *   3. Hand the returned rows to ingestReport() with source='efs_feed'.
  *   4. Advance the delta cursor on success; stamp the error on failure.
  *
- * No parsing, no field mapping, no scoring — those live where they already live. When EFS's WSDL
- * arrives and fetchPostedTransactions / fetchRejectedTransactions become real, this file needs
- * ZERO changes.
+ * No parsing, no field mapping, no scoring — those live where they already live. The SOAP layer
+ * returns normalized rows and this bridge remains unchanged if EFS adds response fields.
  *
  * Idempotency: the SOAP response's SHA-256 is used as the imports.file_hash (same slot the XLSX
  * SHA-256 uses). Re-fetching the same cursor produces the same bytes → same hash → efsIngest sees
@@ -45,10 +44,7 @@ export interface EfsSoapIngestResult extends Record<string, unknown> {
   cursorAdvancedTo?: string | null;
 }
 
-const SOURCE_FOR_INGEST = "xlsx" as const; // efsIngest's `source` is 'xlsx'|'csv' (see 0007 enum
-// includes 'efs_feed' but ingestReport currently accepts only xlsx/csv). We tag the CHANNEL below
-// (imports.summary.channel) as 'auto' + note the SOAP source separately so audit stays truthful.
-// When ingestReport's source enum is widened to 'efs_feed' (a small future PR), swap this.
+const SOURCE_FOR_INGEST = "efs_feed" as const;
 
 /**
  * Run ONE ingest pass for one org + one feed. Called by the poller (§efsSoapPoller.ts) for each
@@ -86,7 +82,7 @@ export async function runEfsSoapIngest(
         : await fetchRejectedTransactions(env, creds, cursor, { priority, maxPages: opts.maxPages ?? 1 });
   } catch (e) {
     if (e instanceof EfsSoapError && e.code === "not_implemented") {
-      // Expected pre-WSDL — record silently so the UI shows "waiting" not "failed".
+      // Retained for safe rollout/rollback if an older operation implementation is deployed.
       await recordFeedFailure(admin, orgId, feed, "not_yet_implemented");
       return {
         feed,

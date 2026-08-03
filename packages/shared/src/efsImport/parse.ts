@@ -122,17 +122,18 @@ export function normalizeTransactionRows(rows: RawRow[]): {
       [cardFull, cardShort].filter((v): v is string => !!v).sort((a, b) => b.length - a.length)[0] ?? card;
     const controlId = controlIdOf(row);
     const invoice = str(pick(row, "Invoice"));
-    const txnId = str(pick(row, "TransactionId", "Transaction Id", "Transaction ID"));
+    const stableTxnId = str(pick(row, "Stable Transaction ID", "StableTransactionId"));
+    const txnId = stableTxnId ?? str(pick(row, "TransactionId", "Transaction Id", "Transaction ID"));
     const total = num(pick(row, "Amt", "Amount"));
     // One fueling event = one invoice ON one business date (merges multi-line invoices without
     // collapsing reused invoice numbers across days). Only when the invoice is BLANK do we fall back
     // to a unique per-transaction key (TransactionId, else time+amount), so a missing invoice can't
     // collapse a whole card's history into a single row.
-    const base = invoice
-      ? `${card ?? ""}|${invoice}`
-      : txnId
-        ? `${card ?? ""}|${txnId}`
-        : `${card ?? ""}|${instant.iso}|${total ?? ""}|${gallons}`;
+    const base = stableTxnId
+      ? `${card ?? ""}|${stableTxnId}`
+      : invoice
+        ? `${card ?? ""}|${invoice}`
+        : `${card ?? ""}|${txnId ?? instant.iso}|${total ?? ""}|${gallons}`;
     const dateKey = `${base}|${instant.tranDate}`;
     // Reefer (ULSR) is a SEPARATE fueling event from the tractor's ULSD on the same invoice, so it can't
     // inflate tractor volume/MPG checks. Merge per tank; suffix the ref with |reefer for reefer only, so
@@ -230,6 +231,9 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
     const card = str(pick(row, "Card #", "Card Number"));
     const invoice = str(pick(row, "Invoice"));
     const item = str(pick(row, "Item", "ProductCode"));
+    const txnId =
+      str(pick(row, "Stable Transaction ID", "StableTransactionId")) ??
+      str(pick(row, "TransactionId", "Transaction Id", "Transaction ID"));
     const qty = num(pick(row, "Qty", "Quantity"));
     const amt = num(pick(row, "Amt", "Amount"));
     const state = str(pick(row, "State/ Prov", "State/Prov", "State", "Location State"));
@@ -245,7 +249,9 @@ export function normalizeAllTransactionLines(rows: RawRow[]): EfsTransactionLine
     // (an evening local fill crosses the UTC date boundary). The ref is date-scoped so identical
     // purchases on different days (blank/reused invoice) can never collide.
     return {
-      external_ref: [card ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|"),
+      external_ref: txnId
+        ? [card ?? "", txnId, item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|")
+        : [card ?? "", invoice ?? "", item ?? "", qty ?? "", amt ?? "", instant?.tranDate ?? ""].join("|"),
       line_number: i + 1,
       card_num: card,
       tran_date: instant?.tranDate ?? null,

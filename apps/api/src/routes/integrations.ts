@@ -215,9 +215,8 @@ export function integrationsRouter(): Router {
   //   POST /efs-soap/test-connection  — one probe against EFS; returns success/failure + roundtrip
   //   POST /efs-soap/sync-now/:feed   — manual trigger for posted or rejected feed (enqueued as a job)
   //
-  // All admin-only, org-scoped, and audited via writeAudit. The stubbed SOAP operations
-  // (test-connection and sync-now) will surface EFS_SOAP not_implemented errors as a friendly
-  // "waiting for EFS WSDL" response until data release.
+  // All admin-only, org-scoped, and audited via writeAudit. Test-connection performs a real EFS login;
+  // sync-now enqueues the posted or rejected date-window poll.
 
   router.get(
     "/efs-soap/config",
@@ -322,8 +321,7 @@ export function integrationsRouter(): Router {
       if (result.ok) {
         res.json({ ok: true, roundtripMs });
       } else {
-        // "not_implemented" is expected pre-WSDL — return 200 with a friendly note so the UI can
-        // display "Waiting on EFS WSDL" rather than "Failed".
+        // Keep the legacy response shape for clients that still understand the pre-WSDL state.
         if (result.error.code === "not_implemented") {
           res.json({ ok: false, notImplemented: true, message: result.error.message });
         } else {

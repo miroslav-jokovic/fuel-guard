@@ -1,45 +1,18 @@
+import { createHash } from "node:crypto";
+import { DOMParser, type Element as XmlElement, type Node as XmlNode } from "@xmldom/xmldom";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials, FeedName } from "../services/efsSoapCredentials.js";
 import { buildWsSecurityUsernameTokenHeader, soapFetch, type SoapPriority } from "./soapClient.js";
 
 /**
- * EFS-specific SOAP operations. This is the ONLY file with WSDL-dependent stubs — every function
- * marked NOT_YET_IMPLEMENTED lists the exact information from EFS's data release that unblocks it.
- * The interfaces (function signatures + return shapes) are locked so downstream code (`efsSoapIngest`,
- * `efsSoapPoller`, admin routes, tests) can be written against them today.
+ * EFS CardManagementWS operations. The production WSDL defines SOAP 1.1 operations:
+ * `login(user,password)` → session `clientId`, `getMCTransExtLocV2` for posted transactions,
+ * `getTranRejects(clientId, search)` for rejected authorizations, and `logout(clientId)`.
+ * Responses are normalized into the same row shape used by the existing XLSX/CSV ingest path.
  *
- * ─────────────────────────────────────────────────────────────────────────────────────────────────
- *                    WHAT WE ARE WAITING ON FROM EFS (docs/plans §11)
- * ─────────────────────────────────────────────────────────────────────────────────────────────────
- * The following ELEVEN items block real implementation. Everything else in this integration is
- * already written or scaffolded.
- *
- *   1. WSDL URL + XSD types for the SOAP operations.
- *   2. Operation names for: fetch posted transactions since cursor, fetch rejected transactions
- *      since cursor. (Guessing names risks a wasted implementation.)
- *   3. Authentication scheme (WS-Security UsernameToken assumed — confirm PasswordText vs
- *      PasswordDigest; or HTTP Basic; or something else). See soapClient.ts.
- *   4. Delta cursor mechanism — timestamp string, sequence number, opaque token, or a combination.
- *      Determines what we persist in efs_soap_credentials.posted_last_cursor / rejected_last_cursor.
- *   5. Response envelope schema — element names for the transaction list, the cursor for the next
- *      page, and the empty-result indicator.
- *   6. Field-level mapping — for each of our efs_transactions / declined_transactions columns,
- *      which SOAP field carries it. See docs/08-EFS-INTEGRATION.md §4 (the XLSX version of this table).
- *   7. Stable transaction ID field — the value we should use as external_ref (replaces our XLSX
- *      composite key `Card # | Invoice | Item | qty | amt`).
- *   8. Timezone convention for all datetime fields (UTC vs local vs EFS-specific).
- *   9. Historical-backfill semantics — is there a maximum window per call, or a "since epoch" call?
- *  10. Rate limits (requests/sec, requests/min, requests/hour). Sets EFS_SOAP_MAX_RPS.
- *  11. Fault format — SOAP standard `<Fault>` or an EFS-specific error envelope inside a 200
- *      response? Determines how parseFault() reads status.
- *
- * When these arrive, the six functions below become straight-line implementations:
- *   • buildSoapEnvelope() — templates the WSDL operation
- *   • parseTransactionsResponse() — element paths from #5
- *   • parseRejectionsResponse() — element paths from #5
- *   • cursorFromResponse() — extraction path from #4/#5
- *   • ping() — smallest legal operation for test-connection
- *   • parseFault() — from #11
+ * EFS exposes date-range queries rather than a server cursor. We persist the last query end-time in
+ * the existing cursor columns and overlap each subsequent query by 48 hours. File-level and
+ * external_ref idempotency make the overlap safe while protecting against late settlements.
  */
 
 /** Shape returned by both feeds. Rows match the shape our XLSX ingest already produces so
@@ -48,7 +21,7 @@ export interface EfsSoapFetchResult {
   /** Normalized rows in the SAME shape our XLSX parser (readEfsFile.ts) produces. Downstream
    *  (efsIngest.ts / efsIngestReject.ts) does not distinguish source. */
   rows: Record<string, string | number | null | undefined>[];
-  /** Cursor to persist and pass on the next call. null = fully caught up (no more pages). */
+  /** Last completed query end-time; subsequent calls overlap it by 48 hours. */
   nextCursor: string | null;
   /** SHA-256 hex of the raw response body (or a stable digest of the fetched batch) — used as
    *  the synthetic file_hash for the imports row so re-fetches are idempotent at the file level.
@@ -60,8 +33,7 @@ export interface EfsSoapFetchResult {
 
 export interface EfsSoapFetchOptions {
   priority?: SoapPriority;
-  /** Maximum pages to walk in one call (defaults to 1 = one page). The backfill path passes a
-   *  larger number to catch up quickly, then falls back to steady 1-page polling. */
+  /** Maximum seven-day windows to fetch in one call (defaults to one; bounds request size and load). */
   maxPages?: number;
   /** Injectable fetch — tests pass a stub. */
   fetchImpl?: typeof fetch;
@@ -86,113 +58,341 @@ export class EfsSoapError extends Error {
   }
 }
 
-// ─── Sentinel: throws until WSDL arrives ───────────────────────────────────────────────────────
-
-function notYetImplemented(operation: string): never {
-  throw new EfsSoapError(
-    `EFS SOAP operation "${operation}" not yet implemented — waiting on EFS data release ` +
-      `(see docs/plans/EFS-SOAP-INTEGRATION-PLAN.md §11).`,
-    "not_implemented",
-  );
-}
-
 // ─── Public operations ─────────────────────────────────────────────────────────────────────────
 
-/**
- * Fetch posted transactions since the last cursor. Called by the posted-feed poller and by the
- * initial-backfill flow.
- *
- * NOT_YET_IMPLEMENTED — unblocked by data-release items #1, #2, #4, #5, #6, #7, #8.
- */
+/** Fetch the posted transaction report for the cursor window. EFS has no opaque delta token: its
+ * contract is a date-time range, so the cursor is the last end-time used and each poll overlaps the
+ * preceding 48 hours for late settlements. Existing external_ref dedup makes that overlap safe. */
 export async function fetchPostedTransactions(
   env: Env,
   creds: EfsSoapCredentials,
   cursor: string | null,
   opts: EfsSoapFetchOptions = {},
 ): Promise<EfsSoapFetchResult> {
-  // Prove the plumbing works even before the WSDL arrives: build the header + reserve the pacing
-  // slot, then throw with the "not_implemented" code. The scheduler treats this specifically as
-  // "cold" not "failed" so we don't spam the error dashboard before launch.
-  void buildAuthHeader(creds);
-  await touchPacingSlot(env, creds, opts.priority ?? "backfill");
-  void cursor;
-  return notYetImplemented("fetchPostedTransactions");
+  return fetchFeed(env, creds, "posted", cursor, opts);
 }
 
-/**
- * Fetch rejected authorization attempts since the last cursor. Called by the rejected-feed poller
- * (which polls FAR more frequently than posted — rejections are the fraud signal we want fresh).
- *
- * NOT_YET_IMPLEMENTED — unblocked by data-release items #1, #2, #4, #5, #6, #7, #8.
- */
+/** Fetch rejected authorization attempts for the cursor window. */
 export async function fetchRejectedTransactions(
   env: Env,
   creds: EfsSoapCredentials,
   cursor: string | null,
   opts: EfsSoapFetchOptions = {},
 ): Promise<EfsSoapFetchResult> {
-  void buildAuthHeader(creds);
-  await touchPacingSlot(env, creds, opts.priority ?? "live");
-  void cursor;
-  return notYetImplemented("fetchRejectedTransactions");
+  return fetchFeed(env, creds, "rejected", cursor, opts);
 }
 
-/**
- * Smallest legal SOAP call that proves auth + connectivity. Wired to the admin "Test connection"
- * button. Returns roundtrip time in ms on success; throws EfsSoapError otherwise.
- *
- * PARTIALLY IMPLEMENTED — the transport + auth header are real, so a WRONG WSDL still exercises
- * pacing/proxy/TLS/allowlisting; the operation body is stubbed until data-release items #1 + #2.
- */
+/** Login is the smallest legal EFS call and proves credentials, TLS, allowlisting and SOAP routing. */
 export async function pingEfsSoap(
-  _env: Env,
-  _creds: EfsSoapCredentials,
-  _opts: { fetchImpl?: typeof fetch } = {},
+  env: Env,
+  creds: EfsSoapCredentials,
+  opts: { fetchImpl?: typeof fetch } = {},
 ): Promise<{ ok: true; roundtripMs: number } | { ok: false; error: EfsSoapError }> {
+  const started = Date.now();
   try {
-    // Once WSDL arrives, replace this with the smallest safe operation (e.g. a "GetVersion" or
-    // "Echo" call) and inspect the response for auth success (200 + no SOAP fault).
-    return { ok: false, error: notYetImplementedError("pingEfsSoap") };
+    const session = await login(env, creds, "live", opts.fetchImpl);
+    await logout(env, creds, session.clientId, "live", opts.fetchImpl, session.cookie);
+    return { ok: true, roundtripMs: Date.now() - started };
   } catch (e) {
-    if (e instanceof EfsSoapError) return { ok: false, error: e };
-    return {
-      ok: false,
-      error: new EfsSoapError(e instanceof Error ? e.message : String(e), "transport", e),
-    };
+    const error = e instanceof EfsSoapError
+      ? e
+      : new EfsSoapError(e instanceof Error ? e.message : String(e), "transport", e);
+    return { ok: false, error };
   }
 }
 
-// ─── Internal plumbing (real code, exercised even before WSDL arrives) ─────────────────────────
+// ─── EFS SOAP session + response plumbing ───────────────────────────────────────────────────────
 
-/** Build the auth header dictionary for one SOAP call. Isolated so a future auth-scheme change
- *  (Basic, mTLS, OAuth-Bearer, etc.) is a one-file swap. */
-export function buildAuthHeader(creds: EfsSoapCredentials): Record<string, string> {
-  // WS-Security header is injected into the ENVELOPE (not the HTTP headers) — this dictionary
-  // is intentionally empty for now. When WSDL arrives and we know for certain the scheme is
-  // WS-Security PasswordText, the envelope builder calls buildWsSecurityUsernameTokenHeader().
-  // If EFS instead uses HTTP Basic, we return `{ Authorization: "Basic " + b64(user:pass) }` here.
-  void creds;
+/** EFS uses login(user,password) → clientId, not WS-Security UsernameToken. Keep this compatibility
+ * export for callers/tests that imported the old seam; the HTTP headers are intentionally empty. */
+export function buildAuthHeader(_creds: EfsSoapCredentials): Record<string, string> {
   return {};
 }
 
-/** Reserve a pacing slot without actually sending a request. Used by the not_yet_implemented
- *  operations so pacing behavior is testable end-to-end before WSDL arrives. */
-async function touchPacingSlot(env: Env, creds: EfsSoapCredentials, priority: SoapPriority): Promise<void> {
-  // A no-op fetch through soapFetch would still burn a real HTTP request. Instead we duplicate
-  // the pacing computation locally — this is an acceptable smell for a stub because the moment
-  // WSDL arrives, this function is deleted and soapFetch is called directly.
-  void env;
-  void creds;
-  void priority;
+type SoapValue = string | null | Record<string, unknown> | SoapValue[];
+
+const SOAP_ACTIONS = {
+  login: "login",
+  logout: "logout",
+  posted: "getMCTransExtLocV2",
+  rejected: "getTranRejects",
+} as const;
+
+function xmlEscape(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
-function notYetImplementedError(operation: string): EfsSoapError {
-  return new EfsSoapError(
-    `EFS SOAP operation "${operation}" not yet implemented — waiting on EFS data release ` +
-      `(see docs/plans/EFS-SOAP-INTEGRATION-PLAN.md §11).`,
-    "not_implemented",
-  );
+function localName(node: XmlNode): string {
+  return (node as XmlElement).localName ?? node.nodeName.split(":").pop() ?? node.nodeName;
 }
+
+function childElements(element: XmlElement): XmlElement[] {
+  const children: XmlElement[] = [];
+  for (let i = 0; i < element.childNodes.length; i++) {
+    const node = element.childNodes.item(i);
+    if (node && node.nodeType === 1) children.push(node as XmlElement);
+  }
+  return children;
+}
+
+function findDescendant(root: XmlElement, wanted: string): XmlElement | null {
+  for (const child of childElements(root)) {
+    if (localName(child) === wanted) return child;
+    const nested = findDescendant(child, wanted);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function elementToValue(element: XmlElement): SoapValue {
+  if (element.getAttribute("xsi:nil") === "true" || element.getAttribute("nil") === "true") return null;
+  const children = childElements(element);
+  if (children.length === 0) return (element.textContent ?? "").trim() || null;
+  const record: Record<string, unknown> = {};
+  for (const child of children) {
+    const key = localName(child);
+    const value = elementToValue(child);
+    const previous = record[key];
+    record[key] = previous === undefined ? value : Array.isArray(previous) ? [...previous, value] : [previous, value];
+  }
+  return record;
+}
+
+function asRecords(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.filter((v): v is Record<string, unknown> => !!v && typeof v === "object");
+  return value && typeof value === "object" ? [value as Record<string, unknown>] : [];
+}
+
+function textValue(value: unknown): string | null {
+  if (value == null) return null;
+  if (Array.isArray(value)) return textValue(value[0]);
+  if (typeof value === "object") return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
+function parseSoap(xml: string): XmlElement {
+  const doc = new DOMParser().parseFromString(xml, "text/xml");
+  if (!doc.documentElement || findDescendant(doc.documentElement, "parsererror")) {
+    throw new EfsSoapError("EFS returned malformed XML", "malformed_response");
+  }
+  const fault = findDescendant(doc.documentElement, "Fault");
+  if (fault) {
+    const message = textValue(elementToValue(findDescendant(fault, "faultstring") ?? fault)) ?? "EFS SOAP fault";
+    const lower = message.toLowerCase();
+    throw new EfsSoapError(message, /auth|login|password|user|credential|clientid/.test(lower) ? "auth" : "soap_fault");
+  }
+  return doc.documentElement;
+}
+
+function responseValues(xml: string): Record<string, unknown>[] {
+  const root = parseSoap(xml);
+  const result = findDescendant(root, "result");
+  if (!result) return [];
+  return childElements(result)
+    .filter((child) => localName(child) === "value")
+    .map((child) => elementToValue(child))
+    .flatMap(asRecords);
+}
+
+function responseResult(xml: string): string {
+  const root = parseSoap(xml);
+  const result = findDescendant(root, "result");
+  const value = result ? textValue(elementToValue(result)) : null;
+  if (!value) throw new EfsSoapError("EFS login response did not contain a clientId", "auth");
+  return value;
+}
+
+async function requestXml(
+  env: Env,
+  creds: EfsSoapCredentials,
+  operation: string,
+  body: string,
+  priority: SoapPriority,
+  fetchImpl?: typeof fetch,
+  retry = true,
+  cookie?: string | null,
+): Promise<{ body: string; headers: Headers }> {
+  try {
+    const response = await soapFetch(env, `${creds.orgId}:${creds.endpointUrl}`, {
+      url: creds.endpointUrl,
+      body: buildSoapEnvelope({ operationBody: body }),
+      soapAction: operation,
+      headers: cookie ? { Cookie: cookie } : undefined,
+      priority,
+      fetchImpl,
+      retry,
+    });
+    if (response.status === 401 || response.status === 403) {
+      throw new EfsSoapError(`EFS rejected the ${operation} request`, "auth", response.status);
+    }
+    if (response.status >= 400) {
+      throw new EfsSoapError(`EFS returned HTTP ${response.status} for ${operation}`, "transport", response.status);
+    }
+    return { body: response.body, headers: response.headers };
+  } catch (error) {
+    if (error instanceof EfsSoapError) throw error;
+    throw new EfsSoapError(`EFS ${operation} request failed`, "transport", error);
+  }
+}
+
+interface EfsSession {
+  clientId: string;
+  cookie: string | null;
+}
+
+function cookieHeader(headers: Headers): string | null {
+  const raw = headers.get("set-cookie");
+  if (!raw) return null;
+  return raw
+    .split(/,(?=[^;,]+=)/)
+    .map((part) => part.split(";", 1)[0]?.trim())
+    .filter(Boolean)
+    .join("; ") || null;
+}
+
+async function login(env: Env, creds: EfsSoapCredentials, priority: SoapPriority, fetchImpl?: typeof fetch): Promise<EfsSession> {
+  const body = `<CardManagementEP_login><user>${xmlEscape(creds.soapUsername)}</user><password>${xmlEscape(creds.soapPassword)}</password></CardManagementEP_login>`;
+  const response = await requestXml(env, creds, SOAP_ACTIONS.login, body, priority, fetchImpl);
+  return { clientId: responseResult(response.body), cookie: cookieHeader(response.headers) };
+}
+
+async function logout(env: Env, creds: EfsSoapCredentials, clientId: string, priority: SoapPriority, fetchImpl?: typeof fetch, cookie?: string | null): Promise<void> {
+  try {
+    await requestXml(env, creds, SOAP_ACTIONS.logout, `<CardManagementEP_logout><clientId>${xmlEscape(clientId)}</clientId></CardManagementEP_logout>`, priority, fetchImpl, false, cookie);
+  } catch {
+    // Session cleanup is best effort; never hide a successful data response behind logout failure.
+  }
+}
+
+function dateWindow(env: Env, cursor: string | null): { start: Date; end: Date } {
+  const end = new Date();
+  const parsedCursor = cursor ? new Date(cursor) : null;
+  let start = parsedCursor && !Number.isNaN(parsedCursor.getTime())
+    ? new Date(parsedCursor.getTime() - 48 * 60 * 60 * 1000)
+    : new Date(end.getTime() - env.EFS_SOAP_BACKFILL_DAYS * 24 * 60 * 60 * 1000);
+  if (start > end) start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
+function isoDateTime(value: Date): string {
+  return value.toISOString();
+}
+
+function infoValue(infos: unknown, code: string): string | null {
+  for (const info of asRecords(infos)) {
+    if (textValue(info.type)?.toUpperCase() === code) return textValue(info.value);
+  }
+  return null;
+}
+
+function fuelItem(line: Record<string, unknown>): string | null {
+  const category = textValue(line.category);
+  if (category) return category;
+  const fuelType = textValue(line.fuelType);
+  if (["1", "2", "128", "256", "512", "8192"].includes(fuelType ?? "")) return "ULSD";
+  if (["4", "8", "16", "2048"].includes(fuelType ?? "")) return "GASOLINE";
+  return fuelType;
+}
+
+function transactionRows(values: Record<string, unknown>[]): Record<string, string | number | null>[] {
+  return values.flatMap((transaction) => {
+    const infos = transaction.infos;
+    const lines = asRecords(transaction.lineItems);
+    const date = textValue(transaction.POSDate) ?? textValue(transaction.transactionDate);
+    return lines.map((line) => ({
+      TransactionId: textValue(transaction.transactionId),
+      "Stable Transaction ID": textValue(transaction.transactionId),
+      "Tran Date": date,
+      TransactionPOSTime: null,
+      "Card #": textValue(transaction.cardNumber),
+      Invoice: textValue(transaction.invoice),
+      Unit: infoValue(infos, "UNIT"),
+      "Driver Name": infoValue(infos, "NAME"),
+      "Driver ID": infoValue(infos, "DRID"),
+      Odometer: infoValue(infos, "ODRD"),
+      "Location ID": textValue(transaction.locationId),
+      "Location Name": textValue(transaction.locationName),
+      City: textValue(transaction.locationCity),
+      "State/Prov": textValue(transaction.locationState),
+      "Location Address": textValue(transaction.locationAddress),
+      Latitude: textValue(transaction.locationLatitude),
+      Longitude: textValue(transaction.locationLongitude),
+      Item: fuelItem(line),
+      "Unit Price": textValue(line.ppu),
+      Qty: textValue(line.quantity),
+      Amt: textValue(line.amount),
+      Currency: textValue(transaction.billingCurrency) ?? textValue(transaction.locationCurrency),
+      "Auth Code": textValue(transaction.authCode),
+      "Transaction ID": textValue(transaction.transactionId),
+    }));
+  });
+}
+
+function rejectedRows(values: Record<string, unknown>[]): Record<string, string | number | null>[] {
+  return values.map((reject) => ({
+    Date: textValue(reject.tranDate),
+    Time: null,
+    "Card Number": textValue(reject.cardNum),
+    Invoice: textValue(reject.invoice),
+    "Location ID": textValue(reject.locId),
+    "Location Name": textValue(reject.locName),
+    "Location City": textValue(reject.locCity),
+    "State/Prov": textValue(reject.locState),
+    "Error Code": textValue(reject.errorCode),
+    "Error Description": textValue(reject.errorDesc),
+    Unit: textValue(reject.unit),
+    "Driver ID": null,
+    "Driver Name": null,
+  }));
+}
+
+async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cursor: string | null, opts: EfsSoapFetchOptions): Promise<EfsSoapFetchResult> {
+  const { start, end } = dateWindow(env, cursor);
+  const priority = opts.priority ?? (feed === "posted" ? "backfill" : "live");
+  const maxPages = Math.max(1, opts.maxPages ?? 1);
+  const session = await login(env, creds, priority, opts.fetchImpl);
+  const rows: Record<string, string | number | null>[] = [];
+  const responseHash = createHash("sha256");
+  let pageStart = start;
+  let pagesFetched = 0;
+  let nextCursor = cursor;
+  try {
+    while (pagesFetched < maxPages && pageStart < end) {
+      // EFS explicitly limits transaction requests to seven days. The cursor lets a bounded poll
+      // walk a larger initial backfill over multiple scheduler/manual runs.
+      const pageEnd = new Date(Math.min(pageStart.getTime() + 7 * 24 * 60 * 60 * 1000, end.getTime()));
+      const body = feed === "posted"
+        ? `<CardManagementEP_getMCTransExtLocV2><clientId>${xmlEscape(session.clientId)}</clientId><begDate>${isoDateTime(pageStart)}</begDate><endDate>${isoDateTime(pageEnd)}</endDate></CardManagementEP_getMCTransExtLocV2>`
+        : `<CardManagementEP_getTranRejects><clientId>${xmlEscape(session.clientId)}</clientId><search><startDate>${isoDateTime(pageStart)}</startDate><endDate>${isoDateTime(pageEnd)}</endDate></search></CardManagementEP_getTranRejects>`;
+      const response = await requestXml(env, creds, SOAP_ACTIONS[feed], body, priority, opts.fetchImpl, true, session.cookie);
+      responseHash.update(response.body);
+      const values = responseValues(response.body);
+      rows.push(...(feed === "posted" ? transactionRows(values) : rejectedRows(values)));
+      pagesFetched += 1;
+      nextCursor = pageEnd.toISOString();
+      pageStart = pageEnd;
+    }
+    return {
+      rows,
+      nextCursor,
+      responseHash: responseHash.digest("hex"),
+      pagesFetched,
+    };
+  } finally {
+    await logout(env, creds, session.clientId, priority, opts.fetchImpl, session.cookie);
+  }
+}
+
+
+/** Every session and data request goes through soapFetch, so pacing applies to login, feed calls,
+ * and logout as one credential-scoped sequence. */
+
 
 // ─── SOAP envelope templating (real, WSDL-parameterized) ───────────────────────────────────────
 
@@ -220,22 +420,17 @@ export function buildSoapEnvelope(input: SoapEnvelopeInput): string {
   );
 }
 
-// ─── Feed → operation router (once WSDL arrives) ───────────────────────────────────────────────
+// ─── Feed → operation router ───────────────────────────────────────────────────────────────────
 
-/** Once the WSDL operation names are known, this map turns a feed name into the operation +
- *  cursor path. Left as a placeholder so callers already have the right seam. */
-export const FEED_OPERATIONS: Record<FeedName, { operationName: string | null; description: string }> = {
+/** WSDL operation names used by the two normalized feed paths. */
+export const FEED_OPERATIONS: Record<FeedName, { operationName: string; description: string }> = {
   posted: {
-    operationName: null,
-    description:
-      "Posted (completed & billed) fuel transactions. Highest-latency feed; poll every " +
-      "EFS_SOAP_POSTED_POLL_MINUTES (default 15 min).",
+    operationName: "getMCTransExtLocV2",
+    description: "Posted transactions with location and line-item detail.",
   },
   rejected: {
-    operationName: null,
-    description:
-      "Rejected authorization attempts (INACTIVE CARD, INVALID TRUCKSTOP, LIMIT EXCEEDED, etc.). " +
-      "Fraud/control signal; poll every EFS_SOAP_REJECTED_POLL_MINUTES (default 5 min).",
+    operationName: "getTranRejects",
+    description: "Rejected authorization attempts and EFS rejection reasons.",
   },
 };
 

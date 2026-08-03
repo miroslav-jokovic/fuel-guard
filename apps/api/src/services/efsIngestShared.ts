@@ -11,7 +11,7 @@ export interface IngestInput {
   orgId: string;
   /** The authenticated user who triggered a manual run, or null for an unattended scheduler run. */
   requestedBy: string | null;
-  source: "xlsx" | "csv";
+  source: "xlsx" | "csv" | "efs_feed";
   filename: string;
   /** SHA-256 hex of the raw file bytes — the file-level idempotency key (imports.file_hash). */
   fileHash: string;

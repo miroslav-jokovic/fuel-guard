@@ -257,10 +257,11 @@ the other planning docs (`docs/plans/` already exists in the repo — verified).
 
 ---
 
-## 6. Engineering build work — starts AFTER EFS's data release lands
+## 6. Engineering build work — WSDL contract now available
 
-Nine items. Depend on the WSDL / sample payloads / sandbox credentials from EFS.
-Est. total effort ~2–3 engineering weeks after data release. Ordered by dependency.
+The production WSDL and integration guide are now available. The SOAP transport, session flow,
+operation names, response envelope, and initial field mapping are implemented; sandbox credentials,
+allowlisting, and EFS certification remain deployment prerequisites.
 
 ### 6.1 Read the WSDL and lock the field mapping
 Before writing any code, cross-reference the WSDL against our normalized row shape
@@ -269,16 +270,29 @@ Before writing any code, cross-reference the WSDL against our normalized row sha
 Produce a mapping table like the existing `docs/08 §4` table, but for SOAP fields → our
 columns. Specifically confirm:
 
-- Where the **stable transaction ID** lives in the SOAP payload (this replaces our current
-  composite `card_num | invoice | item | qty | amt` external_ref for SOAP-sourced rows).
-- Where the **delta cursor** lives (a monotonic sequence number, a `since` timestamp, both).
-- Timezone convention for all datetime fields (UTC vs local vs EFS-specific).
-- The full product-code list (extends the existing `ULSD, ULSR, DEFD, SCLE, STAX, ADD, WWFL`
-  set in `docs/08 §0`).
-- The full rejection-code list (extends `INACTIVE CARD, INVALID TRUCKSTOP, LIMIT EXCEEDED`).
-- Where card_num vs full-PAN vs card-alias appears in each feed.
+The initial mapping is now locked from the production WSDL:
 
-**Deliverable:** mapping table appended to `docs/08 §4`.
+- Posted operation: `CardManagementEP_getMCTransExtLocV2`, with `clientId`, `begDate`, and `endDate`.
+- Rejected operation: `CardManagementEP_getTranRejects`, with `clientId` and a `search` object containing
+  `startDate` and `endDate` (optional card/invoice/location filters are intentionally omitted).
+- Authentication: `CardManagementEP_login(user,password)` returns the session `clientId`; each pass logs
+  out with `CardManagementEP_logout(clientId)`. No WS-Security header is used.
+- Posted response: `<result><value>…</value></result>` transaction objects; stable `transactionId` is
+  passed into the existing row normalizer and becomes the primary transaction identity component.
+- Rejected response: `<result><value>…</value></result>` records containing `tranDate`, `cardNum`, `invoice`,
+  location fields, `errorCode`, `errorDesc`, and `unit`.
+- Cursor: EFS exposes a date-time range, not a server cursor. We persist the last query end-time and
+  overlap each poll by 48 hours; idempotent file and external-reference checks make this safe. EFS
+  requires no more than seven days per request, so larger backfills are split into seven-day pages.
+- Mapping: `infos` codes `UNIT`, `NAME`, `DRID`, and `ODRD` map to unit, driver, EFS driver ID, and
+  odometer; `lineItems.category`, `quantity`, `ppu`, and `amount` map to item, gallons, price, and total.
+- Timing: request timestamps are UTC ISO-8601; EFS documents server/central-time response semantics.
+  Session client IDs expire daily around 03:00 CT, so FuelGuard logs in for every poll pass and carries
+  the returned cookie when EFS supplies one.
+
+Still requiring confirmation from EFS: rate limits, production/sandbox certification cases, and the
+complete product/rejection code catalogs.
+
 
 ### 6.2 SOAP HTTP client — `apps/api/src/lib/soapClient.ts`
 Model on the existing `apps/api/src/lib/samsaraHttp.ts` (verified — 4.5 KB, exports
@@ -288,8 +302,8 @@ adapts the same pattern for SOAP:
 - Rate limiter keyed by `(org_id, priority)`; posted-poll = "backfill", rejected-poll =
   "live" so a slow posted-backfill can never starve real-time rejection polling.
 - Exponential backoff + jitter on 5xx / network errors.
-- Optional egress proxy (`EFS_SOAP_EGRESS_PROXY_URL`) for the static-IP hop.
-- WS-Security UsernameToken injection (assuming that's what EFS returns — §11 unknown).
+- Direct HTTPS egress through Railway's static outbound IPv4s (an optional proxy seam remains available).
+- SOAP 1.1 session authentication via EFS `login`/`clientId`/`logout`.
 - SOAP fault parsing → typed error.
 
 **Definition of done:** unit tests (following `samsaraHttp.test.ts` pattern) verify pacing,
@@ -300,11 +314,11 @@ Concrete calls: `fetchPostedTransactions(cursor)` and `fetchRejectedTransactions
 Each returns `{ rows, nextCursor }` in the same shape our existing XLSX parser produces
 (so downstream is untouched).
 
-- Parses the SOAP envelope with the `soap` library, but hand-maps the response into our
-  `Record<string, string | number | null>` row shape (same shape `readEfsFile.ts` produces
-  for XLSX — verified).
-- Marks the produced rows with `source: 'efs_feed'` (enum value already reserved).
-- Computes the `external_ref` from the WSDL-provided stable transaction ID (see 6.1).
+- Parses the SOAP 1.1 envelope with a namespace-safe XML parser and hand-maps the response into our
+  `Record<string, string | number | null>` row shape (same shape `readEfsFile.ts` produces).
+- Marks the produced import with `source: 'efs_feed'` (enum value already reserved).
+- Passes the WSDL stable `transactionId` into the existing normalizer so SOAP fuel events use it in
+  `external_ref`; the faithful line store retains a line-qualified stable reference.
 - Handles empty responses (no new transactions) as a normal successful call, not an error.
 
 **Definition of done:** unit tests parse EFS's actual sample response into rows that
@@ -493,37 +507,19 @@ lightweight.
 
 ---
 
-## 11. Open items — depend on EFS's response (assumption-free)
+## 11. Remaining EFS confirmations
 
-Nothing below is assumed; each is confirmed by EFS in their next reply or in the data
-release.
+The production WSDL has resolved the operation names, authentication, request wrapper, and response
+container. These operational items still need EFS confirmation before production polling is enabled.
 
-1. Does one SOAP client + one credential set cover **both** posted and rejected transaction
-   feeds? (Their email implies yes; we asked in §2.1 Q1 to confirm.)
-2. **Fastest allowed polling interval** for posted feed and rejected feed. Our default
-   cadence is 15 min and 5 min respectively — tighter is better for rejections.
-3. **Authentication scheme:** WS-Security UsernameToken, HTTP Basic, or another? Assumed
-   UsernameToken in §6.2; adjust the SOAP client accordingly.
-4. **Delta cursor mechanism:** timestamp-based (`since=YYYY-MM-DDTHH:MM:SSZ`), sequence-
-   number, both, or something else. Determines `posted_last_cursor` /
-   `rejected_last_cursor` semantics in migration 0091.
-5. **Stable transaction ID field** in the SOAP payload. Determines whether we use it as
-   `external_ref` or fall back to the composite key.
-6. **Timezone convention** for all datetime fields. Determines whether we treat responses
-   as UTC or org-local.
-7. **Historical backfill window** on first sync. Our default is 90 days; adjust if EFS
-   allows more or requires less.
-8. **Full product-code list.** Extends the current allowlist in `normalizeTransactionRows`
-   (`ULSD`, `ULSR`, gasoline codes).
-9. **Full rejection-code list.** Populates the risk-feed severity mapping in
-   `declinedScoring.ts`.
-10. **IP allowlisting format:** single IP, small CIDR block, or a whole /24. We asked in
-    §2.1 Q4 for a CIDR block; the response affects the Fly.io setup in §5.1.
-11. **mTLS / client-cert requirements.** If required, add cert provisioning to §5.1 and
-    §6.2.
-12. **Rate limits** (requests/sec, requests/min, requests/hour). Sets
-    `EFS_SOAP_MAX_RPS` in the env schema.
-13. **Certification test cases** — determines the exact scope of §6.8.
+1. Fastest allowed polling interval for posted and rejected feeds.
+2. Accepted historical backfill window beyond the documented seven-day request maximum.
+3. Exact timezone semantics for `POSDate`/`transactionDate` and `tranDate` in the provisioned account.
+4. Complete product-code and rejection-code catalogs, including any non-fuel line-item rules.
+5. Rate limits (requests/sec, requests/min, requests/hour), which determine `EFS_SOAP_MAX_RPS`.
+6. IP allowlisting format and whether all Railway static IPv4s should be entered individually.
+7. mTLS/client-certificate requirements, if any.
+8. Sandbox availability and certification test cases.
 
 ---
 

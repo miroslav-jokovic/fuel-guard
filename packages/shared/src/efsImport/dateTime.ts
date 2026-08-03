@@ -151,6 +151,13 @@ export function efsInstant(
   if (!d) return null;
   const ymd = efsLocalDate(d);
   if (!ymd) return null;
+  // An explicit ISO offset is authoritative. This matters for the SOAP reject feed, whose timestamps
+  // are documented in EFS Central Time rather than the station's local state timezone.
+  const hasExplicitOffset = /(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(d);
+  if (hasExplicitOffset && !time) {
+    const explicit = new Date(d);
+    if (!Number.isNaN(explicit.getTime())) return { iso: explicit.toISOString(), precision: "instant", tranDate: ymd };
+  }
   // Explicit time column wins; else look for a time embedded in the date string ("… 14:25:00").
   const embedded = d.match(/\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AaPp][Mm])?/);
   const hms = parseEfsTime(time) ?? (embedded ? parseEfsTime(embedded[0]) : null);

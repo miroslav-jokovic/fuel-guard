@@ -24,10 +24,8 @@ import { orgsWithEfsSoap } from "./efsSoapCredentials.js";
  *   • A failure for one org is recorded on its job and never stops the other orgs' passes.
  *   • Idempotency (SHA-256 file hash + external_ref) means a re-fetched cursor is a safe no-op.
  *
- * Pre-WSDL behavior: when the SOAP operations throw EfsSoapError('not_implemented') — which they
- * will until data release — runEfsSoapIngest returns status='not_implemented' and the jobs ledger
- * records that as `done + { skipped: 'not_implemented' }` (NOT a failure), so the alerts dashboard
- * stays quiet during the waiting period.
+ * Legacy compatibility: a not_implemented result is still treated as a cold/skip state if an older
+ * operation implementation is deployed during rollout.
  */
 
 /** Generic tier loop copied from samsaraScheduler.ts's `startTier` — kept private here to avoid

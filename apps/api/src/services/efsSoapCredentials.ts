@@ -125,7 +125,7 @@ export async function getEfsSoapCredentials(
   if (env.EFS_SOAP_ENDPOINT_URL && env.EFS_SOAP_USERNAME && env.EFS_SOAP_PASSWORD) {
     return {
       orgId,
-      environment: "sandbox",
+      environment: env.EFS_SOAP_ENVIRONMENT,
       endpointUrl: env.EFS_SOAP_ENDPOINT_URL,
       soapUsername: env.EFS_SOAP_USERNAME,
       soapPassword: env.EFS_SOAP_PASSWORD,
