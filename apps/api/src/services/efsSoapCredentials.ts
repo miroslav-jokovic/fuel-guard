@@ -10,8 +10,8 @@ import type { Env } from "../env.js";
  *
  * Design decisions locked in this module:
  *   • Per-org row (org_id primary key). One EFS account per org for now.
- *   • Single-tenant env-var fallback (EFS_SOAP_USERNAME/PASSWORD/ENDPOINT_URL/ACCOUNT_ID) so a
- *     dev/staging env can run without a database row — matches the Samsara pattern.
+ *   • Single-tenant env-var fallback (EFS_SOAP_USERNAME/PASSWORD/ENDPOINT_URL), scoped by
+ *     EFS_SOAP_ORG_ID when supplied; durable cursor state is seeded into the DB on first enabled pass.
  *   • `enabled` flag is checked EVERYWHERE credentials are consumed. A disabled row + a stale
  *     scheduler run must never call EFS.
  *   • `getStatus()` NEVER returns the password (or its length, or a hash of it). It returns only
@@ -34,6 +34,8 @@ export interface EfsSoapCredentials {
   postedLastError: string | null;
   rejectedLastError: string | null;
   enabled: boolean;
+  /** True when credentials came from Railway env vars and still need durable DB state. */
+  fromEnvFallback: boolean;
 }
 
 export interface EfsSoapStatus {
@@ -98,6 +100,7 @@ function fromRow(row: DbRow): EfsSoapCredentials {
     postedLastError: row.posted_last_error,
     rejectedLastError: row.rejected_last_error,
     enabled: row.enabled,
+    fromEnvFallback: false,
   };
 }
 
@@ -121,7 +124,8 @@ export async function getEfsSoapCredentials(
     .maybeSingle();
   if (data) return fromRow(data as DbRow);
 
-  // Env-var fallback (single-tenant deploy). All four fields must be present for it to count.
+  // Env-var fallback (single-tenant deploy). Endpoint, username, and password must be present.
+  if (env.EFS_SOAP_ORG_ID && env.EFS_SOAP_ORG_ID !== orgId) return null;
   if (env.EFS_SOAP_ENDPOINT_URL && env.EFS_SOAP_USERNAME && env.EFS_SOAP_PASSWORD) {
     return {
       orgId,
@@ -139,13 +143,14 @@ export async function getEfsSoapCredentials(
       postedLastError: null,
       rejectedLastError: null,
       enabled: env.EFS_SOAP_ENABLED,
+      fromEnvFallback: true,
     };
   }
   return null;
 }
 
-/** Every org with EFS SOAP configured (row present + enabled). Env-var fallback applies to ALL
- *  orgs when set — matches the Samsara pattern. */
+/** Every org with EFS SOAP configured (row present + enabled). An env fallback is scoped to
+ * EFS_SOAP_ORG_ID when supplied; otherwise it applies to all organizations for legacy compatibility. */
 export async function orgsWithEfsSoap(admin: SupabaseClient, env: Env): Promise<string[]> {
   const set = new Set<string>();
   const { data } = await admin
@@ -161,8 +166,12 @@ export async function orgsWithEfsSoap(admin: SupabaseClient, env: Env): Promise<
     env.EFS_SOAP_PASSWORD &&
     env.EFS_SOAP_ENABLED
   ) {
-    const { data: orgs } = await admin.from("organizations").select("id");
-    for (const o of (orgs ?? []) as { id: string }[]) set.add(o.id);
+    if (env.EFS_SOAP_ORG_ID) {
+      set.add(env.EFS_SOAP_ORG_ID);
+    } else {
+      const { data: orgs } = await admin.from("organizations").select("id");
+      for (const o of (orgs ?? []) as { id: string }[]) set.add(o.id);
+    }
   }
   return [...set];
 }

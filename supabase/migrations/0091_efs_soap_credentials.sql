@@ -6,20 +6,19 @@
 -- password.
 --
 -- Runtime state stored here:
---   • endpoint_url + environment           — WSDL URL + sandbox|production selection
---   • soap_username + soap_password        — WS-Security UsernameToken (confirmed with EFS at data release)
---   • account_id                           — Silvicom's EFS account number if EFS scopes calls by it
---   • posted_last_cursor / rejected_last_cursor — opaque delta cursors per EFS's contract (schema
---       unknown until data release — text so we don't over-constrain)
+--   • endpoint_url + environment           — SOAP endpoint + sandbox|production selection
+--   • soap_username + soap_password        — custom CardManagementWS login credentials
+--   • account_id                           — optional account metadata; not sent in transaction requests
+--   • posted_last_cursor / rejected_last_cursor — last completed date-time window end, stored as text
+--       because the SOAP contract uses date ranges rather than an opaque server cursor
 --   • posted_last_polled_at / rejected_last_polled_at — freshness for the UI + monitoring
 --   • enabled                              — kill switch; scheduler skips this org when false
 --
 -- Design decisions:
 --   • Separate cursors per feed so a slow posted-backfill can never rewind rejected polling (and vice
 --     versa).
---   • Opaque `text` cursor (not `timestamptz`) because EFS's delta mechanism (timestamp vs sequence vs
---     both) is only confirmed at data-release time — text is a superset of any of those.
---   • `environment` starts as 'sandbox'; production cutover is a single UPDATE.
+--   • Text cursors preserve the last completed ISO date-time window end and allow a 48-hour overlap.
+--   • `environment` supports sandbox and production without changing the credential shape.
 --   • No RLS policies → service-role only → the API is the only reader/writer, matching how the API
 --     already handles the Samsara token in integration_credentials.
 --

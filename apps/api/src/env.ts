@@ -174,7 +174,9 @@ const EnvSchema = z.object({
   EFS_SOAP_ENDPOINT_URL: z.string().url().optional(),        // SOAP endpoint URL (not the ?wsdl document URL)
   EFS_SOAP_USERNAME: z.string().optional(),                  // fallback if per-org row not set
   EFS_SOAP_PASSWORD: z.string().optional(),                  // fallback if per-org row not set
-  EFS_SOAP_ACCOUNT_ID: z.string().optional(),                // Silvicom's EFS account number
+  EFS_SOAP_ACCOUNT_ID: z.string().optional(),                // optional account identifier; not sent to CardManagementWS
+  // Optional production-org scope for the env fallback. Without this, the fallback applies to every org.
+  EFS_SOAP_ORG_ID: z.string().uuid().optional(),
   // Poll cadences per feed. Defaults are CONSERVATIVE — tighten once EFS confirms the minimum allowed
   // interval. Rejections are polled more frequently than posted transactions because they're the
   // fraud/control signal we want fresh.

@@ -211,7 +211,8 @@ EFS_SOAP_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() =
 EFS_SOAP_ENDPOINT_URL: z.string().url().optional(),        // set once EFS provides
 EFS_SOAP_USERNAME: z.string().optional(),                  // fallback if not per-org
 EFS_SOAP_PASSWORD: z.string().optional(),                  // fallback if not per-org
-EFS_SOAP_ACCOUNT_ID: z.string().optional(),
+EFS_SOAP_ACCOUNT_ID: z.string().optional(),                // metadata only; not sent to transaction methods
+EFS_SOAP_ORG_ID: z.string().uuid().optional(),             // scope env fallback to one organization
 // Poll cadence per feed. Defaults are conservative — TIGHTEN once EFS confirms
 // the minimum allowed interval (see docs/plans/EFS-SOAP-INTEGRATION-PLAN.md §11).
 EFS_SOAP_POSTED_POLL_MINUTES: z.coerce.number().min(1).default(15),
@@ -274,7 +275,8 @@ The initial mapping is now locked from the production WSDL:
 
 - Posted operation: `CardManagementEP_getMCTransExtLocV2`, with `clientId`, `begDate`, and `endDate`.
 - Rejected operation: `CardManagementEP_getTranRejects`, with `clientId` and a `search` object containing
-  `startDate` and `endDate` (optional card/invoice/location filters are intentionally omitted).
+  `startDate`, `endDate`, empty `cardNum`/`invoice`, and `locationId=0`. EFS's Axis2 binding rejects
+  omitted filter elements even though the WSDL marks them nillable.
 - Authentication: `CardManagementEP_login(user,password)` returns the session `clientId`; each pass logs
   out with `CardManagementEP_logout(clientId)`. No WS-Security header is used.
 - Posted response: `<result><value>…</value></result>` transaction objects; stable `transactionId` is
@@ -551,6 +553,28 @@ container. These operational items still need EFS confirmation before production
 | Admin routes + UI (§6.6, §6.7) | Engineering (backend + frontend) |
 | Certification pass (§6.8) | Engineering (backend), Miki confirms with EFS |
 | Production cutover (§6.9) | Engineering + Silvicom EFS admin |
+
+---
+
+## 14. Implementation audit — 2026-08-03
+
+The production WSDL and the supplied EFS Card Management Web Service Reference were rechecked
+against the implementation and live read-only calls made with the Railway-provided credentials:
+
+- Login/logout, TLS, SOAP routing, and credentials: verified successfully.
+- `getTranRejects`: verified with 16 returned rows after matching EFS's required `search` shape,
+  including empty `cardNum`, empty `invoice`, and `locationId=0` elements.
+- `getMCTransExtLocV2`: verified with 192 returned rows.
+- Mapping: 192 faithful rows, 107 fuel/reefer rows, and 85 documented non-fuel rows skipped; the
+  generated posted headers classify as `transaction`, not `reject`.
+- EFS constraints: seven-day request pages, 1–15 minute polling defaults, clientId login sessions,
+  cookies, SOAP faults, and unique transaction IDs are implemented.
+- Railway fallback scope is pinned to Silvicom organization `86d6b3ea-4361-4f71-877f-e8373615769b`.
+
+**Current production blocker:** Supabase production returned `PGRST205` for
+`efs_soap_credentials`; migration 0091 has not been applied. Do not enable EFS polling until the
+migration is applied. The env fallback now seeds durable credentials/cursors on its first enabled
+pass and fails clearly if that table is unavailable.
 
 ---
 

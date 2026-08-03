@@ -1,3 +1,4 @@
+import { detectReportKind } from "@fuelguard/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
@@ -26,6 +27,7 @@ const creds: EfsSoapCredentials = {
   postedLastError: null,
   rejectedLastError: null,
   enabled: true,
+  fromEnvFallback: false,
 };
 
 const soap = (body: string) => `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>${body}</soap:Body></soap:Envelope>`;
@@ -52,6 +54,7 @@ describe("EFS SOAP operations", () => {
 
     const result = await fetchPostedTransactions(env, creds, null, { fetchImpl: sequence.fetchImpl });
 
+    expect(detectReportKind(Object.keys(result.rows[0] ?? {}))).toBe("transaction");
     expect(result.rows).toEqual([
       expect.objectContaining({
         TransactionId: "77",
@@ -74,7 +77,7 @@ describe("EFS SOAP operations", () => {
     expect(sequence.bodies[2]).toContain("<CardManagementEP_logout>");
   });
 
-  it("uses the WSDL search wrapper for rejected authorizations", async () => {
+  it("uses the WSDL search object and required empty reject filters", async () => {
     const sequence = fetchSequence(
       soap("<loginResponse><result>session-456</result></loginResponse>"),
       soap("<getTranRejectsResponse><result><value><tranDate>2026-08-01T15:30:00Z</tranDate><cardNum>9876</cardNum><invoice>INV-8</invoice><locId>9</locId><locName>Stop 9</locName><locCity>Dallas</locCity><locState>TX</locState><errorCode>401</errorCode><errorDesc>LIMIT EXCEEDED</errorDesc><unit>TRK-8</unit></value></result></getTranRejectsResponse>"),
@@ -94,6 +97,9 @@ describe("EFS SOAP operations", () => {
     expect(sequence.bodies[1]).toContain("<CardManagementEP_getTranRejects>");
     expect(sequence.bodies[1]).toContain("<search><startDate>");
     expect(sequence.bodies[1]).toContain("<endDate>");
+    expect(sequence.bodies[1]).toContain("<cardNum></cardNum>");
+    expect(sequence.bodies[1]).toContain("<invoice></invoice>");
+    expect(sequence.bodies[1]).toContain("<locationId>0</locationId>");
   });
 
   it("reports login failures without exposing the password", async () => {

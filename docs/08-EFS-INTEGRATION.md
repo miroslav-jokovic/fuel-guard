@@ -292,7 +292,8 @@ alter table efs_soap_credentials enable row level security;
 
 Env vars added to `apps/api/src/env.ts`: `EFS_SOAP_ENABLED` (master kill switch, defaults false),
 `EFS_SOAP_ENVIRONMENT`, `EFS_SOAP_ENDPOINT_URL`, `EFS_SOAP_USERNAME`, `EFS_SOAP_PASSWORD`,
-`EFS_SOAP_ACCOUNT_ID` (optional single-tenant fallback), `EFS_SOAP_POSTED_POLL_MINUTES`,
+`EFS_SOAP_ACCOUNT_ID` (optional metadata), `EFS_SOAP_ORG_ID` (recommended fallback scope),
+`EFS_SOAP_POSTED_POLL_MINUTES`,
 `EFS_SOAP_REJECTED_POLL_MINUTES`, `EFS_SOAP_MAX_RPS`, `EFS_SOAP_MAX_RETRIES`,
 `EFS_SOAP_BACKFILL_DAYS`, and optional `EFS_SOAP_EGRESS_PROXY_URL`.
 

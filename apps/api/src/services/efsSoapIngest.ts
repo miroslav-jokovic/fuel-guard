@@ -3,6 +3,7 @@ import type { Env } from "../env.js";
 import { ingestReport, type IngestResult } from "./efsIngest.js";
 import {
   getEfsSoapCredentials,
+  upsertEfsSoapCredentials,
   recordFeedFailure,
   recordFeedSuccess,
   type FeedName,
@@ -71,6 +72,26 @@ export async function runEfsSoapIngest(
     return { feed, status: "skipped_disabled", pagesFetched: 0, rowsFetched: 0 };
   }
 
+  // Railway env fallback credentials have no durable cursor row. Seed the service-role-only table on
+  // the first enabled pass so subsequent polls persist cursors and restart/backfill safely. If migration
+  // 0091 is missing, fail loudly instead of repeatedly requesting the first seven-day window.
+  if (creds.fromEnvFallback) {
+    try {
+      await upsertEfsSoapCredentials(admin, orgId, {
+        environment: creds.environment,
+        endpointUrl: creds.endpointUrl,
+        soapUsername: creds.soapUsername,
+        soapPassword: creds.soapPassword,
+        accountId: creds.accountId,
+        enabled: true,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await recordFeedFailure(admin, orgId, feed, `EFS SOAP state migration 0091 is unavailable: ${msg}`);
+      return { feed, status: "failed", pagesFetched: 0, rowsFetched: 0, error: msg };
+    }
+  }
+
   const cursor = feed === "posted" ? creds.postedLastCursor : creds.rejectedLastCursor;
   const priority = feed === "posted" ? "backfill" : "live";
 
@@ -131,6 +152,12 @@ export async function runEfsSoapIngest(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    await recordFeedFailure(admin, orgId, feed, msg);
+    return { feed, status: "failed", pagesFetched: result.pagesFetched, rowsFetched: result.rows.length, error: msg };
+  }
+
+  if (ingest.kind === "unknown") {
+    const msg = "EFS SOAP response did not match the expected transaction/reject field signature";
     await recordFeedFailure(admin, orgId, feed, msg);
     return { feed, status: "failed", pagesFetched: result.pagesFetched, rowsFetched: result.rows.length, error: msg };
   }

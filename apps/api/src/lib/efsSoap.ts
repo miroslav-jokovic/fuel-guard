@@ -185,7 +185,12 @@ function parseSoap(xml: string): XmlElement {
   if (fault) {
     const message = textValue(elementToValue(findDescendant(fault, "faultstring") ?? fault)) ?? "EFS SOAP fault";
     const lower = message.toLowerCase();
-    throw new EfsSoapError(message, /auth|login|password|user|credential|clientid/.test(lower) ? "auth" : "soap_fault");
+    const code = /rate|limit|429/.test(lower)
+      ? "rate_limited"
+      : /auth|login|password|user|credential|clientid/.test(lower)
+        ? "auth"
+        : "soap_fault";
+    throw new EfsSoapError(message, code);
   }
   return doc.documentElement;
 }
@@ -230,6 +235,12 @@ async function requestXml(
     });
     if (response.status === 401 || response.status === 403) {
       throw new EfsSoapError(`EFS rejected the ${operation} request`, "auth", response.status);
+    }
+    // EFS may return a SOAP Fault with HTTP 500. Parse the body before classifying the status so the
+    // caller receives the documented fault code/message instead of an opaque transport error.
+    parseSoap(response.body);
+    if (response.status === 429) {
+      throw new EfsSoapError(`EFS rate-limited the ${operation} request`, "rate_limited", response.status);
     }
     if (response.status >= 400) {
       throw new EfsSoapError(`EFS returned HTTP ${response.status} for ${operation}`, "transport", response.status);
@@ -315,7 +326,12 @@ function transactionRows(values: Record<string, unknown>[]): Record<string, stri
       Unit: infoValue(infos, "UNIT"),
       "Driver Name": infoValue(infos, "NAME"),
       "Driver ID": infoValue(infos, "DRID"),
+      "Control ID": infoValue(infos, "CNTN"),
       Odometer: infoValue(infos, "ODRD"),
+      Hubometer: infoValue(infos, "HBRD"),
+      "Trailer Number": infoValue(infos, "TRLR"),
+      Trip: infoValue(infos, "TRIP"),
+      SubFleet: infoValue(infos, "SSUB"),
       "Location ID": textValue(transaction.locationId),
       "Location Name": textValue(transaction.locationName),
       City: textValue(transaction.locationCity),
@@ -328,7 +344,6 @@ function transactionRows(values: Record<string, unknown>[]): Record<string, stri
       Qty: textValue(line.quantity),
       Amt: textValue(line.amount),
       Currency: textValue(transaction.billingCurrency) ?? textValue(transaction.locationCurrency),
-      "Auth Code": textValue(transaction.authCode),
       "Transaction ID": textValue(transaction.transactionId),
     }));
   });
@@ -369,7 +384,7 @@ async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cu
       const pageEnd = new Date(Math.min(pageStart.getTime() + 7 * 24 * 60 * 60 * 1000, end.getTime()));
       const body = feed === "posted"
         ? `<CardManagementEP_getMCTransExtLocV2><clientId>${xmlEscape(session.clientId)}</clientId><begDate>${isoDateTime(pageStart)}</begDate><endDate>${isoDateTime(pageEnd)}</endDate></CardManagementEP_getMCTransExtLocV2>`
-        : `<CardManagementEP_getTranRejects><clientId>${xmlEscape(session.clientId)}</clientId><search><startDate>${isoDateTime(pageStart)}</startDate><endDate>${isoDateTime(pageEnd)}</endDate></search></CardManagementEP_getTranRejects>`;
+        : `<CardManagementEP_getTranRejects><clientId>${xmlEscape(session.clientId)}</clientId><search><startDate>${isoDateTime(pageStart)}</startDate><endDate>${isoDateTime(pageEnd)}</endDate><cardNum></cardNum><invoice></invoice><locationId>0</locationId></search></CardManagementEP_getTranRejects>`;
       const response = await requestXml(env, creds, SOAP_ACTIONS[feed], body, priority, opts.fetchImpl, true, session.cookie);
       responseHash.update(response.body);
       const values = responseValues(response.body);
