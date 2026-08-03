@@ -33,7 +33,7 @@ export interface EfsSoapFetchResult {
 
 export interface EfsSoapFetchOptions {
   priority?: SoapPriority;
-  /** Maximum seven-day windows to fetch in one call (defaults to one; bounds request size and load). */
+  /** Maximum request windows to fetch in one call (defaults to one; each window obeys EFS's account limit). */
   maxPages?: number;
   /** Injectable fetch — tests pass a stub. */
   fetchImpl?: typeof fetch;
@@ -281,13 +281,17 @@ async function logout(env: Env, creds: EfsSoapCredentials, clientId: string, pri
   }
 }
 
+function maxRequestDays(env: Env): number {
+  return env.EFS_SOAP_MAX_DAYS_PER_REQUEST ?? 30;
+}
+
 function dateWindow(env: Env, cursor: string | null): { start: Date; end: Date } {
   const end = new Date();
   const parsedCursor = cursor ? new Date(cursor) : null;
   let start = parsedCursor && !Number.isNaN(parsedCursor.getTime())
     ? new Date(parsedCursor.getTime() - 48 * 60 * 60 * 1000)
     : new Date(end.getTime() - env.EFS_SOAP_BACKFILL_DAYS * 24 * 60 * 60 * 1000);
-  if (start > end) start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  if (start > end) start = new Date(end.getTime() - maxRequestDays(env) * 24 * 60 * 60 * 1000);
   return { start, end };
 }
 
@@ -379,9 +383,12 @@ async function fetchFeed(env: Env, creds: EfsSoapCredentials, feed: FeedName, cu
   let nextCursor = cursor;
   try {
     while (pagesFetched < maxPages && pageStart < end) {
-      // EFS explicitly limits transaction requests to seven days. The cursor lets a bounded poll
+      // EFS confirmed a 30-day maximum for this production account. The cursor lets a bounded poll
       // walk a larger initial backfill over multiple scheduler/manual runs.
-      const pageEnd = new Date(Math.min(pageStart.getTime() + 7 * 24 * 60 * 60 * 1000, end.getTime()));
+      const pageEnd = new Date(Math.min(
+        pageStart.getTime() + maxRequestDays(env) * 24 * 60 * 60 * 1000,
+        end.getTime(),
+      ));
       const body = feed === "posted"
         ? `<CardManagementEP_getMCTransExtLocV2><clientId>${xmlEscape(session.clientId)}</clientId><begDate>${isoDateTime(pageStart)}</begDate><endDate>${isoDateTime(pageEnd)}</endDate></CardManagementEP_getMCTransExtLocV2>`
         : `<CardManagementEP_getTranRejects><clientId>${xmlEscape(session.clientId)}</clientId><search><startDate>${isoDateTime(pageStart)}</startDate><endDate>${isoDateTime(pageEnd)}</endDate><cardNum></cardNum><invoice></invoice><locationId>0</locationId></search></CardManagementEP_getTranRejects>`;

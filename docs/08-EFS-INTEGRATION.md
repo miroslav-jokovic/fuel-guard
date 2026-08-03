@@ -244,9 +244,9 @@ client** against EFS's in-house webservice. One credential set covers both feeds
 
 - **Posted transactions** — polled every `EFS_SOAP_POSTED_POLL_MINUTES` (default 15 min), routed
   through the "backfill" priority lane of the SOAP client.
-- **Rejected authorization attempts** — polled every `EFS_SOAP_REJECTED_POLL_MINUTES` (default 5
-  min, tighter if EFS confirms lower latency is allowed), routed through the "live" lane so a slow
-  posted-backfill can never starve real-time rejection polling.
+- **Rejected authorization attempts** — polled every `EFS_SOAP_REJECTED_POLL_MINUTES` (15 min per
+  EFS's production recommendation), routed through the "live" lane so a slow posted-backfill can never
+  starve rejection polling.
 
 Both flows feed the SAME `ingestReport()` write path used by the XLSX importer (`efsIngest.ts`).
 Zero rework of the reconcile / score / faithful-store / shortfall / Samsara-recon logic downstream.
@@ -293,9 +293,9 @@ alter table efs_soap_credentials enable row level security;
 Env vars added to `apps/api/src/env.ts`: `EFS_SOAP_ENABLED` (master kill switch, defaults false),
 `EFS_SOAP_ENVIRONMENT`, `EFS_SOAP_ENDPOINT_URL`, `EFS_SOAP_USERNAME`, `EFS_SOAP_PASSWORD`,
 `EFS_SOAP_ACCOUNT_ID` (optional metadata), `EFS_SOAP_ORG_ID` (recommended fallback scope),
-`EFS_SOAP_POSTED_POLL_MINUTES`,
-`EFS_SOAP_REJECTED_POLL_MINUTES`, `EFS_SOAP_MAX_RPS`, `EFS_SOAP_MAX_RETRIES`,
-`EFS_SOAP_BACKFILL_DAYS`, and optional `EFS_SOAP_EGRESS_PROXY_URL`.
+`EFS_SOAP_POSTED_POLL_MINUTES`, `EFS_SOAP_REJECTED_POLL_MINUTES`, `EFS_SOAP_MAX_RPS`,
+`EFS_SOAP_MAX_RETRIES`, `EFS_SOAP_BACKFILL_DAYS`, `EFS_SOAP_MAX_DAYS_PER_REQUEST`, and optional
+`EFS_SOAP_EGRESS_PROXY_URL`.
 
 Full implementation plan + timeline: **`docs/plans/EFS-SOAP-INTEGRATION-PLAN.md`**.
 

@@ -216,12 +216,13 @@ EFS_SOAP_ORG_ID: z.string().uuid().optional(),             // scope env fallback
 // Poll cadence per feed. Defaults are conservative — TIGHTEN once EFS confirms
 // the minimum allowed interval (see docs/plans/EFS-SOAP-INTEGRATION-PLAN.md §11).
 EFS_SOAP_POSTED_POLL_MINUTES: z.coerce.number().min(1).default(15),
-EFS_SOAP_REJECTED_POLL_MINUTES: z.coerce.number().min(1).default(5),
+EFS_SOAP_REJECTED_POLL_MINUTES: z.coerce.number().min(1).default(15),
 // Rate limiting (mirrors samsaraHttp.ts pattern).
 EFS_SOAP_MAX_RPS: z.coerce.number().min(0.1).default(2),
 EFS_SOAP_MAX_RETRIES: z.coerce.number().int().min(0).default(4),
-// First-sync backfill window in days. Adjustable per EFS's maximum history window.
-EFS_SOAP_BACKFILL_DAYS: z.coerce.number().int().min(1).default(90),
+// First-sync backfill window in days. Requests are split at EFS's confirmed 30-day account limit.
+EFS_SOAP_BACKFILL_DAYS: z.coerce.number().int().min(1).max(730).default(90),
+EFS_SOAP_MAX_DAYS_PER_REQUEST: z.coerce.number().int().min(1).max(30).default(30),
 // Outbound egress proxy for the EFS SOAP client ONLY (static IP for EFS's allowlist).
 // When unset, direct Railway egress is used (fine for local dev; will fail against EFS prod).
 EFS_SOAP_EGRESS_PROXY_URL: z.string().url().optional(),
@@ -285,7 +286,8 @@ The initial mapping is now locked from the production WSDL:
   location fields, `errorCode`, `errorDesc`, and `unit`.
 - Cursor: EFS exposes a date-time range, not a server cursor. We persist the last query end-time and
   overlap each poll by 48 hours; idempotent file and external-reference checks make this safe. EFS
-  requires no more than seven days per request, so larger backfills are split into seven-day pages.
+  confirmed a 30-day maximum per request for this production account, so larger backfills are split
+  into configurable 30-day pages.
 - Mapping: `infos` codes `UNIT`, `NAME`, `DRID`, and `ODRD` map to unit, driver, EFS driver ID, and
   odometer; `lineItems.category`, `quantity`, `ppu`, and `amount` map to item, gallons, price, and total.
 - Timing: request timestamps are UTC ISO-8601; EFS documents server/central-time response semantics.
@@ -351,8 +353,8 @@ ingest in a jobs-ledger `runJob` call so no two overlapping polls run and progre
 visible in the UI).
 
 Two independent tiers (mirroring the Samsara scheduler's tiered design):
-- **Rejected feed poller:** every `EFS_SOAP_REJECTED_POLL_MINUTES` (default 5, tighter if
-  EFS allows). Jobs kind: `efs_soap_rejected`.
+- **Rejected feed poller:** every `EFS_SOAP_REJECTED_POLL_MINUTES` (15 min per EFS's production
+  recommendation). Jobs kind: `efs_soap_rejected`.
 - **Posted feed poller:** every `EFS_SOAP_POSTED_POLL_MINUTES` (default 15). Jobs kind:
   `efs_soap_posted`.
 
@@ -515,7 +517,7 @@ The production WSDL has resolved the operation names, authentication, request wr
 container. These operational items still need EFS confirmation before production polling is enabled.
 
 1. Fastest allowed polling interval for posted and rejected feeds.
-2. Accepted historical backfill window beyond the documented seven-day request maximum.
+2. Accepted historical backfill window beyond the confirmed 30-day request maximum.
 3. Exact timezone semantics for `POSDate`/`transactionDate` and `tranDate` in the provisioned account.
 4. Complete product-code and rejection-code catalogs, including any non-fuel line-item rules.
 5. Rate limits (requests/sec, requests/min, requests/hour), which determine `EFS_SOAP_MAX_RPS`.
@@ -528,10 +530,9 @@ container. These operational items still need EFS confirmation before production
 ## 12. Not doing (explicitly out of scope)
 
 - **Webhook subscription.** EFS offered a real-time authorization webhook. We are NOT
-  subscribing at launch — SOAP polling every 5 min for rejections is fast enough for the
-  fraud-detection use case, and adding the webhook doubles the security surface (HTTPS
-  callback, signature verification, replay protection). Revisit only if 5-min latency
-  proves insufficient.
+  subscribing at launch — SOAP polling every 15 min for rejections meets the production
+  recommendation, and adding the webhook doubles the security surface (HTTPS callback,
+  signature verification, replay protection). Revisit only if the latency requirement changes.
 - **SFTP transaction/rejection feed.** Slower than SOAP polling, extra credentials to
   manage, extra parser to maintain. Not doing.
 - **REST API.** EFS confirmed REST does not return rejections. Not usable.
@@ -567,8 +568,8 @@ against the implementation and live read-only calls made with the Railway-provid
 - `getMCTransExtLocV2`: verified with 192 returned rows.
 - Mapping: 192 faithful rows, 107 fuel/reefer rows, and 85 documented non-fuel rows skipped; the
   generated posted headers classify as `transaction`, not `reject`.
-- EFS constraints: seven-day request pages, 1–15 minute polling defaults, clientId login sessions,
-  cookies, SOAP faults, and unique transaction IDs are implemented.
+- EFS constraints: 30-day maximum request windows for this production account, 15-minute polling
+  recommendations, clientId login sessions, cookies, SOAP faults, and unique transaction IDs are implemented.
 - Railway fallback scope is pinned to Silvicom organization `86d6b3ea-4361-4f71-877f-e8373615769b`.
 
 **Current production blocker:** Supabase production returned `PGRST205` for

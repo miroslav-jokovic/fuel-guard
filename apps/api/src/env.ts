@@ -187,6 +187,9 @@ const EnvSchema = z.object({
   EFS_SOAP_MAX_RETRIES: z.coerce.number().int().min(0).default(4),
   // First-sync backfill window in days. Bounded so a misconfiguration can't request a decade of history.
   EFS_SOAP_BACKFILL_DAYS: z.coerce.number().int().min(1).max(730).default(90),
+  // EFS confirmed a 30-day maximum for this production account; keep it configurable for QA/accounts
+  // with a smaller limit.
+  EFS_SOAP_MAX_DAYS_PER_REQUEST: z.coerce.number().int().min(1).max(30).default(30),
   // Optional egress proxy URL for the EFS SOAP client ONLY (static IP for EFS's allowlist). When unset,
   // direct Railway egress is used. When Railway Pro static outbound IPs are enabled at the platform
   // level, this stays unset and EFS allowlists the Railway IPs directly.
