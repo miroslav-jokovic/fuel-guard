@@ -26,6 +26,8 @@ import {
 } from "../services/efsSoapClientCerts.js";
 import { dispatchJob } from "../services/queue/dispatch.js";
 import type { RunJobResult } from "../services/jobs.js";
+import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
+import { SecretBoxError } from "../lib/secretBox.js";
 import { z } from "zod";
 
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running.
@@ -41,6 +43,64 @@ function jobResponse(res: import("express").Response, result: RunJobResult): voi
 export function integrationsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+
+  // Set / rotate the org's Samsara API token (admin). The token is SEALED at rest (secretBox, same as
+  // the EFS client keys) — this fails closed with 422 when SECRETS_ENCRYPTION_KEY is not configured
+  // rather than storing plaintext. The token itself is never echoed back or written to the audit log.
+  router.post(
+    "/samsara/token",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const parsed = z.object({ token: z.string().trim().min(20).max(200) }).safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Provide the Samsara API token as { token }."));
+        return;
+      }
+      try {
+        await saveSamsaraToken(admin, env, orgId, parsed.data.token);
+      } catch (e) {
+        if (e instanceof SecretBoxError && e.code === "not_configured") {
+          res.status(422).json(apiError("secrets_key_missing",
+            "SECRETS_ENCRYPTION_KEY is not configured — refusing to store the token unencrypted. Set it (openssl rand -base64 32) and retry."));
+          return;
+        }
+        throw e;
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "integration.samsara.token_set",
+        entity: "integration_credentials",
+        meta: { sealed: true }, // never the token
+      });
+      res.json({ ok: true, sealed: true });
+    }),
+  );
+
+  // Remove the org's stored Samsara token (the deploy-level env fallback, if any, still applies).
+  router.delete(
+    "/samsara/token",
+    requireOrg,
+    requireRole("admin"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      await clearSamsaraToken(admin, orgId);
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "integration.samsara.token_cleared",
+        entity: "integration_credentials",
+        meta: {},
+      });
+      res.json({ ok: true });
+    }),
+  );
 
   // Sync the fleet's identity (trucks + drivers + trailers, then idle + driver scores) from Samsara.
   // WQ1c: enqueued as a `sync_vehicles` job (payload.full → the compound refresh the card promises); the
