@@ -79,13 +79,23 @@ export type ReasonRequest = z.infer<typeof reasonRequestSchema>;
 /** `POST …/approve` and `…/release` carry no body — the actor comes from the verified JWT. */
 export const emptyRequestSchema = z.object({}).loose();
 
-// ── the assignments board (D49) ───────────────────────────────────────────────
+// ── the assignments board (D49, rewired to telematics) ───────────────────────
+// The board is sourced from Samsara HOS (drivers.current_hos_* + hos_duty_segments), NOT the in-app
+// driver-shift feature this fleet never used — that left it showing only names. `session_id`/
+// `started_at` remain for the legacy shift gating ("End shift" is hidden unless a real in-app session
+// is open), so the shape only EXTENDS.
 export const assignmentRowSchema = z.object({
   driver_id: z.uuid(),
   driver_name: z.string(),
   driver_status: z.string().nullable().default(null),
   session_id: z.uuid().nullable(),
   started_at: z.string().nullable(),
+  /** Live HOS duty status (off_duty|sleeper|driving|on_duty|yard_move|personal_conveyance|unknown). */
+  duty_status: z.string().nullable().default(null),
+  /** When the current duty status began (latest matching ELD segment) — drives "in status for". */
+  duty_since: z.string().nullable().default(null),
+  /** Driver's current "City, ST" from their truck's GPS snapshot. */
+  location: z.string().nullable().default(null),
   vehicle_id: z.uuid().nullable(),
   vehicle_unit: z.string().nullable(),
   trailer_id: z.uuid().nullable(),

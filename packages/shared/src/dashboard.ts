@@ -58,9 +58,12 @@ export interface DashboardOptions {
   tz?: string | null;
 }
 
-/** Secondary inputs so the range-scoped dashboard can also show idle waste, declines, etc. Pure. */
+/** Secondary inputs so the range-scoped dashboard can also show idle waste, declines, etc. Pure.
+ *  Idle arrives PRE-AGGREGATED (hours from idle_rollup_days + the org's cost basis) so the dashboard
+ *  tile shows the SAME numbers as the Idling page instead of a parallel per-event computation. */
 export interface DashboardExtras {
-  idle?: { durationSec: number; costUsd: number | null }[];
+  idleHours?: number;
+  idleCostUsd?: number;
   declinedCount?: number;
 }
 
@@ -186,8 +189,8 @@ export function aggregateDashboard(
   const byRisk = (a: RiskRow, b: RiskRow) =>
     b.criticalCount - a.criticalCount || b.anomalyCount - a.anomalyCount;
 
-  const idleCostUsd = round2((extra.idle ?? []).reduce((n, e) => n + (e.costUsd ?? 0), 0));
-  const idleHours = round2((extra.idle ?? []).reduce((n, e) => n + e.durationSec, 0) / 3600);
+  const idleCostUsd = round2(extra.idleCostUsd ?? 0);
+  const idleHours = round2(extra.idleHours ?? 0);
   const reeferSpendR = round2(reeferSpend);
   const tractorSpend = round2(totalSpend - reeferSpend);
   const movingSpend = round2(Math.max(0, tractorSpend - idleCostUsd));

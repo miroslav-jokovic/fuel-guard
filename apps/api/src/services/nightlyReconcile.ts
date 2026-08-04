@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { syncFuelEventsFromEfs, scoreTouched } from "./efsSync.js";
 import { backfillOrg, RECENT_REBUILD_DAYS } from "./scoring/index.js";
 import { syncCardAssignments } from "./cardAssignments.js";
+import { reconcileAnomalyFlags } from "./anomalyFlagReconcile.js";
 import { backfillFillWeather } from "./fillWeather.js";
 import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
 import { startJob, finishJob, latestJob, JobConflictError } from "./jobs.js";
@@ -49,6 +50,9 @@ export async function runNightlyReconcile(admin: SupabaseClient, env: Env, orgId
   const cards = await syncCardAssignments(admin, orgId).catch(() => null); // best-effort; never blocks the reconcile
   // WP6 — real ambient temperature for recent fills (drives the MPG cold-weather derate off real cold).
   const weatherFilled = await backfillFillWeather(admin, orgId, makeOpenMeteoFetcher(env)).catch(() => null);
+  // Repair Fuel-Log flags whose anomalies were superseded by later logic (the bounded rebuild above
+  // never revisits old fills, so stale red rows otherwise dead-end on the Alerts page forever).
+  const flags = await reconcileAnomalyFlags(admin, orgId).catch(() => null); // best-effort
   return {
     driftFixed: efs.inserted + efs.updated, // rows the store repair created/corrected (0 = clean)
     efsInserted: efs.inserted,
@@ -57,6 +61,8 @@ export async function runNightlyReconcile(admin: SupabaseClient, env: Env, orgId
     rebuilt,
     cardsAssigned: cards?.assigned ?? null,
     weatherFilled,
+    staleFlagsCleared: flags?.cleared ?? null,
+    flagsRestored: flags?.restored ?? null,
     checkedAt: new Date().toISOString(),
   };
 }

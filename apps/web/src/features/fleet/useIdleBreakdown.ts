@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/vue-query";
 import { computeAvoidable, avoidableCost, idleScore, type IdleCapability } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
-import type { IdleCostBasis } from "./useIdleCostBasis";
+import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 
 const DEFAULT_COST_BASIS: IdleCostBasis = { idleGalPerHour: 0.8, fuelPricePerGal: 4.0, priceSource: "default" };
 

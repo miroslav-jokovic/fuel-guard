@@ -7,6 +7,7 @@ import {
   type Anomaly,
 } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
+import { useIdleCostBasis } from "@/composables/useIdleCostBasis";
 
 // PostgREST caps a single response at 1000 rows. A month of fleet fills is several thousand, so a plain
 // select silently returns only the first 1000 (in an undefined order) — which left the dashboard charts
@@ -34,8 +35,10 @@ async function fetchAllPaged<T>(
  * start-of-day `from` through end-of-day `to` — so fills anytime on the boundary days are included.
  */
 export function useDashboard(range: Ref<{ from: string; to: string }>) {
+  // The SAME burn-rate + $/gal basis the Idling page uses, so the idle tile matches that page exactly.
+  const costBasis = useIdleCostBasis();
   return useQuery({
-    queryKey: ["dashboard", range],
+    queryKey: ["dashboard", range, costBasis],
     // Reflect background sync + nightly-reconcile results without a manual reload.
     refetchInterval: 120_000,
     // Changing the range keeps the previous frame (dimmed) instead of a skeleton flash.
@@ -55,25 +58,34 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
             .order("fueled_at", { ascending: true })
             .range(lo, hi),
         ),
+        // Anomalies are RANGE-SCOPED like every other card (by their fill's business time). Unscoped,
+        // the alert cards mixed all-time counts with 30-day spend/MPG — the "random numbers that don't
+        // match the pages" report — and the driver-risk join (all-time anomalies × in-range fills)
+        // silently dropped drivers.
         fetchAllPaged<Anomaly>((lo, hi) =>
           supabase
             .from("anomalies")
             .select("id, transaction_id, vehicle_id, severity, status")
             .neq("status", "superseded")
+            .gte("fueled_at", from)
+            .lte("fueled_at", to)
+            .order("fueled_at", { ascending: true })
             .order("id", { ascending: true })
             .range(lo, hi),
         ),
         supabase.from("vehicles").select("id, unit_number"),
         supabase.from("drivers").select("id, full_name"),
         supabase.from("organizations").select("operating_hours").maybeSingle(),
-        // Idle waste over the same window (paged) -> idle $ + hours.
-        fetchAllPaged<{ duration_sec: number | string; cost_usd: number | string | null }>((lo, hi) =>
+        // Idle hours over the same window from the PRE-AGGREGATED rollup (~trucks×days rows) — the same
+        // source the Idling page reads, so the two screens can no longer disagree.
+        fetchAllPaged<{ idle_sec: number | string }>((lo, hi) =>
           supabase
-            .from("idle_events")
-            .select("duration_sec, cost_usd")
-            .gte("started_at", from)
-            .lte("started_at", to)
-            .order("started_at", { ascending: true })
+            .from("idle_rollup_days")
+            .select("idle_sec")
+            .gte("day", toValue(range).from)
+            .lte("day", toValue(range).to)
+            .order("day", { ascending: true })
+            .order("vehicle_id", { ascending: true })
             .range(lo, hi),
         ),
         // Declined-attempt count over the same window (head count -> no rows pulled).
@@ -81,6 +93,8 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
       ]);
       // Bucket trend days in the ORG's timezone — UTC slicing mis-dated evening fills.
       const tz = (orgRes.data?.operating_hours as { tz?: string } | null)?.tz ?? null;
+      const idleHours = idleRows.reduce((s, r) => s + Number(r.idle_sec), 0) / 3600;
+      const basis = toValue(costBasis);
       return aggregateDashboard(
         txns,
         anoms,
@@ -88,10 +102,8 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
         (drvRes.data ?? []) as { id: string; full_name: string }[],
         { tz },
         {
-          idle: (idleRows ?? []).map((r) => ({
-            durationSec: Number(r.duration_sec),
-            costUsd: r.cost_usd == null ? null : Number(r.cost_usd),
-          })),
+          idleHours,
+          idleCostUsd: idleHours * basis.idleGalPerHour * basis.fuelPricePerGal,
           declinedCount: declinedRes.count ?? 0,
         },
       );

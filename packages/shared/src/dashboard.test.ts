@@ -177,7 +177,8 @@ describe("aggregateDashboard extras (idle / reefer / coverage / declines)", () =
       txn({ id: "x2", total_cost: 100, tank_type: "reefer", samsara_recon_at: null }),
     ];
     const s = aggregateDashboard(rows, [], vehicles, drivers, {}, {
-      idle: [{ durationSec: 3600, costUsd: 20 }, { durationSec: 1800, costUsd: 10 }],
+      idleHours: 1.5,
+      idleCostUsd: 30,
       declinedCount: 4,
     });
     expect(s.reeferSpend).toBe(100);

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/vue-query";
 import { computeAvoidable, avoidableCost, idleScore, type IdleCapability } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
-import type { IdleCostBasis } from "./useIdleCostBasis";
+import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 import { fetchRollupRows, sumRollupByVehicle } from "./useIdleBreakdown";
 
 const WINDOW_DAYS = 30;

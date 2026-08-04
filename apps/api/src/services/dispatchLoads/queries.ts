@@ -63,17 +63,40 @@ export async function listEvents(admin: SupabaseClient, orgId: string, loadId: s
   });
 }
 
+/** Latest ELD duty segments (newest first, bounded) → each driver's "in current status since". */
+async function dutySinceByDriver(admin: SupabaseClient, orgId: string): Promise<Map<string, { status: string; started_at: string }>> {
+  // One bounded query, newest first: ~6 recent segments per driver at fleet size; the FIRST row seen per
+  // driver is their latest segment. Bounded so the board read stays O(fleet), not O(history).
+  const { data } = await admin
+    .from("hos_duty_segments")
+    .select("driver_id, status, started_at")
+    .eq("org_id", orgId)
+    .not("driver_id", "is", null)
+    .order("started_at", { ascending: false })
+    .limit(2000);
+  const out = new Map<string, { status: string; started_at: string }>();
+  for (const s of (data ?? []) as { driver_id: string; status: string; started_at: string }[]) {
+    if (!out.has(s.driver_id)) out.set(s.driver_id, { status: s.status, started_at: s.started_at });
+  }
+  return out;
+}
+
 /**
- * The Assignments board (D49): every driver, whether they are on duty, in which truck and trailer,
- * since when, and what they are working. This is the surface that makes duty sessions useful to
- * dispatch rather than only to the attribution engine.
+ * The Assignments board (D49), TELEMATICS-SOURCED: every driver's live HOS duty status, current truck
+ * (from /fleet/hos/clocks via drivers.current_hos_*), city location, paired trailer, and the load they
+ * are working. The in-app driver-shift feature is not used by this fleet, so duty sessions only GATE
+ * the legacy "End shift" action (shown when a real session is open) — they no longer source the board.
  */
 export async function listAssignments(admin: SupabaseClient, orgId: string): Promise<AssignmentRow[]> {
-  const [driversRes, sessionsRes, loadsRes] = await Promise.all([
-    admin.from("drivers").select("id, full_name, status").eq("org_id", orgId).order("full_name"),
+  const [driversRes, sessionsRes, loadsRes, vehiclesRes, trailersRes, dutySince] = await Promise.all([
+    admin
+      .from("drivers")
+      .select("id, full_name, status, current_hos_status, current_hos_vehicle, current_location")
+      .eq("org_id", orgId)
+      .order("full_name"),
     admin
       .from("driver_duty_sessions")
-      .select("id, driver_id, started_at, duty_equipment_segments!inner(vehicle_id, trailer_id, to_at, vehicles(unit_number), trailers(unit_number))")
+      .select("id, driver_id, started_at")
       .eq("org_id", orgId)
       .is("ended_at", null),
     admin
@@ -81,13 +104,19 @@ export async function listAssignments(admin: SupabaseClient, orgId: string): Pro
       .select("id, ref, status, driver_id")
       .eq("org_id", orgId)
       .in("status", ["offered", "accepted", "in_transit"]),
+    admin.from("vehicles").select("id, unit_number").eq("org_id", orgId),
+    admin
+      .from("trailers")
+      .select("unit_number, assigned_vehicle_id")
+      .eq("org_id", orgId)
+      .not("assigned_vehicle_id", "is", null),
+    dutySinceByDriver(admin, orgId),
   ]);
 
-  type SegJoin = { vehicle_id: string | null; trailer_id: string | null; to_at: string | null; vehicles: Join; trailers: Join };
-  type SessionRow = { id: string; driver_id: string; started_at: string; duty_equipment_segments: SegJoin[] };
-
-  const byDriver = new Map<string, SessionRow>();
-  for (const s of (sessionsRes.data ?? []) as unknown as SessionRow[]) byDriver.set(s.driver_id, s);
+  const sessionByDriver = new Map<string, { id: string; started_at: string }>();
+  for (const s of (sessionsRes.data ?? []) as { id: string; driver_id: string; started_at: string }[]) {
+    sessionByDriver.set(s.driver_id, { id: s.id, started_at: s.started_at });
+  }
 
   const loadByDriver = new Map<string, { id: string; ref: string; status: string }>();
   for (const l of (loadsRes.data ?? []) as unknown as { id: string; ref: string; status: string; driver_id: string | null }[]) {
@@ -100,20 +129,42 @@ export async function listAssignments(admin: SupabaseClient, orgId: string): Pro
     }
   }
 
-  return ((driversRes.data ?? []) as { id: string; full_name: string; status: string | null }[]).map((d) => {
-    const session = byDriver.get(d.id);
-    const seg = session?.duty_equipment_segments.find((s) => s.to_at === null) ?? null;
+  // drivers.current_hos_vehicle stores the truck's UNIT NAME (Samsara display name) → resolve to our
+  // vehicle row, then to its currently-paired trailer.
+  const vehicleByUnit = new Map(
+    ((vehiclesRes.data ?? []) as { id: string; unit_number: string }[]).map((v) => [v.unit_number, v.id]),
+  );
+  const trailerByVehicle = new Map(
+    ((trailersRes.data ?? []) as { unit_number: string; assigned_vehicle_id: string }[]).map((t) => [
+      t.assigned_vehicle_id,
+      t.unit_number,
+    ]),
+  );
+
+  type DriverRow = {
+    id: string; full_name: string; status: string | null;
+    current_hos_status: string | null; current_hos_vehicle: string | null; current_location: string | null;
+  };
+  return ((driversRes.data ?? []) as DriverRow[]).map((d) => {
+    const session = sessionByDriver.get(d.id) ?? null;
     const load = loadByDriver.get(d.id) ?? null;
+    const vehicleId = d.current_hos_vehicle ? (vehicleByUnit.get(d.current_hos_vehicle) ?? null) : null;
+    const latest = dutySince.get(d.id) ?? null;
     return {
       driver_id: d.id,
       driver_name: d.full_name,
       driver_status: d.status,
       session_id: session?.id ?? null,
       started_at: session?.started_at ?? null,
-      vehicle_id: seg?.vehicle_id ?? null,
-      vehicle_unit: one(seg?.vehicles ?? null)?.unit_number ?? null,
-      trailer_id: seg?.trailer_id ?? null,
-      trailer_unit: one(seg?.trailers ?? null)?.unit_number ?? null,
+      duty_status: d.current_hos_status,
+      // "In status since" only when the latest ELD segment agrees with the live clock status —
+      // a mid-transition mismatch shows "—" rather than a wrong duration.
+      duty_since: latest && latest.status === d.current_hos_status ? latest.started_at : null,
+      location: d.current_location,
+      vehicle_id: vehicleId,
+      vehicle_unit: d.current_hos_vehicle,
+      trailer_id: null, // trailer identity is by unit below; the id column is legacy-shape
+      trailer_unit: vehicleId ? (trailerByVehicle.get(vehicleId) ?? null) : null,
       load_id: load?.id ?? null,
       load_ref: load?.ref ?? null,
       load_status: load?.status ?? null,
