@@ -17,9 +17,12 @@ const vehicleSync = vi.hoisted(() => ({
 const trailerSync = vi.hoisted(() => ({ syncTrailersFromSamsara: vi.fn() }));
 const idleSync = vi.hoisted(() => ({ syncIdleEvents: vi.fn() }));
 const idleCap = vi.hoisted(() => ({ syncIdleCapabilities: vi.fn() }));
-const hosSync = vi.hoisted(() => ({ syncHosDutySegments: vi.fn() }));
+const hosSync = vi.hoisted(() => ({ syncHosDutySegments: vi.fn(), syncHosCurrentStatus: vi.fn() }));
 const driverSync = vi.hoisted(() => ({ syncDriversFromSamsara: vi.fn() }));
-const scoreSync = vi.hoisted(() => ({ syncDriverScores: vi.fn(), syncRecentDriverScoreWeeks: vi.fn() }));
+const scoreSync = vi.hoisted(() => ({
+  syncDriverScores: vi.fn(),
+  syncRecentDriverScoreWeeks: vi.fn(),
+}));
 const audit = vi.hoisted(() => ({ writeAudit: vi.fn() }));
 
 vi.mock("../../samsaraVehicleSync.js", () => ({
@@ -54,31 +57,66 @@ const admin = {
 const ctx = { admin, env: {} } as unknown as JobContext;
 
 const job = (kind: string, payload: Record<string, unknown> = {}): QueueJob =>
-  ({ id: "j1", org_id: "org-1", kind, payload, attempts: 1, max_attempts: 5 } as unknown as QueueJob);
+  ({
+    id: "j1",
+    org_id: "org-1",
+    kind,
+    payload,
+    attempts: 1,
+    max_attempts: 5,
+  }) as unknown as QueueJob;
 
 afterEach(() => vi.clearAllMocks());
 
 describe("syncVehiclesHandler", () => {
   it("full: runs the compound sync (trailers + idle + scores) and audits when an actor is present", async () => {
-    vehicleSync.syncVehiclesFromSamsara.mockResolvedValue({ total: 10, created: 2, updated: 3, assigned: 4, needsCompletion: [] });
-    trailerSync.syncTrailersFromSamsara.mockResolvedValue({ total: 1, created: 0, updated: 1, paired: 1 });
+    vehicleSync.syncVehiclesFromSamsara.mockResolvedValue({
+      total: 10,
+      created: 2,
+      updated: 3,
+      assigned: 4,
+      needsCompletion: [],
+    });
+    trailerSync.syncTrailersFromSamsara.mockResolvedValue({
+      total: 1,
+      created: 0,
+      updated: 1,
+      paired: 1,
+    });
     idleSync.syncIdleEvents.mockResolvedValue({ fetched: 5, upserted: 5 });
-    scoreSync.syncDriverScores.mockResolvedValue({ upserted: 6, safetyOk: true, efficiencyOk: true });
+    scoreSync.syncDriverScores.mockResolvedValue({
+      upserted: 6,
+      safetyOk: true,
+      efficiencyOk: true,
+    });
     driverSync.syncDriversFromSamsara.mockResolvedValue({ total: 3, created: 0, updated: 3 });
 
-    const out = await syncVehiclesHandler(ctx, job("sync_vehicles", { full: true, actorId: "u1" }), async () => {});
+    const out = await syncVehiclesHandler(
+      ctx,
+      job("sync_vehicles", { full: true, actorId: "u1" }),
+      async () => {},
+    );
 
     expect(driverSync.syncDriversFromSamsara).toHaveBeenCalled();
     expect(trailerSync.syncTrailersFromSamsara).toHaveBeenCalled();
     expect(idleSync.syncIdleEvents).toHaveBeenCalled();
     expect(scoreSync.syncDriverScores).toHaveBeenCalled();
     expect(lastSyncedEq).not.toHaveBeenCalled(); // full path does NOT stamp last_synced_at
-    expect(audit.writeAudit).toHaveBeenCalledWith(admin, expect.objectContaining({ action: "integration.samsara.vehicles_synced", actorId: "u1" }));
+    expect(audit.writeAudit).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ action: "integration.samsara.vehicles_synced", actorId: "u1" }),
+    );
     expect(out).toEqual({ total: 10, created: 2, updated: 3, assigned: 4, needsCompletion: 0 });
   });
 
   it("identity (no full): drivers + vehicles only, stamps last_synced_at, no audit without an actor", async () => {
-    vehicleSync.syncVehiclesFromSamsara.mockResolvedValue({ total: 10, created: 2, updated: 3, assigned: 4, needsCompletion: [] });
+    vehicleSync.syncVehiclesFromSamsara.mockResolvedValue({
+      total: 10,
+      created: 2,
+      updated: 3,
+      assigned: 4,
+      needsCompletion: [],
+    });
     driverSync.syncDriversFromSamsara.mockResolvedValue({ total: 3, created: 0, updated: 3 });
 
     await syncVehiclesHandler(ctx, job("sync_vehicles", {}), async () => {});
@@ -94,20 +132,37 @@ describe("syncVehiclesHandler", () => {
   it("a missing Samsara token is a skip, not a failure", async () => {
     driverSync.syncDriversFromSamsara.mockResolvedValue({ total: 0, created: 0, updated: 0 });
     vehicleSync.syncVehiclesFromSamsara.mockRejectedValue(new NoSamsaraTokenError("no token"));
-    const out = await syncVehiclesHandler(ctx, job("sync_vehicles", { full: true }), async () => {});
+    const out = await syncVehiclesHandler(
+      ctx,
+      job("sync_vehicles", { full: true }),
+      async () => {},
+    );
     expect(out).toEqual({ skipped: "no_samsara_token" });
   });
 });
 
 describe("syncDriverScoresHandler — refreshIdle gate", () => {
-  const scores = { weeks: 1, totalUpserted: 7, results: [{ weekStart: "2026-07-27", drivers: 3, safetyOk: true, efficiencyOk: false }] };
+  const scores = {
+    weeks: 1,
+    totalUpserted: 7,
+    results: [{ weekStart: "2026-07-27", drivers: 3, safetyOk: true, efficiencyOk: false }],
+  };
 
   it("refreshes idle only when payload.refreshIdle is set (manual button)", async () => {
     scoreSync.syncRecentDriverScoreWeeks.mockResolvedValue(scores);
     idleSync.syncIdleEvents.mockResolvedValue({ fetched: 1, upserted: 1 });
-    const out = await syncDriverScoresHandler(ctx, job("sync_driver_scores", { refreshIdle: true, actorId: "u1" }), async () => {});
+    const out = await syncDriverScoresHandler(
+      ctx,
+      job("sync_driver_scores", { refreshIdle: true, actorId: "u1" }),
+      async () => {},
+    );
     expect(idleSync.syncIdleEvents).toHaveBeenCalledTimes(1);
-    expect(out).toMatchObject({ upserted: 7, safetyOk: true, efficiencyOk: false, weekStart: "2026-07-27" });
+    expect(out).toMatchObject({
+      upserted: 7,
+      safetyOk: true,
+      efficiencyOk: false,
+      weekStart: "2026-07-27",
+    });
     expect(audit.writeAudit).toHaveBeenCalled();
   });
 
@@ -130,23 +185,39 @@ describe("syncStatsHandler / syncDriversHandler", () => {
     await syncDriversHandler(ctx, job("sync_drivers", {}), async () => {});
     expect(audit.writeAudit).not.toHaveBeenCalled();
     await syncDriversHandler(ctx, job("sync_drivers", { actorId: "u1" }), async () => {});
-    expect(audit.writeAudit).toHaveBeenCalledWith(admin, expect.objectContaining({ action: "integration.samsara.drivers_synced" }));
+    expect(audit.writeAudit).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ action: "integration.samsara.drivers_synced" }),
+    );
   });
 });
 
 describe("syncHosHandler", () => {
   it("syncs duty segments; passes payload.sinceDays for a backfill; audits only with an actor", async () => {
     hosSync.syncHosDutySegments.mockResolvedValue({ fetched: 12, upserted: 12 });
+    hosSync.syncHosCurrentStatus.mockResolvedValue({ drivers: 7 });
 
-    const out = await syncHosHandler(ctx, job("sync_hos", { actorId: "u1", sinceDays: 120 }), async () => {});
-    expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", { sinceDays: 120 });
-    expect(out).toEqual({ fetched: 12, upserted: 12 });
-    expect(audit.writeAudit).toHaveBeenCalledWith(admin, expect.objectContaining({ action: "integration.samsara.hos_synced", actorId: "u1" }));
+    const out = await syncHosHandler(
+      ctx,
+      job("sync_hos", { actorId: "u1", sinceDays: 120 }),
+      async () => {},
+    );
+    expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", {
+      sinceDays: 120,
+    });
+    expect(out).toEqual({ fetched: 12, upserted: 12, currentDrivers: 7 });
+    expect(audit.writeAudit).toHaveBeenCalledWith(
+      admin,
+      expect.objectContaining({ action: "integration.samsara.hos_synced", actorId: "u1" }),
+    );
 
     vi.clearAllMocks();
     hosSync.syncHosDutySegments.mockResolvedValue({ fetched: 3, upserted: 3 });
+    hosSync.syncHosCurrentStatus.mockResolvedValue({ drivers: 0 });
     await syncHosHandler(ctx, job("sync_hos", {}), async () => {}); // scheduler run: no actor, rolling window
-    expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", { sinceDays: undefined });
+    expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", {
+      sinceDays: undefined,
+    });
     expect(audit.writeAudit).not.toHaveBeenCalled();
   });
 

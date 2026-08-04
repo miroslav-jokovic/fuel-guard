@@ -201,3 +201,37 @@ export function hosOverlapSeconds(
   }
   return acc;
 }
+
+/** One driver's CURRENT HOS snapshot, from GET /fleet/hos/clocks (currentDutyStatus + currentVehicle). */
+export interface HosCurrentStatus {
+  driverId: string;
+  status: HosStatus;
+  vehicleId: string | null;
+  vehicleName: string | null;
+}
+
+/**
+ * Parse the merged `data[]` from GET /fleet/hos/clocks into each driver's current duty status + current truck.
+ * Samsara nests the status under `currentDutyStatus.hosStatusType` and the truck under `currentVehicle`. This
+ * is the live "current status for all drivers" feed (the same endpoint fuel planning uses), so the Drivers
+ * page / Assignments board don't need the historical logs for "who is on duty right now".
+ */
+export function parseHosClocks(data: unknown[]): HosCurrentStatus[] {
+  const out: HosCurrentStatus[] = [];
+  for (const raw of data) {
+    const item = raw as {
+      driver?: { id?: string | number };
+      currentVehicle?: { id?: string | number; name?: string };
+      currentDutyStatus?: { hosStatusType?: string };
+    };
+    const driverId = item.driver?.id != null ? String(item.driver.id) : null;
+    if (!driverId) continue;
+    out.push({
+      driverId,
+      status: normalizeHosStatus(item.currentDutyStatus?.hosStatusType),
+      vehicleId: item.currentVehicle?.id != null ? String(item.currentVehicle.id) : null,
+      vehicleName: item.currentVehicle?.name ?? null,
+    });
+  }
+  return out;
+}

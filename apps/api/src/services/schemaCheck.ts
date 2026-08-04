@@ -53,6 +53,7 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // HOS duty-status segments (idle avoidability, duty-aware). Unapplied 0109 makes the HOS sync fail at the
   // DB layer with a schema-cache error that reads like an app bug.
   { table: "hos_duty_segments", column: "status", migration: "0109" },
+  { table: "drivers", column: "current_hos_status", migration: "0111" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

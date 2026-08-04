@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
-import {
-  PlusIcon,
-} from "@fuelguard/ui/icons";
+import { PlusIcon } from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
@@ -23,6 +21,27 @@ import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 import { formatPhone } from "@/lib/format";
 import { useDriverReconcile } from "@/features/fleet/useDriverReconcile";
+
+// HOS duty-status badge styling + a "as of" tooltip (the status is a snapshot from the last HOS sync).
+const HOS_BADGE: Record<string, { label: string; cls: string }> = {
+  driving: { label: "Driving", cls: "bg-info-100 text-info-700" },
+  on_duty: { label: "On duty", cls: "bg-warning-100 text-warning-700" },
+  sleeper: { label: "Sleeper", cls: "bg-surface-muted text-ink-secondary" },
+  off_duty: { label: "Off duty", cls: "bg-surface-muted text-ink-subtle" },
+  yard_move: { label: "Yard move", cls: "bg-surface-muted text-ink-secondary" },
+  personal_conveyance: { label: "Personal", cls: "bg-surface-muted text-ink-secondary" },
+  unknown: { label: "Unknown", cls: "bg-surface-muted text-ink-subtle" },
+};
+const hosBadge = (s: string) => HOS_BADGE[s] ?? HOS_BADGE.unknown!;
+function hosAgo(iso: string | null): string {
+  if (!iso) return "";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  return mins < 1
+    ? "as of just now"
+    : mins < 60
+      ? `as of ${mins} min ago`
+      : `as of ${Math.round(mins / 60)}h ago`;
+}
 
 const PAGE_SIZE = 20;
 
@@ -49,7 +68,9 @@ async function openReconcile() {
 }
 // Samsara drivers to pick from when manually linking (those already carrying a Samsara id).
 const samsaraCandidates = computed(() =>
-  (drivers.value ?? []).filter((d) => d.samsara_driver_id).sort((a, b) => a.full_name.localeCompare(b.full_name)),
+  (drivers.value ?? [])
+    .filter((d) => d.samsara_driver_id)
+    .sort((a, b) => a.full_name.localeCompare(b.full_name)),
 );
 // Unmatched drivers the auto-plan did NOT cover (need a manual link).
 const stillUnmatched = computed(() => {
@@ -65,8 +86,10 @@ async function linkDriver(sourceId: string) {
   const canonicalId = linkTarget.value[sourceId];
   if (!canonicalId) return;
   const ok = await reconcile.linkOne(sourceId, canonicalId);
-  if (ok) { toast.success("Driver linked & merged"); await reconcile.preview(); }
-  else toast.error("Link failed", reconcile.error.value ?? undefined);
+  if (ok) {
+    toast.success("Driver linked & merged");
+    await reconcile.preview();
+  } else toast.error("Link failed", reconcile.error.value ?? undefined);
 }
 
 const search = ref("");
@@ -94,17 +117,47 @@ function onSort(key: string) {
 const sorted = computed(() => sortRows(filtered.value, sort.value));
 
 const columns: DataTableColumn[] = [
-  { key: "full_name", label: "Name", sortable: true, headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
-  { key: "samsara_username", label: "Driver ID", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
-  { key: "employee_id", label: "Employee ID", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "phone", label: "Phone", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary tabular-nums" },
-  { key: "vehicles", label: "Vehicles", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
+  {
+    key: "full_name",
+    label: "Name",
+    sortable: true,
+    headerClass: "min-w-[12rem]",
+    cellClass: "font-medium text-ink",
+  },
+  {
+    key: "samsara_username",
+    label: "Driver ID",
+    sortable: true,
+    headerClass: "min-w-[8rem]",
+    cellClass: "text-ink-secondary",
+  },
+  { key: "current_hos_status", label: "HOS status", sortable: true, headerClass: "min-w-[8rem]" },
+  {
+    key: "current_hos_vehicle",
+    label: "Current truck",
+    headerClass: "min-w-[7rem]",
+    cellClass: "text-ink-secondary",
+  },
+  {
+    key: "phone",
+    label: "Phone",
+    headerClass: "min-w-[9rem]",
+    cellClass: "text-ink-secondary tabular-nums",
+  },
+  {
+    key: "vehicles",
+    label: "Vehicles",
+    headerClass: "min-w-[10rem]",
+    cellClass: "text-ink-secondary",
+  },
   { key: "status", label: "Status", sortable: true, headerClass: "min-w-[6rem]" },
 ];
 
 const page = ref(1);
 watch([search, statusFilter], () => (page.value = 1));
-const pageRows = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+const pageRows = computed(() =>
+  sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+);
 
 // Vehicles assigned to a driver (assignment is set from the Vehicles page).
 const assignedUnits = (driverId: string) =>
@@ -136,10 +189,15 @@ async function onSubmit(input: DriverInput) {
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Drivers in your fleet. Assign drivers to vehicles from the Vehicles page.">
+    <PageHeader
+      description="Drivers in your fleet. Assign drivers to vehicles from the Vehicles page."
+    >
       <template #actions>
         <template v-if="session.canManage">
-          <BaseButton title="Fold duplicate / name-only drivers into their Samsara record" @click="openReconcile">
+          <BaseButton
+            title="Fold duplicate / name-only drivers into their Samsara record"
+            @click="openReconcile"
+          >
             Reconcile with Samsara
           </BaseButton>
           <BaseButton variant="primary" @click="openNew">
@@ -168,12 +226,27 @@ async function onSubmit(input: DriverInput) {
       :error="isError ? (error instanceof Error ? error.message : 'Failed to load drivers') : null"
       :retrying="isFetching"
       :sort="sort"
-      :empty-text="(drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'"
+      :empty-text="
+        (drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'
+      "
       @sort="onSort"
       @retry="refetch"
     >
       <template #cell-samsara_username="{ row }">{{ row.samsara_username || "—" }}</template>
       <template #cell-phone="{ row }">{{ formatPhone(row.phone) }}</template>
+      <template #cell-current_hos_status="{ row }">
+        <span
+          v-if="row.current_hos_status"
+          :class="[
+            'inline-flex rounded px-1.5 py-0.5 text-xs font-semibold',
+            hosBadge(row.current_hos_status).cls,
+          ]"
+          :title="hosAgo(row.current_hos_at)"
+          >{{ hosBadge(row.current_hos_status).label }}</span
+        >
+        <span v-else class="text-xs text-ink-subtle">—</span>
+      </template>
+      <template #cell-current_hos_vehicle="{ row }">{{ row.current_hos_vehicle || "—" }}</template>
       <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
@@ -191,18 +264,24 @@ async function onSubmit(input: DriverInput) {
       </template>
     </DataTable>
 
-    <SlideOver :open="reconcileOpen" title="Reconcile drivers with Samsara" @close="reconcileOpen = false">
+    <SlideOver
+      :open="reconcileOpen"
+      title="Reconcile drivers with Samsara"
+      @close="reconcileOpen = false"
+    >
       <div v-if="reconcile.loading.value" class="text-sm text-ink-muted">Analyzing…</div>
       <div v-else class="space-y-6">
         <p class="text-sm text-ink-muted">
-          Drivers created from EFS fuel-card names are folded into their Samsara record, moving all fuel, idle
-          and HOS history onto the one row. Only confident matches (phone, or an unambiguous full name) are
-          auto-merged; the rest you can link by hand below.
+          Drivers created from EFS fuel-card names are folded into their Samsara record, moving all
+          fuel, idle and HOS history onto the one row. Only confident matches (phone, or an
+          unambiguous full name) are auto-merged; the rest you can link by hand below.
         </p>
 
         <div>
           <div class="flex items-center justify-between">
-            <h4 class="text-sm font-semibold text-ink">Confident merges ({{ reconcile.report.value?.planned ?? 0 }})</h4>
+            <h4 class="text-sm font-semibold text-ink">
+              Confident merges ({{ reconcile.report.value?.planned ?? 0 }})
+            </h4>
             <BaseButton
               v-if="(reconcile.report.value?.planned ?? 0) > 0"
               variant="primary"
@@ -210,37 +289,68 @@ async function onSubmit(input: DriverInput) {
               :disabled="reconcile.applying.value"
               @click="applyReconcile"
             >
-              {{ reconcile.applying.value ? "Merging…" : `Apply ${reconcile.report.value?.planned} merge(s)` }}
+              {{
+                reconcile.applying.value
+                  ? "Merging…"
+                  : `Apply ${reconcile.report.value?.planned} merge(s)`
+              }}
             </BaseButton>
           </div>
           <ul class="mt-2 divide-y divide-border rounded-md border border-border">
-            <li v-for="pr in reconcile.report.value?.pairs ?? []" :key="pr.sourceId" class="flex items-center justify-between px-3 py-2 text-sm">
-              <span><span class="text-ink-secondary">{{ pr.sourceName }}</span> → <span class="font-medium text-ink">{{ pr.canonicalName }}</span></span>
+            <li
+              v-for="pr in reconcile.report.value?.pairs ?? []"
+              :key="pr.sourceId"
+              class="flex items-center justify-between px-3 py-2 text-sm"
+            >
+              <span
+                ><span class="text-ink-secondary">{{ pr.sourceName }}</span> →
+                <span class="font-medium text-ink">{{ pr.canonicalName }}</span></span
+              >
               <span class="text-xs text-ink-subtle">by {{ pr.matchedBy }}</span>
             </li>
-            <li v-if="!(reconcile.report.value?.pairs ?? []).length" class="px-3 py-2 text-sm text-ink-subtle">No confident merges found.</li>
+            <li
+              v-if="!(reconcile.report.value?.pairs ?? []).length"
+              class="px-3 py-2 text-sm text-ink-subtle"
+            >
+              No confident merges found.
+            </li>
           </ul>
         </div>
 
         <div>
           <h4 class="text-sm font-semibold text-ink">Link by hand ({{ stillUnmatched.length }})</h4>
-          <p class="mt-1 text-xs text-ink-subtle">Drivers with no confident Samsara match — pick the right person to merge into.</p>
+          <p class="mt-1 text-xs text-ink-subtle">
+            Drivers with no confident Samsara match — pick the right person to merge into.
+          </p>
           <ul class="mt-2 space-y-2">
             <li v-for="u in stillUnmatched" :key="u.id" class="flex items-center gap-2 text-sm">
               <span class="min-w-0 flex-1 truncate">{{ u.full_name }}</span>
-              <select v-model="linkTarget[u.id]" class="rounded border border-border bg-surface px-2 py-1 text-xs">
+              <select
+                v-model="linkTarget[u.id]"
+                class="rounded border border-border bg-surface px-2 py-1 text-xs"
+              >
                 <option value="">Select Samsara driver…</option>
-                <option v-for="c in samsaraCandidates" :key="c.id" :value="c.id">{{ c.full_name }}</option>
+                <option v-for="c in samsaraCandidates" :key="c.id" :value="c.id">
+                  {{ c.full_name }}
+                </option>
               </select>
-              <BaseButton size="sm" :disabled="!linkTarget[u.id]" @click="linkDriver(u.id)">Link</BaseButton>
+              <BaseButton size="sm" :disabled="!linkTarget[u.id]" @click="linkDriver(u.id)"
+                >Link</BaseButton
+              >
             </li>
-            <li v-if="!stillUnmatched.length" class="text-sm text-ink-subtle">Nothing left to link.</li>
+            <li v-if="!stillUnmatched.length" class="text-sm text-ink-subtle">
+              Nothing left to link.
+            </li>
           </ul>
         </div>
       </div>
     </SlideOver>
 
-    <SlideOver :open="drawerOpen" :title="editing ? 'Edit driver' : 'New driver'" @close="drawerOpen = false">
+    <SlideOver
+      :open="drawerOpen"
+      :title="editing ? 'Edit driver' : 'New driver'"
+      @close="drawerOpen = false"
+    >
       <DriverForm
         :driver="editing"
         :submitting="saving"

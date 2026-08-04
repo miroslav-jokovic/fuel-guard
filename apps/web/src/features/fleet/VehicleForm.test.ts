@@ -13,6 +13,9 @@ const drivers = [
     status: "active" as const,
     samsara_driver_id: null,
     samsara_username: null,
+    current_hos_status: null,
+    current_hos_vehicle: null,
+    current_hos_at: null,
     created_at: "",
     updated_at: "",
   },
@@ -56,7 +59,11 @@ describe("VehicleForm", () => {
 
     const emitted = wrapper.emitted("submit");
     expect(emitted).toBeTruthy();
-    const payload = emitted![0]![0] as { unit_number: string; tank_capacity_gal: number; baseline_mpg?: number };
+    const payload = emitted![0]![0] as {
+      unit_number: string;
+      tank_capacity_gal: number;
+      baseline_mpg?: number;
+    };
     expect(payload.unit_number).toBe("T-200");
     expect(payload.tank_capacity_gal).toBe(120);
     expect(payload.baseline_mpg).toBe(6.4);

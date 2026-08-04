@@ -1,8 +1,12 @@
-import { syncVehiclesFromSamsara, syncVehicleStatsFromSamsara, NoSamsaraTokenError } from "../../samsaraVehicleSync.js";
+import {
+  syncVehiclesFromSamsara,
+  syncVehicleStatsFromSamsara,
+  NoSamsaraTokenError,
+} from "../../samsaraVehicleSync.js";
 import { syncTrailersFromSamsara } from "../../samsaraTrailerSync.js";
 import { syncIdleEvents } from "../../idleSync.js";
 import { syncIdleCapabilities } from "../../idleCapabilitySync.js";
-import { syncHosDutySegments } from "../../hosSync.js";
+import { syncHosDutySegments, syncHosCurrentStatus } from "../../hosSync.js";
 import { syncDriversFromSamsara } from "../../samsaraDriverSync.js";
 import { syncDriverScores, syncRecentDriverScoreWeeks } from "../../driverScoreSync.js";
 import { snapshotSettledWeeks } from "../../driverPerformanceSnapshot.js";
@@ -24,14 +28,17 @@ import type { JobHandler } from "../types.js";
  * mirroring the old route closures; scheduler-origin runs carry no actor and write no audit.
  */
 const asStr = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
-const asNum = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const asNum = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
 
 /** Wrap a best-effort sub-sync: log + swallow so one weak scope (idle, trailers) never fails the job. */
 async function nonFatal(label: string, orgId: string, run: () => Promise<unknown>): Promise<void> {
   try {
     await run();
   } catch (e) {
-    console.error(`[samsara] ${label} (org ${orgId}) failed: ${e instanceof Error ? e.message : e}`);
+    console.error(
+      `[samsara] ${label} (org ${orgId}) failed: ${e instanceof Error ? e.message : e}`,
+    );
   }
 }
 
@@ -60,16 +67,25 @@ export const syncVehiclesHandler: JobHandler = async (ctx, job) => {
       await nonFatal("idle sync", orgId, () => syncIdleEvents(admin, env, orgId));
       await nonFatal("driver-score sync", orgId, () => syncDriverScores(admin, env, orgId));
     } else {
-      await admin.from("integration_credentials").update({ last_synced_at: new Date().toISOString() }).eq("org_id", orgId);
+      await admin
+        .from("integration_credentials")
+        .update({ last_synced_at: new Date().toISOString() })
+        .eq("org_id", orgId);
     }
     if (actorId) {
       await writeAudit(admin, {
-        orgId, actorId, action: "integration.samsara.vehicles_synced", entity: "vehicles",
+        orgId,
+        actorId,
+        action: "integration.samsara.vehicles_synced",
+        entity: "vehicles",
         meta: { total: result.total, created: result.created, updated: result.updated },
       });
     }
     return {
-      total: result.total, created: result.created, updated: result.updated, assigned: result.assigned,
+      total: result.total,
+      created: result.created,
+      updated: result.updated,
+      assigned: result.assigned,
       needsCompletion: result.needsCompletion.length,
     };
   } catch (e) {
@@ -96,11 +112,24 @@ export const syncTrailersHandler: JobHandler = async (ctx, job) => {
     const result = await syncTrailersFromSamsara(ctx.admin, ctx.env, job.org_id);
     if (actorId) {
       await writeAudit(ctx.admin, {
-        orgId: job.org_id, actorId, action: "integration.samsara.trailers_synced", entity: "trailers",
-        meta: { total: result.total, created: result.created, updated: result.updated, paired: result.paired },
+        orgId: job.org_id,
+        actorId,
+        action: "integration.samsara.trailers_synced",
+        entity: "trailers",
+        meta: {
+          total: result.total,
+          created: result.created,
+          updated: result.updated,
+          paired: result.paired,
+        },
       });
     }
-    return { total: result.total, created: result.created, updated: result.updated, paired: result.paired };
+    return {
+      total: result.total,
+      created: result.created,
+      updated: result.updated,
+      paired: result.paired,
+    };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
     throw e;
@@ -116,12 +145,21 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
   const sinceDays = asNum(job.payload.sinceDays) ?? undefined;
   try {
     const result = await syncHosDutySegments(admin, env, orgId, { sinceDays });
+    let currentDrivers = 0;
+    await nonFatal("hos current status", orgId, async () => {
+      const c = await syncHosCurrentStatus(admin, env, orgId);
+      currentDrivers = c.drivers;
+    });
     if (actorId) {
       await writeAudit(admin, {
-        orgId, actorId, action: "integration.samsara.hos_synced", entity: "hos_duty_segments", meta: { ...result },
+        orgId,
+        actorId,
+        action: "integration.samsara.hos_synced",
+        entity: "hos_duty_segments",
+        meta: { ...result, currentDrivers },
       });
     }
-    return { ...result };
+    return { ...result, currentDrivers };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
     throw e;
@@ -143,7 +181,10 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
     });
     if (actorId) {
       await writeAudit(admin, {
-        orgId, actorId, action: "integration.samsara.idle_synced", entity: "idle_events",
+        orgId,
+        actorId,
+        action: "integration.samsara.idle_synced",
+        entity: "idle_events",
         meta: { ...result, capabilityLearned: learned },
       });
     }
@@ -161,7 +202,10 @@ export const syncDriversHandler: JobHandler = async (ctx, job) => {
     const result = await syncDriversFromSamsara(ctx.admin, ctx.env, job.org_id);
     if (actorId) {
       await writeAudit(ctx.admin, {
-        orgId: job.org_id, actorId, action: "integration.samsara.drivers_synced", entity: "drivers",
+        orgId: job.org_id,
+        actorId,
+        action: "integration.samsara.drivers_synced",
+        entity: "drivers",
         meta: { total: result.total, created: result.created, updated: result.updated },
       });
     }
@@ -188,12 +232,20 @@ export const syncDriverScoresHandler: JobHandler = async (ctx, job) => {
     }
     const cur = result.results[0];
     const summary = {
-      weekStart: cur?.weekStart ?? null, weeks: result.weeks, drivers: cur?.drivers ?? 0,
-      upserted: result.totalUpserted, safetyOk: cur?.safetyOk ?? false, efficiencyOk: cur?.efficiencyOk ?? false,
+      weekStart: cur?.weekStart ?? null,
+      weeks: result.weeks,
+      drivers: cur?.drivers ?? 0,
+      upserted: result.totalUpserted,
+      safetyOk: cur?.safetyOk ?? false,
+      efficiencyOk: cur?.efficiencyOk ?? false,
     };
     if (actorId) {
       await writeAudit(admin, {
-        orgId, actorId, action: "integration.samsara.driver_scores_synced", entity: "driver_scores", meta: summary,
+        orgId,
+        actorId,
+        action: "integration.samsara.driver_scores_synced",
+        entity: "driver_scores",
+        meta: summary,
       });
     }
     return summary;
@@ -209,7 +261,10 @@ export const snapshotDriverWeekHandler: JobHandler = async (ctx, job) => {
   const result = await snapshotSettledWeeks(ctx.admin, ctx.env, job.org_id);
   if (actorId) {
     await writeAudit(ctx.admin, {
-      orgId: job.org_id, actorId, action: "driver_performance.snapshot", entity: "driver_performance_weeks",
+      orgId: job.org_id,
+      actorId,
+      action: "driver_performance.snapshot",
+      entity: "driver_performance_weeks",
       meta: { weeksFrozen: result.weeksFrozen.length, rowsWritten: result.rowsWritten },
     });
   }

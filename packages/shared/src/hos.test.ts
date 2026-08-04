@@ -4,6 +4,7 @@ import {
   hosDutyKind,
   parseHosLogs,
   hosOverlapSeconds,
+  parseHosClocks,
   type HosSegment,
 } from "./hos.js";
 
@@ -177,6 +178,24 @@ describe("parseHosLogs — real Samsara /fleet/hos/logs shape", () => {
     expect(segs).toEqual([
       { driverId: "57168899", status: "driving", startMs: T, endMs: T + 2 * HH },
       { driverId: "57168899", status: "sleeper", startMs: T + 2 * HH, endMs: T + 12 * HH },
+    ]);
+  });
+});
+
+describe("parseHosClocks — current duty status per driver", () => {
+  it("reads currentDutyStatus.hosStatusType + currentVehicle from the clocks feed", () => {
+    const data = [
+      {
+        driver: { id: "57168899", name: "MICHAEL KENT" },
+        currentVehicle: { id: "212", name: "556" },
+        currentDutyStatus: { hosStatusType: "driving" },
+      },
+      { driver: { id: "99", name: "No Truck" }, currentDutyStatus: { hosStatusType: "offDuty" } },
+      { currentDutyStatus: { hosStatusType: "driving" } }, // no driver → skipped
+    ];
+    expect(parseHosClocks(data)).toEqual([
+      { driverId: "57168899", status: "driving", vehicleId: "212", vehicleName: "556" },
+      { driverId: "99", status: "off_duty", vehicleId: null, vehicleName: null },
     ]);
   });
 });

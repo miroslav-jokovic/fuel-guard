@@ -178,6 +178,9 @@ export interface Driver {
   status: DriverStatus;
   samsara_driver_id: string | null;
   samsara_username: string | null; // Samsara alpha login (e.g. "aaron"), shown as Driver ID
+  current_hos_status: string | null; // live HOS duty status (Samsara clocks)
+  current_hos_vehicle: string | null; // current truck unit
+  current_hos_at: string | null;
   created_at: string;
   updated_at: string;
 }

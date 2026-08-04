@@ -127,11 +127,24 @@ export function makeSamsaraVehicleLister(env: Env, token: string): SamsaraVehicl
 export type SamsaraOdometerFetcher = () => Promise<{ data?: unknown[] }>;
 
 /** Current GPS snapshot for one vehicle (types=gps). Returns null if no fix is available. */
-export async function fetchVehicleCurrentGps(env: Env, token: string, vehicleId: string): Promise<{ lat: number; lng: number; time: string | null } | null> {
-  const data = await listAllPages(env, token, "/fleet/vehicles/stats", { types: "gps", vehicleIds: vehicleId });
-  const v = (data as Array<{ id?: string | number; gps?: { latitude?: number; longitude?: number; time?: string } }>).find((x) => String(x.id) === String(vehicleId));
+export async function fetchVehicleCurrentGps(
+  env: Env,
+  token: string,
+  vehicleId: string,
+): Promise<{ lat: number; lng: number; time: string | null } | null> {
+  const data = await listAllPages(env, token, "/fleet/vehicles/stats", {
+    types: "gps",
+    vehicleIds: vehicleId,
+  });
+  const v = (
+    data as Array<{
+      id?: string | number;
+      gps?: { latitude?: number; longitude?: number; time?: string };
+    }>
+  ).find((x) => String(x.id) === String(vehicleId));
   const g = v?.gps;
-  if (g && Number.isFinite(g.latitude) && Number.isFinite(g.longitude)) return { lat: g.latitude!, lng: g.longitude!, time: g.time ?? null };
+  if (g && Number.isFinite(g.latitude) && Number.isFinite(g.longitude))
+    return { lat: g.latitude!, lng: g.longitude!, time: g.time ?? null };
   return null;
 }
 
@@ -325,6 +338,13 @@ export function makeSamsaraHosLogsFetcher(env: Env, token: string): SamsaraHosLo
   };
 }
 
+/** HOS clocks (GET /fleet/hos/clocks) — the live "current duty status for all drivers" snapshot. Returns the
+ *  raw per-driver `data[]` for parseHosClocks. Same ELD scope as the logs feed. */
+export type SamsaraHosClocksFetcher = () => Promise<{ data: unknown[] }>;
+export function makeSamsaraHosClocksFetcher(env: Env, token: string): SamsaraHosClocksFetcher {
+  return async () => ({ data: await listAllPages(env, token, "/fleet/hos/clocks") });
+}
+
 /** Lists every driver in the org. */
 export type SamsaraDriverLister = () => Promise<unknown[]>;
 
@@ -431,13 +451,38 @@ export function makeSamsaraDriverEfficiencyFetcher(
   };
 }
 
-
 /** Fetch current HOS clocks and key them by the driver's CURRENT vehicle (Samsara id) — for live route planning. */
 export function makeSamsaraHosFetcher(env: Env, token: string) {
-  return async (): Promise<Map<string, { driveRemainingMs: number | null; shiftRemainingMs: number | null; cycleRemainingMs: number | null; timeUntilBreakMs: number | null }>> => {
+  return async (): Promise<
+    Map<
+      string,
+      {
+        driveRemainingMs: number | null;
+        shiftRemainingMs: number | null;
+        cycleRemainingMs: number | null;
+        timeUntilBreakMs: number | null;
+      }
+    >
+  > => {
     const rows = await listAllPages(env, token, "/fleet/hos/clocks", {});
-    const out = new Map<string, { driveRemainingMs: number | null; shiftRemainingMs: number | null; cycleRemainingMs: number | null; timeUntilBreakMs: number | null }>();
-    for (const r of rows as Array<{ currentVehicle?: { id?: string }; clocks?: { drive?: { driveRemainingDurationMs?: number }; shift?: { shiftRemainingDurationMs?: number }; cycle?: { cycleRemainingDurationMs?: number }; break?: { timeUntilBreakDurationMs?: number } } }>) {
+    const out = new Map<
+      string,
+      {
+        driveRemainingMs: number | null;
+        shiftRemainingMs: number | null;
+        cycleRemainingMs: number | null;
+        timeUntilBreakMs: number | null;
+      }
+    >();
+    for (const r of rows as Array<{
+      currentVehicle?: { id?: string };
+      clocks?: {
+        drive?: { driveRemainingDurationMs?: number };
+        shift?: { shiftRemainingDurationMs?: number };
+        cycle?: { cycleRemainingDurationMs?: number };
+        break?: { timeUntilBreakDurationMs?: number };
+      };
+    }>) {
       const vid = r.currentVehicle?.id;
       if (!vid) continue;
       const c = r.clocks ?? {};

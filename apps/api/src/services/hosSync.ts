@@ -1,8 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseHosLogs, type HosSegment } from "@fuelguard/shared";
+import { parseHosLogs, parseHosClocks, type HosSegment } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
-import { makeSamsaraHosLogsFetcher, type SamsaraHosLogsFetcher } from "../lib/samsara.js";
+import {
+  makeSamsaraHosLogsFetcher,
+  makeSamsaraHosClocksFetcher,
+  type SamsaraHosLogsFetcher,
+  type SamsaraHosClocksFetcher,
+} from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 
 export interface HosSyncResult {
@@ -102,4 +107,58 @@ export async function syncHosDutySegments(
     upserted += chunk.length;
   }
   return { fetched: segments.length, upserted };
+}
+
+export interface HosCurrentStatusResult {
+  drivers: number; // driver rows whose live HOS status was refreshed
+}
+
+/**
+ * Pull the live HOS clocks (GET /fleet/hos/clocks) and stamp each matched driver's CURRENT duty status +
+ * current truck onto the drivers row, for the Drivers page / Assignments board. Best-effort snapshot: only
+ * drivers resolvable by samsara_driver_id are updated; the rest are left as-is. Reuses the same feed fuel
+ * planning already reads, so there is no second historical pull for "who is on duty right now".
+ */
+export async function syncHosCurrentStatus(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  opts: { clocksFetcher?: SamsaraHosClocksFetcher } = {},
+): Promise<HosCurrentStatusResult> {
+  const token = opts.clocksFetcher ? "test" : await loadSamsaraToken(admin, env, orgId);
+  if (!token) throw new NoSamsaraTokenError();
+
+  const raw = await (opts.clocksFetcher ?? makeSamsaraHosClocksFetcher(env, token))();
+  const statuses = parseHosClocks(raw.data);
+  if (statuses.length === 0) return { drivers: 0 };
+
+  const { data: ds } = await admin
+    .from("drivers")
+    .select("id, samsara_driver_id")
+    .eq("org_id", orgId)
+    .not("samsara_driver_id", "is", null);
+  const byS = new Map(
+    ((ds ?? []) as { id: string; samsara_driver_id: string }[]).map((d) => [
+      d.samsara_driver_id,
+      d.id,
+    ]),
+  );
+
+  const now = new Date().toISOString();
+  let drivers = 0;
+  for (const st of statuses) {
+    const id = byS.get(st.driverId);
+    if (!id) continue;
+    const { error } = await admin
+      .from("drivers")
+      .update({
+        current_hos_status: st.status,
+        current_hos_vehicle: st.vehicleName,
+        current_hos_at: now,
+      })
+      .eq("id", id)
+      .eq("org_id", orgId);
+    if (!error) drivers++;
+  }
+  return { drivers };
 }
