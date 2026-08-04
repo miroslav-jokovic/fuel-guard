@@ -25,7 +25,8 @@ export type JobKind =
   | "sync_driver_scores"
   | "snapshot_driver_week"
   | "hazmat_extract"
-  | "hazmat_analyze";
+  | "hazmat_analyze"
+  | "data_retention";   // daily retention-policy enforcement (services/dataRetention.ts)
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
 

@@ -8,6 +8,7 @@ import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
 import { syncIdleEvents } from "./idleSync.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
 import { syncIdleRollup } from "./idleRollup.js";
+import { runDataRetention } from "./dataRetention.js";
 import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
 
@@ -180,6 +181,25 @@ export function startSamsaraScheduler(env: Env): void {
       await runOrgTier(admin, env, orgId, "snapshot_driver_week", async () => {
         const r = await snapshotSettledWeeks(admin, env, orgId);
         return { weeksFrozen: r.weeksFrozen.length, rowsWritten: r.rowsWritten };
+      });
+    }
+  });
+
+  // Tier 4 — daily data retention (DB-only): enforce the per-table retention policy
+  // (services/dataRetention.ts) in bounded batches, through the jobs ledger like every other tier so
+  // the run + its per-table delete counts are visible on Data & Sync.
+  startTier(env, "retention", 600_000, 24 * 3_600_000, async (admin) => {
+    // ALL orgs — retention is not tied to having a Samsara token.
+    const { data: orgs } = await admin.from("organizations").select("id");
+    for (const orgId of ((orgs ?? []) as { id: string }[]).map((o) => o.id)) {
+      await runOrgTier(admin, env, orgId, "data_retention", async () => {
+        const r = await runDataRetention(admin, orgId);
+        return {
+          totalDeleted: r.totalDeleted,
+          tables: Object.fromEntries(
+            r.tables.filter((t) => t.deleted > 0 || t.capped).map((t) => [t.table, t.deleted]),
+          ),
+        };
       });
     }
   });

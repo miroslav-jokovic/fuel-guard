@@ -1,5 +1,6 @@
 import { registerHandler } from "../registry.js";
 import { efsIngestHandler } from "./efsIngest.js";
+import { dataRetentionHandler } from "./retention.js";
 import { efsSoapHandler } from "./efsSoap.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
 import {
@@ -48,4 +49,5 @@ export function registerAllHandlers(): void {
   registerHandler("sync_driver_scores", syncDriverScoresHandler);
   registerHandler("snapshot_driver_week", snapshotDriverWeekHandler);
   registerHandler("nightly_reconcile", nightlyReconcileHandler);
+  registerHandler("data_retention", dataRetentionHandler);
 }

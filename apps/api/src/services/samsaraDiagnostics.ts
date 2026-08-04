@@ -93,6 +93,36 @@ async function runTestReconcile(
   }
 }
 
+/**
+ * Data-health snapshot for the diagnostics panel: top tables by size (via the 0115 SECURITY DEFINER
+ * RPC — service-role only) + the last retention run's summary. Best-effort: an unapplied 0115 shows a
+ * hint instead of failing diagnostics.
+ */
+async function dataHealthSection(admin: SupabaseClient, orgId: string) {
+  const { data, error } = await admin.rpc("admin_table_stats");
+  const rows = (data ?? []) as { table_name: string; live_rows: number; dead_rows: number; total_bytes: number }[];
+  const mb = (b: number) => Math.round((b / 1_048_576) * 10) / 10;
+  const { data: lastRet } = await admin
+    .from("jobs")
+    .select("status, finished_at, stats, error")
+    .eq("org_id", orgId)
+    .eq("kind", "data_retention")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return {
+    error: error ? `${error.message} (apply migration 0115)` : null,
+    topTables: rows.slice(0, 15).map((r) => ({
+      table: r.table_name,
+      liveRows: r.live_rows,
+      deadRows: r.dead_rows,
+      sizeMb: mb(r.total_bytes),
+    })),
+    totalMb: mb(rows.reduce((s, r) => s + Number(r.total_bytes), 0)),
+    lastRetentionRun: lastRet ?? null,
+  };
+}
+
 export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, orgId: string) {
   const token = await loadSamsaraToken(admin, env, orgId);
   if (!token) return { tokenConfigured: false as const };
@@ -192,9 +222,11 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
   const fillsReconcilable = fills.filter((f) => f.vehicle_id && mappedIds.has(f.vehicle_id)).length;
 
   const testReconcile = await runTestReconcile(admin, env, orgId, fills, ourVehicles, mappedIds);
+  const dataHealth = await dataHealthSection(admin, orgId);
 
   return {
     tokenConfigured: true as const,
+    dataHealth,
     reconReadiness: {
       vehiclesTotal: ourVehicles.length,
       vehiclesMappedToSamsara: mappedIds.size,
