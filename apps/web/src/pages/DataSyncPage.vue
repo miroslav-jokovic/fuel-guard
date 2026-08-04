@@ -67,6 +67,22 @@ const integrity = computed(() => {
         description="Pull trucks, drivers, trailers and their Samsara IDs from Samsara. This is the identity link that lets fuel fills be reconciled. Runs automatically every ~12 hours."
       />
       <JobActionCard
+        v-if="session.admin"
+        title="Sync drivers"
+        kind="sync_drivers"
+        endpoint="/api/integrations/samsara/sync-drivers"
+        action-label="Sync drivers now"
+        description="Pull the driver roster from Samsara into the Drivers page — names, phone numbers and the alpha-code Driver ID. Also runs with 'Sync fleet identity'."
+      />
+      <JobActionCard
+        v-if="session.admin"
+        title="Sync trailers"
+        kind="sync_trailers"
+        endpoint="/api/integrations/samsara/sync-trailers"
+        action-label="Sync trailers now"
+        description="Pull the reefer/trailer assets and their tractor pairings from Samsara. Also runs with 'Sync fleet identity'."
+      />
+      <JobActionCard
         title="Reconcile fuel with telematics"
         kind="backfill"
         endpoint="/api/transactions/backfill"
@@ -95,6 +111,25 @@ const integrity = computed(() => {
         endpoint="/api/integrations/samsara/sync-idle"
         action-label="Sync idling now"
         description="Pull the last 30 days of Samsara idling events and refresh the driver idle scorecard. Also runs with 'Sync fleet identity'. Needs the token's Read Idling scope."
+      />
+      <JobActionCard
+        v-if="session.canManage"
+        title="Sync HOS duty status"
+        kind="sync_hos"
+        endpoint="/api/integrations/samsara/sync-hos"
+        action-label="Sync HOS now"
+        secondary-label="Backfill last 120 days"
+        :secondary-body="{ sinceDays: 120 }"
+        secondary-confirm="Pull 120 days of Samsara HOS duty-status logs? Slower — usually only needed once to seed history."
+        description="Pull driver Hours-of-Service duty status (Sleeper Berth / Off Duty / On Duty) from Samsara. Powers the rest-vs-work idle split on the Idling page. 'Sync HOS now' pulls a rolling 30 days; 'Backfill last 120 days' seeds history. Also runs on the scheduled sync. Needs the token's Read ELD Compliance scope."
+      />
+      <JobActionCard
+        v-if="session.canManage"
+        title="Sync driver scores"
+        kind="sync_driver_scores"
+        endpoint="/api/integrations/samsara/sync-driver-scores"
+        action-label="Sync scores now"
+        description="Refresh this week's Safety + Efficiency driver scores from Samsara and the idle scorecard. Runs automatically on a schedule."
       />
     </div>
 

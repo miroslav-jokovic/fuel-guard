@@ -324,14 +324,15 @@ describe("parseSamsaraDrivers", () => {
   it("maps identity + phone and skips id-less rows", () => {
     const d = parseSamsaraDrivers({
       data: [
-        { id: "d1", name: "Marcus Reyes", phone: "555-0101", driverActivationStatus: "active" },
+        { id: "d1", name: "Marcus Reyes", phone: "555-0101", username: "mreyes", driverActivationStatus: "active" },
         { id: "d2", name: "Dana", phone: "", driverActivationStatus: "deactivated" },
         { name: "no id" },
       ],
     });
     expect(d).toHaveLength(2);
-    expect(d[0]).toEqual({ samsaraId: "d1", name: "Marcus Reyes", phone: "555-0101", active: true });
+    expect(d[0]).toEqual({ samsaraId: "d1", name: "Marcus Reyes", phone: "555-0101", username: "mreyes", active: true });
     expect(d[1]!.phone).toBeNull();
+    expect(d[1]!.username).toBeNull(); // no username on Samsara → null
     expect(d[1]!.active).toBe(false);
   });
 });

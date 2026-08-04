@@ -1,6 +1,7 @@
 import { computed, ref, watch } from "vue";
 import { type IdleDateFilter } from "./useIdleScores";
 import { useIdleBreakdown, type TruckBreakdown } from "./useIdleBreakdown";
+import { useDutyIdleSplit } from "./useDutyIdleSplit";
 import { useIdleDrivers } from "./useIdleDrivers";
 import { useIdleCostBasis } from "./useIdleCostBasis";
 import { useIdleCapabilities } from "./useIdleCapabilities";
@@ -66,6 +67,8 @@ const { data: driverRows, isLoading, isError, error, refetch, isFetching } = use
 // New per-truck engine-time + avoidable breakdown (the reworked model).
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter, costBasis);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
+// P1: HOS duty split overlaid on idle events (rest vs on-duty). Shown only — no scoring impact yet.
+const { data: dutySplit } = useDutyIdleSplit(dateFilter);
 const { data: caps } = useIdleCapabilities();
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();
@@ -86,7 +89,9 @@ const drivers = computed(() => driverRows.value ?? []);
 
 // Capability badge styling (shared by the capability + avoidable tabs).
 const CAP: Record<string, { label: string; cls: string }> = {
-  apu: { label: "APU", cls: toneClass("success") },
+  // Learned from engine-off time only — an APU and a plain overnight shutdown look identical here, so we do
+  // NOT claim "APU". This badge is the truck's observed rest behavior, distinct from the recorded equipment.
+  apu: { label: "Engine-off rest", cls: toneClass("success") },
   ecu_optimized: { label: "Optimized idle", cls: toneClass("success") },
   continuous_only: { label: "Continuous idle only", cls: toneClass("warning") },
   unknown: { label: "Unknown", cls: toneClass("neutral") },
@@ -103,7 +108,15 @@ const tabs = computed(() => [
 ]);
 
 // ── tab: Trucks — engine-on = drive + idle, with avoidable (the reworked view) ─────────────────
-const trkRows = computed<TruckBreakdown[]>(() => breakdown.value?.trucks ?? []);
+const trkRows = computed<TruckBreakdown[]>(() => {
+  const split = dutySplit.value;
+  const rows = breakdown.value?.trucks ?? [];
+  if (!split) return rows;
+  return rows.map((t) => {
+    const s = split.get(t.vehicleId);
+    return s ? { ...t, restIdleH: s.restH, workIdleH: s.workH } : t;
+  });
+});
 const trkSearch = ref("");
 const trkCapFilter = ref("");
 const trkConfidentOnly = ref(false);
@@ -111,7 +124,7 @@ const trkSort = ref<SortState>({ key: null, dir: "asc" });
 const trkPage = ref(1);
 const trkCapOptions = [
   { value: "", label: "All capability" },
-  { value: "apu", label: "APU" },
+  { value: "apu", label: "Engine-off rest" },
   { value: "ecu_optimized", label: "Optimized idle" },
   { value: "continuous_only", label: "Continuous only" },
   { value: "unknown", label: "Unknown" },
@@ -150,6 +163,8 @@ const trkColumns: DataTableColumn[] = [
   { key: "driveH", label: "Driving hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idleH", label: "Idle hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "idlePct", label: "Idle %", sortable: true, numeric: true, cellClass: "text-ink-muted" },
+  { key: "restIdleH", label: "Rest idle (SB/OFF)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "workIdleH", label: "On-duty idle", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   { key: "avoidableUsd", label: "Avoidable cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   { key: "capability", label: "Idle capability" },
@@ -222,7 +237,7 @@ const capSort = ref<SortState>({ key: null, dir: "asc" });
 const capPage = ref(1);
 const capOptions = [
   { value: "", label: "All capabilities" },
-  { value: "apu", label: "APU" },
+  { value: "apu", label: "Engine-off rest" },
   { value: "ecu_optimized", label: "Optimized idle" },
   { value: "continuous_only", label: "Continuous idle only" },
   { value: "unknown", label: "Unknown" },

@@ -49,6 +49,10 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // with a schema-cache error that reads like an application bug.
   { table: "efs_soap_client_certs", column: "fingerprint_sha256", migration: "0106" },
   { table: "fuel_transactions", column: "transaction_id", migration: "0107" },
+  { table: "drivers", column: "samsara_username", migration: "0108" },
+  // HOS duty-status segments (idle avoidability, duty-aware). Unapplied 0109 makes the HOS sync fail at the
+  // DB layer with a schema-cache error that reads like an app bug.
+  { table: "hos_duty_segments", column: "status", migration: "0109" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

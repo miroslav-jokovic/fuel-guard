@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
-  DatabaseSyncIcon,
   PlusIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
@@ -11,7 +10,6 @@ import {
   useTrailersQuery, useCreateTrailer, useUpdateTrailer, useRetireTrailer,
   useBulkUpdateTrailers,
 } from "@/features/fleet/useTrailers";
-import { useBackgroundSync } from "@/features/jobs/useBackgroundSync";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -109,20 +107,6 @@ async function bulkSet(patch: { is_reefer?: boolean; status?: Trailer["status"] 
   } catch (e) { toast.error("Bulk update failed", e instanceof Error ? e.message : undefined); }
 }
 
-const syncTrailers = useBackgroundSync({
-  kind: "sync_trailers",
-  endpoint: "/api/integrations/samsara/sync-trailers",
-  label: "Trailer sync",
-  invalidate: [["trailers"]],
-  done: (s) => {
-    const n = (v: unknown) => Number(v ?? 0);
-    return {
-      title: `Synced ${n(s.total)} trailers`,
-      body: `${n(s.created)} added, ${n(s.updated)} updated, ${n(s.paired)} paired. Mark which ones are reefers.`,
-    };
-  },
-});
-
 async function toggleReefer(t: Trailer) {
   try {
     await bulkUpdate.mutateAsync({ ids: [t.id], patch: { is_reefer: !t.is_reefer } });
@@ -143,15 +127,6 @@ async function onRetire(t: Trailer) {
     <PageHeader description="Trailers and reefer tanks. Mark which trailers are reefers — only those are checked against reefer (ULSR) fuel.">
       <template #actions>
         <template v-if="session.canManage">
-          <BaseButton
-            v-if="session.admin"
-            :disabled="syncTrailers.isRunning.value"
-            title="Import trailers from Samsara"
-            @click="syncTrailers.trigger"
-          >
-            <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
-            {{ syncTrailers.isRunning.value ? "Syncing…" : "Sync from Samsara" }}
-          </BaseButton>
           <BaseButton variant="primary" @click="openNew">
             <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New trailer
           </BaseButton>

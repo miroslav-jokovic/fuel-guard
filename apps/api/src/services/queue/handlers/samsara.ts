@@ -2,6 +2,7 @@ import { syncVehiclesFromSamsara, syncVehicleStatsFromSamsara, NoSamsaraTokenErr
 import { syncTrailersFromSamsara } from "../../samsaraTrailerSync.js";
 import { syncIdleEvents } from "../../idleSync.js";
 import { syncIdleCapabilities } from "../../idleCapabilitySync.js";
+import { syncHosDutySegments } from "../../hosSync.js";
 import { syncDriversFromSamsara } from "../../samsaraDriverSync.js";
 import { syncDriverScores, syncRecentDriverScoreWeeks } from "../../driverScoreSync.js";
 import { snapshotSettledWeeks } from "../../driverPerformanceSnapshot.js";
@@ -23,6 +24,7 @@ import type { JobHandler } from "../types.js";
  * mirroring the old route closures; scheduler-origin runs carry no actor and write no audit.
  */
 const asStr = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
+const asNum = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** Wrap a best-effort sub-sync: log + swallow so one weak scope (idle, trailers) never fails the job. */
 async function nonFatal(label: string, orgId: string, run: () => Promise<unknown>): Promise<void> {
@@ -99,6 +101,27 @@ export const syncTrailersHandler: JobHandler = async (ctx, job) => {
       });
     }
     return { total: result.total, created: result.created, updated: result.updated, paired: result.paired };
+  } catch (e) {
+    if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
+    throw e;
+  }
+};
+
+/** HOS duty-status segments (rest vs work context for avoidable idle). `payload.sinceDays` drives a deeper
+ *  historical backfill; default is the rolling 30-day window. */
+export const syncHosHandler: JobHandler = async (ctx, job) => {
+  const { admin, env } = ctx;
+  const orgId = job.org_id;
+  const actorId = asStr(job.payload.actorId);
+  const sinceDays = asNum(job.payload.sinceDays) ?? undefined;
+  try {
+    const result = await syncHosDutySegments(admin, env, orgId, { sinceDays });
+    if (actorId) {
+      await writeAudit(admin, {
+        orgId, actorId, action: "integration.samsara.hos_synced", entity: "hos_duty_segments", meta: { ...result },
+      });
+    }
+    return { ...result };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
     throw e;

@@ -15,6 +15,7 @@ export type JobKind =
   | "sync_vehicles"
   | "sync_trailers"
   | "sync_idle"
+  | "sync_hos"
   | "sync_stats"
   | "sync_drivers"
   | "nightly_reconcile"

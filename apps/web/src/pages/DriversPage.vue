@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
-  DatabaseSyncIcon,
   PlusIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
 import type { Driver, DriverInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery, useCreateDriver, useUpdateDriver } from "@/composables/useDrivers";
-import { useBackgroundSync } from "@/features/jobs/useBackgroundSync";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -23,6 +21,7 @@ import BaseButton from "@/components/ui/BaseButton.vue";
 import DriverForm from "@/features/fleet/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
+import { formatPhone } from "@/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -50,7 +49,7 @@ const filtered = computed(() => {
   return (drivers.value ?? []).filter((d) => {
     if (statusFilter.value && d.status !== statusFilter.value) return false;
     if (!term) return true;
-    return [d.full_name, d.employee_id, d.phone]
+    return [d.full_name, d.employee_id, d.phone, d.samsara_username]
       .filter(Boolean)
       .some((f) => f!.toLowerCase().includes(term));
   });
@@ -64,8 +63,9 @@ const sorted = computed(() => sortRows(filtered.value, sort.value));
 
 const columns: DataTableColumn[] = [
   { key: "full_name", label: "Name", sortable: true, headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
+  { key: "samsara_username", label: "Driver ID", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
   { key: "employee_id", label: "Employee ID", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "phone", label: "Phone", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "phone", label: "Phone", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary tabular-nums" },
   { key: "vehicles", label: "Vehicles", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
   { key: "status", label: "Status", sortable: true, headerClass: "min-w-[6rem]" },
 ];
@@ -100,17 +100,6 @@ async function onSubmit(input: DriverInput) {
     toast.error("Could not save driver", e instanceof Error ? e.message : undefined);
   }
 }
-
-const syncSamsara = useBackgroundSync({
-  kind: "sync_drivers",
-  endpoint: "/api/integrations/samsara/sync-drivers",
-  label: "Samsara sync",
-  invalidate: [["drivers"]],
-  done: (s) => {
-    const n = (v: unknown) => Number(v ?? 0);
-    return { title: `Synced ${n(s.total)} drivers from Samsara`, body: `${n(s.created)} added, ${n(s.updated)} updated` };
-  },
-});
 </script>
 
 <template>
@@ -118,14 +107,6 @@ const syncSamsara = useBackgroundSync({
     <PageHeader description="Drivers in your fleet. Assign drivers to vehicles from the Vehicles page.">
       <template #actions>
         <template v-if="session.canManage">
-          <BaseButton
-            :disabled="syncSamsara.isRunning.value"
-            title="Import drivers from Samsara"
-            @click="syncSamsara.trigger"
-          >
-            <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
-            {{ syncSamsara.isRunning.value ? "Syncing…" : "Sync from Samsara" }}
-          </BaseButton>
           <BaseButton variant="primary" @click="openNew">
             <AppIcon :icon="PlusIcon" class="-ml-0.5 size-5" aria-hidden="true" /> New driver
           </BaseButton>
@@ -135,7 +116,7 @@ const syncSamsara = useBackgroundSync({
 
     <FilterBar
       v-model:search="search"
-      search-placeholder="Search name, employee ID, phone…"
+      search-placeholder="Search name, driver ID, employee ID, phone…"
       :count="filtered.length"
       count-label="drivers"
     >
@@ -156,6 +137,8 @@ const syncSamsara = useBackgroundSync({
       @sort="onSort"
       @retry="refetch"
     >
+      <template #cell-samsara_username="{ row }">{{ row.samsara_username || "—" }}</template>
+      <template #cell-phone="{ row }">{{ formatPhone(row.phone) }}</template>
       <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">

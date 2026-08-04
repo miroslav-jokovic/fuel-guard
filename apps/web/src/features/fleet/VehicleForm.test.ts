@@ -12,6 +12,7 @@ const drivers = [
     phone: null,
     status: "active" as const,
     samsara_driver_id: null,
+    samsara_username: null,
     created_at: "",
     updated_at: "",
   },

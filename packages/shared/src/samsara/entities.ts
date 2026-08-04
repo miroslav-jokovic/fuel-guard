@@ -89,6 +89,8 @@ export interface SamsaraDriver {
   samsaraId: string;
   name: string;
   phone: string | null;
+  /** Samsara login handle — the alpha-code "Driver ID" (e.g. "aaron"). Null when unset. */
+  username: string | null;
   active: boolean;
 }
 
@@ -395,6 +397,7 @@ export function parseSamsaraDrivers(response: { data?: RawSamsaraDriver[] }): Sa
       samsaraId: String(d.id),
       name: clean(d.name) ?? String(d.id),
       phone: clean(d.phone),
+      username: clean(d.username),
       active: d.driverActivationStatus ? d.driverActivationStatus === "active" : true,
     }));
 }

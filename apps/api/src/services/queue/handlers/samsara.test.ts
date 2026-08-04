@@ -17,6 +17,7 @@ const vehicleSync = vi.hoisted(() => ({
 const trailerSync = vi.hoisted(() => ({ syncTrailersFromSamsara: vi.fn() }));
 const idleSync = vi.hoisted(() => ({ syncIdleEvents: vi.fn() }));
 const idleCap = vi.hoisted(() => ({ syncIdleCapabilities: vi.fn() }));
+const hosSync = vi.hoisted(() => ({ syncHosDutySegments: vi.fn() }));
 const driverSync = vi.hoisted(() => ({ syncDriversFromSamsara: vi.fn() }));
 const scoreSync = vi.hoisted(() => ({ syncDriverScores: vi.fn(), syncRecentDriverScoreWeeks: vi.fn() }));
 const audit = vi.hoisted(() => ({ writeAudit: vi.fn() }));
@@ -29,6 +30,7 @@ vi.mock("../../samsaraVehicleSync.js", () => ({
 vi.mock("../../samsaraTrailerSync.js", () => trailerSync);
 vi.mock("../../idleSync.js", () => idleSync);
 vi.mock("../../idleCapabilitySync.js", () => idleCap);
+vi.mock("../../hosSync.js", () => hosSync);
 vi.mock("../../samsaraDriverSync.js", () => driverSync);
 vi.mock("../../driverScoreSync.js", () => scoreSync);
 vi.mock("../../driverPerformanceSnapshot.js", () => ({ snapshotSettledWeeks: vi.fn() }));
@@ -38,6 +40,7 @@ vi.mock("../../../lib/audit.js", () => audit);
 import {
   syncDriverScoresHandler,
   syncDriversHandler,
+  syncHosHandler,
   syncStatsHandler,
   syncVehiclesHandler,
 } from "./samsara.js";
@@ -128,5 +131,28 @@ describe("syncStatsHandler / syncDriversHandler", () => {
     expect(audit.writeAudit).not.toHaveBeenCalled();
     await syncDriversHandler(ctx, job("sync_drivers", { actorId: "u1" }), async () => {});
     expect(audit.writeAudit).toHaveBeenCalledWith(admin, expect.objectContaining({ action: "integration.samsara.drivers_synced" }));
+  });
+});
+
+describe("syncHosHandler", () => {
+  it("syncs duty segments; passes payload.sinceDays for a backfill; audits only with an actor", async () => {
+    hosSync.syncHosDutySegments.mockResolvedValue({ fetched: 12, upserted: 12 });
+
+    const out = await syncHosHandler(ctx, job("sync_hos", { actorId: "u1", sinceDays: 120 }), async () => {});
+    expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", { sinceDays: 120 });
+    expect(out).toEqual({ fetched: 12, upserted: 12 });
+    expect(audit.writeAudit).toHaveBeenCalledWith(admin, expect.objectContaining({ action: "integration.samsara.hos_synced", actorId: "u1" }));
+
+    vi.clearAllMocks();
+    hosSync.syncHosDutySegments.mockResolvedValue({ fetched: 3, upserted: 3 });
+    await syncHosHandler(ctx, job("sync_hos", {}), async () => {}); // scheduler run: no actor, rolling window
+    expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", { sinceDays: undefined });
+    expect(audit.writeAudit).not.toHaveBeenCalled();
+  });
+
+  it("a missing Samsara token is a skip, not a failure", async () => {
+    hosSync.syncHosDutySegments.mockRejectedValue(new NoSamsaraTokenError("no token"));
+    const out = await syncHosHandler(ctx, job("sync_hos", {}), async () => {});
+    expect(out).toEqual({ skipped: "no_samsara_token" });
   });
 });

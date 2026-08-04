@@ -6,10 +6,11 @@
  *
  * Principle: judge avoidability from EVIDENCE, never assumption.
  *  - Managed idle (apu_or_off / optimized_cycling park sessions) is the good behavior actually happening → never waste.
- *  - Continuous idle is avoidable ONLY when the truck had a real alternative: an admin-confirmed APU/Optimized-Idle
- *    flag, OR a capability the truck DEMONSTRABLY uses (learned apu / ecu_optimized). A truck with no such evidence
- *    is NOT blamed — its continuous idle is reported as "unavoidable (no idle-reduction capability)" and flagged so an
- *    admin can confirm the equipment. (A future refinement can split that bucket by weather; v1 stays assumption-free.)
+ *  - Continuous idle is avoidable ONLY when the truck had a real alternative, and that is established SOLELY by
+ *    an admin-confirmed APU / Optimized-Idle flag on the vehicle. Telematics cannot prove a diesel APU (engine-off
+ *    at rest is indistinguishable from a plain overnight shutdown), so the LEARNED capability is display/cross-check
+ *    only and never makes idle avoidable. A truck with no confirmed equipment is NOT blamed — its continuous idle is
+ *    reported as "unavoidable / unconfirmed" and flagged so an admin can set the equipment on the Vehicles page.
  *  - When coverage is thin or capability is genuinely unknown, the period is marked not-confident and is EXCLUDED
  *    from scoring rather than guessed.
  */
@@ -70,20 +71,30 @@ export interface AvoidableResult {
 }
 
 function resolveAlternative(i: AvoidableInput): { hasAlternative: boolean; alternative: IdleAlternative } {
-  // Did the truck HAVE an alternative to main-engine idle? Two evidence sources, most-reliable first:
-  //   1. The curated Vehicles equipment flags (has_apu / has_optimized_idle) — the maintained source of truth
-  //      about what the truck is actually fitted with. NOT a Samsara guess; an admin record.
-  //   2. The capability LEARNED from the truck's own engine on/off pattern — automatic, so trucks not yet
-  //      flagged are still judged from how they demonstrably behave.
-  // A truck that HAS the equipment (flag or learned) but idled continuously still counts as having an
+  // Did the truck HAVE an alternative to main-engine idle? The CURATED Vehicles equipment flags
+  // (has_apu / has_optimized_idle) are the SOLE source of truth — an admin record of what the truck is
+  // actually fitted with, not a guess.
+  //
+  // The learned engine on/off pattern is deliberately NOT used to grant an alternative here. A diesel APU
+  // is invisible to telematics: a truck that sat Off through a long park is indistinguishable from one that
+  // simply shut down for the night with no APU at all (the same principle System A documents as audit A1.2).
+  // Inferring "apu" from engine-off time is exactly what marked the whole fleet APU-capable and made almost
+  // all continuous idle look avoidable. So learned "apu"/"ecu_optimized" now inform the DISPLAY only
+  // (idle_capability badge, cross-check) — never the avoidable verdict.
+  //
+  // A truck that HAS the equipment (admin flag) but idled continuously still counts as having an
   // alternative → that continuous idle is avoidable (it should have used the APU / optimized idle).
   if (i.hasApu === true) return { hasAlternative: true, alternative: "apu" };
   if (i.hasOptimizedIdle === true) return { hasAlternative: true, alternative: "optimized_idle" };
-  if (i.learnedCapability === "apu") return { hasAlternative: true, alternative: "learned_apu" };
-  if (i.learnedCapability === "ecu_optimized") return { hasAlternative: true, alternative: "learned_optimized" };
-  // No alternative: an explicit "no APU" record, or a truck that DEMONSTRABLY only idles continuously.
-  if (i.hasApu === false || i.learnedCapability === "continuous_only") return { hasAlternative: false, alternative: "none" };
-  return { hasAlternative: false, alternative: "unknown" }; // no flag + pattern not learned yet → can't judge
+  // Admin explicitly recorded NO engine-off equipment → continuous idle is unavoidable, not the driver's
+  // waste. This is a definitive record and WINS over any learned pattern.
+  if (i.hasApu === false) return { hasAlternative: false, alternative: "none" };
+  // No admin flag, but the truck DEMONSTRABLY only ever idles continuously → safe to state it had no
+  // alternative (it never rests off / cycles), so its idle is unavoidable rather than "unknown".
+  if (i.learnedCapability === "continuous_only") return { hasAlternative: false, alternative: "none" };
+  // No admin flag + equipment unconfirmed → can't judge; excluded from scoring rather than blamed. This is
+  // where a learned "apu"/"ecu_optimized" lands now: reported, never counted as avoidable waste.
+  return { hasAlternative: false, alternative: "unknown" };
 }
 
 /** Compute the avoidable-idle verdict for one truck over one period, from stored facts only. */

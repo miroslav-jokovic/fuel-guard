@@ -166,6 +166,8 @@ const {
         @retry="trkRefetch"
       >
         <template #cell-idlePct="{ value }">{{ value }}%</template>
+        <template #cell-restIdleH="{ row }">{{ row.restIdleH == null ? "—" : row.restIdleH }}</template>
+        <template #cell-workIdleH="{ row }">{{ row.workIdleH == null ? "—" : row.workIdleH }}</template>
         <template #cell-avoidableUsd="{ value }">{{ usd2(value) }}</template>
         <template #cell-capability="{ value }">
           <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', capBadge(value).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(value).label }}</span>

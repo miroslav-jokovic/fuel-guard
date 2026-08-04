@@ -94,6 +94,28 @@ export function integrationsRouter(): Router {
     }),
   );
 
+  // Pull HOS duty-status logs from Samsara into hos_duty_segments (rest-vs-work context for avoidable idle).
+  // Optional body { sinceDays } drives a deeper historical backfill; the scheduled run uses a rolling 30 days.
+  router.post(
+    "/samsara/sync-hos",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const actorId = req.auth!.userId;
+      const raw = (req.body ?? {}) as { sinceDays?: unknown };
+      const sinceDays =
+        typeof raw.sinceDays === "number" && Number.isFinite(raw.sinceDays)
+          ? Math.min(370, Math.max(1, Math.round(raw.sinceDays)))
+          : undefined;
+      const result = await dispatchJob(admin, env, "sync_hos", {
+        orgId: req.auth!.orgId!, payload: { actorId, ...(sinceDays ? { sinceDays } : {}) }, requestedBy: actorId,
+      });
+      jobResponse(res, result);
+    }),
+  );
+
   // Sync the org's drivers from Samsara into the drivers table (admin).
   router.post(
     "/samsara/sync-drivers",

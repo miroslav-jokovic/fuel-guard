@@ -93,6 +93,8 @@ create unique index if not exists idx_efs_txn_extref on efs_transactions (org_id
 
 -- ── 0015: driver ↔ Samsara mapping ──────────────────────────────────────────────────────────
 alter table drivers add column if not exists samsara_driver_id text;
+-- 0108: Samsara login / alpha-code Driver ID
+alter table drivers add column if not exists samsara_username text;
 
 -- ── 0016: driver Samsara uniqueness + vehicle current fuel level ─────────────────────────────
 create unique index if not exists idx_drivers_samsara_id

@@ -48,6 +48,7 @@ const KIND_CAPS: Record<string, number> = {
   sync_stats: 1,
   sync_trailers: 1,
   sync_idle: 1,
+  sync_hos: 1,
   sync_drivers: 1,
   sync_driver_scores: 1,
   snapshot_driver_week: 1,

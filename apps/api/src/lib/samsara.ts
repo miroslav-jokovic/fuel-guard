@@ -297,6 +297,34 @@ export function makeSamsaraIdlingEventFetcher(env: Env, token: string): SamsaraI
   };
 }
 
+/** HOS duty-status logs over a window (GET /fleet/hos/logs) — paginated + merged. Scope: Read ELD Compliance
+ *  Settings (US). Rate limit 5 req/s. Returns the raw per-driver `data[]` for parseHosLogs to normalize. */
+export type SamsaraHosLogsFetcher = (
+  startIso: string,
+  endIso: string,
+) => Promise<{ data: unknown[] }>;
+export function makeSamsaraHosLogsFetcher(env: Env, token: string): SamsaraHosLogsFetcher {
+  return async (startIso, endIso) => {
+    const out: unknown[] = [];
+    let after: string | undefined;
+    do {
+      const url = new URL("/fleet/hos/logs", env.SAMSARA_API_URL);
+      url.searchParams.set("startTime", startIso);
+      url.searchParams.set("endTime", endIso);
+      if (after) url.searchParams.set("after", after);
+      const res = await samsaraFetch(env, token, url);
+      if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+      const page = (await res.json()) as {
+        data?: unknown[];
+        pagination?: { hasNextPage?: boolean; endCursor?: string };
+      };
+      if (Array.isArray(page.data)) out.push(...page.data);
+      after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
+    } while (after);
+    return { data: out };
+  };
+}
+
 /** Lists every driver in the org. */
 export type SamsaraDriverLister = () => Promise<unknown[]>;
 

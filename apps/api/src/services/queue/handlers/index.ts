@@ -14,6 +14,7 @@ import {
   snapshotDriverWeekHandler,
   syncDriverScoresHandler,
   syncDriversHandler,
+  syncHosHandler,
   syncIdleHandler,
   syncStatsHandler,
   syncTrailersHandler,
@@ -42,6 +43,7 @@ export function registerAllHandlers(): void {
   registerHandler("sync_stats", syncStatsHandler);
   registerHandler("sync_trailers", syncTrailersHandler);
   registerHandler("sync_idle", syncIdleHandler);
+  registerHandler("sync_hos", syncHosHandler);
   registerHandler("sync_drivers", syncDriversHandler);
   registerHandler("sync_driver_scores", syncDriverScoresHandler);
   registerHandler("snapshot_driver_week", snapshotDriverWeekHandler);

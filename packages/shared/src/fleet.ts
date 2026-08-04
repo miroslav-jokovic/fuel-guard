@@ -177,6 +177,7 @@ export interface Driver {
   phone: string | null;
   status: DriverStatus;
   samsara_driver_id: string | null;
+  samsara_username: string | null; // Samsara alpha login (e.g. "aaron"), shown as Driver ID
   created_at: string;
   updated_at: string;
 }

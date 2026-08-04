@@ -29,6 +29,9 @@ export interface TruckBreakdown {
   capability: IdleCapability; // learned
   coveragePct: number; // observed share of the range
   confident: boolean;
+  // P1 duty split (merged in by the page from useDutyIdleSplit) — SHOWN ONLY, not part of any score yet.
+  restIdleH?: number; // idle during Sleeper Berth / Off Duty
+  workIdleH?: number; // idle during On Duty not driving
 }
 
 export interface IdleFleet {

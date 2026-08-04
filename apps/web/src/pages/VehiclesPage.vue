@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
-  DatabaseSyncIcon,
   PlusIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
 import { VEHICLE_STATUSES, type Vehicle, type VehicleInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useVehiclesQuery, useCreateVehicle, useUpdateVehicle, useRetireVehicle, useBulkUpdateVehicles } from "@/composables/useVehicles";
-import { useBackgroundSync } from "@/features/jobs/useBackgroundSync";
 import { useDriversQuery } from "@/composables/useDrivers";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
@@ -132,24 +130,6 @@ async function onSubmit(input: VehicleInput) {
   }
 }
 
-const syncSamsara = useBackgroundSync({
-  kind: "sync_vehicles",
-  endpoint: "/api/integrations/samsara/sync-vehicles",
-  label: "Samsara sync",
-  invalidate: [["vehicles"], ["drivers"]],
-  done: (s) => {
-    const n = (v: unknown) => Number(v ?? 0);
-    const needs = n(s.needsCompletion);
-    const parts = [`${n(s.created)} added`, `${n(s.updated)} updated`, `${n(s.assigned)} driver assignment(s)`];
-    return {
-      title: `Synced ${n(s.total)} vehicles from Samsara`,
-      body: needs
-        ? `${parts.join(", ")}. Set tank capacity + baseline MPG for ${needs} new truck(s).`
-        : parts.join(", "),
-    };
-  },
-});
-
 const setupOpen = ref(false);
 
 async function onRetire(v: Vehicle) {
@@ -169,14 +149,6 @@ async function onRetire(v: Vehicle) {
     <PageHeader description="Fleet vehicles and their fuel parameters.">
       <template #actions>
         <template v-if="session.canManage">
-          <BaseButton
-            :disabled="syncSamsara.isRunning.value"
-            title="Import trucks from Samsara (trailers are excluded)"
-            @click="syncSamsara.trigger"
-          >
-            <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
-            {{ syncSamsara.isRunning.value ? "Syncing…" : "Sync from Samsara" }}
-          </BaseButton>
           <BaseButton
             title="Import vehicles from CSV — download a blank template, fill it in, and upload"
             @click="setupOpen = true"

@@ -42,6 +42,7 @@ export * from "./weather.js";
 export * from "./smartFueling/index.js";
 export * from "./idleBurn.js";
 export * from "./idleEquipment.js";
+export * from "./hos.js";
 export * from "./driverPerformance/index.js";
 export * from "./tms.js";
 export * from "./driverContract.js";

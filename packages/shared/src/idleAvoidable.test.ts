@@ -15,18 +15,28 @@ const base: AvoidableInput = {
 };
 
 describe("computeAvoidable", () => {
-  it("Learned-APU truck: continuous idle is avoidable; short idle and managed idle are not", () => {
-    // Avoidability comes from the LEARNED pattern (apu), not an equipment flag.
+  it("Learned-'apu' pattern alone is NOT avoidable — telematics can't confirm an APU (engine-off == shutdown)", () => {
+    // A truck that merely sits engine-off through parks looks APU-capable but may just be shutting down. With
+    // no admin flag we cannot say it HAD an alternative, so its continuous idle is reported, not blamed.
     const r = computeAvoidable({ ...base, learnedCapability: "apu" });
-    expect(r.avoidableIdleSec).toBe(5 * H);
-    expect(r.unavoidableIdleSec).toBe(0);
+    expect(r.avoidableIdleSec).toBe(0);
+    expect(r.unavoidableIdleSec).toBe(5 * H);
     expect(r.continuousIdleSec).toBe(5 * H);
-    expect(r.managedIdleSec).toBe(0);
     expect(r.shortIdleSec).toBe(1 * H); // 6h total idle − 5h in the park session
-    expect(r.engineOnSec).toBe(14 * H);
-    expect(r.alternative).toBe("learned_apu");
-    expect(r.hasAlternative).toBe(true);
-    expect(r.confident).toBe(true);
+    expect(r.alternative).toBe("unknown");
+    expect(r.hasAlternative).toBe(false);
+    expect(r.confident).toBe(false); // unconfirmed equipment → excluded from scoring, not counted as waste
+  });
+
+  it("Admin 'no APU' (has_apu=false) OVERRIDES a learned-'apu' pattern → idle is unavoidable, not blamed", () => {
+    // The exact false-positive we are fixing: the truck rests engine-off (learned apu) but the admin recorded
+    // it has NO APU. The curated record wins; its continuous idle is unavoidable.
+    const r = computeAvoidable({ ...base, hasApu: false, learnedCapability: "apu" });
+    expect(r.avoidableIdleSec).toBe(0);
+    expect(r.unavoidableIdleSec).toBe(5 * H);
+    expect(r.alternative).toBe("none");
+    expect(r.hasAlternative).toBe(false);
+    expect(r.confident).toBe(true); // an explicit "no equipment" record IS judgeable
   });
 
   it("A curated APU flag makes continuous idle avoidable even before the pattern is learned", () => {
@@ -63,7 +73,7 @@ describe("computeAvoidable", () => {
       driveSec: 2 * H,
       coverageSec: 10 * H,
       sessions: [{ idleSec: 8 * H, mode: "continuous" }],
-      learnedCapability: "apu",
+      hasApu: true,
     });
     expect(r.continuousIdleSec).toBe(4 * H); // scaled down from 8h
     expect(r.avoidableIdleSec).toBe(4 * H);
@@ -96,15 +106,16 @@ describe("computeAvoidable", () => {
   });
 
   it("Thin coverage → not confident even when the alternative is known", () => {
-    const r = computeAvoidable({ ...base, coverageSec: 4 * H, periodSec: 24 * H, learnedCapability: "apu" }); // 0.167 coverage
+    const r = computeAvoidable({ ...base, coverageSec: 4 * H, periodSec: 24 * H, hasApu: true }); // 0.167 coverage
     expect(r.coverage).toBeCloseTo(0.167, 2);
     expect(r.confident).toBe(false);
   });
 
-  it("Learned optimized-idle (auto start/stop cycling) makes continuous main-engine idle avoidable", () => {
+  it("Learned optimized-idle pattern alone is NOT avoidable without an admin flag (display/cross-check only)", () => {
     const r = computeAvoidable({ ...base, learnedCapability: "ecu_optimized" });
-    expect(r.alternative).toBe("learned_optimized");
-    expect(r.avoidableIdleSec).toBe(5 * H);
+    expect(r.alternative).toBe("unknown");
+    expect(r.avoidableIdleSec).toBe(0);
+    expect(r.hasAlternative).toBe(false);
   });
 });
 

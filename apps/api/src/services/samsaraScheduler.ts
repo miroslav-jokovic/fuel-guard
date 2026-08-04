@@ -6,6 +6,7 @@ import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 import { syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
 import { syncIdleEvents } from "./idleSync.js";
+import { syncHosDutySegments } from "./hosSync.js";
 import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
 
@@ -144,6 +145,10 @@ export function startSamsaraScheduler(env: Env): void {
       });
       await runOrgTier(admin, env, orgId, "sync_idle", async () => {
         const r = await syncIdleEvents(admin, env, orgId);
+        return { fetched: r.fetched, upserted: r.upserted };
+      });
+      await runOrgTier(admin, env, orgId, "sync_hos", async () => {
+        const r = await syncHosDutySegments(admin, env, orgId);
         return { fetched: r.fetched, upserted: r.upserted };
       });
       await runOrgTier(admin, env, orgId, "snapshot_driver_week", async () => {

@@ -1,16 +1,12 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
 import {
-  DatabaseSyncIcon,
   TrophyIcon,
 } from "@fuelguard/ui/icons";
 import { computed, ref, watch } from "vue";
-import { useSessionStore } from "@/stores/session";
 import { useDriverPerformance, type PerformanceDisplayRow } from "@/features/drivers/useDriverPerformance";
 import { useDriverPerformanceWeeksList, useDriverPerformanceWeek } from "@/features/drivers/useDriverPerformanceWeeks";
-import { useBackgroundSync } from "@/features/jobs/useBackgroundSync";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -20,7 +16,6 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
-const session = useSessionStore();
 
 const PAGE_SIZE = 20;
 
@@ -125,17 +120,6 @@ const methodLabel = computed(() => {
 const weights = computed(() => live.data.value?.weights ?? { safety: 0.5, efficiency: 0.25, idling: 0.25 });
 const trailingWeeks = computed(() => live.data.value?.trailingWeeks ?? 3);
 
-const syncScores = useBackgroundSync({
-  kind: "sync_driver_scores",
-  endpoint: "/api/integrations/samsara/sync-driver-scores",
-  label: "Driver-score sync",
-  invalidate: [["driver_performance_current"]],
-  done: (s) => ({
-    title: `Synced ${Number(s.upserted ?? 0)} driver scores`,
-    body: `safety ${s.safetyOk ? "ok" : "—"}, efficiency ${s.efficiencyOk ? "ok" : "—"}`,
-  }),
-});
-
 const showInfo = ref(false);
 const num = (n: number | null, d = 0) => (n == null ? "—" : n.toFixed(d));
 const rankTone = (rank: number | null) => (rank === 1 ? "success" : rank != null && rank <= 3 ? "brand" : "neutral");
@@ -155,12 +139,6 @@ const columns: DataTableColumn[] = [
 <template>
   <div class="space-y-6">
     <PageHeader description="Weekly driver grade combining Samsara safety, Samsara efficiency, and idling discipline. The top 3 each week earn rewards.">
-      <template #actions>
-        <BaseButton v-if="session.canManage" :disabled="syncScores.isRunning.value" @click="syncScores.trigger">
-          <AppIcon :icon="DatabaseSyncIcon" class="-ml-0.5 size-5" aria-hidden="true" />
-          {{ syncScores.isRunning.value ? "Syncing…" : "Sync scores" }}
-        </BaseButton>
-      </template>
     </PageHeader>
 
     <FilterBar
@@ -214,7 +192,7 @@ const columns: DataTableColumn[] = [
       :loading="isLoading"
       :error="isError ? 'Failed to load driver performance' : null"
       :sort="sort"
-      empty-text="No driver scores yet. Use “Sync scores” to pull this week from Samsara."
+      empty-text="No driver scores yet. Run “Sync driver scores” on Settings → Data &amp; Sync to pull this week from Samsara."
       @sort="sort = toggleSort(sort, $event)"
     >
       <template #cell-rank="{ row }">
