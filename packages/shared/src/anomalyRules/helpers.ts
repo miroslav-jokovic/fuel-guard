@@ -1,6 +1,12 @@
 /** Pure math / time / predicate helpers shared by the rules. */
 import { MPG_FUEL_TYPES } from "../constants.js";
-import type { TxnView, VehicleView, OperatingHours, RuleResult, FueledAtPrecision } from "./types.js";
+import type {
+  TxnView,
+  VehicleView,
+  OperatingHours,
+  RuleResult,
+  FueledAtPrecision,
+} from "./types.js";
 import type { RuleId } from "./ids.js";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -39,7 +45,10 @@ export function milesSinceLast(txn: TxnView, prev: TxnView | null): number | nul
  * (odometer_mismatch / entry_suspect) must NOT suppress the consumption rules built on them (see
  * runAllRules P-1). Same preference/fallback semantics as before, in one place.
  */
-export function milesSinceLastSourced(txn: TxnView, prev: TxnView | null): { miles: number; basis: "obd" | "entered" } | null {
+export function milesSinceLastSourced(
+  txn: TxnView,
+  prev: TxnView | null,
+): { miles: number; basis: "obd" | "entered" } | null {
   if (!prev) return null;
   const tObd = obdOdometer(txn);
   const pObd = obdOdometer(prev);
@@ -90,8 +99,17 @@ export function coldWeatherDeratePct(fueledAtIso: string, ambientTempF?: number 
  *  (self-normalizing drift). A lone consumption-axis signal (mpg_deviation itself) does NOT
  *  contaminate: excluding those would ratchet the baseline and alert-storm on legitimate efficiency
  *  loss (mpg_sustained_decline covers gradual decline). Pure. */
-const VOLUME_AXIS_RULE_IDS = new Set(["exceeds_tank_capacity", "tank_space_exceeded", "implausible_topoff", "cumulative_overfuel", "tank_fill_short"]);
-export function contaminatesBaseline(caseLevel: string | null | undefined, caseSignals: { ruleId: string }[] | null | undefined): boolean {
+const VOLUME_AXIS_RULE_IDS = new Set([
+  "exceeds_tank_capacity",
+  "tank_space_exceeded",
+  "implausible_topoff",
+  "cumulative_overfuel",
+  "tank_fill_short",
+]);
+export function contaminatesBaseline(
+  caseLevel: string | null | undefined,
+  caseSignals: { ruleId: string }[] | null | undefined,
+): boolean {
   if (caseLevel === "alert") return true;
   return (caseSignals ?? []).some((s) => VOLUME_AXIS_RULE_IDS.has(s.ruleId));
 }
@@ -110,11 +128,23 @@ export function median(nums: number[]): number {
 export const TANK_FILL_MIN_TOLERANCE_GAL = 15;
 export const TANK_FILL_TOLERANCE_PCT = 0.3;
 
+/**
+ * Plausible per-fill MPG band for a heavy diesel tractor. A value outside it is a DATA ARTIFACT, never a real
+ * efficiency: a partial / DEF / splash fill still carries the FULL miles since the last real fill
+ * (big miles ÷ tiny gallons → impossibly high MPG), or a missed / short odometer entry (tiny miles ÷ normal
+ * gallons → near-zero MPG). Such values must never train the baseline — one of them dragged a truck's learned
+ * MPG to 64, which made every honest fill read as massive over-fuel (three false consumption signals on one
+ * fill). This is a TRAINING guard only: a fill's own computedMpg is still reported verbatim for the
+ * deviation check and the UI. Tunable in one place.
+ */
+export const MIN_TRAINABLE_MPG = 2;
+export const MAX_TRAINABLE_MPG = 15;
+
 export function recentMpgSeries(ordered: TxnView[]): number[] {
   const out: number[] = [];
   for (let i = 1; i < ordered.length; i++) {
     const mpg = computedMpg(ordered[i]!, ordered[i - 1]!);
-    if (mpg != null) out.push(mpg);
+    if (mpg != null && mpg >= MIN_TRAINABLE_MPG && mpg <= MAX_TRAINABLE_MPG) out.push(mpg);
   }
   return out;
 }
@@ -122,7 +152,12 @@ export function recentMpgSeries(ordered: TxnView[]): number[] {
 export function effectiveBaseline(vehicle: VehicleView, recentTxns: TxnView[]): number | null {
   const series = recentMpgSeries(recentTxns);
   if (series.length >= 3) return r2(median(series.slice(-5)));
-  return vehicle.baselineMpg ?? null;
+  // Fallback to the stored baseline ONLY if it is itself plausible — a corrupted stored value (e.g. a 64 MPG
+  // learned before the training guard existed) must never drive a rule. Implausible → null → the rule skips.
+  const stored = vehicle.baselineMpg;
+  return stored != null && stored >= MIN_TRAINABLE_MPG && stored <= MAX_TRAINABLE_MPG
+    ? stored
+    : null;
 }
 
 export function localHourMinute(iso: string, tz: string): { h: number; m: number } {
@@ -156,9 +191,15 @@ export const precision = (t: TxnView): FueledAtPrecision => t.fueledAtPrecision 
 export const eventTime = (t: TxnView): string => t.eventAt ?? t.fueledAt;
 /** True when the fueling INSTANT is trustworthy: a real time-of-day AND corroborated (or manual). A
  *  date-only sentinel or an uncorroborated EFS posted time (timeConfirmed===false) is not reliable. */
-export const timeReliable = (t: TxnView): boolean => precision(t) === "instant" && t.timeConfirmed !== false;
+export const timeReliable = (t: TxnView): boolean =>
+  precision(t) === "instant" && t.timeConfirmed !== false;
 
 // ── the rules ─────────────────────────────────────────────────────────────────
 
-export const none = (ruleId: RuleId): RuleResult => ({ ruleId, fired: false, severity: "low", message: "", evidence: {} });
-
+export const none = (ruleId: RuleId): RuleResult => ({
+  ruleId,
+  fired: false,
+  severity: "low",
+  message: "",
+  evidence: {},
+});

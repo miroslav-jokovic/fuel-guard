@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { apiFetch } from "@/lib/api";
+import BaseButton from "@/components/ui/BaseButton.vue";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
@@ -8,16 +10,42 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 
 const session = useSessionStore();
 
+// Admin-only Samsara diagnostics: probes each Samsara endpoint (incl. HOS) and shows the raw status + shape,
+// so we can see exactly what Samsara returns without guessing at the response fields.
+const diag = ref<unknown>(null);
+const diagRunning = ref(false);
+const diagError = ref<string | null>(null);
+async function runDiagnostics() {
+  diagRunning.value = true;
+  diagError.value = null;
+  try {
+    const res = await apiFetch("/api/integrations/samsara/diagnostics", { method: "POST" });
+    if (res.ok) diag.value = res.data;
+    else diagError.value = res.error?.message ?? "Diagnostics failed";
+  } finally {
+    diagRunning.value = false;
+  }
+}
+const diagJson = computed(() => (diag.value ? JSON.stringify(diag.value, null, 2) : ""));
+
 // Read-only integrity summary from the nightly self-heal job.
 const nightly = useJob("nightly_reconcile");
 /** Turn the last efs_ingest run's stats into a plain outcome line so a "successful" sync that imported
  *  nothing (all quarantined, or none found) is visible instead of a silent green chip. */
 function efsSummary(stats: Record<string, unknown>) {
   const n = (v: unknown) => Number(v ?? 0);
-  const found = n(stats.found), ingested = n(stats.ingested), empty = n(stats.empty);
-  const quarantined = n(stats.quarantined), errored = n(stats.errored), markDoneFailed = n(stats.markDoneFailed);
-  const outcomes = (Array.isArray(stats.outcomes) ? stats.outcomes : []) as Array<{ status?: string; reason?: string }>;
-  if (found === 0) return { label: "Last check: no new report emails found in the mailbox.", warn: false };
+  const found = n(stats.found),
+    ingested = n(stats.ingested),
+    empty = n(stats.empty);
+  const quarantined = n(stats.quarantined),
+    errored = n(stats.errored),
+    markDoneFailed = n(stats.markDoneFailed);
+  const outcomes = (Array.isArray(stats.outcomes) ? stats.outcomes : []) as Array<{
+    status?: string;
+    reason?: string;
+  }>;
+  if (found === 0)
+    return { label: "Last check: no new report emails found in the mailbox.", warn: false };
   const parts = [`${found} found`, `${ingested} imported`];
   if (empty) parts.push(`${empty} empty`);
   if (quarantined) parts.push(`${quarantined} unrecognized/unreadable`);
@@ -26,7 +54,8 @@ function efsSummary(stats: Record<string, unknown>) {
   const problem = outcomes.find((o) => o.status === "errored" || o.status === "quarantined");
   const reason = problem?.reason ? ` — ${String(problem.reason).slice(0, 240)}` : "";
   let label = `Last check: ${parts.join(", ")}.${reason}`;
-  if (markDoneFailed > 0) label += ` (Imported, but couldn't mark ${markDoneFailed} email(s) read — grant Mail.ReadWrite so they aren't re-checked each run.)`;
+  if (markDoneFailed > 0)
+    label += ` (Imported, but couldn't mark ${markDoneFailed} email(s) read — grant Mail.ReadWrite so they aren't re-checked each run.)`;
   const warn = ingested === 0 || quarantined > 0 || errored > 0 || markDoneFailed > 0;
   return { label, warn };
 }
@@ -35,18 +64,21 @@ const integrity = computed(() => {
   const stats = (nightly.lastDone.value?.stats ?? {}) as { driftFixed?: number };
   const drift = stats.driftFixed;
   if (nightly.lastDone.value == null) return "No nightly check has run yet.";
-  return drift === 0 || drift == null ? "No data drift found." : `${drift} row(s) of drift repaired.`;
+  return drift === 0 || drift == null
+    ? "No data drift found."
+    : `${drift} row(s) of drift repaired.`;
 });
 </script>
 
 <template>
   <div class="space-y-6">
     <PageHeader>
-      EFS reports and telematics data are ingested automatically — new fuel reports are picked up on a
-      schedule, and each import re-scores the affected vehicles so the anomaly report stays current with no
-      manual step. Telematics live stats refresh every ~20 min, identity every ~12 h, and a nightly self-heal
-      keeps everything consistent. Use these to force a refresh now — each shows its own freshness and live
-      progress. Scoring runs through the rate-limited Samsara client, so large batches pace themselves.
+      EFS reports and telematics data are ingested automatically — new fuel reports are picked up on
+      a schedule, and each import re-scores the affected vehicles so the anomaly report stays
+      current with no manual step. Telematics live stats refresh every ~20 min, identity every ~12
+      h, and a nightly self-heal keeps everything consistent. Use these to force a refresh now —
+      each shows its own freshness and live progress. Scoring runs through the rate-limited Samsara
+      client, so large batches pace themselves.
     </PageHeader>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -133,15 +165,40 @@ const integrity = computed(() => {
       />
     </div>
 
+    <!-- Samsara diagnostics (admin, read-only): raw endpoint status + response shapes, incl. HOS. -->
+    <BaseCard v-if="session.admin">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold text-ink">Samsara diagnostics</h3>
+          <p class="mt-1 text-sm text-ink-muted">
+            Probe every Samsara endpoint (incl. HOS logs + clocks) and show the raw status and
+            response shape. Read-only — no data is written.
+          </p>
+        </div>
+        <BaseButton :disabled="diagRunning" @click="runDiagnostics">{{
+          diagRunning ? "Running…" : "Run diagnostics"
+        }}</BaseButton>
+      </div>
+      <p v-if="diagError" class="mt-2 text-sm text-danger-600">{{ diagError }}</p>
+      <pre
+        v-if="diagJson"
+        class="mt-3 max-h-96 overflow-auto rounded-md bg-surface-muted p-3 text-xs text-ink-secondary"
+        >{{ diagJson }}</pre>
+    </BaseCard>
+
     <!-- Data integrity (read-only) -->
     <BaseCard>
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-semibold text-ink">Data integrity</h3>
-        <span class="text-xs" :class="nightly.failed.value ? 'text-danger-600' : 'text-ink-subtle'">{{ nightly.freshnessLabel.value }}</span>
+        <span
+          class="text-xs"
+          :class="nightly.failed.value ? 'text-danger-600' : 'text-ink-subtle'"
+          >{{ nightly.freshnessLabel.value }}</span
+        >
       </div>
       <p class="mt-1 text-sm text-ink-muted">
-        Nightly self-heal (per-org, ~03:00 local): repairs the fuel-event store from the source records, then
-        re-scores and rebuilds. {{ integrity }}
+        Nightly self-heal (per-org, ~03:00 local): repairs the fuel-event store from the source
+        records, then re-scores and rebuilds. {{ integrity }}
       </p>
     </BaseCard>
   </div>
