@@ -1,7 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { type IdleDateFilter } from "./useIdleScores";
 import { useIdleBreakdown, type TruckBreakdown } from "./useIdleBreakdown";
-import { useDutyIdleSplit } from "./useDutyIdleSplit";
 import { useIdleDrivers } from "./useIdleDrivers";
 import { useIdleCostBasis } from "./useIdleCostBasis";
 import { useIdleCapabilities } from "./useIdleCapabilities";
@@ -67,14 +66,8 @@ const { data: driverRows, isLoading, isError, error, refetch, isFetching } = use
 // New per-truck engine-time + avoidable breakdown (the reworked model).
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter, costBasis);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
-// P1: HOS duty split overlaid on idle events (rest vs on-duty). Shown only — no scoring impact yet.
-// A query failure is SURFACED (it was silently swallowed before, leaving both duty columns "—" with no
-// clue why): the columns still degrade to "—", but the reason lands in the console for diagnosis.
-const { data: dutySplit, error: dutySplitError } = useDutyIdleSplit(dateFilter);
-watch(dutySplitError, (e) => {
-  if (e)
-    console.warn("[idling] HOS duty split failed — Rest/On-duty idle columns degrade to '—':", e.message);
-});
+// The HOS duty split (rest vs on-duty idle) now rides on the same pre-aggregated rollup rows the
+// breakdown reads — no separate raw-table scan, no silent-failure path.
 const { data: caps } = useIdleCapabilities();
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();
@@ -114,15 +107,7 @@ const tabs = computed(() => [
 ]);
 
 // ── tab: Trucks — engine-on = drive + idle, with avoidable (the reworked view) ─────────────────
-const trkRows = computed<TruckBreakdown[]>(() => {
-  const split = dutySplit.value;
-  const rows = breakdown.value?.trucks ?? [];
-  if (!split) return rows;
-  return rows.map((t) => {
-    const s = split.get(t.vehicleId);
-    return s ? { ...t, restIdleH: s.restH, workIdleH: s.workH } : t;
-  });
-});
+const trkRows = computed<TruckBreakdown[]>(() => breakdown.value?.trucks ?? []);
 const trkSearch = ref("");
 const trkCapFilter = ref("");
 const trkConfidentOnly = ref(false);

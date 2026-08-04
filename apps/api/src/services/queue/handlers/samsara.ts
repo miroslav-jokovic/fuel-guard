@@ -7,6 +7,7 @@ import { syncTrailersFromSamsara } from "../../samsaraTrailerSync.js";
 import { syncIdleEvents } from "../../idleSync.js";
 import { syncIdleCapabilities } from "../../idleCapabilitySync.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "../../hosSync.js";
+import { syncIdleRollup } from "../../idleRollup.js";
 import { syncDriversFromSamsara } from "../../samsaraDriverSync.js";
 import { syncDriverScores, syncRecentDriverScoreWeeks } from "../../driverScoreSync.js";
 import { snapshotSettledWeeks } from "../../driverPerformanceSnapshot.js";
@@ -152,6 +153,8 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
       currentDrivers = c.drivers;
       located = c.located;
     });
+    // Duty segments feed the rollup's rest/on-duty split — refresh it (best-effort).
+    await nonFatal("idle rollup", orgId, () => syncIdleRollup(admin, orgId));
     if (actorId) {
       await writeAudit(admin, {
         orgId,
@@ -181,16 +184,23 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
       learned = cap.learned;
       console.log(`[samsara] idle capability: ${cap.learned}/${cap.vehicles} trucks classified`);
     });
+    // Refresh the pre-aggregated idle_rollup_days the Idling page reads (best-effort — raw sync stands).
+    let rollupWritten = 0;
+    await nonFatal("idle rollup", orgId, async () => {
+      const r = await syncIdleRollup(admin, orgId);
+      rollupWritten = r.written;
+      console.log(`[samsara] idle rollup: ${r.written}/${r.rows} day-rows written (${r.windowDays}d window)`);
+    });
     if (actorId) {
       await writeAudit(admin, {
         orgId,
         actorId,
         action: "integration.samsara.idle_synced",
         entity: "idle_events",
-        meta: { ...result, capabilityLearned: learned },
+        meta: { ...result, capabilityLearned: learned, rollupWritten },
       });
     }
-    return { ...result, capabilityLearned: learned };
+    return { ...result, capabilityLearned: learned, rollupWritten };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
     throw e;

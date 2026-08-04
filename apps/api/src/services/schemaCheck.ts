@@ -57,6 +57,9 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // Driver current city (from the truck's Samsara GPS snapshot). Unapplied 0112 makes the HOS sync's
   // driver-status update fail at the DB layer with a schema-cache error that reads like an app bug.
   { table: "drivers", column: "current_location", migration: "0112" },
+  // Idle rollup (the Idling page's read path). Unapplied 0114 makes the rollup refresh fail and leaves
+  // the page's tables empty even though the raw syncs are green.
+  { table: "idle_rollup_days", column: "continuous_idle_sec", migration: "0114" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

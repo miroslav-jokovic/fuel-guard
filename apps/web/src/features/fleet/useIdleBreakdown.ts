@@ -1,6 +1,6 @@
 import { computed, type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { computeAvoidable, avoidableCost, idleScore, type IdleMode, type IdleCapability } from "@fuelguard/shared";
+import { computeAvoidable, avoidableCost, idleScore, type IdleCapability } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
 import type { IdleCostBasis } from "./useIdleCostBasis";
@@ -29,9 +29,11 @@ export interface TruckBreakdown {
   capability: IdleCapability; // learned
   coveragePct: number; // observed share of the range
   confident: boolean;
-  // P1 duty split (merged in by the page from useDutyIdleSplit) — SHOWN ONLY, not part of any score yet.
-  restIdleH?: number; // idle during Sleeper Berth / Off Duty
-  workIdleH?: number; // idle during On Duty not driving
+  // HOS duty split (rest = SB/OFF, work = On Duty) — carried on the same rollup rows now. Null when the
+  // truck idled but NO duty overlay exists at all (no idle events for the range) → shown as "—", never a
+  // fake zero.
+  restIdleH: number | null;
+  workIdleH: number | null;
 }
 
 export interface IdleFleet {
@@ -54,87 +56,105 @@ export interface IdleBreakdown {
 }
 
 function rangeBounds(f: IdleDateFilter) {
-  // `vehicle_engine_days.day` is a calendar date (fleet-local) and the picker gives calendar dates, so we
-  // compare on the picked YYYY-MM-DD DIRECTLY. Round-tripping through Date/toISOString parses the naive
-  // "…T23:59:59" as browser-local, then shifts it to UTC — for any browser west of UTC that rolls the end
-  // date to the next calendar day, so selecting one date returned two days. Slicing avoids that entirely.
+  // `idle_rollup_days.day` is a calendar date and the picker gives calendar dates, so we compare on the
+  // picked YYYY-MM-DD DIRECTLY (round-tripping through Date shifted the end date for browsers west of UTC).
   const toDate = f.to ? f.to.slice(0, 10) : new Date().toISOString().slice(0, 10);
   const fromDate = f.from ? f.from.slice(0, 10) : new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const fromIso = `${fromDate}T00:00:00.000Z`;
-  const toIso = `${toDate}T23:59:59.999Z`;
-  const days = Math.max(1, Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 86_400_000));
-  return { fromDate, toDate, fromIso, toIso, days };
+  const days = Math.max(1, Math.round((Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) / 86_400_000));
+  return { fromDate, toDate, days };
 }
 
 const hrs = (sec: number) => Math.round(sec / 360) / 10; // seconds → hours, 0.1h
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
+/** One rollup row as read from idle_rollup_days. */
+export interface RollupRow {
+  vehicle_id: string;
+  day: string;
+  drive_sec: number;
+  idle_sec: number;
+  off_sec: number;
+  coverage_sec: number;
+  managed_idle_sec: number;
+  continuous_idle_sec: number;
+  rest_idle_sec: number;
+  work_idle_sec: number;
+  other_idle_sec: number;
+  attributed_driver_id: string | null;
+}
+
+/** Page the range's rollup rows (~trucks×days — tiny next to the raw event tables it replaced). */
+export async function fetchRollupRows(fromDate: string, toDate: string): Promise<RollupRow[]> {
+  const out: RollupRow[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from("idle_rollup_days")
+      .select(
+        "vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec, managed_idle_sec, continuous_idle_sec, rest_idle_sec, work_idle_sec, other_idle_sec, attributed_driver_id",
+      )
+      .gte("day", fromDate)
+      .lte("day", toDate)
+      // (day, vehicle_id) is unique per org → a stable total order the (org_id, day, vehicle_id) index
+      // serves directly (no dropped/duplicated pages, no sort).
+      .order("day", { ascending: true })
+      .order("vehicle_id", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as RollupRow[];
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out;
+}
+
+/** Per-vehicle sums of the range's rollup rows — the inputs computeAvoidable needs. */
+export interface VehicleRollupSums {
+  drive: number;
+  idle: number;
+  off: number;
+  cov: number;
+  managed: number;
+  continuous: number;
+  rest: number;
+  work: number;
+  other: number;
+}
+
+export function sumRollupByVehicle(rows: RollupRow[]): Map<string, VehicleRollupSums> {
+  const out = new Map<string, VehicleRollupSums>();
+  for (const r of rows) {
+    const s = out.get(r.vehicle_id) ?? { drive: 0, idle: 0, off: 0, cov: 0, managed: 0, continuous: 0, rest: 0, work: 0, other: 0 };
+    s.drive += Number(r.drive_sec);
+    s.idle += Number(r.idle_sec);
+    s.off += Number(r.off_sec);
+    s.cov += Number(r.coverage_sec);
+    s.managed += Number(r.managed_idle_sec);
+    s.continuous += Number(r.continuous_idle_sec);
+    s.rest += Number(r.rest_idle_sec);
+    s.work += Number(r.work_idle_sec);
+    s.other += Number(r.other_idle_sec);
+    out.set(r.vehicle_id, s);
+  }
+  return out;
+}
+
 /**
- * The per-truck idle breakdown (engine-on = drive + idle) + fleet totals, computed client-side from the
- * foundation tables (vehicle_engine_days + idle_park_sessions) via the shared avoidable algorithm. Fleet
- * avoidable totals count CONFIDENT trucks only, so the headline number is never inflated by thin data.
+ * The per-truck idle breakdown (engine-on = drive + idle) + fleet totals, read from the pre-aggregated
+ * idle_rollup_days (maintained server-side by the idle/HOS syncs) — NOT from the raw event tables. The
+ * mode sums reconstruct `computeAvoidable` exactly (it only ever sums sessions by mode), so the verdict
+ * math is unchanged from the raw-table version. Fleet avoidable totals count CONFIDENT trucks only.
  */
 export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<IdleCostBasis>) {
   return useQuery({
     queryKey: ["idle_breakdown", filters, computed(() => toValue(costBasis) ?? DEFAULT_COST_BASIS)],
     refetchInterval: 120_000,
     queryFn: async (): Promise<IdleBreakdown> => {
-      const { fromDate, toDate, fromIso, toIso, days } = rangeBounds(toValue(filters));
+      const { fromDate, toDate, days } = rangeBounds(toValue(filters));
       const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
       const costOf = (sec: number) => avoidableCost(sec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd;
 
-      // 1) Engine-days summed per vehicle.
-      const eng = new Map<string, { drive: number; idle: number; off: number; cov: number }>();
-      for (let offset = 0; ; offset += PAGE) {
-        const { data, error } = await supabase
-          .from("vehicle_engine_days")
-          .select("vehicle_id, drive_sec, idle_sec, off_sec, coverage_sec")
-          .gte("day", fromDate)
-          .lte("day", toDate)
-          // Stable total order (unique per row) so range pagination can't drop or DUPLICATE rows across
-          // pages — an unordered .range() was double-counting, which inflated the client-side sums.
-          .order("vehicle_id", { ascending: true })
-          .order("day", { ascending: true })
-          .range(offset, offset + PAGE - 1);
-        if (error) throw new Error(error.message);
-        const batch = (data ?? []) as { vehicle_id: string | null; drive_sec: number; idle_sec: number; off_sec: number; coverage_sec: number }[];
-        for (const r of batch) {
-          if (!r.vehicle_id) continue;
-          const e = eng.get(r.vehicle_id) ?? { drive: 0, idle: 0, off: 0, cov: 0 };
-          e.drive += Number(r.drive_sec);
-          e.idle += Number(r.idle_sec);
-          e.off += Number(r.off_sec);
-          e.cov += Number(r.coverage_sec);
-          eng.set(r.vehicle_id, e);
-        }
-        if (batch.length < PAGE) break;
-      }
+      const sums = sumRollupByVehicle(await fetchRollupRows(fromDate, toDate));
 
-      // 2) Park sessions grouped per vehicle.
-      const sess = new Map<string, { idleSec: number; mode: IdleMode }[]>();
-      for (let offset = 0; ; offset += PAGE) {
-        const { data, error } = await supabase
-          .from("idle_park_sessions")
-          .select("vehicle_id, idle_sec, mode, started_at")
-          .gte("started_at", fromIso)
-          .lte("started_at", toIso)
-          // Stable total order (vehicle_id, started_at) is unique per row — without it, unordered .range()
-          // paging duplicated sessions, so a truck's continuous idle summed higher than its observed idle.
-          .order("vehicle_id", { ascending: true })
-          .order("started_at", { ascending: true })
-          .range(offset, offset + PAGE - 1);
-        if (error) throw new Error(error.message);
-        const batch = (data ?? []) as { vehicle_id: string | null; idle_sec: number; mode: string }[];
-        for (const r of batch) {
-          if (!r.vehicle_id) continue;
-          const arr = sess.get(r.vehicle_id) ?? [];
-          arr.push({ idleSec: Number(r.idle_sec), mode: r.mode as IdleMode });
-          sess.set(r.vehicle_id, arr);
-        }
-        if (batch.length < PAGE) break;
-      }
-
-      // 3) Vehicles (capability + admin flags).
       const { data: vdata, error: verr } = await supabase
         .from("vehicles")
         .select("id, unit_number, has_apu, has_optimized_idle, idle_capability")
@@ -151,15 +171,19 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
       const periodSec = days * 86_400;
       const trucks: TruckBreakdown[] = [];
       for (const v of vehicles) {
-        const e = eng.get(v.id);
-        if (!e) continue; // nothing observed for this truck in the range
+        const s = sums.get(v.id);
+        if (!s) continue; // nothing observed for this truck in the range
         const r = computeAvoidable({
-          driveSec: e.drive,
-          idleSec: e.idle,
-          offSec: e.off,
-          coverageSec: e.cov,
+          driveSec: s.drive,
+          idleSec: s.idle,
+          offSec: s.off,
+          coverageSec: s.cov,
           periodSec,
-          sessions: sess.get(v.id) ?? [],
+          // Mode SUMS are all computeAvoidable uses — two synthetic sessions reproduce it exactly.
+          sessions: [
+            { idleSec: s.continuous, mode: "continuous" },
+            { idleSec: s.managed, mode: "apu_or_off" },
+          ],
           hasApu: v.has_apu ?? null,
           hasOptimizedIdle: v.has_optimized_idle ?? null,
           learnedCapability: (v.idle_capability ?? "unknown") as IdleCapability,
@@ -182,6 +206,9 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           capability: (v.idle_capability ?? "unknown") as IdleCapability,
           coveragePct: Math.round(r.coverage * 1000) / 10,
           confident: r.confident,
+          // No duty overlay at all (idled, but zero attributed seconds in any bucket) → "—", not fake 0.
+          restIdleH: s.rest + s.work + s.other === 0 && s.idle > 0 ? null : hrs(s.rest),
+          workIdleH: s.rest + s.work + s.other === 0 && s.idle > 0 ? null : hrs(s.work),
         });
       }
       trucks.sort((a, b) => b.avoidableUsd - a.avoidableUsd || b.avoidableH - a.avoidableH);
