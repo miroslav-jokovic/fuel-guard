@@ -16,6 +16,7 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import { deliverInvite } from "../invites.js";
+import { reconcileDrivers, mergeDriverPair } from "../../services/driverReconcile.js";
 
 /**
  * Driver ROSTER — the admin-owned master-data surface for people (Master Data plan §6, M2 slice).
@@ -207,6 +208,59 @@ export function rosterDriversRouter(): Router {
         reason: delivery.reason,
         link: delivery.link,
       });
+    }),
+  );
+
+  // Reconcile duplicate / name-only drivers: fold each unmatched (no Samsara id) driver into its Samsara
+  // twin. DRY RUN by default (returns the exact merge pairs to review); { apply: true } executes them via
+  // the atomic merge_driver() function. Admin/fleet-manager only.
+  router.post(
+    "/reconcile",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const apply = (req.body as { apply?: unknown } | undefined)?.apply === true;
+      const result = await reconcileDrivers(admin, orgId, { apply });
+      if (apply && result.merged > 0) {
+        await writeAudit(admin, {
+          orgId, actorId: req.auth!.userId, action: "driver.reconciled", entity: "drivers",
+          meta: { merged: result.merged, planned: result.planned },
+        });
+      }
+      res.json(result);
+    }),
+  );
+
+  // Manually link an unmatched driver to a Samsara driver — folds :id (source) INTO { canonicalId }.
+  // For the residual single-name cases the auto-reconcile won't touch. Admin/fleet-manager only.
+  router.post(
+    "/:id/merge",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const sourceId = String(req.params.id ?? "");
+      const canonicalId = String((req.body as { canonicalId?: unknown } | undefined)?.canonicalId ?? "");
+      if (!canonicalId) {
+        res.status(422).json(apiError("bad_request", "canonicalId is required"));
+        return;
+      }
+      try {
+        await mergeDriverPair(admin, orgId, sourceId, canonicalId);
+      } catch (e) {
+        res.status(422).json(apiError("merge_failed", e instanceof Error ? e.message : "merge failed"));
+        return;
+      }
+      await writeAudit(admin, {
+        orgId, actorId: req.auth!.userId, action: "driver.merged", entity: "drivers", entityId: canonicalId,
+        meta: { source: sourceId, canonical: canonicalId },
+      });
+      res.json({ ok: true });
     }),
   );
 

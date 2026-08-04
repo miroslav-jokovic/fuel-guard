@@ -9,6 +9,7 @@ export interface DriverSyncResult {
   total: number;
   created: number;
   updated: number;
+  deactivated: number; // Samsara-sourced drivers marked inactive because they left Samsara's active roster
 }
 
 interface ExistingDriver {
@@ -17,6 +18,8 @@ interface ExistingDriver {
   full_name: string;
   phone: string | null;
   samsara_username: string | null;
+  identity_source: string | null;
+  status: string | null;
 }
 
 /**
@@ -46,7 +49,7 @@ export async function syncDriversFromSamsara(
 
   const { data: existingData } = await admin
     .from("drivers")
-    .select("id, samsara_driver_id, full_name, phone, samsara_username")
+    .select("id, samsara_driver_id, full_name, phone, samsara_username, identity_source, status")
     .eq("org_id", orgId);
   const existing = (existingData ?? []) as ExistingDriver[];
 
@@ -61,7 +64,7 @@ export async function syncDriversFromSamsara(
     byName.set(k, byName.has(k) ? null : r);
   }
 
-  const result: DriverSyncResult = { total: drivers.length, created: 0, updated: 0 };
+  const result: DriverSyncResult = { total: drivers.length, created: 0, updated: 0, deactivated: 0 };
 
   for (const sd of drivers) {
     const match =
@@ -89,6 +92,25 @@ export async function syncDriversFromSamsara(
     });
     if (error) throw new Error(error.message);
     result.created++;
+  }
+
+  // Reflect Samsara DEACTIVATIONS: a Samsara-sourced driver we still hold as 'active' but who is no longer in
+  // Samsara's active roster has been deactivated there → mark inactive (history kept, never deleted). We never
+  // touch manually-created drivers (identity_source = 'manual' is admin-owned). Guarded twice so a thin/failed
+  // fetch can't mass-deactivate: (a) only run when the roster returned ≥1 active driver, and (b) never
+  // deactivate MORE rows than the active roster size (a run that would wipe most of the roster is treated as a
+  // bad fetch and skipped). Deactivation-only (we don't auto-reactivate — that stays an admin decision).
+  const activeIds = new Set(drivers.filter((d) => d.active).map((d) => d.samsaraId));
+  if (activeIds.size > 0) {
+    const stale = existing.filter(
+      (r) => r.samsara_driver_id && r.status === "active" && r.identity_source !== "manual" && !activeIds.has(r.samsara_driver_id),
+    );
+    if (stale.length > 0 && stale.length <= activeIds.size) {
+      const { error } = await admin.from("drivers").update({ status: "inactive" }).in("id", stale.map((r) => r.id)).eq("org_id", orgId);
+      if (!error) result.deactivated = stale.length;
+    } else if (stale.length > activeIds.size) {
+      console.warn(`[driver-sync] skipped deactivating ${stale.length} drivers (> active roster ${activeIds.size}) — treating as a bad fetch`);
+    }
   }
 
   return result;

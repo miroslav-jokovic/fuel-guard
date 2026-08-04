@@ -9,22 +9,26 @@ import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 const WINDOW_DAYS = 5;
 /** How many trucks per Samsara GPS call (comma-separated vehicleIds); keeps each request bounded. */
 const TRUCK_BATCH = 40;
+/** How many trailers per Samsara GPS call — same bounding as trucks (a fleet can have 150+ gateway trailers). */
+const TRAILER_BATCH = 40;
 
-export interface ReeferPairingResult {
-  /** Reefer trailers eligible for inference (reefer, has a gateway, not manually pinned). */
+export interface TrailerPairingResult {
+  /** Trailers eligible for inference (has a gateway, not manually pinned) — reefer or dry van. */
   candidates: number;
   /** Trailers we set a confident inferred pairing for. */
   paired: number;
 }
 
 /**
- * Pair reefer trailers to the tractor they travel with, by GPS CO-LOCATION — the reliable path when drivers
- * don't select the trailer in the Samsara app but the reefer has an Asset Gateway reporting GPS. Fetches each
- * reefer's GPS + all trucks' GPS over a recent window and runs the pure matcher. NEVER touches a trailer whose
- * pairing was set manually (pairing_source = 'manual'). Best-effort: a Samsara fetch failure throws and the
- * caller can log it, but it never corrupts existing data.
+ * Pair trailers to the tractor they travel with, by GPS CO-LOCATION — the reliable path when drivers don't
+ * select the trailer in the Samsara app but the trailer has an Asset Gateway reporting GPS. Covers EVERY
+ * gateway-equipped trailer, reefer or dry van: the fleet's dry vans all carry gateways too, and the Samsara
+ * trailer-assignment feed returns nothing for this org, so co-location is the only working pairing signal.
+ * (This used to be reefer-only, which left 150+ gateway dry vans unpaired.) Fetches each trailer's GPS + all
+ * trucks' GPS over a recent window and runs the pure matcher. NEVER touches a trailer whose pairing was set
+ * manually. Best-effort: a Samsara fetch failure throws and the caller logs it, but it never corrupts data.
  */
-export async function inferReeferPairings(admin: SupabaseClient, env: Env, orgId: string): Promise<ReeferPairingResult> {
+export async function inferTrailerPairings(admin: SupabaseClient, env: Env, orgId: string): Promise<TrailerPairingResult> {
   const token = await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
 
@@ -32,24 +36,29 @@ export async function inferReeferPairings(admin: SupabaseClient, env: Env, orgId
     .from("trailers")
     .select("id, samsara_asset_id, pairing_source")
     .eq("org_id", orgId)
-    .eq("is_reefer", true)
     .neq("status", "retired")
-    .not("samsara_asset_id", "is", null);
+    .not("samsara_asset_id", "is", null); // a gateway (asset id) is required for GPS co-location
   // Manual pairings are authoritative — never overwrite them.
-  const reefers = ((trs ?? []) as { id: string; samsara_asset_id: string; pairing_source: string | null }[]).filter(
+  const trailers = ((trs ?? []) as { id: string; samsara_asset_id: string; pairing_source: string | null }[]).filter(
     (t) => t.pairing_source !== "manual",
   );
-  if (reefers.length === 0) return { candidates: 0, paired: 0 };
+  if (trailers.length === 0) return { candidates: 0, paired: 0 };
 
   const { data: vs } = await admin.from("vehicles").select("id, samsara_vehicle_id").eq("org_id", orgId).not("samsara_vehicle_id", "is", null);
   const vehicles = (vs ?? []) as { id: string; samsara_vehicle_id: string }[];
-  if (vehicles.length === 0) return { candidates: reefers.length, paired: 0 };
+  if (vehicles.length === 0) return { candidates: trailers.length, paired: 0 };
 
   const endIso = new Date().toISOString();
   const startIso = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
 
-  // Reefer GPS (all reefers in one paginated call set).
-  const trailerGps = parseAssetGps(await makeSamsaraTrailerGpsFetcher(env, token)(reefers.map((r) => r.samsara_asset_id), startIso, endIso));
+  // Trailer GPS, batched (a fleet may have 150+ gateway trailers — don't pass them all in one URL).
+  const trailerFetcher = makeSamsaraTrailerGpsFetcher(env, token);
+  const trailerGps = new Map<string, GpsSample[]>();
+  for (let i = 0; i < trailers.length; i += TRAILER_BATCH) {
+    const batch = trailers.slice(i, i + TRAILER_BATCH);
+    const raw = await trailerFetcher(batch.map((t) => t.samsara_asset_id), startIso, endIso);
+    for (const [samsaraId, gps] of parseAssetGps(raw)) trailerGps.set(samsaraId, gps as GpsSample[]);
+  }
 
   // Truck GPS, batched, keyed by our vehicle id.
   const truckFetcher = makeSamsaraVehiclesGpsFetcher(env, token);
@@ -64,16 +73,16 @@ export async function inferReeferPairings(admin: SupabaseClient, env: Env, orgId
   }
 
   let paired = 0;
-  for (const r of reefers) {
-    const match = inferTrailerPairing(trailerGps.get(r.samsara_asset_id) ?? [], tracks);
+  for (const t of trailers) {
+    const match = inferTrailerPairing(trailerGps.get(t.samsara_asset_id) ?? [], tracks);
     if (match) {
       await admin
         .from("trailers")
         .update({ assigned_vehicle_id: match.vehicleId, pairing_source: "inferred", pairing_confidence: match.confidence })
-        .eq("id", r.id)
+        .eq("id", t.id)
         .eq("org_id", orgId);
       paired++;
     }
   }
-  return { candidates: reefers.length, paired };
+  return { candidates: trailers.length, paired };
 }

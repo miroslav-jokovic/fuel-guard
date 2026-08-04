@@ -9,7 +9,7 @@ import {
   type SamsaraTrailerAssignmentFetcher,
 } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
-import { inferReeferPairings } from "./reeferPairing.js";
+import { inferTrailerPairings } from "./reeferPairing.js";
 
 export interface TrailerSyncResult {
   total: number;
@@ -109,17 +109,18 @@ export async function syncTrailersFromSamsara(
     /* assignments are best-effort */
   }
 
-  // Reefer↔tractor pairing by GPS CO-LOCATION — the reliable path when drivers don't select the trailer in
-  // the app but the reefer has an Asset Gateway. Best-effort: never breaks the identity sync above. Skips
-  // trailers already pinned manually or by the Samsara assignment feed handled above.
+  // Trailer↔tractor pairing by GPS CO-LOCATION — the reliable path when drivers don't select the trailer in
+  // the app but the trailer has an Asset Gateway. Covers reefers AND dry vans (this fleet gateways both, and
+  // the Samsara assignment feed returns nothing). Best-effort: never breaks the identity sync above. Skips
+  // trailers already pinned manually.
   try {
-    const inferred = await inferReeferPairings(admin, env, orgId);
+    const inferred = await inferTrailerPairings(admin, env, orgId);
     result.paired += inferred.paired;
-    console.log(`[trailer-sync] reefer co-location: ${inferred.candidates} candidates, ${inferred.paired} paired`);
+    console.log(`[trailer-sync] GPS co-location: ${inferred.candidates} candidates, ${inferred.paired} paired`);
   } catch (e) {
     // Best-effort (never breaks the identity sync), but LOG it — a 401 here almost always means the token is
     // missing the "Read Trailer Statistics" scope, which otherwise fails silently.
-    console.error("[trailer-sync] reefer co-location inference failed:", e instanceof Error ? e.message : e);
+    console.error("[trailer-sync] GPS co-location inference failed:", e instanceof Error ? e.message : e);
   }
 
   return result;

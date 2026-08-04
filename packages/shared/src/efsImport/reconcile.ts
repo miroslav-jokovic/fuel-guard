@@ -81,13 +81,22 @@ export function unitMatchKeys(unit: string): string[] {
  * alphabetic tokens, drops single-letter tokens (initials like "J."), sorts, and joins — so
  * "SMITH, JOHN", "John Smith", and "John A. Smith" all collapse to "john smith".
  */
+/** Owner/role/suffix tokens EFS appends to card names ("SMITH JOHN OW", "ANGEL CORA COMP", "WALTER GREEN SR")
+ *  that aren't part of the person's name. Stripped before keying so an EFS card name matches the clean Samsara
+ *  name. Conservative list — only tokens that are annotations, never plausible standalone surnames. */
+const NAME_ANNOTATION_TOKENS = new Set([
+  "sr", "jr", "ii", "iii", "iv", "v",
+  "ow", "owner", "own", "oo", // owner-operator tags
+  "comp", "co", "company", "llc", "inc", "dba",
+]);
+
 export function driverMatchKey(name: string | null | undefined): string {
   if (!name) return "";
   const tokens = name
     .toLowerCase()
     .replace(/[^a-z\s]/g, " ")
     .split(/\s+/)
-    .filter((t) => t.length > 1);
+    .filter((t) => t.length > 1 && !NAME_ANNOTATION_TOKENS.has(t));
   return tokens.sort().join(" ");
 }
 
@@ -297,4 +306,67 @@ function rejectInstant(date: string | null, state: string | null): EfsInstant | 
     if (viaEfs?.precision === "instant") return viaEfs;
   }
   return { iso, precision: "instant", tranDate: iso.slice(0, 10) };
+}
+
+// ── Driver reconcile: fold unmatched EFS/name-only drivers into their Samsara twin ────────────────
+export interface ReconcileDriver {
+  id: string;
+  full_name: string | null;
+  samsara_driver_id: string | null;
+  efs_driver_id: string | null;
+  phone: string | null;
+}
+
+export interface DriverMergePlan {
+  sourceId: string; // the duplicate/name-only row to fold away
+  canonicalId: string; // the Samsara row to keep
+  matchedBy: "phone" | "name";
+  key: string; // the phone digits or name key that matched (for the report)
+}
+
+const digits = (p: string | null | undefined) => {
+  const d = (p ?? "").replace(/\D/g, "");
+  return d.length === 11 && d.startsWith("1") ? d.slice(1) : d; // normalise a NANP +1 prefix to the 10-digit form
+};
+
+/**
+ * Plan which UNMATCHED drivers (no samsara_driver_id) should be merged into a CANONICAL Samsara driver.
+ * Conservative by design — only high-confidence, unambiguous matches, because a merge reassigns history and
+ * deletes the source:
+ *   • phone match (exact digits) — strongest; OR
+ *   • driverMatchKey match, but ONLY when the key has ≥2 tokens (a real first+last, so single-name EFS
+ *     entries like "ESTEBAN OW" never auto-merge) AND the key maps to exactly ONE canonical driver.
+ * A canonical key/phone shared by 2+ Samsara drivers is ambiguous → those sources are left for manual linking.
+ * Never merges two canonical (Samsara) rows into each other; never merges a source into another source.
+ */
+export function planDriverMerges(drivers: ReconcileDriver[]): DriverMergePlan[] {
+  const canon = drivers.filter((d) => d.samsara_driver_id);
+  const sources = drivers.filter((d) => !d.samsara_driver_id);
+
+  // Canonical indexes, ambiguity-aware (a key shared by 2+ canonical rows → null = don't guess).
+  const byPhone = new Map<string, string | null>();
+  const byName = new Map<string, string | null>();
+  for (const c of canon) {
+    const ph = digits(c.phone);
+    if (ph) byPhone.set(ph, byPhone.has(ph) ? null : c.id);
+    const k = driverMatchKey(c.full_name);
+    if (k) byName.set(k, byName.has(k) ? null : c.id);
+  }
+
+  const plans: DriverMergePlan[] = [];
+  for (const s of sources) {
+    const ph = digits(s.phone);
+    const phoneHit = ph ? byPhone.get(ph) : undefined;
+    if (phoneHit) {
+      plans.push({ sourceId: s.id, canonicalId: phoneHit, matchedBy: "phone", key: ph });
+      continue;
+    }
+    const k = driverMatchKey(s.full_name);
+    // Require a real two-part name (≥2 tokens) so a single leftover token can't collapse onto a full name.
+    if (k && k.includes(" ")) {
+      const nameHit = byName.get(k);
+      if (nameHit) plans.push({ sourceId: s.id, canonicalId: nameHit, matchedBy: "name", key: k });
+    }
+  }
+  return plans;
 }
