@@ -22,8 +22,13 @@ function warnOnShapeMismatch(rawData: unknown[], segmentCount: number): void {
   if (rawData.length === 0 || segmentCount > 0) return;
   const first = rawData[0] as Record<string, unknown> | null;
   const itemKeys = first ? Object.keys(first) : [];
-  const logs = first && Array.isArray((first as { logs?: unknown[] }).logs) ? (first as { logs: unknown[] }).logs : [];
-  const logKeys = logs.length && logs[0] && typeof logs[0] === "object" ? Object.keys(logs[0] as object) : [];
+  const logsArr = first
+    ? ((first as { hosLogs?: unknown[]; logs?: unknown[] }).hosLogs ??
+      (first as { logs?: unknown[] }).logs)
+    : undefined;
+  const logs = Array.isArray(logsArr) ? logsArr : [];
+  const logKeys =
+    logs.length && logs[0] && typeof logs[0] === "object" ? Object.keys(logs[0] as object) : [];
   console.warn(
     `[hosSync] Samsara returned ${rawData.length} HOS item(s) but 0 segments parsed — likely a response-shape ` +
       `drift. item keys=[${itemKeys.join(",")}] log keys=[${logKeys.join(",")}]. ` +
@@ -70,7 +75,10 @@ export async function syncHosDutySegments(
     .eq("org_id", orgId)
     .not("samsara_driver_id", "is", null);
   const drvBySamsara = new Map(
-    ((ds ?? []) as { id: string; samsara_driver_id: string }[]).map((d) => [d.samsara_driver_id, d.id]),
+    ((ds ?? []) as { id: string; samsara_driver_id: string }[]).map((d) => [
+      d.samsara_driver_id,
+      d.id,
+    ]),
   );
 
   const now = new Date().toISOString();

@@ -15,22 +15,11 @@
 
 /** Samsara's raw HOS duty-status strings (GET /fleet/hos/logs). */
 export type SamsaraDutyStatus =
-  | "offDuty"
-  | "sleeperBed"
-  | "driving"
-  | "onDuty"
-  | "yardMove"
-  | "personalConveyance";
+  "offDuty" | "sleeperBed" | "driving" | "onDuty" | "yardMove" | "personalConveyance";
 
 /** Our normalized, storage-facing duty status. `unknown` covers anything unrecognized (never guessed). */
 export type HosStatus =
-  | "off_duty"
-  | "sleeper"
-  | "driving"
-  | "on_duty"
-  | "yard_move"
-  | "personal_conveyance"
-  | "unknown";
+  "off_duty" | "sleeper" | "driving" | "on_duty" | "yard_move" | "personal_conveyance" | "unknown";
 
 const STATUS_MAP: Record<string, HosStatus> = {
   offduty: "off_duty",
@@ -88,54 +77,68 @@ interface RawLog {
   logStartTime?: string;
   startTime?: string;
   time?: string;
-  dutyStatus?: string;
+  logEndTime?: string;
+  endTime?: string;
   hosStatusType?: string;
+  dutyStatus?: string;
 }
 interface RawDriverLogs {
   driver?: { id?: string | number };
   driverId?: string | number;
   id?: string | number;
-  logs?: RawLog[];
+  hosLogs?: RawLog[]; // Samsara's actual field on GET /fleet/hos/logs
+  logs?: RawLog[]; // tolerated fallback
 }
 
 const startOf = (l: RawLog): number => Date.parse(l.logStartTime ?? l.startTime ?? l.time ?? "");
-const statusOf = (l: RawLog): HosStatus => normalizeHosStatus(l.dutyStatus ?? l.hosStatusType);
+const endOf = (l: RawLog): number => Date.parse(l.logEndTime ?? l.endTime ?? "");
+const statusOf = (l: RawLog): HosStatus => normalizeHosStatus(l.hosStatusType ?? l.dutyStatus);
 
 /**
- * Parse the merged `data[]` from GET /fleet/hos/logs into contiguous duty-status segments per driver.
- * Logs are status CHANGES: each log holds from its start until the driver's next log start; the final open
- * log runs to `windowEndMs` (or stays null). Robust to a driver appearing across multiple pages — all their
- * logs are gathered, de-duplicated by (start,status), and ordered before segments are built.
+ * Parse the merged `data[]` from GET /fleet/hos/logs into duty-status segments per driver. Samsara nests the
+ * entries under `hosLogs` (each with logStartTime, logEndTime, hosStatusType). A segment uses the log's own
+ * logEndTime when present; otherwise it runs to the driver's next log start, and the final open log to
+ * `windowEndMs` (or null). Robust to a driver recurring across pages — logs are gathered, de-duped by start,
+ * and ordered before segments are built.
  */
-export function parseHosLogs(
-  data: unknown[],
-  opts: { windowEndMs?: number } = {},
-): HosSegment[] {
-  // Gather every driver's logs (a driver may recur across pages).
-  const byDriver = new Map<string, Map<number, HosStatus>>();
+export function parseHosLogs(data: unknown[], opts: { windowEndMs?: number } = {}): HosSegment[] {
+  // Gather every driver's logs (a driver may recur across pages). Keyed by start instant → status + its own
+  // end (from logEndTime when Samsara supplies it).
+  const byDriver = new Map<string, Map<number, { status: HosStatus; endMs: number | null }>>();
   for (const raw of data) {
     const item = raw as RawDriverLogs;
     const driverId =
-      item.driver?.id != null ? String(item.driver.id) : item.driverId != null ? String(item.driverId) : item.id != null ? String(item.id) : null;
-    if (!driverId || !Array.isArray(item.logs)) continue;
-    const logs = byDriver.get(driverId) ?? new Map<number, HosStatus>();
-    for (const l of item.logs) {
+      item.driver?.id != null
+        ? String(item.driver.id)
+        : item.driverId != null
+          ? String(item.driverId)
+          : item.id != null
+            ? String(item.id)
+            : null;
+    const logs = item.hosLogs ?? item.logs;
+    if (!driverId || !Array.isArray(logs)) continue;
+    const byStart =
+      byDriver.get(driverId) ?? new Map<number, { status: HosStatus; endMs: number | null }>();
+    for (const l of logs) {
       const t = startOf(l);
       if (!Number.isFinite(t)) continue;
-      logs.set(t, statusOf(l)); // last write wins on an exact duplicate timestamp
+      const e = endOf(l);
+      byStart.set(t, { status: statusOf(l), endMs: Number.isFinite(e) ? e : null }); // last write wins on an exact dup
     }
-    byDriver.set(driverId, logs);
+    byDriver.set(driverId, byStart);
   }
 
   const segments: HosSegment[] = [];
-  for (const [driverId, logs] of byDriver) {
-    const starts = [...logs.keys()].sort((a, b) => a - b);
+  for (const [driverId, byStart] of byDriver) {
+    const starts = [...byStart.keys()].sort((a, b) => a - b);
     for (let i = 0; i < starts.length; i++) {
       const startMs = starts[i]!;
-      const endMs = i + 1 < starts.length ? starts[i + 1]! : (opts.windowEndMs ?? null);
-      // Drop a zero/negative-length segment (two logs at the same instant already merged above).
-      if (endMs != null && endMs <= startMs) continue;
-      segments.push({ driverId, status: logs.get(startMs)!, startMs, endMs });
+      const rec = byStart.get(startMs)!;
+      // Prefer the log's own end; else the next log's start; else the window edge.
+      const endMs =
+        rec.endMs ?? (i + 1 < starts.length ? starts[i + 1]! : (opts.windowEndMs ?? null));
+      if (endMs != null && endMs <= startMs) continue; // drop zero/negative-length
+      segments.push({ driverId, status: rec.status, startMs, endMs });
     }
   }
   segments.sort((a, b) => a.startMs - b.startMs || a.driverId.localeCompare(b.driverId));
@@ -157,8 +160,19 @@ export interface HosOverlap {
  * or a single-driver truck window). Segments with a null end are treated as running to `endMs`. Overlap is
  * clamped to the range; uncovered time is simply not counted (caller decides how to treat gaps).
  */
-export function hosOverlapSeconds(segments: HosSegment[], startMs: number, endMs: number): HosOverlap {
-  const acc: HosOverlap = { restSec: 0, workSec: 0, drivingSec: 0, excludedSec: 0, unknownSec: 0, coveredSec: 0 };
+export function hosOverlapSeconds(
+  segments: HosSegment[],
+  startMs: number,
+  endMs: number,
+): HosOverlap {
+  const acc: HosOverlap = {
+    restSec: 0,
+    workSec: 0,
+    drivingSec: 0,
+    excludedSec: 0,
+    unknownSec: 0,
+    coveredSec: 0,
+  };
   if (!(endMs > startMs)) return acc;
   for (const s of segments) {
     const segEnd = s.endMs ?? endMs;
@@ -168,11 +182,21 @@ export function hosOverlapSeconds(segments: HosSegment[], startMs: number, endMs
     const sec = (hi - lo) / 1000;
     acc.coveredSec += sec;
     switch (hosDutyKind(s.status)) {
-      case "rest": acc.restSec += sec; break;
-      case "work": acc.workSec += sec; break;
-      case "driving": acc.drivingSec += sec; break;
-      case "excluded": acc.excludedSec += sec; break;
-      default: acc.unknownSec += sec; break;
+      case "rest":
+        acc.restSec += sec;
+        break;
+      case "work":
+        acc.workSec += sec;
+        break;
+      case "driving":
+        acc.drivingSec += sec;
+        break;
+      case "excluded":
+        acc.excludedSec += sec;
+        break;
+      default:
+        acc.unknownSec += sec;
+        break;
     }
   }
   return acc;

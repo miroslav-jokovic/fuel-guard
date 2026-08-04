@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { normalizeHosStatus, hosDutyKind, parseHosLogs, hosOverlapSeconds, type HosSegment } from "./hos.js";
+import {
+  normalizeHosStatus,
+  hosDutyKind,
+  parseHosLogs,
+  hosOverlapSeconds,
+  type HosSegment,
+} from "./hos.js";
 
 const iso = (ms: number) => new Date(ms).toISOString();
 const H = 3600_000;
@@ -59,17 +65,22 @@ describe("parseHosLogs", () => {
   });
 
   it("last open log is null when no window end is given", () => {
-    const segs = parseHosLogs([{ driverId: "7", logs: [{ logStartTime: iso(T0), dutyStatus: "offDuty" }] }]);
+    const segs = parseHosLogs([
+      { driverId: "7", logs: [{ logStartTime: iso(T0), dutyStatus: "offDuty" }] },
+    ]);
     expect(segs[0]!.endMs).toBeNull();
   });
 
   it("gathers one driver's logs split across pages, de-dupes, and orders", () => {
     const data = [
       { driver: { id: 1 }, logs: [{ logStartTime: iso(T0 + 3 * H), dutyStatus: "sleeperBed" }] },
-      { driver: { id: 1 }, logs: [
-        { logStartTime: iso(T0), dutyStatus: "driving" },
-        { logStartTime: iso(T0 + 3 * H), dutyStatus: "sleeperBed" },
-      ] },
+      {
+        driver: { id: 1 },
+        logs: [
+          { logStartTime: iso(T0), dutyStatus: "driving" },
+          { logStartTime: iso(T0 + 3 * H), dutyStatus: "sleeperBed" },
+        ],
+      },
     ];
     const segs = parseHosLogs(data, { windowEndMs: T0 + 5 * H });
     expect(segs.map((s) => [s.status, s.startMs])).toEqual([
@@ -79,19 +90,26 @@ describe("parseHosLogs", () => {
   });
 
   it("skips malformed logs (bad time / missing status) without dropping the driver", () => {
-    const segs = parseHosLogs([
-      { driver: { id: 9 }, logs: [
-        { logStartTime: "not-a-date", dutyStatus: "driving" },
-        { logStartTime: iso(T0), dutyStatus: "onDuty" },
-      ] },
-    ], { windowEndMs: T0 + H });
+    const segs = parseHosLogs(
+      [
+        {
+          driver: { id: 9 },
+          logs: [
+            { logStartTime: "not-a-date", dutyStatus: "driving" },
+            { logStartTime: iso(T0), dutyStatus: "onDuty" },
+          ],
+        },
+      ],
+      { windowEndMs: T0 + H },
+    );
     expect(segs).toEqual([{ driverId: "9", status: "on_duty", startMs: T0, endMs: T0 + H }]);
   });
 
   it("tolerates alternate field names (startTime / hosStatusType)", () => {
-    const segs = parseHosLogs([
-      { driverId: 5, logs: [{ startTime: iso(T0), hosStatusType: "sleeperBed" }] },
-    ], { windowEndMs: T0 + H });
+    const segs = parseHosLogs(
+      [{ driverId: 5, logs: [{ startTime: iso(T0), hosStatusType: "sleeperBed" }] }],
+      { windowEndMs: T0 + H },
+    );
     expect(segs[0]).toEqual({ driverId: "5", status: "sleeper", startMs: T0, endMs: T0 + H });
   });
 });
@@ -120,7 +138,8 @@ describe("hosOverlapSeconds", () => {
   it("counts unknown-status time separately and leaves gaps uncounted", () => {
     const o = hosOverlapSeconds(
       [{ driverId: "1", status: "unknown", startMs: T0, endMs: T0 + H }],
-      T0, T0 + 2 * H,
+      T0,
+      T0 + 2 * H,
     );
     expect(o.unknownSec).toBe(3600);
     expect(o.coveredSec).toBe(3600);
@@ -129,5 +148,35 @@ describe("hosOverlapSeconds", () => {
   it("returns zeros for an empty/inverted range", () => {
     expect(hosOverlapSeconds(segs, T0 + H, T0 + H).coveredSec).toBe(0);
     expect(hosOverlapSeconds(segs, T0 + 2 * H, T0 + H).coveredSec).toBe(0);
+  });
+});
+
+describe("parseHosLogs — real Samsara /fleet/hos/logs shape", () => {
+  it("reads hosLogs[] + hosStatusType + logStartTime/logEndTime", () => {
+    const T = Date.parse("2026-06-01T00:00:00.000Z");
+    const HH = 3600_000;
+    const data = [
+      {
+        driver: { id: "57168899", name: "MICHAEL KENT" },
+        hosLogs: [
+          {
+            logStartTime: new Date(T).toISOString(),
+            logEndTime: new Date(T + 2 * HH).toISOString(),
+            hosStatusType: "driving",
+            vehicle: { id: "556" },
+          },
+          {
+            logStartTime: new Date(T + 2 * HH).toISOString(),
+            logEndTime: new Date(T + 12 * HH).toISOString(),
+            hosStatusType: "sleeperBed",
+          },
+        ],
+      },
+    ];
+    const segs = parseHosLogs(data);
+    expect(segs).toEqual([
+      { driverId: "57168899", status: "driving", startMs: T, endMs: T + 2 * HH },
+      { driverId: "57168899", status: "sleeper", startMs: T + 2 * HH, endMs: T + 12 * HH },
+    ]);
   });
 });
