@@ -26,6 +26,73 @@ function describeShape(v: unknown, depth = 4): unknown {
   return out;
 }
 
+type DiagFill = {
+  id: string;
+  vehicle_id: string | null;
+  fueled_at: string;
+  fueled_at_precision: string | null;
+  city: string | null;
+  state: string | null;
+  location_text: string | null;
+  gallons: number | null;
+};
+type DiagVeh = { id: string; samsara_vehicle_id: string | null };
+
+/** End-to-end recon probe: reconcile ONE recent fill whose vehicle is Samsara-mapped, isolating "no mapping"
+ *  vs "history fetch fails" vs "fetched but nothing matched" — without a backfill. */
+async function runTestReconcile(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  fills: DiagFill[],
+  ourVehicles: DiagVeh[],
+  mappedIds: Set<string>,
+): Promise<Record<string, unknown>> {
+  const target = fills.find((f) => f.vehicle_id && mappedIds.has(f.vehicle_id));
+  if (!target) return { ran: false, reason: "no recent fill with a Samsara-mapped vehicle" };
+  const veh = ourVehicles.find((v) => v.id === target.vehicle_id);
+  try {
+    const r = await reconcileWithSamsara(admin, env, orgId, {
+      vehicleId: target.vehicle_id,
+      samsaraVehicleId: veh?.samsara_vehicle_id ?? null,
+      fueledAt: target.fueled_at,
+      city: target.city,
+      state: target.state,
+      locationName: target.location_text,
+      preciseTime: target.fueled_at_precision === "instant",
+      gallons: target.gallons,
+      tankCapacityGal: null,
+    });
+    return r
+      ? {
+          ran: true,
+          ok: true,
+          fuelingTimeBasis: r.fuelingTimeBasis,
+          locationConfidence: r.locationConfidence,
+          matchedAt: r.matchedAt,
+          samsaraVehicleId: veh?.samsara_vehicle_id,
+        }
+      : {
+          ran: true,
+          ok: false,
+          reason:
+            "recon returned null — history fetch returned no GPS samples in this fill's ±36h window",
+          samsaraVehicleId: veh?.samsara_vehicle_id,
+          fueledAt: target.fueled_at,
+        };
+  } catch (e) {
+    return {
+      ran: true,
+      ok: false,
+      reason:
+        e instanceof SamsaraUnavailableError
+          ? "Samsara stats/HISTORY fetch FAILED (this is what silently zeros coverage — check the request/scope for /fleet/vehicles/stats/history)"
+          : `error: ${e instanceof Error ? e.message : String(e)}`,
+      samsaraVehicleId: veh?.samsara_vehicle_id,
+    };
+  }
+}
+
 export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, orgId: string) {
   const token = await loadSamsaraToken(admin, env, orgId);
   if (!token) return { tokenConfigured: false as const };
@@ -124,56 +191,7 @@ export async function runSamsaraDiagnostics(admin: SupabaseClient, env: Env, org
   const fillsWithVehicle = fills.filter((f) => f.vehicle_id).length;
   const fillsReconcilable = fills.filter((f) => f.vehicle_id && mappedIds.has(f.vehicle_id)).length;
 
-  // End-to-end test: reconcile ONE recent fill whose vehicle IS mapped, and report exactly what recon does.
-  // This isolates "no mapping" vs "history fetch fails" vs "fetched but nothing matched" — without a backfill.
-  let testReconcile: Record<string, unknown> = {
-    ran: false,
-    reason: "no recent fill with a Samsara-mapped vehicle",
-  };
-  const target = fills.find((f) => f.vehicle_id && mappedIds.has(f.vehicle_id));
-  if (target) {
-    const veh = ourVehicles.find((v) => v.id === target.vehicle_id);
-    try {
-      const r = await reconcileWithSamsara(admin, env, orgId, {
-        vehicleId: target.vehicle_id,
-        samsaraVehicleId: veh?.samsara_vehicle_id ?? null,
-        fueledAt: target.fueled_at,
-        city: target.city,
-        state: target.state,
-        locationName: target.location_text,
-        preciseTime: target.fueled_at_precision === "instant",
-        gallons: target.gallons,
-        tankCapacityGal: null,
-      });
-      testReconcile = r
-        ? {
-            ran: true,
-            ok: true,
-            fuelingTimeBasis: r.fuelingTimeBasis,
-            locationConfidence: r.locationConfidence,
-            matchedAt: r.matchedAt,
-            samsaraVehicleId: veh?.samsara_vehicle_id,
-          }
-        : {
-            ran: true,
-            ok: false,
-            reason:
-              "recon returned null — history fetch returned no GPS samples in this fill's ±36h window",
-            samsaraVehicleId: veh?.samsara_vehicle_id,
-            fueledAt: target.fueled_at,
-          };
-    } catch (e) {
-      testReconcile = {
-        ran: true,
-        ok: false,
-        reason:
-          e instanceof SamsaraUnavailableError
-            ? "Samsara stats/HISTORY fetch FAILED (this is what silently zeros coverage — check the request/scope for /fleet/vehicles/stats/history)"
-            : `error: ${e instanceof Error ? e.message : String(e)}`,
-        samsaraVehicleId: veh?.samsara_vehicle_id,
-      };
-    }
-  }
+  const testReconcile = await runTestReconcile(admin, env, orgId, fills, ourVehicles, mappedIds);
 
   return {
     tokenConfigured: true as const,

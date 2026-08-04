@@ -23,6 +23,8 @@ export interface IdleSyncResult {
 }
 
 const UPSERT_CHUNK = 500;
+/** Fetch /idling/events in windows this size — a 30-day fleet-wide pull times Samsara out (504). */
+const IDLE_FETCH_CHUNK_DAYS = 7;
 
 /** The fleet's recent actual EFS price/gal (mean of the last N priced fills), for a real idle-cost estimate.
  *  Falls back to the configured/default rate when there's no price history. */
@@ -52,6 +54,26 @@ async function recentEfsPricePerGal(
  * (org_id, samsara_event_id). Driver comes from the event's `operator.id` (Samsara driver id) → our driver by
  * samsara_driver_id; unattributed when Samsara had no driver assigned.
  */
+type IdlingFetcher = (startIso: string, endIso: string) => Promise<{ data: unknown[] }>;
+
+/**
+ * Pull /idling/events in bounded time chunks and de-dupe by eventUuid. A single 30-day fleet-wide window makes
+ * Samsara time out (504) / error (500); ~7-day windows answer reliably. De-duping by eventUuid means an
+ * overlapping chunk edge — or an injected fetcher that ignores the window (tests) — never double-counts.
+ */
+async function fetchIdleEventsChunked(fetchIdling: IdlingFetcher, startMs: number, endMs: number) {
+  const CHUNK_MS = IDLE_FETCH_CHUNK_DAYS * 86_400_000;
+  const rawData: unknown[] = [];
+  for (let s = startMs; s < endMs; s += CHUNK_MS) {
+    const e = Math.min(s + CHUNK_MS, endMs);
+    const chunk = await fetchIdling(new Date(s).toISOString(), new Date(e).toISOString());
+    if (Array.isArray(chunk.data)) rawData.push(...chunk.data);
+  }
+  const byUuid = new Map<string, ReturnType<typeof parseIdlingEvents>[number]>();
+  for (const ev of parseIdlingEvents({ data: rawData })) byUuid.set(ev.eventUuid, ev);
+  return [...byUuid.values()];
+}
+
 export async function syncIdleEvents(
   admin: SupabaseClient,
   env: Env,
@@ -66,11 +88,10 @@ export async function syncIdleEvents(
   if (!token) throw new NoSamsaraTokenError();
 
   const days = opts.sinceDays ?? 30;
-  const endIso = new Date().toISOString();
-  const startIso = new Date(Date.now() - days * 86_400_000).toISOString();
+  const endMs = Date.now();
+  const startMs = endMs - days * 86_400_000;
   const fetchIdling = opts.idlingFetcher ?? makeSamsaraIdlingEventFetcher(env, token);
-  const raw = await fetchIdling(startIso, endIso);
-  const events = parseIdlingEvents(raw);
+  const events = await fetchIdleEventsChunked(fetchIdling, startMs, endMs);
   if (events.length === 0) return { fetched: 0, upserted: 0 };
 
   // Configured thresholds (settable comfort band, min duration, $ rates) — fall back to defaults when unset.
@@ -289,9 +310,9 @@ export async function syncIdleEvents(
         updated_at: now,
       }));
       for (let i = 0; i < arows.length; i += 500) {
-        await admin
-          .from("driver_vehicle_assignments")
-          .upsert(arows.slice(i, i + 500), { onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at" });
+        await admin.from("driver_vehicle_assignments").upsert(arows.slice(i, i + 500), {
+          onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at",
+        });
       }
     }
   } catch {
