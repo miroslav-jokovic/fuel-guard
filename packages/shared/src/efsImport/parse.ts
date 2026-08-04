@@ -1,6 +1,6 @@
 /** EFS report detection + transaction normalization + faithful lines + store re-derivation. */
 import type { FuelType } from "../constants.js";
-import { FUEL_PRODUCT_CODES, tankTypeForItem } from "./types.js";
+import { FUEL_PRODUCT_CODES, tankTypeForItem, fuelEventDateKey } from "./types.js";
 import type { RawRow, ParsedFuelLine, SkippedRow, ReportKind } from "./types.js";
 import { str, num, efsInstant, parseEfsTime, isNoonSentinelIso } from "./dateTime.js";
 
@@ -129,15 +129,15 @@ export function normalizeTransactionRows(rows: RawRow[]): {
     // collapsing reused invoice numbers across days). Only when the invoice is BLANK do we fall back
     // to a unique per-transaction key (TransactionId, else time+amount), so a missing invoice can't
     // collapse a whole card's history into a single row.
-    const base = stableTxnId
-      ? `${card ?? ""}|${stableTxnId}`
-      : invoice
-        ? `${card ?? ""}|${invoice}`
-        : `${card ?? ""}|${txnId ?? instant.iso}|${total ?? ""}|${gallons}`;
-    const dateKey = `${base}|${instant.tranDate}`;
-    // Reefer (ULSR) is a SEPARATE fueling event from the tractor's ULSD on the same invoice, so it can't
-    // inflate tractor volume/MPG checks. Merge per tank; suffix the ref with |reefer for reefer only, so
-    // the tractor event's external_ref stays byte-identical to before (dedup with prior imports intact).
+    const dateKey = fuelEventDateKey({
+      card,
+      identity: stableTxnId, // === derive path's l.transaction_id for SOAP → identical refs
+      invoice,
+      fallback: `${txnId ?? instant.iso}|${total ?? ""}|${gallons}`,
+      tranDate: instant.tranDate,
+    });
+    // Reefer (ULSR) is a separate fueling event from the tractor's ULSD; suffix |reefer so it merges per
+    // tank and never inflates tractor volume/MPG, while the tractor ref stays byte-identical to before.
     const tankType = tankTypeForItem(item);
     const ref = tankType === "reefer" ? `${dateKey}|reefer` : dateKey;
     const key = `${dateKey}|${tankType}`;
@@ -434,12 +434,21 @@ export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuel
       continue;
     }
     const invoice = str(l.invoice);
-    if (!invoice) {
+    const txnId = str(l.transaction_id);
+    // Skip only when there is NEITHER a transaction id NOR an invoice to key on (the direct parser keeps
+    // anything with either). Keying on invoice alone here — instead of the shared builder — is what let
+    // this path mint an invoice-ref twin of every transactionId-ref fill the direct parser had stored.
+    if (!invoice && !txnId) {
       skippedBlankInvoice += 1;
       continue;
     }
-    const dateKey = `${str(l.card_num) ?? ""}|${invoice}|${l.tran_date}`;
-    // Same tank split + ref convention as normalizeTransactionRows, so backfill produces identical refs.
+    const dateKey = fuelEventDateKey({
+      card: str(l.card_num),
+      identity: txnId,
+      invoice,
+      fallback: `${l.fueled_at ?? ""}|${l.amt ?? ""}|${l.qty}`,
+      tranDate: l.tran_date,
+    });
     const tankType = tankTypeForItem(item);
     const ref = tankType === "reefer" ? `${dateKey}|reefer` : dateKey;
     const key = `${dateKey}|${tankType}`;

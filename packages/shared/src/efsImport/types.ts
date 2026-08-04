@@ -98,3 +98,23 @@ export interface ParsedDeclined {
   /** When EFS last located the card's truck (for the proximity check), when present. */
   efs_truck_position_at: string | null;
 }
+
+
+/**
+ * The `card | identity | date` base of a merged fuel event's external_ref — the SINGLE source of truth
+ * both parse paths (normalizeTransactionRows, deriveFuelEventsFromEfsStore) use. When they diverged
+ * (one keyed on the EFS transactionId, the other on the invoice) the same fill produced two rows no
+ * unique index caught — ~half the fleet's gallons double-counted, cumulative_overfuel firing fleet-wide
+ * (2026-08). Precedence: EFS transactionId, then invoice, then a per-line fallback. Pure.
+ */
+export function fuelEventDateKey(p: {
+  card: string | null;
+  identity: string | null;
+  invoice: string | null;
+  fallback: string;
+  tranDate: string | null;
+}): string {
+  const card = p.card ?? "";
+  const base = p.identity ? `${card}|${p.identity}` : p.invoice ? `${card}|${p.invoice}` : `${card}|${p.fallback}`;
+  return `${base}|${p.tranDate ?? ""}`;
+}

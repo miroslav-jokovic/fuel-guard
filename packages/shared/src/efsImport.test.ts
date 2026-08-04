@@ -462,6 +462,48 @@ describe("deriveFuelEventsFromEfsStore (repair path)", () => {
     expect(r.skippedBlankInvoice).toBe(1);
     expect(r.skippedUnusable).toBe(2);
   });
+
+  it("keys on the EFS transactionId when present, NOT the invoice", () => {
+    // The SOAP feed always carries a transactionId. Before the fix this path keyed on invoice, minting
+    // a second, invoice-ref copy of every fill the direct parser had already stored under the
+    // transactionId ref — 9,016 duplicate fills / ~1.08M phantom gallons in production (2026-08).
+    const r = deriveFuelEventsFromEfsStore([line({ transaction_id: "1562529156", invoice: "0501726762" })]);
+    expect(r.events[0]!.external_ref).toBe("94507|1562529156|2026-06-29");
+    expect(r.events[0]!.external_ref).not.toContain("0501726762");
+  });
+
+  it("still keys on a transactionId even when the invoice is blank (no longer skipped)", () => {
+    const r = deriveFuelEventsFromEfsStore([line({ transaction_id: "1562529156", invoice: null })]);
+    expect(r.events).toHaveLength(1);
+    expect(r.events[0]!.external_ref).toBe("94507|1562529156|2026-06-29");
+    expect(r.skippedBlankInvoice).toBe(0);
+  });
+});
+
+// THE regression guard for the fleet-wide duplication: the same physical SOAP fill, taken through the
+// DIRECT parser and through the STORE re-derivation, must produce a byte-identical external_ref — else
+// the two paths mint two rows the unique index can't reconcile.
+describe("cross-path external_ref consistency (transactionId-keyed SOAP fill)", () => {
+  it("normalizeTransactionRows and deriveFuelEventsFromEfsStore agree", () => {
+    const CARD = "7083050013944595371", TXN = "1562529156", INV = "0501726762", DATE = "2026-08-02";
+    const direct = normalizeTransactionRows([
+      {
+        "Card #": CARD, "Stable Transaction ID": TXN, TransactionId: TXN, Invoice: INV,
+        "Tran Date": DATE, Unit: "670", "Driver Name": "FRANCISCO ESCOBEDO",
+        Item: "ULSD", "Unit Price": "4.78", Qty: "168.12", Amt: "804.25", "State/ Prov": "MS",
+      },
+    ]).fuelLines[0]!;
+    const derived = deriveFuelEventsFromEfsStore([
+      {
+        card_num: CARD, transaction_id: TXN, invoice: INV, tran_date: DATE,
+        fueled_at: `${DATE}T12:00:00.000Z`, unit: "670", driver_name: "FRANCISCO ESCOBEDO",
+        odometer: 315745, location_name: "PILOT", city: "X", state: "MS",
+        item: "ULSD", qty: 168.12, amt: 804.25,
+      },
+    ]).events[0]!;
+    expect(direct.external_ref).toBe(`${CARD}|${TXN}|${DATE}`);
+    expect(derived.external_ref).toBe(direct.external_ref); // ← the whole point
+  });
 });
 
 // ── WP1: reject-report golden rows (verbatim from data-samples/RejectTransactionReport-260707092249.xlsx),
