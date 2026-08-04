@@ -68,7 +68,13 @@ const { data: driverRows, isLoading, isError, error, refetch, isFetching } = use
 const { data: breakdown, isLoading: trkLoading, isError: trkIsError, error: trkError, isFetching: trkFetching, refetch: trkRefetch } = useIdleBreakdown(dateFilter, costBasis);
 const fleet = computed(() => breakdown.value?.fleet ?? null);
 // P1: HOS duty split overlaid on idle events (rest vs on-duty). Shown only — no scoring impact yet.
-const { data: dutySplit } = useDutyIdleSplit(dateFilter);
+// A query failure is SURFACED (it was silently swallowed before, leaving both duty columns "—" with no
+// clue why): the columns still degrade to "—", but the reason lands in the console for diagnosis.
+const { data: dutySplit, error: dutySplitError } = useDutyIdleSplit(dateFilter);
+watch(dutySplitError, (e) => {
+  if (e)
+    console.warn("[idling] HOS duty split failed — Rest/On-duty idle columns degrade to '—':", e.message);
+});
 const { data: caps } = useIdleCapabilities();
 const { data: settings } = useIdleSettings();
 const { data: confidence } = useIdleConfidence();

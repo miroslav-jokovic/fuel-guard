@@ -50,14 +50,13 @@ describe("syncHosDutySegments (end-to-end)", () => {
     });
     const hosFetcher = async () => ({
       data: [
-        {
-          driver: { id: "op1" },
-          logs: [
-            { logStartTime: iso(T0), dutyStatus: "driving" },
-            { logStartTime: iso(T0 + 2 * H), dutyStatus: "sleeperBed" },
-          ],
-        },
-        { driver: { id: "op2" }, logs: [{ logStartTime: iso(T0 + H), dutyStatus: "onDuty" }] },
+        { driver: { id: "op1" }, logs: [
+          { logStartTime: iso(T0), dutyStatus: "driving" },
+          { logStartTime: iso(T0 + 2 * H), dutyStatus: "sleeperBed" },
+        ] },
+        { driver: { id: "op2" }, logs: [
+          { logStartTime: iso(T0 + H), dutyStatus: "onDuty" },
+        ] },
       ],
     });
 
@@ -87,11 +86,7 @@ describe("syncHosDutySegments (end-to-end)", () => {
     const { admin, captured } = makeAdmin({ drivers: { data: [] } });
     // A malformed item: no recognizable driver id / logs → 0 segments although data is non-empty.
     const hosFetcher = async () => ({ data: [{ unexpected: true, entries: [{ ts: "x" }] }] });
-    const res = await syncHosDutySegments(admin, env, "org1", {
-      hosFetcher,
-      startIso: iso(T0),
-      endIso: iso(T0 + H),
-    });
+    const res = await syncHosDutySegments(admin, env, "org1", { hosFetcher, startIso: iso(T0), endIso: iso(T0 + H) });
     expect(res).toEqual({ fetched: 0, upserted: 0 });
     expect(captured.hos_duty_segments).toBeUndefined(); // nothing written
     expect(warn).toHaveBeenCalledOnce();
@@ -188,5 +183,121 @@ describe("syncHosCurrentStatus (clocks + GPS city)", () => {
     const res = await syncHosCurrentStatus(admin, {} as Env, "org1", { clocksFetcher, gpsFetcher });
     expect(res).toEqual({ drivers: 2, located: 0 });
     expect(updates.drivers![0]).toMatchObject({ current_location: null });
+  });
+});
+
+describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
+  it("skips segments already stored identically; writes only new/changed rows", async () => {
+    const { admin, captured } = makeAdmin({
+      drivers: { data: [{ id: "d1", samsara_driver_id: "op1" }] },
+      // The driving segment is already stored EXACTLY as it will parse → must be skipped.
+      hos_duty_segments: {
+        data: [
+          {
+            samsara_driver_id: "op1",
+            driver_id: "d1",
+            status: "driving",
+            started_at: iso(T0),
+            ended_at: iso(T0 + 2 * H),
+          },
+        ],
+      },
+    });
+    const hosFetcher = async () => ({
+      data: [
+        { driver: { id: "op1" }, hosLogs: [
+          { logStartTime: iso(T0), hosStatusType: "driving" },
+          { logStartTime: iso(T0 + 2 * H), hosStatusType: "sleeperBed" },
+        ] },
+      ],
+    });
+    const res = await syncHosDutySegments(admin, env, "org1", {
+      startIso: iso(T0),
+      endIso: iso(T0 + 10 * H),
+      hosFetcher,
+    });
+    expect(res.fetched).toBe(2);
+    expect(res.upserted).toBe(1); // only the sleeper segment is new
+    expect(captured.hos_duty_segments!.map((r) => r.status)).toEqual(["sleeper"]);
+  });
+
+  it("rewrites a stored segment whose ended_at moved (open segment closed by a later log)", async () => {
+    const { admin, captured } = makeAdmin({
+      drivers: { data: [{ id: "d1", samsara_driver_id: "op1" }] },
+      hos_duty_segments: {
+        data: [
+          {
+            samsara_driver_id: "op1",
+            driver_id: "d1",
+            status: "sleeper",
+            started_at: iso(T0),
+            ended_at: iso(T0 + 2 * H), // previously closed at the old window edge
+          },
+        ],
+      },
+    });
+    const hosFetcher = async () => ({
+      data: [
+        { driver: { id: "op1" }, hosLogs: [
+          { logStartTime: iso(T0), hosStatusType: "sleeperBed" },
+          { logStartTime: iso(T0 + 5 * H), hosStatusType: "driving" }, // real end arrived
+        ] },
+      ],
+    });
+    const res = await syncHosDutySegments(admin, env, "org1", {
+      startIso: iso(T0),
+      endIso: iso(T0 + 10 * H),
+      hosFetcher,
+    });
+    expect(res.upserted).toBe(2); // sleeper re-written with its true end + the new driving segment
+    const sleeper = captured.hos_duty_segments!.find((r) => r.status === "sleeper")!;
+    expect(sleeper.ended_at).toBe(iso(T0 + 5 * H));
+  });
+
+  it("never unlinks an already-linked driver when the id no longer resolves", async () => {
+    const { admin, captured } = makeAdmin({
+      drivers: { data: [] }, // op1 no longer resolvable (e.g. deactivated)
+      hos_duty_segments: {
+        data: [
+          {
+            samsara_driver_id: "op1",
+            driver_id: "d1", // linked by an earlier sync
+            status: "driving",
+            started_at: iso(T0),
+            ended_at: iso(T0 + H), // will change → row IS rewritten
+          },
+        ],
+      },
+    });
+    const hosFetcher = async () => ({
+      data: [
+        { driver: { id: "op1" }, hosLogs: [{ logStartTime: iso(T0), hosStatusType: "driving" }] },
+      ],
+    });
+    await syncHosDutySegments(admin, env, "org1", {
+      startIso: iso(T0),
+      endIso: iso(T0 + 10 * H),
+      hosFetcher,
+    });
+    expect(captured.hos_duty_segments![0]!.driver_id).toBe("d1"); // kept, not nulled
+  });
+
+  it("fetches the window in ≤7-day chunks and merges before parsing", async () => {
+    const calls: [string, string][] = [];
+    const hosFetcher = async (s: string, e: string) => {
+      calls.push([s, e]);
+      return { data: [] };
+    };
+    const D = 86_400_000;
+    await syncHosDutySegments(makeAdmin({ drivers: { data: [] } }).admin, env, "org1", {
+      startIso: iso(T0),
+      endIso: iso(T0 + 20 * D),
+      hosFetcher,
+    });
+    expect(calls).toEqual([
+      [iso(T0), iso(T0 + 7 * D)],
+      [iso(T0 + 7 * D), iso(T0 + 14 * D)],
+      [iso(T0 + 14 * D), iso(T0 + 20 * D)],
+    ]);
   });
 });

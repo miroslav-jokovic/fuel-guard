@@ -6,6 +6,9 @@ import type { IdleDateFilter } from "./useIdleScores";
 
 const PAGE = 1000;
 const WINDOW_DAYS = 30;
+/** Fetch duty segments from this far BEFORE the visible window: a segment that started earlier (an
+ *  overnight sleeper, a 34-h restart) still covers idle events at the window's start. */
+const SEGMENT_LOOKBACK_MS = 72 * 3_600_000;
 
 /** Per-truck idle split by HOS duty kind (hours, 0.1h). P1: SHOWN ONLY — nothing here feeds scoring yet. */
 export interface DutyIdleSplit {
@@ -36,16 +39,22 @@ export function useDutyIdleSplit(filters: Ref<IdleDateFilter>) {
     queryFn: async (): Promise<Map<string, DutyIdleSplit>> => {
       const { fromIso, toIso } = rangeBounds(toValue(filters));
 
-      // 1) HOS duty segments in range, grouped per driver (skip unmatched/null drivers — can't join to events).
+      // 1) HOS duty segments in range, grouped per driver. Unlinked rows (driver_id null — 2/3 of a large
+      // historical backfill) can never join to an event, so they're excluded SERVER-side; ordering on
+      // (started_at, id) matches idx_hos_seg_org_time so pages come off the index instead of a repeated
+      // sort — this query was hitting the DB's statement timeout on a 500k+-row table, and the swallowed
+      // error blanked both duty columns. The window start is padded so already-open segments still count.
+      const segFromIso = new Date(Date.parse(fromIso) - SEGMENT_LOOKBACK_MS).toISOString();
       const segsByDriver = new Map<string, HosSegment[]>();
       for (let offset = 0; ; offset += PAGE) {
         const { data, error } = await supabase
           .from("hos_duty_segments")
           .select("driver_id, status, started_at, ended_at")
-          .gte("started_at", fromIso)
+          .not("driver_id", "is", null)
+          .gte("started_at", segFromIso)
           .lte("started_at", toIso)
-          .order("driver_id", { ascending: true })
           .order("started_at", { ascending: true })
+          .order("id", { ascending: true })
           .range(offset, offset + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as { driver_id: string | null; status: string; started_at: string; ended_at: string | null }[];
@@ -76,8 +85,10 @@ export function useDutyIdleSplit(filters: Ref<IdleDateFilter>) {
           .select("vehicle_id, driver_id, started_at, duration_sec")
           .gte("started_at", fromIso)
           .lte("started_at", toIso)
-          .order("vehicle_id", { ascending: true })
+          // (started_at, id) is a stable total order (no dropped/duplicated rows across pages) that the
+          // time index can serve directly; grouping below is map-based, so row order doesn't matter.
           .order("started_at", { ascending: true })
+          .order("id", { ascending: true })
           .range(offset, offset + PAGE - 1);
         if (error) throw new Error(error.message);
         const batch = (data ?? []) as { vehicle_id: string | null; driver_id: string | null; started_at: string; duration_sec: number }[];
