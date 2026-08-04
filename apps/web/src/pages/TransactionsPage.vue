@@ -10,7 +10,7 @@ import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
-import { stationTime } from "@/lib/stationTime";
+import { stationTime, businessDate } from "@/lib/stationTime";
 
 const { data: vehicles } = useVehiclesQuery();
 const filters = ref<EfsFilters>({});
@@ -143,6 +143,7 @@ const columns: DataTableColumn[] = [
       @sort="onSort"
       @retry="refetch"
     >
+      <template #cell-tran_date="{ row }">{{ businessDate(row.tran_date) }}</template>
       <template #cell-tran_time="{ row }">{{ row.tran_time || stationTime(row.fueled_at, row.state) }}</template>
       <template #cell-odometer="{ row }">{{ fmtNum(row.odometer) }}</template>
       <template #cell-unit_price="{ row }">{{ fmtMoney(row.unit_price) }}</template>

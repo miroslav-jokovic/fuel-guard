@@ -42,6 +42,24 @@ export function stationDateTime(iso: string | null | undefined, state: string | 
   }
 }
 
+/**
+ * Format the EFS BUSINESS DATE ("YYYY-MM-DD", station-local calendar date as printed on the report)
+ * as "Jun 7, 2026". Constructed and formatted in UTC on purpose: tran_date is a plain calendar date,
+ * not an instant, so passing it through a station/browser timezone would drift it a day near midnight
+ * (the classic "2026-06-07 → Jun 6" bug). This keeps it byte-for-byte the day EFS printed.
+ */
+export function businessDate(ymd: string | null | undefined): string {
+  if (!ymd) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
+  if (!m) return ymd;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" }).format(d);
+  } catch {
+    return ymd;
+  }
+}
+
 /** Date only, in the station's local timezone (avoids the browser-tz off-by-a-day near midnight). */
 export function stationDate(iso: string | null | undefined, state: string | null | undefined): string {
   if (!iso) return "—";
