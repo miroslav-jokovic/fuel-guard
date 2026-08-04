@@ -730,6 +730,44 @@ describe("Phase 3 — robust over-fuel window miles", () => {
     expect(robustWindowMiles([row(100000)]).miles).toBeNull();
     expect(robustWindowMiles([row(null, null, "obd")]).miles).toBeNull();
   });
+
+  it("suppresses (null) a NON-ADVANCING entered odometer — the constant-placeholder false-alarm class", () => {
+    // The production failure: a stale/placeholder odometer echoed unchanged across two real fuel
+    // purchases (e.g. "736" on every fill). It is monotonic, but the span is 0 → NOT usable distance.
+    // Returning 0 here made burnable 0 and false-fired cumulative_overfuel on every backfilled fill.
+    expect(robustWindowMiles([row(736), row(736)]).miles).toBeNull();
+    // …and anything inside the ±1 noise floor is equally not-a-distance.
+    expect(robustWindowMiles([row(100000), row(100000.4)]).miles).toBeNull();
+  });
+
+  it("still fires on a SMALL but real span — lots of fuel, few miles is exactly the theft signal", () => {
+    // A 20-mile span with a big purchase must NOT be suppressed; that is the pattern the rule exists
+    // for. The fix targets non-movement only, never genuine low-mileage-high-volume.
+    const r = robustWindowMiles([row(100000), row(100020)]);
+    expect(r.basis).toBe("entered");
+    expect(r.miles).toBe(20);
+  });
+
+  it("suppresses (null) when the CLEAN OBD odometer shows no movement, without falling back to entered", () => {
+    // OBD is authoritative: if the despiked baseline says the truck didn't move, a noisier entered
+    // span must not resurrect a distance. 0-mile windows are ambiguous (yard top-off) → suppress.
+    expect(robustWindowMiles([row(100000, 500000, "obd"), row(100600, 500000, "obd")]).miles).toBeNull();
+  });
+});
+
+// End-to-end: the constant-odometer window must NOT raise cumulative_overfuel through the rule engine.
+describe("cumulative_overfuel — constant/stale odometer window (regression for the SOAP backfill flood)", () => {
+  it("stays silent when the window's miles are 0 because the odometer never advanced", () => {
+    // robustWindowMiles([{736},{736}]) → null (proven in the Phase 3 suite above). The scorer passes
+    // that null straight into windowMiles, so the rule must suppress rather than treat burnable as 0.
+    const windowMiles = robustWindowMiles([
+      { enteredOdometer: 736, samsaraOdometer: null, samsaraSource: null },
+      { enteredOdometer: 736, samsaraOdometer: null, samsaraSource: null },
+    ]).miles;
+    expect(windowMiles).toBeNull();
+    const c = ctx({ windowGallons: 259.52, windowMiles });
+    expect(ids(c)).not.toContain("cumulative_overfuel");
+  });
 });
 
 describe("Phase 4 — systematic station-offset (wrong-pin) detection", () => {

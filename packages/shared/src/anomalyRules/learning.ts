@@ -104,23 +104,47 @@ export interface WindowMilesResult {
 }
 
 /**
+ * The odometer must ADVANCE by more than this many miles across the window for the span to count as
+ * real distance. Matches the ±1 float/entry-noise tolerance used in the monotonic check below: a span
+ * at or under it is "the odometer did not move", which is not a usable distance.
+ */
+const MIN_WINDOW_ADVANCE_MI = 1;
+
+/**
  * Robust miles-driven over the cumulative window. The over-fuel ceiling is only as trustworthy as this number,
  * and computing it from the DRIVER-ENTERED odometer span lets one typo / missed / duplicate entry collapse the
  * miles and false-fire cumulative_overfuel. So: prefer the clean OBD Samsara odometer span (single, despiked
  * baseline); fall back to the entered span ONLY when it doesn't regress (a later reading below an earlier one
  * signals a bad entry); otherwise return null so the rule stays silent (data-quality, not fraud). Rows must be
  * ordered OLDEST→NEWEST.
+ *
+ * A NON-ADVANCING span (the same odometer echoed across fills — a stale/placeholder reading like a
+ * constant "736", or a truck that genuinely didn't move between two fuel purchases) is treated as NO
+ * usable distance → null, NOT as 0 miles. This is the single most important guard here: a 0-mile span
+ * makes `burnable` 0, so EVERY real purchase clears the over-fuel ceiling and false-fires. It also
+ * makes this function consistent with `milesSinceLast`, which already returns null unless the odometer
+ * strictly advances (`d > 0`). 0-mile windows are additionally ambiguous even with a good odometer — a
+ * yard top-off is a legitimate buy-fuel-without-driving — so suppression is the precision-first choice;
+ * genuine park-and-hoard is caught by the tank-space / same-station rules, not by this ratio.
  */
 export function robustWindowMiles(rowsOldestFirst: WindowOdoRow[]): WindowMilesResult {
   const obd = rowsOldestFirst
     .filter((r) => r.samsaraSource === "obd" && r.samsaraOdometer != null && Number.isFinite(r.samsaraOdometer))
     .map((r) => r.samsaraOdometer as number);
-  if (obd.length >= 2) return { miles: Math.max(...obd) - Math.min(...obd), basis: "samsara_obd" };
+  if (obd.length >= 2) {
+    // OBD is authoritative when present: use its span, or suppress if it didn't advance. Do NOT fall
+    // through to the noisier entered span when the clean source says the truck didn't move.
+    const span = Math.max(...obd) - Math.min(...obd);
+    return span > MIN_WINDOW_ADVANCE_MI ? { miles: span, basis: "samsara_obd" } : { miles: null, basis: "none" };
+  }
 
   const entered = rowsOldestFirst.map((r) => r.enteredOdometer).filter((x): x is number => x != null && Number.isFinite(x));
   if (entered.length >= 2) {
     const monotonic = entered.every((v, i) => i === 0 || v >= entered[i - 1]! - 1); // no backward jump (±1 float tol)
-    if (monotonic) return { miles: Math.max(...entered) - Math.min(...entered), basis: "entered" };
+    const span = Math.max(...entered) - Math.min(...entered);
+    // Require REAL advancement, not merely monotonicity — a constant (non-advancing) odometer is
+    // monotonic but carries no distance.
+    if (monotonic && span > MIN_WINDOW_ADVANCE_MI) return { miles: span, basis: "entered" };
   }
   return { miles: null, basis: "none" };
 }
