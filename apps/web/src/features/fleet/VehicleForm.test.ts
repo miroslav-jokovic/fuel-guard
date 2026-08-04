@@ -16,6 +16,7 @@ const drivers = [
     current_hos_status: null,
     current_hos_vehicle: null,
     current_hos_at: null,
+    current_location: null,
     created_at: "",
     updated_at: "",
   },

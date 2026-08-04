@@ -146,9 +146,11 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
   try {
     const result = await syncHosDutySegments(admin, env, orgId, { sinceDays });
     let currentDrivers = 0;
+    let located = 0;
     await nonFatal("hos current status", orgId, async () => {
       const c = await syncHosCurrentStatus(admin, env, orgId);
       currentDrivers = c.drivers;
+      located = c.located;
     });
     if (actorId) {
       await writeAudit(admin, {
@@ -156,10 +158,10 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
         actorId,
         action: "integration.samsara.hos_synced",
         entity: "hos_duty_segments",
-        meta: { ...result, currentDrivers },
+        meta: { ...result, currentDrivers, located },
       });
     }
-    return { ...result, currentDrivers };
+    return { ...result, currentDrivers, located };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
     throw e;

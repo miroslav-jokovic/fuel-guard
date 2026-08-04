@@ -139,6 +139,13 @@ const columns: DataTableColumn[] = [
     cellClass: "text-ink-secondary",
   },
   {
+    key: "current_location",
+    label: "Location",
+    sortable: true,
+    headerClass: "min-w-[9rem]",
+    cellClass: "text-ink-secondary",
+  },
+  {
     key: "phone",
     label: "Phone",
     headerClass: "min-w-[9rem]",
@@ -247,6 +254,7 @@ async function onSubmit(input: DriverInput) {
         <span v-else class="text-xs text-ink-subtle">—</span>
       </template>
       <template #cell-current_hos_vehicle="{ row }">{{ row.current_hos_vehicle || "—" }}</template>
+      <template #cell-current_location="{ row }">{{ row.current_location || "—" }}</template>
       <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">

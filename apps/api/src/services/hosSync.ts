@@ -1,12 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseHosLogs, parseHosClocks, type HosSegment } from "@fuelguard/shared";
+import {
+  parseHosLogs,
+  parseHosClocks,
+  parseVehicleGpsSnapshots,
+  cityFromFormattedLocation,
+  type HosSegment,
+  type VehicleGpsSnapshot,
+} from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import {
   makeSamsaraHosLogsFetcher,
   makeSamsaraHosClocksFetcher,
+  makeSamsaraGpsSnapshotFetcher,
   type SamsaraHosLogsFetcher,
   type SamsaraHosClocksFetcher,
+  type SamsaraGpsSnapshotFetcher,
 } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 
@@ -111,6 +120,27 @@ export async function syncHosDutySegments(
 
 export interface HosCurrentStatusResult {
   drivers: number; // driver rows whose live HOS status was refreshed
+  located: number; // of those, how many also got a current city location
+}
+
+/**
+ * Best-effort fleet GPS snapshot (one paginated /fleet/vehicles/stats?types=gps call). Samsara decorates
+ * each fix with its own reverse-geocoded `formattedLocation`, so no external geocoder is involved. Returns
+ * null when the feed fails — the caller then leaves `current_location` untouched (a stale city beats
+ * wiping every driver's location over a transient stats hiccup) and the status sync itself still runs.
+ */
+async function fetchGpsByVehicle(
+  fetcher: SamsaraGpsSnapshotFetcher,
+): Promise<Map<string, VehicleGpsSnapshot> | null> {
+  try {
+    const raw = await fetcher();
+    return parseVehicleGpsSnapshots(raw as Parameters<typeof parseVehicleGpsSnapshots>[0]);
+  } catch (e) {
+    console.warn(
+      `[hosSync] vehicle GPS snapshot failed (driver locations left as-is): ${e instanceof Error ? e.message : e}`,
+    );
+    return null;
+  }
 }
 
 /**
@@ -123,14 +153,19 @@ export async function syncHosCurrentStatus(
   admin: SupabaseClient,
   env: Env,
   orgId: string,
-  opts: { clocksFetcher?: SamsaraHosClocksFetcher } = {},
+  opts: { clocksFetcher?: SamsaraHosClocksFetcher; gpsFetcher?: SamsaraGpsSnapshotFetcher } = {},
 ): Promise<HosCurrentStatusResult> {
   const token = opts.clocksFetcher ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
 
   const raw = await (opts.clocksFetcher ?? makeSamsaraHosClocksFetcher(env, token))();
   const statuses = parseHosClocks(raw.data);
-  if (statuses.length === 0) return { drivers: 0 };
+  if (statuses.length === 0) return { drivers: 0, located: 0 };
+
+  // Truck GPS snapshot → the driver's current city (via the driver's current vehicle). Null = feed down.
+  const gpsByVehicle = await fetchGpsByVehicle(
+    opts.gpsFetcher ?? makeSamsaraGpsSnapshotFetcher(env, token),
+  );
 
   const { data: ds } = await admin
     .from("drivers")
@@ -146,19 +181,34 @@ export async function syncHosCurrentStatus(
 
   const now = new Date().toISOString();
   let drivers = 0;
+  let located = 0;
   for (const st of statuses) {
     const id = byS.get(st.driverId);
     if (!id) continue;
-    const { error } = await admin
-      .from("drivers")
-      .update({
-        current_hos_status: st.status,
-        current_hos_vehicle: st.vehicleName,
-        current_hos_at: now,
-      })
-      .eq("id", id)
-      .eq("org_id", orgId);
-    if (!error) drivers++;
+    const patch: {
+      current_hos_status: string;
+      current_hos_vehicle: string | null;
+      current_hos_at: string;
+      current_location?: string | null;
+    } = {
+      current_hos_status: st.status,
+      current_hos_vehicle: st.vehicleName,
+      current_hos_at: now,
+    };
+    // Location is written ONLY when the GPS snapshot succeeded: a driver on a truck with a fix gets its
+    // city; a driver with no truck / a truck without a fix is honestly cleared. When the snapshot failed
+    // the key is omitted entirely so the last known city survives a transient feed error.
+    if (gpsByVehicle) {
+      const city = st.vehicleId
+        ? cityFromFormattedLocation(gpsByVehicle.get(st.vehicleId)?.location)
+        : null;
+      patch.current_location = city;
+    }
+    const { error } = await admin.from("drivers").update(patch).eq("id", id).eq("org_id", orgId);
+    if (!error) {
+      drivers++;
+      if (patch.current_location) located++;
+    }
   }
-  return { drivers };
+  return { drivers, located };
 }

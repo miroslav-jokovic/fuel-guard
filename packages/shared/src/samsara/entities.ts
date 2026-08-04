@@ -1,6 +1,7 @@
 /** Samsara entity parsing: vehicles, drivers, assignments, trailers. */
 import { haversineMiles } from "../ai.js";
 import { metersToMiles } from "./core.js";
+import { cityFromAddress, stateFromAddress } from "./location.js";
 
 interface RawSamsaraVehicle {
   id?: string;
@@ -31,12 +32,19 @@ interface RawStatValue {
   value?: number;
   time?: string;
 }
+interface RawGpsSnapshot {
+  latitude?: number;
+  longitude?: number;
+  time?: string;
+  reverseGeo?: { formattedLocation?: string };
+}
 interface RawVehicleStat {
   id?: string;
   obdOdometerMeters?: RawStatValue;
   gpsOdometerMeters?: RawStatValue;
   fuelPercent?: RawStatValue; // Samsara returns this SINGULAR in the stats response
   fuelPercents?: RawStatValue;
+  gps?: RawGpsSnapshot;
 }
 
 export interface VehicleFuelLevel {
@@ -75,6 +83,59 @@ export function parseVehicleStatsOdometer(response: {
     if (meters != null) out.set(String(v.id), metersToMiles(meters));
   }
   return out;
+}
+
+/** One truck's current GPS snapshot from `GET /fleet/vehicles/stats?types=gps`. */
+export interface VehicleGpsSnapshot {
+  /** Samsara's own reverse-geocoded place, e.g. "Butano Avenue, Sunnyvale, CA". Null when not reported. */
+  location: string | null;
+  lat: number | null;
+  lng: number | null;
+  time: string | null;
+}
+
+/**
+ * Parse `GET /fleet/vehicles/stats?types=gps` into a map of Samsara vehicle id → current GPS snapshot.
+ * Samsara decorates each fix with `reverseGeo.formattedLocation` (verified against the live API and the
+ * vehicle-stats docs), so no external reverse-geocoding call is needed. Vehicles with no `gps` object at
+ * all are omitted; a fix without coordinates still yields the location string when present.
+ */
+export function parseVehicleGpsSnapshots(response: {
+  data?: RawVehicleStat[];
+}): Map<string, VehicleGpsSnapshot> {
+  const out = new Map<string, VehicleGpsSnapshot>();
+  for (const v of response.data ?? []) {
+    if (!v.id || !v.gps) continue;
+    const g = v.gps;
+    out.set(String(v.id), {
+      location: clean(g.reverseGeo?.formattedLocation),
+      lat: Number.isFinite(g.latitude) ? g.latitude! : null,
+      lng: Number.isFinite(g.longitude) ? g.longitude! : null,
+      time: g.time ?? null,
+    });
+  }
+  return out;
+}
+
+/**
+ * Reduce Samsara's `reverseGeo.formattedLocation` to a "City, ST" display form for the Drivers page.
+ * Reuses the existing address helpers (`cityFromAddress` / `stateFromAddress`, which validate the state
+ * token against the US/CA list) so "Butano Avenue, Sunnyvale, CA" → "Sunnyvale, CA". When no recognizable
+ * state token exists, falls back to the last two comma-separated tokens (better a slightly long place name
+ * than a blank); blank/undefined → null. Pure string math — never guesses or geocodes.
+ */
+export function cityFromFormattedLocation(location: string | null | undefined): string | null {
+  const t = location?.trim();
+  if (!t) return null;
+  const city = cityFromAddress(t);
+  const state = stateFromAddress(t);
+  if (city && state) return `${city}, ${state}`;
+  if (state) return state; // state-only address (e.g. a highway fix): still honest
+  const parts = t
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts.length ? parts.slice(-2).join(", ") : null;
 }
 
 interface RawSamsaraDriver {

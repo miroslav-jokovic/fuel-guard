@@ -54,6 +54,9 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // DB layer with a schema-cache error that reads like an app bug.
   { table: "hos_duty_segments", column: "status", migration: "0109" },
   { table: "drivers", column: "current_hos_status", migration: "0111" },
+  // Driver current city (from the truck's Samsara GPS snapshot). Unapplied 0112 makes the HOS sync's
+  // driver-status update fail at the DB layer with a schema-cache error that reads like an app bug.
+  { table: "drivers", column: "current_location", migration: "0112" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

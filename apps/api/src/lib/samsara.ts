@@ -345,6 +345,16 @@ export function makeSamsaraHosClocksFetcher(env: Env, token: string): SamsaraHos
   return async () => ({ data: await listAllPages(env, token, "/fleet/hos/clocks") });
 }
 
+/** Current GPS snapshot for EVERY vehicle (GET /fleet/vehicles/stats?types=gps) — one paginated call for
+ *  the whole fleet. Each entry carries lat/lng + Samsara's own `reverseGeo.formattedLocation`, so driver
+ *  location display needs no external geocoder. Raw `data[]` for parseVehicleGpsSnapshots. */
+export type SamsaraGpsSnapshotFetcher = () => Promise<{ data?: unknown[] }>;
+export function makeSamsaraGpsSnapshotFetcher(env: Env, token: string): SamsaraGpsSnapshotFetcher {
+  return async () => ({
+    data: await listAllPages(env, token, "/fleet/vehicles/stats", { types: "gps" }),
+  });
+}
+
 /** Lists every driver in the org. */
 export type SamsaraDriverLister = () => Promise<unknown[]>;
 

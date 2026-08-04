@@ -181,6 +181,7 @@ export interface Driver {
   current_hos_status: string | null; // live HOS duty status (Samsara clocks)
   current_hos_vehicle: string | null; // current truck unit
   current_hos_at: string | null;
+  current_location: string | null; // current "City, ST" from the truck's GPS snapshot (0112)
   created_at: string;
   updated_at: string;
 }

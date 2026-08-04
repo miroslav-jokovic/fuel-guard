@@ -1,12 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { syncVehiclesFromSamsara, syncVehicleStatsFromSamsara, NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import {
+  syncVehiclesFromSamsara,
+  syncVehicleStatsFromSamsara,
+  NoSamsaraTokenError,
+} from "./samsaraVehicleSync.js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 import { syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
 import { syncIdleEvents } from "./idleSync.js";
-import { syncHosDutySegments } from "./hosSync.js";
+import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
 import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
 
@@ -48,7 +52,10 @@ async function runOrgTier(
       await enqueueJob(admin, kind, { orgId }); // scheduler runs carry no actor + an empty payload
     } catch (e) {
       if (e instanceof JobConflictError) return; // already queued/running for this (org, kind)
-      console.error(`[samsara-sched] ${kind} enqueue failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+      console.error(
+        `[samsara-sched] ${kind} enqueue failed for org ${orgId}:`,
+        e instanceof Error ? e.message : e,
+      );
     }
     return;
   }
@@ -57,7 +64,10 @@ async function runOrgTier(
     jobId = await startJob(admin, orgId, kind); // scheduler runs have no requested_by
   } catch (e) {
     if (e instanceof JobConflictError) return; // a run of this kind is already active for the org
-    console.error(`[samsara-sched] ${kind} start failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+    console.error(
+      `[samsara-sched] ${kind} start failed for org ${orgId}:`,
+      e instanceof Error ? e.message : e,
+    );
     return;
   }
   try {
@@ -68,8 +78,14 @@ async function runOrgTier(
       await finishJob(admin, jobId, { status: "done", stats: { skipped: "no token" } });
       return;
     }
-    await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
-    console.error(`[samsara-sched] ${kind} failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+    await finishJob(admin, jobId, {
+      status: "failed",
+      error: e instanceof Error ? e.message : String(e),
+    });
+    console.error(
+      `[samsara-sched] ${kind} failed for org ${orgId}:`,
+      e instanceof Error ? e.message : e,
+    );
   }
 }
 
@@ -126,9 +142,16 @@ export function startSamsaraScheduler(env: Env): void {
   startTier(env, "identity", 90_000, identityMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       await runOrgTier(admin, env, orgId, "sync_vehicles", async () => {
-        try { await syncDriversFromSamsara(admin, env, orgId); } catch { /* non-fatal */ }
+        try {
+          await syncDriversFromSamsara(admin, env, orgId);
+        } catch {
+          /* non-fatal */
+        }
         const r = await syncVehiclesFromSamsara(admin, env, orgId);
-        await admin.from("integration_credentials").update({ last_synced_at: new Date().toISOString() }).eq("org_id", orgId);
+        await admin
+          .from("integration_credentials")
+          .update({ last_synced_at: new Date().toISOString() })
+          .eq("org_id", orgId);
         return { total: r.total, created: r.created, updated: r.updated, assigned: r.assigned };
       });
     }
@@ -149,7 +172,21 @@ export function startSamsaraScheduler(env: Env): void {
       });
       await runOrgTier(admin, env, orgId, "sync_hos", async () => {
         const r = await syncHosDutySegments(admin, env, orgId);
-        return { fetched: r.fetched, upserted: r.upserted };
+        // Same follow-up the manual/queue handler does: stamp each driver's CURRENT duty status, truck and
+        // city (clocks + one fleet GPS snapshot). Best-effort — the scheduled job's segment stats stand even
+        // if the live-status pass hiccups. Without this the Drivers page only refreshed on a manual click.
+        let currentDrivers = 0;
+        let located = 0;
+        try {
+          const c = await syncHosCurrentStatus(admin, env, orgId);
+          currentDrivers = c.drivers;
+          located = c.located;
+        } catch (e) {
+          console.error(
+            `[samsara-sched] hos current status (org ${orgId}) failed: ${e instanceof Error ? e.message : e}`,
+          );
+        }
+        return { fetched: r.fetched, upserted: r.upserted, currentDrivers, located };
       });
       await runOrgTier(admin, env, orgId, "snapshot_driver_week", async () => {
         const r = await snapshotSettledWeeks(admin, env, orgId);
