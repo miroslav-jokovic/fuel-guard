@@ -149,11 +149,21 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
     queryKey: ["idle_breakdown", filters, computed(() => toValue(costBasis) ?? DEFAULT_COST_BASIS)],
     refetchInterval: 120_000,
     queryFn: async (): Promise<IdleBreakdown> => {
-      const { fromDate, toDate, days } = rangeBounds(toValue(filters));
+      const { fromDate, toDate } = rangeBounds(toValue(filters));
       const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
       const costOf = (sec: number) => avoidableCost(sec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd;
 
-      const sums = sumRollupByVehicle(await fetchRollupRows(fromDate, toDate));
+      const rows = await fetchRollupRows(fromDate, toDate);
+      const sums = sumRollupByVehicle(rows);
+
+      // COVERAGE DENOMINATOR = the range the rollup actually COVERS, not the range the picker selected
+      // (production bug: rollup history starts when the feature shipped, so a 3-month span diluted every
+      // truck's coverage below the confidence floor and the confident-only fleet card showed $0 while
+      // the 30-day default showed $13k). Clamp the period to [first rollup day in range, toDate]: trucks
+      // are judged only against days the data could have observed. No rows at all → 1 day (fleet zeros).
+      const earliestDay = rows.length ? rows.reduce((m, r) => (r.day < m ? r.day : m), rows[0]!.day) : fromDate;
+      const effFrom = earliestDay > fromDate ? earliestDay : fromDate;
+      const days = Math.max(1, Math.round((Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${effFrom}T00:00:00.000Z`)) / 86_400_000));
 
       const { data: vdata, error: verr } = await supabase
         .from("vehicles")
