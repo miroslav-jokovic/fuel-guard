@@ -7,6 +7,12 @@ import {
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { scoreTransaction } from "./scoring/index.js";
+import {
+  resolveTxnIdentitySplit,
+  resolveContentIdentitySplit,
+  enrichExistingFills,
+  enrichContentMatches,
+} from "./efsIngestShared.js";
 
 /**
  * Self-heal fuel_transactions from the faithful EFS store (docs: docs/plans/DATA-RELIABILITY-CHANGES.md).
@@ -30,6 +36,9 @@ export interface EfsSyncResult {
   inserted: number;
   updated: number;
   unchanged: number;
+  /** Ref-miss events matched to an existing fill by vendor-txn or content identity (additively
+   *  enriched instead of inserted — the 2026-08 twin class). */
+  enriched: number;
   skippedNonFuel: number;
   skippedBlankInvoice: number;
   skippedUnusable: number;
@@ -129,14 +138,14 @@ export async function syncFuelEventsFromEfs(
 
   const existing = await loadExistingByRef(admin, orgId);
 
-  const toInsert: (ParsedFuelLine & { vehicle_id: string | null; driver_id: string | null })[] = [];
+  const refMisses: (ParsedFuelLine & { vehicle_id: string | null; driver_id: string | null })[] = [];
   const toUpdate: { id: string; patch: Record<string, unknown> }[] = [];
   let unchanged = 0;
 
   for (const ev of reconciled) {
     const cur = existing.get(ev.external_ref);
     if (!cur) {
-      toInsert.push(ev);
+      refMisses.push(ev);
       continue;
     }
     const patch: Record<string, unknown> = {};
@@ -159,6 +168,17 @@ export async function syncFuelEventsFromEfs(
     if (Object.keys(patch).length === 0) unchanged += 1;
     else toUpdate.push({ id: cur.id, patch });
   }
+
+  // A ref miss is NOT yet a new fill (2026-08 duplication incident — THIS loop was the twin factory).
+  // The direct parser keys refs on `Stable Transaction ID` while the store keeps the merged
+  // transaction_id (stable ?? TransactionId), so a file variant carrying only `TransactionId` derives a
+  // DIFFERENT ref here than the one stored at import — and matching by ref alone then re-inserted a
+  // twin of every such fill. Resolve the vendor txn identity and the physical content identity first;
+  // only a fill unknown to all three lookups is inserted.
+  const { toInsert: idMisses, toEnrich, known } = await resolveTxnIdentitySplit(admin, orgId, refMisses);
+  const { toInsert, matches: contentMatches } = await resolveContentIdentitySplit(admin, orgId, idMisses);
+  const enriched =
+    (await enrichExistingFills(admin, toEnrich, known)) + (await enrichContentMatches(admin, contentMatches));
 
   // Record the repair as an import (source 'efs_feed') so inserted rows carry provenance.
   let importId: string | null = null;
@@ -196,6 +216,10 @@ export async function syncFuelEventsFromEfs(
       city: ev.city,
       state: ev.state,
       card_ref: ev.card_ref,
+      // Identity columns (2026-08): the historical omission of these is why sync-inserted twins were
+      // invisible to the txn-identity dedup — every row this path writes now carries its identity.
+      control_id: ev.control_id,
+      transaction_id: ev.transaction_id,
       tank_type: ev.tank_type,
       source: "fuel_card",
       external_ref: ev.external_ref,
@@ -227,6 +251,7 @@ export async function syncFuelEventsFromEfs(
     inserted: toInsert.length,
     updated: toUpdate.length,
     unchanged,
+    enriched,
     skippedNonFuel: derived.skippedNonFuel,
     skippedBlankInvoice: derived.skippedBlankInvoice,
     skippedUnusable: derived.skippedUnusable,

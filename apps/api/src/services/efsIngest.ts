@@ -13,7 +13,8 @@ import { scoreImportWithCascade } from "./scoring/index.js";
 import { scoreDeclinedImport } from "./declinedScoring.js";
 import { ingestReject } from "./efsIngestReject.js";
 import {
-  loc, emptyResult, existingRefs, resolveTxnIdentitySplit, enrichExistingFills, reconcileImportCounts,
+  loc, emptyResult, existingRefs, resolveTxnIdentitySplit, enrichExistingFills,
+  resolveContentIdentitySplit, enrichContentMatches, reconcileImportCounts,
   createImport, dateSpan, countByDay,
 } from "./efsIngestShared.js";
 import type { IngestInput, IngestResult } from "./efsIngestShared.js";
@@ -152,7 +153,11 @@ async function ingestTransaction(
   const newFuel = reconciled.filter((l) => !fuelSeen.has(l.external_ref));
 
   // Cross-channel identity (migration 0107) — see resolveTxnIdentitySplit.
-  const { toInsert, toEnrich, known: knownIdentities } = await resolveTxnIdentitySplit(admin, input.orgId, newFuel);
+  const { toInsert: refMisses, toEnrich, known: knownIdentities } = await resolveTxnIdentitySplit(admin, input.orgId, newFuel);
+  // CONTENT identity backstop (2026-08 duplication incident): a fill whose ref AND transaction id both
+  // miss can still be a twin of a stored row delivered under a different ref scheme — same card, same
+  // gallons, same instant, same tank is one physical dispense. Route those to enrich, never insert.
+  const { toInsert, matches: contentMatches } = await resolveContentIdentitySplit(admin, input.orgId, refMisses);
 
   const duplicateEfs = allLines.filter((l) => efsSeen.has(l.external_ref)).length;
   const span = dateSpan(allLines.map((l) => l.tran_date));
@@ -225,7 +230,9 @@ async function ingestTransaction(
   //     the richer one — the SOAP feed carries an unmasked card number where the file is masked — and
   //     an unmasked card is exactly what the card-identity rules need to stop going blind.
   //   • identity new (or absent) → insert as before, with external_ref still guarding re-delivery.
-  const enriched = await enrichExistingFills(admin, toEnrich, knownIdentities);
+  const enriched =
+    (await enrichExistingFills(admin, toEnrich, knownIdentities)) +
+    (await enrichContentMatches(admin, contentMatches));
 
   let scoreError: string | null = null;
   if (toInsert.length) {

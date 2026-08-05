@@ -280,6 +280,55 @@ describe("ingestReport — transaction report", () => {
     await ingestReport(db as unknown as SupabaseClient, env, txnInput("HASH_A"), deps);
     expect((db.tables.imports[0]!.summary as Row).channel).toBe("auto");
   });
+
+  it("CONTENT identity backstop: the same fill re-delivered under a different ref scheme enriches, never twins (2026-08 incident)", async () => {
+    // Same physical dispense, two deliveries. The first report has no vendor transaction id → its ref
+    // is invoice-keyed and transaction_id lands null. The second carries a Stable Transaction ID → its
+    // ref is identity-keyed (can never collide with the first) AND the txn-identity lookup misses
+    // (nothing stored under that id). Only the content identity — same card, same gallons, same
+    // INSTANT, same tank — can recognize the twin. Both deliveries carry a POS time so the fill is
+    // instant-precision (the content match deliberately refuses date-only rows).
+    const HEADERS_TIMED = [...TXN_HEADERS, "POS Time"];
+    const HEADERS_TIMED_ID = [...HEADERS_TIMED, "Stable Transaction ID"];
+    const baseRow = {
+      // Full (unmasked) card number: content identity requires a REAL card identity — a bare
+      // truncated ref never matches (sameCardFill needs full=full, or last-4 + control id).
+      "Card #": "7083050013944594036", "Tran Date": "2026-06-29", "POS Time": "10:15:00", Invoice: "0801987714",
+      Unit: "691", "Driver Name": "DONOVAN BOOTHE", Odometer: "293580",
+      "Location Name": "PILOT JAMESTOWN 305", City: "JAMESTOWN", "State/ Prov": "NM", Fees: "0.0",
+      Item: "ULSD", "Unit Price": "4.227", Qty: "141.7", Amt: "598.91", DB: "Y", Currency: "USD/Gallons",
+    };
+
+    const db = new FakeDb();
+    const { deps } = spyDeps();
+    const first = await ingestReport(
+      db as unknown as SupabaseClient,
+      env,
+      { ...txnInput("HASH_A"), headers: HEADERS_TIMED, rows: [baseRow] },
+      deps,
+    );
+    expect(first.newFuel).toBe(1);
+    expect(db.tables.fuel_transactions).toHaveLength(1);
+    expect(db.tables.fuel_transactions[0]!.transaction_id ?? null).toBeNull();
+
+    const { calls, deps: deps2 } = spyDeps();
+    const second = await ingestReport(
+      db as unknown as SupabaseClient,
+      env,
+      {
+        ...txnInput("HASH_B"),
+        headers: HEADERS_TIMED_ID,
+        rows: [{ ...baseRow, "Stable Transaction ID": "S-9001" }],
+      },
+      deps2,
+    );
+
+    expect(second.newFuel).toBe(0); // no twin inserted…
+    expect(second.enrichedFuel).toBe(1); // …the stored fill was enriched instead
+    expect(db.tables.fuel_transactions).toHaveLength(1);
+    expect(db.tables.fuel_transactions[0]!.transaction_id).toBe("S-9001"); // identity learned
+    expect(calls.scoreImport).toEqual([]); // nothing new to score
+  });
 });
 
 describe("ingestReport — safety", () => {

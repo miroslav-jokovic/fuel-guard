@@ -156,14 +156,16 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
       const rows = await fetchRollupRows(fromDate, toDate);
       const sums = sumRollupByVehicle(rows);
 
-      // COVERAGE DENOMINATOR = the range the rollup actually COVERS, not the range the picker selected
-      // (production bug: rollup history starts when the feature shipped, so a 3-month span diluted every
-      // truck's coverage below the confidence floor and the confident-only fleet card showed $0 while
-      // the 30-day default showed $13k). Clamp the period to [first rollup day in range, toDate]: trucks
-      // are judged only against days the data could have observed. No rows at all → 1 day (fleet zeros).
-      const earliestDay = rows.length ? rows.reduce((m, r) => (r.day < m ? r.day : m), rows[0]!.day) : fromDate;
-      const effFrom = earliestDay > fromDate ? earliestDay : fromDate;
-      const days = Math.max(1, Math.round((Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${effFrom}T00:00:00.000Z`)) / 86_400_000));
+      // COVERAGE DENOMINATOR = the number of days the rollup actually HAS DATA for in the range, not
+      // the span the picker selected (production bug: rollup history starts when the feature shipped,
+      // so a 3-month span diluted every truck's coverage below the confidence floor and the
+      // confident-only fleet card showed $0 while the 30-day default showed $13k). Counting DISTINCT
+      // data days — rather than spanning from the earliest row — also survives a stray old row that
+      // would otherwise stretch the span and re-zero the card. Selected span still caps it, and no
+      // rows at all → 1 day (fleet zeros, honestly).
+      const selectedDays = Math.max(1, Math.round((Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) / 86_400_000));
+      const daysWithData = new Set(rows.map((r) => r.day)).size;
+      const days = Math.max(1, Math.min(selectedDays, daysWithData));
 
       const { data: vdata, error: verr } = await supabase
         .from("vehicles")

@@ -2,7 +2,7 @@
  * import-row creation and reconciliation helpers. Split from efsIngest.ts (file-size budget); the
  * behaviour is unchanged and efsIngest.ts re-exports the public symbols so callers/tests are stable. */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isFullCardNumber } from "@fuelguard/shared";
+import { isFullCardNumber, sameCardFill } from "@fuelguard/shared";
 import type { RawRow, ReportKind } from "@fuelguard/shared";
 
 /** How the report reached us — recorded on imports.summary.channel for auditing (no migration needed). */
@@ -237,6 +237,117 @@ export async function enrichExistingFills(
   for (const l of toEnrich) {
     const existing = known.get(txnIdentityKey(l.transaction_id, l.tank_type)!);
     if (!existing) continue;
+    const patch: Record<string, unknown> = {};
+    if (isFullCardNumber(l.card_ref) && !isFullCardNumber(existing.card_ref)) patch.card_ref = l.card_ref;
+    if (l.control_id && !existing.control_id) patch.control_id = l.control_id;
+    if (l.odometer != null && existing.odometer == null) patch.odometer = l.odometer;
+    if (!existing.transaction_id && l.transaction_id) patch.transaction_id = l.transaction_id;
+    if (!Object.keys(patch).length) continue;
+    const { error } = await admin.from("fuel_transactions").update(patch).eq("id", existing.id);
+    if (error) throw new Error(error.message);
+    enriched += 1;
+  }
+  return enriched;
+}
+
+/** A parsed fuel line, narrowed to the fields the CONTENT identity match needs (identity fields + the
+ *  physical fill facts). */
+export interface ContentIdentifiableFuelLine extends IdentifiableFuelLine {
+  fueled_at: string;
+  fueled_at_precision: string | null;
+  gallons: number;
+}
+
+/** Two gallons figures within this are the same dispense (EFS reports 3 decimals; float slop only). */
+const CONTENT_GALLONS_TOLERANCE = 0.005;
+
+const contentTank = (t: string | null | undefined): string => (t === "reefer" ? "reefer" : "tractor");
+
+/**
+ * CONTENT identity split (2026-08 duplication incident, residual class). The txn-identity split above
+ * catches twins only when BOTH copies carry the same EFS transaction id — but the store-derive/repair
+ * path historically inserted rows WITHOUT transaction_id, and a file variant carrying `TransactionId`
+ * (not `Stable Transaction ID`) keys its ref differently from the store-derived ref, so the same fill
+ * could arrive with two refs AND no shared transaction id. Content identity is the physical backstop:
+ * the SAME CARD billed the SAME GALLONS at the SAME INSTANT into the SAME TANK is one dispense, no
+ * matter which channel delivered it or what ref it carries.
+ *
+ * Deliberately narrow (precision-first):
+ *   • only lines with an INSTANT-precision fueling time participate — two date-only rows share the noon
+ *     sentinel, so "same instant" would conflate two legitimate same-day fills;
+ *   • card identity via sameCardFill (full-number exact match, or last-4 + control id) — a bare masked
+ *     ref never matches on its own;
+ *   • gallons must match to the EFS reporting precision.
+ * Matches are routed to ENRICH (same additive patch as the txn-identity path); everything else inserts.
+ */
+export async function resolveContentIdentitySplit<T extends ContentIdentifiableFuelLine>(
+  admin: SupabaseClient,
+  orgId: string,
+  lines: T[],
+): Promise<{ toInsert: T[]; matches: { line: T; existing: KnownTxnIdentity }[] }> {
+  const candidates = lines.filter((l) => l.fueled_at_precision === "instant" && l.card_ref);
+  if (!candidates.length) return { toInsert: lines, matches: [] };
+
+  interface ContentRow extends KnownTxnIdentity {
+    fueled_at: string;
+    gallons: number | string;
+    tank_type: string | null;
+  }
+  const byInstant = new Map<number, ContentRow[]>();
+  const instants = [...new Set(candidates.map((l) => l.fueled_at))];
+  const CHUNK = 150;
+  for (let i = 0; i < instants.length; i += CHUNK) {
+    const slice = instants.slice(i, i + CHUNK);
+    const { data, error } = await admin
+      .from("fuel_transactions")
+      .select("id, transaction_id, tank_type, card_ref, control_id, odometer, fueled_at, gallons")
+      .eq("org_id", orgId)
+      .in("fueled_at", slice);
+    if (error) throw new Error(error.message);
+    for (const r of (data ?? []) as ContentRow[]) {
+      const t = Date.parse(r.fueled_at);
+      const g = byInstant.get(t);
+      if (g) g.push(r);
+      else byInstant.set(t, [r]);
+    }
+  }
+
+  const matches: { line: T; existing: KnownTxnIdentity }[] = [];
+  const matchedIds = new Set<string>();
+  const toInsert: T[] = [];
+  for (const l of lines) {
+    if (l.fueled_at_precision !== "instant" || !l.card_ref) {
+      toInsert.push(l);
+      continue;
+    }
+    const rows = byInstant.get(Date.parse(l.fueled_at)) ?? [];
+    const hit = rows.find(
+      (r) =>
+        !matchedIds.has(r.id) &&
+        Math.abs(Number(r.gallons) - l.gallons) <= CONTENT_GALLONS_TOLERANCE &&
+        contentTank(r.tank_type) === contentTank(l.tank_type) &&
+        sameCardFill(
+          { cardRef: r.card_ref, controlId: r.control_id },
+          { cardRef: l.card_ref, controlId: l.control_id },
+        ),
+    );
+    if (hit) {
+      matchedIds.add(hit.id); // one existing row absorbs at most one incoming line
+      matches.push({ line: l, existing: hit });
+    } else {
+      toInsert.push(l);
+    }
+  }
+  return { toInsert, matches };
+}
+
+/** Enrich content-identity matches with the same strictly-additive patch as enrichExistingFills. */
+export async function enrichContentMatches(
+  admin: SupabaseClient,
+  matches: { line: IdentifiableFuelLine; existing: KnownTxnIdentity }[],
+): Promise<number> {
+  let enriched = 0;
+  for (const { line: l, existing } of matches) {
     const patch: Record<string, unknown> = {};
     if (isFullCardNumber(l.card_ref) && !isFullCardNumber(existing.card_ref)) patch.card_ref = l.card_ref;
     if (l.control_id && !existing.control_id) patch.control_id = l.control_id;
