@@ -8,20 +8,11 @@ import {
 } from "./capacityResolve.js";
 import type { VehicleView } from "./types.js";
 
-const vehicle: VehicleView = {
-  id: "v1",
-  fuelType: "diesel",
-  tankCapacityGal: 120,
-  baselineMpg: 6.5,
-};
+const vehicle: VehicleView = { id: "v1", fuelType: "diesel", tankCapacityGal: 120, baselineMpg: 6.5 };
 
 /** n fills that each imply ~`cap` gallons (billed = cap × riseFrac). */
 const fills = (n: number, cap: number, riseFrac = 0.5) =>
-  Array.from({ length: n }, () => ({
-    gallons: cap * riseFrac,
-    pctBefore: 40,
-    pctAfter: 40 + riseFrac * 100,
-  }));
+  Array.from({ length: n }, () => ({ gallons: cap * riseFrac, pctBefore: 40, pctAfter: 40 + riseFrac * 100 }));
 
 describe("learnSensorCapacity (billed ÷ raw level-rise physics)", () => {
   it("returns null until enough valid observations", () => {
@@ -36,17 +27,9 @@ describe("learnSensorCapacity (billed ÷ raw level-rise physics)", () => {
   });
 
   it("ignores small rises (sensor noise amplifies) and small fills", () => {
-    const smallRise = Array.from({ length: 10 }, () => ({
-      gallons: 30,
-      pctBefore: 80,
-      pctAfter: 92,
-    })); // 12-pt rise
+    const smallRise = Array.from({ length: 10 }, () => ({ gallons: 30, pctBefore: 80, pctAfter: 92 })); // 12-pt rise
     expect(learnSensorCapacity(smallRise)).toBeNull();
-    const smallFill = Array.from({ length: 10 }, () => ({
-      gallons: 15,
-      pctBefore: 40,
-      pctAfter: 70,
-    }));
+    const smallFill = Array.from({ length: 10 }, () => ({ gallons: 15, pctBefore: 40, pctAfter: 70 }));
     expect(learnSensorCapacity(smallFill)).toBeNull();
   });
 
@@ -115,15 +98,9 @@ describe("resolveCapacity (sensor > entered > billed-history, with confidence)",
   });
 
   it("divergence threshold is the exported constant", () => {
-    const justInside = resolveCapacity({
-      ...vehicle,
-      sensorCapacityGal: 120 * (1 + CAPACITY_DIVERGENCE_PCT / 100),
-    });
+    const justInside = resolveCapacity({ ...vehicle, sensorCapacityGal: 120 * (1 + CAPACITY_DIVERGENCE_PCT / 100) });
     expect(justInside.divergent).toBe(false);
-    const justOutside = resolveCapacity({
-      ...vehicle,
-      sensorCapacityGal: 120 * (1 + (CAPACITY_DIVERGENCE_PCT + 1) / 100),
-    });
+    const justOutside = resolveCapacity({ ...vehicle, sensorCapacityGal: 120 * (1 + (CAPACITY_DIVERGENCE_PCT + 1) / 100) });
     expect(justOutside.divergent).toBe(true);
   });
 });
@@ -144,38 +121,57 @@ describe("capacityAlertTolerancePct (confidence-tiered overage)", () => {
 describe("decideCapacityAutoFix (WP-CAP part 2 — self-healing record)", () => {
   it("needs a rock-solid measurement (≥8 samples) before touching the record", () => {
     expect(decideCapacityAutoFix({ enteredGal: 120, sensorGal: 208, sensorSamples: 7 })).toBeNull();
-    expect(decideCapacityAutoFix({ enteredGal: 120, sensorGal: 208, sensorSamples: 8 })).toEqual({
-      gallons: 208,
-      reason: "corrected_divergent",
-    });
+    expect(decideCapacityAutoFix({ enteredGal: 120, sensorGal: 208, sensorSamples: 8 })).toEqual({ gallons: 208, reason: "corrected_divergent" });
   });
   it("fills a missing capacity (record was blank → capacity rules were dead)", () => {
-    expect(decideCapacityAutoFix({ enteredGal: 0, sensorGal: 200, sensorSamples: 10 })).toEqual({
-      gallons: 200,
-      reason: "filled_missing",
-    });
-    expect(decideCapacityAutoFix({ enteredGal: null, sensorGal: 200, sensorSamples: 10 })).toEqual({
-      gallons: 200,
-      reason: "filled_missing",
-    });
+    expect(decideCapacityAutoFix({ enteredGal: 0, sensorGal: 200, sensorSamples: 10 })).toEqual({ gallons: 200, reason: "filled_missing" });
+    expect(decideCapacityAutoFix({ enteredGal: null, sensorGal: 200, sensorSamples: 10 })).toEqual({ gallons: 200, reason: "filled_missing" });
   });
   it("corrects in BOTH directions when divergent, never inside the band (hysteresis)", () => {
-    expect(
-      decideCapacityAutoFix({ enteredGal: 150, sensorGal: 208, sensorSamples: 10 })!.gallons,
-    ).toBe(208); // up
-    expect(
-      decideCapacityAutoFix({ enteredGal: 300, sensorGal: 200, sensorSamples: 10 })!.gallons,
-    ).toBe(200); // down
-    expect(
-      decideCapacityAutoFix({ enteredGal: 200, sensorGal: 210, sensorSamples: 10 }),
-    ).toBeNull(); // 5% — in band
-    expect(
-      decideCapacityAutoFix({ enteredGal: 200, sensorGal: 228, sensorSamples: 10 }),
-    ).toBeNull(); // 14% — in band
+    expect(decideCapacityAutoFix({ enteredGal: 150, sensorGal: 208, sensorSamples: 10 })!.gallons).toBe(208); // up
+    expect(decideCapacityAutoFix({ enteredGal: 300, sensorGal: 200, sensorSamples: 10 })!.gallons).toBe(200); // down
+    expect(decideCapacityAutoFix({ enteredGal: 200, sensorGal: 210, sensorSamples: 10 })).toBeNull(); // 5% — in band
+    expect(decideCapacityAutoFix({ enteredGal: 200, sensorGal: 228, sensorSamples: 10 })).toBeNull(); // 14% — in band
   });
   it("no measurement → never touches the record", () => {
-    expect(
-      decideCapacityAutoFix({ enteredGal: 120, sensorGal: null, sensorSamples: null }),
-    ).toBeNull();
+    expect(decideCapacityAutoFix({ enteredGal: 120, sensorGal: null, sensorSamples: null })).toBeNull();
+  });
+});
+
+describe("2026-08 production fix — biased-low sensor capacity (240-gal trucks measured ~185)", () => {
+  it("learner: a would-be capacity contradicted by ≥2 billed fills gets NO verdict", () => {
+    // 6 plateau-peak-biased fills implying ~185 + 2 real 220+ gal bills (can't fit in a 185 tank) → null.
+    const biased = fills(6, 185);
+    const bigBills = [
+      { gallons: 220, pctBefore: 10, pctAfter: 95 },
+      { gallons: 225, pctBefore: 8, pctAfter: 94 },
+    ];
+    expect(learnSensorCapacity([...biased, ...bigBills])).toBeNull();
+    // The contradiction counts fills WITHOUT sensor percentages too (they still billed the gallons).
+    const noPct = [
+      { gallons: 230, pctBefore: null, pctAfter: null },
+      { gallons: 228, pctBefore: null, pctAfter: null },
+    ];
+    expect(learnSensorCapacity([...biased, ...noPct])).toBeNull();
+    // One contradicting fill alone could be theft — the verdict stands (theft can't hide the tank).
+    expect(learnSensorCapacity([...biased, bigBills[0]!])).not.toBeNull();
+  });
+
+  it("resolver: the corroborated observed-fill volume FLOORS the sensor value (physics both ways)", () => {
+    // Entered 240 (correct), sensor biased to 185, but 3+ fills demonstrably took ~232 gal:
+    // floored sensor 232 agrees with entered → high confidence, capacity 240, NOT divergent.
+    const rc = resolveCapacity({ ...vehicle, tankCapacityGal: 240, sensorCapacityGal: 185, observedMaxFillGal: 232 });
+    expect(rc.gallons).toBe(240);
+    expect(rc.confidence).toBe("high");
+    expect(rc.divergent).toBe(false);
+  });
+
+  it("autofix: never rewrites a record below what the truck demonstrably swallowed", () => {
+    // The exact production incident: entered 240 was being rewritten to ~185. Floored → no rewrite.
+    expect(decideCapacityAutoFix({ enteredGal: 240, sensorGal: 185, sensorSamples: 10, observedMaxFillGal: 232 })).toBeNull();
+    // Blank-fill uses the floored value, not the biased one.
+    expect(decideCapacityAutoFix({ enteredGal: 0, sensorGal: 185, sensorSamples: 10, observedMaxFillGal: 232 })).toEqual({ gallons: 232, reason: "filled_missing" });
+    // Without an observed floor the prior behavior is unchanged (downward correction still possible).
+    expect(decideCapacityAutoFix({ enteredGal: 300, sensorGal: 200, sensorSamples: 10 })!.gallons).toBe(200);
   });
 });

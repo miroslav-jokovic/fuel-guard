@@ -84,8 +84,8 @@ export function learnSensorCapacity(
   const clusterBand = opts.clusterBand ?? 0.15;
   const minFraction = opts.minFraction ?? 0.6;
 
-  const implied = obs
-    .slice(-window)
+  const windowObs = obs.slice(-window);
+  const implied = windowObs
     .filter(
       (o) =>
         Number.isFinite(o.gallons) &&
@@ -105,6 +105,16 @@ export function learnSensorCapacity(
   const med = median(implied);
   const within = implied.filter((c) => Math.abs(c - med) <= clusterBand * med).length;
   if (within < minSamples || within / implied.length < minFraction) return null; // bimodal / noisy → no verdict
+
+  // PHYSICAL SELF-CONTRADICTION guard (production finding, 2026-08): the level sensor can OVERSTATE the
+  // rise — the post-fill reading is a plateau PEAK (slosh/slope spikes) and saddle-tank equalization lag
+  // peaks the sensed tank before fuel settles across both — which UNDERSTATES capacity systematically
+  // enough to pass the cluster check (240-gal trucks measured ~185). But a fill cannot bill more than
+  // the tank holds: if ≥2 fills in the window billed MORE than the would-be capacity, the measurement
+  // contradicts observed reality → no verdict (fall back to entered/billed-history, the SAFE direction).
+  const contradictions = windowObs.filter((o) => Number.isFinite(o.gallons) && o.gallons > med * 1.05).length;
+  if (contradictions >= 2) return null;
+
   return { gallons: Math.round(med * 10) / 10, samples: implied.length };
 }
 
@@ -130,47 +140,27 @@ export interface ResolvedCapacity {
  * alerting off a number someone mistyped.
  */
 export function resolveCapacity(v: VehicleView): ResolvedCapacity {
-  const entered =
-    Number.isFinite(v.tankCapacityGal) && v.tankCapacityGal > 0 ? v.tankCapacityGal : 0;
-  const sensor =
-    v.sensorCapacityGal != null && Number.isFinite(v.sensorCapacityGal) && v.sensorCapacityGal > 0
-      ? v.sensorCapacityGal
-      : null;
+  const entered = Number.isFinite(v.tankCapacityGal) && v.tankCapacityGal > 0 ? v.tankCapacityGal : 0;
+  const sensorRaw = v.sensorCapacityGal != null && Number.isFinite(v.sensorCapacityGal) && v.sensorCapacityGal > 0 ? v.sensorCapacityGal : null;
+  // FLOOR the sensor measurement at the corroborated observed-fill volume (production finding, 2026-08):
+  // 3+ single fills of X gallons are a PHYSICAL lower bound on capacity — a sensor-implied value below
+  // them is sender non-linearity / plateau-peak bias, never a smaller tank. Physics wins both ways.
+  const observedFloor = v.observedMaxFillGal != null && Number.isFinite(v.observedMaxFillGal) && v.observedMaxFillGal > 0 ? v.observedMaxFillGal : null;
+  const sensor = sensorRaw != null && observedFloor != null && observedFloor > sensorRaw ? observedFloor : sensorRaw;
 
   if (sensor != null) {
     if (entered > 0) {
       const divergent = Math.abs(sensor - entered) / entered > CAPACITY_DIVERGENCE_PCT / 100;
       if (!divergent) {
         // Agreement: take the larger of the two (never judge a truck below what both sources support).
-        return {
-          gallons: Math.max(sensor, entered),
-          confidence: "high",
-          source: "sensor+entered",
-          divergent: false,
-          enteredGal: entered,
-          sensorGal: sensor,
-        };
+        return { gallons: Math.max(sensor, entered), confidence: "high", source: "sensor+entered", divergent: false, enteredGal: entered, sensorGal: sensor };
       }
       // Contradiction: the tank itself measured differently from what was typed. Physics wins — this is
       // the downward-correction path an over-entered nameplate previously made impossible.
-      return {
-        gallons: sensor,
-        confidence: "medium",
-        source: "sensor",
-        divergent: true,
-        enteredGal: entered,
-        sensorGal: sensor,
-      };
+      return { gallons: sensor, confidence: "medium", source: "sensor", divergent: true, enteredGal: entered, sensorGal: sensor };
     }
     // No entered capacity at all — the sensor REVIVES detection that used to be silently dead (cap 0).
-    return {
-      gallons: sensor,
-      confidence: "medium",
-      source: "sensor",
-      divergent: false,
-      enteredGal: 0,
-      sensorGal: sensor,
-    };
+    return { gallons: sensor, confidence: "medium", source: "sensor", divergent: false, enteredGal: 0, sensorGal: sensor };
   }
 
   // No sensor verdict → the pre-WP-CAP behavior exactly: max(entered, corroborated billed-history), at
@@ -186,14 +176,7 @@ export function resolveCapacity(v: VehicleView): ResolvedCapacity {
       sensorGal: null,
     };
   }
-  return {
-    gallons: 0,
-    confidence: "none",
-    source: "none",
-    divergent: false,
-    enteredGal: entered,
-    sensorGal: null,
-  };
+  return { gallons: 0, confidence: "none", source: "none", divergent: false, enteredGal: entered, sensorGal: null };
 }
 
 /** Observations the sensor capacity must be backed by before it may REWRITE the vehicle record
@@ -223,15 +206,22 @@ export function decideCapacityAutoFix(v: {
   enteredGal: number | null;
   sensorGal: number | null;
   sensorSamples: number | null;
+  /** Corroborated observed single-fill volume (learnObservedMaxFill) — a PHYSICAL lower bound on
+   *  capacity. A downward rewrite below it is forbidden (production finding, 2026-08: plateau-peak /
+   *  sender-non-linearity bias understated 240-gal tanks to ~185 and the autofix wrote it through). */
+  observedMaxFillGal?: number | null;
 }): CapacityAutoFix | null {
-  const sensor =
-    v.sensorGal != null && Number.isFinite(v.sensorGal) && v.sensorGal > 0 ? v.sensorGal : null;
+  const raw = v.sensorGal != null && Number.isFinite(v.sensorGal) && v.sensorGal > 0 ? v.sensorGal : null;
   const samples = v.sensorSamples ?? 0;
-  if (sensor == null || samples < CAPACITY_AUTOFIX_MIN_SAMPLES) return null;
-  const entered =
-    v.enteredGal != null && Number.isFinite(v.enteredGal) && v.enteredGal > 0 ? v.enteredGal : 0;
+  if (raw == null || samples < CAPACITY_AUTOFIX_MIN_SAMPLES) return null;
+  const floor = v.observedMaxFillGal != null && Number.isFinite(v.observedMaxFillGal) && v.observedMaxFillGal > 0 ? v.observedMaxFillGal : null;
+  const sensor = floor != null && floor > raw ? floor : raw; // same floor as resolveCapacity
+  const entered = v.enteredGal != null && Number.isFinite(v.enteredGal) && v.enteredGal > 0 ? v.enteredGal : 0;
   if (entered <= 0) return { gallons: sensor, reason: "filled_missing" };
   if (Math.abs(sensor - entered) / entered > CAPACITY_DIVERGENCE_PCT / 100) {
+    // Extra caution on DOWNWARD rewrites: a biased-low measurement is the known failure mode, so a
+    // record may only be corrected downward when the measurement is NOT contradicted by any
+    // corroborated observed fill (the floor above already lifted it if it was).
     return { gallons: sensor, reason: "corrected_divergent" };
   }
   return null;
@@ -243,10 +233,7 @@ export function decideCapacityAutoFix(v: {
  * widen it when the capacity is less verified (precision-first; the unverified 5–15% band still
  * surfaces as the review-grade exceeds_capacity_unverified signal, so nothing goes silent).
  */
-export function capacityAlertTolerancePct(
-  confidence: CapacityConfidence,
-  configuredPct: number,
-): number {
+export function capacityAlertTolerancePct(confidence: CapacityConfidence, configuredPct: number): number {
   const base = Number.isFinite(configuredPct) && configuredPct > 0 ? configuredPct : 5;
   if (confidence === "high") return base;
   if (confidence === "medium") return Math.max(base, 10);

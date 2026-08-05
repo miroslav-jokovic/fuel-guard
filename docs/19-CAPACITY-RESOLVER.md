@@ -83,6 +83,25 @@ when the measurement is rock-solid:
 - After a fix, entered ≈ sensor → the resolver returns HIGH confidence → the tight 5% alert tolerance,
   and the divergence item clears from Coverage/digest automatically.
 
+## Production incident + fix (2026-08): biased-low sensor capacity
+
+First production run measured several 240-gal trucks at ~185 gal and the auto-fix wrote it through.
+Root cause: the level sensor OVERSTATES the fill's rise — the stored post-fill percentage is the
+plateau PEAK (slosh/slope spikes) and saddle-tank equalization lag peaks the sensed tank before fuel
+settles — which understates implied capacity systematically enough to pass the cluster guard.
+Three-part fix, all keyed to the same physical truth (a fill cannot bill more than the tank holds):
+
+1. `learnSensorCapacity` — NO VERDICT when ≥2 window fills billed more than the would-be capacity
+   (+5%). One contradicting fill could be theft and never blocks the verdict.
+2. `resolveCapacity` — the corroborated observed-fill volume (`observedMaxFillGal`, 3+ fills) FLOORS
+   the sensor value before any comparison. Physics wins in both directions.
+3. `decideCapacityAutoFix` — same floor; a record can never be rewritten below what the truck
+   demonstrably swallowed in single fills. (`learnVehicleValues` now learns observed fills BEFORE the
+   sensor capacity so the floor is current at decision time.)
+
+Remediation for affected fleets: restore original capacities from the `vehicle.capacity_autofix`
+audit rows (downward rewrites only), null `sensor_capacity_gal`, deploy, rebuild.
+
 ## Deliberate limits
 
 - Trucks with no Samsara fuel-level data stay on the legacy path at LOW confidence (15% alert

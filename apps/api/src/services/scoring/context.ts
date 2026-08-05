@@ -3,16 +3,8 @@
  *  the inlined blocks — same queries, same ordering, same defaults when a stage doesn't apply. */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  contaminatesBaseline,
-  robustWindowMiles,
-  verifyFillAttribution,
-  isDriverOffDutyAtFill,
-  ATTRIBUTION_TIME_BUFFER_MS,
-  type TxnView,
-  type VehicleView,
-  type Thresholds,
-  type AttributionCheck,
-  type LogbookSegment,
+  contaminatesBaseline, robustWindowMiles, verifyFillAttribution, isDriverOffDutyAtFill, ATTRIBUTION_TIME_BUFFER_MS,
+  type TxnView, type VehicleView, type Thresholds, type AttributionCheck, type LogbookSegment,
 } from "@fuelguard/shared";
 import { writeAudit } from "../../lib/audit.js";
 import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, sumIntermediateGallons, n } from "./loaders.js";
@@ -26,39 +18,14 @@ export interface VehicleContext {
 
 /** Resolve the fill's vehicle into a VehicleView (+ its Samsara id + odometer-offset source). Defaults to
  *  the "none" vehicle when the fill has no vehicle_id or the row is missing. */
-export async function loadVehicleContext(
-  admin: SupabaseClient,
-  vehicleId: string | null,
-): Promise<VehicleContext> {
-  let vehicle: VehicleView = {
-    id: "none",
-    fuelType: "other",
-    tankCapacityGal: 0,
-    baselineMpg: null,
-  };
+export async function loadVehicleContext(admin: SupabaseClient, vehicleId: string | null): Promise<VehicleContext> {
+  let vehicle: VehicleView = { id: "none", fuelType: "other", tankCapacityGal: 0, baselineMpg: null };
   let samsaraVehicleId: string | null = null;
   let odometerOffsetSource = "auto";
   if (vehicleId) {
-    const { data: v } = await admin
-      .from("vehicles")
-      .select(
-        "id, fuel_type, tank_capacity_gal, tank_sensor_reliable, tank_residual_sigma, observed_max_fill_gal, sensor_capacity_gal, sensor_capacity_samples, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source",
-      )
-      .eq("id", vehicleId)
-      .single();
+    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, tank_sensor_reliable, tank_residual_sigma, observed_max_fill_gal, sensor_capacity_gal, sensor_capacity_samples, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", vehicleId).single();
     if (v) {
-      vehicle = {
-        id: v.id,
-        fuelType: v.fuel_type,
-        tankCapacityGal: Number(v.tank_capacity_gal),
-        tankSensorReliable: v.tank_sensor_reliable === true,
-        tankRatioSigma: n(v.tank_residual_sigma) ?? undefined,
-        observedMaxFillGal: n(v.observed_max_fill_gal) ?? undefined,
-        sensorCapacityGal: n(v.sensor_capacity_gal) ?? undefined,
-        sensorCapacitySamples: n(v.sensor_capacity_samples) ?? undefined,
-        baselineMpg: n(v.baseline_mpg),
-        odometerOffset: n(v.odometer_offset) ?? 0,
-      };
+      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), tankSensorReliable: v.tank_sensor_reliable === true, tankRatioSigma: n(v.tank_residual_sigma) ?? undefined, observedMaxFillGal: n(v.observed_max_fill_gal) ?? undefined, sensorCapacityGal: n(v.sensor_capacity_gal) ?? undefined, sensorCapacitySamples: n(v.sensor_capacity_samples) ?? undefined, baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
       samsaraVehicleId = v.samsara_vehicle_id ?? null;
       odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
     }
@@ -97,14 +64,7 @@ async function loadDriverLogbookSegments(
     .or(`ended_at.is.null,ended_at.gte.${loIso}`)
     .order("started_at", { ascending: true })
     .limit(50);
-  return (
-    (data ?? []) as {
-      vehicle_id: string | null;
-      status: string | null;
-      started_at: string;
-      ended_at: string | null;
-    }[]
-  ).map((s) => ({
+  return ((data ?? []) as { vehicle_id: string | null; status: string | null; started_at: string; ended_at: string | null }[]).map((s) => ({
     vehicleId: s.vehicle_id,
     status: s.status,
     startMs: Date.parse(s.started_at),
@@ -117,12 +77,15 @@ export async function loadAttributionCheck(
   orgId: string,
   txn: TxnView,
 ): Promise<AttributionContext> {
-  const empty: AttributionContext = {
-    check: { verdict: "unknown", logbookVehicleId: null },
-    driverOffDutyAtFill: false,
-  };
+  const empty: AttributionContext = { check: { verdict: "unknown", logbookVehicleId: null }, driverOffDutyAtFill: false };
   if (!txn.driverId || !txn.vehicleId || txn.tankType === "reefer") return empty;
-  if (txn.fueledAtPrecision !== "instant") return empty;
+  // The fueling INSTANT must be trustworthy — same timeReliable bar every time-based rule uses
+  // (production finding, 2026-08): an UNCORROBORATED EFS posted time counts as "instant" precision but
+  // can be an authorization/settlement timestamp hours off the real pump time (plus timezone-basis
+  // slop), which landed honest daytime fills "deep inside" drivers' sleeper blocks and false-fired
+  // fuel_while_driver_home. Only a telematics-corroborated or manual instant may be compared to the
+  // logbook; uncorroborated → unknown (unchanged behavior).
+  if (txn.fueledAtPrecision !== "instant" || txn.timeConfirmed === false) return empty;
   const fillMs = Date.parse(txn.eventAt ?? txn.fueledAt); // telematics-recovered instant when present
   const segments = await loadDriverLogbookSegments(admin, orgId, txn.driverId, fillMs);
   return {
@@ -146,23 +109,14 @@ export async function healMissingAttribution(
   txnId: string,
   txn: TxnView,
 ): Promise<"vehicle_filled" | null> {
-  if (txn.tankType === "reefer" || txn.fueledAtPrecision !== "instant") return null;
+  // Same trustworthy-instant bar as loadAttributionCheck — a settlement-time lookup against the
+  // logbook could heal a blank with the WRONG truck/driver.
+  if (txn.tankType === "reefer" || txn.fueledAtPrecision !== "instant" || txn.timeConfirmed === false) return null;
   const fillMs = Date.parse(txn.eventAt ?? txn.fueledAt);
 
   if (txn.vehicleId == null && txn.driverId != null) {
     const segments = await loadDriverLogbookSegments(admin, orgId, txn.driverId, fillMs);
-    const covering = [
-      ...new Set(
-        segments
-          .filter(
-            (s) =>
-              s.vehicleId != null &&
-              s.startMs <= fillMs &&
-              (s.endMs ?? Number.POSITIVE_INFINITY) >= fillMs,
-          )
-          .map((s) => s.vehicleId),
-      ),
-    ];
+    const covering = [...new Set(segments.filter((s) => s.vehicleId != null && s.startMs <= fillMs && (s.endMs ?? Number.POSITIVE_INFINITY) >= fillMs).map((s) => s.vehicleId))];
     if (covering.length === 1) {
       const vehicleId = covering[0]!;
       await writeAudit(admin, {
@@ -262,8 +216,7 @@ export async function loadConsumptionContext(
     // anomalies rows OR persisted case_signals). Comparing against a known-bad reading cascaded false
     // regressions / MPG anomalies onto every correct entry after it.
     const ODO_SIGNALS = new Set(ODOMETER_RULE_IDS);
-    const odoBad = (x: FtxnRow) =>
-      badIds.has(x.id) || (x.case_signals ?? []).some((sg) => ODO_SIGNALS.has(sg.ruleId));
+    const odoBad = (x: FtxnRow) => badIds.has(x.id) || (x.case_signals ?? []).some((sg) => ODO_SIGNALS.has(sg.ruleId));
     // WP-ATTR: a fill whose attribution the driver's logbook contradicts carries another truck's
     // gallons/odometer — it must not serve as the previous fill or train the baseline.
     const attrBad = (x: FtxnRow) => x.attribution_verdict === "suspect";
@@ -271,27 +224,12 @@ export async function loadConsumptionContext(
     previousTxn = prevRow ? toTxnView(prevRow) : null;
     // WP6: theft-contaminated fills (volume-axis evidence / alert cases) must not train the baseline —
     // sustained theft would drag the median down until its own deviations stop firing.
-    recentTxns = rows
-      .filter(
-        (x) => !odoBad(x) && !attrBad(x) && !contaminatesBaseline(x.case_level, x.case_signals),
-      )
-      .slice(0, 6)
-      .map(toTxnView)
-      .reverse();
-    if (prevRow)
-      intermediateGallons = await sumIntermediateGallons(
-        admin,
-        txn.vehicleId,
-        prevRow.fueled_at,
-        r.fueled_at,
-        txnId,
-      ); // WP4
+    recentTxns = rows.filter((x) => !odoBad(x) && !attrBad(x) && !contaminatesBaseline(x.case_level, x.case_signals)).slice(0, 6).map(toTxnView).reverse();
+    if (prevRow) intermediateGallons = await sumIntermediateGallons(admin, txn.vehicleId, prevRow.fueled_at, r.fueled_at, txnId); // WP4
 
     const { data: winRows } = await admin
       .from("fuel_transactions")
-      .select(
-        "id, gallons, odometer, samsara_odometer, samsara_odometer_source, attribution_verdict",
-      )
+      .select("id, gallons, odometer, samsara_odometer, samsara_odometer_source, attribution_verdict")
       .eq("vehicle_id", txn.vehicleId)
       .eq("tank_type", "tractor")
       .gte("fueled_at", winStartIso)
@@ -314,29 +252,16 @@ export async function loadConsumptionContext(
     // verdict gates the rule separately via attributionSuspect); the excluded gallons are reported so
     // evidence can show what was left out.
     const wr = wrAll.filter((x) => x.id === txnId || x.attribution_verdict !== "suspect");
-    windowSuspectGallons = wrAll
-      .filter((x) => x.id !== txnId && x.attribution_verdict === "suspect")
-      .reduce((s, x) => s + Number(x.gallons), 0);
+    windowSuspectGallons = wrAll.filter((x) => x.id !== txnId && x.attribution_verdict === "suspect").reduce((s, x) => s + Number(x.gallons), 0);
     windowGallons = wr.reduce((s, x) => s + Number(x.gallons), 0);
     // Miles driven from the CLEAN OBD Samsara odometer span when available; fall back to the entered span only
     // when it doesn't regress; else null → cumulative_overfuel stays silent (data-quality, not a false alarm).
     windowMiles = robustWindowMiles(
-      wr.map((x) => ({
-        enteredOdometer: n(x.odometer),
-        samsaraOdometer: n(x.samsara_odometer),
-        samsaraSource: x.samsara_odometer_source,
-      })),
+      wr.map((x) => ({ enteredOdometer: n(x.odometer), samsaraOdometer: n(x.samsara_odometer), samsaraSource: x.samsara_odometer_source })),
     ).miles;
   }
 
-  return {
-    previousTxn,
-    recentTxns,
-    intermediateGallons,
-    windowGallons,
-    windowMiles,
-    windowSuspectGallons,
-  };
+  return { previousTxn, recentTxns, intermediateGallons, windowGallons, windowMiles, windowSuspectGallons };
 }
 
 /**
@@ -362,13 +287,8 @@ export async function loadTankResidualWindow(
     .order("created_at", { ascending: false })
     .order("id", { ascending: false }) // deterministic sample at the limit boundary (audit A2.5)
     .limit(10);
-  const rows = (
-    (data ?? []) as {
-      gallons: number | string;
-      samsara_tank_observed_gal: number | string;
-      attribution_verdict: string | null;
-    }[]
-  ).filter((x) => x.attribution_verdict !== "suspect");
+  const rows = ((data ?? []) as { gallons: number | string; samsara_tank_observed_gal: number | string; attribution_verdict: string | null }[])
+    .filter((x) => x.attribution_verdict !== "suspect");
   if (rows.length === 0) return null;
   let sumShortGal = 0;
   let totalBilledGal = 0;
@@ -379,11 +299,7 @@ export async function loadTankResidualWindow(
     sumShortGal += billed - observed; // SIGNED — over-reads cancel shorts, noise sums to ~0
     totalBilledGal += billed;
   }
-  return {
-    fills: rows.length,
-    sumShortGal: Math.round(sumShortGal * 10) / 10,
-    totalBilledGal: Math.round(totalBilledGal * 10) / 10,
-  };
+  return { fills: rows.length, sumShortGal: Math.round(sumShortGal * 10) / 10, totalBilledGal: Math.round(totalBilledGal * 10) / 10 };
 }
 
 export interface ReeferContext {
@@ -416,8 +332,7 @@ export async function loadReeferContext(
       .neq("status", "retired")
       .limit(2);
     const reeferTrailers = (trailerRows ?? []) as { reefer_tank_capacity_gal: number | string }[];
-    reeferTankCapacityGal =
-      reeferTrailers.length === 1 ? Number(reeferTrailers[0]!.reefer_tank_capacity_gal) : null;
+    reeferTankCapacityGal = reeferTrailers.length === 1 ? Number(reeferTrailers[0]!.reefer_tank_capacity_gal) : null;
     const { data: rwin } = await admin
       .from("fuel_transactions")
       .select("gallons")
@@ -426,10 +341,7 @@ export async function loadReeferContext(
       .eq("tank_type", "reefer")
       .gte("fueled_at", winStartIso)
       .lte("fueled_at", r.fueled_at);
-    reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce(
-      (s, x) => s + Number(x.gallons),
-      0,
-    );
+    reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce((s, x) => s + Number(x.gallons), 0);
   }
   return { reeferTankCapacityGal, reeferWindowGallons };
 }
@@ -519,11 +431,5 @@ export async function loadReeferDiversionContext(
       }
     }
   }
-  return {
-    reeferPaired,
-    orgUsesReeferFuel,
-    reeferDiversionReeferGal,
-    reeferDiversionTractorGal,
-    reeferLoadInWindow,
-  };
+  return { reeferPaired, orgUsesReeferFuel, reeferDiversionReeferGal, reeferDiversionTractorGal, reeferLoadInWindow };
 }
