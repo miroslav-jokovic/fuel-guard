@@ -186,3 +186,20 @@ describe("lifecycle", () => {
     await expect(revokeDriverLogin(admin, "org1", "d1")).rejects.toMatchObject({ code: "no_login" });
   });
 });
+
+describe("custom passwords", () => {
+  it("create uses the admin-chosen password verbatim (returned once, sent to auth)", async () => {
+    const { admin, authCalls } = makeAdmin({ fixtures: { drivers: unlinkedDriver } });
+    const issued = await createDriverLogin(admin, "org1", "d1", { password: "chosen-pass-12345" });
+    expect(issued.password).toBe("chosen-pass-12345");
+    const create = authCalls.find((c) => c.fn === "createUser")!.args[0] as { password: string };
+    expect(create.password).toBe("chosen-pass-12345");
+  });
+
+  it("reset uses the admin-chosen password when provided", async () => {
+    const { admin, authCalls } = makeAdmin({ fixtures: { drivers: linkedDriver } });
+    const issued = await resetDriverPassword(admin, "org1", "d1", { password: "chosen-reset-12345" });
+    expect(issued.password).toBe("chosen-reset-12345");
+    expect((authCalls.find((c) => c.fn === "updateUserById")!.args[1] as { password: string }).password).toBe("chosen-reset-12345");
+  });
+});

@@ -49,11 +49,21 @@ export function driverAppAccess(
 }
 
 // ── admin lifecycle (roster endpoints, admin/fleet_manager) ───────────────────
+/** Admin-chosen password: 12–128 chars (matches the Supabase Auth minimum policy). Optional — when
+ *  omitted the server generates a strong one. Either way it is returned once and never stored by us. */
+export const customPasswordSchema = z.string().min(12).max(128);
+
 export const createDriverLoginSchema = z.object({
   /** Optional explicit username; defaults to the driver's Samsara alpha code, then their name. */
   username: z.string().trim().toLowerCase().regex(DRIVER_USERNAME_RE).optional(),
+  password: customPasswordSchema.optional(),
 });
 export type CreateDriverLoginRequest = z.infer<typeof createDriverLoginSchema>;
+
+export const resetDriverPasswordSchema = z.object({
+  password: customPasswordSchema.optional(),
+});
+export type ResetDriverPasswordRequest = z.infer<typeof resetDriverPasswordSchema>;
 
 /** Create/reset response — the ONLY place the password ever appears; it is not stored anywhere. */
 export const driverCredentialIssuedSchema = z.object({

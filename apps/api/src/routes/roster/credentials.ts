@@ -1,5 +1,10 @@
 import { Router, type Response } from "express";
-import { createDriverLoginSchema, type CreateDriverLoginRequest } from "@fuelguard/shared";
+import {
+  createDriverLoginSchema,
+  resetDriverPasswordSchema,
+  type CreateDriverLoginRequest,
+  type ResetDriverPasswordRequest,
+} from "@fuelguard/shared";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
@@ -52,8 +57,10 @@ export function rosterCredentialsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const driverId = String(req.params.driverId ?? "");
       try {
+        const body = res.locals.body as CreateDriverLoginRequest;
         const issued = await createDriverLogin(admin, orgId, driverId, {
-          username: (res.locals.body as CreateDriverLoginRequest).username,
+          username: body.username,
+          password: body.password,
         });
         await writeAudit(admin, {
           orgId,
@@ -70,16 +77,19 @@ export function rosterCredentialsRouter(): Router {
     }),
   );
 
-  // Rotate the password, returned ONCE.
+  // Rotate the password (admin-chosen or generated), returned ONCE.
   router.post(
     "/:driverId/credentials/reset",
+    validateBody(resetDriverPasswordSchema),
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const driverId = String(req.params.driverId ?? "");
       try {
-        const issued = await resetDriverPassword(admin, orgId, driverId);
+        const issued = await resetDriverPassword(admin, orgId, driverId, {
+          password: (res.locals.body as ResetDriverPasswordRequest).password,
+        });
         await writeAudit(admin, {
           orgId,
           actorId: req.auth!.userId,

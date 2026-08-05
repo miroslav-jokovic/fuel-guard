@@ -39,15 +39,27 @@ const busy = computed(
 
 // Username input (create only) — prefilled with the natural default; the server validates + dedups.
 const username = ref("");
+// Optional admin-chosen password (create AND reset). Blank → the server generates a strong one.
+const customPassword = ref("");
 watch(
   () => [props.open, props.driver?.id],
   () => {
     username.value = props.driver
       ? (props.driver.app_username ?? props.driver.samsara_username ?? usernameFromName(props.driver.full_name))
       : "";
+    customPassword.value = "";
     issued.value = null;
   },
 );
+
+/** Client-side mirror of the contract rule (12–128 chars) so a too-short choice fails before the API. */
+const passwordProblem = computed(() => {
+  const p = customPassword.value;
+  if (!p) return null;
+  if (p.length < 12) return "Custom password must be at least 12 characters.";
+  if (p.length > 128) return "Custom password is too long.";
+  return null;
+});
 
 // The one-time credential — lives only in this ref while the modal is open.
 const issued = ref<DriverCredentialIssued | null>(null);
@@ -55,10 +67,16 @@ const issued = ref<DriverCredentialIssued | null>(null);
 async function run(action: "create" | "reset" | "disable" | "enable" | "revoke") {
   const d = props.driver;
   if (!d) return;
+  if ((action === "create" || action === "reset") && passwordProblem.value) {
+    toast.error(passwordProblem.value);
+    return;
+  }
+  const chosen = customPassword.value || undefined;
   try {
-    if (action === "create") issued.value = await create.mutateAsync({ driverId: d.id, username: username.value.trim() || undefined });
+    if (action === "create")
+      issued.value = await create.mutateAsync({ driverId: d.id, username: username.value.trim() || undefined, password: chosen });
     if (action === "reset" && confirm(`Reset ${d.full_name}'s app password? Their current password stops working.`))
-      issued.value = await reset.mutateAsync(d.id);
+      issued.value = await reset.mutateAsync({ driverId: d.id, password: chosen });
     if (action === "disable" && confirm(`Disable ${d.full_name}'s app access? They are signed out and cannot sign back in until re-enabled.`))
       await disable.mutateAsync(d.id);
     if (action === "enable") await enable.mutateAsync(d.id);
@@ -132,14 +150,42 @@ function close() {
             class="mt-1 w-full rounded-md border-edge font-mono text-sm"
           />
         </label>
-        <BaseButton variant="primary" :disabled="busy" @click="run('create')">Create login</BaseButton>
+        <label class="block text-sm">
+          <span class="text-ink-secondary">Custom password <span class="text-ink-subtle">(optional — blank generates one)</span></span>
+          <input
+            v-model="customPassword"
+            type="text"
+            autocapitalize="none"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="min 12 characters"
+            class="mt-1 w-full rounded-md border-edge font-mono text-sm"
+          />
+          <span v-if="passwordProblem" class="mt-1 block text-xs text-danger-600">{{ passwordProblem }}</span>
+        </label>
+        <BaseButton variant="primary" :disabled="busy || !!passwordProblem" @click="run('create')">Create login</BaseButton>
       </div>
 
-      <div v-else class="flex flex-wrap gap-2">
-        <BaseButton variant="secondary" :disabled="busy" @click="run('reset')">Reset password</BaseButton>
-        <BaseButton v-if="access === 'active'" variant="secondary" :disabled="busy" @click="run('disable')">Disable</BaseButton>
-        <BaseButton v-if="access === 'disabled'" variant="primary" :disabled="busy" @click="run('enable')">Enable</BaseButton>
-        <BaseButton variant="danger" :disabled="busy" @click="run('revoke')">Revoke login</BaseButton>
+      <div v-else class="space-y-3">
+        <label class="block text-sm">
+          <span class="text-ink-secondary">Custom password for reset <span class="text-ink-subtle">(optional — blank generates one)</span></span>
+          <input
+            v-model="customPassword"
+            type="text"
+            autocapitalize="none"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="min 12 characters"
+            class="mt-1 w-full rounded-md border-edge font-mono text-sm"
+          />
+          <span v-if="passwordProblem" class="mt-1 block text-xs text-danger-600">{{ passwordProblem }}</span>
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <BaseButton variant="secondary" :disabled="busy || !!passwordProblem" @click="run('reset')">Reset password</BaseButton>
+          <BaseButton v-if="access === 'active'" variant="secondary" :disabled="busy" @click="run('disable')">Disable</BaseButton>
+          <BaseButton v-if="access === 'disabled'" variant="primary" :disabled="busy" @click="run('enable')">Enable</BaseButton>
+          <BaseButton variant="danger" :disabled="busy" @click="run('revoke')">Revoke login</BaseButton>
+        </div>
       </div>
 
       <p class="text-xs text-ink-subtle">

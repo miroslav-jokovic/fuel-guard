@@ -116,7 +116,7 @@ export async function createDriverLogin(
   admin: SupabaseClient,
   orgId: string,
   driverId: string,
-  opts: { username?: string } = {},
+  opts: { username?: string; password?: string } = {},
 ): Promise<IssuedCredential> {
   const driver = await loadDriver(admin, orgId, driverId);
   if (driver.user_id) {
@@ -126,7 +126,8 @@ export async function createDriverLogin(
     );
   }
   const username = await resolveUsername(admin, orgId, driver, opts.username);
-  const password = generateDriverPassword();
+  // Admin-chosen password is allowed (length is contract-validated); omitted → strong generated one.
+  const password = opts.password ?? generateDriverPassword();
 
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email: toSyntheticDriverEmail(username),
@@ -170,17 +171,18 @@ export async function createDriverLogin(
   return { username, password };
 }
 
-/** New generated password (old sessions die at refresh / within the 1h JWT lifetime). */
+/** New password — admin-chosen or generated (old sessions die at refresh / within the 1h JWT life). */
 export async function resetDriverPassword(
   admin: SupabaseClient,
   orgId: string,
   driverId: string,
+  opts: { password?: string } = {},
 ): Promise<IssuedCredential> {
   const driver = await loadDriver(admin, orgId, driverId);
   if (!driver.user_id || !driver.app_username) {
     throw new DriverCredentialError("This driver has no login to reset.", "no_login");
   }
-  const password = generateDriverPassword();
+  const password = opts.password ?? generateDriverPassword();
   const { error } = await admin.auth.admin.updateUserById(driver.user_id, { password });
   if (error) throw new DriverCredentialError(error.message, "auth_error");
   await admin

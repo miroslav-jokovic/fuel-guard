@@ -25,10 +25,13 @@ function useCredentialAction<T>(path: (driverId: string) => string, method: "POS
 export function useCreateDriverLogin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { driverId: string; username?: string }): Promise<DriverCredentialIssued> => {
+    mutationFn: async (args: { driverId: string; username?: string; password?: string }): Promise<DriverCredentialIssued> => {
       const res = await apiFetch<DriverCredentialIssued>(`/api/roster/drivers/${args.driverId}/credentials`, {
         method: "POST",
-        body: args.username ? { username: args.username } : {},
+        body: {
+          ...(args.username ? { username: args.username } : {}),
+          ...(args.password ? { password: args.password } : {}),
+        },
       });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not create the login.");
       return res.data;
@@ -37,8 +40,20 @@ export function useCreateDriverLogin() {
   });
 }
 
-export const useResetDriverPassword = () =>
-  useCredentialAction<DriverCredentialIssued>((id) => `/api/roster/drivers/${id}/credentials/reset`, "POST");
+export function useResetDriverPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: { driverId: string; password?: string }): Promise<DriverCredentialIssued> => {
+      const res = await apiFetch<DriverCredentialIssued>(`/api/roster/drivers/${args.driverId}/credentials/reset`, {
+        method: "POST",
+        body: args.password ? { password: args.password } : {},
+      });
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not reset the password.");
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: driversKey }),
+  });
+}
 export const useDisableDriverLogin = () =>
   useCredentialAction<{ ok: boolean }>((id) => `/api/roster/drivers/${id}/credentials/disable`, "POST");
 export const useEnableDriverLogin = () =>
