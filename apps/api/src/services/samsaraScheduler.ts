@@ -12,7 +12,11 @@ import { runDataRetention } from "./dataRetention.js";
 import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
 
-/** Orgs to auto-sync: those with a per-org token, plus all orgs when a single-tenant env token is set. */
+/** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —
+ *  the OLDEST org only (2026-08 incident: the fallback used to include EVERY org row, so a stray org
+ *  created by dev seed data started syncing the entire real fleet in parallel — duplicate vehicles,
+ *  doubled DB load. An env token is single-tenant by definition; it belongs to exactly one org, and
+ *  the oldest row is the real tenant by construction — strays are always created later). */
 async function orgsToSync(admin: SupabaseClient, env: Env): Promise<string[]> {
   const set = new Set<string>();
   const { data: creds } = await admin
@@ -22,8 +26,12 @@ async function orgsToSync(admin: SupabaseClient, env: Env): Promise<string[]> {
     if (c.enabled !== false && c.samsara_api_token) set.add(c.org_id as string);
   }
   if (env.SAMSARA_API_TOKEN) {
-    const { data: orgs } = await admin.from("organizations").select("id");
-    for (const o of orgs ?? []) set.add(o.id as string);
+    const { data: oldest } = await admin
+      .from("organizations")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1);
+    for (const o of oldest ?? []) set.add(o.id as string);
   }
   return [...set];
 }

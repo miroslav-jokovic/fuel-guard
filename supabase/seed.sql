@@ -6,6 +6,17 @@
 
 set local client_min_messages = warning;
 
+-- ── PRODUCTION GUARD (2026-08 incident) ──────────────────────────────────────────────────────
+-- This seed was accidentally applied to production, creating a demo org that the schedulers then
+-- synced as a full parallel tenant (duplicate fleet, doubled DB load). Refuse to run anywhere a
+-- REAL organization already exists.
+do $$
+begin
+  if exists (select 1 from organizations where id <> '00000000-0000-0000-0000-0000000000a1') then
+    raise exception 'seed.sql is DEV ONLY — this database has real organizations; refusing to seed.';
+  end if;
+end $$;
+
 -- Fixed org id so re-running and referencing is deterministic.
 do $$
 declare
