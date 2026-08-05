@@ -46,6 +46,12 @@ export interface AttributionContext {
   driverOffDutyAtFill: boolean;
 }
 
+/** No duty-status segment plausibly spans more than this — the LOWER time bound that turns the logbook
+ *  lookups into a tight index-range scan (perf finding, 2026-08: without it, every per-fill query
+ *  walked the driver's ENTIRE segment history — 100–226ms avg on a 915k-row table). Multi-day off-duty
+ *  home blocks are the longest real segments; 7 days covers them with margin. */
+const LOGBOOK_SEGMENT_MAX_SPAN_MS = 7 * 86_400_000;
+
 /** Fetch the driver's logbook segments overlapping the fill's ±buffer window (with status + vehicle). */
 async function loadDriverLogbookSegments(
   admin: SupabaseClient,
@@ -55,11 +61,13 @@ async function loadDriverLogbookSegments(
 ): Promise<LogbookSegment[]> {
   const loIso = new Date(fillMs - ATTRIBUTION_TIME_BUFFER_MS).toISOString();
   const hiIso = new Date(fillMs + ATTRIBUTION_TIME_BUFFER_MS).toISOString();
+  const scanFromIso = new Date(fillMs - LOGBOOK_SEGMENT_MAX_SPAN_MS).toISOString();
   const { data } = await admin
     .from("hos_duty_segments")
     .select("vehicle_id, status, started_at, ended_at")
     .eq("org_id", orgId)
     .eq("driver_id", driverId)
+    .gte("started_at", scanFromIso) // tight index range — see LOGBOOK_SEGMENT_MAX_SPAN_MS
     .lte("started_at", hiIso)
     .or(`ended_at.is.null,ended_at.gte.${loIso}`)
     .order("started_at", { ascending: true })
@@ -139,6 +147,7 @@ export async function healMissingAttribution(
       .eq("org_id", orgId)
       .eq("vehicle_id", txn.vehicleId)
       .not("driver_id", "is", null)
+      .gte("started_at", new Date(fillMs - LOGBOOK_SEGMENT_MAX_SPAN_MS).toISOString()) // tight index range
       .lte("started_at", new Date(fillMs).toISOString())
       .or(`ended_at.is.null,ended_at.gte.${new Date(fillMs).toISOString()}`)
       .limit(10);

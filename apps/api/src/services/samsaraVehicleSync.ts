@@ -256,14 +256,25 @@ export async function syncVehicleStatsFromSamsara(
   const fuelByVehicle = parseVehicleFuelPercents(stats);
   if (odometerMiles.size === 0 && fuelByVehicle.size === 0) return { updated: 0 };
 
+  // DIFF-BEFORE-WRITE (perf finding, 2026-08): this ran every few minutes and blindly stamped EVERY
+  // mapped truck — 862k+ vehicle updates in pg_stat_statements, most writing identical values (a parked
+  // truck's odometer and fuel level don't move). Reading the current values costs one select; skipping
+  // unchanged trucks eliminates the bulk of the write churn + WAL/autovacuum pressure. Same pattern as
+  // hosSync's diff (which existed for exactly this reason).
   const { data: rows } = await admin
     .from("vehicles")
-    .select("id, samsara_vehicle_id")
+    .select("id, samsara_vehicle_id, current_odometer, samsara_fuel_percent, samsara_fuel_at")
     .eq("org_id", orgId)
     .not("samsara_vehicle_id", "is", null);
 
   let updated = 0;
-  for (const r of (rows ?? []) as { id: string; samsara_vehicle_id: string }[]) {
+  for (const r of (rows ?? []) as {
+    id: string;
+    samsara_vehicle_id: string;
+    current_odometer: number | string | null;
+    samsara_fuel_percent: number | string | null;
+    samsara_fuel_at: string | null;
+  }[]) {
     const odo = odometerMiles.get(r.samsara_vehicle_id);
     const fuel = fuelByVehicle.get(r.samsara_vehicle_id);
     if (odo == null && !fuel) continue; // Samsara reported nothing for this truck → leave it be
@@ -272,11 +283,12 @@ export async function syncVehicleStatsFromSamsara(
       samsara_fuel_percent?: number;
       samsara_fuel_at?: string | null;
     } = {};
-    if (odo != null) patch.current_odometer = odo;
-    if (fuel) {
+    if (odo != null && Number(r.current_odometer) !== odo) patch.current_odometer = odo;
+    if (fuel && (Number(r.samsara_fuel_percent) !== fuel.percent || r.samsara_fuel_at !== fuel.time)) {
       patch.samsara_fuel_percent = fuel.percent;
       patch.samsara_fuel_at = fuel.time;
     }
+    if (Object.keys(patch).length === 0) continue; // nothing moved → no write
     await admin.from("vehicles").update(patch).eq("id", r.id).eq("org_id", orgId);
     updated++;
   }
