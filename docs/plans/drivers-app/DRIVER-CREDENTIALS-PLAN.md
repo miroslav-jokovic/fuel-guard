@@ -1,6 +1,11 @@
 # Driver credentials — company-issued username + password (Samsara model)
 
-**Status:** planned (this doc). **Supersedes** the driver-invite flow (plan D1/D3): the org decided
+**Status:** IMPLEMENTED (commit `6ea16a9` + follow-up). Delivered exactly as planned with two noted
+deviations: the credential modal ships copy-to-clipboard instead of a print-handout view (add later if
+paper handouts are wanted), and the API accepts `VITE_SUPABASE_ANON_KEY` as the anon-key fallback so
+the single-service Railway env needs no new variable. Remaining HUMAN checklist item (A2): in the
+Supabase dashboard set auth password min length ≥ 12 and enable leaked-password protection.
+**Supersedes** the driver-invite flow (plan D1/D3): the org decided
 drivers will NOT self-register via email invites. Instead the company creates each driver's login
 (username + generated password), hands it out, and controls it end-to-end — exactly how Samsara issues
 driver alpha codes. Email invites remain for OFFICE roles only; `invites.driver_id` is retired.

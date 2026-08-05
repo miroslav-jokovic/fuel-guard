@@ -23,8 +23,15 @@ const members = ref<OrgMember[]>([]);
 const loading = ref(false);
 
 const email = ref("");
-const role = ref<UserRole>("driver");
+const role = ref<UserRole>("dispatcher");
 const submitting = ref(false);
+
+// Email invites are for OFFICE roles only (DRIVER-CREDENTIALS-PLAN.md DC9): driver logins are
+// company-issued from the Drivers page (username + one-time password), never via email.
+const inviteRoleOptions = USER_ROLES.filter((r) => r !== "driver").map((r) => ({
+  value: r,
+  label: USER_ROLE_LABELS[r],
+}));
 
 async function load() {
   loading.value = true;
@@ -223,15 +230,16 @@ onMounted(load);
           />
         </FormField>
         <FormField label="Role">
-          <AppSelect
-            v-model="role"
-            :options="USER_ROLES.map((r) => ({ value: r, label: USER_ROLE_LABELS[r] }))"
-          />
+          <AppSelect v-model="role" :options="inviteRoleOptions" />
         </FormField>
         <BaseButton variant="primary" type="submit" :disabled="submitting">
           {{ submitting ? "Sending…" : "Send invite" }}
         </BaseButton>
       </form>
+      <p class="mt-2 text-xs text-ink-subtle">
+        Looking for drivers? Driver-app logins aren't invited by email — issue a username + password
+        from the <RouterLink to="/drivers" class="text-brand underline">Drivers page</RouterLink> (App access column).
+      </p>
     </BaseCard>
 
     <section class="space-y-3">

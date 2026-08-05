@@ -286,6 +286,14 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   }
   const env = parsed.data;
 
+  // Single-service deploy convenience: the web build already ships the anon key as
+  // VITE_SUPABASE_ANON_KEY in the same Railway environment — accept it as the API-side fallback so the
+  // driver-login exchange works without duplicating the variable. (Publishable key; not a secret.)
+  if (!env.SUPABASE_ANON_KEY && source.VITE_SUPABASE_ANON_KEY) {
+    (env as { SUPABASE_ANON_KEY?: string }).SUPABASE_ANON_KEY = source.VITE_SUPABASE_ANON_KEY;
+    console.info("[env] SUPABASE_ANON_KEY taken from VITE_SUPABASE_ANON_KEY");
+  }
+
   // Auto-detect provider when MAIL_PROVIDER is left at the default "none". Brevo is preferred (it allows
   // single-sender verification with no DNS), so its key wins if both happen to be set.
   if (env.MAIL_PROVIDER === "none") {
