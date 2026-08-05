@@ -60,6 +60,8 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // Idle rollup (the Idling page's read path). Unapplied 0114 makes the rollup refresh fail and leaves
   // the page's tables empty even though the raw syncs are green.
   { table: "idle_rollup_days", column: "continuous_idle_sec", migration: "0114" },
+  // Company-issued driver credentials. Unapplied 0116 makes login create/reset fail at the DB layer.
+  { table: "drivers", column: "app_username", migration: "0116" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { AuthError } from '@supabase/supabase-js';
 import { Banner, Button, Field, Icon, Input } from '@/components';
 import { AuthHero } from '@/features/auth/AuthLayout';
@@ -11,34 +10,34 @@ import { useSession } from '@/session/SessionProvider';
 function friendlyError(e: unknown): string {
   if (e instanceof AuthError) {
     if (e.message.toLowerCase().includes('invalid login')) {
-      return 'That email or password is incorrect.';
+      return 'That Driver ID or password is incorrect.';
     }
     if (e.status === 0 || e.message.toLowerCase().includes('network')) {
       return 'Can’t reach the server. Check your connection and try again.';
     }
   }
+  if (e instanceof Error && e.message) return e.message; // exchange endpoint copy is already friendly
   return 'Something went wrong signing in. Please try again.';
 }
 
 export default function SignIn() {
   const { signIn, activateDevBypass } = useSession();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
+  const canSubmit = username.trim().length > 0 && password.length > 0 && !submitting;
 
   async function onSubmit() {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
     try {
-      await signIn(email.trim(), password);
+      await signIn(username.trim(), password);
       // On success the session flips and the root guard navigates away — nothing to do here.
     } catch (e) {
       setError(friendlyError(e));
@@ -60,23 +59,21 @@ export default function SignIn() {
         <AuthHero
           icon="local_gas_station"
           title="FuelGuard Driver"
-          subtitle="Sign in with the email your fleet invited."
+          subtitle="Sign in with the Driver ID your fleet gave you."
         />
 
         {error ? <Banner tone="danger" message={error} /> : null}
 
         <View className="gap-4">
-          <Field label="Email">
+          <Field label="Driver ID">
             <Input
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="e.g. aaron.cole"
               autoCapitalize="none"
               autoCorrect={false}
-              autoComplete="email"
-              keyboardType="email-address"
+              autoComplete="username"
               textContentType="username"
-              inputMode="email"
               returnKeyType="next"
               editable={!submitting}
             />
@@ -128,15 +125,11 @@ export default function SignIn() {
           />
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/accept-invite')}
-          className="min-h-[44px] items-center justify-center rounded-xl active:bg-surface-muted"
-        >
-          <Text className="text-center text-sm leading-relaxed text-ink-muted">
-            New here? <Text className="font-sans-sb text-brand">Set up your account from your invite →</Text>
-          </Text>
-        </Pressable>
+        {/* No self-service recovery by design (DRIVER-CREDENTIALS-PLAN.md DC3): logins are
+            company-issued; a forgotten password is reset by dispatch, never by email. */}
+        <Text className="text-center text-sm leading-relaxed text-ink-muted">
+          No login yet, or forgot your password? Ask dispatch — they issue and reset Driver IDs.
+        </Text>
 
         {__DEV__ ? (
           <Pressable

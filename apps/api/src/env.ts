@@ -16,6 +16,9 @@ const EnvSchema = z.object({
   // them fail clearly at call time.
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  // Anon (publishable) key — used ONLY by the driver-login exchange (routes/auth.ts) to sign a driver
+  // in server-side with their username-backed credentials. Same key the web ships publicly.
+  SUPABASE_ANON_KEY: z.string().optional(),
   // Where the invite email should send users to finish sign-up (the web app's accept page).
   WEB_APP_URL: z.string().url().catch("http://localhost:5173"),
   // Single-service deploy: absolute path to the built web SPA to serve. Defaults next to the API

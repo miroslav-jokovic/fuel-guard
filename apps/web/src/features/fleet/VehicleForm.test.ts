@@ -17,6 +17,8 @@ const drivers = [
     current_hos_vehicle: null,
     current_hos_at: null,
     current_location: null,
+    app_username: null,
+    app_access_enabled: null,
     created_at: "",
     updated_at: "",
   },

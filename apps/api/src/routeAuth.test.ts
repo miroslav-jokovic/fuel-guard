@@ -11,7 +11,9 @@ import { loadEnv } from "./env.js";
  * `router.use(requireAuth)`). Provider-signed webhooks are the one intentional exception. Router mounts
  * are DISCOVERED from app.ts source, so a new router added without auth fails this test automatically.
  */
-const PUBLIC_PREFIXES = new Set(["/api/webhooks"]);
+// /api/auth is the driver-login exchange — public BY DEFINITION (it is how a session is obtained);
+// it carries its own throttles + uniform errors (routes/auth.ts) instead of requireAuth.
+const PUBLIC_PREFIXES = new Set(["/api/webhooks", "/api/auth"]);
 
 function mountedApiRouters(): string[] {
   const src = readFileSync(new URL("./app.ts", import.meta.url), "utf8");

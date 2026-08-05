@@ -21,6 +21,8 @@ import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 import { formatPhone } from "@/lib/format";
 import { useDriverReconcile } from "@/features/fleet/useDriverReconcile";
+import DriverAccessModal from "@/features/roster/DriverAccessModal.vue";
+import { driverAppAccess } from "@fuelguard/shared";
 
 // HOS duty-status badge styling + a "as of" tooltip (the status is a snapshot from the last HOS sync).
 const HOS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -54,6 +56,24 @@ const updateDriver = useUpdateDriver();
 const toast = useToastStore();
 const drawerOpen = ref(false);
 const editing = ref<Driver | null>(null);
+
+// ── Company-issued app logins (DRIVER-CREDENTIALS-PLAN.md): status badge + lifecycle modal ────────
+const accessDriver = ref<Driver | null>(null);
+const accessOpen = ref(false);
+function openAccess(d: Driver) {
+  accessDriver.value = d;
+  accessOpen.value = true;
+}
+// Keep the modal's driver fresh after mutations (the query refetches; the ref would go stale).
+watch(drivers, (list) => {
+  if (accessDriver.value) accessDriver.value = list?.find((d) => d.id === accessDriver.value!.id) ?? accessDriver.value;
+});
+const ACCESS_BADGE: Record<string, { label: string; cls: string }> = {
+  active: { label: "Active", cls: "bg-success-100 text-success-700" },
+  disabled: { label: "Disabled", cls: "bg-warning-100 text-warning-700" },
+  none: { label: "—", cls: "bg-surface-muted text-ink-subtle" },
+};
+const accessBadge = (d: Driver) => ACCESS_BADGE[driverAppAccess(d.user_id, d.app_access_enabled)]!;
 
 const saving = computed(() => createDriver.isPending.value || updateDriver.isPending.value);
 
@@ -145,6 +165,7 @@ const columns: DataTableColumn[] = [
     headerClass: "min-w-[9rem]",
     cellClass: "text-ink-secondary",
   },
+  { key: "app_access", label: "App access", headerClass: "min-w-[8rem]" },
   {
     key: "phone",
     label: "Phone",
@@ -255,6 +276,19 @@ async function onSubmit(input: DriverInput) {
       </template>
       <template #cell-current_hos_vehicle="{ row }">{{ row.current_hos_vehicle || "—" }}</template>
       <template #cell-current_location="{ row }">{{ row.current_location || "—" }}</template>
+      <template #cell-app_access="{ row }">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-surface-subtle"
+          :title="row.app_username ? `Username: ${row.app_username}` : 'Create this driver’s app login'"
+          @click.stop="openAccess(row)"
+        >
+          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" :class="accessBadge(row).cls">
+            {{ accessBadge(row).label }}
+          </span>
+          <span v-if="row.app_username" class="font-mono text-xs text-ink-muted">{{ row.app_username }}</span>
+        </button>
+      </template>
       <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
@@ -366,5 +400,7 @@ async function onSubmit(input: DriverInput) {
         @cancel="drawerOpen = false"
       />
     </SlideOver>
+
+    <DriverAccessModal :open="accessOpen" :driver="accessDriver" @close="accessOpen = false" />
   </div>
 </template>

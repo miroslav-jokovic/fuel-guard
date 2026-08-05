@@ -29,6 +29,8 @@ import { hazmatRouter } from "./routes/hazmat/index.js";
 import { meRouter } from "./routes/me.js";
 import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
+import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
+import { authRouter } from "./routes/auth.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -107,6 +109,7 @@ export function createApp(env: Env): Express {
   });
   app.use("/api", apiLimiter);
   app.use("/api/invites", strictLimiter);
+  app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target
   app.use("/api/reports", strictLimiter);
   app.use("/api/integrations", strictLimiter);
   app.use("/api/ai", strictLimiter);
@@ -129,7 +132,9 @@ export function createApp(env: Env): Express {
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
   app.use("/api/members", membersRouter());
+  app.use("/api/auth", authRouter()); // PUBLIC driver-login exchange (its own throttles + uniform errors)
   app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
+  app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
   app.use("/api/anomalies", anomaliesRouter());
   app.use("/api/reports", reportsRouter());

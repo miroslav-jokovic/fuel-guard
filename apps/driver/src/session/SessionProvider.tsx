@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import type { UserRole } from "@fuelguard/shared";
 import { decodeClaims } from "@/lib/jwt";
 import { supabase } from "@/lib/supabase";
+import { env } from "@/lib/env";
 
 /**
  * The resolved auth state that drives every routing decision (root guard) and gated UI.
@@ -23,7 +24,8 @@ interface SessionValue {
   role: UserRole | null;
   isDriver: boolean;
   hasOrg: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  /** Company-issued Driver ID (username) sign-in; input containing "@" is a legacy email login. */
+  signIn: (usernameOrEmail: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** Re-fetch the token so freshly-minted org_id/user_role claims appear after accepting an invite. */
   refresh: () => Promise<void>;
@@ -146,8 +148,30 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       role,
       isDriver,
       hasOrg,
-      async signIn(email, password) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+      async signIn(usernameOrEmail, password) {
+        // Legacy email logins (pre-cutover accounts) go straight to Supabase; company-issued Driver
+        // IDs go through the server exchange (DRIVER-CREDENTIALS-PLAN.md DC5), which resolves the
+        // username and returns a session — the app never learns the synthetic-email scheme.
+        if (usernameOrEmail.includes("@")) {
+          const { error } = await supabase.auth.signInWithPassword({ email: usernameOrEmail, password });
+          if (error) throw error;
+          return;
+        }
+        const res = await fetch(`${env.apiUrl}/api/auth/driver-login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: usernameOrEmail.trim().toLowerCase(), password }),
+        });
+        const body = (await res.json().catch(() => null)) as
+          | { access_token?: string; refresh_token?: string; error?: { message?: string } }
+          | null;
+        if (!res.ok || !body?.access_token || !body.refresh_token) {
+          throw new Error(body?.error?.message ?? "That Driver ID or password is incorrect.");
+        }
+        const { error } = await supabase.auth.setSession({
+          access_token: body.access_token,
+          refresh_token: body.refresh_token,
+        });
         if (error) throw error;
       },
       async signOut() {

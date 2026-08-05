@@ -3,7 +3,7 @@ import type { Driver, DriverInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const DRIVER_COLS =
-  "id, org_id, user_id, full_name, employee_id, phone, status, samsara_driver_id, samsara_username, current_hos_status, current_hos_vehicle, current_hos_at, current_location, created_at, updated_at";
+  "id, org_id, user_id, full_name, employee_id, phone, status, samsara_driver_id, samsara_username, current_hos_status, current_hos_vehicle, current_hos_at, current_location, app_username, app_access_enabled, created_at, updated_at";
 
 const driversKey = ["drivers"] as const;
 

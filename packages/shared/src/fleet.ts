@@ -182,6 +182,8 @@ export interface Driver {
   current_hos_vehicle: string | null; // current truck unit
   current_hos_at: string | null;
   current_location: string | null; // current "City, ST" from the truck's GPS snapshot (0112)
+  app_username: string | null; // company-issued driver-app login (0116; password lives in Supabase Auth)
+  app_access_enabled: boolean | null; // active/disabled flag for the app login (0098)
   created_at: string;
   updated_at: string;
 }

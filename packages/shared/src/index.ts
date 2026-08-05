@@ -55,3 +55,4 @@ export * from "./dutyContract.js";
 export * from "./messagesContract.js";
 export * from "./rosterContract.js";
 export * from "./idleRollup.js";
+export * from "./driverAuthContract.js";
