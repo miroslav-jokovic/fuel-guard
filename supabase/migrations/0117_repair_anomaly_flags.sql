@@ -30,7 +30,7 @@ with live as (
 )
 update fuel_transactions t
 set has_anomaly = true,
-    max_severity = case live.sev_rank when 4 then 'critical' when 3 then 'high' when 2 then 'medium' else 'low' end
+    max_severity = (case live.sev_rank when 4 then 'critical' when 3 then 'high' when 2 then 'medium' else 'low' end)::anomaly_severity
 from live
 where t.id = live.transaction_id
   and t.has_anomaly = false;
