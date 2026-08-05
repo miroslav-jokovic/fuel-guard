@@ -1476,3 +1476,21 @@ describe("WP-BEH — driver-not-working from the ELD logbook", () => {
     expect(ids(ctx({}))).not.toContain("fuel_while_driver_home");
   });
 });
+
+// ── 2026-08 chronic-short hardening (unit-737 field case) ─────────────────────────────────────────
+describe("tank_chronic_short — majority-direction guard (marginal sums stop re-flagging)", () => {
+  const clean: VehicleView = { ...reliable, tankRatioSigma: 0.042 };
+  it("a total dragged over the line by a minority of short fills does NOT fire", () => {
+    // 7 fills, 4 short (57%) — below the 70% majority floor even though the sum clears the threshold.
+    const c = ctx({ vehicle: clean, tankResidualWindow: { fills: 7, sumShortGal: 58, totalBilledGal: 874, shortFills: 4 } });
+    expect(ids(c)).not.toContain("tank_chronic_short");
+  });
+  it("a genuine persistent pattern (most fills short) still fires", () => {
+    const c = ctx({ vehicle: clean, tankResidualWindow: { fills: 7, sumShortGal: 58, totalBilledGal: 874, shortFills: 6 } });
+    expect(ids(c)).toContain("tank_chronic_short");
+  });
+  it("windows without the shortFills count (legacy shape) behave as before", () => {
+    const c = ctx({ vehicle: clean, tankResidualWindow: { fills: 7, sumShortGal: 58, totalBilledGal: 874 } });
+    expect(ids(c)).toContain("tank_chronic_short");
+  });
+});

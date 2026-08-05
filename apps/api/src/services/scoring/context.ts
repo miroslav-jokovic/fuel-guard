@@ -282,14 +282,19 @@ export async function loadTankResidualWindow(
   admin: SupabaseClient,
   txn: TxnView,
   r: FtxnRow,
-): Promise<{ fills: number; sumShortGal: number; totalBilledGal: number } | null> {
+): Promise<{ fills: number; sumShortGal: number; totalBilledGal: number; shortFills: number } | null> {
   if (!txn.vehicleId || txn.tankType === "reefer") return null;
   const { data } = await admin
     .from("fuel_transactions")
-    .select("gallons, samsara_tank_observed_gal, attribution_verdict")
+    .select("gallons, samsara_tank_observed_gal, attribution_verdict, fueling_time_basis")
     .eq("vehicle_id", txn.vehicleId)
     .eq("tank_type", "tractor")
     .not("samsara_tank_observed_gal", "is", null)
+    // 2026-08 hardening: TANK-CONFIRMED measurements only. The fallback pre-fill reading (no detected
+    // rise event) is up to 45 min STALE-HIGH — fuel burned on the approach understates every rise by
+    // ~4–8 gal, an asymmetric bias the signed-residual sum cannot cancel. It made one driver's routine
+    // read as chronic skimming. A rise-event measurement reads the level at the exact fueling instant.
+    .eq("fueling_time_basis", "tank_confirmed")
     .gt("gallons", 0)
     .lte("fueled_at", r.fueled_at)
     .order("fueled_at", { ascending: false })
@@ -301,14 +306,16 @@ export async function loadTankResidualWindow(
   if (rows.length === 0) return null;
   let sumShortGal = 0;
   let totalBilledGal = 0;
+  let shortFills = 0;
   for (const x of rows) {
     const billed = Number(x.gallons);
     const observed = Number(x.samsara_tank_observed_gal);
     if (!Number.isFinite(billed) || !Number.isFinite(observed)) continue;
     sumShortGal += billed - observed; // SIGNED — over-reads cancel shorts, noise sums to ~0
     totalBilledGal += billed;
+    if (billed > observed) shortFills++;
   }
-  return { fills: rows.length, sumShortGal: Math.round(sumShortGal * 10) / 10, totalBilledGal: Math.round(totalBilledGal * 10) / 10 };
+  return { fills: rows.length, sumShortGal: Math.round(sumShortGal * 10) / 10, totalBilledGal: Math.round(totalBilledGal * 10) / 10, shortFills };
 }
 
 export interface ReeferContext {

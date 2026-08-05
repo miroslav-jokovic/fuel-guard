@@ -91,9 +91,7 @@ export interface VehicleView {
  * when nothing is learned yet (behaviour-preserving).
  */
 export function effectiveCapacityGal(v: VehicleView): number {
-  return v.observedMaxFillGal != null && v.observedMaxFillGal > v.tankCapacityGal
-    ? v.observedMaxFillGal
-    : v.tankCapacityGal;
+  return v.observedMaxFillGal != null && v.observedMaxFillGal > v.tankCapacityGal ? v.observedMaxFillGal : v.tankCapacityGal;
 }
 
 export interface ObservedCapacityResult {
@@ -125,13 +123,7 @@ export interface ObservedCapacityResult {
  */
 export function learnObservedMaxFill(
   gallons: number[],
-  opts: {
-    window?: number;
-    minSamples?: number;
-    minCorroboration?: number;
-    nameplateGal?: number;
-    maxMultipleOfNameplate?: number;
-  } = {},
+  opts: { window?: number; minSamples?: number; minCorroboration?: number; nameplateGal?: number; maxMultipleOfNameplate?: number } = {},
 ): ObservedCapacityResult | null {
   const window = opts.window ?? 30;
   const minSamples = opts.minSamples ?? 12;
@@ -156,11 +148,7 @@ export function learnObservedMaxFill(
   // Corroborated capacity = the largest volume reached by at least `minCorroboration` fills.
   const idx = vals.length - minCorroboration;
   if (idx < 0) return null;
-  return {
-    gallons: Math.round(vals[idx]! * 10) / 10,
-    samples: vals.length,
-    corroboration: minCorroboration,
-  };
+  return { gallons: Math.round(vals[idx]! * 10) / 10, samples: vals.length, corroboration: minCorroboration };
 }
 
 export interface Thresholds {
@@ -261,8 +249,11 @@ export interface RuleContext {
   /** WP-BEH chronic-short accumulator inputs: the trailing measured fills (incl. this one) with their
    *  summed signed shortfall (billed − observed rise) and total billed gallons. Sensor noise is
    *  symmetric, so a persistent one-direction shortfall across the window is siphoning even when every
-   *  individual fill sits inside the per-fill tolerance (the documented WP5 floor). */
-  tankResidualWindow?: { fills: number; sumShortGal: number; totalBilledGal: number } | null;
+   *  individual fill sits inside the per-fill tolerance (the documented WP5 floor). 2026-08 hardening:
+   *  only TANK-CONFIRMED measurements belong in the window (the pre-fill fallback reading carries an
+   *  asymmetric stale-high bias — fuel burned in the up-to-45-min approach window understates every
+   *  rise), and shortFills lets the rule demand a MAJORITY of individually-short fills. */
+  tankResidualWindow?: { fills: number; sumShortGal: number; totalBilledGal: number; shortFills?: number } | null;
   /** WP-BEH — miles between the truck's observed telematics position and the fuel station at the fueling
    *  time (recon nearestStationMiles). Distance-tier location mismatch input. */
   truckToStationMiles?: number | null;
