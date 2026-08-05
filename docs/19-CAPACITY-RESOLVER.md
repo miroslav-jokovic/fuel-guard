@@ -63,6 +63,26 @@ A fill suppressed as record-suspect is not lost: once the sensor capacity conver
 fills), the nightly rules rebuild re-scores recent history against the verified capacity and re-flags
 anything that was actually theft.
 
+## Part 2 — the self-healing record (migration 0119)
+
+Detection trusting the sensor left the Vehicles table itself wrong (and everything else that reads
+`tank_capacity_gal` — fuel planning, range math — wrong with it). The learner now REWRITES the record
+when the measurement is rock-solid:
+
+- `decideCapacityAutoFix` (pure, `capacityResolve.ts`): requires ≥ `CAPACITY_AUTOFIX_MIN_SAMPLES` (8)
+  clustered observations — stricter than the 5 needed for detection, because rewriting a record is a
+  bigger action than widening a tolerance. Fires when the entered capacity is missing (fills the
+  blank) or diverges > 15% from the measurement (corrects it, both directions). Inside the band it
+  never touches the record — that's also the hysteresis against churn.
+- Every correction sets `tank_capacity_source = 'auto'`, appends an `audit_logs` row
+  (`vehicle.capacity_autofix`, meta = before/after/samples/reason), and shows up in the weekly digest
+  ("✓ Tank capacity auto-corrected on truck 7132: 150→208 gal") — record changes are never silent.
+- Human edits through the app (VehicleForm, CSV setup import) stamp `tank_capacity_source = 'manual'`.
+  Provenance is transparency, not a veto: a manual value that contradicts solid physics by >15% is
+  still corrected (policy: physics wins) — but the audit trail shows exactly what happened and when.
+- After a fix, entered ≈ sensor → the resolver returns HIGH confidence → the tight 5% alert tolerance,
+  and the divergence item clears from Coverage/digest automatically.
+
 ## Deliberate limits
 
 - Trucks with no Samsara fuel-level data stay on the legacy path at LOW confidence (15% alert

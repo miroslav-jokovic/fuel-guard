@@ -196,6 +196,47 @@ export function resolveCapacity(v: VehicleView): ResolvedCapacity {
   };
 }
 
+/** Observations the sensor capacity must be backed by before it may REWRITE the vehicle record
+ *  (stricter than the ≥5 needed to merely store/use it for detection — a record rewrite is a bigger
+ *  action than a tolerance tier, so it demands more evidence). */
+export const CAPACITY_AUTOFIX_MIN_SAMPLES = 8;
+
+export interface CapacityAutoFix {
+  /** The corrected tank_capacity_gal to write. */
+  gallons: number;
+  reason: "filled_missing" | "corrected_divergent";
+}
+
+/**
+ * Should the vehicle record's entered capacity be auto-corrected to the sensor-measured value?
+ * (WP-CAP part 2 — the self-healing record.) Fires only when the measurement is rock-solid:
+ *   - ≥ CAPACITY_AUTOFIX_MIN_SAMPLES clustered observations back the sensor capacity, AND
+ *   - the entered capacity is MISSING (0/unset — fills the blank), or contradicts the measurement
+ *     beyond CAPACITY_DIVERGENCE_PCT (the same threshold that flags the record on the Coverage page).
+ * Inside the divergence band nothing is touched — small disagreement is sensor coarseness, not a wrong
+ * record, and the band doubles as hysteresis (a fixed record re-fixes only if the measurement later
+ * drifts > threshold from it, never churning fill-to-fill). Applies to manual entries too — a human
+ * value >15% off what the tank itself measures IS wrong (the prior policy decision: physics wins) —
+ * with every correction stamped tank_capacity_source='auto' and audit-logged. Pure.
+ */
+export function decideCapacityAutoFix(v: {
+  enteredGal: number | null;
+  sensorGal: number | null;
+  sensorSamples: number | null;
+}): CapacityAutoFix | null {
+  const sensor =
+    v.sensorGal != null && Number.isFinite(v.sensorGal) && v.sensorGal > 0 ? v.sensorGal : null;
+  const samples = v.sensorSamples ?? 0;
+  if (sensor == null || samples < CAPACITY_AUTOFIX_MIN_SAMPLES) return null;
+  const entered =
+    v.enteredGal != null && Number.isFinite(v.enteredGal) && v.enteredGal > 0 ? v.enteredGal : 0;
+  if (entered <= 0) return { gallons: sensor, reason: "filled_missing" };
+  if (Math.abs(sensor - entered) / entered > CAPACITY_DIVERGENCE_PCT / 100) {
+    return { gallons: sensor, reason: "corrected_divergent" };
+  }
+  return null;
+}
+
 /**
  * Overage tolerance (pct) a fill must clear before the alert-alone exceeds_tank_capacity fires, tiered
  * by how much the capacity number can be trusted. Never BELOW the org-configured tolerance — tiers only

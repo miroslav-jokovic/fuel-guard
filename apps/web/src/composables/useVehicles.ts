@@ -3,7 +3,15 @@ import type { Vehicle, VehicleInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const VEHICLE_COLS =
-  "id, org_id, unit_number, make, model, year, plate, vin, fuel_type, tank_capacity_gal, baseline_mpg, current_odometer, status, assigned_driver_id, samsara_vehicle_id, samsara_fuel_percent, samsara_fuel_at, has_apu, apu_type, has_optimized_idle, idle_capability, created_at, updated_at";
+  "id, org_id, unit_number, make, model, year, plate, vin, fuel_type, tank_capacity_gal, tank_capacity_source, baseline_mpg, current_odometer, status, assigned_driver_id, samsara_vehicle_id, samsara_fuel_percent, samsara_fuel_at, has_apu, apu_type, has_optimized_idle, idle_capability, created_at, updated_at";
+
+/** WP-CAP provenance: a capacity typed through the app is a HUMAN entry — stamp it 'manual' so it's
+ *  distinguishable from a learner self-heal ('auto'). The stamp is transparency, not a veto: a manual
+ *  value that contradicts the sensor-measured capacity is still auto-corrected (audit-logged). */
+const withCapacitySource = (
+  input: VehicleInput,
+): VehicleInput & { tank_capacity_source?: string } =>
+  input.tank_capacity_gal != null ? { ...input, tank_capacity_source: "manual" } : input;
 
 const vehiclesKey = ["vehicles"] as const;
 
@@ -30,7 +38,7 @@ export function useCreateVehicle() {
     mutationFn: async (input: VehicleInput): Promise<Vehicle> => {
       const { data, error } = await supabase
         .from("vehicles")
-        .insert(input)
+        .insert(withCapacitySource(input))
         .select(VEHICLE_COLS)
         .single();
       if (error) throw new Error(error.message);
@@ -46,7 +54,7 @@ export function useUpdateVehicle() {
     mutationFn: async (payload: { id: string; input: VehicleInput }): Promise<Vehicle> => {
       const { data, error } = await supabase
         .from("vehicles")
-        .update(payload.input)
+        .update(withCapacitySource(payload.input))
         .eq("id", payload.id)
         .select(VEHICLE_COLS)
         .single();

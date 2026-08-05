@@ -6,7 +6,9 @@ export {
   learnSensorCapacity,
   resolveCapacity,
   capacityAlertTolerancePct,
+  decideCapacityAutoFix,
   CAPACITY_DIVERGENCE_PCT,
+  CAPACITY_AUTOFIX_MIN_SAMPLES,
   SENSOR_CAP_MIN_RISE_PCT,
   SENSOR_CAP_MIN_FILL_GAL,
   SENSOR_CAP_PHYSICAL_MIN_GAL,
@@ -17,6 +19,7 @@ export type {
   SensorCapacityResult,
   CapacityConfidence,
   ResolvedCapacity,
+  CapacityAutoFix,
 } from "./capacityResolve.js";
 export type {
   FueledAtPrecision,

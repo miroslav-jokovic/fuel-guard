@@ -45,6 +45,9 @@ export interface DigestData {
   capacityMissingUnits: string[];
   /** WP-CAP — entered capacity contradicts the sensor-measured one (record fix needed; alerts run on sensor). */
   capacityDivergentUnits: string[];
+  /** WP-CAP part 2 — capacities the learner AUTO-CORRECTED this week from the tank's own measurement
+   *  (audit-logged; shown so record changes are never silent). e.g. "7132: 150→208 gal". */
+  capacityAutoFixedUnits: string[];
   topVehicles: { unit: string; count: number }[];
   health: DigestHealth;
 }
@@ -242,6 +245,32 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     (d) => `${d.unit} (entered ${d.enteredGal}, measured ~${d.sensorGal})`,
   );
 
+  // WP-CAP part 2 — record self-heals this week (audit trail → owner visibility, one line per truck).
+  const { data: fixRows } = await admin
+    .from("audit_logs")
+    .select("entity_id, meta")
+    .eq("org_id", orgId)
+    .eq("action", "vehicle.capacity_autofix")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const unitById = new Map(
+    ((capVehRows ?? []) as CapacityVehicleRow[]).map((v) => [v.id, v.unit_number]),
+  );
+  const seenFix = new Set<string>();
+  const capacityAutoFixedUnits: string[] = [];
+  for (const f of (fixRows ?? []) as {
+    entity_id: string | null;
+    meta: { beforeGal?: number | null; afterGal?: number } | null;
+  }[]) {
+    if (!f.entity_id || seenFix.has(f.entity_id)) continue; // latest correction per truck only
+    seenFix.add(f.entity_id);
+    const unit = unitById.get(f.entity_id) ?? f.entity_id;
+    capacityAutoFixedUnits.push(
+      `${unit}: ${f.meta?.beforeGal ?? "unset"}→${f.meta?.afterGal ?? "?"} gal`,
+    );
+  }
+
   const health = await buildDigestHealth(admin, orgId, since);
 
   return {
@@ -256,6 +285,7 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     odometerHygiene,
     capacityMissingUnits,
     capacityDivergentUnits,
+    capacityAutoFixedUnits,
     topVehicles,
     health,
   };
@@ -315,6 +345,7 @@ export async function generateAndSendDigest(
     })),
     capacityMissingUnits: data.capacityMissingUnits,
     capacityDivergentUnits: data.capacityDivergentUnits,
+    capacityAutoFixedUnits: data.capacityAutoFixedUnits,
     topVehicles: data.topVehicles,
     appUrl: env.WEB_APP_URL,
     health: data.health,

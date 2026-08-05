@@ -92,7 +92,12 @@ export function useCommitVehicleSetup() {
       for (const c of preview.changes) {
         const { error } = await supabase
           .from("vehicles")
-          .update({ tank_capacity_gal: c.tank_after, baseline_mpg: c.mpg_after })
+          // WP-CAP provenance: a CSV import is a human entry → 'manual' (see useVehicles.withCapacitySource).
+          .update({
+            tank_capacity_gal: c.tank_after,
+            tank_capacity_source: "manual",
+            baseline_mpg: c.mpg_after,
+          })
           .eq("id", c.id);
         if (error) throw new Error(`${c.unit_number}: ${error.message}`);
       }

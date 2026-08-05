@@ -33,6 +33,9 @@ export interface DigestStats {
   /** WP-CAP — entered capacity contradicts the sensor-measured one, e.g. "7132 (entered 150, measured ~208)".
    *  Alerts keep running on the sensor value; the entered record needs fixing. */
   capacityDivergentUnits?: string[];
+  /** WP-CAP part 2 — capacities the learner auto-corrected this week, e.g. "7132: 150→208 gal".
+   *  Informational (good news): record changes are never silent. */
+  capacityAutoFixedUnits?: string[];
   topVehicles: { unit: string; count: number }[];
   appUrl: string;
   /** Optional data-health line from the jobs ledger (nightly reconcile + sync failures). */
@@ -142,6 +145,12 @@ export function renderDigestEmail(
         `${stats.capacityDivergentUnits.length > 5 ? "…" : ""}` +
         ` — the tank itself measures differently. Alerts run on the measured value; fix the entry on the Fleet page.</p>`
       : "") +
+    (stats.capacityAutoFixedUnits?.length
+      ? `<p style="margin:8px 0 0;color:#059669;font-size:13px">✓ Tank capacity auto-corrected from the tank's own measurement on truck${stats.capacityAutoFixedUnits.length > 1 ? "s" : ""} ` +
+        esc(stats.capacityAutoFixedUnits.slice(0, 5).join(", ")) +
+        `${stats.capacityAutoFixedUnits.length > 5 ? "…" : ""}` +
+        ` — capacity checks now run at full precision there.</p>`
+      : "") +
     `<p style="margin:20px 0 0"><a href="${esc(stats.appUrl)}/anomalies" style="color:#4f46e5">Open FuelGuard →</a></p>` +
     `</div>`;
   const text =
@@ -168,6 +177,9 @@ export function renderDigestEmail(
       : "") +
     (stats.capacityDivergentUnits?.length
       ? `Entered capacity looks wrong: ${stats.capacityDivergentUnits.slice(0, 5).join(", ")} (alerts run on the measured value)\n\n`
+      : "") +
+    (stats.capacityAutoFixedUnits?.length
+      ? `Tank capacity auto-corrected: ${stats.capacityAutoFixedUnits.slice(0, 5).join(", ")}\n\n`
       : "") +
     `${summary}\n\n${stats.appUrl}/anomalies`;
   return { subject, html, text };

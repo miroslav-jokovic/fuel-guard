@@ -109,6 +109,9 @@ export interface Vehicle {
   /** Learned/overridden odometer calibration (dash − Samsara), applied before the mismatch check. */
   odometer_offset?: number;
   odometer_offset_source?: "auto" | "manual";
+  /** Provenance of tank_capacity_gal: 'manual' = human-entered, 'auto' = self-healed from the
+   *  sensor-measured capacity (WP-CAP decideCapacityAutoFix; every correction audit-logged). */
+  tank_capacity_source?: "auto" | "manual" | null;
   created_at: string;
   updated_at: string;
 }

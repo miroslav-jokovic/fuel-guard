@@ -5,7 +5,9 @@ import {
   learnTankSensorReliability,
   learnObservedMaxFill,
   learnSensorCapacity,
+  decideCapacityAutoFix,
 } from "@fuelguard/shared";
+import { writeAudit } from "../../lib/audit.js";
 import { n } from "./loaders.js";
 
 /**
@@ -90,6 +92,15 @@ export async function learnVehicleValues(
     }
   }
 
+  // The vehicle row is read ONCE for the capacity learners below (nameplate ceiling + the auto-fix
+  // decision + the audit context).
+  const { data: veh } = await admin
+    .from("vehicles")
+    .select("org_id, tank_capacity_gal, tank_capacity_source")
+    .eq("id", vehicleId)
+    .single();
+  let enteredCapacityGal = veh ? Number(veh.tank_capacity_gal) : undefined;
+
   // Sensor-MEASURED capacity (WP-CAP) — physics: billed gallons ÷ raw level-rise per fill, robust median.
   // Uses the RAW percentages (samsara_fuel_pct_before/_after), never samsara_tank_observed_gal (that value
   // is derived FROM the entered capacity — learning from it would be circular). Cannot be trained by billed
@@ -124,6 +135,37 @@ export async function learnVehicleValues(
     if (cap) {
       vehUpdate.sensor_capacity_gal = cap.gallons;
       vehUpdate.sensor_capacity_samples = cap.samples;
+
+      // WP-CAP part 2 — SELF-HEALING RECORD: when the measurement is rock-solid (≥8 clustered
+      // observations) and the entered capacity is missing or >15% off it, rewrite tank_capacity_gal to
+      // the measured value. Stamped 'auto' + audit-logged so every correction is visible; the resolver
+      // then reads entered ≈ sensor → HIGH confidence → tight alert tolerance, and the divergence item
+      // clears from Coverage/digest on its own.
+      const fix = decideCapacityAutoFix({
+        enteredGal: enteredCapacityGal ?? null,
+        sensorGal: cap.gallons,
+        sensorSamples: cap.samples,
+      });
+      if (fix) {
+        vehUpdate.tank_capacity_gal = fix.gallons;
+        vehUpdate.tank_capacity_source = "auto";
+        if (veh?.org_id) {
+          await writeAudit(admin, {
+            orgId: veh.org_id as string,
+            action: "vehicle.capacity_autofix",
+            entity: "vehicle",
+            entityId: vehicleId,
+            meta: {
+              beforeGal: enteredCapacityGal ?? null,
+              afterGal: fix.gallons,
+              sensorSamples: cap.samples,
+              reason: fix.reason,
+              previousSource: (veh?.tank_capacity_source as string | null) ?? null,
+            },
+          });
+        }
+        enteredCapacityGal = fix.gallons; // the observed-fill learner below judges against the corrected nameplate
+      }
     }
   }
 
@@ -132,12 +174,7 @@ export async function learnVehicleValues(
   // the corroboration floor means a lone outlier can never train capacity up (audit A2.1). The created_at,id
   // tiebreaker makes the sampled fills deterministic across rebuilds (date-only EFS rows share fueled_at).
   {
-    const { data: veh } = await admin
-      .from("vehicles")
-      .select("tank_capacity_gal")
-      .eq("id", vehicleId)
-      .single();
-    const nameplateGal = veh ? Number(veh.tank_capacity_gal) : undefined;
+    const nameplateGal = enteredCapacityGal;
     const { data: fillRows } = await admin
       .from("fuel_transactions")
       .select("gallons")

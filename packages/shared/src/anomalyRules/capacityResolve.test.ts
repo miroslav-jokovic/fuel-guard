@@ -3,6 +3,7 @@ import {
   learnSensorCapacity,
   resolveCapacity,
   capacityAlertTolerancePct,
+  decideCapacityAutoFix,
   CAPACITY_DIVERGENCE_PCT,
 } from "./capacityResolve.js";
 import type { VehicleView } from "./types.js";
@@ -137,5 +138,44 @@ describe("capacityAlertTolerancePct (confidence-tiered overage)", () => {
     expect(capacityAlertTolerancePct("high", 20)).toBe(20);
     expect(capacityAlertTolerancePct("medium", 20)).toBe(20);
     expect(capacityAlertTolerancePct("low", 20)).toBe(20);
+  });
+});
+
+describe("decideCapacityAutoFix (WP-CAP part 2 — self-healing record)", () => {
+  it("needs a rock-solid measurement (≥8 samples) before touching the record", () => {
+    expect(decideCapacityAutoFix({ enteredGal: 120, sensorGal: 208, sensorSamples: 7 })).toBeNull();
+    expect(decideCapacityAutoFix({ enteredGal: 120, sensorGal: 208, sensorSamples: 8 })).toEqual({
+      gallons: 208,
+      reason: "corrected_divergent",
+    });
+  });
+  it("fills a missing capacity (record was blank → capacity rules were dead)", () => {
+    expect(decideCapacityAutoFix({ enteredGal: 0, sensorGal: 200, sensorSamples: 10 })).toEqual({
+      gallons: 200,
+      reason: "filled_missing",
+    });
+    expect(decideCapacityAutoFix({ enteredGal: null, sensorGal: 200, sensorSamples: 10 })).toEqual({
+      gallons: 200,
+      reason: "filled_missing",
+    });
+  });
+  it("corrects in BOTH directions when divergent, never inside the band (hysteresis)", () => {
+    expect(
+      decideCapacityAutoFix({ enteredGal: 150, sensorGal: 208, sensorSamples: 10 })!.gallons,
+    ).toBe(208); // up
+    expect(
+      decideCapacityAutoFix({ enteredGal: 300, sensorGal: 200, sensorSamples: 10 })!.gallons,
+    ).toBe(200); // down
+    expect(
+      decideCapacityAutoFix({ enteredGal: 200, sensorGal: 210, sensorSamples: 10 }),
+    ).toBeNull(); // 5% — in band
+    expect(
+      decideCapacityAutoFix({ enteredGal: 200, sensorGal: 228, sensorSamples: 10 }),
+    ).toBeNull(); // 14% — in band
+  });
+  it("no measurement → never touches the record", () => {
+    expect(
+      decideCapacityAutoFix({ enteredGal: 120, sensorGal: null, sensorSamples: null }),
+    ).toBeNull();
   });
 });
