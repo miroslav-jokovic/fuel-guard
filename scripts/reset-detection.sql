@@ -49,7 +49,7 @@ update vehicles set
   sensor_capacity_samples = null,
   tank_residual_sigma     = null,
   observed_max_fill_gal   = null,
-  tank_sensor_reliable    = null,
+  tank_sensor_reliable    = false,
   tank_fill_ratio         = null,
   baseline_mpg            = null;
 
