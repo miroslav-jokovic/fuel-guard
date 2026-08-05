@@ -1,6 +1,11 @@
 /** Per-vehicle learned values that GATE the rules (split from scoreTransaction.ts — file-size budget). */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { learnOdometerOffset, learnTankSensorReliability, learnObservedMaxFill } from "@fuelguard/shared";
+import {
+  learnOdometerOffset,
+  learnTankSensorReliability,
+  learnObservedMaxFill,
+  learnSensorCapacity,
+} from "@fuelguard/shared";
 import { n } from "./loaders.js";
 
 /**
@@ -21,7 +26,11 @@ export async function learnVehicleValues(
     odometerOffset = ctx.odometerOffset;
     odometerOffsetSource = ctx.odometerOffsetSource;
   } else {
-    const { data: v } = await admin.from("vehicles").select("odometer_offset, odometer_offset_source").eq("id", vehicleId).single();
+    const { data: v } = await admin
+      .from("vehicles")
+      .select("odometer_offset, odometer_offset_source")
+      .eq("id", vehicleId)
+      .single();
     if (!v) return;
     odometerOffset = n(v.odometer_offset) ?? 0;
     odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
@@ -42,7 +51,9 @@ export async function learnVehicleValues(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false }) // deterministic sample at the limit boundary (audit A2.5)
       .limit(10);
-    const pairs = ((pairRows ?? []) as { odometer: number | string; samsara_odometer: number | string }[])
+    const pairs = (
+      (pairRows ?? []) as { odometer: number | string; samsara_odometer: number | string }[]
+    )
       .map((p) => ({ entered: Number(p.odometer), samsara: Number(p.samsara_odometer) }))
       .reverse();
     const learned = learnOdometerOffset(pairs);
@@ -64,8 +75,13 @@ export async function learnVehicleValues(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(12);
-    const tankPairs = ((tankRows ?? []) as { samsara_tank_observed_gal: number | string; gallons: number | string }[])
-      .map((p) => ({ observedRiseGal: Number(p.samsara_tank_observed_gal), billedGallons: Number(p.gallons) }))
+    const tankPairs = (
+      (tankRows ?? []) as { samsara_tank_observed_gal: number | string; gallons: number | string }[]
+    )
+      .map((p) => ({
+        observedRiseGal: Number(p.samsara_tank_observed_gal),
+        billedGallons: Number(p.gallons),
+      }))
       .reverse();
     const rel = learnTankSensorReliability(tankPairs);
     if (rel) {
@@ -74,12 +90,53 @@ export async function learnVehicleValues(
     }
   }
 
+  // Sensor-MEASURED capacity (WP-CAP) — physics: billed gallons ÷ raw level-rise per fill, robust median.
+  // Uses the RAW percentages (samsara_fuel_pct_before/_after), never samsara_tank_observed_gal (that value
+  // is derived FROM the entered capacity — learning from it would be circular). Cannot be trained by billed
+  // gallons alone (stolen fuel produces no rise), and can correct an over-entered capacity DOWNWARD.
+  {
+    const { data: capRows } = await admin
+      .from("fuel_transactions")
+      .select("gallons, samsara_fuel_pct_before, samsara_fuel_pct_after")
+      .eq("vehicle_id", vehicleId)
+      .eq("tank_type", "tractor")
+      .not("samsara_fuel_pct_before", "is", null)
+      .not("samsara_fuel_pct_after", "is", null)
+      .gt("gallons", 0)
+      .order("fueled_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false }) // deterministic sample at the limit boundary (audit A2.5)
+      .limit(30);
+    const obs = (
+      (capRows ?? []) as {
+        gallons: number | string;
+        samsara_fuel_pct_before: number | string;
+        samsara_fuel_pct_after: number | string;
+      }[]
+    )
+      .map((p) => ({
+        gallons: Number(p.gallons),
+        pctBefore: Number(p.samsara_fuel_pct_before),
+        pctAfter: Number(p.samsara_fuel_pct_after),
+      }))
+      .reverse();
+    const cap = learnSensorCapacity(obs);
+    if (cap) {
+      vehUpdate.sensor_capacity_gal = cap.gallons;
+      vehUpdate.sensor_capacity_samples = cap.samples;
+    }
+  }
+
   // Observed (combined) capacity — corroborated high single-fill volume; only raises the effective capacity.
   // Passes the entered nameplate so non-physical fills (typos/pump errors) are discarded before learning, and
   // the corroboration floor means a lone outlier can never train capacity up (audit A2.1). The created_at,id
   // tiebreaker makes the sampled fills deterministic across rebuilds (date-only EFS rows share fueled_at).
   {
-    const { data: veh } = await admin.from("vehicles").select("tank_capacity_gal").eq("id", vehicleId).single();
+    const { data: veh } = await admin
+      .from("vehicles")
+      .select("tank_capacity_gal")
+      .eq("id", vehicleId)
+      .single();
     const nameplateGal = veh ? Number(veh.tank_capacity_gal) : undefined;
     const { data: fillRows } = await admin
       .from("fuel_transactions")
@@ -91,7 +148,9 @@ export async function learnVehicleValues(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(30);
-    const gallons = ((fillRows ?? []) as { gallons: number | string }[]).map((r) => Number(r.gallons)).reverse();
+    const gallons = ((fillRows ?? []) as { gallons: number | string }[])
+      .map((r) => Number(r.gallons))
+      .reverse();
     const learnedCap = learnObservedMaxFill(gallons, { nameplateGal });
     if (learnedCap) vehUpdate.observed_max_fill_gal = learnedCap.gallons;
   }
@@ -100,4 +159,3 @@ export async function learnVehicleValues(
     await admin.from("vehicles").update(vehUpdate).eq("id", vehicleId);
   }
 }
-

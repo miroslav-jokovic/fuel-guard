@@ -1,5 +1,12 @@
 import { useQuery } from "@tanstack/vue-query";
-import { computeDetectionCoverage, computeCapacityHealth, type CoverageInput, type CoverageSummary, type CapacityHealth, type CapacityVehicleRow } from "@fuelguard/shared";
+import {
+  computeDetectionCoverage,
+  computeCapacityHealth,
+  type CoverageInput,
+  type CoverageSummary,
+  type CapacityHealth,
+  type CapacityVehicleRow,
+} from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const PAGE = 1000;
@@ -19,7 +26,9 @@ export function useDetectionCoverage() {
       for (let offset = 0; ; offset += PAGE) {
         const { data, error } = await supabase
           .from("fuel_transactions")
-          .select("vehicle_id, driver_id, fueled_at, tank_type, samsara_recon_at, samsara_odometer, samsara_location_confidence, fueling_time_basis, card_ref, control_id")
+          .select(
+            "vehicle_id, driver_id, fueled_at, tank_type, samsara_recon_at, samsara_odometer, samsara_location_confidence, fueling_time_basis, card_ref, control_id",
+          )
           .gte("fueled_at", from)
           .order("fueled_at", { ascending: true })
           .range(offset, offset + PAGE - 1);
@@ -42,7 +51,7 @@ export function useCapacityHealth() {
     queryFn: async (): Promise<CapacityHealth> => {
       const { data, error } = await supabase
         .from("vehicles")
-        .select("id, unit_number, fuel_type, tank_capacity_gal, status");
+        .select("id, unit_number, fuel_type, tank_capacity_gal, sensor_capacity_gal, status");
       if (error) throw new Error(error.message);
       return computeCapacityHealth((data ?? []) as CapacityVehicleRow[]);
     },

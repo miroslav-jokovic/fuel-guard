@@ -2,6 +2,22 @@
 export { RULE_IDS, SUPPRESSED_RULE_IDS, RULE_LABELS, formatRuleId } from "./ids.js";
 export type { RuleId } from "./ids.js";
 export { effectiveCapacityGal, learnObservedMaxFill } from "./types.js";
+export {
+  learnSensorCapacity,
+  resolveCapacity,
+  capacityAlertTolerancePct,
+  CAPACITY_DIVERGENCE_PCT,
+  SENSOR_CAP_MIN_RISE_PCT,
+  SENSOR_CAP_MIN_FILL_GAL,
+  SENSOR_CAP_PHYSICAL_MIN_GAL,
+  SENSOR_CAP_PHYSICAL_MAX_GAL,
+} from "./capacityResolve.js";
+export type {
+  SensorCapacityObservation,
+  SensorCapacityResult,
+  CapacityConfidence,
+  ResolvedCapacity,
+} from "./capacityResolve.js";
 export type {
   FueledAtPrecision,
   TxnView,

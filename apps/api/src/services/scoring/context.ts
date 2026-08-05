@@ -2,7 +2,13 @@
  *  stage of the rule context needs, leaving scoreTransaction a lean orchestrator. Behavior is identical to
  *  the inlined blocks — same queries, same ordering, same defaults when a stage doesn't apply. */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { contaminatesBaseline, robustWindowMiles, type TxnView, type VehicleView, type Thresholds } from "@fuelguard/shared";
+import {
+  contaminatesBaseline,
+  robustWindowMiles,
+  type TxnView,
+  type VehicleView,
+  type Thresholds,
+} from "@fuelguard/shared";
 import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, sumIntermediateGallons, n } from "./loaders.js";
 import type { FtxnRow } from "./loaders.js";
 
@@ -14,14 +20,38 @@ export interface VehicleContext {
 
 /** Resolve the fill's vehicle into a VehicleView (+ its Samsara id + odometer-offset source). Defaults to
  *  the "none" vehicle when the fill has no vehicle_id or the row is missing. */
-export async function loadVehicleContext(admin: SupabaseClient, vehicleId: string | null): Promise<VehicleContext> {
-  let vehicle: VehicleView = { id: "none", fuelType: "other", tankCapacityGal: 0, baselineMpg: null };
+export async function loadVehicleContext(
+  admin: SupabaseClient,
+  vehicleId: string | null,
+): Promise<VehicleContext> {
+  let vehicle: VehicleView = {
+    id: "none",
+    fuelType: "other",
+    tankCapacityGal: 0,
+    baselineMpg: null,
+  };
   let samsaraVehicleId: string | null = null;
   let odometerOffsetSource = "auto";
   if (vehicleId) {
-    const { data: v } = await admin.from("vehicles").select("id, fuel_type, tank_capacity_gal, tank_sensor_reliable, observed_max_fill_gal, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source").eq("id", vehicleId).single();
+    const { data: v } = await admin
+      .from("vehicles")
+      .select(
+        "id, fuel_type, tank_capacity_gal, tank_sensor_reliable, observed_max_fill_gal, sensor_capacity_gal, sensor_capacity_samples, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source",
+      )
+      .eq("id", vehicleId)
+      .single();
     if (v) {
-      vehicle = { id: v.id, fuelType: v.fuel_type, tankCapacityGal: Number(v.tank_capacity_gal), tankSensorReliable: v.tank_sensor_reliable === true, observedMaxFillGal: n(v.observed_max_fill_gal) ?? undefined, baselineMpg: n(v.baseline_mpg), odometerOffset: n(v.odometer_offset) ?? 0 };
+      vehicle = {
+        id: v.id,
+        fuelType: v.fuel_type,
+        tankCapacityGal: Number(v.tank_capacity_gal),
+        tankSensorReliable: v.tank_sensor_reliable === true,
+        observedMaxFillGal: n(v.observed_max_fill_gal) ?? undefined,
+        sensorCapacityGal: n(v.sensor_capacity_gal) ?? undefined,
+        sensorCapacitySamples: n(v.sensor_capacity_samples) ?? undefined,
+        baselineMpg: n(v.baseline_mpg),
+        odometerOffset: n(v.odometer_offset) ?? 0,
+      };
       samsaraVehicleId = v.samsara_vehicle_id ?? null;
       odometerOffsetSource = (v.odometer_offset_source as string) ?? "auto";
     }
@@ -82,13 +112,25 @@ export async function loadConsumptionContext(
     // anomalies rows OR persisted case_signals). Comparing against a known-bad reading cascaded false
     // regressions / MPG anomalies onto every correct entry after it.
     const ODO_SIGNALS = new Set(ODOMETER_RULE_IDS);
-    const odoBad = (x: FtxnRow) => badIds.has(x.id) || (x.case_signals ?? []).some((sg) => ODO_SIGNALS.has(sg.ruleId));
+    const odoBad = (x: FtxnRow) =>
+      badIds.has(x.id) || (x.case_signals ?? []).some((sg) => ODO_SIGNALS.has(sg.ruleId));
     const prevRow = rows.find((x) => !odoBad(x)) ?? null;
     previousTxn = prevRow ? toTxnView(prevRow) : null;
     // WP6: theft-contaminated fills (volume-axis evidence / alert cases) must not train the baseline —
     // sustained theft would drag the median down until its own deviations stop firing.
-    recentTxns = rows.filter((x) => !odoBad(x) && !contaminatesBaseline(x.case_level, x.case_signals)).slice(0, 6).map(toTxnView).reverse();
-    if (prevRow) intermediateGallons = await sumIntermediateGallons(admin, txn.vehicleId, prevRow.fueled_at, r.fueled_at, txnId); // WP4
+    recentTxns = rows
+      .filter((x) => !odoBad(x) && !contaminatesBaseline(x.case_level, x.case_signals))
+      .slice(0, 6)
+      .map(toTxnView)
+      .reverse();
+    if (prevRow)
+      intermediateGallons = await sumIntermediateGallons(
+        admin,
+        txn.vehicleId,
+        prevRow.fueled_at,
+        r.fueled_at,
+        txnId,
+      ); // WP4
 
     const { data: winRows } = await admin
       .from("fuel_transactions")
@@ -112,7 +154,11 @@ export async function loadConsumptionContext(
     // Miles driven from the CLEAN OBD Samsara odometer span when available; fall back to the entered span only
     // when it doesn't regress; else null → cumulative_overfuel stays silent (data-quality, not a false alarm).
     windowMiles = robustWindowMiles(
-      wr.map((x) => ({ enteredOdometer: n(x.odometer), samsaraOdometer: n(x.samsara_odometer), samsaraSource: x.samsara_odometer_source })),
+      wr.map((x) => ({
+        enteredOdometer: n(x.odometer),
+        samsaraOdometer: n(x.samsara_odometer),
+        samsaraSource: x.samsara_odometer_source,
+      })),
     ).miles;
   }
 
@@ -149,7 +195,8 @@ export async function loadReeferContext(
       .neq("status", "retired")
       .limit(2);
     const reeferTrailers = (trailerRows ?? []) as { reefer_tank_capacity_gal: number | string }[];
-    reeferTankCapacityGal = reeferTrailers.length === 1 ? Number(reeferTrailers[0]!.reefer_tank_capacity_gal) : null;
+    reeferTankCapacityGal =
+      reeferTrailers.length === 1 ? Number(reeferTrailers[0]!.reefer_tank_capacity_gal) : null;
     const { data: rwin } = await admin
       .from("fuel_transactions")
       .select("gallons")
@@ -158,7 +205,10 @@ export async function loadReeferContext(
       .eq("tank_type", "reefer")
       .gte("fueled_at", winStartIso)
       .lte("fueled_at", r.fueled_at);
-    reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce((s, x) => s + Number(x.gallons), 0);
+    reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce(
+      (s, x) => s + Number(x.gallons),
+      0,
+    );
   }
   return { reeferTankCapacityGal, reeferWindowGallons };
 }
@@ -248,5 +298,11 @@ export async function loadReeferDiversionContext(
       }
     }
   }
-  return { reeferPaired, orgUsesReeferFuel, reeferDiversionReeferGal, reeferDiversionTractorGal, reeferLoadInWindow };
+  return {
+    reeferPaired,
+    orgUsesReeferFuel,
+    reeferDiversionReeferGal,
+    reeferDiversionTractorGal,
+    reeferLoadInWindow,
+  };
 }

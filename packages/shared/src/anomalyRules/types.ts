@@ -66,6 +66,13 @@ export interface VehicleView {
    *  capacity above an under-entered nameplate (never to lower it), so legitimate both-tank fills stop
    *  false-firing the capacity / over-fuel checks. See effectiveCapacityGal + learnObservedMaxFill (docs/12 §B). */
   observedMaxFillGal?: number;
+  /** LEARNED sensor-measured capacity (WP-CAP): robust median of billed ÷ raw level-rise over recent
+   *  reconciled fills — the PHYSICS measurement of the true (combined) tank size. Unlike observedMaxFillGal
+   *  it can also correct an OVER-entered capacity downward, and cannot be trained by billed gallons alone
+   *  (stolen fuel produces no rise). See learnSensorCapacity/resolveCapacity (capacityResolve.ts). */
+  sensorCapacityGal?: number;
+  /** How many valid fill observations backed sensorCapacityGal (transparency/UI). */
+  sensorCapacitySamples?: number;
 }
 
 /**
@@ -77,7 +84,9 @@ export interface VehicleView {
  * when nothing is learned yet (behaviour-preserving).
  */
 export function effectiveCapacityGal(v: VehicleView): number {
-  return v.observedMaxFillGal != null && v.observedMaxFillGal > v.tankCapacityGal ? v.observedMaxFillGal : v.tankCapacityGal;
+  return v.observedMaxFillGal != null && v.observedMaxFillGal > v.tankCapacityGal
+    ? v.observedMaxFillGal
+    : v.tankCapacityGal;
 }
 
 export interface ObservedCapacityResult {
@@ -109,7 +118,13 @@ export interface ObservedCapacityResult {
  */
 export function learnObservedMaxFill(
   gallons: number[],
-  opts: { window?: number; minSamples?: number; minCorroboration?: number; nameplateGal?: number; maxMultipleOfNameplate?: number } = {},
+  opts: {
+    window?: number;
+    minSamples?: number;
+    minCorroboration?: number;
+    nameplateGal?: number;
+    maxMultipleOfNameplate?: number;
+  } = {},
 ): ObservedCapacityResult | null {
   const window = opts.window ?? 30;
   const minSamples = opts.minSamples ?? 12;
@@ -134,7 +149,11 @@ export function learnObservedMaxFill(
   // Corroborated capacity = the largest volume reached by at least `minCorroboration` fills.
   const idx = vals.length - minCorroboration;
   if (idx < 0) return null;
-  return { gallons: Math.round(vals[idx]! * 10) / 10, samples: vals.length, corroboration: minCorroboration };
+  return {
+    gallons: Math.round(vals[idx]! * 10) / 10,
+    samples: vals.length,
+    corroboration: minCorroboration,
+  };
 }
 
 export interface Thresholds {
@@ -226,6 +245,11 @@ export interface RuleContext {
   tankObservedRiseGal?: number | null;
   /** Samsara tank level (%) just BEFORE the fill — used for the physical tank-space check. */
   tankPctBefore?: number | null;
+  /** Samsara tank level (%) just AFTER the fill (post-fill plateau / rise event). Together with
+   *  tankPctBefore it gives THIS fill's raw rise — the self-corroboration input for the capacity rules
+   *  (WP-CAP): a fill whose own rise shows the fuel physically went in is a capacity-record error, not
+   *  theft. */
+  tankPctAfter?: number | null;
   /** For a REEFER fill: the paired trailer's reefer tank capacity (gal); null → use the threshold default. */
   reeferTankCapacityGal?: number | null;
   /** For a REEFER fill: sum of reefer gallons for this vehicle within the cumulative window (incl. this txn). */
@@ -266,4 +290,3 @@ export interface RuleResult {
 }
 
 export type Rule = (ctx: RuleContext) => RuleResult;
-

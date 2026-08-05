@@ -1,5 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AI_MODELS, CASE_RULE_ID, renderDigestEmail, computeAttributionHealth, computeOdometerHygiene, computeCapacityHealth, type AttributionHealth, type OdometerHygieneCluster, type CapacityVehicleRow } from "@fuelguard/shared";
+import {
+  AI_MODELS,
+  CASE_RULE_ID,
+  renderDigestEmail,
+  computeAttributionHealth,
+  computeOdometerHygiene,
+  computeCapacityHealth,
+  type AttributionHealth,
+  type OdometerHygieneCluster,
+  type CapacityVehicleRow,
+} from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { callClaudeText } from "../lib/anthropic.js";
 import { makeSender } from "../lib/mailer.js";
@@ -33,6 +43,8 @@ export interface DigestData {
   odometerHygiene: (OdometerHygieneCluster & { driverName: string })[];
   /** WP5 — fuel trucks with no tank capacity set (capacity rules dead until entered). */
   capacityMissingUnits: string[];
+  /** WP-CAP — entered capacity contradicts the sensor-measured one (record fix needed; alerts run on sensor). */
+  capacityDivergentUnits: string[];
   topVehicles: { unit: string; count: number }[];
   health: DigestHealth;
 }
@@ -47,13 +59,22 @@ function agoLabel(iso: string | null): string | null {
 }
 
 /** Data-health from the jobs ledger over the window: nightly-reconcile drift + any failed jobs. */
-async function buildDigestHealth(admin: SupabaseClient, orgId: string, since: string): Promise<DigestHealth> {
+async function buildDigestHealth(
+  admin: SupabaseClient,
+  orgId: string,
+  since: string,
+): Promise<DigestHealth> {
   const { data } = await admin
     .from("jobs")
     .select("kind, status, stats, finished_at")
     .eq("org_id", orgId)
     .gte("created_at", since);
-  const rows = (data ?? []) as { kind: string; status: string; stats: Record<string, unknown> | null; finished_at: string | null }[];
+  const rows = (data ?? []) as {
+    kind: string;
+    status: string;
+    stats: Record<string, unknown> | null;
+    finished_at: string | null;
+  }[];
   let syncFailures = 0;
   let driftFixed = 0;
   let efsIngested = 0;
@@ -78,7 +99,14 @@ async function buildDigestHealth(admin: SupabaseClient, orgId: string, since: st
       if (Number.isFinite(bad)) efsQuarantined += bad;
     }
   }
-  return { lastCheckLabel: agoLabel(lastCheck), driftFixed, syncFailures, efsIngested, efsShortfalls, efsQuarantined };
+  return {
+    lastCheckLabel: agoLabel(lastCheck),
+    driftFixed,
+    syncFailures,
+    efsIngested,
+    efsShortfalls,
+    efsQuarantined,
+  };
 }
 
 export interface DigestResult {
@@ -91,7 +119,10 @@ export interface DigestResult {
 export async function buildDigestData(admin: SupabaseClient, orgId: string): Promise<DigestData> {
   const since = new Date(Date.now() - WINDOW_DAYS * 86400_000).toISOString();
 
-  const { data: vehRows } = await admin.from("vehicles").select("id, unit_number").eq("org_id", orgId);
+  const { data: vehRows } = await admin
+    .from("vehicles")
+    .select("id, unit_number")
+    .eq("org_id", orgId);
   const unitOf = new Map((vehRows ?? []).map((v) => [v.id as string, v.unit_number as string]));
   const unit = (id: string | null) => (id ? (unitOf.get(id) ?? "—") : "Unattributed");
 
@@ -105,11 +136,19 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     .gte("fueled_at", since)
     .order("fueled_at", { ascending: false })
     .limit(50);
-  const alerts = (alertRows ?? []).map((a) => ({ unit: unit(a.vehicle_id as string | null), severity: a.severity as string, message: a.message as string, fueledAt: a.fueled_at as string | null }));
+  const alerts = (alertRows ?? []).map((a) => ({
+    unit: unit(a.vehicle_id as string | null),
+    severity: a.severity as string,
+    message: a.message as string,
+    fueledAt: a.fueled_at as string | null,
+  }));
 
   const byVeh = new Map<string, number>();
   for (const a of alerts) byVeh.set(a.unit, (byVeh.get(a.unit) ?? 0) + 1);
-  const topVehicles = [...byVeh.entries()].map(([u, c]) => ({ unit: u, count: c })).sort((a, b) => b.count - a.count).slice(0, 5);
+  const topVehicles = [...byVeh.entries()]
+    .map(([u, c]) => ({ unit: u, count: c }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
 
   const { data: sipRows } = await admin
     .from("fuel_events")
@@ -118,7 +157,11 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     .gte("happened_at", since)
     .order("happened_at", { ascending: false })
     .limit(20);
-  const siphons = (sipRows ?? []).map((s) => ({ unit: unit(s.vehicle_id as string | null), dropPct: s.drop_pct as number | null, at: s.happened_at as string }));
+  const siphons = (sipRows ?? []).map((s) => ({
+    unit: unit(s.vehicle_id as string | null),
+    dropPct: s.drop_pct as number | null,
+    at: s.happened_at as string,
+  }));
 
   const { count: declineAlertCount } = await admin
     .from("declined_transactions")
@@ -142,7 +185,12 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     .gte("fueled_at", since)
     .or("vehicle_id.is.null,driver_id.is.null");
   const attribution = computeAttributionHealth(
-    ((unattrRows ?? []) as { vehicle_id: string | null; driver_id: string | null; card_ref: string | null; control_id: string | null }[]),
+    (unattrRows ?? []) as {
+      vehicle_id: string | null;
+      driver_id: string | null;
+      card_ref: string | null;
+      control_id: string | null;
+    }[],
   );
 
   // WP4 — chronic odometer hygiene (blank/repeated entries disable the consumption chain).
@@ -152,20 +200,47 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     .eq("org_id", orgId)
     .gte("fueled_at", since);
   const hygiene = computeOdometerHygiene(
-    ((odoRows ?? []) as { vehicle_id: string | null; driver_id: string | null; odometer: number | string | null; fueled_at: string; tank_type: string | null }[]).map(
-      (r) => ({ ...r, odometer: r.odometer == null ? null : Number(r.odometer) }),
-    ),
+    (
+      (odoRows ?? []) as {
+        vehicle_id: string | null;
+        driver_id: string | null;
+        odometer: number | string | null;
+        fueled_at: string;
+        tank_type: string | null;
+      }[]
+    ).map((r) => ({ ...r, odometer: r.odometer == null ? null : Number(r.odometer) })),
   );
   let odometerHygiene: (OdometerHygieneCluster & { driverName: string })[] = [];
   if (hygiene.clusters.length) {
-    const { data: drs } = await admin.from("drivers").select("id, full_name").eq("org_id", orgId).in("id", hygiene.clusters.map((c) => c.driverId));
-    const nameById = new Map(((drs ?? []) as { id: string; full_name: string }[]).map((d) => [d.id, d.full_name]));
-    odometerHygiene = hygiene.clusters.map((c) => ({ ...c, driverName: nameById.get(c.driverId) ?? "Unknown driver" }));
+    const { data: drs } = await admin
+      .from("drivers")
+      .select("id, full_name")
+      .eq("org_id", orgId)
+      .in(
+        "id",
+        hygiene.clusters.map((c) => c.driverId),
+      );
+    const nameById = new Map(
+      ((drs ?? []) as { id: string; full_name: string }[]).map((d) => [d.id, d.full_name]),
+    );
+    odometerHygiene = hygiene.clusters.map((c) => ({
+      ...c,
+      driverName: nameById.get(c.driverId) ?? "Unknown driver",
+    }));
   }
 
   // WP5 — fuel trucks with no tank capacity: the weight-85 capacity rules are silently OFF for them.
-  const { data: capVehRows } = await admin.from("vehicles").select("id, unit_number, fuel_type, tank_capacity_gal, status").eq("org_id", orgId);
-  const capacityMissingUnits = computeCapacityHealth((capVehRows ?? []) as CapacityVehicleRow[]).missing.map((m) => m.unit);
+  // WP-CAP — trucks whose ENTERED capacity contradicts the sensor-MEASURED one: alerts run on the
+  // sensor value, but the record needs fixing (surfaced here + Coverage page).
+  const { data: capVehRows } = await admin
+    .from("vehicles")
+    .select("id, unit_number, fuel_type, tank_capacity_gal, sensor_capacity_gal, status")
+    .eq("org_id", orgId);
+  const capHealth = computeCapacityHealth((capVehRows ?? []) as CapacityVehicleRow[]);
+  const capacityMissingUnits = capHealth.missing.map((m) => m.unit);
+  const capacityDivergentUnits = capHealth.divergent.map(
+    (d) => `${d.unit} (entered ${d.enteredGal}, measured ~${d.sensorGal})`,
+  );
 
   const health = await buildDigestHealth(admin, orgId, since);
 
@@ -180,6 +255,7 @@ export async function buildDigestData(admin: SupabaseClient, orgId: string): Pro
     attribution,
     odometerHygiene,
     capacityMissingUnits,
+    capacityDivergentUnits,
     topVehicles,
     health,
   };
@@ -206,13 +282,19 @@ export async function generateAndSendDigest(
   if (!org) return { sent: false, reason: "org_not_found", summary: null };
   const recipients = (org.notification_emails ?? []) as string[];
   if (recipients.length === 0) return { sent: false, reason: "no_recipients", summary: null };
-  if (!opts.force && org.notifications_enabled === false) return { sent: false, reason: "notifications_disabled", summary: null };
+  if (!opts.force && org.notifications_enabled === false)
+    return { sent: false, reason: "notifications_disabled", summary: null };
   if (!env.ANTHROPIC_API_KEY) return { sent: false, reason: "ai_unavailable", summary: null };
 
   const data = await buildDigestData(admin, orgId);
   let summary: string;
   try {
-    summary = await callClaudeText(env, AI_MODELS.fast, DIGEST_SYSTEM, JSON.stringify(data, null, 2));
+    summary = await callClaudeText(
+      env,
+      AI_MODELS.fast,
+      DIGEST_SYSTEM,
+      JSON.stringify(data, null, 2),
+    );
   } catch (e) {
     console.error("[digest] AI summary failed:", e instanceof Error ? e.message : e);
     return { sent: false, reason: "ai_failed", summary: null };
@@ -225,12 +307,23 @@ export async function generateAndSendDigest(
     declineUnknownReasons: data.declineUnknownReasons,
     unattributedFills: data.attribution.total,
     unattributedClusters: data.attribution.clusters,
-    odometerHygiene: data.odometerHygiene.map((d) => ({ driver: d.driverName, missing: d.missing, stale: d.stale, fills: d.fills })),
+    odometerHygiene: data.odometerHygiene.map((d) => ({
+      driver: d.driverName,
+      missing: d.missing,
+      stale: d.stale,
+      fills: d.fills,
+    })),
     capacityMissingUnits: data.capacityMissingUnits,
+    capacityDivergentUnits: data.capacityDivergentUnits,
     topVehicles: data.topVehicles,
     appUrl: env.WEB_APP_URL,
     health: data.health,
   });
-  const sent = await makeSender(env)({ to: recipients, subject: mail.subject, html: mail.html, text: mail.text });
+  const sent = await makeSender(env)({
+    to: recipients,
+    subject: mail.subject,
+    html: mail.html,
+    text: mail.text,
+  });
   return { sent, reason: sent ? null : "send_failed", summary };
 }

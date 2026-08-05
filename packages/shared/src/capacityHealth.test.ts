@@ -12,10 +12,19 @@ const veh = (over: Partial<CapacityVehicleRow> = {}): CapacityVehicleRow => ({
 
 describe("computeCapacityHealth (WP5 — a dead capacity rule must be visible)", () => {
   it("all set → 100%, nothing missing", () => {
-    expect(computeCapacityHealth([veh(), veh({ id: "v2", unit_number: "102" })])).toEqual({ fuelVehicles: 2, missing: [], setPct: 100 });
+    expect(computeCapacityHealth([veh(), veh({ id: "v2", unit_number: "102" })])).toEqual({
+      fuelVehicles: 2,
+      missing: [],
+      divergent: [],
+      setPct: 100,
+    });
   });
   it("null/0 capacity on a fuel vehicle is missing (capacity rules silently dead there)", () => {
-    const h = computeCapacityHealth([veh(), veh({ id: "v2", unit_number: "102", tank_capacity_gal: 0 }), veh({ id: "v3", unit_number: "099", tank_capacity_gal: null })]);
+    const h = computeCapacityHealth([
+      veh(),
+      veh({ id: "v2", unit_number: "102", tank_capacity_gal: 0 }),
+      veh({ id: "v3", unit_number: "099", tank_capacity_gal: null }),
+    ]);
     expect(h.fuelVehicles).toBe(3);
     expect(h.missing.map((m) => m.unit)).toEqual(["099", "102"]);
     expect(h.setPct).toBeCloseTo(33.3, 1);
@@ -32,5 +41,24 @@ describe("computeCapacityHealth (WP5 — a dead capacity rule must be visible)",
   });
   it("empty fleet → 100% (no false alarm on a new org)", () => {
     expect(computeCapacityHealth([]).setPct).toBe(100);
+  });
+
+  // WP-CAP — sensor-measured capacity as a source + divergence surfacing.
+  it("a sensor-measured capacity makes an unset entered capacity NOT missing (detection revived)", () => {
+    const h = computeCapacityHealth([veh({ tank_capacity_gal: 0, sensor_capacity_gal: 200 })]);
+    expect(h.missing).toHaveLength(0);
+    expect(h.setPct).toBe(100);
+  });
+  it("entered vs sensor-measured disagreement beyond the threshold is divergent (record fix)", () => {
+    const h = computeCapacityHealth([
+      veh({ id: "ok", unit_number: "OK1", tank_capacity_gal: 200, sensor_capacity_gal: 205 }), // agrees
+      veh({ id: "d1", unit_number: "D1", tank_capacity_gal: 150, sensor_capacity_gal: 208 }), // under-entered
+      veh({ id: "d2", unit_number: "D2", tank_capacity_gal: 300, sensor_capacity_gal: 200 }), // over-entered
+    ]);
+    expect(h.divergent.map((d) => d.unit).sort()).toEqual(["D1", "D2"]);
+    const d1 = h.divergent.find((d) => d.unit === "D1")!;
+    expect(d1.enteredGal).toBe(150);
+    expect(d1.sensorGal).toBe(208);
+    expect(d1.diffPct).toBeCloseTo(38.7, 1);
   });
 });

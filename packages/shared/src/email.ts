@@ -30,6 +30,9 @@ export interface DigestStats {
   odometerHygiene?: { driver: string; missing: number; stale: number; fills: number }[];
   /** WP5 — fuel trucks with no tank capacity set (capacity/tank-space rules silently dead). */
   capacityMissingUnits?: string[];
+  /** WP-CAP — entered capacity contradicts the sensor-measured one, e.g. "7132 (entered 150, measured ~208)".
+   *  Alerts keep running on the sensor value; the entered record needs fixing. */
+  capacityDivergentUnits?: string[];
   topVehicles: { unit: string; count: number }[];
   appUrl: string;
   /** Optional data-health line from the jobs ledger (nightly reconcile + sync failures). */
@@ -45,23 +48,37 @@ export interface DigestStats {
 
 /** One-line data-health summary for the digest ("Data healthy" vs. what needs attention). */
 function healthLine(h: NonNullable<DigestStats["health"]>): string {
-  const checked = h.lastCheckLabel ? `last integrity check ${h.lastCheckLabel}` : "no integrity check yet";
+  const checked = h.lastCheckLabel
+    ? `last integrity check ${h.lastCheckLabel}`
+    : "no integrity check yet";
   const bits = [checked];
   bits.push(h.driftFixed > 0 ? `${h.driftFixed} row(s) of drift repaired` : "no data drift");
-  if (h.syncFailures > 0) bits.push(`${h.syncFailures} sync failure(s) — check Settings → Data & Sync`);
+  if (h.syncFailures > 0)
+    bits.push(`${h.syncFailures} sync failure(s) — check Settings → Data & Sync`);
   // EFS auto-ingest: only surfaced when it actually did something this week (or needs attention).
-  if ((h.efsQuarantined ?? 0) > 0) bits.push(`${h.efsQuarantined} EFS delivery(ies) could not be imported — review Settings → Data & Sync`);
-  if ((h.efsShortfalls ?? 0) > 0) bits.push(`${h.efsShortfalls} EFS import shortfall(s) — verify Settings → Data & Sync`);
+  if ((h.efsQuarantined ?? 0) > 0)
+    bits.push(
+      `${h.efsQuarantined} EFS delivery(ies) could not be imported — review Settings → Data & Sync`,
+    );
+  if ((h.efsShortfalls ?? 0) > 0)
+    bits.push(`${h.efsShortfalls} EFS import shortfall(s) — verify Settings → Data & Sync`);
   else if ((h.efsIngested ?? 0) > 0) bits.push(`${h.efsIngested} EFS report(s) auto-imported`);
   return bits.join(" · ");
 }
 
 /** Weekly theft digest email: the AI narrative + a compact stats strip. Pure — no I/O. */
-export function renderDigestEmail(orgName: string, summary: string, stats: DigestStats): RenderedEmail {
+export function renderDigestEmail(
+  orgName: string,
+  summary: string,
+  stats: DigestStats,
+): RenderedEmail {
   const subject = `${orgName} — weekly fuel-theft digest`;
   const summaryHtml = summary
     .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 12px;color:#333;line-height:1.5">${esc(p).replace(/\n/g, "<br>")}</p>`)
+    .map(
+      (p) =>
+        `<p style="margin:0 0 12px;color:#333;line-height:1.5">${esc(p).replace(/\n/g, "<br>")}</p>`,
+    )
     .join("");
   const chip = (label: string, n: number, tone: string) =>
     `<td style="padding:10px 14px;border:1px solid #eee;border-radius:8px;text-align:center">` +
@@ -83,7 +100,11 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
     `<table style="border-collapse:separate;border-spacing:8px 0;margin:0 0 16px"><tr>` +
     chip("High/critical alerts", stats.alertCount, stats.alertCount ? "#dc2626" : "#16a34a") +
     chip("Siphoning events", stats.siphonCount, stats.siphonCount ? "#ea580c" : "#16a34a") +
-    chip("Suspicious declines", stats.declineAlertCount, stats.declineAlertCount ? "#d97706" : "#16a34a") +
+    chip(
+      "Suspicious declines",
+      stats.declineAlertCount,
+      stats.declineAlertCount ? "#d97706" : "#16a34a",
+    ) +
     `</tr></table>` +
     summaryHtml +
     topVeh +
@@ -93,18 +114,33 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
       : "") +
     (stats.unattributedClusters?.length
       ? `<p style="margin:8px 0 0;color:#d97706;font-size:13px">⚠ Chronic unattribution: ` +
-        stats.unattributedClusters.slice(0, 3).map((c) => `${esc(c.card)} × ${c.count}`).join(", ") +
+        stats.unattributedClusters
+          .slice(0, 3)
+          .map((c) => `${esc(c.card)} × ${c.count}`)
+          .join(", ") +
         ` — unattributed fills are invisible to every vehicle-based check; fix the unit/driver mapping.</p>`
       : "") +
     (stats.odometerHygiene?.length
       ? `<p style="margin:8px 0 0;color:#d97706;font-size:13px">⚠ Odometer hygiene: ` +
-        stats.odometerHygiene.slice(0, 3).map((d) => `${esc(d.driver)} skipped/repeated ${d.missing + d.stale} of ${d.fills} fills`).join("; ") +
+        stats.odometerHygiene
+          .slice(0, 3)
+          .map(
+            (d) => `${esc(d.driver)} skipped/repeated ${d.missing + d.stale} of ${d.fills} fills`,
+          )
+          .join("; ") +
         ` — blank/repeated odometers disable the MPG &amp; consumption checks for those fills.</p>`
       : "") +
     (stats.capacityMissingUnits?.length
       ? `<p style="margin:8px 0 0;color:#d97706;font-size:13px">⚠ No tank capacity set on truck${stats.capacityMissingUnits.length > 1 ? "s" : ""} ` +
-        esc(stats.capacityMissingUnits.slice(0, 5).join(", ")) + `${stats.capacityMissingUnits.length > 5 ? "…" : ""}` +
+        esc(stats.capacityMissingUnits.slice(0, 5).join(", ")) +
+        `${stats.capacityMissingUnits.length > 5 ? "…" : ""}` +
         ` — the over-capacity and tank-space checks are OFF for them until it's entered (Fleet page).</p>`
+      : "") +
+    (stats.capacityDivergentUnits?.length
+      ? `<p style="margin:8px 0 0;color:#d97706;font-size:13px">⚠ Entered tank capacity looks wrong on truck${stats.capacityDivergentUnits.length > 1 ? "s" : ""} ` +
+        esc(stats.capacityDivergentUnits.slice(0, 5).join(", ")) +
+        `${stats.capacityDivergentUnits.length > 5 ? "…" : ""}` +
+        ` — the tank itself measures differently. Alerts run on the measured value; fix the entry on the Fleet page.</p>`
       : "") +
     `<p style="margin:20px 0 0"><a href="${esc(stats.appUrl)}/anomalies" style="color:#4f46e5">Open FuelGuard →</a></p>` +
     `</div>`;
@@ -112,10 +148,27 @@ export function renderDigestEmail(orgName: string, summary: string, stats: Diges
     `${orgName} — weekly fuel-theft digest (past 7 days)\n\n` +
     `High/critical alerts: ${stats.alertCount} | Siphoning: ${stats.siphonCount} | Suspicious declines: ${stats.declineAlertCount}\n\n` +
     (stats.health ? `Data health: ${healthLine(stats.health)}\n\n` : "") +
-    (stats.declineUnknownReasons ? `Unrecognized decline reasons this week: ${stats.declineUnknownReasons} (review on the Rejections page)\n\n` : "") +
-    (stats.unattributedClusters?.length ? `Chronic unattribution: ${stats.unattributedClusters.slice(0, 3).map((c) => `${c.card} x ${c.count}`).join(", ")}\n\n` : "") +
-    (stats.odometerHygiene?.length ? `Odometer hygiene: ${stats.odometerHygiene.slice(0, 3).map((d) => `${d.driver} ${d.missing + d.stale}/${d.fills} bad`).join("; ")}\n\n` : "") +
-    (stats.capacityMissingUnits?.length ? `No tank capacity set: ${stats.capacityMissingUnits.slice(0, 5).join(", ")} (capacity checks OFF)\n\n` : "") +
+    (stats.declineUnknownReasons
+      ? `Unrecognized decline reasons this week: ${stats.declineUnknownReasons} (review on the Rejections page)\n\n`
+      : "") +
+    (stats.unattributedClusters?.length
+      ? `Chronic unattribution: ${stats.unattributedClusters
+          .slice(0, 3)
+          .map((c) => `${c.card} x ${c.count}`)
+          .join(", ")}\n\n`
+      : "") +
+    (stats.odometerHygiene?.length
+      ? `Odometer hygiene: ${stats.odometerHygiene
+          .slice(0, 3)
+          .map((d) => `${d.driver} ${d.missing + d.stale}/${d.fills} bad`)
+          .join("; ")}\n\n`
+      : "") +
+    (stats.capacityMissingUnits?.length
+      ? `No tank capacity set: ${stats.capacityMissingUnits.slice(0, 5).join(", ")} (capacity checks OFF)\n\n`
+      : "") +
+    (stats.capacityDivergentUnits?.length
+      ? `Entered capacity looks wrong: ${stats.capacityDivergentUnits.slice(0, 5).join(", ")} (alerts run on the measured value)\n\n`
+      : "") +
     `${summary}\n\n${stats.appUrl}/anomalies`;
   return { subject, html, text };
 }

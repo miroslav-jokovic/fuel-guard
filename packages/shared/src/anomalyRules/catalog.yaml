@@ -76,13 +76,19 @@ rules:
     axis: volume
     weight: 85
     label: Exceeds Tank Capacity
-    note: WP5 — DEAD when tank_capacity_gal is unset/0 (cap>0 guard); that gap is now surfaced as data-quality on the Coverage page + digest (capacityHealth) instead of silently reading as "no alerts". Learned capacity can only RAISE the ceiling, now needing 3 corroborating fills (≤2.1× nameplate) so repeated same-size theft can't train itself invisible.
+    note: WP-CAP — capacity now comes from resolveCapacity (sensor-measured physics > entered > billed-history) with a confidence tier; verified capacity fires at the tight org tolerance, an unverified entered number needs 15% overage (the 5–15% band goes to exceeds_capacity_unverified). A fill whose own raw sensor rise proves the fuel went in suppresses to record-fix instead of alerting. Still DEAD when no capacity source exists (capacityHealth surfaces the gap); a sensor-measured capacity now REVIVES detection on trucks with no entered capacity.
+  - id: exceeds_capacity_unverified
+    tier: volume_capacity
+    axis: volume
+    weight: 60
+    label: Over Entered Capacity (Unverified)
+    note: WP-CAP — review-grade companion to exceeds_tank_capacity for trucks WITHOUT a sensor-verified capacity; fires only in the configured-tolerance…15% overage band against the entered/billed-history capacity (weight 60 = lone review, never an alert-alone critical). Disappears once the sensor verifies capacity — the main rule then covers the band at the tight tolerance.
   - id: tank_space_exceeded
     tier: volume_capacity
     axis: volume
     weight: 90
     label: More Fuel Than Tank Could Hold
-    note: Billed gallons > empty space in the tank before fueling (can't fit in THIS truck).
+    note: Billed gallons > empty space in the tank before fueling (can't fit in THIS truck). WP-CAP — free space is computed against the RESOLVED capacity (sensor-measured when available), so a mistyped entered capacity no longer produces false criticals here.
   - id: implausible_topoff
     tier: volume_capacity
     axis: consumption

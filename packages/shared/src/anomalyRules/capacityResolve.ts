@@ -1,0 +1,213 @@
+/**
+ * CAPACITY RESOLVER (WP-CAP) — measured tank capacity with confidence, replacing "trust whatever was
+ * entered" as the basis for every capacity-based rule (exceeds_tank_capacity, tank_space_exceeded,
+ * cumulative_overfuel).
+ *
+ * Why: the old effective capacity was max(entered nameplate, learned billed-gallons percentile). Both
+ * sources are weak — the nameplate is a human-typed field (the #1 root cause of false capacity
+ * criticals), and the billed-gallons learner polices the very numbers it learns from (repeated
+ * same-size theft can train itself invisible; an OVER-entered nameplate silently kills detection and
+ * nothing can ever correct it downward).
+ *
+ * The fix is physics: every reconciled fill with raw Samsara fuel-level percentages gives
+ *   implied capacity = billed gallons ÷ (level-rise fraction)
+ * A truck that takes 120 gal and rises 60 points has a ~200-gal tank — no human entry needed. The
+ * robust median over recent corroborated fills measures the TRUE combined capacity (including dual
+ * saddle tanks), converges in ~5 fills, and — unlike the billed-gallons learner — can correct an
+ * over-entered capacity DOWNWARD, because stolen gallons produce no rise and therefore push the
+ * implied capacity UP (implausible), never down. It cannot be trained by billing alone.
+ *
+ * resolveCapacity() reconciles the three sources into one capacity + confidence tier:
+ *   high    — sensor-measured and entered agree (≤ CAPACITY_DIVERGENCE_PCT apart)
+ *   medium  — sensor-measured only, or sensor contradicts entered (physics wins; divergent=true is
+ *             surfaced as a DATA-QUALITY task on the Coverage page — never as silent trust)
+ *   low     — entered / billed-history only (no sensor verification)
+ *   none    — nothing usable → capacity rules stay off (capacityHealth flags the gap)
+ *
+ * capacityAlertTolerancePct() maps confidence → the overage a fill must clear before the weight-85
+ * exceeds_tank_capacity alert fires: verified capacity keeps the tight org tolerance; an unverified
+ * entered number needs a 15% overage for an alert-alone critical (the 5–15% band on unverified trucks
+ * fires the review-grade exceeds_capacity_unverified instead). Pure module — no I/O.
+ */
+import { median } from "./helpers.js";
+import type { VehicleView } from "./types.js";
+import { effectiveCapacityGal } from "./types.js";
+
+/** Entered vs sensor-measured capacity gap (relative to entered) beyond which the record is DIVERGENT:
+ *  physics wins for detection, and the entered value is surfaced as a data-quality fix. */
+export const CAPACITY_DIVERGENCE_PCT = 15;
+
+/** A fill must move the (coarse, ~0.4%/bit J1939) level sensor by at least this many percentage points
+ *  before its implied capacity is trusted — small rises amplify sensor noise into huge capacity error
+ *  (±1% on a 10% rise = ±10% capacity; on a 30% rise = ±3%). */
+export const SENSOR_CAP_MIN_RISE_PCT = 20;
+/** …and bill at least this many gallons (mirrors the measurable-fill floor in fillConfidence). */
+export const SENSOR_CAP_MIN_FILL_GAL = 25;
+/** Physical sanity band for a class-8 tractor's implied capacity — anything outside is a data artifact
+ *  (sensor glitch / product-code mixup), never a real tank. */
+export const SENSOR_CAP_PHYSICAL_MIN_GAL = 40;
+export const SENSOR_CAP_PHYSICAL_MAX_GAL = 500;
+
+export interface SensorCapacityObservation {
+  /** Billed gallons for the fill (tractor tank). */
+  gallons: number;
+  /** Raw Samsara fuel level % just before / after the fill (samsara_fuel_pct_before/_after). */
+  pctBefore: number | null;
+  pctAfter: number | null;
+}
+
+export interface SensorCapacityResult {
+  /** Robust sensor-measured (combined-effective) capacity, gallons. */
+  gallons: number;
+  /** Valid observations that backed the estimate. */
+  samples: number;
+}
+
+/**
+ * Learn a truck's tank capacity from raw fill physics (billed ÷ level-rise). Guards, in order:
+ *  1. Only fills with BOTH raw percentages, a rise ≥ SENSOR_CAP_MIN_RISE_PCT, and ≥ SENSOR_CAP_MIN_FILL_GAL
+ *     billed — big, clearly-measured fills only.
+ *  2. Per-fill implied capacity clamped to the physical sanity band (outliers discarded pre-median).
+ *  3. ≥ `minSamples` surviving observations, AND a tight cluster: a strong majority within ±`clusterBand`
+ *     of the median. A dual-INDEPENDENT-tank truck (sensor sees one tank) produces a bimodal spread
+ *     (one-tank fills imply ~T, both-tank fills imply ~2T) and correctly gets NO verdict (null) — the
+ *     resolver then falls back to the entered/billed-history path, same as today.
+ * A theft fill (billed ≫ delivered) implies an inflated capacity that lands OUTSIDE the cluster (or the
+ * sanity band) and is discarded — billing alone can never train this value. Pure.
+ */
+export function learnSensorCapacity(
+  obs: SensorCapacityObservation[],
+  opts: { window?: number; minSamples?: number; clusterBand?: number; minFraction?: number } = {},
+): SensorCapacityResult | null {
+  const window = opts.window ?? 30;
+  const minSamples = opts.minSamples ?? 5;
+  const clusterBand = opts.clusterBand ?? 0.15;
+  const minFraction = opts.minFraction ?? 0.6;
+
+  const implied = obs
+    .slice(-window)
+    .filter(
+      (o) =>
+        Number.isFinite(o.gallons) &&
+        o.gallons >= SENSOR_CAP_MIN_FILL_GAL &&
+        o.pctBefore != null &&
+        o.pctAfter != null &&
+        Number.isFinite(o.pctBefore) &&
+        Number.isFinite(o.pctAfter) &&
+        o.pctAfter - o.pctBefore >= SENSOR_CAP_MIN_RISE_PCT &&
+        o.pctAfter <= 100 &&
+        o.pctBefore >= 0,
+    )
+    .map((o) => o.gallons / ((o.pctAfter! - o.pctBefore!) / 100))
+    .filter((c) => c >= SENSOR_CAP_PHYSICAL_MIN_GAL && c <= SENSOR_CAP_PHYSICAL_MAX_GAL);
+  if (implied.length < minSamples) return null;
+
+  const med = median(implied);
+  const within = implied.filter((c) => Math.abs(c - med) <= clusterBand * med).length;
+  if (within < minSamples || within / implied.length < minFraction) return null; // bimodal / noisy → no verdict
+  return { gallons: Math.round(med * 10) / 10, samples: implied.length };
+}
+
+export type CapacityConfidence = "high" | "medium" | "low" | "none";
+
+export interface ResolvedCapacity {
+  /** The capacity every volume/over-fuel check reconciles against. 0 = unknown → those rules stay off. */
+  gallons: number;
+  confidence: CapacityConfidence;
+  /** Which source produced `gallons` (for evidence / UI). */
+  source: "sensor+entered" | "sensor" | "entered" | "observed_fills" | "none";
+  /** True when entered and sensor-measured capacity disagree > CAPACITY_DIVERGENCE_PCT — detection runs
+   *  on the sensor value (physics wins) and the entered record is surfaced as a data-quality fix. */
+  divergent: boolean;
+  enteredGal: number;
+  sensorGal: number | null;
+}
+
+/**
+ * Reconcile entered capacity, sensor-measured capacity, and billed-fill history into ONE capacity with
+ * a confidence tier. Precedence: physics (sensor) > human entry > billed history. Agreement upgrades
+ * confidence; contradiction trusts the sensor AND flags the record (divergent) instead of silently
+ * alerting off a number someone mistyped.
+ */
+export function resolveCapacity(v: VehicleView): ResolvedCapacity {
+  const entered =
+    Number.isFinite(v.tankCapacityGal) && v.tankCapacityGal > 0 ? v.tankCapacityGal : 0;
+  const sensor =
+    v.sensorCapacityGal != null && Number.isFinite(v.sensorCapacityGal) && v.sensorCapacityGal > 0
+      ? v.sensorCapacityGal
+      : null;
+
+  if (sensor != null) {
+    if (entered > 0) {
+      const divergent = Math.abs(sensor - entered) / entered > CAPACITY_DIVERGENCE_PCT / 100;
+      if (!divergent) {
+        // Agreement: take the larger of the two (never judge a truck below what both sources support).
+        return {
+          gallons: Math.max(sensor, entered),
+          confidence: "high",
+          source: "sensor+entered",
+          divergent: false,
+          enteredGal: entered,
+          sensorGal: sensor,
+        };
+      }
+      // Contradiction: the tank itself measured differently from what was typed. Physics wins — this is
+      // the downward-correction path an over-entered nameplate previously made impossible.
+      return {
+        gallons: sensor,
+        confidence: "medium",
+        source: "sensor",
+        divergent: true,
+        enteredGal: entered,
+        sensorGal: sensor,
+      };
+    }
+    // No entered capacity at all — the sensor REVIVES detection that used to be silently dead (cap 0).
+    return {
+      gallons: sensor,
+      confidence: "medium",
+      source: "sensor",
+      divergent: false,
+      enteredGal: 0,
+      sensorGal: sensor,
+    };
+  }
+
+  // No sensor verdict → the pre-WP-CAP behavior exactly: max(entered, corroborated billed-history), at
+  // LOW confidence (an unverified human entry / billed claims — the classic false-critical source).
+  const legacy = effectiveCapacityGal(v);
+  if (legacy > 0) {
+    return {
+      gallons: legacy,
+      confidence: "low",
+      source: legacy > entered ? "observed_fills" : "entered",
+      divergent: false,
+      enteredGal: entered,
+      sensorGal: null,
+    };
+  }
+  return {
+    gallons: 0,
+    confidence: "none",
+    source: "none",
+    divergent: false,
+    enteredGal: entered,
+    sensorGal: null,
+  };
+}
+
+/**
+ * Overage tolerance (pct) a fill must clear before the alert-alone exceeds_tank_capacity fires, tiered
+ * by how much the capacity number can be trusted. Never BELOW the org-configured tolerance — tiers only
+ * widen it when the capacity is less verified (precision-first; the unverified 5–15% band still
+ * surfaces as the review-grade exceeds_capacity_unverified signal, so nothing goes silent).
+ */
+export function capacityAlertTolerancePct(
+  confidence: CapacityConfidence,
+  configuredPct: number,
+): number {
+  const base = Number.isFinite(configuredPct) && configuredPct > 0 ? configuredPct : 5;
+  if (confidence === "high") return base;
+  if (confidence === "medium") return Math.max(base, 10);
+  return Math.max(base, 15);
+}

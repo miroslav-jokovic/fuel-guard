@@ -15,6 +15,7 @@ export const RULE_IDS = [
   "expected_odometer_band",
   // Tier 2 — volume vs capacity
   "exceeds_tank_capacity",
+  "exceeds_capacity_unverified",
   "tank_space_exceeded",
   "implausible_topoff",
   "cumulative_overfuel",
@@ -51,6 +52,7 @@ export const RULE_LABELS: Record<RuleId, string> = {
   odometer_entry_suspect: "Odometer Entry Needs Review",
   expected_odometer_band: "Outside Expected Odometer Band",
   exceeds_tank_capacity: "Exceeds Tank Capacity",
+  exceeds_capacity_unverified: "Over Entered Capacity (Unverified)",
   tank_space_exceeded: "More Fuel Than Tank Could Hold",
   implausible_topoff: "Implausible Top-Off",
   cumulative_overfuel: "Cumulative Overfueling",
@@ -86,6 +88,7 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   odometer_entry_suspect: { axis: "odometer", weight: 0 },
   expected_odometer_band: { axis: "consumption", weight: 40 },
   exceeds_tank_capacity: { axis: "volume", weight: 85 },
+  exceeds_capacity_unverified: { axis: "volume", weight: 60 },
   tank_space_exceeded: { axis: "volume", weight: 90 },
   implausible_topoff: { axis: "consumption", weight: 50 },
   cumulative_overfuel: { axis: "consumption", weight: 75 },

@@ -3,16 +3,53 @@ import type { AnomalySeverity } from "../constants.js";
 import { computeFillConfidence, ruleEligible } from "../fillConfidence.js";
 import { SUPPRESSED_RULE_IDS, type RuleId } from "./ids.js";
 import type { RuleContext, RuleResult, Rule } from "./types.js";
-import { effectiveCapacityGal } from "./types.js";
-import { hoursBetween, daysBetween, milesSinceLast, milesSinceLastSourced, computedMpg, coldWeatherDeratePct, recentMpgSeries, effectiveBaseline, isFuelVehicle, timeReliable, none, r2, median } from "./helpers.js";
-import { ruleRapidRepeatFueling, ruleOffHoursFueling, ruleUnattributed, ruleCostOutlier, ruleLocationMismatch, ruleTankFillShort, ruleReeferExceedsCapacity, ruleReeferOverfuelRate, ruleReeferFuelDiversion, ruleCardMultiVehicle, ruleFuelWhileDriverHome } from "./rulesBehavioral.js";
+import {
+  resolveCapacity,
+  capacityAlertTolerancePct,
+  SENSOR_CAP_MIN_RISE_PCT,
+  SENSOR_CAP_PHYSICAL_MAX_GAL,
+} from "./capacityResolve.js";
+import {
+  hoursBetween,
+  daysBetween,
+  milesSinceLast,
+  milesSinceLastSourced,
+  computedMpg,
+  coldWeatherDeratePct,
+  recentMpgSeries,
+  effectiveBaseline,
+  isFuelVehicle,
+  timeReliable,
+  none,
+  r2,
+  median,
+} from "./helpers.js";
+import {
+  ruleRapidRepeatFueling,
+  ruleOffHoursFueling,
+  ruleUnattributed,
+  ruleCostOutlier,
+  ruleLocationMismatch,
+  ruleTankFillShort,
+  ruleReeferExceedsCapacity,
+  ruleReeferOverfuelRate,
+  ruleReeferFuelDiversion,
+  ruleCardMultiVehicle,
+  ruleFuelWhileDriverHome,
+} from "./rulesBehavioral.js";
 
 function ruleOdometerMissing(ctx: RuleContext): RuleResult {
   const { txn, vehicle } = ctx;
   if (txn.odometer == null && txn.gallons > 0) {
     // Higher severity for fuel vehicles — odometer is essential and "leave it blank" is a dodge.
     const severity: AnomalySeverity = isFuelVehicle(vehicle) ? "high" : "medium";
-    return { ruleId: "odometer_missing", fired: true, severity, message: "Fill-up recorded without an odometer reading.", evidence: { gallons: txn.gallons } };
+    return {
+      ruleId: "odometer_missing",
+      fired: true,
+      severity,
+      message: "Fill-up recorded without an odometer reading.",
+      evidence: { gallons: txn.gallons },
+    };
   }
   return none("odometer_missing");
 }
@@ -31,13 +68,35 @@ function ruleOdometerRegression(ctx: RuleContext): RuleResult {
   if (drop <= tol) return none("odometer_regression");
   const d = odometerDiff(ctx);
   if (d != null && d.diff <= tol) return none("odometer_regression"); // this entry matches OBD → prev was wrong
-  return { ruleId: "odometer_regression", fired: true, severity: "high", message: `Odometer ${txn.odometer} is ${r2(drop)} mi lower than the previous reading ${previousTxn.odometer}.`, evidence: { previous: previousTxn.odometer, current: txn.odometer, dropMiles: r2(drop), toleranceMiles: tol } };
+  return {
+    ruleId: "odometer_regression",
+    fired: true,
+    severity: "high",
+    message: `Odometer ${txn.odometer} is ${r2(drop)} mi lower than the previous reading ${previousTxn.odometer}.`,
+    evidence: {
+      previous: previousTxn.odometer,
+      current: txn.odometer,
+      dropMiles: r2(drop),
+      toleranceMiles: tol,
+    },
+  };
 }
 
 function ruleOdometerStale(ctx: RuleContext): RuleResult {
   const { txn, previousTxn } = ctx;
-  if (txn.odometer != null && previousTxn?.odometer != null && txn.odometer === previousTxn.odometer && txn.gallons > 0) {
-    return { ruleId: "odometer_stale", fired: true, severity: "medium", message: "Odometer is unchanged from the previous fill-up despite fuel dispensed.", evidence: { odometer: txn.odometer, gallons: txn.gallons } };
+  if (
+    txn.odometer != null &&
+    previousTxn?.odometer != null &&
+    txn.odometer === previousTxn.odometer &&
+    txn.gallons > 0
+  ) {
+    return {
+      ruleId: "odometer_stale",
+      fired: true,
+      severity: "medium",
+      message: "Odometer is unchanged from the previous fill-up despite fuel dispensed.",
+      evidence: { odometer: txn.odometer, gallons: txn.gallons },
+    };
   }
   return none("odometer_stale");
 }
@@ -50,7 +109,13 @@ function ruleOdometerImplausibleJump(ctx: RuleContext): RuleResult {
   if (hours <= 0) return none("odometer_implausible_jump");
   const mph = miles / hours;
   if (mph > thresholds.maxPlausibleMph) {
-    return { ruleId: "odometer_implausible_jump", fired: true, severity: "high", message: `Implied speed ${r2(mph)} mph exceeds the plausible maximum (${thresholds.maxPlausibleMph}).`, evidence: { miles, hours: r2(hours), impliedMph: r2(mph) } };
+    return {
+      ruleId: "odometer_implausible_jump",
+      fired: true,
+      severity: "high",
+      message: `Implied speed ${r2(mph)} mph exceeds the plausible maximum (${thresholds.maxPlausibleMph}).`,
+      evidence: { miles, hours: r2(hours), impliedMph: r2(mph) },
+    };
   }
   return none("odometer_implausible_jump");
 }
@@ -64,7 +129,13 @@ function ruleOdometerDailyCap(ctx: RuleContext): RuleResult {
   const perDay = miles / days;
   const cap = thresholds.maxDailyMiles ?? 1000;
   if (perDay > cap) {
-    return { ruleId: "odometer_daily_cap", fired: true, severity: "high", message: `Implied ${r2(perDay)} miles/day exceeds the plausible maximum (${cap}).`, evidence: { miles, days: r2(days), milesPerDay: r2(perDay) } };
+    return {
+      ruleId: "odometer_daily_cap",
+      fired: true,
+      severity: "high",
+      message: `Implied ${r2(perDay)} miles/day exceeds the plausible maximum (${cap}).`,
+      evidence: { miles, days: r2(days), milesPerDay: r2(perDay) },
+    };
   }
   return none("odometer_daily_cap");
 }
@@ -75,14 +146,22 @@ function ruleOdometerDailyCap(ctx: RuleContext): RuleResult {
 const ODOMETER_DATA_QUALITY_MILES = 5000;
 
 /** Shared cross-source odometer comparison (offset-adjusted). null when either reading is absent. */
-function odometerDiff(ctx: RuleContext): { entered: number; otherSource: number; offset: number; expected: number; diff: number } | null {
+function odometerDiff(
+  ctx: RuleContext,
+): { entered: number; otherSource: number; offset: number; expected: number; diff: number } | null {
   const { txn, crossSourceOdometer, vehicle } = ctx;
   if (txn.odometer == null || crossSourceOdometer == null) return null;
   // Many trucks read a fixed amount apart from Samsara's OBD odometer (replaced cluster, OBD calibration).
   // Apply the learned/overridden per-vehicle offset so that constant gap doesn't false-flag every fill.
   const offset = vehicle.odometerOffset ?? 0;
   const expected = crossSourceOdometer + offset;
-  return { entered: txn.odometer, otherSource: crossSourceOdometer, offset, expected, diff: Math.abs(txn.odometer - expected) };
+  return {
+    entered: txn.odometer,
+    otherSource: crossSourceOdometer,
+    offset,
+    expected,
+    diff: Math.abs(txn.odometer - expected),
+  };
 }
 
 function ruleOdometerMismatch(ctx: RuleContext): RuleResult {
@@ -94,7 +173,20 @@ function ruleOdometerMismatch(ctx: RuleContext): RuleResult {
   // is odometer_entry_suspect). This keeps a bogus 27,000-mi diff out of the theft correlation.
   if (d.diff > tol && d.diff <= ODOMETER_DATA_QUALITY_MILES) {
     const offsetNote = d.offset ? ` (after a learned +${r2(d.offset)} mi calibration)` : "";
-    return { ruleId: "odometer_mismatch", fired: true, severity: "high", message: `Entered odometer ${d.entered} differs from the fuel-card reading ${d.otherSource}${offsetNote} by ${r2(d.diff)} mi (tolerance ${tol}).`, evidence: { entered: d.entered, otherSource: d.otherSource, offset: r2(d.offset), expected: r2(d.expected), diff: r2(d.diff), toleranceMiles: tol } };
+    return {
+      ruleId: "odometer_mismatch",
+      fired: true,
+      severity: "high",
+      message: `Entered odometer ${d.entered} differs from the fuel-card reading ${d.otherSource}${offsetNote} by ${r2(d.diff)} mi (tolerance ${tol}).`,
+      evidence: {
+        entered: d.entered,
+        otherSource: d.otherSource,
+        offset: r2(d.offset),
+        expected: r2(d.expected),
+        diff: r2(d.diff),
+        toleranceMiles: tol,
+      },
+    };
   }
   return none("odometer_mismatch");
 }
@@ -105,7 +197,19 @@ function ruleOdometerEntrySuspect(ctx: RuleContext): RuleResult {
   const d = odometerDiff(ctx);
   if (d == null) return none("odometer_entry_suspect");
   if (d.diff > ODOMETER_DATA_QUALITY_MILES) {
-    return { ruleId: "odometer_entry_suspect", fired: true, severity: "low", message: `Entered odometer ${d.entered} differs from the fuel-card reading ${d.otherSource} by ${r2(d.diff)} mi — implausibly large, so this looks like a mistyped odometer or a telematics glitch to verify, not fuel theft.`, evidence: { entered: d.entered, otherSource: d.otherSource, expected: r2(d.expected), diff: r2(d.diff), dataQualityThresholdMiles: ODOMETER_DATA_QUALITY_MILES } };
+    return {
+      ruleId: "odometer_entry_suspect",
+      fired: true,
+      severity: "low",
+      message: `Entered odometer ${d.entered} differs from the fuel-card reading ${d.otherSource} by ${r2(d.diff)} mi — implausibly large, so this looks like a mistyped odometer or a telematics glitch to verify, not fuel theft.`,
+      evidence: {
+        entered: d.entered,
+        otherSource: d.otherSource,
+        expected: r2(d.expected),
+        diff: r2(d.diff),
+        dataQualityThresholdMiles: ODOMETER_DATA_QUALITY_MILES,
+      },
+    };
   }
   return none("odometer_entry_suspect");
 }
@@ -116,22 +220,125 @@ function ruleExpectedOdometerBand(ctx: RuleContext): RuleResult {
   const miles = milesSinceLast(txn, previousTxn);
   const baseline = effectiveBaseline(vehicle, recentTxns);
   const spanGallons = txn.gallons + (ctx.intermediateGallons ?? 0); // fuel burned across the whole span (WP4)
-  if (miles == null || baseline == null || baseline <= 0 || spanGallons <= 0) return none("expected_odometer_band");
+  if (miles == null || baseline == null || baseline <= 0 || spanGallons <= 0)
+    return none("expected_odometer_band");
   const expectedMiles = spanGallons * baseline;
   if (miles > expectedMiles * 2) {
-    return { ruleId: "expected_odometer_band", fired: true, severity: "medium", message: `Miles since last (${miles}) far exceed what ${r2(spanGallons)} gal could cover (~${r2(expectedMiles)} mi) — possible odometer over-reporting or a missed fill.`, evidence: { milesSinceLast: miles, spanGallons: r2(spanGallons), baselineMpg: r2(baseline), expectedMiles: r2(expectedMiles) } };
+    return {
+      ruleId: "expected_odometer_band",
+      fired: true,
+      severity: "medium",
+      message: `Miles since last (${miles}) far exceed what ${r2(spanGallons)} gal could cover (~${r2(expectedMiles)} mi) — possible odometer over-reporting or a missed fill.`,
+      evidence: {
+        milesSinceLast: miles,
+        spanGallons: r2(spanGallons),
+        baselineMpg: r2(baseline),
+        expectedMiles: r2(expectedMiles),
+      },
+    };
   }
   return none("expected_odometer_band");
 }
 
+/**
+ * WP-CAP self-corroboration guard, shared by both capacity rules: when the capacity number is UNVERIFIED
+ * (no sensor-learned capacity yet) but THIS fill carries raw before/after sensor percentages, the fill's
+ * own implied capacity (billed ÷ rise-fraction) tells us whether the fuel physically went into the truck.
+ * A big rise whose implied capacity is physically plausible means the tank demonstrably absorbed ~the
+ * billed gallons — the capacity RECORD is too small, not the fill dishonest → suppress (the sensor
+ * learner + divergence surfacing converge the record within a few fills). A rise too small for the bill
+ * (implied capacity beyond any real tank) is the opposite: the fuel did NOT go in — the alert stands.
+ * Never applied to sensor-VERIFIED capacity: there, a contradicting single fill is evidence of theft,
+ * not record error (the learner's cluster requirement means one fill can't move the verified value).
+ */
+function fillSelfDemonstratesCapacity(ctx: RuleContext): boolean {
+  const { txn } = ctx;
+  const pb = ctx.tankPctBefore;
+  const pa = ctx.tankPctAfter;
+  if (pb == null || pa == null) return false;
+  const riseFrac = (pa - pb) / 100;
+  if (riseFrac < SENSOR_CAP_MIN_RISE_PCT / 100) return false; // rise too small to measure against
+  const impliedCap = txn.gallons / riseFrac;
+  return impliedCap <= SENSOR_CAP_PHYSICAL_MAX_GAL;
+}
+
 function ruleExceedsTankCapacity(ctx: RuleContext): RuleResult {
   const { txn, vehicle, thresholds } = ctx;
-  const cap = effectiveCapacityGal(vehicle); // learned combined capacity when available, else entered
-  const limit = cap * (1 + thresholds.capacityTolerancePct / 100);
-  if (cap > 0 && txn.gallons > limit) {
-    return { ruleId: "exceeds_tank_capacity", fired: true, severity: "critical", message: `Dispensed ${txn.gallons} gal exceeds the ${cap} gal tank — fuel cannot fit.`, evidence: { gallons: txn.gallons, capacity: cap, enteredCapacity: vehicle.tankCapacityGal, tolerancePct: thresholds.capacityTolerancePct } };
-  }
-  return none("exceeds_tank_capacity");
+  const rc = resolveCapacity(vehicle); // sensor-measured > entered > billed-history, with confidence (WP-CAP)
+  if (rc.gallons <= 0 || txn.gallons <= 0) return none("exceeds_tank_capacity");
+  // Verified capacity keeps the tight org tolerance; an unverified entered number needs a 15% overage
+  // before this weight-85 alert-alone rule fires (the 5–15% band on unverified trucks goes to the
+  // review-grade exceeds_capacity_unverified instead — nothing goes silent, nothing over-fires).
+  const tolPct = capacityAlertTolerancePct(rc.confidence, thresholds.capacityTolerancePct);
+  const limit = rc.gallons * (1 + tolPct / 100);
+  if (txn.gallons <= limit) return none("exceeds_tank_capacity");
+  // Unverified record + this fill's own sensor rise proves the fuel went in → record error, not theft.
+  if (rc.confidence === "low" && fillSelfDemonstratesCapacity(ctx))
+    return none("exceeds_tank_capacity");
+  // Independent corroboration for the message/evidence: a measured rise far below the bill means the
+  // fuel demonstrably did NOT all go into this truck.
+  const rise = ctx.tankObservedRiseGal;
+  const riseCorroborates = rise != null && rise < txn.gallons * 0.6;
+  const capNote =
+    rc.source === "sensor" || rc.source === "sensor+entered" ? "sensor-measured " : "";
+  const riseNote = riseCorroborates ? ` The tank only absorbed ~${r2(rise)} gal of it.` : "";
+  return {
+    ruleId: "exceeds_tank_capacity",
+    fired: true,
+    severity: "critical",
+    message: `Dispensed ${txn.gallons} gal exceeds the ${capNote}${r2(rc.gallons)} gal tank — fuel cannot fit.${riseNote}`,
+    evidence: {
+      gallons: txn.gallons,
+      capacity: r2(rc.gallons),
+      capacitySource: rc.source,
+      capacityConfidence: rc.confidence,
+      capacityDivergent: rc.divergent,
+      enteredCapacity: vehicle.tankCapacityGal,
+      sensorCapacity: rc.sensorGal,
+      tolerancePct: tolPct,
+      observedRiseGal: rise ?? null,
+      riseCorroborates,
+    },
+  };
+}
+
+/**
+ * Review-grade companion to exceeds_tank_capacity for UNVERIFIED capacity records (no sensor-learned
+ * capacity): a fill in the 5–15% overage band is suspicious but the capacity number it exceeds is a
+ * human-typed field — historically the #1 false-critical source. Weight 60 → raises a review on its
+ * own, never an alert-alone critical; once the sensor verifies the capacity, the band disappears (the
+ * main rule fires at the tight tolerance instead).
+ */
+function ruleExceedsCapacityUnverified(ctx: RuleContext): RuleResult {
+  const { txn, vehicle, thresholds } = ctx;
+  const rc = resolveCapacity(vehicle);
+  if (rc.confidence !== "low" || rc.gallons <= 0 || txn.gallons <= 0)
+    return none("exceeds_capacity_unverified");
+  const basePct =
+    Number.isFinite(thresholds.capacityTolerancePct) && thresholds.capacityTolerancePct > 0
+      ? thresholds.capacityTolerancePct
+      : 5;
+  const alertPct = capacityAlertTolerancePct(rc.confidence, thresholds.capacityTolerancePct);
+  const lower = rc.gallons * (1 + basePct / 100);
+  const upper = rc.gallons * (1 + alertPct / 100);
+  if (txn.gallons <= lower || txn.gallons > upper) return none("exceeds_capacity_unverified");
+  if (fillSelfDemonstratesCapacity(ctx)) return none("exceeds_capacity_unverified");
+  const over = txn.gallons - rc.gallons;
+  return {
+    ruleId: "exceeds_capacity_unverified",
+    fired: true,
+    severity: "medium",
+    message: `Dispensed ${txn.gallons} gal is ~${r2(over)} gal over the entered ${r2(rc.gallons)} gal capacity — but that capacity is not yet sensor-verified, so this is flagged for review, not as theft.`,
+    evidence: {
+      gallons: txn.gallons,
+      capacity: r2(rc.gallons),
+      capacitySource: rc.source,
+      capacityConfidence: rc.confidence,
+      enteredCapacity: vehicle.tankCapacityGal,
+      overGal: r2(over),
+      reviewBandPct: [basePct, alertPct],
+    },
+  };
 }
 
 /**
@@ -151,7 +358,7 @@ function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
   // whole fill (learned tankSensorReliable). On a dual-saddle-tank truck the sensor reads one tank at 92%
   // while the OTHER tank has room, so billed > sensed-tank-space false-flags every both-tank fill.
   // Tank-sensor-reliability gate centralized in ruleEligible/computeFillConfidence (docs/12).
-  const cap = effectiveCapacityGal(vehicle); // learned combined capacity when available, else entered (P-2)
+  const cap = resolveCapacity(vehicle).gallons; // sensor-measured > entered > billed-history (WP-CAP)
   if (tankPctBefore == null || cap <= 0 || txn.gallons <= 0) return none("tank_space_exceeded");
   // Physical-contradiction guard: you cannot put a meaningful fill into an already-near-full tank, so a large
   // billed fill against a pre-fill level this high means the reading is stale/mistimed (wrong-time sensor
@@ -174,7 +381,14 @@ function ruleTankSpaceExceeded(ctx: RuleContext): RuleResult {
       fired: true,
       severity: "critical",
       message: `Billed ${txn.gallons} gal, but the tank was ${r2(tankPctBefore)}% full before fueling — only ~${r2(freeSpace)} gal of space existed. ~${r2(over)} gal could not fit in this truck.`,
-      evidence: { gallons: txn.gallons, tankPctBefore: r2(tankPctBefore), capacity: cap, freeSpaceGal: r2(freeSpace), overflowGal: r2(over), toleranceGal: r2(tol) },
+      evidence: {
+        gallons: txn.gallons,
+        tankPctBefore: r2(tankPctBefore),
+        capacity: cap,
+        freeSpaceGal: r2(freeSpace),
+        overflowGal: r2(over),
+        toleranceGal: r2(tol),
+      },
     };
   }
   return none("tank_space_exceeded");
@@ -192,7 +406,18 @@ function ruleImplausibleTopoff(ctx: RuleContext): RuleResult {
   const expectedConsumed = miles / baseline;
   const spanGallons = txn.gallons + (ctx.intermediateGallons ?? 0); // incl. skipped-fill fuel (WP4)
   if (spanGallons > expectedConsumed * 1.3 && txn.gallons > 5) {
-    return { ruleId: "implausible_topoff", fired: true, severity: "high", message: `Dispensed ${r2(spanGallons)} gal far exceeds the ~${r2(expectedConsumed)} gal consumed since the last fill.`, evidence: { spanGallons: r2(spanGallons), milesSinceLast: miles, baselineMpg: r2(baseline), expectedConsumed: r2(expectedConsumed) } };
+    return {
+      ruleId: "implausible_topoff",
+      fired: true,
+      severity: "high",
+      message: `Dispensed ${r2(spanGallons)} gal far exceeds the ~${r2(expectedConsumed)} gal consumed since the last fill.`,
+      evidence: {
+        spanGallons: r2(spanGallons),
+        milesSinceLast: miles,
+        baselineMpg: r2(baseline),
+        expectedConsumed: r2(expectedConsumed),
+      },
+    };
   }
   return none("implausible_topoff");
 }
@@ -207,15 +432,28 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
   const windowGallons = ctx.windowGallons ?? 0;
   const windowMiles = ctx.windowMiles ?? null;
   const baseline = effectiveBaseline(vehicle, recentTxns);
-  if (windowGallons <= 0 || baseline == null || baseline <= 0 || windowMiles == null) return none("cumulative_overfuel");
-  const cap = effectiveCapacityGal(vehicle); // learned combined capacity when available, else entered
+  if (windowGallons <= 0 || baseline == null || baseline <= 0 || windowMiles == null)
+    return none("cumulative_overfuel");
+  const cap = resolveCapacity(vehicle).gallons; // sensor-measured > entered > billed-history (WP-CAP)
   const burnable = windowMiles / baseline;
   // Ceiling = fuel burnable over the window + one empty-to-full tank of slack. Require the overage to clear a
   // net-unaccounted floor (documented industry practice: ~>10 gal) so a marginal excess never fires.
   const ceiling = burnable + cap + CUMULATIVE_OVERFUEL_MARGIN_GAL;
   if (windowGallons > ceiling) {
     const hrs = thresholds.cumulativeWindowHours ?? 48;
-    return { ruleId: "cumulative_overfuel", fired: true, severity: "high", message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${windowMiles} mi (+${cap} gal tank).`, evidence: { windowGallons: r2(windowGallons), windowMiles, burnable: r2(burnable), tankCapacity: cap, windowHours: hrs } };
+    return {
+      ruleId: "cumulative_overfuel",
+      fired: true,
+      severity: "high",
+      message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${windowMiles} mi (+${cap} gal tank).`,
+      evidence: {
+        windowGallons: r2(windowGallons),
+        windowMiles,
+        burnable: r2(burnable),
+        tankCapacity: cap,
+        windowHours: hrs,
+      },
+    };
   }
   return none("cumulative_overfuel");
 }
@@ -236,7 +474,19 @@ function ruleMpgDeviation(ctx: RuleContext): RuleResult {
   const floor = baseline * (1 - effectiveDropPct / 100);
   if (mpg < floor) {
     const coldNote = coldDerate ? ` (allowing +${coldDerate}% for cold-weather economy)` : "";
-    return { ruleId: "mpg_deviation", fired: true, severity: "high", message: `MPG ${mpg} is ${r2(((baseline - mpg) / baseline) * 100)}% below the baseline ${r2(baseline)}${coldNote}.`, evidence: { computedMpg: mpg, baselineMpg: r2(baseline), dropPct: thresholds.mpgDropPct, coldWeatherDeratePct: coldDerate, effectiveDropPct } };
+    return {
+      ruleId: "mpg_deviation",
+      fired: true,
+      severity: "high",
+      message: `MPG ${mpg} is ${r2(((baseline - mpg) / baseline) * 100)}% below the baseline ${r2(baseline)}${coldNote}.`,
+      evidence: {
+        computedMpg: mpg,
+        baselineMpg: r2(baseline),
+        dropPct: thresholds.mpgDropPct,
+        coldWeatherDeratePct: coldDerate,
+        effectiveDropPct,
+      },
+    };
   }
   return none("mpg_deviation");
 }
@@ -255,7 +505,17 @@ function ruleMpgSustainedDecline(ctx: RuleContext): RuleResult {
   const declineFactor = 1 - (10 + coldDerate) / 100;
   if (prior3 > 0 && last3 < prior3 * declineFactor) {
     const coldNote = coldDerate ? ` (allowing +${coldDerate}% for cold-weather economy)` : "";
-    return { ruleId: "mpg_sustained_decline", fired: true, severity: "medium", message: `Recent MPG (${r2(last3)}) has declined more than ${10 + coldDerate}% versus the prior period (${r2(prior3)})${coldNote}.`, evidence: { recentMedian: r2(last3), priorMedian: r2(prior3), coldWeatherDeratePct: coldDerate } };
+    return {
+      ruleId: "mpg_sustained_decline",
+      fired: true,
+      severity: "medium",
+      message: `Recent MPG (${r2(last3)}) has declined more than ${10 + coldDerate}% versus the prior period (${r2(prior3)})${coldNote}.`,
+      evidence: {
+        recentMedian: r2(last3),
+        priorMedian: r2(prior3),
+        coldWeatherDeratePct: coldDerate,
+      },
+    };
   }
   return none("mpg_sustained_decline");
 }
@@ -293,7 +553,15 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     ruleOdometerEntrySuspect,
     ...(fuel ? [ruleExpectedOdometerBand] : []),
     // Tier 2 — capacity (fuel vehicles only)
-    ...(fuel ? [ruleExceedsTankCapacity, ruleTankSpaceExceeded, ruleImplausibleTopoff, ruleCumulativeOverfuel] : []),
+    ...(fuel
+      ? [
+          ruleExceedsTankCapacity,
+          ruleExceedsCapacityUnverified,
+          ruleTankSpaceExceeded,
+          ruleImplausibleTopoff,
+          ruleCumulativeOverfuel,
+        ]
+      : []),
     // Tier 3 — efficiency (fuel vehicles only)
     ...(fuel ? [ruleMpgDeviation, ruleMpgSustainedDecline] : []),
     // Tier 4 — behavioral
@@ -317,10 +585,23 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   const confidence = computeFillConfidence(ctx);
   let results = rules
     .map((rule) => rule(ctx))
-    .filter((r) => r.fired && !disabled.has(r.ruleId) && !suppressed.has(r.ruleId) && ruleEligible(r.ruleId, confidence));
+    .filter(
+      (r) =>
+        r.fired &&
+        !disabled.has(r.ruleId) &&
+        !suppressed.has(r.ruleId) &&
+        ruleEligible(r.ruleId, confidence),
+    );
 
-  // Precedence: an over-capacity fill makes the per-fill top-off rule redundant.
+  // Precedence: an over-capacity fill makes the per-fill top-off rule redundant (either capacity signal),
+  // and the alert-grade rule supersedes the review-grade unverified band (mutually exclusive by
+  // construction; the filter is belt-and-braces).
   if (results.some((r) => r.ruleId === "exceeds_tank_capacity")) {
+    results = results.filter(
+      (r) => r.ruleId !== "implausible_topoff" && r.ruleId !== "exceeds_capacity_unverified",
+    );
+  }
+  if (results.some((r) => r.ruleId === "exceeds_capacity_unverified")) {
     results = results.filter((r) => r.ruleId !== "implausible_topoff");
   }
   // P-1: an entered odometer that disagrees with the trusted OBD reading (mismatch / entry-suspect) makes
@@ -328,9 +609,15 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   // can't stack a false multi-axis case. WP2: suppress ONLY when the miles CAME from the entered odometer —
   // an OBD-span basis is independent of the bad entry, so those rules stay valid (closes the "enter garbage
   // >5,000 mi to silence the consumption checks" evasion). No-OBD trucks keep the suppression.
-  const odoDoubt = results.some((r) => r.ruleId === "odometer_mismatch" || r.ruleId === "odometer_entry_suspect");
+  const odoDoubt = results.some(
+    (r) => r.ruleId === "odometer_mismatch" || r.ruleId === "odometer_entry_suspect",
+  );
   if (odoDoubt && milesSinceLastSourced(ctx.txn, ctx.previousTxn)?.basis !== "obd") {
-    const milesDerived = new Set<RuleId>(["mpg_deviation", "implausible_topoff", "expected_odometer_band"]);
+    const milesDerived = new Set<RuleId>([
+      "mpg_deviation",
+      "implausible_topoff",
+      "expected_odometer_band",
+    ]);
     results = results.filter((r) => !milesDerived.has(r.ruleId));
   }
   // WP4: a mismatch/entry-suspect already CLASSIFIES this fill's bad entry; a regression caused by the
@@ -338,4 +625,3 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   if (odoDoubt) results = results.filter((r) => r.ruleId !== "odometer_regression");
   return results;
 }
-
