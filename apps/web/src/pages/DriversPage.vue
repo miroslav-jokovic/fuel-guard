@@ -277,23 +277,24 @@ async function onSubmit(input: DriverInput) {
       <template #cell-current_hos_vehicle="{ row }">{{ row.current_hos_vehicle || "—" }}</template>
       <template #cell-current_location="{ row }">{{ row.current_location || "—" }}</template>
       <template #cell-app_access="{ row }">
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-surface-subtle"
-          :title="row.app_username ? `Username: ${row.app_username}` : 'Create this driver’s app login'"
-          @click.stop="openAccess(row)"
+        <div
+          class="inline-flex items-center gap-1.5"
+          :title="row.app_username ? `Username: ${row.app_username}` : 'No app login yet — use the row menu to create one'"
         >
           <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" :class="accessBadge(row).cls">
             {{ accessBadge(row).label }}
           </span>
           <span v-if="row.app_username" class="font-mono text-xs text-ink-muted">{{ row.app_username }}</span>
-        </button>
+        </div>
       </template>
       <template #cell-vehicles="{ row }">{{ assignedUnits(row.id) }}</template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canManage">
           <button class="kebab-item" @click="openEdit(row)">Edit driver</button>
+          <button class="kebab-item" @click="openAccess(row)">
+            {{ row.user_id ? "Manage app login…" : "Create app login…" }}
+          </button>
         </KebabMenu>
       </template>
       <template #footer>
