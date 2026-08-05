@@ -81,6 +81,7 @@ export const RULE_LABELS: Record<RuleId, string> = {
 export const SUPPRESSED_RULE_IDS: readonly RuleId[] = [
   "odometer_missing",
   "unattributed_transaction",
+  "reefer_fuel_diversion",
 ] as const;
 
 /** Correlation axis + directness-of-theft weight (0–100) per rule for the multi-signal model. */

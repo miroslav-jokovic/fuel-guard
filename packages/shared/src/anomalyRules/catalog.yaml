@@ -202,5 +202,6 @@ rules:
     tier: reefer
     axis: reefer
     weight: 60
+    suppressed: true
     label: Reefer Fueled with ULSD
-    note: Reefer-hauling truck buys ULSD but ~no reefer (ULSR) fuel → reefer fueled off ULSD.
+    note: Reefer-hauling truck buys ULSD but ~no reefer (ULSR) fuel → reefer fueled off ULSD. TEMPORARILY SUPPRESSED (product decision, 2026-08) — in production it mass-fired (1,301 open cases) because reefer usage/pairing data isn't reliable enough to infer "this truck should have bought ULSR"; per-truck reefer fuel attribution can't back the accusation. RE-ENABLE when McLeod lands - its temperature-controlled-load feed (reeferLoadInWindow gate, already wired) gives the precise reefer-was-running truth this rule needs. Flip `suppressed` off + rebuild; rule body + tests stay maintained.
