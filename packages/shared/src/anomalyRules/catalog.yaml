@@ -122,7 +122,13 @@ rules:
     axis: behavior
     weight: 40
     label: Rapid Repeat Fueling
-    note: Instant-precision only. WP7 — same-STATION pairs are exempt (a pump pre-auth split purchase / pull-forward top-off is two swipes at one site, not a theft interval; volume stays covered by cumulative_overfuel + tank rules); different-site pairs fire with combined gallons in evidence. Unknown location never exempts.
+    note: Instant-precision only. WP7 — same-STATION pairs are exempt (a pump pre-auth split purchase / pull-forward top-off is two swipes at one site, not a theft interval; volume stays covered by cumulative_overfuel + tank rules); different-site pairs fire with combined gallons in evidence. Unknown location never exempts. WP-BEH — same-site is judged by real pin DISTANCE (≤1 mi) when both fills carry coordinates; strings only as fallback (string matching wrongly exempted two different truck stops in one city and wrongly split one station's name variants).
+  - id: impossible_travel
+    tier: behavioral
+    axis: location
+    weight: 70
+    label: Impossible Travel Between Fills
+    note: WP-BEH — two fills whose station pins are ≥60 mi apart with an implied speed over maxPlausibleMph (both instants reliable, gap ≤24h). Near-proof of card sharing/cloning — one fill was made without the truck. Review-alone (70); alerts with one corroborating axis. Supersedes rapid_repeat_fueling for the same pair.
   - id: off_hours_fueling
     tier: behavioral
     axis: behavior
@@ -141,7 +147,13 @@ rules:
     axis: behavior
     weight: 15
     label: Cost Outlier
-    note: WP7 — no longer dead-by-default. Org static bounds (when set) fire as before; otherwise a diesel tractor fill ≥35% over the regional (state, ±3-day) POSTED-diesel median from the global price layer fires on real market data. Above-market only (receipt inflation / collusion direction); needs ≥5 station samples, cash quotes never blended.
+    note: WP7 — no longer dead-by-default. Org static bounds (when set) fire as before; otherwise a diesel tractor fill ≥35% over the regional (state, ±3-day) POSTED-diesel median from the global price layer fires on real market data. Above-market only (receipt inflation / collusion direction); needs ≥5 station samples, cash quotes never blended. Station-EXACT posted-price comparison deferred to a station-identity workpackage.
+  - id: cost_line_mismatch
+    tier: behavioral
+    axis: behavior
+    weight: 10
+    label: Line Math Mismatch
+    note: WP-BEH (weight corrected in the WP-BEH audit) — total_cost ≠ gallons × price/gal beyond max($5, 2%) — an import defect or a tampered receipt; either way the row's money math can't be trusted. Weight 10 (far below the lone-review threshold) so it NEVER raises a case alone but persists in the case_signals "why" surface — a suppressed weight-0 rule would have been filtered out before persistence and visible nowhere.
   - id: card_multi_vehicle
     tier: behavioral
     axis: behavior
@@ -153,19 +165,25 @@ rules:
     axis: location
     weight: 50
     label: Location Mismatch
-    note: Corroboration-only — telematics location is the least-reliable signal (weight below the lone-review threshold); never raises a case alone but reinforces a volume/consumption signal.
+    note: Corroboration-only — telematics location is the least-reliable signal (weight below the lone-review threshold); never raises a case alone but reinforces a volume/consumption signal. WP-BEH — now DISTANCE-tiered on top of the state comparison; >25 mi truck-vs-station at a reliable instant fires (>100 mi = high severity), so a card used far away IN the same state is no longer invisible. Suspect station pins (systematic-offset learner) and unreliable instants never fire.
   - id: tank_fill_short
     tier: behavioral
     axis: volume
     weight: 60
     label: Tank Fill Short
-    note: Telematics tank rose less than billed gallons (advisory; coarse sensor). WP5 DETECTION FLOOR (documented, deliberate) — tolerance is max(15 gal, 30% of billed): on a 100-gal bill a ~29-gal skim sits inside sensor noise and cannot fire. State this floor to customers as the sensor-bound sensitivity, not implied capability; revisit against WP9 dispositions before tightening.
+    note: Telematics tank rose less than billed gallons (advisory; coarse sensor). WP-BEH — the tolerance is now PRECISION-SCALED per truck: 3σ of the truck's own observed/billed ratio history (learnTankSensorReliability.ratioSigma), clamped 8–30% of the bill, min 15 gal. A clean single-tank sensor's floor drops from ~30 gal to ~9 gal on a 100-gal bill; no learned sigma keeps the legacy 30% blanket. The residual floor below the per-fill band is carried by tank_chronic_short.
+  - id: tank_chronic_short
+    tier: behavioral
+    axis: volume
+    weight: 65
+    label: Chronic Tank Shortfall
+    note: WP-BEH — the sustained-small-skim detector (closes the documented WP5 floor). Sensor noise is symmetric, so a persistent one-direction shortfall summed across ≥6 measured fills — each individually inside the per-fill tolerance — is fuel repeatedly not entering this tank. Threshold max(25 gal, 1.5σ × window billed); gated on the learned-reliable sensor. Review-alone (65); alerts with one corroborating axis.
   - id: fuel_while_driver_home
     tier: behavioral
     axis: behavior
     weight: 50
     label: Fueled While Driver Home
-    note: Corroboration-only (weight below the lone-review threshold — never raises a case alone). Opt-in on McLeod/TMS driver time-off; the fill falls inside the assigned driver's home-time window (±1-day buffer). Reinforces a volume/consumption signal — a card fueling while its driver is off duty.
+    note: Corroboration-only (weight below the lone-review threshold — never raises a case alone). WP-BEH — two independent sources feed it, TMS home-time (opt-in, ±1-day buffer) and the driver's own ELD logbook (fill deep inside an extended off-duty/sleeper block, buffered from duty transitions so shift-start fueling never flags). Reinforces a volume/consumption signal — a card fueling while its driver demonstrably isn't working.
 
   # ── Tier A — reefer (trailer refrigeration) fuel integrity (reefer/ULSR events only) ─────────────
   - id: reefer_exceeds_capacity

@@ -47,6 +47,10 @@ export interface TxnView {
   state?: string | null;
   city?: string | null;
   locationText?: string | null;
+  /** Resolved station coordinates (WP-BEH): the same-site check and impossible-travel math prefer real
+   *  distance over string matching when both fills carry a pin. */
+  stationLat?: number | null;
+  stationLng?: number | null;
 }
 
 export interface VehicleView {
@@ -61,6 +65,9 @@ export interface VehicleView {
    *  for dual independent tanks (ratio ≈0.5 / erratic) or until enough history clusters → tank-fill-short is
    *  suppressed, so a single sensor on a two-tank truck never produces a false short. */
   tankSensorReliable?: boolean;
+  /** LEARNED per-truck sensor noise: std deviation of the observed/billed ratios (WP-BEH). Sizes the
+   *  tank_fill_short tolerance (3σ clamped to 8–30%) and the chronic-short threshold. */
+  tankRatioSigma?: number;
   /** LEARNED robust high-percentile of observed single-fill gallons ≈ the truck's true capacity — the COMBINED
    *  capacity for a dual/saddle-tank tractor that regularly fills both tanks. Used ONLY to RAISE the effective
    *  capacity above an under-entered nameplate (never to lower it), so legitimate both-tank fills stop
@@ -251,6 +258,17 @@ export interface RuleContext {
   tankFillShortGal?: number | null;
   /** Gallons the tank actually rose across the fueling moment (Samsara). */
   tankObservedRiseGal?: number | null;
+  /** WP-BEH chronic-short accumulator inputs: the trailing measured fills (incl. this one) with their
+   *  summed signed shortfall (billed − observed rise) and total billed gallons. Sensor noise is
+   *  symmetric, so a persistent one-direction shortfall across the window is siphoning even when every
+   *  individual fill sits inside the per-fill tolerance (the documented WP5 floor). */
+  tankResidualWindow?: { fills: number; sumShortGal: number; totalBilledGal: number } | null;
+  /** WP-BEH — miles between the truck's observed telematics position and the fuel station at the fueling
+   *  time (recon nearestStationMiles). Distance-tier location mismatch input. */
+  truckToStationMiles?: number | null;
+  /** WP-BEH — the fill landed inside the assigned driver's EXTENDED ELD off-duty/sleeper block (buffered
+   *  away from duty transitions). Second source for fuel_while_driver_home (with TMS home-time). */
+  driverOffDutyAtFill?: boolean;
   /** Samsara tank level (%) just BEFORE the fill — used for the physical tank-space check. */
   tankPctBefore?: number | null;
   /** Samsara tank level (%) just AFTER the fill (post-fill plateau / rise event). Together with

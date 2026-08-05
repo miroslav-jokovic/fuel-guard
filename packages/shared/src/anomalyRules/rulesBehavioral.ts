@@ -1,15 +1,48 @@
 /** Tier 4 (behavioral) + Tier A (reefer) rule bodies — split from rules.ts (file-size budget).
  * Same private-rule contract: each takes RuleContext, returns RuleResult; runAllRules composes them. */
 import type { RuleContext, RuleResult, TxnView } from "./types.js";
-import { hoursBetween, eventTime, timeReliable, isOffHours, none, r2, TANK_FILL_MIN_TOLERANCE_GAL, TANK_FILL_TOLERANCE_PCT } from "./helpers.js";
+import {
+  hoursBetween,
+  eventTime,
+  timeReliable,
+  isOffHours,
+  none,
+  r2,
+  TANK_FILL_MIN_TOLERANCE_GAL,
+  tankShortTolerancePct,
+} from "./helpers.js";
 import { stateTimeZone } from "../efsImport/dateTime.js";
+import { haversineMiles } from "../ai.js";
 
-/** Same physical station? Site name match when both carry one, else city+state. Unknown → false
- *  (never exempt on a guess — WP7). */
+/** Two station pins within this distance are ONE physical site (a truck stop straddling an exit). */
+export const SAME_SITE_MILES = 1.0;
+/** Minimum inter-fill distance before the impossible-travel check applies — below it, geocode pin noise
+ *  (city-centroid pins) could fabricate an impossible speed across town. */
+export const IMPOSSIBLE_TRAVEL_MIN_MILES = 60;
+/** Truck-vs-station distance beyond which a location mismatch fires even INSIDE the same state
+ *  (the old state-level comparison was blind to a card used 200 mi away in Texas). */
+export const LOCATION_DISTANCE_MISMATCH_MILES = 25;
+/** …and beyond this it is severity-high (nowhere near the station). */
+export const LOCATION_DISTANCE_FAR_MILES = 100;
+
+/** Distance between the two fills' station pins, when both are resolved. Null otherwise. */
+function stationDistanceMiles(a: TxnView, b: TxnView): number | null {
+  if (a.stationLat == null || a.stationLng == null || b.stationLat == null || b.stationLng == null)
+    return null;
+  return haversineMiles(a.stationLat, a.stationLng, b.stationLat, b.stationLng);
+}
+
+/** Same physical station? REAL DISTANCE when both fills carry a resolved pin (WP-BEH — string matching
+ *  wrongly exempted two different truck stops in one city, and wrongly split one station's name
+ *  variants); site name / city+state strings only as fallback. Unknown → false (never exempt on a
+ *  guess — WP7). */
 function sameSite(a: TxnView, b: TxnView): boolean {
+  const dist = stationDistanceMiles(a, b);
+  if (dist != null) return dist <= SAME_SITE_MILES;
   const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
   if (a.locationText && b.locationText) return norm(a.locationText) === norm(b.locationText);
-  if (a.city && b.city && a.state && b.state) return norm(a.city) === norm(b.city) && norm(a.state) === norm(b.state);
+  if (a.city && b.city && a.state && b.state)
+    return norm(a.city) === norm(b.city) && norm(a.state) === norm(b.state);
   return false;
 }
 
@@ -31,7 +64,54 @@ export function ruleRapidRepeatFueling(ctx: RuleContext): RuleResult {
   // minutes apart remain exactly the signal this rule exists for. Unknown location never exempts.
   if (sameSite(txn, previousTxn)) return none("rapid_repeat_fueling");
   const gallons = r2(txn.gallons + previousTxn.gallons);
-  return { ruleId: "rapid_repeat_fueling", fired: true, severity: "high", message: `Another fill-up occurred ${r2(hours * 60)} minutes after the previous one at a different station (${gallons} gal combined).`, evidence: { minutesSincePrev: r2(hours * 60), thresholdHours: thresholds.rapidRefuelHours, combinedGallons: gallons, prevSite: previousTxn.locationText ?? ([previousTxn.city, previousTxn.state].filter(Boolean).join(", ") || null), site: txn.locationText ?? ([txn.city, txn.state].filter(Boolean).join(", ") || null) } };
+  return {
+    ruleId: "rapid_repeat_fueling",
+    fired: true,
+    severity: "high",
+    message: `Another fill-up occurred ${r2(hours * 60)} minutes after the previous one at a different station (${gallons} gal combined).`,
+    evidence: {
+      minutesSincePrev: r2(hours * 60),
+      thresholdHours: thresholds.rapidRefuelHours,
+      combinedGallons: gallons,
+      prevSite:
+        previousTxn.locationText ??
+        ([previousTxn.city, previousTxn.state].filter(Boolean).join(", ") || null),
+      site: txn.locationText ?? ([txn.city, txn.state].filter(Boolean).join(", ") || null),
+    },
+  };
+}
+
+/**
+ * WP-BEH — IMPOSSIBLE TRAVEL: two fills on the same vehicle whose station pins are far enough apart
+ * that no truck could cover the distance in the elapsed time (implied speed > maxPlausibleMph). Near-
+ * proof of card sharing/cloning — one of the two fills was made without the truck. Guards: both fills
+ * need RELIABLE instants and resolved pins; distance must clear IMPOSSIBLE_TRAVEL_MIN_MILES (pin noise
+ * can't fabricate 60 mi); gaps over 24h are ignored (stale pairs aren't a travel claim). Weight 70 —
+ * review-alone, alerts with one corroborating axis.
+ */
+export function ruleImpossibleTravel(ctx: RuleContext): RuleResult {
+  const { txn, previousTxn, thresholds } = ctx;
+  if (!previousTxn || !timeReliable(previousTxn)) return none("impossible_travel");
+  const dist = stationDistanceMiles(txn, previousTxn);
+  if (dist == null || dist < IMPOSSIBLE_TRAVEL_MIN_MILES) return none("impossible_travel");
+  const hours = hoursBetween(eventTime(previousTxn), eventTime(txn));
+  if (hours <= 0 || hours > 24) return none("impossible_travel");
+  const mph = dist / hours;
+  if (mph <= thresholds.maxPlausibleMph) return none("impossible_travel");
+  return {
+    ruleId: "impossible_travel",
+    fired: true,
+    severity: "high",
+    message: `This card fueled ${r2(dist)} mi apart within ${r2(hours * 60)} minutes (implied ${r2(mph)} mph) — one truck cannot have made both fills.`,
+    evidence: {
+      distanceMiles: r2(dist),
+      minutesBetween: r2(hours * 60),
+      impliedMph: r2(mph),
+      maxPlausibleMph: thresholds.maxPlausibleMph,
+      prevSite: previousTxn.locationText ?? null,
+      site: txn.locationText ?? null,
+    },
+  };
 }
 
 export function ruleOffHoursFueling(ctx: RuleContext): RuleResult {
@@ -42,7 +122,13 @@ export function ruleOffHoursFueling(ctx: RuleContext): RuleResult {
   // Central". Falls back to the org tz when the station state is unknown.
   const tz = stateTimeZone(txn.state) ?? operatingHours.tz;
   if (isOffHours(at, { ...operatingHours, tz })) {
-    return { ruleId: "off_hours_fueling", fired: true, severity: "medium", message: `Fueled outside operating hours (${operatingHours.start}–${operatingHours.end} ${tz === operatingHours.tz ? operatingHours.tz : `${tz}, station-local`}).`, evidence: { fueledAt: at, window: `${operatingHours.start}-${operatingHours.end}`, tz } };
+    return {
+      ruleId: "off_hours_fueling",
+      fired: true,
+      severity: "medium",
+      message: `Fueled outside operating hours (${operatingHours.start}–${operatingHours.end} ${tz === operatingHours.tz ? operatingHours.tz : `${tz}, station-local`}).`,
+      evidence: { fueledAt: at, window: `${operatingHours.start}-${operatingHours.end}`, tz },
+    };
   }
   return none("off_hours_fueling");
 }
@@ -53,7 +139,13 @@ export function ruleUnattributed(ctx: RuleContext): RuleResult {
   if (txn.vehicleId == null) missing.push("vehicle");
   if (txn.driverId == null) missing.push("driver");
   if (missing.length) {
-    return { ruleId: "unattributed_transaction", fired: true, severity: "high", message: `Transaction is missing ${missing.join(" and ")} attribution.`, evidence: { missing } };
+    return {
+      ruleId: "unattributed_transaction",
+      fired: true,
+      severity: "high",
+      message: `Transaction is missing ${missing.join(" and ")} attribution.`,
+      evidence: { missing },
+    };
   }
   return none("unattributed_transaction");
 }
@@ -64,7 +156,13 @@ export function ruleCostOutlier(ctx: RuleContext): RuleResult {
   if (txn.pricePerGal == null) return none("cost_outlier");
   // Org-configured static bounds (when set) keep firing exactly as before.
   if ((min != null && txn.pricePerGal < min) || (max != null && txn.pricePerGal > max)) {
-    return { ruleId: "cost_outlier", fired: true, severity: "low", message: `Price $${txn.pricePerGal}/gal is outside the expected range.`, evidence: { pricePerGal: txn.pricePerGal, min, max } };
+    return {
+      ruleId: "cost_outlier",
+      fired: true,
+      severity: "low",
+      message: `Price $${txn.pricePerGal}/gal is outside the expected range.`,
+      evidence: { pricePerGal: txn.pricePerGal, min, max },
+    };
   }
   // WP7 — market variant: before this, cost_outlier was OFF unless an org configured static bounds
   // (defaults null). With the global posted-price layer, a fill ≥35% over the regional (state, ±3-day)
@@ -72,7 +170,18 @@ export function ruleCostOutlier(ctx: RuleContext): RuleResult {
   // theft-relevant direction (receipt inflation / collusion); cheap fuel is not misuse.
   const market = ctx.marketPricePerGal;
   if (market != null && market > 0 && txn.pricePerGal > market * MARKET_PRICE_OUTLIER_MULT) {
-    return { ruleId: "cost_outlier", fired: true, severity: "low", message: `Price $${txn.pricePerGal}/gal is ${r2(((txn.pricePerGal - market) / market) * 100)}% above the regional posted-diesel median ($${r2(market)}/gal).`, evidence: { pricePerGal: txn.pricePerGal, marketMedianPerGal: r2(market), overMarketPct: r2(((txn.pricePerGal - market) / market) * 100), marketOutlierMult: MARKET_PRICE_OUTLIER_MULT } };
+    return {
+      ruleId: "cost_outlier",
+      fired: true,
+      severity: "low",
+      message: `Price $${txn.pricePerGal}/gal is ${r2(((txn.pricePerGal - market) / market) * 100)}% above the regional posted-diesel median ($${r2(market)}/gal).`,
+      evidence: {
+        pricePerGal: txn.pricePerGal,
+        marketMedianPerGal: r2(market),
+        overMarketPct: r2(((txn.pricePerGal - market) / market) * 100),
+        marketOutlierMult: MARKET_PRICE_OUTLIER_MULT,
+      },
+    };
   }
   return none("cost_outlier");
 }
@@ -88,8 +197,38 @@ export function ruleLocationMismatch(ctx: RuleContext): RuleResult {
       ruleId: "location_mismatch",
       fired: true,
       severity: "high",
-      message: "Telematics places the vehicle in a different state than the fuel station at the fueling time.",
+      message:
+        "Telematics places the vehicle in a different state than the fuel station at the fueling time.",
       evidence: { samsaraLocationMatched: false, ...(ctx.locationEvidence ?? {}) },
+    };
+  }
+  // WP-BEH — DISTANCE tier: the state comparison was blind to a card used 200 mi away in the SAME state.
+  // With a reliable fueling instant and a truck-vs-station distance beyond the threshold, the mismatch
+  // fires on miles, tiered by how far. Guards: never on a suspect station pin (the wrong-coordinate
+  // pattern the systematic-offset learner flags routes to data-quality, not theft), and never without a
+  // trustworthy instant (a settlement-time position comparison is meaningless).
+  const dist = ctx.truckToStationMiles;
+  const pinSuspect =
+    (ctx.locationEvidence as { dataQuality?: string } | null | undefined)?.dataQuality ===
+    "station_coordinate_suspect";
+  if (
+    dist != null &&
+    dist > LOCATION_DISTANCE_MISMATCH_MILES &&
+    !pinSuspect &&
+    timeReliable(ctx.txn)
+  ) {
+    const far = dist > LOCATION_DISTANCE_FAR_MILES;
+    return {
+      ruleId: "location_mismatch",
+      fired: true,
+      severity: far ? "high" : "medium",
+      message: `Telematics places the vehicle ~${r2(dist)} mi from the fuel station at the fueling time.`,
+      evidence: {
+        truckToStationMiles: r2(dist),
+        thresholdMiles: LOCATION_DISTANCE_MISMATCH_MILES,
+        tier: far ? "far" : "near",
+        ...(ctx.locationEvidence ?? {}),
+      },
     };
   }
   return none("location_mismatch");
@@ -106,17 +245,98 @@ export function ruleTankFillShort(ctx: RuleContext): RuleResult {
   // learned trucks read ~half a fill and false-flag. Reliability gate centralized in ruleEligible (docs/12).
   const short = ctx.tankFillShortGal;
   if (short == null || short <= 0) return none("tank_fill_short");
-  // Samsara's tank-% sensor is COARSE: only flag a shortfall clearing a generous tolerance (LARGER of an
-  // absolute floor or a fraction of the bill). Mirrors reconcileTankFill; applied HERE for cheap re-score.
-  const tol = Math.max(TANK_FILL_MIN_TOLERANCE_GAL, ctx.txn.gallons * TANK_FILL_TOLERANCE_PCT);
+  // WP-BEH PRECISION-SCALED tolerance: sized by THIS truck's measured sensor noise (3σ of its
+  // observed/billed ratio history, clamped 8–30%) instead of the blanket 30% — a clean sensor's
+  // detection floor drops from ~30 gal to ~9 gal on a 100-gal bill. No learned sigma → legacy 30%.
+  const tolPct = tankShortTolerancePct(ctx.vehicle.tankRatioSigma);
+  const tol = Math.max(TANK_FILL_MIN_TOLERANCE_GAL, ctx.txn.gallons * tolPct);
   if (short <= tol) return none("tank_fill_short");
   const observed = ctx.tankObservedRiseGal;
   return {
     ruleId: "tank_fill_short",
     fired: true,
     severity: "low",
-    message: `Telematics tank level rose ~${observed != null ? r2(observed) : "?"} gal, about ${r2(short)} gal less than the ${ctx.txn.gallons} gal billed — beyond the ~${r2(tol)} gal sensor tolerance (coarse sensor — review).`,
-    evidence: { gallonsBilled: ctx.txn.gallons, observedRiseGal: observed, shortGal: r2(short), toleranceGal: r2(tol) },
+    message: `Telematics tank level rose ~${observed != null ? r2(observed) : "?"} gal, about ${r2(short)} gal less than the ${ctx.txn.gallons} gal billed — beyond this truck's ~${r2(tol)} gal sensor tolerance (review).`,
+    evidence: {
+      gallonsBilled: ctx.txn.gallons,
+      observedRiseGal: observed,
+      shortGal: r2(short),
+      toleranceGal: r2(tol),
+      tolerancePct: r2(tolPct * 100),
+      sensorRatioSigma: ctx.vehicle.tankRatioSigma ?? null,
+    },
+  };
+}
+
+/** Chronic-short window floors: at least this many measured fills, and the summed shortfall must clear
+ *  BOTH an absolute floor and a sigma-scaled share of the window's billed volume. */
+export const CHRONIC_SHORT_MIN_FILLS = 6;
+export const CHRONIC_SHORT_MIN_GAL = 25;
+export const CHRONIC_SHORT_SIGMA_MULT = 1.5;
+export const CHRONIC_SHORT_DEFAULT_SIGMA = 0.15;
+
+/**
+ * WP-BEH — CHRONIC TANK SHORTFALL: the sustained-small-skim detector the per-fill rule can't be.
+ * Sensor noise is symmetric, so across N measured fills the signed residuals (billed − observed rise)
+ * should hover near zero; a persistent ONE-DIRECTION shortfall — each fill individually inside the
+ * per-fill tolerance — is fuel repeatedly leaving the pump without entering this tank (siphoning /
+ * container fills). This closes the documented WP5 detection floor for trucks with a reliable sensor.
+ * Threshold: max(absolute floor, sigma-scaled share of the window's billed gallons) so a noisy sensor
+ * needs proportionally more evidence. Gated on the learned-reliable sensor (ruleEligible).
+ */
+export function ruleTankChronicShort(ctx: RuleContext): RuleResult {
+  const w = ctx.tankResidualWindow;
+  if (!w || w.fills < CHRONIC_SHORT_MIN_FILLS || w.totalBilledGal <= 0)
+    return none("tank_chronic_short");
+  const sigma =
+    ctx.vehicle.tankRatioSigma != null && ctx.vehicle.tankRatioSigma > 0
+      ? ctx.vehicle.tankRatioSigma
+      : CHRONIC_SHORT_DEFAULT_SIGMA;
+  const threshold = Math.max(
+    CHRONIC_SHORT_MIN_GAL,
+    w.totalBilledGal * CHRONIC_SHORT_SIGMA_MULT * sigma,
+  );
+  if (w.sumShortGal <= threshold) return none("tank_chronic_short");
+  return {
+    ruleId: "tank_chronic_short",
+    fired: true,
+    severity: "high",
+    message: `Across the last ${w.fills} measured fills the tank absorbed ~${r2(w.sumShortGal)} gal less than the ${r2(w.totalBilledGal)} gal billed — a persistent one-direction shortfall beyond this truck's sensor noise (~${r2(threshold)} gal), consistent with repeated small skims.`,
+    evidence: {
+      windowFills: w.fills,
+      sumShortGal: r2(w.sumShortGal),
+      totalBilledGal: r2(w.totalBilledGal),
+      thresholdGal: r2(threshold),
+      sensorRatioSigma: sigma,
+    },
+  };
+}
+
+/**
+ * WP-BEH — LINE-MATH INTEGRITY: total_cost should equal gallons × price/gal. A material mismatch is an
+ * import defect or a tampered receipt — either way the row's money math can't be trusted. Data-quality
+ * (weight 0, suppressed — facts stay on the transaction, never an alert): EFS line fees/rounding are
+ * absorbed by the tolerance (larger of $5 or 2%).
+ */
+export function ruleCostLineMismatch(ctx: RuleContext): RuleResult {
+  const { txn } = ctx;
+  if (txn.totalCost == null || txn.pricePerGal == null || txn.gallons <= 0)
+    return none("cost_line_mismatch");
+  const expected = txn.gallons * txn.pricePerGal;
+  const diff = Math.abs(txn.totalCost - expected);
+  if (diff <= Math.max(5, expected * 0.02)) return none("cost_line_mismatch");
+  return {
+    ruleId: "cost_line_mismatch",
+    fired: true,
+    severity: "low",
+    message: `Total $${r2(txn.totalCost)} differs from gallons × price ($${r2(expected)}) by $${r2(diff)} — check this line for an import defect or altered receipt.`,
+    evidence: {
+      totalCost: txn.totalCost,
+      gallons: txn.gallons,
+      pricePerGal: txn.pricePerGal,
+      expectedTotal: r2(expected),
+      diff: r2(diff),
+    },
   };
 }
 
@@ -125,7 +345,9 @@ export function ruleTankFillShort(ctx: RuleContext): RuleResult {
  * otherwise, so the reefer rules never judge "exceeds capacity" against an ASSUMED tank size.
  */
 function knownReeferTankGal(ctx: RuleContext): number | null {
-  return ctx.reeferTankCapacityGal != null && ctx.reeferTankCapacityGal > 0 ? ctx.reeferTankCapacityGal : null;
+  return ctx.reeferTankCapacityGal != null && ctx.reeferTankCapacityGal > 0
+    ? ctx.reeferTankCapacityGal
+    : null;
 }
 
 /**
@@ -138,7 +360,17 @@ export function ruleReeferExceedsCapacity(ctx: RuleContext): RuleResult {
   if (cap == null) return none("reefer_exceeds_capacity"); // unknown tank → never accuse on an assumption
   const limit = cap * (1 + thresholds.capacityTolerancePct / 100);
   if (txn.gallons > limit) {
-    return { ruleId: "reefer_exceeds_capacity", fired: true, severity: "critical", message: `Reefer fill of ${txn.gallons} gal exceeds the reefer tank capacity (${cap} gal) — the fuel can't fit in the reefer.`, evidence: { gallons: txn.gallons, reeferCapacity: cap, tolerancePct: thresholds.capacityTolerancePct } };
+    return {
+      ruleId: "reefer_exceeds_capacity",
+      fired: true,
+      severity: "critical",
+      message: `Reefer fill of ${txn.gallons} gal exceeds the reefer tank capacity (${cap} gal) — the fuel can't fit in the reefer.`,
+      evidence: {
+        gallons: txn.gallons,
+        reeferCapacity: cap,
+        tolerancePct: thresholds.capacityTolerancePct,
+      },
+    };
   }
   return none("reefer_exceeds_capacity");
 }
@@ -157,7 +389,19 @@ export function ruleReeferOverfuelRate(ctx: RuleContext): RuleResult {
   const windowGal = ctx.reeferWindowGallons ?? ctx.txn.gallons;
   const maxPlausible = gph * hrs + cap; // could burn at most this in the window, plus a one-tank refill
   if (windowGal > maxPlausible) {
-    return { ruleId: "reefer_overfuel_rate", fired: true, severity: "high", message: `Reefer bought ${r2(windowGal)} gal in ${hrs}h — more than a reefer could burn (${gph} gal/h ≈ ${r2(gph * hrs)} gal) plus a full ${cap}-gal tank.`, evidence: { reeferWindowGallons: r2(windowGal), maxBurnGph: gph, windowHours: hrs, reeferCapacity: cap, maxPlausibleGal: r2(maxPlausible) } };
+    return {
+      ruleId: "reefer_overfuel_rate",
+      fired: true,
+      severity: "high",
+      message: `Reefer bought ${r2(windowGal)} gal in ${hrs}h — more than a reefer could burn (${gph} gal/h ≈ ${r2(gph * hrs)} gal) plus a full ${cap}-gal tank.`,
+      evidence: {
+        reeferWindowGallons: r2(windowGal),
+        maxBurnGph: gph,
+        windowHours: hrs,
+        reeferCapacity: cap,
+        maxPlausibleGal: r2(maxPlausible),
+      },
+    };
   }
   return none("reefer_overfuel_rate");
 }
@@ -191,7 +435,14 @@ export function ruleReeferFuelDiversion(ctx: RuleContext): RuleResult {
     fired: true,
     severity: "medium",
     message: `This truck hauls a reefer but bought ${winReefer <= 0 ? "no" : `only ${r2(winReefer)} gal of`} reefer (ULSR) fuel in ${days} days while buying ${r2(winTractor)} gal of ULSD — the reefer may be fueled off ULSD selected at the pump.`,
-    evidence: { reeferGalInWindow: r2(winReefer), tractorGalInWindow: r2(winTractor), windowDays: days, minTractorGal: minTractor, maxReeferGal: maxReefer, reeferLoadInWindow: ctx.reeferLoadInWindow ?? null },
+    evidence: {
+      reeferGalInWindow: r2(winReefer),
+      tractorGalInWindow: r2(winTractor),
+      windowDays: days,
+      minTractorGal: minTractor,
+      maxReeferGal: maxReefer,
+      reeferLoadInWindow: ctx.reeferLoadInWindow ?? null,
+    },
   };
 }
 
@@ -215,19 +466,59 @@ export function ruleCardMultiVehicle(ctx: RuleContext): RuleResult {
   // Fail closed: undefined (a caller that never resolved card context) is treated as unidentifiable.
   // Belt-and-braces — the scorer already reports a count of 0 for an unidentifiable card.
   if (ctx.cardIdentifiable !== true) return none("card_multi_vehicle");
-  if (ctx.txn.cardRef && manual != null && ctx.txn.vehicleId != null && ctx.txn.vehicleId !== manual) {
-    return { ruleId: "card_multi_vehicle", fired: true, severity: "high", message: `This fuel card is manually assigned to a different truck than the one it fueled${count >= 2 ? ` (and fueled ${count} vehicles within ${hrs}h)` : ""}.`, evidence: { manualAssignedVehicleId: manual, vehicleId: ctx.txn.vehicleId, vehicleCount: count, windowHours: hrs } };
+  if (
+    ctx.txn.cardRef &&
+    manual != null &&
+    ctx.txn.vehicleId != null &&
+    ctx.txn.vehicleId !== manual
+  ) {
+    return {
+      ruleId: "card_multi_vehicle",
+      fired: true,
+      severity: "high",
+      message: `This fuel card is manually assigned to a different truck than the one it fueled${count >= 2 ? ` (and fueled ${count} vehicles within ${hrs}h)` : ""}.`,
+      evidence: {
+        manualAssignedVehicleId: manual,
+        vehicleId: ctx.txn.vehicleId,
+        vehicleCount: count,
+        windowHours: hrs,
+      },
+    };
   }
   if (ctx.txn.cardRef && count >= 2) {
-    const offNote = asOf != null && ctx.txn.vehicleId != null && ctx.txn.vehicleId !== asOf ? " — including this fill on a truck other than the card's usual one" : "";
-    return { ruleId: "card_multi_vehicle", fired: true, severity: "high", message: `This fuel card fueled ${count} different vehicles within ${hrs}h${offNote}.`, evidence: { vehicleCount: count, windowHours: hrs, asOfAssignedVehicleId: asOf } };
+    const offNote =
+      asOf != null && ctx.txn.vehicleId != null && ctx.txn.vehicleId !== asOf
+        ? " — including this fill on a truck other than the card's usual one"
+        : "";
+    return {
+      ruleId: "card_multi_vehicle",
+      fired: true,
+      severity: "high",
+      message: `This fuel card fueled ${count} different vehicles within ${hrs}h${offNote}.`,
+      evidence: { vehicleCount: count, windowHours: hrs, asOfAssignedVehicleId: asOf },
+    };
   }
   return none("card_multi_vehicle");
 }
 
-/** Fuel bought while the ASSIGNED driver was on home time (opt-in TMS gate) — corroborates misuse; below the lone-review threshold, so never fires alone (see ctx.driverHomeAtFill). */
+/** Fuel bought while the ASSIGNED driver was demonstrably NOT WORKING — corroborates misuse; below the
+ *  lone-review threshold, so never fires alone. WP-BEH: two independent sources feed the same signal —
+ *  the opt-in TMS home-time window (ctx.driverHomeAtFill) and the driver's own ELD logbook showing an
+ *  EXTENDED off-duty/sleeper block around the fill (ctx.driverOffDutyAtFill; buffered away from duty
+ *  transitions so shift-start fueling never flags). McLeod plugs in as a third source unchanged. */
 export function ruleFuelWhileDriverHome(ctx: RuleContext): RuleResult {
-  if (ctx.driverHomeAtFill !== true) return none("fuel_while_driver_home");
-  return { ruleId: "fuel_while_driver_home", fired: true, severity: "medium", message: "Fuel was purchased while the assigned driver was on home time / off duty.", evidence: { driverHomeAtFill: true } };
+  const tms = ctx.driverHomeAtFill === true;
+  const eld = ctx.driverOffDutyAtFill === true;
+  if (!tms && !eld) return none("fuel_while_driver_home");
+  const source = tms && eld ? "tms+eld" : tms ? "tms" : "eld";
+  const how = tms
+    ? "on home time / off duty (TMS)"
+    : "deep inside an extended ELD off-duty/sleeper block";
+  return {
+    ruleId: "fuel_while_driver_home",
+    fired: true,
+    severity: "medium",
+    message: `Fuel was purchased while the assigned driver was ${how}.`,
+    evidence: { driverHomeAtFill: tms, driverOffDutyAtFill: eld, source },
+  };
 }
-

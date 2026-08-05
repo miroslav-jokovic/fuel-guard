@@ -127,6 +127,27 @@ export function median(nums: number[]): number {
  */
 export const TANK_FILL_MIN_TOLERANCE_GAL = 15;
 export const TANK_FILL_TOLERANCE_PCT = 0.3;
+/** WP-BEH — precision-scaled bounds for the LEARNED tank-short tolerance: never tighter than 8% of the
+ *  bill (J1939 level resolution + plateau timing keep that much irreducible noise), never wider than the
+ *  legacy blanket 30%. */
+export const TANK_FILL_TOLERANCE_MIN_PCT = 0.08;
+export const TANK_FILL_SIGMA_MULT = 3;
+
+/**
+ * WP-BEH — per-truck tank-short tolerance (fraction of billed gallons). The blanket 30% existed because
+ * sensors vary; now each truck's own measured ratio noise (learnTankSensorReliability.ratioSigma) sizes
+ * the band: 3σ of THIS truck's history, clamped to [8%, 30%]. A clean single-tank truck (σ ≈ 0.02–0.03)
+ * drops to the 8–9% floor — a ~29-gal skim on a 100-gal bill, invisible under the old blanket, now
+ * clears the band — while a noisy sensor keeps the full 30%. No sigma learned → legacy 30% (unchanged).
+ */
+export function tankShortTolerancePct(ratioSigma: number | null | undefined): number {
+  if (ratioSigma == null || !Number.isFinite(ratioSigma) || ratioSigma <= 0)
+    return TANK_FILL_TOLERANCE_PCT;
+  return Math.min(
+    TANK_FILL_TOLERANCE_PCT,
+    Math.max(TANK_FILL_TOLERANCE_MIN_PCT, TANK_FILL_SIGMA_MULT * ratioSigma),
+  );
+}
 
 /**
  * Plausible per-fill MPG band for a heavy diesel tractor. A value outside it is a DATA ARTIFACT, never a real

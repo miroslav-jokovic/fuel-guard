@@ -26,6 +26,8 @@ import {
   loadReeferContext,
   loadReeferDiversionContext,
   loadAttributionCheck,
+  healMissingAttribution,
+  loadTankResidualWindow,
 } from "./context.js";
 import { persistAnomalies, persistTxnOutcome, learnAndUpdateVehicle } from "./persist.js";
 
@@ -45,6 +47,20 @@ export async function scoreTransaction(
   if (!row) return;
   const r = row as FtxnRow;
   const txn = toTxnView(r);
+
+  // WP-BEH — SELF-HEAL blanks from the logbook (never overwrites): a missing driver is filled in place;
+  // a missing vehicle triggers ONE re-score under the filled vehicle (all vehicle context changes).
+  if (!opts.reattributed) {
+    const healed = await healMissingAttribution(admin, orgId, txnId, txn);
+    if (healed === "vehicle_filled") {
+      return scoreTransaction(admin, env, orgId, txnId, {
+        ...opts,
+        reattributed: true,
+        skipRecon: false,
+        prefetchedRaw: undefined,
+      });
+    }
+  }
 
   const { vehicle, samsaraVehicleId, odometerOffsetSource } = await loadVehicleContext(
     admin,
@@ -77,8 +93,11 @@ export async function scoreTransaction(
   // audit-log it, and re-score ONCE under the correct vehicle (fresh recon — the stored Samsara columns
   // reflect the old truck). Logbook contradiction alone only marks the fill `suspect`, which excludes
   // it from window/baseline math and gates the vehicle-physics rules (data-quality, not fraud).
-  const attribution = await loadAttributionCheck(admin, orgId, txn);
-  if (!opts.reattributed && shouldReattribute(attribution, recon.samsaraLocationMatched)) {
+  const { check: attribution, driverOffDutyAtFill } = await loadAttributionCheck(admin, orgId, txn);
+  if (
+    !opts.reattributed &&
+    shouldReattribute(attribution, recon.samsaraLocationMatched, recon.nearestStationMiles)
+  ) {
     await writeAudit(admin, {
       orgId,
       action: "transaction.reattribute_vehicle",
@@ -114,6 +133,9 @@ export async function scoreTransaction(
     windowMiles,
     windowSuspectGallons,
   } = await loadConsumptionContext(admin, txn, r, txnId, winStartIso);
+
+  // WP-BEH — chronic-short accumulator window (trailing measured fills; suspect fills excluded).
+  const tankResidualWindow = await loadTankResidualWindow(admin, txn, r);
 
   // Card-identity context (WP3): a true CARD-keyed vehicle count + the fuel_cards assignment.
   const cardCtx = await resolveCardContext(admin, orgId, txn, winStartIso, r.fueled_at);
@@ -163,6 +185,9 @@ export async function scoreTransaction(
     tankObservedRiseGal: recon.tankObservedRiseGal,
     tankPctBefore: recon.tankPctBefore,
     tankPctAfter: recon.tankPctAfter,
+    tankResidualWindow,
+    truckToStationMiles: recon.nearestStationMiles,
+    driverOffDutyAtFill,
     reeferTankCapacityGal,
     reeferWindowGallons,
     reeferPaired,

@@ -39,6 +39,10 @@ export interface TankSensorReliabilityResult {
   /** Median observed-rise ÷ billed ratio over the sampled fills (for transparency/UI). */
   ratio: number;
   samples: number;
+  /** WP-BEH: standard deviation of the observed/billed ratios — THIS truck's measured sensor noise. A
+   *  tight sigma (clean single-tank sensor) lets tank_fill_short run a much tighter tolerance than the
+   *  blanket 30%; a loose sigma keeps the wide band. Meaningful mainly when reliable=true. */
+  ratioSigma: number;
 }
 
 /**
@@ -65,7 +69,14 @@ export interface TankSensorReliabilityResult {
  */
 export function learnTankSensorReliability(
   pairs: { observedRiseGal: number; billedGallons: number }[],
-  opts: { window?: number; minSamples?: number; band?: number; minFraction?: number; shortRatio?: number; maxShortFraction?: number } = {},
+  opts: {
+    window?: number;
+    minSamples?: number;
+    band?: number;
+    minFraction?: number;
+    shortRatio?: number;
+    maxShortFraction?: number;
+  } = {},
 ): TankSensorReliabilityResult | null {
   const window = opts.window ?? 12;
   const minSamples = opts.minSamples ?? 8;
@@ -74,7 +85,12 @@ export function learnTankSensorReliability(
   const shortRatio = opts.shortRatio ?? 0.8; // observed rise below this share of billed = a "short" fill
   const maxShortFraction = opts.maxShortFraction ?? 0.12; // too many short fills ⇒ dual-tank both-fills
   const ratios = pairs
-    .filter((p) => Number.isFinite(p.observedRiseGal) && Number.isFinite(p.billedGallons) && p.billedGallons > 0)
+    .filter(
+      (p) =>
+        Number.isFinite(p.observedRiseGal) &&
+        Number.isFinite(p.billedGallons) &&
+        p.billedGallons > 0,
+    )
     .slice(-window)
     .map((p) => p.observedRiseGal / p.billedGallons);
   if (ratios.length < minSamples) return null;
@@ -84,8 +100,16 @@ export function learnTankSensorReliability(
   // fills false-fire tank_space_exceeded, so a truck with more than a small fraction of short fills is NOT
   // reliable for the per-fill space/volume checks (cumulative_overfuel + exceeds_tank_capacity still apply).
   const short = ratios.filter((r) => r < shortRatio).length;
-  const reliable = near1 / ratios.length >= minFraction && short / ratios.length <= maxShortFraction;
-  return { reliable, ratio: Math.round(median(ratios) * 1000) / 1000, samples: ratios.length };
+  const reliable =
+    near1 / ratios.length >= minFraction && short / ratios.length <= maxShortFraction;
+  const mean = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+  const sigma = Math.sqrt(ratios.reduce((a, b) => a + (b - mean) * (b - mean), 0) / ratios.length);
+  return {
+    reliable,
+    ratio: Math.round(median(ratios) * 1000) / 1000,
+    samples: ratios.length,
+    ratioSigma: Math.round(sigma * 1000) / 1000,
+  };
 }
 
 export interface WindowOdoRow {
@@ -129,16 +153,25 @@ const MIN_WINDOW_ADVANCE_MI = 1;
  */
 export function robustWindowMiles(rowsOldestFirst: WindowOdoRow[]): WindowMilesResult {
   const obd = rowsOldestFirst
-    .filter((r) => r.samsaraSource === "obd" && r.samsaraOdometer != null && Number.isFinite(r.samsaraOdometer))
+    .filter(
+      (r) =>
+        r.samsaraSource === "obd" &&
+        r.samsaraOdometer != null &&
+        Number.isFinite(r.samsaraOdometer),
+    )
     .map((r) => r.samsaraOdometer as number);
   if (obd.length >= 2) {
     // OBD is authoritative when present: use its span, or suppress if it didn't advance. Do NOT fall
     // through to the noisier entered span when the clean source says the truck didn't move.
     const span = Math.max(...obd) - Math.min(...obd);
-    return span > MIN_WINDOW_ADVANCE_MI ? { miles: span, basis: "samsara_obd" } : { miles: null, basis: "none" };
+    return span > MIN_WINDOW_ADVANCE_MI
+      ? { miles: span, basis: "samsara_obd" }
+      : { miles: null, basis: "none" };
   }
 
-  const entered = rowsOldestFirst.map((r) => r.enteredOdometer).filter((x): x is number => x != null && Number.isFinite(x));
+  const entered = rowsOldestFirst
+    .map((r) => r.enteredOdometer)
+    .filter((x): x is number => x != null && Number.isFinite(x));
   if (entered.length >= 2) {
     const monotonic = entered.every((v, i) => i === 0 || v >= entered[i - 1]! - 1); // no backward jump (±1 float tol)
     const span = Math.max(...entered) - Math.min(...entered);
@@ -159,7 +192,12 @@ export function robustWindowMiles(rowsOldestFirst: WindowOdoRow[]): WindowMilesR
  */
 export function isSystematicStationOffset(
   distancesMiles: number[],
-  opts: { minSamples?: number; minOffsetMiles?: number; maxRelSpread?: number; window?: number } = {},
+  opts: {
+    minSamples?: number;
+    minOffsetMiles?: number;
+    maxRelSpread?: number;
+    window?: number;
+  } = {},
 ): boolean {
   const minSamples = opts.minSamples ?? 4;
   const minOffset = opts.minOffsetMiles ?? 1;
@@ -173,4 +211,3 @@ export function isSystematicStationOffset(
   const within = vals.filter((d) => Math.abs(d - med) <= maxRelSpread * med).length;
   return within / vals.length >= 0.8;
 }
-

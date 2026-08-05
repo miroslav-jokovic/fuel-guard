@@ -29,8 +29,11 @@ import {
   ruleOffHoursFueling,
   ruleUnattributed,
   ruleCostOutlier,
+  ruleCostLineMismatch,
   ruleLocationMismatch,
   ruleTankFillShort,
+  ruleTankChronicShort,
+  ruleImpossibleTravel,
   ruleReeferExceedsCapacity,
   ruleReeferOverfuelRate,
   ruleReeferFuelDiversion,
@@ -569,13 +572,14 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
     // Tier 3 — efficiency (fuel vehicles only)
     ...(fuel ? [ruleMpgDeviation, ruleMpgSustainedDecline] : []),
     // Tier 4 — behavioral
-    ...(timeOk ? [ruleRapidRepeatFueling, ruleOffHoursFueling] : []),
+    ...(timeOk ? [ruleRapidRepeatFueling, ruleOffHoursFueling, ruleImpossibleTravel] : []),
     ruleUnattributed,
     ruleCostOutlier,
+    ruleCostLineMismatch,
     ruleCardMultiVehicle,
     ruleFuelWhileDriverHome,
     ruleLocationMismatch,
-    ...(fuel ? [ruleTankFillShort] : []),
+    ...(fuel ? [ruleTankFillShort, ruleTankChronicShort] : []),
     // Reefer-diversion runs on TRACTOR (ULSD) fills of reefer-hauling trucks (behavioral; no sensor needed).
     ...(fuel ? [ruleReeferFuelDiversion] : []),
     // Tier A — reefer rules run ONLY on reefer (ULSR) fills (tractor rules were gated off for them).
@@ -605,7 +609,9 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
       "mpg_deviation",
       "mpg_sustained_decline",
       "tank_fill_short",
+      "tank_chronic_short",
       "rapid_repeat_fueling",
+      "impossible_travel",
       "reefer_exceeds_capacity",
       "reefer_overfuel_rate",
       "reefer_fuel_diversion",
@@ -656,5 +662,10 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   // WP4: a mismatch/entry-suspect already CLASSIFIES this fill's bad entry; a regression caused by the
   // same entry is the same defect on the same axis — never double-shown.
   if (odoDoubt) results = results.filter((r) => r.ruleId !== "odometer_regression");
+  // WP-BEH: impossible travel supersedes rapid-repeat for the SAME fill pair — the physically-impossible
+  // interval already says everything the merely-fast one would (never double-shown, different axes).
+  if (results.some((r) => r.ruleId === "impossible_travel")) {
+    results = results.filter((r) => r.ruleId !== "rapid_repeat_fueling");
+  }
   return results;
 }

@@ -6,6 +6,7 @@ import {
   contaminatesBaseline,
   robustWindowMiles,
   verifyFillAttribution,
+  isDriverOffDutyAtFill,
   ATTRIBUTION_TIME_BUFFER_MS,
   type TxnView,
   type VehicleView,
@@ -13,6 +14,7 @@ import {
   type AttributionCheck,
   type LogbookSegment,
 } from "@fuelguard/shared";
+import { writeAudit } from "../../lib/audit.js";
 import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, sumIntermediateGallons, n } from "./loaders.js";
 import type { FtxnRow } from "./loaders.js";
 
@@ -40,7 +42,7 @@ export async function loadVehicleContext(
     const { data: v } = await admin
       .from("vehicles")
       .select(
-        "id, fuel_type, tank_capacity_gal, tank_sensor_reliable, observed_max_fill_gal, sensor_capacity_gal, sensor_capacity_samples, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source",
+        "id, fuel_type, tank_capacity_gal, tank_sensor_reliable, tank_residual_sigma, observed_max_fill_gal, sensor_capacity_gal, sensor_capacity_samples, baseline_mpg, samsara_vehicle_id, odometer_offset, odometer_offset_source",
       )
       .eq("id", vehicleId)
       .single();
@@ -50,6 +52,7 @@ export async function loadVehicleContext(
         fuelType: v.fuel_type,
         tankCapacityGal: Number(v.tank_capacity_gal),
         tankSensorReliable: v.tank_sensor_reliable === true,
+        tankRatioSigma: n(v.tank_residual_sigma) ?? undefined,
         observedMaxFillGal: n(v.observed_max_fill_gal) ?? undefined,
         sensorCapacityGal: n(v.sensor_capacity_gal) ?? undefined,
         sensorCapacitySamples: n(v.sensor_capacity_samples) ?? undefined,
@@ -70,34 +73,137 @@ export async function loadVehicleContext(
  * date-only EFS row's noon sentinel would compare the logbook at the wrong time of day), or no
  * in-buffer logbook coverage with a resolved vehicle.
  */
-export async function loadAttributionCheck(
+export interface AttributionContext {
+  check: AttributionCheck;
+  /** WP-BEH — the fill sits deep inside an extended ELD off-duty/sleeper block of the assigned driver. */
+  driverOffDutyAtFill: boolean;
+}
+
+/** Fetch the driver's logbook segments overlapping the fill's ±buffer window (with status + vehicle). */
+async function loadDriverLogbookSegments(
   admin: SupabaseClient,
   orgId: string,
-  txn: TxnView,
-): Promise<AttributionCheck> {
-  if (!txn.driverId || !txn.vehicleId || txn.tankType === "reefer")
-    return { verdict: "unknown", logbookVehicleId: null };
-  if (txn.fueledAtPrecision !== "instant") return { verdict: "unknown", logbookVehicleId: null };
-  const fillMs = Date.parse(txn.eventAt ?? txn.fueledAt); // telematics-recovered instant when present
+  driverId: string,
+  fillMs: number,
+): Promise<LogbookSegment[]> {
   const loIso = new Date(fillMs - ATTRIBUTION_TIME_BUFFER_MS).toISOString();
   const hiIso = new Date(fillMs + ATTRIBUTION_TIME_BUFFER_MS).toISOString();
   const { data } = await admin
     .from("hos_duty_segments")
-    .select("vehicle_id, started_at, ended_at")
+    .select("vehicle_id, status, started_at, ended_at")
     .eq("org_id", orgId)
-    .eq("driver_id", txn.driverId)
+    .eq("driver_id", driverId)
     .lte("started_at", hiIso)
     .or(`ended_at.is.null,ended_at.gte.${loIso}`)
     .order("started_at", { ascending: true })
     .limit(50);
-  const segments: LogbookSegment[] = (
-    (data ?? []) as { vehicle_id: string | null; started_at: string; ended_at: string | null }[]
+  return (
+    (data ?? []) as {
+      vehicle_id: string | null;
+      status: string | null;
+      started_at: string;
+      ended_at: string | null;
+    }[]
   ).map((s) => ({
     vehicleId: s.vehicle_id,
+    status: s.status,
     startMs: Date.parse(s.started_at),
     endMs: s.ended_at != null ? Date.parse(s.ended_at) : null,
   }));
-  return verifyFillAttribution(txn.vehicleId, fillMs, segments);
+}
+
+export async function loadAttributionCheck(
+  admin: SupabaseClient,
+  orgId: string,
+  txn: TxnView,
+): Promise<AttributionContext> {
+  const empty: AttributionContext = {
+    check: { verdict: "unknown", logbookVehicleId: null },
+    driverOffDutyAtFill: false,
+  };
+  if (!txn.driverId || !txn.vehicleId || txn.tankType === "reefer") return empty;
+  if (txn.fueledAtPrecision !== "instant") return empty;
+  const fillMs = Date.parse(txn.eventAt ?? txn.fueledAt); // telematics-recovered instant when present
+  const segments = await loadDriverLogbookSegments(admin, orgId, txn.driverId, fillMs);
+  return {
+    check: verifyFillAttribution(txn.vehicleId, fillMs, segments),
+    driverOffDutyAtFill: isDriverOffDutyAtFill(segments, fillMs),
+  };
+}
+
+/**
+ * WP-BEH — SELF-HEAL for unattributed fills: fill the BLANK side of the attribution from the logbook
+ * when it is unambiguous. Never overwrites an existing value (that path is the verify/re-attribute flow):
+ *  - vehicle missing, driver known → the driver's UNIQUE logbook truck covering the instant. Returns
+ *    "vehicle_filled" so the caller re-scores under the vehicle (all vehicle-relative context changes).
+ *  - driver missing, vehicle known → the UNIQUE driver whose logbook shows this truck at the instant;
+ *    applied in place (txn mutated) — driver-scoped context loads after this, so no re-score needed.
+ * Ambiguity (two candidates: team drivers, slip-seat) → no action, honestly unattributed. Audit-logged.
+ */
+export async function healMissingAttribution(
+  admin: SupabaseClient,
+  orgId: string,
+  txnId: string,
+  txn: TxnView,
+): Promise<"vehicle_filled" | null> {
+  if (txn.tankType === "reefer" || txn.fueledAtPrecision !== "instant") return null;
+  const fillMs = Date.parse(txn.eventAt ?? txn.fueledAt);
+
+  if (txn.vehicleId == null && txn.driverId != null) {
+    const segments = await loadDriverLogbookSegments(admin, orgId, txn.driverId, fillMs);
+    const covering = [
+      ...new Set(
+        segments
+          .filter(
+            (s) =>
+              s.vehicleId != null &&
+              s.startMs <= fillMs &&
+              (s.endMs ?? Number.POSITIVE_INFINITY) >= fillMs,
+          )
+          .map((s) => s.vehicleId),
+      ),
+    ];
+    if (covering.length === 1) {
+      const vehicleId = covering[0]!;
+      await writeAudit(admin, {
+        orgId,
+        action: "transaction.attribute_from_logbook",
+        entity: "fuel_transaction",
+        entityId: txnId,
+        meta: { kind: "vehicle", vehicleId, driverId: txn.driverId, fueledAt: txn.fueledAt },
+      });
+      await admin.from("fuel_transactions").update({ vehicle_id: vehicleId }).eq("id", txnId);
+      return "vehicle_filled";
+    }
+    return null;
+  }
+
+  if (txn.driverId == null && txn.vehicleId != null) {
+    const { data } = await admin
+      .from("hos_duty_segments")
+      .select("driver_id, started_at, ended_at")
+      .eq("org_id", orgId)
+      .eq("vehicle_id", txn.vehicleId)
+      .not("driver_id", "is", null)
+      .lte("started_at", new Date(fillMs).toISOString())
+      .or(`ended_at.is.null,ended_at.gte.${new Date(fillMs).toISOString()}`)
+      .limit(10);
+    const drivers = [...new Set(((data ?? []) as { driver_id: string }[]).map((s) => s.driver_id))];
+    if (drivers.length === 1) {
+      const driverId = drivers[0]!;
+      await writeAudit(admin, {
+        orgId,
+        action: "transaction.attribute_from_logbook",
+        entity: "fuel_transaction",
+        entityId: txnId,
+        meta: { kind: "driver", driverId, vehicleId: txn.vehicleId, fueledAt: txn.fueledAt },
+      });
+      await admin.from("fuel_transactions").update({ driver_id: driverId }).eq("id", txnId);
+      txn.driverId = driverId; // applied in place — driver-scoped context loads AFTER this
+    }
+    return null;
+  }
+  return null;
 }
 
 export interface ConsumptionContext {
@@ -230,6 +336,53 @@ export async function loadConsumptionContext(
     windowGallons,
     windowMiles,
     windowSuspectGallons,
+  };
+}
+
+/**
+ * WP-BEH — chronic-short accumulator inputs: the trailing measured fills (rise recorded by Samsara)
+ * ending at this fill, with the summed signed shortfall (billed − observed) and total billed gallons.
+ * Suspect-attribution fills are excluded (another truck's fuel would poison the residual sum).
+ */
+export async function loadTankResidualWindow(
+  admin: SupabaseClient,
+  txn: TxnView,
+  r: FtxnRow,
+): Promise<{ fills: number; sumShortGal: number; totalBilledGal: number } | null> {
+  if (!txn.vehicleId || txn.tankType === "reefer") return null;
+  const { data } = await admin
+    .from("fuel_transactions")
+    .select("gallons, samsara_tank_observed_gal, attribution_verdict")
+    .eq("vehicle_id", txn.vehicleId)
+    .eq("tank_type", "tractor")
+    .not("samsara_tank_observed_gal", "is", null)
+    .gt("gallons", 0)
+    .lte("fueled_at", r.fueled_at)
+    .order("fueled_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false }) // deterministic sample at the limit boundary (audit A2.5)
+    .limit(10);
+  const rows = (
+    (data ?? []) as {
+      gallons: number | string;
+      samsara_tank_observed_gal: number | string;
+      attribution_verdict: string | null;
+    }[]
+  ).filter((x) => x.attribution_verdict !== "suspect");
+  if (rows.length === 0) return null;
+  let sumShortGal = 0;
+  let totalBilledGal = 0;
+  for (const x of rows) {
+    const billed = Number(x.gallons);
+    const observed = Number(x.samsara_tank_observed_gal);
+    if (!Number.isFinite(billed) || !Number.isFinite(observed)) continue;
+    sumShortGal += billed - observed; // SIGNED — over-reads cancel shorts, noise sums to ~0
+    totalBilledGal += billed;
+  }
+  return {
+    fills: rows.length,
+    sumShortGal: Math.round(sumShortGal * 10) / 10,
+    totalBilledGal: Math.round(totalBilledGal * 10) / 10,
   };
 }
 

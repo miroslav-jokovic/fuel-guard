@@ -2,7 +2,12 @@
  * tank-rise volume signals and the location check. Extracted verbatim from scoreTransaction's core pass so
  * the orchestrator stays under the file-size budget; behavior is unchanged. */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isSystematicStationOffset, type TxnView, type VehicleView } from "@fuelguard/shared";
+import {
+  isSystematicStationOffset,
+  LOCATION_DISTANCE_MISMATCH_MILES,
+  type TxnView,
+  type VehicleView,
+} from "@fuelguard/shared";
 import type { Env } from "../../env.js";
 import { reconcileWithSamsara, SamsaraUnavailableError } from "../samsaraRecon.js";
 import { n } from "./loaders.js";
@@ -123,7 +128,11 @@ export async function resolveReconciliation(
         },
         undefined,
         undefined,
-        { token: opts.ctx?.samsaraToken, prefetchedRaw: opts.prefetchedRaw, geocodeCacheOnly: opts.geocodeCacheOnly },
+        {
+          token: opts.ctx?.samsaraToken,
+          prefetchedRaw: opts.prefetchedRaw,
+          geocodeCacheOnly: opts.geocodeCacheOnly,
+        },
       );
     } catch (e) {
       // Distinguish a Samsara FETCH outage from "no data". On an outage, leave the row unreconciled
@@ -160,7 +169,8 @@ export async function resolveReconciliation(
       // A tank-rise-confirmed instant is trustworthy even on a location mismatch; otherwise require a
       // corroborated stop (matched location + recovered time).
       const telematicsConfirmed =
-        recon.fuelingTimeBasis === "tank_confirmed" || (recon.matchedAt != null && recon.locationMatched === true);
+        recon.fuelingTimeBasis === "tank_confirmed" ||
+        (recon.matchedAt != null && recon.locationMatched === true);
       if (telematicsConfirmed) {
         // Telematics corroborated the physical stop → use its instant for time-of-day / inter-fill rules.
         // This corrects EFS authorization/settlement timestamps that differ from the real pump time, and
@@ -183,7 +193,11 @@ export async function resolveReconciliation(
   // truck came a CONSISTENT non-zero distance from this station across its recent fills, the stored coordinate
   // is off (city-centroid / bad geocode), not theft — downgrade to unknown (data-quality) so the mismatch rule
   // stays silent. A genuine "card used where the truck wasn't" varies trip to trip. Never RAISES a mismatch.
-  if (samsaraLocationMatched === false && r.location_text && r.state) {
+  // WP-BEH: the same guard now also runs for the DISTANCE-tier mismatch (same-state but >threshold miles) —
+  // the systematic-offset flag lands in locationEvidence.dataQuality, which the distance variant checks.
+  const distanceSuspect =
+    nearestStationMiles != null && nearestStationMiles > LOCATION_DISTANCE_MISMATCH_MILES;
+  if ((samsaraLocationMatched === false || distanceSuspect) && r.location_text && r.state) {
     const { data: stationRows } = await admin
       .from("fuel_transactions")
       .select("samsara_nearest_station_miles")

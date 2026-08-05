@@ -42,6 +42,9 @@ export {
   contaminatesBaseline,
   TANK_FILL_MIN_TOLERANCE_GAL,
   TANK_FILL_TOLERANCE_PCT,
+  TANK_FILL_TOLERANCE_MIN_PCT,
+  TANK_FILL_SIGMA_MULT,
+  tankShortTolerancePct,
   recentMpgSeries,
   effectiveBaseline,
   MIN_TRAINABLE_MPG,
@@ -62,6 +65,17 @@ export type {
   WindowMilesResult,
 } from "./learning.js";
 export { runAllRules } from "./rules.js";
+export {
+  MARKET_PRICE_OUTLIER_MULT,
+  SAME_SITE_MILES,
+  IMPOSSIBLE_TRAVEL_MIN_MILES,
+  LOCATION_DISTANCE_MISMATCH_MILES,
+  LOCATION_DISTANCE_FAR_MILES,
+  CHRONIC_SHORT_MIN_FILLS,
+  CHRONIC_SHORT_MIN_GAL,
+  CHRONIC_SHORT_SIGMA_MULT,
+  CHRONIC_SHORT_DEFAULT_SIGMA,
+} from "./rulesBehavioral.js";
 export {
   SEVERITY_RANK,
   maxSeverity,

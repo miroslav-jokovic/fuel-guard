@@ -120,6 +120,9 @@ export function toTxnView(r: FtxnRow): TxnView {
     state: r.state,
     city: r.city,
     locationText: r.location_text,
+    // WP-BEH: resolved station pin — distance-based same-site / impossible-travel inputs.
+    stationLat: n(r.station_lat),
+    stationLng: n(r.station_lng),
   };
 }
 

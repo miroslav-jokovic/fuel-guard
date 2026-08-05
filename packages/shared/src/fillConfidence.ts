@@ -41,7 +41,8 @@ export interface FillConfidence {
 /** Derive the confidence object from a rule context. Pure; reads only existing context/vehicle fields. */
 export function computeFillConfidence(ctx: RuleContext): FillConfidence {
   const src = ctx.crossSourceOdometerSource ?? null;
-  const odoSource: FillConfidence["odoSource"] = src == null ? null : src === "obd" ? "obd" : "other";
+  const odoSource: FillConfidence["odoSource"] =
+    src == null ? null : src === "obd" ? "obd" : "other";
 
   const cap = ctx.vehicle.tankCapacityGal;
   const gal = ctx.txn.gallons;
@@ -79,6 +80,9 @@ export function ruleEligible(id: RuleId, c: FillConfidence): boolean {
       return c.tankSensor === "reliable" && c.fillSize !== "too_small";
     case "implausible_topoff":
     case "mpg_sustained_decline":
+    // tank_chronic_short (WP-BEH) — the residual accumulator is only meaningful when the sensor
+    // reflects whole fills; window math needs no per-fill size gate.
+    case "tank_chronic_short":
       return c.tankSensor === "reliable";
     case "odometer_mismatch":
     case "odometer_entry_suspect":
@@ -99,5 +103,10 @@ export interface FillGates {
 }
 
 export function summarizeFillGates(c: FillConfidence): FillGates {
-  return { tankSensor: c.tankSensor, odoSource: c.odoSource, fillSize: c.fillSize, ineligible: RULE_IDS.filter((id) => !ruleEligible(id, c)) };
+  return {
+    tankSensor: c.tankSensor,
+    odoSource: c.odoSource,
+    fillSize: c.fillSize,
+    ineligible: RULE_IDS.filter((id) => !ruleEligible(id, c)),
+  };
 }

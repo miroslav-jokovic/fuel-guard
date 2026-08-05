@@ -89,6 +89,9 @@ export async function learnVehicleValues(
     if (rel) {
       vehUpdate.tank_sensor_reliable = rel.reliable;
       vehUpdate.tank_fill_ratio = rel.ratio;
+      // WP-BEH: THIS truck's measured sensor noise — sizes the precision-scaled tank_fill_short
+      // tolerance (3σ clamped 8–30%) and the chronic-short threshold.
+      vehUpdate.tank_residual_sigma = rel.ratioSigma;
     }
   }
 

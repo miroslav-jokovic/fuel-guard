@@ -33,6 +33,37 @@ export interface LogbookSegment {
   startMs: number;
   /** Null = still open. */
   endMs: number | null;
+  /** Normalized duty status ('off_duty' | 'sleeper' | 'driving' | …) when the caller has it — powers the
+   *  driver-not-working corroborator (WP-BEH). Optional; attribution verification ignores it. */
+  status?: string | null;
+}
+
+/** The off-duty/sleeper block must be at least this long to count as "not working" (a 20-minute
+ *  status blip around a fuel stop is normal duty churn, not home time). */
+export const OFF_DUTY_MIN_BLOCK_MS = 4 * 3_600_000;
+/** …and the fill must sit at least this far from BOTH block edges (shift-start / shift-end fueling
+ *  never flags — the driver plausibly fueled on the way in or out). */
+export const OFF_DUTY_EDGE_BUFFER_MS = 1 * 3_600_000;
+
+/**
+ * WP-BEH — was the fill made DEEP inside an extended off-duty/sleeper block of the assigned driver's
+ * ELD logbook? Second source (with TMS home-time) for the fuel_while_driver_home corroborator. True
+ * only when an off_duty/sleeper segment covers the instant, the block is ≥ OFF_DUTY_MIN_BLOCK_MS long
+ * (an open block is measured to the fill), and the fill sits ≥ OFF_DUTY_EDGE_BUFFER_MS from both edges.
+ * Never fires alone upstream — corroboration-only weight. Pure.
+ */
+export function isDriverOffDutyAtFill(segments: LogbookSegment[], fillMs: number): boolean {
+  for (const s of segments) {
+    if (s.status !== "off_duty" && s.status !== "sleeper") continue;
+    const end = s.endMs ?? Number.POSITIVE_INFINITY;
+    if (!(s.startMs <= fillMs && end >= fillMs)) continue;
+    const knownLen = (s.endMs ?? fillMs) - s.startMs;
+    if (knownLen < OFF_DUTY_MIN_BLOCK_MS) continue;
+    if (fillMs - s.startMs < OFF_DUTY_EDGE_BUFFER_MS) continue;
+    if (s.endMs != null && s.endMs - fillMs < OFF_DUTY_EDGE_BUFFER_MS) continue;
+    return true;
+  }
+  return false;
 }
 
 export interface AttributionCheck {
@@ -90,22 +121,28 @@ export function verifyFillAttribution(
   return { verdict: "suspect", logbookVehicleId: nearest.vehicleId };
 }
 
+/** Truck-vs-station miles beyond which telematics counts as CONTRADICTING the attributed truck's
+ *  presence at the station (mirrors the location_mismatch distance tier). */
+export const REATTRIBUTE_DISTANCE_MILES = 25;
+
 /**
  * Should a suspect fill be automatically RE-ATTRIBUTED to the logbook truck? Requires two independent
  * contradictions of the recorded attribution:
  *  1. the driver's logbook shows a different truck (verdict === "suspect"), AND
- *  2. telematics places the attributed truck AWAY from the station at the fueling time
- *     (samsaraLocationMatched === false — not null/unknown: absence of GPS is not evidence).
+ *  2. telematics contradicts the attributed truck's presence at the station — either the state-level
+ *     mismatch (samsaraLocationMatched === false) or (WP-BEH audit) a measured truck-vs-station
+ *     distance beyond REATTRIBUTE_DISTANCE_MILES. Absence of GPS is never evidence.
  * Logbook alone excludes the fill from the math; only logbook + GPS agreement rewrites the record
  * (audit-logged by the caller, mirroring the capacity self-heal pattern).
  */
 export function shouldReattribute(
   check: AttributionCheck,
   samsaraLocationMatched: boolean | null | undefined,
+  truckToStationMiles?: number | null,
 ): boolean {
-  return (
-    check.verdict === "suspect" &&
-    check.logbookVehicleId != null &&
-    samsaraLocationMatched === false
-  );
+  if (check.verdict !== "suspect" || check.logbookVehicleId == null) return false;
+  const gpsContradicts =
+    samsaraLocationMatched === false ||
+    (truckToStationMiles != null && truckToStationMiles > REATTRIBUTE_DISTANCE_MILES);
+  return gpsContradicts;
 }

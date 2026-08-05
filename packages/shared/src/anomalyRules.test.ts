@@ -1730,3 +1730,220 @@ describe("WP-ATTR — logbook-contradicted attribution gates the vehicle-physics
     expect(ids(c)).not.toContain("cumulative_overfuel");
   });
 });
+
+// ── WP-BEH — behavioral batch hardening ───────────────────────────────────────────────────────────
+describe("WP-BEH — rapid_repeat same-site by real distance", () => {
+  const at = (lat: number, lng: number, over: Partial<TxnView> = {}) =>
+    txn({ stationLat: lat, stationLng: lng, ...over });
+  const prev = (lat: number, lng: number) => ({
+    ...txn(),
+    id: "prev",
+    fueledAt: "2026-06-10T16:30:00Z",
+    odometer: 99990,
+    stationLat: lat,
+    stationLng: lng,
+  });
+
+  it("two pins across the road (<1 mi) are ONE site → exempt, even with different names", () => {
+    const c = ctx({
+      txn: at(41.13, -104.8, { locationText: "FJ-CHEYENNE 759" }),
+      previousTxn: { ...prev(41.135, -104.8), locationText: "Pilot Cheyenne" },
+    });
+    expect(ids(c)).not.toContain("rapid_repeat_fueling");
+  });
+  it("two stations in the SAME city but miles apart now fire (string fallback wrongly exempted them)", () => {
+    const c = ctx({
+      txn: at(41.13, -104.8, { city: "Cheyenne", state: "WY", locationText: null }),
+      previousTxn: { ...prev(41.2, -104.6), city: "Cheyenne", state: "WY", locationText: null },
+    });
+    expect(ids(c)).toContain("rapid_repeat_fueling");
+  });
+  it("no coordinates → string fallback behaves exactly as before", () => {
+    const c = ctx({
+      txn: txn({ locationText: "SITE A" }),
+      previousTxn: {
+        ...txn(),
+        id: "prev",
+        fueledAt: "2026-06-10T16:30:00Z",
+        odometer: 99990,
+        locationText: "SITE A",
+      },
+    });
+    expect(ids(c)).not.toContain("rapid_repeat_fueling");
+  });
+});
+
+describe("WP-BEH — impossible_travel (card in two places one truck can't be)", () => {
+  const fillAt = (
+    isoTime: string,
+    lat: number,
+    lng: number,
+    over: Partial<TxnView> = {},
+  ): TxnView => ({ ...txn(), fueledAt: isoTime, stationLat: lat, stationLng: lng, ...over });
+
+  it("fires when the implied speed between distant pins is impossible, and supersedes rapid_repeat", () => {
+    // Cheyenne WY → Denver CO is ~100 mi; 30 minutes apart → ~200 mph.
+    const c = ctx({
+      txn: fillAt("2026-06-10T17:00:00Z", 41.14, -104.82),
+      previousTxn: {
+        ...fillAt("2026-06-10T16:30:00Z", 39.74, -104.99),
+        id: "prev",
+        odometer: 99990,
+      },
+    });
+    const out = ids(c);
+    expect(out).toContain("impossible_travel");
+    expect(out).not.toContain("rapid_repeat_fueling"); // superseded, never double-shown
+  });
+  it("a feasible pair stays silent; pins under 60 mi apart never fire (pin-noise guard)", () => {
+    const feasible = ctx({
+      txn: fillAt("2026-06-10T17:00:00Z", 41.14, -104.82),
+      previousTxn: {
+        ...fillAt("2026-06-10T14:00:00Z", 39.74, -104.99),
+        id: "prev",
+        odometer: 99850,
+      },
+    });
+    expect(ids(feasible)).not.toContain("impossible_travel");
+    const near = ctx({
+      txn: fillAt("2026-06-10T17:00:00Z", 41.14, -104.82),
+      previousTxn: {
+        ...fillAt("2026-06-10T16:55:00Z", 41.5, -104.82),
+        id: "prev",
+        odometer: 99990,
+      }, // ~25 mi in 5 min but < 60 mi
+    });
+    expect(ids(near)).not.toContain("impossible_travel");
+  });
+});
+
+describe("WP-BEH — distance-tier location_mismatch", () => {
+  it("same-state but far from the station now fires, tiered by distance", () => {
+    const near = runAllRules(ctx({ truckToStationMiles: 40 })).find(
+      (r) => r.ruleId === "location_mismatch",
+    );
+    expect(near).toBeTruthy();
+    expect(near!.severity).toBe("medium");
+    const far = runAllRules(ctx({ truckToStationMiles: 150 })).find(
+      (r) => r.ruleId === "location_mismatch",
+    );
+    expect(far!.severity).toBe("high");
+  });
+  it("inside the threshold, on a suspect station pin, or without a reliable instant → silent", () => {
+    expect(ids(ctx({ truckToStationMiles: 10 }))).not.toContain("location_mismatch");
+    expect(
+      ids(
+        ctx({
+          truckToStationMiles: 40,
+          locationEvidence: { dataQuality: "station_coordinate_suspect" },
+        }),
+      ),
+    ).not.toContain("location_mismatch");
+    expect(ids(ctx({ truckToStationMiles: 40, txn: txn({ timeConfirmed: false }) }))).not.toContain(
+      "location_mismatch",
+    );
+  });
+  it("the state-level mismatch still fires exactly as before", () => {
+    expect(ids(ctx({ samsaraLocationMatched: false }))).toContain("location_mismatch");
+  });
+});
+
+describe("WP-BEH — precision-scaled tank_fill_short + chronic shortfall", () => {
+  it("a clean sensor (tight sigma) tightens the tolerance: a 25-gal short on 100 gal now fires", () => {
+    const clean: VehicleView = { ...reliable, tankRatioSigma: 0.02 }; // 3σ=6% → clamped to 8% → tol max(15, 8)
+    const c = ctx({
+      vehicle: clean,
+      txn: txn({ gallons: 100 }),
+      tankFillShortGal: 25,
+      tankObservedRiseGal: 75,
+    });
+    expect(ids(c)).toContain("tank_fill_short");
+    // Same short on an unlearned truck stays inside the legacy 30% blanket → silent (unchanged).
+    const legacy = ctx({
+      vehicle: reliable,
+      txn: txn({ gallons: 100 }),
+      tankFillShortGal: 25,
+      tankObservedRiseGal: 75,
+    });
+    expect(ids(legacy)).not.toContain("tank_fill_short");
+  });
+  it("a noisy sensor keeps the wide band (sigma never widens beyond 30%, never tightens below 8%)", () => {
+    const noisy: VehicleView = { ...reliable, tankRatioSigma: 0.2 }; // 3σ=60% → clamped to 30%
+    const c = ctx({
+      vehicle: noisy,
+      txn: txn({ gallons: 100 }),
+      tankFillShortGal: 25,
+      tankObservedRiseGal: 75,
+    });
+    expect(ids(c)).not.toContain("tank_fill_short");
+  });
+  it("chronic shortfall fires on a persistent one-direction residual across the window", () => {
+    const clean: VehicleView = { ...reliable, tankRatioSigma: 0.03 };
+    // 8 fills, 800 gal billed, 70 gal cumulative short — each fill's ~9 gal short is inside per-fill tolerance.
+    const c = ctx({
+      vehicle: clean,
+      tankResidualWindow: { fills: 8, sumShortGal: 70, totalBilledGal: 800 },
+    });
+    const fired = runAllRules(c).find((r) => r.ruleId === "tank_chronic_short");
+    expect(fired).toBeTruthy();
+    expect(fired!.severity).toBe("high");
+  });
+  it("symmetric noise (residual ≈ 0), few fills, or an unreliable sensor stay silent", () => {
+    const clean: VehicleView = { ...reliable, tankRatioSigma: 0.03 };
+    expect(
+      ids(
+        ctx({
+          vehicle: clean,
+          tankResidualWindow: { fills: 8, sumShortGal: 5, totalBilledGal: 800 },
+        }),
+      ),
+    ).not.toContain("tank_chronic_short");
+    expect(
+      ids(
+        ctx({
+          vehicle: clean,
+          tankResidualWindow: { fills: 4, sumShortGal: 70, totalBilledGal: 400 },
+        }),
+      ),
+    ).not.toContain("tank_chronic_short");
+    expect(
+      ids(
+        ctx({
+          vehicle: { ...vehicle, tankRatioSigma: 0.03 },
+          tankResidualWindow: { fills: 8, sumShortGal: 70, totalBilledGal: 800 },
+        }),
+      ),
+    ).not.toContain("tank_chronic_short"); // not learned-reliable
+  });
+});
+
+describe("WP-BEH — cost line-math integrity (visible fact, never a case alone)", () => {
+  it("a material total-vs-line mismatch FIRES (persists in the why-surface) but stays a clear case", () => {
+    // 90 gal × $3.90 = $351; billed $450 → $99 off. Audit fix: weight 10 (was suppressed weight-0,
+    // which filtered it out before persistence — invisible everywhere).
+    const out = runAllRules(ctx({ txn: txn({ totalCost: 450 }) }));
+    const fired = out.find((r) => r.ruleId === "cost_line_mismatch");
+    expect(fired).toBeTruthy();
+    expect(fired!.severity).toBe("low");
+    expect(correlateSignals([fired!]).level).toBe("clear"); // weight 10 ≪ 60 — never a case alone
+  });
+  it("fees/rounding inside max($5, 2%) never fire", () => {
+    expect(ids(ctx({ txn: txn({ totalCost: 354 }) }))).not.toContain("cost_line_mismatch"); // $3 off
+    expect(ids(ctx())).not.toContain("cost_line_mismatch"); // exact
+  });
+});
+
+describe("WP-BEH — driver-not-working from the ELD logbook", () => {
+  it("fires from the ELD source alone, from TMS alone, and reports the source", () => {
+    const eld = runAllRules(ctx({ driverOffDutyAtFill: true })).find(
+      (r) => r.ruleId === "fuel_while_driver_home",
+    );
+    expect(eld).toBeTruthy();
+    expect(eld!.evidence.source).toBe("eld");
+    const tms = runAllRules(ctx({ driverHomeAtFill: true })).find(
+      (r) => r.ruleId === "fuel_while_driver_home",
+    );
+    expect(tms!.evidence.source).toBe("tms");
+    expect(ids(ctx({}))).not.toContain("fuel_while_driver_home");
+  });
+});

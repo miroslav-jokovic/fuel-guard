@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   verifyFillAttribution,
   shouldReattribute,
+  isDriverOffDutyAtFill,
   ATTRIBUTION_TIME_BUFFER_MS,
   type LogbookSegment,
 } from "./fillAttribution.js";
@@ -64,6 +65,11 @@ describe("shouldReattribute (logbook + GPS must BOTH contradict)", () => {
   it("suspect + attributed truck NOT at the station → re-attribute", () => {
     expect(shouldReattribute(suspectB, false)).toBe(true);
   });
+  it("suspect + measured distance beyond the threshold also counts as GPS contradiction (audit fix)", () => {
+    expect(shouldReattribute(suspectB, null, 40)).toBe(true); // in-state but 40 mi away
+    expect(shouldReattribute(suspectB, true, 40)).toBe(true); // weak in-state match, still 40 mi off
+    expect(shouldReattribute(suspectB, null, 10)).toBe(false); // near the station — no contradiction
+  });
   it("suspect alone is not enough — GPS unknown/matched never rewrites the record", () => {
     expect(shouldReattribute(suspectB, null)).toBe(false);
     expect(shouldReattribute(suspectB, undefined)).toBe(false);
@@ -71,6 +77,35 @@ describe("shouldReattribute (logbook + GPS must BOTH contradict)", () => {
   });
   it("confirmed/unknown never re-attribute regardless of GPS", () => {
     expect(shouldReattribute({ verdict: "confirmed", logbookVehicleId: null }, false)).toBe(false);
-    expect(shouldReattribute({ verdict: "unknown", logbookVehicleId: null }, false)).toBe(false);
+    expect(shouldReattribute({ verdict: "unknown", logbookVehicleId: null }, false, 500)).toBe(
+      false,
+    );
+  });
+});
+
+describe("isDriverOffDutyAtFill (WP-BEH — ELD driver-not-working source)", () => {
+  const off = (startMs: number, endMs: number | null, status = "sleeper"): LogbookSegment => ({
+    vehicleId: "A",
+    startMs,
+    endMs,
+    status,
+  });
+
+  it("true deep inside a long sleeper/off-duty block", () => {
+    expect(isDriverOffDutyAtFill([off(T0 - 5 * H, T0 + 5 * H)], T0)).toBe(true);
+    expect(isDriverOffDutyAtFill([off(T0 - 5 * H, T0 + 5 * H, "off_duty")], T0)).toBe(true);
+  });
+  it("never at shift edges (fuel on the way in/out is normal)", () => {
+    expect(isDriverOffDutyAtFill([off(T0 - 0.5 * H, T0 + 8 * H)], T0)).toBe(false); // 30 min after block start
+    expect(isDriverOffDutyAtFill([off(T0 - 8 * H, T0 + 0.5 * H)], T0)).toBe(false); // 30 min before block end
+  });
+  it("short blips and working statuses never count", () => {
+    expect(isDriverOffDutyAtFill([off(T0 - 1.5 * H, T0 + 1.5 * H)], T0)).toBe(false); // 3h block < 4h floor
+    expect(isDriverOffDutyAtFill([off(T0 - 5 * H, T0 + 5 * H, "driving")], T0)).toBe(false);
+    expect(isDriverOffDutyAtFill([off(T0 - 5 * H, T0 + 5 * H, "on_duty")], T0)).toBe(false);
+  });
+  it("an open block measured to the fill still needs the length + edge floors", () => {
+    expect(isDriverOffDutyAtFill([off(T0 - 5 * H, null)], T0)).toBe(true); // 5h so far, 5h from start
+    expect(isDriverOffDutyAtFill([off(T0 - 2 * H, null)], T0)).toBe(false); // only 2h so far
   });
 });
