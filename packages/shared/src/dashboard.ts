@@ -65,6 +65,10 @@ export interface DashboardExtras {
   idleHours?: number;
   idleCostUsd?: number;
   declinedCount?: number;
+  /** Driver per anomaly TRANSACTION (txn id → driver id) — the alert set is CURRENT-state (all time),
+   *  so its drivers cannot be derived from the range-scoped `transactions` argument. Without this map
+   *  the risk list silently dropped every driver whose flagged fill fell outside the visible range. */
+  anomalyDrivers?: Map<string, string | null>;
 }
 
 /** YYYY-MM-DD of an instant in a timezone (cached Intl formatter per tz). */
@@ -101,6 +105,11 @@ function emptySeverity(): Record<AnomalySeverity, number> {
  * Aggregate transactions + anomalies into the executive dashboard view. Trend days are bucketed in
  * the ORG's timezone and ZERO-FILLED across the covered range, so a day with no fuel activity shows
  * as an honest 0/gap instead of silently disappearing (which previously masked lost import days).
+ *
+ * SCOPES (deliberately mixed, matching what each card claims): spend/MPG/coverage read the RANGE-scoped
+ * `transactions`; the alert cards (count, severity, risk lists) read `anomalies` as the CURRENT
+ * open/investigating set — the same thing the Alerts page shows when the card is clicked. Passing
+ * range-filtered anomalies here makes the card disagree with the page it links to.
  */
 export function aggregateDashboard(
   transactions: FuelTransaction[],
@@ -177,7 +186,7 @@ export function aggregateDashboard(
       if (a.severity === "critical") row.criticalCount += 1;
       vehRisk.set(a.vehicle_id, row);
     }
-    const driverId = txnDriver.get(a.transaction_id) ?? null;
+    const driverId = extra.anomalyDrivers?.get(a.transaction_id) ?? txnDriver.get(a.transaction_id) ?? null;
     if (driverId) {
       const row = drvRisk.get(driverId) ?? { id: driverId, label: drvLabel.get(driverId) ?? "—", anomalyCount: 0, criticalCount: 0 };
       row.anomalyCount += 1;

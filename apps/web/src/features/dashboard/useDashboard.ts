@@ -58,18 +58,15 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
             .order("fueled_at", { ascending: true })
             .range(lo, hi),
         ),
-        // Anomalies are RANGE-SCOPED like every other card (by their fill's business time). Unscoped,
-        // the alert cards mixed all-time counts with 30-day spend/MPG — the "random numbers that don't
-        // match the pages" report — and the driver-risk join (all-time anomalies × in-range fills)
-        // silently dropped drivers.
+        // Alert cards are CURRENT-STATE, not range-scoped: the "Active alerts" tile links to the
+        // Alerts page, which shows open cases with NO date filter — so the tile, the severity donut,
+        // and the risk lists must count exactly that set or the numbers read as "wrong data" the
+        // moment someone clicks through. (Spend/MPG stay range-scoped; the scopes differ on purpose.)
         fetchAllPaged<Anomaly>((lo, hi) =>
           supabase
             .from("anomalies")
             .select("id, transaction_id, vehicle_id, severity, status")
-            .neq("status", "superseded")
-            .gte("fueled_at", from)
-            .lte("fueled_at", to)
-            .order("fueled_at", { ascending: true })
+            .in("status", ["open", "investigating"])
             .order("id", { ascending: true })
             .range(lo, hi),
         ),
@@ -91,6 +88,22 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
         // Declined-attempt count over the same window (head count -> no rows pulled).
         supabase.from("declined_transactions").select("id", { count: "exact", head: true }).gte("declined_at", from).lte("declined_at", to),
       ]);
+      // Driver attribution for the alert set: its fills can be OLDER than the visible range, so the
+      // range-scoped `txns` can't resolve them — fetch driver_id for exactly the flagged fills.
+      // Chunked .in() (URL-length safety); the open-alert set is small, so this is a handful of calls.
+      const anomalyDrivers = new Map<string, string | null>();
+      const txnIds = [...new Set(anoms.map((a) => a.transaction_id).filter(Boolean))] as string[];
+      for (let i = 0; i < txnIds.length; i += 100) {
+        const { data: tRows, error: tErr } = await supabase
+          .from("fuel_transactions")
+          .select("id, driver_id")
+          .in("id", txnIds.slice(i, i + 100));
+        if (tErr) throw new Error(tErr.message);
+        for (const t of (tRows ?? []) as { id: string; driver_id: string | null }[]) {
+          anomalyDrivers.set(t.id, t.driver_id);
+        }
+      }
+
       // Bucket trend days in the ORG's timezone — UTC slicing mis-dated evening fills.
       const tz = (orgRes.data?.operating_hours as { tz?: string } | null)?.tz ?? null;
       const idleHours = idleRows.reduce((s, r) => s + Number(r.idle_sec), 0) / 3600;
@@ -105,6 +118,7 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
           idleHours,
           idleCostUsd: idleHours * basis.idleGalPerHour * basis.fuelPricePerGal,
           declinedCount: declinedRes.count ?? 0,
+          anomalyDrivers,
         },
       );
     },

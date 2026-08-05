@@ -189,3 +189,18 @@ describe("aggregateDashboard extras (idle / reefer / coverage / declines)", () =
     expect(s.declinedCount).toBe(4);
   });
 });
+
+describe("aggregateDashboard current-state alert attribution", () => {
+  it("resolves risk-list drivers via anomalyDrivers when the flagged fill is outside the range", () => {
+    const anoms = [
+      { id: "a1", transaction_id: "old-txn", vehicle_id: "v1", severity: "critical", status: "open" },
+    ] as never[];
+    const s = aggregateDashboard([], anoms, vehicles, drivers, {}, {
+      anomalyDrivers: new Map([["old-txn", "d1"]]),
+    });
+    expect(s.openAnomalies).toBe(1);
+    expect(s.topVehiclesByRisk[0]).toMatchObject({ id: "v1", criticalCount: 1 });
+    // Before the map existed this driver was silently DROPPED (their fill wasn't in the range).
+    expect(s.topDriversByRisk[0]).toMatchObject({ id: "d1", anomalyCount: 1 });
+  });
+});
