@@ -71,6 +71,9 @@ export interface HosSegment {
   status: HosStatus;
   startMs: number;
   endMs: number | null;
+  /** Samsara vehicle id the log entry was made in (WP-ATTR — the LOGBOOK truck). Optional so existing
+   *  consumers/tests that build segments without it are untouched; null/undefined = not recorded. */
+  vehicleId?: string | null;
 }
 
 interface RawLog {
@@ -81,6 +84,9 @@ interface RawLog {
   endTime?: string;
   hosStatusType?: string;
   dutyStatus?: string;
+  /** Samsara attaches the vehicle the log was recorded in (WP-ATTR). Handled defensively like the rest. */
+  vehicle?: { id?: string | number };
+  vehicleId?: string | number;
 }
 interface RawDriverLogs {
   driver?: { id?: string | number };
@@ -93,6 +99,8 @@ interface RawDriverLogs {
 const startOf = (l: RawLog): number => Date.parse(l.logStartTime ?? l.startTime ?? l.time ?? "");
 const endOf = (l: RawLog): number => Date.parse(l.logEndTime ?? l.endTime ?? "");
 const statusOf = (l: RawLog): HosStatus => normalizeHosStatus(l.hosStatusType ?? l.dutyStatus);
+const vehicleOf = (l: RawLog): string | null =>
+  l.vehicle?.id != null ? String(l.vehicle.id) : l.vehicleId != null ? String(l.vehicleId) : null;
 
 /**
  * Parse the merged `data[]` from GET /fleet/hos/logs into duty-status segments per driver. Samsara nests the
@@ -104,7 +112,10 @@ const statusOf = (l: RawLog): HosStatus => normalizeHosStatus(l.hosStatusType ??
 export function parseHosLogs(data: unknown[], opts: { windowEndMs?: number } = {}): HosSegment[] {
   // Gather every driver's logs (a driver may recur across pages). Keyed by start instant → status + its own
   // end (from logEndTime when Samsara supplies it).
-  const byDriver = new Map<string, Map<number, { status: HosStatus; endMs: number | null }>>();
+  const byDriver = new Map<
+    string,
+    Map<number, { status: HosStatus; endMs: number | null; vehicleId: string | null }>
+  >();
   for (const raw of data) {
     const item = raw as RawDriverLogs;
     const driverId =
@@ -118,12 +129,17 @@ export function parseHosLogs(data: unknown[], opts: { windowEndMs?: number } = {
     const logs = item.hosLogs ?? item.logs;
     if (!driverId || !Array.isArray(logs)) continue;
     const byStart =
-      byDriver.get(driverId) ?? new Map<number, { status: HosStatus; endMs: number | null }>();
+      byDriver.get(driverId) ??
+      new Map<number, { status: HosStatus; endMs: number | null; vehicleId: string | null }>();
     for (const l of logs) {
       const t = startOf(l);
       if (!Number.isFinite(t)) continue;
       const e = endOf(l);
-      byStart.set(t, { status: statusOf(l), endMs: Number.isFinite(e) ? e : null }); // last write wins on an exact dup
+      byStart.set(t, {
+        status: statusOf(l),
+        endMs: Number.isFinite(e) ? e : null,
+        vehicleId: vehicleOf(l),
+      }); // last write wins on an exact dup
     }
     byDriver.set(driverId, byStart);
   }
@@ -138,7 +154,15 @@ export function parseHosLogs(data: unknown[], opts: { windowEndMs?: number } = {
       const endMs =
         rec.endMs ?? (i + 1 < starts.length ? starts[i + 1]! : (opts.windowEndMs ?? null));
       if (endMs != null && endMs <= startMs) continue; // drop zero/negative-length
-      segments.push({ driverId, status: rec.status, startMs, endMs });
+      // vehicleId is only present when the log carried one — existing consumers comparing whole
+      // segment objects are untouched by the WP-ATTR field.
+      segments.push({
+        driverId,
+        status: rec.status,
+        startMs,
+        endMs,
+        ...(rec.vehicleId != null ? { vehicleId: rec.vehicleId } : {}),
+      });
     }
   }
   segments.sort((a, b) => a.startMs - b.startMs || a.driverId.localeCompare(b.driverId));

@@ -1693,3 +1693,40 @@ describe("WP-CAP — exceeds_tank_capacity on resolved capacity + confidence tie
     expect(ids(c)).toContain("cumulative_overfuel");
   });
 });
+
+// ── WP-ATTR — attribution-suspect fills (driver-changed-truck false-alert class) ──────────────────
+describe("WP-ATTR — logbook-contradicted attribution gates the vehicle-physics rules", () => {
+  it("an attribution-suspect fill fires NO vehicle-relative rules (data-quality, not fraud)", () => {
+    // Without the gate this context fires exceeds_tank_capacity + cumulative_overfuel.
+    const c = ctx({
+      txn: txn({ gallons: 150 }),
+      windowGallons: 400,
+      windowMiles: 600,
+      attributionSuspect: true,
+    });
+    const out = ids(c);
+    expect(out).not.toContain("exceeds_tank_capacity");
+    expect(out).not.toContain("cumulative_overfuel");
+    expect(out).not.toContain("mpg_deviation");
+    expect(out).not.toContain("implausible_topoff");
+  });
+
+  it("vehicle-independent checks stay alive for a suspect fill", () => {
+    const c = ctx({ txn: txn({ pricePerGal: 9.99 }), attributionSuspect: true });
+    c.thresholds = { ...c.thresholds, costMaxPerGal: 6 };
+    expect(ids(c)).toContain("cost_outlier");
+  });
+
+  it("cumulative_overfuel evidence reports the gallons excluded as attribution-suspect", () => {
+    // Window still blows the ceiling on CONFIRMED fills alone → fires, with the exclusion visible.
+    const c = ctx({ windowGallons: 400, windowMiles: 600, windowSuspectGallons: 120 });
+    const fired = runAllRules(c).find((r) => r.ruleId === "cumulative_overfuel");
+    expect(fired).toBeTruthy();
+    expect(fired!.evidence.attributionSuspectExcludedGal).toBe(120);
+  });
+
+  it("a clean window keeps cumulative_overfuel silent exactly as before (no evidence key when 0 excluded)", () => {
+    const c = ctx({ windowGallons: 150, windowMiles: 600 });
+    expect(ids(c)).not.toContain("cumulative_overfuel");
+  });
+});

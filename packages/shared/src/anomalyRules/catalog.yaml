@@ -100,7 +100,7 @@ rules:
     axis: consumption
     weight: 75
     label: Cumulative Overfueling
-    note: Rolling-window gallons vs miles-burnable + a tank. WP5 DETECTION FLOOR (documented, deliberate) — the ceiling grants one full empty-to-full tank of slack + 10 gal per window, so sustained theft under ~one tank per 48h is invisible to THIS rule by design (precision over recall); per-fill tank rules + tank_fill_short carry that range where sensors allow.
+    note: Rolling-window gallons vs miles-burnable + a tank. WP5 DETECTION FLOOR (documented, deliberate) — the ceiling grants one full empty-to-full tank of slack + 10 gal per window, so sustained theft under ~one tank per 48h is invisible to THIS rule by design (precision over recall); per-fill tank rules + tank_fill_short carry that range where sensors allow. WP-ATTR — the window EXCLUDES fills whose vehicle attribution the driver's ELD logbook contradicts (the driver-changed-truck false-alert class), and the rule is suppressed entirely when THIS fill is attribution-suspect; corroborated misattributions (logbook + GPS agree) are auto-re-attributed and re-scored under the correct truck.
 
   # ── Tier 3 — efficiency ──────────────────────────────────────────────────────────────────────────
   - id: mpg_deviation

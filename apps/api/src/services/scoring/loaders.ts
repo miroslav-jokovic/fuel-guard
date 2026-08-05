@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TxnView, Thresholds, OperatingHours, FueledAtPrecision } from "@fuelguard/shared";
 
 export const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, control_id, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, samsara_nearest_station_miles, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at, ambient_temp_f, case_level, case_signals";
+  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, control_id, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, samsara_nearest_station_miles, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at, ambient_temp_f, case_level, case_signals, attribution_verdict, logbook_vehicle_id";
 
 export const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -32,8 +32,11 @@ export function isNoonSentinel(iso: string): boolean {
  * backfilled by migration 0026) is authoritative; the sentinel/source heuristic is only a fallback
  * for rows that predate the column.
  */
-export function rowPrecision(r: Pick<FtxnRow, "fueled_at" | "fueled_at_precision" | "source">): FueledAtPrecision {
-  if (r.fueled_at_precision === "instant" || r.fueled_at_precision === "date") return r.fueled_at_precision;
+export function rowPrecision(
+  r: Pick<FtxnRow, "fueled_at" | "fueled_at_precision" | "source">,
+): FueledAtPrecision {
+  if (r.fueled_at_precision === "instant" || r.fueled_at_precision === "date")
+    return r.fueled_at_precision;
   if (r.source === "manual") return "instant";
   return isNoonSentinel(r.fueled_at) ? "date" : "instant";
 }
@@ -78,6 +81,9 @@ export interface FtxnRow {
   ambient_temp_f?: number | string | null;
   case_level?: string | null;
   case_signals?: { ruleId: string }[] | null;
+  /** WP-ATTR — logbook check of the fill's vehicle attribution ('confirmed' | 'suspect' | 'unknown'). */
+  attribution_verdict?: string | null;
+  logbook_vehicle_id?: string | null;
 }
 
 export function toTxnView(r: FtxnRow): TxnView {
@@ -120,7 +126,9 @@ export function toTxnView(r: FtxnRow): TxnView {
 export async function loadThresholds(admin: SupabaseClient, orgId: string): Promise<Thresholds> {
   const { data } = await admin
     .from("anomaly_thresholds")
-    .select("mpg_drop_pct, capacity_tolerance_pct, rapid_refuel_hours, max_plausible_mph, cost_min_per_gal, cost_max_per_gal, disabled_rules, odometer_tolerance_miles, max_daily_miles, cumulative_window_hours, max_reefer_burn_gph, reefer_tank_default_gal, reefer_diversion_window_days, reefer_diversion_min_tractor_gal, reefer_diversion_max_reefer_gal")
+    .select(
+      "mpg_drop_pct, capacity_tolerance_pct, rapid_refuel_hours, max_plausible_mph, cost_min_per_gal, cost_max_per_gal, disabled_rules, odometer_tolerance_miles, max_daily_miles, cumulative_window_hours, max_reefer_burn_gph, reefer_tank_default_gal, reefer_diversion_window_days, reefer_diversion_min_tractor_gal, reefer_diversion_max_reefer_gal",
+    )
     .eq("org_id", orgId)
     .maybeSingle();
   return {
@@ -144,8 +152,15 @@ export async function loadThresholds(admin: SupabaseClient, orgId: string): Prom
   };
 }
 
-export async function loadOperatingHours(admin: SupabaseClient, orgId: string): Promise<OperatingHours> {
-  const { data } = await admin.from("organizations").select("operating_hours").eq("id", orgId).single();
+export async function loadOperatingHours(
+  admin: SupabaseClient,
+  orgId: string,
+): Promise<OperatingHours> {
+  const { data } = await admin
+    .from("organizations")
+    .select("operating_hours")
+    .eq("id", orgId)
+    .single();
   const oh = (data?.operating_hours ?? {}) as Partial<OperatingHours>;
   // WP7: an org that never CONFIGURED hours gets the 24/7 sentinel (start === end → off_hours never
   // fires) — we no longer alert against a silently assumed 05:00–20:00 schedule. Orgs that set hours
@@ -214,6 +229,9 @@ export interface ScoreOpts {
    *  each vehicle ONCE up front (learnVehicleValues), then scores every fill against those CONVERGED values
    *  in a single pass — so a rebuild no longer needs to be run twice for learned values to take effect (R-3). */
   skipLearn?: boolean;
+  /** WP-ATTR recursion guard: set on the single re-score after a corroborated logbook re-attribution so a
+   *  fill can never re-attribute more than once per scoring pass. */
+  reattributed?: boolean;
 }
 
 /** Bulk-scope filters for backfillOrg — keep routine runs incremental instead of re-processing history. */
@@ -232,13 +250,18 @@ export const RECENT_REBUILD_DAYS = 180;
  * .select() silently returns only the first 1000 — so an un-paged backfill skips everything beyond it).
  * Optional filters keep routine runs cheap: onlyUnreconciled = never-reconciled rows; sinceDays = recent.
  */
-export async function collectTxnIds(admin: SupabaseClient, orgId: string, opts: { onlyUnreconciled?: boolean; sinceDays?: number } = {}): Promise<string[]> {
+export async function collectTxnIds(
+  admin: SupabaseClient,
+  orgId: string,
+  opts: { onlyUnreconciled?: boolean; sinceDays?: number } = {},
+): Promise<string[]> {
   const PAGE = 1000;
   const ids: string[] = [];
   for (let offset = 0; ; offset += PAGE) {
     let q = admin.from("fuel_transactions").select("id").eq("org_id", orgId);
     if (opts.onlyUnreconciled) q = q.is("samsara_recon_at", null);
-    if (opts.sinceDays != null) q = q.gte("fueled_at", new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString());
+    if (opts.sinceDays != null)
+      q = q.gte("fueled_at", new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString());
     const { data } = await q
       .order("vehicle_id", { ascending: true })
       .order("fueled_at", { ascending: true })
@@ -250,4 +273,3 @@ export async function collectTxnIds(admin: SupabaseClient, orgId: string, opts: 
   }
   return ids;
 }
-

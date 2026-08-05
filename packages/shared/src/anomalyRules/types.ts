@@ -214,10 +214,18 @@ export interface RuleContext {
    *  GPS-derived — a large, per-truck-varying bias), or 'reconstructed'. Only 'obd' is trustworthy for an
    *  absolute ±tolerance mismatch; GPS/reconstructed carry biases a single per-truck offset can't absorb. */
   crossSourceOdometerSource?: string | null;
-  /** Sum of gallons for this vehicle within the cumulative window (incl. this txn). */
+  /** Sum of gallons for this vehicle within the cumulative window (incl. this txn). WP-ATTR: excludes
+   *  fills whose attribution the driver's logbook contradicts (another truck's fuel). */
   windowGallons?: number;
   /** Odometer span (max−min) for this vehicle within the cumulative window, if computable. */
   windowMiles?: number | null;
+  /** WP-ATTR — gallons excluded from windowGallons because their fills are attribution-suspect (evidence). */
+  windowSuspectGallons?: number;
+  /** WP-ATTR — THIS fill's vehicle attribution is contradicted by the driver's ELD logbook (verdict
+   *  'suspect', uncorroborated). Every vehicle-relative physics rule is unreliable for such a fill —
+   *  the gallons/odometer may belong to another truck — so runAllRules suppresses them (data-quality,
+   *  not fraud; the fill stays visible via the persisted attribution_verdict). */
+  attributionSuspect?: boolean;
   /** Distinct vehicles seen on this txn's CARD (true card identity — full/masked-tolerant refs with
    *  non-contradicting control ids, see sameCardFill) within the window, incl. this one. WP3: this is
    *  a CARD count, never a driver count — a driver moving trucks with different cards doesn't inflate it. */

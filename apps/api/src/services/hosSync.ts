@@ -84,6 +84,8 @@ interface ExistingSegment {
   driver_id: string | null;
   status: string;
   ended_at: string | null;
+  samsara_vehicle_id: string | null;
+  vehicle_id: string | null;
 }
 
 /** Read back the window's already-stored segments, keyed by `samsara_driver_id|startMs` — the diff basis
@@ -99,7 +101,9 @@ async function loadExistingSegments(
   for (let offset = 0; ; offset += READ_PAGE) {
     const { data, error } = await admin
       .from("hos_duty_segments")
-      .select("samsara_driver_id, driver_id, status, started_at, ended_at")
+      .select(
+        "samsara_driver_id, driver_id, status, started_at, ended_at, samsara_vehicle_id, vehicle_id",
+      )
       .eq("org_id", orgId)
       .gte("started_at", startIso)
       .lte("started_at", endIso)
@@ -116,6 +120,8 @@ async function loadExistingSegments(
         driver_id: r.driver_id,
         status: r.status,
         ended_at: r.ended_at,
+        samsara_vehicle_id: r.samsara_vehicle_id ?? null,
+        vehicle_id: r.vehicle_id ?? null,
       });
     }
     if (batch.length < READ_PAGE) break;
@@ -123,18 +129,21 @@ async function loadExistingSegments(
   return out;
 }
 
-/** True when the stored row already matches this segment (status, end, and driver link) — nothing to write.
- *  A resolved driver never gets UNLINKED by a null resolution (e.g. a driver deactivated mid-window). */
+/** True when the stored row already matches this segment (status, end, driver link, and logbook vehicle) —
+ *  nothing to write. A resolved driver/vehicle never gets UNLINKED by a null resolution (e.g. a driver
+ *  deactivated mid-window, or a log entry without a vehicle ref). */
 function segmentUnchanged(
   existing: ExistingSegment | undefined,
   status: string,
   endMs: number | null,
   driverId: string | null,
+  samsaraVehicleId: string | null,
 ): boolean {
   if (!existing) return false;
   if (existing.status !== status) return false;
   const exEnd = existing.ended_at != null ? Date.parse(existing.ended_at) : null;
   if (exEnd !== endMs) return false;
+  if (samsaraVehicleId != null && existing.samsara_vehicle_id !== samsaraVehicleId) return false;
   return driverId == null || existing.driver_id === driverId;
 }
 
@@ -187,22 +196,40 @@ export async function syncHosDutySegments(
     ]),
   );
 
+  // Resolve Samsara vehicle id → our vehicles.id (WP-ATTR — the per-log LOGBOOK truck). Unresolved ids
+  // still store the raw samsara_vehicle_id so a later vehicle link can resolve them.
+  const { data: vs } = await admin
+    .from("vehicles")
+    .select("id, samsara_vehicle_id")
+    .eq("org_id", orgId)
+    .not("samsara_vehicle_id", "is", null);
+  const vehBySamsara = new Map(
+    ((vs ?? []) as { id: string; samsara_vehicle_id: string }[]).map((v) => [
+      v.samsara_vehicle_id,
+      v.id,
+    ]),
+  );
+
   // Diff against what's already stored — only new/changed segments get written.
   const existing = await loadExistingSegments(admin, orgId, startIso, endIso);
   const now = new Date().toISOString();
   const rows: Record<string, unknown>[] = [];
   for (const s of segments) {
     const resolved = drvBySamsara.get(s.driverId) ?? null;
+    const segVehicle = s.vehicleId ?? null;
+    const resolvedVehicle = segVehicle != null ? (vehBySamsara.get(segVehicle) ?? null) : null;
     const ex = existing.get(`${s.driverId}|${s.startMs}`);
-    if (segmentUnchanged(ex, s.status, s.endMs, resolved)) continue;
+    if (segmentUnchanged(ex, s.status, s.endMs, resolved, segVehicle)) continue;
     rows.push({
       org_id: orgId,
-      // Never unlink on a null resolution — keep an already-linked driver_id.
+      // Never unlink on a null resolution — keep an already-linked driver_id / vehicle.
       driver_id: resolved ?? ex?.driver_id ?? null,
       samsara_driver_id: s.driverId,
       status: s.status,
       started_at: new Date(s.startMs).toISOString(),
       ended_at: s.endMs != null ? new Date(s.endMs).toISOString() : null,
+      samsara_vehicle_id: segVehicle ?? ex?.samsara_vehicle_id ?? null,
+      vehicle_id: resolvedVehicle ?? ex?.vehicle_id ?? null,
       updated_at: now,
     });
   }

@@ -3,9 +3,20 @@
  *  orchestrator reads as a sequence of named steps; queries + ordering are unchanged. */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  reconcileAnomalies, correlateSignals, CASE_RULE_ID, milesSinceLast, computedMpg, effectiveBaseline,
-  computeFillConfidence, summarizeFillGates,
-  type RuleContext, type TxnView, type VehicleView, type ExistingAnomaly, type RuleResult,
+  reconcileAnomalies,
+  correlateSignals,
+  CASE_RULE_ID,
+  milesSinceLast,
+  computedMpg,
+  effectiveBaseline,
+  computeFillConfidence,
+  summarizeFillGates,
+  type RuleContext,
+  type TxnView,
+  type VehicleView,
+  type ExistingAnomaly,
+  type RuleResult,
+  type AttributionCheck,
 } from "@fuelguard/shared";
 import type { ReconResult } from "./reconcile.js";
 import { learnVehicleValues } from "./learnVehicle.js";
@@ -23,8 +34,14 @@ export async function persistAnomalies(
   fueledAt: string,
   caseFired: RuleResult[],
 ): Promise<void> {
-  const { data: existing } = await admin.from("anomalies").select("id, rule_id, status, source").eq("transaction_id", txnId);
-  const { toInsert, toSupersedeIds } = reconcileAnomalies((existing ?? []) as ExistingAnomaly[], caseFired);
+  const { data: existing } = await admin
+    .from("anomalies")
+    .select("id, rule_id, status, source")
+    .eq("transaction_id", txnId);
+  const { toInsert, toSupersedeIds } = reconcileAnomalies(
+    (existing ?? []) as ExistingAnomaly[],
+    caseFired,
+  );
 
   for (const res of toInsert) {
     const { error } = await admin.from("anomalies").insert({
@@ -49,10 +66,20 @@ export async function persistAnomalies(
   // Refresh an already-open case in place when the signals changed (rebuild/re-score) — but never
   // disturb one a reviewer has moved to investigating/resolved/dismissed.
   if (caseFired.length) {
-    const openCase = (existing ?? []).find((a) => a.rule_id === CASE_RULE_ID && a.status === "open");
+    const openCase = (existing ?? []).find(
+      (a) => a.rule_id === CASE_RULE_ID && a.status === "open",
+    );
     if (openCase && !toInsert.length) {
       const c = caseFired[0]!;
-      await admin.from("anomalies").update({ severity: c.severity, message: c.message, evidence: c.evidence, fueled_at: fueledAt }).eq("id", openCase.id);
+      await admin
+        .from("anomalies")
+        .update({
+          severity: c.severity,
+          message: c.message,
+          evidence: c.evidence,
+          fueled_at: fueledAt,
+        })
+        .eq("id", openCase.id);
     }
   }
 }
@@ -64,13 +91,19 @@ export interface TxnOutcomeArgs {
   assessment: Assessment;
   ruleCtx: RuleContext;
   recon: ReconResult;
+  /** WP-ATTR — the fill's logbook attribution check, persisted for the UI/data-quality surfaces. */
+  attribution: AttributionCheck;
 }
 
 /** Persist the per-fill outcome onto fuel_transactions: MPG/miles chain, the case summary, the fill-gates
  *  "why" surface, and every reconciled Samsara column (odometer, location, tank, observed-position, basis,
  *  recon instant). The telematics-recovered instant is stored in samsara_recon_at — never over fueled_at. */
-export async function persistTxnOutcome(admin: SupabaseClient, txnId: string, a: TxnOutcomeArgs): Promise<void> {
-  const { txn, previousTxn, intermediateGallons, assessment, ruleCtx, recon } = a;
+export async function persistTxnOutcome(
+  admin: SupabaseClient,
+  txnId: string,
+  a: TxnOutcomeArgs,
+): Promise<void> {
+  const { txn, previousTxn, intermediateGallons, assessment, ruleCtx, recon, attribution } = a;
   await admin
     .from("fuel_transactions")
     .update({
@@ -85,6 +118,10 @@ export async function persistTxnOutcome(admin: SupabaseClient, txnId: string, a:
       // WP6: WHY detection was limited on this fill (ineligible rules + the gating inputs) — the UI's
       // honest-absence surface ("tank rules off: sensor not learned-reliable").
       case_gates: summarizeFillGates(computeFillConfidence(ruleCtx)),
+      // WP-ATTR: the logbook attribution verdict (+ the contradicting logbook truck when suspect) — the
+      // honest-absence surface for "why were the volume rules quiet on this fill".
+      attribution_verdict: attribution.verdict,
+      logbook_vehicle_id: attribution.verdict === "suspect" ? attribution.logbookVehicleId : null,
       samsara_odometer: recon.crossSourceOdometer,
       samsara_odometer_at: recon.crossSourceOdometerAt,
       samsara_odometer_source: recon.crossSourceOdometerSource,
@@ -159,6 +196,9 @@ export async function learnAndUpdateVehicle(
   // up front (backfillOrg pre-pass, skipLearn=true) so every fill scores against the CONVERGED values in a
   // single pass; live/single scoring learns them here per fill.
   if (!opts.skipLearn) {
-    await learnVehicleValues(admin, txn.vehicleId, { odometerOffset: vehicle.odometerOffset ?? 0, odometerOffsetSource });
+    await learnVehicleValues(admin, txn.vehicleId, {
+      odometerOffset: vehicle.odometerOffset ?? 0,
+      odometerOffsetSource,
+    });
   }
 }

@@ -5,10 +5,12 @@ import {
   runAllRules,
   correlateSignals,
   CASE_RULE_ID,
+  shouldReattribute,
   type RuleContext,
   type RuleResult,
   type RuleId,
 } from "@fuelguard/shared";
+import { writeAudit } from "../../lib/audit.js";
 import type { Env } from "../../env.js";
 import { resolveReconciliation } from "./reconcile.js";
 import { resolveCardContext } from "./cardContext.js";
@@ -23,6 +25,7 @@ import {
   loadConsumptionContext,
   loadReeferContext,
   loadReeferDiversionContext,
+  loadAttributionCheck,
 } from "./context.js";
 import { persistAnomalies, persistTxnOutcome, learnAndUpdateVehicle } from "./persist.js";
 
@@ -68,8 +71,49 @@ export async function scoreTransaction(
     opts,
   );
 
-  const { previousTxn, recentTxns, intermediateGallons, windowGallons, windowMiles } =
-    await loadConsumptionContext(admin, txn, r, txnId, winStartIso);
+  // WP-ATTR — check the fill's vehicle attribution against the driver's ELD logbook. Two independent
+  // contradictions (logbook shows a DIFFERENT truck AND telematics places the attributed truck away
+  // from the station) → the record is wrong with near-certainty: re-attribute to the logbook truck,
+  // audit-log it, and re-score ONCE under the correct vehicle (fresh recon — the stored Samsara columns
+  // reflect the old truck). Logbook contradiction alone only marks the fill `suspect`, which excludes
+  // it from window/baseline math and gates the vehicle-physics rules (data-quality, not fraud).
+  const attribution = await loadAttributionCheck(admin, orgId, txn);
+  if (!opts.reattributed && shouldReattribute(attribution, recon.samsaraLocationMatched)) {
+    await writeAudit(admin, {
+      orgId,
+      action: "transaction.reattribute_vehicle",
+      entity: "fuel_transaction",
+      entityId: txnId,
+      meta: {
+        fromVehicleId: txn.vehicleId,
+        toVehicleId: attribution.logbookVehicleId,
+        basis: "logbook+gps",
+        fueledAt: r.fueled_at,
+      },
+    });
+    await admin
+      .from("fuel_transactions")
+      .update({
+        vehicle_id: attribution.logbookVehicleId,
+        logbook_vehicle_id: attribution.logbookVehicleId,
+      })
+      .eq("id", txnId);
+    return scoreTransaction(admin, env, orgId, txnId, {
+      ...opts,
+      reattributed: true,
+      skipRecon: false,
+      prefetchedRaw: undefined,
+    });
+  }
+
+  const {
+    previousTxn,
+    recentTxns,
+    intermediateGallons,
+    windowGallons,
+    windowMiles,
+    windowSuspectGallons,
+  } = await loadConsumptionContext(admin, txn, r, txnId, winStartIso);
 
   // Card-identity context (WP3): a true CARD-keyed vehicle count + the fuel_cards assignment.
   const cardCtx = await resolveCardContext(admin, orgId, txn, winStartIso, r.fueled_at);
@@ -107,6 +151,8 @@ export async function scoreTransaction(
     crossSourceOdometerSource: recon.crossSourceOdometerSource,
     windowGallons,
     windowMiles,
+    windowSuspectGallons,
+    attributionSuspect: attribution.verdict === "suspect",
     cardVehicleCountInWindow: cardCtx.cardVehicleCountInWindow,
     cardAssignedVehicleId: cardCtx.cardAssignedVehicleId,
     cardManualAssignedVehicleId: cardCtx.cardManualAssignedVehicleId,
@@ -165,6 +211,7 @@ export async function scoreTransaction(
     assessment,
     ruleCtx,
     recon,
+    attribution,
   });
   await learnAndUpdateVehicle(
     admin,

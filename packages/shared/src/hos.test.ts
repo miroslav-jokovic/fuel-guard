@@ -176,7 +176,8 @@ describe("parseHosLogs — real Samsara /fleet/hos/logs shape", () => {
     ];
     const segs = parseHosLogs(data);
     expect(segs).toEqual([
-      { driverId: "57168899", status: "driving", startMs: T, endMs: T + 2 * HH },
+      // WP-ATTR: the per-log vehicle (the logbook truck) is carried when Samsara supplies it.
+      { driverId: "57168899", status: "driving", startMs: T, endMs: T + 2 * HH, vehicleId: "556" },
       { driverId: "57168899", status: "sleeper", startMs: T + 2 * HH, endMs: T + 12 * HH },
     ]);
   });
@@ -197,5 +198,51 @@ describe("parseHosClocks — current duty status per driver", () => {
       { driverId: "57168899", status: "driving", vehicleId: "212", vehicleName: "556" },
       { driverId: "99", status: "off_duty", vehicleId: null, vehicleName: null },
     ]);
+  });
+});
+
+// ── WP-ATTR — parseHosLogs carries the per-log vehicle (the LOGBOOK truck) ────────────────────────
+import { parseHosLogs as parseForVehicle } from "./hos.js";
+
+describe("parseHosLogs — logbook vehicle capture (WP-ATTR)", () => {
+  const T0 = Date.parse("2026-08-01T00:00:00Z");
+  const H = 3_600_000;
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  it("carries vehicle.id per segment, tracking a mid-window truck change", () => {
+    const segs = parseForVehicle(
+      [
+        {
+          driver: { id: "op1" },
+          hosLogs: [
+            { logStartTime: iso(T0), hosStatusType: "driving", vehicle: { id: 111 } },
+            { logStartTime: iso(T0 + 4 * H), hosStatusType: "driving", vehicle: { id: 222 } },
+          ],
+        },
+      ],
+      { windowEndMs: T0 + 10 * H },
+    );
+    expect(segs.map((s) => s.vehicleId)).toEqual(["111", "222"]);
+  });
+
+  it("a log without a vehicle ref carries no vehicle (never guessed)", () => {
+    const segs = parseForVehicle(
+      [{ driver: { id: "op1" }, hosLogs: [{ logStartTime: iso(T0), hosStatusType: "offDuty" }] }],
+      { windowEndMs: T0 + H },
+    );
+    expect(segs[0]!.vehicleId).toBeUndefined();
+  });
+
+  it("tolerates the flat vehicleId fallback shape", () => {
+    const segs = parseForVehicle(
+      [
+        {
+          driver: { id: "op1" },
+          hosLogs: [{ logStartTime: iso(T0), hosStatusType: "driving", vehicleId: "333" }],
+        },
+      ],
+      { windowEndMs: T0 + H },
+    );
+    expect(segs[0]!.vehicleId).toBe("333");
   });
 });

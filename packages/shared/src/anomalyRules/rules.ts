@@ -441,6 +441,9 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
   const ceiling = burnable + cap + CUMULATIVE_OVERFUEL_MARGIN_GAL;
   if (windowGallons > ceiling) {
     const hrs = thresholds.cumulativeWindowHours ?? 48;
+    // WP-ATTR: windowGallons already EXCLUDES logbook-contradicted fills (another truck's fuel — the
+    // driver-changed-truck false-alert class); the excluded volume is carried in evidence for review.
+    const suspectGal = ctx.windowSuspectGallons ?? 0;
     return {
       ruleId: "cumulative_overfuel",
       fired: true,
@@ -452,6 +455,7 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
         burnable: r2(burnable),
         tankCapacity: cap,
         windowHours: hrs,
+        ...(suspectGal > 0 ? { attributionSuspectExcludedGal: r2(suspectGal) } : {}),
       },
     };
   }
@@ -579,6 +583,35 @@ export function runAllRules(ctx: RuleContext): RuleResult[] {
   ];
 
   const suppressed = new Set<RuleId>(SUPPRESSED_RULE_IDS);
+  // WP-ATTR: when the driver's ELD logbook contradicts this fill's vehicle attribution (uncorroborated
+  // 'suspect'), every VEHICLE-RELATIVE rule is judging gallons/odometer that may belong to another
+  // truck — a misattributed fill was the exact source of false tank-space/over-fuel criticals on
+  // truck swaps. Suppress the physics rules (data-quality posture; the persisted attribution_verdict
+  // is the "why"), keep the vehicle-independent behavioral/card/cost checks alive.
+  if (ctx.attributionSuspect) {
+    const vehicleRelative: RuleId[] = [
+      "odometer_regression",
+      "odometer_stale",
+      "odometer_implausible_jump",
+      "odometer_daily_cap",
+      "odometer_mismatch",
+      "odometer_entry_suspect",
+      "expected_odometer_band",
+      "exceeds_tank_capacity",
+      "exceeds_capacity_unverified",
+      "tank_space_exceeded",
+      "implausible_topoff",
+      "cumulative_overfuel",
+      "mpg_deviation",
+      "mpg_sustained_decline",
+      "tank_fill_short",
+      "rapid_repeat_fueling",
+      "reefer_exceeds_capacity",
+      "reefer_overfuel_rate",
+      "reefer_fuel_diversion",
+    ];
+    for (const id of vehicleRelative) suppressed.add(id);
+  }
   // Confidence gating in ONE place (docs/12 Phase 1): a rule may fire only when the fill's inputs support it
   // (e.g. per-fill tank/volume/consumption rules need a reliable tank sensor; the absolute odometer mismatch
   // needs an OBD cross-source reading). `ruleEligible` reproduces the previous per-rule inline guards exactly.

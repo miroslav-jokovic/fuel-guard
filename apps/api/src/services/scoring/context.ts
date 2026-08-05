@@ -5,9 +5,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   contaminatesBaseline,
   robustWindowMiles,
+  verifyFillAttribution,
+  ATTRIBUTION_TIME_BUFFER_MS,
   type TxnView,
   type VehicleView,
   type Thresholds,
+  type AttributionCheck,
+  type LogbookSegment,
 } from "@fuelguard/shared";
 import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, sumIntermediateGallons, n } from "./loaders.js";
 import type { FtxnRow } from "./loaders.js";
@@ -59,12 +63,51 @@ export async function loadVehicleContext(
   return { vehicle, samsaraVehicleId, odometerOffsetSource };
 }
 
+/**
+ * WP-ATTR — check the fill's vehicle attribution against the driver's ELD logbook timeline
+ * (hos_duty_segments with per-log vehicle, migration 0120). Returns `unknown` — behavior unchanged —
+ * whenever the check can't be made honestly: no driver on the fill, no reliable fueling INSTANT (a
+ * date-only EFS row's noon sentinel would compare the logbook at the wrong time of day), or no
+ * in-buffer logbook coverage with a resolved vehicle.
+ */
+export async function loadAttributionCheck(
+  admin: SupabaseClient,
+  orgId: string,
+  txn: TxnView,
+): Promise<AttributionCheck> {
+  if (!txn.driverId || !txn.vehicleId || txn.tankType === "reefer")
+    return { verdict: "unknown", logbookVehicleId: null };
+  if (txn.fueledAtPrecision !== "instant") return { verdict: "unknown", logbookVehicleId: null };
+  const fillMs = Date.parse(txn.eventAt ?? txn.fueledAt); // telematics-recovered instant when present
+  const loIso = new Date(fillMs - ATTRIBUTION_TIME_BUFFER_MS).toISOString();
+  const hiIso = new Date(fillMs + ATTRIBUTION_TIME_BUFFER_MS).toISOString();
+  const { data } = await admin
+    .from("hos_duty_segments")
+    .select("vehicle_id, started_at, ended_at")
+    .eq("org_id", orgId)
+    .eq("driver_id", txn.driverId)
+    .lte("started_at", hiIso)
+    .or(`ended_at.is.null,ended_at.gte.${loIso}`)
+    .order("started_at", { ascending: true })
+    .limit(50);
+  const segments: LogbookSegment[] = (
+    (data ?? []) as { vehicle_id: string | null; started_at: string; ended_at: string | null }[]
+  ).map((s) => ({
+    vehicleId: s.vehicle_id,
+    startMs: Date.parse(s.started_at),
+    endMs: s.ended_at != null ? Date.parse(s.ended_at) : null,
+  }));
+  return verifyFillAttribution(txn.vehicleId, fillMs, segments);
+}
+
 export interface ConsumptionContext {
   previousTxn: TxnView | null;
   recentTxns: TxnView[];
   intermediateGallons: number;
   windowGallons: number;
   windowMiles: number | null;
+  /** WP-ATTR — gallons excluded from the window because their fills' attribution is logbook-contradicted. */
+  windowSuspectGallons: number;
 }
 
 /** Tractor consumption context: the previous clean fill, the recent-fills baseline window, intermediate
@@ -82,6 +125,7 @@ export async function loadConsumptionContext(
   let intermediateGallons = 0;
   let windowGallons = 0;
   let windowMiles: number | null = null;
+  let windowSuspectGallons = 0;
 
   if (txn.vehicleId && txn.tankType !== "reefer") {
     const { data: prevRows } = await admin
@@ -114,12 +158,17 @@ export async function loadConsumptionContext(
     const ODO_SIGNALS = new Set(ODOMETER_RULE_IDS);
     const odoBad = (x: FtxnRow) =>
       badIds.has(x.id) || (x.case_signals ?? []).some((sg) => ODO_SIGNALS.has(sg.ruleId));
-    const prevRow = rows.find((x) => !odoBad(x)) ?? null;
+    // WP-ATTR: a fill whose attribution the driver's logbook contradicts carries another truck's
+    // gallons/odometer — it must not serve as the previous fill or train the baseline.
+    const attrBad = (x: FtxnRow) => x.attribution_verdict === "suspect";
+    const prevRow = rows.find((x) => !odoBad(x) && !attrBad(x)) ?? null;
     previousTxn = prevRow ? toTxnView(prevRow) : null;
     // WP6: theft-contaminated fills (volume-axis evidence / alert cases) must not train the baseline —
     // sustained theft would drag the median down until its own deviations stop firing.
     recentTxns = rows
-      .filter((x) => !odoBad(x) && !contaminatesBaseline(x.case_level, x.case_signals))
+      .filter(
+        (x) => !odoBad(x) && !attrBad(x) && !contaminatesBaseline(x.case_level, x.case_signals),
+      )
       .slice(0, 6)
       .map(toTxnView)
       .reverse();
@@ -134,7 +183,9 @@ export async function loadConsumptionContext(
 
     const { data: winRows } = await admin
       .from("fuel_transactions")
-      .select("gallons, odometer, samsara_odometer, samsara_odometer_source")
+      .select(
+        "id, gallons, odometer, samsara_odometer, samsara_odometer_source, attribution_verdict",
+      )
       .eq("vehicle_id", txn.vehicleId)
       .eq("tank_type", "tractor")
       .gte("fueled_at", winStartIso)
@@ -144,12 +195,22 @@ export async function loadConsumptionContext(
       .order("fueled_at", { ascending: true })
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
-    const wr = (winRows ?? []) as {
+    const wrAll = (winRows ?? []) as {
+      id: string;
       gallons: number | string;
       odometer: number | string | null;
       samsara_odometer: number | string | null;
       samsara_odometer_source: string | null;
+      attribution_verdict: string | null;
     }[];
+    // WP-ATTR: logbook-contradicted fills are another truck's fuel — excluding them from the window is
+    // exactly the driver-changed-truck false-alert fix. The CURRENT fill always stays in (its own
+    // verdict gates the rule separately via attributionSuspect); the excluded gallons are reported so
+    // evidence can show what was left out.
+    const wr = wrAll.filter((x) => x.id === txnId || x.attribution_verdict !== "suspect");
+    windowSuspectGallons = wrAll
+      .filter((x) => x.id !== txnId && x.attribution_verdict === "suspect")
+      .reduce((s, x) => s + Number(x.gallons), 0);
     windowGallons = wr.reduce((s, x) => s + Number(x.gallons), 0);
     // Miles driven from the CLEAN OBD Samsara odometer span when available; fall back to the entered span only
     // when it doesn't regress; else null → cumulative_overfuel stays silent (data-quality, not a false alarm).
@@ -162,7 +223,14 @@ export async function loadConsumptionContext(
     ).miles;
   }
 
-  return { previousTxn, recentTxns, intermediateGallons, windowGallons, windowMiles };
+  return {
+    previousTxn,
+    recentTxns,
+    intermediateGallons,
+    windowGallons,
+    windowMiles,
+    windowSuspectGallons,
+  };
 }
 
 export interface ReeferContext {

@@ -50,13 +50,14 @@ describe("syncHosDutySegments (end-to-end)", () => {
     });
     const hosFetcher = async () => ({
       data: [
-        { driver: { id: "op1" }, logs: [
-          { logStartTime: iso(T0), dutyStatus: "driving" },
-          { logStartTime: iso(T0 + 2 * H), dutyStatus: "sleeperBed" },
-        ] },
-        { driver: { id: "op2" }, logs: [
-          { logStartTime: iso(T0 + H), dutyStatus: "onDuty" },
-        ] },
+        {
+          driver: { id: "op1" },
+          logs: [
+            { logStartTime: iso(T0), dutyStatus: "driving" },
+            { logStartTime: iso(T0 + 2 * H), dutyStatus: "sleeperBed" },
+          ],
+        },
+        { driver: { id: "op2" }, logs: [{ logStartTime: iso(T0 + H), dutyStatus: "onDuty" }] },
       ],
     });
 
@@ -86,7 +87,11 @@ describe("syncHosDutySegments (end-to-end)", () => {
     const { admin, captured } = makeAdmin({ drivers: { data: [] } });
     // A malformed item: no recognizable driver id / logs → 0 segments although data is non-empty.
     const hosFetcher = async () => ({ data: [{ unexpected: true, entries: [{ ts: "x" }] }] });
-    const res = await syncHosDutySegments(admin, env, "org1", { hosFetcher, startIso: iso(T0), endIso: iso(T0 + H) });
+    const res = await syncHosDutySegments(admin, env, "org1", {
+      hosFetcher,
+      startIso: iso(T0),
+      endIso: iso(T0 + H),
+    });
     expect(res).toEqual({ fetched: 0, upserted: 0 });
     expect(captured.hos_duty_segments).toBeUndefined(); // nothing written
     expect(warn).toHaveBeenCalledOnce();
@@ -205,10 +210,13 @@ describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
     });
     const hosFetcher = async () => ({
       data: [
-        { driver: { id: "op1" }, hosLogs: [
-          { logStartTime: iso(T0), hosStatusType: "driving" },
-          { logStartTime: iso(T0 + 2 * H), hosStatusType: "sleeperBed" },
-        ] },
+        {
+          driver: { id: "op1" },
+          hosLogs: [
+            { logStartTime: iso(T0), hosStatusType: "driving" },
+            { logStartTime: iso(T0 + 2 * H), hosStatusType: "sleeperBed" },
+          ],
+        },
       ],
     });
     const res = await syncHosDutySegments(admin, env, "org1", {
@@ -238,10 +246,13 @@ describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
     });
     const hosFetcher = async () => ({
       data: [
-        { driver: { id: "op1" }, hosLogs: [
-          { logStartTime: iso(T0), hosStatusType: "sleeperBed" },
-          { logStartTime: iso(T0 + 5 * H), hosStatusType: "driving" }, // real end arrived
-        ] },
+        {
+          driver: { id: "op1" },
+          hosLogs: [
+            { logStartTime: iso(T0), hosStatusType: "sleeperBed" },
+            { logStartTime: iso(T0 + 5 * H), hosStatusType: "driving" }, // real end arrived
+          ],
+        },
       ],
     });
     const res = await syncHosDutySegments(admin, env, "org1", {
@@ -299,5 +310,52 @@ describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
       [iso(T0 + 7 * D), iso(T0 + 14 * D)],
       [iso(T0 + 14 * D), iso(T0 + 20 * D)],
     ]);
+  });
+});
+
+describe("syncHosDutySegments — logbook vehicle capture (WP-ATTR)", () => {
+  it("stores the per-log Samsara vehicle id and resolves it to our vehicle", async () => {
+    const { admin, captured } = makeAdmin({
+      drivers: { data: [{ id: "d1", samsara_driver_id: "op1" }] },
+      vehicles: { data: [{ id: "vA", samsara_vehicle_id: "111" }] }, // 222 intentionally unresolvable
+    });
+    const hosFetcher = async () => ({
+      data: [
+        {
+          driver: { id: "op1" },
+          hosLogs: [
+            { logStartTime: iso(T0), hosStatusType: "driving", vehicle: { id: "111" } },
+            { logStartTime: iso(T0 + 4 * H), hosStatusType: "driving", vehicle: { id: "222" } },
+          ],
+        },
+      ],
+    });
+    await syncHosDutySegments(admin, env, "org1", {
+      startIso: iso(T0),
+      endIso: iso(T0 + 10 * H),
+      hosFetcher,
+    });
+    const rows = captured.hos_duty_segments!;
+    expect(rows[0]).toMatchObject({ samsara_vehicle_id: "111", vehicle_id: "vA" });
+    // Unresolvable vehicle keeps the raw id (a later vehicle link can resolve it) with a null vehicle_id.
+    expect(rows[1]).toMatchObject({ samsara_vehicle_id: "222", vehicle_id: null });
+  });
+
+  it("a log without a vehicle ref stores nulls (never guessed)", async () => {
+    const { admin, captured } = makeAdmin({ drivers: { data: [] } });
+    const hosFetcher = async () => ({
+      data: [
+        { driver: { id: "op1" }, hosLogs: [{ logStartTime: iso(T0), hosStatusType: "offDuty" }] },
+      ],
+    });
+    await syncHosDutySegments(admin, env, "org1", {
+      startIso: iso(T0),
+      endIso: iso(T0 + H),
+      hosFetcher,
+    });
+    expect(captured.hos_duty_segments![0]).toMatchObject({
+      samsara_vehicle_id: null,
+      vehicle_id: null,
+    });
   });
 });
