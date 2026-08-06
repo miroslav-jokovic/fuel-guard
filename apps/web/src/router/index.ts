@@ -10,6 +10,13 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/pages/auth/LoginPage.vue"),
     meta: { public: true, layout: "auth" },
   },
+  // M7 — free public placard calculator (unauthenticated, indexable; its own layout).
+  {
+    path: "/placard-calculator",
+    name: "public-placard-calculator",
+    component: () => import("@/pages/PublicPlacardCalculatorPage.vue"),
+    meta: { public: true, layout: "public", title: "Free DOT Placard Calculator" },
+  },
   {
     path: "/accept-invite",
     name: "accept-invite",

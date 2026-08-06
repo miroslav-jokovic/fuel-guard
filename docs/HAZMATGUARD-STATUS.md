@@ -76,7 +76,12 @@ Committed to `main` (2df6ded → 142ee48):
   module + JS fallback + capture/verdict screens, all typechecked. Remaining: build the native module on a
   Mac (`expo prebuild` + run), run `pnpm test`, and the DCE-0 on-hardware checks (ML Kit no-egress; OCR
   confidence/latency on a min-spec Android). v2 RawCapture + a real Ed25519 verifier/remote fetch deferred.
-- **M7** public calculator · **M10** exact placard art (launch blocker, SME) · **M11** ops readiness.
+- **M7 — public placard calculator: BUILT.** Free, unauthenticated, rate-limited `/api/public/hazmat/calc`
+  + `/products` (shared `computeCalc`) and a public `/placard-calculator` landing page (session-free
+  PublicLayout, reusing the extracted `HazmatCalculatorForm`), answering with CFR citations. Typechecks
+  clean (api tsc + web vue-tsc). Remaining for SEO: prerender/meta for indexing (SPA route is live).
+- **M10** exact placard art (launch blocker; DOT Chart 17 + SME attestation) · **M11** ops readiness ·
+  **M9** §385.403 (build from CFR, provisional). **M8** SME real-BOL validation is the final step after build.
 
 ## Required actions before "live" (blockers)
 

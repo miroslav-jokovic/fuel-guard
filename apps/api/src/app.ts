@@ -26,6 +26,7 @@ import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { dispatchRouter } from "./routes/dispatch.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
+import { publicHazmatRouter } from "./routes/publicHazmat.js";
 import { complianceRouter } from "./routes/compliance.js";
 import { meRouter } from "./routes/me.js";
 import { meHazmatRouter } from "./routes/meHazmat.js";
@@ -113,12 +114,20 @@ export function createApp(env: Env): Express {
     standardHeaders: "draft-7",
     legacyHeaders: false,
   });
+  // M7: the public calculator is unauthenticated → its own tighter limiter on the abuse surface.
+  const calcLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 60,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  });
   app.use("/api", apiLimiter);
   app.use("/api/invites", strictLimiter);
   app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target
   app.use("/api/reports", strictLimiter);
   app.use("/api/integrations", strictLimiter);
   app.use("/api/ai", strictLimiter);
+  app.use("/api/public", calcLimiter); // M7 public calculator — unauthenticated, tighter limit
 
   app.get("/healthz", (_req: Request, res: Response) => {
     res.json({ status: "ok", service: `${APP_NAME} API`, env: env.NODE_ENV });
@@ -151,6 +160,7 @@ export function createApp(env: Env): Express {
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
+  app.use("/api/public/hazmat", publicHazmatRouter()); // M7: public, unauthenticated calculator + HMT lookup
   app.use("/api/hazmat", hazmatRouter());
   app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth

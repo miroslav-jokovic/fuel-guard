@@ -3,11 +3,13 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import AppShell from "@/layouts/AppShell.vue";
 import AuthLayout from "@/layouts/AuthLayout.vue";
+import PublicLayout from "@/layouts/PublicLayout.vue";
 import ToastContainer from "@/components/ToastContainer.vue";
 import UpdateBanner from "@/components/UpdateBanner.vue";
 
 const route = useRoute();
 const isAuthLayout = computed(() => route.meta.layout === "auth");
+const isPublicLayout = computed(() => route.meta.layout === "public");
 </script>
 
 <template>
@@ -16,6 +18,9 @@ const isAuthLayout = computed(() => route.meta.layout === "auth");
   <AuthLayout v-if="isAuthLayout">
     <RouterView />
   </AuthLayout>
+  <PublicLayout v-else-if="isPublicLayout">
+    <RouterView />
+  </PublicLayout>
   <AppShell v-else>
     <RouterView />
   </AppShell>

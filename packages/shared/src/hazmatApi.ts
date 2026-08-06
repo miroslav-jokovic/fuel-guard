@@ -17,6 +17,8 @@ export interface HazmatCalcResponse {
   engineVersion: string;
   datasetVersion: string;
   datasetProvisional: boolean;
+  /** M7: the placard-art release version — provisional (SPECIMENS) until M10 (§11.7). */
+  placardArtVersion?: string;
   verdict: unknown;
 }
 

@@ -13,12 +13,12 @@ import type { CalcResult } from "./calcModel";
 export * from "./calcModel";
 
 /** HMT product lookup for the picker. Blank query → curated fuel shortlist; else full-HMT search. */
-export function useHazmatProductsQuery(q: Ref<string>) {
+export function useHazmatProductsQuery(q: Ref<string>, basePath = "/api/hazmat") {
   return useQuery({
-    queryKey: computed(() => ["hazmat", "products", q.value.trim()] as const),
+    queryKey: computed(() => ["hazmat", "products", basePath, q.value.trim()] as const),
     queryFn: async (): Promise<HazmatProduct[]> => {
       const search = q.value.trim();
-      const path = search ? `/api/hazmat/products?q=${encodeURIComponent(search)}` : "/api/hazmat/products";
+      const path = search ? `${basePath}/products?q=${encodeURIComponent(search)}` : `${basePath}/products`;
       const res = await apiFetch<HazmatProductsResponse>(path);
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Product lookup failed");
       return res.data.products;
@@ -28,10 +28,10 @@ export function useHazmatProductsQuery(q: Ref<string>) {
 }
 
 /** Run the calculator. Returns the typed verdict (the API types `verdict` as unknown at the boundary). */
-export function useHazmatCalc() {
+export function useHazmatCalc(basePath = "/api/hazmat") {
   return useMutation({
     mutationFn: async (req: HazmatCalcRequest): Promise<CalcResult> => {
-      const res = await apiFetch<HazmatCalcResponse>("/api/hazmat/calc", { method: "POST", body: req });
+      const res = await apiFetch<HazmatCalcResponse>(`${basePath}/calc`, { method: "POST", body: req });
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Calculation failed");
       return { ...res.data, verdict: res.data.verdict as CalcResult["verdict"] };
     },

@@ -10,6 +10,7 @@ import { useHazmatProductsQuery } from "./useHazmatCalc";
  * row yields a canonical `hmtRef` — there is no free-text entry, so an unknown product simply cannot be
  * added (fail-closed at the source). Exact-substring only; never a fuzzy best-guess (resolveHmtLine rule).
  */
+const props = withDefaults(defineProps<{ basePath?: string }>(), { basePath: "/api/hazmat" });
 const emit = defineEmits<{ select: [product: HazmatProduct] }>();
 
 const query = ref("");
@@ -27,7 +28,7 @@ onBeforeUnmount(() => {
   if (timer) clearTimeout(timer);
 });
 
-const { data: products, isFetching, isError } = useHazmatProductsQuery(debounced);
+const { data: products, isFetching, isError } = useHazmatProductsQuery(debounced, props.basePath);
 
 function choose(p: HazmatProduct) {
   emit("select", p);

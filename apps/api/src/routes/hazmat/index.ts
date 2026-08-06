@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import {
-  hazmatCalcRequestSchema, type HazmatCalcRequest, type HazmatCalcResponse,
+  hazmatCalcRequestSchema, type HazmatCalcRequest,
   hazmatCreateLoadRequestSchema, type HazmatCreateLoadRequest,
   hazmatUpdateLoadRequestSchema, type HazmatUpdateLoadRequest,
   hazmatListLoadsQuerySchema,
@@ -17,8 +17,7 @@ import {
   HAZMAT_REVIEW_ROLES, HAZMAT_EQUIPMENT_WRITE_ROLES,
   rolesThatCanView, rolesThatManage,
 } from "@fuelguard/shared";
-import { evaluateLoad, type LoadInput } from "@hazmat/engine";
-import { loadDataset, loadReferenceText, LATEST_DATASET_VERSION, listDatasetVersions } from "@hazmat/data";
+import { loadDataset, loadReferenceText } from "@hazmat/data";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireModule } from "../../middleware/requireModule.js";
 import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
@@ -31,6 +30,7 @@ import {
 } from "../../services/hazmatLoads.js";
 import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
 import { startExtractionAnalysis } from "../../services/hazmatExtraction/orchestrate.js";
+import { computeCalc } from "../../services/hazmatCalc.js";
 import { searchProducts } from "../../services/hazmatProducts.js";
 import { listProfiles, createProfile, updateProfile, deleteProfile } from "../../services/hazmatProfiles.js";
 import { notifyDriverOfOutcome } from "../../services/hazmatNotify.js";
@@ -74,26 +74,9 @@ export function hazmatRouter(): Router {
 
   // ── stateless calculator (also the H12 licensed-API surface) ────────────────
   router.post("/calc", validateBody(hazmatCalcRequestSchema), asyncHandler(async (_req: Request, res: Response) => {
-    const body = res.locals.body as HazmatCalcRequest;
-    const version = body.datasetVersion ?? LATEST_DATASET_VERSION;
-    if (body.datasetVersion && !listDatasetVersions().includes(version)) {
-      res.status(400).json(apiError("unknown_dataset", `Unknown hazmat dataset version "${version}".`));
-      return;
-    }
-    const dataset = loadDataset(version);
-    const input = { evaluatedAt: new Date().toISOString(), ...(body.load as Record<string, unknown>), dataset } as unknown as LoadInput;
-    let verdict;
-    try {
-      verdict = evaluateLoad(input);
-    } catch (e) {
-      res.status(400).json(apiError("invalid_load", e instanceof Error ? e.message : "Invalid load input"));
-      return;
-    }
-    const response: HazmatCalcResponse = {
-      engineVersion: verdict.engineVersion, datasetVersion: dataset.version,
-      datasetProvisional: dataset.provisional, verdict,
-    };
-    res.json(response);
+    const result = computeCalc(res.locals.body as HazmatCalcRequest); // shared with the public M7 calculator
+    if ("code" in result) { res.status(400).json(apiError(result.code, result.message)); return; }
+    res.json(result);
   }));
 
   // ── HMT product lookup (manual pickers — H5 calculator + load workspace) ─────
