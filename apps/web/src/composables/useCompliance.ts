@@ -2,15 +2,17 @@ import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { CertificationCreateRequest, CertificationRow } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 /**
- * Compliance (certifications) data layer for the web. Everything goes through /api/compliance/* :
- * the create path uses the insert_certification RPC (auto-supersede) and is role-gated + audited
- * server-side, so the web never writes certifications via PostgREST directly. The list query is
- * reactive to the selected subject so a driver/carrier picker refetches on change.
+ * Compliance (certifications) data layer. Writes go through /api/compliance (insert_certification
+ * auto-supersede, role-gated + audited); the roster read goes direct via PostgREST (RLS-scoped),
+ * matching useDrivers. Everything is keyed under ["compliance"] so a write refreshes both the
+ * per-subject drawer and the roster status.
  */
 const CERTS_KEY = ["compliance", "certs"] as const;
 
+/** Current certifications for one subject (driver or carrier) — reactive to the selection. */
 export function useCertificationsQuery(subjectType: Ref<string>, subjectId: Ref<string | null>) {
   return useQuery({
     queryKey: [...CERTS_KEY, subjectType, subjectId] as const,
@@ -27,6 +29,31 @@ export function useCertificationsQuery(subjectType: Ref<string>, subjectId: Ref<
   });
 }
 
+export interface DriverCertRow {
+  subject_id: string;
+  kind: string;
+  qualifier: string | null;
+  training_type: string | null;
+  issued_at: string | null;
+  expires_at: string | null;
+}
+
+/** Every current driver certification for the org, in one read — powers the roster status column. */
+export function useAllDriverCertsQuery() {
+  return useQuery({
+    queryKey: ["compliance", "driver-certs"] as const,
+    queryFn: async (): Promise<DriverCertRow[]> => {
+      const { data, error } = await supabase
+        .from("certifications")
+        .select("subject_id, kind, qualifier, training_type, issued_at, expires_at")
+        .eq("subject_type", "driver")
+        .is("superseded_by", null);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as DriverCertRow[];
+    },
+  });
+}
+
 export function useCreateCertification() {
   const qc = useQueryClient();
   return useMutation({
@@ -38,6 +65,6 @@ export function useCreateCertification() {
       if (!res.ok) throw new Error(res.error?.message ?? "Failed to save the certification.");
       return res.data as { id: string; supersededId: string | null };
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: CERTS_KEY }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["compliance"] }),
   });
 }
