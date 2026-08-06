@@ -9,7 +9,7 @@ import { syncIdleEvents } from "./idleSync.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
 import { syncIdleRollup } from "./idleRollup.js";
 import { runDataRetention } from "./dataRetention.js";
-import { startJob, finishJob, JobConflictError, type JobKind } from "./jobs.js";
+import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —
@@ -70,6 +70,7 @@ async function runOrgTier(
     console.error(`[samsara-sched] ${kind} start failed for org ${orgId}:`, e instanceof Error ? e.message : e);
     return;
   }
+  const stopHeartbeat = startJobHeartbeat(admin, jobId); // P0-4: big-fleet stat syncs can outlive one lease
   try {
     const stats = await work();
     await finishJob(admin, jobId, { status: "done", stats });
@@ -80,6 +81,8 @@ async function runOrgTier(
     }
     await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
     console.error(`[samsara-sched] ${kind} failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+  } finally {
+    stopHeartbeat();
   }
 }
 

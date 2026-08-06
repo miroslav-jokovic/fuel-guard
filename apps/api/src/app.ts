@@ -84,6 +84,10 @@ export function createApp(env: Env): Express {
   app.use("/api/tms", ingestLimiter);
   app.use("/api/tms", tmsIngestRouter());
 
+  // Browser report upload (P0-1): a month of EFS rows as JSON can exceed the general 1mb cap — give
+  // ONLY this route a bigger parser (mounted first; express.json skips bodies already parsed).
+  app.use("/api/transactions/import-report", express.json({ limit: "25mb" }));
+
   // Capture the exact raw body so provider webhooks (Samsara) can be HMAC-verified byte-for-byte.
   app.use(
     express.json({

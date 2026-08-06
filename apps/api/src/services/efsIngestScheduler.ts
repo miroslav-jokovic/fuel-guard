@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { runJob, JobConflictError } from "./jobs.js";
+import { scoringDedupKey, runJob, JobConflictError } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
 import { runEfsIngest, buildIngestSource } from "./efsAutoIngest.js";
 
@@ -43,15 +43,22 @@ async function ingestOrg(admin: SupabaseClient, env: Env, orgId: string): Promis
   // runJob claims the (org, efs_ingest) slot, runs the batch in the background, and ALWAYS finishes the
   // job (done with stats, or failed with the error). A conflict → { conflict: true } is ignored (a run
   // is already active for this org). Work is captured so per-org outcomes reach the ledger + logs.
-  await runJob(admin, orgId, "efs_ingest", async () => {
-    const stats = await runEfsIngest(admin, env, source);
-    if (stats.found > 0) {
-      console.log(
-        `[efs-ingest] org ${orgId}: found ${stats.found}, ingested ${stats.ingested}, quarantined ${stats.quarantined}`,
-      );
-    }
-    return stats;
-  });
+  await runJob(
+    admin,
+    orgId,
+    "efs_ingest",
+    async () => {
+      const stats = await runEfsIngest(admin, env, source);
+      if (stats.found > 0) {
+        console.log(
+          `[efs-ingest] org ${orgId}: found ${stats.found}, ingested ${stats.ingested}, quarantined ${stats.quarantined}`,
+        );
+      }
+      return stats;
+    },
+    // P0-3: ingest scores its new rows inline → it holds the per-org scoring mutex.
+    { dedupKey: scoringDedupKey(orgId) },
+  );
 }
 
 export function startEfsIngestScheduler(env: Env): void {

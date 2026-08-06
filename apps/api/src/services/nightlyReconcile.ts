@@ -7,7 +7,7 @@ import { syncCardAssignments } from "./cardAssignments.js";
 import { reconcileAnomalyFlags } from "./anomalyFlagReconcile.js";
 import { backfillFillWeather } from "./fillWeather.js";
 import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
-import { startJob, finishJob, latestJob, JobConflictError } from "./jobs.js";
+import { startJob, finishJob, latestJob, startJobHeartbeat, scoringDedupKey, JobConflictError } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
 
 const TARGET_HOUR = 3; // org-local hour to run the nightly self-heal
@@ -116,17 +116,22 @@ export function startNightlyReconcileScheduler(env: Env): void {
         // In-process mode (default today): run inline through the ledger, exactly as before.
         let jobId: string;
         try {
-          jobId = await startJob(admin, o.id, "nightly_reconcile");
+          // P0-3: the nightly chain scores fills (efs sync + backfill) → it holds the scoring mutex,
+          // so it can never interleave with a user rebuild / import scoring for the same org.
+          jobId = await startJob(admin, o.id, "nightly_reconcile", { dedupKey: scoringDedupKey(o.id) });
         } catch (e) {
           if (e instanceof JobConflictError) continue; // already running
           throw e;
         }
+        const stopHeartbeat = startJobHeartbeat(admin, jobId); // P0-4: long chain keeps its lease
         try {
           const stats = await runNightlyReconcile(admin, env, o.id);
           await finishJob(admin, jobId, { status: "done", stats });
         } catch (e) {
           await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
           console.error(`[nightly-reconcile] org ${o.id} failed:`, e instanceof Error ? e.message : e);
+        } finally {
+          stopHeartbeat();
         }
       }
     } catch (e) {

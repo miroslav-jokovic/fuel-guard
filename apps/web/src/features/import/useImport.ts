@@ -5,7 +5,7 @@ import {
   normalizeAllTransactionLines,
   normalizeRejectRows,
   reconcileFuelLines,
-  derivePricePerGal,
+  type RawRow,
   type ReportKind,
   type ReconciledFuelLine,
   type ParsedDeclined,
@@ -16,7 +16,6 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 import { apiFetch } from "@/lib/api";
-import { genUuid } from "@/lib/uuid";
 import { readFile } from "@/lib/readFile";
 
 export interface ImportPreview {
@@ -25,6 +24,10 @@ export interface ImportPreview {
   filename: string;
   totalRows: number;
   fileHash: string;
+  /** Raw parsed file content — the COMMIT payload. The server re-runs the shared parser and the full
+   *  identity dedup (P0-1); everything else on this preview is display-only. */
+  headers: string[];
+  rows: RawRow[];
   alreadyImported: boolean; // true if this exact file was committed before
   // transaction
   allLines: EfsTransactionLine[]; // faithful, every line (preview + system of record)
@@ -115,6 +118,8 @@ export async function analyzeImport(
     filename: file.name,
     totalRows: rows.length,
     fileHash,
+    headers,
+    rows,
     alreadyImported,
     allLines: [] as EfsTransactionLine[],
     newFuel: [] as ReconciledFuelLine[],
@@ -174,194 +179,46 @@ export async function analyzeImport(
   return base;
 }
 
-const loc = (...parts: (string | null)[]) => parts.filter(Boolean).join(", ") || null;
-
 /** Result of a commit: how many expected-new rows did NOT land (null = could not verify). */
 export interface CommitResult {
   shortfallRows: number | null;
 }
 
-/** Commit a reviewed preview: faithful store + derived scoring events + declined, all idempotent. */
+/**
+ * Commit a reviewed preview — P0-1 (2026-08 audit): the browser no longer writes
+ * fuel_transactions/efs_transactions itself. It POSTs the raw rows to the server, which runs the SAME
+ * ingestReport pipeline as the email/SOAP channels: file-hash idempotency, external_ref dedup, the
+ * cross-channel transaction-id identity split AND the content-identity backstop (the guards the old
+ * client-side upsert bypassed — the twin-minting class of the duplication incident), the faithful
+ * store, declines, background scoring, and the post-commit shortfall reconciliation.
+ */
 export function useCommitImport() {
   const qc = useQueryClient();
   const session = useSessionStore();
   return useMutation({
     mutationFn: async (preview: ImportPreview): Promise<CommitResult> => {
       if (!session.orgId) throw new Error("No organization in session");
-      const org_id = session.orgId;
-
-      const inserted =
-        preview.kind === "transaction" ? preview.allLines.length : preview.newDeclined.length;
-      const basePayload = {
-        org_id,
-        source: preview.source,
-        kind: preview.kind === "reject" ? "reject" : "transaction",
-        filename: preview.filename,
-        status: "completed",
-        total_rows: preview.totalRows,
-        inserted_rows: inserted,
-        duplicate_rows: preview.duplicateFuelCount + preview.duplicateDeclinedCount,
-        skipped_rows: preview.skippedCount,
-        created_by: session.userId,
-      };
-      // Include file_hash only when migration 0017 has been applied; fall back without it.
-      // Cast to any because Supabase generated types won't include file_hash until types are regenerated.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const insertPayload: any = preview.fileHash ? { ...basePayload, file_hash: preview.fileHash } : basePayload;
-      let impResult = await supabase
-        .from("imports")
-        .insert(insertPayload)
-        .select("id")
-        .single();
-      if (impResult.error?.message?.includes("file_hash")) {
-        impResult = await supabase.from("imports").insert(basePayload).select("id").single();
+      const res = await apiFetch<{ shortfallRows: number | null; alreadyImported: boolean }>(
+        "/api/transactions/import-report",
+        {
+          method: "POST",
+          body: {
+            filename: preview.filename,
+            source: preview.source,
+            fileHash: preview.fileHash,
+            headers: preview.headers,
+            rows: preview.rows,
+          },
+        },
+      );
+      if (!res.ok) {
+        throw new Error(
+          res.status === 409
+            ? "An import or scoring run is already in progress for your organization — try again when it finishes."
+            : (res.error?.message ?? "Import failed"),
+        );
       }
-      const { data: imp, error: impErr } = impResult;
-      if (impErr || !imp) throw new Error(impErr?.message ?? "Could not create import record");
-      const importId = (imp as { id: string }).id;
-
-      if (preview.kind === "transaction") {
-        // 1) Faithful system of record — every line, every column, verbatim.
-        if (preview.allLines.length) {
-          const efsRows = preview.allLines.map((l) => ({
-            org_id,
-            import_id: importId,
-            line_number: l.line_number,
-            external_ref: l.external_ref,
-            card_num: l.card_num,
-            tran_date: l.tran_date,
-            fueled_at: l.fueled_at,
-            tran_time: l.tran_time,
-            invoice: l.invoice,
-            unit: l.unit,
-            driver_name: l.driver_name,
-            odometer: l.odometer,
-            location_name: l.location_name,
-            city: l.city,
-            state: l.state,
-            fees: l.fees,
-            item: l.item,
-            unit_price: l.unit_price,
-            qty: l.qty,
-            amt: l.amt,
-            db: l.db,
-            currency: l.currency,
-          }));
-          const { error } = await supabase
-            .from("efs_transactions")
-            .upsert(efsRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
-          if (error) throw new Error(error.message);
-        }
-
-        // 2) Derived fuel events for the anomaly engine.
-        if (preview.newFuel.length) {
-          const fuelRows = preview.newFuel.map((l) => ({
-            id: genUuid(),
-            org_id,
-            vehicle_id: l.vehicle_id,
-            driver_id: l.driver_id,
-            fueled_at: l.fueled_at,
-            fueled_at_precision: l.fueled_at_precision,
-            odometer: l.odometer,
-            gallons: l.gallons,
-            total_cost: l.total_cost,
-            price_per_gal: l.price_per_gal ?? derivePricePerGal(l.gallons, l.total_cost),
-            location_text: loc(l.location_text, l.city, l.state),
-            city: l.city,
-            state: l.state,
-            card_ref: l.card_ref,
-            tank_type: l.tank_type,
-            source: "fuel_card",
-            external_ref: l.external_ref,
-            import_id: importId,
-            entered_by: session.userId,
-          }));
-          const { error } = await supabase
-            .from("fuel_transactions")
-            .upsert(fuelRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
-          if (error) throw new Error(error.message);
-          // Score only THIS import's rows, in the background (returns immediately — no long wait).
-          try {
-            await apiFetch("/api/transactions/score-import", { method: "POST", body: { importId } });
-          } catch {
-            /* scoring can be retried; the upload itself is already committed */
-          }
-        }
-      }
-
-      if (preview.kind === "reject" && preview.newDeclined.length) {
-        const declinedRows = preview.newDeclined.map((d) => ({
-          org_id,
-          import_id: importId,
-          declined_at: d.declined_at,
-          card_ref: d.card_ref,
-          invoice: d.invoice,
-          location_id: d.location_id,
-          unit: d.unit,
-          driver_ext_id: d.driver_ext_id,
-          driver_name: d.driver_name,
-          location_text: d.location_text,
-          city: d.city,
-          state: d.state,
-          error_code: d.error_code,
-          error_description: d.error_description,
-          policy: d.policy,
-          policy_name: d.policy_name,
-          external_ref: d.external_ref,
-        }));
-        const { error } = await supabase
-          .from("declined_transactions")
-          .upsert(declinedRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
-        if (error) throw new Error(error.message);
-        // Score the declined attempts for theft signals in the background.
-        await apiFetch("/api/transactions/score-declined-import", { method: "POST", body: { importId } });
-      }
-
-      // 3) Post-commit reconciliation (runs LAST, after every insert): VERIFY what actually landed
-      // vs what the file contained, persist it on the import row, and return the shortfall so the
-      // UI can warn immediately. Silent losses (dedupe collisions, constraint drops) become visible
-      // numbers instead of being discovered weeks later on the dashboard.
-      let shortfallRows: number | null = null;
-      if (preview.kind === "transaction") {
-        const [{ count: efsCount }, { count: fuelCount }] = await Promise.all([
-          supabase.from("efs_transactions").select("id", { count: "exact", head: true }).eq("import_id", importId),
-          supabase.from("fuel_transactions").select("id", { count: "exact", head: true }).eq("import_id", importId),
-        ]);
-        const expectedNewEfs = preview.allLines.length - preview.duplicateEfsCount;
-        const shortEfs = efsCount == null ? null : Math.max(0, expectedNewEfs - efsCount);
-        const shortFuel = fuelCount == null ? null : Math.max(0, preview.newFuel.length - fuelCount);
-        shortfallRows = shortEfs == null && shortFuel == null ? null : (shortEfs ?? 0) + (shortFuel ?? 0);
-        const summary = {
-          report_from: preview.reportFrom,
-          report_to: preview.reportTo,
-          rows_by_day: preview.rowsByDay,
-          file_lines: preview.allLines.length,
-          expected_new_efs_lines: expectedNewEfs,
-          expected_new_fuel_events: preview.newFuel.length,
-          db_efs_lines: efsCount ?? null,
-          db_fuel_events: fuelCount ?? null,
-          shortfall_efs_lines: shortEfs,
-          shortfall_fuel_events: shortFuel,
-        };
-        await supabase.from("imports").update({ summary }).eq("id", importId);
-      } else if (preview.kind === "reject") {
-        const { count: decCount } = await supabase
-          .from("declined_transactions")
-          .select("id", { count: "exact", head: true })
-          .eq("import_id", importId);
-        shortfallRows = decCount == null ? null : Math.max(0, preview.newDeclined.length - decCount);
-        const summary = {
-          report_from: preview.reportFrom,
-          report_to: preview.reportTo,
-          rows_by_day: preview.rowsByDay,
-          expected_new_declines: preview.newDeclined.length,
-          db_declines: decCount ?? null,
-          shortfall_declines: shortfallRows,
-        };
-        await supabase.from("imports").update({ summary }).eq("id", importId);
-      }
-
-      return { shortfallRows };
+      return { shortfallRows: res.data?.shortfallRows ?? null };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["efs_transactions"] });

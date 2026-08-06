@@ -5,7 +5,7 @@ import { startJob, runJob, reclaimInterruptedJobs, JobConflictError } from "./jo
 /** Minimal fake covering exactly the call chains jobs.ts uses:
  *  from().insert().select().single()  and  from().update().eq().
  * `activeRow` (if set) is what the stale-reclaim lookup returns after a 23505. */
-function makeFake(opts: { conflictOnInsert?: boolean; activeRow?: { id: string; started_at: string } } = {}) {
+function makeFake(opts: { conflictOnInsert?: boolean; activeRow?: { id: string; started_at: string; lease_expires_at?: string | null } } = {}) {
   const inserts: Record<string, unknown>[] = [];
   const updates: { id: string; patch: Record<string, unknown> }[] = [];
   let idCounter = 0;
@@ -30,10 +30,12 @@ function makeFake(opts: { conflictOnInsert?: boolean; activeRow?: { id: string; 
             },
           };
         },
-        // The stale-reclaim lookup: select(...).eq().eq().in().order().limit().maybeSingle()
+        // The stale-reclaim lookup: select(...).eq()/.is()/.in().order().limit().maybeSingle()
         select() {
           const chain = {
             eq: () => chain,
+            is: () => chain,
+            or: () => chain,
             in: () => chain,
             order: () => chain,
             limit: () => chain,
@@ -50,6 +52,9 @@ function makeFake(opts: { conflictOnInsert?: boolean; activeRow?: { id: string; 
               return chain;
             },
             is() {
+              return chain;
+            },
+            or() {
               return chain;
             },
             in() {
@@ -85,13 +90,45 @@ describe("startJob", () => {
     await expect(startJob(admin, "org1", "rebuild")).rejects.toBeInstanceOf(JobConflictError);
   });
 
-  it("reclaims a STALE slot (crashed/wedged run) and takes it over", async () => {
+  it("reclaims a STALE no-lease slot (legacy crashed/wedged run) and takes it over", async () => {
     const threeHoursAgo = new Date(Date.now() - 3 * 3_600_000).toISOString();
     const { admin, updates } = makeFake({ conflictOnInsert: true, activeRow: { id: "dead", started_at: threeHoursAgo } });
     const id = await startJob(admin, "org1", "rebuild");
     expect(id).toBe("job-1"); // the retried insert succeeded
     const failed = updates.find((u) => u.id === "dead");
     expect(failed?.patch).toMatchObject({ status: "failed" }); // the stale row was reclaimed
+  });
+
+  it("P0-4: a long-running blocker with a LIVE lease is NEVER evicted, whatever its age", async () => {
+    // The old 2h age test started a duplicate run alongside a legitimately long backfill. With
+    // heartbeat leases, age is irrelevant: a live lease = live work = conflict.
+    const fiveHoursAgo = new Date(Date.now() - 5 * 3_600_000).toISOString();
+    const liveLease = new Date(Date.now() + 60_000).toISOString();
+    const { admin, updates } = makeFake({
+      conflictOnInsert: true,
+      activeRow: { id: "alive", started_at: fiveHoursAgo, lease_expires_at: liveLease },
+    });
+    await expect(startJob(admin, "org1", "rebuild")).rejects.toBeInstanceOf(JobConflictError);
+    expect(updates.find((u) => u.id === "alive")).toBeUndefined(); // untouched
+  });
+
+  it("P0-4: an EXPIRED lease is reclaimed promptly, even on a recent row (crashed process)", async () => {
+    const justNow = new Date(Date.now() - 60_000).toISOString();
+    const expiredLease = new Date(Date.now() - 1_000).toISOString();
+    const { admin, updates } = makeFake({
+      conflictOnInsert: true,
+      activeRow: { id: "crashed", started_at: justNow, lease_expires_at: expiredLease },
+    });
+    const id = await startJob(admin, "org1", "rebuild");
+    expect(id).toBe("job-1");
+    expect(updates.find((u) => u.id === "crashed")?.patch).toMatchObject({ status: "failed" });
+  });
+
+  it("P0-3: the dedup mutex key and a birth lease are persisted on the job row", async () => {
+    const { admin, inserts } = makeFake();
+    await startJob(admin, "org1", "rebuild", { dedupKey: "scoring:org1" });
+    expect(inserts[0]).toMatchObject({ dedup_key: "scoring:org1" });
+    expect(inserts[0]!.lease_expires_at).toBeTruthy(); // every job carries a lease from insert
   });
 });
 

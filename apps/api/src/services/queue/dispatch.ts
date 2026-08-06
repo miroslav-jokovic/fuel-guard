@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
-import { JobConflictError, runJob, type JobKind, type RunJobResult } from "../jobs.js";
+import {
+  JobConflictError, runJob, scoringDedupKey, SCORING_JOB_KINDS, type JobKind, type RunJobResult,
+} from "../jobs.js";
 import { enqueueJob } from "./enqueue.js";
 import { getHandler } from "./registry.js";
 import type { JobContext } from "./types.js";
@@ -27,12 +29,22 @@ export async function dispatchJob(
   kind: JobKind,
   opts: DispatchOpts,
 ): Promise<RunJobResult> {
+  // P0-3: every scoring-capable kind carries the per-org scoring mutex unless the caller set an
+  // explicit dedup key — so rebuild / backfill / ingest / import-scoring can never write scoring
+  // outcomes for one org concurrently, regardless of which kinds they entered through.
+  const dedupKey =
+    opts.dedupKey !== undefined
+      ? opts.dedupKey
+      : SCORING_JOB_KINDS.has(kind)
+        ? scoringDedupKey(opts.orgId)
+        : null;
+
   if (env.JOB_EXECUTION_MODE === "queue") {
     try {
       const jobId = await enqueueJob(admin, kind, {
         orgId: opts.orgId,
         payload: opts.payload,
-        dedupKey: opts.dedupKey,
+        dedupKey,
         requestedBy: opts.requestedBy,
       });
       return { jobId };
@@ -55,6 +67,8 @@ export async function dispatchJob(
         { id: jobId, org_id: opts.orgId, kind, payload: opts.payload ?? {}, attempts: 1, max_attempts: 1 },
         report,
       ),
-    { requestedBy: opts.requestedBy },
+    // P0-3/P0-4: the dedup mutex + requestedBy now reach the in-process ledger too (they were
+    // previously dropped here — the 0095 dedup index existed but nothing in this mode used it).
+    { requestedBy: opts.requestedBy, dedupKey },
   );
 }

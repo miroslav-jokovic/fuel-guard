@@ -10,6 +10,10 @@ import { syncFuelEventsFromEfs, scoreTouched } from "../services/efsSync.js";
 import { notifyForTransaction } from "../services/notifications.js";
 import { dispatchJob } from "../services/queue/dispatch.js";
 import { buildIngestSource } from "../services/efsAutoIngest.js";
+import {
+  startJob, finishJob, startJobHeartbeat, scoringDedupKey, JobConflictError,
+} from "../services/jobs.js";
+import { ingestReport } from "../services/efsIngest.js";
 
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running. */
 function jobResponse(res: import("express").Response, result: { jobId: string } | { conflict: true }): void {
@@ -40,7 +44,29 @@ export function transactionsRouter(): Router {
         res.status(404).json(apiError("not_found", "Transaction not found"));
         return;
       }
-      await scoreWithCascade(admin, env, orgId, id);
+      // P0-3: a single-fill score is a scoring WRITER like any other — it takes the per-org scoring
+      // mutex so it can never interleave with a rebuild/backfill/import scoring the same rows. Kept
+      // synchronous (the response contract is unchanged); a conflict is a clean 409, and the fill
+      // will be scored by whatever run currently owns the org anyway.
+      let jobId: string;
+      try {
+        jobId = await startJob(admin, orgId, "score_txn", {
+          dedupKey: scoringDedupKey(orgId), requestedBy: req.auth!.userId,
+        });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("scoring_busy", "A scoring run is active for this organization — the fill will be scored by it; try again in a moment if you need a manual re-score."));
+          return;
+        }
+        throw e;
+      }
+      try {
+        await scoreWithCascade(admin, env, orgId, id);
+        await finishJob(admin, jobId, { status: "done", stats: { txnId: id } });
+      } catch (e) {
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        throw e;
+      }
 
       // Best-effort high/critical email alert (never blocks scoring).
       try {
@@ -102,6 +128,90 @@ export function transactionsRouter(): Router {
         orgId, payload: { orgId, actorId }, requestedBy: actorId,
       });
       jobResponse(res, result);
+    }),
+  );
+
+  // P0-1 (2026-08 audit): the browser upload path. The web app used to parse the file AND write
+  // fuel_transactions/efs_transactions directly from the browser with only the external_ref guard —
+  // bypassing the transaction-id and content-identity dedup that the server ingest runs, i.e. the
+  // exact twin-minting class of the duplication incident. The client now parses (for the review
+  // preview) and POSTs the raw rows here; the server runs the SAME ingestReport pipeline as the
+  // email/SOAP channels — one write path, one set of identity guards. Scoring is dispatched as the
+  // background score_import/score_declined_import jobs (as the client did before), under the per-org
+  // scoring mutex.
+  router.post(
+    "/import-report",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const actorId = req.auth!.userId;
+      const parsed = z
+        .object({
+          filename: z.string().min(1).max(300),
+          source: z.enum(["xlsx", "csv"]),
+          fileHash: z.string().regex(/^[0-9a-f]{64}$/),
+          headers: z.array(z.string()).min(1).max(300),
+          rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))).max(50_000),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_request", "Invalid import payload"));
+        return;
+      }
+      let jobId: string;
+      try {
+        jobId = await startJob(admin, orgId, "efs_ingest", {
+          dedupKey: scoringDedupKey(orgId), requestedBy: actorId,
+        });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("scoring_busy", "An import or scoring run is already active for this organization — try again when it finishes."));
+          return;
+        }
+        throw e;
+      }
+      const stopHeartbeat = startJobHeartbeat(admin, jobId);
+      try {
+        const result = await ingestReport(
+          admin,
+          env,
+          {
+            orgId,
+            requestedBy: actorId,
+            source: parsed.data.source,
+            filename: parsed.data.filename,
+            fileHash: parsed.data.fileHash,
+            headers: parsed.data.headers,
+            rows: parsed.data.rows,
+            channel: "manual",
+          },
+          // Scoring is deferred to its own jobs below — running it inline would hold this HTTP
+          // request (and the scoring mutex) for the whole live-recon pass of a large upload.
+          { scoreImport: async () => {}, scoreDeclined: async () => {} },
+        );
+        await finishJob(admin, jobId, {
+          status: "done",
+          stats: { kind: result.kind, newFuel: result.newFuel, enriched: result.enrichedFuel ?? 0, newDeclined: result.newDeclined, alreadyImported: result.alreadyImported },
+        });
+        // Background scoring, exactly what the browser used to trigger itself. A conflict (another
+        // scoring run took the mutex meanwhile) is fine: the nightly reconcile scores never-reconciled
+        // rows, so nothing is lost — only delayed.
+        if (result.importId && result.newFuel > 0) {
+          void dispatchJob(admin, env, "score_import", { orgId, payload: { importId: result.importId, actorId }, requestedBy: actorId });
+        }
+        if (result.importId && result.newDeclined > 0) {
+          void dispatchJob(admin, env, "score_declined_import", { orgId, payload: { importId: result.importId, actorId }, requestedBy: actorId });
+        }
+        res.json(result);
+      } catch (e) {
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        throw e;
+      } finally {
+        stopHeartbeat();
+      }
     }),
   );
 
@@ -183,15 +293,47 @@ export function transactionsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const actorId = req.auth!.userId;
-      const { touchedIds, ...counts } = await syncFuelEventsFromEfs(admin, orgId, actorId);
-      await writeAudit(admin, { orgId, actorId, action: "transactions.sync_from_efs", meta: { ...counts, toScore: touchedIds.length } });
-      res.json({ ...counts, scoringQueued: touchedIds.length });
-      if (touchedIds.length) {
-        void (async () => {
-          const scored = await scoreTouched(admin, env, orgId, touchedIds);
-          await writeAudit(admin, { orgId, actorId, action: "transactions.sync_from_efs_scored", meta: { scored } });
-        })();
+      // P0-3: this route both WRITES fills (repair inserts/updates) and SCORES them — previously with
+      // no lock at all, so two clicks (or a click during the nightly) ran concurrent repair+scoring.
+      // It now holds the per-org scoring mutex for the whole repair AND the background re-score, so
+      // the slot releases only when everything it touched is consistent.
+      let jobId: string;
+      try {
+        jobId = await startJob(admin, orgId, "efs_store_sync", {
+          dedupKey: scoringDedupKey(orgId), requestedBy: actorId,
+        });
+      } catch (e) {
+        if (e instanceof JobConflictError) {
+          res.status(409).json(apiError("scoring_busy", "A scoring/repair run is already active for this organization — try again when it finishes."));
+          return;
+        }
+        throw e;
       }
+      const stopHeartbeat = startJobHeartbeat(admin, jobId);
+      let counts: Omit<Awaited<ReturnType<typeof syncFuelEventsFromEfs>>, "touchedIds">;
+      let touchedIds: string[];
+      try {
+        ({ touchedIds, ...counts } = await syncFuelEventsFromEfs(admin, orgId, actorId));
+        await writeAudit(admin, { orgId, actorId, action: "transactions.sync_from_efs", meta: { ...counts, toScore: touchedIds.length } });
+      } catch (e) {
+        stopHeartbeat();
+        await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        throw e;
+      }
+      res.json({ ...counts, scoringQueued: touchedIds.length });
+      void (async () => {
+        try {
+          const scored = touchedIds.length ? await scoreTouched(admin, env, orgId, touchedIds) : 0;
+          if (touchedIds.length) {
+            await writeAudit(admin, { orgId, actorId, action: "transactions.sync_from_efs_scored", meta: { scored } });
+          }
+          await finishJob(admin, jobId, { status: "done", stats: { ...counts, scored } });
+        } catch (e) {
+          await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+        } finally {
+          stopHeartbeat();
+        }
+      })();
     }),
   );
 
