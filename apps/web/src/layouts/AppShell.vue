@@ -60,13 +60,13 @@ const activeClass = (to: string) =>
 /** Full expanded nav link — used in mobile drawer and expanded desktop sidebar. */
 const navLinkClass = (to: string) => [
   activeClass(to),
-  "sidebar-nav-item group flex min-h-10 items-center gap-x-3 rounded-xl px-3 py-2 text-sm font-medium leading-6",
+  "sidebar-nav-item group flex min-h-9 items-center gap-x-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium leading-5",
 ];
 
 /** Icon-only nav link — used in collapsed desktop sidebar. */
 const navLinkClassCollapsed = (to: string) => [
   activeClass(to),
-  "sidebar-nav-item flex min-h-10 items-center justify-center rounded-xl p-2.5",
+  "sidebar-nav-item flex min-h-9 items-center justify-center rounded-lg p-2",
 ];
 
 // Avatar initials from email (first char, uppercased).
@@ -112,9 +112,13 @@ async function signOut() {
             leave-from="translate-x-0"
             leave-to="-translate-x-full"
           >
-            <DialogPanel class="relative mr-16 flex w-full max-w-xs flex-1">
-              <div class="absolute top-0 left-full flex w-16 justify-center pt-5">
-                <button type="button" class="-m-2.5 p-2.5" @click="mobileOpen = false">
+            <DialogPanel class="relative mr-14 flex w-full max-w-[18.5rem] flex-1">
+              <div class="absolute top-0 left-full flex w-14 justify-center pt-3.5">
+                <button
+                  type="button"
+                  class="sidebar-drawer-control -m-2.5 rounded-lg p-2.5"
+                  @click="mobileOpen = false"
+                >
                   <span class="sr-only">Close sidebar</span>
                   <AppIcon :icon="XMarkIcon" class="size-6 text-white" aria-hidden="true" />
                 </button>
@@ -123,12 +127,12 @@ async function signOut() {
               <div class="sidebar-glass relative flex grow overflow-hidden border-r">
                 <div class="sidebar-glass-material" aria-hidden="true" />
                 <div
-                  class="sidebar-glass-content flex min-h-0 grow flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-4 pb-4"
+                  class="sidebar-glass-content flex min-h-0 grow flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-3 pb-3"
                 >
                   <div
-                    class="flex h-16 shrink-0 items-center gap-x-3 border-b border-white/[0.08] px-1"
+                    class="sidebar-divider flex h-14 shrink-0 items-center gap-x-2.5 border-b px-1.5"
                   >
-                    <AppLogo class="size-8 shrink-0" :dark="true" />
+                    <AppLogo class="size-7 shrink-0" :dark="true" />
                     <img
                       src="/logo-wordmark.png"
                       alt="FuelGuard"
@@ -136,12 +140,12 @@ async function signOut() {
                       draggable="false"
                     />
                   </div>
-                  <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-3">
+                  <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-2">
                     <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
                       <template v-for="group in navGroups" :key="group.label ?? '_top'">
                         <li
                           v-if="group.label"
-                          class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-400 first:mt-2"
+                          class="sidebar-section-label mb-1 mt-4 px-2.5 text-xs font-medium first:mt-2"
                         >
                           {{ group.label }}
                         </li>
@@ -155,7 +159,7 @@ async function signOut() {
                             <span class="flex-1">{{ item.name }}</span>
                             <span
                               v-if="item.badge"
-                              class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-ink-inverse"
+                              class="sidebar-nav-badge rounded-full px-1.5 py-0.5 text-xs font-semibold"
                               >{{ item.badge }}</span
                             >
                           </RouterLink>
@@ -164,7 +168,7 @@ async function signOut() {
                     </ul>
                   </nav>
                   <!-- Account menu at the bottom of the mobile drawer. -->
-                  <div class="mt-4 border-t border-white/[0.08] pt-3">
+                  <div class="sidebar-divider mt-4 border-t pt-3">
                     <SidebarProfileMenu
                       :email="session.email"
                       :role="session.role"
@@ -183,17 +187,17 @@ async function signOut() {
     <!-- ── Desktop sidebar (lg+, fixed, collapsible) ─────────────────────── -->
     <div
       class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-[width] duration-300 ease-out motion-reduce:transition-none"
-      :class="sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'"
+      :class="sidebarCollapsed ? 'lg:w-[3.75rem]' : 'lg:w-[17rem]'"
     >
       <div class="sidebar-glass relative flex grow overflow-hidden border-r">
         <div class="sidebar-glass-material" aria-hidden="true" />
         <div class="sidebar-glass-content flex min-h-0 grow flex-col overflow-x-hidden">
           <!-- Sidebar header -->
           <div
-            class="flex h-16 shrink-0 items-center border-b border-white/[0.08]"
-            :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-3 px-5'"
+            class="sidebar-divider flex h-14 shrink-0 items-center border-b"
+            :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-2.5 px-4'"
           >
-            <AppLogo class="size-8 shrink-0" :dark="true" />
+            <AppLogo class="size-7 shrink-0" :dark="true" />
             <img
               v-if="!sidebarCollapsed"
               src="/logo-wordmark.png"
@@ -207,15 +211,15 @@ async function signOut() {
           <nav
             id="desktop-sidebar-navigation"
             aria-label="Primary navigation"
-            class="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-3"
-            :class="sidebarCollapsed ? 'px-2' : 'px-4'"
+            class="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-2"
+            :class="sidebarCollapsed ? 'px-2' : 'px-3'"
           >
             <!-- Expanded: grouped section labels + full links -->
             <ul v-if="!sidebarCollapsed" role="list" class="flex flex-1 flex-col gap-y-0.5">
               <template v-for="group in navGroups" :key="group.label ?? '_top'">
                 <li
                   v-if="group.label"
-                  class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-400"
+                  class="sidebar-section-label mb-1 mt-4 px-2.5 text-xs font-medium"
                 >
                   {{ group.label }}
                 </li>
@@ -229,7 +233,7 @@ async function signOut() {
                     <span class="flex-1">{{ item.name }}</span>
                     <span
                       v-if="item.badge"
-                      class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-ink-inverse"
+                      class="sidebar-nav-badge rounded-full px-1.5 py-0.5 text-xs font-semibold"
                       >{{ item.badge }}</span
                     >
                   </RouterLink>
@@ -260,8 +264,8 @@ async function signOut() {
 
           <!-- Account control stays visually separate from primary navigation. -->
           <div
-            class="mt-2 shrink-0 border-t border-white/[0.08] py-3"
-            :class="sidebarCollapsed ? 'px-2' : 'px-3'"
+            class="sidebar-divider mt-2 shrink-0 border-t py-2.5"
+            :class="sidebarCollapsed ? 'px-2' : 'px-2.5'"
           >
             <SidebarProfileMenu
               :email="session.email"
@@ -278,16 +282,16 @@ async function signOut() {
     <!-- ── Main content area ─────────────────────────────────────────────── -->
     <div
       class="transition-[padding] duration-300 ease-out motion-reduce:transition-none"
-      :class="sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'"
+      :class="sidebarCollapsed ? 'lg:pl-[3.75rem]' : 'lg:pl-[17rem]'"
     >
       <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
-        class="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-x-4 border-b border-edge bg-surface px-4 shadow-sm sm:px-6 lg:px-8"
+        class="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-x-4 border-b border-edge bg-surface px-4 shadow-sm sm:px-6 lg:px-8"
       >
         <div class="flex items-center gap-x-3">
           <button
             type="button"
-            class="-m-2.5 p-2.5 text-ink-secondary lg:hidden"
+            class="sidebar-shell-toggle -m-2.5 rounded-lg p-2.5 text-ink-secondary lg:hidden"
             @click="mobileOpen = true"
           >
             <span class="sr-only">Open sidebar</span>
@@ -295,7 +299,7 @@ async function signOut() {
           </button>
           <button
             type="button"
-            class="-ml-2 hidden size-9 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 lg:inline-flex"
+            class="sidebar-shell-toggle -ml-2 hidden size-9 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink lg:inline-flex"
             :title="sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'"
             :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
             :aria-expanded="!sidebarCollapsed"

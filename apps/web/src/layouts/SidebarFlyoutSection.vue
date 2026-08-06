@@ -57,7 +57,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
       :id="`${sectionId}-trigger`"
       ref="triggerRef"
       type="button"
-      class="sidebar-nav-item flex min-h-10 w-full items-center justify-center rounded-xl p-2.5"
+      class="sidebar-nav-item flex min-h-9 w-full items-center justify-center rounded-lg p-2"
       :class="sectionActive() ? 'sidebar-nav-active' : 'sidebar-nav-inactive'"
       :aria-label="group.label ?? undefined"
       :aria-expanded="open"
@@ -74,7 +74,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
         :id="`${sectionId}-panel`"
         ref="panelRef"
         :style="floatingStyles"
-        class="sidebar-glass-popover z-[9999] min-w-56 rounded-2xl p-2"
+        class="sidebar-glass-popover z-[9999] min-w-56 rounded-xl p-1.5"
         role="group"
         :aria-labelledby="`${sectionId}-trigger`"
         @mouseenter="openNow"
@@ -84,7 +84,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
         <div class="sidebar-glass-material" aria-hidden="true" />
         <div class="sidebar-glass-content">
           <p
-            class="px-2 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-neutral-400"
+            class="sidebar-section-label px-2.5 pb-1.5 pt-1.5 text-xs font-medium"
           >
             {{ group.label }}
           </p>
@@ -92,7 +92,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
             v-for="item in group.items"
             :key="item.name"
             :to="item.to"
-            class="sidebar-nav-item group flex min-h-10 items-center gap-x-3 rounded-lg px-2.5 py-2 text-sm font-medium leading-6"
+            class="sidebar-nav-item group flex min-h-9 items-center gap-x-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium leading-5"
             :class="isCurrent(item.to) ? 'sidebar-nav-active' : 'sidebar-nav-inactive'"
             :aria-current="isCurrent(item.to) ? 'page' : undefined"
             @click="open = false"

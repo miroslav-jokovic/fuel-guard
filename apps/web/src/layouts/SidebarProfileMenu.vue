@@ -29,11 +29,11 @@ const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "S
     <template #trigger>
       <div
         v-if="collapsed"
-        class="flex size-10 items-center justify-center rounded-xl transition-colors hover:bg-white/[0.08]"
+        class="flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-white/[0.06]"
         :title="email ?? undefined"
       >
         <span
-          class="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white shadow"
+          class="sidebar-avatar flex size-7 items-center justify-center rounded-full text-xs font-semibold"
           aria-hidden="true"
         >
           {{ avatarLetter }}
@@ -41,29 +41,29 @@ const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "S
       </div>
       <div
         v-else
-        class="group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/[0.08]"
+        class="group flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/[0.06]"
       >
         <span
-          class="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white shadow"
+          class="sidebar-avatar flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
           aria-hidden="true"
         >
           {{ avatarLetter }}
         </span>
         <span class="min-w-0 flex-1">
           <span class="block truncate text-sm font-semibold text-white">{{ email }}</span>
-          <span class="mt-0.5 block truncate text-xs text-neutral-300">{{ roleLabel }}</span>
+          <span class="sidebar-muted mt-0.5 block truncate text-xs">{{ roleLabel }}</span>
         </span>
         <AppIcon
           :icon="ChevronUpDownIcon"
-          class="size-4 shrink-0 text-neutral-400 transition-colors group-hover:text-neutral-200"
+          class="sidebar-muted size-4 shrink-0 transition-colors group-hover:text-white"
           aria-hidden="true"
         />
       </div>
     </template>
 
-    <div class="border-b border-white/[0.09] px-3 py-2.5">
+    <div class="sidebar-divider border-b px-3 py-2.5">
       <p class="truncate text-sm font-semibold text-white">{{ email }}</p>
-      <p class="mt-0.5 text-xs text-neutral-400">{{ roleLabel }}</p>
+      <p class="sidebar-muted mt-0.5 text-xs">{{ roleLabel }}</p>
     </div>
     <RouterLink v-if="canManage" to="/settings" class="sidebar-account-item">Settings</RouterLink>
     <button type="button" class="sidebar-account-item text-danger-300 hover:text-danger-200" @click="emit('signOut')">
