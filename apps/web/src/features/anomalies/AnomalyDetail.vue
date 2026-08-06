@@ -4,6 +4,7 @@ import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
+import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";
 
 const props = defineProps<{ anomaly: Anomaly; vehicleUnit: string }>();
@@ -33,6 +34,9 @@ const {
     </div>
 
     <p class="text-sm leading-relaxed text-ink">{{ anomaly.message }}</p>
+
+    <!-- Entity-intelligence panel (Phases 1–2): reviewer context + retrospective pattern report -->
+    <EntityHistory :anomaly-id="anomaly.id" />
 
     <!-- ② Case score banner (theft_case only) -->
     <div

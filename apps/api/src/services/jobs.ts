@@ -28,6 +28,7 @@ export type JobKind =
   | "snapshot_driver_week"
   | "hazmat_extract"
   | "hazmat_analyze"
+  | "pattern_sweep"       // entity-intelligence Phase 2: read-only retrospective analysis of a flagged case
   | "data_retention";   // daily retention-policy enforcement (services/dataRetention.ts)
 
 /**

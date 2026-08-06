@@ -5,11 +5,74 @@ import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
+import { loadEntityRiskContext } from "../services/entityRisk.js";
+import { dispatchJob } from "../services/queue/dispatch.js";
 
 
 export function anomaliesRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+
+  // Entity-intelligence Phase 1 — derived-on-read risk snapshot for the case's driver/vehicle/card.
+  router.get(
+    "/:id/risk-context",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const { data: anom } = await admin
+        .from("anomalies").select("id, transaction_id").eq("id", id).eq("org_id", orgId).maybeSingle();
+      if (!anom) { res.status(404).json(apiError("not_found", "Anomaly not found")); return; }
+      let entities: { driverId?: string | null; vehicleId?: string | null; cardRef?: string | null } = {};
+      if (anom.transaction_id) {
+        const { data: txn } = await admin
+          .from("fuel_transactions").select("driver_id, vehicle_id, card_ref")
+          .eq("id", anom.transaction_id as string).maybeSingle();
+        if (txn) entities = { driverId: txn.driver_id as string | null, vehicleId: txn.vehicle_id as string | null, cardRef: txn.card_ref as string | null };
+      }
+      res.json(await loadEntityRiskContext(admin, orgId, entities));
+    }),
+  );
+
+  // Entity-intelligence Phase 2 — the persisted retrospective pattern report for a case.
+  router.get(
+    "/:id/pattern-report",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const { data } = await admin
+        .from("case_pattern_reports")
+        .select("report, lookback_days, generated_at")
+        .eq("anomaly_id", id).eq("org_id", orgId).maybeSingle();
+      if (!data) { res.status(404).json(apiError("not_found", "No pattern report for this case yet")); return; }
+      res.json(data);
+    }),
+  );
+
+  // On-demand sweep (reviewer button; also covers rebuild-created cases, which don't auto-sweep).
+  router.post(
+    "/:id/sweep",
+    requireOrg,
+    requireRole("admin", "fleet_manager", "safety_manager"),
+    asyncHandler(async (req, res) => {
+      const env = getAppLocals(req).env;
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const { data: anom } = await admin
+        .from("anomalies").select("id").eq("id", id).eq("org_id", orgId).maybeSingle();
+      if (!anom) { res.status(404).json(apiError("not_found", "Anomaly not found")); return; }
+      // Small enough to run synchronously via the job ledger when free; per-anomaly dedup key.
+      const result = await dispatchJob(admin, env, "pattern_sweep", {
+        orgId, payload: { anomalyId: id }, dedupKey: `sweep:${id}`, requestedBy: req.auth!.userId,
+      });
+      if ("conflict" in result) { res.status(409).json(apiError("job_running", "A sweep for this case is already running")); return; }
+      res.status(202).json({ ok: true, jobId: result.jobId });
+    }),
+  );
 
   // Workflow transition with optimistic concurrency (audit H6) + audit trail (H9).
   router.post(

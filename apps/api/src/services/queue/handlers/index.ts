@@ -5,6 +5,7 @@ import { efsSoapHandler } from "./efsSoap.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
 import {
   backfillHandler,
+  patternSweepHandler,
   rebuildHandler,
   rescoreDeclinedHandler,
   scoreDeclinedImportHandler,
@@ -39,6 +40,7 @@ export function registerAllHandlers(): void {
   registerHandler("score_import", scoreImportHandler);
   registerHandler("score_declined_import", scoreDeclinedImportHandler);
   registerHandler("rescore_declined", rescoreDeclinedHandler);
+  registerHandler("pattern_sweep", patternSweepHandler);
   // WQ1c — Samsara/telematics sync + nightly reconcile (vendor-calling; bounded lane via Q7 kindCaps).
   registerHandler("sync_vehicles", syncVehiclesHandler);
   registerHandler("sync_stats", syncStatsHandler);

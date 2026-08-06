@@ -1,4 +1,5 @@
 import { backfillOrg, scoreImportWithCascade } from "../../scoring/index.js";
+import { runPatternSweep } from "../../entityRisk.js";
 import { scoreDeclinedImport, scoreDeclinedOrg } from "../../declinedScoring.js";
 import { writeAudit } from "../../../lib/audit.js";
 import { jobCancelRequested } from "../../jobs.js";
@@ -69,4 +70,13 @@ export const rescoreDeclinedHandler: JobHandler = async (ctx, job) => {
   const count = await scoreDeclinedOrg(ctx.admin, ctx.env, job.org_id);
   await writeAudit(ctx.admin, { orgId: job.org_id, actorId, action: "declined.rescore", meta: { count } });
   return { count };
+};
+
+/** Entity-intelligence Phase 2 (2026-08): retrospective pattern sweep for one flagged case. Read-only
+ *  against scoring data (writes only case_pattern_reports), so it carries NO scoring mutex — it can
+ *  run while a rebuild scores, and a re-run simply replaces the report (idempotent upsert). */
+export const patternSweepHandler: JobHandler = async (ctx, job) => {
+  const anomalyId = asStr(job.payload.anomalyId) ?? "";
+  const r = await runPatternSweep(ctx.admin, job.org_id, anomalyId);
+  return { anomalyId, generated: r.generated, ...(r.reason ? { reason: r.reason } : {}) };
 };
