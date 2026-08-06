@@ -60,13 +60,13 @@ const activeClass = (to: string) =>
 /** Full expanded nav link — used in mobile drawer and expanded desktop sidebar. */
 const navLinkClass = (to: string) => [
   activeClass(to),
-  "group flex items-center gap-x-3 rounded-xl px-3 py-2 text-sm font-medium leading-6 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 motion-reduce:transition-none",
+  "sidebar-nav-item group flex min-h-10 items-center gap-x-3 rounded-xl px-3 py-2 text-sm font-medium leading-6",
 ];
 
 /** Icon-only nav link — used in collapsed desktop sidebar. */
 const navLinkClassCollapsed = (to: string) => [
   activeClass(to),
-  "flex items-center justify-center rounded-xl p-2.5 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 motion-reduce:transition-none",
+  "sidebar-nav-item flex min-h-10 items-center justify-center rounded-xl p-2.5",
 ];
 
 // Avatar initials from email (first char, uppercased).
