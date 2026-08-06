@@ -60,6 +60,10 @@ const firedTrace = computed(() => v.value.trace.filter((t) => t.fired));
           <CitationText :citations="p.because" />
         </div>
       </div>
+      <p v-if="v.placards.required.length" class="mt-3 text-xs text-ink-subtle">
+        Placard images are <strong>specimens</strong> for identification, not regulation-ready artwork
+        (49 CFR §172.519).
+      </p>
     </BaseCard>
 
     <!-- ID displays -->

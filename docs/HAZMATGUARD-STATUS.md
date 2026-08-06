@@ -83,7 +83,14 @@ Committed to `main` (2df6ded → 142ee48):
   + `/products` (shared `computeCalc`) and a public `/placard-calculator` landing page (session-free
   PublicLayout, reusing the extracted `HazmatCalculatorForm`), answering with CFR citations. Typechecks
   clean (api tsc + web vue-tsc). Remaining for SEO: prerender/meta for indexing (SPA route is live).
-- **M10** exact placard art (launch blocker; DOT Chart 17 + SME attestation) · **M11** ops readiness ·
+- **M10 — placard-art provenance/regression/labeling infra: BUILT (provisional).** `@hazmat/placards/
+  provenance.ts` — per-placard provenance (source DOT Chart 17 2022-10-06, §172.519 geometry, §172.407(d)(5)
+  PANTONE 186U/151U/109U/335U/285U — all eCFR-verified), a SHA-256 pin over all 25 rendered SVGs (visual-
+  regression test), and specimen labeling now on every calc surface (VerdictPanel + PublicLayout + packet).
+  `PLACARD_ART_ATTESTED=false`, `symbolProvisional` unchanged. **Remaining (design + SME, launch blocker):**
+  trace the placeholder pictograms from DOT Chart 17, confirm PANTONE/geometry, per-placard SME sign-off →
+  flip `symbolProvisional`/`attested`. Cannot be derived from the CFR text — needs the source artwork.
+- **M11** ops readiness ·
   **M9** §385.403 (build from CFR, provisional). **M8** SME real-BOL validation is the final step after build.
 
 ## Required actions before "live" (blockers)
