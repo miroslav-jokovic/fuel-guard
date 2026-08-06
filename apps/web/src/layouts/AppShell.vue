@@ -55,9 +55,7 @@ const isCurrent = (to: string): boolean => {
 };
 
 const activeClass = (to: string) =>
-  isCurrent(to)
-    ? "bg-white/[0.12] text-white ring-1 ring-inset ring-white/[0.16] shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_6px_18px_rgb(0_0_0/0.08)]"
-    : "text-neutral-300 hover:bg-white/[0.085] hover:text-white";
+  isCurrent(to) ? "sidebar-nav-active" : "sidebar-nav-inactive";
 
 /** Full expanded nav link — used in mobile drawer and expanded desktop sidebar. */
 const navLinkClass = (to: string) => [
@@ -132,7 +130,7 @@ async function signOut() {
                     <template v-for="group in navGroups" :key="group.label ?? '_top'">
                       <li
                         v-if="group.label"
-                        class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-500 first:mt-2"
+                        class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-400 first:mt-2"
                       >
                         {{ group.label }}
                       </li>
@@ -188,7 +186,7 @@ async function signOut() {
             <template v-for="group in navGroups" :key="group.label ?? '_top'">
               <li
                 v-if="group.label"
-                class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-500"
+                class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-400"
               >
                 {{ group.label }}
               </li>

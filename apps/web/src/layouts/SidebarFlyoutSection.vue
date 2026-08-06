@@ -58,7 +58,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
       ref="triggerRef"
       type="button"
       class="flex w-full items-center justify-center rounded-xl p-2.5 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 motion-reduce:transition-none"
-      :class="sectionActive() ? 'bg-white/[0.12] text-white ring-1 ring-inset ring-white/[0.16] shadow-sm' : 'text-neutral-300 hover:bg-white/[0.085] hover:text-white'"
+      :class="sectionActive() ? 'sidebar-nav-active' : 'sidebar-nav-inactive'"
       :aria-label="group.label ?? undefined"
       :aria-expanded="open"
       :aria-controls="`${sectionId}-panel`"
@@ -81,13 +81,13 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
         @mouseleave="closeSoon"
         @keydown.escape.stop.prevent="closeAndReturnFocus"
       >
-        <p class="px-2 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-neutral-500">{{ group.label }}</p>
+        <p class="px-2 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-neutral-400">{{ group.label }}</p>
         <RouterLink
           v-for="item in group.items"
           :key="item.name"
           :to="item.to"
           class="group flex items-center gap-x-3 rounded-lg px-2.5 py-2 text-sm font-medium leading-6 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 motion-reduce:transition-none"
-          :class="isCurrent(item.to) ? 'bg-white/[0.12] text-white ring-1 ring-inset ring-white/[0.16]' : 'text-neutral-300 hover:bg-white/[0.085] hover:text-white'"
+          :class="isCurrent(item.to) ? 'sidebar-nav-active' : 'sidebar-nav-inactive'"
           :aria-current="isCurrent(item.to) ? 'page' : undefined"
           @click="open = false"
         >
