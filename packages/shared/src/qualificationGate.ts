@@ -119,9 +119,11 @@ export interface OrgQualInput {
   /** CURRENT organization-level certifications. */
   certs: QualCertSnapshot[];
   /** M9 (§5.1 conditional): the load trips the §172.800(b) large-bulk security-plan criterion.
-   *  Computed from the load's materials by the DB-facing gate (provisional applicability, SME-pending).
-   *  §385.403 (FMCSA safety permit) is intentionally NOT evaluated in v1 — SME attestation pending. */
+   *  Computed from the load's materials by the DB-facing gate (provisional applicability, SME-pending). */
   requiresSecurityPlan?: boolean;
+  /** M9 (§5.1 conditional): the load trips the §385.403(b) explosives safety-permit criterion — the one
+   *  dataset-evaluable §385.403 category (provisional applicability, SME attestation pending). */
+  requiresSafetyPermit?: boolean;
 }
 
 const O = (code: string, message: string, citation: string): QualFinding =>
@@ -129,9 +131,10 @@ const O = (code: string, message: string, citation: string): QualFinding =>
 
 /**
  * §10.5 — v1 runs the two UNCONDITIONAL org checks always (PHMSA registration, financial
- * responsibility) plus, when the load trips the provisional §172.800(b) large-bulk criterion
- * (M9, `requiresSecurityPlan`), a CONDITIONAL `security_plan` check. `hazmat_safety_permit`
- * (§385.403) stays deferred to SME attestation and is never silently assumed satisfied.
+ * responsibility) plus two CONDITIONAL checks when the load trips them (M9, both PROVISIONAL /
+ * SME-attestation-pending): `security_plan` (§172.800(b) large-bulk) and `safety_permit`
+ * (§385.403(b) explosives — the one dataset-evaluable §385.403 category). Both are UNCLEARABLE and
+ * never silently assumed satisfied; the other §385.403 categories remain the hazmat-trained backstop.
  */
 export function qualifyOrg(input: OrgQualInput): QualResult {
   const findings: QualFinding[] = [];
@@ -148,6 +151,11 @@ export function qualifyOrg(input: OrgQualInput): QualResult {
   // load requires the carrier to maintain a current security plan. UNCLEARABLE like the others.
   if (input.requiresSecurityPlan) {
     check("security_plan", "security_plan", "§172.800 security plan (provisional applicability — SME attestation pending)", "49 CFR §172.800(b)");
+  }
+  // M9 (§385.403(b), PROVISIONAL — SME attestation pending): a large-explosives load (Division 1.1/1.2/1.3
+  // over 25 kg, or a placardable Division 1.5) requires the carrier to hold a current FMCSA safety permit.
+  if (input.requiresSafetyPermit) {
+    check("hazmat_safety_permit", "hazmat_safety_permit", "§385.403 FMCSA safety permit (provisional applicability — SME attestation pending)", "49 CFR §385.403(b)");
   }
   return { qualified: findings.length === 0, findings, flags: findings.map((f) => f.code) };
 }

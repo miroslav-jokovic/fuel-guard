@@ -4,7 +4,7 @@ import {
   qualifyDriver, qualifyOrg, qualificationEvalDate,
   type QualCertSnapshot, type QualFinding,
 } from "@fuelguard/shared";
-import { loadDataset, evaluateSecurityPlanApplicability, type SecurityPlanLine } from "@hazmat/data";
+import { loadDataset, evaluateSecurityPlanApplicability, evaluateSafetyPermitApplicability, type SecurityPlanLine } from "@hazmat/data";
 
 /**
  * Qualification gate — the DB-facing half (M3.2). Assembles the snapshots, calls the PURE gate
@@ -101,12 +101,15 @@ export async function evaluateQualification(
       packagingKind: (l.packagingKind === "bulk" ? "bulk" : "non_bulk"),
     }));
   const requiresSecurityPlan = evaluateSecurityPlanApplicability(loadDataset(), secLines).required;
+  // M9 (§385.403(b), PROVISIONAL — SME attestation pending): same declared lines, the one dataset-
+  // evaluable §385.403 category (large explosives). SafetyPermitLine is structurally identical to secLines.
+  const requiresSafetyPermit = evaluateSafetyPermitApplicability(loadDataset(), secLines).required;
 
-  const orgFindings = qualifyOrg({ evalDate, certs: orgCerts, requiresSecurityPlan }).findings;
+  const orgFindings = qualifyOrg({ evalDate, certs: orgCerts, requiresSecurityPlan, requiresSafetyPermit }).findings;
 
   const inputsDigest = createHash("sha256").update(canonical({
     evalDate: evalDate.slice(0, 10), usedFallback,
-    driverId: load.driver_id, driverStatus, driverCerts, orgCerts, vehicleKind, requiresSecurityPlan,
+    driverId: load.driver_id, driverStatus, driverCerts, orgCerts, vehicleKind, requiresSecurityPlan, requiresSafetyPermit,
   })).digest("hex");
 
   return {

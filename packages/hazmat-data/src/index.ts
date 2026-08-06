@@ -19,6 +19,7 @@ export * from "./matchRecords.js";
 export * from "./resolve.js";
 export * from "./resolveLine.js";
 export * from "./securityPlan.js";
+export * from "./safetyPermit.js";
 // Reference text (D12) is a SEPARATE export from the Dataset — display + audit only, never the engine.
 export * from "./referenceText.js";
 export * from "./interpretations.js";

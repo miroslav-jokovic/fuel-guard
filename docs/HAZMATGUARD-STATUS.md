@@ -67,11 +67,14 @@ Committed to `main` (2df6ded → 142ee48):
 
 ## What's left (net-new — NOT a port; HazmatGuard hasn't built these either)
 
-- **M9 — conditional org checks (PARTIAL)**: §172.800 security-plan check **DONE** (provisional/fail-
-  closed) — `@hazmat/data/securityPlan.ts` detects the large-bulk (>792 gal) Div 2.1 / Class 3 PG I/II
-  trigger from declared materials; `qualifyOrg` emits the UNCLEARABLE `org_unqualified:security_plan`.
-  §385.403 (FMCSA safety permit) **deferred to SME** (threshold/zone-heavy). `ATTESTED=false` until
-  an SME signs off on the criterion + threshold.
+- **M9 — conditional org checks: BOTH checks built (PROVISIONAL, SME-attestation pending).** §172.800
+  security-plan (`securityPlan.ts`, >792 gal Div 2.1 / Class 3 PG I/II) and now §385.403(b) FMCSA safety
+  permit (`safetyPermit.ts`, >25 kg net Div 1.1/1.2/1.3 or placardable Div 1.5) — both fail-closed, both
+  emit UNCLEARABLE org flags (`org_unqualified:security_plan`, `org_unqualified:hazmat_safety_permit`)
+  wired through `qualifyOrg` + the DB-facing `evaluateQualification`. eCFR-verified thresholds; `attested`
+  stays false until SME sign-off. **Remaining §385.403 dataset work (SME + new entry fields):** categories
+  (a) Class 7 RCQ, (c)-(e) PIH hazard zones A/B/C/D, (f) methane content — not dataset-evaluable today, so
+  recorded as candidates (never silently passed), the hazmat-trained person remains the backstop.
 - **M6 — driver capture: vertical BUILT this session.** Engine core + `/api/me/hazmat/*` + 0133 + native
   module + JS fallback + capture/verdict screens, all typechecked. Remaining: build the native module on a
   Mac (`expo prebuild` + run), run `pnpm test`, and the DCE-0 on-hardware checks (ML Kit no-egress; OCR
