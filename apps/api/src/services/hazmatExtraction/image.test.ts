@@ -43,12 +43,40 @@ describe("usabilityGate", () => {
   });
 });
 
-describe("normalizeImage", () => {
+describe("normalizeImage (v2 — D11/D12, §12.3 stage 2)", () => {
   it("auto-orients + normalizes and reports a versioned result", async () => {
     const r = await normalizeImage(await png(1300, 1300, checker));
     expect(r.width).toBe(1300);
     expect(r.height).toBe(1300);
     expect(r.normalizerVersion).toBe(IMAGE_NORMALIZER_VERSION);
     expect(r.normalized.length).toBeGreaterThan(0);
+  });
+
+  it("encodes WebP and reports the REAL media type, verified from metadata (D11)", async () => {
+    const r = await normalizeImage(await png(1300, 1300, checker));
+    expect(r.mediaType).toBe("image/webp");
+    const meta = await sharp(r.normalized).metadata();
+    expect(meta.format).toBe("webp"); // the returned type is the truth of the bytes, not a label
+  });
+
+  it("bounds the long edge to 1568 px so a multi-page BOL fits the 10 MB API cap (D12)", async () => {
+    const r = await normalizeImage(await png(4000, 3000, checker));
+    expect(Math.max(r.width, r.height)).toBeLessThanOrEqual(1568);
+    // Aspect ratio preserved by fit: "inside".
+    expect(r.width).toBeGreaterThan(r.height);
+  });
+
+  it("never upscales a small page (withoutEnlargement)", async () => {
+    const r = await normalizeImage(await png(800, 600, checker));
+    expect(r.width).toBe(800);
+    expect(r.height).toBe(600);
+  });
+
+  it("converts a JPEG input to WebP — the format that reached the model is never the input's (D11)", async () => {
+    const jpeg = await sharp(await png(1400, 1400, checker)).jpeg({ quality: 90 }).toBuffer();
+    const r = await normalizeImage(jpeg);
+    expect(r.mediaType).toBe("image/webp");
+    const meta = await sharp(r.normalized).metadata();
+    expect(meta.format).toBe("webp");
   });
 });

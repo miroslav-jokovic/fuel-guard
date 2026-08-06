@@ -12,27 +12,54 @@ import sharp from "sharp";
  * CV lib) is a bounded follow-up — it improves yield, not correctness (a wrong read still cannot pass). The
  * usability gate below still fails an unusable page, so the safety story holds without it.
  */
-export const IMAGE_NORMALIZER_VERSION = "1.0.0";
+/** v2.0.0 — D11+D12 (§12.3 stage 2): explicit resize to the model's 1568 px working size and an
+ *  explicit WebP encode. v1.0.0 had no `.resize()` (a 3-page phone-resolution BOL exceeded the
+ *  10 MB API request cap → `extraction_failed`, size-dependent so it passed testing) and no
+ *  `.toFormat()` (sharp preserves the input format, so the hardcoded "image/png" media type lied
+ *  to the vision API for every JPEG/WebP upload). The version bump is deliberate: normalized bytes
+ *  change, so run cache hashes change — a verdict must never be served from a differently-
+ *  normalized image. */
+export const IMAGE_NORMALIZER_VERSION = "2.0.0";
+
+/** The model's working long edge (Anthropic vision downsizes to ~1568 px anyway — §12.3); resizing
+ *  here buys request-size reliability and bandwidth, not accuracy loss. */
+export const NORMALIZED_LONG_EDGE_PX = 1568;
 
 export interface NormalizeResult {
   normalized: Buffer;
   width: number;
   height: number;
+  /** Actual encoded format of `normalized`, verified against sharp metadata — never assumed (D11). */
+  mediaType: "image/webp";
   normalizerVersion: string;
 }
 
-/** Conservative normalization: EXIF auto-orient, illumination normalize (contrast stretch), gentle denoise. */
+/** Conservative normalization: EXIF auto-orient, illumination normalize (contrast stretch), gentle
+ *  denoise, then bound to 1568 px and encode WebP q80 (§12.3). Legibility-only: no binarization,
+ *  no sharpening, no upscaling (`withoutEnlargement` — upscaling invents no information). */
 export async function normalizeImage(input: Buffer): Promise<NormalizeResult> {
   const pipeline = sharp(input, { failOn: "none" })
     .rotate() // EXIF auto-orient
     .normalise() // stretch luminance to full range (background/shadow evening) — not binarization
-    .median(1); // gentle salt-and-pepper denoise; does NOT merge strokes like a blur/sharpen would
+    .median(1) // gentle salt-and-pepper denoise; does NOT merge strokes like a blur/sharpen would
+    .resize({
+      width: NORMALIZED_LONG_EDGE_PX,
+      height: NORMALIZED_LONG_EDGE_PX,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 80 });
   const normalized = await pipeline.toBuffer();
   const meta = await sharp(normalized).metadata();
+  if (meta.format !== "webp") {
+    // Defensive: if sharp ever emits something else, fail loudly rather than mislabel (D11's exact bug).
+    throw new Error(`normalizeImage: expected webp output, got ${meta.format ?? "unknown"}`);
+  }
   return {
     normalized,
     width: meta.width ?? 0,
     height: meta.height ?? 0,
+    mediaType: "image/webp",
     normalizerVersion: IMAGE_NORMALIZER_VERSION,
   };
 }

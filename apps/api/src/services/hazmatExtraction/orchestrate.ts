@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDatasetIndex, loadDataset } from "@hazmat/data";
-import { evaluateLoad, type Verdict } from "@hazmat/engine";
+import { evaluateLoad, ENGINE_VERSION, type Verdict } from "@hazmat/engine";
 import { withinBudget } from "@fuelguard/shared";
 import type { Env } from "../../env.js";
 import { transitionLoad } from "../hazmatLoads.js";
@@ -14,6 +14,7 @@ import { computeExtractionFlags, isGreen } from "./outcome.js";
 import { notifyReviewersOfFlag } from "../hazmatNotify.js";
 import { enqueueJob } from "../queue/enqueue.js";
 import type { DeclaredLineRef } from "./mapBolLines.js";
+import { evaluateQualification } from "../qualification.js";
 
 /**
  * Extraction analysis path (plan H6-orchestrator). Mirrors the manual path (startManualAnalysis) but the
@@ -82,10 +83,14 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     // Load + its BOL documents.
     const { data: loadRow } = await admin
       .from("hazmat_loads")
-      .select("declared_lines, tank_state, carrier_relationship, claimed_no_placards, special_permit_numbers, vehicle_id, trailer_id")
+      .select("declared_lines, tank_state, carrier_relationship, claimed_no_placards, special_permit_numbers, vehicle_id, trailer_id, driver_id, planned_pickup_at")
       .eq("org_id", orgId).eq("id", loadId).maybeSingle();
     if (!loadRow) return; // load vanished — nothing to record
     const load = loadRow as unknown as ManualLoadRow;
+
+    // §5/§5.1 (M3): qualification gate — evaluated BEFORE hashing because its inputs are a cache-key
+    // term (§10.10): renew a medical card and the same photo MUST re-evaluate, not replay a stale pass.
+    const qual = await evaluateQualification(admin, orgId, { driver_id: load.driver_id, planned_pickup_at: load.planned_pickup_at }, "cargo_tank", now);
 
     const { data: docs } = await admin
       .from("hazmat_documents").select("storage_path, content_type, page")
@@ -97,7 +102,7 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     const images: ImageInput[] = [];
     const gateBuffers: Buffer[] = [];
     const hash = createHash("sha256");
-    hash.update(`${env.HAZMAT_MODEL_A}|${env.HAZMAT_MODEL_B}|${HAZMAT_EXTRACTION_PROMPT_VERSION}|${IMAGE_NORMALIZER_VERSION}`);
+    hash.update(`${env.HAZMAT_MODEL_A}|${env.HAZMAT_MODEL_B}|${HAZMAT_EXTRACTION_PROMPT_VERSION}|${IMAGE_NORMALIZER_VERSION}|${ENGINE_VERSION}|${dataset.version}|qual:${qual.inputsDigest}`); // §10.10: engine + dataset + qualification inputs MUST be in the hash, else a stale verdict replays from cache
     for (const d of docRows) {
       const { data: blob, error } = await admin.storage.from("hazmat").download(d.storage_path);
       if (error || !blob) return finish(null, ["document_unreadable"], null);
@@ -105,7 +110,7 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
       const norm = await normalizeImage(raw);
       hash.update(norm.normalized);
       gateBuffers.push(norm.normalized);
-      images.push({ base64: norm.normalized.toString("base64"), mediaType: "image/png" });
+      images.push({ base64: norm.normalized.toString("base64"), mediaType: norm.mediaType }); // D11: real media type from sharp metadata, never assumed
     }
     const inputHash = "sha256:" + hash.digest("hex");
 
@@ -115,7 +120,7 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
       .eq("org_id", orgId).eq("input_hash", inputHash).limit(1).maybeSingle();
     if (cached) {
       const c = cached as { verdict: unknown; outcome: "green" | "flagged"; flags: string[]; engine_version: string; models: unknown };
-      await insertHazmatRun(admin, runId, orgId, loadId, c.engine_version, dataset.version, c.verdict, c.outcome, c.flags, inputHash, c.models);
+      await insertHazmatRun(admin, runId, orgId, loadId, c.engine_version, dataset.version, c.verdict, c.outcome, c.flags, inputHash, c.models, qual.record);
       await transitionLoad(admin, orgId, loadId, c.outcome === "green" ? "analysis_green" : "analysis_flagged", { datasetProvisional: dataset.provisional });
       if (c.outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
       return;
@@ -142,10 +147,10 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
       verdict = evaluateLoad(buildManualLoadInput(load, profile, dataset, now, extract.engineLines));
     }
 
-    const flags = computeExtractionFlags(extract, verdict, dataset.provisional);
+    const flags = [...new Set([...computeExtractionFlags(extract, verdict, dataset.provisional), ...qual.flags])];
     const models = { A: env.HAZMAT_MODEL_A, B: env.HAZMAT_MODEL_B, usage: extract.usage, promptVersion: HAZMAT_EXTRACTION_PROMPT_VERSION, normalizerVersion: IMAGE_NORMALIZER_VERSION };
     const outcome = isGreen(flags) ? "green" : "flagged";
-    await insertHazmatRun(admin, runId, orgId, loadId, verdict?.engineVersion ?? "n/a", dataset.version, verdict ?? { extraction: extract.usabilityReasons.length ? "unusable" : "no_lines" }, outcome, flags, inputHash, models);
+    await insertHazmatRun(admin, runId, orgId, loadId, verdict?.engineVersion ?? "n/a", dataset.version, verdict ?? { extraction: extract.usabilityReasons.length ? "unusable" : "no_lines" }, outcome, flags, inputHash, models, qual.record);
     await transitionLoad(admin, orgId, loadId, outcome === "green" ? "analysis_green" : "analysis_flagged", { datasetProvisional: dataset.provisional });
     if (outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
   } catch (e) {

@@ -6,6 +6,7 @@ import { transitionLoad } from "./hazmatLoads.js";
 import { notifyReviewersOfFlag } from "./hazmatNotify.js";
 import type { Env } from "../env.js";
 import { enqueueJob } from "./queue/enqueue.js";
+import { evaluateQualification } from "./qualification.js";
 
 /**
  * HazmatGuard analysis orchestrator (plan H4-4) — the MANUAL path. The `jobs` ledger (0027) is a
@@ -33,6 +34,8 @@ export interface ManualLoadRow {
   special_permit_numbers: string[] | null;
   vehicle_id: string | null;
   trailer_id: string | null;
+  driver_id: string | null;
+  planned_pickup_at: string | null;
 }
 export interface CargoTankProfileRow {
   cargo_capacity_gal: number | null;
@@ -116,18 +119,18 @@ function release(): void {
 
 // ── orchestration ─────────────────────────────────────────────────────────────
 const LOAD_COLUMNS_FOR_ANALYSIS =
-  "declared_lines, tank_state, carrier_relationship, claimed_no_placards, special_permit_numbers, vehicle_id, trailer_id";
+  "declared_lines, tank_state, carrier_relationship, claimed_no_placards, special_permit_numbers, vehicle_id, trailer_id, driver_id, planned_pickup_at";
 
 /** Insert a run row. `models` carries per-pass model+token usage for extraction runs (null for manual). */
 export async function insertHazmatRun(
   admin: SupabaseClient, runId: string, orgId: string, loadId: string,
   engineVersion: string, datasetVersion: string, verdict: unknown, outcome: "green" | "flagged",
-  flags: string[], inputHash: string, models: unknown = null,
+  flags: string[], inputHash: string, models: unknown = null, qualification: unknown = null,
 ): Promise<void> {
   const { error } = await admin.from("hazmat_runs").insert({
     id: runId, org_id: orgId, load_id: loadId,
     engine_version: engineVersion, dataset_version: datasetVersion,
-    verdict, outcome, flags, models, input_hash: inputHash,
+    verdict, outcome, flags, models, input_hash: inputHash, qualification,
   });
   if (error) console.error(`[hazmat] run insert failed for ${runId}: ${error.message}`);
 }
@@ -158,6 +161,11 @@ export async function executeManualAnalysis(
       profile = (p as CargoTankProfileRow | null) ?? null;
     }
 
+    // §5/§5.1 (M3): the qualification gate runs on EVERY analysis; its failures are UNCLEARABLE
+    // (§10.2) — an unqualified driver / lapsed org registration can see a verdict but never a
+    // `cleared` load. Independent of the engine verdict; unioned into the flags below.
+    const qual = await evaluateQualification(admin, orgId, { driver_id: l.driver_id, planned_pickup_at: l.planned_pickup_at }, "cargo_tank", new Date().toISOString());
+
     let verdict: Verdict | { error: string };
     let outcome: "green" | "flagged";
     let flags: string[];
@@ -172,7 +180,9 @@ export async function executeManualAnalysis(
       flags = ["analysis_failed"]; outcome = "flagged";
     }
 
-    await insertRun(admin, runId, orgId, loadId, engineVersion, dataset.version, verdict, outcome, flags, manualInputHash(l, engineVersion, dataset.version));
+    flags = [...new Set([...flags, ...qual.flags])];
+    outcome = flags.length ? "flagged" : "green";
+    await insertRun(admin, runId, orgId, loadId, engineVersion, dataset.version, verdict, outcome, flags, manualInputHash(l, engineVersion, dataset.version), null, qual.record);
     await transitionLoad(admin, orgId, loadId, outcome === "green" ? "analysis_green" : "analysis_flagged", { datasetProvisional: dataset.provisional });
     if (outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
   } catch (e) {

@@ -10,7 +10,7 @@ const dataset = loadDataset();
 const gasLoad: ManualLoadRow = {
   declared_lines: [{ hmtRef: "UN1203-gasoline#II", quantity: { value: 8000, unit: "gal" }, grossWeightLb: 50000, packagingKind: "bulk" }],
   tank_state: "loaded", carrier_relationship: "unknown", claimed_no_placards: false,
-  special_permit_numbers: [], vehicle_id: null, trailer_id: null,
+  special_permit_numbers: [], vehicle_id: null, trailer_id: null, driver_id: null, planned_pickup_at: null,
 };
 
 describe("hazmatAnalysis — manual-path decision logic (plan H4-4)", () => {

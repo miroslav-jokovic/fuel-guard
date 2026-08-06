@@ -15,13 +15,17 @@ export function hazmatSpAttestationText(permits: string[]): string {
   return `I have read ${list} and confirm it covers this deviation for this shipper/carrier.`;
 }
 
-// A run whose flags include one of these produced NO trustworthy verdict (unusable photo, extraction
-// aborted, no document). There is nothing to attest to — the reviewer must reject/recapture or re-run,
-// NEVER override-clear. This is the fail-closed remedy for the "wrong read cannot pass" guarantee.
+// A run whose flags include one of these either produced NO trustworthy verdict (unusable photo,
+// extraction aborted, no document) or records a LEGAL DISQUALIFICATION (§10.2: driver/org
+// qualification failures — an expired medical card is not a risk decision a supervisor is
+// entitled to make). Either way: reject or fix, NEVER override-clear.
 const UNCLEARABLE_CODES = new Set([
   "recapture_needed", "extraction_failed", "no_documents", "document_unreadable",
   "entitlement_revoked", "extraction_disabled", "budget_exhausted",
 ]);
+// §10.2: qualification failures are prefix families, not an enumerable set (driver_unqualified:cdl,
+// :training_safety, …) — hazmatUnclearableReason gained prefix matching for exactly this (M3).
+const UNCLEARABLE_PREFIXES = ["driver_unqualified:", "org_unqualified:"];
 // Override-able violations: real regulatory violations the customer may clear despite (D6), with a reason.
 const VIOLATION_CODES = new Set(["eligibility_blocked", "quantity_unit_unrecognized"]);
 const VIOLATION_PREFIXES = ["violation:", "segregation:", "line_unresolved:"];
@@ -31,11 +35,17 @@ const PROVISIONAL_CODES = new Set(["dataset_provisional", "provisional_dataset"]
 export function hazmatHasViolation(flags: string[]): boolean {
   return flags.some((f) => VIOLATION_CODES.has(f) || VIOLATION_PREFIXES.some((p) => f.startsWith(p)));
 }
-/** A human-readable reason the load can't be cleared as-is (unusable read), or null. */
+/** A human-readable reason the load can't be cleared as-is, or null. Two families (§10.2): an
+ *  untrustworthy read, and a legal disqualification — distinct messages because the remedies differ
+ *  (recapture/re-run vs. fix the qualification record and re-analyze). */
 export function hazmatUnclearableReason(flags: string[]): string | null {
-  return flags.some((f) => UNCLEARABLE_CODES.has(f))
-    ? "This run produced no trustworthy read (unusable photo / extraction failed / no document). Reject for recapture or re-run — it cannot be cleared as-is."
-    : null;
+  if (flags.some((f) => f.startsWith("driver_unqualified:") || f.startsWith("org_unqualified:"))) {
+    return "This load carries a legal disqualification (driver or carrier qualification lapsed). It can NEVER be override-cleared — fix the qualification record and re-run the analysis.";
+  }
+  if (flags.some((f) => UNCLEARABLE_CODES.has(f) || UNCLEARABLE_PREFIXES.some((p) => f.startsWith(p)))) {
+    return "This run produced no trustworthy read (unusable photo / extraction failed / no document). Reject for recapture or re-run — it cannot be cleared as-is.";
+  }
+  return null;
 }
 
 export type HazmatClearRefusal =
