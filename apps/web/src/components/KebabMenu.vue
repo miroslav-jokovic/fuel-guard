@@ -61,11 +61,18 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         <div
           ref="panelRef"
           :style="floatingStyles"
-          :class="tone === 'sidebar' ? 'sidebar-glass-popover rounded-2xl' : 'rounded-md bg-surface shadow-lg ring-1 ring-edge'"
+          :class="
+            tone === 'sidebar'
+              ? 'sidebar-glass-popover rounded-2xl'
+              : 'rounded-md bg-surface shadow-lg ring-1 ring-edge'
+          "
           class="z-[9999] w-48 origin-top-right py-1"
           @click="open = false"
         >
-          <slot />
+          <div v-if="tone === 'sidebar'" class="sidebar-glass-material" aria-hidden="true" />
+          <div :class="tone === 'sidebar' ? 'sidebar-glass-content' : undefined">
+            <slot />
+          </div>
         </div>
       </template>
     </Teleport>

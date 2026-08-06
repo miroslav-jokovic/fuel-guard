@@ -120,42 +120,58 @@ async function signOut() {
                 </button>
               </div>
               <!-- Mobile sidebar body -->
-              <div class="sidebar-glass flex grow flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-r px-4 pb-4">
-                <div class="flex h-16 shrink-0 items-center gap-x-3 border-b border-white/[0.08] px-1">
-                  <AppLogo class="size-8 shrink-0" :dark="true" />
-                  <img src="/logo-wordmark.png" alt="FuelGuard" class="h-5 object-contain brightness-0 invert" draggable="false" />
-                </div>
-                <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-3">
-                  <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
-                    <template v-for="group in navGroups" :key="group.label ?? '_top'">
-                      <li
-                        v-if="group.label"
-                        class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-400 first:mt-2"
-                      >
-                        {{ group.label }}
-                      </li>
-                      <li v-for="item in group.items" :key="item.name">
-                        <RouterLink
-                          :to="item.to"
-                          :class="navLinkClass(item.to)"
-                          :aria-current="isCurrent(item.to) ? 'page' : undefined"
+              <div class="sidebar-glass relative flex grow overflow-hidden border-r">
+                <div class="sidebar-glass-material" aria-hidden="true" />
+                <div
+                  class="sidebar-glass-content flex min-h-0 grow flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-4 pb-4"
+                >
+                  <div
+                    class="flex h-16 shrink-0 items-center gap-x-3 border-b border-white/[0.08] px-1"
+                  >
+                    <AppLogo class="size-8 shrink-0" :dark="true" />
+                    <img
+                      src="/logo-wordmark.png"
+                      alt="FuelGuard"
+                      class="h-5 object-contain brightness-0 invert"
+                      draggable="false"
+                    />
+                  </div>
+                  <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-3">
+                    <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
+                      <template v-for="group in navGroups" :key="group.label ?? '_top'">
+                        <li
+                          v-if="group.label"
+                          class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-400 first:mt-2"
                         >
-                          <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                          <span class="flex-1">{{ item.name }}</span>
-                          <span v-if="item.badge" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-ink-inverse">{{ item.badge }}</span>
-                        </RouterLink>
-                      </li>
-                    </template>
-                  </ul>
-                </nav>
-                <!-- Account menu at the bottom of the mobile drawer. -->
-                <div class="mt-4 border-t border-white/[0.08] pt-3">
-                  <SidebarProfileMenu
-                    :email="session.email"
-                    :role="session.role"
-                    :can-manage="session.canManage"
-                    @sign-out="signOut"
-                  />
+                          {{ group.label }}
+                        </li>
+                        <li v-for="item in group.items" :key="item.name">
+                          <RouterLink
+                            :to="item.to"
+                            :class="navLinkClass(item.to)"
+                            :aria-current="isCurrent(item.to) ? 'page' : undefined"
+                          >
+                            <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                            <span class="flex-1">{{ item.name }}</span>
+                            <span
+                              v-if="item.badge"
+                              class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-ink-inverse"
+                              >{{ item.badge }}</span
+                            >
+                          </RouterLink>
+                        </li>
+                      </template>
+                    </ul>
+                  </nav>
+                  <!-- Account menu at the bottom of the mobile drawer. -->
+                  <div class="mt-4 border-t border-white/[0.08] pt-3">
+                    <SidebarProfileMenu
+                      :email="session.email"
+                      :role="session.role"
+                      :can-manage="session.canManage"
+                      @sign-out="signOut"
+                    />
+                  </div>
                 </div>
               </div>
             </DialogPanel>
@@ -169,82 +185,101 @@ async function signOut() {
       class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-[width] duration-300 ease-out motion-reduce:transition-none"
       :class="sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'"
     >
-      <div class="sidebar-glass relative flex grow flex-col overflow-x-hidden border-r">
-        <!-- Sidebar header -->
-        <div
-          class="flex h-16 shrink-0 items-center border-b border-white/[0.08]"
-          :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-3 px-5'"
-        >
-          <AppLogo class="size-8 shrink-0" :dark="true" />
-          <img v-if="!sidebarCollapsed" src="/logo-wordmark.png" alt="FuelGuard" class="h-5 object-contain brightness-0 invert" draggable="false" />
-        </div>
+      <div class="sidebar-glass relative flex grow overflow-hidden border-r">
+        <div class="sidebar-glass-material" aria-hidden="true" />
+        <div class="sidebar-glass-content flex min-h-0 grow flex-col overflow-x-hidden">
+          <!-- Sidebar header -->
+          <div
+            class="flex h-16 shrink-0 items-center border-b border-white/[0.08]"
+            :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-3 px-5'"
+          >
+            <AppLogo class="size-8 shrink-0" :dark="true" />
+            <img
+              v-if="!sidebarCollapsed"
+              src="/logo-wordmark.png"
+              alt="FuelGuard"
+              class="h-5 object-contain brightness-0 invert"
+              draggable="false"
+            />
+          </div>
 
-        <!-- Nav -->
-        <nav id="desktop-sidebar-navigation" aria-label="Primary navigation" class="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-3" :class="sidebarCollapsed ? 'px-2' : 'px-4'">
-          <!-- Expanded: grouped section labels + full links -->
-          <ul v-if="!sidebarCollapsed" role="list" class="flex flex-1 flex-col gap-y-0.5">
-            <template v-for="group in navGroups" :key="group.label ?? '_top'">
-              <li
-                v-if="group.label"
-                class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-400"
-              >
-                {{ group.label }}
-              </li>
-              <li v-for="item in group.items" :key="item.name">
-                <RouterLink
-                  :to="item.to"
-                  :class="navLinkClass(item.to)"
-                  :aria-current="isCurrent(item.to) ? 'page' : undefined"
+          <!-- Nav -->
+          <nav
+            id="desktop-sidebar-navigation"
+            aria-label="Primary navigation"
+            class="flex flex-1 min-h-0 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pt-3"
+            :class="sidebarCollapsed ? 'px-2' : 'px-4'"
+          >
+            <!-- Expanded: grouped section labels + full links -->
+            <ul v-if="!sidebarCollapsed" role="list" class="flex flex-1 flex-col gap-y-0.5">
+              <template v-for="group in navGroups" :key="group.label ?? '_top'">
+                <li
+                  v-if="group.label"
+                  class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-neutral-400"
                 >
-                  <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-                  <span class="flex-1">{{ item.name }}</span>
-                  <span v-if="item.badge" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-ink-inverse">{{ item.badge }}</span>
-                </RouterLink>
-              </li>
-            </template>
-          </ul>
-          <!-- Collapsed: ungrouped items as icons; each labeled section opens a flyout submenu on hover/click -->
-          <ul v-else role="list" class="flex flex-1 flex-col gap-y-1">
-            <template v-for="group in navGroups" :key="group.label ?? '_top'">
-              <template v-if="!group.label">
+                  {{ group.label }}
+                </li>
                 <li v-for="item in group.items" :key="item.name">
                   <RouterLink
                     :to="item.to"
-                    :class="navLinkClassCollapsed(item.to)"
-                    :title="item.name"
+                    :class="navLinkClass(item.to)"
                     :aria-current="isCurrent(item.to) ? 'page' : undefined"
                   >
                     <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                    <span class="flex-1">{{ item.name }}</span>
+                    <span
+                      v-if="item.badge"
+                      class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-ink-inverse"
+                      >{{ item.badge }}</span
+                    >
                   </RouterLink>
                 </li>
               </template>
-              <li v-else>
-                <SidebarFlyoutSection :group="group" :is-current="isCurrent" />
-              </li>
-            </template>
-          </ul>
-        </nav>
+            </ul>
+            <!-- Collapsed: ungrouped items as icons; each labeled section opens a flyout submenu on hover/click -->
+            <ul v-else role="list" class="flex flex-1 flex-col gap-y-1">
+              <template v-for="group in navGroups" :key="group.label ?? '_top'">
+                <template v-if="!group.label">
+                  <li v-for="item in group.items" :key="item.name">
+                    <RouterLink
+                      :to="item.to"
+                      :class="navLinkClassCollapsed(item.to)"
+                      :title="item.name"
+                      :aria-current="isCurrent(item.to) ? 'page' : undefined"
+                    >
+                      <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+                    </RouterLink>
+                  </li>
+                </template>
+                <li v-else>
+                  <SidebarFlyoutSection :group="group" :is-current="isCurrent" />
+                </li>
+              </template>
+            </ul>
+          </nav>
 
-        <!-- Account control stays visually separate from primary navigation. -->
-        <div
-          class="mt-2 shrink-0 border-t border-white/[0.08] py-3"
-          :class="sidebarCollapsed ? 'px-2' : 'px-3'"
-        >
-          <SidebarProfileMenu
-            :email="session.email"
-            :role="session.role"
-            :collapsed="sidebarCollapsed"
-            :can-manage="session.canManage"
-            @sign-out="signOut"
-          />
+          <!-- Account control stays visually separate from primary navigation. -->
+          <div
+            class="mt-2 shrink-0 border-t border-white/[0.08] py-3"
+            :class="sidebarCollapsed ? 'px-2' : 'px-3'"
+          >
+            <SidebarProfileMenu
+              :email="session.email"
+              :role="session.role"
+              :collapsed="sidebarCollapsed"
+              :can-manage="session.canManage"
+              @sign-out="signOut"
+            />
+          </div>
         </div>
-
       </div>
-
     </div>
 
     <!-- ── Main content area ─────────────────────────────────────────────── -->
-    <div class="transition-[padding] duration-300 ease-out motion-reduce:transition-none" :class="sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'">
+    <div
+      class="transition-[padding] duration-300 ease-out motion-reduce:transition-none"
+      :class="sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'"
+    >
       <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
         class="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-x-4 border-b border-edge bg-surface px-4 shadow-sm sm:px-6 lg:px-8"

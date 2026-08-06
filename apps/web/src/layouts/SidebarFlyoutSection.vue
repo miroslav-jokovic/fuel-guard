@@ -81,19 +81,26 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
         @mouseleave="closeSoon"
         @keydown.escape.stop.prevent="closeAndReturnFocus"
       >
-        <p class="px-2 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-neutral-400">{{ group.label }}</p>
-        <RouterLink
-          v-for="item in group.items"
-          :key="item.name"
-          :to="item.to"
-          class="group flex items-center gap-x-3 rounded-lg px-2.5 py-2 text-sm font-medium leading-6 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 motion-reduce:transition-none"
-          :class="isCurrent(item.to) ? 'sidebar-nav-active' : 'sidebar-nav-inactive'"
-          :aria-current="isCurrent(item.to) ? 'page' : undefined"
-          @click="open = false"
-        >
-          <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
-          {{ item.name }}
-        </RouterLink>
+        <div class="sidebar-glass-material" aria-hidden="true" />
+        <div class="sidebar-glass-content">
+          <p
+            class="px-2 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider text-neutral-400"
+          >
+            {{ group.label }}
+          </p>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.name"
+            :to="item.to"
+            class="group flex items-center gap-x-3 rounded-lg px-2.5 py-2 text-sm font-medium leading-6 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80 motion-reduce:transition-none"
+            :class="isCurrent(item.to) ? 'sidebar-nav-active' : 'sidebar-nav-inactive'"
+            :aria-current="isCurrent(item.to) ? 'page' : undefined"
+            @click="open = false"
+          >
+            <AppIcon :icon="item.icon" class="size-5 shrink-0" aria-hidden="true" />
+            {{ item.name }}
+          </RouterLink>
+        </div>
       </div>
     </Teleport>
   </div>
