@@ -26,6 +26,11 @@ import { useClearLoad, useLoadDocumentsQuery, useRecordReview } from "./useHazma
 const props = defineProps<{ load: HazmatLoadRow; run: HazmatRunRow }>();
 
 const items = computed(() => deriveReviewItems(props.run.flags));
+const advisories = computed(() => props.run.advisories ?? []);
+const extraction = computed(() => props.run.extraction ?? null);
+const ADVISORY_TONE: Record<string, string> = { violation: "danger", conditional: "warning", warning: "warning", info: "neutral" };
+const advisoryTone = (tier: string): string => ADVISORY_TONE[tier] ?? "neutral";
+const prettyJson = (v: unknown): string => { try { return JSON.stringify(v, null, 2); } catch { return String(v); } };
 const permits = computed(() => props.load.special_permit_numbers ?? []);
 
 const attempt = reactive({ attested: false, spAttested: false, overrideReason: "" });
@@ -87,6 +92,17 @@ async function reject() {
       <li v-if="items.length === 0" class="text-sm text-ink-muted">No blocking flags — attest to clear.</li>
     </ul>
 
+    <!-- advisories (D3): non-blocking context the reviewer should see but is not blocked on -->
+    <div v-if="advisories.length" class="mt-4 border-t border-edge pt-4">
+      <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Advisories (non-blocking)</p>
+      <ul class="mt-2 space-y-2">
+        <li v-for="(a, i) in advisories" :key="i" class="flex items-start gap-2 text-sm">
+          <span :class="[BADGE_BASE, toneClass(advisoryTone(a.tier)), 'mt-0.5 shrink-0 !capitalize']">{{ a.tier }}</span>
+          <span class="text-ink">{{ a.message }}</span>
+        </li>
+      </ul>
+    </div>
+
     <!-- BOL evidence -->
     <div v-if="bolImages.length" class="mt-4">
       <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Document evidence</p>
@@ -95,6 +111,34 @@ async function reject() {
           <img :src="d.url!" :alt="`${d.kind} page ${d.page}`" class="h-32 w-auto rounded-md ring-1 ring-edge" />
         </a>
       </div>
+    </div>
+
+    <!-- extraction evidence (D3): what the model read + both vision passes — the audit trail behind a photo verdict -->
+    <div v-if="extraction" class="mt-4 border-t border-edge pt-4">
+      <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Extraction evidence</p>
+      <p class="mt-2 text-sm text-ink">
+        Model read <span class="font-semibold">{{ extraction.engineLineCount }}</span> line{{ extraction.engineLineCount === 1 ? "" : "s" }} —
+        document <span :class="extraction.usable ? 'text-success-700' : 'text-danger-600'">{{ extraction.usable ? "usable" : "unusable" }}</span>.
+      </p>
+      <ul v-if="extraction.usabilityReasons.length" class="mt-1 list-disc pl-5 text-sm text-ink-muted">
+        <li v-for="(r, i) in extraction.usabilityReasons" :key="i">{{ r }}</li>
+      </ul>
+      <p v-if="extraction.flags.length" class="mt-2 text-sm text-ink-secondary">
+        Cross-validation flags: <span class="font-mono text-xs">{{ extraction.flags.join(", ") }}</span>
+      </p>
+      <details v-if="extraction.passA || extraction.passB" class="mt-2">
+        <summary class="cursor-pointer text-sm font-medium text-ink-secondary">View extracted fields (pass A / pass B)</summary>
+        <div class="mt-2 grid gap-3 sm:grid-cols-2">
+          <div>
+            <p class="text-xs font-semibold text-ink-subtle">Pass A</p>
+            <pre class="mt-1 max-h-64 overflow-auto rounded-md bg-surface-muted p-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge">{{ prettyJson(extraction.passA) }}</pre>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-ink-subtle">Pass B</p>
+            <pre class="mt-1 max-h-64 overflow-auto rounded-md bg-surface-muted p-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge">{{ prettyJson(extraction.passB) }}</pre>
+          </div>
+        </div>
+      </details>
     </div>
 
     <!-- hard block: provisional dataset or unusable read — cannot clear, must reject/re-run -->

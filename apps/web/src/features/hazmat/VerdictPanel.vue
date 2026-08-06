@@ -126,8 +126,11 @@ const firedTrace = computed(() => v.value.trace.filter((t) => t.fired));
           {{ ELIGIBILITY_LABEL[v.eligibility.status] ?? v.eligibility.status }}
         </span>
       </div>
-      <p v-if="v.eligibility.status === 'not_checked'" class="mt-2 text-sm text-ink-muted">
-        Eligibility needs a company policy (H8) — the calculator runs in pure placard mode.
+      <p v-if="v.eligibility.status === 'eligible'" class="mt-2 text-sm text-success-700">
+        The rules find this eligible — no blocking findings, a verified segregation grid, and a non-provisional dataset. This is the auto-clear path.
+      </p>
+      <p v-else-if="v.eligibility.status === 'not_checked'" class="mt-2 text-sm text-ink-muted">
+        Eligibility could not be auto-determined — an unresolved conditional finding, a provisional dataset, or an unavailable segregation grid left it unverified. Resolve the items below to reach “Eligible”.
       </p>
       <div v-if="v.eligibility.blocks.length" class="mt-2">
         <FindingRow v-for="(f, i) in v.eligibility.blocks" :key="i" :finding="f" />

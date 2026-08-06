@@ -26,7 +26,7 @@ export interface ReviewItem {
 
 // Known flag codes → a human label + a tier. Unknown codes fall back to a readable default (never hidden).
 const FLAG_LABELS: Record<string, { label: string; tier: ReviewTier }> = {
-  eligibility_not_checked: { label: "Eligibility not checked — needs a company policy (H8).", tier: "conditional" },
+  eligibility_not_checked: { label: "Eligibility could not be auto-determined — a conditional finding, provisional dataset, or missing segregation grid left it unverified.", tier: "conditional" },
   eligibility_blocked: { label: "Load is ineligible (policy or engine block).", tier: "violation" },
   dataset_provisional: { label: "Regulatory dataset is provisional — clearing is blocked.", tier: "violation" },
   provisional_dataset: { label: "Regulatory dataset is provisional — clearing is blocked.", tier: "violation" },

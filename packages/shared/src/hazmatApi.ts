@@ -251,6 +251,26 @@ export interface HazmatRunQualification {
   org: HazmatRunQualFinding[];
 }
 
+/** A non-blocking advisory recorded on a run (D3): an engine conditional/warning/info finding, or the
+ *  §10.3 "qualification evaluated at analysis time" note. Rendered as reviewer decision-support. */
+export interface HazmatRunAdvisory {
+  ruleId: string;
+  tier: string;
+  message: string;
+  citations?: unknown[];
+}
+/** Extraction evidence recorded on a photo run (D3): what the model read, both vision passes, and the
+ *  cross-validation flags — the audit trail behind a photo verdict. Null on manual runs. */
+export interface HazmatRunExtraction {
+  usable: boolean;
+  usabilityReasons: string[];
+  passA: unknown | null;
+  passB: unknown | null;
+  engineLineCount: number;
+  flags: string[];
+  engineLines: unknown[];
+}
+
 export interface HazmatRunRow {
   id: string;
   load_id: string;
@@ -264,6 +284,10 @@ export interface HazmatRunRow {
   created_at: string;
   /** §5 qualification-gate evidence (M3): driver/org findings with citations. Null on pre-gate runs. */
   qualification?: HazmatRunQualification | null;
+  /** Non-blocking advisories (D3): conditional/warning/info findings + the §10.3 eval-at-now note. */
+  advisories?: HazmatRunAdvisory[] | null;
+  /** Extraction evidence (D3, photo runs only): usability, both vision passes, cross-validation flags. */
+  extraction?: HazmatRunExtraction | null;
 }
 
 export interface HazmatLoadsListResponse {
