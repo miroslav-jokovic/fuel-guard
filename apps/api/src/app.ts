@@ -26,6 +26,7 @@ import { aiRouter } from "./routes/ai.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { dispatchRouter } from "./routes/dispatch.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
+import { complianceRouter } from "./routes/compliance.js";
 import { meRouter } from "./routes/me.js";
 import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
@@ -149,6 +150,7 @@ export function createApp(env: Env): Express {
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
   app.use("/api/hazmat", hazmatRouter());
+  app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 
   // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────
