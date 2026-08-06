@@ -53,9 +53,10 @@ were **NOT run in this environment** (see Verification) — that is the main ope
 
 ## Required actions before "live" (blockers)
 
-1. **Apply migration `0131` to Supabase** — the ONLY unapplied migration. `hazmat_documents.content_type`
-   is SELECTed by `listDocuments` + the extraction orchestrator; without it those queries fail. (0127-0130
-   already applied.)
+1. **Apply migrations `0131` + `0132` to Supabase** — the two unapplied migrations. `0131` adds
+   `hazmat_documents.content_type` (SELECTed by `listDocuments` + the extraction orchestrator; without it
+   those queries fail). `0132` replaces `record_hazmat_run` with the idempotent/UTC-pinned body (safe
+   `create or replace`). (0127-0130 already applied.)
 2. **`pnpm install`** — `@hazmat/placards` was added as an `apps/api` workspace dep for the packet (M12.1).
 3. **Run the test suite + web build on a Mac** (see Verification).
 4. **git cleanup** (cloud bridge can't unlink): `rm -f .git/index.lock .git/tmp_ci_idx`.
@@ -89,7 +90,8 @@ were **NOT run in this environment** (see Verification) — that is the main ope
 ## Audit findings — 2026-08-06 (independent review of the run-recording chain)
 
 Both are **latent, narrow-window, and inherited from the HazmatGuard source of truth** (they exist
-upstream too) — not regressions introduced by the port. Recorded here; fixes recommended, not yet applied.
+upstream too) — not regressions introduced by the port. **Both FIXED 2026-08-06** (migration `0132` +
+orchestrate catch guard, commit `406a568`); the same fix should still go upstream to HazmatGuard.
 
 1. **Abort-path duplicate-run collision (medium).** In `executeExtraction`, if the main-path
    `insertHazmatRun` COMMITS but a *later* step throws (realistically `transitionLoad`, less so
@@ -99,15 +101,16 @@ upstream too) — not regressions introduced by the port. Recorded here; fixes r
    with no review signal (worse than the intended "record extraction_failed + flag"). The RPC itself
    is atomic (single txn, run insert first) so there is no double-count or half-write; the gap is
    purely orchestration-level. **Fix options:** make the abort record idempotent (`insert ... on
-   conflict (id) do nothing` in the RPC, or a dedicated abort RPC), and/or wrap the catch's `finish()`
-   so its own failure can't strand the transition. (Same fix should go upstream to HazmatGuard.)
+   conflict (id) do nothing`) and/or wrap the catch's `finish()`. **Fixed:** `0132` uses `on conflict (id)
+   do nothing` + a `row_count` guard (counter not double-counted); `orchestrate.ts` wraps the catch's
+   `finish()`. Same fix should still go upstream.
 
 2. **Budget-counter month bucket is timezone-sensitive (low, config-dependent).** The counter is
    written under DB `now()` (`to_char(now(),'YYYY-MM')`) while `tokensUsedThisMonth` reads the bucket
    from the app's `new Date().toISOString().slice(0,7)`. Both are UTC under Supabase's default session
    TimeZone, so they match in practice — but if a non-UTC session TZ is ever set, a month-boundary
-   write/read split could make the budget gate read 0 for that window. **Fix:** pin both to UTC
-   explicitly, or compute the `yyyymm` in the app and pass it as an RPC arg. Keep the DB session on UTC.
+   write/read split could make the budget gate read 0 for that window. **Fixed:** `0132` pins the
+   bucket to `to_char(now() at time zone 'UTC','YYYY-MM')`; the app read key is already UTC.
 
 **Verification method:** typecheck (all 11 packages) + byte-parity with the HazmatGuard source (whose
 490 tests cover the rules) + this manual/adversarial review. The full test suite was NOT run in-env
