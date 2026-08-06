@@ -6,17 +6,16 @@ import CryptoKit
 
 // FuelGuard self-built document scanner — DCE v1 SystemScanner provider (iOS).
 //
-// Responsibility: CAPTURE (VNDocumentCameraViewController — crop-only, OS-enhanced) and MEASURE
-// (VNRecognizeText → legibility metrics). It NEVER decides accept/reject — the §5 gate is TS code in
-// @fuelguard/capture-engine. Nothing leaves the device (Apple Vision is documented on-device).
+// CAPTURE (VNDocumentCameraViewController — crop-only, OS-enhanced) + MEASURE (VNRecognizeText →
+// legibility metrics). It never decides accept/reject — the §5 gate is TS in @fuelguard/capture-engine.
+// Nothing leaves the device (Apple Vision is documented on-device).
 //
-// Build/verify on a Mac (this file is authored in the cloud VM and cannot be compiled there). The two
-// hardware checks the DCE gates on (DCE-0): confirm no network egress during a scan, and confirm the
-// OCR confidence spread on a min-spec device (confidence is SECONDARY in the gate, so this is a tune,
-// not a blocker).
-
+// APIs verified against the installed ExpoModulesCore + Apple docs (VisionKit is iOS 13+; app targets
+// iOS 16.4). Built/verified on a Mac — never compiled in the cloud VM.
 public class CaptureNativeModule: Module {
-  private var activeDelegate: ScannerDelegate?
+  // Retain the delegate for the lifetime of one scan — VNDocumentCameraViewController holds its delegate
+  // weakly, so without this it would deallocate while the scanner UI is up.
+  private var activeDelegate: DocumentScanDelegate?
 
   public func definition() -> ModuleDefinition {
     Name("CaptureNative")
@@ -30,166 +29,223 @@ public class CaptureNativeModule: Module {
     }
 
     AsyncFunction("scan") { (options: [String: Any], promise: Promise) in
-      DispatchQueue.main.async {
-        guard VNDocumentCameraViewController.isSupported else {
-          promise.resolve(["pages": [], "cancelled": false]); return
-        }
-        let longEdge = (options["enhanceLongEdgePx"] as? Int) ?? 1568
-        let quality = (options["enhanceQuality"] as? Int) ?? 80
-        let delegate = ScannerDelegate(longEdge: longEdge, quality: quality, promise: promise) { [weak self] in
-          self?.activeDelegate = nil
-        }
-        self.activeDelegate = delegate
-        let vc = VNDocumentCameraViewController()
-        vc.delegate = delegate
-        Self.topViewController()?.present(vc, animated: true)
+      guard VNDocumentCameraViewController.isSupported else {
+        promise.reject("UNSUPPORTED_DEVICE", "Document scanning is not supported on this device.")
+        return
       }
+      guard let presenter = self.appContext?.utilities?.currentViewController() else {
+        promise.reject("PROVIDER_ERROR", "No view controller is available to present the scanner.")
+        return
+      }
+      let longEdge = (options["enhanceLongEdgePx"] as? Int) ?? 1568
+      let quality = (options["enhanceQuality"] as? Int) ?? 80
+      let delegate = DocumentScanDelegate(longEdge: longEdge, quality: quality, promise: promise) { [weak self] in
+        self?.activeDelegate = nil
+      }
+      self.activeDelegate = delegate
+      let scanner = VNDocumentCameraViewController()
+      scanner.delegate = delegate
+      presenter.present(scanner, animated: true)
     }
+    .runOnQueue(DispatchQueue.main)
 
     AsyncFunction("recognize") { (uri: String, promise: Promise) in
-      guard let image = Self.loadImage(uri) else {
-        promise.reject("no_image", "Could not load image at \(uri)"); return
+      guard let image = ImageLoader.load(uri) else {
+        promise.reject("PROVIDER_ERROR", "Could not load an image at \(uri).")
+        return
       }
-      OcrEngine.recognize(image) { ocr in promise.resolve(ocr) }
+      OcrEngine.recognize(image) { metrics in promise.resolve(metrics) }
     }
 
     Function("cancel") {
-      DispatchQueue.main.async { Self.topViewController()?.dismiss(animated: true) }
+      DispatchQueue.main.async { [weak self] in
+        self?.appContext?.utilities?.currentViewController()?.dismiss(animated: true)
+      }
     }
-  }
-
-  private static func topViewController() -> UIViewController? {
-    let scene = UIApplication.shared.connectedScenes.first { $0.activationState == .foregroundActive } as? UIWindowScene
-    var top = scene?.keyWindow?.rootViewController
-    while let presented = top?.presentedViewController { top = presented }
-    return top
-  }
-
-  static func loadImage(_ uri: String) -> UIImage? {
-    if let url = URL(string: uri), let data = try? Data(contentsOf: url) { return UIImage(data: data) }
-    return UIImage(contentsOfFile: uri.replacingOccurrences(of: "file://", with: ""))
   }
 }
 
-private class ScannerDelegate: NSObject, VNDocumentCameraViewControllerDelegate {
-  let longEdge: Int
-  let quality: Int
-  let promise: Promise
-  let onDone: () -> Void
+// MARK: - Scanner delegate
 
-  init(longEdge: Int, quality: Int, promise: Promise, onDone: @escaping () -> Void) {
-    self.longEdge = longEdge; self.quality = quality; self.promise = promise; self.onDone = onDone
+private final class DocumentScanDelegate: NSObject, VNDocumentCameraViewControllerDelegate {
+  private let longEdge: Int
+  private let quality: Int
+  private let promise: Promise
+  private let onFinish: () -> Void
+  private var settled = false
+
+  init(longEdge: Int, quality: Int, promise: Promise, onFinish: @escaping () -> Void) {
+    self.longEdge = longEdge
+    self.quality = quality
+    self.promise = promise
+    self.onFinish = onFinish
+  }
+
+  // Every terminal path routes through here exactly once — no double-resolve, and the delegate is released.
+  private func settle(_ block: () -> Void) {
+    guard !settled else { return }
+    settled = true
+    block()
+    onFinish()
   }
 
   func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
     controller.dismiss(animated: true)
-    var pages: [[String: Any]] = []
-    let group = DispatchGroup()
-    for i in 0..<scan.pageCount {
-      let page = scan.imageOfPage(at: i)
-      group.enter()
-      Self.process(page, longEdge: longEdge, quality: quality) { dict in
-        if let dict = dict { pages.append(dict) }
-        group.leave()
-      }
+    // The scan object is only valid inside this callback — snapshot every page now.
+    var images: [UIImage] = []
+    for i in 0..<scan.pageCount { images.append(scan.imageOfPage(at: i)) }
+    ImagePipeline.process(images: images, longEdge: longEdge, quality: quality) { [weak self] pages in
+      guard let self else { return }
+      self.settle { self.promise.resolve(["pages": pages, "cancelled": false]) }
     }
-    group.notify(queue: .main) { self.promise.resolve(["pages": pages, "cancelled": false]); self.onDone() }
   }
 
   func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
     controller.dismiss(animated: true)
-    promise.resolve(["pages": [], "cancelled": true]); onDone()
+    settle { promise.resolve(["pages": [[String: Any]](), "cancelled": true]) }
   }
 
   func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFailWithError error: Error) {
     controller.dismiss(animated: true)
-    promise.reject("scan_failed", error.localizedDescription); onDone()
+    settle { promise.reject("PROVIDER_ERROR", error.localizedDescription) }
   }
+}
 
-  // Downscale to longEdge, JPEG-encode at `quality` (the server normalizer produces the canonical WebP —
-  // iOS WebP encoding is unreliable, DCE §4 note), hash, then measure OCR legibility.
-  static func process(_ image: UIImage, longEdge: Int, quality: Int, completion: @escaping ([String: Any]?) -> Void) {
-    let resized = resize(image, longEdge: CGFloat(longEdge))
-    guard let data = resized.jpegData(compressionQuality: CGFloat(quality) / 100.0) else { completion(nil); return }
-    let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    let uri = writeTemp(data)
-    OcrEngine.recognize(resized) { ocr in
-      completion([
-        "uri": uri,
-        "width": Int(resized.size.width * resized.scale),
-        "height": Int(resized.size.height * resized.scale),
-        "bytes": data.count,
-        "mediaType": "image/jpeg",
-        "integrityHash": hash,
-        "osEnhanced": true,
-        "ocr": ocr,
-      ])
+// MARK: - Image pipeline (downscale → JPEG → hash → OCR)
+
+private enum ImagePipeline {
+  static func process(images: [UIImage], longEdge: Int, quality: Int, completion: @escaping ([[String: Any]]) -> Void) {
+    let group = DispatchGroup()
+    var results = [Int: [String: Any]]()
+    let lock = NSLock()
+    for (idx, image) in images.enumerated() {
+      group.enter()
+      DispatchQueue.global(qos: .userInitiated).async {
+        let page = makePage(image, longEdge: longEdge, quality: quality)
+        lock.lock(); results[idx] = page; lock.unlock()
+        group.leave()
+      }
+    }
+    group.notify(queue: .main) {
+      completion(results.keys.sorted().compactMap { results[$0] })
     }
   }
 
-  static func resize(_ image: UIImage, longEdge: CGFloat) -> UIImage {
-    let w = image.size.width, h = image.size.height
-    let maxEdge = max(w, h)
-    guard maxEdge > longEdge else { return image }
-    let scale = longEdge / maxEdge
-    let newSize = CGSize(width: w * scale, height: h * scale)
-    let renderer = UIGraphicsImageRenderer(size: newSize)
-    return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
+  // JPEG (not WebP): iOS WebP encoding is unreliable (DCE §4) — the server normalizer produces the
+  // canonical WebP, so the evidentiary record stays consistent.
+  private static func makePage(_ image: UIImage, longEdge: Int, quality: Int) -> [String: Any] {
+    let resized = ImageScaler.scale(image, longEdge: CGFloat(longEdge))
+    let data = resized.jpegData(compressionQuality: CGFloat(quality) / 100.0) ?? Data()
+    let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    let uri = TempFile.write(data)
+    return [
+      "uri": uri,
+      "width": Int(resized.size.width * resized.scale),
+      "height": Int(resized.size.height * resized.scale),
+      "bytes": data.count,
+      "mediaType": "image/jpeg",
+      "integrityHash": hash,
+      "osEnhanced": true,
+      "ocr": OcrEngine.recognizeSync(resized),
+    ]
   }
+}
 
-  static func writeTemp(_ data: Data) -> String {
+private enum ImageScaler {
+  static func scale(_ image: UIImage, longEdge: CGFloat) -> UIImage {
+    let maxEdge = max(image.size.width, image.size.height)
+    guard maxEdge > longEdge, maxEdge > 0 else { return image }
+    let factor = longEdge / maxEdge
+    let newSize = CGSize(width: image.size.width * factor, height: image.size.height * factor)
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 1 // 1 device-pixel per point → size in points == size in pixels
+    return UIGraphicsImageRenderer(size: newSize, format: format).image { _ in
+      image.draw(in: CGRect(origin: .zero, size: newSize))
+    }
+  }
+}
+
+private enum TempFile {
+  static func write(_ data: Data) -> String {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("bol-\(UUID().uuidString).jpg")
     try? data.write(to: url)
     return url.absoluteString
   }
 }
 
-// VNRecognizeText → the portable legibility metrics the §5 gate consumes (geometry + coverage first).
+private enum ImageLoader {
+  static func load(_ uri: String) -> UIImage? {
+    if let url = URL(string: uri), url.isFileURL, let data = try? Data(contentsOf: url) {
+      return UIImage(data: data)
+    }
+    return UIImage(contentsOfFile: uri.replacingOccurrences(of: "file://", with: ""))
+  }
+}
+
+// MARK: - OCR (VNRecognizeText → portable legibility metrics for the §5 gate)
+
 private enum OcrEngine {
   static func recognize(_ image: UIImage, completion: @escaping ([String: Any]) -> Void) {
-    guard let cg = image.cgImage else { completion(empty()); return }
-    let request = VNRecognizeTextRequest { req, _ in
-      let obs = (req.results as? [VNRecognizedTextObservation]) ?? []
-      var chars = 0, words = 0, coverage: CGFloat = 0
-      var heights: [CGFloat] = []
-      var confidences: [Float] = []
-      var tokens: [String] = []
-      let imgArea = CGFloat(cg.width * cg.height)
-      for o in obs {
-        guard let top = o.topCandidates(1).first else { continue }
-        let text = top.string
-        chars += text.count
-        words += text.split(separator: " ").count
-        confidences.append(top.confidence)
-        let box = o.boundingBox // normalized 0..1
-        coverage += box.width * box.height
-        heights.append(box.height * CGFloat(cg.height))
-        for t in text.split(whereSeparator: { !$0.isNumber }) where t.count >= 3 { tokens.append(String(t)) }
-      }
-      let sortedH = heights.sorted()
-      let median = sortedH.isEmpty ? 0 : Double(sortedH[sortedH.count / 2])
-      let smallBand = sortedH.prefix(max(1, sortedH.count / 4))
-      let smallCoverage = imgArea > 0 ? Double(smallBand.reduce(0, +)) / Double(image.size.height) : 0
-      let meanConf = confidences.isEmpty ? 0 : Double(confidences.reduce(0, +)) / Double(confidences.count)
-      completion([
-        "engine": "ios.vision",
-        "recognizedChars": chars,
-        "recognizedWords": words,
-        "textCoverageFraction": Double(coverage),
-        "medianCharHeightPx": median,
-        "smallTextBandCoverage": smallCoverage,
-        "meanConfidence": meanConf,
-        "numberTokens": tokens,
-      ])
-    }
+    DispatchQueue.global(qos: .userInitiated).async { completion(recognizeSync(image)) }
+  }
+
+  static func recognizeSync(_ image: UIImage) -> [String: Any] {
+    guard let cg = image.cgImage else { return empty() }
+    let request = VNRecognizeTextRequest()
     request.recognitionLevel = .accurate
     request.usesLanguageCorrection = false
     let handler = VNImageRequestHandler(cgImage: cg, options: [:])
-    DispatchQueue.global(qos: .userInitiated).async { try? handler.perform([request]) }
+    do {
+      try handler.perform([request])
+    } catch {
+      return empty() // OCR failure → degrade closed (the TS gate treats absent metrics as na + flag)
+    }
+    let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
+    return metrics(from: observations, imageHeightPx: CGFloat(cg.height))
+  }
+
+  private static func metrics(from observations: [VNRecognizedTextObservation], imageHeightPx: CGFloat) -> [String: Any] {
+    var chars = 0
+    var words = 0
+    var coverage: CGFloat = 0
+    var heights: [CGFloat] = []
+    var confidences: [Float] = []
+    var tokens: [String] = []
+    for observation in observations {
+      guard let candidate = observation.topCandidates(1).first else { continue }
+      let text = candidate.string
+      chars += text.count
+      words += text.split(separator: " ").count
+      confidences.append(candidate.confidence)
+      let box = observation.boundingBox // normalized 0..1
+      coverage += box.width * box.height
+      heights.append(box.height * imageHeightPx)
+      for token in text.split(whereSeparator: { !$0.isNumber }) where token.count >= 3 {
+        tokens.append(String(token))
+      }
+    }
+    let sortedHeights = heights.sorted()
+    let median = sortedHeights.isEmpty ? 0.0 : Double(sortedHeights[sortedHeights.count / 2])
+    let smallCount = max(1, sortedHeights.count / 4)
+    let smallSum = sortedHeights.prefix(smallCount).reduce(0, +)
+    let smallCoverage = imageHeightPx > 0 ? Double(smallSum / imageHeightPx) : 0.0
+    let meanConfidence = confidences.isEmpty ? 0.0 : Double(confidences.reduce(0, +)) / Double(confidences.count)
+    return [
+      "engine": "ios.vision",
+      "recognizedChars": chars,
+      "recognizedWords": words,
+      "textCoverageFraction": Double(coverage),
+      "medianCharHeightPx": median,
+      "smallTextBandCoverage": smallCoverage,
+      "meanConfidence": meanConfidence,
+      "numberTokens": tokens,
+    ]
   }
 
   static func empty() -> [String: Any] {
-    ["engine": "ios.vision", "recognizedChars": 0, "recognizedWords": 0, "textCoverageFraction": 0,
-     "medianCharHeightPx": 0, "smallTextBandCoverage": 0, "meanConfidence": 0, "numberTokens": [String]()]
+    [
+      "engine": "ios.vision", "recognizedChars": 0, "recognizedWords": 0, "textCoverageFraction": 0.0,
+      "medianCharHeightPx": 0.0, "smallTextBandCoverage": 0.0, "meanConfidence": 0.0, "numberTokens": [String](),
+    ]
   }
 }

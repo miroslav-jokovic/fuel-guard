@@ -1,28 +1,24 @@
-apply plugin: 'com.android.library'
-apply plugin: 'org.jetbrains.kotlin.android'
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
 
-group = 'expo.modules.capturenative'
+group = 'app.fuelguard.capturenative'
 version = '0.1.0'
 
-def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
-apply from: expoModulesCorePlugin
-applyKotlinExpoModulesCorePlugin()
-useCoreDependencies()
-useExpoPublishing()
-
 android {
-  namespace "expo.modules.capturenative"
+  namespace 'expo.modules.capturenative'
   defaultConfig {
-    compileSdk safeExtGet("compileSdkVersion", 35)
-    minSdk safeExtGet("minSdkVersion", 24)
-    targetSdk safeExtGet("targetSdkVersion", 35)
+    versionCode 1
+    versionName '0.1.0'
   }
-  lintOptions { abortOnError false }
 }
 
 dependencies {
-  // DCE §9: the Play-Services document scanner downloads its module on first use (needs connectivity
-  // once); isSupported() reports module state and SCANNER_MODULE_UNAVAILABLE is handled for locked fleets.
-  implementation 'com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1'
-  implementation 'com.google.mlkit:text-recognition:16.0.0'
+  // DCE §9: the doc-scanner module downloads on first use (needs connectivity once); scan() surfaces
+  // SCANNER_MODULE_UNAVAILABLE when it is absent (de-Googled / enterprise-locked devices).
+  implementation 'com.google.android.gms:play-services-mlkit-document-scanner:16.0.0'
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
+  implementation 'androidx.activity:activity-ktx:1.11.0'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
 }
