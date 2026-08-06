@@ -238,3 +238,31 @@ Unit (config loader/signature, gate math, cross-check), native module tests, **g
 ## Approval gate
 
 Design is now research-grounded and the open questions are closed to decisions. On approval, implementation begins at **DCE-0**: thin custom Expo module scaffold + the two residual device checks that genuinely need hardware (ML Kit no-egress network capture; OCR confidence/latency on a min-spec Android). No native code before then.
+
+---
+
+## M6 build note (2026-08-06) — DCE realized in FuelGuard `apps/driver`
+
+This document is the **design of record** for the self-built scanner, built first in FuelGuard's driver app
+(reused later by the standalone HazmatGuard driver app). Reconciliation with the source of truth
+(HazmatGuard `PLAN.md` v1.19 — authoritative):
+
+- **DCE = *how*; PLAN M6 / §12.3 = *what/DoD*.** Acceptance numbers come from the PLAN: downscale 1568 px,
+  WebP q80, reject sub-1200 px / blurry **before** upload, 3-page BOL < 1.5 MB, offline no-double-post,
+  verdict with citations.
+- **Gate thresholds aligned to the shipped server gate, not the §4 draft.** `@fuelguard/capture-engine`'s
+  bundled config uses the server `usabilityGate` numbers (long edge ≥ **1200**, Laplacian var ≥ **100**,
+  glare ≤ **0.06**). The server gate is the authoritative backstop, so client + server must agree; the §4
+  draft's 1600/120 are superseded.
+- **Shipped (typechecked in the cloud VM):** `@fuelguard/capture-engine` (contracts, config + signing seam +
+  monotonic guard, §5 gate, provider interfaces); the driver `/api/me/hazmat/*` surface + `0133` provenance
+  columns; the native Expo module (iOS Swift / Android Kotlin) + the JS fallback provider; the capture
+  screen, `HAZMAT_CAPTURE_KIND` outbox handler, and the verdict view.
+- **Provider status:** v1 SystemScanner (native) is authored; the JS fallback (expo-image-picker) runs the
+  vertical today. v2 RawCapture remains deferred.
+- **Still owed (on the Mac / on-device):** build the native module (`expo prebuild` + run); the DCE-0 checks
+  — ML Kit no-egress network capture during a scan + OCR (BOLs are PII), and OCR confidence/latency on a
+  min-spec Android (confidence is SECONDARY in the gate, so a tune not a blocker); and wire a real Ed25519
+  verifier + the remote-config fetch (the seam, monotonic guard, and fail-to-last-known-good are in place —
+  until then only the bundled signed default is used).
+- **§6 server numeric cross-check** stays config-gated **off** (already scaffolded in `crossValidate.ts`).

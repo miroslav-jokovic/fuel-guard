@@ -15,7 +15,30 @@ M3 · M4 · M5 · M12**. Engine `0.8.0`, normalizer `2.0.0`, dataset as shipped 
 All 11 workspace packages **typecheck clean** (tsc + vue-tsc). The full test suite and the web bundle
 were **NOT run in this environment** (see Verification) — that is the main open verification step.
 
-## Done this session (ported from HazmatGuard source of truth)
+## This session — M6 advanced document scanner (self-built, DCE realized)
+
+Built the driver document-capture vertical + the self-built scanner core. **DCE
+(`docs/plans/drivers-app/DOCUMENT-CAPTURE-ENGINE.md`) is the design of record; PLAN M6/§12.3 is the DoD.**
+Committed to `main` (2df6ded → 142ee48):
+
+- **`@fuelguard/capture-engine`** (new pure-TS package): DCE §2 contracts + rejection taxonomy, §4 versioned
+  config + Ed25519-verify seam + monotonic guard (§8), the §5 geometry-led quality/legibility gate, provider
+  interfaces. Gate thresholds **aligned to the server `usabilityGate` (1200/100/0.06)**, not the DCE draft.
+- **Server `/api/me/hazmat/*`** (driver-JWT): create own load · register document · submit(+analyze) · get
+  verdict/runs — reusing the built services + 0092 driver-scope RLS; a driver never clears/attests. Every
+  create/register/submit step is **idempotent** (offline outbox re-drains, no double-post). Migration
+  **`0133`** adds capture-provenance columns to `hazmat_documents` (`quality` already existed).
+- **Native Expo module** `apps/driver/modules/capture-native` (iOS Swift VNDocumentCamera + VNRecognizeText;
+  Android Kotlin GmsDocumentScanner + ML Kit) — authored here, **builds on the Mac** — plus a **JS fallback**
+  (expo-image-picker → 1568 WebP q80 / JPEG → resolution gate before upload) so the vertical runs today.
+- **Client**: engine bootstrap (config + provider select), pure capture model (unit-tested), `app/hazmat/
+  capture.tsx`, the `HAZMAT_CAPTURE_KIND` outbox handler, `app/hazmat/[loadId].tsx` verdict view (polls runs
+  → cleared/rejected/in-review with CFR citations).
+
+**Verified here:** every touched package typechecks clean (`@fuelguard/capture-engine`, `packages/shared`,
+`apps/api`, `apps/driver`). **Not run here** (Mac): vitest, the native build, the app runtime.
+
+## Done previously (ported from HazmatGuard source of truth)
 
 - **Phase 0 — domain alignment** (`047f121`): `@hazmat/engine` (0.8.0, incl. `checkEligibility` +
   `auditProvidedInputs`), `@hazmat/data`, `@hazmat/placards`, `@hazmat/golden` are byte-identical to
@@ -49,19 +72,24 @@ were **NOT run in this environment** (see Verification) — that is the main ope
   trigger from declared materials; `qualifyOrg` emits the UNCLEARABLE `org_unqualified:security_plan`.
   §385.403 (FMCSA safety permit) **deferred to SME** (threshold/zone-heavy). `ATTESTED=false` until
   an SME signs off on the criterion + threshold.
-- **M6 — driver capture (native)**: build from the DCE design. Code can be written here; the native app
-  must be built/run on a Mac. *Not started.*
+- **M6 — driver capture: vertical BUILT this session.** Engine core + `/api/me/hazmat/*` + 0133 + native
+  module + JS fallback + capture/verdict screens, all typechecked. Remaining: build the native module on a
+  Mac (`expo prebuild` + run), run `pnpm test`, and the DCE-0 on-hardware checks (ML Kit no-egress; OCR
+  confidence/latency on a min-spec Android). v2 RawCapture + a real Ed25519 verifier/remote fetch deferred.
 - **M7** public calculator · **M10** exact placard art (launch blocker, SME) · **M11** ops readiness.
 
 ## Required actions before "live" (blockers)
 
-1. **Apply migrations `0131` + `0132` to Supabase** — the two unapplied migrations. `0131` adds
-   `hazmat_documents.content_type` (SELECTed by `listDocuments` + the extraction orchestrator; without it
-   those queries fail). `0132` replaces `record_hazmat_run` with the idempotent/UTC-pinned body (safe
-   `create or replace`). (0127-0130 already applied.)
-2. **`pnpm install`** — `@hazmat/placards` was added as an `apps/api` workspace dep for the packet (M12.1).
-3. **Run the test suite + web build on a Mac** (see Verification).
-4. **git cleanup** (cloud bridge can't unlink): `rm -f .git/index.lock .git/tmp_ci_idx`.
+1. **`pnpm install`** — new workspace package `@fuelguard/capture-engine` (added as an `apps/driver` dep);
+   links it so Metro + tsc + vitest resolve it on the Mac.
+2. **Apply migration `0133`** to Supabase — `hazmat_documents` capture-provenance columns (additive,
+   insert-only, safe after 0132). Migrations 0127–0132 already applied.
+3. **Build the driver app on a Mac** — `expo prebuild` then `expo run:ios` / `run:android` to compile the
+   native `capture-native` module (authored in the cloud VM, never compiled there).
+4. **Run `pnpm test` + `pnpm --filter @fuelguard/web build`** on a Mac (native-binary reason below).
+5. **DCE-0 on-hardware checks** (DCE §9/§12): ML Kit no-egress network capture during a scan + OCR (BOLs are
+   PII); OCR confidence/latency on a min-spec Android (confidence is SECONDARY in the gate — a tune).
+6. **git cleanup** (cloud bridge can't unlink): `rm -f .git/index.lock .git/tmp_ci*`.
 
 ## Verification state (honest)
 
