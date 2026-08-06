@@ -26,6 +26,7 @@ import {
   contaminatesBaseline,
 } from "./index.js";
 import { computeFillConfidence, summarizeFillGates } from "./fillConfidence.js";
+import { resolveCapacity } from "./anomalyRules/capacityResolve.js";
 // Rule BODY under test directly while the rule is catalog-suppressed (temporary until McLeod) — keeps
 // the logic verified so flipping `suppressed` off later is safe.
 import { ruleReeferFuelDiversion } from "./anomalyRules/rulesBehavioral.js";
@@ -1263,14 +1264,23 @@ describe("WP-CAP — exceeds_tank_capacity on resolved capacity + confidence tie
     expect(v.map((r) => r.ruleId)).toContain("exceeds_tank_capacity");
   });
 
-  it("sensor capacity CORRECTS an over-entered record downward — theft previously invisible now fires", () => {
-    // Someone typed 300 gal; the tank itself measures 200. A 240-gal bill used to be silently under the
-    // entered capacity; with the sensor-resolved 200 (medium → 10% tol → limit 220) it fires.
+  it("sensor-below-entered NO LONGER shrinks the judging capacity (2026-08) — entered governs at low confidence", () => {
+    // Someone typed 300 gal; the sensor measures 200. Pre-incident policy let the sensor win and a
+    // 240-gal bill fired — but sensor-below-entered is exactly the plateau-peak bias direction, and in
+    // production it mass-fired on a healthy 240-gal fleet measured ~177–203. Now the ENTERED value
+    // governs at LOW confidence (15% tol → limit 345 → silent), and the disagreement surfaces on
+    // Coverage as a divergence for a human to resolve — not as alerts.
     const overEntered: VehicleView = { ...vehicle, tankCapacityGal: 300, sensorCapacityGal: 200 };
     const out = runAllRules(ctx({ vehicle: overEntered, txn: txn({ gallons: 240 }) }));
-    const fired = out.find((r) => r.ruleId === "exceeds_tank_capacity");
-    expect(fired).toBeTruthy();
-    expect(fired!.evidence.capacityDivergent).toBe(true);
+    expect(out.find((r) => r.ruleId === "exceeds_tank_capacity")).toBeUndefined();
+    const rc = resolveCapacity(overEntered);
+    expect(rc.gallons).toBe(300);
+    expect(rc.confidence).toBe("low");
+    expect(rc.divergent).toBe(true); // the Coverage surface still sees the contradiction
+    // The bias-free direction is unchanged: a sensor ABOVE the entered record still wins.
+    const underEntered: VehicleView = { ...vehicle, tankCapacityGal: 150, sensorCapacityGal: 208 };
+    const up = runAllRules(ctx({ vehicle: underEntered, txn: txn({ gallons: 260 }) }));
+    expect(up.find((r) => r.ruleId === "exceeds_tank_capacity")).toBeTruthy();
   });
 
   it("sensor capacity REVIVES detection when no capacity was ever entered (was silently dead)", () => {
@@ -1311,15 +1321,19 @@ describe("WP-CAP — exceeds_tank_capacity on resolved capacity + confidence tie
     expect(both).not.toContain("implausible_topoff");
   });
 
-  it("tank_space_exceeded and cumulative_overfuel reconcile against the sensor-resolved capacity", () => {
-    // Over-entered 300 masked tank-space theft: 45% full → old free space 165 gal absorbed a 160-gal bill.
-    // Sensor-measured 200 → free space 110 → ~50 gal could not fit → fires.
+  it("tank_space_exceeded and cumulative_overfuel judge against the ENTERED capacity when the sensor reads lower (2026-08)", () => {
+    // Pre-incident these fired off the sensor's 200 against an entered 300 — the biased-low direction.
+    // Precision-first now: the entered value sizes free space and the over-fuel ceiling, so neither
+    // fires here; the divergence goes to Coverage. Once a HUMAN corrects the record to 200, both
+    // tighten to exactly the old detection.
     const overEntered: VehicleView = { ...vehicle, tankCapacityGal: 300, sensorCapacityGal: 200, tankSensorReliable: true };
-    expect(ids(ctx({ vehicle: overEntered, txn: txn({ gallons: 160 }), tankPctBefore: 45 }))).toContain("tank_space_exceeded");
-    // cumulative_overfuel ceiling shrinks with the corrected tank: 600 mi / 6.67 baseline ≈ 90 burnable;
-    // 300-gal window vs 90 + 200 + 10 = 300 → silent at the entered 300... and fires once sensor says 200.
+    expect(ids(ctx({ vehicle: overEntered, txn: txn({ gallons: 160 }), tankPctBefore: 45 }))).not.toContain("tank_space_exceeded");
     const c = ctx({ vehicle: overEntered, windowGallons: 320, windowMiles: 600 });
-    expect(ids(c)).toContain("cumulative_overfuel");
+    expect(ids(c)).not.toContain("cumulative_overfuel");
+    // Human-corrected record (entered 200, sensor agrees) → detection is tight again.
+    const corrected: VehicleView = { ...vehicle, tankCapacityGal: 200, sensorCapacityGal: 200, tankSensorReliable: true };
+    expect(ids(ctx({ vehicle: corrected, txn: txn({ gallons: 160 }), tankPctBefore: 45 }))).toContain("tank_space_exceeded");
+    expect(ids(ctx({ vehicle: corrected, windowGallons: 320, windowMiles: 600 }))).toContain("cumulative_overfuel");
   });
 });
 

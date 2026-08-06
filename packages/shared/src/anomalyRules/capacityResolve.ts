@@ -155,9 +155,22 @@ export function resolveCapacity(v: VehicleView): ResolvedCapacity {
         // Agreement: take the larger of the two (never judge a truck below what both sources support).
         return { gallons: Math.max(sensor, entered), confidence: "high", source: "sensor+entered", divergent: false, enteredGal: entered, sensorGal: sensor };
       }
-      // Contradiction: the tank itself measured differently from what was typed. Physics wins — this is
-      // the downward-correction path an over-entered nameplate previously made impossible.
-      return { gallons: sensor, confidence: "medium", source: "sensor", divergent: true, enteredGal: entered, sensorGal: sensor };
+      if (sensor > entered) {
+        // Sensor ABOVE entered: the tank demonstrably absorbed more than the record allows (the
+        // under-entered dual-tank case). No known bias runs this direction — the plateau-peak bias
+        // only UNDERSTATES capacity — so physics wins and the record is surfaced as divergent.
+        return { gallons: sensor, confidence: "medium", source: "sensor", divergent: true, enteredGal: entered, sensorGal: sensor };
+      }
+      // Sensor BELOW entered (2026-08 incident): exactly the direction the plateau-peak /
+      // equalization-lag bias produces (a 240-gal fleet measured ~177–203 in production), and the
+      // observed-fill floor cannot defend trucks whose drivers never fill both tanks from near-empty.
+      // A biased measurement must never silently SHRINK the capacity every volume rule judges against:
+      // that converted the bias into false cumulative_overfuel reviews and — once the auto-fix
+      // rewrote the record and entered==sensor read as "agreement" — tight-tolerance false criticals.
+      // Keep the ENTERED value at LOW confidence (wide alert tolerance, the review-grade unverified
+      // band, and the fill-self-demonstration guard all apply), and keep divergent=true so Coverage
+      // surfaces the disagreement for a HUMAN to resolve instead of the record silently flipping.
+      return { gallons: entered, confidence: "low", source: "entered", divergent: true, enteredGal: entered, sensorGal: sensor };
     }
     // No entered capacity at all — the sensor REVIVES detection that used to be silently dead (cap 0).
     return { gallons: sensor, confidence: "medium", source: "sensor", divergent: false, enteredGal: 0, sensorGal: sensor };
@@ -198,9 +211,11 @@ export interface CapacityAutoFix {
  *     beyond CAPACITY_DIVERGENCE_PCT (the same threshold that flags the record on the Coverage page).
  * Inside the divergence band nothing is touched — small disagreement is sensor coarseness, not a wrong
  * record, and the band doubles as hysteresis (a fixed record re-fixes only if the measurement later
- * drifts > threshold from it, never churning fill-to-fill). Applies to manual entries too — a human
- * value >15% off what the tank itself measures IS wrong (the prior policy decision: physics wins) —
- * with every correction stamped tank_capacity_source='auto' and audit-logged. Pure.
+ * drifts > threshold from it, never churning fill-to-fill). UPWARD only (2026-08): a divergent
+ * correction may only RAISE the record — the under-entered dual-tank case, where the tank demonstrably
+ * absorbed more than the record allows. Downward rewrites are forbidden (see the inline comment) —
+ * that direction is the plateau-peak bias, not physics. Every correction is stamped
+ * tank_capacity_source='auto' and audit-logged. Pure.
  */
 export function decideCapacityAutoFix(v: {
   enteredGal: number | null;
@@ -218,10 +233,15 @@ export function decideCapacityAutoFix(v: {
   const sensor = floor != null && floor > raw ? floor : raw; // same floor as resolveCapacity
   const entered = v.enteredGal != null && Number.isFinite(v.enteredGal) && v.enteredGal > 0 ? v.enteredGal : 0;
   if (entered <= 0) return { gallons: sensor, reason: "filled_missing" };
-  if (Math.abs(sensor - entered) / entered > CAPACITY_DIVERGENCE_PCT / 100) {
-    // Extra caution on DOWNWARD rewrites: a biased-low measurement is the known failure mode, so a
-    // record may only be corrected downward when the measurement is NOT contradicted by any
-    // corroborated observed fill (the floor above already lifted it if it was).
+  // 2026-08 incident: DOWNWARD auto-correction is DISABLED. The observed-fill floor above was
+  // supposed to protect against the biased-low measurement, but it cannot defend a truck whose
+  // drivers never fill both tanks from near-empty — in production the learn pre-pass rewrote a
+  // 240-gal fleet down to ~177–203 in one pass, and the rewritten records then read as
+  // entered==sensor "agreement" (tight tolerance, divergence flag gone — the corruption hid
+  // itself and survived detection resets). A record may only ever be auto-corrected UPWARD
+  // (bias-free direction); a sensor-below-entered divergence stays a Coverage data-quality item
+  // for a human, and resolveCapacity keeps judging against the entered value at low confidence.
+  if (sensor > entered && (sensor - entered) / entered > CAPACITY_DIVERGENCE_PCT / 100) {
     return { gallons: sensor, reason: "corrected_divergent" };
   }
   return null;

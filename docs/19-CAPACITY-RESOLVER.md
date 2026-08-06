@@ -102,6 +102,26 @@ Three-part fix, all keyed to the same physical truth (a fill cannot bill more th
 Remediation for affected fleets: restore original capacities from the `vehicle.capacity_autofix`
 audit rows (downward rewrites only), null `sensor_capacity_gal`, deploy, rebuild.
 
+## 2026-08 incident follow-up: downward correction removed entirely
+
+The observed-fill floor above proved insufficient in production. A fleet of 240-gal trucks whose
+drivers never fill both tanks from near-empty leaves no single fill large enough to trip the floor
+or the ≥2-contradiction guard — and the learn pre-pass rewrote ~30 records to ~177–203 (one to
+117.9) in a single pass (`scripts/restore-capacity-autofix.sql` is the exact-restore from audit).
+Worse, the rewrite made entered == sensor read as AGREEMENT: high confidence, tight tolerance,
+divergence flag gone — the corruption hid itself and survived detection resets (reset keeps
+`tank_capacity_gal`).
+
+Policy now (asymmetric, matching the bias):
+
+- `decideCapacityAutoFix` corrects **upward only**. Sensor-below-entered divergence is never a
+  rewrite — it stays a Coverage data-quality item for a human.
+- `resolveCapacity` with sensor **below** entered keeps the ENTERED value at **low** confidence
+  (wide tolerance + review-grade band + fill-self-demonstration guard), `divergent: true` so the
+  disagreement stays visible. Sensor **above** entered still wins (bias-free direction).
+- Accepted trade-off: a genuinely over-entered record no longer auto-tightens detection; it
+  surfaces as divergence and a human corrects it. Precision over recall, consistent with docs/09.
+
 ## Deliberate limits
 
 - Trucks with no Samsara fuel-level data stay on the legacy path at LOW confidence (15% alert

@@ -80,14 +80,24 @@ describe("resolveCapacity (sensor > entered > billed-history, with confidence)",
     expect(rc.divergent).toBe(false);
   });
 
-  it("sensor contradicts entered → physics wins, divergent flagged (both directions)", () => {
+  it("sensor ABOVE entered → physics wins, divergent flagged (bias-free direction)", () => {
     const up = resolveCapacity({ ...vehicle, sensorCapacityGal: 208 }); // under-entered dual-tank
     expect(up.gallons).toBe(208);
     expect(up.confidence).toBe("medium");
     expect(up.divergent).toBe(true);
-    const down = resolveCapacity({ ...vehicle, tankCapacityGal: 300, sensorCapacityGal: 200 }); // over-entered
-    expect(down.gallons).toBe(200); // downward correction — impossible pre-WP-CAP
+  });
+
+  it("sensor BELOW entered → ENTERED kept at LOW confidence, still surfaced divergent (2026-08 incident)", () => {
+    // The plateau-peak bias direction: a biased-low measurement must never silently shrink the
+    // capacity the volume rules judge against (it mass-fired cumulative_overfuel on a 240-gal fleet
+    // measured ~177–203). The entered value governs, at low confidence (wide tolerance + the
+    // review-grade band), and divergent=true keeps the disagreement visible on Coverage.
+    const down = resolveCapacity({ ...vehicle, tankCapacityGal: 300, sensorCapacityGal: 200 });
+    expect(down.gallons).toBe(300);
+    expect(down.confidence).toBe("low");
+    expect(down.source).toBe("entered");
     expect(down.divergent).toBe(true);
+    expect(down.sensorGal).toBe(200); // measurement kept visible in evidence
   });
 
   it("sensor with no entered capacity REVIVES detection (was silently dead at cap 0)", () => {
@@ -127,9 +137,9 @@ describe("decideCapacityAutoFix (WP-CAP part 2 — self-healing record)", () => 
     expect(decideCapacityAutoFix({ enteredGal: 0, sensorGal: 200, sensorSamples: 10 })).toEqual({ gallons: 200, reason: "filled_missing" });
     expect(decideCapacityAutoFix({ enteredGal: null, sensorGal: 200, sensorSamples: 10 })).toEqual({ gallons: 200, reason: "filled_missing" });
   });
-  it("corrects in BOTH directions when divergent, never inside the band (hysteresis)", () => {
+  it("corrects UPWARD only when divergent, never inside the band, NEVER downward (2026-08)", () => {
     expect(decideCapacityAutoFix({ enteredGal: 150, sensorGal: 208, sensorSamples: 10 })!.gallons).toBe(208); // up
-    expect(decideCapacityAutoFix({ enteredGal: 300, sensorGal: 200, sensorSamples: 10 })!.gallons).toBe(200); // down
+    expect(decideCapacityAutoFix({ enteredGal: 300, sensorGal: 200, sensorSamples: 10 })).toBeNull(); // down — forbidden
     expect(decideCapacityAutoFix({ enteredGal: 200, sensorGal: 210, sensorSamples: 10 })).toBeNull(); // 5% — in band
     expect(decideCapacityAutoFix({ enteredGal: 200, sensorGal: 228, sensorSamples: 10 })).toBeNull(); // 14% — in band
   });
@@ -171,7 +181,18 @@ describe("2026-08 production fix — biased-low sensor capacity (240-gal trucks 
     expect(decideCapacityAutoFix({ enteredGal: 240, sensorGal: 185, sensorSamples: 10, observedMaxFillGal: 232 })).toBeNull();
     // Blank-fill uses the floored value, not the biased one.
     expect(decideCapacityAutoFix({ enteredGal: 0, sensorGal: 185, sensorSamples: 10, observedMaxFillGal: 232 })).toEqual({ gallons: 232, reason: "filled_missing" });
-    // Without an observed floor the prior behavior is unchanged (downward correction still possible).
-    expect(decideCapacityAutoFix({ enteredGal: 300, sensorGal: 200, sensorSamples: 10 })!.gallons).toBe(200);
+    // Even WITHOUT an observed floor, downward correction is now forbidden outright — the floor
+    // proved insufficient in production (drivers who never fill both tanks from near-empty leave no
+    // corroborating large fill, and the fleet's 240s were rewritten to ~177–203 in one learn pass).
+    expect(decideCapacityAutoFix({ enteredGal: 300, sensorGal: 200, sensorSamples: 10 })).toBeNull();
+  });
+
+  it("resolver end-to-end on the incident truck: entered 240, sensor 187.9, no big observed fill", () => {
+    // No observed-fill floor rescue available — the resolver must still keep 240 (low confidence,
+    // divergent) so cumulative_overfuel's ceiling gets the full tank, not the biased one.
+    const rc = resolveCapacity({ ...vehicle, tankCapacityGal: 240, sensorCapacityGal: 187.9, observedMaxFillGal: 173 });
+    expect(rc.gallons).toBe(240);
+    expect(rc.confidence).toBe("low");
+    expect(rc.divergent).toBe(true);
   });
 });
