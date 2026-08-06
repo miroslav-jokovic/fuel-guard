@@ -118,15 +118,20 @@ export interface OrgQualInput {
   evalDate: string;
   /** CURRENT organization-level certifications. */
   certs: QualCertSnapshot[];
+  /** M9 (§5.1 conditional): the load trips the §172.800(b) large-bulk security-plan criterion.
+   *  Computed from the load's materials by the DB-facing gate (provisional applicability, SME-pending).
+   *  §385.403 (FMCSA safety permit) is intentionally NOT evaluated in v1 — SME attestation pending. */
+  requiresSecurityPlan?: boolean;
 }
 
 const O = (code: string, message: string, citation: string): QualFinding =>
   ({ code: `org_unqualified:${code}`, message, citation });
 
 /**
- * §10.5 — v1 runs the UNCONDITIONAL org checks only. `hazmat_safety_permit` and `security_plan`
- * are conditional on material lists not present in the dataset (M9); their absence is stated in
- * the audit packet, never silently assumed satisfied.
+ * §10.5 — v1 runs the two UNCONDITIONAL org checks always (PHMSA registration, financial
+ * responsibility) plus, when the load trips the provisional §172.800(b) large-bulk criterion
+ * (M9, `requiresSecurityPlan`), a CONDITIONAL `security_plan` check. `hazmat_safety_permit`
+ * (§385.403) stays deferred to SME attestation and is never silently assumed satisfied.
  */
 export function qualifyOrg(input: OrgQualInput): QualResult {
   const findings: QualFinding[] = [];
@@ -139,6 +144,11 @@ export function qualifyOrg(input: OrgQualInput): QualResult {
   };
   check("phmsa_registration", "phmsa_registration", "PHMSA hazmat registration", "49 CFR Part 107 subpart G");
   check("financial_responsibility", "financial_responsibility", "financial-responsibility (insurance) certification", "49 CFR §387.9");
+  // M9 (§172.800(b), PROVISIONAL — SME attestation pending): a large-bulk Division 2.1 / Class 3 PG I/II
+  // load requires the carrier to maintain a current security plan. UNCLEARABLE like the others.
+  if (input.requiresSecurityPlan) {
+    check("security_plan", "security_plan", "§172.800 security plan (provisional applicability — SME attestation pending)", "49 CFR §172.800(b)");
+  }
   return { qualified: findings.length === 0, findings, flags: findings.map((f) => f.code) };
 }
 

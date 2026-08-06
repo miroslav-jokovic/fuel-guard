@@ -4,6 +4,7 @@ import {
   qualifyDriver, qualifyOrg, qualificationEvalDate,
   type QualCertSnapshot, type QualFinding,
 } from "@fuelguard/shared";
+import { loadDataset, evaluateSecurityPlanApplicability, type SecurityPlanLine } from "@hazmat/data";
 
 /**
  * Qualification gate — the DB-facing half (M3.2). Assembles the snapshots, calls the PURE gate
@@ -53,7 +54,7 @@ function canonical(v: unknown): string {
 
 export async function evaluateQualification(
   admin: SupabaseClient, orgId: string,
-  load: { driver_id: string | null; planned_pickup_at: string | null },
+  load: { driver_id: string | null; planned_pickup_at: string | null; declared_lines?: unknown[] },
   vehicleKind: "cargo_tank" | "van_or_flatbed",
   nowIso: string,
 ): Promise<QualificationEvaluation> {
@@ -90,11 +91,22 @@ export async function evaluateQualification(
     driverFindings = qualifyDriver({ evalDate, driverStatus, certs: driverCerts, vehicleKind, orgHasSecurityPlan }).findings;
   }
 
-  const orgFindings = qualifyOrg({ evalDate, certs: orgCerts }).findings;
+  // M9 (§172.800(b), PROVISIONAL — SME attestation pending): does the load trip the large-bulk
+  // security-plan criterion? Computed from the declared materials against the shipped dataset.
+  const secLines: SecurityPlanLine[] = ((load.declared_lines ?? []) as Array<{ hmtRef?: string; quantity?: { value?: number; unit?: string }; packagingKind?: string }>)
+    .filter((l) => typeof l.hmtRef === "string" && l.quantity && typeof l.quantity.value === "number")
+    .map((l) => ({
+      hmtRef: l.hmtRef!, quantityValue: l.quantity!.value!,
+      quantityUnit: (l.quantity!.unit ?? "gal") as SecurityPlanLine["quantityUnit"],
+      packagingKind: (l.packagingKind === "bulk" ? "bulk" : "non_bulk"),
+    }));
+  const requiresSecurityPlan = evaluateSecurityPlanApplicability(loadDataset(), secLines).required;
+
+  const orgFindings = qualifyOrg({ evalDate, certs: orgCerts, requiresSecurityPlan }).findings;
 
   const inputsDigest = createHash("sha256").update(canonical({
     evalDate: evalDate.slice(0, 10), usedFallback,
-    driverId: load.driver_id, driverStatus, driverCerts, orgCerts, vehicleKind,
+    driverId: load.driver_id, driverStatus, driverCerts, orgCerts, vehicleKind, requiresSecurityPlan,
   })).digest("hex");
 
   return {

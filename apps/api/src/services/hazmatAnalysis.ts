@@ -184,7 +184,7 @@ export async function executeManualAnalysis(
     // §5/§5.1 (M3): the qualification gate runs on EVERY analysis; its failures are UNCLEARABLE
     // (§10.2) — an unqualified driver / lapsed org registration can see a verdict but never a
     // `cleared` load. Independent of the engine verdict; unioned into the flags below.
-    const qual = await evaluateQualification(admin, orgId, { driver_id: l.driver_id, planned_pickup_at: l.planned_pickup_at }, "cargo_tank", new Date().toISOString());
+    const qual = await evaluateQualification(admin, orgId, { driver_id: l.driver_id, planned_pickup_at: l.planned_pickup_at, declared_lines: l.declared_lines }, "cargo_tank", new Date().toISOString());
 
     let verdict: Verdict | { error: string };
     let advisories: unknown[] = [];
