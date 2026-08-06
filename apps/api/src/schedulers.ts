@@ -10,6 +10,7 @@ import { startEfsSoapPoller } from "./services/efsSoapPoller.js";
 import { startEfsSoapCertExpiryWatcher } from "./services/efsSoapCertExpiry.js";
 import { startPostedPriceScheduler } from "./services/postedPriceFetch.js";
 import { startDutySessionSweeper } from "./services/dutySessionSweeper.js";
+import { startHazmatStorageReconcileScheduler } from "./services/hazmatStorageReconcileScheduler.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,
@@ -36,4 +37,5 @@ export function startAllSchedulers(env: Env): void {
   startEfsSoapCertExpiryWatcher(env); // daily: warn before an mTLS client certificate takes the feed down
   startPostedPriceScheduler(env); // global posted-price refresh from Pilot's public table
   startDutySessionSweeper(env); // close abandoned driver shifts so their truck is released (D44.5)
+  startHazmatStorageReconcileScheduler(env); // §13.5/M11: nightly hazmat storage-orphan reconcile
 }

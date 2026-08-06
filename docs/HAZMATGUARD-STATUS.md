@@ -90,7 +90,14 @@ Committed to `main` (2df6ded → 142ee48):
   `PLACARD_ART_ATTESTED=false`, `symbolProvisional` unchanged. **Remaining (design + SME, launch blocker):**
   trace the placeholder pictograms from DOT Chart 17, confirm PANTONE/geometry, per-placard SME sign-off →
   flip `symbolProvisional`/`attested`. Cannot be derived from the CFR text — needs the source artwork.
-- **M11** ops readiness ·
+- **M11 — operational readiness: code slices BUILT; infra actions are the owner's.** (§13, `docs/plans/
+  HAZMATGUARD-M11-OPS.md`.) DONE (typechecked): Sentry PII scrubbing (`lib/sentryScrub.ts` beforeSend —
+  strips CDL/DOB/address/medical-registry + image bytes, keeps only user.id, release-tagged engine+data+art;
+  unit-tested), nightly hazmat storage-orphan reconcile (`storageReconcile.ts` + scheduler — deletes objects
+  with no row past 24h, flags missing-object rows, never drops a row; pure planner tested), and a
+  provider-agnostic off-provider backup (`storageBackup.ts`, `BackupTarget` seam). Docs: RPO 1h / RTO 4h +
+  restore runbook + drill log. **Owner infra (not code):** enable PITR, stand up the 2nd storage provider +
+  schedule the backup, run the first restore drill. ·
   **M9** §385.403 (build from CFR, provisional). **M8** SME real-BOL validation is the final step after build.
 
 ## Required actions before "live" (blockers)
