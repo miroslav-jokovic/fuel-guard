@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeRejectRows, attributeDeclinedRow } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import {
-  emptyResult, existingRefs, countByImport, createImport, dateSpan, countByDay, computeShortfall,
+  emptyResult, existingRefs, countByImport, createImport, DuplicateImportError, dateSpan, countByDay, computeShortfall,
 } from "./efsIngestShared.js";
 import type { IngestInput, IngestResult } from "./efsIngestShared.js";
 import type { IngestDeps } from "./efsIngest.js";
@@ -24,22 +24,29 @@ export async function ingestReject(
   const span = dateSpan(declined.map((d) => d.declined_at));
   const rowsByDay = countByDay(declined.map((d) => d.declined_at));
 
-  const importId = await createImport(
-    admin,
-    {
-      org_id: input.orgId,
-      source: input.source,
-      kind: "reject",
-      filename: input.filename,
-      status: "completed",
-      total_rows: input.rows.length,
-      inserted_rows: newDeclined.length,
-      duplicate_rows: declined.length - newDeclined.length,
-      skipped_rows: skipped.length,
-      created_by: input.requestedBy,
-    },
-    input.fileHash,
-  );
+  let importId: string;
+  try {
+    importId = await createImport(
+      admin,
+      {
+        org_id: input.orgId,
+        source: input.source,
+        kind: "reject",
+        filename: input.filename,
+        status: "completed",
+        total_rows: input.rows.length,
+        inserted_rows: newDeclined.length,
+        duplicate_rows: declined.length - newDeclined.length,
+        skipped_rows: skipped.length,
+        created_by: input.requestedBy,
+      },
+      input.fileHash,
+    );
+  } catch (e) {
+    // P1 (0125): the same file landed concurrently via another delivery — a duplicate, not an error.
+    if (e instanceof DuplicateImportError) return { ...emptyResult("reject"), alreadyImported: true };
+    throw e;
+  }
 
   let scoreError: string | null = null;
   if (newDeclined.length) {

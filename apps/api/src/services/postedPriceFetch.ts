@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { parsePilotPricesPageHtml, median } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
+import { hourBucketIso } from "../lib/timeBucket.js";
 import { ingestPostedPrices, type PostedIngestResult } from "./postedPriceIngest.js";
 import { runRoadRangerFetch } from "./roadRangerIngest.js";
 
@@ -74,7 +75,7 @@ export async function runPostedPriceFetch(admin: SupabaseClient, env: Env): Prom
 
   const result = await ingestPostedPrices(admin, parsed.rows, {
     source: POSTED_SOURCE_PAGE,
-    observedAt: new Date().toISOString(),
+    observedAt: hourBucketIso(), // P1: deterministic across replicas (see lib/timeBucket)
     stationRows: parsed.stationRows,
     skipped: parsed.skipped,
   });

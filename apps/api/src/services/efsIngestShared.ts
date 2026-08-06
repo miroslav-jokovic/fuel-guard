@@ -123,6 +123,16 @@ export function emptyResult(kind: ReportKind): IngestResult {
   };
 }
 
+/** P1 (2026-08 audit): thrown when the file-hash unique index (0125) refuses a concurrent duplicate
+ *  delivery of the same file — the read-then-write "alreadyImported" check is racy by nature; the DB
+ *  is the arbiter. Callers treat it exactly like the pre-checked alreadyImported case. */
+export class DuplicateImportError extends Error {
+  constructor() {
+    super("this file was imported concurrently by another delivery");
+    this.name = "DuplicateImportError";
+  }
+}
+
 /** Insert the parent import row, tolerating a schema without the file_hash column (pre-migration 0017). */
 export async function createImport(
   admin: SupabaseClient,
@@ -131,6 +141,9 @@ export async function createImport(
 ): Promise<string> {
   const withHash = fileHash ? { ...base, file_hash: fileHash } : base;
   let res = await admin.from("imports").insert(withHash).select("id").single();
+  // A 23505 here can only be uq_imports_org_file_hash (0125): the same file landed concurrently via
+  // another channel/replica between our pre-check and this insert. Not an error — a duplicate.
+  if (res.error?.code === "23505") throw new DuplicateImportError();
   if (res.error?.message?.includes("file_hash")) {
     res = await admin.from("imports").insert(base).select("id").single();
   }

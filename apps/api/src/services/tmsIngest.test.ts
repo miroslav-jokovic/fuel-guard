@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ingestMovements, ingestDriverTimeOff, orgForIngestToken } from "./tmsIngest.js";
+import { ingestMovements, ingestDriverTimeOff, orgForIngestToken, syntheticTimeOffId } from "./tmsIngest.js";
 import { hashIngestToken } from "../lib/ingestToken.js";
 
 interface Write { table: string; op: "upsert" | "insert"; payload: Record<string, unknown>[] }
@@ -71,5 +71,25 @@ describe("tms ingest", () => {
     expect(rows[0]!.driver_id).toBe("d1");
     expect(rows[1]!.driver_id).toBeNull(); // E9 unknown
     expect(res.unmatched).toContain("E9");
+  });
+
+  it("P1: a window WITHOUT an external_id gets a deterministic synthetic identity and is UPSERTED, never appended", async () => {
+    // The old path plain-INSERTED id-less windows — every re-ingest of the same feed duplicated
+    // them, and duplicated home-time windows fed fuel_while_driver_home. Now every row carries an
+    // idempotency key: the provider id, or a content-derived synthetic one.
+    const { admin, writes } = makeAdmin((q) =>
+      q.table === "drivers" ? [{ id: "d1", employee_id: "E1", samsara_driver_id: null }] : [],
+    );
+    await ingestDriverTimeOff(admin, "org1", "mcleod", [
+      { driver_employee_id: "E1", start_at: "2026-07-01T00:00:00Z", end_at: "2026-07-03T00:00:00Z", kind: "home_time" },
+      { driver_employee_id: "E1", start_at: "2026-07-10T00:00:00Z", kind: "home_time" }, // open-ended
+    ]);
+    expect(writes.every((w) => w.op === "upsert")).toBe(true); // NO plain inserts remain
+    const rows = writes.find((w) => w.table === "driver_time_off")!.payload;
+    expect(rows[0]!.external_id).toBe(syntheticTimeOffId("d1", "2026-07-01T00:00:00Z", "2026-07-03T00:00:00Z", "home_time"));
+    expect(rows[1]!.external_id).toBe(syntheticTimeOffId("d1", "2026-07-10T00:00:00Z", null, "home_time"));
+    // Deterministic + epoch-based: byte-identical to the SQL backfill in migration 0125.
+    expect(rows[0]!.external_id).toBe("synthetic:d1:1782864000:1783036800:home_time");
+    expect(rows[1]!.external_id).toBe("synthetic:d1:1783641600:open:home_time");
   });
 });

@@ -6,6 +6,7 @@
  * the source's prior prices (no accumulation). Gates before any write: parse, completeness floor (~650 network), diesel-median sanity.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hourBucketIso } from "../lib/timeBucket.js";
 import { parseLovesExport, median, type Cell, type LovesLocationRow } from "@fuelguard/shared";
 
 const BRAND = "loves";
@@ -76,7 +77,9 @@ export async function upsertLoves(
   }
   let pricesInserted = 0;
   for (const part of chunk(priceRows, 500)) {
-    const { error } = await admin.from("fuel_prices_posted").insert(part);
+    const { error } = await admin
+      .from("fuel_prices_posted")
+      .upsert(part, { onConflict: "station_id,product,price_kind,source,observed_at", ignoreDuplicates: true });
     if (error) return { ok: false, error: `Posted-price insert failed: ${error.message}`, stationsUpserted, pricesInserted, skipped: 0 };
     pricesInserted += part.length;
   }
@@ -97,7 +100,7 @@ export async function ingestLovesExport(admin: SupabaseClient, grid: Cell[][]): 
   if (med == null || med < DIESEL_MEDIAN_BAND.min || med > DIESEL_MEDIAN_BAND.max) {
     return { ok: false, error: `Sanity gate: median diesel ${med ?? "n/a"} outside ${DIESEL_MEDIAN_BAND.min}-${DIESEL_MEDIAN_BAND.max} $/gal — refusing (column drift?).`, ...base };
   }
-  const observedAt = parsed.priceObservedAt ?? new Date().toISOString();
+  const observedAt = parsed.priceObservedAt ?? hourBucketIso(); // P1: deterministic fallback across replicas
   const w = await upsertLoves(admin, parsed.rows, { source: LOVES_EXPORT_SOURCE, observedAt });
   if (!w.ok) return { ok: false, error: w.error, ...base };
   return { ok: true, ...base, stationsUpserted: w.stationsUpserted, pricesInserted: w.pricesInserted };

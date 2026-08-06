@@ -70,7 +70,11 @@ export async function ingestPostedPrices(
   if (del.error) return { ...base, error: `Posted-price replace failed: ${del.error.message}`, unmatched };
   let pricesInserted = 0;
   for (const part of chunk(inserts, 500)) {
-    const { error } = await admin.from("fuel_prices_posted").insert(part);
+    // P1: upsert against the snapshot key (uq_fpp_snapshot) — a concurrent replica's identical
+    // snapshot rows dedupe away instead of stacking into the market median.
+    const { error } = await admin
+      .from("fuel_prices_posted")
+      .upsert(part, { onConflict: "station_id,product,price_kind,source,observed_at", ignoreDuplicates: true });
     if (error) return { ...base, error: `Posted-price insert failed: ${error.message}`, unmatched, pricesInserted };
     pricesInserted += part.length;
   }

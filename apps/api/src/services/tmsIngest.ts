@@ -159,7 +159,25 @@ export async function ingestMovements(
   return { received: movements.length, upserted: rows.length, unmatched: [...unmatched] };
 }
 
-/** Upsert driver home-time / time-off windows for an org. Rows with an external_id are idempotent. */
+/**
+ * P1 (2026-08 audit) — deterministic identity for a time-off window WITHOUT a provider external_id.
+ * Derived from content (driver, start, end, kind) in epoch seconds so the TS derivation and the SQL
+ * backfill in migration 0125 produce byte-identical values. Without this, id-less windows were
+ * APPENDED on every re-ingest of the same feed — duplicated home-time windows feeding
+ * fuel_while_driver_home.
+ */
+export function syntheticTimeOffId(
+  driverId: string | null,
+  startAt: string,
+  endAt: string | null,
+  kind: string,
+): string {
+  const epoch = (iso: string) => Math.floor(Date.parse(iso) / 1000);
+  return `synthetic:${driverId ?? "na"}:${epoch(startAt)}:${endAt != null ? epoch(endAt) : "open"}:${kind}`;
+}
+
+/** Upsert driver home-time / time-off windows for an org. Every row is idempotent: the provider
+ *  external_id when present, else the content-derived synthetic id. */
 export async function ingestDriverTimeOff(
   admin: SupabaseClient,
   orgId: string,
@@ -182,27 +200,21 @@ export async function ingestDriverTimeOff(
       null;
     const key = w.driver_employee_id ?? w.driver_samsara_id;
     if (key && !driver_id) unmatched.add(key);
+    const kind = w.kind ?? "home_time";
     return {
       org_id: orgId,
       provider,
-      external_id: w.external_id ?? null,
+      external_id: w.external_id ?? syntheticTimeOffId(driver_id, w.start_at, w.end_at ?? null, kind),
       driver_id,
       start_at: w.start_at,
       end_at: w.end_at ?? null,
-      kind: w.kind ?? "home_time",
+      kind,
       raw: w.raw ?? {},
       synced_at: now,
     };
   });
-  // external_id is the idempotency key when present; windows without one are appended best-effort.
-  const withExt = rows.filter((r) => r.external_id != null);
-  const withoutExt = rows.filter((r) => r.external_id == null);
-  if (withExt.length) {
-    const { error } = await admin.from("driver_time_off").upsert(withExt, { onConflict: "org_id,provider,external_id" });
-    if (error) throw new Error(error.message);
-  }
-  if (withoutExt.length) {
-    const { error } = await admin.from("driver_time_off").insert(withoutExt);
+  if (rows.length) {
+    const { error } = await admin.from("driver_time_off").upsert(rows, { onConflict: "org_id,provider,external_id" });
     if (error) throw new Error(error.message);
   }
   return { received: windows.length, upserted: rows.length, unmatched: [...unmatched] };

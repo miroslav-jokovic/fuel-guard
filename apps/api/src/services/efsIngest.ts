@@ -15,7 +15,7 @@ import { ingestReject } from "./efsIngestReject.js";
 import {
   loc, emptyResult, existingRefs, resolveTxnIdentitySplit, enrichExistingFills,
   resolveContentIdentitySplit, enrichContentMatches, reconcileImportCounts,
-  createImport, dateSpan, countByDay,
+  createImport, DuplicateImportError, dateSpan, countByDay,
 } from "./efsIngestShared.js";
 import type { IngestInput, IngestResult } from "./efsIngestShared.js";
 
@@ -163,22 +163,29 @@ async function ingestTransaction(
   const span = dateSpan(allLines.map((l) => l.tran_date));
   const rowsByDay = countByDay(allLines.map((l) => l.tran_date));
 
-  const importId = await createImport(
-    admin,
-    {
-      org_id: input.orgId,
-      source: input.source,
-      kind: "transaction",
-      filename: input.filename,
-      status: "completed",
-      total_rows: input.rows.length,
-      inserted_rows: allLines.length,
-      duplicate_rows: reconciled.length - toInsert.length,
-      skipped_rows: skipped.length,
-      created_by: input.requestedBy,
-    },
-    input.fileHash,
-  );
+  let importId: string;
+  try {
+    importId = await createImport(
+      admin,
+      {
+        org_id: input.orgId,
+        source: input.source,
+        kind: "transaction",
+        filename: input.filename,
+        status: "completed",
+        total_rows: input.rows.length,
+        inserted_rows: allLines.length,
+        duplicate_rows: reconciled.length - toInsert.length,
+        skipped_rows: skipped.length,
+        created_by: input.requestedBy,
+      },
+      input.fileHash,
+    );
+  } catch (e) {
+    // P1 (0125): the same file landed concurrently via another delivery — a duplicate, not an error.
+    if (e instanceof DuplicateImportError) return { ...emptyResult("transaction"), alreadyImported: true };
+    throw e;
+  }
 
   // 1) Faithful system of record — every line, every column, verbatim.
   if (allLines.length) {

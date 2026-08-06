@@ -9,6 +9,7 @@ import type { Env } from "../env.js";
 function makeAdmin(fixtures: Record<string, { data: unknown }>) {
   const captured: Record<string, Record<string, unknown>[]> = {};
   const updates: Record<string, Record<string, unknown>[]> = {};
+  const deleted: Record<string, unknown[]> = {};
   function node(table: string): any {
     const result = fixtures[table] ?? { data: [] };
     const proxy: any = new Proxy(function () {}, {
@@ -25,6 +26,22 @@ function makeAdmin(fixtures: Record<string, { data: unknown }>) {
             (updates[table] ||= []).push(patch);
             return proxy; // still chainable (.eq().eq()); awaiting resolves the fixture ({error:undefined})
           };
+        if (prop === "delete")
+          return () => {
+            const delProxy: any = new Proxy(function () {}, {
+              get(_t2, p2) {
+                if (p2 === "in")
+                  return (_col: string, ids: unknown[]) => {
+                    (deleted[table] ||= []).push(...ids);
+                    return delProxy;
+                  };
+                if (p2 === "then") return (resolve: (v: unknown) => unknown) => resolve({ error: null });
+                return () => delProxy;
+              },
+              apply: () => delProxy,
+            });
+            return delProxy;
+          };
         return () => proxy;
       },
       apply: () => proxy,
@@ -35,6 +52,7 @@ function makeAdmin(fixtures: Record<string, { data: unknown }>) {
     admin: { from: (t: string) => node(t) } as unknown as SupabaseClient,
     captured,
     updates,
+    deleted,
   };
 }
 
@@ -82,6 +100,30 @@ describe("syncHosDutySegments (end-to-end)", () => {
     expect(op2.status).toBe("on_duty");
   });
 
+  it("P1: a stored segment the authoritative fetch no longer contains is REMOVED — but only for drivers present in the response", async () => {
+    // An edited ELD log shifts a segment's start; the upsert key (driver, started_at) then inserts
+    // the new row and the stale one used to linger — overlapping timelines feeding attribution.
+    const { admin, deleted } = makeAdmin({
+      drivers: { data: [{ id: "d1", samsara_driver_id: "op1" }] },
+      hos_duty_segments: {
+        data: [
+          // op1's OLD segment at a start the fresh response no longer has → orphan, must be deleted.
+          { id: "seg-stale", samsara_driver_id: "op1", started_at: iso(T0 + 30 * 60_000), driver_id: "d1", status: "driving", ended_at: iso(T0 + 2 * H), samsara_vehicle_id: null, vehicle_id: null },
+          // op9 is ABSENT from this response (pagination/permissions) — silence is not authority; keep.
+          { id: "seg-keep", samsara_driver_id: "op9", started_at: iso(T0 + H), driver_id: null, status: "off_duty", ended_at: null, samsara_vehicle_id: null, vehicle_id: null },
+        ],
+      },
+    });
+    const hosFetcher = async () => ({
+      data: [{ driver: { id: "op1" }, logs: [{ logStartTime: iso(T0), dutyStatus: "driving" }] }],
+    });
+    const res = await syncHosDutySegments(admin, env, "org1", {
+      startIso: iso(T0), endIso: iso(T0 + 10 * H), hosFetcher,
+    });
+    expect(res.removed).toBe(1);
+    expect(deleted.hos_duty_segments).toEqual(["seg-stale"]); // op9's row untouched
+  });
+
   it("returns zero and warns when items arrive but nothing parses (shape drift guard)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { admin, captured } = makeAdmin({ drivers: { data: [] } });
@@ -92,7 +134,7 @@ describe("syncHosDutySegments (end-to-end)", () => {
       startIso: iso(T0),
       endIso: iso(T0 + H),
     });
-    expect(res).toEqual({ fetched: 0, upserted: 0 });
+    expect(res).toEqual({ fetched: 0, upserted: 0, removed: 0 });
     expect(captured.hos_duty_segments).toBeUndefined(); // nothing written
     expect(warn).toHaveBeenCalledOnce();
     expect(String(warn.mock.calls[0]![0])).toContain("0 segments parsed");
@@ -107,7 +149,7 @@ describe("syncHosDutySegments (end-to-end)", () => {
       startIso: iso(T0),
       endIso: iso(T0 + H),
     });
-    expect(res).toEqual({ fetched: 0, upserted: 0 });
+    expect(res).toEqual({ fetched: 0, upserted: 0, removed: 0 });
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });

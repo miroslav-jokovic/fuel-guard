@@ -10,6 +10,7 @@
  * scheduler cadence and from an admin button; idempotent per (source, observed_at).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hourBucketIso } from "../lib/timeBucket.js";
 import { parseRoadRangerPrices, median } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { hereGeocode, mapPool } from "../lib/hereGeocode.js";
@@ -82,7 +83,7 @@ export async function runRoadRangerFetch(admin: SupabaseClient, env: Env): Promi
   const geocodeFailed = parsed.rows.length - coords.size;
 
   // Upsert stations for placed rows (address-level precision, flagged as such).
-  const nowIso = new Date().toISOString();
+  const nowIso = hourBucketIso(); // P1: deterministic fallback across replicas
   const placed = parsed.rows.filter((r) => coords.has(r.stationKey));
   const stationRows = placed.map((r) => {
     const pos = coords.get(r.stationKey)!;
@@ -110,7 +111,9 @@ export async function runRoadRangerFetch(admin: SupabaseClient, env: Env): Promi
       station_id: stationIdByKey.get(r.stationKey)!, product: "diesel", price: r.truckDieselCash,
       currency: "USD", unit: "gal", price_kind: "cash", source: ROAD_RANGER_SOURCE, observed_at: observedAt,
     }));
-  const ins = await admin.from("fuel_prices_posted").insert(priceRows);
+  const ins = await admin
+    .from("fuel_prices_posted")
+    .upsert(priceRows, { onConflict: "station_id,product,price_kind,source,observed_at", ignoreDuplicates: true });
   if (ins.error) return fail(`Posted-price insert failed: ${ins.error.message}`, parsed.rows.length);
 
   return { ok: true, rows: parsed.rows.length, stationsUpserted, pricesInserted: priceRows.length, geocodeFailed, skipped: parsed.skipped };

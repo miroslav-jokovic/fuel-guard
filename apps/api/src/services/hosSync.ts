@@ -21,6 +21,8 @@ import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
 export interface HosSyncResult {
   fetched: number; // duty-status segments parsed from the window
   upserted: number; // segments actually WRITTEN (new or changed) — unchanged rows are skipped
+  /** Stale segments deleted because the authoritative fetch no longer contains them (edited logs). */
+  removed: number;
 }
 
 const UPSERT_CHUNK = 500;
@@ -81,6 +83,7 @@ async function fetchHosLogsChunked(
 }
 
 interface ExistingSegment {
+  id: string;
   driver_id: string | null;
   status: string;
   ended_at: string | null;
@@ -102,7 +105,7 @@ async function loadExistingSegments(
     const { data, error } = await admin
       .from("hos_duty_segments")
       .select(
-        "samsara_driver_id, driver_id, status, started_at, ended_at, samsara_vehicle_id, vehicle_id",
+        "id, samsara_driver_id, driver_id, status, started_at, ended_at, samsara_vehicle_id, vehicle_id",
       )
       .eq("org_id", orgId)
       .gte("started_at", startIso)
@@ -117,6 +120,7 @@ async function loadExistingSegments(
     })[];
     for (const r of batch) {
       out.set(`${r.samsara_driver_id}|${Date.parse(r.started_at)}`, {
+        id: r.id,
         driver_id: r.driver_id,
         status: r.status,
         ended_at: r.ended_at,
@@ -180,7 +184,7 @@ export async function syncHosDutySegments(
   const rawData = await fetchHosLogsChunked(fetchHos, Date.parse(startIso), Date.parse(endIso));
   const segments = parseHosLogs(rawData, { windowEndMs: Date.parse(endIso) });
   warnOnShapeMismatch(rawData, segments.length);
-  if (segments.length === 0) return { fetched: 0, upserted: 0 };
+  if (segments.length === 0) return { fetched: 0, upserted: 0, removed: 0 };
 
   // Resolve Samsara driver id → our driver id (unresolved stays null; the segment is still stored so a later
   // driver match can link it, and On-Duty/rest attribution is not lost).
@@ -243,7 +247,29 @@ export async function syncHosDutySegments(
     if (error) throw new Error(error.message);
     upserted += chunk.length;
   }
-  return { fetched: segments.length, upserted };
+
+  // P1 (2026-08 audit) — ORPHAN REMOVAL. The upsert key is (org, driver, started_at), so when a
+  // driver/admin EDITS an ELD log and a segment's start shifts (routine), the re-sync inserts the
+  // new row and the STALE one stays — overlapping duplicate segments that feed verifyFillAttribution
+  // and isDriverOffDutyAtFill with contradictory timelines. Samsara's response is authoritative for
+  // the fetched window, so a stored segment in that window that the response no longer contains is
+  // deleted — but ONLY for drivers actually present in this response: a driver missing from the
+  // fetch (pagination hiccup, permissions change) must never have their history wiped by silence.
+  const fetchedKeys = new Set(segments.map((s) => `${s.driverId}|${s.startMs}`));
+  const fetchedDrivers = new Set(segments.map((s) => s.driverId));
+  const orphanIds: string[] = [];
+  for (const [key, ex] of existing) {
+    const driverKey = key.slice(0, key.lastIndexOf("|"));
+    if (fetchedDrivers.has(driverKey) && !fetchedKeys.has(key)) orphanIds.push(ex.id);
+  }
+  let removed = 0;
+  for (let i = 0; i < orphanIds.length; i += UPSERT_CHUNK) {
+    const chunk = orphanIds.slice(i, i + UPSERT_CHUNK);
+    const { error } = await admin.from("hos_duty_segments").delete().in("id", chunk).eq("org_id", orgId);
+    if (error) throw new Error(error.message);
+    removed += chunk.length;
+  }
+  return { fetched: segments.length, upserted, removed };
 }
 
 export interface HosCurrentStatusResult {
