@@ -439,23 +439,32 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
     return none("cumulative_overfuel");
   const cap = resolveCapacity(vehicle).gallons; // sensor-measured > entered > billed-history (WP-CAP)
   const burnable = windowMiles / baseline;
-  // Ceiling = fuel burnable over the window + one empty-to-full tank of slack. Require the overage to clear a
-  // net-unaccounted floor (documented industry practice: ~>10 gal) so a marginal excess never fires.
-  const ceiling = burnable + cap + CUMULATIVE_OVERFUEL_MARGIN_GAL;
+  // 2026-08 — MEASURED idle burn. The miles→MPG conversion is blind to fuel burned while parked: a
+  // truck that drove 84 mi in 48h while idling 30h (sleeper HVAC, hot-weather) really burned ~25 gal
+  // the odometer never shows, and that exact profile was this rule's residual false-review class.
+  // The allowance comes ONLY from synced engine-time measurement (vehicle_engine_days), never from
+  // assumption — no idle data leaves the ceiling exactly as before.
+  const idleGal = ctx.windowIdleGallons != null && ctx.windowIdleGallons > 0 ? ctx.windowIdleGallons : 0;
+  // Ceiling = fuel burnable over the window + measured idle burn + one empty-to-full tank of slack.
+  // Require the overage to clear a net-unaccounted floor (documented industry practice: ~>10 gal) so a
+  // marginal excess never fires.
+  const ceiling = burnable + idleGal + cap + CUMULATIVE_OVERFUEL_MARGIN_GAL;
   if (windowGallons > ceiling) {
     const hrs = thresholds.cumulativeWindowHours ?? 48;
     // WP-ATTR: windowGallons already EXCLUDES logbook-contradicted fills (another truck's fuel — the
     // driver-changed-truck false-alert class); the excluded volume is carried in evidence for review.
     const suspectGal = ctx.windowSuspectGallons ?? 0;
+    const idleNote = idleGal > 0 ? ` and ~${r2(idleGal)} gal of measured idling` : "";
     return {
       ruleId: "cumulative_overfuel",
       fired: true,
       severity: "high",
-      message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${windowMiles} mi (+${cap} gal tank).`,
+      message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${windowMiles} mi${idleNote} (+${cap} gal tank).`,
       evidence: {
         windowGallons: r2(windowGallons),
         windowMiles,
         burnable: r2(burnable),
+        idleAllowanceGal: r2(idleGal),
         tankCapacity: cap,
         windowHours: hrs,
         ...(suspectGal > 0 ? { attributionSuspectExcludedGal: r2(suspectGal) } : {}),

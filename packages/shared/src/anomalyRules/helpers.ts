@@ -158,6 +158,11 @@ export function tankShortTolerancePct(ratioSigma: number | null | undefined): nu
  * fill). This is a TRAINING guard only: a fill's own computedMpg is still reported verbatim for the
  * deviation check and the UI. Tunable in one place.
  */
+/** Class-8 tractor idle burn (gal/engine-idle-hour) used to convert MEASURED idle seconds into the
+ *  cumulative_overfuel ceiling allowance. Industry range is ~0.6–1.0 gph (ATRI/DOE); 0.8 is the
+ *  midpoint — conservative in both directions, and only ever applied to measured idle time. */
+export const IDLE_BURN_GPH = 0.8;
+
 export const MIN_TRAINABLE_MPG = 2;
 export const MAX_TRAINABLE_MPG = 15;
 

@@ -212,6 +212,12 @@ export interface RuleContext {
   /** Sum of gallons for this vehicle within the cumulative window (incl. this txn). WP-ATTR: excludes
    *  fills whose attribution the driver's logbook contradicts (another truck's fuel). */
   windowGallons?: number;
+  /** 2026-08 — MEASURED idle-burn allowance (gallons) for the cumulative window, derived from the
+   *  synced Samsara engine-time facts (vehicle_engine_days.idle_sec × IDLE_BURN_GPH, edge days
+   *  pro-rated). cumulative_overfuel adds it to the burnable ceiling: a truck that idled 30h in the
+   *  window really did burn fuel its odometer never shows. 0/undefined = no measured idle data —
+   *  the ceiling is unchanged (the allowance only ever comes from measurement, never assumption). */
+  windowIdleGallons?: number | null;
   /** Odometer span (max−min) for this vehicle within the cumulative window, if computable. */
   windowMiles?: number | null;
   /** WP-ATTR — gallons excluded from windowGallons because their fills are attribution-suspect (evidence). */

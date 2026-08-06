@@ -49,6 +49,7 @@ export {
   effectiveBaseline,
   MIN_TRAINABLE_MPG,
   MAX_TRAINABLE_MPG,
+  IDLE_BURN_GPH,
   localHourMinute,
   isOffHours,
 } from "./helpers.js";

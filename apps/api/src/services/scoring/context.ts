@@ -4,6 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   contaminatesBaseline, robustWindowMiles, verifyFillAttribution, isDriverOffDutyAtFill, ATTRIBUTION_TIME_BUFFER_MS,
+  IDLE_BURN_GPH,
   type TxnView, type VehicleView, type Thresholds, type AttributionCheck, type LogbookSegment,
 } from "@fuelguard/shared";
 import { writeAudit } from "../../lib/audit.js";
@@ -316,6 +317,48 @@ export async function loadTankResidualWindow(
     if (billed > observed) shortFills++;
   }
   return { fills: rows.length, sumShortGal: Math.round(sumShortGal * 10) / 10, totalBilledGal: Math.round(totalBilledGal * 10) / 10, shortFills };
+}
+
+/**
+ * 2026-08 — MEASURED idle-burn allowance for the cumulative window. Sums vehicle_engine_days.idle_sec
+ * over the days overlapping [winStart, fill], PRO-RATING edge days by the fraction of the day inside
+ * the window (day rows are calendar-day grain in tz_offset_minutes), then converts hours → gallons at
+ * IDLE_BURN_GPH. Returns 0 when no engine-time facts exist for the window — the allowance only ever
+ * widens the ceiling on MEASUREMENT, never on assumption (precision in the recall direction: a truck
+ * with no telematics keeps exactly the old ceiling).
+ */
+export async function loadWindowIdleGallons(
+  admin: SupabaseClient,
+  txn: TxnView,
+  r: FtxnRow,
+  winStartIso: string,
+): Promise<number> {
+  if (!txn.vehicleId || txn.tankType === "reefer") return 0;
+  const winStartMs = Date.parse(winStartIso);
+  const winEndMs = Date.parse(r.fueled_at);
+  if (!Number.isFinite(winStartMs) || !Number.isFinite(winEndMs) || winEndMs <= winStartMs) return 0;
+  // Fetch day rows covering the window ± one day of slack for timezone-offset day boundaries.
+  const fromDay = new Date(winStartMs - 86_400_000).toISOString().slice(0, 10);
+  const toDay = new Date(winEndMs + 86_400_000).toISOString().slice(0, 10);
+  const { data } = await admin
+    .from("vehicle_engine_days")
+    .select("day, idle_sec, tz_offset_minutes")
+    .eq("vehicle_id", txn.vehicleId)
+    .gte("day", fromDay)
+    .lte("day", toDay);
+  let idleSec = 0;
+  for (const d of (data ?? []) as { day: string; idle_sec: number | string; tz_offset_minutes: number | null }[]) {
+    const sec = Number(d.idle_sec) || 0;
+    if (sec <= 0) continue;
+    const offMs = (Number(d.tz_offset_minutes) || 0) * 60_000;
+    const dayStartMs = Date.parse(`${d.day}T00:00:00.000Z`) - offMs; // local-day start in UTC
+    const dayEndMs = dayStartMs + 86_400_000;
+    const overlapMs = Math.min(dayEndMs, winEndMs) - Math.max(dayStartMs, winStartMs);
+    if (overlapMs <= 0) continue;
+    idleSec += sec * (overlapMs / 86_400_000); // pro-rate: idle time assumed uniform across the day
+  }
+  if (idleSec <= 0) return 0;
+  return (idleSec / 3600) * IDLE_BURN_GPH;
 }
 
 export interface ReeferContext {

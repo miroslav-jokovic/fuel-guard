@@ -1355,6 +1355,27 @@ describe("WP-ATTR — logbook-contradicted attribution gates the vehicle-physics
     expect(ids(c)).toContain("cost_outlier");
   });
 
+  it("2026-08: MEASURED idle burn widens the over-fuel ceiling; no idle data leaves it unchanged", () => {
+    // The truck-6652 incident profile: 269.31 gal bought in 48h, 84 mi driven, 240-gal tank, ~6.6 gal
+    // over the old ceiling — while the truck measurably idled for days. burnable = 84/6.63 ≈ 12.67;
+    // ceiling(no idle) = 12.67 + 240 + 10 = 262.67 → fires; +10 gal of measured idling → silent.
+    const overIdleCtx = (idleGal: number | undefined) =>
+      ctx({
+        vehicle: { ...vehicle, tankCapacityGal: 240, baselineMpg: 6.63 },
+        windowGallons: 269.31,
+        windowMiles: 84,
+        windowIdleGallons: idleGal,
+      });
+    expect(ids(overIdleCtx(undefined))).toContain("cumulative_overfuel"); // no measurement → old behavior
+    expect(ids(overIdleCtx(0))).toContain("cumulative_overfuel");
+    const out = runAllRules(overIdleCtx(10));
+    expect(out.find((r) => r.ruleId === "cumulative_overfuel")).toBeUndefined(); // measured idling explains it
+    // And when it still fires, the allowance is visible in evidence (a granted-but-insufficient case).
+    const still = runAllRules(overIdleCtx(2)).find((r) => r.ruleId === "cumulative_overfuel");
+    expect(still).toBeTruthy();
+    expect(still!.evidence.idleAllowanceGal).toBe(2);
+  });
+
   it("cumulative_overfuel evidence reports the gallons excluded as attribution-suspect", () => {
     // Window still blows the ceiling on CONFIRMED fills alone → fires, with the exclusion visible.
     const c = ctx({ windowGallons: 400, windowMiles: 600, windowSuspectGallons: 120 });

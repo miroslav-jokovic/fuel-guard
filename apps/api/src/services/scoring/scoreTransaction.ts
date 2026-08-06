@@ -23,6 +23,7 @@ import type { FtxnRow, ScoreOpts } from "./loaders.js";
 import {
   loadVehicleContext,
   loadConsumptionContext,
+  loadWindowIdleGallons,
   loadReeferContext,
   loadReeferDiversionContext,
   loadAttributionCheck,
@@ -30,6 +31,7 @@ import {
   loadTankResidualWindow,
 } from "./context.js";
 import { persistAnomalies, persistTxnOutcome, learnAndUpdateVehicle } from "./persist.js";
+import { dispatchJob } from "../queue/dispatch.js";
 
 export async function scoreTransaction(
   admin: SupabaseClient,
@@ -137,6 +139,9 @@ export async function scoreTransaction(
   // WP-BEH — chronic-short accumulator window (trailing measured fills; suspect fills excluded).
   const tankResidualWindow = await loadTankResidualWindow(admin, txn, r);
 
+  // 2026-08 — measured idle-burn allowance for the over-fuel ceiling (0 when no engine-time facts).
+  const windowIdleGallons = await loadWindowIdleGallons(admin, txn, r, winStartIso);
+
   // Card-identity context (WP3): a true CARD-keyed vehicle count + the fuel_cards assignment.
   const cardCtx = await resolveCardContext(admin, orgId, txn, winStartIso, r.fueled_at);
 
@@ -174,6 +179,7 @@ export async function scoreTransaction(
     windowGallons,
     windowMiles,
     windowSuspectGallons,
+    windowIdleGallons,
     attributionSuspect: attribution.verdict === "suspect",
     cardVehicleCountInWindow: cardCtx.cardVehicleCountInWindow,
     cardAssignedVehicleId: cardCtx.cardAssignedVehicleId,
@@ -229,6 +235,32 @@ export async function scoreTransaction(
         ];
 
   await persistAnomalies(admin, orgId, txnId, txn.vehicleId, r.fueled_at, caseFired);
+
+  // Entity-intelligence Phase 2 (2026-08): a LIVE-scored case reaching ALERT level triggers the
+  // read-only retrospective sweep of its entities (fire-and-forget; per-anomaly dedup key so
+  // concurrent alerts never block each other). Bulk rebuilds (skipLearn) deliberately do NOT fan out
+  // one sweep per historical alert — reviewers request those on demand from the case drawer.
+  if (assessment.level === "alert" && !opts.skipLearn) {
+    try {
+      const { data: openCase } = await admin
+        .from("anomalies")
+        .select("id")
+        .eq("transaction_id", txnId)
+        .eq("rule_id", CASE_RULE_ID)
+        .eq("status", "open")
+        .maybeSingle();
+      if (openCase?.id) {
+        void dispatchJob(admin, env, "pattern_sweep", {
+          orgId,
+          payload: { anomalyId: openCase.id as string },
+          dedupKey: `sweep:${openCase.id as string}`,
+        });
+      }
+    } catch {
+      /* the sweep is evidence enrichment — never let it disturb scoring */
+    }
+  }
+
   await persistTxnOutcome(admin, txnId, {
     txn,
     previousTxn,
