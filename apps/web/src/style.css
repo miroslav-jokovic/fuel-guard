@@ -183,8 +183,8 @@ body {
 
   /* Codex-inspired workspace navigation: warm graphite rather than blue-black.
      These are semantic component roles, not brand colors. */
-  --sidebar-surface: rgb(24 24 23);
-  --sidebar-surface-raised: rgb(31 31 29);
+  --sidebar-surface: rgb(31 31 29);
+  --sidebar-surface-raised: rgb(39 39 36);
   --sidebar-ink: rgb(245 245 244);
   --sidebar-ink-muted: rgb(168 162 158);
   --sidebar-hover: rgb(255 255 255 / 0.06);
