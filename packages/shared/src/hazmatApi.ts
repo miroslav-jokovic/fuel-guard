@@ -219,6 +219,20 @@ export interface HazmatLoadRow {
   updated_at: string;
 }
 
+export interface HazmatRunQualFinding {
+  /** e.g. `driver_unqualified:medical`, `org_unqualified:phmsa_registration`. */
+  code: string;
+  message: string;
+  citation: string;
+}
+/** §5 qualification-gate evidence recorded on a run (M3). */
+export interface HazmatRunQualification {
+  evalDate: string;
+  usedFallback: boolean;
+  driver: HazmatRunQualFinding[];
+  org: HazmatRunQualFinding[];
+}
+
 export interface HazmatRunRow {
   id: string;
   load_id: string;
@@ -230,6 +244,8 @@ export interface HazmatRunRow {
   flags: string[];
   input_hash: string;
   created_at: string;
+  /** §5 qualification-gate evidence (M3): driver/org findings with citations. Null on pre-gate runs. */
+  qualification?: HazmatRunQualification | null;
 }
 
 export interface HazmatLoadsListResponse {

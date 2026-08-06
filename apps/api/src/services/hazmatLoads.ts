@@ -63,7 +63,7 @@ export async function getLoad(admin: SupabaseClient, orgId: string, loadId: stri
 }
 
 export const HAZMAT_RUN_COLUMNS =
-  "id, load_id, engine_version, dataset_version, verdict, outcome, flags, input_hash, created_at";
+  "id, load_id, engine_version, dataset_version, verdict, outcome, flags, input_hash, created_at, qualification";
 
 /** Runs for a load, newest first — the analysis history (immutable). Powers the H5 detail verdict view. */
 export async function listRuns(

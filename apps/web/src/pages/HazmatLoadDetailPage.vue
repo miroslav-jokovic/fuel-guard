@@ -77,6 +77,17 @@ async function doCancel() {
 
 // ── verdict view ────────────────────────────────────────────────────────────────
 const latestRun = computed<HazmatRunRow | undefined>(() => runs.value?.[0]);
+
+// §5 qualification findings (M3) — a legal disqualification (§391 / §172.704) that can never be
+// override-cleared. Flattened across driver + carrier, each with its CFR citation.
+const qualFindings = computed(() => {
+  const q = latestRun.value?.qualification;
+  if (!q) return [] as Array<{ subject: string; message: string; citation: string }>;
+  return [
+    ...q.driver.map((f) => ({ subject: "Driver", message: f.message, citation: f.citation })),
+    ...q.org.map((f) => ({ subject: "Carrier", message: f.message, citation: f.citation })),
+  ];
+});
 function isVerdict(v: unknown): boolean {
   return typeof v === "object" && v !== null && "placards" in (v as Record<string, unknown>);
 }
@@ -173,6 +184,21 @@ function declaredLine(l: unknown): { hmtRef: string; qty: string } {
           This load is flagged and needs review by a trained reviewer (49 CFR 172 Subpart H). The findings
           below are the decision support.
         </p>
+      </BaseCard>
+
+      <!-- qualification (§5 gate) -->
+      <BaseCard v-if="qualFindings.length" class="border-l-4 border-danger-400">
+        <h2 class="text-sm font-semibold text-ink">Qualification — cannot clear</h2>
+        <p class="mt-1 text-xs text-ink-muted">
+          A legal disqualification (49 CFR §391 / §172.704). Fix the record in Compliance and re-run — this can never be override-cleared.
+        </p>
+        <ul class="mt-3 space-y-2">
+          <li v-for="(f, i) in qualFindings" :key="i" class="text-sm">
+            <span class="inline-block rounded bg-danger-50 px-1.5 py-0.5 text-xs font-medium text-danger-700 ring-1 ring-inset ring-danger-200">{{ f.subject }}</span>
+            <span class="ml-2 text-ink">{{ f.message }}</span>
+            <span class="ml-1 text-ink-muted">({{ f.citation }})</span>
+          </li>
+        </ul>
       </BaseCard>
 
       <!-- verdict -->
