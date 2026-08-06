@@ -10,8 +10,8 @@
  * Pure: metrics in (measured by a provider), a QualityReport out. No IO, no image access here.
  */
 
-import type { CaptureConfig } from "./config.js";
-import type { CheckName, CheckResult, OcrEvidence, QualityReport, RejectionReason } from "./contracts.js";
+import type { CaptureConfig } from "./config";
+import type { CheckName, CheckResult, OcrEvidence, QualityReport, RejectionReason } from "./contracts";
 
 /**
  * Metrics a provider measures on the page image. Every field except `longEdgePx` is optional: a

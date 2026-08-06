@@ -7,7 +7,7 @@
  * (`apps/driver/modules/capture-native`) and the JS fallback (`apps/driver/src/capture`).
  */
 
-import type { ImageRef, OcrEvidence, ScanResult, SupportResult } from "./contracts.js";
+import type { ImageRef, OcrEvidence, ScanResult, SupportResult } from "./contracts";
 
 export interface ScanOptions {
   /** Cap pages per scan session (server enforces MAX_BOL_PAGES = 10 as the hard cap). */

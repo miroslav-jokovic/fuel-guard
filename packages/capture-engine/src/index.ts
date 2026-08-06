@@ -6,7 +6,7 @@
  * standalone HazmatGuard driver app. All IO (native capture, OCR, crypto, storage) lives in the app
  * around this core.
  */
-export * from "./contracts.js";
-export * from "./config.js";
-export * from "./gate.js";
-export * from "./provider.js";
+export * from "./contracts";
+export * from "./config";
+export * from "./gate";
+export * from "./provider";
