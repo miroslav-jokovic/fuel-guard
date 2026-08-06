@@ -3,7 +3,10 @@
 > The single source of truth for building the hazmat module. Written to be followed from any
 > fresh chat/session with zero prior context: every decision is stated, nothing is assumed.
 > Companion research: `docs/17-HAZMAT-BOL-COMPLIANCE.md` (rule catalogs, citations, ecosystem).
-> Status: PLANNED · Owner: Miki (Silvicom Inc.) · Created 2026-07-23.
+> Status: IN BUILD — backend at HazmatGuard parity (M0.5 · M1 · M3 · M4 · M5 · M12) as of 2026-08-06.
+> Live done/remaining tracker: `docs/HAZMATGUARD-STATUS.md`. Authoritative source of truth being
+> ported in: `../HazmatGuard/docs/PLAN.md` (M-milestones, v1.19) — it wins on any disagreement.
+> Owner: Miki (Silvicom Inc.) · Created 2026-07-23.
 > Audit trail: v1 drafted + adversarial review (20 findings, fixed) 2026-07-23; v2 three-lens
 > audit — regulatory (live-eCFR verified), codebase (real source), followability/business —
 > 37 findings, all resolved in-place 2026-07-23. Load-bearing v2 corrections: §172.336(c) is now
@@ -174,6 +177,30 @@ letters cited therein. Internal: `01-ARCHITECTURE.md`, `02-DATA-MODEL.md` (+§10
 | **H11** ☐ Hardening & shadow pilot | Shadow mode on real loads, calibration, shadow validator, ops runbook | H5–H10 | 4+ weeks shadow metrics; go/no-go vs §2 criteria. |
 | **H12** ☐ Productization | HazmatGuard branding, standalone deploy, API productization | H11 | Same repo deploys a HazmatGuard-branded instance; entitlement matrix proven. |
 | **B** ☐ Business & GTM | Pricing, legal, ops, marketing guardrails | parallel | §Business complete with owner sign-off. |
+
+## Build status — 2026-08-06 (CURRENT — supersedes the 2026-07-31 block below)
+
+> Live tracker: `docs/HAZMATGUARD-STATUS.md`. Source of truth being ported in: `../HazmatGuard/docs/PLAN.md`
+> (M-milestones, v1.19). This block maps HazmatGuard's M-milestones onto this H-plan.
+
+FuelGuard reached **backend parity with every completed HazmatGuard milestone** this session:
+
+- **Phase 0 — domain alignment** ✅ `@hazmat/{engine 0.8.0, data, placards, golden}` byte-identical to HazmatGuard.
+- **M0.5 defects** ✅ D11/D12 image normalizer (2.0.0); §10.10 cache key now covers engine + dataset + qualification.
+- **M1 — compliance master data** ✅ `certifications` (0127) + `qualification_records` (0129) + `hazmat_runs.qualification` (0128); additive to fuel 0098/0101.
+- **M3 — §5 qualification gate** ✅ `qualificationGate.ts`, `evaluateQualification`, UNCLEARABLE flags, both analysis paths; `/api/compliance` + web Compliance roster.
+- **H7 review queue = M4** ✅ server-composed attestation (D4), predecessor supersession (D5), page cap (D19), batch signed URLs (D20), `content_type` (0131/D1), advisories + extraction surfaced to the reviewer (M4.1).
+- **H8 policy + eligibility = M5** ✅ `OrgHazmatPolicy` locked (`z.strictObject` — PUT rejects unknown keys); `checkEligibility` (M5.2) + provided-input audit (M5.3) live via the aligned engine.
+- **M12 differentiators** ✅ Roadside Defense Packet + reproducible verdict.
+- **D17/N2/D3 run recording** ✅ `record_hazmat_run` RPC (0130) + `org_usage_month` counter; insert fail-closed.
+
+**Verification:** all 11 packages typecheck clean; engine byte-identical to HazmatGuard (its 490 tests validate the rules upstream). The **test suite + web bundle were NOT run in the cloud bridge VM** (macOS `node_modules` in a Linux VM) — run `pnpm test` and `pnpm --filter @fuelguard/web build` on a Mac.
+
+**Remaining (net-new, not started):** M9 conditional org checks (ship provisional/fail-closed until SME-attested), M6 driver capture (native — design in `docs/plans/drivers-app/DOCUMENT-CAPTURE-ENGINE.md`), M7 calculator, M10 exact art (launch blocker), M11 ops readiness.
+
+**Required before live:** apply migration `0131` (only unapplied one); `pnpm install` (`@hazmat/placards` dep). **Intentional divergence:** FuelGuard KEEPS module entitlements (HazmatGuard removed them) — do not "fix".
+
+---
 
 ## Build status — as of 2026-07-31 (single source of truth for progress)
 
