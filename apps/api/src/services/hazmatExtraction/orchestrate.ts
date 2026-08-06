@@ -178,7 +178,15 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
   } catch (e) {
     // Model down / retries exhausted / decode error → extraction_failed (reviewer gets a manual-entry action).
     console.error(`[hazmat] extraction crashed for load ${loadId}: ${e instanceof Error ? e.message : e}`);
-    await finish(null, ["extraction_failed"], null);
+    // Fail-closed at the boundary (audit 2026-08-06): the abort record must never itself throw out of
+    // the catch. A run may already be recorded (0132 makes the insert idempotent), so re-recording
+    // returns cleanly and finish() retries the transition + notification; guard against a transient
+    // failure here stranding the load with no review signal.
+    try {
+      await finish(null, ["extraction_failed"], null);
+    } catch (e2) {
+      console.error(`[hazmat] extraction abort-record failed for load ${loadId}: ${e2 instanceof Error ? e2.message : e2}`);
+    }
   }
 }
 
