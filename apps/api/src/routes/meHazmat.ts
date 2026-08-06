@@ -140,6 +140,14 @@ export function meHazmatRouter(): Router {
       }
       const transition = await transitionLoad(admin, orgOf(req), loadId, "submit");
       if (isServiceError(transition)) {
+        // Idempotent replay: a load already submitted/analyzed on a prior (re-drained) call must not
+        // 409 the outbox into a dead-letter — return the latest run instead (no re-analyze).
+        if (transition.code === "illegal_transition") {
+          const runs = await listRuns(admin, orgOf(req), loadId);
+          const latest = !isServiceError(runs) && runs.rows[0] ? (runs.rows[0] as { id: string }).id : null;
+          res.status(200).json({ runId: latest, idempotent: true });
+          return;
+        }
         fail(res, transition);
         return;
       }

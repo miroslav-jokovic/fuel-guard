@@ -24,6 +24,8 @@ export const LOAD_DECLINE_KIND = 'load_decline';
 export const LOAD_START_KIND = 'load_start';
 export const LOAD_STOP_KIND = 'load_stop';
 
+export const HAZMAT_CAPTURE_KIND = 'hazmat_capture';
+
 /** Storage bucket for proof-of-work photos (migration 0085) — private, path-scoped by org+driver. */
 const LOAD_PHOTOS_BUCKET = 'load-photos';
 
@@ -145,6 +147,56 @@ export function registerSyncHandlers(): void {
           ...(p.captured_at ? { captured_at: p.captured_at } : {}),
         })),
       });
+    },
+  });
+
+  // ── Hazmat driver capture (M6) ─────────────────────────────────────────────
+  // The whole capture is ONE queued item, replay-safe end to end (client-UUID PKs → idempotent create +
+  // register + submit; storage upload treats "already exists" as success). Offline capture drains on
+  // reconnect with no double-post (M6.2). Every step is idempotent, so a re-drain of a delivered capture
+  // just no-ops rather than double-posting.
+  registerHandler(HAZMAT_CAPTURE_KIND, {
+    invalidates: [['me', 'hazmat']],
+    run: async (record) => {
+      const p = (record.payload ?? {}) as {
+        loadId?: string;
+        create?: { id: string };
+        register?: { id: string; kind: string; page: number; sha256: string; contentType: string; capture?: unknown };
+      };
+      if (!p.loadId || !p.create || !p.register) {
+        throw new SyncError('Queued hazmat capture is malformed', 422);
+      }
+
+      // 1) create the driver's own load (idempotent)
+      await post('/api/me/hazmat/loads', p.create);
+
+      // 2) register the captured page (idempotent) → storage_path to upload to
+      const reg = await apiFetch<{ documentId: string; storagePath: string }>(
+        `/api/me/hazmat/loads/${p.loadId}/documents`,
+        { method: 'POST', body: p.register },
+      );
+      if (!reg.ok || !reg.data) throw new SyncError(reg.error?.message ?? 'Document register failed', reg.status);
+
+      // 3) upload the staged bytes (driver-scoped RLS on the `hazmat` bucket, 0092) BEFORE submit, so the
+      //    extraction has bytes at storage_path. Re-upload after a partial success → already-exists =
+      //    success (the bucket denies overwrite; the row is keyed by the same client UUID).
+      const localUri = record.fileUris[0];
+      if (localUri) {
+        const bytes = await new File(localUri).arrayBuffer();
+        const { error } = await supabase.storage
+          .from('hazmat')
+          .upload(reg.data.storagePath, bytes, { contentType: p.register.contentType, upsert: false });
+        if (error) {
+          const message = (error as { message?: string }).message ?? '';
+          const statusCode = (error as { statusCode?: string }).statusCode;
+          if (statusCode !== '409' && !/exist|duplicate/i.test(message)) {
+            throw new SyncError(`BOL upload failed: ${message || 'unknown storage error'}`);
+          }
+        }
+      }
+
+      // 4) submit → analyze (idempotent; an already-submitted load returns the latest run, not a 409)
+      await post(`/api/me/hazmat/loads/${p.loadId}/submit`, {});
     },
   });
 }

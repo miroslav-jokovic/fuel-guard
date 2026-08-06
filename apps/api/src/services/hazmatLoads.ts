@@ -26,14 +26,14 @@ const err = (code: string, error: string): ServiceError => ({ error, code });
 export async function createLoad(
   admin: SupabaseClient, orgId: string, userId: string, req: HazmatCreateLoadRequest,
 ): Promise<{ id: string } | ServiceError> {
-  const { error } = await admin.from("hazmat_loads").insert({
+  const { error } = await admin.from("hazmat_loads").upsert({
     id: req.id, org_id: orgId, created_by: userId,
     vehicle_id: req.vehicleId, trailer_id: req.trailerId, driver_id: req.driverId,
     tank_state: req.tankState, carrier_relationship: req.carrierRelationship,
     planned_pickup_at: req.plannedPickupAt, declared_lines: req.declaredLines,
     special_permit_numbers: req.specialPermitNumbers, claimed_no_placards: req.claimedNoPlacards,
     supersedes_load_id: req.supersedesLoadId,
-  });
+  }, { onConflict: "id", ignoreDuplicates: true }); // idempotent replay (client-UUID PK) — offline outbox re-drains safely
   if (error) return err("insert_failed", error.message);
   return { id: req.id };
 }
@@ -167,7 +167,7 @@ export async function registerDocument(
     row.integrity_hash = req.capture.integrityHash;
     row.ocr_evidence = req.capture.ocrEvidence ?? null;
   }
-  const { error } = await admin.from("hazmat_documents").insert(row);
+  const { error } = await admin.from("hazmat_documents").upsert(row, { onConflict: "id", ignoreDuplicates: true });
   if (error) return err("insert_failed", error.message);
   return { documentId: req.id, storagePath, uploadUrl: signed.signedUrl, token: signed.token };
 }
