@@ -41,11 +41,16 @@ isn't in FuelGuard yet — expected until you use a real one. A `401` means the 
 
 ## Switch to live McLeod
 
-1. Set `SOURCE=mcleod` in `.env` and fill in `MCLEOD_WS_URL`, `MCLEOD_COMPANY`, `MCLEOD_WS_TOKEN` (your McLeod
-   admin / eisolution provides these once the LoadMaster **web services API** is enabled).
+1. Ask McLeod Support to enable the **Direct-Hosted McLeod Web API** on your self-hosted LoadMaster server.
+   Set `SOURCE=mcleod` and fill in `MCLEOD_WS_URL`, `MCLEOD_COMPANY`, and either `MCLEOD_WS_TOKEN` (preferred)
+   or the dedicated integration username/password. `MCLEOD_COMPANY` is sent as `AnywhereCompanyID`.
 2. Open `agent.mjs` and complete the small mapping in `fetchFromMcleod` — the comments mark exactly which
    McLeod fields to point at (most importantly, the field that marks a load temperature-controlled). This is
    confirmed against one real movement during the connectivity test; FuelGuard's team will help.
+
+The agent uses McLeod's documented `GET /movements/search` endpoint with `changedAfterDate`, `recordLength`,
+and `recordOffset`, and requests JSON explicitly. McLeod's published DriverService does not include a time-off
+route, so driver time-off stays off unless Support gives you a supported route for your installation.
 
 ## Run it on a schedule
 

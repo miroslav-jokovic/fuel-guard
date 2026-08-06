@@ -28,7 +28,19 @@ const CFG = {
   mcleod: {
     baseUrl: (process.env.MCLEOD_WS_URL ?? "").replace(/\/+$/, ""), // e.g. https://<loadmaster-host>/ws
     company: process.env.MCLEOD_COMPANY ?? "", // loadmaster.company (e.g. TMS)
-    token: process.env.MCLEOD_WS_TOKEN ?? "", // the web-service API token McLeod issues
+    token: process.env.MCLEOD_WS_TOKEN ?? "", // token registered in LoadMaster / PowerBroker
+    username: process.env.MCLEOD_WS_USERNAME ?? "", // optional: Basic auth instead of a token
+    password: process.env.MCLEOD_WS_PASSWORD ?? "",
+    pageSize: Math.min(Number(process.env.MCLEOD_PAGE_SIZE ?? 1000), 1000),
+    // McLeod's public DriverService docs do not publish a time-off endpoint. A carrier-specific API or
+    // read-only SQL view can be plugged in here after McLeod confirms it for this installation.
+    driverTimeOffPath: process.env.MCLEOD_DRIVER_TIMEOFF_PATH ?? "",
+    reeferEquipmentTypes: new Set(
+      (process.env.MCLEOD_REEFER_EQUIPMENT_TYPES ?? "REEFER,R")
+        .split(",")
+        .map((v) => v.trim().toUpperCase())
+        .filter(Boolean),
+    ),
   },
 };
 
@@ -38,6 +50,9 @@ function fail(msg) {
 }
 if (!CFG.ingestUrl || !CFG.ingestToken) fail("Set FUELGUARD_INGEST_URL and FUELGUARD_INGEST_TOKEN.");
 if (!["mock", "mcleod"].includes(CFG.source)) fail("SOURCE must be 'mock' or 'mcleod'.");
+if (!Number.isInteger(CFG.mcleod.pageSize) || CFG.mcleod.pageSize < 1) {
+  fail("MCLEOD_PAGE_SIZE must be an integer from 1 to 1000.");
+}
 
 const log = (...a) => console.log(`[agent ${new Date().toISOString()}]`, ...a);
 
@@ -119,36 +134,132 @@ function mockData() {
  * └────────────────────────────────────────────────────────────────────────────────────────────────────┘
  */
 async function fetchFromMcleod(sinceIso) {
-  if (!CFG.mcleod.baseUrl || !CFG.mcleod.token) fail("SOURCE=mcleod needs MCLEOD_WS_URL and MCLEOD_WS_TOKEN.");
+  if (!CFG.mcleod.baseUrl) fail("SOURCE=mcleod needs MCLEOD_WS_URL.");
+  if (!CFG.mcleod.token && !(CFG.mcleod.username && CFG.mcleod.password)) {
+    fail("SOURCE=mcleod needs MCLEOD_WS_TOKEN or MCLEOD_WS_USERNAME + MCLEOD_WS_PASSWORD.");
+  }
+  if (!CFG.mcleod.company) fail("SOURCE=mcleod needs MCLEOD_COMPANY (for the AnywhereCompanyID header).");
 
-  // McLeod ws auth header — confirm the exact header McLeod issues for your account (token vs company+token).
-  const mcleodHeaders = { Authorization: `Bearer ${CFG.mcleod.token}`, "X-com.mcleodsoftware.CompanyID": CFG.mcleod.company };
+  // Documented Direct-Hosted authentication: Bearer/Token or HTTP Basic, plus AnywhereCompanyID.
+  const authorization = CFG.mcleod.token
+    ? `Bearer ${CFG.mcleod.token}`
+    : `Basic ${Buffer.from(`${CFG.mcleod.username}:${CFG.mcleod.password}`).toString("base64")}`;
+  const mcleodHeaders = {
+    Accept: "application/json",
+    Authorization: authorization,
+    AnywhereCompanyID: CFG.mcleod.company,
+  };
 
   async function mcleodGet(pathAndQuery) {
     const res = await fetch(`${CFG.mcleod.baseUrl}${pathAndQuery}`, { headers: mcleodHeaders });
-    if (!res.ok) throw new Error(`McLeod ${pathAndQuery} → HTTP ${res.status}`);
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => "")).slice(0, 500);
+      throw new Error(`McLeod ${pathAndQuery} → HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
+    }
     return res.json();
   }
 
-  // TODO(confirm): the MovementService / OrderService endpoint that lists movements changed since `sinceIso`.
-  const rawMovements = await mcleodGet(`/movements?changedSince=${encodeURIComponent(sinceIso)}`);
-  // TODO(confirm): the DriverService endpoint for driver time-off / availability windows.
-  const rawWindows = await mcleodGet(`/drivers/timeoff?changedSince=${encodeURIComponent(sinceIso)}`);
+  const rows = (payload) => {
+    if (Array.isArray(payload)) return payload;
+    for (const key of ["items", "results", "data", "movements", "windows"]) {
+      if (Array.isArray(payload?.[key])) return payload[key];
+    }
+    return [];
+  };
 
-  const movements = (rawMovements.items ?? rawMovements ?? []).map((m) => ({
-    external_id: String(m.id ?? m.movement_id),
-    vehicle_unit: m.tractor_id ?? m.unit ?? undefined, // TODO(confirm): your unit-number field
-    trailer_unit: m.trailer_id ?? undefined, // TODO(confirm)
-    started_at: m.actual_departure ?? m.start_date ?? undefined,
-    ended_at: m.actual_arrival ?? m.end_date ?? undefined,
-    // TODO(confirm): the reefer signal for your fleet — temp-controlled flag, a setpoint, or commodity/order type.
-    temperature_controlled: Boolean(m.temperature_controlled ?? m.reefer ?? m.temperature_min != null),
-    setpoint_f: m.temperature_min ?? null,
-    commodity: m.commodity ?? null,
-    raw: m,
-  }));
+  async function pagedSearch(path, changedAfterDate) {
+    const all = [];
+    for (let offset = 0; ; offset += CFG.mcleod.pageSize) {
+      const query = new URLSearchParams({
+        changedAfterDate,
+        recordLength: String(CFG.mcleod.pageSize),
+        recordOffset: String(offset),
+      });
+      const page = rows(await mcleodGet(`${path}?${query}`));
+      all.push(...page);
+      if (page.length < CFG.mcleod.pageSize) return all;
+    }
+  }
 
-  const windows = (rawWindows.items ?? rawWindows ?? []).map((w) => ({
+  // Published MovementService incremental-search endpoint. McLeod caps a page at 1,000 rows.
+  const movementIndex = await pagedSearch("/movements/search", sinceIso);
+
+  // The search endpoint returns RowMovement index rows. The documented detail endpoint adds the assigned
+  // tractor, drivers, trailers, stops and orders needed for FuelGuard's mapping. Hydrate with bounded
+  // concurrency so an initial backfill does not overwhelm the carrier's LoadMaster server.
+  const rawMovements = new Array(movementIndex.length);
+  const detailWorkers = Array.from({ length: Math.min(6, movementIndex.length) }, async (_, worker) => {
+    for (let i = worker; i < movementIndex.length; i += 6) {
+      const summary = movementIndex[i];
+      const id = summary?.id ?? summary?.movement_id;
+      if (!id) throw new Error(`McLeod movement search returned a row without an id at offset ${i}`);
+      rawMovements[i] = await mcleodGet(`/movements/${encodeURIComponent(String(id))}`);
+    }
+  });
+  await Promise.all(detailWorkers);
+
+  // No driver time-off route appears in the public DriverService contract. Keep it disabled unless McLeod
+  // supplies a supported route (or the carrier exposes a read-only internal adapter for an approved view).
+  const rawWindows = CFG.mcleod.driverTimeOffPath
+    ? rows(
+        await mcleodGet(
+          CFG.mcleod.driverTimeOffPath.replaceAll("{since}", encodeURIComponent(sinceIso)),
+        ),
+      )
+    : [];
+
+  const descendants = (value) => {
+    const out = [];
+    const visit = (v) => {
+      if (!v || typeof v !== "object") return;
+      if (Array.isArray(v)) return v.forEach(visit);
+      out.push(v);
+      Object.values(v).forEach(visit);
+    };
+    visit(value);
+    return out;
+  };
+  const namedChild = (record, name) =>
+    descendants(record).find((v) => v !== record && (v.__name === name || v.__type === name));
+  const namedChildren = (record, name) =>
+    descendants(record).filter((v) => v !== record && (v.__name === name || v.__type === name));
+  const yes = (value) => value === true || ["Y", "YES", "TRUE", "1"].includes(String(value ?? "").toUpperCase());
+
+  const movements = rawMovements.map((m) => {
+    const tractor = namedChild(m, "tractor");
+    const trailer = namedChild(m, "trailer1") ?? namedChild(m, "trailer");
+    const orders = namedChildren(m, "orders");
+    const stops = namedChildren(m, "stops");
+    const firstStop = stops[0];
+    const lastStop = stops.at(-1);
+    const equipmentType =
+      orders.find((o) => o.equipment_type_id)?.equipment_type_id ??
+      m.carrier_trailer_type ??
+      trailer?.trailer_type ??
+      trailer?.equipment_type_id;
+    const setpoint =
+      orders.find((o) => o.temperature_min != null || o.setpoint_f != null)?.temperature_min ??
+      orders.find((o) => o.setpoint_f != null)?.setpoint_f ??
+      null;
+    const commodity = orders.find((o) => o.commodity)?.commodity ?? m.ts_commodity ?? null;
+    return {
+      external_id: String(m.id ?? m.movement_id),
+      vehicle_unit: m.__tractor_id ?? tractor?.id ?? m.carrier_tractor ?? undefined,
+      trailer_unit: m.__trailer1_id ?? trailer?.id ?? m.carrier_trailer ?? undefined,
+      started_at: firstStop?.actual_departure ?? firstStop?.actual_arrival ?? m.rdy_pickup_date ?? undefined,
+      ended_at: lastStop?.actual_departure ?? lastStop?.actual_arrival ?? m.return_date ?? undefined,
+      // Equipment codes are carrier-configurable; MCLEOD_REEFER_EQUIPMENT_TYPES is the explicit allow-list.
+      temperature_controlled:
+        yes(m.temperature_controlled ?? m.reefer) ||
+        setpoint != null ||
+        CFG.mcleod.reeferEquipmentTypes.has(String(equipmentType ?? "").toUpperCase()),
+      setpoint_f: setpoint == null ? null : Number(setpoint),
+      commodity,
+      raw: m,
+    };
+  });
+
+  const windows = rawWindows.map((w) => ({
     external_id: String(w.id ?? ""),
     driver_employee_id: w.driver_id ?? w.employee_id ?? undefined, // TODO(confirm): matches drivers.employee_id
     start_at: w.start_date ?? w.from,
