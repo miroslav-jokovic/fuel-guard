@@ -40,7 +40,7 @@ describe("@hazmat/golden — acceptance suite (plan H2)", () => {
   it("reports SME-authored acceptance coverage (target ≥400 at launch)", () => {
     const acceptance = acceptanceScenarios(loaded);
     const examples = loaded.length - acceptance.length;
-    // eslint-disable-next-line no-console
+     
     console.log(`golden coverage — acceptance(SME-authored): ${acceptance.length}, harness examples: ${examples}, target: 400`);
     expect(loaded.length).toBeGreaterThanOrEqual(examples); // always true; keeps the count visible in output
   });

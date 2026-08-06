@@ -120,7 +120,7 @@ export interface GovInfoClientOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const DEFAULT_UA = "FuelGuard-HazmatGuard/0.1 (+regulatory dataset importer; contact: ops@fuelguard)";
+const DEFAULT_UA = "HazmatGuard/0.1 (+regulatory dataset importer; contact: ops@hazmatguard.app)";
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /** Replace the api_key value in a URL string with REDACTED — used everywhere a URL might be surfaced. */

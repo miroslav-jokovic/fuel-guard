@@ -69,6 +69,14 @@ export const goldenScenarioSchema = z
     verifiedBy: z.string().min(1),
     /** Date the expectation was authored/verified (YYYY-MM-DD). */
     verifiedOn: z.string().default(""),
+    /** v1.18 sourcing: the REAL BOL this scenario was captured from (photo filename / load id).
+     *  Empty only on `deliberate` scenarios and the `_`-prefixed harness examples. */
+    sourceBolRef: z.string().default(""),
+    /** v1.18: true when this scenario was deliberately constructed to close a named coverage-
+     *  checklist gap reality never produced (built WITH the SME from a minimally-modified real
+     *  BOL). `deliberateGap` names the gap. */
+    deliberate: z.boolean().default(false),
+    deliberateGap: z.string().default(""),
     /** Also run `validateBol` and check `expect.bol`. */
     runBol: z.boolean().default(false),
     /** The engine LoadInput minus dataset + evaluatedAt (runner injects both). */

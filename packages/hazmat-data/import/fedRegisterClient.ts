@@ -132,7 +132,7 @@ export interface FrClientOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const DEFAULT_UA = "FuelGuard-HazmatGuard/0.1 (+regulatory amendment monitor; contact: ops@fuelguard)";
+const DEFAULT_UA = "HazmatGuard/0.1 (+regulatory amendment monitor; contact: ops@hazmatguard.app)";
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /** Build the `conditions[...]` / `fields[]` query for a document search. */

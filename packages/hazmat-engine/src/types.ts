@@ -6,7 +6,7 @@ import { z } from "zod";
  * @hazmat/data (boundary), so it reads the dataset through a minimal consumer view (`datasetRefSchema`)
  * — the full dataset is passed through; the engine reads only what a given phase needs.
  */
-export const ENGINE_VERSION = "0.7.0";
+export const ENGINE_VERSION = "0.8.0";
 
 export const datasetRefSchema = z
   .object({ version: z.string(), provisional: z.boolean().default(false) })
@@ -110,9 +110,13 @@ export interface Verdict {
   engineVersion: string;
   datasetVersion: string;
   placards: PlacardOutput;
-  /** The engine is a pure function with NO clearing concept — clearing is the app's call (H4/H7). */
+  /** The engine is a pure function with NO clearing concept — clearing is the app's call (H4/H7).
+   *  Since 0.8.0 (M5.2) `eligible` is REACHABLE: every check clean + every provided input
+   *  evaluated + dataset complete enough to check everything. */
   eligibility: { status: "eligible" | "blocked" | "not_checked"; blocks: Finding[] };
   segregation: Finding[];
+  /** Since 0.8.0 (G2): the §172.202 basic descriptions the shipping paper must carry. */
+  bol?: { lines: Array<{ hmtRef: string; basicDescription: string; additionalRequired: string[] }> };
   trace: TraceNode[];
 }
 

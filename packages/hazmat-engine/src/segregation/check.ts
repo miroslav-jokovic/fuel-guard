@@ -39,6 +39,8 @@ export interface SegregationResult {
   findings: Finding[];
   trace: TraceNode[];
   hasViolation: boolean;
+  /** G8 (M5.2): false when the dataset carried no segregation grid — the check COULD NOT run. */
+  gridPresent: boolean;
 }
 
 export function checkSegregation(load: LoadInput): SegregationResult {
@@ -47,8 +49,17 @@ export function checkSegregation(load: LoadInput): SegregationResult {
   const findings: Finding[] = [];
 
   if (ds.segregation.length === 0) {
+    // G8 (M5.2): an absent grid is a FAIL-CLOSED condition, not a silent pass — compatibility was
+    // not checked, so the verdict must say so and eligibility must not reach `eligible`.
     trace.push({ ruleId: "segregation_grid_present", fired: false, inputs: { cells: 0 }, citations: [] });
-    return { findings, trace, hasViolation: false };
+    findings.push({
+      ruleId: "segregation_grid_unavailable",
+      tier: "conditional",
+      message: "The dataset carries no §177.848 segregation grid — load compatibility was NOT checked.",
+      citations: [{ cfr: "49 CFR §177.848(d)" }],
+      evidence: { cells: 0 },
+    });
+    return { findings, trace, hasViolation: false, gridPresent: false };
   }
 
   // distinct hazard classes on the load (resolved from the dataset)
@@ -137,5 +148,5 @@ export function checkSegregation(load: LoadInput): SegregationResult {
     citations: [{ cfr: "49 CFR 177.848(d)" }],
   });
 
-  return { findings, trace, hasViolation: findings.some((f) => f.tier === "violation") };
+  return { findings, trace, hasViolation: findings.some((f) => f.tier === "violation"), gridPresent: true };
 }

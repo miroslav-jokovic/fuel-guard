@@ -100,7 +100,11 @@ export function validateBol(load: LoadInput): BolValidation {
       additionalRequired.push("technical name(s) in parentheses (§172.203(k))");
     }
     // §172.203(l): Marine Pollutant (name match against Appendix B).
-    const names = [entry.psnPrinted, ...(entry.psnAlternates ?? [])].map(norm);
+    // Defensive against minimal dataset views (evaluateLoad now calls this on every dataset —
+    // G2): an entry without printed names simply matches no Appendix A/B name.
+    const names = [entry.psnPrinted, ...(entry.psnAlternates ?? [])]
+      .filter((n): n is string => typeof n === "string")
+      .map(norm);
     if (ds.marinePollutants.some((m) => names.includes(m.nameNormalized))) {
       additionalRequired.push("the words “Marine Pollutant” (§172.203(l))");
     }
@@ -125,16 +129,20 @@ export function validateBol(load: LoadInput): BolValidation {
     for (const req of additionalRequired) {
       findings.push({
         ruleId: "bol_additional_description_required",
-        tier: "conditional",
+        // Since 0.8.0 (M5.2): a REQUIREMENT STATEMENT, not an unresolved question — the engine
+        // successfully derived what the paper must say; verifying the physical paper says it is the
+        // extraction/review path's job (H6/H7). Info never blocks eligibility.
+        tier: "info",
         message: `The shipping paper for ${idPart} must also include: ${req}.`,
         citations: [{ cfr: "49 CFR 172.203" }],
         evidence: { hmtRef: line.hmtRef, requirement: req },
       });
     }
 
+    const pgRows = Array.isArray(entry.pgRows) ? entry.pgRows : []; // defensive: minimal dataset views (G2)
     // PG presence: a material whose entry requires a PG must show it; a Class-2 gas must NOT.
-    const requiresPg = entry.pgRows.some((r) => r.pg != null);
-    const isGasNoPg = entry.pgRows.length > 0 && entry.pgRows.every((r) => r.pg == null);
+    const requiresPg = pgRows.some((r) => r.pg != null);
+    const isGasNoPg = pgRows.length > 0 && pgRows.every((r) => r.pg == null);
     if (requiresPg && !pg && !reclassed) {
       findings.push({
         ruleId: "bol_pg_missing",
@@ -163,7 +171,12 @@ export function validateBol(load: LoadInput): BolValidation {
     { ruleId: "bol_identification_required", message: "Hazardous materials entries must be identifiable on the paper (entered first, highlighted, or marked “X” in an HM column) with the total quantity and number/type of packages.", cfr: "49 CFR 172.201" },
   ];
   for (const e of REQUIRED_ELEMENTS) {
-    findings.push({ ruleId: e.ruleId, tier: "conditional", message: e.message, citations: [{ cfr: e.cfr }], evidence: {} });
+    // Since 0.8.0 (M5.2): tier info — these four are derived REQUIREMENTS every hazmat paper must
+    // satisfy (phone, ER info, certification, identification). Deriving them IS the evaluation;
+    // whether the printed paper satisfies them is checked against extracted BolFields (H6) or by a
+    // reviewer (H7). As conditionals they made `eligible` unreachable for every declared load —
+    // exactly G3's bug wearing a different hat.
+    findings.push({ ruleId: e.ruleId, tier: "info", message: e.message, citations: [{ cfr: e.cfr }], evidence: {} });
   }
 
   trace.push({

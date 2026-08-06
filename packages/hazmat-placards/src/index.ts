@@ -11,6 +11,12 @@ export type { PlacardArt } from "./registry.js";
 export { PLACARD_ART } from "./registry.js";
 export { renderPlacardSvg, PALETTE, type Design, type SymbolId, type Background } from "./svg.js";
 
+/** Artwork release version (PLAN §11.7). PROVISIONAL until M10 lands the Chart-17-traced,
+ *  SME-attested release with per-placard provenance — every rendering surface that shows this
+ *  version must also label the art as a SPECIMEN, never a placard. Recorded on every run and in
+ *  the M12 defense packet so a verdict is traceable to the exact art a reviewer saw. */
+export const PLACARD_ART_VERSION = "0.1.0-provisional";
+
 /** The art for a placard name (throws on an unknown name — the registry is exhaustive over PlacardName). */
 export function placardArt(name: PlacardName): PlacardArt {
   const art = PLACARD_ART[name];

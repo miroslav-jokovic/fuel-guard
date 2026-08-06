@@ -11,11 +11,14 @@ import {
 import { cleanedTankProhibitsGate, noHazmatLinesGate } from "./placards/rules.js";
 import { computePlacards } from "./placards/compute.js";
 import { checkSegregation } from "./segregation/check.js";
+import { validateBol } from "./bol/validate.js";
+import { auditProvidedInputs, checkEligibility } from "./eligibility.js";
 
 export * from "./types.js";
 export { computePlacards } from "./placards/compute.js";
 export { checkSegregation } from "./segregation/check.js";
 export { validateBol, type BolValidation, type BolLineCompliance } from "./bol/validate.js";
+export { checkEligibility, auditProvidedInputs, UNEVALUATED_INPUTS, type EligibilityInput, type EligibilityResult } from "./eligibility.js";
 
 const ALL_PLACARDS: readonly PlacardName[] = [
   "FLAMMABLE", "GASOLINE", "COMBUSTIBLE", "FUEL_OIL", "FLAMMABLE_GAS", "NON_FLAMMABLE_GAS",
@@ -57,19 +60,40 @@ export function evaluateLoad(input: LoadInput): Verdict {
   const seg = checkSegregation(load);
   trace.push(...seg.trace);
 
-  const blocks: Finding[] = computed.findings.filter((f) => f.tier === "conditional" || f.tier === "violation");
-  // A §177.848(d) segregation prohibition (X) blocks the load; placard/eligibility conditionals leave it
-  // `not_checked`. Eligibility (product/policy) is a separate H2 deliverable — until it lands the engine
-  // surfaces the conditionals so the app never auto-clears on assumptions.
-  const anyViolation = blocks.some((f) => f.tier === "violation") || seg.hasViolation;
-  const status: Verdict["eligibility"]["status"] = anyViolation ? "blocked" : "not_checked";
+  // G2 (M5.2): the shipping paper IS part of the verdict — a load whose required paper entries
+  // cannot be derived is not silently eligible.
+  const bol = validateBol(load);
+  trace.push(...bol.trace);
+
+  // M5.3 (G5): every provided-but-unevaluated input becomes an explicit conditional finding.
+  const audit = auditProvidedInputs(load);
+  trace.push(audit.trace);
+
+  const blocks: Finding[] = [
+    ...computed.findings.filter((f) => f.tier === "conditional" || f.tier === "violation"),
+    ...bol.findings.filter((f) => f.tier === "conditional" || f.tier === "violation"),
+    ...audit.findings,
+  ];
+
+  // M5.2 (G1/G3/G4): the eligibility DECISION. `eligible` is reachable now — but ONLY when every
+  // check ran clean, the dataset was complete enough to check everything (G8), and no provided
+  // input went unevaluated. Blocked > not_checked > eligible.
+  const elig = checkEligibility({
+    datasetProvisional: Boolean((load.dataset as { provisional?: boolean }).provisional),
+    blocks,
+    segregationFindings: seg.findings,
+    segregationViolation: seg.hasViolation,
+    segregationGridPresent: seg.gridPresent,
+  });
+  trace.push({ ruleId: "eligibility_decision", fired: true, inputs: { status: elig.status, reasons: elig.reasons }, citations: [] });
 
   return {
     engineVersion: ENGINE_VERSION,
     datasetVersion: version,
     placards: computed.placards,
-    eligibility: { status, blocks },
+    eligibility: { status: elig.status, blocks },
     segregation: seg.findings,
+    bol: { lines: bol.lines },
     trace,
   };
 }

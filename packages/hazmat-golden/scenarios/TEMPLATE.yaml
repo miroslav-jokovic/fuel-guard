@@ -7,12 +7,18 @@
 # its output, and NEVER by the engine implementer. `verifiedBy` records who authored them.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# v1.18 SOURCING: scenarios are CAPTURED from SME-adjudicated real BOLs (see AUTHORING.md v2).
+# Engineering fills this file FROM the BOL Adjudication Log — the SME never edits YAML.
+
 name: "SHORT DESCRIPTIVE NAME"
 docRef: "49 CFR §… (and/or doc-17 §…) — the rule your expected outcome is grounded in"
 description: >
   Plain-language description of the real-world load / case.
 verifiedBy: "Your name"          # REQUIRED — proves a human authored the expectation
 verifiedOn: "YYYY-MM-DD"
+sourceBolRef: "bol-photo-filename-or-load-id"   # the REAL BOL this was captured from (v1.18)
+deliberate: false                # true ONLY for checklist-gap scenarios built WITH the SME
+deliberateGap: ""                # when deliberate: the named coverage gap this closes
 runBol: false                    # set true to also check the `expect.bol` block below
 
 # The load being evaluated (the engine LoadInput minus `dataset` and `evaluatedAt`, which the
