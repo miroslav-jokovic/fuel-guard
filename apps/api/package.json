@@ -16,6 +16,7 @@
     "@fuelguard/shared": "workspace:*",
     "@hazmat/data": "workspace:*",
     "@hazmat/engine": "workspace:*",
+    "@hazmat/placards": "workspace:*",
     "@sentry/node": "^10.69.0",
     "@supabase/supabase-js": "2.110.0",
     "@xmldom/xmldom": "0.9.10",

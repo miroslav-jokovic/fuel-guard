@@ -34,6 +34,7 @@ import { startExtractionAnalysis } from "../../services/hazmatExtraction/orchest
 import { searchProducts } from "../../services/hazmatProducts.js";
 import { listProfiles, createProfile, updateProfile, deleteProfile } from "../../services/hazmatProfiles.js";
 import { notifyDriverOfOutcome } from "../../services/hazmatNotify.js";
+import { gatherPacketData, renderPacketPdf } from "../../services/defensePacket.js";
 
 /**
  * HazmatGuard API (plan H4). Mounted at `/api/hazmat/*` behind auth + the `hazmatguard` module
@@ -303,6 +304,19 @@ export function hazmatRouter(): Router {
       return;
     }
     res.json({ storeVersion: store.version, provisional: store.provisional, source: store.source, section });
+  }));
+
+  // ── M12.1: Roadside Defense Packet — one tap, self-contained PDF ─────────────
+  router.get("/loads/:id/packet", canView, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const runId = typeof req.query.runId === "string" ? req.query.runId : null;
+    const data = await gatherPacketData(admin, orgOf(req), param(req, "id"), runId);
+    if ("code" in data) { fail(res, data as ServiceError); return; }
+    const pdf = await renderPacketPdf(data);
+    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.packet_generated", entity: "hazmat_loads", entityId: param(req, "id"), meta: { runId: data.run.id, bytes: pdf.length } });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="hazmat-packet-${param(req, "id").slice(0, 8)}.pdf"`);
+    res.send(pdf);
   }));
 
   return router;

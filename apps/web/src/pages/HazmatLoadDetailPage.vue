@@ -7,6 +7,8 @@ import ReviewPanel from "@/features/hazmat/ReviewPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import { supabase } from "@/lib/supabase";
+import { useToastStore } from "@/stores/toast";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -30,6 +32,34 @@ import {
  */
 const route = useRoute();
 const id = computed(() => (Array.isArray(route.params.id) ? route.params.id[0] : route.params.id) as string | undefined);
+
+// M12.1 — fetch the defense-packet PDF with the auth token and trigger a download.
+const packetLoading = ref(false);
+const packetToast = useToastStore();
+async function downloadPacket() {
+  const loadId = id.value;
+  if (!loadId) return;
+  packetLoading.value = true;
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    const res = await fetch(`/api/hazmat/loads/${loadId}/packet`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error(`Packet failed (${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hazmat-packet-${loadId.slice(0, 8)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    packetToast.error("Could not generate the defense packet", e instanceof Error ? e.message : undefined);
+  } finally {
+    packetLoading.value = false;
+  }
+}
 
 const { data: load, isLoading, isError, error } = useHazmatLoadQuery(id);
 const analyzing = computed(() => isAnalyzing(load.value?.status));
@@ -127,6 +157,7 @@ function declaredLine(l: unknown): { hmtRef: string; qty: string } {
   <div class="space-y-6">
     <PageHeader description="Hazmat load — analysis, placards and findings.">
       <template #actions>
+        <BaseButton v-if="latestRun" variant="ghost" size="sm" :disabled="packetLoading" @click="downloadPacket">{{ packetLoading ? "Preparing…" : "Defense packet" }}</BaseButton>
         <BaseButton variant="ghost" size="sm" to="/hazmat/loads">← Loads</BaseButton>
       </template>
     </PageHeader>
