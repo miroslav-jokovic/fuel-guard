@@ -28,6 +28,7 @@ import { dispatchRouter } from "./routes/dispatch.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
 import { complianceRouter } from "./routes/compliance.js";
 import { meRouter } from "./routes/me.js";
+import { meHazmatRouter } from "./routes/meHazmat.js";
 import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
@@ -134,6 +135,7 @@ export function createApp(env: Env): Express {
   });
 
   app.use("/api/invites", invitesRouter());
+  app.use("/api/me/hazmat", meHazmatRouter()); // driver capture surface (M6) — before /api/me so this prefix wins
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
   app.use("/api/members", membersRouter());

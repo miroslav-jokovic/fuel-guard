@@ -152,11 +152,22 @@ export async function registerDocument(
   const storagePath = `${orgId}/${loadId}/${req.id}.${ext}`;
   const { data: signed, error: signErr } = await admin.storage.from("hazmat").createSignedUploadUrl(storagePath);
   if (signErr || !signed) return err("sign_failed", signErr?.message ?? "Failed to sign upload URL.");
-  const { error } = await admin.from("hazmat_documents").insert({
+  const row: Record<string, unknown> = {
     id: req.id, org_id: orgId, load_id: loadId, kind: req.kind, page: req.page,
     storage_path: storagePath, sha256: req.sha256, uploaded_by: userId,
     content_type: req.contentType, // D1: recorded at registration; consumers no longer guess
-  });
+  };
+  if (req.capture) {
+    // M6 driver capture: persist the on-device usability/scan provenance (DCE §7). `quality` reuses the
+    // column 0092 already provisioned; the rest land in 0133's additive columns.
+    row.quality = req.capture.quality;
+    row.capture_config_version = req.capture.configVersion;
+    row.capture_mode = req.capture.mode;
+    row.os_enhanced = req.capture.osEnhanced;
+    row.integrity_hash = req.capture.integrityHash;
+    row.ocr_evidence = req.capture.ocrEvidence ?? null;
+  }
+  const { error } = await admin.from("hazmat_documents").insert(row);
   if (error) return err("insert_failed", error.message);
   return { documentId: req.id, storagePath, uploadUrl: signed.signedUrl, token: signed.token };
 }

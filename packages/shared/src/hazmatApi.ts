@@ -127,6 +127,17 @@ export const hazmatRegisterDocumentRequestSchema = z.object({
   page: z.number().int().min(1).default(1),
   sha256: z.string().min(1),
   contentType: z.string().default("image/webp"),
+  /** M6 driver capture provenance (DCE §7). Optional — managers registering documents omit it. */
+  capture: z
+    .object({
+      configVersion: z.string(),
+      mode: z.enum(["system_scanner", "raw_capture", "expo_camera"]),
+      osEnhanced: z.boolean(),
+      integrityHash: z.string().min(1),
+      quality: z.record(z.string(), z.unknown()),
+      ocrEvidence: z.record(z.string(), z.unknown()).nullable().default(null),
+    })
+    .optional(),
 });
 export type HazmatRegisterDocumentRequest = z.infer<typeof hazmatRegisterDocumentRequestSchema>;
 
