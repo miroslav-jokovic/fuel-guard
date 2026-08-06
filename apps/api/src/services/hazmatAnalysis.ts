@@ -7,6 +7,7 @@ import { notifyReviewersOfFlag } from "./hazmatNotify.js";
 import type { Env } from "../env.js";
 import { enqueueJob } from "./queue/enqueue.js";
 import { evaluateQualification } from "./qualification.js";
+import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@fuelguard/shared";
 
 /**
  * HazmatGuard analysis orchestrator (plan H4-4) — the MANUAL path. The `jobs` ledger (0027) is a
@@ -121,18 +122,37 @@ function release(): void {
 const LOAD_COLUMNS_FOR_ANALYSIS =
   "declared_lines, tank_state, carrier_relationship, claimed_no_placards, special_permit_numbers, vehicle_id, trailer_id, driver_id, planned_pickup_at";
 
-/** Insert a run row. `models` carries per-pass model+token usage for extraction runs (null for manual). */
+/** Non-violation findings from a verdict — D3's `advisories` column content. Violations become
+ *  flags (blocking); everything else (conditional/warning/info) is context a reviewer should see
+ *  but is not blocked on. Kept as full Finding objects so citations survive into the run record. */
+export function computeAdvisories(verdict: Verdict | null): unknown[] {
+  if (!verdict) return [];
+  const all = [...verdict.eligibility.blocks, ...verdict.segregation];
+  return all.filter((f) => f.tier !== "violation");
+}
+
+/** Record a run + increment the org's monthly usage counter, atomically (RPC `record_hazmat_run`,
+ *  migration 0130 — D17). THROWS on failure (M0.5 triage finding N2): the run row is the audit
+ *  evidence that a verdict happened; silently losing it and then transitioning the load would
+ *  detach the load's status from any recorded run. Callers' outer catch handles the failure
+ *  fail-closed (no run => no transition => load stays where it was). `models` carries per-pass
+ *  model+token usage for extraction runs (null for manual). */
 export async function insertHazmatRun(
   admin: SupabaseClient, runId: string, orgId: string, loadId: string,
   engineVersion: string, datasetVersion: string, verdict: unknown, outcome: "green" | "flagged",
-  flags: string[], inputHash: string, models: unknown = null, qualification: unknown = null,
+  flags: string[], inputHash: string, models: unknown = null,
+  opts: { advisories?: unknown[]; extraction?: unknown; inputTokens?: number; outputTokens?: number; qualification?: unknown } = {},
 ): Promise<void> {
-  const { error } = await admin.from("hazmat_runs").insert({
-    id: runId, org_id: orgId, load_id: loadId,
-    engine_version: engineVersion, dataset_version: datasetVersion,
-    verdict, outcome, flags, models, input_hash: inputHash, qualification,
+  const { error } = await admin.rpc("record_hazmat_run", {
+    p_id: runId, p_org_id: orgId, p_load_id: loadId,
+    p_engine_version: engineVersion, p_dataset_version: datasetVersion,
+    p_verdict: verdict, p_outcome: outcome, p_flags: flags,
+    p_advisories: opts.advisories ?? [], p_extraction: opts.extraction ?? null,
+    p_models: models, p_input_hash: inputHash,
+    p_input_tokens: opts.inputTokens ?? 0, p_output_tokens: opts.outputTokens ?? 0,
+    p_qualification: opts.qualification ?? null,
   });
-  if (error) console.error(`[hazmat] run insert failed for ${runId}: ${error.message}`);
+  if (error) throw new Error(`[hazmat] run record failed for ${runId}: ${error.message}`);
 }
 const insertRun = insertHazmatRun;
 
@@ -167,6 +187,7 @@ export async function executeManualAnalysis(
     const qual = await evaluateQualification(admin, orgId, { driver_id: l.driver_id, planned_pickup_at: l.planned_pickup_at }, "cargo_tank", new Date().toISOString());
 
     let verdict: Verdict | { error: string };
+    let advisories: unknown[] = [];
     let outcome: "green" | "flagged";
     let flags: string[];
     let engineVersion = "unknown";
@@ -174,6 +195,7 @@ export async function executeManualAnalysis(
       const v = evaluateLoad(buildManualLoadInput(l, profile, dataset, new Date().toISOString()));
       verdict = v; engineVersion = v.engineVersion;
       flags = computeManualFlags(v, dataset.provisional);
+      advisories = computeAdvisories(v);
       outcome = flags.length ? "flagged" : "green";
     } catch (e) {
       verdict = { error: e instanceof Error ? e.message : "analysis failed" };
@@ -182,7 +204,12 @@ export async function executeManualAnalysis(
 
     flags = [...new Set([...flags, ...qual.flags])];
     outcome = flags.length ? "flagged" : "green";
-    await insertRun(admin, runId, orgId, loadId, engineVersion, dataset.version, verdict, outcome, flags, manualInputHash(l, engineVersion, dataset.version), null, qual.record);
+    if (qual.usedFallback) {
+      // §10.3: tier-info, so it is an ADVISORY, not a flag — flags are blocking by definition here
+      // (isGreen = zero flags) and "we evaluated at request time" must not block anything.
+      advisories = [...advisories, { ruleId: QUALIFICATION_EVAL_AT_NOW_FLAG, tier: "info", message: "planned_pickup_at was null — qualification evaluated at analysis time (§10.3).", citations: [] }];
+    }
+    await insertRun(admin, runId, orgId, loadId, engineVersion, dataset.version, verdict, outcome, flags, manualInputHash(l, engineVersion, dataset.version), null, { advisories, qualification: qual.record });
     await transitionLoad(admin, orgId, loadId, outcome === "green" ? "analysis_green" : "analysis_flagged", { datasetProvisional: dataset.provisional });
     if (outcome === "flagged") await notifyReviewersOfFlag(admin, orgId, loadId);
   } catch (e) {
