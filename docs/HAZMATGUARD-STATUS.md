@@ -44,9 +44,11 @@ were **NOT run in this environment** (see Verification) — that is the main ope
 
 ## What's left (net-new — NOT a port; HazmatGuard hasn't built these either)
 
-- **M9 — conditional org checks**: add §385.403 permit-required + §172.800 security-plan material lists
-  to `@hazmat/data`, enable the two §5.1 checks. Plan: ship **provisional/fail-closed** (SME-pending)
-  so it is safe before attestation. *Not started.*
+- **M9 — conditional org checks (PARTIAL)**: §172.800 security-plan check **DONE** (provisional/fail-
+  closed) — `@hazmat/data/securityPlan.ts` detects the large-bulk (>792 gal) Div 2.1 / Class 3 PG I/II
+  trigger from declared materials; `qualifyOrg` emits the UNCLEARABLE `org_unqualified:security_plan`.
+  §385.403 (FMCSA safety permit) **deferred to SME** (threshold/zone-heavy). `ATTESTED=false` until
+  an SME signs off on the criterion + threshold.
 - **M6 — driver capture (native)**: build from the DCE design. Code can be written here; the native app
   must be built/run on a Mac. *Not started.*
 - **M7** public calculator · **M10** exact placard art (launch blocker, SME) · **M11** ops readiness.
