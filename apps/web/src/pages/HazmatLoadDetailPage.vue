@@ -8,6 +8,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
@@ -59,6 +60,25 @@ async function downloadPacket() {
   } finally {
     packetLoading.value = false;
   }
+}
+
+// M12.2 — verify the recorded verdict reproduces under its dataset, and diff vs the current one.
+interface ReproduceDiff { placardsAdded: string[]; placardsRemoved: string[]; eligibilityBefore: string; eligibilityAfter: string; findingsAdded: string[]; findingsRemoved: string[] }
+interface ReproduceResult {
+  identical: boolean; identicalModuloVersions: boolean; reason: string | null;
+  recordedDatasetVersion: string; source: string;
+  currentDataset: { version: string; diff: ReproduceDiff } | null;
+}
+const reproduceResult = ref<ReproduceResult | null>(null);
+const reproduceLoading = ref(false);
+async function verifyReproducibility() {
+  const loadId = id.value; const runId = latestRun.value?.id;
+  if (!loadId || !runId) return;
+  reproduceLoading.value = true; reproduceResult.value = null;
+  const res = await apiFetch<ReproduceResult>(`/api/hazmat/loads/${loadId}/runs/${runId}/reproduce`);
+  reproduceLoading.value = false;
+  if (!res.ok) { packetToast.error("Could not verify reproducibility", res.error?.message); return; }
+  reproduceResult.value = res.data ?? null;
 }
 
 const { data: load, isLoading, isError, error } = useHazmatLoadQuery(id);
@@ -241,6 +261,31 @@ function declaredLine(l: unknown): { hmtRef: string; qty: string } {
       </div>
       <BaseCard v-else-if="!analyzing" class="text-center">
         <p class="py-8 text-sm text-ink-muted">No analysis yet. Press <span class="font-medium text-ink">{{ primaryLabel }}</span> to run the engine.</p>
+      </BaseCard>
+
+      <!-- reproducibility (M12.2) -->
+      <BaseCard v-if="latestRun && verdictResult">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold text-ink">Reproducibility</h2>
+            <p class="text-xs text-ink-muted">Re-run this verdict under the dataset it recorded, and diff it against the current dataset.</p>
+          </div>
+          <BaseButton variant="soft" size="sm" :disabled="reproduceLoading" @click="verifyReproducibility">{{ reproduceLoading ? "Checking…" : "Verify reproducibility" }}</BaseButton>
+        </div>
+        <div v-if="reproduceResult" class="mt-3 text-sm">
+          <p v-if="reproduceResult.identical" class="font-medium text-success-700">✓ Byte-identical to the recorded verdict (dataset {{ reproduceResult.recordedDatasetVersion }}).</p>
+          <p v-else-if="reproduceResult.identicalModuloVersions" class="font-medium text-success-700">✓ Identical except the version stamps.</p>
+          <p v-else class="font-medium text-warning-700">{{ reproduceResult.reason }}</p>
+          <div v-if="reproduceResult.currentDataset" class="mt-2 text-xs text-ink-secondary">
+            <p class="text-ink-muted">Under the current dataset {{ reproduceResult.currentDataset.version }}:</p>
+            <ul class="mt-1 space-y-0.5">
+              <li v-if="reproduceResult.currentDataset.diff.placardsAdded.length">Placards added: {{ reproduceResult.currentDataset.diff.placardsAdded.join(", ") }}</li>
+              <li v-if="reproduceResult.currentDataset.diff.placardsRemoved.length">Placards removed: {{ reproduceResult.currentDataset.diff.placardsRemoved.join(", ") }}</li>
+              <li v-if="reproduceResult.currentDataset.diff.eligibilityBefore !== reproduceResult.currentDataset.diff.eligibilityAfter">Eligibility: {{ reproduceResult.currentDataset.diff.eligibilityBefore }} → {{ reproduceResult.currentDataset.diff.eligibilityAfter }}</li>
+              <li v-if="reproduceResult.currentDataset.diff.placardsAdded.length === 0 && reproduceResult.currentDataset.diff.placardsRemoved.length === 0 && reproduceResult.currentDataset.diff.eligibilityBefore === reproduceResult.currentDataset.diff.eligibilityAfter" class="text-ink-muted">No operational change under the current dataset.</li>
+            </ul>
+          </div>
+        </div>
       </BaseCard>
     </template>
   </div>

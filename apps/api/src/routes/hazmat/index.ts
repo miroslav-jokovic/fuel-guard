@@ -35,6 +35,7 @@ import { searchProducts } from "../../services/hazmatProducts.js";
 import { listProfiles, createProfile, updateProfile, deleteProfile } from "../../services/hazmatProfiles.js";
 import { notifyDriverOfOutcome } from "../../services/hazmatNotify.js";
 import { gatherPacketData, renderPacketPdf } from "../../services/defensePacket.js";
+import { reproduceRun } from "../../services/reproduce.js";
 
 /**
  * HazmatGuard API (plan H4). Mounted at `/api/hazmat/*` behind auth + the `hazmatguard` module
@@ -317,6 +318,14 @@ export function hazmatRouter(): Router {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="hazmat-packet-${param(req, "id").slice(0, 8)}.pdf"`);
     res.send(pdf);
+  }));
+
+  // ── M12.2: reproduce a historical run under its recorded dataset + diff vs current ──────────
+  router.get("/loads/:id/runs/:runId/reproduce", canView, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await reproduceRun(admin, orgOf(req), param(req, "id"), param(req, "runId"));
+    if ("code" in result) { fail(res, result as ServiceError); return; }
+    res.json(result);
   }));
 
   return router;
