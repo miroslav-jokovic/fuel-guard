@@ -1,0 +1,28 @@
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+group = 'expo.modules.capturenative'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+android {
+  namespace "expo.modules.capturenative"
+  defaultConfig {
+    compileSdk safeExtGet("compileSdkVersion", 35)
+    minSdk safeExtGet("minSdkVersion", 24)
+    targetSdk safeExtGet("targetSdkVersion", 35)
+  }
+  lintOptions { abortOnError false }
+}
+
+dependencies {
+  // DCE §9: the Play-Services document scanner downloads its module on first use (needs connectivity
+  // once); isSupported() reports module state and SCANNER_MODULE_UNAVAILABLE is handled for locked fleets.
+  implementation 'com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1'
+  implementation 'com.google.mlkit:text-recognition:16.0.0'
+}

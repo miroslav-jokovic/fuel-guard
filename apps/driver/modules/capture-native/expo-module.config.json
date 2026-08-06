@@ -1,0 +1,5 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": { "modules": ["CaptureNativeModule"] },
+  "android": { "modules": ["expo.modules.capturenative.CaptureNativeModule"] }
+}

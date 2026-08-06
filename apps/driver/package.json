@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@expo-google-fonts/hanken-grotesk": "^0.4.3",
+    "@fuelguard/capture-engine": "workspace:*",
     "@fuelguard/shared": "workspace:*",
     "@hugeicons/core-free-icons": "4.2.3",
     "@hugeicons/react-native": "1.0.15",
