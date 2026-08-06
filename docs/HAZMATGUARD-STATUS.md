@@ -124,3 +124,4 @@ orchestrate catch guard, commit `406a568`); the same fix should still go upstrea
 |---|---|
 | (pre-session) | FuelGuard H0-H7 hazmat built (see 18-plan build-status 2026-07-31). |
 | 2026-08-06 | Phase 0 align · M0.5 · M1 · M3 · compliance API+UI · M12.1/M12.2 · D17/N2/D3 · M4 · M5 · review-UX. FuelGuard -> HazmatGuard backend parity. |
+| 2026-08-06 | Audit fixes (0132 idempotent RPC + UTC bucket + catch guard) · **M9 §172.800** security-plan check (provisional/fail-closed; §385.403 deferred to SME). |
