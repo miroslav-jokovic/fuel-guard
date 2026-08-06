@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   hazmatTransition, canEditLoad, isClearingEvent, checkHazmatClear, buildHazmatAttestation,
+  type OrgHazmatPolicy,
   type HazmatLoadStatus, type HazmatLoadEvent,
   type HazmatCreateLoadRequest, type HazmatUpdateLoadRequest, type HazmatListLoadsQuery,
   type HazmatRegisterDocumentRequest, type HazmatRegisterDocumentResponse,
@@ -193,7 +194,7 @@ export async function getPolicy(admin: SupabaseClient, orgId: string): Promise<u
 }
 
 export async function putPolicy(
-  admin: SupabaseClient, orgId: string, userId: string, policy: Record<string, unknown>,
+  admin: SupabaseClient, orgId: string, userId: string, policy: OrgHazmatPolicy,
 ): Promise<{ ok: true } | ServiceError> {
   const { error } = await admin.from("hazmat_policies").upsert({
     org_id: orgId, policy, updated_by: userId, updated_at: new Date().toISOString(),

@@ -139,7 +139,25 @@ export interface HazmatRegisterDocumentResponse {
 }
 
 // ── GET/PUT /hazmat/policy (admin-only write; H8 locks the OrgHazmatPolicy shape) ───────────────
-export const hazmatPolicyPutRequestSchema = z.object({ policy: z.record(z.string(), z.unknown()) });
+/**
+ * OrgHazmatPolicy — LOCKED (M5.1). Two keys exist because two behaviors exist; a key with no
+ * consuming code is a lie waiting to be believed. `strictObject` makes PUT reject unknown keys —
+ * a typo'd knob must 400, never be silently stored and silently ignored.
+ *
+ *   extractionEnabled           — the org-level kill-switch the extraction orchestrator reads.
+ *   extractionMonthlyTokenBudget — the D17 monthly budget (null = unlimited).
+ *
+ * Engine-side policy semantics (thresholds, auto-clear preferences) are a SEPARATE, later lock —
+ * the engine's LoadInput.policy stays null in v1 and is audited as not_evaluated if provided
+ * (M5.3), so nothing can smuggle behavior through an untyped bag.
+ */
+export const orgHazmatPolicySchema = z.strictObject({
+  extractionEnabled: z.boolean().default(true),
+  extractionMonthlyTokenBudget: z.number().int().positive().nullable().default(null),
+});
+export type OrgHazmatPolicy = z.infer<typeof orgHazmatPolicySchema>;
+
+export const hazmatPolicyPutRequestSchema = z.strictObject({ policy: orgHazmatPolicySchema });
 export type HazmatPolicyPutRequest = z.infer<typeof hazmatPolicyPutRequestSchema>;
 
 // ── cargo-tank profiles (plan H5) — capacity + compartment plan per truck/trailer ────────────────
