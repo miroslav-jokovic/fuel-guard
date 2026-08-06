@@ -1,4 +1,4 @@
-import { stateTimeZone, isNoonSentinelIso } from "@fuelguard/shared";
+import { stateTimeZone, isNoonSentinelIso, EFS_REJECT_TZ } from "@fuelguard/shared";
 
 /**
  * Fueling times must be shown in the STATION's local timezone so they match the printed EFS report. On import,
@@ -67,5 +67,46 @@ export function stationDate(iso: string | null | undefined, state: string | null
     return new Intl.DateTimeFormat("en-US", { timeZone: tzFor(state), month: "numeric", day: "numeric", year: "numeric" }).format(new Date(iso));
   } catch {
     return new Date(iso).toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Decline (reject) timestamps — 2026-08 display-basis fix. EFS prints reject times in CENTRAL TIME
+ * regardless of where the station is (the guide's own words; parsing already honors this, so
+ * declined_at is a correct UTC instant). The page used to render declines in the STATION's zone,
+ * which is the true local time of the event but reads as "+1 hour" against the printed report for an
+ * Eastern station — the transactions page matches its printout, so declines must match theirs. This
+ * renders in the report's zone with an explicit "CT" label; `stationLocalNote` gives the drill-down
+ * the true station wall time so both facts are visible instead of either looking wrong.
+ */
+export function rejectDateTime(iso: string | null | undefined, opts: { short?: boolean } = {}): string {
+  if (!iso) return "—";
+  try {
+    const txt = new Intl.DateTimeFormat("en-US", {
+      timeZone: EFS_REJECT_TZ,
+      month: "short",
+      day: "numeric",
+      ...(opts.short ? {} : { year: "numeric" }),
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(iso));
+    return `${txt} CT`;
+  } catch {
+    return new Date(iso).toISOString().slice(0, 16).replace("T", " ");
+  }
+}
+
+/** The decline's TRUE station-local wall time (e.g. "16:57 EDT") — shown alongside the printed CT time. */
+export function stationLocalNote(iso: string | null | undefined, state: string | null | undefined): string | null {
+  if (!iso) return null;
+  const tz = stateTimeZone(state ?? null);
+  if (!tz || tz === EFS_REJECT_TZ) return null; // same zone → nothing extra to say
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false, timeZoneName: "short",
+    }).format(new Date(iso));
+  } catch {
+    return null;
   }
 }

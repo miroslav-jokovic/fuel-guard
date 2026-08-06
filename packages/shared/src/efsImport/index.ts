@@ -5,5 +5,5 @@ export { efsDateToIso, efsLocalDate, stateTimeZone, zonedWallTimeToUtcIso, isNoo
 export type { EfsInstant } from "./dateTime.js";
 export { fuelTypeFromText, detectReportKind, buildFuelExternalRef, normalizeTransactionRows, normalizeAllTransactionLines, deriveFuelEventsFromEfsStore } from "./parse.js";
 export type { EfsTransactionLine, EfsTransactionRow, DeclinedTransactionRow, ReconciledFuelLine, EfsStoreLine, DerivedFuelEvents } from "./parse.js";
-export { parseStationIdentity, unitMatchKeys, driverMatchKey, driversToProvision, reconcileFuelLines, normalizeRejectRows, learnEfsDriverIds, attributeDeclinedRow, planDriverMerges } from "./reconcile.js";
+export { EFS_REJECT_TZ, parseStationIdentity, unitMatchKeys, driverMatchKey, driversToProvision, reconcileFuelLines, normalizeRejectRows, learnEfsDriverIds, attributeDeclinedRow, planDriverMerges } from "./reconcile.js";
 export type { StationIdentity, DeclineAttribution, ReconcileDriver, DriverMergePlan } from "./reconcile.js";

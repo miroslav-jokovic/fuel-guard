@@ -13,7 +13,9 @@ import { str, num, efsInstant, rejectDateToIso } from "./dateTime.js";
  * Transactions are different — those carry a POS time that belongs to the station — so this applies
  * to the decline path only. An explicit ISO offset on the value still wins over this default.
  */
-const EFS_REJECT_TZ = "America/Chicago";
+/** EFS documents reject timestamps in Central Time regardless of station ("The reject date/time,
+ *  Central Time zone") — exported so the UI can render declines in the SAME zone the report prints. */
+export const EFS_REJECT_TZ = "America/Chicago";
 import { pick } from "./parse.js";
 
 /** Known truck-stop chains, matched against the EFS Location Name. Order matters (Flying J before J). */

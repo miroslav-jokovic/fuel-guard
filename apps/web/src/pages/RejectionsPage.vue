@@ -2,7 +2,7 @@
 import { ref, computed, watch } from "vue";
 import { useDeclinedTransactions, useEfsFacets, EFS_PAGE_SIZE, type EfsFilters } from "@/features/reports/useEfsData";
 import type { DeclinedTransactionRow } from "@fuelguard/shared";
-import { stationDateTime } from "@/lib/stationTime";
+import { rejectDateTime, stationLocalNote } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -113,7 +113,9 @@ function clearAll() {
 const rows = computed(() => data.value?.rows ?? []);
 const total = computed(() => data.value?.total ?? 0);
 // Show declined times in the station's local timezone (matches the EFS report), not the browser's.
-const fmt = (iso: string | null, state: string | null) => stationDateTime(iso, state);
+// 2026-08: declines render in the zone the EFS reject report PRINTS (Central) so the page matches
+// the printout — the same principle the transactions page follows with its faithful tran_time column.
+const fmt = (iso: string | null, _state: string | null) => rejectDateTime(iso);
 
 // Row drill-down: click a decline to inspect its full details + why it was flagged.
 const selectedRow = ref<DeclinedTransactionRow | null>(null);
@@ -278,6 +280,9 @@ const columns: DataTableColumn[] = [
           <div>
             <div class="text-lg font-semibold text-ink">Unit {{ selectedRow.unit || "—" }}</div>
             <div class="text-ink-muted">{{ fmt(selectedRow.declined_at, selectedRow.state) }}</div>
+            <div v-if="stationLocalNote(selectedRow.declined_at, selectedRow.state)" class="text-xs text-ink-subtle">
+              Station local: {{ stationLocalNote(selectedRow.declined_at, selectedRow.state) }}
+            </div>
           </div>
           <span
             v-if="selectedRow.suspicion_level && selectedRow.suspicion_level !== 'clear'"
