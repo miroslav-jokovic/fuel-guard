@@ -227,10 +227,10 @@ export function hazmatRouter(): Router {
     const admin = getSupabaseAdmin(getAppLocals(req).env);
     const dataset = loadDataset();
     const result = await clearLoad(admin, orgOf(req), userOf(req), param(req, "id"), body.runId, {
-      attestation: body.attestation, overrideReason: body.overrideReason, spAcknowledged: body.spAcknowledged, datasetProvisional: dataset.provisional,
+      overrideReason: body.overrideReason, spAcknowledged: body.spAcknowledged, datasetProvisional: dataset.provisional,
     });
     if (isServiceError(result)) { fail(res, result); return; }
-    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_cleared", entity: "hazmat_loads", entityId: param(req, "id"), meta: { runId: body.runId, attestation: body.attestation, overrideReason: body.overrideReason, datasetVersion: dataset.version } });
+    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_cleared", entity: "hazmat_loads", entityId: param(req, "id"), meta: { runId: body.runId, overrideReason: body.overrideReason, datasetVersion: dataset.version } }); // D4: the server-composed attestation is stored on the immutable review row, not here
     const { data: ld } = await admin.from("hazmat_loads").select("driver_id").eq("org_id", orgOf(req)).eq("id", param(req, "id")).maybeSingle();
     await notifyDriverOfOutcome(admin, orgOf(req), param(req, "id"), (ld as { driver_id: string | null } | null)?.driver_id ?? null, "cleared");
     res.json({ status: result.to });

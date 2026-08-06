@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  hazmatTransition, canEditLoad, isClearingEvent, checkHazmatClear,
+  hazmatTransition, canEditLoad, isClearingEvent, checkHazmatClear, buildHazmatAttestation,
   type HazmatLoadStatus, type HazmatLoadEvent,
   type HazmatCreateLoadRequest, type HazmatUpdateLoadRequest, type HazmatListLoadsQuery,
   type HazmatRegisterDocumentRequest, type HazmatRegisterDocumentResponse,
@@ -62,8 +62,11 @@ export async function getLoad(admin: SupabaseClient, orgId: string, loadId: stri
   return data ?? null;
 }
 
+// M4.1: extraction (per-field evidence incl. pass-A regions), advisories, and the M3 qualification
+// record ride along — the review UI is decision support, and evidence hidden from the reviewer is
+// evidence that does not exist.
 export const HAZMAT_RUN_COLUMNS =
-  "id, load_id, engine_version, dataset_version, verdict, outcome, flags, input_hash, created_at, qualification";
+  "id, load_id, engine_version, dataset_version, verdict, outcome, flags, advisories, extraction, qualification, input_hash, created_at";
 
 /** Runs for a load, newest first — the analysis history (immutable). Powers the H5 detail verdict view. */
 export async function listRuns(
@@ -127,11 +130,23 @@ export async function transitionLoad(
   return { to: t.to as HazmatLoadStatus };
 }
 
+/** D19 (§14.1): hard cap on documents per load, enforced at registration — never at extraction,
+ *  where the spend has already been queued. 10 pages × 2 models = 20 vision calls is the ceiling
+ *  one load may cost. */
+export const MAX_BOL_PAGES = 10;
+
 export async function registerDocument(
   admin: SupabaseClient, orgId: string, userId: string, loadId: string, req: HazmatRegisterDocumentRequest,
 ): Promise<HazmatRegisterDocumentResponse | ServiceError> {
   const { data: load } = await admin.from("hazmat_loads").select("id").eq("org_id", orgId).eq("id", loadId).maybeSingle();
   if (!load) return err("not_found", "Load not found.");
+  // D19: idempotent replay of an already-registered id must not count against the cap.
+  const { count } = await admin.from("hazmat_documents")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId).eq("load_id", loadId).neq("id", req.id);
+  if ((count ?? 0) >= MAX_BOL_PAGES) {
+    return err("too_many_pages", `A load may carry at most ${MAX_BOL_PAGES} documents (D19 spend cap). Remove or supersede before adding more.`);
+  }
   const ext = req.contentType === "image/jpeg" ? "orig.jpg" : "webp";
   const storagePath = `${orgId}/${loadId}/${req.id}.${ext}`;
   const { data: signed, error: signErr } = await admin.storage.from("hazmat").createSignedUploadUrl(storagePath);
@@ -139,6 +154,7 @@ export async function registerDocument(
   const { error } = await admin.from("hazmat_documents").insert({
     id: req.id, org_id: orgId, load_id: loadId, kind: req.kind, page: req.page,
     storage_path: storagePath, sha256: req.sha256, uploaded_by: userId,
+    content_type: req.contentType, // D1: recorded at registration; consumers no longer guess
   });
   if (error) return err("insert_failed", error.message);
   return { documentId: req.id, storagePath, uploadUrl: signed.signedUrl, token: signed.token };
@@ -154,12 +170,18 @@ export async function listDocuments(
     .from("hazmat_documents").select("id, kind, page, content_type, storage_path")
     .eq("org_id", orgId).eq("load_id", loadId).order("page", { ascending: true });
   if (error) return err("query_failed", error.message);
-  const rows = await Promise.all(
-    ((data ?? []) as Array<{ id: string; kind: string; page: number; content_type: string | null; storage_path: string }>).map(async (d) => {
-      const { data: signed } = await admin.storage.from("hazmat").createSignedUrl(d.storage_path, 300); // 5-min TTL
-      return { id: d.id, kind: d.kind, page: d.page, contentType: d.content_type, url: signed?.signedUrl ?? null };
-    }),
-  );
+  const docs = (data ?? []) as Array<{ id: string; kind: string; page: number; content_type: string | null; storage_path: string }>;
+  // D20: ONE batch Storage call for the whole load, not one round trip per row.
+  const byPath = new Map<string, string>();
+  if (docs.length > 0) {
+    const { data: signed } = await admin.storage.from("hazmat")
+      .createSignedUrls(docs.map((d) => d.storage_path), 300); // 5-min TTL
+    for (const s of signed ?? []) if (s.signedUrl && s.path) byPath.set(s.path, s.signedUrl);
+  }
+  const rows = docs.map((d) => ({
+    id: d.id, kind: d.kind, page: d.page, contentType: d.content_type,
+    url: byPath.get(d.storage_path) ?? null,
+  }));
   return { rows };
 }
 
@@ -206,7 +228,6 @@ export async function recordReview(
  * races (a future SECURITY DEFINER RPC would make the transition+review atomic — noted for post-pilot).
  */
 export interface ClearOptions {
-  attestation: string;
   overrideReason: string | null;
   spAcknowledged: boolean;
   datasetProvisional: boolean;
@@ -244,9 +265,23 @@ export async function clearLoad(
 
   const t = await transitionLoad(admin, orgId, loadId, "review_cleared", { datasetProvisional: opts.datasetProvisional });
   if ("error" in t) return t;
+  // D4: the SERVER composes the attestation from what the gate actually verified — the client's
+  // string is never stored. A client that could write its own attestation could write a weaker one.
+  const attestation = buildHazmatAttestation(check, specialPermits, opts.overrideReason ?? "");
   const { error } = await admin.from("hazmat_reviews").insert({
-    org_id: orgId, load_id: loadId, run_id: runId, reviewer_id: userId, action: "cleared", attestation: opts.attestation,
+    org_id: orgId, load_id: loadId, run_id: runId, reviewer_id: userId, action: "cleared", attestation,
   });
   if (error) return err("insert_failed", error.message);
+
+  // M4.3 (D5): clearing a superseding load retires the load it replaces (cleared → superseded).
+  // Best-effort by design: the new load IS cleared either way; a predecessor in any other state
+  // simply isn't transitioned (the illegal-transition result is recorded, not thrown).
+  const { data: withPred } = await admin.from("hazmat_loads")
+    .select("supersedes_load_id").eq("org_id", orgId).eq("id", loadId).maybeSingle();
+  const predecessorId = (withPred as { supersedes_load_id: string | null } | null)?.supersedes_load_id ?? null;
+  if (predecessorId) {
+    const sup = await transitionLoad(admin, orgId, predecessorId, "supersede");
+    if ("error" in sup) console.warn(`[hazmat] predecessor ${predecessorId} not superseded: ${sup.error}`);
+  }
   return { to: t.to };
 }

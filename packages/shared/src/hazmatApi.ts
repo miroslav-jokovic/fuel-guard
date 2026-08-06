@@ -280,12 +280,14 @@ export const hazmatReviewRequestSchema = z.object({
 });
 export type HazmatReviewRequest = z.infer<typeof hazmatReviewRequestSchema>;
 
-// ── POST /hazmat/loads/:id/clear — named attestation; the server enforces the full clearing gate ─
-// (provisional block, unusable-read block, SP attestation, override reason) via checkHazmatClear — the
-// attestation string is NOT trusted to imply those; `overrideReason`/`spAcknowledged` are explicit.
+// ── POST /hazmat/loads/:id/clear — the server enforces the full clearing gate (provisional block,
+// unusable-read block, SP attestation, override reason) via checkHazmatClear AND composes the stored
+// attestation itself via buildHazmatAttestation (D4) — a client-authored attestation string is never
+// stored. `attestation` is accepted for backward compatibility and ignored server-side.
 export const hazmatClearRequestSchema = z.object({
   runId: z.string().uuid(),
-  attestation: z.string().min(1),
+  /** Deprecated (D4): ignored — the server composes the attestation from the verified gate result. */
+  attestation: z.string().optional(),
   overrideReason: z.string().nullable().default(null),
   spAcknowledged: z.boolean().default(false),
 });
