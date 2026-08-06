@@ -65,6 +65,8 @@ export {
   ArrowRight01Icon            as ChevronRightIcon,
   ArrowUpDownIcon             as ChevronUpDownIcon,             // ⚠ verify
   ArrowDataTransferHorizontalIcon as ArrowsRightLeftIcon,       // ⚠ verify
+  PanelLeftCloseIcon          as PanelLeftCloseIcon,
+  PanelLeftOpenIcon           as PanelLeftOpenIcon,
 
   // ── Status / feedback ───────────────────────────────────────────────────
   CheckmarkCircle02Icon       as CheckCircleIcon,

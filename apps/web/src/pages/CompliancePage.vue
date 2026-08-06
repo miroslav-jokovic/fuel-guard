@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { QualCertSnapshot } from "@fuelguard/shared";
 import { qualifyDriver } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
@@ -7,14 +7,16 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import { useAllDriverCertsQuery } from "@/composables/useCompliance";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
-import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import TablePagination from "@/components/TablePagination.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
+import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 
 /**
  * Compliance — the "who can haul hazmat" roster. Each driver's row shows whether they are
@@ -24,8 +26,33 @@ import CertManager from "@/features/hazmat/CertManager.vue";
  * what turns a hazmat load from "needs review" into a clear.
  */
 const session = useSessionStore();
-const { data: drivers, isLoading, isError, error, refetch, isFetching } = useDriversQuery();
-const { data: driverCerts } = useAllDriverCertsQuery();
+const {
+  data: drivers,
+  isLoading: driversLoading,
+  isError: driversFailed,
+  error: driversError,
+  refetch: refetchDrivers,
+  isFetching: driversFetching,
+} = useDriversQuery();
+const {
+  data: driverCerts,
+  isLoading: certsLoading,
+  isError: certsFailed,
+  error: certsError,
+  refetch: refetchCerts,
+  isFetching: certsFetching,
+} = useAllDriverCertsQuery();
+
+const isLoading = computed(() => driversLoading.value || certsLoading.value);
+const isError = computed(() => driversFailed.value || certsFailed.value);
+const errorMessage = computed(() => {
+  const queryError = driversError.value ?? certsError.value;
+  return queryError instanceof Error ? queryError.message : "Failed to load compliance records";
+});
+const isFetching = computed(() => driversFetching.value || certsFetching.value);
+function refetch() {
+  void Promise.all([refetchDrivers(), refetchCerts()]);
+}
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -44,36 +71,123 @@ function labelForCode(code: string): string {
   return c.charAt(0).toUpperCase() + c.slice(1);
 }
 
-interface Row { id: string; full_name: string; status: string; ready: boolean; issues: string[] }
+interface Row {
+  id: string;
+  full_name: string;
+  status: string;
+  ready: boolean;
+  issues: string[];
+  issueSummary: string;
+}
 const rows = computed<Row[]>(() =>
   (drivers.value ?? []).map((d) => {
     const certs = certsByDriver.value.get(d.id) ?? [];
     const res = qualifyDriver({ evalDate: today, driverStatus: d.status, certs, vehicleKind: "cargo_tank", orgHasSecurityPlan: false });
-    return { id: d.id, full_name: d.full_name, status: d.status, ready: res.qualified, issues: res.findings.map((f) => labelForCode(f.code)) };
+    const issues = res.findings.map((f) => labelForCode(f.code));
+    return {
+      id: d.id,
+      full_name: d.full_name,
+      status: d.status,
+      ready: res.qualified,
+      issues,
+      issueSummary: issues.join(", "),
+    };
   }),
 );
 
 const search = ref("");
 const readyFilter = ref<string>("");
+const statusFilter = ref("");
+const issueFilter = ref("");
 const readyOptions = [
-  { value: "", label: "All drivers" },
-  { value: "ready", label: "Hazmat ready" },
-  { value: "not_ready", label: "Not ready" },
+  { value: "", label: "All qualifications" },
+  { value: "ready", label: "Ready" },
+  { value: "not_ready", label: "Action required" },
 ];
+const statusOptions = computed(() => [
+  { value: "", label: "All employment statuses" },
+  ...[...new Set(rows.value.map((row) => row.status))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((status) => ({ value: status, label: labelForCode(status) })),
+]);
+const issueOptions = computed(() => [
+  { value: "", label: "All issues" },
+  ...[...new Set(rows.value.flatMap((row) => row.issues))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((issue) => ({ value: issue, label: issue })),
+]);
+
 const filtered = computed(() =>
   rows.value.filter((r) => {
     if (readyFilter.value === "ready" && !r.ready) return false;
     if (readyFilter.value === "not_ready" && r.ready) return false;
-    if (search.value && !r.full_name.toLowerCase().includes(search.value.toLowerCase())) return false;
+    if (statusFilter.value && r.status !== statusFilter.value) return false;
+    if (issueFilter.value && !r.issues.includes(issueFilter.value)) return false;
+    const term = search.value.trim().toLowerCase();
+    if (term && ![r.full_name, r.status, r.issueSummary].some((value) => value.toLowerCase().includes(term))) return false;
     return true;
   }),
 );
 
+const chips = computed<FilterChip[]>(() =>
+  statusFilter.value
+    ? [{ key: "status", label: "Employment", value: labelForCode(statusFilter.value) }]
+    : [],
+);
+const moreCount = computed(() => (statusFilter.value ? 1 : 0));
+function removeChip(key: string) {
+  if (key === "status") statusFilter.value = "";
+}
+function clearAll() {
+  search.value = "";
+  readyFilter.value = "";
+  statusFilter.value = "";
+  issueFilter.value = "";
+}
+
+const sort = ref<SortState>({ key: "ready", dir: "asc" });
+function onSort(key: string) {
+  sort.value = toggleSort(sort.value, key);
+}
+const sorted = computed(() => sortRows(filtered.value, sort.value));
+
+const PAGE_SIZE = 20;
+const page = ref(1);
+watch([search, readyFilter, statusFilter, issueFilter], () => (page.value = 1));
+const pageRows = computed(() =>
+  sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+);
+
 const columns: DataTableColumn[] = [
-  { key: "full_name", label: "Driver", headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
-  { key: "status", label: "Employment", headerClass: "min-w-[7rem]" },
-  { key: "ready", label: "Hazmat qualification", headerClass: "min-w-[9rem]" },
-  { key: "issues", label: "Missing / expired", headerClass: "min-w-[16rem]", cellClass: "text-ink-secondary" },
+  {
+    key: "full_name",
+    label: "Driver",
+    sortable: true,
+    align: "left",
+    headerClass: "min-w-[13rem]",
+    cellClass: "font-medium text-ink",
+  },
+  {
+    key: "status",
+    label: "Employment",
+    sortable: true,
+    align: "left",
+    headerClass: "min-w-[8rem]",
+  },
+  {
+    key: "ready",
+    label: "Qualification",
+    sortable: true,
+    align: "left",
+    headerClass: "min-w-[10rem]",
+  },
+  {
+    key: "issueSummary",
+    label: "Missing or expired",
+    align: "left",
+    headerClass: "min-w-[20rem]",
+    cellClass: "text-ink-secondary",
+  },
 ];
 
 const driverOpen = ref(false);
@@ -84,26 +198,42 @@ const carrierOpen = ref(false);
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Who can haul hazmat. Each driver's hazmat qualification is checked with the same rules the analysis gate uses — CDL, medical card, H/X endorsement and the §172.704 training types; the carrier needs current PHMSA registration and insurance. Missing or expired records keep a load in review.">
+    <PageHeader description="Monitor driver hazmat qualifications and resolve missing or expired credentials before dispatch.">
       <template #actions>
         <BaseButton v-if="session.canManage" @click="carrierOpen = true">Carrier records</BaseButton>
       </template>
     </PageHeader>
 
-    <FilterBar v-model:search="search" search-placeholder="Search drivers…" :count="filtered.length" count-label="drivers">
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search driver or compliance issue…"
+      :count="filtered.length"
+      count-label="drivers"
+      :chips="chips"
+      :more-count="moreCount"
+      @remove="removeChip"
+      @clear-all="clearAll"
+    >
       <template #filters>
-        <FilterSelect v-model="readyFilter" label="Hazmat" :options="readyOptions" />
+        <FilterSelect v-model="readyFilter" label="Qualification" :options="readyOptions" />
+        <FilterSelect v-model="issueFilter" label="Issue" :options="issueOptions" />
+      </template>
+      <template #more>
+        <FilterSelect v-model="statusFilter" label="Employment" :options="statusOptions" block />
       </template>
     </FilterBar>
 
     <DataTable
       :columns="columns"
-      :rows="filtered"
+      :rows="pageRows"
       row-key="id"
+      dense
       :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load drivers') : null"
+      :error="isError ? errorMessage : null"
       :retrying="isFetching"
-      empty-text="No drivers match these filters."
+      :sort="sort"
+      :empty-text="(drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'"
+      @sort="onSort"
       @retry="refetch"
     >
       <template #cell-full_name="{ row }">
@@ -112,18 +242,33 @@ const carrierOpen = ref(false);
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #cell-ready="{ row }">
         <span
-          class="inline-flex rounded px-1.5 py-0.5 text-xs font-semibold"
+          class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
           :class="row.ready ? 'bg-success-100 text-success-700' : 'bg-danger-100 text-danger-700'"
-        >{{ row.ready ? "Ready" : "Not ready" }}</span>
+        >{{ row.ready ? "Ready" : "Action required" }}</span>
       </template>
-      <template #cell-issues="{ row }">
+      <template #cell-issueSummary="{ row }">
         <span v-if="row.ready" class="text-ink-subtle">—</span>
-        <span v-else class="text-xs text-ink-secondary">{{ row.issues.join(", ") }}</span>
+        <div v-else class="flex min-w-0 items-center gap-2" :title="row.issueSummary">
+          <span class="max-w-[30rem] truncate text-ink-secondary">{{ row.issues[0] }}</span>
+          <span
+            v-if="row.issues.length > 1"
+            class="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted"
+          >+{{ row.issues.length - 1 }} more</span>
+        </div>
       </template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canManage">
           <button class="kebab-item" @click="manage(row)">Manage certifications…</button>
         </KebabMenu>
+      </template>
+      <template #footer>
+        <TablePagination
+          :page="page"
+          :page-size="PAGE_SIZE"
+          :total="filtered.length"
+          :loading="isFetching"
+          @update:page="page = $event"
+        />
       </template>
     </DataTable>
 
