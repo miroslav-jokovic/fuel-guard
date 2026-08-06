@@ -11,6 +11,7 @@
  * Exit: 0 clean (warnings allowed), 1 at least one blocking problem.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -31,6 +32,38 @@ const BUILDING = process.argv.includes('--building');
 
 const exists = (p) => fs.existsSync(p);
 const mtime = (p) => fs.statSync(p).mtimeMs;
+
+// Runtime config is baked into the Expo bundle when Metro starts. A stale private-LAN API address
+// is especially confusing on iOS: the app loads normally, but every login ends in an opaque native
+// "Could not connect to the server" fetch error.
+const driverEnvPath = path.join(driver, '.env');
+if (exists(driverEnvPath)) {
+  const envText = fs.readFileSync(driverEnvPath, 'utf8');
+  const apiUrlValue = envText.match(/^EXPO_PUBLIC_API_URL\s*=\s*(.+?)\s*$/m)?.[1];
+  if (apiUrlValue) {
+    try {
+      const apiUrl = new URL(apiUrlValue.replace(/^['"]|['"]$/g, ''));
+      const privateIp = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(apiUrl.hostname);
+      const localIpv4 = Object.values(os.networkInterfaces())
+        .flatMap((entries) => entries ?? [])
+        .filter((entry) => entry.family === 'IPv4' && !entry.internal)
+        .map((entry) => entry.address);
+      if (privateIp && !localIpv4.includes(apiUrl.hostname)) {
+        fail(
+          'The driver API URL is a stale LAN address',
+          `${apiUrl.hostname} is configured in apps/driver/.env, but this Mac currently has ${localIpv4.join(', ') || 'no LAN IPv4 address'}. A physical iPhone cannot connect to the configured host.`,
+          `Set EXPO_PUBLIC_API_URL=http://${localIpv4[0] ?? '<this-mac-lan-ip>'}:${apiUrl.port || '8080'}, then restart Metro so Expo rebundles the config.`,
+        );
+      }
+    } catch {
+      fail(
+        'EXPO_PUBLIC_API_URL is invalid',
+        `apps/driver/.env contains ${apiUrlValue}.`,
+        'Set it to a complete URL such as http://192.168.1.20:8080.',
+      );
+    }
+  }
+}
 
 // 1 ─ A second Expo project at the workspace root.
 // `expo prebuild` / `expo run:ios` run from the repo root instead of apps/driver writes app.json,

@@ -1,5 +1,8 @@
-import { RULE_IDS } from "./anomalyRules/index.js";
-import type { RuleContext, RuleId } from "./anomalyRules/index.js";
+// Import the defining modules directly. Going through the public anomalyRules barrel creates a
+// runtime cycle: index -> rules -> fillConfidence -> index, which Metro warns can expose partially
+// initialized exports on React Native.
+import { RULE_IDS, type RuleId } from "./anomalyRules/ids.js";
+import type { RuleContext } from "./anomalyRules/types.js";
 
 /**
  * FILL CONFIDENCE — one explicit, auditable description of how much we can trust a fill's telematics inputs,

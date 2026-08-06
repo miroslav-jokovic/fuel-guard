@@ -16,7 +16,20 @@ function friendlyError(e: unknown): string {
       return 'Can’t reach the server. Check your connection and try again.';
     }
   }
-  if (e instanceof Error && e.message) return e.message; // exchange endpoint copy is already friendly
+  if (e instanceof Error && e.message) {
+    const message = e.message.toLowerCase();
+    // React Native/Expo surfaces transport failures as ordinary TypeErrors, sometimes wrapping the
+    // native exception text. Never expose that implementation detail in the driver-facing banner.
+    if (
+      message.includes('fetch failed') ||
+      message.includes('failed to fetch') ||
+      message.includes('network request failed') ||
+      message.includes('could not connect to the server')
+    ) {
+      return 'Can’t reach the server. Check your connection and try again.';
+    }
+    return e.message; // exchange endpoint copy is already friendly
+  }
   return 'Something went wrong signing in. Please try again.';
 }
 
