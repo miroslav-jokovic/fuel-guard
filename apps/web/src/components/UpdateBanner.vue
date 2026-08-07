@@ -25,23 +25,23 @@ const dismissed = ref(false);
       role="status"
     >
       <div
-        class="pointer-events-auto flex items-center gap-3 rounded-full border border-white/10 bg-slate-900/80 py-2 pr-2 pl-4 text-sm text-white shadow-xl shadow-black/20 backdrop-blur-md"
+        class="pointer-events-auto flex items-center gap-3 rounded-full border border-sidebar-edge bg-surface-inverse/80 py-2 pr-2 pl-4 text-sm text-ink-inverse shadow-xl shadow-black/20 backdrop-blur-md"
       >
         <span class="relative flex size-2">
-          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-          <span class="relative inline-flex size-2 rounded-full bg-emerald-400" />
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-400 opacity-60" />
+          <span class="relative inline-flex size-2 rounded-full bg-success-400" />
         </span>
-        <span class="text-white/90">A new version is ready</span>
+        <span class="text-ink-inverse/90">A new version is ready</span>
         <button
           type="button"
-          class="rounded-full px-2.5 py-1 text-xs font-medium text-white/60 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          class="rounded-full px-2.5 py-1 text-xs font-medium text-ink-inverse/60 transition hover:text-ink-inverse focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
           @click="dismissed = true"
         >
           Later
         </button>
         <button
           type="button"
-          class="rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          class="rounded-full bg-ink-inverse px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-strong"
           @click="refresh"
         >
           Refresh
