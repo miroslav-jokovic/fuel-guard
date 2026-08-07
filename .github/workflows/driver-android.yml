@@ -122,6 +122,12 @@ jobs:
           UPDATES_APP_ID: ${{ secrets.UPDATES_APP_ID }}
         run: pnpm exec expo prebuild --platform android --no-install --clean
 
+      - name: Configure Gradle memory
+        working-directory: apps/driver/android
+        run: |
+          printf '%s\n' 'org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8' >> gradle.properties
+          printf '%s\n' 'org.gradle.workers.max=2' >> gradle.properties
+
       - name: Assemble signed release APK
         working-directory: apps/driver/android
         env:
