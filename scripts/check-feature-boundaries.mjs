@@ -77,6 +77,23 @@ const DRIVER_ALLOW = new Set([]);
 checkFeatureIsolation(join(ROOT, "apps/web/src/features"), WEB_ALLOW, "web");
 checkFeatureIsolation(join(ROOT, "apps/driver/src/features"), DRIVER_ALLOW, "driver");
 
+// ── real-data guarantee (hardening plan Phase 2): sample/placeholder data may ONLY be imported by
+// the dev-only component gallery. Production surfaces render live API data or nothing — a sample
+// import anywhere else is how fake fuel stops end up demoed to a customer as if they were real. ──
+const SAMPLE_IMPORT = /(?:from|import)\s+["'][^"']*\/(sample[A-Z][A-Za-z]*|sample-[a-z-]+)["']/g;
+const SAMPLE_ALLOWED = new Set(["apps/driver/app/gallery.tsx"]);
+let driverAppFiles = [];
+for (const rel of ["apps/driver/app", "apps/driver/src"]) {
+  try { driverAppFiles.push(...walk(join(ROOT, rel))); } catch { /* app not on this branch */ }
+}
+for (const file of driverAppFiles) {
+  const relPath = relative(ROOT, file);
+  if (SAMPLE_ALLOWED.has(relPath) || /sample[A-Z][A-Za-z]*\.(ts|tsx)$/.test(file)) continue;
+  for (const m of readFileSync(file, "utf8").matchAll(SAMPLE_IMPORT)) {
+    violations.push(`${relPath}  imports ${m[1]}  (sample data is gallery-only — real-data guarantee)`);
+  }
+}
+
 // ── package boundary: @hazmat/* stay dependency-free of the app and of each other (D3 / G5). ──
 for (const rel of ["packages/hazmat-engine", "packages/hazmat-data"]) {
   const other = rel.endsWith("engine") ? "@hazmat/data" : "@hazmat/engine";

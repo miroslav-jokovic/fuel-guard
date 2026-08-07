@@ -178,6 +178,50 @@ export function meHazmatRouter(): Router {
     }),
   );
 
+  // GET /api/me/hazmat/loads — the driver's OWN capture history (newest first). Without this list a
+  // verdict is unreachable the moment the driver leaves the screen — the hub screen reads it to make
+  // every past check re-findable. Same ownership rule as everywhere here: created_by = caller only.
+  router.get(
+    "/loads",
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { data, error } = await admin
+        .from("hazmat_loads")
+        .select("id, status, created_at")
+        .eq("org_id", orgOf(req))
+        .eq("created_by", userOf(req))
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) {
+        res.status(500).json(apiError("query_failed", "Could not load your hazmat checks."));
+        return;
+      }
+      const loads = (data ?? []) as Array<{ id: string; status: string; created_at: string }>;
+
+      // Latest run outcome per load, one query for the page (≤50 loads) — newest row wins.
+      const latestOutcome = new Map<string, string>();
+      if (loads.length > 0) {
+        const { data: runs } = await admin
+          .from("hazmat_runs")
+          .select("load_id, outcome, created_at")
+          .in("load_id", loads.map((l) => l.id))
+          .order("created_at", { ascending: false });
+        for (const r of (runs ?? []) as Array<{ load_id: string; outcome: string }>) {
+          if (!latestOutcome.has(r.load_id)) latestOutcome.set(r.load_id, r.outcome);
+        }
+      }
+
+      res.json({
+        loads: loads.map((l) => ({
+          id: l.id,
+          status: l.status,
+          created_at: l.created_at,
+          latest_outcome: latestOutcome.get(l.id) ?? null,
+        })),
+      });
+    }),
+  );
+
   // GET /api/me/hazmat/loads/:id — the driver's own load (verdict header).
   router.get(
     "/loads/:id",

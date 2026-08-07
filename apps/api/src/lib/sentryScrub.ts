@@ -31,7 +31,7 @@ export function keyIsPii(key: string): boolean {
 export function scrubString(s: string): string {
   return s
     .replace(/data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+/gi, "[redacted-image]")
-    .replace(/\b\d{7,}\b/g, "[redacted-number]"); // CDL / medical-registry / long numeric PII
+    .replace(/\b[A-Z]?\d{7,}\b/gi, "[redacted-number]"); // CDL / medical-registry / long numeric PII
 }
 
 function scrubValue(v: unknown, redactWhole: boolean): unknown {

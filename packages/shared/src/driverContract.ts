@@ -27,8 +27,13 @@ export type MeAssignedVehicle = z.infer<typeof meAssignedVehicleSchema>;
 export const meDriverResponseSchema = z.object({
   driver: meDriverSchema,
   vehicles: z.array(meAssignedVehicleSchema),
-  /** Which modules this tenant has bought — the app hides what it does not have (D55). */
-  modules: z.array(orgModuleSchema).default([]),
+  /**
+   * Which modules this tenant has bought — the app hides what it does not have (D55).
+   * REQUIRED, deliberately: this field once had `.default([])`, which silently masked an API
+   * refactor that dropped the org_modules read — every driver parsed fine and saw zero modules.
+   * A missing field must be a loud parse error, never an empty entitlement set.
+   */
+  modules: z.array(orgModuleSchema),
 });
 export type MeDriverResponse = z.infer<typeof meDriverResponseSchema>;
 

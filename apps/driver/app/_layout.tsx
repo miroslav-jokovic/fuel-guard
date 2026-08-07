@@ -91,6 +91,11 @@ function RootNavigator() {
       <Stack.Screen name="drive" options={{ presentation: "modal" }} />
       <Stack.Screen name="settings" options={{ presentation: "modal" }} />
       <Stack.Screen name="gallery" options={{ presentation: "modal" }} />
+      {/* Hazmat hub + capture + verdict (hardening plan Phase 3) — same modal contract as the
+          other contextual surfaces; entry lives in More, gated on the hazmatguard entitlement. */}
+      <Stack.Screen name="hazmat/index" options={{ presentation: "modal" }} />
+      <Stack.Screen name="hazmat/capture" options={{ presentation: "modal" }} />
+      <Stack.Screen name="hazmat/[loadId]" options={{ presentation: "modal" }} />
     </Stack>
   );
 }

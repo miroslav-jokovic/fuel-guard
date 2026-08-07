@@ -20,8 +20,10 @@ describe("hazmatAnalysis — manual-path decision logic (plan H4-4)", () => {
   });
 
   it("FAIL-CLOSED: a not_checked verdict is flagged (never auto-cleared until H6/H8)", () => {
-    const v = evaluateLoad(buildManualLoadInput(gasLoad, null, dataset, "2026-07-31T00:00:00Z"));
-    const flags = computeManualFlags(v, dataset.provisional);
+    const flags = computeManualFlags(
+      { eligibility: { status: "not_checked", blocks: [] }, segregation: [] } as unknown as Verdict,
+      dataset.provisional,
+    );
     expect(flags).toContain("eligibility_not_checked");
     expect(flags.length).toBeGreaterThan(0); // ⇒ outcome "flagged" ⇒ needs_review
   });

@@ -347,3 +347,19 @@ export const hazmatClearRequestSchema = z.object({
   spAcknowledged: z.boolean().default(false),
 });
 export type HazmatClearRequest = z.infer<typeof hazmatClearRequestSchema>;
+
+// ── GET /api/me/hazmat/loads — the driver's own capture history (drivers-app hazmat hub) ──────────
+// Parsed by the app with zod (D24, parse-not-cast). `latest_outcome` is the newest run's outcome or
+// null while a load has never been analyzed.
+export const meHazmatLoadRowSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  latest_outcome: z.string().nullable(),
+});
+export type MeHazmatLoadRow = z.infer<typeof meHazmatLoadRowSchema>;
+
+export const meHazmatLoadsResponseSchema = z.object({
+  loads: z.array(meHazmatLoadRowSchema),
+});
+export type MeHazmatLoadsResponse = z.infer<typeof meHazmatLoadsResponseSchema>;

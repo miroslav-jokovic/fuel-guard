@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Keyboard, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { EquipmentOption } from '@fuelguard/shared';
 import {
@@ -7,6 +7,7 @@ import {
   Badge,
   Banner,
   Button,
+  Card,
   ConfirmSheet,
   EmptyState,
   Field,
@@ -19,7 +20,6 @@ import {
   SectionLabel,
   Skeleton,
   TaskStepper,
-  type TaskStep,
 } from '@/components';
 import {
   dutyView,
@@ -28,31 +28,26 @@ import {
   useShift,
   useStartShift,
 } from '@/features/duty/useDuty';
-
-type Mode = 'start' | 'swap';
-
-/** Filter a roster by unit number — the only search a driver ever needs here. */
-function useFiltered(options: EquipmentOption[], query: string): EquipmentOption[] {
-  return useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const ranked = [...options].sort((a, b) => {
-      // "Your truck" first, then anything free, then held units — a driver should have to work to
-      // take someone else's unit, not stumble into it.
-      if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
-      const aHeld = a.in_use_by !== null;
-      const bHeld = b.in_use_by !== null;
-      if (aHeld !== bHeld) return aHeld ? 1 : -1;
-      return a.unit_number.localeCompare(b.unit_number, undefined, { numeric: true });
-    });
-    if (!q) return ranked;
-    return ranked.filter(
-      (o) =>
-        o.unit_number.toLowerCase().includes(q) ||
-        (o.make ?? '').toLowerCase().includes(q) ||
-        (o.model ?? '').toLowerCase().includes(q),
-    );
-  }, [options, query]);
-}
+import {
+  DEFAULT_ODOMETER_MODE,
+  canSubmit,
+  chooseBobtail,
+  filterEquipment,
+  goBack,
+  hasChanges,
+  initialState,
+  keepTrailer,
+  keepVehicle,
+  odometerValue,
+  rankEquipment,
+  selectTrailer,
+  selectVehicle,
+  stepperSteps,
+  type CheckInMode,
+  type CheckInState,
+} from '@/features/duty/checkInModel';
+import { readLastEquipment, writeLastEquipment } from '@/lib/lastEquipment';
+import { haptics } from '@/lib/haptics';
 
 function unitSubtitle(o: EquipmentOption): string | undefined {
   const make = [o.make, o.model].filter(Boolean).join(' ');
@@ -60,17 +55,52 @@ function unitSubtitle(o: EquipmentOption): string | undefined {
   return make || undefined;
 }
 
+/** One roster row — shared by both steps so selection affordances stay identical. */
+function EquipmentRow({
+  option,
+  icon,
+  selected,
+  onPress,
+}: {
+  option: EquipmentOption;
+  icon: 'local_shipping' | 'route';
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <ListRow
+      icon={icon}
+      iconFill={selected}
+      title={`${icon === 'route' ? 'Trailer' : 'Unit'} ${option.unit_number}`}
+      subtitle={unitSubtitle(option)}
+      onPress={onPress}
+      right={
+        selected ? (
+          <Icon name="check_circle" size={22} className="text-brand" />
+        ) : option.in_use_by ? (
+          <Badge label="In use" tone="caution" icon="person" />
+        ) : option.is_default ? (
+          <Badge label="Your truck" tone="brand" />
+        ) : undefined
+      }
+    />
+  );
+}
+
 /**
- * The check-in sheet (D44). A modal route over the shell, not a tab and not a login wall.
+ * The check-in sheet (D44), rebuilt as a TRUE three-step wizard (hardening plan Phase 1): the old
+ * single-scroll layout had a stepper that implied progression but one shared search box filtering
+ * both rosters — selecting a truck after a search left the trailer list invisibly empty. Now each
+ * step owns its search (cleared on advance), selection ADVANCES the wizard, every filtered list has
+ * an empty state, and the primary action is pinned in the screen footer, never below the fold.
  *
  * Two modes on one screen because they are the same decision: `start` opens a shift, `swap` records
- * a drop-and-hook or a truck change mid-shift without ending it. Both reach the driver in ≤2 taps
- * from Home, which matters because a swap happens at a dock, in a hurry, in gloves.
+ * a drop-and-hook or truck change mid-shift without ending it (step 1 offers "keep your truck").
  */
 export default function CheckIn() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: Mode }>();
-  const mode: Mode = params.mode === 'swap' ? 'swap' : 'start';
+  const params = useLocalSearchParams<{ mode?: CheckInMode }>();
+  const mode: CheckInMode = params.mode === 'swap' ? 'swap' : 'start';
 
   const shift = useShift();
   const equipment = useEquipment();
@@ -78,95 +108,150 @@ export default function CheckIn() {
   const startShift = useStartShift();
   const changeEquipment = useChangeEquipment();
 
-  const [vehicle, setVehicle] = useState<EquipmentOption | null>(null);
-  const [trailer, setTrailer] = useState<EquipmentOption | null>(null);
-  const [bobtail, setBobtail] = useState(false);
-  const [odometer, setOdometer] = useState('');
+  const [s, setS] = useState<CheckInState>(initialState);
   const [search, setSearch] = useState('');
-  const [takeOver, setTakeOver] = useState<EquipmentOption | null>(null);
+  const [odometer, setOdometer] = useState('');
+  const [takeOver, setTakeOver] = useState<{ option: EquipmentOption; kind: 'vehicle' | 'trailer' } | null>(null);
+  const [lastUsed, setLastUsed] = useState<{ vehicleId: string | null; trailerId: string | null }>({
+    vehicleId: null,
+    trailerId: null,
+  });
 
-  const vehicles = useFiltered(equipment.data?.vehicles ?? [], search);
-  const trailers = useFiltered(equipment.data?.trailers ?? [], search);
+  useEffect(() => {
+    void readLastEquipment().then(setLastUsed);
+  }, []);
+
+  /** Every step transition clears the step-scoped search and drops the keyboard. */
+  const advance = (next: CheckInState) => {
+    setSearch('');
+    Keyboard.dismiss();
+    haptics.select();
+    setS(next);
+  };
+
+  const vehicles = useMemo(
+    () => filterEquipment(rankEquipment(equipment.data?.vehicles ?? [], lastUsed.vehicleId), search),
+    [equipment.data?.vehicles, lastUsed.vehicleId, search],
+  );
+  const trailers = useMemo(
+    () => filterEquipment(rankEquipment(equipment.data?.trailers ?? [], lastUsed.trailerId), search),
+    [equipment.data?.trailers, lastUsed.trailerId, search],
+  );
 
   const loading = equipment.isPending && !equipment.data;
-  // Vehicle is required to be on duty at all; in swap mode the driver already has one.
-  const canConfirm = mode === 'swap' ? Boolean(vehicle ?? trailer ?? bobtail) : Boolean(vehicle);
-  const equipmentSteps: TaskStep[] = mode === 'swap'
-    ? [
-        { label: 'Truck', state: vehicle ? 'complete' : 'current' },
-        { label: 'Trailer', state: vehicle && (trailer || bobtail) ? 'complete' : vehicle ? 'current' : 'upcoming' },
-        { label: 'Save', state: vehicle && (trailer || bobtail) ? 'current' : 'upcoming' },
-      ]
-    : [
-        { label: 'Truck', state: vehicle ? 'complete' : 'current' },
-        { label: 'Trailer', state: vehicle && (trailer || bobtail) ? 'complete' : vehicle ? 'current' : 'upcoming' },
-        { label: 'Odometer', state: vehicle && (trailer || bobtail) ? 'current' : 'upcoming' },
-      ];
+  const odometerMode = DEFAULT_ODOMETER_MODE; // becomes org config via `duty.odometer` (plan Phase 4)
 
   const pick = (option: EquipmentOption, kind: 'vehicle' | 'trailer') => {
-    // Never a silent steal (D44.6) — the driver is shown who holds it and decides.
+    // Never a silent steal (D44.6) — the driver is shown who holds it and decides. The tap site
+    // carries `kind`, so the confirm can never misclassify a unit from a re-filtered list.
     if (option.in_use_by) {
-      setTakeOver(option);
+      setTakeOver({ option, kind });
       return;
     }
-    if (kind === 'vehicle') setVehicle(option);
-    else {
-      setTrailer(option);
-      setBobtail(false);
-    }
+    advance(kind === 'vehicle' ? selectVehicle(s, option) : selectTrailer(s, option));
   };
 
   const confirmTakeOver = () => {
-    const option = takeOver;
+    const t = takeOver;
     setTakeOver(null);
-    if (!option) return;
-    const isVehicle = vehicles.some((v) => v.id === option.id);
-    if (isVehicle) setVehicle(option);
-    else {
-      setTrailer(option);
-      setBobtail(false);
-    }
+    if (!t) return;
+    advance(t.kind === 'vehicle' ? selectVehicle(s, t.option) : selectTrailer(s, t.option));
   };
 
   const submit = async () => {
-    const odo = Number.parseFloat(odometer);
-    const tookOver = Boolean(
-      vehicle?.in_use_by ?? trailer?.in_use_by,
-    );
+    const tookOver = Boolean(s.vehicle?.in_use_by ?? s.trailer?.in_use_by);
+    const odo = odometerValue(odometer);
 
-    if (mode === 'start' && vehicle) {
+    if (mode === 'start' && s.vehicle) {
       await startShift.mutateAsync({
-        vehicleId: vehicle.id,
-        vehicleUnit: vehicle.unit_number,
-        trailerId: trailer?.id ?? null,
-        trailerUnit: trailer?.unit_number ?? null,
-        ...(Number.isFinite(odo) && odo > 0 ? { startOdometer: odo } : {}),
+        vehicleId: s.vehicle.id,
+        vehicleUnit: s.vehicle.unit_number,
+        trailerId: s.trailer?.id ?? null,
+        trailerUnit: s.trailer?.unit_number ?? null,
+        ...(odometerMode !== 'off' && odo !== undefined ? { startOdometer: odo } : {}),
         takeOver: tookOver,
       });
     } else {
       await changeEquipment.mutateAsync({
-        ...(vehicle ? { vehicleId: vehicle.id, vehicleUnit: vehicle.unit_number } : {}),
-        ...(trailer ? { trailerId: trailer.id, trailerUnit: trailer.unit_number } : {}),
-        clearTrailer: bobtail,
+        ...(s.vehicle ? { vehicleId: s.vehicle.id, vehicleUnit: s.vehicle.unit_number } : {}),
+        ...(s.trailer ? { trailerId: s.trailer.id, trailerUnit: s.trailer.unit_number } : {}),
+        clearTrailer: s.bobtail,
         takeOver: tookOver,
       });
     }
+    void writeLastEquipment({
+      ...(s.vehicle ? { vehicleId: s.vehicle.id } : {}),
+      ...(s.trailer ? { trailerId: s.trailer.id } : {}),
+    });
     router.back();
   };
 
+  // ── step content ──────────────────────────────────────────────────────────
+  const summaryVehicle = s.vehicle
+    ? `Unit ${s.vehicle.unit_number}`
+    : s.keptVehicle
+      ? (duty.equipmentLabel ?? 'Current truck')
+      : '—';
+  const summaryTrailer = s.trailer
+    ? `Trailer ${s.trailer.unit_number}`
+    : s.bobtail
+      ? 'Bobtail — no trailer'
+      : s.keptTrailer
+        ? 'Unchanged'
+        : '—';
+
+  const searchBox = (
+    <Input
+      placeholder="Search by unit number"
+      value={search}
+      onChangeText={setSearch}
+      autoCapitalize="characters"
+      autoCorrect={false}
+      returnKeyType="search"
+    />
+  );
+
+  const rosterSkeleton = (
+    <View className="gap-2">
+      <Skeleton className="h-[60px] w-full rounded-xl" />
+      <Skeleton className="h-[60px] w-full rounded-xl" />
+    </View>
+  );
+
   return (
-    <Screen>
+    <Screen
+      padTop={false}
+      footer={
+        s.step === 'confirm' ? (
+          <ActionBar>
+            <Button
+              label={mode === 'swap' ? 'Save equipment' : 'Start my shift'}
+              size="lg"
+              icon="check"
+              disabled={!canSubmit(s, mode, odometerMode, odometer)}
+              loading={startShift.isPending || changeEquipment.isPending}
+              haptic="success"
+              onPress={() => void submit()}
+            />
+            <Text className="pb-1 text-center text-xs text-ink-subtle">
+              Works offline — this syncs when you get signal.
+            </Text>
+          </ActionBar>
+        ) : undefined
+      }
+    >
       <ScreenHeader
         title={mode === 'swap' ? 'Change equipment' : 'Start your day'}
         subtitle={
           mode === 'swap'
-            ? duty.equipmentLabel ?? 'Update your truck or trailer'
+            ? (duty.equipmentLabel ?? 'Update your truck or trailer')
             : 'Confirm what you are driving'
         }
+        onBack={s.step !== 'truck' ? () => setS(goBack(s)) : undefined}
         onClose={() => router.back()}
       />
 
-      <TaskStepper steps={equipmentSteps} />
+      <TaskStepper steps={stepperSteps(s, mode)} />
 
       {equipment.isError && !equipment.data ? (
         <Banner
@@ -177,122 +262,134 @@ export default function CheckIn() {
         />
       ) : null}
 
-      <Input
-        placeholder="Search by unit number"
-        value={search}
-        onChangeText={setSearch}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        returnKeyType="search"
-      />
-
-      <SectionLabel>{mode === 'swap' ? 'Truck (leave to keep yours)' : 'Truck'}</SectionLabel>
-      {loading ? (
-        <View className="gap-2">
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-          <Skeleton className="h-[60px] w-full rounded-xl" />
-        </View>
-      ) : vehicles.length === 0 ? (
-        <EmptyState
-          icon="local_shipping"
-          title="No trucks found"
-          subtitle="Nothing matches that unit number."
-        />
-      ) : (
-        vehicles.map((v) => (
-          <ListRow
-            key={v.id}
-            icon="local_shipping"
-            iconFill={vehicle?.id === v.id}
-            title={`Unit ${v.unit_number}`}
-            subtitle={unitSubtitle(v)}
-            onPress={() => pick(v, 'vehicle')}
-            right={
-              vehicle?.id === v.id ? (
-                <Icon name="check_circle" size={22} className="text-brand" />
-              ) : v.in_use_by ? (
-                <Badge label="In use" tone="caution" icon="person" />
-              ) : v.is_default ? (
-                <Badge label="Your truck" tone="brand" />
-              ) : undefined
-            }
-          />
-        ))
-      )}
-
-      <SectionLabel>Trailer</SectionLabel>
-      {/* "Not hooked yet" is a first-class answer, not an empty state — the trailer is often unknown
-          until the driver reaches the shipper (D44.2). */}
-      <ListRow
-        icon="route"
-        title="Bobtail — no trailer yet"
-        subtitle="You can add one later without ending your shift"
-        onPress={() => {
-          setBobtail(true);
-          setTrailer(null);
-        }}
-        right={
-          bobtail ? <Icon name="check_circle" size={22} className="text-brand" /> : undefined
-        }
-      />
-      {loading ? (
-        <Skeleton className="h-[60px] w-full rounded-xl" />
-      ) : (
-        trailers.map((t) => (
-          <ListRow
-            key={t.id}
-            icon="route"
-            title={`Trailer ${t.unit_number}`}
-            subtitle={unitSubtitle(t)}
-            onPress={() => pick(t, 'trailer')}
-            right={
-              trailer?.id === t.id ? (
-                <Icon name="check_circle" size={22} className="text-brand" />
-              ) : t.in_use_by ? (
-                <Badge label="In use" tone="caution" icon="person" />
-              ) : undefined
-            }
-          />
-        ))
-      )}
-
-      {mode === 'start' ? (
+      {s.step === 'truck' ? (
         <>
-          <SectionLabel>Odometer (optional)</SectionLabel>
-          <Field label="Starting odometer" hint="Anchors your MPG and idle numbers for the shift">
-            <NumericField
-              value={odometer}
-              onChangeText={setOdometer}
-              unit="mi"
-              placeholder="412003"
+          <SectionLabel>{mode === 'swap' ? 'Pick a truck' : 'Your truck'}</SectionLabel>
+          {mode === 'swap' ? (
+            <ListRow
+              icon="local_shipping"
+              iconFill
+              title="Keep your truck"
+              subtitle={duty.equipmentLabel ?? undefined}
+              onPress={() => advance(keepVehicle(s))}
+              right={<Icon name="arrow_forward" size={20} className="text-ink-muted" />}
             />
-          </Field>
+          ) : null}
+          {searchBox}
+          {loading ? (
+            rosterSkeleton
+          ) : vehicles.length === 0 ? (
+            <EmptyState
+              icon="local_shipping"
+              title={search ? 'No trucks match' : 'No trucks found'}
+              subtitle={
+                search
+                  ? 'Clear the search to see the full list.'
+                  : 'Ask dispatch to add your truck to the fleet.'
+              }
+            />
+          ) : (
+            vehicles.map((v) => (
+              <EquipmentRow
+                key={v.id}
+                option={v}
+                icon="local_shipping"
+                selected={s.vehicle?.id === v.id}
+                onPress={() => pick(v, 'vehicle')}
+              />
+            ))
+          )}
         </>
       ) : null}
 
-      <ActionBar>
-        <Button
-          label={mode === 'swap' ? 'Save equipment' : 'Start my shift'}
-        size="lg"
-        icon="check"
-        disabled={!canConfirm}
-        loading={startShift.isPending || changeEquipment.isPending}
-        haptic="success"
-        onPress={() => void submit()}
-      />
-        <Text className="pb-2 text-center text-xs text-ink-subtle">
-          Works offline — this syncs when you get signal.
-        </Text>
-      </ActionBar>
+      {s.step === 'trailer' ? (
+        <>
+          <SectionLabel>Trailer</SectionLabel>
+          {/* "Not hooked yet" is a first-class answer, not an empty state (D44.2). */}
+          <ListRow
+            icon="route"
+            title="Bobtail — no trailer yet"
+            subtitle="You can add one later without ending your shift"
+            onPress={() => advance(chooseBobtail(s))}
+            right={s.bobtail ? <Icon name="check_circle" size={22} className="text-brand" /> : undefined}
+          />
+          {mode === 'swap' ? (
+            <ListRow
+              icon="route"
+              title="Keep current trailer"
+              subtitle="No drop-and-hook this stop"
+              onPress={() => advance(keepTrailer(s))}
+              right={<Icon name="arrow_forward" size={20} className="text-ink-muted" />}
+            />
+          ) : null}
+          {searchBox}
+          {loading ? (
+            rosterSkeleton
+          ) : trailers.length === 0 ? (
+            <EmptyState
+              icon="route"
+              title={search ? 'No trailers match' : 'No trailers in the fleet'}
+              subtitle={search ? 'Clear the search, or go bobtail for now.' : 'Go bobtail for now.'}
+            />
+          ) : (
+            trailers.map((t) => (
+              <EquipmentRow
+                key={t.id}
+                option={t}
+                icon="route"
+                selected={s.trailer?.id === t.id}
+                onPress={() => pick(t, 'trailer')}
+              />
+            ))
+          )}
+        </>
+      ) : null}
+
+      {s.step === 'confirm' ? (
+        <>
+          <SectionLabel>{mode === 'swap' ? 'Review change' : 'Review'}</SectionLabel>
+          <Card>
+            <ListRow
+              icon="local_shipping"
+              iconFill
+              title={summaryVehicle}
+              subtitle="Truck"
+              onPress={() => setS({ ...s, step: 'truck' })}
+              right={<Icon name="edit" size={18} className="text-ink-muted" />}
+            />
+            <ListRow
+              icon="route"
+              iconFill={Boolean(s.trailer)}
+              title={summaryTrailer}
+              subtitle="Trailer"
+              onPress={() => setS({ ...s, step: 'trailer' })}
+              right={<Icon name="edit" size={18} className="text-ink-muted" />}
+            />
+          </Card>
+          {mode === 'swap' && !hasChanges(s, mode) ? (
+            <Banner tone="info" message="Nothing changed yet — pick a different truck or trailer to save." />
+          ) : null}
+          {mode === 'start' && odometerMode !== 'off' ? (
+            <>
+              <SectionLabel>
+                {odometerMode === 'required' ? 'Odometer' : 'Odometer (optional)'}
+              </SectionLabel>
+              <Field label="Starting odometer" hint="Anchors your MPG and idle numbers for the shift">
+                <NumericField value={odometer} onChangeText={setOdometer} unit="mi" placeholder="412003" />
+              </Field>
+            </>
+          ) : null}
+        </>
+      ) : null}
 
       <ConfirmSheet
         visible={takeOver !== null}
         tone="caution"
         icon="warning"
-        title={`Unit ${takeOver?.unit_number ?? ''} is checked out`}
-        message={`${takeOver?.in_use_by ?? 'Another driver'} has had it since ${
-          takeOver?.in_use_since
-            ? new Date(takeOver.in_use_since).toLocaleTimeString(undefined, {
+        title={`Unit ${takeOver?.option.unit_number ?? ''} is checked out`}
+        message={`${takeOver?.option.in_use_by ?? 'Another driver'} has had it since ${
+          takeOver?.option.in_use_since
+            ? new Date(takeOver.option.in_use_since).toLocaleTimeString(undefined, {
                 hour: '2-digit',
                 minute: '2-digit',
               })

@@ -80,7 +80,17 @@ export function meRouter(): Router {
         .eq("assigned_driver_id", driver.id)
         .order("unit_number", { ascending: true });
 
-      res.json({ driver, vehicles: vehicles ?? [] });
+      // Entitlements ride the bootstrap payload so the app can hide a module's surfaces on the
+      // first render rather than flashing a button that 403s (D55 layer 3, D29 no-waterfall).
+      // REGRESSION GUARD: this read was silently dropped once in a refactor and the contract's old
+      // `.default([])` masked it — `modules` is now REQUIRED by the shared contract, so dropping it
+      // again fails the client parse loudly instead of disabling every module quietly.
+      const { data: modules } = await admin
+        .from("org_modules")
+        .select("module_key, enabled, config")
+        .eq("org_id", orgId);
+
+      res.json({ driver, vehicles: vehicles ?? [], modules: modules ?? [] });
     }),
   );
 

@@ -15,10 +15,12 @@ import { haptics } from '@/lib/haptics';
  * Driven by the standard React Navigation tabBar contract (state/descriptors/navigation) that
  * expo-router's <Tabs tabBar={...}> passes in.
  */
+// Four tabs (D51). `navigate` is deliberately absent — D52 reserves the center slot without
+// rendering it; the route is also `href: null` in the tabs layout, and this map is the second
+// belt-and-braces skip (an unmapped route renders no tab).
 const TAB_ICON: Record<string, IconName> = {
   home: 'home',
   loads: 'analytics',
-  navigate: 'maps_global',
   score: 'ranking',
   more: 'more_horiz',
 };

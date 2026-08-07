@@ -13,7 +13,7 @@ import { loadEnv } from "./env.js";
  */
 // /api/auth is the driver-login exchange — public BY DEFINITION (it is how a session is obtained);
 // it carries its own throttles + uniform errors (routes/auth.ts) instead of requireAuth.
-const PUBLIC_PREFIXES = new Set(["/api/webhooks", "/api/auth"]);
+const PUBLIC_PREFIXES = new Set(["/api/webhooks", "/api/auth", "/api/public/hazmat"]);
 
 function mountedApiRouters(): string[] {
   const src = readFileSync(new URL("./app.ts", import.meta.url), "utf8");
