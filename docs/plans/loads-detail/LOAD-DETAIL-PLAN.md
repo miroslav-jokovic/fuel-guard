@@ -94,7 +94,27 @@ Not gaps in the UI — gaps in the product. Each is a decision, not an oversight
 
 ## 6. Plan
 
-### LD0 — Unblock (this is L0, plus the two defects above)
+### LD0 — Unblock (this is L0, plus the two defects above) — **DONE 2026-08-07**
+
+All four matrices now run in `pnpm test:rls`: **159 + 16 + 42 + 20 = 237 assertions, 0 failures.**
+
+Repairing the harness turned it into the specification nobody had read. The lifecycle matrix called
+the driver RPCs *exactly* the way `driverLoads.ts` does and expected precisely the error codes the API
+maps — independent confirmation that the service was right and `0087` was the outlier, not a judgement
+call. It then failed on six behaviours it asserts and nothing implemented:
+
+| Found by | Built in | What it was |
+| --- | --- | --- |
+| F-LD1 | `0141` | The four driver RPCs, re-signed to `(p_org, p_driver, p_load, p_actor_user, …)` with the ownership check made explicit. The old versions could never have run from the service role. |
+| matrix | `0141` | `loads.duty_session_id` + D47: accepting in a different truck stamps the shift, writes an `equipment_mismatch` event, and does **not** overwrite dispatch's plan. Documented in `driverLoads.ts` since Phase 3B, never possible. |
+| matrix | `0141` | Owner-operator decline clears `released_at`; a replayed stop sync is a no-op rather than an error (the outbox retries). |
+| matrix | `0141` | D21 enforced server-side: finishing a stop without a required photo, or skipping one, requires a reason. The rule had lived only in the app. |
+| matrix | `0142` | **Separation of duties** — `organizations.require_separate_approver`, off by default. Maker-checker on the object that commits a truck and a delivery promise. |
+| matrix | `0142` | An approval must record `approved_by`; `submitted_at` and `approved_at` stamped by the guard rather than by whichever caller remembers. |
+| matrix | `0143` | Duty error codes realigned to the `DG001`–`DG005` the API maps and tests. Plus **DG005**: the equipment a driver checks into must belong to their organization — never checked, and RLS is not in that path. Plus: a no-op equipment change no longer shreds the segment timeline. |
+
+F-LD2 (history silently empty) and F-LD3 (terminal loads reassignable) are fixed in
+`dispatchLoads/queries.ts` and `mutations.ts` respectively.
 
 - Repair `load-lifecycle.test.mjs` and `duty-sessions.test.mjs` (stale migration filenames:
   `0083_driver_identity` → `0083_driver_rls_matrix`, `0084_driver_scoped_rls` → `0084_driver_rls_writes`,

@@ -16,8 +16,25 @@ reason rather than assumed passing — that habit is what this phase exists to e
 pnpm typecheck && pnpm lint && pnpm lint:boundaries && pnpm lint:tokens-parity && pnpm test
 ```
 
-`pnpm test` now runs `pnpm -r test` **and** `pnpm test:rls` (both offline RLS matrices). CI runs
-this exact sequence.
+`pnpm test` now runs `pnpm -r test` **and** `pnpm test:rls`. As of 2026-08-07 `test:rls` runs **all
+four** behavioural matrices, with these real, executed counts:
+
+| Matrix | Assertions | What it proves |
+|---|---|---|
+| `rls.test.mjs` | **159** | Tenant + driver RLS: who can read and write what. |
+| `hazmat_rls.test.mjs` | **16** | Hazmat module gating and driver scope. |
+| `load-lifecycle.test.mjs` | **42** | The transition guard, its approval gates, and the four driver RPCs. |
+| `duty-sessions.test.mjs` | **20** | Shift open/close, equipment segments, take-over. |
+
+The last two had **never executed**. They referenced three migration filenames that never shipped
+(`0083_driver_identity`, `0084_driver_scoped_rls`, `0016_vehicle_fuel_level`) and aborted on load,
+while this document and the ledger quoted "42/42" and "20/20" as though they had passed. Both counts
+turned out to be honest — but only after **six behaviours the matrices specified were found to be
+unimplemented** and built (migrations 0141–0143). Two of those were live defects: the driver load RPCs
+and the duty-session error codes both had contracts the API could never have satisfied.
+
+If a matrix count in this table changes, the change is either a new assertion or a regression. There
+is no third possibility, and that is the point of writing the numbers down.
 
 | Check | What it actually proves |
 |---|---|
