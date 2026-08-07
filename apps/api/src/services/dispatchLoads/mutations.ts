@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notify, loginForDriver } from "../notify.js";
-import type { AssignLoadRequest, CreateLoadRequest, UpdateLoadRequest } from "@fuelguard/shared";
+import { isTerminal, type AssignLoadRequest, type CreateLoadRequest, type LoadStatus, type UpdateLoadRequest } from "@fuelguard/shared";
 import { toDispatchError, replaceStops, writeEvent, type DispatchResult } from "./shared.js";
 
 /**
@@ -202,7 +202,21 @@ export async function assignLoad(
   if (!before) {
     return { ok: false, status: 404, code: "not_found", message: "That load no longer exists" };
   }
-  const previous = (before as { driver_id: string | null }).driver_id;
+  const { driver_id: previous, status } = before as { driver_id: string | null; status: LoadStatus };
+
+  // A delivered or canceled load must not be reassignable. This path deliberately never writes
+  // `status`, so it never trips `loads_status_guard` — the trigger that refuses every other illegal
+  // move on a terminal load simply does not see this one. The UI hid the button
+  // (`LoadDetailPanel.vue:60`) and that was the whole enforcement, which is no enforcement at all
+  // for anything that is not the UI.
+  if (isTerminal(status)) {
+    return {
+      ok: false,
+      status: 409,
+      code: "illegal_transition",
+      message: `A ${status} load cannot be reassigned`,
+    };
+  }
 
   const { error } = await admin
     .from("loads")

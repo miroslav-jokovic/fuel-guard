@@ -1,63 +1,79 @@
 <script setup lang="ts">
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ChevronRightIcon,
+  ClipboardDocumentCheckIcon,
+  LoadsIcon,
+  ShieldExclamationIcon,
+  TrailerIcon,
+  type Icon,
+} from "@fuelguard/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 
-/**
- * HazmatGuard hub. Entitlement-gated (module `hazmatguard`). The Placard Calculator (H5) is the first live
- * surface — a manual, deterministic placard/segregation/eligibility check. The Load Workspace, extraction
- * and review queue arrive with H5's remaining slices and H6–H7.
- */
+const tools: Array<{ name: string; description: string; action: string; to: string; icon: Icon }> = [
+  {
+    name: "Placard Calculator",
+    description: "Check placards, identification-number displays, segregation, and load eligibility with exact 49 CFR citations.",
+    action: "Open calculator",
+    to: "/hazmat/calculator",
+    icon: ClipboardDocumentCheckIcon,
+  },
+  {
+    name: "Hazmat Loads",
+    description: "Create and track declared hazmat loads from initial entry through analysis and clearance.",
+    action: "View loads",
+    to: "/hazmat/loads",
+    icon: LoadsIcon,
+  },
+  {
+    name: "Hazmat Review",
+    description: "Work flagged loads oldest-first, inspect the evidence, and record the required review decision.",
+    action: "Open review queue",
+    to: "/hazmat/review",
+    icon: ShieldExclamationIcon,
+  },
+  {
+    name: "Cargo-Tank Profiles",
+    description: "Maintain tank capacity and compartment details for the trucks and trailers used in load analysis.",
+    action: "Manage profiles",
+    to: "/hazmat/settings/equipment",
+    icon: TrailerIcon,
+  },
+];
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Bill-of-lading pre-check, load eligibility & placarding." />
+    <PageHeader description="Pre-check shipping papers, determine placarding and eligibility, and review flagged hazmat loads." />
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <BaseCard>
-        <h2 class="text-sm font-semibold text-ink">Placard Calculator</h2>
-        <p class="mt-1 text-sm text-ink-muted">
-          Declare a load by hand and get the required placards, ID-number displays, load-compatibility
-          checks and eligibility — each with its 49 CFR citation. No photos needed.
-        </p>
-        <div class="mt-4">
-          <BaseButton variant="primary" size="sm" to="/hazmat/calculator">Open calculator</BaseButton>
-        </div>
-      </BaseCard>
-
-      <BaseCard>
-        <h2 class="text-sm font-semibold text-ink">Load Workspace</h2>
-        <p class="mt-1 text-sm text-ink-muted">
-          Create and track hazmat loads, run the analysis engine, and see placards, findings and flags per
-          load. Field-by-field review + attestation arrives with H7.
-        </p>
-        <div class="mt-4">
-          <BaseButton variant="primary" size="sm" to="/hazmat/loads">Open loads</BaseButton>
-        </div>
-      </BaseCard>
-
-      <BaseCard>
-        <h2 class="text-sm font-semibold text-ink">Review Queue</h2>
-        <p class="mt-1 text-sm text-ink-muted">
-          Flagged loads awaiting a trained reviewer. Work the flags, check the BOL evidence, then clear on the
-          49 CFR 172 Subpart H attestation — override a violation with a reason, or reject.
-        </p>
-        <div class="mt-4">
-          <BaseButton variant="soft" size="sm" to="/hazmat/review">Open review queue</BaseButton>
-        </div>
-      </BaseCard>
-
-      <BaseCard>
-        <h2 class="text-sm font-semibold text-ink">Cargo-Tank Profiles</h2>
-        <p class="mt-1 text-sm text-ink-muted">
-          Record capacity and compartment plans per truck/trailer. Each is attached to that equipment's
-          load analyses for the audit trail; the engine's capacity/compartment rules land with H2.
-        </p>
-        <div class="mt-4">
-          <BaseButton variant="soft" size="sm" to="/hazmat/settings/equipment">Manage equipment</BaseButton>
-        </div>
-      </BaseCard>
-    </div>
+    <section class="space-y-3">
+      <div>
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Hazmat workflows</h2>
+        <p class="mt-1 text-sm text-ink-muted">Choose the workspace that matches the task you need to complete.</p>
+      </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <BaseCard v-for="tool in tools" :key="tool.to" as="article">
+          <div class="flex h-full flex-col">
+            <div class="flex items-start gap-4">
+              <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                <AppIcon :icon="tool.icon" class="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h3 class="text-sm font-semibold text-ink">{{ tool.name }}</h3>
+                <p class="mt-1 text-sm text-ink-muted">{{ tool.description }}</p>
+              </div>
+            </div>
+            <div class="mt-auto pt-5">
+              <BaseButton variant="secondary" size="sm" :to="tool.to">
+                {{ tool.action }}
+                <AppIcon :icon="ChevronRightIcon" class="size-4" aria-hidden="true" />
+              </BaseButton>
+            </div>
+          </div>
+        </BaseCard>
+      </div>
+    </section>
   </div>
 </template>

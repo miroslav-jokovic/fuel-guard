@@ -21,14 +21,27 @@ import {
  *
  * Reads are RLS-scoped anyway, but go through the service role here so the response can join unit
  * numbers and nest stops in one round trip (D29 — no launch waterfall).
+ *
+ * The RPC contract these calls rely on is defined by migration 0141, NOT 0087. 0087's versions took
+ * the driver from `auth_driver_id()`, which is always null for the service-role client used here, so
+ * every driver mutation would have failed on both the argument names and the identity lookup. 0141
+ * takes `p_org` / `p_driver` / `p_actor_user` explicitly and verifies the driver belongs to the org
+ * and owns the load inside the function.
  */
 
+/**
+ * SQLSTATE → response. These are the codes migration 0141 raises; `detail` below carries the specific
+ * Postgres message, which names the failing gate or the exact missing photo slot.
+ *
+ * 0087 raised 'DL404' for "load not found", which this map has never had an entry for — so the most
+ * ordinary driver error would have surfaced as an unhandled 500. 0141 raises DL002 there instead.
+ */
 const PG_TO_API: Record<string, { status: 404 | 409 | 422; code: string; message: string }> = {
   DL001: { status: 409, code: "not_offered", message: "This load is no longer waiting for you" },
   DL002: { status: 404, code: "not_your_load", message: "That load is not assigned to you" },
   DL003: { status: 409, code: "wrong_state", message: "This load has moved on — pull to refresh" },
   DL005: { status: 404, code: "stop_not_found", message: "That stop is not on this load" },
-  DL006: { status: 422, code: "photo_reason_required", message: "Say why a required photo is missing" },
+  DL006: { status: 422, code: "reason_required", message: "Add a note before finishing this" },
   DL010: { status: 409, code: "illegal_transition", message: "That is not a step this load can take" },
   DL011: { status: 422, code: "not_ready", message: "This load is not ready for that yet" },
 };

@@ -1,93 +1,105 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { AppIcon } from "@fuelguard/ui";
+import { ChevronLeftIcon, ChevronRightIcon } from "@fuelguard/ui/icons";
+import type { HazmatLoadRow } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import LoadStatusBadge from "@/features/hazmat/LoadStatusBadge.vue";
 import { useReviewQueueQuery } from "@/features/hazmat/useHazmatReview";
 import { emptyQueueFilter, filterReviewQueue } from "@/features/hazmat/reviewModel";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 
-/**
- * Hazmat review queue (plan H7). Loads in `needs_review`, oldest-first (longest-waiting at the top). The
- * fail-closed workflow: nothing here has auto-cleared; a review-role user opens a load to attest, override,
- * or reject it. Clearing itself lives on the load page (ReviewPanel). Filtering is a client-side narrowing
- * of the already-scoped queue — vehicle, driver, and a free-text search over the load id + declared lines.
- */
-const { data: loads, isLoading, isError, error } = useReviewQueueQuery();
+const { data: loads, isLoading, isError, error, isFetching, refetch } = useReviewQueueQuery();
 const { data: vehicles } = useVehiclesQuery();
 const { data: drivers } = useDriversQuery();
-
 const filter = ref(emptyQueueFilter());
-const search = computed({ get: () => filter.value.search, set: (v: string) => (filter.value.search = v) });
+const search = computed({ get: () => filter.value.search, set: (value: string) => (filter.value.search = value) });
 
 const vehicleOptions = computed(() => [
   { value: "", label: "All trucks" },
-  ...(vehicles.value ?? []).map((v) => ({ value: v.id, label: v.unit_number })),
+  ...(vehicles.value ?? []).map((vehicle) => ({ value: vehicle.id, label: vehicle.unit_number })),
 ]);
 const driverOptions = computed(() => [
   { value: "", label: "All drivers" },
-  ...(drivers.value ?? []).map((d) => ({ value: d.id, label: d.full_name })),
+  ...(drivers.value ?? []).map((driver) => ({ value: driver.id, label: driver.full_name })),
 ]);
-
 const visible = computed(() => filterReviewQueue(loads.value ?? [], filter.value));
+const emptyText = computed(() =>
+  (loads.value ?? []).length === 0 ? "Nothing is waiting for review." : "No review items match these filters.",
+);
 
-const fmt = (iso: string) => new Date(iso).toLocaleString();
-const waitingHrs = (iso: string) => Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 3_600_000));
+const lineCount = (load: HazmatLoadRow): number => Array.isArray(load.declared_lines) ? load.declared_lines.length : 0;
+const lineLabel = (load: HazmatLoadRow): string => `${lineCount(load)} product${lineCount(load) === 1 ? "" : "s"}`;
+const fmtDate = (iso: string): string => new Date(iso).toLocaleString();
+const waitingHours = (iso: string): number => Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 3_600_000));
+const waitingLabel = (iso: string): string => {
+  const hours = waitingHours(iso);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
+};
+const vehicleLabel = (id: string | null): string =>
+  (vehicles.value ?? []).find((vehicle) => vehicle.id === id)?.unit_number ?? "—";
+const driverLabel = (id: string | null): string =>
+  (drivers.value ?? []).find((driver) => driver.id === id)?.full_name ?? "—";
+
+const columns: DataTableColumn[] = [
+  { key: "products", label: "Products", align: "left", headerClass: "min-w-[7rem]" },
+  { key: "vehicle_id", label: "Truck", align: "left", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
+  { key: "driver_id", label: "Driver", align: "left", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "waiting", label: "Waiting", numeric: true, align: "right", headerClass: "min-w-[6rem]", cellClass: "font-medium text-ink-secondary" },
+  { key: "created_at", label: "Created", align: "left", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
+];
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Loads awaiting a trained reviewer. Oldest first — attest, override, or reject.">
+    <PageHeader description="Review flagged loads oldest-first, inspect the evidence, and record an attestation or rejection.">
       <template #actions>
-        <BaseButton variant="ghost" size="sm" to="/hazmat">← HazmatGuard</BaseButton>
+        <BaseButton variant="ghost" size="sm" to="/hazmat">
+          <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
+          HazmatGuard
+        </BaseButton>
       </template>
     </PageHeader>
 
-    <p v-if="isLoading" class="text-sm text-ink-muted">Loading queue…</p>
-    <p v-else-if="isError" class="text-sm text-danger-600">{{ error instanceof Error ? error.message : "Could not load the queue." }}</p>
+    <FilterBar
+      v-model:search="search"
+      search-placeholder="Search load or product…"
+      :count="visible.length"
+      count-label="loads"
+    >
+      <template #filters>
+        <FilterSelect v-model="filter.vehicleId" label="Truck" :options="vehicleOptions" />
+        <FilterSelect v-model="filter.driverId" label="Driver" :options="driverOptions" />
+      </template>
+    </FilterBar>
 
-    <template v-else>
-      <FilterBar v-model:search="search" search-placeholder="Search load #, product…" :count="visible.length" count-label="loads">
-        <template #filters>
-          <FilterSelect v-model="filter.vehicleId" label="Truck" :options="vehicleOptions" />
-          <FilterSelect v-model="filter.driverId" label="Driver" :options="driverOptions" />
-        </template>
-      </FilterBar>
-
-      <BaseCard v-if="visible.length === 0" class="text-center">
-        <p class="py-10 text-sm text-ink-muted">
-          {{ (loads?.length ?? 0) === 0 ? "Nothing awaiting review. 🎉" : "No loads match these filters." }}
-        </p>
-      </BaseCard>
-
-      <BaseCard v-else padding="none">
-        <table class="w-full text-sm">
-          <thead class="border-b border-edge text-left text-xs uppercase tracking-wide text-ink-subtle">
-            <tr>
-              <th class="px-4 py-2 font-medium">Status</th>
-              <th class="px-4 py-2 font-medium">Products</th>
-              <th class="px-4 py-2 font-medium">Waiting</th>
-              <th class="px-4 py-2 font-medium">Created</th>
-              <th class="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="load in visible" :key="load.id" class="border-b border-edge last:border-0 hover:bg-surface-subtle">
-              <td class="px-4 py-2.5"><LoadStatusBadge :status="load.status" /></td>
-              <td class="px-4 py-2.5 text-ink">{{ Array.isArray(load.declared_lines) ? load.declared_lines.length : 0 }} line(s)</td>
-              <td class="px-4 py-2.5 text-ink-secondary">{{ waitingHrs(load.created_at) }}h</td>
-              <td class="px-4 py-2.5 text-ink-secondary">{{ fmt(load.created_at) }}</td>
-              <td class="px-4 py-2.5 text-right">
-                <BaseButton variant="primary" size="sm" :to="`/hazmat/loads/${load.id}`">Review →</BaseButton>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </BaseCard>
-    </template>
+    <DataTable
+      :columns="columns"
+      :rows="visible"
+      row-key="id"
+      :loading="isLoading"
+      :error="isError ? (error instanceof Error ? error.message : 'Could not load the review queue.') : null"
+      :retrying="isFetching"
+      :empty-text="emptyText"
+      @retry="refetch"
+    >
+      <template #cell-products="{ row }">{{ lineLabel(row) }}</template>
+      <template #cell-vehicle_id="{ row }">{{ vehicleLabel(row.vehicle_id) }}</template>
+      <template #cell-driver_id="{ row }">{{ driverLabel(row.driver_id) }}</template>
+      <template #cell-waiting="{ row }">{{ waitingLabel(row.created_at) }}</template>
+      <template #cell-created_at="{ row }">{{ fmtDate(row.created_at) }}</template>
+      <template #actions="{ row }">
+        <BaseButton variant="secondary" size="sm" :to="`/hazmat/loads/${row.id}`">
+          Review
+          <AppIcon :icon="ChevronRightIcon" class="size-4" aria-hidden="true" />
+        </BaseButton>
+      </template>
+    </DataTable>
   </div>
 </template>

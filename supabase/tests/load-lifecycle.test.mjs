@@ -21,13 +21,43 @@ const ok = (n, c, x = "") => { c ? (pass++, console.log(`  PASS  ${n}`)) : (fail
 const one = async (q, p = []) => (await db.query(q, p)).rows[0];
 const err = (p) => p.then(() => null, (e) => ({ code: e.code ?? "?", msg: e.message }));
 
-await db.exec(`create schema if not exists auth; create table auth.users (id uuid primary key default gen_random_uuid(), email text);
-create schema if not exists storage; create table storage.buckets (id text primary key, name text, public boolean default false);
-create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, created_at timestamptz default now());
-alter table storage.objects enable row level security;
-create role supabase_auth_admin nologin; create role authenticated nologin; create role anon nologin;`);
+// Supabase-managed objects (present in a real project; shimmed here). Kept identical to the shim in
+// rls.test.mjs — the previous version stopped at (id, name, public), so every migration from 0085
+// onward failed to apply and this matrix could not run at all. Keep in step when a migration starts
+// writing a new bucket column.
+await db.exec(`
+  create schema if not exists auth;
+  create table auth.users (id uuid primary key default gen_random_uuid(), email text);
+  create schema if not exists storage;
+  create table storage.buckets (
+    id text primary key,
+    name text,
+    public boolean default false,
+    file_size_limit bigint,
+    allowed_mime_types text[],
+    owner uuid,
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
+  );
+  create table storage.objects (
+    id uuid primary key default gen_random_uuid(),
+    bucket_id text, name text, owner uuid, created_at timestamptz default now()
+  );
+  alter table storage.objects enable row level security;
+  create or replace function storage.foldername(name text)
+  returns text[]
+  language sql
+  immutable
+  as $fn$
+    select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1];
+  $fn$;
+  create role supabase_auth_admin nologin;
+  create role authenticated nologin;
+  create role anon nologin;
+  create role service_role nologin bypassrls;
+`);
 
-for (const f of ["migrations/0001_extensions_and_enums.sql","migrations/0002_functions.sql","migrations/0003_core_tables.sql","migrations/0004_rls.sql","migrations/0005_storage.sql","migrations/0006_auth_hook.sql","migrations/0030_trailers.sql","migrations/0068_tms_integration.sql","migrations/0053_driver_performance_settings.sql","migrations/0054_driver_scores.sql","migrations/0055_driver_performance_weeks.sql","migrations/0083_driver_identity.sql","migrations/0084_driver_scoped_rls.sql","migrations/0085_driver_loads.sql","migrations/0086_duty_sessions.sql","migrations/0087_load_lifecycle.sql"])
+for (const f of ["migrations/0001_extensions_and_enums.sql","migrations/0002_functions.sql","migrations/0003_core_tables.sql","migrations/0004_rls.sql","migrations/0005_storage.sql","migrations/0006_auth_hook.sql","migrations/0030_trailers.sql","migrations/0068_tms_integration.sql","migrations/0053_driver_performance_settings.sql","migrations/0054_driver_scores.sql","migrations/0055_driver_performance_weeks.sql","migrations/0083_driver_rls_matrix.sql","migrations/0084_driver_rls_writes.sql","migrations/0085_driver_loads.sql","migrations/0086_duty_sessions.sql","migrations/0087_load_lifecycle.sql","migrations/0141_driver_load_rpc_contract.sql","migrations/0142_load_approval_separation.sql"])
   await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
 
 const ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'T') returning id`)).id;
@@ -197,10 +227,10 @@ ok("cannot record a stop that belongs to another load (DL005)",
   (await err(db.query(`select driver_complete_stop($1,$2,$3,$4,'completed')`, [ORG, CO, X, foreignStop])))?.code === "DL005");
 
 // ── resolve_driver_type ──────────────────────────────────────────────────────
-ok("driver_type falls back to the org default", (await one(`select resolve_driver_type($1,$2) t`, [ORG, CO])).t === "company");
-ok("a per-driver override wins", (await one(`select resolve_driver_type($1,$2) t`, [ORG, OO])).t === "owner_operator");
+ok("driver_type falls back to the org default", (await one(`select resolve_driver_type($1) t`, [CO])).t === "company");
+ok("a per-driver override wins", (await one(`select resolve_driver_type($1) t`, [OO])).t === "owner_operator");
 await db.query(`update organizations set default_driver_type='owner_operator' where id=$1`, [ORG]);
-ok("changing the org default moves un-overridden drivers", (await one(`select resolve_driver_type($1,$2) t`, [ORG, CO])).t === "owner_operator");
+ok("changing the org default moves un-overridden drivers", (await one(`select resolve_driver_type($1) t`, [CO])).t === "owner_operator");
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

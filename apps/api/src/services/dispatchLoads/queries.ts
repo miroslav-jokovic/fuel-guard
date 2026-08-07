@@ -48,19 +48,75 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
   });
 }
 
-/** The append-only timeline for one load, newest first, with the actor's name resolved. */
+/**
+ * Resolve the humans behind a set of `actor_user_id`s.
+ *
+ * `load_events.actor_user_id` points at `auth.users`, which PostgREST does not expose, so there is no
+ * embed that can do this. Drivers resolve from `drivers.user_id` in one query; staff (dispatchers,
+ * fleet managers) need the auth admin API, which is per-id — bounded here by the number of DISTINCT
+ * actors on a single load, which is a handful, not by the number of events.
+ */
+async function resolveActorNames(
+  admin: SupabaseClient,
+  orgId: string,
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (userIds.length === 0) return names;
+
+  const { data: drivers } = await admin
+    .from("drivers")
+    .select("user_id, full_name")
+    .eq("org_id", orgId)
+    .in("user_id", userIds);
+  for (const d of (drivers ?? []) as { user_id: string | null; full_name: string | null }[]) {
+    if (d.user_id && d.full_name) names.set(d.user_id, d.full_name);
+  }
+
+  const unresolved = userIds.filter((id) => !names.has(id));
+  await Promise.all(
+    unresolved.map(async (id) => {
+      try {
+        const { data } = await admin.auth.admin.getUserById(id);
+        const email = data?.user?.email;
+        if (email) names.set(id, email);
+      } catch {
+        // A deleted login must not blank out the whole timeline — the role is still shown.
+      }
+    }),
+  );
+  return names;
+}
+
+/**
+ * The append-only timeline for one load, newest first, with the actor resolved.
+ *
+ * This used to select `..., drivers(full_name)` and discard the error. `load_events` has no foreign
+ * key to `drivers` — its actor column references `auth.users` — so PostgREST could not resolve the
+ * embed, the request failed, and the swallowed error meant `listEvents` returned `[]` for every load,
+ * forever. The panel rendered "No history yet" and nobody could tell it apart from a load with no
+ * history. Errors are thrown now for the same reason.
+ */
 export async function listEvents(admin: SupabaseClient, orgId: string, loadId: string): Promise<unknown[]> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("load_events")
-    .select("id, kind, from_status, to_status, actor_role, payload, occurred_at, recorded_at, drivers(full_name)")
+    .select("id, kind, from_status, to_status, actor_user_id, actor_role, payload, occurred_at, recorded_at")
     .eq("org_id", orgId)
     .eq("load_id", loadId)
     .order("occurred_at", { ascending: false });
+  if (error) throw new Error(error.message);
 
-  return ((data ?? []) as unknown as (Record<string, unknown> & { drivers: Join })[]).map((e) => {
-    const { drivers, ...rest } = e;
-    return { ...rest, actor_name: one(drivers)?.full_name ?? null };
-  });
+  const rows = (data ?? []) as unknown as (Record<string, unknown> & { actor_user_id: string | null })[];
+  const names = await resolveActorNames(
+    admin,
+    orgId,
+    [...new Set(rows.map((r) => r.actor_user_id).filter((id): id is string => Boolean(id)))],
+  );
+
+  return rows.map((e) => ({
+    ...e,
+    actor_name: e.actor_user_id ? (names.get(e.actor_user_id) ?? null) : null,
+  }));
 }
 
 /** Latest ELD duty segments (newest first, bounded) → each driver's "in current status since". */

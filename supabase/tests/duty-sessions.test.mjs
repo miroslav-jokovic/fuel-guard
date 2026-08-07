@@ -19,12 +19,42 @@ let pass = 0, fail = 0;
 const ok = (n, c, x = "") => { c ? (pass++, console.log(`  PASS  ${n}`)) : (fail++, console.log(`  FAIL  ${n} ${x}`)); };
 const one = async (q, p = []) => (await db.query(q, p)).rows[0];
 
-await db.exec(`create schema if not exists auth; create table auth.users (id uuid primary key default gen_random_uuid(), email text);
-create schema if not exists storage; create table storage.buckets (id text primary key, name text, public boolean default false);
-create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, created_at timestamptz default now());
-alter table storage.objects enable row level security;
-create role supabase_auth_admin nologin; create role authenticated nologin; create role anon nologin;`);
-for (const f of ["migrations/0001_extensions_and_enums.sql", "migrations/0002_functions.sql", "migrations/0003_core_tables.sql", "migrations/0004_rls.sql", "migrations/0005_storage.sql", "migrations/0006_auth_hook.sql", "migrations/0007_imports.sql", "migrations/0008_ai_verifications.sql", "migrations/0009_notifications_audit_triggers.sql", "migrations/0010_detection_hardening.sql", "migrations/0011_faithful_efs_storage.sql", "migrations/0012_samsara.sql", "migrations/0013_tank_fill.sql", "migrations/0014_upsert_safe_indexes.sql", "migrations/0015_driver_samsara.sql", "migrations/0016_vehicle_fuel_level.sql", "migrations/0030_trailers.sql", "migrations/0068_tms_integration.sql", "migrations/0053_driver_performance_settings.sql", "migrations/0054_driver_scores.sql", "migrations/0055_driver_performance_weeks.sql", "migrations/0083_driver_identity.sql", "migrations/0084_driver_scoped_rls.sql", "migrations/0085_driver_loads.sql", "migrations/0086_duty_sessions.sql"])
+// Supabase-managed objects (present in a real project; shimmed here). Kept identical to the shim in
+// rls.test.mjs — the previous version stopped at (id, name, public), so every migration from 0085
+// onward failed to apply and this matrix could not run at all. Keep in step when a migration starts
+// writing a new bucket column.
+await db.exec(`
+  create schema if not exists auth;
+  create table auth.users (id uuid primary key default gen_random_uuid(), email text);
+  create schema if not exists storage;
+  create table storage.buckets (
+    id text primary key,
+    name text,
+    public boolean default false,
+    file_size_limit bigint,
+    allowed_mime_types text[],
+    owner uuid,
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
+  );
+  create table storage.objects (
+    id uuid primary key default gen_random_uuid(),
+    bucket_id text, name text, owner uuid, created_at timestamptz default now()
+  );
+  alter table storage.objects enable row level security;
+  create or replace function storage.foldername(name text)
+  returns text[]
+  language sql
+  immutable
+  as $fn$
+    select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1];
+  $fn$;
+  create role supabase_auth_admin nologin;
+  create role authenticated nologin;
+  create role anon nologin;
+  create role service_role nologin bypassrls;
+`);
+for (const f of ["migrations/0001_extensions_and_enums.sql", "migrations/0002_functions.sql", "migrations/0003_core_tables.sql", "migrations/0004_rls.sql", "migrations/0005_storage.sql", "migrations/0006_auth_hook.sql", "migrations/0007_imports.sql", "migrations/0008_ai_verifications.sql", "migrations/0009_notifications_audit_triggers.sql", "migrations/0010_detection_hardening.sql", "migrations/0011_faithful_efs_storage.sql", "migrations/0012_samsara.sql", "migrations/0013_tank_fill.sql", "migrations/0014_upsert_safe_indexes.sql", "migrations/0015_driver_samsara.sql", "migrations/0016_driver_samsara_idx.sql", "migrations/0030_trailers.sql", "migrations/0068_tms_integration.sql", "migrations/0053_driver_performance_settings.sql", "migrations/0054_driver_scores.sql", "migrations/0055_driver_performance_weeks.sql", "migrations/0083_driver_rls_matrix.sql", "migrations/0084_driver_rls_writes.sql", "migrations/0085_driver_loads.sql", "migrations/0086_duty_sessions.sql"])
   await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
 
 const ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'T') returning id`)).id;
@@ -88,7 +118,9 @@ ok("take-over ends the previous holder's shift with ended_reason='taken_over'", 
 ok("take-over closes the previous holder's open segment",
   (await one(`select count(*)::int n from duty_equipment_segments where session_id=$1 and to_at is null`, [u(1)])).n === 0);
 ok("the taking driver now holds the truck",
-  (await one(`select driver_id from duty_equipment_segments where vehicle_id=$1 and to_at is null`, [V1])).driver_id === D2);
+  (await one(`select s.driver_id from duty_equipment_segments g
+                join driver_duty_sessions s on s.id = g.session_id
+               where g.vehicle_id=$1 and g.to_at is null`, [V1])).driver_id === D2);
 
 // 10. sign-off closes session + segment, idempotently
 await db.query(`select end_duty_session($1,$2,null,412500,'driver')`, [ORG,D2]);
