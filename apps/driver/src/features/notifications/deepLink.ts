@@ -8,16 +8,18 @@
  * attention). Extend this when a new surface ships (messages → Phase 7).
  */
 
-export function resolveDeepLink(link: string | null | undefined): string {
+import type { Href } from 'expo-router';
+
+export function resolveDeepLink(link: string | null | undefined): Href {
   if (!link) return '/home';
 
   // Hazmat: web reviewer path → driver verdict screen.
   const hazmatLoad = /^\/hazmat\/loads\/([0-9a-f-]{36})$/i.exec(link);
-  if (hazmatLoad) return `/hazmat/${hazmatLoad[1]}`;
+  if (hazmatLoad) return `/hazmat/${hazmatLoad[1]}` as Href;
   if (link === '/hazmat/loads' || link === '/hazmat/review') return '/hazmat';
 
   // Loads: same shape in both products.
-  if (/^\/loads\/[0-9a-f-]{36}$/i.test(link)) return link;
+  if (/^\/loads\/[0-9a-f-]{36}$/i.test(link)) return link as Href;
   if (link === '/loads') return '/loads';
 
   // Score + home are tabs here.
@@ -27,7 +29,7 @@ export function resolveDeepLink(link: string | null | undefined): string {
 
   // Messages (Phase 7): thread route + inbox.
   const messageThread = /^\/messages\/([0-9a-f-]{36})$/i.exec(link);
-  if (messageThread) return `/messages/${messageThread[1]}`;
+  if (messageThread) return `/messages/${messageThread[1]}` as Href;
   if (link === '/messages') return '/messages';
 
   // Anything else the app can't render lands on Home instead of a dead screen.

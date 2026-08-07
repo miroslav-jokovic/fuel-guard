@@ -114,7 +114,7 @@ function usePushNotifications() {
   useEffect(() => {
     if (status !== "ready") return undefined;
     // Server deep links are translated to APP routes (resolveDeepLink) — never trusted raw.
-    return onNotificationTap((link) => router.push(resolveDeepLink(link) as never));
+    return onNotificationTap((link) => router.push(resolveDeepLink(link)));
   }, [status, router]);
 }
 

@@ -82,7 +82,7 @@ export default function NotificationsCentre() {
 
   const openRow = (n: NotificationEvent) => {
     if (n.read_at === null) markRead.mutate([n.id]);
-    router.push(resolveDeepLink(n.deep_link) as never);
+    router.push(resolveDeepLink(n.deep_link));
   };
 
   const toggleMute = async (category: NotificationCategory) => {
