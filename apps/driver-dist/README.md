@@ -30,6 +30,15 @@ compared in constant time and both fail closed: unset means every request is ref
 | `RETENTION_DAYS` | `90` | Matches TestFlight's build expiry |
 | `MAX_UPLOAD_BYTES` | `314572800` | 300 MB ceiling on a single upload |
 
+## Deployment
+
+Built from `Dockerfile` (`node:22-alpine`, two files copied, no package manager). On Railway:
+
+- **Root Directory: empty.** The build context must be the repository root.
+- **Config path: `railway.driver-dist.json`.** Otherwise Railway falls back to `railway.json` and
+  builds the API.
+- **Volume mounted at `/data`.**
+
 ## Local run
 
 ```

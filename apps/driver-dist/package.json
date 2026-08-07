@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "description": "Internal Android build distribution for the FuelGuard driver app. Zero dependencies on purpose.",
   "scripts": {
     "start": "node server.mjs",

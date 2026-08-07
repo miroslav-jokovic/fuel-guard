@@ -61,14 +61,28 @@ encrypted offline outbox.
 
 ## 4. The install-page service on Railway (owner)
 
-1. New service in the same Railway project, from this repository, with config file
-   `railway.driver-dist.json`.
-2. Attach a **volume** mounted at `/data`. Artifacts must survive a redeploy.
-3. Set variables:
+1. New service in the same Railway project, from this repository.
+2. **Root Directory: leave EMPTY.** Not `apps/driver-dist`. The build context has to be the repository
+   root, because `railway.driver-dist.json` lives there and the Dockerfile's paths are repo-relative.
+   Pointing the root directory at the service folder is what broke the first attempt: Railway then
+   read `apps/driver-dist/package.json`, found no `engines`, chose Node 18, and Node 18's bundled
+   corepack could not verify npm's current signing keys — `Cannot find matching keyid`. It also fell
+   back to the default `railway.json`, so it was running the *web app's* build command.
+3. **Config-as-code path: `railway.driver-dist.json`.** Without this the service silently uses
+   `railway.json` and builds the API instead.
+4. Attach a **volume** mounted at `/data`. Artifacts must survive a redeploy.
+5. Set variables:
    - `TESTER_PASSWORD` — the passphrase you hand testers with the link
    - `UPLOAD_TOKEN` — generate with `openssl rand -hex 32`; CI holds this, nobody else
-4. Deploy, then confirm `https://<dist-host>/healthz` reports `"status":"ok"`. It reports
+6. Deploy, then confirm `https://<dist-host>/healthz` reports `"status":"ok"`. It reports
    `misconfigured` until both variables are set, and refuses every request in that state.
+
+The service builds from `apps/driver-dist/Dockerfile` — a pinned `node:22-alpine` that copies two
+files. No package manager, no workspace install, seconds per build. It has zero dependencies, so
+there is nothing for a builder to resolve, and nothing in the rest of the repository can affect it.
+
+If the *API* service ever hits the same corepack error, set `NIXPACKS_NODE_VERSION=22` on it — the
+root `package.json` already declares `engines.node >= 22`, so it should pick Node 22 on its own.
 
 ## 5. Remaining GitHub configuration (owner)
 
