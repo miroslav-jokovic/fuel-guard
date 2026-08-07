@@ -71,6 +71,7 @@ const config: ExpoConfig = {
     edgeToEdgeEnabled: true,
   },
   plugins: [
+    './plugins/withGradleMemory.js',
     // Signs release APKs with our keystore instead of Expo's debug one (inert without CI env).
     './plugins/withReleaseSigning.js',
     'expo-router',
