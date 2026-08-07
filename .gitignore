@@ -69,3 +69,6 @@ mnt_to_delete_*
 *.bundle
 *.bundle.lock
 *.tar
+
+# Gradle build state inside the local native module
+apps/driver/modules/capture-native/android/.gradle/
