@@ -84,8 +84,7 @@ export const FEATURE_CATALOG: Record<FeatureKey, FeatureDef> = {
     defaultEnabled: true,
     released: true,
     label: "Loads",
-    description:
-      "The Loads tab, load routes and Home's assignment sections. Hide org-wide while your loads process isn't ready (D-PM1) — they disappear together, never half-off.",
+    description: "Show assigned loads, routes, and upcoming work on Home and in the Loads tab.",
   },
   "tab.score": {
     key: "tab.score",
@@ -93,8 +92,7 @@ export const FEATURE_CATALOG: Record<FeatureKey, FeatureDef> = {
     defaultEnabled: true,
     released: true,
     label: "Driver score",
-    description:
-      "The Score tab and Home's weekly tiles. Score visibility is fleet culture (D-PM3); hiding it hides both surfaces together.",
+    description: "Show drivers their weekly performance summary on Home and, optionally, in a dedicated Score tab.",
   },
   "hazmat.capture": {
     key: "hazmat.capture",
@@ -102,7 +100,7 @@ export const FEATURE_CATALOG: Record<FeatureKey, FeatureDef> = {
     defaultEnabled: true,
     released: true,
     label: "Hazmat checks",
-    description: "BOL capture and compliance verdicts in the driver app (standalone hub, and the load-flow step once Loads ships).",
+    description: "Let drivers capture bills of lading and review hazmat compliance checks from the app.",
   },
   messages: {
     key: "messages",
@@ -110,7 +108,7 @@ export const FEATURE_CATALOG: Record<FeatureKey, FeatureDef> = {
     defaultEnabled: true,
     released: true, // Phase 7 shipped: driver inbox/thread + web dispatch inbox
     label: "Messages",
-    description: "Dispatch ↔ driver messaging — driver inbox in the app, dispatch inbox on the dashboard.",
+    description: "Let dispatch and drivers exchange messages in a shared, load-aware inbox.",
   },
   notifications: {
     key: "notifications",
@@ -118,7 +116,7 @@ export const FEATURE_CATALOG: Record<FeatureKey, FeatureDef> = {
     defaultEnabled: true,
     released: true, // Phase 6 shipped: centre + bell + push delivery + producers
     label: "Notifications",
-    description: "Push notifications, the in-app centre and the bell on Home. Config pins the org-enabled categories (D-PM7).",
+    description: "Send push alerts and show important updates in the notification center and on Home.",
   },
   "duty.odometer": {
     key: "duty.odometer",
@@ -126,8 +124,7 @@ export const FEATURE_CATALOG: Record<FeatureKey, FeatureDef> = {
     defaultEnabled: true,
     released: true,
     label: "Odometer at check-in",
-    description:
-      "off / optional / required (D-PM2). Recommended: required for fleets without telematics; optional or off where the Samsara feed already supplies authoritative readings.",
+    description: "Choose whether drivers enter an odometer reading when they start a shift.",
   },
   "duty.takeover": {
     key: "duty.takeover",
@@ -135,7 +132,7 @@ export const FEATURE_CATALOG: Record<FeatureKey, FeatureDef> = {
     defaultEnabled: true,
     released: true,
     label: "Equipment take-over",
-    description: "Allow a driver to take over an in-use unit (with the who-holds-it confirmation). Off = dispatch reassigns instead.",
+    description: "Allow drivers to claim an in-use unit after confirming who currently holds it. Otherwise, dispatch must reassign it.",
   },
   "nav.preview": {
     key: "nav.preview",

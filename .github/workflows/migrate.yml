@@ -7,7 +7,9 @@ name: Apply Supabase migrations
 #   SUPABASE_ACCESS_TOKEN  — a personal access token (Supabase dashboard → Account → Access Tokens)
 #   SUPABASE_PROJECT_REF   — the project ref (Project Settings → General → Reference ID)
 #   SUPABASE_DB_PASSWORD   — the database password you set when creating the project
-# Until those secrets exist the job simply fails harmlessly; it never touches anything without them.
+# The job ASSERTS all three up front. It used to "fail harmlessly" without them, which is how a
+# migration can appear to have shipped while the database sat untouched for weeks — the failure mode
+# that produced the 2026-08-07 "why don't I see my changes?" investigation. Silence is the bug.
 
 on:
   push:
@@ -23,6 +25,16 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - name: Assert the Supabase secrets exist
+        run: |
+          missing=()
+          [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ] && missing+=(SUPABASE_ACCESS_TOKEN)
+          [ -z "${{ secrets.SUPABASE_PROJECT_REF }}" ] && missing+=(SUPABASE_PROJECT_REF)
+          [ -z "${{ secrets.SUPABASE_DB_PASSWORD }}" ] && missing+=(SUPABASE_DB_PASSWORD)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]} — migrations were NOT applied."
+            exit 1
+          fi
       - uses: supabase/setup-cli@v1
         with:
           version: latest
@@ -30,3 +42,5 @@ jobs:
         run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
       - name: Apply migrations (only ones not yet applied)
         run: supabase db push
+      - name: Report the applied version
+        run: supabase migration list --linked | tail -20

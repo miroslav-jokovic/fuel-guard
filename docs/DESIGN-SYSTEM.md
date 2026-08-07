@@ -53,6 +53,7 @@ Canvas can't read CSS vars — `features/dashboard/chartTheme.ts` resolves the
 | `BaseButton` | every hand-rolled `<button>`/link-button | `variant` primary·secondary·danger·soft·ghost, `size` sm·md, `block`, `to` |
 | `BaseInput` | raw `<input>` + local `inputCls` | attrs fall through; `invalid` prop; `text-base sm:text-sm` (no iOS zoom) |
 | `BaseCheckbox` | raw checkboxes | slot = inline label |
+| `BaseSwitch` | hand-rolled feature toggles | accessible immediate on/off settings; pass an `aria-label` when needed |
 | `FormField` | ad-hoc label/error markup | `label`, `error`, `hint`, `required`; exposes `id` to slot |
 | `BaseCard` | `rounded-lg bg-white shadow-sm ring-1 ring-gray-200` divs | `padding` none·sm·md |
 | `PageHeader` | ad-hoc description/actions rows | `description` + `#actions` |

@@ -1,0 +1,13 @@
+{
+  "name": "@fuelguard/driver-dist",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Internal Android build distribution for the FuelGuard driver app. Zero dependencies on purpose.",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "DATA_DIR=./.data TESTER_PASSWORD=dev UPLOAD_TOKEN=dev node server.mjs",
+    "typecheck": "node --check server.mjs",
+    "test": "node --check server.mjs"
+  }
+}

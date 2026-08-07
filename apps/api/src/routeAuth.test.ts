@@ -13,7 +13,14 @@ import { loadEnv } from "./env.js";
  */
 // /api/auth is the driver-login exchange — public BY DEFINITION (it is how a session is obtained);
 // it carries its own throttles + uniform errors (routes/auth.ts) instead of requireAuth.
-const PUBLIC_PREFIXES = new Set(["/api/webhooks", "/api/auth", "/api/public/hazmat"]);
+// /api/version reports the deployed commit and migration version. Public deliberately: a version
+// endpoint that needs a token is one nobody checks, and it publishes nothing tenant-scoped.
+const PUBLIC_PREFIXES = new Set([
+  "/api/webhooks",
+  "/api/auth",
+  "/api/public/hazmat",
+  "/api/version",
+]);
 
 /**
  * Discover every mounted /api router from app.ts source.

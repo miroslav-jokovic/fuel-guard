@@ -1,0 +1,189 @@
+name: Driver app — Android build
+
+# Builds a signed release APK and publishes it to the internal install page (ship-pipeline plan D1).
+#
+# WHY THIS EXISTS. Until this workflow, the only route from this repository to a phone was
+# `expo run:android` on one person's Mac. Every driver-app change therefore shipped to nobody: the
+# API deployed, the migrations ran, and the app on the device stayed exactly as old as the last time
+# somebody plugged a cable in. On 2026-08-07 that cost an hour of "why don't I see my changes?".
+#
+# Required repository secrets — the job asserts them and fails loudly rather than half-working:
+#   ANDROID_KEYSTORE_BASE64      base64 of the release keystore (see docs/plans/ship-pipeline)
+#   ANDROID_KEYSTORE_PASSWORD    keystore password
+#   ANDROID_KEY_ALIAS            key alias inside the keystore
+#   ANDROID_KEY_PASSWORD         key password
+#   DRIVER_DIST_URL              https origin of the driver-dist service on Railway
+#   DRIVER_DIST_UPLOAD_TOKEN     the UPLOAD_TOKEN that service is configured with
+#   EXPO_PUBLIC_API_URL          API the build should talk to
+#   EXPO_PUBLIC_SUPABASE_URL     Supabase project URL
+#   EXPO_PUBLIC_SUPABASE_ANON_KEY  publishable key (ships in the bundle by design)
+# Optional: EXPO_PUBLIC_MAP_STYLE_URL, EXPO_PUBLIC_MAP_STYLE_URL_DARK, EXPO_PUBLIC_SENTRY_DSN
+#
+# LOSING THE KEYSTORE IS UNRECOVERABLE: Android refuses to upgrade an app whose signing key changed,
+# so every tester would have to uninstall first. Keep a copy outside GitHub.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/driver/**"
+      - "packages/**"
+      - ".github/workflows/driver-android.yml"
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "Release notes shown on the install page"
+        required: false
+        default: ""
+
+concurrency:
+  group: driver-android
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert required secrets are present
+        env:
+          REQUIRED: |
+            ANDROID_KEYSTORE_BASE64
+            ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_ALIAS
+            ANDROID_KEY_PASSWORD
+            DRIVER_DIST_URL
+            DRIVER_DIST_UPLOAD_TOKEN
+            EXPO_PUBLIC_API_URL
+            EXPO_PUBLIC_SUPABASE_URL
+            EXPO_PUBLIC_SUPABASE_ANON_KEY
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          missing=()
+          while read -r name; do
+            [ -z "$name" ] && continue
+            value=$(echo "$SECRETS_JSON" | jq -r --arg n "$name" '.[$n] // empty')
+            [ -z "$value" ] && missing+=("$name")
+          done <<< "$REQUIRED"
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}"
+            echo "A build that silently skips signing or publishing is worse than no build. Stopping."
+            exit 1
+          fi
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package for React Native
+        run: pnpm --filter @fuelguard/shared build:rn
+
+      - name: Write driver environment
+        working-directory: apps/driver
+        run: |
+          {
+            echo "EXPO_PUBLIC_API_URL=${{ secrets.EXPO_PUBLIC_API_URL }}"
+            echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}"
+            echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}"
+            echo "EXPO_PUBLIC_MAP_STYLE_URL=${{ secrets.EXPO_PUBLIC_MAP_STYLE_URL }}"
+            echo "EXPO_PUBLIC_MAP_STYLE_URL_DARK=${{ secrets.EXPO_PUBLIC_MAP_STYLE_URL_DARK }}"
+            echo "EXPO_PUBLIC_SENTRY_DSN=${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}"
+          } > .env
+
+      - name: Decode signing keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/fuelguard-release.keystore"
+          test -s "$RUNNER_TEMP/fuelguard-release.keystore"
+
+      # `android/` is generated, never committed — so the release signing config must be injected on
+      # every run by plugins/withReleaseSigning.js, which reads the env below.
+      - name: Prebuild the Android project
+        working-directory: apps/driver
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/fuelguard-release.keystore
+          UPDATES_URL: ${{ secrets.UPDATES_URL }}
+          UPDATES_APP_ID: ${{ secrets.UPDATES_APP_ID }}
+        run: pnpm exec expo prebuild --platform android --no-install --clean
+
+      - name: Assemble signed release APK
+        working-directory: apps/driver/android
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/fuelguard-release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          UPDATES_URL: ${{ secrets.UPDATES_URL }}
+          UPDATES_APP_ID: ${{ secrets.UPDATES_APP_ID }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      # A debug-signed APK installs fine, which is precisely why this check exists: without it the
+      # fleet could end up on builds signed with Android's publicly known debug key, and the first
+      # correctly signed release would then refuse to install over them.
+      - name: Verify the APK is not debug-signed
+        run: |
+          apk=apps/driver/android/app/build/outputs/apk/release/app-release.apk
+          test -f "$apk" || { echo "::error::APK not produced at $apk"; exit 1; }
+          signer=$("$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$apk" | grep -i "Signer #1 certificate DN" || true)
+          echo "$signer"
+          if echo "$signer" | grep -qi "CN=Android Debug"; then
+            echo "::error::APK is signed with the Android debug key — the release signing config did not apply."
+            exit 1
+          fi
+
+      # The fingerprint of the native project this APK was built from. The OTA workflow compares its
+      # own fingerprint with this one to decide "JavaScript-only, publish an update" versus "native
+      # changed, this needs a new APK". Both are computed on the same runner image, which is exactly
+      # what makes them comparable — a fingerprint computed on somebody's laptop would not be.
+      - name: Compute the native fingerprint
+        id: fingerprint
+        working-directory: apps/driver
+        run: echo "hash=$(node scripts/native-fingerprint.mjs)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to the internal install page
+        env:
+          DIST_URL: ${{ secrets.DRIVER_DIST_URL }}
+          UPLOAD_TOKEN: ${{ secrets.DRIVER_DIST_UPLOAD_TOKEN }}
+          NOTES: ${{ github.event.inputs.notes || github.event.head_commit.message }}
+        run: |
+          apk=apps/driver/android/app/build/outputs/apk/release/app-release.apk
+          version=$(node -p "require('./apps/driver/package.json').version")
+          runtime=$(node -p "require('./apps/driver/runtime-version.json').runtimeVersion")
+          file="fuelguard-driver-${version}-${{ github.run_number }}-$(echo ${{ github.sha }} | cut -c1-7).apk"
+          curl --fail-with-body -sS -X PUT \
+            -H "Authorization: Bearer ${UPLOAD_TOKEN}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            -H "x-release-version: ${version} (build ${{ github.run_number }})" \
+            -H "x-release-commit: ${{ github.sha }}" \
+            -H "x-release-runtime: ${runtime}" \
+            -H "x-release-fingerprint: ${{ steps.fingerprint.outputs.hash }}" \
+            -H "x-release-notes: $(printf '%s' "$NOTES" | base64 | tr -d '\n')" \
+            --data-binary "@${apk}" \
+            "${DIST_URL%/}/api/releases/${file}"
+          echo "Published ${file}"
+          echo "### Driver APK published" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`${file}\` — install page: ${DIST_URL}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the APK on the run as a fallback
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuelguard-driver-apk
+          path: apps/driver/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30

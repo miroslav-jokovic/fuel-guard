@@ -1,0 +1,148 @@
+name: Driver app — publish JS update
+
+# Ships JavaScript-only changes to phones that are already installed, without a rebuild
+# (ship-pipeline plan D2.4). This is the workflow that makes "I don't see my changes" go away for
+# everything except native work: push to main, and every test device picks it up on next launch.
+#
+# The safety property that matters: an update must NEVER land on a binary lacking the native code it
+# calls. This job proves that by comparing the native fingerprint of THIS commit with the one
+# recorded for the APK currently on the install page. Same fingerprint → publish. Different → the
+# change is native, so it dispatches an APK build and publishes nothing.
+#
+# Both fingerprints are computed on the same GitHub runner image. That is not incidental: a
+# fingerprint computed on somebody's laptop is not comparable with one computed in CI, which is
+# exactly why the fingerprint is a CI-side gate here rather than the app's runtimeVersion.
+#
+# Required repository secrets:
+#   UPDATES_URL, UPDATES_APP_ID     the xprem server origin and the app UUID from its dashboard
+#   EOO_TOKEN                       app-scoped API token from the xprem dashboard
+#   DRIVER_DIST_URL                 install-page service (read to find the last shipped fingerprint)
+#   DRIVER_DIST_UPLOAD_TOKEN        also authorises reading /api/releases
+#   EXPO_PUBLIC_API_URL, EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
+# Optional repository variable:
+#   XPREM_VERSION                   pins the eoas CLI to the deployed server version (default 3.1.1)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/driver/**"
+      - "packages/**"
+      - ".github/workflows/driver-ota.yml"
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "Update message shown in the xprem dashboard"
+        required: false
+        default: ""
+
+concurrency:
+  group: driver-ota
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write # to dispatch the Android build when the native side changed
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert required secrets are present
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          missing=()
+          for name in UPDATES_URL UPDATES_APP_ID EOO_TOKEN DRIVER_DIST_URL DRIVER_DIST_UPLOAD_TOKEN \
+                      EXPO_PUBLIC_API_URL EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY; do
+            value=$(echo "$SECRETS_JSON" | jq -r --arg n "$name" '.[$n] // empty')
+            [ -z "$value" ] && missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package for React Native
+        run: pnpm --filter @fuelguard/shared build:rn
+
+      - name: Compute this commit's native fingerprint
+        id: now
+        working-directory: apps/driver
+        env:
+          UPDATES_URL: ${{ secrets.UPDATES_URL }}
+          UPDATES_APP_ID: ${{ secrets.UPDATES_APP_ID }}
+        run: echo "hash=$(node scripts/native-fingerprint.mjs)" >> "$GITHUB_OUTPUT"
+
+      - name: Read the fingerprint of the installed APK
+        id: shipped
+        env:
+          DIST_URL: ${{ secrets.DRIVER_DIST_URL }}
+          UPLOAD_TOKEN: ${{ secrets.DRIVER_DIST_UPLOAD_TOKEN }}
+        run: |
+          body=$(curl -sS --max-time 20 -H "Authorization: Bearer ${UPLOAD_TOKEN}" "${DIST_URL%/}/api/releases" || echo '{}')
+          echo "hash=$(echo "$body" | jq -r '.releases[0].fingerprint // empty')" >> "$GITHUB_OUTPUT"
+          echo "runtime=$(echo "$body" | jq -r '.releases[0].runtimeVersion // empty')" >> "$GITHUB_OUTPUT"
+
+      # No APK has ever been published, or the last one predates fingerprint recording. Publishing in
+      # that state would be guessing about a binary we know nothing about — so we do not.
+      - name: Require a published APK to compare against
+        if: steps.shipped.outputs.hash == ''
+        run: echo "::warning::No published APK carries a fingerprint yet — run 'Driver app — Android build' first. Skipping the update."
+
+      - name: Native side changed — build an APK instead of publishing an update
+        if: steps.shipped.outputs.hash != '' && steps.now.outputs.hash != steps.shipped.outputs.hash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "::notice::Native fingerprint changed. This change cannot ship over the air."
+          gh workflow run driver-android.yml --ref "${{ github.ref_name }}" \
+            -f notes="Native change: ${{ github.event.head_commit.message }}"
+          {
+            echo "### Native change detected"
+            echo "Dispatched an Android build; testers must install the new APK. No update was published."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the update
+        if: steps.shipped.outputs.hash != '' && steps.now.outputs.hash == steps.shipped.outputs.hash
+        working-directory: apps/driver
+        env:
+          # eoas does not read .env files and runs `expo export` with EXPO_NO_DOTENV=1, so every
+          # variable the bundle needs has to be present in the real process environment here.
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_MAP_STYLE_URL: ${{ secrets.EXPO_PUBLIC_MAP_STYLE_URL }}
+          EXPO_PUBLIC_MAP_STYLE_URL_DARK: ${{ secrets.EXPO_PUBLIC_MAP_STYLE_URL_DARK }}
+          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+          UPDATES_URL: ${{ secrets.UPDATES_URL }}
+          UPDATES_APP_ID: ${{ secrets.UPDATES_APP_ID }}
+          EOO_TOKEN: ${{ secrets.EOO_TOKEN }}
+          RELEASE_CHANNEL: production
+          MESSAGE: ${{ github.event.inputs.message || github.event.head_commit.message }}
+        run: |
+          # Pinned to the deployed server version on purpose — CLI and server move together.
+          npx --yes eoas@${{ vars.XPREM_VERSION || '3.1.1' }} publish \
+            --branch production \
+            --platform android \
+            --packageRunner "pnpm exec" \
+            --message "$MESSAGE" \
+            --nonInteractive
+          {
+            echo "### JavaScript update published"
+            echo "runtime \`${{ steps.shipped.outputs.runtime }}\` on branch \`production\` — installed devices pick it up on next launch."
+          } >> "$GITHUB_STEP_SUMMARY"

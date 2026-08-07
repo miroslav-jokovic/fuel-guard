@@ -18,6 +18,7 @@ import { runSync, useSyncState } from '@/data/sync';
 import { DEV_PING_KIND } from '@/data/handlers';
 import { revokePushRegistration } from '@/features/notifications/push';
 import { haptics } from '@/lib/haptics';
+import { BuildInfoCard } from '@/features/support/BuildInfoCard';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -96,6 +97,8 @@ export default function Settings() {
           />
         </>
       ) : null}
+
+      <BuildInfoCard />
 
       <SectionLabel>Session</SectionLabel>
       <Button

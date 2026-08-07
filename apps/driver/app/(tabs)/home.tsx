@@ -25,6 +25,7 @@ import { useThreads } from '@/features/messages/useMessages';
 import { MessagesButton } from '@/features/messages/MessagesButton';
 import { homeScoreSummary } from '@/features/score/scoreModel';
 import { useDriverScore } from '@/features/score/useDriverScore';
+import { UpdateReadyBanner } from '@/features/updates/UpdateReadyBanner';
 
 function timeGreeting(): string {
   const h = new Date().getHours();
@@ -69,6 +70,8 @@ export default function Home() {
 
   return (
     <Screen>
+      {/* Downloaded-and-waiting JS update. Renders nothing unless one is ready (ship-pipeline D2.5). */}
+      <UpdateReadyBanner />
       <View className="flex-row items-center gap-3">
         <View className="flex-1 gap-0.5">
           {showSkeletons ? (

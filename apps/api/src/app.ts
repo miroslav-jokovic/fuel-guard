@@ -9,7 +9,9 @@ import * as Sentry from "@sentry/node";
 import { APP_NAME } from "@fuelguard/shared";
 import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
-import { apiError } from "./lib/http.js";
+import { apiError, asyncHandler } from "./lib/http.js";
+import { getBuildInfo } from "./lib/buildInfo.js";
+import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
 import { registerAllHandlers } from "./services/queue/handlers/index.js";
 import { invitesRouter } from "./routes/invites.js";
@@ -36,6 +38,7 @@ import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
 import { authRouter } from "./routes/auth.js";
+import { versionRouter } from "./routes/version.js";
 
 /**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
@@ -131,9 +134,23 @@ export function createApp(env: Env): Express {
   app.use("/api/ai", strictLimiter);
   app.use("/api/public", calcLimiter); // M7 public calculator — unauthenticated, tighter limit
 
-  app.get("/healthz", (_req: Request, res: Response) => {
-    res.json({ status: "ok", service: `${APP_NAME} API`, env: env.NODE_ENV });
-  });
+  // Liveness for Railway AND a one-glance answer to "is this deploy whole?". Always 200 — a schema
+  // that is merely behind is a degraded deploy, not a dead process, and failing the healthcheck
+  // would make Railway roll back the very build that is waiting on the migration. Detail lives in
+  // GET /api/version; the schema read behind this is cached for 30s (lib/schemaVersion.ts).
+  app.get(
+    "/healthz",
+    asyncHandler(async (_req: Request, res: Response) => {
+      const schema = await getSchemaStatus(env);
+      res.json({
+        status: schema.drift ? "degraded" : "ok",
+        service: `${APP_NAME} API`,
+        env: env.NODE_ENV,
+        commit: getBuildInfo().commitShort,
+        schema: schema.state,
+      });
+    }),
+  );
 
   // Current principal from the verified JWT (org/role may be null until membership exists).
   app.get("/api/me", requireAuth, (req: Request, res: Response) => {
@@ -145,6 +162,8 @@ export function createApp(env: Env): Express {
     });
   });
 
+  // Deploy truth (ship-pipeline D0.3). Public by design — see routes/version.ts.
+  app.use("/api/version", versionRouter());
   app.use("/api/invites", invitesRouter());
   // Phase 6: the notification centre. Written for this prefix all along ("Mounted under
   // /api/me/notifications" in its header) but never wired — the whole API was dead code until

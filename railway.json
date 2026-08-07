@@ -20,7 +20,9 @@
       "!**/*.test.mjs",
       "!**/*.spec.ts",
       "!**/*.spec.tsx",
-      "!**/__tests__/**"
+      "!**/__tests__/**",
+      "!apps/driver/**",
+      "!apps/driver-dist/**"
     ]
   },
   "deploy": {

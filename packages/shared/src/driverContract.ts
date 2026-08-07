@@ -25,25 +25,52 @@ export const meAssignedVehicleSchema = z.object({
 });
 export type MeAssignedVehicle = z.infer<typeof meAssignedVehicleSchema>;
 
-export const meDriverResponseSchema = z.object({
+/**
+ * The bootstrap payload, in two shapes — deliberately asymmetric (ship-pipeline decision D-S6).
+ *
+ * `modules` and `features` are the control plane: what this tenant bought, and what its drivers may
+ * see. Both were made REQUIRED after an API refactor silently dropped the `org_modules` read and a
+ * `.default([])` turned that regression into "every driver sees nothing", with no error anywhere.
+ * Requiring them made that failure loud — but it also made it FATAL on the client: an API one deploy
+ * behind fails the parse, and the driver app collapses to a red banner and two tabs. That is a worse
+ * outcome than a degraded app, and it is a self-inflicted one, because deploy skew is normal.
+ *
+ * So: the SERVER is held to the strict shape by its own contract test (`meDriverResponseStrictSchema`),
+ * where a missing field is a build-breaking failure with a name attached. The CLIENT is tolerant, and
+ * records the fact in `contractDegraded` so the app can say "your app is talking to an older server"
+ * in the build-info row instead of pretending to be broken. Loud where a human will act on it,
+ * survivable where a driver is standing in a yard at 5am.
+ */
+const meDriverResponseFieldsSchema = z.object({
   driver: meDriverSchema,
   vehicles: z.array(meAssignedVehicleSchema),
-  /**
-   * Which modules this tenant has bought — the app hides what it does not have (D55).
-   * REQUIRED, deliberately: this field once had `.default([])`, which silently masked an API
-   * refactor that dropped the org_modules read — every driver parsed fine and saw zero modules.
-   * A missing field must be a loud parse error, never an empty entitlement set.
-   */
-  modules: z.array(orgModuleSchema),
+  /** Which modules this tenant has bought — the app hides what it does not have (D55). */
+  modules: z.array(orgModuleSchema).optional(),
   /**
    * The server-RESOLVED driver-app feature set (hardening plan Phase 4): released × entitled ×
    * org-enabled × per-driver override, computed in ONE place (`resolveFeatures`). The app consumes
-   * this and never re-derives policy. REQUIRED for the same reason as `modules` — absence must be
-   * a loud parse error, not a silently featureless app.
+   * this and never re-derives policy.
    */
-  features: z.array(featureStateSchema),
+  features: z.array(featureStateSchema).optional(),
 });
+
+/** Client-side parse: never fails on a server that predates the control plane. */
+export const meDriverResponseSchema = meDriverResponseFieldsSchema.transform((raw) => ({
+  driver: raw.driver,
+  vehicles: raw.vehicles,
+  modules: raw.modules ?? [],
+  features: raw.features ?? [],
+  /** True when the server omitted the control-plane fields entirely — i.e. deploy skew, not an org
+   *  that simply owns nothing. Surfaced in Settings → build info; never used to grant access. */
+  contractDegraded: raw.modules === undefined || raw.features === undefined,
+}));
 export type MeDriverResponse = z.infer<typeof meDriverResponseSchema>;
+
+/** Server-side contract: the API must always send both fields. Asserted in the API's own tests. */
+export const meDriverResponseStrictSchema = meDriverResponseFieldsSchema.required({
+  modules: true,
+  features: true,
+});
 
 // ── Driver Performance self-view (Phase 5 / docs/16-DRIVER-PERFORMANCE.md) ──────────────────────
 // The signed-in driver's OWN frozen weekly grades from driver_performance_weeks. The API scopes the

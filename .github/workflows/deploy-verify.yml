@@ -1,0 +1,53 @@
+name: Verify deployment
+
+# Closes the loop that was missing entirely (ship-pipeline plan D4): after a push to main, confirm
+# that Railway is actually serving THIS commit and that Supabase is at the migration version this
+# commit expects. Without this, a failed deploy is silent — the repository looks shipped, the app
+# behaves as if nothing changed, and the only way to find out is to probe by hand.
+#
+# Requires one repository variable (not a secret — it is a public URL):
+#   API_URL   e.g. https://fleetguardweb-production.up.railway.app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the API URL is configured
+        run: |
+          if [ -z "${{ vars.API_URL }}" ]; then
+            echo "::error::Repository variable API_URL is not set — cannot verify the deployment."
+            exit 1
+          fi
+
+      # Railway builds and migrations both take a few minutes; poll rather than guess a sleep.
+      - name: Wait for Railway to serve this commit
+        env:
+          API_URL: ${{ vars.API_URL }}
+          EXPECTED: ${{ github.sha }}
+        run: |
+          deadline=$(( $(date +%s) + 900 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            body=$(curl -sS --max-time 15 "${API_URL%/}/api/version" || echo '{}')
+            live=$(echo "$body" | jq -r '.commit // empty')
+            schema=$(echo "$body" | jq -r '.schema.state // "unknown"')
+            echo "live=${live:-none} schema=${schema}"
+            if [ "$live" = "$EXPECTED" ]; then
+              if [ "$schema" = "current" ]; then
+                echo "✓ ${API_URL} is serving ${EXPECTED::7} with a matching schema."
+                exit 0
+              fi
+              echo "  commit matches; waiting for migrations (schema=${schema})"
+            fi
+            sleep 20
+          done
+          echo "::error::Timed out. The deployed commit or schema never caught up with ${EXPECTED::7}."
+          echo "Check the Railway deploy log and the 'Apply Supabase migrations' workflow run for this commit."
+          exit 1

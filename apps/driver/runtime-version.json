@@ -1,0 +1,4 @@
+{
+  "runtimeVersion": "1.0.0",
+  "_comment": "Bump this whenever the NATIVE side changes: the local capture module, a native dependency, a config plugin, a permission, an entitlement, or expo-updates itself. An over-the-air update is only served to a binary whose runtime version matches, which is what stops JavaScript landing on an app missing the native code it calls. CI verifies you did not forget (.github/workflows/driver-ota.yml compares native fingerprints). Read by app.config.ts and by CI — one value, one place."
+}

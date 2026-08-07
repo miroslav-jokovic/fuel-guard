@@ -20,8 +20,10 @@ const props = withDefaults(
     options: SelectOption[];
     placeholder?: string;
     disabled?: boolean;
+    id?: string;
+    ariaLabel?: string;
   }>(),
-  { placeholder: "Select…", disabled: false },
+  { placeholder: "Select…", disabled: false, id: undefined, ariaLabel: undefined },
 );
 
 const emit = defineEmits<{ "update:modelValue": [value: OptionValue] }>();
@@ -63,9 +65,13 @@ function select(val: OptionValue) {
 <template>
   <div class="relative min-w-[8rem]">
     <button
+      :id="id"
       ref="triggerRef"
       type="button"
       :disabled="disabled"
+      :aria-label="ariaLabel"
+      :aria-expanded="open"
+      aria-haspopup="listbox"
       class="flex w-full items-center justify-between gap-2 rounded-md border-0 bg-surface px-3 py-1.5 text-left text-sm ring-1 ring-inset ring-edge-strong focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
       @click="open = !open"
     >
@@ -82,11 +88,15 @@ function select(val: OptionValue) {
           ref="panelRef"
           :style="floatingStyles"
           class="z-[9999] max-h-60 overflow-auto rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge"
+          role="listbox"
+          :aria-label="ariaLabel"
         >
           <button
             v-for="opt in options"
             :key="String(opt.value)"
             type="button"
+            role="option"
+            :aria-selected="opt.value === modelValue"
             class="flex w-full items-center px-3 py-2 text-left"
             :class="
               opt.value === modelValue

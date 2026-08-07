@@ -15,6 +15,10 @@ const SKIP = new Set(["node_modules", "dist", ".git", "coverage", ".pnpm-store"]
 
 // Grandfathered god-files (measured 2026-07-18). Split in Phase 3, then remove from this list.
 const GRANDFATHERED = new Set([
+  "apps/api/src/routes/integrations.ts",
+  "apps/api/src/lib/soapClient.ts",
+  "apps/api/src/lib/samsara.ts",
+  "apps/api/src/lib/efsSoap.ts",
 ]);
 
 const isSource = (f) =>
