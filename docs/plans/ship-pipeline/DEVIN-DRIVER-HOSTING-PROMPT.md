@@ -61,7 +61,7 @@ first two are what broke it.
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| **Root Directory** | **empty** | The build context must be the repository root. `railway.driver-dist.json` lives there and the Dockerfile's `COPY` paths are repo-relative. |
+| **Root Directory** | **empty** | It prunes the build context. Set to `apps/driver-dist` it broke the build twice — once via nixpacks/Node 18, once via a Docker `COPY` that could no longer resolve. The Dockerfile now handles either setting, but empty is correct. |
 | **Config-as-code path** | `railway.driver-dist.json` | Without it Railway uses `railway.json` and builds the API. |
 | **Volume** | mounted at `/data` | APKs must survive a redeploy. Railway mounts volumes at runtime only, which is why CI uploads finished artifacts rather than building into it. |
 | **Builder** | comes from the config file (`DOCKERFILE`, `apps/driver-dist/Dockerfile`) | Do not override it in the dashboard. |
@@ -195,6 +195,8 @@ before you read anything else:
 | `setup │ nodejs_18, npm-9_x` | Root Directory is pointed at a folder whose `package.json` has no `engines` | Clear Root Directory |
 | `Error: Cannot find matching keyid` from corepack | Node 18's corepack cannot verify npm's signing keys | Symptom of the above two — fix those, not this |
 | `Saved output to: snapshot-target-unpack/apps/driver-dist` | Root Directory is set | Clear it |
+| `failed to calculate checksum ... "/apps/driver-dist/server.mjs": not found` | Root Directory is set, so the Docker build context is that folder and the repo-relative `COPY` paths do not resolve | Clear Root Directory. The current Dockerfile locates its sources either way, so seeing this means the service is on an older image build |
+| `ERROR: driver-dist sources are not in this build context` + a directory listing | Neither expected layout matched — the context is something else entirely | Read the listing; it is printed for exactly this reason |
 | Nixpacks running at all for this service | The config file is not being read | Both settings above |
 | `SecretsUsedInArgOrEnv` warnings for `TESTER_PASSWORD` / `UPLOAD_TOKEN` | Railway injects service variables as build args | Harmless — ignore |
 

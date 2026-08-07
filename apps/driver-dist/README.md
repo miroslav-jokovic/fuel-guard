@@ -34,7 +34,8 @@ compared in constant time and both fail closed: unset means every request is ref
 
 Built from `Dockerfile` (`node:22-alpine`, two files copied, no package manager). On Railway:
 
-- **Root Directory: empty.** The build context must be the repository root.
+- **Root Directory: empty.** It prunes the build context. The Dockerfile locates its sources under
+  either setting, but empty is the correct value.
 - **Config path: `railway.driver-dist.json`.** Otherwise Railway falls back to `railway.json` and
   builds the API.
 - **Volume mounted at `/data`.**

@@ -62,12 +62,13 @@ encrypted offline outbox.
 ## 4. The install-page service on Railway (owner)
 
 1. New service in the same Railway project, from this repository.
-2. **Root Directory: leave EMPTY.** Not `apps/driver-dist`. The build context has to be the repository
-   root, because `railway.driver-dist.json` lives there and the Dockerfile's paths are repo-relative.
-   Pointing the root directory at the service folder is what broke the first attempt: Railway then
-   read `apps/driver-dist/package.json`, found no `engines`, chose Node 18, and Node 18's bundled
-   corepack could not verify npm's current signing keys — `Cannot find matching keyid`. It also fell
-   back to the default `railway.json`, so it was running the *web app's* build command.
+2. **Root Directory: prefer EMPTY.** Setting it to `apps/driver-dist` broke the first two attempts —
+   first because nixpacks then read that folder's `package.json`, found no `engines`, chose Node 18,
+   and Node 18's corepack could not verify npm's current signing keys (`Cannot find matching keyid`);
+   then, after the switch to Docker, because it prunes the build context and `COPY
+   apps/driver-dist/server.mjs` no longer resolves. The Dockerfile now locates its sources under
+   either setting, so this is no longer fatal — but empty is still the correct value, and a setting
+   that has been wrong twice is worth checking rather than assuming.
 3. **Config-as-code path: `railway.driver-dist.json`.** Without this the service silently uses
    `railway.json` and builds the API instead.
 4. Attach a **volume** mounted at `/data`. Artifacts must survive a redeploy.
