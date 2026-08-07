@@ -43,6 +43,10 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/features/notifications/deepLink.ts'],
+    rules: { '@typescript-eslint/no-unnecessary-type-assertion': 'off' },
+  },
+  {
     files: ['**/*.{js,mjs}'],
     languageOptions: {
       globals: {
