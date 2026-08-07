@@ -5,8 +5,8 @@ import { useTheme } from '@/theme/ThemeProvider';
 // Tiny trend line for stat tiles — the shape of the last N periods at a glance. Stretches to its
 // container width; the end-point dot marks "now".
 export function Sparkline({ data, height = 22 }: { data: number[]; height?: number }) {
-  const { isDark } = useTheme();
-  const rc = roleColors[isDark ? 'dark' : 'light'];
+  const { themeKey } = useTheme();
+  const rc = roleColors[themeKey];
 
   if (data.length < 2) return null;
   const W = 100;

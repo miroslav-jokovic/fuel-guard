@@ -1,12 +1,6 @@
-import { Text } from 'react-native';
-import { ui } from '@/theme/classes';
+import { AppText } from './AppText';
 
-// Uppercase micro-label that groups content on a screen (Home, More, Settings). One place,
-// one style — instead of each screen re-declaring it.
+/** Sentence-case grouped heading. Uppercase micro-labels are reserved for immutable short codes. */
 export function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text className={ui.sectionLabel}>
-      {children}
-    </Text>
-  );
+  return <AppText variant="sectionTitle" tone="secondary" className="pt-1">{children}</AppText>;
 }

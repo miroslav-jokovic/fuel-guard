@@ -1,32 +1,30 @@
-import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Pressable, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DECLINE_REASON_LABELS,
   equipmentRequiresTrailer,
   missingPhotoSlots,
   nextStop,
-  photoSlotLabel,
   stopProgress,
   type DeclineReason,
   type LoadStop,
 } from '@fuelguard/shared';
 import {
+  ActionBar,
+  AppText,
   Badge,
   Banner,
-  ActionBar,
   Button,
-  Card,
   ConfirmSheet,
+  GroupedList,
   Icon,
   ListRow,
-  Progress,
   Screen,
   ScreenHeader,
   SectionLabel,
   TaskStepper,
   type TaskStep,
-  type Tone,
 } from '@/components';
 import { appointmentLabel, placeLabel, stopTime } from '@/features/loads/loadViewModel';
 import {
@@ -38,80 +36,67 @@ import {
 } from '@/features/loads/useLoads';
 import { dutyView, useShift } from '@/features/duty/useDuty';
 
-const STOP_TONE: Record<LoadStop['status'], Tone> = {
-  pending: 'neutral',
-  arrived: 'info',
-  completed: 'success',
-  skipped: 'caution',
-};
+const STOP_STATE = {
+  pending: { label: 'Pending', text: 'text-ink-muted', icon: 'schedule' },
+  arrived: { label: 'Arrived', text: 'text-info', icon: 'pin_drop' },
+  completed: { label: 'Complete', text: 'text-operation-complete', icon: 'check_circle' },
+  skipped: { label: 'Skipped', text: 'text-warning', icon: 'warning' },
+} as const;
 
-/** Ordered stops with their photo checklist — the itinerary a driver actually works. */
 function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; onPress?: () => void }) {
   const missing = missingPhotoSlots(stop);
-  return (
-    <Card onPress={onPress}>
-      <View className="flex-row items-center gap-2 pb-1">
-        <View
-          className={`h-6 w-6 items-center justify-center rounded-full ${
-            stop.status === 'completed' ? 'bg-success/10' : isNext ? 'bg-brand/10' : 'bg-surface-muted'
-          }`}
-        >
-          {stop.status === 'completed' ? (
-            <Icon name="check" size={14} className="text-success" />
-          ) : (
-            <Text
-              className={`text-xs font-sans-sb ${isNext ? 'text-brand' : 'text-ink-muted'}`}
-              style={{ fontVariant: ['tabular-nums'] }}
-            >
-              {stop.seq}
-            </Text>
-          )}
-        </View>
-        <Text className="flex-1 text-base font-sans-sb text-ink" numberOfLines={1}>
-          {stop.name}
-        </Text>
-        <Badge
-          label={stop.kind === 'pickup' ? 'Pick up' : 'Deliver'}
-          tone={stop.kind === 'pickup' ? 'info' : 'brand'}
-        />
-        {stop.status !== 'pending' ? (
-          <Badge label={stop.status} tone={STOP_TONE[stop.status]} />
-        ) : null}
-        {onPress ? <Icon name="chevron_right" size={18} className="text-ink-subtle" /> : null}
-      </View>
+  const completedPhotos = stop.required_photos.length - missing.length;
+  const state = STOP_STATE[stop.status];
 
-      <View className="gap-1 pl-8">
-        <Text className="text-sm text-ink-muted">{placeLabel(stop)}</Text>
-        <View className="flex-row items-center gap-1.5">
-          <Icon name="schedule" size={13} className="text-ink-subtle" />
-          <Text className="text-xs text-ink-muted" style={{ fontVariant: ['tabular-nums'] }}>
-            {appointmentLabel(stop)} · {stopTime(stop.appointment_start)}
-          </Text>
+  return (
+    <Pressable
+      accessibilityRole={onPress ? 'button' : undefined}
+      onPress={onPress}
+      className={`min-h-[76px] flex-row items-start gap-3 bg-surface px-4 py-3 ${onPress ? 'active:bg-surface-selected' : ''}`}
+    >
+      <View
+        className={`mt-0.5 h-7 w-7 items-center justify-center rounded-full border ${
+          stop.status === 'completed'
+            ? 'border-operation-complete bg-success/10'
+            : isNext
+              ? 'border-operation-current bg-brand-subtle'
+              : 'border-edge bg-surface-muted'
+        }`}
+      >
+        {stop.status === 'completed' ? (
+          <Icon name="check" size={15} className="text-operation-complete" />
+        ) : (
+          <AppText variant="caption" tone={isNext ? 'brand' : 'muted'} tabular className="font-semibold">
+            {stop.seq}
+          </AppText>
+        )}
+      </View>
+      <View className="flex-1 gap-0.5">
+        <View className="flex-row items-start gap-2">
+          <AppText variant="rowTitle" className="flex-1">{stop.name}</AppText>
+          <View className="flex-row items-center gap-1">
+            <Icon name={state.icon} size={14} className={state.text} />
+            <AppText variant="caption" className={`font-medium ${state.text}`}>{state.label}</AppText>
+          </View>
         </View>
+        <AppText variant="supporting" tone="muted">{placeLabel(stop)}</AppText>
+        <AppText variant="caption" tone="muted" tabular>
+          {stop.kind === 'pickup' ? 'Pick up' : 'Deliver'} · {appointmentLabel(stop)} · {stopTime(stop.appointment_start)}
+        </AppText>
         {stop.required_photos.length > 0 ? (
-          <View className="mt-1 flex-row flex-wrap items-center gap-1.5">
-            <Icon name="photo_camera" size={13} className="text-ink-subtle" />
-            {stop.required_photos.map((slot) => (
-              <Badge
-                key={slot}
-                label={photoSlotLabel(slot)}
-                tone={missing.includes(slot) ? 'neutral' : 'success'}
-                icon={missing.includes(slot) ? undefined : 'check'}
-              />
-            ))}
+          <View className="mt-1 flex-row items-center gap-1.5">
+            <Icon name="photo_camera" size={14} className={missing.length > 0 ? 'text-ink-muted' : 'text-operation-complete'} />
+            <AppText variant="caption" tone={missing.length > 0 ? 'muted' : 'success'}>
+              {completedPhotos} of {stop.required_photos.length} required photos
+            </AppText>
           </View>
         ) : null}
       </View>
-    </Card>
+      {onPress ? <Icon name="chevron_right" size={19} className="mt-1 text-ink-subtle" /> : null}
+    </Pressable>
   );
 }
 
-/**
- * Load detail — the itinerary, plus the one decision this screen exists for. The accept/decline copy
- * comes from the server-resolved driver type (D46): a company driver sees "I'm ready", an
- * owner-operator sees "Accept", and only the owner-operator's decline returns the load to dispatch.
- * Once the load is in transit, each open stop opens its capture flow.
- */
 export default function LoadDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -119,7 +104,6 @@ export default function LoadDetail() {
   const shift = useShift();
   const duty = dutyView(shift.data);
   const { copy } = useAcceptance();
-
   const accept = useAcceptLoad();
   const decline = useDeclineLoad();
   const start = useStartLoad();
@@ -128,7 +112,7 @@ export default function LoadDetail() {
 
   if (!load) {
     return (
-      <Screen>
+      <Screen padTop={false}>
         <ScreenHeader title="Load" onBack={() => router.back()} />
         <Banner tone="info" message="This load is no longer available. Pull to refresh your list." />
       </Screen>
@@ -139,9 +123,7 @@ export default function LoadDetail() {
   const next = nextStop(load);
   const progress = stopProgress(load);
   const needsTrailer = equipmentRequiresTrailer(load.equipment);
-  // D44.3 — the trailer gate is a prompt at the moment it matters, never a wall on arrival.
   const trailerGap = duty.onDuty && needsTrailer && !duty.hasTrailer;
-  // D47 — dispatch's plan vs what the driver is actually in. Flagged, never blocking.
   const equipmentDiffers =
     duty.onDuty && load.vehicle_unit !== null && duty.equipmentLabel !== null
       ? !duty.equipmentLabel.includes(load.vehicle_unit)
@@ -154,8 +136,74 @@ export default function LoadDetail() {
   }));
   const openStop = (stopId: string) => router.push(`/loads/${load.id}/stop/${stopId}` as never);
 
+  const attention = !duty.onDuty
+    ? {
+        tone: 'caution' as const,
+        icon: 'local_shipping' as const,
+        message: 'Confirm your truck before starting this load.',
+        label: 'Confirm',
+        action: () => router.push('/duty/check-in'),
+      }
+    : trailerGap
+      ? {
+          tone: 'caution' as const,
+          icon: 'route' as const,
+          message: `${load.equipment} requires a trailer. Add the one you’re pulling.`,
+          label: 'Add trailer',
+          action: () => router.push('/duty/check-in?mode=swap'),
+        }
+      : equipmentDiffers
+        ? {
+            tone: 'info' as const,
+            icon: 'info' as const,
+            message: `Dispatch planned Unit ${load.vehicle_unit}; current equipment is ${duty.equipmentLabel}. Dispatch has been notified.`,
+          }
+        : null;
+
+  let footer: ReactNode;
+  if (load.status === 'offered') {
+    footer = (
+      <ActionBar>
+        <Button
+          label={copy.primary}
+          size="lg"
+          icon="check_circle"
+          haptic="success"
+          loading={accept.isPending}
+          onPress={() => void accept.mutateAsync(load.id)}
+        />
+        <Button label={copy.secondary} variant="secondary" onPress={() => setDeclining(true)} />
+      </ActionBar>
+    );
+  } else if (load.status === 'accepted') {
+    footer = (
+      <ActionBar>
+        <Button
+          label="Start this trip"
+          size="lg"
+          icon="play_arrow"
+          haptic="success"
+          loading={start.isPending}
+          onPress={() => void start.mutateAsync(load.id)}
+        />
+      </ActionBar>
+    );
+  } else if (working && next) {
+    footer = (
+      <ActionBar>
+        <Button
+          label={`${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'} · ${placeLabel(next)}`}
+          size="lg"
+          icon="arrow_forward"
+          haptic="success"
+          onPress={() => openStop(next.id)}
+        />
+      </ActionBar>
+    );
+  }
+
   return (
-    <Screen>
+    <Screen padTop={false} footer={footer}>
       <ScreenHeader
         title={load.ref}
         subtitle={`${stops.length} stops · ${load.equipment ?? 'Load'}`}
@@ -163,125 +211,60 @@ export default function LoadDetail() {
         right={load.hazmat ? <Badge label="Hazmat" tone="warning" icon="warning" /> : undefined}
       />
 
-      {!duty.onDuty ? (
+      {attention ? (
         <Banner
-          tone="caution"
-          icon="local_shipping"
-          message="Confirm your truck before you start this load."
-          actionLabel="Confirm"
-          onAction={() => router.push('/duty/check-in')}
-        />
-      ) : null}
-
-      {trailerGap ? (
-        <Banner
-          tone="caution"
-          icon="route"
-          message={`${load.equipment} needs a trailer — add the one you're pulling.`}
-          actionLabel="Add"
-          onAction={() => router.push('/duty/check-in?mode=swap')}
-        />
-      ) : null}
-
-      {equipmentDiffers ? (
-        <Banner
-          tone="info"
-          icon="info"
-          message={`Dispatch planned Unit ${load.vehicle_unit}. You're in ${duty.equipmentLabel}. Dispatch has been told.`}
+          tone={attention.tone}
+          icon={attention.icon}
+          message={attention.message}
+          actionLabel={'label' in attention ? attention.label : undefined}
+          onAction={'action' in attention ? attention.action : undefined}
         />
       ) : null}
 
       <TaskStepper steps={taskSteps} />
-
       {working ? (
-        <Progress
-          label={`Stop ${progress.current} of ${progress.total}`}
-          detail={next ? `Next: ${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'} — ${placeLabel(next)}` : undefined}
-          value={progress.current / Math.max(progress.total, 1)}
-        />
+        <AppText variant="caption" tone="muted">
+          {progress.current} of {progress.total} stops complete
+          {next ? ` · Next: ${placeLabel(next)}` : ''}
+        </AppText>
       ) : null}
 
       <SectionLabel>Itinerary</SectionLabel>
-      {stops.map((stop) => (
-        <StopRow
-          key={stop.id}
-          stop={stop}
-          isNext={next?.id === stop.id}
-          onPress={
-            working && stop.status !== 'completed' && stop.status !== 'skipped'
-              ? () => openStop(stop.id)
-              : undefined
-          }
-        />
-      ))}
+      <GroupedList>
+        {stops.map((stop) => (
+          <StopRow
+            key={stop.id}
+            stop={stop}
+            isNext={next?.id === stop.id}
+            onPress={working && stop.status !== 'completed' && stop.status !== 'skipped' ? () => openStop(stop.id) : undefined}
+          />
+        ))}
+      </GroupedList>
 
       {load.commodity || load.notes ? (
         <>
-          <SectionLabel>Details</SectionLabel>
-          {load.commodity ? (
-            <ListRow icon="route" title="Commodity" subtitle={load.commodity} />
-          ) : null}
-          {load.notes ? <ListRow icon="info" title="Notes" subtitle={load.notes} /> : null}
+          <SectionLabel>Load details</SectionLabel>
+          <GroupedList>
+            {load.commodity ? <ListRow icon="route" title="Commodity" subtitle={load.commodity} /> : null}
+            {load.notes ? <ListRow icon="info" title="Notes" subtitle={load.notes} /> : null}
+          </GroupedList>
         </>
       ) : null}
 
-      {load.status === 'offered' ? (
-        <ActionBar>
-          <Button
-            label={copy.primary}
-            size="lg"
-            icon="check_circle"
-            haptic="success"
-            loading={accept.isPending}
-            onPress={() => void accept.mutateAsync(load.id)}
-          />
-          <Button
-            label={copy.secondary}
-            variant="secondary"
-            size="md"
-            onPress={() => setDeclining(true)}
-          />
-        </ActionBar>
-      ) : null}
-
-      {load.status === 'accepted' ? (
-        <ActionBar>
-          <Button
-            label="Start this trip"
-            size="lg"
-            icon="play_arrow"
-            haptic="success"
-            loading={start.isPending}
-            onPress={() => void start.mutateAsync(load.id)}
-          />
-        </ActionBar>
-      ) : null}
-
-      {working && next ? (
-        <ActionBar>
-          <Button
-            label={`Work next stop — ${next.kind === 'dropoff' ? 'Deliver' : 'Pick up'}`}
-            size="lg"
-            icon="photo_camera"
-            haptic="success"
-            onPress={() => openStop(next.id)}
-          />
-        </ActionBar>
-      ) : null}
-
-      {/* Reason first, then confirm — a decline that dispatch cannot explain is worse than none. */}
       {declining && reason === null ? (
-        <Card>
-          <SectionLabel>Why can&apos;t you take it?</SectionLabel>
-          {copy.reasons.map((r) => (
-            <ListRow
-              key={r}
-              title={DECLINE_REASON_LABELS[r]}
-              onPress={() => setReason(r)}
-            />
-          ))}
+        <>
+          <SectionLabel>Why can’t you take it?</SectionLabel>
+          <GroupedList>
+            {copy.reasons.map((declineReason) => (
+              <ListRow
+                key={declineReason}
+                title={DECLINE_REASON_LABELS[declineReason]}
+                onPress={() => setReason(declineReason)}
+              />
+            ))}
+          </GroupedList>
           <Button label="Never mind" variant="ghost" size="sm" onPress={() => setDeclining(false)} />
-        </Card>
+        </>
       ) : null}
 
       <ConfirmSheet
@@ -289,11 +272,9 @@ export default function LoadDetail() {
         tone="danger"
         icon="warning"
         title={copy.secondary}
-        message={
-          copy.unassignsOnDecline
-            ? 'This load goes back to dispatch and leaves your list.'
-            : 'Dispatch will be told you cannot take this one. It stays on your list until they decide.'
-        }
+        message={copy.unassignsOnDecline
+          ? 'This load goes back to dispatch and leaves your list.'
+          : 'Dispatch will be told you cannot take this one. It stays on your list until they decide.'}
         confirmLabel={copy.secondary}
         loading={decline.isPending}
         onConfirm={() => {

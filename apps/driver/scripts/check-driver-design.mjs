@@ -9,7 +9,9 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const SCAN = ['app', 'src'];
 const forbidden = [
-  { pattern: /\b(?:Inter|Roboto|Arial|Helvetica|Open Sans|Poppins)\b/i, message: 'use Hanken Grotesk through the font-sans-* classes' },
+  { pattern: /\b(?:Inter|Arial|Helvetica|Open Sans|Poppins)\b/i, message: 'use platform UI text through AppText and Hanken Grotesk only for approved display roles' },
+  { pattern: /font-sans(?:-|\b)/, message: 'use semantic AppText variants instead of legacy font aliases' },
+  { pattern: /<Text(?:\s|>)/, message: 'use AppText instead of raw React Native Text' },
   { pattern: /\bAlert\.alert\s*\(/, message: 'use ConfirmSheet or an intentional Banner instead of native Alert' },
   { pattern: /from\s+['"]@\/theme\/ramps['"]/, message: 'screens and components must use semantic color roles, not primitive ramps' },
   { pattern: /(?:rounded|border|shadow|space|gap|p[trblxy]?|m[trblxy]?)-\[/, message: 'do not introduce arbitrary layout values; use the 8pt design scale or update DESIGN.md first' },
@@ -30,6 +32,7 @@ for (const path of files) {
   const lines = readFileSync(path, 'utf8').split('\n');
   lines.forEach((line, index) => {
     for (const rule of forbidden) {
+      if (path.endsWith('src/components/AppText.tsx') && rule.pattern.source === '<Text(?:\\s|>)') continue;
       if (rule.pattern.test(line)) failures.push(`${path}:${index + 1} ${rule.message}`);
     }
   });

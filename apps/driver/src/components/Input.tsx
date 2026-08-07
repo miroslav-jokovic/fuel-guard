@@ -12,10 +12,10 @@ export function Input({
   ...rest
 }: { invalid?: boolean } & TextInputProps) {
   const [focused, setFocused] = useState(false);
-  const border = invalid ? 'border-danger' : focused ? 'border-brand' : 'border-edge-strong';
+  const border = invalid ? 'border-danger' : focused ? 'border-edge-focus' : 'border-edge';
   return (
     <TextInput
-      className={`min-h-[48px] rounded-lg border bg-surface px-3.5 text-base text-ink placeholder:text-ink-subtle ${border} ${
+      className={`min-h-12 rounded-lg border bg-surface px-3 font-ui text-body text-ink placeholder:text-ink-subtle ${border} ${
         focused && !invalid ? 'border-2' : ''
       }`}
       style={[{ paddingVertical: 8, textAlignVertical: 'center', includeFontPadding: false }, style]}

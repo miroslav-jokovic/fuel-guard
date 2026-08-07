@@ -1,8 +1,9 @@
-import { Text } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { AppText } from './AppText';
 import { Icon } from './Icon';
 import type { Tone } from './Badge';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
+import { useTheme } from '@/theme/ThemeProvider';
 
 const FG: Record<Tone, string> = {
   neutral: 'text-ink-inverse', brand: 'text-brand', danger: 'text-danger',
@@ -13,17 +14,16 @@ const ICON: Record<Tone, MaterialSymbolName> = {
   warning: 'warning', success: 'check_circle', info: 'info',
 };
 
-// Presentational toast/snackbar (plan §22.3): inverse pill, tone icon (not an abstract dot),
-// spring-in entrance. The imperative ToastHost lands with the loads flow.
 export function Toast({ tone = 'success', message }: { tone?: Tone; message: string }) {
+  const { reduceMotion } = useTheme();
   return (
     <Animated.View
-      entering={FadeInDown.springify().damping(18)}
-      className="flex-row items-center gap-2.5 self-stretch rounded-xl bg-surface-inverse px-4 py-3.5"
+      entering={reduceMotion ? undefined : FadeInDown.duration(160)}
+      className="flex-row items-center gap-2.5 self-stretch rounded-lg bg-surface-inverse px-4 py-3"
       accessibilityRole="alert"
     >
       <Icon name={ICON[tone]} size={18} fill className={FG[tone]} />
-      <Text className="flex-1 text-sm font-sans-md text-ink-inverse">{message}</Text>
+      <AppText variant="supporting" tone="inverse" className="flex-1 font-medium">{message}</AppText>
     </Animated.View>
   );
 }

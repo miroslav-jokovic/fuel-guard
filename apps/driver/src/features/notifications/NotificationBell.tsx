@@ -1,5 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
-import { Icon } from '@/components';
+import { Pressable, View } from 'react-native';
+import { AppText, Icon } from '@/components';
 import { haptics } from '@/lib/haptics';
 
 /**
@@ -23,12 +23,15 @@ export function NotificationBell({ unread, onPress }: { unread: number; onPress:
       <Icon name={unread > 0 ? 'notifications_active' : 'notifications'} size={26} className="text-ink" />
       {unread > 0 ? (
         <View className="absolute right-0.5 top-0.5 min-w-[18px] items-center justify-center rounded-full bg-danger px-1 py-0.5">
-          <Text
-            className="text-[10px] font-sans-bold text-ink-inverse"
+          <AppText
+            variant="caption"
+            tone="inverse"
+            allowFontScaling={false}
+            className="text-[10px] font-bold"
             style={{ fontVariant: ['tabular-nums'] }}
           >
             {capped}
-          </Text>
+          </AppText>
         </View>
       ) : null}
     </Pressable>

@@ -1,5 +1,6 @@
-import { ActivityIndicator, Pressable, Text, View, type GestureResponderEvent } from 'react-native';
+import { ActivityIndicator, Pressable, View, type GestureResponderEvent } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { AppText, type TextTone } from './AppText';
 import { Icon } from './Icon';
 import { haptics, type HapticKind } from '@/lib/haptics';
 import { roleColors } from '@/theme/colors';
@@ -10,24 +11,30 @@ type Variant = 'primary' | 'secondary' | 'danger' | 'soft' | 'ghost';
 type Size = 'sm' | 'md' | 'lg';
 
 const VIEW: Record<Variant, string> = {
-  primary: 'bg-brand shadow-sm active:opacity-90',
-  secondary: 'bg-surface border border-edge-strong shadow-sm active:bg-surface-subtle',
-  danger: 'bg-danger shadow-sm active:opacity-90',
-  soft: 'bg-surface-muted active:bg-surface-subtle',
+  primary: 'bg-brand active:bg-brand-pressed',
+  secondary: 'bg-surface border border-edge active:bg-surface-selected',
+  danger: 'bg-danger active:opacity-90',
+  soft: 'bg-brand-subtle active:opacity-80',
   ghost: 'active:bg-surface-muted',
 };
 const LABEL: Record<Variant, string> = {
   primary: 'text-brand-fg',
   secondary: 'text-ink',
   danger: 'text-ink-inverse',
-  soft: 'text-ink-secondary',
+  soft: 'text-brand',
   ghost: 'text-ink-secondary',
 };
-// 2026 sizing: roomier targets, 12px radius on md/lg (radius token xl), 56pt CTA tier (plan target.cta).
+const LABEL_TONE: Record<Variant, TextTone> = {
+  primary: 'inverse',
+  secondary: 'primary',
+  danger: 'inverse',
+  soft: 'brand',
+  ghost: 'secondary',
+};
 const SIZE: Record<Size, { view: string; text: string; icon: number; gap: number }> = {
-  sm: { view: 'px-3.5 min-h-[44px] rounded-lg', text: 'text-sm', icon: 18, gap: 6 },
-  md: { view: 'px-5 min-h-[52px] rounded-xl', text: 'text-base', icon: 20, gap: 8 },
-  lg: { view: 'px-6 min-h-14 rounded-xl', text: 'text-cta', icon: 22, gap: 8 },
+  sm: { view: 'min-h-11 rounded-lg px-3', text: 'text-supporting', icon: 18, gap: 6 },
+  md: { view: 'min-h-12 rounded-lg px-4', text: 'text-action', icon: 20, gap: 8 },
+  lg: { view: 'min-h-14 rounded-lg px-5', text: 'text-nav', icon: 22, gap: 8 },
 };
 
 export interface ButtonProps {
@@ -55,12 +62,12 @@ export function Button({
   onPress,
   block = false,
 }: ButtonProps) {
-  const { isDark } = useTheme();
+  const { reduceMotion, themeKey } = useTheme();
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const s = SIZE[size];
   const isDisabled = disabled || loading;
-  const rc = roleColors[isDark ? 'dark' : 'light'];
+  const rc = roleColors[themeKey];
   const spinnerColor = variant === 'primary' || variant === 'danger' ? rc.inkInverse : rc.inkMuted;
 
   return (
@@ -70,10 +77,10 @@ export function Button({
         accessibilityState={{ disabled: isDisabled, busy: loading }}
         disabled={isDisabled}
         onPressIn={() => {
-          scale.value = withSpring(0.97, { damping: 24, stiffness: 380 });
+          scale.value = reduceMotion ? 1 : withSpring(0.97, { damping: 24, stiffness: 380 });
         }}
         onPressOut={() => {
-          scale.value = withSpring(1, { damping: 20, stiffness: 320 });
+          scale.value = reduceMotion ? 1 : withSpring(1, { damping: 20, stiffness: 320 });
         }}
         onPress={(e) => {
           if (haptic) haptics[haptic]();
@@ -87,7 +94,7 @@ export function Button({
           style={{ columnGap: s.gap, opacity: loading ? 0 : 1 }}
         >
           {icon ? <Icon name={icon} fill={iconFill} size={s.icon} className={LABEL[variant]} /> : null}
-          <Text className={`font-sans-sb ${LABEL[variant]} ${s.text}`}>{label}</Text>
+          <AppText variant="action" tone={LABEL_TONE[variant]} className={s.text}>{label}</AppText>
         </View>
         {loading ? (
           <View className="absolute inset-0 items-center justify-center">

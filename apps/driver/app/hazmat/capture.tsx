@@ -1,18 +1,29 @@
-import { useState } from "react";
-import { Text, View } from "react-native";
-import { useRouter } from "expo-router";
-import { Banner, Button, Card, Screen, ScreenHeader, SectionLabel } from "@/components";
-import { enqueue, newClientId } from "@/data/outbox";
-import { stageFile } from "@/data/fileStaging";
-import { HAZMAT_CAPTURE_KIND } from "@/data/handlers";
-import { scanBol } from "@/capture/engine";
-import { buildCapturePayload, decideCapture } from "@/features/hazmat/hazmatCaptureModel";
+import { useState } from 'react';
+import { View } from 'react-native';
+import { useRouter } from 'expo-router';
+import {
+  ActionBar,
+  AppText,
+  Banner,
+  Button,
+  Icon,
+  OfflineBanner,
+  Screen,
+  ScreenHeader,
+  SectionLabel,
+} from '@/components';
+import { enqueue, newClientId } from '@/data/outbox';
+import { stageFile } from '@/data/fileStaging';
+import { HAZMAT_CAPTURE_KIND } from '@/data/handlers';
+import { scanBol } from '@/capture/engine';
+import { buildCapturePayload, decideCapture } from '@/features/hazmat/hazmatCaptureModel';
 
-/**
- * M6 driver capture screen. Scan → §5 gate (on-device) → on reject show the reason + re-shoot; on accept
- * stage the file, enqueue the replay-safe capture, and open the verdict view. Works offline — the outbox
- * drains on reconnect (M6.2).
- */
+const CAPTURE_GUIDANCE = [
+  ['image', 'Show all four document edges'],
+  ['light_mode', 'Use even light and avoid glare'],
+  ['check_circle', 'Keep printed text sharp and readable'],
+] as const;
+
 export default function HazmatCaptureScreen() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -34,35 +45,56 @@ export default function HazmatCaptureScreen() {
       const stagedUri = await stageFile(localUri, documentId, 0);
       await enqueue({ id: documentId, kind: HAZMAT_CAPTURE_KIND, payload, fileUris: [stagedUri] });
       router.replace(`/hazmat/${loadId}` as never);
-    } catch (e) {
-      setReasons([e instanceof Error ? e.message : "Capture failed — retake."]);
+    } catch (error) {
+      setReasons([error instanceof Error ? error.message : 'Capture failed. Retake the document.']);
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Screen>
-      <ScreenHeader title="Capture BOL" subtitle="Photograph the bill of lading for a hazmat check" onBack={() => router.back()} />
-      <View style={{ gap: 16 }}>
-        <Card>
-          <SectionLabel>How it works</SectionLabel>
-          <Text>
-            Line up the whole bill of lading in good light. We check the photo is readable before uploading,
-            then run the compliance verdict. You can capture offline — it syncs when you reconnect.
-          </Text>
-        </Card>
-        {reasons.length > 0 ? <Banner tone="warning" message={reasons.join("\n")} /> : null}
-        <Button
-          label={busy ? "Working…" : "Capture BOL"}
-          onPress={() => {
-            void onCapture();
-          }}
-          loading={busy}
-          disabled={busy}
-          block
-        />
+    <Screen
+      padTop={false}
+      footer={
+        <ActionBar>
+          <Button
+            label="Open document scanner"
+            size="lg"
+            icon="photo_camera"
+            onPress={() => { void onCapture(); }}
+            loading={busy}
+            disabled={busy}
+          />
+          <AppText variant="caption" tone="subtle" className="pb-1 text-center">Saved locally before upload</AppText>
+        </ActionBar>
+      }
+    >
+      <ScreenHeader
+        title="Capture BOL"
+        subtitle="The image is checked for quality before it uploads"
+        onBack={() => router.back()}
+      />
+      <OfflineBanner />
+      {reasons.length > 0 ? <Banner tone="warning" message={reasons.join(' · ')} /> : null}
+
+      <SectionLabel>Before you capture</SectionLabel>
+      <View className="overflow-hidden rounded-xl border border-edge-subtle bg-surface">
+        {CAPTURE_GUIDANCE.map(([icon, label], index) => (
+          <View key={label}>
+            <View className="min-h-[52px] flex-row items-center gap-3 px-4 py-2.5">
+              <Icon name={icon} size={20} className="text-ink-secondary" />
+              <AppText variant="body" className="flex-1">{label}</AppText>
+            </View>
+            {index < CAPTURE_GUIDANCE.length - 1 ? <View className="ml-4 h-px bg-edge-subtle" /> : null}
+          </View>
+        ))}
       </View>
+
+      <Banner
+        tone="info"
+        icon="cloud_done"
+        message="You can capture without signal. Analysis begins automatically after the document syncs."
+      />
     </Screen>
   );
 }

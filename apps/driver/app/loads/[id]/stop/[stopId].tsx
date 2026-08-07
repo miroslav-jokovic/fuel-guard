@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Image, Text, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { photoSlotLabel } from '@fuelguard/shared';
 import {
   ActionBar,
+  AppText,
   Badge,
   Banner,
   Button,
   Card,
   EmptyState,
+  GroupedList,
   Icon,
   Input,
   Progress,
@@ -128,27 +130,34 @@ export default function StopCapture() {
               loading={complete.isPending}
               onPress={onComplete}
             />
-            {stop.status === 'pending' ? (
-              <Button
-                label="Just mark arrived"
-                variant="secondary"
-                icon="pin_drop"
-                loading={complete.isPending}
-                onPress={() => void submit('arrived')}
-              />
-            ) : null}
-            <Button
-              label="Can't complete — skip"
-              variant="ghost"
-              size="sm"
-              onPress={() => {
-                setReason('');
-                setReasonMode('skipped');
-              }}
-            />
-            <Text className="pb-1 text-center text-xs text-ink-subtle">
-              Photos and completion sync automatically — this works with no signal.
-            </Text>
+            <View className="flex-row gap-2">
+              {stop.status === 'pending' ? (
+                <View className="flex-1">
+                  <Button
+                    label="Mark arrived"
+                    variant="secondary"
+                    size="sm"
+                    icon="pin_drop"
+                    loading={complete.isPending}
+                    onPress={() => void submit('arrived')}
+                  />
+                </View>
+              ) : null}
+              <View className="flex-1">
+                <Button
+                  label="Skip stop"
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => {
+                    setReason('');
+                    setReasonMode('skipped');
+                  }}
+                />
+              </View>
+            </View>
+            <AppText variant="caption" tone="subtle" className="pb-1 text-center">
+              Saved locally first · syncs automatically
+            </AppText>
           </ActionBar>
         )
       }
@@ -169,7 +178,8 @@ export default function StopCapture() {
 
       {reasonMode ? (
         <Card>
-          <SectionLabel>{reasonTitle}</SectionLabel>
+          <AppText variant="navigationTitle">{reasonTitle}</AppText>
+          <AppText variant="supporting" tone="muted">Dispatch will see this note with the stop record.</AppText>
           <ReasonInput value={reason} onChange={setReason} />
           <View className="gap-2 pt-1">
             <Button
@@ -193,7 +203,7 @@ export default function StopCapture() {
         </Card>
       ) : (
         <>
-          <SectionLabel>Capture</SectionLabel>
+          <SectionLabel>Required photos</SectionLabel>
           {requiredSlots.length > 0 ? (
             <Progress
               label="Required photos"
@@ -209,39 +219,32 @@ export default function StopCapture() {
               subtitle="Mark this stop complete when you're done here."
             />
           ) : (
-            requiredSlots.map((slot) => {
-              const shot = capturedFor(slot);
-              const done = satisfied.has(slot);
-              return (
-                <Card key={slot}>
-                  <View className="flex-row items-center gap-3">
+            <GroupedList>
+              {requiredSlots.map((slot) => {
+                const shot = capturedFor(slot);
+                const done = satisfied.has(slot);
+                return (
+                  <View key={slot} className="min-h-[76px] flex-row items-center gap-3 bg-surface px-4 py-3">
                     {shot ? (
-                      <Image
-                        source={{ uri: shot.localUri }}
-                        style={{ width: 56, height: 56, borderRadius: 10 }}
-                      />
+                      <Image source={{ uri: shot.localUri }} className="h-14 w-14 rounded-lg" />
                     ) : (
-                      <View
-                        className={`h-14 w-14 items-center justify-center rounded-lg ${
-                          done ? 'bg-success/10' : 'bg-surface-muted'
-                        }`}
-                      >
+                      <View className={`h-12 w-12 items-center justify-center rounded-lg ${done ? 'bg-success/10' : 'bg-surface-muted'}`}>
                         <Icon
                           name={done ? 'check_circle' : 'add_a_photo'}
                           fill={done}
-                          size={22}
-                          className={done ? 'text-success' : 'text-ink-muted'}
+                          size={21}
+                          className={done ? 'text-operation-complete' : 'text-ink-muted'}
                         />
                       </View>
                     )}
-                    <View className="flex-1">
-                      <Text className="text-base font-sans-sb text-ink">{photoSlotLabel(slot)}</Text>
-                      <Text className="text-xs text-ink-muted">
-                        {done ? (shot ? 'Captured' : 'Already added') : 'Required'}
-                      </Text>
+                    <View className="flex-1 gap-0.5">
+                      <AppText variant="rowTitle">{photoSlotLabel(slot)}</AppText>
+                      <AppText variant="caption" tone={done ? 'success' : 'muted'}>
+                        {done ? (shot ? 'Captured locally' : 'Already added') : 'Required'}
+                      </AppText>
                     </View>
                     <Button
-                      label={shot ? 'Retake' : done ? 'Replace' : 'Take photo'}
+                      label={shot ? 'Retake' : done ? 'Replace' : 'Capture'}
                       variant={shot || done ? 'secondary' : 'primary'}
                       size="sm"
                       icon="photo_camera"
@@ -249,9 +252,9 @@ export default function StopCapture() {
                       onPress={() => void takePhoto(slot)}
                     />
                   </View>
-                </Card>
-              );
-            })
+                );
+              })}
+            </GroupedList>
           )}
 
         </>

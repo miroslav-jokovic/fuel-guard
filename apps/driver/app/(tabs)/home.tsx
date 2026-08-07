@@ -1,6 +1,7 @@
-import { Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  AppText,
   Avatar,
   Banner,
   EmptyState,
@@ -9,7 +10,6 @@ import {
   Screen,
   SectionLabel,
   Skeleton,
-  StatTile,
 } from '@/components';
 import { CurrentLoadCard } from '@/features/loads/CurrentLoadCard';
 import { LoadCard } from '@/features/loads/LoadCard';
@@ -27,24 +27,10 @@ import { homeScoreSummary } from '@/features/score/scoreModel';
 import { useDriverScore } from '@/features/score/useDriverScore';
 import { UpdateReadyBanner } from '@/features/updates/UpdateReadyBanner';
 
-function timeGreeting(): string {
-  const h = new Date().getHours();
-  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-}
-
 function todayLabel(): string {
-  return new Date().toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-  });
+  return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
-/**
- * Home (plan §13.5, reframed by D41 and D51): what the driver needs in a two-second glance —
- * who they are, what they are driving, and what they are working. Cached-first, so a cold start in
- * airplane mode renders real data; skeletons appear only when there is genuinely nothing cached.
- */
 export default function Home() {
   const router = useRouter();
   const driver = useDriverContext();
@@ -64,46 +50,69 @@ export default function Home() {
   const current = buckets.current[0] ?? null;
   const nextUp = buckets.upcoming[0] ?? null;
   const weekScore = homeScoreSummary(score.data);
-
   const driverName = firstName(driver.data?.driver.full_name);
   const showSkeletons = driver.isPending && !driver.data;
 
+  const dutyModule = (
+    <DutyCard
+      duty={duty}
+      loading={shift.isPending && !shift.data}
+      onStart={() => router.push('/duty/check-in')}
+      onChange={() => router.push('/duty/check-in?mode=swap')}
+      onEnd={() => router.push('/duty/end-shift')}
+    />
+  );
+
+  const loadModule = loadsEnabled ? (
+    loads.isPending && !loads.data ? (
+      <Skeleton className="h-44 w-full rounded-2xl" />
+    ) : current ? (
+      <CurrentLoadCard
+        load={toActive(current)}
+        onNavigate={() => router.push(`/loads/${current.id}` as never)}
+        onOpen={() => router.push(`/loads/${current.id}` as never)}
+      />
+    ) : nextUp ? (
+      <LoadCard load={toSummary(nextUp)} onPress={() => router.push(`/loads/${nextUp.id}` as never)} />
+    ) : (
+      <EmptyState title="Nothing assigned yet" subtitle="Released loads from dispatch will appear here." />
+    )
+  ) : null;
+
   return (
     <Screen>
-      {/* Downloaded-and-waiting JS update. Renders nothing unless one is ready (ship-pipeline D2.5). */}
       <UpdateReadyBanner />
-      <View className="flex-row items-center gap-3">
-        <View className="flex-1 gap-0.5">
+      <View className="flex-row items-center gap-2">
+        <View className="flex-1">
           {showSkeletons ? (
-            <>
-              <Skeleton className="h-8 w-2/3" />
-              <Skeleton className="mt-1 h-4 w-1/3" />
-            </>
+            <View className="gap-1">
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-4 w-40" />
+            </View>
           ) : (
             <>
-              <Text className="text-2xl font-sans-bold text-ink">
-                {timeGreeting()}, {driverName}
-              </Text>
-              <Text className="text-sm text-ink-muted">{todayLabel()}</Text>
+              <AppText variant="screenTitle" accessibilityRole="header">Today</AppText>
+              <AppText variant="supporting" tone="muted">{driverName} · {todayLabel()}</AppText>
             </>
           )}
         </View>
         {messagesEnabled ? (
-          <MessagesButton
-            unread={threads.data?.unread_total ?? 0}
-            onPress={() => router.push('/messages')}
-          />
+          <MessagesButton unread={threads.data?.unread_total ?? 0} onPress={() => router.push('/messages')} />
         ) : null}
         {notificationsEnabled ? (
-          <NotificationBell
-            unread={notifs.data?.unread ?? 0}
-            onPress={() => router.push('/notifications')}
-          />
+          <NotificationBell unread={notifs.data?.unread ?? 0} onPress={() => router.push('/notifications')} />
         ) : null}
         {showSkeletons ? (
-          <Skeleton className="h-11 w-11 rounded-full" />
+          <Skeleton className="h-10 w-10 rounded-full" />
         ) : (
-          <Avatar name={driver.data?.driver.full_name ?? driverName} size={44} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+            onPress={() => router.push('/settings')}
+            className="rounded-full active:opacity-70"
+          >
+            <Avatar name={driver.data?.driver.full_name ?? driverName} size={40} />
+          </Pressable>
         )}
       </View>
 
@@ -119,55 +128,38 @@ export default function Home() {
         />
       ) : null}
 
-      <SectionLabel>Today</SectionLabel>
-      <DutyCard
-        duty={duty}
-        loading={shift.isPending && !shift.data}
-        onStart={() => router.push('/duty/check-in')}
-        onChange={() => router.push('/duty/check-in?mode=swap')}
-        onEnd={() => router.push('/duty/end-shift')}
-      />
-
-      {/* Load sections hide WITH the Loads tab (D-PM1) — a block is all-on or all-off. */}
-      {loadsEnabled ? (
+      {current && loadModule ? (
         <>
-          <SectionLabel>{current ? 'Active work' : 'Next assignment'}</SectionLabel>
-          {loads.isPending && !loads.data ? (
-            <Skeleton className="h-[220px] w-full rounded-xl" />
-          ) : current ? (
-            <CurrentLoadCard
-              load={toActive(current)}
-              onNavigate={() => router.push(`/loads/${current.id}` as never)}
-              onOpen={() => router.push(`/loads/${current.id}` as never)}
-            />
-          ) : nextUp ? (
-            <LoadCard load={toSummary(nextUp)} onPress={() => router.push(`/loads/${nextUp.id}` as never)} />
-          ) : (
-            <EmptyState
-              icon="local_shipping"
-              title="Nothing assigned yet"
-              subtitle="New loads from dispatch appear here as soon as they're released."
-            />
-          )}
+          <SectionLabel>Current work</SectionLabel>
+          {loadModule}
+          <SectionLabel>Duty</SectionLabel>
+          {dutyModule}
         </>
-      ) : null}
+      ) : (
+        <>
+          <SectionLabel>Duty</SectionLabel>
+          {dutyModule}
+          {loadModule ? <SectionLabel>Next load</SectionLabel> : null}
+          {loadModule}
+        </>
+      )}
 
       {scoreEnabled && weekScore ? (
         <>
           <SectionLabel>This week</SectionLabel>
-          <View className="flex-row gap-3">
-            <StatTile
-              label="Score"
-              value={weekScore.scoreValue}
-              spark={weekScore.scoreSpark}
-              trend={weekScore.scoreTrend}
-            />
-            <StatTile
-              label="Rank"
-              value={weekScore.rankValue}
-              unit={weekScore.rankUnit}
-              icon="military_tech"
-            />
+          <View className="flex-row items-center rounded-xl bg-surface-muted px-4 py-3">
+            <View className="flex-1 gap-0.5">
+              <AppText variant="caption" tone="muted">Driver score</AppText>
+              <AppText variant="numericCompact" tabular>{weekScore.scoreValue}</AppText>
+            </View>
+            <View className="h-10 w-px bg-edge" />
+            <View className="flex-1 items-end gap-0.5">
+              <AppText variant="caption" tone="muted">Fleet rank</AppText>
+              <View className="flex-row items-baseline gap-1">
+                <AppText variant="numericCompact" tabular>{weekScore.rankValue}</AppText>
+                {weekScore.rankUnit ? <AppText variant="caption" tone="muted">{weekScore.rankUnit}</AppText> : null}
+              </View>
+            </View>
           </View>
         </>
       ) : null}

@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { AppText } from './AppText';
 import { Badge } from './Badge';
 import { Icon } from './Icon';
 import { ListRow } from './ListRow';
@@ -15,7 +16,6 @@ function relativeTime(ts: number | null): string {
   return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
 }
 
-/** Compact "pending work" chip for headers (plan §13.4). Renders nothing when there's none. */
 export function PendingBadge() {
   const { pending, needsAttention } = useSyncState();
   if (needsAttention > 0) {
@@ -25,11 +25,9 @@ export function PendingBadge() {
   return null;
 }
 
-/** Tappable sync row for Settings — status, last sync, and a manual "sync now". */
 export function SyncStatus() {
   const online = useIsOnline();
   const { pending, needsAttention, running, lastSyncAt } = useSyncState();
-
   const subtitle = running
     ? 'Syncing now…'
     : !online
@@ -43,33 +41,30 @@ export function SyncStatus() {
       icon={running ? 'sync' : needsAttention > 0 ? 'sync_problem' : online ? 'cloud_done' : 'cloud_off'}
       title="Sync"
       subtitle={subtitle}
-      onPress={() => {
-        void runSync();
-      }}
+      onPress={() => { void runSync(); }}
       right={
         needsAttention > 0 ? (
           <Badge label={String(needsAttention)} tone="danger" />
         ) : pending > 0 ? (
           <Badge label={String(pending)} tone="info" />
         ) : (
-          <Icon name="refresh" size={20} className="text-ink" />
+          <Icon name="refresh" size={20} className="text-ink-secondary" />
         )
       }
     />
   );
 }
 
-/** Inline "needs attention" summary — permanent failures never disappear silently (plan §13.4). */
 export function NeedsAttentionNote() {
   const { needsAttention } = useSyncState();
   if (needsAttention === 0) return null;
   return (
-    <View className="flex-row items-center gap-2 rounded-xl bg-danger/10 px-3.5 py-2.5">
-      <Icon name="sync_problem" size={18} className="text-danger" />
-      <Text className="flex-1 text-sm text-ink-secondary">
-        {needsAttention} {needsAttention === 1 ? 'item' : 'items'} couldn’t sync. Your work is safe —
+    <View className="min-h-11 flex-row items-start gap-2 rounded-lg border border-danger/20 bg-danger/10 px-3 py-2.5">
+      <Icon name="sync_problem" size={18} className="mt-0.5 text-sync-failed" />
+      <AppText variant="supporting" tone="secondary" className="flex-1">
+        {needsAttention} {needsAttention === 1 ? 'item' : 'items'} couldn’t sync. Your work is safe;
         open Settings › Sync to retry.
-      </Text>
+      </AppText>
     </View>
   );
 }

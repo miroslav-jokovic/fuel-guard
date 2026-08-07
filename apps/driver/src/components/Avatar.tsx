@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { AppText } from './AppText';
 
 function initials(name: string): string {
   return name
@@ -17,12 +18,13 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }) {
       style={{ width: size, height: size }}
       accessibilityLabel={name}
     >
-      <Text
-        className="font-sans-bold text-brand-fg"
+      <AppText
+        variant="numericCompact"
+        className="text-brand-fg"
         style={{ fontSize: size * 0.38, includeFontPadding: false }}
       >
         {initials(name)}
-      </Text>
+      </AppText>
     </View>
   );
 }

@@ -1,14 +1,15 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { AppText } from './AppText';
 import { Icon } from './Icon';
 import type { Tone } from './Badge';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
 const BG: Record<Tone, string> = {
-  neutral: 'bg-surface-muted', brand: 'bg-brand/10', danger: 'bg-danger/10',
+  neutral: 'bg-surface-muted', brand: 'bg-brand-subtle', danger: 'bg-danger/10',
   caution: 'bg-caution/10', warning: 'bg-warning/10', success: 'bg-success/10', info: 'bg-info/10',
 };
 const FG: Record<Tone, string> = {
-  neutral: 'text-ink-muted', brand: 'text-brand', danger: 'text-danger',
+  neutral: 'text-ink-secondary', brand: 'text-brand', danger: 'text-danger',
   caution: 'text-caution', warning: 'text-warning', success: 'text-success', info: 'text-info',
 };
 const ICON: Record<Tone, MaterialSymbolName> = {
@@ -16,8 +17,7 @@ const ICON: Record<Tone, MaterialSymbolName> = {
   warning: 'warning', success: 'check_circle', info: 'info',
 };
 
-// Inline notice / offline banner. Icon + label (never color alone — a11y + sunlight), with an
-// optional inline action ("Retry", "View") so a notice is never a dead-end.
+/** Compact status strip with a full-size optional action. */
 export function Banner({
   tone = 'info',
   message,
@@ -33,19 +33,14 @@ export function Banner({
 }) {
   return (
     <View
-      className={`flex-row items-center gap-2.5 rounded-xl px-3.5 py-3 ${BG[tone]}`}
+      className={`min-h-11 flex-row items-center gap-2.5 rounded-lg border border-edge-subtle px-3 py-2 ${BG[tone]}`}
       accessibilityRole="alert"
     >
       <Icon name={icon ?? ICON[tone]} size={18} className={FG[tone]} />
-      <Text className="flex-1 text-sm leading-snug text-ink-secondary">{message}</Text>
+      <AppText variant="supporting" tone="secondary" className="flex-1">{message}</AppText>
       {actionLabel && onAction ? (
-        <Pressable
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={onAction}
-          className="min-h-[32px] justify-center"
-        >
-          <Text className={`text-sm font-sans-sb ${FG[tone]}`}>{actionLabel}</Text>
+        <Pressable accessibilityRole="button" onPress={onAction} className="min-h-11 justify-center px-1">
+          <AppText variant="action" className={FG[tone]}>{actionLabel}</AppText>
         </Pressable>
       ) : null}
     </View>

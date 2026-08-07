@@ -1,89 +1,71 @@
-import { ramps } from './ramps';
+import roleValues from './theme.roles.json';
 
-// Raw color values for the few RN/native APIs that take a color string (not className):
-// tab-bar tint, ActivityIndicator, status bar, and SVG strokes/fills (react-native-svg has no
-// className). These live in src/theme (the only place the token linter allows raw color) so
-// screens/components stay className-only. Values mirror the global.css role map exactly.
-export const roleColors = {
-  light: {
-    brand: ramps.brand[600],
-    ink: ramps.neutral[900],
-    inkSecondary: ramps.neutral[700],
-    inkMuted: ramps.neutral[500],
-    inkSubtle: ramps.neutral[400],
-    inkInverse: '#ffffff',
-    surface: '#ffffff',
-    surfaceMuted: ramps.neutral[100],
-    edge: ramps.neutral[200],
-    danger: ramps.danger[600],
-    warning: ramps.warning[600],
-    caution: ramps.caution[600],
-    success: ramps.success[600],
-    info: ramps.info[600],
-  },
-  dark: {
-    brand: ramps.brand[500],
-    ink: ramps.neutral[50],
-    inkSecondary: ramps.neutral[200],
-    inkMuted: ramps.neutral[400],
-    inkSubtle: ramps.neutral[500],
-    inkInverse: ramps.neutral[900],
-    surface: ramps.neutral[800],
-    surfaceMuted: ramps.neutral[700],
-    edge: ramps.neutral[700],
-    danger: ramps.danger[400],
-    warning: ramps.warning[400],
-    caution: ramps.caution[400],
-    success: ramps.success[400],
-    info: ramps.info[400],
-  },
-} as const;
+/**
+ * Design System 2.0 semantic color source.
+ *
+ * `theme.roles.json` is authoritative. NativeWind variables and native-API color strings are both
+ * derived here so an icon, spinner, SVG, and class-based surface cannot drift into parallel themes.
+ * `global.css` is the generated/fallback web mirror and `lint:theme` verifies every declaration.
+ */
+export type ThemeKey = keyof typeof roleValues;
+export type ThemeRole = keyof (typeof roleValues)['light'];
 
-// NativeWind's .dark selector is not a DOM ancestor on native. Apply the semantic variable map
-// directly to a provider View so the same className tokens switch immediately on iOS and Android.
+type RoleMap = Record<ThemeRole, string>;
+type ThemeVariables = Record<`--color-${ThemeRole}`, string>;
+
+function toVariables(roles: RoleMap): ThemeVariables {
+  return Object.fromEntries(
+    Object.entries(roles).map(([role, value]) => [`--color-${role}`, value]),
+  ) as ThemeVariables;
+}
+
+function rgb(value: string): string {
+  return `rgb(${value.split(' ').join(', ')})`;
+}
+
+function nativeColors(theme: ThemeKey) {
+  const roles = roleValues[theme];
+  return {
+    brand: rgb(roles.brand),
+    brandPressed: rgb(roles['brand-pressed']),
+    brandSubtle: rgb(roles['brand-subtle']),
+    ink: rgb(roles.ink),
+    inkSecondary: rgb(roles['ink-secondary']),
+    inkMuted: rgb(roles['ink-muted']),
+    inkSubtle: rgb(roles['ink-subtle']),
+    inkInverse: rgb(roles['ink-inverse']),
+    surface: rgb(roles.surface),
+    surfaceMuted: rgb(roles['surface-muted']),
+    surfaceRaised: rgb(roles['surface-raised']),
+    edge: rgb(roles.edge),
+    edgeStrong: rgb(roles['edge-strong']),
+    danger: rgb(roles.danger),
+    warning: rgb(roles.warning),
+    caution: rgb(roles.caution),
+    success: rgb(roles.success),
+    info: rgb(roles.info),
+    operationCurrent: rgb(roles['operation-current']),
+    operationNext: rgb(roles['operation-next']),
+    operationComplete: rgb(roles['operation-complete']),
+    operationBlocked: rgb(roles['operation-blocked']),
+    syncLocal: rgb(roles['sync-local']),
+    syncPending: rgb(roles['sync-pending']),
+    syncFailed: rgb(roles['sync-failed']),
+  } as const;
+}
+
 export const themeVars = {
-  light: {
-    '--color-canvas': '249 250 251',
-    '--color-surface': '255 255 255',
-    '--color-surface-subtle': '249 250 251',
-    '--color-surface-muted': '243 244 246',
-    '--color-surface-inverse': '17 24 39',
-    '--color-ink': '17 24 39',
-    '--color-ink-secondary': '55 65 81',
-    '--color-ink-muted': '107 114 128',
-    '--color-ink-subtle': '156 163 175',
-    '--color-ink-inverse': '255 255 255',
-    '--color-edge-subtle': '243 244 246',
-    '--color-edge': '229 231 235',
-    '--color-edge-strong': '209 213 219',
-    '--color-brand': '79 70 229',
-    '--color-brand-fg': '255 255 255',
-    '--color-danger': '220 38 38',
-    '--color-warning': '204 114 0',
-    '--color-caution': '234 88 12',
-    '--color-success': '22 163 74',
-    '--color-info': '37 99 235',
-  },
-  dark: {
-    '--color-canvas': '10 12 14',
-    '--color-surface': '31 41 55',
-    '--color-surface-subtle': '24 31 42',
-    '--color-surface-muted': '55 65 81',
-    '--color-surface-inverse': '229 231 235',
-    '--color-ink': '249 250 251',
-    '--color-ink-secondary': '229 231 235',
-    '--color-ink-muted': '156 163 175',
-    '--color-ink-subtle': '107 114 128',
-    '--color-ink-inverse': '17 24 39',
-    '--color-edge-subtle': '55 65 81',
-    '--color-edge': '55 65 81',
-    '--color-edge-strong': '75 85 99',
-    '--color-brand': '99 102 241',
-    '--color-brand-fg': '17 24 39',
-    '--color-danger': '248 113 113',
-    '--color-warning': '240 177 63',
-    '--color-caution': '251 146 60',
-    '--color-success': '74 222 128',
-    '--color-info': '96 165 250',
-  },
+  light: toVariables(roleValues.light),
+  dark: toVariables(roleValues.dark),
+  highContrastLight: toVariables(roleValues.highContrastLight),
+  highContrastDark: toVariables(roleValues.highContrastDark),
 } as const;
+
+export const roleColors = {
+  light: nativeColors('light'),
+  dark: nativeColors('dark'),
+  highContrastLight: nativeColors('highContrastLight'),
+  highContrastDark: nativeColors('highContrastDark'),
+} as const;
+
+export { roleValues };

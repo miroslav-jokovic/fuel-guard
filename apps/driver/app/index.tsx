@@ -6,10 +6,10 @@ import { useTheme } from '@/theme/ThemeProvider';
 // redirects to Home, sign-in, pending, or wrong-app based on session status — this screen never
 // navigates itself, so there's no flash of the wrong surface.
 export default function Index() {
-  const { isDark } = useTheme();
+  const { themeKey } = useTheme();
   return (
     <View className="flex-1 items-center justify-center bg-canvas">
-      <ActivityIndicator color={isDark ? roleColors.dark.brand : roleColors.light.brand} />
+      <ActivityIndicator color={roleColors[themeKey].brand} />
     </View>
   );
 }

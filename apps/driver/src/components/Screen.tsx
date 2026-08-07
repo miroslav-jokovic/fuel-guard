@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { layout } from '@/theme/tokens';
+import { screenTopPadding } from '@/theme/safeArea';
 import { ui } from '@/theme/classes';
 
 // Safe-area + canvas background wrapper (plan §11.6). Scrolls by default; `scroll={false}` gives
@@ -17,11 +18,12 @@ export function Screen({
 }: {
   children: ReactNode;
   scroll?: boolean;
+  /** Adds the 16pt visual gutter above the content. The SAFE-AREA inset is applied either way. */
   padTop?: boolean;
   footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
-  const top = padTop ? insets.top + layout.screenInset : layout.screenInset;
+  const top = screenTopPadding(insets.top, padTop);
 
   const footerNode = footer ? (
     <View

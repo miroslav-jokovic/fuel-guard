@@ -1,29 +1,16 @@
 import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon, type Tone } from '@/components';
+import { AppText, Icon, type Tone } from '@/components';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
+import { layout } from '@/theme/tokens';
 
-const RING: Record<Tone, string> = {
-  neutral: 'bg-surface-muted',
-  brand: 'bg-brand/10',
-  danger: 'bg-danger/10',
-  caution: 'bg-caution/10',
-  warning: 'bg-warning/10',
-  success: 'bg-success/10',
-  info: 'bg-info/10',
-};
 const FG: Record<Tone, string> = {
-  neutral: 'text-ink-muted',
-  brand: 'text-brand',
-  danger: 'text-danger',
-  caution: 'text-caution',
-  warning: 'text-warning',
-  success: 'text-success',
-  info: 'text-info',
+  neutral: 'text-ink-secondary', brand: 'text-brand', danger: 'text-danger', caution: 'text-caution',
+  warning: 'text-warning', success: 'text-success', info: 'text-info',
 };
 
-/** The icon-badge + title + subtitle hero shared by every auth surface. Token-only. */
+/** Compact enterprise identity block; no oversized centered badge or decorative hero space. */
 export function AuthHero({
   icon,
   tone = 'brand',
@@ -36,22 +23,19 @@ export function AuthHero({
   subtitle?: string;
 }) {
   return (
-    <View className="items-center gap-3">
-      <View className={`h-16 w-16 items-center justify-center rounded-2xl ${RING[tone]}`}>
-        <Icon name={icon} size={32} fill className={FG[tone]} />
+    <View className="items-start gap-3">
+      <View className="flex-row items-center gap-2">
+        <Icon name={icon} size={24} fill className={FG[tone]} />
+        <AppText variant="sectionTitle" tone="secondary">FuelGuard Driver</AppText>
       </View>
-      <Text className="text-center text-2xl font-sans-bold text-ink">{title}</Text>
-      {subtitle ? (
-        <Text className="text-center text-base leading-relaxed text-ink-muted">{subtitle}</Text>
-      ) : null}
+      <View className="gap-1">
+        <AppText variant="screenTitle" accessibilityRole="header">{title}</AppText>
+        {subtitle ? <AppText variant="body" tone="muted">{subtitle}</AppText> : null}
+      </View>
     </View>
   );
 }
 
-/**
- * Vertically-centered auth surface (pending / wrong-app / any keyboard-free state).
- * `footer` pins to the bottom safe area; `children` (actions) sit under the hero.
- */
 export function AuthScreen({
   icon,
   tone,
@@ -70,14 +54,14 @@ export function AuthScreen({
   const insets = useSafeAreaInsets();
   return (
     <View
-      className="flex-1 bg-canvas px-6"
-      style={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }}
+      className="flex-1 bg-canvas px-4"
+      style={{ paddingTop: insets.top + layout.sectionGap, paddingBottom: insets.bottom + layout.screenInset }}
     >
-      <View className="flex-1 justify-center gap-6">
+      <View className="gap-6">
         <AuthHero icon={icon} tone={tone} title={title} subtitle={subtitle} />
         {children ? <View className="gap-3">{children}</View> : null}
       </View>
-      {footer ? <View className="gap-3">{footer}</View> : null}
+      {footer ? <View className="mt-6 gap-3">{footer}</View> : null}
     </View>
   );
 }

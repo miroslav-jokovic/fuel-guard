@@ -1,9 +1,10 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { AppText } from './AppText';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 
-// Empty states teach the next action (plan §22.5/§22.9). An optional icon badge anchors the message.
+/** Compact inline empty state; it never expands merely to balance the viewport. */
 export function EmptyState({
   icon,
   title,
@@ -20,19 +21,15 @@ export function EmptyState({
   onAction?: () => void;
 }) {
   return (
-    <View className="items-center justify-center gap-3 py-10 px-6">
-      {icon ? (
-        <View className="h-12 w-12 items-center justify-center rounded-2xl bg-surface-muted">
-          <Icon name={icon} size={24} className="text-ink" />
-        </View>
-      ) : null}
+    <View className="items-center gap-2 px-4 py-6">
+      {icon ? <Icon name={icon} size={24} className="text-ink-muted" /> : null}
       <View className="items-center gap-1">
-        <Text className="text-center text-lg font-sans-sb text-ink">{title}</Text>
-        {subtitle ? <Text className="text-center text-ink-muted">{subtitle}</Text> : null}
+        <AppText variant="rowTitle" className="text-center">{title}</AppText>
+        {subtitle ? <AppText variant="supporting" tone="muted" className="text-center">{subtitle}</AppText> : null}
       </View>
       {actionLabel && onAction ? (
         <View className="pt-1">
-          <Button label={actionLabel} icon={actionIcon} variant="primary" onPress={onAction} />
+          <Button label={actionLabel} icon={actionIcon} variant="primary" size="sm" onPress={onAction} />
         </View>
       ) : null}
     </View>

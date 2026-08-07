@@ -1,25 +1,24 @@
 import { useEffect } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppText } from './AppText';
 import { Button } from './Button';
 import { Icon } from './Icon';
 import type { Tone } from './Badge';
 import { haptics } from '@/lib/haptics';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
+import { useTheme } from '@/theme/ThemeProvider';
 
 const BG: Record<Tone, string> = {
-  neutral: 'bg-surface-muted', brand: 'bg-brand/10', danger: 'bg-danger/10',
+  neutral: 'bg-surface-muted', brand: 'bg-brand-subtle', danger: 'bg-danger/10',
   caution: 'bg-caution/10', warning: 'bg-warning/10', success: 'bg-success/10', info: 'bg-info/10',
 };
 const FG: Record<Tone, string> = {
-  neutral: 'text-ink-muted', brand: 'text-brand', danger: 'text-danger',
+  neutral: 'text-ink-secondary', brand: 'text-brand', danger: 'text-danger',
   caution: 'text-caution', warning: 'text-warning', success: 'text-success', info: 'text-info',
 };
 
-// The tokenized confirm sheet (D19): destructive/blocking confirmations slide up as a branded
-// bottom sheet — never a native Alert. Grabber, icon badge, stacked actions, safe-area aware.
-// Warning haptic on present (D20).
 export function ConfirmSheet({
   visible,
   tone = 'danger',
@@ -44,35 +43,38 @@ export function ConfirmSheet({
   onCancel: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { reduceMotion } = useTheme();
 
   useEffect(() => {
     if (visible) haptics.warning();
   }, [visible]);
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      statusBarTranslucent
-      animationType="none"
-      onRequestClose={onCancel}
-    >
+    <Modal visible={visible} transparent statusBarTranslucent animationType="none" onRequestClose={onCancel}>
       <View className="flex-1 justify-end">
-        <Animated.View entering={FadeIn.duration(160)} className="absolute inset-0 bg-surface-inverse/40">
+        <Animated.View
+          entering={reduceMotion ? undefined : FadeIn.duration(140)}
+          className="absolute inset-0 bg-surface-inverse/40"
+        >
           <Pressable className="flex-1" accessibilityLabel="Dismiss" onPress={onCancel} />
         </Animated.View>
         <Animated.View
-          entering={SlideInDown.springify().damping(26).stiffness(300)}
-          className="gap-3 rounded-t-xl bg-surface px-5 pt-3"
+          entering={reduceMotion ? undefined : SlideInDown.springify().damping(28).stiffness(320)}
+          className="gap-4 rounded-t-2xl border-t border-edge-subtle bg-surface-raised px-5 pt-3"
           style={{ paddingBottom: insets.bottom + 16 }}
+          accessibilityViewIsModal
         >
-          <View className="h-1 w-10 self-center rounded-full bg-edge-strong" />
-          <View className={`h-12 w-12 items-center justify-center self-center rounded-full ${BG[tone]}`}>
-            <Icon name={icon} size={24} fill className={FG[tone]} />
+          <View className="h-1 w-9 self-center rounded-full bg-edge-strong" />
+          <View className="flex-row items-start gap-3">
+            <View className={`h-10 w-10 items-center justify-center rounded-lg ${BG[tone]}`}>
+              <Icon name={icon} size={21} fill className={FG[tone]} />
+            </View>
+            <View className="flex-1 gap-1">
+              <AppText variant="navigationTitle" accessibilityRole="header">{title}</AppText>
+              <AppText variant="supporting" tone="secondary">{message}</AppText>
+            </View>
           </View>
-          <Text className="text-center text-lg font-sans-sb text-ink">{title}</Text>
-          <Text className="text-center text-sm leading-relaxed text-ink-secondary">{message}</Text>
-          <View className="gap-2 pt-1">
+          <View className="gap-2">
             <Button
               label={confirmLabel}
               variant={tone === 'danger' ? 'danger' : 'primary'}

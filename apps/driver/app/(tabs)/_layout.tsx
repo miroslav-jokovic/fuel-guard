@@ -20,7 +20,7 @@ export default function TabsLayout() {
   const { enabled, scoreDetailTab } = useFeatures();
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
-      <Tabs.Screen name="home" options={{ title: 'Home' }} />
+      <Tabs.Screen name="home" options={{ title: 'Today' }} />
       <Tabs.Screen name="loads" options={enabled('tab.loads') ? { title: 'Loads' } : { href: null }} />
       {/* Reserved center slot (D52): route exists, tab hidden. */}
       <Tabs.Screen name="navigate" options={{ href: null }} />

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { AppText } from './AppText';
 import { Icon } from './Icon';
 
 export function Field({
@@ -17,18 +18,17 @@ export function Field({
 }) {
   return (
     <View className="gap-1.5">
-      <Text className="text-sm font-sans-md text-ink-secondary">
-        {label}
-        {required ? <Text className="text-danger"> *</Text> : null}
-      </Text>
+      <AppText variant="supporting" tone="secondary" className="font-medium">
+        {label}{required ? <AppText variant="supporting" tone="danger"> *</AppText> : null}
+      </AppText>
       {children}
       {error ? (
-        <View className="flex-row items-center gap-1">
-          <Icon name="error" size={14} className="text-danger" />
-          <Text className="flex-1 text-sm text-danger">{error}</Text>
+        <View className="flex-row items-start gap-1.5">
+          <Icon name="error" size={15} className="mt-0.5 text-danger" />
+          <AppText variant="supporting" tone="danger" className="flex-1">{error}</AppText>
         </View>
       ) : hint ? (
-        <Text className="text-xs text-ink-muted">{hint}</Text>
+        <AppText variant="caption" tone="muted">{hint}</AppText>
       ) : null}
     </View>
   );

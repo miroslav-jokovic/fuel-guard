@@ -5,6 +5,14 @@ React Native + Expo app for drivers. Part of the FuelGuard monorepo; reuses `@fu
 **UI contract:** read [`DESIGN.md`](./DESIGN.md) before creating or changing any driver UI. It is the
 source of truth for the FuelGuard visual language, Apple-inspired layout rules, component contracts,
 states, accessibility, and AI implementation constraints.
+The Design System 2.0 redesign track starts with the
+[`Phase 1 operating model`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2.md), including
+the task hierarchy, compact-density rules, Today templates, research protocol, and decision gates.
+Its implemented token and accessibility foundation is recorded in
+[`Phase 2 foundations`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-PHASE-2.md).
+The production primitive and screen migrations are recorded in
+[`Phase 3`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-PHASE-3.md) and
+[`Phase 4`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-PHASE-4.md).
 See the full plan: `docs/plans/drivers-app/DRIVER-APP-PLAN.md`.
 
 The app uses a **custom development build** (dev client), not Expo Go — several native modules

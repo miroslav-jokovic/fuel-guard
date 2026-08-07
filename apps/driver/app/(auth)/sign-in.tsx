@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthError } from '@supabase/supabase-js';
-import { Banner, Button, Field, Icon, Input } from '@/components';
+import { AppText, Banner, Button, Field, Icon, Input } from '@/components';
 import { AuthHero } from '@/features/auth/AuthLayout';
 import { useSession } from '@/session/SessionProvider';
+import { layout } from '@/theme/tokens';
 
 /** Map Supabase auth errors to plain, non-leaky copy (never echo raw provider strings to drivers). */
 function friendlyError(e: unknown): string {
@@ -64,15 +65,15 @@ export default function SignIn() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerClassName="flex-grow justify-center px-6 gap-7"
-        contentContainerStyle={{ paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 }}
+        contentContainerClassName="flex-grow gap-4 px-4"
+        contentContainerStyle={{ paddingTop: insets.top + layout.sectionGap, paddingBottom: insets.bottom + layout.sectionGap }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <AuthHero
           icon="local_gas_station"
-          title="FuelGuard Driver"
-          subtitle="Sign in with the Driver ID your fleet gave you."
+          title="Sign in"
+          subtitle="Use the Driver ID issued by your fleet."
         />
 
         {error ? <Banner tone="danger" message={error} /> : null}
@@ -140,9 +141,9 @@ export default function SignIn() {
 
         {/* No self-service recovery by design (DRIVER-CREDENTIALS-PLAN.md DC3): logins are
             company-issued; a forgotten password is reset by dispatch, never by email. */}
-        <Text className="text-center text-sm leading-relaxed text-ink-muted">
+        <AppText variant="supporting" tone="muted">
           No login yet, or forgot your password? Ask dispatch — they issue and reset Driver IDs.
-        </Text>
+        </AppText>
 
         {__DEV__ ? (
           <Pressable
@@ -150,7 +151,7 @@ export default function SignIn() {
             onPress={() => activateDevBypass()}
             className="items-center py-3"
           >
-            <Text className="text-xs text-ink-subtle">⚡ Dev bypass (skip auth)</Text>
+            <AppText variant="caption" tone="subtle">Development bypass</AppText>
           </Pressable>
         ) : null}
       </ScrollView>

@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { Text } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { messagePreview, sortThreads, threadTitle } from '@fuelguard/shared';
 import {
   ActionBar,
+  AppText,
   Badge,
   Banner,
   Button,
-  Card,
   EmptyState,
+  GroupedList,
   Input,
   ListRow,
   OfflineBanner,
@@ -76,9 +76,9 @@ export default function MessagesInbox() {
         ) : (
           <ActionBar>
             <Button label="Message dispatch" size="lg" icon="mail" onPress={() => setComposing(true)} />
-            <Text className="pb-1 text-center text-xs text-ink-subtle">
+            <AppText variant="caption" tone="subtle" className="pb-1 text-center">
               Works offline — it sends when you get signal.
-            </Text>
+            </AppText>
           </ActionBar>
         )
       }
@@ -108,24 +108,22 @@ export default function MessagesInbox() {
           subtitle="Start a conversation below — dispatch sees it on their dashboard."
         />
       ) : (
-        rows.map((t) => (
-          <ListRow
-            key={t.id}
-            icon="mail"
-            iconFill={t.unread > 0}
-            title={threadTitle(t, userId ?? '')}
-            subtitle={messagePreview(t.last_message)}
-            onPress={() => router.push(`/messages/${t.id}` as never)}
-            right={t.unread > 0 ? <Badge label={String(t.unread)} tone="brand" /> : undefined}
-          />
-        ))
+        <GroupedList>
+          {rows.map((t) => (
+            <ListRow
+              key={t.id}
+              icon="mail"
+              iconFill={t.unread > 0}
+              title={threadTitle(t, userId ?? '')}
+              subtitle={messagePreview(t.last_message)}
+              onPress={() => router.push(`/messages/${t.id}` as never)}
+              right={t.unread > 0 ? <Badge label={String(t.unread)} tone="brand" /> : undefined}
+            />
+          ))}
+        </GroupedList>
       )}
       {composing ? (
-        <Card>
-          <Text className="text-sm text-ink-secondary">
-            Your message opens a conversation with your fleet's dispatch team.
-          </Text>
-        </Card>
+        <Banner tone="info" message="Your message opens a conversation with your fleet’s dispatch team." />
       ) : null}
     </Screen>
   );

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
-import { Banner, Card, SectionLabel } from '@/components';
+import { AppText, Banner, GroupedList, SectionLabel } from '@/components';
 import { env } from '@/lib/env';
 import { useDriverContext } from '@/session/useDriverContext';
 
@@ -27,9 +27,9 @@ interface ApiVersion {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <View className="flex-row items-start justify-between py-1">
-      <Text className="pr-4 text-sm text-ink-secondary">{label}</Text>
-      <Text className="flex-1 text-right text-sm font-sans-md text-ink-primary">{value}</Text>
+    <View className="min-h-11 flex-row items-start justify-between gap-4 bg-surface px-4 py-3">
+      <AppText variant="supporting" tone="secondary">{label}</AppText>
+      <AppText variant="supporting" className="flex-1 text-right font-medium" selectable>{value}</AppText>
     </View>
   );
 }
@@ -71,17 +71,17 @@ export function BuildInfoCard() {
   return (
     <>
       <SectionLabel>About this build</SectionLabel>
-      <Card>
+      <GroupedList>
         <Row label="App version" value={String(Constants.expoConfig?.version ?? 'unknown')} />
         <Row label="Runtime" value={String(Updates.runtimeVersion ?? 'unknown')} />
         <Row label="JavaScript" value={bundle} />
         <Row label="Update channel" value={String(Updates.channel ?? 'none')} />
         <Row label="Server" value={api ? `${api.commitShort ?? 'unknown'} · ${api.env}` : (apiError ?? 'checking…')} />
         <Row label="Database" value={api ? `${api.schema.applied ?? 'unknown'} (${api.schema.state})` : '—'} />
-        <Text className="pt-2 text-xs text-ink-muted">
-          Quote these lines when reporting a problem — they identify exactly which build you are on.
-        </Text>
-      </Card>
+      </GroupedList>
+      <AppText variant="caption" tone="muted">
+        Quote these values when reporting a problem—they identify the exact build on this device.
+      </AppText>
       {schemaNote ? <Banner tone="warning" message={schemaNote} /> : null}
       {data?.contractDegraded ? (
         <Banner

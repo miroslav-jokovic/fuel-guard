@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import {
   NOTIFICATION_CATEGORIES,
@@ -10,10 +10,11 @@ import {
 } from '@fuelguard/shared';
 import {
   Badge,
+  AppText,
   Banner,
   Button,
-  Card,
   EmptyState,
+  GroupedList,
   Icon,
   ListRow,
   OfflineBanner,
@@ -21,6 +22,7 @@ import {
   ScreenHeader,
   SectionLabel,
   Skeleton,
+  ToggleRow,
   type Tone,
 } from '@/components';
 import { useMarkRead, useNotifications, useUpdatePreferences } from '@/features/notifications/useNotifications';
@@ -138,54 +140,50 @@ export default function NotificationsCentre() {
           subtitle="New loads, hazmat verdicts, shift events and your weekly score land here."
         />
       ) : (
-        rows.map((n) => (
-          <ListRow
-            key={n.id}
-            icon={(CATEGORY_ICON[n.category] ?? 'info') as never}
-            iconFill={n.read_at === null}
-            title={n.title}
-            subtitle={n.body ?? undefined}
-            onPress={() => openRow(n)}
-            right={
-              <View className="items-end gap-1">
-                <Text className="text-xs text-ink-subtle" style={{ fontVariant: ['tabular-nums'] }}>
-                  {timeLabel(n.created_at)}
-                </Text>
-                {n.read_at === null ? (
-                  <Badge label="New" tone={SEVERITY_TONE[n.severity] ?? 'info'} />
-                ) : null}
-              </View>
-            }
-          />
-        ))
+        <GroupedList>
+          {rows.map((n) => (
+            <ListRow
+              key={n.id}
+              icon={(CATEGORY_ICON[n.category] ?? 'info') as never}
+              iconFill={n.read_at === null}
+              title={n.title}
+              subtitle={n.body ?? undefined}
+              onPress={() => openRow(n)}
+              right={
+                <View className="items-end gap-1">
+                  <AppText variant="caption" tone="subtle" tabular>{timeLabel(n.created_at)}</AppText>
+                  {n.read_at === null ? <Badge label="New" tone={SEVERITY_TONE[n.severity] ?? 'info'} /> : null}
+                </View>
+              }
+            />
+          ))}
+        </GroupedList>
       )}
 
-      <SectionLabel>What you get told about</SectionLabel>
+      <SectionLabel>Notification preferences</SectionLabel>
       {prefsError ? <Banner tone="danger" message={prefsError} /> : null}
-      <Card>
+      <GroupedList>
         {NOTIFICATION_CATEGORIES.map((category) => (
-          <ListRow
-            key={category}
-            title={NOTIFICATION_CATEGORY_LABELS[category]}
-            subtitle={isMutable(category) ? undefined : 'Always on — safety-critical'}
-            onPress={isMutable(category) ? () => void toggleMute(category) : undefined}
-            right={
-              isMutable(category) ? (
-                <Icon
-                  name={muted.has(category) ? 'visibility_off' : 'check_circle'}
-                  size={22}
-                  className={muted.has(category) ? 'text-ink-subtle' : 'text-brand'}
-                />
-              ) : (
-                <Icon name="lock" size={18} className="text-ink-subtle" />
-              )
-            }
-          />
+          isMutable(category) ? (
+            <ToggleRow
+              key={category}
+              title={NOTIFICATION_CATEGORY_LABELS[category]}
+              value={!muted.has(category)}
+              onValueChange={() => { void toggleMute(category); }}
+            />
+          ) : (
+            <ListRow
+              key={category}
+              title={NOTIFICATION_CATEGORY_LABELS[category]}
+              subtitle="Always on · safety-critical"
+              right={<Icon name="lock" size={18} className="text-ink-subtle" />}
+            />
+          )
         ))}
-      </Card>
-      <Text className="pb-2 text-center text-xs text-ink-subtle">
+      </GroupedList>
+      <AppText variant="caption" tone="subtle" className="pb-2 text-center">
         Muting is enforced by the server, so a muted category stays quiet on every device.
-      </Text>
+      </AppText>
     </Screen>
   );
 }

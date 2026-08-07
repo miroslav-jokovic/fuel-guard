@@ -2,55 +2,163 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Semantic roles as RGB channel triplets (plan §6/§11.3). Light = :root, dark = .dark.
-   Components consume ONLY these via the tailwind config — never raw hex/palette. */
+/*
+ * GENERATED FALLBACK MIRROR of src/theme/theme.roles.json.
+ * Native views receive the same variables from ThemeProvider. `pnpm lint:theme` fails when this
+ * mirror drifts, so CSS, native SVG/API colors, dark mode, and high contrast share one vocabulary.
+ * Operational copy intentionally inherits the platform UI typeface; Hanken is applied only through
+ * explicit display classes.
+ */
 @layer base {
-  * {
-    font-family: HankenGrotesk_400Regular;
-  }
-
+  /* theme:light:start */
   :root {
-    --color-canvas: 249 250 251;
+    --color-canvas: 244 247 250;
     --color-surface: 255 255 255;
-    --color-surface-subtle: 249 250 251;
-    --color-surface-muted: 243 244 246;
-    --color-surface-inverse: 17 24 39;
-    --color-ink: 17 24 39;
-    --color-ink-secondary: 55 65 81;
-    --color-ink-muted: 107 114 128;
-    --color-ink-subtle: 156 163 175;
+    --color-surface-subtle: 248 250 252;
+    --color-surface-muted: 236 241 245;
+    --color-surface-raised: 255 255 255;
+    --color-surface-selected: 232 240 255;
+    --color-surface-inverse: 15 23 42;
+    --color-ink: 15 23 42;
+    --color-ink-secondary: 51 65 85;
+    --color-ink-muted: 91 107 128;
+    --color-ink-subtle: 125 141 163;
+    --color-ink-disabled: 148 163 184;
     --color-ink-inverse: 255 255 255;
-    --color-edge-subtle: 243 244 246;
-    --color-edge: 229 231 235;
-    --color-edge-strong: 209 213 219;
-    --color-brand: 79 70 229;
+    --color-edge-subtle: 226 232 240;
+    --color-edge: 203 213 225;
+    --color-edge-strong: 148 163 184;
+    --color-edge-focus: 29 78 216;
+    --color-brand: 29 78 216;
+    --color-brand-pressed: 23 63 172;
+    --color-brand-subtle: 232 240 255;
     --color-brand-fg: 255 255 255;
-    --color-danger: 220 38 38;
-    --color-warning: 217 119 6;
-    --color-caution: 234 88 12;
-    --color-success: 22 163 74;
-    --color-info: 37 99 235;
+    --color-danger: 185 28 28;
+    --color-warning: 146 64 14;
+    --color-caution: 194 65 12;
+    --color-success: 21 128 61;
+    --color-info: 29 78 216;
+    --color-operation-current: 29 78 216;
+    --color-operation-next: 3 105 161;
+    --color-operation-complete: 21 128 61;
+    --color-operation-blocked: 185 28 28;
+    --color-sync-local: 3 105 161;
+    --color-sync-pending: 146 64 14;
+    --color-sync-failed: 185 28 28;
   }
+  /* theme:light:end */
+
+  /* theme:dark:start */
   .dark {
-    --color-canvas: 10 12 14;
-    --color-surface: 31 41 55;
-    --color-surface-subtle: 24 31 42;
-    --color-surface-muted: 55 65 81;
-    --color-surface-inverse: 229 231 235;
-    --color-ink: 249 250 251;
-    --color-ink-secondary: 229 231 235;
-    --color-ink-muted: 156 163 175;
-    --color-ink-subtle: 107 114 128;
-    --color-ink-inverse: 17 24 39;
-    --color-edge-subtle: 55 65 81;
-    --color-edge: 55 65 81;
-    --color-edge-strong: 75 85 99;
-    --color-brand: 99 102 241;
-    --color-brand-fg: 17 24 39;
-    --color-danger: 248 113 113;
-    --color-warning: 251 191 36;
+    --color-canvas: 10 15 23;
+    --color-surface: 17 25 38;
+    --color-surface-subtle: 14 21 32;
+    --color-surface-muted: 27 39 55;
+    --color-surface-raised: 31 45 64;
+    --color-surface-selected: 25 48 86;
+    --color-surface-inverse: 244 247 250;
+    --color-ink: 244 247 250;
+    --color-ink-secondary: 203 213 225;
+    --color-ink-muted: 148 163 184;
+    --color-ink-subtle: 100 116 139;
+    --color-ink-disabled: 71 85 105;
+    --color-ink-inverse: 10 15 23;
+    --color-edge-subtle: 30 43 59;
+    --color-edge: 45 59 77;
+    --color-edge-strong: 71 85 105;
+    --color-edge-focus: 96 165 250;
+    --color-brand: 96 165 250;
+    --color-brand-pressed: 147 197 253;
+    --color-brand-subtle: 25 48 86;
+    --color-brand-fg: 10 15 23;
+    --color-danger: 252 129 129;
+    --color-warning: 253 186 116;
     --color-caution: 251 146 60;
     --color-success: 74 222 128;
-    --color-info: 96 165 250;
+    --color-info: 125 211 252;
+    --color-operation-current: 96 165 250;
+    --color-operation-next: 125 211 252;
+    --color-operation-complete: 74 222 128;
+    --color-operation-blocked: 252 129 129;
+    --color-sync-local: 125 211 252;
+    --color-sync-pending: 253 186 116;
+    --color-sync-failed: 252 129 129;
   }
+  /* theme:dark:end */
+
+  /* theme:highContrastLight:start */
+  .high-contrast-light {
+    --color-canvas: 255 255 255;
+    --color-surface: 255 255 255;
+    --color-surface-subtle: 248 250 252;
+    --color-surface-muted: 238 242 247;
+    --color-surface-raised: 255 255 255;
+    --color-surface-selected: 219 234 254;
+    --color-surface-inverse: 0 0 0;
+    --color-ink: 0 0 0;
+    --color-ink-secondary: 24 35 52;
+    --color-ink-muted: 51 65 85;
+    --color-ink-subtle: 71 85 105;
+    --color-ink-disabled: 100 116 139;
+    --color-ink-inverse: 255 255 255;
+    --color-edge-subtle: 148 163 184;
+    --color-edge: 71 85 105;
+    --color-edge-strong: 24 35 52;
+    --color-edge-focus: 0 50 140;
+    --color-brand: 0 50 140;
+    --color-brand-pressed: 0 36 102;
+    --color-brand-subtle: 219 234 254;
+    --color-brand-fg: 255 255 255;
+    --color-danger: 127 0 0;
+    --color-warning: 112 45 0;
+    --color-caution: 128 42 0;
+    --color-success: 0 92 41;
+    --color-info: 0 50 140;
+    --color-operation-current: 0 50 140;
+    --color-operation-next: 0 76 112;
+    --color-operation-complete: 0 92 41;
+    --color-operation-blocked: 127 0 0;
+    --color-sync-local: 0 76 112;
+    --color-sync-pending: 112 45 0;
+    --color-sync-failed: 127 0 0;
+  }
+  /* theme:highContrastLight:end */
+
+  /* theme:highContrastDark:start */
+  .high-contrast-dark {
+    --color-canvas: 0 0 0;
+    --color-surface: 8 12 18;
+    --color-surface-subtle: 0 0 0;
+    --color-surface-muted: 20 28 40;
+    --color-surface-raised: 30 42 58;
+    --color-surface-selected: 20 54 96;
+    --color-surface-inverse: 255 255 255;
+    --color-ink: 255 255 255;
+    --color-ink-secondary: 238 242 247;
+    --color-ink-muted: 203 213 225;
+    --color-ink-subtle: 148 163 184;
+    --color-ink-disabled: 100 116 139;
+    --color-ink-inverse: 0 0 0;
+    --color-edge-subtle: 100 116 139;
+    --color-edge: 148 163 184;
+    --color-edge-strong: 226 232 240;
+    --color-edge-focus: 153 204 255;
+    --color-brand: 153 204 255;
+    --color-brand-pressed: 201 229 255;
+    --color-brand-subtle: 20 54 96;
+    --color-brand-fg: 0 0 0;
+    --color-danger: 255 179 179;
+    --color-warning: 255 207 145;
+    --color-caution: 255 184 128;
+    --color-success: 129 235 166;
+    --color-info: 174 226 255;
+    --color-operation-current: 153 204 255;
+    --color-operation-next: 174 226 255;
+    --color-operation-complete: 129 235 166;
+    --color-operation-blocked: 255 179 179;
+    --color-sync-local: 174 226 255;
+    --color-sync-pending: 255 207 145;
+    --color-sync-failed: 255 179 179;
+  }
+  /* theme:highContrastDark:end */
 }

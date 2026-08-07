@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Badge, ListRow, Screen, ScreenHeader, SectionLabel } from '@/components';
+import { GroupedList, ListRow, Screen, ScreenHeader, SectionLabel } from '@/components';
 import { dutyView, useShift } from '@/features/duty/useDuty';
 import { useFeatures } from '@/session/useFeatures';
 
@@ -8,84 +8,64 @@ export default function More() {
   const shift = useShift();
   const duty = dutyView(shift.data);
   const { enabled } = useFeatures();
-
-  // Feature-gated (Phase 4 — the resolved set already folds in the hazmatguard entitlement AND
-  // the org/driver toggles; the Samsara rule: what's off simply doesn't appear). Enabled → the
-  // live hazmat hub; off → the teaser row stays.
   const hazmatEnabled = enabled('hazmat.capture');
 
   return (
     <Screen>
-      <ScreenHeader title="More" />
+      <ScreenHeader title="More" subtitle="Support, tools, and account" />
 
       {duty.onDuty ? (
         <>
-          <SectionLabel>On duty</SectionLabel>
-          <ListRow
-            icon="local_shipping"
-            iconFill
-            title={duty.equipmentLabel ?? 'On duty'}
-            subtitle={duty.hasTrailer ? 'Truck and trailer' : 'Bobtail — no trailer yet'}
-            onPress={() => router.push('/duty/check-in?mode=swap')}
-          />
-          <ListRow
-            icon="logout"
-            title="End shift"
-            subtitle="Sign off and release your truck"
-            onPress={() => router.push('/duty/end-shift')}
-          />
+          <SectionLabel>Current shift</SectionLabel>
+          <GroupedList>
+            <ListRow
+              icon="local_shipping"
+              iconFill
+              title={duty.equipmentLabel ?? 'On duty'}
+              subtitle={duty.hasTrailer ? 'Truck and trailer confirmed' : 'Bobtail · no trailer'}
+              onPress={() => router.push('/duty/check-in?mode=swap')}
+            />
+            <ListRow
+              icon="logout"
+              title="End shift"
+              subtitle="Sign off and release your equipment"
+              onPress={() => router.push('/duty/end-shift')}
+            />
+          </GroupedList>
         </>
       ) : null}
 
       {hazmatEnabled ? (
         <>
-          <SectionLabel>Work</SectionLabel>
-          <ListRow
-            title="Hazmat checks"
-            subtitle="Capture a BOL, get the compliance verdict"
-            icon="local_fire_department"
-            onPress={() => router.push('/hazmat')}
-          />
+          <SectionLabel>Work tools</SectionLabel>
+          <GroupedList>
+            <ListRow
+              title="Hazmat checks"
+              subtitle="Capture a BOL and review compliance results"
+              icon="local_fire_department"
+              onPress={() => router.push('/hazmat')}
+            />
+          </GroupedList>
         </>
       ) : null}
 
       <SectionLabel>App</SectionLabel>
-      <ListRow
-        title="Settings"
-        subtitle="Profile, appearance, sign out"
-        icon="settings"
-        onPress={() => router.push('/settings')}
-      />
-      {__DEV__ ? (
+      <GroupedList>
         <ListRow
-          title="Design system"
-          subtitle="Component gallery (dev builds only)"
-          icon="explore"
-          onPress={() => router.push('/gallery')}
+          title="Settings"
+          subtitle="Appearance, sync, account, and diagnostics"
+          icon="settings"
+          onPress={() => router.push('/settings')}
         />
-      ) : null}
-
-      <SectionLabel>Coming soon</SectionLabel>
-      <ListRow
-        title="Training"
-        subtitle="Safety courses & quizzes"
-        icon="school"
-        right={<Badge label="Soon" tone="info" />}
-      />
-      {!hazmatEnabled ? (
-        <ListRow
-          title="HazmatGuard"
-          subtitle="Hazmat documentation in your load flow"
-          icon="local_fire_department"
-          right={<Badge label="Soon" tone="info" />}
-        />
-      ) : null}
-      <ListRow
-        title="Ask FuelGuard"
-        subtitle="AI copilot for your loads, route & score"
-        icon="bolt"
-        right={<Badge label="Soon" tone="info" />}
-      />
+        {__DEV__ ? (
+          <ListRow
+            title="Design system"
+            subtitle="Component gallery · development builds"
+            icon="explore"
+            onPress={() => router.push('/gallery')}
+          />
+        ) : null}
+      </GroupedList>
     </Screen>
   );
 }

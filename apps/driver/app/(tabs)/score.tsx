@@ -1,102 +1,117 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import {
-  Badge,
+  AppText,
   Banner,
-  Card,
   EmptyState,
+  GroupedList,
+  Icon,
+  Progress,
   Screen,
-  ScoreRing,
   ScreenHeader,
   SectionLabel,
   Skeleton,
-  StatTile,
+  Sparkline,
 } from '@/components';
-import { buildScoreView } from '@/features/score/scoreModel';
+import { buildScoreView, type ScoreTile } from '@/features/score/scoreModel';
 import { useDriverScore } from '@/features/score/useDriverScore';
 
-/**
- * My Score (plan §13.5 / Phase 5): the driver's own weekly grade, wired to their frozen
- * driver_performance_weeks via `GET /api/me/score`. The animated ring is this week's grade, the three
- * sub-scores carry 7-week sparklines and week-over-week trends, and one plain-language coaching line
- * points at the weakest weighted component. Cached-first, so a cold start with no signal still renders
- * last settled week; skeletons only when nothing is cached. A week that didn't qualify still shows its
- * sub-scores (coaching) with a note explaining why it isn't ranked (docs/16 §3.2).
- */
+function ScoreMetricRow({ tile }: { tile: ScoreTile }) {
+  return (
+    <View className="min-h-[64px] flex-row items-center gap-3 bg-surface px-4 py-3">
+      <View className="w-6 items-center"><Icon name={tile.icon} size={20} className="text-ink-secondary" /></View>
+      <View className="flex-1 gap-0.5">
+        <AppText variant="rowTitle">{tile.label}</AppText>
+        {tile.trend ? (
+          <View className="flex-row items-center gap-1">
+            <Icon
+              name={tile.trend.direction === 'up' ? 'trending_up' : 'trending_down'}
+              size={14}
+              className={tile.trend.positive ? 'text-success' : 'text-warning'}
+            />
+            <AppText variant="caption" tone={tile.trend.positive ? 'success' : 'warning'}>{tile.trend.label}</AppText>
+          </View>
+        ) : (
+          <AppText variant="caption" tone="muted">No week-over-week change yet</AppText>
+        )}
+      </View>
+      {tile.spark ? <View className="w-20"><Sparkline data={tile.spark} height={18} /></View> : null}
+      <AppText variant="numericCompact" tabular>{tile.value}</AppText>
+    </View>
+  );
+}
+
 export default function Score() {
-  const q = useDriverScore();
-  const view = buildScoreView(q.data);
-  const loading = q.isPending && !q.data;
+  const query = useDriverScore();
+  const view = buildScoreView(query.data);
+  const loading = query.isPending && !query.data;
 
   return (
     <Screen>
-      <ScreenHeader title="My Score" subtitle={view.weekLabel ?? undefined} />
+      <ScreenHeader title="Score" subtitle={view.weekLabel ?? 'Weekly performance'} />
 
-      {q.isError && !q.data ? (
+      {query.isError && !query.data ? (
         <Banner
           tone="danger"
-          message={q.error.message || 'Could not load your score.'}
+          message={query.error.message || 'Could not load your score.'}
           actionLabel="Retry"
-          onAction={() => void q.refetch()}
+          onAction={() => void query.refetch()}
         />
       ) : null}
 
-      {!loading && view.state !== 'empty' ? <SectionLabel>This week</SectionLabel> : null}
-
       {loading ? (
         <>
-          <Skeleton className="h-[232px] w-full rounded-xl" />
-          <View className="flex-row gap-3">
-            <Skeleton className="h-[124px] flex-1 rounded-xl" />
-            <Skeleton className="h-[124px] flex-1 rounded-xl" />
-            <Skeleton className="h-[124px] flex-1 rounded-xl" />
-          </View>
+          <Skeleton className="h-36 w-full rounded-2xl" />
+          <Skeleton className="h-52 w-full rounded-xl" />
         </>
       ) : view.state === 'empty' ? (
-        <EmptyState
-          icon="speed"
-          title="No score yet"
-          subtitle="Your first weekly grade posts after your first full week on the road."
-        />
+        <EmptyState title="No score yet" subtitle="Your first weekly grade posts after a full week on the road." />
       ) : (
         <>
           {view.state === 'ready' ? (
-            <Card>
-              <View className="items-center gap-3 py-2">
-                <ScoreRing score={view.score ?? 0} sublabel="/ 100" />
-                <View className="flex-row flex-wrap items-center justify-center gap-2">
-                  {view.trend ? (
-                    <Badge
-                      label={view.trend.label}
-                      tone={view.trend.positive ? 'success' : 'warning'}
-                      icon={view.trend.direction === 'up' ? 'trending_up' : 'trending_down'}
-                    />
-                  ) : null}
+            <View className="gap-3 rounded-2xl border border-edge bg-surface p-4">
+              <View className="flex-row items-end gap-4">
+                <View className="flex-1 gap-0.5">
+                  <AppText variant="caption" tone="muted">Weekly score</AppText>
+                  <View className="flex-row items-baseline gap-1">
+                    <AppText variant="numericHero" tabular>{String(view.score ?? 0)}</AppText>
+                    <AppText variant="supporting" tone="muted">/ 100</AppText>
+                  </View>
+                </View>
+                <View className="items-end gap-1">
                   {view.rankLabel ? (
-                    view.isWinner ? (
-                      <Badge label={`Rank ${view.rankLabel} — winner`} tone="success" icon="military_tech" />
-                    ) : (
-                      <Text className="text-sm font-sans-md text-ink-secondary">Rank {view.rankLabel}</Text>
-                    )
+                    <>
+                      <AppText variant="caption" tone="muted">Fleet rank</AppText>
+                      <AppText variant="navigationTitle">{view.rankLabel}</AppText>
+                    </>
+                  ) : null}
+                  {view.trend ? (
+                    <View className="flex-row items-center gap-1">
+                      <Icon
+                        name={view.trend.direction === 'up' ? 'trending_up' : 'trending_down'}
+                        size={15}
+                        className={view.trend.positive ? 'text-success' : 'text-warning'}
+                      />
+                      <AppText variant="caption" tone={view.trend.positive ? 'success' : 'warning'}>{view.trend.label}</AppText>
+                    </View>
                   ) : null}
                 </View>
               </View>
-            </Card>
+              <Progress value={(view.score ?? 0) / 100} />
+              {view.isWinner ? (
+                <View className="flex-row items-center gap-1.5 border-t border-edge-subtle pt-3">
+                  <Icon name="military_tech" size={18} className="text-success" />
+                  <AppText variant="supporting" tone="success" className="font-medium">Top score in your fleet this week</AppText>
+                </View>
+              ) : null}
+            </View>
           ) : (
-            <Banner tone="info" message={view.ineligibleNote ?? "This week isn't ranked yet."} />
+            <Banner tone="info" message={view.ineligibleNote ?? 'This week is not ranked yet.'} />
           )}
 
-          <View className="flex-row gap-3">
-            {view.tiles.map((t) => (
-              <StatTile
-                key={t.key}
-                label={t.label}
-                value={t.value}
-                icon={t.icon}
-                spark={t.spark}
-                trend={t.trend}
-              />
-            ))}
-          </View>
+          <SectionLabel>Score breakdown</SectionLabel>
+          <GroupedList>
+            {view.tiles.map((tile) => <ScoreMetricRow key={tile.key} tile={tile} />)}
+          </GroupedList>
 
           {view.coaching ? (
             <>

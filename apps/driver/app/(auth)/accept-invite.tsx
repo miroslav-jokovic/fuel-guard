@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useURL } from 'expo-linking';
-import { Banner, Button, Field, Icon, Input } from '@/components';
+import { AppText, Banner, Button, Field, Icon, Input } from '@/components';
 import { AuthHero } from '@/features/auth/AuthLayout';
 import { useSession } from '@/session/SessionProvider';
 import {
@@ -15,6 +15,7 @@ import { haptics } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { roleColors } from '@/theme/colors';
 import { useTheme } from '@/theme/ThemeProvider';
+import { layout } from '@/theme/tokens';
 
 // Accept-invite / set-password (Phase 1 §12.5) — the RN mirror of the web's AcceptInvitePage:
 // establish the session from the emailed link, set a password (updateUser), POST /api/invites/accept
@@ -28,7 +29,7 @@ export default function AcceptInvite() {
   const url = useURL();
   const insets = useSafeAreaInsets();
   const { refresh, session } = useSession();
-  const { isDark } = useTheme();
+  const { themeKey } = useTheme();
 
   const [step, setStep] = useState<Step>('verifying');
   const [inviteToken, setInviteToken] = useState<string | null>(null);
@@ -129,7 +130,7 @@ export default function AcceptInvite() {
     }
   }
 
-  const spinnerColor = roleColors[isDark ? 'dark' : 'light'].brand;
+  const spinnerColor = roleColors[themeKey].brand;
 
   return (
     <KeyboardAvoidingView
@@ -137,17 +138,17 @@ export default function AcceptInvite() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerClassName="flex-grow justify-center px-6 gap-7"
-        contentContainerStyle={{ paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 }}
+        contentContainerClassName="flex-grow gap-4 px-4"
+        contentContainerStyle={{ paddingTop: insets.top + layout.sectionGap, paddingBottom: insets.bottom + layout.sectionGap }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         {step === 'verifying' || step === 'finishing' ? (
           <View className="items-center gap-4">
             <ActivityIndicator color={spinnerColor} />
-            <Text className="text-center text-base text-ink-muted">
+            <AppText tone="muted" className="text-center">
               {step === 'verifying' ? 'Checking your invitation…' : 'Setting up your account…'}
-            </Text>
+            </AppText>
           </View>
         ) : null}
 
@@ -253,9 +254,9 @@ export default function AcceptInvite() {
                 }}
               />
             </View>
-            <Text className="text-center text-sm leading-relaxed text-ink-muted">
+            <AppText variant="supporting" tone="muted" className="text-center">
               Link expired or already used? Ask your admin to resend the invitation.
-            </Text>
+            </AppText>
           </>
         ) : null}
       </ScrollView>

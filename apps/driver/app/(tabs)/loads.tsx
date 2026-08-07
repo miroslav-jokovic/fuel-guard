@@ -50,16 +50,16 @@ export default function Loads() {
 
   return (
     <Screen>
-      <ScreenHeader title="Assignments" subtitle="Your loads" />
+      <ScreenHeader title="Loads" subtitle="Current work and released assignments" />
       <OfflineBanner />
 
       <SegmentedControl<Bucket>
         value={bucket}
         onChange={setBucket}
         options={[
-          { label: `Upcoming${buckets.upcoming.length ? ` (${buckets.upcoming.length})` : ''}`, value: 'upcoming' },
           { label: 'Current', value: 'current' },
-          { label: 'Previous', value: 'previous' },
+          { label: `Upcoming${buckets.upcoming.length ? ` ${buckets.upcoming.length}` : ''}`, value: 'upcoming' },
+          { label: 'History', value: 'previous' },
         ]}
       />
 

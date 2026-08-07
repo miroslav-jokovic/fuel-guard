@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Keyboard, Text, View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { EquipmentOption } from '@fuelguard/shared';
 import {
   ActionBar,
+  AppText,
   Badge,
   Banner,
   Button,
-  Card,
   ConfirmSheet,
   EmptyState,
   Field,
+  GroupedList,
   Icon,
   Input,
   ListRow,
@@ -245,9 +246,9 @@ export default function CheckIn() {
               haptic="success"
               onPress={() => void submit()}
             />
-            <Text className="pb-1 text-center text-xs text-ink-subtle">
+            <AppText variant="caption" tone="subtle" className="pb-1 text-center">
               Works offline — this syncs when you get signal.
-            </Text>
+            </AppText>
           </ActionBar>
         ) : undefined
       }
@@ -279,14 +280,16 @@ export default function CheckIn() {
         <>
           <SectionLabel>{mode === 'swap' ? 'Pick a truck' : 'Your truck'}</SectionLabel>
           {mode === 'swap' ? (
-            <ListRow
-              icon="local_shipping"
-              iconFill
-              title="Keep your truck"
-              subtitle={duty.equipmentLabel ?? undefined}
-              onPress={() => advance(keepVehicle(s))}
-              right={<Icon name="arrow_forward" size={20} className="text-ink-muted" />}
-            />
+            <GroupedList>
+              <ListRow
+                icon="local_shipping"
+                iconFill
+                title="Keep your truck"
+                subtitle={duty.equipmentLabel ?? undefined}
+                onPress={() => advance(keepVehicle(s))}
+                right={<Icon name="arrow_forward" size={20} className="text-ink-muted" />}
+              />
+            </GroupedList>
           ) : null}
           {searchBox}
           {loading ? (
@@ -302,15 +305,17 @@ export default function CheckIn() {
               }
             />
           ) : (
-            vehicles.map((v) => (
-              <EquipmentRow
-                key={v.id}
-                option={v}
-                icon="local_shipping"
-                selected={s.vehicle?.id === v.id}
-                onPress={() => pick(v, 'vehicle')}
-              />
-            ))
+            <GroupedList>
+              {vehicles.map((v) => (
+                <EquipmentRow
+                  key={v.id}
+                  option={v}
+                  icon="local_shipping"
+                  selected={s.vehicle?.id === v.id}
+                  onPress={() => pick(v, 'vehicle')}
+                />
+              ))}
+            </GroupedList>
           )}
         </>
       ) : null}
@@ -319,22 +324,24 @@ export default function CheckIn() {
         <>
           <SectionLabel>Trailer</SectionLabel>
           {/* "Not hooked yet" is a first-class answer, not an empty state (D44.2). */}
-          <ListRow
-            icon="route"
-            title="Bobtail — no trailer yet"
-            subtitle="You can add one later without ending your shift"
-            onPress={() => advance(chooseBobtail(s))}
-            right={s.bobtail ? <Icon name="check_circle" size={22} className="text-brand" /> : undefined}
-          />
-          {mode === 'swap' ? (
+          <GroupedList>
             <ListRow
               icon="route"
-              title="Keep current trailer"
-              subtitle="No drop-and-hook this stop"
-              onPress={() => advance(keepTrailer(s))}
-              right={<Icon name="arrow_forward" size={20} className="text-ink-muted" />}
+              title="Bobtail — no trailer yet"
+              subtitle="You can add one later without ending your shift"
+              onPress={() => advance(chooseBobtail(s))}
+              right={s.bobtail ? <Icon name="check_circle" size={22} className="text-brand" /> : undefined}
             />
-          ) : null}
+            {mode === 'swap' ? (
+              <ListRow
+                icon="route"
+                title="Keep current trailer"
+                subtitle="No drop-and-hook this stop"
+                onPress={() => advance(keepTrailer(s))}
+                right={<Icon name="arrow_forward" size={20} className="text-ink-muted" />}
+              />
+            ) : null}
+          </GroupedList>
           {searchBox}
           {loading ? (
             rosterSkeleton
@@ -345,15 +352,17 @@ export default function CheckIn() {
               subtitle={search ? 'Clear the search, or go bobtail for now.' : 'Go bobtail for now.'}
             />
           ) : (
-            trailers.map((t) => (
-              <EquipmentRow
-                key={t.id}
-                option={t}
-                icon="route"
-                selected={s.trailer?.id === t.id}
-                onPress={() => pick(t, 'trailer')}
-              />
-            ))
+            <GroupedList>
+              {trailers.map((t) => (
+                <EquipmentRow
+                  key={t.id}
+                  option={t}
+                  icon="route"
+                  selected={s.trailer?.id === t.id}
+                  onPress={() => pick(t, 'trailer')}
+                />
+              ))}
+            </GroupedList>
           )}
         </>
       ) : null}
@@ -361,7 +370,7 @@ export default function CheckIn() {
       {s.step === 'confirm' ? (
         <>
           <SectionLabel>{mode === 'swap' ? 'Review change' : 'Review'}</SectionLabel>
-          <Card>
+          <GroupedList>
             <ListRow
               icon="local_shipping"
               iconFill
@@ -378,7 +387,7 @@ export default function CheckIn() {
               onPress={() => setS({ ...s, step: 'trailer' })}
               right={<Icon name="edit" size={18} className="text-ink-muted" />}
             />
-          </Card>
+          </GroupedList>
           {mode === 'swap' && !hasChanges(s, mode) ? (
             <Banner tone="info" message="Nothing changed yet — pick a different truck or trailer to save." />
           ) : null}

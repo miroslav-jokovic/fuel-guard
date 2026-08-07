@@ -9,12 +9,20 @@ export function Card({
   children,
   onPress,
   padded = true,
+  variant = 'grouped',
 }: {
   children: ReactNode;
   onPress?: () => void;
   padded?: boolean;
+  variant?: 'grouped' | 'operational' | 'raised' | 'plain';
 }) {
-  const base = `${ui.card} ${padded ? ui.cardContent : ''}`;
+  const surface = {
+    grouped: ui.card,
+    operational: 'rounded-2xl border border-edge bg-surface',
+    raised: 'rounded-xl border border-edge-subtle bg-surface-raised shadow-sm',
+    plain: 'bg-transparent',
+  }[variant];
+  const base = `${surface} ${padded ? ui.cardContent : ''}`;
   if (onPress) {
     return (
       <Pressable
@@ -23,7 +31,7 @@ export function Card({
           haptics.select();
           onPress();
         }}
-        className={`${base} active:bg-surface-subtle`}
+        className={`${base} active:bg-surface-selected`}
       >
         {children}
       </Pressable>

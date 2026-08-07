@@ -17,7 +17,8 @@
     "gen:tab-icons": "node scripts/gen-tab-icons.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "lint:tokens": "node scripts/check-driver-tokens.mjs",
+    "lint:tokens": "node scripts/check-driver-tokens.mjs && node scripts/check-driver-theme.mjs",
+    "lint:theme": "node scripts/check-driver-theme.mjs",
     "lint:design": "node scripts/check-driver-design.mjs",
     "test": "vitest run"
   },

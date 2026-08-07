@@ -35,8 +35,8 @@ const END = COORDS[COORDS.length - 1] as [number, number];
 const CENTER: [number, number] = [(START[0] + END[0]) / 2, (START[1] + END[1]) / 2];
 
 export function NavMap() {
-  const { isDark } = useTheme();
-  const rc = roleColors[isDark ? 'dark' : 'light'];
+  const { isDark, themeKey } = useTheme();
+  const rc = roleColors[themeKey];
 
   return (
     <View className="overflow-hidden rounded-xl border border-edge" style={{ height: 280 }}>

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  ActionBar, Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field, Icon, IconButton,
-  Input, ListRow, NumericField, Progress, ScoreRing, Screen, ScreenHeader, SectionLabel,
-  SegmentedControl, Skeleton, StatTile, TaskStepper, Toast, severityTone,
+  ActionBar, AppText, Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field,
+  GroupedList, Icon, IconButton, Input, ListRow, NumericField, Progress, Screen, ScreenHeader, SectionLabel,
+  SegmentedControl, Skeleton, Sparkline, TaskStepper, Toast, severityTone,
 } from '@/components';
 import { LoadCard } from '@/features/loads/LoadCard';
 import { SAMPLE_UPCOMING } from '@/features/loads/sampleLoads';
@@ -38,7 +38,7 @@ export default function Gallery() {
     <Screen padTop={false}>
       <ScreenHeader
         title="Design system"
-        subtitle="Every component · light & dark"
+        subtitle="Operational components · adaptive appearance"
         onClose={() => router.back()}
         right={
           <IconButton
@@ -49,6 +49,16 @@ export default function Gallery() {
           />
         }
       />
+
+      <Section title="Typography">
+        <View className="gap-1 rounded-xl bg-surface-muted p-4">
+          <AppText variant="screenTitle">Today</AppText>
+          <AppText variant="navigationTitle">Load LD-20481</AppText>
+          <AppText variant="body">Operational copy uses the platform UI typeface.</AppText>
+          <AppText variant="supporting" tone="muted">Supporting information remains readable without competing.</AppText>
+          <AppText variant="numericHero" tabular>438,795</AppText>
+        </View>
+      </Section>
 
       <Section title="Icons — HugeIcons · semantic FuelGuard adapter">
         <Card>
@@ -117,31 +127,39 @@ export default function Gallery() {
         <Progress label="Stop progress" detail="2 of 4 stops" value={0.5} />
         <ActionBar>
           <Button label="Work next stop" icon="photo_camera" size="lg" variant="primary" onPress={noop} />
-          <Text className="text-center text-xs text-ink-muted">Saved locally, syncs automatically.</Text>
+          <AppText variant="caption" tone="muted" className="text-center">Saved locally, syncs automatically.</AppText>
         </ActionBar>
       </Section>
 
-      <Section title="Data viz — score ring & sparklines">
-        <Card>
-          <View className="items-center py-2">
-            <ScoreRing score={87} sublabel="/ 100" size={132} />
+      <Section title="Compact performance summary">
+        <View className="gap-3 rounded-2xl border border-edge bg-surface p-4">
+          <View className="flex-row items-end justify-between gap-4">
+            <View>
+              <AppText variant="caption" tone="muted">Weekly score</AppText>
+              <AppText variant="numericHero" tabular>87</AppText>
+            </View>
+            <AppText variant="supporting" tone="success">+3 vs last week</AppText>
           </View>
-        </Card>
-        <View className="flex-row gap-3">
-          <StatTile
-            label="Score"
-            value="87"
-            spark={[82, 84, 83, 85, 86, 86, 87]}
-            trend={{ label: '+3 vs last wk', direction: 'up', positive: true }}
-          />
-          <StatTile
-            label="Idling"
-            value="79"
-            icon="schedule"
-            spark={[83, 82, 81, 80, 80, 79, 79]}
-            trend={{ label: '-2', direction: 'down', positive: false }}
-          />
+          <Progress value={0.87} />
         </View>
+        <GroupedList>
+          <View className="min-h-[60px] flex-row items-center gap-3 bg-surface px-4 py-3">
+            <View className="flex-1">
+              <AppText variant="rowTitle">Fuel efficiency</AppText>
+              <AppText variant="caption" tone="success">Improved this week</AppText>
+            </View>
+            <View className="w-20"><Sparkline data={[82, 84, 83, 85, 86, 86, 87]} height={18} /></View>
+            <AppText variant="numericCompact" tabular>87</AppText>
+          </View>
+          <View className="min-h-[60px] flex-row items-center gap-3 bg-surface px-4 py-3">
+            <View className="flex-1">
+              <AppText variant="rowTitle">Idling</AppText>
+              <AppText variant="caption" tone="warning">Down 2 points</AppText>
+            </View>
+            <View className="w-20"><Sparkline data={[83, 82, 81, 80, 80, 79, 79]} height={18} /></View>
+            <AppText variant="numericCompact" tabular>79</AppText>
+          </View>
+        </GroupedList>
       </Section>
 
       <Section title="Confirm sheet (D19 — never a native Alert)">
@@ -192,18 +210,20 @@ export default function Gallery() {
       </Section>
 
       <Section title="List rows">
-        <ListRow
-          title="Unit 4471 — Freightliner Cascadia"
-          subtitle="Odometer 438,795 · Diesel"
-          icon="local_shipping"
-          onPress={noop}
-        />
-        <ListRow
-          title="Training"
-          subtitle="Safety courses & quizzes"
-          icon="school"
-          right={<Badge label="Soon" tone="info" />}
-        />
+        <GroupedList>
+          <ListRow
+            title="Unit 4471 — Freightliner Cascadia"
+            subtitle="Odometer 438,795 · Diesel"
+            icon="local_shipping"
+            onPress={noop}
+          />
+          <ListRow
+            title="Safety support"
+            subtitle="Call or message your safety team"
+            icon="health_and_safety"
+            onPress={noop}
+          />
+        </GroupedList>
       </Section>
 
       <Section title="Card + Avatar">
@@ -211,8 +231,8 @@ export default function Gallery() {
           <View className="flex-row items-center gap-3">
             <Avatar name="Miki Jokovic" size={44} />
             <View className="gap-0.5">
-              <Text className="text-base font-sans-sb text-ink">Miki Jokovic</Text>
-              <Text className="text-sm text-ink-muted">Driver · Silvicom Inc.</Text>
+              <AppText variant="rowTitle">Miki Jokovic</AppText>
+              <AppText variant="supporting" tone="muted">Driver · Silvicom Inc.</AppText>
             </View>
           </View>
         </Card>

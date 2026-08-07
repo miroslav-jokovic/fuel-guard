@@ -37,11 +37,11 @@ export function IconButton({
             }
           : undefined
       }
-      className={`h-11 w-11 items-center justify-center rounded-full active:bg-surface-muted ${
-        variant === 'tonal' ? 'bg-surface-muted' : ''
+      className={`h-11 w-11 items-center justify-center rounded-lg active:bg-surface-selected ${
+        variant === 'tonal' ? 'bg-brand-subtle' : ''
       } ${disabled ? 'opacity-40' : ''}`}
     >
-      <Icon name={name} size={size} fill={fill} className="text-ink" />
+      <Icon name={name} size={size} fill={fill} className={variant === 'tonal' ? 'text-brand' : 'text-ink'} />
     </Pressable>
   );
 }

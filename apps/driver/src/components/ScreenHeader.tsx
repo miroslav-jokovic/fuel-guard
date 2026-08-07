@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { AppText } from './AppText';
 import { IconButton } from './IconButton';
 
-// One header pattern for every screen/modal — big bold title, optional subtitle, optional
-// back/close, optional right-side action. Replaces the ad-hoc header rows each screen rolled itself.
+/** Compact, content-first screen header with scalable title and optional contextual actions. */
 export function ScreenHeader({
   title,
   subtitle,
@@ -17,14 +17,26 @@ export function ScreenHeader({
   onClose?: () => void;
   right?: ReactNode;
 }) {
+  const contextual = onBack != null || onClose != null;
   return (
-    <View className="flex-row items-center gap-2">
+    <View className="min-h-11 flex-row items-start gap-2">
       {onBack ? <IconButton name="arrow_back" label="Back" onPress={onBack} /> : null}
-      <View className="flex-1 gap-0.5">
-        <Text className="text-2xl font-sans-bold text-ink" accessibilityRole="header">
+      <View className="min-h-11 flex-1 justify-center gap-1">
+        <AppText
+          variant={contextual ? 'navigationTitle' : 'screenTitle'}
+          accessibilityRole="header"
+          numberOfLines={contextual ? 2 : undefined}
+        >
           {title}
-        </Text>
-        {subtitle ? <Text className="text-sm text-ink-muted">{subtitle}</Text> : null}
+        </AppText>
+        {subtitle ? (
+          <AppText
+            variant="supporting"
+            tone="muted"
+          >
+            {subtitle}
+          </AppText>
+        ) : null}
       </View>
       {right}
       {onClose ? <IconButton name="close" label="Close" onPress={onClose} /> : null}

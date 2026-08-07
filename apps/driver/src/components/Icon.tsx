@@ -19,9 +19,9 @@ export interface IconProps {
   style?: StyleProp<ViewStyle>;
 }
 
-function colorFor(className: string | undefined, explicit: string | undefined, isDark: boolean): string {
+function colorFor(className: string | undefined, explicit: string | undefined, themeKey: keyof typeof roleColors): string {
   if (explicit) return explicit;
-  const rc = roleColors[isDark ? 'dark' : 'light'];
+  const rc = roleColors[themeKey];
   const token = className?.match(/(?:^|\s)text-([a-z-]+)/)?.[1];
   switch (token) {
     case 'brand': return rc.brand;
@@ -31,6 +31,13 @@ function colorFor(className: string | undefined, explicit: string | undefined, i
     case 'caution': return rc.caution;
     case 'success': return rc.success;
     case 'info': return rc.info;
+    case 'operation-current': return rc.operationCurrent;
+    case 'operation-next': return rc.operationNext;
+    case 'operation-complete': return rc.operationComplete;
+    case 'operation-blocked': return rc.operationBlocked;
+    case 'sync-local': return rc.syncLocal;
+    case 'sync-pending': return rc.syncPending;
+    case 'sync-failed': return rc.syncFailed;
     case 'ink': return rc.ink;
     case 'ink-secondary': return rc.inkSecondary;
     case 'ink-inverse': return rc.inkInverse;
@@ -76,8 +83,8 @@ export function Icon({
   color,
   style,
 }: IconProps) {
-  const { isDark } = useTheme();
-  const resolvedColor = colorFor(className, color, isDark);
+  const { themeKey } = useTheme();
+  const resolvedColor = colorFor(className, color, themeKey);
   const strokeWidth = fill ? 2.1 : variant === 'outlined' ? 1.5 : 1.8;
   return (
     <Svg

@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { AppText } from './AppText';
 import { Icon } from './Icon';
 
 /**
@@ -12,11 +13,11 @@ export function UpdateRequired({ minVersion }: { minVersion: string }) {
   return (
     <View className="flex-1 items-center justify-center gap-4 bg-canvas px-8">
       <Icon name="download" size={48} className="text-brand" />
-      <Text className="text-center text-2xl font-sans-bold text-ink">Update required</Text>
-      <Text className="text-center text-base text-ink-secondary">
+      <AppText variant="screenTitle" className="text-center">Update required</AppText>
+      <AppText tone="secondary" className="max-w-md text-center">
         Your fleet requires FuelGuard Driver {minVersion} or newer. Update from the app store, then
         reopen the app — your queued work is safe and will sync as usual.
-      </Text>
+      </AppText>
     </View>
   );
 }

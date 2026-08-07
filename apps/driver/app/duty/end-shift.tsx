@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   ActionBar,
+  AppText,
   Banner,
   Button,
   Field,
+  GroupedList,
   ListRow,
   NumericField,
   Screen,
@@ -71,9 +72,9 @@ export default function EndShift() {
             haptic="warning"
             onPress={() => void submit()}
           />
-          <Text className="pb-1 text-center text-xs text-ink-subtle">
+          <AppText variant="caption" tone="subtle" className="pb-1 text-center">
             This releases your truck for the next driver. Works offline — it syncs when you get signal.
-          </Text>
+          </AppText>
         </ActionBar>
       }
     >
@@ -86,12 +87,14 @@ export default function EndShift() {
       {error ? <Banner tone="danger" icon="warning" message={error} /> : null}
 
       <SectionLabel>Your shift</SectionLabel>
-      <ListRow
-        icon="local_shipping"
-        iconFill
-        title={duty.equipmentLabel ?? 'On duty'}
-        subtitle={duration ? `On duty ${duration}` : duty.hasTrailer ? 'Truck and trailer' : 'Bobtail'}
-      />
+      <GroupedList>
+        <ListRow
+          icon="local_shipping"
+          iconFill
+          title={duty.equipmentLabel ?? 'On duty'}
+          subtitle={duration ? `On duty ${duration}` : duty.hasTrailer ? 'Truck and trailer' : 'Bobtail'}
+        />
+      </GroupedList>
 
       <SectionLabel>Odometer (optional)</SectionLabel>
       <Field

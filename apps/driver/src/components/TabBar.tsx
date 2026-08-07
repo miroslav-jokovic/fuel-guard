@@ -1,23 +1,11 @@
-import { View, Pressable } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs/types';
+import { AppText } from './AppText';
 import { Icon } from './Icon';
 import type { IconName } from '@/theme/hugeIcons';
 import { haptics } from '@/lib/haptics';
 
-/**
- * Custom bottom tab bar (replaces expo-router/unstable-native-tabs). Renders the app's HugeIcons
- * SVG through the shared `Icon` component, so tab-icon color follows the design tokens exactly —
- * no rasterized PNGs, no OS template-tint guessing, identical on iOS + Android. Native-quality
- * behaviors are reproduced explicitly: safe-area bottom inset, a light haptic on select, an
- * accessible tab role with selected state, and a filled/heavier glyph for the active tab.
- *
- * Driven by the standard React Navigation tabBar contract (state/descriptors/navigation) that
- * expo-router's <Tabs tabBar={...}> passes in.
- */
-// Four tabs (D51). `navigate` is deliberately absent — D52 reserves the center slot without
-// rendering it; the route is also `href: null` in the tabs layout, and this map is the second
-// belt-and-braces skip (an unmapped route renders no tab).
 const TAB_ICON: Record<string, IconName> = {
   home: 'home',
   loads: 'analytics',
@@ -25,26 +13,23 @@ const TAB_ICON: Record<string, IconName> = {
   more: 'more_horiz',
 };
 
-// Bind to expo-router's OWN bottom-tabs props type (SDK 57 vendors its own copy, which differs from
-// @react-navigation/bottom-tabs). `import type` is erased at build time, so the internal path costs
-// nothing at runtime and matches exactly what <Tabs> passes to `tabBar`.
+/** Stable four-item shell with visible labels, native-size glyphs, and a 52pt content target. */
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <View
-      className="flex-row border-t border-edge-subtle bg-surface"
-      style={{ paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8) }}
+      className="flex-row border-t border-edge-subtle bg-surface-raised"
+      style={{ paddingTop: 5, paddingBottom: Math.max(insets.bottom, 6) }}
     >
       {state.routes.map((route, index) => {
         const icon = TAB_ICON[route.name];
-        if (!icon) return null; // non-tab routes (if any) are not rendered in the bar
-        // Feature-hidden tabs (`href: null` — tab.loads / tab.score off, and the reserved
-        // navigate slot) never render a button (hardening plan Phase 4).
+        if (!icon) return null;
         if ((descriptors[route.key]?.options as { href?: unknown } | undefined)?.href === null) return null;
+
         const focused = state.index === index;
-        const label =
-          descriptors[route.key]?.options.title ?? route.name;
+        const optionTitle = descriptors[route.key]?.options.title;
+        const label = typeof optionTitle === 'string' ? optionTitle : route.name;
 
         const onPress = () => {
           haptics.select();
@@ -55,9 +40,6 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           });
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
         };
-        const onLongPress = () => {
-          navigation.emit({ type: 'tabLongPress', target: route.key });
-        };
 
         return (
           <Pressable
@@ -66,17 +48,24 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             accessibilityState={{ selected: focused }}
             accessibilityLabel={label}
             onPress={onPress}
-            onLongPress={onLongPress}
-            className="flex-1 items-center justify-center active:opacity-70"
-            style={{ minHeight: 44 }}
-            hitSlop={8}
+            onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
+            className="min-h-[52px] flex-1 items-center justify-center gap-0.5 active:opacity-70"
+            hitSlop={4}
           >
             <Icon
               name={icon}
-              size={30}
+              size={22}
               fill={focused}
-              className={focused ? 'text-brand' : 'text-ink-secondary'}
+              className={focused ? 'text-brand' : 'text-ink-muted'}
             />
+            <AppText
+              variant="caption"
+              tone={focused ? 'brand' : 'muted'}
+              className={focused ? 'font-semibold' : ''}
+              numberOfLines={1}
+            >
+              {label}
+            </AppText>
           </Pressable>
         );
       })}

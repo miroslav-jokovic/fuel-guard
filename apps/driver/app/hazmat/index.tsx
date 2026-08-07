@@ -1,12 +1,13 @@
-import { Text } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import type { MeHazmatLoadRow } from '@fuelguard/shared';
 import {
   ActionBar,
+  AppText,
   Badge,
   Banner,
   Button,
   EmptyState,
+  GroupedList,
   ListRow,
   OfflineBanner,
   Screen,
@@ -71,9 +72,9 @@ export default function HazmatHub() {
             haptic="select"
             onPress={() => router.push('/hazmat/capture')}
           />
-          <Text className="pb-1 text-center text-xs text-ink-subtle">
+          <AppText variant="caption" tone="subtle" className="pb-1 text-center">
             Works offline — captures sync and analyze when you reconnect.
-          </Text>
+          </AppText>
         </ActionBar>
       }
     >
@@ -106,19 +107,21 @@ export default function HazmatHub() {
           subtitle="Capture a bill of lading and the compliance verdict — with its CFR citations — lands here."
         />
       ) : (
-        rows.map((row) => {
-          const badge = rowBadge(row);
-          return (
-            <ListRow
-              key={row.id}
-              icon="local_fire_department"
-              title={`BOL check — ${rowDate(row.created_at)}`}
-              subtitle={row.status === 'draft' ? 'Waiting to sync' : undefined}
-              onPress={() => router.push(`/hazmat/${row.id}` as never)}
-              right={<Badge label={badge.label} tone={badge.tone} />}
-            />
-          );
-        })
+        <GroupedList>
+          {rows.map((row) => {
+            const badge = rowBadge(row);
+            return (
+              <ListRow
+                key={row.id}
+                icon="local_fire_department"
+                title={`BOL check · ${rowDate(row.created_at)}`}
+                subtitle={row.status === 'draft' ? 'Waiting to sync' : undefined}
+                onPress={() => router.push(`/hazmat/${row.id}` as never)}
+                right={<Badge label={badge.label} tone={badge.tone} />}
+              />
+            );
+          })}
+        </GroupedList>
       )}
     </Screen>
   );

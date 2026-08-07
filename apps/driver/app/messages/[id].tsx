@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   MESSAGE_REPORT_LABELS,
@@ -11,9 +11,11 @@ import {
 } from '@fuelguard/shared';
 import {
   ActionBar,
+  AppText,
   Banner,
   Button,
   ConfirmSheet,
+  GroupedList,
   Input,
   ListRow,
   OfflineBanner,
@@ -100,9 +102,9 @@ export default function ThreadScreen() {
             </View>
             <Button label="Send" disabled={!draft.trim() || send.isPending} onPress={() => void submit()} />
           </View>
-          <Text className="pb-1 text-center text-xs text-ink-subtle">
+          <AppText variant="caption" tone="subtle" className="pb-1 text-center">
             Works offline — replies send when you get signal.
-          </Text>
+          </AppText>
         </ActionBar>
       }
     >
@@ -147,33 +149,36 @@ export default function ThreadScreen() {
                 }`}
               >
                 {!mine && m.sender_name ? (
-                  <Text className="pb-0.5 text-xs font-sans-sb text-ink-secondary">{m.sender_name}</Text>
+                  <AppText variant="caption" tone="secondary" className="pb-0.5 font-semibold">{m.sender_name}</AppText>
                 ) : null}
-                <Text className={`text-base ${mine ? 'text-brand-fg' : 'text-ink'} ${m.deleted_at ? 'italic' : ''}`}>
+                <AppText variant="body" className={`${mine ? 'text-brand-fg' : 'text-ink'} ${m.deleted_at ? 'italic' : ''}`}>
                   {messageBody(m)}
-                </Text>
-                <Text
-                  className={`pt-0.5 text-right text-[11px] ${mine ? 'text-brand-fg/70' : 'text-ink-subtle'}`}
-                  style={{ fontVariant: ['tabular-nums'] }}
+                </AppText>
+                <AppText
+                  variant="caption"
+                  tabular
+                  className={`pt-0.5 text-right ${mine ? 'text-brand-fg/70' : 'text-ink-subtle'}`}
                 >
                   {new Date(m.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                </Text>
+                </AppText>
               </Pressable>
             );
           })}
           {messages.length === 0 ? (
-            <Text className="py-8 text-center text-sm text-ink-muted">No messages yet.</Text>
+            <AppText variant="supporting" tone="muted" className="py-6 text-center">No messages yet.</AppText>
           ) : null}
         </ScrollView>
       )}
 
       {/* Report sheet: pick a reason, then confirm. */}
       {reporting && !reportReason ? (
-        <View className="gap-1 rounded-xl border border-edge bg-surface p-2">
+        <View className="gap-2">
           <SectionLabel>Report this message</SectionLabel>
-          {MESSAGE_REPORT_REASONS.map((r) => (
-            <ListRow key={r} title={MESSAGE_REPORT_LABELS[r]} icon="report" onPress={() => setReportReason(r)} />
-          ))}
+          <GroupedList>
+            {MESSAGE_REPORT_REASONS.map((r) => (
+              <ListRow key={r} title={MESSAGE_REPORT_LABELS[r]} icon="report" onPress={() => setReportReason(r)} />
+            ))}
+          </GroupedList>
           <Button label="Cancel" variant="secondary" onPress={() => setReporting(null)} />
         </View>
       ) : null}
