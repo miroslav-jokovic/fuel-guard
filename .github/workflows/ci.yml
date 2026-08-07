@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared package for React Native
+        run: pnpm --filter @fuelguard/shared build:rn
+
       - name: Lint
         run: pnpm lint
 
