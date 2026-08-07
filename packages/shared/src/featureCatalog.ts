@@ -53,6 +53,13 @@ export const featureConfigSchemas = {
    * server-side in `notify()` before emission — a device setting cannot be trusted.
    */
   notifications: z.object({ categories: z.array(z.string()).nullable().default(null) }),
+  /**
+   * Score DEPTH. The feature itself answers "does this fleet show drivers their score at all"
+   * (D-PM3); this config answers how much: `detailTab: false` keeps the weekly summary on Home but
+   * drops the dedicated Score tab — the right shape when the number is context rather than a
+   * destination. Feature off still means neither surface, so the coherence rule is unchanged.
+   */
+  "tab.score": z.object({ detailTab: z.boolean().default(true) }),
 } as const;
 
 export interface FeatureDef {
@@ -239,6 +246,14 @@ export function odometerMode(features: FeatureMap | undefined | null): OdometerM
   if (!raw.enabled) return "off";
   const parsed = featureConfigSchemas["duty.odometer"].safeParse(raw.config);
   return parsed.success ? parsed.data.mode : "optional";
+}
+
+/** Does the driver get the dedicated Score TAB, or only Home's summary? (see `tab.score` config) */
+export function scoreDetailTabEnabled(features: FeatureMap | undefined | null): boolean {
+  const raw = features?.get("tab.score");
+  if (!raw || !raw.enabled) return false;
+  const parsed = featureConfigSchemas["tab.score"].safeParse(raw.config);
+  return parsed.success ? parsed.data.detailTab : true;
 }
 
 export function takeoverAllowed(features: FeatureMap | undefined | null): boolean {

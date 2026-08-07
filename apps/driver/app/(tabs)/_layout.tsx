@@ -17,14 +17,16 @@ import { useFeatures } from '@/session/useFeatures';
  * HugeIcons SVG through the `Icon` component, token-exact colors, identical on both platforms.
  */
 export default function TabsLayout() {
-  const { enabled } = useFeatures();
+  const { enabled, scoreDetailTab } = useFeatures();
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="home" options={{ title: 'Home' }} />
       <Tabs.Screen name="loads" options={enabled('tab.loads') ? { title: 'Loads' } : { href: null }} />
       {/* Reserved center slot (D52): route exists, tab hidden. */}
       <Tabs.Screen name="navigate" options={{ href: null }} />
-      <Tabs.Screen name="score" options={enabled('tab.score') ? { title: 'Score' } : { href: null }} />
+      {/* Score DEPTH (tab.score config): the tab is optional even when the score itself is on —
+          Home keeps its weekly tiles either way. Off entirely hides both. */}
+      <Tabs.Screen name="score" options={scoreDetailTab ? { title: 'Score' } : { href: null }} />
       <Tabs.Screen name="more" options={{ title: 'More' }} />
     </Tabs>
   );

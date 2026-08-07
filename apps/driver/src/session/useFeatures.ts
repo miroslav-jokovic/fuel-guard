@@ -3,6 +3,7 @@ import {
   featureEnabled,
   minAppVersion,
   odometerMode,
+  scoreDetailTabEnabled,
   takeoverAllowed,
   toFeatureMap,
   type FeatureKey,
@@ -19,6 +20,8 @@ export interface FeaturesView {
   enabled: (key: FeatureKey) => boolean;
   odometerMode: OdometerMode;
   takeoverAllowed: boolean;
+  /** Score TAB visibility. Home's weekly tiles follow `enabled('tab.score')` on its own. */
+  scoreDetailTab: boolean;
   minAppVersion: string | null;
 }
 
@@ -39,6 +42,7 @@ export function useFeatures(): FeaturesView {
       enabled: (key: FeatureKey) => featureEnabled(features, key),
       odometerMode: odometerMode(features),
       takeoverAllowed: takeoverAllowed(features),
+      scoreDetailTab: scoreDetailTabEnabled(features),
       minAppVersion: minAppVersion(features),
     }),
     [features, data],

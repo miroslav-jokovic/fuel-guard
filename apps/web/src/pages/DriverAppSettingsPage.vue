@@ -106,6 +106,32 @@ async function setOdometerMode(mode: string) {
   }
 }
 
+// ── tab.score depth (Home tiles vs the dedicated tab) ─────────────────────────
+const scoreDepths = [
+  { label: "Home summary + Score tab", value: "tab" },
+  { label: "Home summary only (no tab)", value: "home" },
+];
+const scoreDepth = computed<string>(() => {
+  const row = rowByKey.value.get("tab.score");
+  const parsed = featureConfigSchemas["tab.score"].safeParse(row?.config ?? {});
+  return parsed.success && !parsed.data.detailTab ? "home" : "tab";
+});
+async function setScoreDepth(depth: string) {
+  savingKey.value = "tab.score";
+  try {
+    await saveFeature.mutateAsync({
+      featureKey: "tab.score",
+      enabled: effectiveEnabled(FEATURE_CATALOG["tab.score"]),
+      config: { detailTab: depth === "tab" },
+    });
+    toast.success("Score layout saved");
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : "Could not save the setting");
+  } finally {
+    savingKey.value = null;
+  }
+}
+
 // ── core.app minimum version (4.6) ────────────────────────────────────────────
 const minVersionInput = ref<string>("");
 const minVersionCurrent = computed<string | null>(() => {
@@ -189,6 +215,14 @@ async function removeOverride(featureKey: string) {
       description="Control what your drivers see and how the app behaves — changes reach their phones on the next refresh, no app update needed."
     />
 
+    <BaseCard v-if="rowsQ.isError.value">
+      <p class="text-sm font-medium text-danger-600">Driver-app settings could not be loaded.</p>
+      <p class="mt-1 text-sm text-ink-muted">
+        {{ rowsQ.error.value?.message }} — the toggles below show catalog defaults and will not save.
+        The usual cause is migration <code>0134_driver_app_features</code> not being applied yet.
+      </p>
+    </BaseCard>
+
     <!-- Standard blocks (no purchase required) -->
     <BaseCard>
       <h2 class="text-sm font-semibold text-ink-secondary">Standard features</h2>
@@ -197,6 +231,14 @@ async function removeOverride(featureKey: string) {
           <div class="min-w-0">
             <div class="text-sm font-medium text-ink">{{ def.label }}</div>
             <p class="mt-0.5 text-sm text-ink-muted">{{ def.description }}</p>
+            <div v-if="def.key === 'tab.score' && effectiveEnabled(def)" class="mt-2 max-w-xs">
+              <FilterSelect
+                :model-value="scoreDepth"
+                label="Where"
+                :options="scoreDepths"
+                @update:model-value="(v: string) => setScoreDepth(v)"
+              />
+            </div>
             <div v-if="def.key === 'duty.odometer'" class="mt-2 max-w-xs">
               <FilterSelect
                 :model-value="odometerMode"
@@ -236,6 +278,10 @@ async function removeOverride(featureKey: string) {
               </span>
             </div>
             <p class="mt-0.5 text-sm text-ink-muted">{{ def.description }}</p>
+            <p v-if="!entitled(def)" class="mt-1 text-xs text-ink-muted">
+              Modules are granted by FuelGuard, not from this page — ask your FuelGuard contact to add
+              {{ MODULE_LABELS[def.module as ModuleKey] }} to your plan, then this switch becomes available.
+            </p>
           </div>
           <BaseCheckbox
             :model-value="entitled(def) && effectiveEnabled(def)"

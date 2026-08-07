@@ -357,42 +357,30 @@ export function meRouter(): Router {
   router.post(
     "/delete-account",
     ...driverOnly,
-    asyncHandler(async (req, res) => {
-      const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const orgId = req.auth!.orgId!;
-      const userId = req.auth!.userId;
-
-      // Close any open shift first, so the truck they were in is released for the next driver
-      // instead of staying locked by the exclusive-equipment index (0086).
-      const driverId = await resolveDriverId(admin, orgId, userId);
-      if (driverId) {
-        await admin.rpc("end_duty_session", {
-          p_org: orgId,
-          p_driver: driverId,
-          p_ended_at: null,
-          p_odometer: null,
-          p_reason: "dispatch",
-        });
-      }
-
-      await admin.from("drivers").update({ user_id: null }).eq("org_id", orgId).eq("user_id", userId);
-      await admin.from("memberships").delete().eq("org_id", orgId).eq("user_id", userId);
-      await writeAudit(admin, {
-        orgId,
-        actorId: userId,
-        action: "account.deleted",
-        entity: "auth.users",
-        entityId: userId,
-      });
-
-      const { error } = await admin.auth.admin.deleteUser(userId);
-      if (error) {
-        res.status(500).json(apiError("delete_failed", "Could not delete the account"));
-        return;
-      }
-      res.json({ ok: true });
+    asyncHandler(async (_req, res) => {
+      // CLOSED (2026-08-07). Driver logins are COMPANY-ISSUED: an admin provisions them (DC4) and
+      // the app offers no self-registration, so Apple 5.1.1(v) — which binds apps that let a user
+      // CREATE an account — does not apply here. Self-deletion was also the wrong capability to
+      // hand a driver: it unlinks their roster row and destroys the auth user, which is an
+      // OFFBOARDING action belonging to the fleet (and already exists as `revokeDriverAccess`,
+      // audited, on the admin side). Removing the button alone would have left the capability
+      // reachable by any driver JWT, so the door is shut here too.
+      //
+      // If a self-serve / owner-operator signup path is ever added, restore the body below and the
+      // Settings action together — the deletion logic underneath is correct and deliberately kept.
+      res.status(403).json(
+        apiError(
+          "account_managed_by_fleet",
+          "Your login is issued and managed by your fleet. Contact your fleet manager to close it.",
+        ),
+      );
+      return;
     }),
   );
+
+  // The previous body (close the open shift, unlink the roster row, drop the membership, delete the
+  // auth user) is preserved in git history at the commit that closed this route — restore it there
+  // if a self-serve signup path is ever added, rather than reconstructing it from memory.
 
   return router;
 }
