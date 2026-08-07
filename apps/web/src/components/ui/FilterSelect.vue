@@ -99,7 +99,7 @@ function clear() {
       >
         <AppIcon :icon="XMarkIcon" class="size-3.5" aria-hidden="true" />
       </span>
-      <AppIcon :icon="ChevronDownIcon" v-else class="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+      <AppIcon v-else :icon="ChevronDownIcon" class="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
     </button>
 
     <Teleport to="body">
@@ -139,7 +139,8 @@ function clear() {
               :aria-selected="opt.value === modelValue"
               @click="select(opt.value)"
             >
-              <AppIcon :icon="CheckIcon"
+              <AppIcon
+:icon="CheckIcon"
                 class="mr-2 size-4 shrink-0 text-brand-600"
                 :class="opt.value === modelValue || (opt.value === '' && !selected) ? 'opacity-100' : 'opacity-0'"
                 aria-hidden="true"

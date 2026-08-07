@@ -1,5 +1,5 @@
 import { Text } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import type { MeHazmatLoadRow } from '@fuelguard/shared';
 import {
   ActionBar,
@@ -16,6 +16,7 @@ import {
   type Tone,
 } from '@/components';
 import { useHazmatChecks } from '@/features/hazmat/useHazmatChecks';
+import { useFeatures } from '@/session/useFeatures';
 
 /**
  * Hazmat hub (hardening plan Phase 3) — the standalone testing surface, decoupled from the Loads
@@ -48,7 +49,13 @@ function rowDate(iso: string): string {
 
 export default function HazmatHub() {
   const router = useRouter();
+  const features = useFeatures();
   const checks = useHazmatChecks();
+
+  // Deep-link guard: the More entry already hides when the feature is off; this covers a direct
+  // navigation. Only redirect once the bootstrap has LOADED — a cold start must not bounce an
+  // entitled driver off the hub while the cache rehydrates (server RLS is the real boundary).
+  if (features.isLoaded && !features.enabled('hazmat.capture')) return <Redirect href="/home" />;
   const rows = checks.data?.loads ?? [];
   const showSkeletons = checks.isPending && !checks.data;
 
@@ -62,7 +69,7 @@ export default function HazmatHub() {
             size="lg"
             icon="photo_camera"
             haptic="select"
-            onPress={() => router.push('/hazmat/capture' as never)}
+            onPress={() => router.push('/hazmat/capture')}
           />
           <Text className="pb-1 text-center text-xs text-ink-subtle">
             Works offline — captures sync and analyze when you reconnect.

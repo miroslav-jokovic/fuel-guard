@@ -33,6 +33,191 @@ import {
 import { persistAnomalies, persistTxnOutcome, learnAndUpdateVehicle } from "./persist.js";
 import { dispatchJob } from "../queue/dispatch.js";
 
+type RuleInputs = {
+  consumption: Awaited<ReturnType<typeof loadConsumptionContext>>;
+  tankResidualWindow: Awaited<ReturnType<typeof loadTankResidualWindow>>;
+  windowIdleGallons: number;
+  cardCtx: Awaited<ReturnType<typeof resolveCardContext>>;
+  reefer: Awaited<ReturnType<typeof loadReeferContext>>;
+  reeferDiversion: Awaited<ReturnType<typeof loadReeferDiversionContext>>;
+  driverHomeAtFill: Awaited<ReturnType<typeof deriveDriverHomeAtFill>> | undefined;
+  marketPricePerGal: number | null;
+};
+
+async function reattributeIfNeeded(
+  admin: SupabaseClient,
+  orgId: string,
+  txnId: string,
+  r: FtxnRow,
+  txn: ReturnType<typeof toTxnView>,
+  attribution: Awaited<ReturnType<typeof loadAttributionCheck>>["check"],
+  recon: Awaited<ReturnType<typeof resolveReconciliation>>,
+  reattributed: boolean | undefined,
+): Promise<boolean> {
+  if (
+    reattributed ||
+    !shouldReattribute(attribution, recon.samsaraLocationMatched, recon.nearestStationMiles)
+  ) {
+    return false;
+  }
+  await writeAudit(admin, {
+    orgId,
+    action: "transaction.reattribute_vehicle",
+    entity: "fuel_transaction",
+    entityId: txnId,
+    meta: {
+      fromVehicleId: txn.vehicleId,
+      toVehicleId: attribution.logbookVehicleId,
+      basis: "logbook+gps",
+      fueledAt: r.fueled_at,
+    },
+  });
+  await admin
+    .from("fuel_transactions")
+    .update({
+      vehicle_id: attribution.logbookVehicleId,
+      logbook_vehicle_id: attribution.logbookVehicleId,
+    })
+    .eq("id", txnId);
+  return true;
+}
+
+async function loadRuleInputs(
+  admin: SupabaseClient,
+  orgId: string,
+  txn: ReturnType<typeof toTxnView>,
+  r: FtxnRow,
+  txnId: string,
+  winStartIso: string,
+  thresholds: Awaited<ReturnType<typeof loadThresholds>>,
+  vehicle: Awaited<ReturnType<typeof loadVehicleContext>>["vehicle"],
+): Promise<RuleInputs> {
+  const consumption = await loadConsumptionContext(admin, txn, r, txnId, winStartIso);
+  const tankResidualWindow = await loadTankResidualWindow(admin, txn, r);
+  const windowIdleGallons = await loadWindowIdleGallons(admin, txn, r, winStartIso);
+  const cardCtx = await resolveCardContext(admin, orgId, txn, winStartIso, r.fueled_at);
+  const reefer = await loadReeferContext(admin, orgId, txn, r, winStartIso);
+  const reeferDiversion = await loadReeferDiversionContext(admin, orgId, txn, r, thresholds);
+  const driverHomeAtFill = txn.driverId
+    ? await deriveDriverHomeAtFill(admin, orgId, txn.driverId, r.fueled_at)
+    : undefined;
+  const marketPricePerGal =
+    vehicle.fuelType === "diesel" && txn.tankType !== "reefer"
+      ? await loadMarketPricePerGal(admin, r.state, r.fueled_at)
+      : null;
+  return {
+    consumption,
+    tankResidualWindow,
+    windowIdleGallons,
+    cardCtx,
+    reefer,
+    reeferDiversion,
+    driverHomeAtFill,
+    marketPricePerGal,
+  };
+}
+
+function buildRuleContext(
+  txn: ReturnType<typeof toTxnView>,
+  vehicle: Awaited<ReturnType<typeof loadVehicleContext>>["vehicle"],
+  r: FtxnRow,
+  thresholds: Awaited<ReturnType<typeof loadThresholds>>,
+  operatingHours: Awaited<ReturnType<typeof loadOperatingHours>>,
+  recon: Awaited<ReturnType<typeof resolveReconciliation>>,
+  attribution: Awaited<ReturnType<typeof loadAttributionCheck>>["check"],
+  driverOffDutyAtFill: boolean,
+  inputs: RuleInputs,
+): RuleContext {
+  const { consumption, cardCtx, reefer, reeferDiversion } = inputs;
+  return {
+    txn,
+    vehicle,
+    previousTxn: consumption.previousTxn,
+    recentTxns: consumption.recentTxns,
+    intermediateGallons: consumption.intermediateGallons,
+    thresholds,
+    operatingHours,
+    crossSourceOdometer: recon.crossSourceOdometer,
+    crossSourceOdometerSource: recon.crossSourceOdometerSource,
+    windowGallons: consumption.windowGallons,
+    windowMiles: consumption.windowMiles,
+    windowSuspectGallons: consumption.windowSuspectGallons,
+    windowIdleGallons: inputs.windowIdleGallons,
+    attributionSuspect: attribution.verdict === "suspect",
+    cardVehicleCountInWindow: cardCtx.cardVehicleCountInWindow,
+    cardAssignedVehicleId: cardCtx.cardAssignedVehicleId,
+    cardManualAssignedVehicleId: cardCtx.cardManualAssignedVehicleId,
+    cardIdentifiable: cardCtx.cardIdentifiable,
+    samsaraLocationMatched: recon.samsaraLocationMatched,
+    locationEvidence: recon.locationEvidence,
+    tankFillShortGal: recon.tankFillShortGal,
+    tankObservedRiseGal: recon.tankObservedRiseGal,
+    tankPctBefore: recon.tankPctBefore,
+    tankPctAfter: recon.tankPctAfter,
+    tankResidualWindow: inputs.tankResidualWindow,
+    truckToStationMiles: recon.nearestStationMiles,
+    driverOffDutyAtFill,
+    reeferTankCapacityGal: reefer.reeferTankCapacityGal,
+    reeferWindowGallons: reefer.reeferWindowGallons,
+    reeferPaired: reeferDiversion.reeferPaired,
+    orgUsesReeferFuel: reeferDiversion.orgUsesReeferFuel,
+    reeferDiversionReeferGal: reeferDiversion.reeferDiversionReeferGal,
+    reeferDiversionTractorGal: reeferDiversion.reeferDiversionTractorGal,
+    reeferLoadInWindow: reeferDiversion.reeferLoadInWindow,
+    driverHomeAtFill: inputs.driverHomeAtFill,
+    ambientTempF: n(r.ambient_temp_f),
+    marketPricePerGal:
+      vehicle.fuelType === "diesel" && txn.tankType !== "reefer" ? inputs.marketPricePerGal : null,
+  };
+}
+
+function makeCaseFired(assessment: ReturnType<typeof correlateSignals>): RuleResult[] {
+  if (assessment.level === "clear") return [];
+  return [
+    {
+      ruleId: CASE_RULE_ID as RuleId,
+      fired: true,
+      severity: assessment.severity!,
+      message: assessment.summary,
+      evidence: {
+        level: assessment.level,
+        score: assessment.score,
+        axes: assessment.axes,
+        signals: assessment.signals,
+      },
+    },
+  ];
+}
+
+async function dispatchAlertSweep(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  txnId: string,
+  assessment: ReturnType<typeof correlateSignals>,
+  skipLearn: boolean | undefined,
+): Promise<void> {
+  if (assessment.level !== "alert" || skipLearn) return;
+  try {
+    const { data: openCase } = await admin
+      .from("anomalies")
+      .select("id")
+      .eq("transaction_id", txnId)
+      .eq("rule_id", CASE_RULE_ID)
+      .eq("status", "open")
+      .maybeSingle();
+    if (openCase?.id) {
+      void dispatchJob(admin, env, "pattern_sweep", {
+        orgId,
+        payload: { anomalyId: openCase.id as string },
+        dedupKey: `sweep:${openCase.id as string}`,
+      });
+    }
+  } catch {
+    /* the sweep is evidence enrichment — never let it disturb scoring */
+  }
+}
+
 export async function scoreTransaction(
   admin: SupabaseClient,
   env: Env,
@@ -89,36 +274,10 @@ export async function scoreTransaction(
     opts,
   );
 
-  // WP-ATTR — check the fill's vehicle attribution against the driver's ELD logbook. Two independent
-  // contradictions (logbook shows a DIFFERENT truck AND telematics places the attributed truck away
-  // from the station) → the record is wrong with near-certainty: re-attribute to the logbook truck,
-  // audit-log it, and re-score ONCE under the correct vehicle (fresh recon — the stored Samsara columns
-  // reflect the old truck). Logbook contradiction alone only marks the fill `suspect`, which excludes
-  // it from window/baseline math and gates the vehicle-physics rules (data-quality, not fraud).
   const { check: attribution, driverOffDutyAtFill } = await loadAttributionCheck(admin, orgId, txn);
   if (
-    !opts.reattributed &&
-    shouldReattribute(attribution, recon.samsaraLocationMatched, recon.nearestStationMiles)
+    await reattributeIfNeeded(admin, orgId, txnId, r, txn, attribution, recon, opts.reattributed)
   ) {
-    await writeAudit(admin, {
-      orgId,
-      action: "transaction.reattribute_vehicle",
-      entity: "fuel_transaction",
-      entityId: txnId,
-      meta: {
-        fromVehicleId: txn.vehicleId,
-        toVehicleId: attribution.logbookVehicleId,
-        basis: "logbook+gps",
-        fueledAt: r.fueled_at,
-      },
-    });
-    await admin
-      .from("fuel_transactions")
-      .update({
-        vehicle_id: attribution.logbookVehicleId,
-        logbook_vehicle_id: attribution.logbookVehicleId,
-      })
-      .eq("id", txnId);
     return scoreTransaction(admin, env, orgId, txnId, {
       ...opts,
       reattributed: true,
@@ -127,144 +286,42 @@ export async function scoreTransaction(
     });
   }
 
-  const {
-    previousTxn,
-    recentTxns,
-    intermediateGallons,
-    windowGallons,
-    windowMiles,
-    windowSuspectGallons,
-  } = await loadConsumptionContext(admin, txn, r, txnId, winStartIso);
-
-  // WP-BEH — chronic-short accumulator window (trailing measured fills; suspect fills excluded).
-  const tankResidualWindow = await loadTankResidualWindow(admin, txn, r);
-
-  // 2026-08 — measured idle-burn allowance for the over-fuel ceiling (0 when no engine-time facts).
-  const windowIdleGallons = await loadWindowIdleGallons(admin, txn, r, winStartIso);
-
-  // Card-identity context (WP3): a true CARD-keyed vehicle count + the fuel_cards assignment.
-  const cardCtx = await resolveCardContext(admin, orgId, txn, winStartIso, r.fueled_at);
-
-  const { reeferTankCapacityGal, reeferWindowGallons } = await loadReeferContext(
+  const inputs = await loadRuleInputs(
     admin,
     orgId,
     txn,
     r,
+    txnId,
     winStartIso,
+    thresholds,
+    vehicle,
   );
-  const {
-    reeferPaired,
-    orgUsesReeferFuel,
-    reeferDiversionReeferGal,
-    reeferDiversionTractorGal,
-    reeferLoadInWindow,
-  } = await loadReeferDiversionContext(admin, orgId, txn, r, thresholds);
-
-  // McLeod/TMS driver-home gate (opt-in, corroboration-only): if a driver owns this fill, was it made
-  // while that driver was on home time / off duty? undefined for non-TMS orgs (fuel-only behavior kept).
-  const driverHomeAtFill = txn.driverId
-    ? await deriveDriverHomeAtFill(admin, orgId, txn.driverId, r.fueled_at)
-    : undefined;
-
-  const ruleCtx: RuleContext = {
+  const ruleCtx = buildRuleContext(
     txn,
     vehicle,
-    previousTxn,
-    recentTxns,
-    intermediateGallons,
+    r,
     thresholds,
     operatingHours,
-    crossSourceOdometer: recon.crossSourceOdometer,
-    crossSourceOdometerSource: recon.crossSourceOdometerSource,
-    windowGallons,
-    windowMiles,
-    windowSuspectGallons,
-    windowIdleGallons,
-    attributionSuspect: attribution.verdict === "suspect",
-    cardVehicleCountInWindow: cardCtx.cardVehicleCountInWindow,
-    cardAssignedVehicleId: cardCtx.cardAssignedVehicleId,
-    cardManualAssignedVehicleId: cardCtx.cardManualAssignedVehicleId,
-    cardIdentifiable: cardCtx.cardIdentifiable,
-    samsaraLocationMatched: recon.samsaraLocationMatched,
-    locationEvidence: recon.locationEvidence,
-    tankFillShortGal: recon.tankFillShortGal,
-    tankObservedRiseGal: recon.tankObservedRiseGal,
-    tankPctBefore: recon.tankPctBefore,
-    tankPctAfter: recon.tankPctAfter,
-    tankResidualWindow,
-    truckToStationMiles: recon.nearestStationMiles,
+    recon,
+    attribution,
     driverOffDutyAtFill,
-    reeferTankCapacityGal,
-    reeferWindowGallons,
-    reeferPaired,
-    orgUsesReeferFuel,
-    reeferDiversionReeferGal,
-    reeferDiversionTractorGal,
-    reeferLoadInWindow,
-    driverHomeAtFill,
-    ambientTempF: n(r.ambient_temp_f),
-    // WP7 market cost-outlier input — diesel tractor fills only (a dyed-reefer or gasoline price vs the
-    // highway-diesel posted median would be a category error).
-    marketPricePerGal:
-      vehicle.fuelType === "diesel" && txn.tankType !== "reefer"
-        ? await loadMarketPricePerGal(admin, r.state, r.fueled_at)
-        : null,
-  };
+    inputs,
+  );
   const fired = runAllRules(ruleCtx);
 
   // Correlate the fired signals into ONE per-transaction case (multi-signal model). A lone weak signal
   // stays "clear" (no anomaly) so normal fills don't all look flagged; independent corroborating signals
   // (or one physically-impossible one) become a single "theft_case" alert.
   const assessment = correlateSignals(fired);
-  const caseFired: RuleResult[] =
-    assessment.level === "clear"
-      ? []
-      : [
-          {
-            ruleId: CASE_RULE_ID as RuleId,
-            fired: true,
-            severity: assessment.severity!,
-            message: assessment.summary,
-            evidence: {
-              level: assessment.level,
-              score: assessment.score,
-              axes: assessment.axes,
-              signals: assessment.signals,
-            },
-          },
-        ];
+  const caseFired = makeCaseFired(assessment);
 
   await persistAnomalies(admin, orgId, txnId, txn.vehicleId, r.fueled_at, caseFired);
-
-  // Entity-intelligence Phase 2 (2026-08): a LIVE-scored case reaching ALERT level triggers the
-  // read-only retrospective sweep of its entities (fire-and-forget; per-anomaly dedup key so
-  // concurrent alerts never block each other). Bulk rebuilds (skipLearn) deliberately do NOT fan out
-  // one sweep per historical alert — reviewers request those on demand from the case drawer.
-  if (assessment.level === "alert" && !opts.skipLearn) {
-    try {
-      const { data: openCase } = await admin
-        .from("anomalies")
-        .select("id")
-        .eq("transaction_id", txnId)
-        .eq("rule_id", CASE_RULE_ID)
-        .eq("status", "open")
-        .maybeSingle();
-      if (openCase?.id) {
-        void dispatchJob(admin, env, "pattern_sweep", {
-          orgId,
-          payload: { anomalyId: openCase.id as string },
-          dedupKey: `sweep:${openCase.id as string}`,
-        });
-      }
-    } catch {
-      /* the sweep is evidence enrichment — never let it disturb scoring */
-    }
-  }
+  await dispatchAlertSweep(admin, env, orgId, txnId, assessment, opts.skipLearn);
 
   await persistTxnOutcome(admin, txnId, {
     txn,
-    previousTxn,
-    intermediateGallons,
+    previousTxn: inputs.consumption.previousTxn,
+    intermediateGallons: inputs.consumption.intermediateGallons,
     assessment,
     ruleCtx,
     recon,
@@ -276,7 +333,7 @@ export async function scoreTransaction(
     vehicle,
     samsaraVehicleId,
     odometerOffsetSource,
-    recentTxns,
+    inputs.consumption.recentTxns,
     opts,
   );
 }

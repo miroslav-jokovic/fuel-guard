@@ -81,7 +81,8 @@ function cfg(t: Toast): VariantConfig {
           role="alert"
         >
           <div class="flex items-start gap-3 px-4 py-3.5 pr-10">
-            <AppIcon :icon="cfg(t).icon"
+            <AppIcon
+:icon="cfg(t).icon"
               class="mt-0.5 size-5 shrink-0"
               :class="cfg(t).iconClass"
               aria-hidden="true"

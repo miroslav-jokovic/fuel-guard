@@ -189,9 +189,9 @@ const isBlank = (v: unknown) => v == null || v === "";
                   @click="emit('sort', col.key)"
                 >
                   {{ col.label }}
-                  <AppIcon :icon="ChevronUpIcon" v-if="sort?.key === col.key && sort?.dir === 'asc'" class="size-3.5 text-ink-muted" />
-                  <AppIcon :icon="ChevronDownIcon" v-else-if="sort?.key === col.key && sort?.dir === 'desc'" class="size-3.5 text-ink-muted" />
-                  <AppIcon :icon="ChevronUpDownIcon" v-else class="size-3.5 text-ink-subtle group-hover:text-ink-subtle" />
+                  <AppIcon v-if="sort?.key === col.key && sort?.dir === 'asc'" :icon="ChevronUpIcon" class="size-3.5 text-ink-muted" />
+                  <AppIcon v-else-if="sort?.key === col.key && sort?.dir === 'desc'" :icon="ChevronDownIcon" class="size-3.5 text-ink-muted" />
+                  <AppIcon v-else :icon="ChevronUpDownIcon" class="size-3.5 text-ink-subtle group-hover:text-ink-subtle" />
                 </button>
                 <template v-else>{{ col.label }}</template>
               </th>

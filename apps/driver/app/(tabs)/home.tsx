@@ -18,6 +18,11 @@ import { useLoads } from '@/features/loads/useLoads';
 import { DutyCard } from '@/features/duty/DutyCard';
 import { dutyView, useShift } from '@/features/duty/useDuty';
 import { firstName, useDriverContext } from '@/session/useDriverContext';
+import { useFeatures } from '@/session/useFeatures';
+import { useNotifications } from '@/features/notifications/useNotifications';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
+import { useThreads } from '@/features/messages/useMessages';
+import { MessagesButton } from '@/features/messages/MessagesButton';
 import { homeScoreSummary } from '@/features/score/scoreModel';
 import { useDriverScore } from '@/features/score/useDriverScore';
 
@@ -45,6 +50,13 @@ export default function Home() {
   const shift = useShift();
   const loads = useLoads();
   const score = useDriverScore();
+  const { enabled } = useFeatures();
+  const loadsEnabled = enabled('tab.loads');
+  const scoreEnabled = enabled('tab.score');
+  const notificationsEnabled = enabled('notifications');
+  const notifs = useNotifications(notificationsEnabled);
+  const messagesEnabled = enabled('messages');
+  const threads = useThreads(messagesEnabled);
 
   const duty = dutyView(shift.data);
   const buckets = bucketLoads(loads.data?.loads ?? []);
@@ -73,6 +85,18 @@ export default function Home() {
             </>
           )}
         </View>
+        {messagesEnabled ? (
+          <MessagesButton
+            unread={threads.data?.unread_total ?? 0}
+            onPress={() => router.push('/messages')}
+          />
+        ) : null}
+        {notificationsEnabled ? (
+          <NotificationBell
+            unread={notifs.data?.unread ?? 0}
+            onPress={() => router.push('/notifications')}
+          />
+        ) : null}
         {showSkeletons ? (
           <Skeleton className="h-11 w-11 rounded-full" />
         ) : (
@@ -101,26 +125,31 @@ export default function Home() {
         onEnd={() => router.push('/duty/end-shift')}
       />
 
-      <SectionLabel>{current ? 'Active work' : 'Next assignment'}</SectionLabel>
-      {loads.isPending && !loads.data ? (
-        <Skeleton className="h-[220px] w-full rounded-xl" />
-      ) : current ? (
-        <CurrentLoadCard
-          load={toActive(current)}
-          onNavigate={() => router.push(`/loads/${current.id}` as never)}
-          onOpen={() => router.push(`/loads/${current.id}` as never)}
-        />
-      ) : nextUp ? (
-        <LoadCard load={toSummary(nextUp)} onPress={() => router.push(`/loads/${nextUp.id}` as never)} />
-      ) : (
-        <EmptyState
-          icon="local_shipping"
-          title="Nothing assigned yet"
-          subtitle="New loads from dispatch appear here as soon as they're released."
-        />
-      )}
+      {/* Load sections hide WITH the Loads tab (D-PM1) — a block is all-on or all-off. */}
+      {loadsEnabled ? (
+        <>
+          <SectionLabel>{current ? 'Active work' : 'Next assignment'}</SectionLabel>
+          {loads.isPending && !loads.data ? (
+            <Skeleton className="h-[220px] w-full rounded-xl" />
+          ) : current ? (
+            <CurrentLoadCard
+              load={toActive(current)}
+              onNavigate={() => router.push(`/loads/${current.id}` as never)}
+              onOpen={() => router.push(`/loads/${current.id}` as never)}
+            />
+          ) : nextUp ? (
+            <LoadCard load={toSummary(nextUp)} onPress={() => router.push(`/loads/${nextUp.id}` as never)} />
+          ) : (
+            <EmptyState
+              icon="local_shipping"
+              title="Nothing assigned yet"
+              subtitle="New loads from dispatch appear here as soon as they're released."
+            />
+          )}
+        </>
+      ) : null}
 
-      {weekScore ? (
+      {scoreEnabled && weekScore ? (
         <>
           <SectionLabel>This week</SectionLabel>
           <View className="flex-row gap-3">

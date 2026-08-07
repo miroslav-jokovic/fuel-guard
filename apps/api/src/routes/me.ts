@@ -34,6 +34,7 @@ import {
   type LoadResult,
 } from "../services/driverLoads.js";
 import { getDriverScore } from "../services/driverScore.js";
+import { getResolvedFeatures } from "../services/driverAppFeatures.js";
 
 /**
  * Driver self-service endpoints (Driver App, Phases 1 + 3A). Identity is ALWAYS resolved server-side
@@ -90,7 +91,16 @@ export function meRouter(): Router {
         .select("module_key, enabled, config")
         .eq("org_id", orgId);
 
-      res.json({ driver, vehicles: vehicles ?? [], modules: modules ?? [] });
+      // The RESOLVED feature set (Phase 4): released × entitled × org rows × this driver's
+      // overrides, computed by the one shared rule. The app consumes this; it never re-derives.
+      const features = await getResolvedFeatures(
+        admin,
+        orgId,
+        driver.id,
+        (modules ?? []) as { module_key: string; enabled: boolean; config: Record<string, unknown> }[],
+      );
+
+      res.json({ driver, vehicles: vehicles ?? [], modules: modules ?? [], features });
     }),
   );
 

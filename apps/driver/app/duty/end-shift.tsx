@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
+  ActionBar,
   Banner,
   Button,
   Field,
@@ -55,7 +56,27 @@ export default function EndShift() {
   const startOdo = duty.session?.start_odometer ?? null;
 
   return (
-    <Screen>
+    <Screen
+      padTop={false}
+      // Primary action pinned in the footer (Phase 8.5 — same contract as check-in): reachable
+      // without scrolling, in gloves, with the keyboard up.
+      footer={
+        <ActionBar>
+          <Button
+            label="End shift"
+            variant="danger"
+            size="lg"
+            icon="logout"
+            loading={endShift.isPending}
+            haptic="warning"
+            onPress={() => void submit()}
+          />
+          <Text className="pb-1 text-center text-xs text-ink-subtle">
+            This releases your truck for the next driver. Works offline — it syncs when you get signal.
+          </Text>
+        </ActionBar>
+      }
+    >
       <ScreenHeader
         title="End your day"
         subtitle={duty.equipmentLabel ?? 'Sign off'}
@@ -84,18 +105,6 @@ export default function EndShift() {
         <NumericField value={odometer} onChangeText={setOdometer} unit="mi" placeholder="412450" />
       </Field>
 
-      <Button
-        label="End shift"
-        variant="danger"
-        size="lg"
-        icon="logout"
-        loading={endShift.isPending}
-        haptic="warning"
-        onPress={() => void submit()}
-      />
-      <Text className="pb-2 text-center text-xs text-ink-subtle">
-        This releases your truck for the next driver. Works offline — it syncs when you get signal.
-      </Text>
     </Screen>
   );
 }

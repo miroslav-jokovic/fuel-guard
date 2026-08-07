@@ -53,12 +53,18 @@ const config: ExpoConfig = {
       },
     ],
   ],
+  // OTA updates (Phase 8.2): runtimeVersion pins JS-update compatibility to the native app version,
+  // so an EAS Update can never land on a binary missing its native modules. Inert until
+  // `eas update:configure` adds the project URL (owner step — see DRIVER-APP-BUILD-STATUS).
+  runtimeVersion: { policy: 'appVersion' },
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
     mapStyleUrl: process.env.EXPO_PUBLIC_MAP_STYLE_URL,
     mapStyleUrlDark: process.env.EXPO_PUBLIC_MAP_STYLE_URL_DARK,
+    // Crash reporting (Phase 8.1) — a DSN is not a secret, but it is optional: absent = no-op.
+    sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   },
 };
 

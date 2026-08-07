@@ -53,7 +53,15 @@ export default function HazmatCaptureScreen() {
           </Text>
         </Card>
         {reasons.length > 0 ? <Banner tone="warning" message={reasons.join("\n")} /> : null}
-        <Button label={busy ? "Working…" : "Capture BOL"} onPress={onCapture} loading={busy} disabled={busy} block />
+        <Button
+          label={busy ? "Working…" : "Capture BOL"}
+          onPress={() => {
+            void onCapture();
+          }}
+          loading={busy}
+          disabled={busy}
+          block
+        />
       </View>
     </Screen>
   );

@@ -15,10 +15,10 @@ import type { TaskStep } from '@/components';
 export type CheckInMode = 'start' | 'swap';
 export type CheckInStep = 'truck' | 'trailer' | 'confirm';
 
-/** Dashboard-configurable via the `duty.odometer` feature (D-PM2). Until the feature system lands
- *  (plan Phase 4/5) the app pins the catalog default. */
+/** Dashboard-configured via the `duty.odometer` feature (D-PM2) — the screen reads it from
+ *  `useFeatures()`; the shared featureCatalog owns the default. Structural mirror of shared's
+ *  OdometerMode, kept local so this model stays dependency-light and pure. */
 export type OdometerMode = 'off' | 'optional' | 'required';
-export const DEFAULT_ODOMETER_MODE: OdometerMode = 'optional';
 
 export interface CheckInState {
   step: CheckInStep;

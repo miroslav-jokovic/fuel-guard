@@ -15,9 +15,19 @@ import { loadEnv } from "./env.js";
 // it carries its own throttles + uniform errors (routes/auth.ts) instead of requireAuth.
 const PUBLIC_PREFIXES = new Set(["/api/webhooks", "/api/auth", "/api/public/hazmat"]);
 
+/**
+ * Discover every mounted /api router from app.ts source.
+ *
+ * The pattern deliberately allows middleware BETWEEN the path and the router factory
+ * (`app.use("/api/x", requireAuth, xRouter())`). The original form required the factory to follow
+ * the path immediately, so a mount with any middleware in between was invisible to this fitness
+ * function — which is exactly how `/api/me/notifications` escaped it when it was wired up. A router
+ * that hides from the auth check is the one failure this file exists to make impossible, so the
+ * detector must not have a shape it cannot see.
+ */
 function mountedApiRouters(): string[] {
   const src = readFileSync(new URL("./app.ts", import.meta.url), "utf8");
-  const re = /app\.use\("(\/api\/[^"]+)",\s*\w+Router\(\)\)/g;
+  const re = /app\.use\("(\/api\/[^"]+)"\s*,[^)]*?\w+Router\(\)\)/g;
   return [...src.matchAll(re)].map((m) => m[1]!);
 }
 

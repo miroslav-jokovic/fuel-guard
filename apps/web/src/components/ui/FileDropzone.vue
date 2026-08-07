@@ -96,7 +96,8 @@ function browse() {
     @dragleave.prevent="dragging = Math.max(0, dragging - 1)"
     @drop.prevent="onDrop"
   >
-    <AppIcon :icon="ArrowUpTrayIcon"
+    <AppIcon
+:icon="ArrowUpTrayIcon"
       class="mx-auto size-10 transition-colors"
       :class="dragging > 0 ? 'text-brand-500' : 'text-ink-subtle'"
       aria-hidden="true"

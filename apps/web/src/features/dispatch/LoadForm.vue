@@ -164,25 +164,25 @@ function onSubmit() {
   <form class="flex h-full flex-col" @submit.prevent="onSubmit">
     <div class="flex-1 space-y-6 overflow-y-auto px-1">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField label="Load / reference #" required :error="refError" v-slot="{ id }">
+        <FormField v-slot="{ id }" label="Load / reference #" required :error="refError">
           <BaseInput :id="id" v-model="form.ref" placeholder="LD-20481" />
         </FormField>
-        <FormField label="Total miles" v-slot="{ id }">
+        <FormField v-slot="{ id }" label="Total miles">
           <BaseInput :id="id" v-model="form.total_miles" type="number" placeholder="361" />
         </FormField>
-        <FormField label="Driver" v-slot="{ id }">
+        <FormField v-slot="{ id }" label="Driver">
           <ComboSelect :id="id" v-model="form.driver_id" :options="driverOptions" placeholder="Search drivers…" />
         </FormField>
-        <FormField label="Truck" v-slot="{ id }">
+        <FormField v-slot="{ id }" label="Truck">
           <ComboSelect :id="id" v-model="form.vehicle_id" :options="vehicleOptions" placeholder="Search trucks…" />
         </FormField>
-        <FormField label="Trailer" v-slot="{ id }">
+        <FormField v-slot="{ id }" label="Trailer">
           <ComboSelect :id="id" v-model="form.trailer_id" :options="trailerOptions" placeholder="Search trailers…" />
         </FormField>
-        <FormField label="Equipment" hint="e.g. Dry van, Reefer" v-slot="{ id }">
+        <FormField v-slot="{ id }" label="Equipment" hint="e.g. Dry van, Reefer">
           <BaseInput :id="id" v-model="form.equipment" placeholder="Dry van" />
         </FormField>
-        <FormField label="Commodity" v-slot="{ id }">
+        <FormField v-slot="{ id }" label="Commodity">
           <BaseInput :id="id" v-model="form.commodity" placeholder="General freight" />
         </FormField>
         <div class="flex items-end pb-2">
@@ -190,7 +190,7 @@ function onSubmit() {
         </div>
       </div>
 
-      <FormField label="Notes for dispatch" v-slot="{ id }">
+      <FormField v-slot="{ id }" label="Notes for dispatch">
         <BaseInput :id="id" v-model="form.notes" placeholder="Anything the driver should know" />
       </FormField>
 
@@ -219,22 +219,22 @@ function onSubmit() {
             </button>
           </div>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField label="Kind" v-slot="{ id }">
+            <FormField v-slot="{ id }" label="Kind">
               <ComboSelect :id="id" v-model="stop.kind" :options="kindOptions" />
             </FormField>
-            <FormField label="Name" v-slot="{ id }">
+            <FormField v-slot="{ id }" label="Name">
               <BaseInput :id="id" v-model="stop.name" placeholder="Shipper / consignee" />
             </FormField>
-            <FormField label="City" v-slot="{ id }">
+            <FormField v-slot="{ id }" label="City">
               <BaseInput :id="id" v-model="stop.city" placeholder="Joliet" />
             </FormField>
-            <FormField label="State" v-slot="{ id }">
+            <FormField v-slot="{ id }" label="State">
               <BaseInput :id="id" v-model="stop.state" placeholder="IL" />
             </FormField>
-            <FormField label="Appointment start" v-slot="{ id }">
+            <FormField v-slot="{ id }" label="Appointment start">
               <BaseInput :id="id" v-model="stop.appointment_start" type="datetime-local" />
             </FormField>
-            <FormField label="Appointment end" v-slot="{ id }">
+            <FormField v-slot="{ id }" label="Appointment end">
               <BaseInput :id="id" v-model="stop.appointment_end" type="datetime-local" />
             </FormField>
           </div>

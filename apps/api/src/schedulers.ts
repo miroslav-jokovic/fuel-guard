@@ -11,6 +11,7 @@ import { startEfsSoapCertExpiryWatcher } from "./services/efsSoapCertExpiry.js";
 import { startPostedPriceScheduler } from "./services/postedPriceFetch.js";
 import { startDutySessionSweeper } from "./services/dutySessionSweeper.js";
 import { startHazmatStorageReconcileScheduler } from "./services/hazmatStorageReconcileScheduler.js";
+import { startNotificationPushScheduler } from "./services/notificationPush.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,
@@ -38,4 +39,5 @@ export function startAllSchedulers(env: Env): void {
   startPostedPriceScheduler(env); // global posted-price refresh from Pilot's public table
   startDutySessionSweeper(env); // close abandoned driver shifts so their truck is released (D44.5)
   startHazmatStorageReconcileScheduler(env); // §13.5/M11: nightly hazmat storage-orphan reconcile
+  startNotificationPushScheduler(env); // Expo Push delivery of pending notification_events (5N/Phase 6)
 }

@@ -273,6 +273,22 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiresAdmin: true, title: "Driver Performance", parent: "/settings" },
   },
   {
+    // Dispatch inbox (Phase 7, D-PM4). View access mirrors the nav gate: dispatch section, any
+    // view role — participation + the module gate are the real boundary server-side.
+    path: "/messages",
+    name: "messages",
+    component: () => import("@/pages/MessagesPage.vue"),
+    meta: { requiresAuth: true, title: "Messages" },
+  },
+  {
+    // Driver-app control plane (hardening plan Phase 5, D-PM6): requiresManage = canManageFleet
+    // (admin + fleet_manager) — org-wide app policy is fleet management, not org administration.
+    path: "/settings/driver-app",
+    name: "driver-app-settings",
+    component: () => import("@/pages/DriverAppSettingsPage.vue"),
+    meta: { requiresAuth: true, requiresManage: true, title: "Driver App", parent: "/settings" },
+  },
+  {
     path: "/settings/fuel-planning",
     name: "fuel-planning-settings",
     component: () => import("@/pages/FuelPlanningSettingsPage.vue"),

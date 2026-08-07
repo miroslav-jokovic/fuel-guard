@@ -95,6 +95,7 @@ export {
   SecurityCheckIcon           as ShieldCheckIcon,                // ⚠ verify (shield-with-tick)
   Wifi01Icon                  as SignalIcon,                     // ⚠ verify (wifi arcs vs. signal bars)
   AiMagicIcon                 as SparklesIcon,                   // ✨ AI features
+  SmartPhone01Icon            as DevicePhoneMobileIcon,          // Driver App settings card
 
   // ── Time / calendar ─────────────────────────────────────────────────────
   Clock01Icon                 as ClockIcon,

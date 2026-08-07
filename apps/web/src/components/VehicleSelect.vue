@@ -141,7 +141,7 @@ watch(
       >
         <AppIcon :icon="XMarkIcon" class="size-4" />
       </button>
-      <AppIcon :icon="ChevronUpDownIcon" v-else class="ml-auto size-4 shrink-0 text-ink-subtle" />
+      <AppIcon v-else :icon="ChevronUpDownIcon" class="ml-auto size-4 shrink-0 text-ink-subtle" />
     </div>
 
     <!-- Dropdown -->
@@ -160,7 +160,8 @@ watch(
             :class="isUnset ? 'bg-brand-50 font-medium text-brand-700' : 'text-ink-muted hover:bg-surface-subtle'"
             @click="select(undefined)"
           >
-            <AppIcon :icon="CheckIcon"
+            <AppIcon
+:icon="CheckIcon"
               class="mr-2 size-4 shrink-0 text-brand-600 transition-opacity"
               :class="isUnset ? 'opacity-100' : 'opacity-0'"
             />
@@ -185,7 +186,8 @@ watch(
               "
               @click="select(v.id)"
             >
-              <AppIcon :icon="CheckIcon"
+              <AppIcon
+:icon="CheckIcon"
                 class="size-4 shrink-0 text-brand-600 transition-opacity"
                 :class="v.id === modelValue ? 'opacity-100' : 'opacity-0'"
               />

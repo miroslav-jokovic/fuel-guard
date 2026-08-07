@@ -83,8 +83,9 @@ export function ruleEligible(id: RuleId, c: FillConfidence): boolean {
       return c.tankSensor === "reliable" && c.fillSize !== "too_small";
     case "implausible_topoff":
     case "mpg_sustained_decline":
-    // tank_chronic_short (WP-BEH) — the residual accumulator is only meaningful when the sensor
-    // reflects whole fills; window math needs no per-fill size gate.
+      // tank_chronic_short (WP-BEH) — the residual accumulator is only meaningful when the sensor
+      // reflects whole fills; window math needs no per-fill size gate.
+      // falls through
     case "tank_chronic_short":
       return c.tankSensor === "reliable";
     case "odometer_mismatch":

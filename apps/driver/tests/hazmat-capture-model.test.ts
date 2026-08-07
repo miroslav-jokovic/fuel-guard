@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CapturedPage, ScanResult } from "@fuelguard/capture-engine";
+import type { CapturedPage } from "@fuelguard/capture-engine";
 import { buildCapturePayload, decideCapture } from "@/features/hazmat/hazmatCaptureModel";
 
 function page(passed: boolean, reasons: CapturedPage["quality"]["reasons"] = []): CapturedPage {
@@ -15,12 +15,12 @@ function page(passed: boolean, reasons: CapturedPage["quality"]["reasons"] = [])
 
 describe("decideCapture", () => {
   it("accepts a passing page", () => {
-    const r = decideCapture({ ok: true, pages: [page(true)] } as ScanResult);
+    const r = decideCapture({ ok: true, pages: [page(true)] });
     expect(r.accepted).toBe(true);
     expect(r.reasons).toEqual([]);
   });
   it("maps a rejected page's reasons to driver copy", () => {
-    const r = decideCapture({ ok: true, pages: [page(false, ["RESOLUTION_TOO_LOW"])] } as ScanResult);
+    const r = decideCapture({ ok: true, pages: [page(false, ["RESOLUTION_TOO_LOW"])] });
     expect(r.accepted).toBe(false);
     expect(r.reasons[0]).toMatch(/low-resolution/i);
   });

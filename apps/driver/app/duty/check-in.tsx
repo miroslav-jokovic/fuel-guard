@@ -29,7 +29,6 @@ import {
   useStartShift,
 } from '@/features/duty/useDuty';
 import {
-  DEFAULT_ODOMETER_MODE,
   canSubmit,
   chooseBobtail,
   filterEquipment,
@@ -47,6 +46,7 @@ import {
   type CheckInState,
 } from '@/features/duty/checkInModel';
 import { readLastEquipment, writeLastEquipment } from '@/lib/lastEquipment';
+import { useFeatures } from '@/session/useFeatures';
 import { haptics } from '@/lib/haptics';
 
 function unitSubtitle(o: EquipmentOption): string | undefined {
@@ -139,15 +139,26 @@ export default function CheckIn() {
   );
 
   const loading = equipment.isPending && !equipment.data;
-  const odometerMode = DEFAULT_ODOMETER_MODE; // becomes org config via `duty.odometer` (plan Phase 4)
+  // Dashboard-controlled behavior (Phase 4, D-PM2): odometer off/optional/required and whether
+  // take-over is allowed at all, resolved server-side and cached with the bootstrap.
+  const { odometerMode, takeoverAllowed } = useFeatures();
+  const [heldNotice, setHeldNotice] = useState<string | null>(null);
 
   const pick = (option: EquipmentOption, kind: 'vehicle' | 'trailer') => {
     // Never a silent steal (D44.6) — the driver is shown who holds it and decides. The tap site
     // carries `kind`, so the confirm can never misclassify a unit from a re-filtered list.
     if (option.in_use_by) {
+      if (!takeoverAllowed) {
+        // Org policy: no self-serve take-over — dispatch reassigns instead (duty.takeover off).
+        setHeldNotice(
+          `Unit ${option.unit_number} is checked out to ${option.in_use_by}. Your fleet has take-over disabled — ask dispatch to reassign it.`,
+        );
+        return;
+      }
       setTakeOver({ option, kind });
       return;
     }
+    setHeldNotice(null);
     advance(kind === 'vehicle' ? selectVehicle(s, option) : selectTrailer(s, option));
   };
 
@@ -155,6 +166,7 @@ export default function CheckIn() {
     const t = takeOver;
     setTakeOver(null);
     if (!t) return;
+    setHeldNotice(null);
     advance(t.kind === 'vehicle' ? selectVehicle(s, t.option) : selectTrailer(s, t.option));
   };
 
@@ -261,6 +273,7 @@ export default function CheckIn() {
           onAction={() => void equipment.refetch()}
         />
       ) : null}
+      {heldNotice ? <Banner tone="info" message={heldNotice} /> : null}
 
       {s.step === 'truck' ? (
         <>

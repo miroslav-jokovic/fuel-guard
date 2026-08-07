@@ -223,7 +223,7 @@ async function onWithdraw(): Promise<void> {
 
     <!-- ── Upload form ──────────────────────────────────────────────────────── -->
     <form v-if="showForm" class="mt-4 space-y-3 border-t border-edge pt-4" @submit.prevent="onUpload">
-      <FormField label="Certificate (PEM)" hint="Leaf first, then any intermediates. Begins with -----BEGIN CERTIFICATE-----" v-slot="{ id }">
+      <FormField v-slot="{ id }" label="Certificate (PEM)" hint="Leaf first, then any intermediates. Begins with -----BEGIN CERTIFICATE-----">
         <textarea
           :id="id"
           v-model="form.certPem"
@@ -233,7 +233,7 @@ async function onWithdraw(): Promise<void> {
           placeholder="-----BEGIN CERTIFICATE-----&#10;…"
         />
       </FormField>
-      <FormField label="Private key (PEM)" hint="Sent once, encrypted before storage, never shown again." v-slot="{ id }">
+      <FormField v-slot="{ id }" label="Private key (PEM)" hint="Sent once, encrypted before storage, never shown again.">
         <textarea
           :id="id"
           v-model="form.keyPem"
@@ -243,13 +243,13 @@ async function onWithdraw(): Promise<void> {
           placeholder="-----BEGIN PRIVATE KEY-----&#10;…"
         />
       </FormField>
-      <FormField label="Key passphrase" hint="Only if the private key is encrypted." v-slot="{ id }">
+      <FormField v-slot="{ id }" label="Key passphrase" hint="Only if the private key is encrypted.">
         <BaseInput :id="id" v-model="form.passphrase" type="password" autocomplete="off" />
       </FormField>
       <FormField
+        v-slot="{ id }"
         label="CA bundle (optional)"
         hint="Only if EFS's own certificate is signed by a private root your server doesn't already trust."
-        v-slot="{ id }"
       >
         <textarea
           :id="id"

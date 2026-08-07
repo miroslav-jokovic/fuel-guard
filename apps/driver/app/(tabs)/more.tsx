@@ -1,17 +1,18 @@
 import { useRouter } from 'expo-router';
 import { Badge, ListRow, Screen, ScreenHeader, SectionLabel } from '@/components';
 import { dutyView, useShift } from '@/features/duty/useDuty';
-import { useModules } from '@/session/useModules';
+import { useFeatures } from '@/session/useFeatures';
 
 export default function More() {
   const router = useRouter();
   const shift = useShift();
   const duty = dutyView(shift.data);
-  const { has } = useModules();
+  const { enabled } = useFeatures();
 
-  // Entitlement-gated (D55/D-PM1, the Samsara rule: what an org hasn't bought simply doesn't
-  // appear). Entitled → the live hazmat hub; not entitled → the teaser row stays.
-  const hazmatEnabled = has('hazmatguard');
+  // Feature-gated (Phase 4 — the resolved set already folds in the hazmatguard entitlement AND
+  // the org/driver toggles; the Samsara rule: what's off simply doesn't appear). Enabled → the
+  // live hazmat hub; off → the teaser row stays.
+  const hazmatEnabled = enabled('hazmat.capture');
 
   return (
     <Screen>
@@ -43,7 +44,7 @@ export default function More() {
             title="Hazmat checks"
             subtitle="Capture a BOL, get the compliance verdict"
             icon="local_fire_department"
-            onPress={() => router.push('/hazmat' as never)}
+            onPress={() => router.push('/hazmat')}
           />
         </>
       ) : null}

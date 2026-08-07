@@ -4,7 +4,7 @@ import { requirePlatformAuth, requireAAL2, requirePlatformAdmin, requirePlatform
 import { adminClient } from "../lib/supabaseAdmin.js";
 import { writePlatformAudit } from "../lib/audit.js";
 import { apiError } from "../lib/http.js";
-import { listOrgs, getOrgDetail } from "../lib/orgs.js";
+import { listOrgs, getOrgDetail, setOrgEntitlement } from "../lib/orgs.js";
 import { listOrgMembers, setOrgModuleEnabled } from "../lib/members.js";
 import { startGrant, getActiveGrant, viewOrgAnomalies, writeTenantAudit } from "../lib/impersonation.js";
 
@@ -105,6 +105,52 @@ export function orgsRouter(): Router {
         res.json({ ok: true, provider, enabled: parsed.data.enabled });
       } catch {
         res.status(500).json(apiError("internal_error", "Could not update the module"));
+      }
+    },
+  );
+
+  // Grant/revoke a SELLABLE-MODULE entitlement (org_modules, 0088) — the commercial control plane
+  // (plan Phase 5.3, D-PM6). Distinct from the integrations toggle above (org_integrations): this
+  // is what makes HazmatGuard/Training/etc exist for a tenant at all. Owner/admin only, audited to
+  // the platform trail AND the customer's own trail (a bought/removed product is visible to them).
+  // Upsert semantics: the first grant creates the row (unlike the integration toggle, which only
+  // flips existing connections). Reversible, so no step-up beyond the router's AAL2 gate.
+  r.post(
+    "/:id/entitlements/:moduleKey",
+    requirePlatformRole("platform_owner", "platform_admin"),
+    async (req: Request, res: Response) => {
+      const id = req.params.id;
+      const moduleKey = req.params.moduleKey;
+      if (typeof id !== "string" || typeof moduleKey !== "string") {
+        res.status(400).json(apiError("invalid_request", "Invalid parameters"));
+        return;
+      }
+      const parsed = toggleSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(apiError("invalid_request", "Body must be { enabled: boolean }"));
+        return;
+      }
+      try {
+        const admin = adminClient(req);
+        const actor = req.platform!;
+        const result = await setOrgEntitlement(admin, id, moduleKey, parsed.data.enabled, actor.userId ?? null);
+        if (!result.ok) {
+          res.status(400).json(apiError("invalid_request", result.error));
+          return;
+        }
+        const ua = req.headers["user-agent"];
+        await writePlatformAudit(admin, actor, {
+          action: parsed.data.enabled ? "entitlement.grant" : "entitlement.revoke",
+          targetOrgId: id,
+          targetEntity: "org_modules",
+          reason: result.moduleKey,
+          after: { moduleKey: result.moduleKey, enabled: parsed.data.enabled },
+          ip: req.ip ?? null,
+          userAgent: typeof ua === "string" ? ua : null,
+        });
+        res.json({ ok: true, moduleKey: result.moduleKey, enabled: parsed.data.enabled });
+      } catch {
+        res.status(500).json(apiError("internal_error", "Could not update the entitlement"));
       }
     },
   );

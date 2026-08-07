@@ -35,7 +35,8 @@ function parseRuns(rows: readonly unknown[]): RunView | null {
   const blocks = Array.isArray(eligibility.blocks) ? (eligibility.blocks as Finding[]) : [];
   const seg = Array.isArray(verdict.segregation) ? (verdict.segregation as Finding[]) : [];
   const flags = Array.isArray(latest.flags) ? (latest.flags as string[]) : [];
-  return { outcome: String(latest.outcome ?? "pending"), findings: [...blocks, ...seg], flags };
+  const outcome = typeof latest.outcome === "string" ? latest.outcome : "pending";
+  return { outcome, findings: [...blocks, ...seg], flags };
 }
 
 const OUTCOME: Record<string, { tone: Tone; message: string }> = {
@@ -62,7 +63,7 @@ export default function HazmatVerdictScreen() {
       return res.data.rows;
     },
     refetchInterval: (q): number | false => {
-      const rows = (q.state.data as unknown[] | undefined) ?? [];
+      const rows = (q.state.data) ?? [];
       const view = parseRuns(rows);
       return view && TERMINAL.has(view.outcome) ? false : 3000;
     },

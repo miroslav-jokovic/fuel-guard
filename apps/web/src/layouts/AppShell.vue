@@ -16,6 +16,7 @@ import { useSessionStore } from "@/stores/session";
 import { buildNavGroups, type NavGroup } from "@/lib/nav";
 import { useModulesQuery } from "@/composables/useModules";
 import { useHazmatReviewCountQuery } from "@/features/hazmat/useHazmatReview";
+import { useThreadsQuery } from "@/features/messages/useMessages";
 import AppLogo from "@/components/AppLogo.vue";
 import SidebarFlyoutSection from "@/layouts/SidebarFlyoutSection.vue";
 import SidebarProfileMenu from "@/layouts/SidebarProfileMenu.vue";
@@ -32,8 +33,16 @@ const hazmatVisible = computed(() =>
   canViewSection(session.role, "hazmat") && moduleEnabled(modules.data.value ?? null, "hazmatguard"),
 );
 const reviewCount = useHazmatReviewCountQuery(hazmatVisible);
+// Messages unread for the nav badge (Phase 7) — same one-fetch-two-surfaces query the inbox uses.
+const messagesVisible = computed(() =>
+  canViewSection(session.role, "dispatch") && moduleEnabled(modules.data.value ?? null, "messages"),
+);
+const threadsQ = useThreadsQuery(messagesVisible);
 const navGroups = computed<NavGroup[]>(() =>
-  buildNavGroups(session.role, modules.data.value ?? null, { hazmatReview: reviewCount.data.value ?? 0 }),
+  buildNavGroups(session.role, modules.data.value ?? null, {
+    hazmatReview: reviewCount.data.value ?? 0,
+    messagesUnread: threadsQ.data.value?.unread_total ?? 0,
+  }),
 );
 
 // Pre-build a Set of explicit nav paths for O(1) lookup — used to decide whether prefix matching

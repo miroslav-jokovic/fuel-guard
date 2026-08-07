@@ -17,25 +17,33 @@ const driver = {
  * recurrence: the field is REQUIRED (missing = loud parse failure, not an empty set), and the
  * resolved set only ever contains enabled, known keys.
  */
-describe("meDriverResponseSchema — modules is a required field", () => {
+describe("meDriverResponseSchema — modules and features are required fields", () => {
   it("REJECTS a payload with no modules key (the exact shape the regressed API produced)", () => {
-    const regressed = { driver, vehicles: [] };
+    const regressed = { driver, vehicles: [], features: [] };
     expect(meDriverResponseSchema.safeParse(regressed).success).toBe(false);
   });
 
-  it("accepts an explicit empty entitlement set (a tenant that bought nothing optional)", () => {
-    const parsed = meDriverResponseSchema.parse({ driver, vehicles: [], modules: [] });
-    expect(parsed.modules).toEqual([]);
+  it("REJECTS a payload with no features key — same regression class, same loud failure", () => {
+    const missingFeatures = { driver, vehicles: [], modules: [] };
+    expect(meDriverResponseSchema.safeParse(missingFeatures).success).toBe(false);
   });
 
-  it("carries module rows through with their config", () => {
+  it("accepts an explicit empty entitlement set (a tenant that bought nothing optional)", () => {
+    const parsed = meDriverResponseSchema.parse({ driver, vehicles: [], modules: [], features: [] });
+    expect(parsed.modules).toEqual([]);
+    expect(parsed.features).toEqual([]);
+  });
+
+  it("carries module rows and resolved features through with their config", () => {
     const parsed = meDriverResponseSchema.parse({
       driver,
       vehicles: [],
       modules: [{ module_key: "hazmatguard", enabled: true, config: { maxPages: 10 } }],
+      features: [{ key: "hazmat.capture", enabled: true, config: {} }],
     });
     expect(parsed.modules[0]?.module_key).toBe("hazmatguard");
     expect(parsed.modules[0]?.config).toEqual({ maxPages: 10 });
+    expect(parsed.features[0]?.key).toBe("hazmat.capture");
   });
 });
 

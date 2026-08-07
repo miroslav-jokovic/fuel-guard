@@ -75,6 +75,33 @@ async function toggleModule(provider: string, enabled: boolean) {
     toggling.value = null;
   }
 }
+
+/** Sellable-module entitlements (org_modules) — the commercial grant, distinct from integrations. */
+const MODULE_LABELS: Record<string, string> = {
+  hazmatguard: "HazmatGuard",
+  training: "Safety Training",
+  messages: "Messages",
+  notifications: "Notifications",
+  dispatch: "Dispatch",
+  navigation: "Navigation",
+};
+const togglingEntitlement = ref<string | null>(null);
+async function toggleEntitlement(moduleKey: string, enabled: boolean) {
+  if (!org.value) return;
+  togglingEntitlement.value = moduleKey;
+  try {
+    await apiPost(`/admin/orgs/${id}/entitlements/${moduleKey}`, { enabled });
+    const e = org.value.entitlements.find((x) => x.moduleKey === moduleKey);
+    if (e) {
+      e.enabled = enabled;
+      e.granted = true;
+    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Could not update the entitlement";
+  } finally {
+    togglingEntitlement.value = null;
+  }
+}
 </script>
 
 <template>
@@ -123,7 +150,8 @@ async function toggleModule(provider: string, enabled: boolean) {
         </AppCard>
 
         <AppCard>
-          <h2 class="text-sm font-semibold text-ink-secondary">Modules</h2>
+          <h2 class="text-sm font-semibold text-ink-secondary">Integrations</h2>
+          <p class="mt-1 text-xs text-ink-muted">Connected data providers (kill switch — never provisions credentials).</p>
           <ul class="mt-3 space-y-2 text-sm">
             <li v-for="m in org.modules" :key="m.provider" class="flex items-center justify-between gap-2">
               <span class="capitalize text-ink">{{ m.provider }}</span>
@@ -140,10 +168,42 @@ async function toggleModule(provider: string, enabled: boolean) {
                 </AppButton>
               </div>
             </li>
-            <li v-if="org.modules.length === 0" class="text-ink-muted">No optional modules connected.</li>
+            <li v-if="org.modules.length === 0" class="text-ink-muted">No integrations connected.</li>
           </ul>
         </AppCard>
       </div>
+
+      <AppCard class="mt-4">
+        <h2 class="text-sm font-semibold text-ink-secondary">Entitlements</h2>
+        <p class="mt-1 text-xs text-ink-muted">
+          Which FuelGuard products this customer has bought (org_modules). Granting a module is what
+          makes its surfaces exist for their org — their own dashboard then controls what drivers see.
+          Every change is recorded in the platform log and the customer's audit trail.
+        </p>
+        <ul class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+          <li
+            v-for="e in org.entitlements"
+            :key="e.moduleKey"
+            class="flex items-center justify-between gap-2 rounded-md border border-edge-subtle px-3 py-2"
+          >
+            <span class="text-ink">{{ MODULE_LABELS[e.moduleKey] ?? e.moduleKey }}</span>
+            <div class="flex items-center gap-2">
+              <span :class="e.enabled ? 'text-success-700' : 'text-ink-muted'">
+                {{ e.enabled ? "granted" : e.granted ? "revoked" : "not granted" }}
+              </span>
+              <AppButton
+                v-if="canManageModules"
+                size="sm"
+                :variant="e.enabled ? 'soft' : 'primary'"
+                :disabled="togglingEntitlement === e.moduleKey"
+                @click="toggleEntitlement(e.moduleKey, !e.enabled)"
+              >
+                {{ e.enabled ? "Revoke" : "Grant" }}
+              </AppButton>
+            </div>
+          </li>
+        </ul>
+      </AppCard>
 
       <AppCard padding="none" class="mt-4">
         <h2 class="px-5 pt-5 text-sm font-semibold text-ink-secondary">Members</h2>

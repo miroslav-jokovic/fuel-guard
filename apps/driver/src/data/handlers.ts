@@ -26,6 +26,9 @@ export const LOAD_STOP_KIND = 'load_stop';
 
 export const HAZMAT_CAPTURE_KIND = 'hazmat_capture';
 
+export const MESSAGE_THREAD_KIND = 'message_thread_create';
+export const MESSAGE_SEND_KIND = 'message_send';
+
 /** Storage bucket for proof-of-work photos (migration 0085) — private, path-scoped by org+driver. */
 const LOAD_PHOTOS_BUCKET = 'load-photos';
 
@@ -146,6 +149,29 @@ export function registerSyncHandlers(): void {
           storage_path: p.storage_path,
           ...(p.captured_at ? { captured_at: p.captured_at } : {}),
         })),
+      });
+    },
+  });
+
+  // ── Messages (Phase 7, D54) ────────────────────────────────────────────────
+  // Both write paths are replay-safe on their client UUIDs: a re-drained thread-create finds the
+  // existing thread and no-ops (the service checks the id first); a re-drained send collides on the
+  // message PK. A reply typed in a dead zone therefore lands exactly once, whenever signal returns.
+  registerHandler(MESSAGE_THREAD_KIND, {
+    invalidates: [['me', 'messages']],
+    run: (record) => post('/api/messages', record.payload),
+  });
+  registerHandler(MESSAGE_SEND_KIND, {
+    invalidates: [['me', 'messages']],
+    run: async (record) => {
+      const p = (record.payload ?? {}) as { thread_id?: string; message_id?: string; body?: string; occurred_at?: string };
+      if (!p.thread_id || !p.message_id || !p.body) {
+        throw new SyncError('Queued message is malformed', 422);
+      }
+      await post(`/api/messages/${p.thread_id}/messages`, {
+        message_id: p.message_id,
+        body: p.body,
+        ...(p.occurred_at ? { occurred_at: p.occurred_at } : {}),
       });
     },
   });

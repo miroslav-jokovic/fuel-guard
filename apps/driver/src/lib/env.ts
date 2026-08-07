@@ -9,6 +9,7 @@ interface DriverExtra {
   apiUrl?: string;
   mapStyleUrl?: string;
   mapStyleUrlDark?: string;
+  sentryDsn?: string;
 }
 
 const extra = (Constants.expoConfig?.extra ?? {}) as DriverExtra;
@@ -35,6 +36,8 @@ function optionalUrl(value: string | undefined, fallback: string): string {
 const DEFAULT_MAP_STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty';
 const DEFAULT_MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
 
+const sentryDsn = extra.sentryDsn?.trim();
+
 export const env = {
   supabaseUrl: required('supabaseUrl', extra.supabaseUrl),
   supabaseAnonKey: required('supabaseAnonKey', extra.supabaseAnonKey),
@@ -42,6 +45,8 @@ export const env = {
   apiUrl: required('apiUrl', extra.apiUrl).replace(/\/$/, ''),
   mapStyleUrl: optionalUrl(extra.mapStyleUrl, DEFAULT_MAP_STYLE_LIGHT),
   mapStyleUrlDark: optionalUrl(extra.mapStyleUrlDark, DEFAULT_MAP_STYLE_DARK),
+  // Optional (Phase 8.1): crash reporting is a no-op without a DSN — dev/test runs unaffected.
+  sentryDsn: sentryDsn === undefined || sentryDsn.length === 0 ? null : sentryDsn,
 } as const;
 
 /** Basemap style URL for the active theme (NAV NP0). */

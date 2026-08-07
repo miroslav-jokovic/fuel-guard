@@ -151,14 +151,14 @@ function apptLabel(start: string | null | undefined, end: string | null | undefi
             Reassign…
           </BaseButton>
           <div v-else class="space-y-2">
-            <FormField label="Driver" v-slot="{ id }">
+            <FormField v-slot="{ id }" label="Driver">
               <ComboSelect :id="id" v-model="assignDriver" :options="driverOptions" placeholder="Search drivers…" />
             </FormField>
             <div class="grid grid-cols-2 gap-2">
-              <FormField label="Truck" v-slot="{ id }">
+              <FormField v-slot="{ id }" label="Truck">
                 <ComboSelect :id="id" v-model="assignVehicle" :options="vehicleOptions" />
               </FormField>
-              <FormField label="Trailer" v-slot="{ id }">
+              <FormField v-slot="{ id }" label="Trailer">
                 <ComboSelect :id="id" v-model="assignTrailer" :options="trailerOptions" />
               </FormField>
             </div>
@@ -235,7 +235,7 @@ function apptLabel(start: string | null | undefined, end: string | null | undefi
     <!-- Action rail -->
     <div v-if="canManage" class="mt-4 space-y-3 border-t border-edge pt-4">
       <div v-if="reasonFor" class="space-y-2">
-        <FormField :label="reasonFor === 'reject' ? 'Reason for sending back' : 'Reason for cancelling'" required v-slot="{ id }">
+        <FormField v-slot="{ id }" :label="reasonFor === 'reject' ? 'Reason for sending back' : 'Reason for cancelling'" required>
           <BaseInput :id="id" v-model="reasonText" placeholder="Required — the driver / auditor will see this" />
         </FormField>
         <div class="flex justify-end gap-2">

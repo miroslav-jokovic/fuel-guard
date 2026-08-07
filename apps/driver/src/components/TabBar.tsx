@@ -39,6 +39,9 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       {state.routes.map((route, index) => {
         const icon = TAB_ICON[route.name];
         if (!icon) return null; // non-tab routes (if any) are not rendered in the bar
+        // Feature-hidden tabs (`href: null` — tab.loads / tab.score off, and the reserved
+        // navigate slot) never render a button (hardening plan Phase 4).
+        if ((descriptors[route.key]?.options as { href?: unknown } | undefined)?.href === null) return null;
         const focused = state.index === index;
         const label =
           descriptors[route.key]?.options.title ?? route.name;

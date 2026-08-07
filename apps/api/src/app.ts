@@ -28,8 +28,10 @@ import { dispatchRouter } from "./routes/dispatch.js";
 import { hazmatRouter } from "./routes/hazmat/index.js";
 import { publicHazmatRouter } from "./routes/publicHazmat.js";
 import { complianceRouter } from "./routes/compliance.js";
+import { driverAppSettingsRouter } from "./routes/driverAppSettings.js";
 import { meRouter } from "./routes/me.js";
 import { meHazmatRouter } from "./routes/meHazmat.js";
+import { notificationsRouter } from "./routes/notifications.js";
 import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
@@ -144,6 +146,13 @@ export function createApp(env: Env): Express {
   });
 
   app.use("/api/invites", invitesRouter());
+  // Phase 6: the notification centre. Written for this prefix all along ("Mounted under
+  // /api/me/notifications" in its header) but never wired — the whole API was dead code until
+  // this line. Mounted in the plain `path, xRouter()` shape every other router uses: the auth
+  // fitness test discovers mounts from this file's source, and a mount with middleware spliced in
+  // between was invisible to it (the router now applies requireAuth itself). Before /api/me so the
+  // longer prefix wins.
+  app.use("/api/me/notifications", notificationsRouter());
   app.use("/api/me/hazmat", meHazmatRouter()); // driver capture surface (M6) — before /api/me so this prefix wins
   app.use("/api/me", meRouter()); // driver self-view: profile, loads, score, shift/duty (sub-paths of /api/me)
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
@@ -163,6 +172,7 @@ export function createApp(env: Env): Express {
   app.use("/api/public/hazmat", publicHazmatRouter()); // M7: public, unauthenticated calculator + HMT lookup
   app.use("/api/hazmat", hazmatRouter());
   app.use("/api/compliance", complianceRouter()); // temporal compliance master data — certifications feed the §5 gate (M1)
+  app.use("/api/driver-app", driverAppSettingsRouter()); // dashboard control plane for the driver app (Phase 5, D-PM6)
   app.use("/api/webhooks", webhooksRouter()); // provider-signed; no user auth
 
   // ── Serve the built web SPA (single-service deploy) ─────────────────────────────────────────

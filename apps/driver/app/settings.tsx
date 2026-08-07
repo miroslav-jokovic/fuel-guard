@@ -19,6 +19,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { enqueue } from '@/data/outbox';
 import { runSync, useSyncState } from '@/data/sync';
 import { DEV_PING_KIND } from '@/data/handlers';
+import { revokePushRegistration } from '@/features/notifications/push';
 import { haptics } from '@/lib/haptics';
 
 type ThemeMode = 'system' | 'light' | 'dark';
@@ -32,9 +33,18 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  /** Sign-out and delete both revoke this device's push token FIRST, while the session can still
+   *  authenticate the call — otherwise the phone keeps receiving fleet content (D53). Best-effort
+   *  with a 3s cap; offboarding revokes server-side as the backstop (members.ts). */
+  async function signOutWithRevoke() {
+    await revokePushRegistration();
+    await signOut();
+  }
+
   async function deleteAccount() {
     setDeleting(true);
     setDeleteError(null);
+    await revokePushRegistration();
     const res = await apiFetch('/api/me/delete-account', { method: 'POST' });
     if (res.ok) {
       await signOut(); // the root guard bounces to sign-in
@@ -114,7 +124,7 @@ export default function Settings() {
         variant="secondary"
         icon="logout"
         onPress={() => {
-          void signOut();
+          void signOutWithRevoke();
         }}
       />
 

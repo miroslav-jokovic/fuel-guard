@@ -112,7 +112,47 @@ export default function StopCapture() {
       : `Missing ${outstanding.map(photoSlotLabel).join(', ')} — why?`;
 
   return (
-    <Screen>
+    <Screen
+      padTop={false}
+      // Primary actions pinned in the footer (Phase 8.5 — same contract as check-in/end-shift):
+      // "Complete stop" is reachable without scrolling past the photo checklist. Hidden while the
+      // reason card is up, where the card's own confirm is the one decision on screen.
+      footer={
+        reasonMode ? undefined : (
+          <ActionBar>
+            <Button
+              label="Complete stop"
+              size="lg"
+              icon="check_circle"
+              haptic="success"
+              loading={complete.isPending}
+              onPress={onComplete}
+            />
+            {stop.status === 'pending' ? (
+              <Button
+                label="Just mark arrived"
+                variant="secondary"
+                icon="pin_drop"
+                loading={complete.isPending}
+                onPress={() => void submit('arrived')}
+              />
+            ) : null}
+            <Button
+              label="Can't complete — skip"
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                setReason('');
+                setReasonMode('skipped');
+              }}
+            />
+            <Text className="pb-1 text-center text-xs text-ink-subtle">
+              Photos and completion sync automatically — this works with no signal.
+            </Text>
+          </ActionBar>
+        )
+      }
+    >
       <ScreenHeader
         title={stop.name}
         subtitle={`${placeLabel(stop)} · ${appointmentLabel(stop)}`}
@@ -214,38 +254,6 @@ export default function StopCapture() {
             })
           )}
 
-          <ActionBar>
-            <Button
-              label="Complete stop"
-              size="lg"
-              icon="check_circle"
-              haptic="success"
-              loading={complete.isPending}
-              onPress={onComplete}
-            />
-            {stop.status === 'pending' ? (
-              <Button
-                label="Just mark arrived"
-                variant="secondary"
-                icon="pin_drop"
-                loading={complete.isPending}
-                onPress={() => void submit('arrived')}
-              />
-            ) : null}
-            <Button
-              label="Can't complete — skip"
-              variant="ghost"
-              size="sm"
-              onPress={() => {
-                setReason('');
-                setReasonMode('skipped');
-              }}
-            />
-          </ActionBar>
-
-          <Text className="pb-2 text-center text-xs text-ink-subtle">
-            Photos and completion sync automatically — this works with no signal.
-          </Text>
         </>
       )}
     </Screen>

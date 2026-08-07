@@ -31,6 +31,9 @@ jobs:
       - name: Function-size budget
         run: pnpm lint:funcsize
 
+      - name: Migration versions
+        run: pnpm lint:migrations
+
       - name: Design tokens
         run: pnpm --filter @fuelguard/web lint:tokens
 

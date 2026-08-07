@@ -13,6 +13,7 @@ import {
   type WeekWindow,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
+import { notify } from "./notify.js";
 
 const HOUR = 3_600_000;
 
@@ -174,9 +175,13 @@ export async function snapshotSettledWeeks(
 
     const ids = cur.rows.map((r) => r.driverId);
     const nameMap = new Map<string, string>();
+    const loginMap = new Map<string, string>();
     if (ids.length) {
-      const { data: dn } = await admin.from("drivers").select("id, full_name").in("id", ids);
-      for (const d of (dn ?? []) as { id: string; full_name: string }[]) nameMap.set(d.id, d.full_name);
+      const { data: dn } = await admin.from("drivers").select("id, full_name, user_id").in("id", ids);
+      for (const d of (dn ?? []) as { id: string; full_name: string; user_id: string | null }[]) {
+        nameMap.set(d.id, d.full_name);
+        if (d.user_id) loginMap.set(d.id, d.user_id);
+      }
     }
 
     const rows = cur.rows.map((r) => {
@@ -214,6 +219,31 @@ export async function snapshotSettledWeeks(
     if (error) throw new Error(error.message);
     rowsWritten += rows.length;
     weeksFrozen.push(w0.weekStart);
+
+    // Phase 6 (D53): tell each driver with an app login their week settled. Dedupe-keyed on
+    // (week, driver) so re-running the snapshot never re-buzzes; best-effort by construction
+    // (notify() swallows failures — a freeze must never fail because a phone couldn't be told).
+    for (const row of rows) {
+      const userId = loginMap.get(row.driver_id);
+      if (!userId) continue;
+      const scored = row.eligible && typeof row.week_final === "number";
+      await notify(admin, {
+        orgId,
+        userId,
+        category: "performance_week",
+        title: scored
+          ? `Your weekly score is in: ${Math.round(row.week_final as number)}`
+          : "Your weekly score is in",
+        body: row.is_winner
+          ? "You ranked in the top group this week — nice driving."
+          : scored && row.rank != null
+            ? `You ranked #${row.rank} this week. Open Score for the breakdown.`
+            : "Open Score for this week's breakdown.",
+        severity: "info",
+        entityType: "driver_performance_weeks",
+        dedupeKey: `performance_week:${orgId}:${row.week_start}:${row.driver_id}`,
+      });
+    }
   }
 
   return { weeksFrozen, rowsWritten };

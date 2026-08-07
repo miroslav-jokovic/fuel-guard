@@ -95,7 +95,8 @@ function select(val: OptionValue) {
             "
             @click="select(opt.value)"
           >
-            <AppIcon :icon="CheckIcon"
+            <AppIcon
+:icon="CheckIcon"
               class="mr-2 size-4 shrink-0 text-brand-600 transition-opacity"
               :class="opt.value === modelValue ? 'opacity-100' : 'opacity-0'"
             />

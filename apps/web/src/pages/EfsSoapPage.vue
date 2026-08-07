@@ -242,13 +242,13 @@ const testChipClass = computed(() => {
         </p>
 
         <div class="mt-4 space-y-4">
-          <FormField label="Environment" v-slot="{ id }">
+          <FormField v-slot="{ id }" label="Environment">
             <div :id="id">
               <AppSelect v-model="form.environment" :options="envOptions" />
             </div>
           </FormField>
 
-          <FormField label="Endpoint URL (WSDL)" :error="fieldErr.endpointUrl" v-slot="{ id }">
+          <FormField v-slot="{ id }" label="Endpoint URL (WSDL)" :error="fieldErr.endpointUrl">
             <BaseInput
               :id="id"
               v-model="form.endpointUrl"
@@ -259,7 +259,7 @@ const testChipClass = computed(() => {
             />
           </FormField>
 
-          <FormField label="SOAP username" :error="fieldErr.soapUsername" v-slot="{ id }">
+          <FormField v-slot="{ id }" label="SOAP username" :error="fieldErr.soapUsername">
             <BaseInput
               :id="id"
               v-model="form.soapUsername"
@@ -270,10 +270,10 @@ const testChipClass = computed(() => {
           </FormField>
 
           <FormField
+            v-slot="{ id }"
             label="SOAP password"
             hint="Never displayed after saving. Re-enter to rotate."
             :error="fieldErr.soapPassword"
-            v-slot="{ id }"
           >
             <BaseInput
               :id="id"
@@ -285,9 +285,9 @@ const testChipClass = computed(() => {
           </FormField>
 
           <FormField
+            v-slot="{ id }"
             label="EFS account ID (optional)"
             hint="Silvicom's EFS account number, if EFS scopes calls by it."
-            v-slot="{ id }"
           >
             <BaseInput :id="id" v-model="form.accountId" autocomplete="off" spellcheck="false" />
           </FormField>
@@ -319,7 +319,7 @@ const testChipClass = computed(() => {
       <EfsClientCertCard v-if="isConfigured" />
 
       <!-- ── Test connection ──────────────────────────────────────────────────── -->
-      <BaseCard as="section" v-if="isConfigured">
+      <BaseCard v-if="isConfigured" as="section">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <h3 class="text-base font-semibold text-ink">Test connection</h3>

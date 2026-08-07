@@ -13,11 +13,253 @@ import { scoreImportWithCascade } from "./scoring/index.js";
 import { scoreDeclinedImport } from "./declinedScoring.js";
 import { ingestReject } from "./efsIngestReject.js";
 import {
-  loc, emptyResult, existingRefs, resolveTxnIdentitySplit, enrichExistingFills,
-  resolveContentIdentitySplit, enrichContentMatches, reconcileImportCounts,
-  createImport, DuplicateImportError, dateSpan, countByDay,
+  loc,
+  emptyResult,
+  existingRefs,
+  resolveTxnIdentitySplit,
+  enrichExistingFills,
+  resolveContentIdentitySplit,
+  enrichContentMatches,
+  reconcileImportCounts,
+  createImport,
+  DuplicateImportError,
+  dateSpan,
+  countByDay,
 } from "./efsIngestShared.js";
-import type { IngestInput, IngestResult } from "./efsIngestShared.js";
+import type {
+  ContentIdentifiableFuelLine,
+  IdentifiableFuelLine,
+  IngestInput,
+  IngestResult,
+  KnownTxnIdentity,
+} from "./efsIngestShared.js";
+import type { EfsTransactionLine, ReconciledFuelLine } from "@fuelguard/shared";
+
+type PreparedTransaction = {
+  allLines: EfsTransactionLine[];
+  reconciled: ReconciledFuelLine[];
+  skipped: ReturnType<typeof normalizeTransactionRows>["skipped"];
+  toInsert: ReconciledFuelLine[];
+  toEnrich: ReconciledFuelLine[];
+  knownIdentities: Map<string, KnownTxnIdentity>;
+  contentMatches: { line: ReconciledFuelLine; existing: KnownTxnIdentity }[];
+  duplicateEfs: number;
+  span: { from: string | null; to: string | null };
+  rowsByDay: Record<string, number>;
+};
+
+async function learnTransactionDriverIds(
+  admin: SupabaseClient,
+  orgId: string,
+  reconciled: ReconciledFuelLine[],
+  drivers: unknown[],
+): Promise<void> {
+  const learnedIds = learnEfsDriverIds(
+    reconciled.map((l) => ({ driverExtId: l.driver_ext_id ?? null, driverId: l.driver_id })),
+  );
+  if (!learnedIds.size) return;
+  const claimed = new Map(
+    (drivers as { id: string; efs_driver_id?: string | null }[])
+      .filter((x) => x.efs_driver_id)
+      .map((x) => [x.efs_driver_id as string, x.id]),
+  );
+  for (const [ext, driverId] of learnedIds) {
+    const owner = claimed.get(ext);
+    if (owner && owner !== driverId) continue;
+    await admin
+      .from("drivers")
+      .update({ efs_driver_id: ext })
+      .eq("id", driverId)
+      .eq("org_id", orgId)
+      .is("efs_driver_id", null);
+  }
+}
+
+async function prepareTransaction(
+  admin: SupabaseClient,
+  input: IngestInput,
+  vehicles: unknown[],
+  drivers: unknown[],
+): Promise<PreparedTransaction> {
+  const allLines = normalizeAllTransactionLines(input.rows);
+  const { fuelLines, skipped } = normalizeTransactionRows(input.rows);
+  let driverList = drivers as { id: string; full_name: string }[];
+  const toProvision = driversToProvision(
+    fuelLines.map((l) => l.driver_name),
+    driverList,
+  );
+  if (toProvision.length) {
+    const { data: created } = await admin
+      .from("drivers")
+      .insert(
+        toProvision.map((full_name) => ({ org_id: input.orgId, full_name, status: "active" })),
+      )
+      .select("id, full_name");
+    driverList = [...driverList, ...((created ?? []) as { id: string; full_name: string }[])];
+  }
+  const reconciled = reconcileFuelLines(
+    fuelLines,
+    vehicles as { id: string; unit_number: string }[],
+    driverList,
+  );
+  await learnTransactionDriverIds(admin, input.orgId, reconciled, drivers);
+  const [fuelSeen, efsSeen] = await Promise.all([
+    existingRefs(
+      admin,
+      "fuel_transactions",
+      input.orgId,
+      reconciled.map((l) => l.external_ref),
+    ),
+    existingRefs(
+      admin,
+      "efs_transactions",
+      input.orgId,
+      allLines.map((l) => l.external_ref),
+    ),
+  ]);
+  const newFuel = reconciled.filter((l) => !fuelSeen.has(l.external_ref));
+  const {
+    toInsert: refMisses,
+    toEnrich,
+    known: knownIdentities,
+  } = await resolveTxnIdentitySplit(admin, input.orgId, newFuel);
+  const { toInsert, matches: contentMatches } = await resolveContentIdentitySplit(
+    admin,
+    input.orgId,
+    refMisses,
+  );
+  return {
+    allLines,
+    reconciled,
+    skipped,
+    toInsert,
+    toEnrich,
+    knownIdentities,
+    contentMatches,
+    duplicateEfs: allLines.filter((l) => efsSeen.has(l.external_ref)).length,
+    span: dateSpan(allLines.map((l) => l.tran_date)),
+    rowsByDay: countByDay(allLines.map((l) => l.tran_date)),
+  };
+}
+
+async function persistEfsTransactionLines(
+  admin: SupabaseClient,
+  orgId: string,
+  importId: string,
+  allLines: EfsTransactionLine[],
+): Promise<void> {
+  if (!allLines.length) return;
+  const efsRows = allLines.map((l) => ({
+    org_id: orgId,
+    import_id: importId,
+    line_number: l.line_number,
+    external_ref: l.external_ref,
+    transaction_id: l.transaction_id,
+    card_num: l.card_num,
+    tran_date: l.tran_date,
+    fueled_at: l.fueled_at,
+    tran_time: l.tran_time,
+    invoice: l.invoice,
+    unit: l.unit,
+    driver_name: l.driver_name,
+    control_id: l.control_id,
+    driver_ext_id: l.driver_ext_id,
+    trailer_number: l.trailer_number,
+    hubometer: l.hubometer,
+    trip: l.trip,
+    subfleet: l.subfleet,
+    odometer: l.odometer,
+    location_name: l.location_name,
+    city: l.city,
+    state: l.state,
+    fees: l.fees,
+    item: l.item,
+    unit_price: l.unit_price,
+    qty: l.qty,
+    amt: l.amt,
+    db: l.db,
+    currency: l.currency,
+  }));
+  const { error } = await admin
+    .from("efs_transactions")
+    .upsert(efsRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
+}
+
+async function persistFuelTransactionRows(
+  admin: SupabaseClient,
+  env: Env,
+  input: IngestInput,
+  deps: IngestDeps,
+  importId: string,
+  toInsert: ReconciledFuelLine[],
+  toEnrich: IdentifiableFuelLine[],
+  knownIdentities: Map<string, KnownTxnIdentity>,
+  contentMatches: { line: ContentIdentifiableFuelLine; existing: KnownTxnIdentity }[],
+): Promise<{ enriched: number; scoreError: string | null }> {
+  const enriched =
+    (await enrichExistingFills(admin, toEnrich, knownIdentities)) +
+    (await enrichContentMatches(admin, contentMatches));
+  if (!toInsert.length) return { enriched, scoreError: null };
+  const fuelRows = toInsert.map((l) => ({
+    org_id: input.orgId,
+    vehicle_id: l.vehicle_id,
+    driver_id: l.driver_id,
+    fueled_at: l.fueled_at,
+    fueled_at_precision: l.fueled_at_precision,
+    odometer: l.odometer,
+    gallons: l.gallons,
+    total_cost: l.total_cost,
+    price_per_gal: l.price_per_gal ?? derivePricePerGal(l.gallons, l.total_cost),
+    location_text: loc(l.location_text, l.city, l.state),
+    city: l.city,
+    state: l.state,
+    card_ref: l.card_ref,
+    control_id: l.control_id,
+    transaction_id: l.transaction_id,
+    tank_type: l.tank_type,
+    source: "fuel_card",
+    external_ref: l.external_ref,
+    import_id: importId,
+    entered_by: input.requestedBy,
+  }));
+  const { error } = await admin
+    .from("fuel_transactions")
+    .upsert(fuelRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
+  try {
+    await deps.scoreImport(admin, env, input.orgId, importId);
+    return { enriched, scoreError: null };
+  } catch (e) {
+    return { enriched, scoreError: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function persistTransactionRows(
+  admin: SupabaseClient,
+  env: Env,
+  input: IngestInput,
+  deps: IngestDeps,
+  importId: string,
+  allLines: EfsTransactionLine[],
+  toInsert: ReconciledFuelLine[],
+  toEnrich: IdentifiableFuelLine[],
+  knownIdentities: Map<string, KnownTxnIdentity>,
+  contentMatches: { line: ContentIdentifiableFuelLine; existing: KnownTxnIdentity }[],
+): Promise<{ enriched: number; scoreError: string | null }> {
+  await persistEfsTransactionLines(admin, input.orgId, importId, allLines);
+  return persistFuelTransactionRows(
+    admin,
+    env,
+    input,
+    deps,
+    importId,
+    toInsert,
+    toEnrich,
+    knownIdentities,
+    contentMatches,
+  );
+}
 
 // Re-exported so existing callers/tests keep importing from efsIngest.js (the split is internal).
 export { computeShortfall } from "./efsIngestShared.js";
@@ -43,8 +285,18 @@ export type { IngestChannel, IngestInput, IngestResult } from "./efsIngestShared
  * Defaults call the same services the manual route wraps in a job.
  */
 export interface IngestDeps {
-  scoreImport: (admin: SupabaseClient, env: Env, orgId: string, importId: string) => Promise<unknown>;
-  scoreDeclined: (admin: SupabaseClient, env: Env, orgId: string, importId: string) => Promise<unknown>;
+  scoreImport: (
+    admin: SupabaseClient,
+    env: Env,
+    orgId: string,
+    importId: string,
+  ) => Promise<unknown>;
+  scoreDeclined: (
+    admin: SupabaseClient,
+    env: Env,
+    orgId: string,
+    importId: string,
+  ) => Promise<unknown>;
 }
 
 const defaultDeps: IngestDeps = {
@@ -107,61 +359,8 @@ async function ingestTransaction(
   vehicles: unknown[],
   drivers: unknown[],
 ): Promise<IngestResult> {
-  const allLines = normalizeAllTransactionLines(input.rows); // faithful: every line, every column
-  const { fuelLines, skipped } = normalizeTransactionRows(input.rows); // merged fuel-only events
-  // Auto-provision a driver record for any EFS name with no match, so the fill is attributed instead of
-  // left driverless (EFS carries the correct name; the gap is only a missing record). Deduped/normalized.
-  let driverList = drivers as { id: string; full_name: string }[];
-  const toProvision = driversToProvision(fuelLines.map((l) => l.driver_name), driverList);
-  if (toProvision.length) {
-    const { data: created } = await admin
-      .from("drivers")
-      .insert(toProvision.map((full_name) => ({ org_id: input.orgId, full_name, status: "active" })))
-      .select("id, full_name");
-    driverList = [...driverList, ...((created ?? []) as { id: string; full_name: string }[])];
-  }
-  const reconciled = reconcileFuelLines(fuelLines, vehicles as { id: string; unit_number: string }[], driverList);
-
-  // WP1 D5 — learn the stable EFS numeric driver id (transaction "DriverId" == reject "Driver ID") for
-  // matched drivers, so declines can be attributed by identity instead of name. Only consistent,
-  // unambiguous pairings are learned; a driver's existing (different) id is never overwritten.
-  const learnedIds = learnEfsDriverIds(
-    reconciled.map((l) => ({ driverExtId: l.driver_ext_id ?? null, driverId: l.driver_id })),
-  );
-  if (learnedIds.size) {
-    const claimed = new Map(
-      (drivers as { id: string; efs_driver_id?: string | null }[])
-        .filter((x) => x.efs_driver_id)
-        .map((x) => [x.efs_driver_id as string, x.id]),
-    );
-    for (const [ext, driverId] of learnedIds) {
-      const owner = claimed.get(ext);
-      if (owner && owner !== driverId) continue; // id already belongs to another driver — never steal it
-      await admin
-        .from("drivers")
-        .update({ efs_driver_id: ext })
-        .eq("id", driverId)
-        .eq("org_id", input.orgId)
-        .is("efs_driver_id", null);
-    }
-  }
-
-  const [fuelSeen, efsSeen] = await Promise.all([
-    existingRefs(admin, "fuel_transactions", input.orgId, reconciled.map((l) => l.external_ref)),
-    existingRefs(admin, "efs_transactions", input.orgId, allLines.map((l) => l.external_ref)),
-  ]);
-  const newFuel = reconciled.filter((l) => !fuelSeen.has(l.external_ref));
-
-  // Cross-channel identity (migration 0107) — see resolveTxnIdentitySplit.
-  const { toInsert: refMisses, toEnrich, known: knownIdentities } = await resolveTxnIdentitySplit(admin, input.orgId, newFuel);
-  // CONTENT identity backstop (2026-08 duplication incident): a fill whose ref AND transaction id both
-  // miss can still be a twin of a stored row delivered under a different ref scheme — same card, same
-  // gallons, same instant, same tank is one physical dispense. Route those to enrich, never insert.
-  const { toInsert, matches: contentMatches } = await resolveContentIdentitySplit(admin, input.orgId, refMisses);
-
-  const duplicateEfs = allLines.filter((l) => efsSeen.has(l.external_ref)).length;
-  const span = dateSpan(allLines.map((l) => l.tran_date));
-  const rowsByDay = countByDay(allLines.map((l) => l.tran_date));
+  const prepared = await prepareTransaction(admin, input, vehicles, drivers);
+  const { allLines, reconciled, skipped, toInsert, duplicateEfs, span, rowsByDay } = prepared;
 
   let importId: string;
   try {
@@ -183,102 +382,23 @@ async function ingestTransaction(
     );
   } catch (e) {
     // P1 (0125): the same file landed concurrently via another delivery — a duplicate, not an error.
-    if (e instanceof DuplicateImportError) return { ...emptyResult("transaction"), alreadyImported: true };
+    if (e instanceof DuplicateImportError)
+      return { ...emptyResult("transaction"), alreadyImported: true };
     throw e;
   }
 
-  // 1) Faithful system of record — every line, every column, verbatim.
-  if (allLines.length) {
-    const efsRows = allLines.map((l) => ({
-      org_id: input.orgId,
-      import_id: importId,
-      line_number: l.line_number,
-      external_ref: l.external_ref,
-      transaction_id: l.transaction_id,
-      card_num: l.card_num,
-      tran_date: l.tran_date,
-      fueled_at: l.fueled_at,
-      tran_time: l.tran_time,
-      invoice: l.invoice,
-      unit: l.unit,
-      driver_name: l.driver_name,
-      control_id: l.control_id,
-      driver_ext_id: l.driver_ext_id,
-      trailer_number: l.trailer_number,
-      hubometer: l.hubometer,
-      trip: l.trip,
-      subfleet: l.subfleet,
-      odometer: l.odometer,
-      location_name: l.location_name,
-      city: l.city,
-      state: l.state,
-      fees: l.fees,
-      item: l.item,
-      unit_price: l.unit_price,
-      qty: l.qty,
-      amt: l.amt,
-      db: l.db,
-      currency: l.currency,
-    }));
-    const { error } = await admin
-      .from("efs_transactions")
-      .upsert(efsRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
-    if (error) throw new Error(error.message);
-  }
-
-  // 2) Derived fuel events for the anomaly engine.
-  //
-  // Cross-channel identity (migration 0107). `external_ref` only dedupes WITHIN a delivery channel:
-  // a file report builds it from the Invoice column, the SOAP feed from the Stable Transaction ID, so
-  // the same physical fill arriving both ways yields two refs that can never collide. EFS's own
-  // `transactionId` is the identifier that spans both — so before inserting, split the batch:
-  //
-  //   • identity already stored → ENRICH that row (don't insert a twin). The later delivery is usually
-  //     the richer one — the SOAP feed carries an unmasked card number where the file is masked — and
-  //     an unmasked card is exactly what the card-identity rules need to stop going blind.
-  //   • identity new (or absent) → insert as before, with external_ref still guarding re-delivery.
-  const enriched =
-    (await enrichExistingFills(admin, toEnrich, knownIdentities)) +
-    (await enrichContentMatches(admin, contentMatches));
-
-  let scoreError: string | null = null;
-  if (toInsert.length) {
-    const fuelRows = toInsert.map((l) => ({
-      org_id: input.orgId,
-      vehicle_id: l.vehicle_id,
-      driver_id: l.driver_id,
-      fueled_at: l.fueled_at,
-      fueled_at_precision: l.fueled_at_precision,
-      odometer: l.odometer,
-      gallons: l.gallons,
-      total_cost: l.total_cost,
-      price_per_gal: l.price_per_gal ?? derivePricePerGal(l.gallons, l.total_cost),
-      location_text: loc(l.location_text, l.city, l.state),
-      city: l.city,
-      state: l.state,
-      card_ref: l.card_ref,
-      control_id: l.control_id,
-      transaction_id: l.transaction_id,
-      tank_type: l.tank_type,
-      source: "fuel_card",
-      external_ref: l.external_ref,
-      import_id: importId,
-      entered_by: input.requestedBy,
-    }));
-    const { error } = await admin
-      .from("fuel_transactions")
-      .upsert(fuelRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
-    if (error) throw new Error(error.message);
-
-    // Score this import's rows (+ auto-cascade to neighboring fills). We are already inside the
-    // efs_ingest background job, so awaiting is correct. A scoring hiccup must NOT discard a committed
-    // import — record it and let the nightly reconcile / manual rebuild retry.
-    try {
-      await deps.scoreImport(admin, env, input.orgId, importId);
-    } catch (e) {
-      scoreError = e instanceof Error ? e.message : String(e);
-    }
-  }
+  const { enriched, scoreError } = await persistTransactionRows(
+    admin,
+    env,
+    input,
+    deps,
+    importId,
+    allLines,
+    toInsert,
+    prepared.toEnrich,
+    prepared.knownIdentities,
+    prepared.contentMatches,
+  );
 
   // 3) Post-commit reconciliation — verify what landed vs the file and surface any shortfall.
   const { shortfallRows } = await reconcileImportCounts(admin, importId, {
@@ -311,4 +431,3 @@ async function ingestTransaction(
     scoreError,
   };
 }
-

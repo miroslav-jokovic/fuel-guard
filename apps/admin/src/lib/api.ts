@@ -42,10 +42,19 @@ export interface OrgModule {
   lastSyncedAt: string | null;
 }
 
+/** A sellable-module entitlement (org_modules) — commercial grant, distinct from integrations. */
+export interface OrgEntitlement {
+  moduleKey: string;
+  enabled: boolean;
+  /** False = never granted (no row), vs. an explicit revoke (row with enabled=false). */
+  granted: boolean;
+}
+
 export interface OrgDetail extends OrgOverview {
   allowedDomains: string[];
   operatingHours: unknown;
   modules: OrgModule[];
+  entitlements: OrgEntitlement[];
 }
 
 export interface OrgMember {

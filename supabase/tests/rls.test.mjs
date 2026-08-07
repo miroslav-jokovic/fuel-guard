@@ -57,15 +57,40 @@ async function main() {
     create schema if not exists auth;
     create table auth.users (id uuid primary key default gen_random_uuid(), email text);
     create schema if not exists storage;
-    create table storage.buckets (id text primary key, name text, public boolean default false);
+    -- Mirrors the columns real Supabase exposes that our migrations actually write. The shim
+    -- previously stopped at (id, name, public), which made every migration from 0085 onward fail
+    -- to apply here — this harness could not run at all. Keep this in step with any new bucket
+    -- column a migration starts setting.
+    create table storage.buckets (
+      id text primary key,
+      name text,
+      public boolean default false,
+      file_size_limit bigint,
+      allowed_mime_types text[],
+      owner uuid,
+      created_at timestamptz default now(),
+      updated_at timestamptz default now()
+    );
     create table storage.objects (
       id uuid primary key default gen_random_uuid(),
       bucket_id text, name text, owner uuid, created_at timestamptz default now()
     );
     alter table storage.objects enable row level security;
+    -- Supabase ships storage.foldername(); our storage policies path-scope on it
+    -- ("<org>/<driver>/<load>/<file>" → the segments BEFORE the filename). Same semantics.
+    create or replace function storage.foldername(name text)
+    returns text[]
+    language sql
+    immutable
+    as $fn$
+      select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1];
+    $fn$;
     create role supabase_auth_admin nologin;
     create role authenticated nologin;
     create role anon nologin;
+    -- Supabase's privileged API role. Migrations grant to it; it bypasses RLS there and is never
+    -- what this matrix tests through (every assertion below runs as app_user).
+    create role service_role nologin bypassrls;
   `);
 
   // pgcrypto is preinstalled on Supabase; gen_random_uuid() is core in PG16/PGlite, so strip it here.
@@ -85,19 +110,31 @@ async function main() {
     "migrations/0013_tank_fill.sql",
     "migrations/0014_upsert_safe_indexes.sql",
     "migrations/0015_driver_samsara.sql",
-    "migrations/0016_vehicle_fuel_level.sql",
     "migrations/0030_trailers.sql",
     "migrations/0068_tms_integration.sql",
     "migrations/0053_driver_performance_settings.sql",
     "migrations/0054_driver_scores.sql",
     "migrations/0055_driver_performance_weeks.sql",
-    "migrations/0083_driver_identity.sql",
-    "migrations/0084_driver_scoped_rls.sql",
+    "migrations/0083_driver_rls_matrix.sql",
+    "migrations/0084_driver_rls_writes.sql",
     "migrations/0085_driver_loads.sql",
     "migrations/0086_duty_sessions.sql",
     "migrations/0087_load_lifecycle.sql",
     "migrations/0088_module_entitlements.sql",
     "migrations/0089_notifications.sql",
+    // Phase 7/9: office↔driver correspondence. Its realtime-publication statement is already
+    // guarded on the publication existing, so it is a no-op here.
+    "migrations/0096_messages.sql",
+    // Phase 4/9: the driver-app control plane (org feature rows + per-driver overrides).
+    "migrations/0134_driver_app_features.sql",
+    // Phase 9: closes the driver fuel-write gap these very assertions exposed.
+    "migrations/0135_driver_fuel_write_closure.sql",
+    // Phase 9: closes the driver_time_off / tms_movements read leaks + the ended-shift invariant.
+    "migrations/0136_phase9_driver_scope_closures.sql",
+    // Phase 9: keeps the operational update-policy channel enabled while allowing config changes.
+    "migrations/0137_core_app_feature_invariant.sql",
+    // Reconciles the legacy duplicate 0016 vehicle fuel-level migration into the unique ledger version.
+    "migrations/0138_vehicle_fuel_level_legacy_reconcile.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -359,8 +396,12 @@ async function main() {
   ok("driver cannot read memberships (0)", (await asUser(drv, "select count(*)::int n from memberships")).rows?.[0]?.n === 0);
   ok("driver cannot read thresholds (0)", (await asUser(drv, "select count(*)::int n from anomaly_thresholds")).rows?.[0]?.n === 0);
   ok("driver reads only own performance week (1)", (await asUser(drv, "select count(*)::int n from driver_performance_weeks")).rows?.[0]?.n === 1);
-  ok("driver INSERT own fill on assigned vehicle allowed",
-    (await asUser(drv, "insert into fuel_transactions (org_id,driver_id,vehicle_id,fueled_at,gallons,source) values ($1,$2,$3,now(),12,'manual') returning id", [ORG_A, SELF, MYVEH])).rows?.length === 1);
+  // POST-D41 CONTRACT (0135): manual fuel logging was removed from the driver app, so a driver has
+  // no legitimate INSERT path at all and the policy denies outright. This assertion used to expect
+  // "allowed" — the pre-D41 contract — and it, plus the two below, are what exposed the gap: the
+  // harness could not run (stale migration filenames), so none of them had ever executed.
+  ok("driver INSERT of a fill is denied outright — no driver fuel path exists post-D41 (0135)",
+    !!(await asUser(drv, "insert into fuel_transactions (org_id,driver_id,vehicle_id,fueled_at,gallons,source) values ($1,$2,$3,now(),12,'manual')", [ORG_A, SELF, MYVEH])).error);
   ok("driver INSERT forging another driver_id denied",
     !!(await asUser(drv, "insert into fuel_transactions (org_id,driver_id,vehicle_id,fueled_at,gallons,source) values ($1,$2,$3,now(),12,'manual')", [ORG_A, OTHER, MYVEH])).error);
   ok("driver INSERT on unassigned vehicle denied",
@@ -374,8 +415,31 @@ async function main() {
   // Drivers are READ-ONLY here by design: accepting a load and completing a stop go through the
   // driver-scoped API (service role), which server-derives identity from the JWT. A driver hitting
   // PostgREST directly must be able to read their own work and write nothing.
-  const MYLOAD = (await db.query(`insert into loads (org_id, driver_id, ref, status) values ('${ORG_A}','${SELF}','LD-SELF','offered') returning id`)).rows[0].id;
-  const OTHERLOAD = (await db.query(`insert into loads (org_id, driver_id, ref, status) values ('${ORG_A}','${OTHER}','LD-OTHER','offered') returning id`)).rows[0].id;
+  /**
+   * Build a load and walk it to a driver-visible status THROUGH THE LEGAL PATH (D45/0087): a load
+   * may only be CREATED in draft/pending_approval, and `pending_approval -> approved` runs the
+   * approval checklist (driver, truck, a pickup, a dropoff, appointment windows on every stop).
+   * These fixtures used to insert `status:'offered'` directly, which the 0087 guard now refuses —
+   * so this helper is also a live check that the approval gate itself still admits a complete load.
+   */
+  const offeredLoad = async (ref, driverId) => {
+    const id = (await db.query(
+      `insert into loads (org_id, driver_id, vehicle_id, ref, status)
+       values ('${ORG_A}','${driverId}','${MYVEH}','${ref}','pending_approval') returning id`)).rows[0].id;
+    await db.query(
+      `insert into load_stops (org_id, load_id, seq, kind, name, appointment_start, appointment_end) values
+         ('${ORG_A}','${id}',1,'pickup','Origin yard',  now(), now() + interval '2 hours'),
+         ('${ORG_A}','${id}',2,'dropoff','Destination', now() + interval '5 hours', now() + interval '7 hours')`);
+    await db.query(`update loads set status='approved', approved_at=now() where id='${id}'`);
+    await db.query(`update loads set status='offered' where id='${id}'`);
+    // The checklist stops were scaffolding for the approval gate only. Drop them so each test
+    // below still reasons about exactly the stop fixtures it creates for itself.
+    await db.query(`delete from load_stops where load_id = '${id}'`);
+    return id;
+  };
+
+  const MYLOAD = await offeredLoad("LD-SELF", SELF);
+  const OTHERLOAD = await offeredLoad("LD-OTHER", OTHER);
   const MYSTOP = (await db.query(`insert into load_stops (org_id, load_id, seq, kind, name, required_photos) values ('${ORG_A}','${MYLOAD}',1,'pickup','My Shipper','{trailer,bol}') returning id`)).rows[0].id;
   const OTHERSTOP = (await db.query(`insert into load_stops (org_id, load_id, seq, kind, name) values ('${ORG_A}','${OTHERLOAD}',1,'pickup','Other Shipper') returning id`)).rows[0].id;
   await db.query(`insert into load_stop_photos (id, org_id, load_id, stop_id, driver_id, slot, storage_path) values (gen_random_uuid(),'${ORG_A}','${MYLOAD}','${MYSTOP}','${SELF}','trailer','${ORG_A}/${SELF}/${MYLOAD}/a.webp')`);
@@ -419,9 +483,9 @@ async function main() {
   const OTHERSESS = "00000000-0000-4000-8000-00000000e003";
   const OTHERSEG = "00000000-0000-4000-8000-00000000e004";
   await db.query(`insert into driver_duty_sessions (id, org_id, driver_id) values ('${MYSESS}','${ORG_A}','${SELF}')`);
-  await db.query(`insert into duty_equipment_segments (id, org_id, session_id, driver_id, vehicle_id, trailer_id) values ('${MYSEG}','${ORG_A}','${MYSESS}','${SELF}','${MYVEH}','${MYTRL}')`);
+  await db.query(`insert into duty_equipment_segments (id, org_id, session_id, vehicle_id, trailer_id) values ('${MYSEG}','${ORG_A}','${MYSESS}','${MYVEH}','${MYTRL}')`);
   await db.query(`insert into driver_duty_sessions (id, org_id, driver_id) values ('${OTHERSESS}','${ORG_A}','${OTHER}')`);
-  await db.query(`insert into duty_equipment_segments (id, org_id, session_id, driver_id, vehicle_id, trailer_id) values ('${OTHERSEG}','${ORG_A}','${OTHERSESS}','${OTHER}','${NOTMY}','${OTHERTRL}')`);
+  await db.query(`insert into duty_equipment_segments (id, org_id, session_id, vehicle_id, trailer_id) values ('${OTHERSEG}','${ORG_A}','${OTHERSESS}','${NOTMY}','${OTHERTRL}')`);
 
   ok("driver reads only own duty session (1)",
     (await asUser(drv, "select count(*)::int n from driver_duty_sessions")).rows?.[0]?.n === 1);
@@ -432,7 +496,7 @@ async function main() {
   ok("driver cannot INSERT a duty session (no driver write policy)",
     !!(await asUser(drv, "insert into driver_duty_sessions (id, org_id, driver_id) values (gen_random_uuid(),$1,$2)", [ORG_A, SELF])).error);
   ok("driver cannot INSERT an equipment segment directly (API-only)",
-    !!(await asUser(drv, "insert into duty_equipment_segments (id, org_id, session_id, driver_id, vehicle_id) values (gen_random_uuid(),$1,$2,$3,$4)", [ORG_A, MYSESS, SELF, MYVEH])).error);
+    !!(await asUser(drv, "insert into duty_equipment_segments (id, org_id, session_id, vehicle_id) values (gen_random_uuid(),$1,$2,$3)", [ORG_A, MYSESS, MYVEH])).error);
   ok("driver cannot close their own shift via PostgREST (API-only transition)",
     ((await asUser(drv, "update driver_duty_sessions set ended_at = now(), ended_reason = 'driver' where id = $1 returning id", [MYSESS])).rows?.length ?? 0) === 0);
   ok("driver cannot rewrite a segment's equipment via PostgREST",
@@ -448,11 +512,11 @@ async function main() {
 
   // Exclusive equipment — enforced by partial unique indexes, so there is no application race window.
   const dupVeh = await db.query(
-    `insert into duty_equipment_segments (id, org_id, session_id, driver_id, vehicle_id) values (gen_random_uuid(),'${ORG_A}','${OTHERSESS}','${OTHER}','${MYVEH}')`,
+    `insert into duty_equipment_segments (id, org_id, session_id, vehicle_id) values (gen_random_uuid(),'${ORG_A}','${OTHERSESS}','${MYVEH}')`,
   ).then(() => null, (e) => e.message);
   ok("a truck cannot be checked out by two drivers at once", !!dupVeh, String(dupVeh));
   const dupTrl = await db.query(
-    `insert into duty_equipment_segments (id, org_id, session_id, driver_id, vehicle_id, trailer_id) values (gen_random_uuid(),'${ORG_A}','${OTHERSESS}','${OTHER}','${NOTMY}','${MYTRL}')`,
+    `insert into duty_equipment_segments (id, org_id, session_id, vehicle_id, trailer_id) values (gen_random_uuid(),'${ORG_A}','${OTHERSESS}','${NOTMY}','${MYTRL}')`,
   ).then(() => null, (e) => e.message);
   ok("a trailer cannot be hooked by two drivers at once", !!dupTrl, String(dupTrl));
   const dupSess = await db.query(
@@ -470,8 +534,8 @@ async function main() {
     ((await asUser(drv, "select count(*)::int n from vehicles")).rows?.[0]?.n ?? 0) >= 1);
 
   // ── F4 — three pre-existing leaks 0084 never closed ──────────────────────────
-  ok("driver reads only trailers they have operated (1)",
-    (await asUser(drv, "select count(*)::int n from trailers")).rows?.[0]?.n === 1);
+  const trailerSeen = (await asUser(drv, "select count(*)::int n from trailers")).rows?.[0]?.n;
+  ok("driver reads only trailers they have operated (1)", trailerSeen === 1, `saw ${trailerSeen}`);
   ok("driver cannot read another driver's trailer by id (0)",
     (await asUser(drv, "select count(*)::int n from trailers where id = $1", [OTHERTRL])).rows?.[0]?.n === 0);
   ok("manager still reads the whole trailer roster (>=2)",
@@ -479,14 +543,14 @@ async function main() {
 
   await db.query(`insert into driver_time_off (org_id, driver_id, start_at, kind) values ('${ORG_A}','${SELF}', now(), 'home_time')`);
   await db.query(`insert into driver_time_off (org_id, driver_id, start_at, kind) values ('${ORG_A}','${OTHER}', now(), 'home_time')`);
-  ok("driver reads only own time-off (1)",
-    (await asUser(drv, "select count(*)::int n from driver_time_off")).rows?.[0]?.n === 1);
+  const timeOffSeen = (await asUser(drv, "select count(*)::int n from driver_time_off")).rows?.[0]?.n;
+  ok("driver reads only own time-off (1)", timeOffSeen === 1, `saw ${timeOffSeen}`);
   ok("manager reads all org time-off (>=2)",
     ((await asUser(mgrA, "select count(*)::int n from driver_time_off")).rows?.[0]?.n ?? 0) >= 2);
 
   await db.query(`insert into tms_movements (org_id, external_id, vehicle_id) values ('${ORG_A}','MV-1','${MYVEH}')`);
-  ok("driver cannot read TMS movements (0)",
-    (await asUser(drv, "select count(*)::int n from tms_movements")).rows?.[0]?.n === 0);
+  const tmsSeen = (await asUser(drv, "select count(*)::int n from tms_movements")).rows?.[0]?.n;
+  ok("driver cannot read TMS movements (0)", tmsSeen === 0, `saw ${tmsSeen}`);
   ok("manager still reads TMS movements (>=1)",
     ((await asUser(mgrA, "select count(*)::int n from tms_movements")).rows?.[0]?.n ?? 0) >= 1);
 
@@ -498,7 +562,15 @@ async function main() {
   // would not be a gate at all.
   const DRAFTLOAD = (await db.query(`insert into loads (org_id, driver_id, ref, status) values ('${ORG_A}','${SELF}','LD-DRAFT','draft') returning id`)).rows[0].id;
   const PENDLOAD = (await db.query(`insert into loads (org_id, driver_id, ref, status) values ('${ORG_A}','${SELF}','LD-PEND','pending_approval') returning id`)).rows[0].id;
-  const APPRLOAD = (await db.query(`insert into loads (org_id, driver_id, ref, status) values ('${ORG_A}','${SELF}','LD-APPR','approved') returning id`)).rows[0].id;
+  // 'approved' is not a legal CREATION status either (0087) — walk it through the checklist.
+  const APPRLOAD = (await db.query(
+    `insert into loads (org_id, driver_id, vehicle_id, ref, status)
+     values ('${ORG_A}','${SELF}','${MYVEH}','LD-APPR','pending_approval') returning id`)).rows[0].id;
+  await db.query(
+    `insert into load_stops (org_id, load_id, seq, kind, name, appointment_start, appointment_end) values
+       ('${ORG_A}','${APPRLOAD}',1,'pickup','Origin yard',  now(), now() + interval '2 hours'),
+       ('${ORG_A}','${APPRLOAD}',2,'dropoff','Destination', now() + interval '5 hours', now() + interval '7 hours')`);
+  await db.query(`update loads set status='approved', approved_at=now() where id='${APPRLOAD}'`);
   await db.query(`insert into load_stops (org_id, load_id, seq, kind, name) values ('${ORG_A}','${PENDLOAD}',1,'pickup','Hidden Shipper')`);
 
   ok("driver CANNOT read a draft load assigned to them (0)",
@@ -666,6 +738,103 @@ async function main() {
     (await asUser(drv, "select count(*)::int n from notification_preferences")).rows?.[0]?.n === 1);
   ok("cross-tenant: org-B sees none of org-A's notifications",
     (await asUser(mgrB, "select count(*)::int n from notification_events")).rows?.[0]?.n === 0);
+
+  // ── Driver-app control plane (0134) — hardening plan Phase 4, verified in Phase 9 ───────────
+  //
+  // THE PROPERTY: these two tables are UI CONFIG owned by the API, not tenant data. RLS is ON with
+  // ZERO policies, so every in-tenant role — driver, manager, even the org's own admin — reads
+  // nothing and writes nothing through PostgREST; the dashboard goes through /api/driver-app
+  // (role-gated + audited) and the app receives only a server-RESOLVED feature set on its
+  // bootstrap. Hiding a surface is never authorization — the data policies above are — but a
+  // driver must still not be able to hand themselves a feature by talking to PostgREST directly.
+  console.log("\n-- driver-app control plane (0134) --");
+  await db.query(`insert into driver_app_features (org_id, feature_key, enabled)
+                  values ('${ORG_A}','tab.loads',false)`);
+  await db.query(`insert into driver_app_feature_overrides (org_id, driver_id, feature_key, enabled, note)
+                  values ('${ORG_A}','${SELF}','hazmat.capture',false,'not on the hazmat pilot')`);
+  const invalidCoreApp = await db.query(
+    `insert into driver_app_features (org_id, feature_key, enabled) values ('${ORG_A}','core.app',false)`,
+  ).then(() => null, (error) => error.message);
+  ok("core.app cannot be persisted disabled — database invariant matches the resolver", !!invalidCoreApp);
+
+  ok("service role reads the feature rows (the API's own path still works)",
+    (await db.query(`select count(*)::int n from driver_app_features where org_id = '${ORG_A}'`)).rows[0].n === 1);
+  ok("driver reads NO feature rows (0) — the resolved set arrives on the bootstrap, not from the table",
+    (await asUser(drv, "select count(*)::int n from driver_app_features")).rows?.[0]?.n === 0);
+  ok("fleet_manager reads NO feature rows (0) — the dashboard reads through the API",
+    (await asUser(mgrA, "select count(*)::int n from driver_app_features")).rows?.[0]?.n === 0);
+  ok("admin reads NO feature rows (0) — there is deliberately no in-tenant policy at all",
+    (await asUser(adminA, "select count(*)::int n from driver_app_features")).rows?.[0]?.n === 0);
+  ok("admin cannot INSERT a feature row directly",
+    !!(await asUser(adminA, "insert into driver_app_features (org_id, feature_key, enabled) values ($1,'tab.score',false)", [ORG_A])).error);
+  ok("admin cannot UPDATE a feature row directly (0 rows)",
+    ((await asUser(adminA, "update driver_app_features set enabled = true where org_id = $1 returning feature_key", [ORG_A])).rows?.length ?? 0) === 0);
+  ok("admin cannot DELETE a feature row directly (0 rows)",
+    ((await asUser(adminA, "delete from driver_app_features where org_id = $1 returning feature_key", [ORG_A])).rows?.length ?? 0) === 0);
+  ok("driver reads NO per-driver overrides (0) — not even the one about themselves",
+    (await asUser(drv, "select count(*)::int n from driver_app_feature_overrides")).rows?.[0]?.n === 0);
+  ok("driver cannot SELF-GRANT a feature by inserting their own override",
+    !!(await asUser(drv, "insert into driver_app_feature_overrides (org_id, driver_id, feature_key, enabled) values ($1,$2,'hazmat.capture',true)", [ORG_A, SELF])).error);
+  ok("driver cannot flip the override that already exists about them (0 rows)",
+    ((await asUser(drv, "update driver_app_feature_overrides set enabled = true where driver_id = $1 returning feature_key", [SELF])).rows?.length ?? 0) === 0);
+  ok("driver cannot delete the override that constrains them (0 rows)",
+    ((await asUser(drv, "delete from driver_app_feature_overrides where driver_id = $1 returning feature_key", [SELF])).rows?.length ?? 0) === 0);
+  ok("cross-tenant: org-B reads none of org-A's driver-app config",
+    (await asUser(mgrB, "select count(*)::int n from driver_app_features")).rows?.[0]?.n === 0);
+
+  // ── Messages (0096) — participation, NOT role (D54) ─────────────────────────────────────────
+  //
+  // THE PROPERTY: access follows membership of the conversation, not seniority. A fleet manager who
+  // is not in a thread does not read it — this is correspondence, not fleet data. And nobody joins
+  // a conversation by inserting themselves: the API decides the audience (see createThread), which
+  // is why thread_participants has no INSERT policy at all.
+  console.log("\n-- messages (0096) --");
+  const OFFICEUID = "00000000-0000-0000-0000-0000000f1111";
+  const OUTSIDEUID = "00000000-0000-0000-0000-0000000f2222";
+  await db.query(`insert into auth.users (id,email) values
+                    ('${OFFICEUID}','dispatcher@example.com'),
+                    ('${OUTSIDEUID}','nosy.manager@example.com')`);
+  const THREAD = (await db.query(
+    `insert into message_threads (org_id, subject, created_by)
+     values ('${ORG_A}','Yard closed Friday','${OFFICEUID}') returning id`)).rows[0].id;
+  await db.query(`insert into thread_participants (thread_id, org_id, user_id, role) values
+                    ('${THREAD}','${ORG_A}','${OFFICEUID}','office'),
+                    ('${THREAD}','${ORG_A}','${DUID}','driver')`);
+  await db.query(`insert into messages (id, thread_id, org_id, sender_user_id, body)
+                  values (gen_random_uuid(),'${THREAD}','${ORG_A}','${OFFICEUID}','Gate 3 is closed tomorrow.')`);
+
+  const office = { org_id: ORG_A, user_role: "dispatcher", sub: OFFICEUID };
+  const outsider = { org_id: ORG_A, user_role: "fleet_manager", sub: OUTSIDEUID };
+
+  ok("a participant driver reads their thread (1)",
+    (await asUser(drv, "select count(*)::int n from message_threads")).rows?.[0]?.n === 1);
+  ok("a participant driver reads the conversation (1)",
+    (await asUser(drv, "select count(*)::int n from messages")).rows?.[0]?.n === 1);
+  ok("the office participant reads it too (1)",
+    (await asUser(office, "select count(*)::int n from message_threads")).rows?.[0]?.n === 1);
+  ok("a MANAGER who is not in the thread reads NOTHING (0) — correspondence, not fleet data (D54)",
+    (await asUser(outsider, "select count(*)::int n from message_threads")).rows?.[0]?.n === 0);
+  ok("...and none of its messages either (0)",
+    (await asUser(outsider, "select count(*)::int n from messages")).rows?.[0]?.n === 0);
+  ok("...and none of its participants either (0)",
+    (await asUser(outsider, "select count(*)::int n from thread_participants")).rows?.[0]?.n === 0);
+  ok("nobody joins a conversation by inserting themselves (no INSERT policy on thread_participants)",
+    !!(await asUser(outsider, "insert into thread_participants (thread_id, org_id, user_id, role) values ($1,$2,$3,'office')", [THREAD, ORG_A, OUTSIDEUID])).error);
+  ok("a participant may send AS THEMSELVES",
+    ((await asUser(drv, "insert into messages (id, thread_id, org_id, sender_user_id, body) values (gen_random_uuid(),$1,$2,$3,'On my way.') returning id", [THREAD, ORG_A, DUID])).rows?.length ?? 0) === 1);
+  ok("a participant cannot FORGE a message as somebody else",
+    !!(await asUser(drv, "insert into messages (id, thread_id, org_id, sender_user_id, body) values (gen_random_uuid(),$1,$2,$3,'Approved - take the day off.')", [THREAD, ORG_A, OFFICEUID])).error);
+  ok("an outsider cannot send into a thread they are not in",
+    !!(await asUser(outsider, "insert into messages (id, thread_id, org_id, sender_user_id, body) values (gen_random_uuid(),$1,$2,$3,'hello')", [THREAD, ORG_A, OUTSIDEUID])).error);
+  ok("a participant cannot rewrite somebody else's words (0 rows)",
+    ((await asUser(drv, "update messages set body = 'edited' where sender_user_id = $1 returning id", [OFFICEUID])).rows?.length ?? 0) === 0);
+  ok("a participant moves only their OWN read boundary",
+    ((await asUser(drv, "update thread_participants set last_read_at = now() where user_id = $1 returning user_id", [DUID])).rows?.length ?? 0) === 1
+    && ((await asUser(drv, "update thread_participants set last_read_at = now() where user_id = $1 returning user_id", [OFFICEUID])).rows?.length ?? 0) === 0);
+  ok("a report can only be filed in the reporter's own name",
+    !!(await asUser(drv, "insert into message_reports (org_id, message_id, reported_by, reason) select $1, id, $2, 'abusive' from messages limit 1", [ORG_A, OFFICEUID])).error);
+  ok("cross-tenant: org-B reads none of org-A's conversations",
+    (await asUser(mgrB, "select count(*)::int n from message_threads")).rows?.[0]?.n === 0);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

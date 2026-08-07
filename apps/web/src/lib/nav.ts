@@ -7,6 +7,7 @@ import {
   ExclamationTriangleIcon,
   HomeIcon,
   LoadsIcon,
+  PaperAirplaneIcon,
   MapIcon,
   OdometerIcon,
   PetrolPumpIcon,
@@ -47,6 +48,7 @@ export interface NavItem {
 /** Live counts injected into the nav (kept out of the static section map). */
 export interface NavCounts {
   hazmatReview?: number;
+  messagesUnread?: number;
 }
 
 export interface NavGroup {
@@ -93,6 +95,8 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
       icon: MapIcon,
       items: [
         { name: "Loads", to: "/loads", icon: LoadsIcon, show: canViewSection(role, "dispatch") && moduleEnabled(modules, "dispatch") },
+        // Phase 7 (D-PM4): the dispatch inbox — participation-scoped, module-gated, badge = unread.
+        { name: "Messages", to: "/messages", icon: PaperAirplaneIcon, show: canViewSection(role, "dispatch") && moduleEnabled(modules, "messages"), badge: counts.messagesUnread },
         { name: "Assignments", to: "/assignments", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "dispatch") && moduleEnabled(modules, "dispatch") },
 
         { name: "Fuel Planning", to: "/fuel-planning", icon: MapIcon, show: canManageSection(role, "dispatch") },

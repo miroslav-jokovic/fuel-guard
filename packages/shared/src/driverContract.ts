@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { orgModuleSchema } from "./entitlements.js";
+import { featureStateSchema } from "./featureCatalog.js";
 
 // Driver App API contract (plan §23.2 / D24). The client parses responses with these — never trusts
 // raw shapes. Numeric columns arrive as number|string from PostgREST, so coerce.
@@ -34,6 +35,13 @@ export const meDriverResponseSchema = z.object({
    * A missing field must be a loud parse error, never an empty entitlement set.
    */
   modules: z.array(orgModuleSchema),
+  /**
+   * The server-RESOLVED driver-app feature set (hardening plan Phase 4): released × entitled ×
+   * org-enabled × per-driver override, computed in ONE place (`resolveFeatures`). The app consumes
+   * this and never re-derives policy. REQUIRED for the same reason as `modules` — absence must be
+   * a loud parse error, not a silently featureless app.
+   */
+  features: z.array(featureStateSchema),
 });
 export type MeDriverResponse = z.infer<typeof meDriverResponseSchema>;
 

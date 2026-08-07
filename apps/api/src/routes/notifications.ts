@@ -4,7 +4,7 @@ import {
   registerPushTokenRequestSchema,
   updatePreferencesRequestSchema,
 } from "@fuelguard/shared";
-import { requireOrg } from "../middleware/auth.js";
+import { requireAuth, requireOrg } from "../middleware/auth.js";
 import { requireModule } from "../middleware/requireModule.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -25,6 +25,10 @@ import { revokePushTokens } from "../services/notify.js";
  */
 export function notificationsRouter(): Router {
   const router = Router();
+  // Applied here rather than at the mount so app.ts keeps the plain `path, xRouter()` shape the
+  // auth fitness test discovers — a router that hides from that check is the failure it exists to
+  // prevent. Every route below therefore has a verified JWT before requireOrg reads req.auth.
+  router.use(requireAuth);
 
   /** Sign-out. Deliberately OUTSIDE the module gate — see the note above. */
   router.post(

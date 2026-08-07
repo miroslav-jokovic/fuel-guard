@@ -26,8 +26,40 @@ export interface NotifyInput {
   dedupeKey?: string;
 }
 
+/**
+ * Org-level category governance (hardening plan Phase 6, D-PM7): the tenant's `notifications`
+ * feature row can switch the whole channel off, or pin the active categories via
+ * `config.categories`. Sits ABOVE the per-user layer (mutes/quiet hours, applied in
+ * `emit_notification`): the org decides what the fleet gets, the driver narrows within that.
+ * FAIL-OPEN on read errors — a governance lookup must never decide whether a load gets released,
+ * and a wrongly-delivered notification is more recoverable than a silently-suppressed channel.
+ */
+async function orgAllowsCategory(
+  admin: SupabaseClient,
+  orgId: string,
+  category: NotificationCategory,
+): Promise<boolean> {
+  try {
+    const { data, error } = await admin
+      .from("driver_app_features")
+      .select("enabled, config")
+      .eq("org_id", orgId)
+      .eq("feature_key", "notifications")
+      .maybeSingle();
+    if (error || !data) return true; // no row (or read hiccup) = catalog default = all categories
+    const row = data as { enabled: boolean; config: Record<string, unknown> };
+    if (!row.enabled) return false;
+    const cats = row.config["categories"];
+    if (Array.isArray(cats) && cats.length > 0) return cats.includes(category);
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 /** Emit one notification. Returns the row id, or null when it was suppressed or deduped. */
 export async function notify(admin: SupabaseClient, input: NotifyInput): Promise<string | null> {
+  if (!(await orgAllowsCategory(admin, input.orgId, input.category))) return null;
   const { data, error } = await admin.rpc("emit_notification", {
     p_org: input.orgId,
     p_user: input.userId,
