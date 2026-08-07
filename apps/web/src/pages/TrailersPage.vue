@@ -2,7 +2,7 @@
 import { AppIcon } from "@fuelguard/ui";
 import { PlusIcon } from "@fuelguard/ui/icons";
 import { ref, computed, watch } from "vue";
-import { VEHICLE_STATUSES, type Trailer, type TrailerInput } from "@fuelguard/shared";
+import { TRAILER_TYPE_LABELS, VEHICLE_STATUSES, type Trailer, type TrailerInput } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import {
   useTrailersQuery,
@@ -79,7 +79,7 @@ const vehUnit = (id: string | null) =>
 const columns: DataTableColumn[] = [
   { key: "unit_number", label: "Unit", sortable: true, cellClass: "font-medium text-ink" },
   { key: "trailer", label: "Make / Model", cellClass: "text-ink-secondary" },
-  { key: "is_reefer", label: "Type", sortable: true },
+  { key: "trailer_type", label: "Type", sortable: true },
   {
     key: "reefer_tank_capacity_gal",
     label: "Reefer tank",
@@ -231,9 +231,12 @@ async function onRetire(t: Trailer) {
       <template #cell-trailer="{ row }">{{
         [row.year, row.make, row.model].filter(Boolean).join(" ") || "—"
       }}</template>
-      <template #cell-is_reefer="{ row }">
-        <span v-if="row.is_reefer" :class="[BADGE_BASE, toneClass('info')]">Reefer</span>
-        <span v-else class="text-xs text-ink-subtle">Dry / other</span>
+      <template #cell-trailer_type="{ row }">
+        <span v-if="row.trailer_type === 'tanker'" :class="[BADGE_BASE, toneClass('caution')]">Tanker</span>
+        <span v-else-if="row.trailer_type" :class="[BADGE_BASE, toneClass('neutral')]">
+          {{ TRAILER_TYPE_LABELS[row.trailer_type] }}
+        </span>
+        <span v-else class="text-xs text-ink-subtle">Not set</span>
       </template>
       <template #cell-reefer_tank_capacity_gal="{ row }">{{
         row.is_reefer ? row.reefer_tank_capacity_gal + " gal" : "N/A"

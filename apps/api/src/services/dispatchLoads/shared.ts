@@ -86,7 +86,8 @@ export async function writeEvent(
   orgId: string,
   loadId: string,
   entry: {
-    actorUserId: string;
+    /** Null for a system event — a TMS amendment, an auto-close. The role still says who. */
+    actorUserId: string | null;
     actorRole: string | null;
     kind: string;
     fromStatus?: string | null;

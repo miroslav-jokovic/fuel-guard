@@ -10,6 +10,8 @@ import {
   type LoadEventKind,
   type LoadStatus,
   type UpdateLoadRequest,
+  type DispatchException,
+  type ResolveExceptionRequest,
 } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 
@@ -66,7 +68,52 @@ export interface DispatchLoad {
 
 export type LoadAction = "submit" | "approve" | "release" | "reject" | "cancel";
 
+/** A photo the driver captured at a stop. `url` is signed for 5 minutes; null means signing failed. */
+export interface LoadPhoto {
+  id: string;
+  stop_id: string;
+  slot: string;
+  captured_at: string | null;
+  uploaded_at: string;
+  url: string | null;
+}
+
+/** A stop as the DETAIL read returns it — with what actually happened, not just what was planned. */
+export interface DispatchStopDetail extends DispatchStop {
+  id: string;
+  status: string;
+  arrived_at: string | null;
+  completed_at: string | null;
+  skip_reason: string | null;
+  photos: LoadPhoto[];
+}
+
+/**
+ * One load, everything about it. The list projection deliberately omits most of this — it is a board,
+ * not a record. Every field below has been on the wire from the API for months; the list type simply
+ * never declared them, which is why the office could not see who approved a load or what a driver
+ * photographed at a stop.
+ */
+export interface LoadDetail extends DispatchLoad {
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  released_at: string | null;
+  assigned_by: string | null;
+  assigned_at: string | null;
+  accepted_at: string | null;
+  completed_at: string | null;
+  decline_reason: string | null;
+  external_id: string | null;
+  updated_at: string;
+  stops: DispatchStopDetail[];
+  events: LoadEventRow[];
+}
+
+
 const loadsKey = ["dispatch", "loads"] as const;
+/** Prefix for the per-load detail reads, so one invalidate covers every open load. */
+const loadKeyPrefix = ["dispatch", "load"] as const;
 
 /** Every load in the org, all statuses, stops nested — the dispatch queue. */
 export function useLoadsQuery() {
@@ -90,7 +137,14 @@ export function useCreateLoad() {
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not create the load.");
       return res.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: loadsKey }),
+    onSuccess: async () => {
+      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
+      // action taken from a detail surface used to leave that surface showing the old state.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: loadsKey }),
+        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
+      ]);
+    },
   });
 }
 
@@ -104,7 +158,14 @@ export function useUpdateLoad() {
       });
       if (!res.ok) throw new Error(res.error?.message ?? "Could not save the load.");
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: loadsKey }),
+    onSuccess: async () => {
+      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
+      // action taken from a detail surface used to leave that surface showing the old state.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: loadsKey }),
+        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
+      ]);
+    },
   });
 }
 
@@ -119,7 +180,14 @@ export function useAssignLoad() {
       });
       if (!res.ok) throw new Error(res.error?.message ?? "Could not assign the load.");
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: loadsKey }),
+    onSuccess: async () => {
+      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
+      // action taken from a detail surface used to leave that surface showing the old state.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: loadsKey }),
+        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
+      ]);
+    },
   });
 }
 
@@ -136,7 +204,14 @@ export function useTransitionLoad() {
         throw new Error(res.error?.message ?? "That step is not available for this load right now.");
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: loadsKey }),
+    onSuccess: async () => {
+      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
+      // action taken from a detail surface used to leave that surface showing the old state.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: loadsKey }),
+        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
+      ]);
+    },
   });
 }
 
@@ -160,7 +235,14 @@ export function useBulkTransition() {
       if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Bulk action failed.");
       return { succeeded: res.data.succeeded, failed: res.data.failed };
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: loadsKey }),
+    onSuccess: async () => {
+      // Both: the board AND whichever detail page is open. Invalidating only the list is why an
+      // action taken from a detail surface used to leave that surface showing the old state.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: loadsKey }),
+        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
+      ]);
+    },
   });
 }
 
@@ -175,6 +257,24 @@ export interface LoadEventRow {
   payload: Record<string, unknown>;
   occurred_at: string;
   recorded_at: string;
+}
+
+/**
+ * One load with its stops, each stop's captured photos, and the full timeline (LD1).
+ *
+ * Before this existed the detail surface `.find()`-ed through the whole board, so it could not deep
+ * link, could not refresh on its own, and went stale whenever the list query did.
+ */
+export function useLoadDetailQuery(loadId: Ref<string | null>) {
+  return useQuery({
+    queryKey: computed(() => [...loadKeyPrefix, loadId.value] as const),
+    enabled: computed(() => loadId.value != null),
+    queryFn: async (): Promise<LoadDetail> => {
+      const res = await apiFetch<{ load: LoadDetail }>(`/api/dispatch/loads/${loadId.value}`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load this load.");
+      return res.data.load;
+    },
+  });
 }
 
 /** The timeline for one load — enabled only while a load is open in the detail panel. */
@@ -258,4 +358,46 @@ export function availableActions(load: DispatchLoad): {
     cancel: canTransition(load.status, "canceled"),
     approveBlockedBy: checklist.blockers.map((b) => b.detail ?? b.label),
   };
+}
+
+// ── exceptions (L2 / D-L2) ────────────────────────────────────────────────────
+const exceptionsKey = ["dispatch", "exceptions"] as const;
+
+/**
+ * Everything on the board that needs a person, from the server.
+ *
+ * Replaces `isException()`, which derived from `loads` columns and could therefore only ever see two
+ * of the five sources — equipment mismatches, TMS amendments and post-release changes exist only as
+ * events, so the tab that exists to show what needs attention was blind to three fifths of it.
+ */
+export function useExceptionsQuery() {
+  return useQuery({
+    queryKey: exceptionsKey,
+    queryFn: async (): Promise<DispatchException[]> => {
+      const res = await apiFetch<{ exceptions: DispatchException[] }>("/api/dispatch/exceptions");
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load exceptions.");
+      return res.data.exceptions;
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useResolveException() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { loadId: string; body: ResolveExceptionRequest }): Promise<void> => {
+      const res = await apiFetch(`/api/dispatch/loads/${payload.loadId}/exceptions/resolve`, {
+        method: "POST",
+        body: payload.body,
+      });
+      if (!res.ok) throw new Error(res.error?.message ?? "Could not resolve that exception.");
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: exceptionsKey }),
+        qc.invalidateQueries({ queryKey: loadsKey }),
+        qc.invalidateQueries({ queryKey: loadKeyPrefix }),
+      ]);
+    },
+  });
 }

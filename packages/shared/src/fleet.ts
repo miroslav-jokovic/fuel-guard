@@ -118,6 +118,77 @@ export interface Vehicle {
 
 // ── Trailer (reefer) ────────────────────────────────────────────────────────────
 
+/**
+ * Trailer equipment type (migration `0100`, surfaced by D-H4).
+ *
+ * The column and its `'tanker'` value have existed since 0100 and were dead in the application — no
+ * TypeScript declared it, no query selected it, no form set it. That absence is why the hazmat engine
+ * had to assume a cargo tank: there was no way to ask what the trailer actually was.
+ */
+export const TRAILER_TYPES = ["dry_van", "reefer", "flatbed", "tanker", "hopper", "other"] as const;
+export type TrailerType = (typeof TRAILER_TYPES)[number];
+
+export const TRAILER_TYPE_LABELS: Record<TrailerType, string> = {
+  dry_van: "Dry van",
+  reefer: "Reefer",
+  flatbed: "Flatbed",
+  tanker: "Tanker",
+  hopper: "Hopper",
+  other: "Other",
+};
+
+/** The two carrier contexts the hazmat engine distinguishes (§171.8 bulk vs non-bulk). */
+export type HaulVehicleKind = "cargo_tank" | "van_or_flatbed";
+
+export interface VehicleKindResolution {
+  kind: HaulVehicleKind;
+  /** False when the answer is a fallback rather than a fact — the caller must say so out loud. */
+  confident: boolean;
+  because: string;
+}
+
+/**
+ * What kind of carrier is this equipment, for placarding purposes.
+ *
+ * WHY THE UNKNOWN CASE ANSWERS `cargo_tank`. The two mistakes are not symmetric. Calling a van a tank
+ * is over-restrictive — every line becomes bulk, ID panels are demanded, DANGEROUS is withheld, and the
+ * driver needs an N/X endorsement — which blocks a load that should have cleared. Calling a tank a van
+ * applies the 1,001 lb Table 2 threshold to bulk packaging, which can UNDER-placard. Under-placarding
+ * is the failure this engine exists to prevent (D2), so the unknown case takes the restrictive answer.
+ *
+ * The difference from the hard-code it replaces is not the value; it is that this one is flagged and
+ * fixable. Set the trailer's type and the assumption goes away.
+ */
+export function resolveVehicleKind(input: {
+  trailerType?: string | null;
+  /** A cargo-tank profile only ever exists for tank equipment, so its presence is evidence. */
+  hasCargoTankProfile?: boolean;
+}): VehicleKindResolution {
+  const type = input.trailerType?.trim().toLowerCase();
+  if (type === "tanker") {
+    return { kind: "cargo_tank", confident: true, because: "the trailer is marked as a tanker" };
+  }
+  if (type && (TRAILER_TYPES as readonly string[]).includes(type)) {
+    return {
+      kind: "van_or_flatbed",
+      confident: true,
+      because: `the trailer is marked as ${TRAILER_TYPE_LABELS[type as TrailerType].toLowerCase()}`,
+    };
+  }
+  if (input.hasCargoTankProfile) {
+    return {
+      kind: "cargo_tank",
+      confident: true,
+      because: "this equipment has a cargo-tank profile",
+    };
+  }
+  return {
+    kind: "cargo_tank",
+    confident: false,
+    because: "the equipment type is not set — assuming a cargo tank, the conservative reading",
+  };
+}
+
 export const trailerInputSchema = z.object({
   unit_number: z.string().trim().min(1, "Unit number is required").max(50),
   make: optionalText,
@@ -127,6 +198,8 @@ export const trailerInputSchema = z.object({
     z.coerce.number().int().min(1900).max(2100).optional(),
   ),
   plate: optionalText,
+  /** Equipment type (0100). Drives the hazmat carrier context — `tanker` means bulk. */
+  trailer_type: z.enum(TRAILER_TYPES).nullish(),
   /** Whether this trailer is a reefer (refrigerated). Only reefers drive the reefer fuel checks. */
   is_reefer: z.coerce.boolean().default(false),
   /** Reefer (refrigeration) tank capacity in gallons. Standard reefer tank ≈ 50 gal. */
@@ -150,6 +223,7 @@ export interface Trailer {
   model: string | null;
   year: number | null;
   plate: string | null;
+  trailer_type: TrailerType | null;
   is_reefer: boolean;
   reefer_tank_capacity_gal: number;
   status: VehicleStatus;

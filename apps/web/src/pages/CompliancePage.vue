@@ -4,7 +4,8 @@ import type { QualCertSnapshot } from "@fuelguard/shared";
 import { qualifyDriver } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery } from "@/composables/useDrivers";
-import { useAllDriverCertsQuery } from "@/composables/useCompliance";
+import { useAllDriverCertsQuery, useCertificationsQuery } from "@/composables/useCompliance";
+import { useTrailersQuery } from "@/features/fleet/useTrailers";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
@@ -42,6 +43,23 @@ const {
   refetch: refetchCerts,
   isFetching: certsFetching,
 } = useAllDriverCertsQuery();
+
+// F-H2 / F-P2. This page graded EVERY driver in EVERY organization against cargo-tank criteria —
+// `vehicleKind: "cargo_tank"` and `orgHasSecurityPlan: false` were both literals — so a fleet that has
+// never hauled a tank in its life saw every driver as "Action required" for want of an N/X endorsement.
+// Both now come from what the organization actually has.
+const { data: trailers } = useTrailersQuery();
+const { data: orgCerts } = useCertificationsQuery(ref("organization"), computed(() => session.orgId ?? null));
+
+/** Tank endorsements matter to a fleet that owns tank equipment. Unknown-type trailers do not count:
+ *  an unset type is a prompt to set it, not a reason to fail every driver. */
+const fleetHasTanker = computed(() => (trailers.value ?? []).some((t) => t.trailer_type === "tanker"));
+const vehicleKind = computed<"cargo_tank" | "van_or_flatbed">(() =>
+  fleetHasTanker.value ? "cargo_tank" : "van_or_flatbed",
+);
+const orgHasSecurityPlan = computed(() =>
+  (orgCerts.value ?? []).some((c) => c.kind === "security_plan" && !c.superseded_by),
+);
 
 const isLoading = computed(() => driversLoading.value || certsLoading.value);
 const isError = computed(() => driversFailed.value || certsFailed.value);
@@ -82,7 +100,7 @@ interface Row {
 const rows = computed<Row[]>(() =>
   (drivers.value ?? []).map((d) => {
     const certs = certsByDriver.value.get(d.id) ?? [];
-    const res = qualifyDriver({ evalDate: today, driverStatus: d.status, certs, vehicleKind: "cargo_tank", orgHasSecurityPlan: false });
+    const res = qualifyDriver({ evalDate: today, driverStatus: d.status, certs, vehicleKind: vehicleKind.value, orgHasSecurityPlan: orgHasSecurityPlan.value });
     const issues = res.findings.map((f) => labelForCode(f.code));
     return {
       id: d.id,

@@ -66,6 +66,21 @@ const firedTrace = computed(() => v.value.trace.filter((t) => t.fired));
       </p>
     </BaseCard>
 
+    <!-- permitted but not required (§172.502(c)) -->
+    <BaseCard v-if="v.placards.permitted.length">
+      <h3 class="text-sm font-semibold text-ink">Permitted, not required</h3>
+      <p class="mt-1 text-xs text-ink-muted">
+        Below the 1,001&nbsp;lb Table&nbsp;2 aggregate. You may display these if you choose to — many
+        carriers do as a matter of policy.
+      </p>
+      <div class="mt-3 flex flex-wrap gap-5">
+        <div v-for="(p, i) in v.placards.permitted" :key="i" class="flex flex-col items-center gap-1.5">
+          <PlacardDiamond :name="p.placard" />
+          <CitationText :citations="p.because" />
+        </div>
+      </div>
+    </BaseCard>
+
     <!-- ID displays -->
     <BaseCard v-if="v.placards.idDisplays.length">
       <h3 class="text-sm font-semibold text-ink">Identification-number displays</h3>

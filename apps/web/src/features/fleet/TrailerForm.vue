@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { trailerInputSchema, VEHICLE_STATUSES, type Trailer, type TrailerInput, type Vehicle } from "@fuelguard/shared";
+import {
+  TRAILER_TYPE_LABELS,
+  TRAILER_TYPES,
+  trailerInputSchema,
+  VEHICLE_STATUSES,
+  type Trailer,
+  type TrailerInput,
+  type Vehicle,
+} from "@fuelguard/shared";
 import AppSelect from "@/components/AppSelect.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -16,6 +24,7 @@ const form = reactive({
   model: props.trailer?.model ?? "",
   year: props.trailer?.year?.toString() ?? "",
   plate: props.trailer?.plate ?? "",
+  trailer_type: props.trailer?.trailer_type ?? "",
   is_reefer: props.trailer?.is_reefer ?? false,
   reefer_tank_capacity_gal: props.trailer?.reefer_tank_capacity_gal?.toString() ?? "50",
   status: props.trailer?.status ?? "active",
@@ -60,6 +69,14 @@ function onSubmit() {
         <BaseInput :id="id" v-model="form.plate" />
       </FormField>
     </div>
+
+    <FormField v-slot="{ id }" label="Type" hint="Marking a trailer as a tanker is what tells HazmatGuard this is bulk packaging.">
+      <AppSelect
+        :id="id"
+        v-model="form.trailer_type"
+        :options="[{ value: '', label: 'Not set' }, ...TRAILER_TYPES.map((t) => ({ value: t, label: TRAILER_TYPE_LABELS[t] }))]"
+      />
+    </FormField>
 
     <div class="rounded-md bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
       <BaseCheckbox v-model="form.is_reefer">

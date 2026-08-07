@@ -306,6 +306,9 @@ export const LOAD_EVENT_KINDS = [
   "created", "submitted", "approved", "rejected", "assigned", "reassigned", "released",
   "accepted", "declined", "started", "stop_arrived", "stop_completed", "stop_skipped",
   "equipment_mismatch", "amended", "canceled", "completed",
+  // D-L8 / D-L2 — see migration 0145. `load_changed` warns that a released load diverged from the
+  // copy on a driver's phone; `exception_resolved` is how an append-only log closes an exception.
+  "load_changed", "exception_resolved",
 ] as const;
 export type LoadEventKind = (typeof LOAD_EVENT_KINDS)[number];
 
@@ -337,6 +340,8 @@ export const LOAD_EVENT_LABELS: Record<LoadEventKind, string> = {
   stop_completed: "Stop completed",
   stop_skipped: "Stop skipped",
   equipment_mismatch: "Equipment differs from plan",
+  load_changed: "Changed after release",
+  exception_resolved: "Exception resolved",
   amended: "Amended by the TMS feed",
   canceled: "Canceled",
   completed: "Delivered",

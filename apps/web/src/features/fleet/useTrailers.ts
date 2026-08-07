@@ -3,7 +3,7 @@ import type { Trailer, TrailerInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const COLS =
-  "id, org_id, unit_number, make, model, year, plate, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at";
+  "id, org_id, unit_number, make, model, year, plate, trailer_type, is_reefer, reefer_tank_capacity_gal, status, assigned_vehicle_id, samsara_asset_id, created_at, updated_at";
 
 const trailersKey = ["trailers"] as const;
 

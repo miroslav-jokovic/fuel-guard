@@ -62,12 +62,21 @@ export const PACKAGING_KIND_OPTIONS: Array<{ value: PackagingKind; label: string
   { value: "non_bulk", label: "Non-bulk" },
 ];
 
-export function emptyLine(): CalcLineForm {
+/**
+ * A fresh line, shaped by the carrier context the user has stated (F-P4).
+ *
+ * These used to be literals: every line began as bulk gallons, which is a fuel tanker's answer and
+ * nobody else's. On a van or flatbed it was wrong on every line, and — since packaging drives the
+ * §172.504(c) aggregate and the ID-display rules — wrong in a way that changed the verdict. Derive
+ * them instead, and leave them editable.
+ */
+export function emptyLine(vehicleKind = ""): CalcLineForm {
+  const isTank = vehicleKind === "cargo_tank";
   return {
     product: null,
     quantityValue: "",
-    quantityUnit: "gal",
-    packagingKind: "bulk",
+    quantityUnit: isTank ? "gal" : "lb",
+    packagingKind: isTank ? "bulk" : "non_bulk",
     grossWeightLb: "",
     compartmentIndex: "",
     isResidueLine: false,
@@ -75,14 +84,26 @@ export function emptyLine(): CalcLineForm {
   };
 }
 
+/**
+ * An empty form states nothing about the vehicle. `vehicleKind` is deliberately unset rather than
+ * defaulted: it is the single input that most changes the answer — bulk versus non-bulk decides
+ * whether the 1,001 lb aggregate applies at all — and a default of `cargo_tank` meant anyone who never
+ * touched the dropdown, including every anonymous visitor to the public calculator, silently
+ * calculated as a fuel tanker. The form requires a choice instead of guessing one.
+ */
 export function emptyForm(): CalcForm {
   return {
-    vehicleKind: "cargo_tank",
+    vehicleKind: "",
     cargoTankCapacityGal: "",
     tankState: "loaded",
     businessDayIds: "",
     lines: [emptyLine()],
   };
+}
+
+/** Is this form answerable? The engine needs a carrier context and at least one resolved product. */
+export function calcFormReady(form: CalcForm): boolean {
+  return form.vehicleKind !== "" && form.lines.some((l) => l.product != null);
 }
 
 const numOrNull = (s: string): number | null => {

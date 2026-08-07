@@ -13,7 +13,7 @@ import { PlusIcon } from "@fuelguard/ui/icons";
  */
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { LOAD_STATUS_LABELS, LOAD_STATUSES } from "@fuelguard/shared";
+import { type DispatchException, EXCEPTION_LABELS, LOAD_STATUS_LABELS, LOAD_STATUSES } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -27,22 +27,18 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import LoadDetailPanel from "@/features/dispatch/LoadDetailPanel.vue";
 import {
   QUEUE_TABS,
   availableActions,
   checklistFor,
-  isException,
   statusLabel,
   tabFor,
-  useAssignLoad,
+  useExceptionsQuery,
+  useResolveException,
   useBulkTransition,
   useCreateLoad,
   useLoadsQuery,
-  useTransitionLoad,
-  useUpdateLoad,
   type DispatchLoad,
-  type LoadAction,
   type QueueTab,
 } from "@/features/dispatch/useDispatchLoads";
 import DispatchLoadFormPage, { type LoadFormPayload } from "./DispatchLoadFormPage.vue";
@@ -60,11 +56,37 @@ const { data: loads, isLoading, isError, error, refetch, isFetching } = useLoads
 const { data: drivers } = useDriversQuery();
 const { data: vehicles } = useVehiclesQuery();
 const { data: trailers } = useTrailersQuery();
+const { data: exceptions, isLoading: exceptionsLoading, isError: exceptionsFailed, refetch: refetchExceptions, isFetching: exceptionsFetching } = useExceptionsQuery();
+const resolveException = useResolveException();
+
+const EXCEPTION_COLUMNS = [
+  { key: "kind", label: "What happened", headerClass: "min-w-[11rem]" },
+  { key: "summary", label: "Detail", headerClass: "min-w-[20rem]" },
+  { key: "driver_name", label: "Driver", headerClass: "min-w-[9rem]" },
+  { key: "occurred_at", label: "When", headerClass: "min-w-[9rem]" },
+];
+
+const ACTION_LABELS: Record<string, string> = {
+  review_diff: "Review & clear",
+  adopt_equipment: "Adopt equipment",
+  acknowledge: "Acknowledge",
+  reassign: "Reassign",
+};
+
+async function clearException(row: DispatchException) {
+  if (!session.canManage || !row.load_id) return;
+  try {
+    await resolveException.mutateAsync({
+      loadId: row.load_id,
+      body: { event_id: row.id.includes(":") ? null : row.id, kind: row.kind, action: row.action },
+    });
+    toast.success("Exception cleared");
+  } catch (e) {
+    toast.error("Could not clear that exception", e instanceof Error ? e.message : undefined);
+  }
+}
 
 const createLoad = useCreateLoad();
-const updateLoad = useUpdateLoad();
-const assignLoad = useAssignLoad();
-const transitionLoad = useTransitionLoad();
 const bulk = useBulkTransition();
 
 const search = ref("");
@@ -104,15 +126,17 @@ const counts = computed(() => {
   };
   for (const load of loads.value ?? []) {
     result[tabFor(load)] += 1;
-    if (isException(load, now.value)) result.exceptions += 1;
   }
+  // The exceptions count comes from the server feed, not from the loads list — three of its five
+  // sources exist only as events and are not visible in a load row at all (D-L2).
+  result.exceptions = (exceptions.value ?? []).length;
   return result;
 });
 
 const filtered = computed(() => {
   const term = search.value.trim().toLowerCase();
   return (loads.value ?? [])
-    .filter((load) => (tab.value === "exceptions" ? isException(load, now.value) : tabFor(load) === tab.value))
+    .filter((load) => tabFor(load) === tab.value)
     .filter((load) => !statusFilter.value || load.status === statusFilter.value)
     .filter((load) => !sourceFilter.value || load.source === sourceFilter.value)
     .filter((load) =>
@@ -163,15 +187,10 @@ const driverList = computed(() => (drivers.value ?? []).map((driver) => ({ id: d
 const vehicleList = computed(() => (vehicles.value ?? []).map((vehicle) => ({ id: vehicle.id, unit_number: vehicle.unit_number })));
 const trailerList = computed(() => (trailers.value ?? []).map((trailer) => ({ id: trailer.id, unit_number: trailer.unit_number })));
 
-const selectedId = computed(() => (typeof route.params.id === "string" ? route.params.id : null));
-const selectedLoad = computed(() => (loads.value ?? []).find((load) => load.id === selectedId.value) ?? null);
-const detailOpen = computed(() => route.name === "load-detail" && route.query.edit !== "1" && selectedLoad.value !== null);
-const formOpen = computed(
-  () => route.name === "load-new" || (route.name === "load-detail" && route.query.edit === "1" && selectedLoad.value !== null),
-);
-const formLoad = computed(() => (route.query.edit === "1" ? selectedLoad.value : null));
-const saving = computed(() => createLoad.isPending.value || updateLoad.isPending.value);
-const busy = computed(() => transitionLoad.isPending.value || assignLoad.isPending.value);
+// The board only creates. Opening, editing and acting on ONE load is `DispatchLoadDetailPage` — a
+// real page, because a drawer over this list cache could not deep-link and went stale with it (LD2).
+const formOpen = computed(() => route.name === "load-new");
+const saving = computed(() => createLoad.isPending.value);
 
 const selectedLoads = computed(() => (loads.value ?? []).filter((load) => selected.value.has(load.id)));
 const approvableIds = computed(() => selectedLoads.value.filter((load) => availableActions(load).approve).map((load) => load.id));
@@ -219,50 +238,18 @@ function openDetail(load: DispatchLoad) {
 function closeOverlay() {
   void router.push({ name: "loads" });
 }
-function openEditFromDetail() {
-  if (selectedLoad.value && session.canManage) {
-    void router.push({ name: "load-detail", params: { id: selectedLoad.value.id }, query: { edit: "1" } });
-  }
-}
 
 async function onFormSubmit(payload: LoadFormPayload) {
   try {
-    if (formLoad.value) {
-      await updateLoad.mutateAsync({ id: formLoad.value.id, body: payload });
-      toast.success(`Load ${payload.ref} saved`);
-      await router.push({ name: "load-detail", params: { id: formLoad.value.id } });
-    } else {
-      const created = await createLoad.mutateAsync(payload);
-      toast.success(`Load ${payload.ref} created as a draft`);
-      await router.push({ name: "load-detail", params: { id: created.id } });
-    }
+    const created = await createLoad.mutateAsync(payload);
+    toast.success(`Load ${payload.ref} created as a draft`);
+    await router.push({ name: "load-detail", params: { id: created.id } });
   } catch (e) {
     toast.error("Could not save the load", e instanceof Error ? e.message : undefined);
   }
 }
 
-async function onTransition(action: LoadAction, reason?: string) {
-  const load = selectedLoad.value;
-  if (!load || !session.canManage) return;
-  try {
-    await transitionLoad.mutateAsync({ id: load.id, action, reason });
-    toast.success(`${load.ref} updated`);
-  } catch (e) {
-    // The API forwards the trigger's message, which names the exact unmet gate.
-    toast.error("That step is not available", e instanceof Error ? e.message : undefined);
-  }
-}
 
-async function onAssign(body: { driver_id: string; vehicle_id?: string | null; trailer_id?: string | null }) {
-  const load = selectedLoad.value;
-  if (!load || !session.canManage) return;
-  try {
-    await assignLoad.mutateAsync({ id: load.id, body });
-    toast.success(`${load.ref} reassigned`);
-  } catch (e) {
-    toast.error("Could not reassign the load", e instanceof Error ? e.message : undefined);
-  }
-}
 
 async function bulkDo(action: "approve" | "release", ids: string[]) {
   if (!session.canManage || !ids.length) return;
@@ -344,7 +331,51 @@ onUnmounted(() => {
       <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
     </div>
 
+    <!-- Exceptions is its own feed, not a filter over the loads list: three of its five sources exist
+         only as events and have no row on the board at all (D-L2). -->
     <DataTable
+      v-if="tab === 'exceptions'"
+      :columns="EXCEPTION_COLUMNS"
+      :rows="exceptions ?? []"
+      row-key="id"
+      :loading="exceptionsLoading"
+      :error="exceptionsFailed ? 'Could not load exceptions' : null"
+      :retrying="exceptionsFetching"
+      empty-text="Nothing needs attention right now."
+      @retry="refetchExceptions"
+    >
+      <template #cell-kind="{ row }">
+        <span :class="[BADGE_BASE, toneClass(row.kind === 'declined' ? 'danger' : 'warning')]">
+          {{ EXCEPTION_LABELS[row.kind as keyof typeof EXCEPTION_LABELS] }}
+        </span>
+      </template>
+      <template #cell-summary="{ row }">
+        <RouterLink
+          v-if="row.load_id"
+          :to="`/loads/${row.load_id}`"
+          class="font-medium text-brand-600 hover:text-brand-500"
+        >
+          {{ row.summary }}
+        </RouterLink>
+        <span v-else class="text-ink-secondary">{{ row.summary }}</span>
+      </template>
+      <template #cell-driver_name="{ row }">{{ row.driver_name ?? "—" }}</template>
+      <template #cell-occurred_at="{ row }">{{ new Date(row.occurred_at).toLocaleString() }}</template>
+      <template #actions="{ row }">
+        <BaseButton
+          v-if="session.canManage && row.load_id"
+          variant="ghost"
+          size="sm"
+          :disabled="resolveException.isPending.value"
+          @click.stop="clearException(row)"
+        >
+          {{ ACTION_LABELS[row.action] ?? "Acknowledge" }}
+        </BaseButton>
+      </template>
+    </DataTable>
+
+    <DataTable
+      v-else
       :columns="columns"
       :rows="pageRows"
       row-key="id"
@@ -399,10 +430,10 @@ onUnmounted(() => {
       </template>
     </DataTable>
 
-    <SlideOver :open="formOpen" :title="formLoad ? `Edit ${formLoad.ref}` : 'New load'" @close="closeOverlay">
+    <SlideOver :open="formOpen" title="New load" @close="closeOverlay">
       <DispatchLoadFormPage
         v-if="formOpen"
-        :load="formLoad"
+        :load="null"
         :drivers="driverList"
         :vehicles="vehicleList"
         :trailers="trailerList"
@@ -412,19 +443,5 @@ onUnmounted(() => {
       />
     </SlideOver>
 
-    <SlideOver :open="detailOpen" :title="selectedLoad?.ref ?? 'Load details'" @close="closeOverlay">
-      <LoadDetailPanel
-        v-if="selectedLoad"
-        :load="selectedLoad"
-        :drivers="driverList"
-        :vehicles="vehicleList"
-        :trailers="trailerList"
-        :busy="busy"
-        :can-manage="session.canManage"
-        @transition="onTransition"
-        @assign="onAssign"
-        @edit="openEditFromDetail"
-      />
-    </SlideOver>
   </div>
 </template>

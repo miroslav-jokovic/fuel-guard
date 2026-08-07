@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notify, loginForDriver } from "../notify.js";
-import { isTerminal, type AssignLoadRequest, type CreateLoadRequest, type LoadStatus, type UpdateLoadRequest } from "@fuelguard/shared";
+import {
+  isTerminal,
+  type AssignLoadRequest,
+  type CreateLoadRequest,
+  type LoadStatus,
+  type ResolveExceptionRequest,
+  type UpdateLoadRequest,
+} from "@fuelguard/shared";
 import { toDispatchError, replaceStops, writeEvent, type DispatchResult } from "./shared.js";
 
 /**
@@ -55,17 +62,36 @@ export async function createLoad(
  * filling the timeline with keystroke-level noise would bury the entries that matter (who approved,
  * who released, who declined). The audit log still records that the load was updated and by whom.
  */
+/**
+ * The facts a driver can SEE on their phone (D-L8). Changing one of these on a load that is already
+ * out there makes the copy in the cab silently wrong — the divergence D53 exists to prevent. Notes and
+ * billing references are deliberately absent: emitting on every field would train drivers to ignore
+ * the category, which is worse than not emitting at all.
+ */
+const DRIVER_VISIBLE_FIELDS = ["equipment", "commodity", "hazmat", "total_miles"] as const;
+/** A load is "out there" once it has been offered — before that, an edit is just authoring. */
+const RELEASED_STATUSES = new Set(["offered", "accepted", "in_transit"]);
+
 export async function updateLoad(
   admin: SupabaseClient,
   orgId: string,
   loadId: string,
   input: UpdateLoadRequest,
+  actor?: { userId: string; role: string | null },
 ): Promise<DispatchResult<{ id: string }>> {
   const { stops, ...fields } = input;
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [k, v] of Object.entries(fields)) {
     if (v !== undefined) patch[k] = v;
   }
+
+  // Read before writing, so the diff below compares against what the driver was actually shown.
+  const { data: before } = await admin
+    .from("loads")
+    .select(`status, ${DRIVER_VISIBLE_FIELDS.join(", ")}`)
+    .eq("org_id", orgId)
+    .eq("id", loadId)
+    .maybeSingle();
 
   const { data: updated, error } = await admin
     .from("loads")
@@ -85,6 +111,53 @@ export async function updateLoad(
     return { ok: false, status: 404, code: "not_found", message: "That load no longer exists" };
   }
   if (stops) await replaceStops(admin, orgId, loadId, stops);
+
+  // D-L8: warn that a released load diverged from the copy on the phone. Stops count as a change
+  // wholesale — `replaceStops` rewrites them, and a driver reads the stop list as one thing.
+  const prior = (before ?? {}) as Record<string, unknown>;
+  if (before && RELEASED_STATUSES.has(String(prior.status))) {
+    const changed: string[] = DRIVER_VISIBLE_FIELDS.filter(
+      (f) => fields[f] !== undefined && fields[f] !== prior[f],
+    );
+    if (stops) changed.push("stops");
+    if (changed.length > 0) {
+      await writeEvent(admin, orgId, loadId, {
+        actorUserId: actor?.userId ?? null,
+        actorRole: actor?.role ?? null,
+        kind: "load_changed",
+        payload: {
+          changed,
+          diff: Object.fromEntries(
+            changed
+              .filter((f) => f !== "stops")
+              .map((f) => [f, { from: prior[f], to: (fields as Record<string, unknown>)[f] }]),
+          ),
+        },
+      });
+    }
+  }
+  return { ok: true, data: { id: loadId } };
+}
+
+/**
+ * Close an exception. `load_events` is append-only — it is the record an auditor reads — so an
+ * exception is resolved by a later event naming it, never by editing history. The payload carries the
+ * id being resolved and the action taken, so "who cleared this and on what basis" stays answerable.
+ */
+export async function resolveException(
+  admin: SupabaseClient,
+  orgId: string,
+  loadId: string,
+  actor: { userId: string; role: string | null },
+  input: ResolveExceptionRequest,
+): Promise<DispatchResult<{ id: string }>> {
+  const resolves = input.event_id ?? `${input.kind}:${loadId}`;
+  await writeEvent(admin, orgId, loadId, {
+    actorUserId: actor.userId,
+    actorRole: actor.role,
+    kind: "exception_resolved",
+    payload: { resolves, kind: input.kind, action: input.action, note: input.note ?? null },
+  });
   return { ok: true, data: { id: loadId } };
 }
 

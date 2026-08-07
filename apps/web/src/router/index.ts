@@ -60,8 +60,9 @@ const routes: RouteRecordRaw[] = [
   {
     path: "/loads/:id",
     name: "load-detail",
-    component: () => import("@/pages/DispatchLoadsPage.vue"),
-    meta: { requiresAuth: true, title: "Load Details" },
+    // A real page, not the board with a drawer over it (LD2). `parent` gives AppShell the back chevron.
+    component: () => import("@/pages/DispatchLoadDetailPage.vue"),
+    meta: { requiresAuth: true, title: "Load Details", parent: "/loads" },
   },
   {
     path: "/dispatch/loads",

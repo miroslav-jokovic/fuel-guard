@@ -11,11 +11,13 @@ import FormField from "@/components/ui/FormField.vue";
 import ComboSelect from "@/components/ui/ComboSelect.vue";
 import ProductPicker from "@/features/hazmat/ProductPicker.vue";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
+import { resolveVehicleKind } from "@fuelguard/shared";
+import { useHazmatProfilesQuery, useHazmatTrailersQuery } from "@/features/hazmat/useHazmatProfiles";
 import {
   buildCalcRequest,
+  calcFormReady,
   emptyForm,
   emptyLine,
-  hasResolvedLine,
   useHazmatCalc,
   VEHICLE_KIND_OPTIONS,
   TANK_STATE_OPTIONS,
@@ -25,16 +27,73 @@ import {
   type CalcResult,
 } from "@/features/hazmat/useHazmatCalc";
 
-const props = withDefaults(defineProps<{ basePath?: string }>(), { basePath: "/api/hazmat" });
+/**
+ * `fleet` is off by default because this exact component IS the public marketing calculator
+ * (`PublicPlacardCalculatorPage.vue`). An anonymous visitor has no organization, so the equipment
+ * picker and the two fleet queries behind it must never mount there.
+ */
+const props = withDefaults(defineProps<{ basePath?: string; fleet?: boolean }>(), {
+  basePath: "/api/hazmat",
+  fleet: false,
+});
 
 const form = reactive<CalcForm>(emptyForm());
 const calc = useHazmatCalc(props.basePath);
 const result = ref<CalcResult | null>(null);
 
-const canCalculate = computed(() => hasResolvedLine(form));
+const canCalculate = computed(() => calcFormReady(form));
+
+// ── fleet equipment (authenticated calculator only) ─────────────────────────────────────────────
+const fleetEnabled = computed(() => props.fleet);
+// The hazmat feature reads trailers itself rather than importing the fleet feature's internals
+// (the boundary rule — see this query's own header).
+const { data: trailers } = useHazmatTrailersQuery({ enabled: fleetEnabled });
+const { data: profiles } = useHazmatProfilesQuery({ enabled: fleetEnabled });
+const selectedTrailerId = ref("");
+const trailerOptions = computed(() => [
+  { value: "", label: "Not from the fleet" },
+  ...(trailers.value ?? []).map((t) => ({
+    value: t.id,
+    label: t.trailer_type === "tanker" ? `${t.unit_number} — tanker` : t.unit_number,
+  })),
+]);
+
+/**
+ * Picking a trailer states the carrier context instead of asking the user to restate it. The trailer's
+ * type is the same source of truth the load path uses (`resolveVehicleKind`, D-H4), so the calculator
+ * and a real analysis of the same equipment cannot disagree.
+ */
+function applyTrailer(id: string) {
+  selectedTrailerId.value = id;
+  if (!id) return;
+  const trailer = (trailers.value ?? []).find((t) => t.id === id);
+  if (!trailer) return;
+  const resolution = resolveVehicleKind({
+    trailerType: trailer.trailer_type,
+    hasCargoTankProfile: (profiles.value ?? []).some((p) => p.trailer_id === id),
+  });
+  form.vehicleKind = resolution.kind;
+  const profile = (profiles.value ?? []).find((p) => p.trailer_id === id);
+  form.cargoTankCapacityGal = profile?.cargo_capacity_gal != null ? String(profile.cargo_capacity_gal) : "";
+  for (const line of form.lines) {
+    if (line.product == null) Object.assign(line, emptyLine(resolution.kind));
+  }
+}
+
+const equipmentNote = computed(() => {
+  if (!selectedTrailerId.value) return null;
+  const trailer = (trailers.value ?? []).find((t) => t.id === selectedTrailerId.value);
+  if (!trailer) return null;
+  return resolveVehicleKind({
+    trailerType: trailer.trailer_type,
+    hasCargoTankProfile: (profiles.value ?? []).some((p) => p.trailer_id === selectedTrailerId.value),
+  });
+});
+
+const isTank = computed(() => form.vehicleKind === "cargo_tank");
 
 function addLine() {
-  form.lines.push(emptyLine());
+  form.lines.push(emptyLine(form.vehicleKind));
 }
 function removeLine(i: number) {
   form.lines.splice(i, 1);
@@ -49,6 +108,7 @@ async function calculate() {
   result.value = await calc.mutateAsync(buildCalcRequest(form));
 }
 function resetAll() {
+  selectedTrailerId.value = "";
   Object.assign(form, emptyForm());
   result.value = null;
   calc.reset();
@@ -67,28 +127,63 @@ function resetAll() {
           </div>
         </div>
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormField v-slot="{ id }" label="Vehicle type">
-            <ComboSelect :id="id" v-model="form.vehicleKind" :options="VEHICLE_KIND_OPTIONS" />
+          <!-- Fleet equipment states the carrier context for you. Never mounted on the public page. -->
+          <FormField
+            v-if="fleet"
+            v-slot="{ id }"
+            label="Trailer"
+            hint="Picking one sets the carrier context from its type."
+          >
+            <ComboSelect
+              :id="id"
+              :model-value="selectedTrailerId"
+              :options="trailerOptions"
+              placeholder="Search trailers…"
+              @update:model-value="applyTrailer"
+            />
           </FormField>
           <FormField
-            v-if="form.vehicleKind === 'cargo_tank'"
+            v-slot="{ id }"
+            label="Carrier context"
+            required
+            :hint="
+              form.vehicleKind === ''
+                ? 'Bulk or not decides whether the 1,001 lb threshold applies at all — there is no safe default.'
+                : undefined
+            "
+          >
+            <ComboSelect :id="id" v-model="form.vehicleKind" :options="VEHICLE_KIND_OPTIONS" placeholder="Select…" />
+          </FormField>
+          <FormField
+            v-if="isTank"
             v-slot="{ id }"
             label="Cargo tank capacity (gal)"
             hint="Optional. Used when capacity affects the applicable cargo-tank requirements."
           >
             <BaseInput :id="id" v-model="form.cargoTankCapacityGal" type="number" inputmode="decimal" min="0" placeholder="9200" />
           </FormField>
-          <FormField v-slot="{ id }" label="Tank state">
+          <!-- Tank state is inert for a van or flatbed — the engine only reads it for a cargo tank. -->
+          <FormField v-if="isTank" v-slot="{ id }" label="Tank state">
             <ComboSelect :id="id" v-model="form.tankState" :options="TANK_STATE_OPTIONS" />
           </FormField>
           <FormField
             v-slot="{ id }"
             label="Previous/current business-day IDs"
-            hint="§172.336(c): IDs retained from the last load, e.g. UN1203. Comma-separated."
+            hint="§172.336(c): IDs retained from the last load. Comma-separated."
           >
-            <BaseInput :id="id" v-model="form.businessDayIds" placeholder="UN1203, UN1202" />
+            <BaseInput :id="id" v-model="form.businessDayIds" placeholder="UN1830, UN1789" />
           </FormField>
         </div>
+        <p
+          v-if="equipmentNote && !equipmentNote.confident"
+          class="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
+        >
+          {{ equipmentNote.because }} — set the trailer&rsquo;s type on the Trailers page so this is read
+          rather than assumed.
+        </p>
+        <p v-else-if="equipmentNote" class="mt-3 text-xs text-ink-muted">
+          Carrier context from the fleet: {{ equipmentNote.because }}.
+        </p>
       </BaseCard>
 
       <BaseCard as="section">
@@ -133,7 +228,7 @@ function resetAll() {
 
             <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <FormField v-slot="{ id }" label="Quantity">
-                <BaseInput :id="id" v-model="line.quantityValue" type="number" inputmode="decimal" min="0" placeholder="8000" />
+                <BaseInput :id="id" v-model="line.quantityValue" type="number" inputmode="decimal" min="0" :placeholder="isTank ? '8000' : '55'" />
               </FormField>
               <FormField v-slot="{ id }" label="Unit">
                 <ComboSelect :id="id" v-model="line.quantityUnit" :options="QUANTITY_UNIT_OPTIONS" />
@@ -141,7 +236,7 @@ function resetAll() {
               <FormField v-slot="{ id }" label="Packaging">
                 <ComboSelect :id="id" v-model="line.packagingKind" :options="PACKAGING_KIND_OPTIONS" />
               </FormField>
-              <FormField v-slot="{ id }" label="Gross wt (lb)" hint="Non-bulk Table 2.">
+              <FormField v-slot="{ id }" label="Gross wt (lb)" hint="Drives the §172.504(c) aggregate for non-bulk lines.">
                 <BaseInput :id="id" v-model="line.grossWeightLb" type="number" inputmode="decimal" min="0" placeholder="1254" />
               </FormField>
             </div>

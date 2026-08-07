@@ -25,6 +25,10 @@ const ALL_PLACARDS: readonly PlacardName[] = [
   "OXYGEN", "POISON_GAS", "FLAMMABLE_SOLID", "SPONTANEOUSLY_COMBUSTIBLE", "DANGEROUS_WHEN_WET",
   "OXIDIZER", "ORGANIC_PEROXIDE", "POISON", "POISON_INHALATION_HAZARD", "CORROSIVE",
   "RADIOACTIVE", "CLASS_9", "DANGEROUS",
+  // The six explosives names were missing, so a cleaned-and-purged tank was never told it may not
+  // display them (§172.502(a)). Blocking explosives in computePlacards does not cover this: the
+  // cleaned-tank prohibition is a dataset-independent gate that runs BEFORE the ladder.
+  "EXPLOSIVES_1_1", "EXPLOSIVES_1_2", "EXPLOSIVES_1_3", "EXPLOSIVES_1_4", "EXPLOSIVES_1_5", "EXPLOSIVES_1_6",
 ];
 
 /**

@@ -58,9 +58,13 @@ function choose(p: HazmatProduct) {
         No matching product. Only regulated HMT entries can be added.
       </p>
       <template v-else>
-        <p v-if="!query" class="px-3 pt-2 text-xs font-medium uppercase tracking-wide text-ink-subtle">
-          Common fuels
-        </p>
+        <div v-if="!query" class="px-3 pt-2">
+          <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Common fuel products</p>
+          <p class="pt-0.5 text-xs text-ink-muted">
+            A shortcut, not the scope — search any UN/NA number or shipping name to reach the whole
+            Hazardous Materials Table.
+          </p>
+        </div>
         <button
           v-for="p in products"
           :key="p.hmtRef"

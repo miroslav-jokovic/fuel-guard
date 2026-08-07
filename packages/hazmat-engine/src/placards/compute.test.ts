@@ -60,15 +60,21 @@ describe("computePlacards — fuel scope (§172.504)", () => {
     expect(v.placards.ergGuides).toContainEqual({ idNumber: "1203", guide: "128" });
   });
 
-  it("below 1,001 lb aggregate → no placards required (§172.504(c))", () => {
-    const v = evaluateLoad(load({ lines: [line({ grossWeightLb: 800 })] }));
+  it("below 1,001 lb non-bulk aggregate → no placards required (§172.504(c))", () => {
+    const v = evaluateLoad(load({
+      vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+      lines: [line({ grossWeightLb: 800, packagingKind: "non_bulk" })],
+    }));
     expect(v.placards.required).toEqual([]);
     expect(v.trace.some((t) => t.ruleId === "weight_threshold_1001lb")).toBe(true);
     expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("aggregate_weight_unknown");
   });
 
-  it("unknown weight → placard conservatively + a weight-unknown conditional", () => {
-    const v = evaluateLoad(load({ lines: [line({ grossWeightLb: null })] }));
+  it("unknown weight on non-bulk material → placard conservatively + a weight-unknown conditional", () => {
+    const v = evaluateLoad(load({
+      vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+      lines: [line({ grossWeightLb: null, packagingKind: "non_bulk" })],
+    }));
     expect(names(v)).toEqual(["FLAMMABLE"]);
     expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("aggregate_weight_unknown");
   });
@@ -81,8 +87,11 @@ describe("computePlacards — fuel scope (§172.504)", () => {
     expect(subs(fo)).toContain("COMBUSTIBLE->FUEL_OIL");
   });
 
-  it("mixed gasoline + LPG → both specific placards required + a DANGEROUS option for each (§172.504(b))", () => {
-    const v = evaluateLoad(load({ lines: [line(), line({ hmtRef: "UN1075-lpg#none", grossWeightLb: 4000 })] }));
+  it("mixed gasoline + LPG on a non-bulk vehicle → both specific placards required + a DANGEROUS option for each (§172.504(b))", () => {
+    const v = evaluateLoad(load({
+      vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+      lines: [line({ grossWeightLb: 600, packagingKind: "non_bulk" }), line({ hmtRef: "UN1075-lpg#none", grossWeightLb: 600, packagingKind: "non_bulk" })],
+    }));
     expect(names(v).sort()).toEqual(["FLAMMABLE", "FLAMMABLE_GAS"]);
     expect(subs(v)).toContain("FLAMMABLE->DANGEROUS");
     expect(subs(v)).toContain("FLAMMABLE_GAS->DANGEROUS");

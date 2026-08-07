@@ -82,12 +82,12 @@ describe("computeExtractionFlags — the outcome table (step 6)", () => {
     expect(computeExtractionFlags(extract, verdict, true)).toContain("provisional_dataset");
   });
 
-  it("real engine: extracted gasoline → FLAMMABLE, but never auto-clears (eligibility not_checked, D2)", () => {
+  it("real engine: extracted gasoline on a non-bulk vehicle → FLAMMABLE, but never auto-clears (eligibility not_checked, D2)", () => {
     const load: LoadInput = {
       evaluatedAt: "2026-07-31T00:00:00Z",
-      vehicle: { kind: "cargo_tank", cargoTankCapacityGal: null, compartments: null },
+      vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
       tankState: "loaded",
-      lines: [{ hmtRef: "UN1203-gasoline#II", reclassedCombustible: false, quantity: { value: 8000, unit: "gal" }, grossWeightLb: null, compartmentIndex: null, isResidueLine: false, flashPointF: null, ethanolPct: null, packagingKind: "bulk", packageCount: null }],
+      lines: [{ hmtRef: "UN1203-gasoline#II", reclassedCombustible: false, quantity: { value: 8000, unit: "gal" }, grossWeightLb: null, compartmentIndex: null, isResidueLine: false, flashPointF: null, ethanolPct: null, packagingKind: "non_bulk", packageCount: null }],
       claimedExceptions: { shipperClaimsNoPlacards: false, claimedSpecialPermits: [] },
       portContext: { vesselConnected: null, imdgPapers: null },
       tripContext: { previousOrCurrentBusinessDayIds: null, carrierRelationship: "unknown" },

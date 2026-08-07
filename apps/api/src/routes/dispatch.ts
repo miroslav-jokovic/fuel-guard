@@ -6,6 +6,7 @@ import {
   reasonRequestSchema,
   rolesThatCanView,
   rolesThatManage,
+  resolveExceptionRequestSchema,
   updateLoadRequestSchema,
 } from "@fuelguard/shared";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
@@ -18,6 +19,9 @@ import {
   assignLoad,
   createLoad,
   endDutySession,
+  getLoadDetail,
+  listExceptions,
+  resolveException,
   listAssignments,
   listEvents,
   listLoads,
@@ -88,12 +92,67 @@ export function dispatchRouter(): Router {
     }),
   );
 
+  /**
+   * One load, with its stops, the photos captured at each of them, the full event timeline and every
+   * lifecycle timestamp. This is what makes a real detail PAGE possible: until it existed the only
+   * way to show one load was to fetch the whole board and `.find()` through it, so `/loads/:id` could
+   * never survive a refresh or a deep link (LD1 / D-LD2).
+   */
+  router.get(
+    "/loads/:id",
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const load = await getLoadDetail(admin, req.auth!.orgId!, param(req, "id"));
+      if (!load) {
+        res.status(404).json(apiError("not_found", "That load no longer exists"));
+        return;
+      }
+      // Photo URLs are signed for five minutes; caching the envelope would outlive them.
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ load });
+    }),
+  );
+
   router.get(
     "/loads/:id/events",
     canView,
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       res.json({ events: await listEvents(admin, req.auth!.orgId!, param(req, "id")) });
+    }),
+  );
+
+  /**
+   * Everything on the board that needs a person (L2 / D-L2). Event-driven, so a new event kind shows
+   * up here rather than being excluded by a filter nobody widened — the failure of the client-side
+   * `isException()` this replaces, which could only ever see two of the five sources.
+   */
+  router.get(
+    "/exceptions",
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      res.json({ exceptions: await listExceptions(admin, req.auth!.orgId!) });
+    }),
+  );
+
+  /** Closing an exception is itself an event — the log is append-only. */
+  router.post(
+    "/loads/:id/exceptions/resolve",
+    canManage,
+    validateBody(resolveExceptionRequestSchema),
+    asyncHandler(async (req, res) => {
+      const loadId = param(req, "id");
+      await run(req, res, "dispatch.exception_resolved", loadId, () =>
+        resolveException(
+          getSupabaseAdmin(getAppLocals(req).env),
+          req.auth!.orgId!,
+          loadId,
+          actorOf(req),
+          res.locals.body as never,
+        ),
+      );
     }),
   );
 

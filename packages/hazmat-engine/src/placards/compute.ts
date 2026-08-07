@@ -20,60 +20,18 @@
 
 import type { Finding, LoadInput, PlacardName, PlacardOutput, TraceNode } from "../types.js";
 import { emptyPlacards } from "../types.js";
-
-// ── minimal consumer view of the dataset (engine may not import @hazmat/data) ────────────────────
-interface DsPgRow { pg: "I" | "II" | "III" | null; labelCodes?: string[]; specialProvisions?: string[] }
-interface DsEntry {
-  entryId: string;
-  psnPrinted: string;
-  psnAlternates?: string[];
-  hazardClass: string | null;
-  subsidiaryClasses?: string[];
-  idPrefix: "UN" | "NA";
-  idNumber: string;
-  pgRows: DsPgRow[];
-}
-interface DsPlacard { classOrDivision: string; table: 1 | 2; placardName: string; designRef: string | null; wordingOptions?: string[] }
-interface DsErg { idNumber: string; guideNumber: string }
-interface DsView { version: string; provisional: boolean; entries: DsEntry[]; placards: DsPlacard[]; erg: DsErg[] }
-
-function readDataset(load: LoadInput): DsView {
-  const d = load.dataset as unknown as Partial<DsView>;
-  return {
-    version: d.version ?? "unknown",
-    provisional: d.provisional === true,
-    entries: Array.isArray(d.entries) ? d.entries : [],
-    placards: Array.isArray(d.placards) ? d.placards : [],
-    erg: Array.isArray(d.erg) ? d.erg : [],
-  };
-}
-
-const PLACARD_NAMES = new Set<PlacardName>([
-  "FLAMMABLE", "GASOLINE", "COMBUSTIBLE", "FUEL_OIL", "FLAMMABLE_GAS", "NON_FLAMMABLE_GAS",
-  "OXYGEN", "POISON_GAS", "FLAMMABLE_SOLID", "SPONTANEOUSLY_COMBUSTIBLE", "DANGEROUS_WHEN_WET",
-  "OXIDIZER", "ORGANIC_PEROXIDE", "POISON", "POISON_INHALATION_HAZARD", "CORROSIVE",
-  "RADIOACTIVE", "CLASS_9", "DANGEROUS",
-  "EXPLOSIVES_1_1", "EXPLOSIVES_1_2", "EXPLOSIVES_1_3", "EXPLOSIVES_1_4", "EXPLOSIVES_1_5", "EXPLOSIVES_1_6",
-]);
-
-function toPlacardName(printed: string): PlacardName | null {
-  const key = printed.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  return PLACARD_NAMES.has(key as PlacardName) ? (key as PlacardName) : null;
-}
-
-/** Leading class/division token, e.g. "5.2 (Organic…)" → "5.2"; "Combustible liquid" → "combustible liquid". */
-function baseClass(s: string): string {
-  const m = /^\s*(\d+(?:\.\d+)?)/.exec(s);
-  return m ? (m[1] as string) : s.trim().toLowerCase();
-}
-
-/** The class a line should be PLACARDED as (honors the §173.150(f) combustible-liquid reclassification). */
-function effectiveClassKey(entry: DsEntry, reclassedCombustible: boolean): string {
-  const hc = entry.hazardClass ?? "";
-  if (reclassedCombustible && baseClass(hc) === "3") return "combustible liquid";
-  if (/comb/i.test(hc)) return "combustible liquid";
-  return baseClass(hc);
-}
+import { pihRestsOnAbsence, selectPlacardRow } from "./tableSelect.js";
+import {
+  baseClass,
+  DANGEROUS_CATEGORY_BAR_LB,
+  effectiveClassKey,
+  isExplosivesDivision,
+  readDataset,
+  subsidiary505,
+  toPlacardName,
+  type DsEntry,
+  type DsPlacard,
+} from "./classify.js";
 
 interface Resolved { line: LoadInput["lines"][number]; entry: DsEntry; spec: DsPlacard; placard: PlacardName }
 
@@ -109,6 +67,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   // 1) resolve each line to its HMT entry + its placard category (fail closed on any miss)
   const resolved: Resolved[] = [];
   const table1Hits: { hmtRef: string; classOrDivision: string }[] = [];
+  const explosivesHits: { hmtRef: string; classOrDivision: string }[] = [];
   for (const line of load.lines) {
     const [entryId] = line.hmtRef.split("#");
     const entry = ds.entries.find((e) => e.entryId === entryId);
@@ -119,12 +78,34 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     }
     const key = effectiveClassKey(entry, line.reclassedCombustible);
     const matches = ds.placards.filter((p) => baseClass(p.classOrDivision) === key);
-    if (matches.length !== 1) {
-      findings.push(withheld(`Class "${entry.hazardClass}" (key "${key}") maps to ${matches.length} placard rows — outside the fuel scope`, { hmtRef: line.hmtRef, key, matched: matches.length }));
-      trace.push({ ruleId: "class_to_placard", fired: false, inputs: { key, matched: matches.length }, citations: [{ cfr: "49 CFR 172.504" }] });
+    // Divisions 6.1 and 5.2 appear in BOTH tables, separated only by a qualifier the class number does
+    // not carry. Decide it from the entry (see tableSelect.ts) instead of giving up — giving up is what
+    // made every Class 6.1 material in the HMT return "withheld".
+    const choice = selectPlacardRow(key, entry, matches);
+    if (!choice.ok) {
+      findings.push(withheld(choice.reason, { hmtRef: line.hmtRef, key, matched: matches.length, cfr: choice.citation }));
+      trace.push({ ruleId: "class_to_placard", fired: false, inputs: { key, matched: matches.length }, citations: [{ cfr: choice.citation }], note: choice.reason });
       return { placards, findings, trace };
     }
-    const spec = matches[0] as DsPlacard;
+    const spec = choice.spec;
+    if (matches.length > 1) {
+      trace.push({ ruleId: "placard_table_disambiguated", fired: true, inputs: { hmtRef: line.hmtRef, key, chosenTable: spec.table }, citations: [{ cfr: "49 CFR 172.102(c)(1)" }], note: choice.because });
+    }
+    // D2 — never under-placard. A non-PIH call made purely because no inhalation special provision is
+    // present is a call about data the shipped table cannot fully evidence: it carries no hazard-zone
+    // column. Compute the Table 2 placard, and refuse to let the load auto-clear on it.
+    if (spec.table === 2 && pihRestsOnAbsence(key, entry)) {
+      findings.push({
+        ruleId: "pih_determination_from_special_provisions",
+        tier: "conditional",
+        message:
+          `${entry.psnPrinted} is treated as NOT poisonous by inhalation because no §172.102 special provision 1–4 ` +
+          "and no inhalation-hazard shipping name applies. A PIH material is a Table 1 material and must be " +
+          "placarded in any quantity — confirm the classification on the shipping paper before relying on this.",
+        citations: [{ cfr: "49 CFR 172.102(c)(1)" }, { cfr: "49 CFR 171.8" }],
+        evidence: { hmtRef: line.hmtRef, entryId: entry.entryId },
+      });
+    }
     // 1b) Table 1 gate (D4-revised, D2 fail-closed): the fuel-scope engine RECOGNIZES 49 CFR 172.504 Table 1
     //     materials (explosives 1.1–1.3, 2.3 poison gas, 4.3, PIH 6.1, organic-peroxide 5.2, radioactive) from
     //     the dataset but does NOT compute their placards — Table 1 *logic* is a later expansion pack. Recognition
@@ -133,6 +114,22 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     if (spec.table === 1) {
       table1Hits.push({ hmtRef: line.hmtRef, classOrDivision: spec.classOrDivision });
       trace.push({ ruleId: "table1_recognized", fired: true, inputs: { hmtRef: line.hmtRef, class: entry.hazardClass, classOrDivision: spec.classOrDivision }, citations: [{ cfr: "49 CFR 172.504" }], note: "Table 1 material — out of v1 scope (D4-revised)" });
+      continue;
+    }
+    // Explosives gate (D4-revised). Divisions 1.4/1.5/1.6 genuinely ARE Table 2 rows — §172.504(e)
+    // says so and the dataset is right to record it — but D4 defers explosives *logic*, and that
+    // deferral is about depth, not table membership. An explosives load needs compatibility groups,
+    // the §172.504(f) exception interplay, its own §177.848 segregation, and the rule that explosives
+    // may never use the DANGEROUS substitution. None of that is implemented, so emitting a bare
+    // EXPLOSIVES 1.4 diamond would UNDERSTATE the load — the exact D2 failure the Table 1 gate exists
+    // to prevent, arriving through a different door. Recognise and block instead.
+    //
+    // The alternative — editing the dataset to call these Table 1 — was rejected outright: the dataset
+    // states the regulation, and the parser asserts its own table signatures precisely so nobody can
+    // quietly move a row to make the code's life easier.
+    if (isExplosivesDivision(key)) {
+      explosivesHits.push({ hmtRef: line.hmtRef, classOrDivision: spec.classOrDivision });
+      trace.push({ ruleId: "explosives_recognized", fired: true, inputs: { hmtRef: line.hmtRef, class: entry.hazardClass }, citations: [{ cfr: "49 CFR 172.504" }], note: "Explosives division — placard logic deferred (D4-revised)" });
       continue;
     }
     const placard = toPlacardName(spec.placardName);
@@ -164,76 +161,189 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     return { placards, findings, trace };
   }
 
+  // Explosives verdict — same posture as Table 1: whole load blocked, nothing computed, said plainly.
+  if (explosivesHits.length > 0) {
+    const classes = [...new Set(explosivesHits.map((h) => h.classOrDivision))];
+    findings.push({
+      ruleId: "explosives_out_of_scope_v1",
+      tier: "violation",
+      message:
+        `This load contains an explosives material (${classes.join(", ")}). Explosives placarding depends on ` +
+        `compatibility groups and exception rules HazmatGuard does not yet evaluate, so no placards are computed ` +
+        `and the load cannot be cleared — route it to a hazmat-trained reviewer; do not rely on the tool for this load.`,
+      citations: [{ cfr: "49 CFR 172.504" }, { cfr: "internal: explosives out of scope (plan D4-revised / D2)" }],
+      evidence: { explosivesClasses: classes, lines: explosivesHits.map((h) => h.hmtRef) },
+    });
+    trace.push({ ruleId: "explosives_out_of_scope_v1", fired: true, inputs: { explosivesClasses: classes, count: explosivesHits.length }, citations: [{ cfr: "49 CFR 172.504" }], note: "Explosives recognized and blocked; no placards computed for the load." });
+    return { placards, findings, trace };
+  }
+
   if (resolved.length === 0) {
     trace.push({ ruleId: "any_placardable_line", fired: false, inputs: {}, citations: [] });
     return { placards, findings, trace }; // recognized, none placardable → no placards, nothing withheld
   }
 
-  // 2) §172.504(c) weight gate — Table-2 materials need placards only at ≥ 454 kg (1,001 lb) aggregate
+  // ── 2) §172.504(c) — the aggregate, and what it does NOT govern ───────────────────────────────
+  // The 1,001 lb threshold applies to NON-BULK Table 2 material only. Three exclusions, each with its
+  // own reason, and every one of them was missing: the code summed all Table 2 lines regardless.
+  //
+  //   · BULK placards at any quantity. A cargo tank IS bulk packaging, so a tanker under 1,001 lb used
+  //     to come back with NO placards — the most dangerous output this function could produce.
+  //   · RESIDUE-only non-bulk lines are excluded from the aggregate (§172.504(d), §173.29(c)).
+  //   · §172.505 subsidiary materials placard regardless of the aggregate.
+  const isTank = load.vehicle.kind === "cargo_tank";
   const table2 = resolved.filter((r) => r.spec.table === 2); // Table 1 already gated out above
-  const weights = table2.map((r) => r.line.grossWeightLb);
+  const isBulk = (r: Resolved): boolean => r.line.packagingKind === "bulk" || isTank;
+  const has505 = (r: Resolved): boolean => subsidiary505(r.entry).pih || subsidiary505(r.entry).dww;
+
+  const alwaysPlacard = table2.filter((r) => isBulk(r) || has505(r));
+  const counted = table2.filter((r) => !isBulk(r) && !has505(r) && !r.line.isResidueLine);
+  const excludedResidue = table2.filter((r) => !isBulk(r) && !has505(r) && r.line.isResidueLine);
+
+  const weights = counted.map((r) => r.line.grossWeightLb);
   const weightKnown = weights.every((w) => w != null);
   const aggregateLb = weights.reduce<number>((s, w) => s + (w ?? 0), 0);
-  const table2Placards = weightKnown && aggregateLb < 1001 ? false : true; // unknown → conservative
+  const thresholdMet = counted.length === 0 ? false : !weightKnown || aggregateLb >= 1001;
+
   trace.push({
     ruleId: "weight_threshold_1001lb",
     fired: true,
-    inputs: { aggregateLb: weightKnown ? aggregateLb : null, table2Placards },
-    citations: [{ cfr: "49 CFR 172.504(c)" }],
+    inputs: {
+      aggregateLb: weightKnown ? aggregateLb : null,
+      countedLines: counted.length,
+      alwaysPlacardLines: alwaysPlacard.length,
+      residueExcluded: excludedResidue.length,
+      thresholdMet,
+    },
+    citations: [{ cfr: "49 CFR 172.504(c)" }, { cfr: "49 CFR 172.504(d)" }, { cfr: "49 CFR 173.29(c)" }],
     note: weightKnown ? undefined : "aggregate weight unknown → placarding conservatively",
   });
-  if (!weightKnown && table2.length > 0) {
+
+  if (!weightKnown && counted.length > 0) {
     findings.push({
       ruleId: "aggregate_weight_unknown",
       tier: "conditional",
       message: "Aggregate gross weight is unknown, so the 1,001-lb (§172.504(c)) exception cannot be applied — placards are asserted conservatively. Confirm the weight.",
       citations: [{ cfr: "49 CFR 172.504(c)" }],
-      evidence: { table2Lines: table2.length },
+      evidence: { countedLines: counted.length },
     });
   }
-  if (weightKnown && aggregateLb < 1001) {
+  if (alwaysPlacard.length > 0) {
+    findings.push({
+      ruleId: "bulk_placards_regardless_of_weight",
+      tier: "info",
+      message: isTank
+        ? "This is a cargo tank, which is bulk packaging — the 1,001-lb aggregate does not apply and these placards are required at any quantity (§172.504(c))."
+        : `${alwaysPlacard.length} line(s) are bulk or carry a §172.505 subsidiary hazard — they placard regardless of the aggregate.`,
+      citations: [{ cfr: "49 CFR 172.504(c)" }, { cfr: "49 CFR 172.505" }],
+      evidence: { lines: alwaysPlacard.length, isTank },
+    });
+  }
+  if (excludedResidue.length > 0) {
+    findings.push({
+      ruleId: "residue_excluded_from_aggregate",
+      tier: "info",
+      message: `${excludedResidue.length} residue-only line(s) are excluded from the 1,001-lb aggregate (§172.504(d), §173.29(c)).`,
+      citations: [{ cfr: "49 CFR 172.504(d)" }, { cfr: "49 CFR 173.29(c)" }],
+      evidence: { lines: excludedResidue.length },
+    });
+  }
+  if (counted.length > 0 && weightKnown && !thresholdMet) {
     findings.push({
       ruleId: "below_1001lb_no_placard",
       tier: "info",
-      message: `Aggregate Table-2 weight is ${aggregateLb} lb (< 1,001 lb), so no placards are required (§172.504(c)).`,
-      citations: [{ cfr: "49 CFR 172.504(c)" }],
+      message: `Non-bulk Table-2 aggregate is ${aggregateLb} lb (< 1,001 lb), so those placards are not required — they remain permitted if you choose to display them (§172.502(c)).`,
+      citations: [{ cfr: "49 CFR 172.504(c)" }, { cfr: "49 CFR 172.502(c)" }],
       evidence: { aggregateLb },
     });
   }
 
-  // 3) which categories actually require a placard, deduped by placard name
-  const requiring: Resolved[] = table2Placards ? table2 : [];
+  // ── 3) categories, deduped by placard name ────────────────────────────────────────────────────
+  const requiring: Resolved[] = [...alwaysPlacard, ...(thresholdMet ? counted : [])];
   const distinct = new Map<PlacardName, Resolved[]>();
   for (const r of requiring) {
     const arr = distinct.get(r.placard) ?? [];
     arr.push(r);
     distinct.set(r.placard, arr);
   }
-
   for (const placard of distinct.keys()) {
     placards.required.push({ placard, positions: "each_side_and_each_end", because: [{ cfr: "49 CFR 172.504(a)" }] });
   }
 
-  // 4) §172.504(b) sole-vs-mixed — ≥2 Table-2 categories MAY use one DANGEROUS placard (R2: SME to confirm)
-  if (distinct.size >= 2) {
-    for (const placard of distinct.keys()) {
-      placards.optionalSubstitutions.push({
-        instead: placard,
-        use: "DANGEROUS",
-        because: [{ cfr: "49 CFR 172.504(b)" }],
-      });
+  // Sub-threshold categories are PERMITTED, not absent (§172.502(c)).
+  if (!thresholdMet) {
+    for (const placard of new Set(counted.map((r) => r.placard))) {
+      if (!distinct.has(placard)) {
+        placards.permitted.push({ placard, because: [{ cfr: "49 CFR 172.502(c)" }] });
+      }
+    }
+  }
+
+  // ── 3b) §172.505 subsidiary placards ──────────────────────────────────────────────────────────
+  // A Table 2 material can carry an inhalation or dangerous-when-wet subsidiary hazard, and then it
+  // needs that placard IN ADDITION to its own. D4 kept these live precisely because dropping them
+  // "would be a silent hole"; they were nevertheless never implemented.
+  const add505 = (placard: PlacardName, cfr: string, rs: Resolved[]): void => {
+    if (placards.required.some((p) => p.placard === placard)) return;
+    placards.required.push({ placard, positions: "each_side_and_each_end", because: [{ cfr }] });
+    trace.push({
+      ruleId: "subsidiary_placard_172_505",
+      fired: true,
+      inputs: { placard, lines: rs.map((r) => r.line.hmtRef) },
+      citations: [{ cfr }],
+    });
+  };
+  const pihLines = table2.filter((r) => subsidiary505(r.entry).pih);
+  const dwwLines = table2.filter((r) => subsidiary505(r.entry).dww);
+  if (pihLines.length > 0) add505("POISON_INHALATION_HAZARD", "49 CFR 172.505(a)", pihLines);
+  if (dwwLines.length > 0) add505("DANGEROUS_WHEN_WET", "49 CFR 172.505(b)", dwwLines);
+
+  // ── 4) §172.504(b) DANGEROUS — three restrictions, none of which existed ──────────────────────
+  // It was offered on any load with two Table 2 categories, including a cargo tank, where the rule is
+  // a hard block. The 2,205 lb bar and the non-bulk-only limit were a comment string.
+  const nonBulkRequiring = requiring.filter((r) => !isBulk(r) && !has505(r));
+  const nonBulkCategories = new Map<PlacardName, Resolved[]>();
+  for (const r of nonBulkRequiring) {
+    const arr = nonBulkCategories.get(r.placard) ?? [];
+    arr.push(r);
+    nonBulkCategories.set(r.placard, arr);
+  }
+
+  if (isTank) {
+    placards.prohibited.push({ placard: "DANGEROUS", because: [{ cfr: "49 CFR 172.504(b)" }] });
+    trace.push({
+      ruleId: "dangerous_prohibited_on_bulk",
+      fired: true,
+      inputs: { isTank },
+      citations: [{ cfr: "49 CFR 172.504(b)" }],
+      note: "DANGEROUS is a non-bulk substitution; a cargo tank is bulk packaging.",
+    });
+  } else if (nonBulkCategories.size >= 2) {
+    // A category with ≥2,205 lb loaded at one facility keeps its own placard (§172.504(b)). Unknown
+    // weight is treated as over the bar: the substitution is optional, so withholding it is safe.
+    const substitutable = [...nonBulkCategories.entries()].filter(([, rs]) => {
+      const known = rs.every((r) => r.line.grossWeightLb != null);
+      const lb = rs.reduce<number>((sum, r) => sum + (r.line.grossWeightLb ?? 0), 0);
+      return known && lb < DANGEROUS_CATEGORY_BAR_LB;
+    });
+    if (substitutable.length >= 2) {
+      for (const [placard] of substitutable) {
+        placards.optionalSubstitutions.push({ instead: placard, use: "DANGEROUS", because: [{ cfr: "49 CFR 172.504(b)" }] });
+      }
     }
     trace.push({
       ruleId: "mixed_load_dangerous_option",
-      fired: true,
-      inputs: { categories: distinct.size },
+      fired: substitutable.length >= 2,
+      inputs: { nonBulkCategories: nonBulkCategories.size, substitutable: substitutable.length, barLb: DANGEROUS_CATEGORY_BAR_LB },
       citations: [{ cfr: "49 CFR 172.504(b)" }],
-      note: "≥2 Table-2 categories: one DANGEROUS placard may replace the specific placards, EXCEPT any category with ≥2,205 lb loaded at one facility still needs its own. R2: confirm the SME's 'worded placard' direction.",
+      note:
+        substitutable.length >= 2
+          ? "≥2 non-bulk Table-2 categories, each under 2,205 lb at one facility — one DANGEROUS placard may replace them."
+          : "Not offered: fewer than two categories qualify once the 2,205-lb single-category bar is applied.",
     });
   }
 
   // 5) §172.542(c)/172.544(c) fuel wording — GASOLINE for gasoline, FUEL OIL for fuel oil (highway tank)
-  const isTank = load.vehicle.kind === "cargo_tank";
   for (const [placard, rs] of distinct) {
     const opts = rs[0]?.spec.wordingOptions ?? [];
     if (!isTank || opts.length === 0) continue;

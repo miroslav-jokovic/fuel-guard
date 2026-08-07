@@ -1,6 +1,8 @@
 import { randomUUID, createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { evaluateLoad, type LoadInput, type Verdict } from "@hazmat/engine";
+import type { HaulVehicleKind } from "@fuelguard/shared";
+import { equipmentAssumptionAdvisory, readEquipmentKind } from "./hazmatEquipment.js";
 import { loadDataset, type Dataset } from "@hazmat/data";
 import { transitionLoad } from "./hazmatLoads.js";
 import { notifyReviewersOfFlag } from "./hazmatNotify.js";
@@ -46,11 +48,13 @@ export interface CargoTankProfileRow {
 export function buildManualLoadInput(
   load: ManualLoadRow, profile: CargoTankProfileRow | null, dataset: Dataset, evaluatedAt: string,
   linesOverride?: unknown[],
+  /** Resolved from the load's own equipment (F-P2). Defaults to the conservative reading. */
+  vehicleKind: HaulVehicleKind = "cargo_tank",
 ): LoadInput {
   return {
     evaluatedAt,
     vehicle: {
-      kind: "cargo_tank", // fuel-fleet default; refined by the cargo-tank profile when present
+      kind: vehicleKind,
       cargoTankCapacityGal: profile?.cargo_capacity_gal ?? null,
       compartments: (profile?.compartments as LoadInput["vehicle"]["compartments"]) ?? null,
     },
@@ -181,10 +185,15 @@ export async function executeManualAnalysis(
       profile = (p as CargoTankProfileRow | null) ?? null;
     }
 
+    // F-P2: the carrier context comes from the equipment the load is actually on. Until now this line
+    // was a hard-coded `cargo_tank` with a comment claiming the profile refined it — the profile only
+    // ever supplied capacity and compartments, so the trailer a dispatcher picked changed nothing.
+    const equipment = await readEquipmentKind(admin, orgId, l, profile !== null);
+
     // §5/§5.1 (M3): the qualification gate runs on EVERY analysis; its failures are UNCLEARABLE
     // (§10.2) — an unqualified driver / lapsed org registration can see a verdict but never a
     // `cleared` load. Independent of the engine verdict; unioned into the flags below.
-    const qual = await evaluateQualification(admin, orgId, { driver_id: l.driver_id, planned_pickup_at: l.planned_pickup_at, declared_lines: l.declared_lines }, "cargo_tank", new Date().toISOString());
+    const qual = await evaluateQualification(admin, orgId, { driver_id: l.driver_id, planned_pickup_at: l.planned_pickup_at, declared_lines: l.declared_lines }, equipment.kind, new Date().toISOString());
 
     let verdict: Verdict | { error: string };
     let advisories: unknown[] = [];
@@ -192,7 +201,7 @@ export async function executeManualAnalysis(
     let flags: string[];
     let engineVersion = "unknown";
     try {
-      const v = evaluateLoad(buildManualLoadInput(l, profile, dataset, new Date().toISOString()));
+      const v = evaluateLoad(buildManualLoadInput(l, profile, dataset, new Date().toISOString(), undefined, equipment.kind));
       verdict = v; engineVersion = v.engineVersion;
       flags = computeManualFlags(v, dataset.provisional);
       advisories = computeAdvisories(v);
@@ -204,6 +213,8 @@ export async function executeManualAnalysis(
 
     flags = [...new Set([...flags, ...qual.flags])];
     outcome = flags.length ? "flagged" : "green";
+    const equipmentNote = equipmentAssumptionAdvisory(equipment);
+    if (equipmentNote) advisories = [...advisories, equipmentNote];
     if (qual.usedFallback) {
       // §10.3: tier-info, so it is an ADVISORY, not a flag — flags are blocking by definition here
       // (isGreen = zero flags) and "we evaluated at request time" must not block anything.

@@ -127,30 +127,116 @@ F-LD2 (history silently empty) and F-LD3 (terminal loads reassignable) are fixed
 
 Nothing else starts until the matrices run green.
 
-### LD1 — The point-read endpoint (D-LD2)
+### LD1 — The point-read endpoint (D-LD2) — **DONE 2026-08-07**
 
-`GET /api/dispatch/loads/:id` → `{ load, stops[], events[], photos_by_stop }`, `canView` roles, with
-signed photo URLs and resolved actor names. Service tests land with it (D-L7).
+`GET /api/dispatch/loads/:id` → `{ load }` carrying stops (each with its captured photos), the event
+timeline with resolved actors, and every lifecycle timestamp. `canView` roles, `Cache-Control:
+no-store` because the photo URLs expire in five minutes.
 
-### LD2 — The page (D-LD1)
+`apps/api/src/services/dispatchLoads/detail.ts`, with `detail.test.ts` alongside (D-L7). Notes:
 
-Move `LoadDetailPanel`'s content into a routed page. Sections, in order of what dispatch actually asks:
-header and status; lifecycle provenance strip (submitted → approved → released → assigned → accepted →
-delivered, each with actor and time); driver/truck/trailer with reassign; stops, each showing its real
-status, arrival and completion times, skip reason, and its captured photos; approval checklist; history;
-action rail. Delete `LoadsPage.vue`, `LoadForm.vue`, `DispatchAssignmentsPage.vue` and the duplicate
-`composables/useDispatchLoads.ts` in the same change (D-L4).
+- **Photos are signed in one batch call**, 300-second TTL, the same shape `hazmatLoads.ts:189` uses. A
+  per-photo round trip makes a twelve-stop load unusable; long-lived URLs put proof-of-work images one
+  leaked link away from public.
+- **Storage failure degrades to `url: null`**, it does not fail the request. Storage is the least
+  reliable dependency in the path and the stops, timeline and checklist are still worth showing. Same
+  for the photo table read itself.
+- **The org boundary is a filter on every read**, not a check afterwards. Asserted in the tests.
+- Stops, photos and events are fetched concurrently; only the load read is sequential, because it is
+  what proves the organization owns the id.
 
-### LD3 — Photos and per-stop truth (L1 / D-L1)
+### LD2 — The page (D-LD1) — **DONE 2026-08-07**
 
-Thumbnail row per slot with a lightbox; explicit states for not-yet-uploaded, skipped-with-reason and
-signing failure. This is the highest-value single item in the whole plan: the proof of work exists and
-the office has never seen it.
+`apps/web/src/pages/DispatchLoadDetailPage.vue`, on the LD1 point-read. `/loads/:id` now routes to it
+with `meta.parent: "/loads"`, so AppShell supplies the back chevron and the H1 — the page adds neither.
 
-### LD4 — Exceptions and amendments (L2 / D-L2)
+Sections, in the order dispatch asks for them: summary with the action rail; **Progress** (the
+provenance strip — every stage the load actually reached, with its time); approval checklist; stops;
+history. Editing moved onto this page (`?edit=1`), because editing one load from a board was only ever
+a consequence of detail being a drawer.
 
-`GET /api/dispatch/exceptions` over `load_events`, the amendment banner with Apply/Dismiss, Adopt for
-equipment mismatch, and the `load_changed` producer that D-L8 specifies and nothing emits.
+Two things landed here that were meant for LD3 and made no sense to defer once the page existed:
+
+- **Per-stop truth.** Each stop shows its real status, arrival and completion times, and the driver's
+  free-text note. Required photo slots render green when captured and amber when still outstanding, so
+  the gap dispatch chases is visible without opening anything.
+- **The photos.** Thumbnails under each stop, from the batch-signed URLs. Captured since `0085`,
+  stored the whole time, and never once shown to the office.
+
+**Deliberately not a lightbox.** `D-L1` said thumbnail row *plus* lightbox; there is no modal or
+dialog primitive in this design system, and inventing one is precisely the mistake the hazmat pages
+made. A thumbnail opens the full-size image in a new tab, which is also what someone saving a bill of
+lading actually wants. If a lightbox is wanted later it should be designed as a shared component
+first.
+
+**Five files deleted** (D-L4), all verified to have no remaining importer:
+`pages/LoadsPage.vue`, `features/dispatch/LoadForm.vue`, `pages/DispatchAssignmentsPage.vue`,
+`composables/useDispatchLoads.ts` (the drifted twin), and `features/dispatch/LoadDetailPanel.vue`,
+which the page supersedes. The board no longer imports any single-load mutation.
+
+`vue-tsc` clean; design-token and token-parity gates pass.
+
+### LD3 — Photo states and evidence verification — **DONE 2026-08-07**
+
+LD2 absorbed the thumbnails and per-stop truth. What remained was making the photos *legible* and
+making the evidence *verifiable*, and both are now done.
+
+**Legible.** Photos are grouped by the slot that was ASKED for, not shown as a flat row. A flat row
+cannot answer the only question that matters — "is the bill of lading there?" — because a stop with
+three seal photos and no BOL looks busy while missing the one thing anyone will ask for. Every required
+slot gets a row whether or not it was captured; anything the driver shot outside the asked-for slots is
+grouped as `· extra` rather than dropped. A finished stop with outstanding required slots carries a
+count badge in its header, so the board question is answerable without reading each group.
+
+"Not captured" and "Not captured yet" are different strings on purpose: before a stop is finished, an
+empty slot is a schedule, not a gap.
+
+**Verifiable.** Two independent detections, because a signed URL is signed over a *path* — Storage
+issues one happily for an object that no longer exists, and the browser is the first thing that finds
+out:
+
+- Client-side, a failed image load renders **"Image missing"** in danger tone rather than an empty
+  frame. A dead thumbnail reading as "no photo taken" is a different and much more comfortable claim
+  than the true one.
+- Server-side, `load-photos` now has a reconciler. It never had one: nothing checked that a photo the
+  office can see a row for still exists. `storageReconcile.ts` was generalised from hazmat-only to
+  `reconcileBucketOrphans(bucket, table)`, with thin wrappers for both, and the nightly scheduler now
+  runs both buckets — independently, so a failure on one cannot skip the other. Rows are flagged, never
+  deleted: a row is the claim that evidence exists, and losing the claim silently is worse than losing
+  the bytes.
+
+Still open: photo retention (`LOADS-PLAN` question 1). `load-photos` is backed up and never expired.
+
+### LD4 — Exceptions, amendments and the change producer — **DONE 2026-08-07**
+
+`GET /api/dispatch/exceptions`, event-driven per D-L2, with all five sources: declines, aging
+approvals, `equipment_mismatch` (D47), `amended` (D48) and `load_changed` (D-L8) — plus auto-closed
+shifts from `driver_duty_sessions`.
+
+**Why it had to move to the server.** The `isException()` it replaces derived from `loads` columns, so
+it could only ever see two of the five: a decline and an aging approval. Equipment mismatches, TMS
+amendments and post-release changes exist *only* as events — the tab whose entire purpose is showing
+what needs attention was blind to three fifths of it. Reading the event log also makes the feed
+complete by construction: a new event kind appears rather than being excluded by a filter nobody
+widened.
+
+**Two event kinds the plan specified and the schema forbade.** Migration `0145` widens
+`load_events_kind_check`, which would have rejected both:
+
+- **`load_changed`** (D-L8) — emitted when a **released** load's driver-visible facts change, with the
+  before-and-after of each. Scoped deliberately: equipment, commodity, hazmat, miles and the stop list;
+  never notes or billing refs. Emitting on every field would train drivers to ignore the category,
+  which is worse than not emitting.
+- **`exception_resolved`** (D-L2) — how an append-only log closes an exception. `load_events` is what
+  an auditor reads, so an exception is closed by a later event naming it, never by editing history. The
+  payload carries the id resolved, the action taken and who took it.
+
+Also added an `(org_id, kind, occurred_at)` index: the feed reads by kind across the whole org, which
+the existing per-load index cannot serve.
+
+On the board, Exceptions is now its own table rather than a filter over the loads list — three of its
+sources have no load row to filter. Each row states what happened, which load, which driver, when, and
+the one action that clears it.
 
 ### LD5 — Context (D-LD5, D-LD6)
 

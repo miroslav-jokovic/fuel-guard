@@ -11,7 +11,10 @@
  * each writing a `load_events` row. The transition gates live in the `loads_status_guard` trigger (0087).
  */
 export { listLoads, listEvents, listAssignments } from "./dispatchLoads/queries.js";
+export { getLoadDetail, type LoadPhoto } from "./dispatchLoads/detail.js";
+export { listExceptions } from "./dispatchLoads/exceptions.js";
 export {
+  resolveException,
   createLoad,
   updateLoad,
   transitionLoad,

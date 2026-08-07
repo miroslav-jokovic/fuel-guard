@@ -119,3 +119,64 @@ export function shiftDuration(startedAt: string | null, nowMs: number): string {
   const h = Math.floor(mins / 60);
   return h > 0 ? `${h}h ${mins % 60}m` : `${mins}m`;
 }
+
+// ── exceptions (D-L2) ─────────────────────────────────────────────────────────
+/**
+ * The five things that go wrong on a load and need a human, per §14.9.
+ *
+ * The old client-side `isException()` derived from `loads` columns, which is why it could only ever
+ * see two of these — the other three exist only as events. Deriving the feed from the event log is
+ * also what makes it complete by construction: a new event kind shows up rather than being silently
+ * excluded by a filter nobody remembered to widen.
+ */
+export const EXCEPTION_KINDS = [
+  "declined",
+  "stale_approval",
+  "equipment_mismatch",
+  "amended",
+  "load_changed",
+  "auto_timeout",
+] as const;
+export type ExceptionKind = (typeof EXCEPTION_KINDS)[number];
+
+/** The single action that resolves each kind — stated by the server so the UI cannot invent one. */
+export const EXCEPTION_ACTIONS = ["review_diff", "adopt_equipment", "acknowledge", "reassign"] as const;
+export type ExceptionAction = (typeof EXCEPTION_ACTIONS)[number];
+
+export const EXCEPTION_LABELS: Record<ExceptionKind, string> = {
+  declined: "Driver declined",
+  stale_approval: "Waiting on approval",
+  equipment_mismatch: "Equipment differs from plan",
+  amended: "Amended by the TMS",
+  load_changed: "Changed after release",
+  auto_timeout: "Shift auto-closed",
+};
+
+export const dispatchExceptionSchema = z.object({
+  /** The event id, or a synthetic id for the two derived (non-event) kinds. */
+  id: z.string(),
+  kind: z.enum(EXCEPTION_KINDS),
+  load_id: z.uuid().nullable(),
+  load_ref: z.string().nullable(),
+  driver_name: z.string().nullable(),
+  /** One sentence: what happened, in the words a dispatcher would use. */
+  summary: z.string(),
+  /** Kind-specific context — the field diff for an amendment, planned vs actual for a mismatch. */
+  detail: z.record(z.string(), z.unknown()).default({}),
+  action: z.enum(EXCEPTION_ACTIONS),
+  occurred_at: z.string(),
+});
+export type DispatchException = z.infer<typeof dispatchExceptionSchema>;
+
+export const exceptionsResponseSchema = z.object({ exceptions: z.array(dispatchExceptionSchema) });
+export type ExceptionsResponse = z.infer<typeof exceptionsResponseSchema>;
+
+/** Resolving an exception is itself an event (`exception_resolved`) — the log is append-only. */
+export const resolveExceptionRequestSchema = z.object({
+  /** The `load_events.id` being resolved, absent for the two derived kinds. */
+  event_id: z.uuid().nullish(),
+  kind: z.enum(EXCEPTION_KINDS),
+  action: z.enum(EXCEPTION_ACTIONS),
+  note: z.string().max(500).nullish(),
+});
+export type ResolveExceptionRequest = z.infer<typeof resolveExceptionRequestSchema>;

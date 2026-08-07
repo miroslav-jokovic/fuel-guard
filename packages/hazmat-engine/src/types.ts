@@ -100,6 +100,13 @@ export interface TraceNode {
 }
 export interface PlacardOutput {
   required: Array<{ placard: PlacardName; positions: "each_side_and_each_end"; because: Citation[] }>;
+  /**
+   * Placards that are NOT required but MAY be displayed — §172.502(c). A carrier under the 1,001 lb
+   * Table 2 aggregate is entitled to placard anyway, and many do as a matter of policy. Reporting this
+   * as an empty required-set with no further comment reads as "no placards", which is a different and
+   * misleading statement.
+   */
+  permitted: Array<{ placard: PlacardName; because: Citation[] }>;
   optionalSubstitutions: Array<{ instead: PlacardName; use: PlacardName; because: Citation[] }>;
   prohibited: Array<{ placard: PlacardName; because: Citation[] }>;
   idDisplays: Array<{ idNumber: string; format: "on_placard" | "orange_panel" | "white_square_on_point"; positions: string; because: Citation[] }>;
@@ -121,5 +128,6 @@ export interface Verdict {
 }
 
 export function emptyPlacards(): PlacardOutput {
-  return { required: [], optionalSubstitutions: [], prohibited: [], idDisplays: [], ergGuides: [], marks: [] };
+  return { required: [],
+    permitted: [], optionalSubstitutions: [], prohibited: [], idDisplays: [], ergGuides: [], marks: [] };
 }

@@ -16,6 +16,7 @@ import { enqueueJob } from "../queue/enqueue.js";
 import type { DeclaredLineRef } from "./mapBolLines.js";
 import { evaluateQualification } from "../qualification.js";
 import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@fuelguard/shared";
+import { hasCargoTankProfile, readEquipmentKind } from "../hazmatEquipment.js";
 
 /**
  * Extraction analysis path (plan H6-orchestrator). Mirrors the manual path (startManualAnalysis) but the
@@ -83,9 +84,14 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     if (!loadRow) return; // load vanished — nothing to record
     const load = loadRow as unknown as ManualLoadRow;
 
+    // F-P2: read the carrier context from the equipment before anything that depends on it. The
+    // qualification digest below is a cache-key term, and the kind is one of its inputs — so this has
+    // to happen first or a trailer type change would replay a stale verdict.
+    const equipment = await readEquipmentKind(admin, orgId, load, await hasCargoTankProfile(admin, orgId, load));
+
     // §5/§5.1 (M3): qualification gate — evaluated BEFORE hashing because its inputs are a cache-key
     // term (§10.10): renew a medical card and the same photo MUST re-evaluate, not replay a stale pass.
-    const qual = await evaluateQualification(admin, orgId, { driver_id: load.driver_id, planned_pickup_at: load.planned_pickup_at }, "cargo_tank", now);
+    const qual = await evaluateQualification(admin, orgId, { driver_id: load.driver_id, planned_pickup_at: load.planned_pickup_at }, equipment.kind, now);
 
     const { data: docs } = await admin
       .from("hazmat_documents").select("storage_path, content_type, page")
@@ -135,7 +141,7 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
       .map((l) => ({ hmtRef: l.hmtRef!, reclassedCombustible: l.reclassedCombustible, quantityValue: l.quantity?.value ?? null }));
 
     const extract = await runExtraction(
-      { images, gateBuffers, index: buildDatasetIndex(dataset), models: { A: env.HAZMAT_MODEL_A, B: env.HAZMAT_MODEL_B }, vehicleKind: "cargo_tank", declaredLines },
+      { images, gateBuffers, index: buildDatasetIndex(dataset), models: { A: env.HAZMAT_MODEL_A, B: env.HAZMAT_MODEL_B }, vehicleKind: equipment.kind, declaredLines },
       { extractor: anthropicVisionExtractor(env), runUsability: (buf) => usabilityGate(buf) },
     );
 
@@ -147,7 +153,7 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
         const { data: p } = await (load.trailer_id ? q.eq("trailer_id", load.trailer_id) : q.eq("vehicle_id", load.vehicle_id)).maybeSingle();
         profile = (p as CargoTankProfileRow | null) ?? null;
       }
-      verdict = evaluateLoad(buildManualLoadInput(load, profile, dataset, now, extract.engineLines));
+      verdict = evaluateLoad(buildManualLoadInput(load, profile, dataset, now, extract.engineLines, equipment.kind));
     }
 
     const flags = [...new Set([...computeExtractionFlags(extract, verdict, dataset.provisional), ...qual.flags])];

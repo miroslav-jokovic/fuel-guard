@@ -17,6 +17,6 @@ import HazmatCalculatorForm from "@/features/hazmat/HazmatCalculatorForm.vue";
       </template>
     </PageHeader>
 
-    <HazmatCalculatorForm />
+    <HazmatCalculatorForm fleet />
   </div>
 </template>

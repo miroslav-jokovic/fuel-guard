@@ -76,18 +76,26 @@ export interface StorageReconcileResult extends StorageReconcilePlan {
 }
 
 /**
- * Reconcile the `hazmat` bucket against `hazmat_documents`. Deletes orphan objects past the 24 h grace
- * (when `apply`), and loudly flags rows whose object is missing (never deletes a row — that is evidence).
+ * Reconcile one evidence bucket against the table that indexes it. Deletes orphan objects past the
+ * 24 h grace (when `apply`), and loudly flags rows whose object is missing — never deletes a row,
+ * because a row is the claim that evidence exists and losing the claim silently is worse than losing
+ * the bytes.
+ *
+ * Generalised from the hazmat-only version (LD3). `load-photos` holds a driver's proof of work at every
+ * stop and had no reconciler at all: nothing checked that a photo dispatch can see a row for actually
+ * exists in Storage. That is the failure mode where the database says the bill of lading was
+ * photographed and the object behind it is gone.
  */
-export async function reconcileHazmatStorageOrphans(
+export async function reconcileBucketOrphans(
   admin: SupabaseClient,
+  source: { bucket: string; table: string; label: string },
   opts: { apply?: boolean; nowIso?: string } = {},
 ): Promise<StorageReconcileResult> {
-  const { data, error } = await admin.from("hazmat_documents").select("storage_path");
+  const { data, error } = await admin.from(source.table).select("storage_path");
   if (error) throw new Error(error.message);
   const rowPaths = (data ?? []).map((r) => (r as { storage_path: string }).storage_path);
 
-  const objects = await listAllObjects(admin, "hazmat");
+  const objects = await listAllObjects(admin, source.bucket);
   const nowIso = opts.nowIso ?? new Date().toISOString();
   const plan = planStorageReconcile(objects, rowPaths, nowIso, ORPHAN_GRACE_MS);
 
@@ -95,7 +103,7 @@ export async function reconcileHazmatStorageOrphans(
   if (opts.apply && plan.orphanObjects.length > 0) {
     for (let i = 0; i < plan.orphanObjects.length; i += 100) {
       const batch = plan.orphanObjects.slice(i, i + 100);
-      const { error: delErr } = await admin.storage.from("hazmat").remove(batch);
+      const { error: delErr } = await admin.storage.from(source.bucket).remove(batch);
       if (delErr) throw new Error(delErr.message);
       deleted += batch.length;
     }
@@ -104,10 +112,26 @@ export async function reconcileHazmatStorageOrphans(
   if (plan.missingObjects.length > 0) {
     const sample = plan.missingObjects.slice(0, 5).join(", ");
     console.warn(
-      `[storage] ${plan.missingObjects.length} hazmat_documents row(s) point at a MISSING object ` +
+      `[storage] ${plan.missingObjects.length} ${source.label} row(s) point at a MISSING object ` +
         `(possible evidence loss / restore gap — D13): ${sample}${plan.missingObjects.length > 5 ? " …" : ""}`,
     );
   }
 
   return { ...plan, deleted };
+}
+
+/** The BOL images a hazmat verdict was based on. */
+export function reconcileHazmatStorageOrphans(
+  admin: SupabaseClient,
+  opts: { apply?: boolean; nowIso?: string } = {},
+): Promise<StorageReconcileResult> {
+  return reconcileBucketOrphans(admin, { bucket: "hazmat", table: "hazmat_documents", label: "hazmat_documents" }, opts);
+}
+
+/** A driver's proof of work at each stop — the same evidence guarantee, previously unreconciled. */
+export function reconcileLoadPhotoOrphans(
+  admin: SupabaseClient,
+  opts: { apply?: boolean; nowIso?: string } = {},
+): Promise<StorageReconcileResult> {
+  return reconcileBucketOrphans(admin, { bucket: "load-photos", table: "load_stop_photos", label: "load_stop_photos" }, opts);
 }
