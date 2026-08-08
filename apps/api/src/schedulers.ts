@@ -12,6 +12,7 @@ import { startPostedPriceScheduler } from "./services/postedPriceFetch.js";
 import { startDutySessionSweeper } from "./services/dutySessionSweeper.js";
 import { startHazmatStorageReconcileScheduler } from "./services/hazmatStorageReconcileScheduler.js";
 import { startNotificationPushScheduler } from "./services/notificationPush.js";
+import { startDqExportSweeper } from "./services/dqExportSweeper.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,
@@ -26,7 +27,10 @@ export function startAllSchedulers(env: Env): void {
   // Clear any job slots left "running" by the previous process before schedulers/buttons claim them.
   if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
     reclaimInterruptedJobs(getSupabaseAdmin(env))
-      .then((n) => n > 0 && console.log(`[jobs] reclaimed ${n} interrupted job(s) from the previous run`))
+      .then(
+        (n) =>
+          n > 0 && console.log(`[jobs] reclaimed ${n} interrupted job(s) from the previous run`),
+      )
       .catch((e) => console.error("[jobs] reclaim failed:", e instanceof Error ? e.message : e));
   }
   startSamsaraScheduler(env); // background auto-refresh of Samsara data
@@ -40,4 +44,5 @@ export function startAllSchedulers(env: Env): void {
   startDutySessionSweeper(env); // close abandoned driver shifts so their truck is released (D44.5)
   startHazmatStorageReconcileScheduler(env); // §13.5/M11: nightly hazmat storage-orphan reconcile
   startNotificationPushScheduler(env); // Expo Push delivery of pending notification_events (5N/Phase 6)
+  startDqExportSweeper(env); // D-BD4: a finished audit binder is a PII aggregate with a 7-day life
 }

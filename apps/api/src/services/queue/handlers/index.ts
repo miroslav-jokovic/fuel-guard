@@ -1,6 +1,7 @@
 import { registerHandler } from "../registry.js";
 import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
+import { dqBinderHandler } from "./dqBinder.js";
 import { efsSoapHandler } from "./efsSoap.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
 import {
@@ -52,4 +53,5 @@ export function registerAllHandlers(): void {
   registerHandler("snapshot_driver_week", snapshotDriverWeekHandler);
   registerHandler("nightly_reconcile", nightlyReconcileHandler);
   registerHandler("data_retention", dataRetentionHandler);
+  registerHandler("dq_binder", dqBinderHandler);
 }

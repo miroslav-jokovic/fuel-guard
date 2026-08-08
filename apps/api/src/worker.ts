@@ -57,13 +57,21 @@ const KIND_CAPS: Record<string, number> = {
   efs_soap_rejected: 1,
   hazmat_extract: 2,
   hazmat_analyze: 4,
+  dq_binder: 2,
 };
-if (runsConsumer && env.JOB_EXECUTION_MODE === "queue" && env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+if (
+  runsConsumer &&
+  env.JOB_EXECUTION_MODE === "queue" &&
+  env.SUPABASE_URL &&
+  env.SUPABASE_SERVICE_ROLE_KEY
+) {
   registerAllHandlers();
   startQueueWorker(getSupabaseAdmin(env), env, { kindCaps: KIND_CAPS });
   console.log("[FuelGuard worker] queue consumer started (JOB_EXECUTION_MODE=queue)");
 } else if (runsConsumer && env.JOB_EXECUTION_MODE !== "queue") {
-  console.warn("[FuelGuard worker] WORKER_ROLE includes consumer but JOB_EXECUTION_MODE!=queue — nothing to consume.");
+  console.warn(
+    "[FuelGuard worker] WORKER_ROLE includes consumer but JOB_EXECUTION_MODE!=queue — nothing to consume.",
+  );
 }
 
 // A consumer-only process is kept alive by the queue loop's timers; a scheduler process by its intervals.

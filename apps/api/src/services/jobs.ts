@@ -12,8 +12,8 @@ export type JobKind =
   | "score_import"
   | "score_declined_import"
   | "rescore_declined"
-  | "score_txn"            // one-fill score+cascade (POST /transactions/:id/score) — P0-3 serialization
-  | "efs_store_sync"       // repair from the faithful EFS store (POST /transactions/sync-from-efs)
+  | "score_txn" // one-fill score+cascade (POST /transactions/:id/score) — P0-3 serialization
+  | "efs_store_sync" // repair from the faithful EFS store (POST /transactions/sync-from-efs)
   | "sync_vehicles"
   | "sync_trailers"
   | "sync_idle"
@@ -22,14 +22,15 @@ export type JobKind =
   | "sync_drivers"
   | "nightly_reconcile"
   | "efs_ingest"
-  | "efs_soap_posted"      // EFS SOAP posted-feed poller (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md)
-  | "efs_soap_rejected"    // EFS SOAP rejected-feed poller
+  | "efs_soap_posted" // EFS SOAP posted-feed poller (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md)
+  | "efs_soap_rejected" // EFS SOAP rejected-feed poller
   | "sync_driver_scores"
   | "snapshot_driver_week"
   | "hazmat_extract"
   | "hazmat_analyze"
-  | "pattern_sweep"       // entity-intelligence Phase 2: read-only retrospective analysis of a flagged case
-  | "data_retention";   // daily retention-policy enforcement (services/dataRetention.ts)
+  | "pattern_sweep" // entity-intelligence Phase 2: read-only retrospective analysis of a flagged case
+  | "data_retention" // daily retention-policy enforcement (services/dataRetention.ts)
+  | "dq_binder"; // assemble an auditor's sample of §391.51 files into one PDF (DQ-BINDER-PLAN)
 
 /**
  * P0-3 (2026-08 audit) — ONE per-org mutex across every path that writes fuel_transactions scoring
@@ -48,8 +49,8 @@ export const SCORING_JOB_KINDS: ReadonlySet<JobKind> = new Set<JobKind>([
   "score_import",
   "score_txn",
   "efs_store_sync",
-  "efs_ingest",        // ingest scores its new rows inline
-  "efs_soap_posted",   // SOAP ingest scores via the same ingestReport path
+  "efs_ingest", // ingest scores its new rows inline
+  "efs_soap_posted", // SOAP ingest scores via the same ingestReport path
   "efs_soap_rejected",
   "nightly_reconcile", // runs syncFuelEventsFromEfs + backfillOrg internally
 ]);
@@ -111,13 +112,16 @@ const leaseIso = () => new Date(Date.now() + JOB_LEASE_MS).toISOString();
  * Without a live lease, startJob's reclaim and the boot sweep treat the job as dead.
  */
 export function startJobHeartbeat(admin: SupabaseClient, jobId: string): () => void {
-  const beat = setInterval(() => {
-    void admin
-      .from("jobs")
-      .update({ lease_expires_at: leaseIso(), updated_at: new Date().toISOString() })
-      .eq("id", jobId)
-      .then(undefined, () => undefined); // a missed beat is retried on the next tick
-  }, Math.floor(JOB_LEASE_MS / 3));
+  const beat = setInterval(
+    () => {
+      void admin
+        .from("jobs")
+        .update({ lease_expires_at: leaseIso(), updated_at: new Date().toISOString() })
+        .eq("id", jobId)
+        .then(undefined, () => undefined); // a missed beat is retried on the next tick
+    },
+    Math.floor(JOB_LEASE_MS / 3),
+  );
   // Never keep the process alive just to heartbeat.
   if (typeof beat.unref === "function") beat.unref();
   return () => clearInterval(beat);
@@ -171,12 +175,17 @@ export async function startJob(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const lease = active?.lease_expires_at ? new Date(active.lease_expires_at as string).getTime() : null;
+    const lease = active?.lease_expires_at
+      ? new Date(active.lease_expires_at as string).getTime()
+      : null;
     const stamp = (active?.started_at ?? active?.created_at) as string | undefined;
     const ageMs = stamp ? Date.now() - new Date(stamp).getTime() : Infinity;
     const dead = active != null && (lease != null ? lease < Date.now() : ageMs > STALE_JOB_MS);
     if (dead) {
-      await finishJob(admin, active!.id as string, { status: "failed", error: "reclaimed (lease expired / interrupted run)" });
+      await finishJob(admin, active!.id as string, {
+        status: "failed",
+        error: "reclaimed (lease expired / interrupted run)",
+      });
       ({ data, error } = await insertJob(admin, orgId, kind, opts));
     }
   }
@@ -220,7 +229,11 @@ export async function finishJob(
 }
 
 /** The most-recent job of a kind for an org (any status) — drives the UI status/progress. */
-export async function latestJob(admin: SupabaseClient, orgId: string, kind: JobKind): Promise<JobRow | null> {
+export async function latestJob(
+  admin: SupabaseClient,
+  orgId: string,
+  kind: JobKind,
+): Promise<JobRow | null> {
   const { data } = await admin
     .from("jobs")
     .select("*")
@@ -233,7 +246,11 @@ export async function latestJob(admin: SupabaseClient, orgId: string, kind: JobK
 }
 
 /** The most-recent SUCCESSFUL job of a kind — drives the "data as of HH:MM" freshness label. */
-export async function lastDoneJob(admin: SupabaseClient, orgId: string, kind: JobKind): Promise<JobRow | null> {
+export async function lastDoneJob(
+  admin: SupabaseClient,
+  orgId: string,
+  kind: JobKind,
+): Promise<JobRow | null> {
   const { data } = await admin
     .from("jobs")
     .select("*")
@@ -252,7 +269,11 @@ export async function lastDoneJob(admin: SupabaseClient, orgId: string, kind: Jo
  * gracefully; rows already processed are committed + checkpointed (samsara_recon_at), so a re-run resumes.
  * Returns true if a running/queued job was flagged.
  */
-export async function requestJobCancel(admin: SupabaseClient, orgId: string, kind: JobKind): Promise<boolean> {
+export async function requestJobCancel(
+  admin: SupabaseClient,
+  orgId: string,
+  kind: JobKind,
+): Promise<boolean> {
   const { data } = await admin
     .from("jobs")
     .select("id, stats")
@@ -263,8 +284,14 @@ export async function requestJobCancel(admin: SupabaseClient, orgId: string, kin
     .limit(1)
     .maybeSingle();
   if (!data) return false;
-  const stats = { ...(((data as { stats?: Record<string, unknown> }).stats) ?? {}), cancel_requested: true };
-  await admin.from("jobs").update({ stats, updated_at: new Date().toISOString() }).eq("id", (data as { id: string }).id);
+  const stats = {
+    ...((data as { stats?: Record<string, unknown> }).stats ?? {}),
+    cancel_requested: true,
+  };
+  await admin
+    .from("jobs")
+    .update({ stats, updated_at: new Date().toISOString() })
+    .eq("id", (data as { id: string }).id);
   return true;
 }
 
@@ -299,11 +326,15 @@ export async function runJob(
   void (async () => {
     const stopHeartbeat = startJobHeartbeat(admin, jobId); // P0-4: live jobs keep their lease fresh
     try {
-      const report: ProgressReporter = (done, total) => updateJobProgress(admin, jobId, done, total);
+      const report: ProgressReporter = (done, total) =>
+        updateJobProgress(admin, jobId, done, total);
       const stats = await work(report, jobId);
       await finishJob(admin, jobId, { status: "done", stats: stats ?? {} });
     } catch (e) {
-      await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+      await finishJob(admin, jobId, {
+        status: "failed",
+        error: e instanceof Error ? e.message : String(e),
+      });
     } finally {
       stopHeartbeat();
     }
@@ -324,7 +355,12 @@ export async function reclaimInterruptedJobs(admin: SupabaseClient): Promise<num
   const now = new Date().toISOString();
   const { data } = await admin
     .from("jobs")
-    .update({ status: "failed", error: "interrupted (lease expired / process died)", finished_at: now, updated_at: now })
+    .update({
+      status: "failed",
+      error: "interrupted (lease expired / process died)",
+      finished_at: now,
+      updated_at: now,
+    })
     .eq("status", "running")
     .or(`lease_expires_at.is.null,lease_expires_at.lt.${now}`)
     .select("id");
