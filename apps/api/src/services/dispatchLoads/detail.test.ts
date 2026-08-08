@@ -12,6 +12,9 @@ import { getLoadDetail } from "./detail.js";
  *      the least reliable dependency here and the stops, timeline and checklist are still worth showing.
  *   3. The org boundary is a filter on the read, not a check afterwards — a load id from another
  *      tenant returns null.
+ *   4. The hazmat record rides along (H-C1). Before the link existed, hazmat was a parallel load
+ *      entity reached from its own navigation section; this field is what lets it be a section of
+ *      the load instead.
  *
  * A hand-rolled Supabase stub, like `dutySessions.test.ts`: the SQL itself is covered by the
  * behavioural matrices against real Postgres.
@@ -33,7 +36,7 @@ function stubAdmin(opts: StubOptions): SupabaseClient {
   const tables = opts.tables ?? {};
   const builder = (table: string, rows: unknown[], error: { message: string } | null): Record<string, unknown> => {
     const self: Record<string, unknown> = {};
-    for (const m of ["select", "order", "in", "is", "not"]) self[m] = () => self;
+    for (const m of ["select", "order", "in", "is", "not", "limit"]) self[m] = () => self;
     self.eq = (column: string, value: unknown) => {
       opts.filters?.push({ table, column, value });
       return self;
@@ -99,6 +102,16 @@ const fullTables: TableRows = {
   load_events: [],
 };
 
+const hazmatRow = {
+  id: "00000000-0000-4000-8000-00000000d001",
+  status: "cleared",
+  tank_state: "loaded",
+  created_at: "2026-08-07T09:00:00.000Z",
+  updated_at: "2026-08-07T12:00:00.000Z",
+};
+
+const runRow = { outcome: "green", created_at: "2026-08-07T11:45:00.000Z" };
+
 describe("getLoadDetail", () => {
   it("returns null when the load is not this organization's", async () => {
     const detail = await getLoadDetail(stubAdmin({ tables: { loads: [] } }), ORG, LOAD);
@@ -138,6 +151,32 @@ describe("getLoadDetail", () => {
       stops: { photos: { url: string | null }[] }[];
     };
     expect(detail.stops[0]!.photos[0]!.url).toBeNull();
+  });
+
+  it("carries no hazmat record for an ordinary load — the common case, and the correct shape", async () => {
+    const detail = (await getLoadDetail(stubAdmin({ tables: fullTables }), ORG, LOAD)) as Record<string, unknown>;
+    expect(detail.hazmat_record).toBeNull();
+  });
+
+  it("surfaces the linked hazmat record and its newest analysis outcome (H-C1)", async () => {
+    const detail = (await getLoadDetail(
+      stubAdmin({ tables: { ...fullTables, hazmat_loads: [hazmatRow], hazmat_runs: [runRow] } }),
+      ORG,
+      LOAD,
+    )) as { hazmat_record: { id: string; status: string; latest_outcome: string | null; latest_run_at: string | null } };
+    expect(detail.hazmat_record.id).toBe(hazmatRow.id);
+    expect(detail.hazmat_record.status).toBe("cleared");
+    expect(detail.hazmat_record.latest_outcome).toBe("green");
+    expect(detail.hazmat_record.latest_run_at).toBe(runRow.created_at);
+  });
+
+  it("reports no outcome for a hazmat record that has never been analysed", async () => {
+    const detail = (await getLoadDetail(
+      stubAdmin({ tables: { ...fullTables, hazmat_loads: [hazmatRow], hazmat_runs: [] } }),
+      ORG,
+      LOAD,
+    )) as { hazmat_record: { latest_outcome: string | null } };
+    expect(detail.hazmat_record.latest_outcome).toBeNull();
   });
 
   it("still returns the load when the photo table read fails outright", async () => {

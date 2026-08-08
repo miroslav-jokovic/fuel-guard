@@ -18,7 +18,7 @@ import {
 export const HAZMAT_LOAD_COLUMNS =
   "id, org_id, vehicle_id, trailer_id, driver_id, status, tank_state, carrier_relationship, " +
   "planned_pickup_at, declared_lines, bol_fields, special_permit_numbers, claimed_no_placards, " +
-  "supersedes_load_id, version, created_by, created_at, updated_at";
+  "supersedes_load_id, load_id, version, created_by, created_at, updated_at";
 
 export type ServiceError = { error: string; code: string };
 const err = (code: string, error: string): ServiceError => ({ error, code });
@@ -54,6 +54,50 @@ export async function listLoads(
   const page = hasMore ? rows.slice(0, q.limit) : rows;
   const nextCursor = hasMore && page.length > 0 ? page[page.length - 1]!.created_at : null;
   return { rows: page, nextCursor };
+}
+
+/**
+ * Map the RPC's SQLSTATEs to API results (H-C1). The distinction between HZ001 and HZ002 is worth
+ * keeping: "your hazmat record does not exist" and "that load does not exist" send an operator to two
+ * completely different places, and collapsing both into 404 is how a linking bug becomes unreportable.
+ */
+const LINK_ERRORS: Record<string, { code: string; message: string }> = {
+  HZ001: { code: "not_found", message: "Hazmat record not found." },
+  HZ002: { code: "load_not_found", message: "Load not found." },
+  HZ003: {
+    code: "already_linked",
+    message: "That load is already linked to a different hazmat record. Unlink it first, or supersede the record that holds it.",
+  },
+};
+
+/** Point a dispatch load at this hazmat record. The invariant — one CURRENT record per load, moved
+ *  forward along the supersede chain and takeable from nowhere else — lives in `link_hazmat_load`
+ *  (0148), not here: it needs a transaction and a row lock, which is the database's job. */
+export async function linkDispatchLoad(
+  admin: SupabaseClient, orgId: string, hazmatLoadId: string, loadId: string,
+): Promise<{ linked: string; unlinked: string | null } | ServiceError> {
+  const { data, error } = await admin.rpc("link_hazmat_load", {
+    p_org: orgId, p_hazmat_load: hazmatLoadId, p_load: loadId,
+  });
+  if (error) {
+    const mapped = LINK_ERRORS[error.code ?? ""];
+    return mapped ? err(mapped.code, mapped.message) : err("link_failed", error.message);
+  }
+  const row = (Array.isArray(data) ? data[0] : data) as { linked: string; unlinked: string | null } | undefined;
+  return { linked: row?.linked ?? hazmatLoadId, unlinked: row?.unlinked ?? null };
+}
+
+/** Detach the record from its dispatch load. Deliberately does NOT clear `loads.hazmat`: dispatch may
+ *  have marked that load hazmat for its own reasons, and unlinking is not this endpoint's licence to
+ *  overrule them. */
+export async function unlinkDispatchLoad(
+  admin: SupabaseClient, orgId: string, hazmatLoadId: string,
+): Promise<{ ok: true } | ServiceError> {
+  const { data } = await admin.from("hazmat_loads").select("id").eq("org_id", orgId).eq("id", hazmatLoadId).maybeSingle();
+  if (!data) return err("not_found", "Load not found.");
+  const { error } = await admin.from("hazmat_loads").update({ load_id: null }).eq("org_id", orgId).eq("id", hazmatLoadId);
+  if (error) return err("update_failed", error.message);
+  return { ok: true };
 }
 
 export async function getLoad(admin: SupabaseClient, orgId: string, loadId: string): Promise<unknown | null> {

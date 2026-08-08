@@ -6,6 +6,7 @@ import {
   hazmatUpdateLoadRequestSchema, type HazmatUpdateLoadRequest,
   hazmatListLoadsQuerySchema,
   hazmatCancelRequestSchema, type HazmatCancelRequest,
+  hazmatLinkLoadRequestSchema, type HazmatLinkLoadRequest,
   hazmatRegisterDocumentRequestSchema, type HazmatRegisterDocumentRequest,
   hazmatPolicyPutRequestSchema, type HazmatPolicyPutRequest,
   hazmatReviewRequestSchema, type HazmatReviewRequest,
@@ -26,6 +27,7 @@ import { getAppLocals } from "../../lib/appLocals.js";
 import { writeAudit } from "../../lib/audit.js";
 import {
   createLoad, listLoads, getLoad, listRuns, listDocuments, updateLoad, transitionLoad, registerDocument,
+  linkDispatchLoad, unlinkDispatchLoad,
   getPolicy, putPolicy, recordReview, clearLoad, type ServiceError,
 } from "../../services/hazmatLoads.js";
 import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
@@ -162,6 +164,34 @@ export function hazmatRouter(): Router {
     if (isServiceError(result)) { fail(res, result); return; }
     await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_cancelled", entity: "hazmat_loads", entityId: param(req, "id"), meta: { reason: body.reason } });
     res.json({ status: result.to });
+  }));
+
+  // ── the dispatch link (H-C1) ─────────────────────────────────────────────────
+  // What makes hazmat a property of a load instead of a parallel product. `canManage` on the hazmat
+  // section, not the fleet section: this is a statement about the hazmat record, and the dispatch
+  // load is only named by it.
+  router.post("/loads/:id/link", canManage, validateBody(hazmatLinkLoadRequestSchema), asyncHandler(async (req: Request, res: Response) => {
+    const body = res.locals.body as HazmatLinkLoadRequest;
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await linkDispatchLoad(admin, orgOf(req), param(req, "id"), body.loadId);
+    if (isServiceError(result)) { fail(res, result); return; }
+    await writeAudit(admin, {
+      orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_linked",
+      entity: "hazmat_loads", entityId: param(req, "id"),
+      meta: { loadId: body.loadId, unlinked: result.unlinked },
+    });
+    res.json(result);
+  }));
+
+  router.delete("/loads/:id/link", canManage, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const result = await unlinkDispatchLoad(admin, orgOf(req), param(req, "id"));
+    if (isServiceError(result)) { fail(res, result); return; }
+    await writeAudit(admin, {
+      orgId: orgOf(req), actorId: userOf(req), action: "hazmat.load_unlinked",
+      entity: "hazmat_loads", entityId: param(req, "id"),
+    });
+    res.json({ ok: true });
   }));
 
   // ── analysis (in-process — 202 + runId, executes async) ──────────────────────

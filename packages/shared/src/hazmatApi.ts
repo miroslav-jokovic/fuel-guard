@@ -122,6 +122,23 @@ export type HazmatListLoadsQuery = z.infer<typeof hazmatListLoadsQuerySchema>;
 export const hazmatCancelRequestSchema = z.object({ reason: z.string().min(1) });
 export type HazmatCancelRequest = z.infer<typeof hazmatCancelRequestSchema>;
 
+/**
+ * `POST /api/hazmat/loads/:id/link` — say that this hazmat record describes that dispatch load
+ * (H-C1, migration 0148).
+ *
+ * The link is what turns hazmat from a second product back into a property of a load: once it exists,
+ * the hazmat workspace can open FROM the load rather than from a parallel list of its own.
+ */
+export const hazmatLinkLoadRequestSchema = z.object({ loadId: z.uuid() });
+export type HazmatLinkLoadRequest = z.infer<typeof hazmatLinkLoadRequestSchema>;
+
+export const hazmatLinkLoadResponseSchema = z.object({
+  linked: z.uuid(),
+  /** The record the link was taken from, when this one supersedes it. Null in the ordinary case. */
+  unlinked: z.uuid().nullable(),
+});
+export type HazmatLinkLoadResponse = z.infer<typeof hazmatLinkLoadResponseSchema>;
+
 // ── POST /hazmat/loads/:id/documents → registers a row + returns a signed upload URL ────────────
 export const hazmatRegisterDocumentRequestSchema = z.object({
   id: z.string().uuid(), // client-generated document id (idempotent replay)

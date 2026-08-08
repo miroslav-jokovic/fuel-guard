@@ -91,6 +91,56 @@ async function stopPhotos(
   return byStop;
 }
 
+const HAZMAT_RECORD_COLUMNS = "id, status, tank_state, created_at, updated_at";
+
+/** The hazmat record this load carries, if any — enough for the detail page to show the state and
+ *  open the workspace, and no more. The full verdict stays behind `/api/hazmat/loads/:id`. */
+export interface LinkedHazmatRecord {
+  id: string;
+  status: string;
+  tank_state: string;
+  created_at: string;
+  updated_at: string;
+  /** Newest analysis outcome, or null when the record has never been analysed. */
+  latest_outcome: string | null;
+  latest_run_at: string | null;
+}
+
+/**
+ * Read the linked hazmat record (H-C1, migration 0148).
+ *
+ * At most one row can match: `idx_hazmat_loads_dispatch_load` is a partial unique index on `load_id`,
+ * which is the whole point of the link. A failure here returns null rather than throwing — an org
+ * without the HazmatGuard entitlement has no records to find, and a hazmat read has no business
+ * taking the stops, the photos and the timeline down with it.
+ */
+async function linkedHazmat(
+  admin: SupabaseClient,
+  orgId: string,
+  loadId: string,
+): Promise<LinkedHazmatRecord | null> {
+  const { data, error } = await admin
+    .from("hazmat_loads")
+    .select(HAZMAT_RECORD_COLUMNS)
+    .eq("org_id", orgId)
+    .eq("load_id", loadId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const record = data as unknown as Omit<LinkedHazmatRecord, "latest_outcome" | "latest_run_at">;
+
+  const { data: run } = await admin
+    .from("hazmat_runs")
+    .select("outcome, created_at")
+    .eq("org_id", orgId)
+    .eq("load_id", record.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const latest = (run ?? null) as { outcome: string; created_at: string } | null;
+
+  return { ...record, latest_outcome: latest?.outcome ?? null, latest_run_at: latest?.created_at ?? null };
+}
+
 /** One load with everything the detail page needs, or null when it is not this org's. */
 export async function getLoadDetail(
   admin: SupabaseClient,
@@ -108,7 +158,7 @@ export async function getLoadDetail(
 
   // Stops, photos and the timeline are independent of one another — fetch them together rather than
   // in a waterfall. The load read above has to come first: it is what proves the org owns this id.
-  const [stopsResult, photosByStop, events] = await Promise.all([
+  const [stopsResult, photosByStop, events, hazmatRecord] = await Promise.all([
     admin
       .from("load_stops")
       .select(STOP_COLUMNS)
@@ -117,6 +167,7 @@ export async function getLoadDetail(
       .order("seq", { ascending: true }),
     stopPhotos(admin, orgId, loadId),
     listEvents(admin, orgId, loadId),
+    linkedHazmat(admin, orgId, loadId),
   ]);
 
   const { drivers, vehicles, trailers, ...load } = row as unknown as Record<string, unknown> & {
@@ -137,5 +188,8 @@ export async function getLoadDetail(
     trailer_unit: one(trailers)?.unit_number ?? null,
     stops,
     events,
+    // H-C1: the hazmat workspace opens from here, so hazmat stops needing a navigation section of
+    // its own. Null for the overwhelming majority of loads, which is the correct shape.
+    hazmat_record: hazmatRecord,
   };
 }
