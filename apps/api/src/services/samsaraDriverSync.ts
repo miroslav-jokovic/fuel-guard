@@ -72,7 +72,7 @@ export async function syncDriversFromSamsara(
       (sd.phone ? byPhone.get(normPhone(sd.phone)) : undefined) ??
       (byName.get(driverMatchKey(sd.name)) ?? undefined);
 
-    // Identity fields Samsara ALWAYS owns; name + the numeric id are refreshed every sync.
+    // Identity fields Samsara owns for the rows it owns; name + the numeric id are refreshed each sync.
     const identity: Record<string, unknown> = { full_name: sd.name, samsara_driver_id: sd.samsaraId };
     // Phone and username are refreshed ONLY when Samsara actually returned a value — a null in one
     // response (field omitted for that page/driver) must never wipe a good stored value.
@@ -80,7 +80,17 @@ export async function syncDriversFromSamsara(
     if (sd.username) identity.samsara_username = sd.username;
 
     if (match) {
-      await admin.from("drivers").update(identity).eq("id", match.id).eq("org_id", orgId);
+      // ENRICH, NEVER CLOBBER. 0098 documented this rule and the deactivation pass below honoured it,
+      // but this line did not: until DQ1 it wrote `identity` over EVERY matched row, so an admin who
+      // fixed a misspelled name or a wrong phone on a telematics-sourced driver watched it revert on
+      // the next sync, silently and with nothing logged. That is the failure the roster PATCH exists
+      // to prevent, so the two had to be fixed together.
+      //
+      // For a manual row we still refresh `samsara_driver_id`: that is the LINK, not the identity, and
+      // dropping it would strand the row from future matching. Everything the office typed stays.
+      const patch =
+        match.identity_source === "manual" ? { samsara_driver_id: sd.samsaraId } : identity;
+      await admin.from("drivers").update(patch).eq("id", match.id).eq("org_id", orgId);
       result.updated++;
       continue;
     }

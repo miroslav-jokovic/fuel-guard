@@ -39,11 +39,12 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // `invites.driver_id` in particular is the column the driver app's whole login→roster link needs.
   { table: "terminals", column: "code", migration: "0097" },
   { table: "drivers", column: "identity_source", migration: "0098" },
-  { table: "driver_endorsements", column: "code", migration: "0098" },
   { table: "vehicles", column: "identity_source", migration: "0099" },
   { table: "trailers", column: "identity_source", migration: "0100" },
-  { table: "compliance_items", column: "item_type", migration: "0101" },
-  { table: "master_documents", column: "doc_type", migration: "0101" },
+  // `driver_endorsements` (0098), `compliance_items` and `master_documents` (0101) were probed here
+  // until 0147 dropped all three: no producer, no consumer, and `master_documents` pointed at a
+  // Storage bucket that was never created. Probing a table nobody reads only teaches the boot log to
+  // cry wolf. The compliance probe that matters now is `documents` (0146), below.
   { table: "invites", column: "driver_id", migration: "0102" },
   // EFS mutual TLS. Probed because an unapplied 0106 makes certificate upload fail at the DB layer
   // with a schema-cache error that reads like an application bug.
@@ -62,6 +63,9 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "idle_rollup_days", column: "continuous_idle_sec", migration: "0114" },
   // Company-issued driver credentials. Unapplied 0116 makes login create/reset fail at the DB layer.
   { table: "drivers", column: "app_username", migration: "0116" },
+  // The safety file's document store. Unapplied 0146 makes every upload fail at the signed-URL step
+  // with a schema-cache error that reads like a Storage misconfiguration rather than a missing table.
+  { table: "documents", column: "storage_path", migration: "0146" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

@@ -50,10 +50,44 @@ export const COMPLIANCE_STATUSES = ["valid", "expiring_soon", "expired", "missin
 export const complianceStatusSchema = z.enum(COMPLIANCE_STATUSES);
 export type ComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
 
-export const DOCUMENT_SUBJECT_TYPES = ["driver", "tractor", "trailer", "load"] as const;
+/**
+ * `organization` joined this list with the `documents` table (0146). It was always implied:
+ * `certifications.subject_type` accepts an organization subject, the hazmat gate blocks on org-level
+ * certifications, and a PHMSA registration certificate is a scan like any other. Mirrors the SQL
+ * check constraint exactly.
+ */
+export const DOCUMENT_SUBJECT_TYPES = ["driver", "tractor", "trailer", "load", "organization"] as const;
 export const documentSubjectTypeSchema = z.enum(DOCUMENT_SUBJECT_TYPES);
+export type DocumentSubjectType = (typeof DOCUMENT_SUBJECT_TYPES)[number];
 
 export const DOCUMENT_VARIANTS = ["original", "normalized", "thumb"] as const;
+export const documentVariantSchema = z.enum(DOCUMENT_VARIANTS);
+export type DocumentVariant = (typeof DOCUMENT_VARIANTS)[number];
+
+/**
+ * What a document can be filed as: every certification kind, every qualification-record kind, plus
+ * `other`. A document is uploaded BEFORE the record that cites it exists — you scan the medical card,
+ * then record the certification — so it cannot borrow its parent's kind. Mirrors 0146's check.
+ */
+export const DOCUMENT_KINDS = [...CERTIFICATION_KINDS, ...QUALIFICATION_RECORD_KINDS, "other"] as const;
+export const documentKindSchema = z.enum(DOCUMENT_KINDS);
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
+/** Scans and photographs only. Anything else is a document management system, which this is not. */
+export const DOCUMENT_CONTENT_TYPES = [
+  "application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic",
+] as const;
+export const documentContentTypeSchema = z.enum(DOCUMENT_CONTENT_TYPES);
+export type DocumentContentType = (typeof DOCUMENT_CONTENT_TYPES)[number];
+
+/** Storage key extension per content type — the single place the mapping is decided. */
+export const DOCUMENT_EXTENSIONS: Record<DocumentContentType, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/heic": "heic",
+};
 
 // ── certifications ───────────────────────────────────────────────────────────────────────────────
 
@@ -174,3 +208,75 @@ export const qualificationRecordRowSchema = z.object({
   created_at: z.string(),
 });
 export type QualificationRecordRow = z.infer<typeof qualificationRecordRowSchema>;
+
+// ── documents (§3, DQ0) — the scan behind any record ──────────────────────────────────────────────
+
+/**
+ * POST /api/compliance/documents — registration, not upload.
+ *
+ * The bytes never pass through the API. Registration returns a short-lived signed upload URL the
+ * client PUTs to directly, exactly as the hazmat capture path does: one round trip through our
+ * process for metadata, none for a 20MB scan. The id is client-generated so a retry after a dropped
+ * response is a replay, not a duplicate.
+ */
+export const documentRegisterSchema = z.object({
+  id: z.uuid(),
+  subjectType: documentSubjectTypeSchema,
+  subjectId: z.uuid(),
+  kind: documentKindSchema,
+  contentType: documentContentTypeSchema,
+  /** Lowercase hex SHA-256 of the bytes about to be uploaded — §390.32(c) integrity evidence. */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/, "sha256 must be 64 lowercase hex characters"),
+  bytes: z.number().int().positive().nullish(),
+  page: z.number().int().min(1).max(50).default(1),
+  variant: documentVariantSchema.default("original"),
+  /** When the paper was scanned, if known. NOT the upload time, which `created_at` already records. */
+  capturedAt: z.string().nullish(),
+});
+export type DocumentRegisterRequest = z.infer<typeof documentRegisterSchema>;
+
+export const documentRegisterResponseSchema = z.object({
+  documentId: z.uuid(),
+  storagePath: z.string(),
+  uploadUrl: z.string(),
+  token: z.string(),
+});
+export type DocumentRegisterResponse = z.infer<typeof documentRegisterResponseSchema>;
+
+export const documentListQuerySchema = z.object({
+  subjectType: documentSubjectTypeSchema,
+  subjectId: z.uuid(),
+  kind: documentKindSchema.optional(),
+});
+export type DocumentListQuery = z.infer<typeof documentListQuerySchema>;
+
+export const documentRowSchema = z.object({
+  id: z.uuid(),
+  subjectType: documentSubjectTypeSchema,
+  subjectId: z.uuid(),
+  kind: z.string(),
+  contentType: z.string(),
+  bytes: z.number().nullable(),
+  sha256: z.string(),
+  page: z.number(),
+  variant: z.string(),
+  capturedAt: z.string().nullable(),
+  createdAt: z.string(),
+  /** Signed for a few minutes, or null when signing failed. Never a permanent link. */
+  url: z.string().nullable(),
+});
+export type DocumentRow = z.infer<typeof documentRowSchema>;
+
+/**
+ * Storage key: `<org>/<subjectType>/<subjectId>/<documentId>.<ext>`.
+ *
+ * Folder segment 1 is the org id because that is what the bucket's INSERT policy path-scopes on
+ * (0146, mirroring 0092). Kept here rather than in the API so a future driver-side uploader derives
+ * the identical key instead of a near-miss.
+ */
+export function documentStoragePath(
+  orgId: string, subjectType: DocumentSubjectType, subjectId: string,
+  documentId: string, contentType: DocumentContentType,
+): string {
+  return `${orgId}/${subjectType}/${subjectId}/${documentId}.${DOCUMENT_EXTENSIONS[contentType]}`;
+}

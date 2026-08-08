@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { AuthContext } from "@fuelguard/shared";
-import { driverCreateSchema, deriveFullName } from "@fuelguard/shared";
+import { driverCreateSchema, driverUpdateSchema, deriveFullName, resolveDriverUpdate } from "@fuelguard/shared";
 import { createApp } from "../../app.js";
 import { loadEnv } from "../../env.js";
 
@@ -115,6 +115,49 @@ describe("POST /api/roster/drivers — write gate (fleet: manage)", () => {
   });
 });
 
+describe("GET /api/roster/drivers/:id — detail gate (fleet: view)", () => {
+  const path = "/11111111-1111-1111-1111-111111111111";
+
+  it("401 unauthenticated", async () => {
+    expect((await call(path)).status).toBe(401);
+  });
+
+  it.each(["driver", "pending"])("403 for %s", async (token) => {
+    expect((await call(path, { token })).status).toBe(403);
+  });
+
+  it.each(["admin", "fleet", "safety", "dispatcher", "auditor"])("passes the gate for %s", async (token) => {
+    expect([401, 403]).not.toContain((await call(path, { token })).status);
+  });
+});
+
+describe("PATCH /api/roster/drivers/:id — write gate (fleet: manage)", () => {
+  const path = "/11111111-1111-1111-1111-111111111111";
+  const body = JSON.stringify({ cdl_expires_at: "2027-04-01" });
+
+  it("401 unauthenticated", async () => {
+    expect((await call(path, { method: "PATCH", body })).status).toBe(401);
+  });
+
+  it.each(["driver", "dispatcher", "auditor"])("403 for %s (read-only or no access)", async (token) => {
+    expect((await call(path, { method: "PATCH", body, token })).status).toBe(403);
+  });
+
+  it.each(["admin", "fleet", "safety"])("passes the gate for %s", async (token) => {
+    expect([401, 403]).not.toContain((await call(path, { method: "PATCH", body, token })).status);
+  });
+
+  it("400 on an empty patch", async () => {
+    expect((await call(path, { method: "PATCH", body: "{}", token: "admin" })).status).toBe(400);
+  });
+
+  it("400 on a field the roster does not own", async () => {
+    // `identity_source` is derived, not supplied. Strict rejection beats a silent no-op.
+    const res = await call(path, { method: "PATCH", body: JSON.stringify({ identity_source: "manual" }), token: "admin" });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("POST /api/roster/drivers/:id/invite — enrollment gate (admin + fleet_manager only)", () => {
   const body = JSON.stringify({ email: "someone@silvicominc.com" });
   const path = "/11111111-1111-1111-1111-111111111111/invite";
@@ -175,5 +218,107 @@ describe("driverCreateSchema + deriveFullName (pure contract)", () => {
       "Aaron Rothenberg",
     );
     expect(deriveFullName({})).toBe("");
+  });
+
+  it("rejects a date that is not YYYY-MM-DD, and reads a cleared date input as null", () => {
+    expect(driverCreateSchema.safeParse({ full_name: "A B", cdl_expires_at: "04/01/2027" }).success).toBe(false);
+    // A cleared <input type="date"> posts "". It used to reach Postgres as ''::date and 500.
+    expect(driverCreateSchema.parse({ full_name: "A B", cdl_expires_at: "" }).cdl_expires_at).toBeNull();
+  });
+});
+
+describe("driverUpdateSchema (pure contract)", () => {
+  it("accepts a single field", () => {
+    expect(driverUpdateSchema.safeParse({ cdl_expires_at: "2027-04-01" }).success).toBe(true);
+  });
+
+  it("rejects an empty patch — a no-op PATCH is a caller bug, not a success", () => {
+    expect(driverUpdateSchema.safeParse({}).success).toBe(false);
+  });
+
+  it.each(["org_id", "id", "identity_source", "user_id", "app_access_enabled", "samsara_driver_id", "app_username"])(
+    "rejects %s — another surface owns it",
+    (field) => {
+      expect(driverUpdateSchema.safeParse({ [field]: "x" }).success).toBe(false);
+    },
+  );
+
+  it("rejects a status outside the canonical vocabulary", () => {
+    expect(driverUpdateSchema.safeParse({ status: "vacationing" }).success).toBe(false);
+  });
+});
+
+describe("resolveDriverUpdate — what an edit MEANS", () => {
+  const base = {
+    identity_source: "samsara",
+    termination_date: null,
+    first_name: "Aaron",
+    middle_name: null,
+    last_name: "Rothenberg",
+  };
+  const TODAY = "2026-08-08";
+
+  it("editing an identity field claims the row from telematics", () => {
+    const r = resolveDriverUpdate({ phone: "555-0100" }, base, TODAY);
+    expect(r.claimedFromTelematics).toBe(true);
+    expect(r.patch.identity_source).toBe("manual");
+  });
+
+  it("editing a non-identity field does NOT sever the telematics name refresh", () => {
+    const r = resolveDriverUpdate({ pay_rate: 0.62 }, base, TODAY);
+    expect(r.claimedFromTelematics).toBe(false);
+    expect(r.patch.identity_source).toBeUndefined();
+  });
+
+  it("does not re-claim a row the office already owns", () => {
+    const r = resolveDriverUpdate({ phone: "555-0100" }, { ...base, identity_source: "manual" }, TODAY);
+    expect(r.claimedFromTelematics).toBe(false);
+    expect(r.patch.identity_source).toBeUndefined();
+  });
+
+  it("recomputes full_name from the merged parts when only a part is edited", () => {
+    const r = resolveDriverUpdate({ last_name: "Rothenburg" }, base, TODAY);
+    expect(r.derivedFullName).toBe(true);
+    expect(r.patch.full_name).toBe("Aaron Rothenburg");
+  });
+
+  it("does not recompute when the caller sent full_name itself", () => {
+    const r = resolveDriverUpdate({ full_name: "A. Rothenberg", last_name: "Rothenberg" }, base, TODAY);
+    expect(r.derivedFullName).toBe(false);
+    expect(r.patch.full_name).toBe("A. Rothenberg");
+  });
+
+  it("never writes an empty full_name — the column is NOT NULL", () => {
+    const r = resolveDriverUpdate(
+      { first_name: null, last_name: null },
+      { ...base, middle_name: null },
+      TODAY,
+    );
+    expect(r.derivedFullName).toBe(false);
+    expect(r.patch.full_name).toBeUndefined();
+  });
+
+  it("stamps a termination date when terminating without one (§391.51(c) retention clock)", () => {
+    const r = resolveDriverUpdate({ status: "terminated" }, base, TODAY);
+    expect(r.stampedTerminationDate).toBe(true);
+    expect(r.patch.termination_date).toBe(TODAY);
+  });
+
+  it("never overwrites an existing termination date", () => {
+    const r = resolveDriverUpdate({ status: "terminated" }, { ...base, termination_date: "2026-01-05" }, TODAY);
+    expect(r.stampedTerminationDate).toBe(false);
+    expect(r.patch.termination_date).toBeUndefined();
+  });
+
+  it("respects a termination date the caller supplied", () => {
+    const r = resolveDriverUpdate({ status: "terminated", termination_date: "2026-07-31" }, base, TODAY);
+    expect(r.stampedTerminationDate).toBe(false);
+    expect(r.patch.termination_date).toBe("2026-07-31");
+  });
+
+  it("does not stamp anything when the status change is not a termination", () => {
+    const r = resolveDriverUpdate({ status: "on_leave" }, base, TODAY);
+    expect(r.stampedTerminationDate).toBe(false);
+    expect(r.patch.termination_date).toBeUndefined();
   });
 });

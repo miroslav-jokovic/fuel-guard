@@ -1,18 +1,30 @@
 <script setup lang="ts">
 import { AppIcon } from "@fuelguard/ui";
-import {
-  XMarkIcon,
-} from "@fuelguard/ui/icons";
+import { XMarkIcon } from "@fuelguard/ui/icons";
 import {
   Dialog,
+  DialogDescription,
   DialogPanel,
   DialogTitle,
   TransitionRoot,
   TransitionChild,
 } from "@headlessui/vue";
+import { computed, useSlots } from "vue";
+import BaseButton from "@/components/ui/BaseButton.vue";
 
-defineProps<{ open: boolean; title: string }>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    title: string;
+    description?: string;
+    size?: "md" | "lg";
+  }>(),
+  { description: undefined, size: "md" },
+);
 const emit = defineEmits<{ close: [] }>();
+const slots = useSlots();
+
+const panelWidth = computed(() => (props.size === "lg" ? "max-w-lg" : "max-w-md"));
 </script>
 
 <template>
@@ -42,21 +54,37 @@ const emit = defineEmits<{ close: [] }>();
               leave-from="translate-x-0"
               leave-to="translate-x-full"
             >
-              <DialogPanel class="pointer-events-auto w-screen max-w-md">
+              <DialogPanel class="pointer-events-auto w-screen" :class="panelWidth">
                 <div class="flex h-full flex-col bg-surface shadow-xl">
-                  <div class="flex items-center justify-between border-b border-edge px-4 py-4 sm:px-6">
-                    <DialogTitle class="text-base font-semibold text-ink">{{ title }}</DialogTitle>
-                    <button
-                      type="button"
-                      class="rounded-md text-ink-subtle hover:text-ink-secondary"
+                  <div
+                    class="flex items-start justify-between gap-4 border-b border-edge px-4 py-4 sm:px-6"
+                  >
+                    <div class="min-w-0">
+                      <DialogTitle class="text-base font-semibold text-ink">{{
+                        title
+                      }}</DialogTitle>
+                      <DialogDescription v-if="description" class="mt-1 text-sm text-ink-muted">
+                        {{ description }}
+                      </DialogDescription>
+                    </div>
+                    <BaseButton
+                      variant="ghost"
+                      size="sm"
+                      class="-mr-2 shrink-0 px-2 text-ink-subtle"
+                      aria-label="Close drawer"
                       @click="emit('close')"
                     >
-                      <span class="sr-only">Close</span>
-                      <AppIcon :icon="XMarkIcon" class="size-6" aria-hidden="true" />
-                    </button>
+                      <AppIcon :icon="XMarkIcon" class="size-5" aria-hidden="true" />
+                    </BaseButton>
                   </div>
                   <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
                     <slot />
+                  </div>
+                  <div
+                    v-if="slots.footer"
+                    class="border-t border-edge bg-surface px-4 py-4 sm:px-6"
+                  >
+                    <slot name="footer" />
                   </div>
                 </div>
               </DialogPanel>

@@ -135,6 +135,16 @@ async function main() {
     "migrations/0137_core_app_feature_invariant.sql",
     // Reconciles the legacy duplicate 0016 vehicle fuel-level migration into the unique ledger version.
     "migrations/0138_vehicle_fuel_level_legacy_reconcile.sql",
+    // Compliance/DQF. 0127 and 0129 were never in this matrix even though `certifications` holds the
+    // most sensitive rows in the product — a driver's medical card and drug-test results. 0146 adds
+    // the documents table those two reserved a column for, and its driver scope is the reason to
+    // assert here rather than trust the policy text.
+    "migrations/0127_hazmat_certifications.sql",
+    "migrations/0129_hazmat_qualification_records.sql",
+    "migrations/0146_compliance_documents.sql",
+    // Drops three tables this harness never loaded, so it is a no-op here. Present so that a future
+    // reader does not conclude the retirement was skipped.
+    "migrations/0147_retire_dead_compliance_tables.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -835,6 +845,101 @@ async function main() {
     !!(await asUser(drv, "insert into message_reports (org_id, message_id, reported_by, reason) select $1, id, $2, 'abusive' from messages limit 1", [ORG_A, OFFICEUID])).error);
   ok("cross-tenant: org-B reads none of org-A's conversations",
     (await asUser(mgrB, "select count(*)::int n from message_threads")).rows?.[0]?.n === 0);
+
+  // ── Compliance: certifications (0127) + documents (0146) — the safety file ─────────────────────
+  //
+  // These rows are the most sensitive in the product: a driver's medical card, their drug and alcohol
+  // test results, their MVR. `certifications` shipped in 0127 with a driver-scope policy that this
+  // matrix has never executed. `documents` (0146) carries the scans themselves, in Storage, and its
+  // driver scope is the only thing standing between one driver and another driver's medical file.
+  const dispatchA = { org_id: ORG_A, user_role: "dispatcher" };
+  const safetyA = { org_id: ORG_A, user_role: "safety_manager" };
+
+  const seedDoc = (orgId, subjectId, path, hashChar) => db.query(
+    `insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
+     values (gen_random_uuid(), $1, 'driver', $2, 'medical_card', $3, 'application/pdf', repeat($4,64))
+     returning id`, [orgId, subjectId, path, hashChar]);
+
+  const MYDOC = (await seedDoc(ORG_A, SELF, `${ORG_A}/driver/${SELF}/x.pdf`, "a")).rows[0].id;
+  await seedDoc(ORG_A, OTHER, `${ORG_A}/driver/${OTHER}/y.pdf`, "b");
+  await db.query(
+    `insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
+     values (gen_random_uuid(), $1, 'trailer', gen_random_uuid(), 'annual_inspection', $2, 'application/pdf', repeat('c',64))`,
+    [ORG_B, `${ORG_B}/trailer/t/z.pdf`]);
+
+  ok("manager reads both org-A safety documents (2)",
+    (await asUser(mgrA, "select count(*)::int n from documents")).rows?.[0]?.n === 2);
+  ok("driver reads ONLY their own medical card (1)",
+    (await asUser(drv, "select count(*)::int n from documents")).rows?.[0]?.n === 1);
+  ok("driver cannot read another driver's medical card (0)",
+    (await asUser(drv, "select count(*)::int n from documents where subject_id = $1", [OTHER])).rows?.[0]?.n === 0);
+  ok("cross-tenant: org B reads none of org A's documents (0)",
+    (await asUser(mgrB, "select count(*)::int n from documents where org_id = $1", [ORG_A])).rows?.[0]?.n === 0);
+
+  const docInsert = (claims, orgId) => asUser(claims,
+    `insert into documents (id, org_id, subject_type, subject_id, kind, storage_path, content_type, sha256)
+     values (gen_random_uuid(), $1, 'driver', $2, 'cdl', 'p/q/r.pdf', 'application/pdf', repeat('d',64)) returning id`,
+    [orgId, SELF]);
+
+  ok("safety_manager may file a document",
+    ((await docInsert(safetyA, ORG_A)).rows?.length ?? 0) === 1);
+  ok("dispatcher may NOT file a document into the safety file",
+    !!(await docInsert(dispatchA, ORG_A)).error);
+  ok("driver may NOT file their own document yet (self-service is DQ5, not RLS-open)",
+    !!(await docInsert(drv, ORG_A)).error);
+  ok("manager may not file into another tenant's org",
+    !!(await docInsert(mgrA, ORG_B)).error);
+
+  // Append-only (§390.32(d)): no UPDATE and no DELETE policy exists, so RLS denies both by default
+  // and the statements affect nothing. A safety file a manager can quietly rewrite is not evidence.
+  ok("nobody may rewrite a filed document (0 rows)",
+    ((await asUser(adminA, "update documents set kind = 'other' where id = $1 returning id", [MYDOC])).rows?.length ?? 0) === 0);
+  ok("nobody may delete a filed document (0 rows)",
+    ((await asUser(adminA, "delete from documents where id = $1 returning id", [MYDOC])).rows?.length ?? 0) === 0);
+
+  // The FK 0127 reserved its column for. A certification citing a document that does not exist is a
+  // dangling audit trail, and the database now refuses it rather than the UI promising not to.
+  ok("a certification cannot cite a document that does not exist",
+    !!(await asUser(mgrA,
+      `insert into certifications (org_id, subject_type, subject_id, kind, effective_from, document_id)
+       values ($1, 'driver', $2, 'cdl', current_date, gen_random_uuid())`, [ORG_A, SELF])).error);
+  ok("a certification may cite a real document",
+    ((await asUser(mgrA,
+      `insert into certifications (org_id, subject_type, subject_id, kind, effective_from, document_id)
+       values ($1, 'driver', $2, 'cdl', current_date, $3) returning id`, [ORG_A, SELF, MYDOC])).rows?.length ?? 0) === 1);
+
+  // Storage: the bytes. Path-scoped on folder[1] = the caller's org, insert-only, safety roles only.
+  // No RETURNING, on purpose: Postgres applies the SELECT policies to a returned row, and this
+  // bucket deliberately has none — so `insert ... returning` fails even for a legitimate upload.
+  // That is the no-client-read property, observed rather than asserted about.
+  const objInsert = (claims, path) => asUser(claims,
+    "insert into storage.objects (bucket_id, name) values ('compliance-docs', $1)", [path]);
+  ok("manager may upload under their OWN org folder",
+    !(await objInsert(mgrA, `${ORG_A}/driver/${SELF}/scan.pdf`)).error);
+  ok("manager may NOT upload under another tenant's org folder",
+    !!(await objInsert(mgrA, `${ORG_B}/driver/${SELF}/scan.pdf`)).error);
+  ok("driver may NOT upload into the safety bucket",
+    !!(await objInsert(drv, `${ORG_A}/driver/${SELF}/scan.pdf`)).error);
+  ok("no client may read the safety bucket directly — signed URLs only (0)",
+    (await asUser(mgrA, "select count(*)::int n from storage.objects where bucket_id = 'compliance-docs'")).rows?.[0]?.n === 0);
+
+  // ── Deactivation is a status edit (DQ1) ────────────────────────────────────────────────────────
+  //
+  // The roster has no separate "revoke app access" endpoint, because it does not need one:
+  // `auth_driver_id()` (0083) resolves only 'active' drivers, so PATCH { status: 'terminated' } ends
+  // the driver app's access on the next request through the policies themselves. That is the whole
+  // mechanism, and a second code path that could disagree with it is exactly what is being avoided —
+  // so it is asserted here rather than described in a comment. Run last, and the row is restored.
+  await db.query("update drivers set status = 'terminated' where id = $1", [SELF]);
+  ok("a terminated driver resolves to no driver identity at all",
+    (await asUser(drv, "select count(*)::int n from drivers")).rows?.[0]?.n === 0);
+  ok("...and therefore reads none of their own fuel history",
+    (await asUser(drv, "select count(*)::int n from fuel_transactions")).rows?.[0]?.n === 0);
+  ok("...and none of their own safety documents",
+    (await asUser(drv, "select count(*)::int n from documents")).rows?.[0]?.n === 0);
+  ok("the office still sees the terminated driver — the record is retained, not deleted (§391.51(c))",
+    ((await asUser(mgrA, "select count(*)::int n from drivers where id = $1", [SELF])).rows?.[0]?.n ?? 0) === 1);
+  await db.query("update drivers set status = 'active' where id = $1", [SELF]);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
