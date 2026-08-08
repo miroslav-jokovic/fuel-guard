@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { startJob, runJob, reclaimInterruptedJobs, JobConflictError } from "./jobs.js";
+import {
+  SCORING_JOB_KINDS,
+  startJob,
+  runJob,
+  reclaimInterruptedJobs,
+  JobConflictError,
+} from "./jobs.js";
 
 /** Minimal fake covering exactly the call chains jobs.ts uses:
  *  from().insert().select().single()  and  from().update().eq().
@@ -71,6 +77,13 @@ function makeFake(opts: { conflictOnInsert?: boolean; activeRow?: { id: string; 
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
+
+describe("scoring job classification", () => {
+  it("keeps the rejected EFS fraud feed independent from fuel-scoring rebuilds", () => {
+    expect(SCORING_JOB_KINDS.has("efs_soap_posted")).toBe(true);
+    expect(SCORING_JOB_KINDS.has("efs_soap_rejected")).toBe(false);
+  });
+});
 
 describe("startJob", () => {
   it("returns a new job id on success", async () => {

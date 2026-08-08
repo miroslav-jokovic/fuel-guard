@@ -51,7 +51,8 @@ export const SCORING_JOB_KINDS: ReadonlySet<JobKind> = new Set<JobKind>([
   "efs_store_sync",
   "efs_ingest", // ingest scores its new rows inline
   "efs_soap_posted", // SOAP ingest scores via the same ingestReport path
-  "efs_soap_rejected",
+  // Declined scoring writes declined_transactions/anomaly context, not fuel score outcomes. Keep the
+  // live fraud signal independent from a long-running fuel rebuild.
   "nightly_reconcile", // runs syncFuelEventsFromEfs + backfillOrg internally
 ]);
 

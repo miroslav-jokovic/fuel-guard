@@ -101,10 +101,11 @@ const EnvSchema = z.object({
   // city centroid — we veto the mismatch (border crossing / reverse-geo artifact, not theft).
   LOCATION_MISMATCH_MIN_MILES: z.coerce.number().min(1).default(50),
   // Re-score every transaction with the current rules once, shortly after each boot/deploy (rules-only,
-  // no live Samsara calls — cheap + idempotent). Set to "false" to disable.
+  // no live Samsara calls). Disabled by default because the scoring mutex must not starve live ingestion;
+  // enable explicitly for a controlled maintenance window.
   REBUILD_ON_BOOT: z
     .string()
-    .default("true")
+    .default("false")
     .transform((s) => s.toLowerCase() !== "false"),
   // Weekly AI theft digest emailed to each org's notification recipients. Set DIGEST_ENABLED=false to
   // turn off. Cadence is ~weekly (deduped via organizations.last_digest_at).

@@ -61,10 +61,12 @@ async function ingestOrgFeed(
 ): Promise<void> {
   const jobKind = feed === "posted" ? "efs_soap_posted" : "efs_soap_rejected";
   // Queue mode enqueues; inprocess runs the handler now (which does the ingest + logging). A conflict
-  // (a run of this feed+org is already active) is normal and silently ignored — the running job
-  // finishes and the next tick picks up.
+  // means either this feed is already active or the scoring mutex is held by another job. It is safe to
+  // skip because the next tick retries, but it must be visible: a persistent conflict is a freshness outage.
   const outcome = await dispatchJob(admin, env, jobKind, { orgId, payload: { feed } });
-  if ("conflict" in outcome) return;
+  if ("conflict" in outcome) {
+    console.warn(`[efs-soap-sched] ${feed} poll skipped for org=${orgId}: job or scoring lock is active`);
+  }
 }
 
 /**
