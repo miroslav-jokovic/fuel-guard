@@ -22,6 +22,7 @@ const KNOWN_KINDS = new Set<JobKind>([
   "snapshot_driver_week",
   "nightly_reconcile",
   "efs_ingest",
+  "efs_process_import",
 ]);
 
 export function jobsRouter(): Router {

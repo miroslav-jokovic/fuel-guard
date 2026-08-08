@@ -35,6 +35,25 @@ const {
 
     <p class="text-sm leading-relaxed text-ink">{{ anomaly.message }}</p>
 
+    <dl v-if="txn" class="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-surface-subtle p-4 text-sm ring-1 ring-edge">
+      <div>
+        <dt class="text-xs text-ink-muted">Source</dt>
+        <dd class="font-medium text-ink">{{ txn.source }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-muted">Imported</dt>
+        <dd class="font-medium text-ink">{{ txn.import_id ? "EFS/report batch" : "Direct entry" }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-muted">Fuel transaction</dt>
+        <dd class="font-mono text-xs text-ink">{{ txn.id }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs text-ink-muted">Import id</dt>
+        <dd class="font-mono text-xs text-ink">{{ txn.import_id ?? "—" }}</dd>
+      </div>
+    </dl>
+
     <!-- Entity-intelligence panel (Phases 1–2): reviewer context + retrospective pattern report -->
     <EntityHistory :anomaly-id="anomaly.id" />
 

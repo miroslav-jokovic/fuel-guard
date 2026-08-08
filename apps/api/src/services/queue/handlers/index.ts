@@ -3,6 +3,7 @@ import { efsIngestHandler } from "./efsIngest.js";
 import { dataRetentionHandler } from "./retention.js";
 import { dqBinderHandler } from "./dqBinder.js";
 import { efsSoapHandler } from "./efsSoap.js";
+import { efsProcessingHandler } from "./efsProcessing.js";
 import { hazmatExtractHandler, hazmatAnalyzeHandler } from "./hazmat.js";
 import {
   backfillHandler,
@@ -34,6 +35,7 @@ export function registerAllHandlers(): void {
   registerHandler("efs_ingest", efsIngestHandler);
   registerHandler("efs_soap_posted", efsSoapHandler);
   registerHandler("efs_soap_rejected", efsSoapHandler);
+  registerHandler("efs_process_import", efsProcessingHandler);
   registerHandler("hazmat_extract", hazmatExtractHandler);
   registerHandler("hazmat_analyze", hazmatAnalyzeHandler);
   registerHandler("rebuild", rebuildHandler);

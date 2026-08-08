@@ -79,9 +79,10 @@ function makeFake(opts: { conflictOnInsert?: boolean; activeRow?: { id: string; 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe("scoring job classification", () => {
-  it("keeps the rejected EFS fraud feed independent from fuel-scoring rebuilds", () => {
-    expect(SCORING_JOB_KINDS.has("efs_soap_posted")).toBe(true);
+  it("keeps EFS acquisition independent from the fuel-scoring mutex", () => {
+    expect(SCORING_JOB_KINDS.has("efs_soap_posted")).toBe(false);
     expect(SCORING_JOB_KINDS.has("efs_soap_rejected")).toBe(false);
+    expect(SCORING_JOB_KINDS.has("efs_process_import")).toBe(true);
   });
 });
 

@@ -269,7 +269,7 @@ describe("ingestReport — transaction report", () => {
     const res = await ingestReport(db as unknown as SupabaseClient, env, txnInput("HASH_A"), deps2);
 
     expect(res.alreadyImported).toBe(true);
-    expect(res.importId).toBeNull();
+    expect(res.importId).toBe(db.tables.imports[0]!.id);
     expect(db.tables.imports).toHaveLength(1); // no second import row
     expect(calls.scoreImport).toEqual([]);
   });

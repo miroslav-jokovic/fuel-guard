@@ -61,6 +61,8 @@ export interface FuelTransaction {
   /** Station state (2-letter) — used to render fueling times in the station's local timezone. */
   state?: string | null;
   source: string;
+  /** The imports row that produced this fill, when it came from an EFS/report batch. */
+  import_id?: string | null;
   /** Tender for a manual non-EFS-card fill (see PAYMENT_METHODS); null for EFS-card / imported fills. */
   payment_method?: string | null;
   /** Fuel-card reference (EFS card number / manual card tag), when present. */

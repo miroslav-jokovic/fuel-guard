@@ -62,7 +62,7 @@ export function useEfsTransactions(filters: Ref<EfsFilters>, page: Ref<number>) 
 }
 
 const DECLINED_COLS =
-  "id, declined_at, card_ref, invoice, location_id, location_text, city, state, unit, driver_ext_id, driver_name, error_code, error_description, policy, policy_name, suspicion_level, suspicion_reasons";
+  "id, import_id, declined_at, card_ref, invoice, location_id, location_text, city, state, unit, driver_ext_id, driver_name, error_code, error_description, policy, policy_name, suspicion_level, suspicion_reasons";
 
 /** Faithful declined (Reject Report) rows, newest first, one page (20) with total count. */
 export function useDeclinedTransactions(filters: Ref<EfsFilters>, page: Ref<number>) {

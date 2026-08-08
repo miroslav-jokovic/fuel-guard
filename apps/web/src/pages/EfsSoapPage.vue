@@ -161,7 +161,11 @@ function feedFreshness(f: EfsSoapFeedStatus): { label: string; warn: boolean } {
   const success = f.lastSuccessAt
     ? ` (last success ${Math.round((Date.now() - new Date(f.lastSuccessAt).getTime()) / 60_000)} min ago)`
     : "";
-  return { label: `Last polled ${ago}${success}.`, warn: false };
+  const pending = f.processingPending
+    ? ` ${f.processingPending} batch${f.processingPending === 1 ? "" : "es"} awaiting scoring/alerts.`
+    : "";
+  const processingError = f.processingLastError ? ` Processing error: ${f.processingLastError.slice(0, 160)}` : "";
+  return { label: `Last polled ${ago}${success}.${pending}${processingError}`, warn: Boolean(f.processingLastError) };
 }
 
 const postedFreshness = computed(() =>

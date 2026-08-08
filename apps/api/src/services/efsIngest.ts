@@ -324,7 +324,7 @@ export async function ingestReport(
 
   // File-level idempotency: this exact file was already committed → no-op. Guard the query in case the
   // file_hash column predates migration 0017 (treat as not-yet-imported, same as the client path).
-  let alreadyImported = false;
+  let existingImportId: string | null = null;
   try {
     // Org-scoped: file_hash is only unique within a tenant, and two carriers can legitimately
     // receive byte-identical empty/short reports. Unscoped, org B's import would suppress org A's.
@@ -334,11 +334,11 @@ export async function ingestReport(
       .eq("org_id", input.orgId)
       .eq("file_hash", input.fileHash)
       .limit(1);
-    alreadyImported = ((data ?? []) as unknown[]).length > 0;
+    existingImportId = ((data ?? []) as { id: string }[])[0]?.id ?? null;
   } catch {
     /* file_hash column not present yet — fall through and rely on row-level external_ref dedup */
   }
-  if (alreadyImported) return { ...emptyResult(kind), alreadyImported: true };
+  if (existingImportId) return { ...emptyResult(kind), alreadyImported: true, importId: existingImportId };
 
   const [{ data: vehicles }, { data: drivers }] = await Promise.all([
     admin.from("vehicles").select("id, unit_number").eq("org_id", input.orgId),

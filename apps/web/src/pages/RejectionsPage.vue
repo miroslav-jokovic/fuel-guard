@@ -317,6 +317,7 @@ const columns: DataTableColumn[] = [
           <div><dt class="text-xs text-ink-subtle">Location</dt><dd class="text-ink">{{ selectedRow.location_text || "—" }}</dd></div>
           <div><dt class="text-xs text-ink-subtle">City</dt><dd class="text-ink">{{ selectedRow.city || "—" }}</dd></div>
           <div><dt class="text-xs text-ink-subtle">State</dt><dd class="text-ink">{{ selectedRow.state || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-subtle">Import id</dt><dd class="font-mono text-xs text-ink">{{ selectedRow.import_id || "—" }}</dd></div>
         </dl>
       </div>
     </SlideOver>

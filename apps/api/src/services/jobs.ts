@@ -22,8 +22,9 @@ export type JobKind =
   | "sync_drivers"
   | "nightly_reconcile"
   | "efs_ingest"
-  | "efs_soap_posted" // EFS SOAP posted-feed poller (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md)
-  | "efs_soap_rejected" // EFS SOAP rejected-feed poller
+  | "efs_soap_posted" // EFS SOAP posted-feed acquisition (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md)
+  | "efs_soap_rejected" // EFS SOAP rejected-feed acquisition
+  | "efs_process_import" // durable post-acquisition scoring + alert emission
   | "sync_driver_scores"
   | "snapshot_driver_week"
   | "hazmat_extract"
@@ -49,10 +50,8 @@ export const SCORING_JOB_KINDS: ReadonlySet<JobKind> = new Set<JobKind>([
   "score_import",
   "score_txn",
   "efs_store_sync",
-  "efs_ingest", // ingest scores its new rows inline
-  "efs_soap_posted", // SOAP ingest scores via the same ingestReport path
-  // Declined scoring writes declined_transactions/anomaly context, not fuel score outcomes. Keep the
-  // live fraud signal independent from a long-running fuel rebuild.
+  "efs_ingest", // legacy file ingestion scores its new rows inline
+  "efs_process_import", // durable post-EFS scoring and alert processing
   "nightly_reconcile", // runs syncFuelEventsFromEfs + backfillOrg internally
 ]);
 

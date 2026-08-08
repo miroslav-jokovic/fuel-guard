@@ -16,6 +16,8 @@ export interface EfsSoapFeedStatus {
   lastPolledAt: string | null;
   lastSuccessAt: string | null;
   lastError: string | null;
+  processingPending: number;
+  processingLastError: string | null;
 }
 
 /** Non-secret status shape returned by GET /api/integrations/efs-soap/config. */

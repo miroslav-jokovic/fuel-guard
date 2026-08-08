@@ -25,6 +25,10 @@ export const NOTIFICATION_CATEGORIES = [
   "hazmat_review",
   "hazmat_cleared",
   "hazmat_rejected",
+  "fuel_alert",
+  "declined_alert",
+  "efs_processing_failed",
+  "efs_feed_stale",
 ] as const;
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
@@ -43,6 +47,10 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   hazmat_review: "Hazmat reviews",
   hazmat_cleared: "Hazmat cleared",
   hazmat_rejected: "Hazmat rejected",
+  fuel_alert: "Fuel alerts",
+  declined_alert: "Declined-card alerts",
+  efs_processing_failed: "EFS processing failures",
+  efs_feed_stale: "EFS feed freshness",
 };
 
 /**
@@ -127,6 +135,13 @@ export function deepLinkFor(
     case "hazmat_cleared":
     case "hazmat_rejected":
       return entityId ? `/hazmat/loads/${entityId}` : "/hazmat/loads";
+    case "fuel_alert":
+      return "/anomalies";
+    case "declined_alert":
+      return "/rejections";
+    case "efs_processing_failed":
+    case "efs_feed_stale":
+      return "/settings/efs-soap";
     case "message_received":
       return entityId ? `/messages/${entityId}` : "/messages";
     case "performance_week":

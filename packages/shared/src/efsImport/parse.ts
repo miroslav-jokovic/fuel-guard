@@ -341,6 +341,7 @@ export interface EfsTransactionRow {
 /** A persisted declined (Reject Report) row (as the preview table reads it). */
 export interface DeclinedTransactionRow {
   id: string;
+  import_id?: string | null;
   declined_at: string;
   card_ref: string | null;
   invoice: string | null;

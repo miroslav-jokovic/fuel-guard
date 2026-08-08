@@ -57,11 +57,15 @@ export interface EfsSoapStatus {
     lastPolledAt: string | null;
     lastSuccessAt: string | null;
     lastError: string | null;
+    processingPending: number;
+    processingLastError: string | null;
   };
   rejected: {
     lastPolledAt: string | null;
     lastSuccessAt: string | null;
     lastError: string | null;
+    processingPending: number;
+    processingLastError: string | null;
   };
   /** Transport security, described without exposing any key material. */
   tls: {
@@ -81,8 +85,8 @@ const EMPTY_STATUS: Omit<EfsSoapStatus, "configured" | "enabled" | "tls"> = {
   environment: null,
   endpointUrl: null,
   accountId: null,
-  posted: { lastPolledAt: null, lastSuccessAt: null, lastError: null },
-  rejected: { lastPolledAt: null, lastSuccessAt: null, lastError: null },
+  posted: { lastPolledAt: null, lastSuccessAt: null, lastError: null, processingPending: 0, processingLastError: null },
+  rejected: { lastPolledAt: null, lastSuccessAt: null, lastError: null, processingPending: 0, processingLastError: null },
 };
 
 interface DbRow {
@@ -280,6 +284,21 @@ export async function getEfsSoapStatus(
   const creds = await getEfsSoapCredentials(admin, env, orgId);
   const tls = await tlsStatus(admin, orgId, creds?.tls ?? null);
   if (!creds) return { configured: false, enabled: false, ...EMPTY_STATUS, tls };
+  const { data: processing } = await admin
+    .from("efs_processing_runs")
+    .select("feed, status, last_error")
+    .eq("org_id", orgId)
+    .in("status", ["pending", "running", "failed"])
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  const processingRows = (processing ?? []) as { feed: "posted" | "rejected"; status: string; last_error: string | null }[];
+  const processingFor = (feed: "posted" | "rejected") => {
+    const rows = processingRows.filter((r) => r.feed === feed);
+    return {
+      processingPending: rows.length,
+      processingLastError: rows.find((r) => r.status === "failed")?.last_error ?? null,
+    };
+  };
   return {
     configured: true,
     enabled: creds.enabled && env.EFS_SOAP_ENABLED, // both must be true for the poller to run
@@ -290,11 +309,13 @@ export async function getEfsSoapStatus(
       lastPolledAt: creds.postedLastPolledAt,
       lastSuccessAt: creds.postedLastSuccessAt,
       lastError: creds.postedLastError,
+      ...processingFor("posted"),
     },
     rejected: {
       lastPolledAt: creds.rejectedLastPolledAt,
       lastSuccessAt: creds.rejectedLastSuccessAt,
       lastError: creds.rejectedLastError,
+      ...processingFor("rejected"),
     },
     tls,
   };
