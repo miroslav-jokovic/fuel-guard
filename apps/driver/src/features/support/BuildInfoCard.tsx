@@ -79,7 +79,7 @@ export function BuildInfoCard() {
         <Row label="Server" value={api ? `${api.commitShort ?? 'unknown'} · ${api.env}` : (apiError ?? 'checking…')} />
         <Row label="Database" value={api ? `${api.schema.applied ?? 'unknown'} (${api.schema.state})` : '—'} />
       </GroupedList>
-      <AppText variant="caption" tone="muted">
+      <AppText variant="caption" tone="muted" className="-mt-2">
         Quote these values when reporting a problem—they identify the exact build on this device.
       </AppText>
       {schemaNote ? <Banner tone="warning" message={schemaNote} /> : null}

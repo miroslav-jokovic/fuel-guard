@@ -39,7 +39,6 @@
  */
 export type Icon = readonly (readonly [string, { readonly [key: string]: string | number }])[];
 
-
 // prettier-ignore
 export {
   // ── Actions ─────────────────────────────────────────────────────────────
@@ -51,6 +50,7 @@ export {
   RefreshIcon                 as ArrowPathIcon,
   Tick02Icon                  as CheckIcon,
   MoreVerticalIcon            as EllipsisVerticalIcon,
+  Copy01Icon                  as CopyIcon,
   Sent02Icon                  as PaperAirplaneIcon,
   FilterIcon                  as FunnelIcon,
   Search01Icon                as MagnifyingGlassIcon,
@@ -75,6 +75,8 @@ export {
   Alert02Icon                 as ShieldExclamationIcon,          // ⚠ verify (see ADR-001)
   InformationCircleIcon       as InformationCircleIcon,
   UnavailableIcon             as NoSymbolIcon,                   // ⚠ verify (⊘ vs. slashed-circle)
+  EyeIcon                     as EyeIcon,
+  ViewOffIcon                 as EyeSlashIcon,
 
   // ── Objects / domain ────────────────────────────────────────────────────
   TruckIcon                   as TruckIcon,
@@ -93,6 +95,8 @@ export {
   Link04Icon                  as LinkIcon,                       // ⚠ verify (01/02/03/04 stylistic)
   ChampionIcon                as TrophyIcon,                     // ⚠ verify (ChampionIcon vs. Trophy01Icon)
   SecurityCheckIcon           as ShieldCheckIcon,                // ⚠ verify (shield-with-tick)
+  Key01Icon                   as KeyIcon,
+  ResetPasswordIcon           as ResetPasswordIcon,
   Wifi01Icon                  as SignalIcon,                     // ⚠ verify (wifi arcs vs. signal bars)
   AiMagicIcon                 as SparklesIcon,                   // ✨ AI features
   SmartPhone01Icon            as DevicePhoneMobileIcon,          // Driver App settings card

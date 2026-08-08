@@ -1,7 +1,19 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
+
+interface FieldAccessibilityContextValue {
+  label: string;
+  hint?: string;
+  error?: string;
+}
+
+const FieldAccessibilityContext = createContext<FieldAccessibilityContextValue | null>(null);
+
+export function useFieldAccessibility(): FieldAccessibilityContextValue | null {
+  return useContext(FieldAccessibilityContext);
+}
 
 export function Field({
   label,
@@ -17,13 +29,15 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <View className="gap-1.5">
+    <View className="gap-2">
       <AppText variant="supporting" tone="secondary" className="font-medium">
         {label}{required ? <AppText variant="supporting" tone="danger"> *</AppText> : null}
       </AppText>
-      {children}
+      <FieldAccessibilityContext.Provider value={{ label, hint, error }}>
+        {children}
+      </FieldAccessibilityContext.Provider>
       {error ? (
-        <View className="flex-row items-start gap-1.5">
+        <View className="flex-row items-start gap-2">
           <Icon name="error" size={15} className="mt-0.5 text-danger" />
           <AppText variant="supporting" tone="danger" className="flex-1">{error}</AppText>
         </View>

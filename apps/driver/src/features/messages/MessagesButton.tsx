@@ -19,8 +19,8 @@ export function MessagesButton({ unread, onPress }: { unread: number; onPress: (
     >
       <Icon name="mail" size={26} fill={unread > 0} className="text-ink" />
       {unread > 0 ? (
-        <View className="absolute right-0.5 top-0.5 min-w-[18px] items-center justify-center rounded-full bg-danger px-1 py-0.5">
-          <AppText variant="caption" tone="inverse" allowFontScaling={false} className="text-[10px] font-bold" tabular>
+        <View className="absolute right-0.5 top-0.5 min-w-[18px] items-center justify-center rounded-full bg-danger px-1 py-1">
+          <AppText variant="caption" tone="inverse" allowFontScaling={false} className="text-micro font-bold" tabular>
             {capped}
           </AppText>
         </View>

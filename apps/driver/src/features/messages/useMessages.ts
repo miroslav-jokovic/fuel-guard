@@ -43,10 +43,10 @@ export function useThreads(enabled = true): UseQueryResult<ThreadsResponse, Erro
   });
 }
 
-export function useThreadDetail(threadId: string | undefined): UseQueryResult<ThreadDetailResponse, Error> {
+export function useThreadDetail(threadId: string | undefined, enabled = true): UseQueryResult<ThreadDetailResponse, Error> {
   return useQuery({
     queryKey: [...ME_THREADS_KEY, threadId] as const,
-    enabled: !!threadId,
+    enabled: enabled && !!threadId,
     queryFn: async ({ signal }) => {
       const res = await apiFetch(`/api/messages/${threadId}`, { schema: threadDetailResponseSchema, signal });
       if (!res.ok || !res.data) {
@@ -146,9 +146,10 @@ export function useReportMessage() {
  * instant dispatch replies. Scoped per mounted screen; teardown on unmount. Failures are silent —
  * the poll is the guarantee, realtime is the speed.
  */
-export function useMessagesRealtime(threadId?: string): void {
+export function useMessagesRealtime(threadId?: string, enabled = true): void {
   const qc = useQueryClient();
   useEffect(() => {
+    if (!enabled) return undefined;
     const channel = supabase
       .channel(threadId ? `messages-${threadId}` : 'messages-inbox')
       .on(
@@ -167,5 +168,5 @@ export function useMessagesRealtime(threadId?: string): void {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [qc, threadId]);
+  }, [qc, threadId, enabled]);
 }

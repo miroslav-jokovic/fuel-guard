@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import {
   ActionBar, AppText, Avatar, Badge, Banner, Button, Card, ConfirmSheet, EmptyState, Field,
   GroupedList, Icon, IconButton, Input, ListRow, NumericField, Progress, Screen, ScreenHeader, SectionLabel,
@@ -14,7 +14,7 @@ import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View className="gap-3">
-      <SectionLabel>{title}</SectionLabel>
+      <SectionLabel compact>{title}</SectionLabel>
       {children}
     </View>
   );
@@ -33,6 +33,8 @@ export default function Gallery() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const noop = () => undefined; // gallery previews are non-interactive
   const demoLoad = SAMPLE_UPCOMING[0];
+
+  if (!__DEV__) return <Redirect href="/home" />;
 
   return (
     <Screen padTop={false}>

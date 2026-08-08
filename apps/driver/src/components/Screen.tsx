@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react';
-import { ScrollView, View } from 'react-native';
+import { useContext, type ReactNode } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomTabBarHeightContext } from 'expo-router/js-tabs';
 import { layout } from '@/theme/tokens';
-import { screenTopPadding } from '@/theme/safeArea';
+import { screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
 import { ui } from '@/theme/classes';
 
 // Safe-area + canvas background wrapper (plan §11.6). Scrolls by default; `scroll={false}` gives
@@ -23,6 +24,7 @@ export function Screen({
   footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const protectedByTabBar = useContext(BottomTabBarHeightContext) !== undefined;
   const top = screenTopPadding(insets.top, padTop);
 
   const footerNode = footer ? (
@@ -38,27 +40,29 @@ export function Screen({
 
   if (!scroll) {
     return (
-      <View className={ui.screen}>
+      <KeyboardAvoidingView className={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View
           className={ui.fixedContent}
           style={{
             paddingTop: top,
-            paddingBottom: footer ? layout.screenInset : insets.bottom + layout.screenInset,
+            paddingBottom: footer
+              ? layout.screenInset
+              : (protectedByTabBar ? 0 : insets.bottom) + layout.screenInset,
           }}
         >
           {children}
         </View>
         {footerNode}
-      </View>
+      </KeyboardAvoidingView>
     );
   }
   return (
-    <View className={ui.screen}>
+    <KeyboardAvoidingView className={ui.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerClassName={ui.scrollContent}
         contentContainerStyle={{
           paddingTop: top,
-          paddingBottom: footer ? layout.screenInset : insets.bottom + layout.scrollBottomInset,
+          paddingBottom: screenBottomPadding(insets.bottom, Boolean(footer), protectedByTabBar),
         }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -66,6 +70,6 @@ export function Screen({
         {children}
       </ScrollView>
       {footerNode}
-    </View>
+    </KeyboardAvoidingView>
   );
 }

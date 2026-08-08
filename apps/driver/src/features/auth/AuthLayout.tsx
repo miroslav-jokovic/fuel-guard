@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Icon, type Tone } from '@/components';
 import type { MaterialSymbolName } from '@/theme/materialSymbols.generated';
@@ -53,15 +53,19 @@ export function AuthScreen({
 }) {
   const insets = useSafeAreaInsets();
   return (
-    <View
-      className="flex-1 bg-canvas px-4"
-      style={{ paddingTop: insets.top + layout.sectionGap, paddingBottom: insets.bottom + layout.screenInset }}
+    <ScrollView
+      className="flex-1 bg-canvas"
+      contentContainerClassName="gap-6 px-4"
+      contentContainerStyle={{
+        paddingTop: insets.top + layout.sectionGap,
+        paddingBottom: insets.bottom + layout.screenInset,
+      }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <View className="gap-6">
-        <AuthHero icon={icon} tone={tone} title={title} subtitle={subtitle} />
-        {children ? <View className="gap-3">{children}</View> : null}
-      </View>
-      {footer ? <View className="mt-6 gap-3">{footer}</View> : null}
-    </View>
+      <AuthHero icon={icon} tone={tone} title={title} subtitle={subtitle} />
+      {children ? <View className="gap-3">{children}</View> : null}
+      {footer ? <View className="gap-3">{footer}</View> : null}
+    </ScrollView>
   );
 }

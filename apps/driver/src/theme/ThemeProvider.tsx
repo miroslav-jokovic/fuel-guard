@@ -1,8 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, View, useColorScheme as useSystemColorScheme } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, Platform, View, useColorScheme as useSystemColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StatusBar } from 'expo-status-bar';
 import { colorScheme, vars } from 'nativewind';
 import { themeVars, type ThemeKey } from './colors';
 import {
+  CONTRAST_MODE_STORAGE_KEY,
+  THEME_MODE_STORAGE_KEY,
+  isContrastMode,
+  isThemeMode,
   resolveThemeKey,
   type ContrastMode,
   type ThemeMode,
@@ -29,11 +35,49 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemColorScheme = useSystemColorScheme();
-  const [mode, setMode] = useState<ThemeMode>('system');
-  const [contrastMode, setContrastMode] = useState<ContrastMode>('system');
+  const [mode, setModeState] = useState<ThemeMode>('system');
+  const [contrastMode, setContrastModeState] = useState<ContrastMode>('system');
+  const [preferencesReady, setPreferencesReady] = useState(false);
   const [systemHighContrast, setSystemHighContrast] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [boldText, setBoldText] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const fallback = setTimeout(() => {
+      if (active) setPreferencesReady(true);
+    }, 250);
+    void AsyncStorage.multiGet([THEME_MODE_STORAGE_KEY, CONTRAST_MODE_STORAGE_KEY])
+      .then((entries) => {
+        if (!active) return;
+        const stored = new Map(entries);
+        const storedMode = stored.get(THEME_MODE_STORAGE_KEY) ?? null;
+        const storedContrast = stored.get(CONTRAST_MODE_STORAGE_KEY) ?? null;
+        if (isThemeMode(storedMode)) setModeState(storedMode);
+        if (isContrastMode(storedContrast)) setContrastModeState(storedContrast);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) {
+          clearTimeout(fallback);
+          setPreferencesReady(true);
+        }
+      });
+    return () => {
+      active = false;
+      clearTimeout(fallback);
+    };
+  }, []);
+
+  const setMode = useCallback((next: ThemeMode) => {
+    setModeState(next);
+    void AsyncStorage.setItem(THEME_MODE_STORAGE_KEY, next).catch(() => undefined);
+  }, []);
+
+  const setContrastMode = useCallback((next: ContrastMode) => {
+    setContrastModeState(next);
+    void AsyncStorage.setItem(CONTRAST_MODE_STORAGE_KEY, next).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     colorScheme.set(mode);
@@ -41,10 +85,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    const contrastPreference =
+      Platform.OS === 'ios'
+        ? AccessibilityInfo.isDarkerSystemColorsEnabled().catch(() => false)
+        : Platform.OS === 'android'
+          ? AccessibilityInfo.isHighTextContrastEnabled().catch(() => false)
+          : Promise.resolve(false);
+    const boldTextPreference =
+      Platform.OS === 'ios' ? AccessibilityInfo.isBoldTextEnabled().catch(() => false) : Promise.resolve(false);
+
     void Promise.all([
-      AccessibilityInfo.isHighTextContrastEnabled(),
-      AccessibilityInfo.isReduceMotionEnabled(),
-      AccessibilityInfo.isBoldTextEnabled(),
+      contrastPreference,
+      AccessibilityInfo.isReduceMotionEnabled().catch(() => false),
+      boldTextPreference,
     ]).then(([highContrast, reduced, bold]) => {
       if (!active) return;
       setSystemHighContrast(highContrast);
@@ -53,10 +106,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     });
 
     const subscriptions = [
-      AccessibilityInfo.addEventListener('highTextContrastChanged', setSystemHighContrast),
       AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion),
-      AccessibilityInfo.addEventListener('boldTextChanged', setBoldText),
     ];
+    if (Platform.OS === 'ios') {
+      subscriptions.push(AccessibilityInfo.addEventListener('boldTextChanged', setBoldText));
+      subscriptions.push(AccessibilityInfo.addEventListener('darkerSystemColorsChanged', setSystemHighContrast));
+    } else if (Platform.OS === 'android') {
+      subscriptions.push(AccessibilityInfo.addEventListener('highTextContrastChanged', setSystemHighContrast));
+    }
 
     return () => {
       active = false;
@@ -80,12 +137,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       boldText,
       themeKey,
     }),
-    [mode, isDark, contrastMode, isHighContrast, reduceMotion, boldText, themeKey],
+    [mode, setMode, isDark, contrastMode, setContrastMode, isHighContrast, reduceMotion, boldText, themeKey],
   );
 
   return (
     <ThemeContext.Provider value={value}>
-      <View style={[vars(themeVars[themeKey]), { flex: 1 }]}>{children}</View>
+      <View style={[vars(themeVars[themeKey]), { flex: 1 }]}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        {preferencesReady ? children : null}
+      </View>
     </ThemeContext.Provider>
   );
 }

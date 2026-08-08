@@ -1,22 +1,24 @@
 import { useState } from 'react';
-import { View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import {
   ActionBar,
   AppText,
   Banner,
   Button,
-  Icon,
+  GroupedList,
+  ListRow,
   OfflineBanner,
   Screen,
   ScreenHeader,
   SectionLabel,
+  Skeleton,
 } from '@/components';
 import { enqueue, newClientId } from '@/data/outbox';
 import { stageFile } from '@/data/fileStaging';
 import { HAZMAT_CAPTURE_KIND } from '@/data/handlers';
 import { scanBol } from '@/capture/engine';
 import { buildCapturePayload, decideCapture } from '@/features/hazmat/hazmatCaptureModel';
+import { useFeatures } from '@/session/useFeatures';
 
 const CAPTURE_GUIDANCE = [
   ['image', 'Show all four document edges'],
@@ -26,8 +28,19 @@ const CAPTURE_GUIDANCE = [
 
 export default function HazmatCaptureScreen() {
   const router = useRouter();
+  const features = useFeatures();
   const [busy, setBusy] = useState(false);
   const [reasons, setReasons] = useState<string[]>([]);
+
+  if (features.isLoaded && !features.enabled('hazmat.capture')) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen padTop={false}>
+        <ScreenHeader title="Capture BOL" onBack={() => router.back()} />
+        <Skeleton className="h-28 w-full rounded-xl" />
+      </Screen>
+    );
+  }
 
   const onCapture = async (): Promise<void> => {
     setBusy(true);
@@ -78,17 +91,11 @@ export default function HazmatCaptureScreen() {
       {reasons.length > 0 ? <Banner tone="warning" message={reasons.join(' · ')} /> : null}
 
       <SectionLabel>Before you capture</SectionLabel>
-      <View className="overflow-hidden rounded-xl border border-edge-subtle bg-surface">
-        {CAPTURE_GUIDANCE.map(([icon, label], index) => (
-          <View key={label}>
-            <View className="min-h-[52px] flex-row items-center gap-3 px-4 py-2.5">
-              <Icon name={icon} size={20} className="text-ink-secondary" />
-              <AppText variant="body" className="flex-1">{label}</AppText>
-            </View>
-            {index < CAPTURE_GUIDANCE.length - 1 ? <View className="ml-4 h-px bg-edge-subtle" /> : null}
-          </View>
+      <GroupedList>
+        {CAPTURE_GUIDANCE.map(([icon, label]) => (
+          <ListRow key={label} icon={icon} title={label} />
         ))}
-      </View>
+      </GroupedList>
 
       <Banner
         tone="info"

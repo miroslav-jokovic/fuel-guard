@@ -26,7 +26,7 @@ export function TaskStepper({ steps }: { steps: TaskStep[] }) {
         <AppText variant="sectionTitle" className="flex-1">{current?.label ?? 'Current step'}</AppText>
         <AppText variant="caption" tone="muted" tabular>Step {currentIndex + 1} of {steps.length}</AppText>
       </View>
-      <View className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
+      <View className="h-1 overflow-hidden rounded-full bg-surface-muted">
         <View className="h-full rounded-full bg-operation-current" style={{ width: `${progress}%` }} />
       </View>
     </View>

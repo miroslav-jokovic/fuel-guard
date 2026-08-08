@@ -377,7 +377,7 @@ standalone `DRIVER-APP-DESIGN-SYSTEM.md`.
 
 ## §8. Maps & navigation approach
 
-Aligned to the existing HERE investment and Expo constraints:
+Historical approach, retained to show what D52 superseded:
 
 1. **Routing stays server-side on HERE** (already built: truck profile + hazmat class + tunnel
    category). The app requests a plan/route and receives geometry + maneuvers + fuel stops.
@@ -387,10 +387,11 @@ Aligned to the existing HERE investment and Expo constraints:
    SDK Navigate Edition** native bridge behind an Expo **config plugin / dev client**. Consequence for
    v1: **use Expo dev builds from day one** (nav SDKs and several native modules don't run in Expo Go).
 
-> **Superseded by D52 (2026-07).** Navigation is no longer a driver-app phase — it is planned as its
-> own programme once the app ships, and the *display-only vs true turn-by-turn* choice above moves
-> with it. Points 1–2 remain true of what is already built server-side; point 3's licensing, cost and
-> native-bridge work belongs to that programme. §15 is the handover note.
+> **Superseded by D52 and `NAVIGATION-PROGRAMME-PLAN.md` (2026-08-07).** The choice is no longer
+> open: active guidance uses HERE SDK Navigate Edition and its native map. The MapLibre implementation
+> is a DEV/non-driving preview only; Google Maps is not a truck-safety fallback. The existing
+> server-side HERE/fuel code is a baseline that the programme hardens—it is not a completed route
+> safety or driver-delivery system. §15 is the handover note.
 >
 > **One consequence stays binding regardless:** adopt the **Expo dev-build workflow from day one** —
 > several native modules already in the stack (`expo-sqlite` with SQLCipher, `expo-image-manipulator`,
@@ -452,7 +453,7 @@ point at their replacement, so a decision is never silently dropped.
 | **D34** | **No certificate pinning in v1.** Compensating controls: TLS 1.3 + HSTS, system-trust-store only (Android `networkSecurityConfig`, iOS ATS), short JWT (D31), server-side anomaly/geo monitoring, MDM CA control. Fallback if threat rises: dynamic pinning (Approov) or intermediate-CA SPKI + backup pin behind a remote kill-switch | A static pin can't be OTA-patched; a mis-timed cert rotation bricks every install. OWASP treats static pinning as a liability at moderate sensitivity (§24, resolves O13) |
 | **D35** | **🚫 RETIRED as fuel-specific (D41) → replaced by D58.** Original: lock manual fuel entry above 5 mph with an "I've parked" attestation. Manual fuel entry is gone, but photo capture, hazmat forms and message composition are still manual entry in a moving truck — D58 re-locks in-motion safety against the surfaces that exist | Fuel logging is manual entry → NHTSA per-se lockout in motion; GPS Doppler speed is the reliable low-friction signal (§24, resolves O17) |
 | **D36** | **✏️ AMENDED — the app ships Hanken Grotesk, not IBM Plex.** `apps/driver/app/_layout.tsx` loads `HankenGrotesk_400/500/600/700` via `@expo-google-fonts/hanken-grotesk`; the ledger's "deferred: IBM Plex" note left this reading as unresolved for months. **Locked:** Hanken Grotesk (OFL, bundled) is the UI face. **The requirement that drove D36 stands:** numeric readouts — odometer, gallons, MPG, scores — need **genuine tabular figures** so columns do not jitter. **T10** verifies tabular figures on device; if Hanken Grotesk lacks them, bundle **IBM Plex Mono for numerals only** rather than reopening the UI face | Industrial/engineered identity (not generic Inter/Roboto), license-clean to bundle, tabular numerals for jitter-free fuel/odometer columns (§24, resolves O16, satisfies D23) |
-| **D37** | **⏸️ DEFERRED with D52 — decide inside the navigation programme, do not procure yet (T8 is on hold).** Original: map tiles/styles = MapTiler Cloud (vector tiles + hosted styles + MapLibre offline packs); fallback/cost-optimization: self-hosted **Protomaps PMTiles** (a single `.pmtiles` on object storage = an offline pack, no per-tile fees, no lock-in) | Managed, predictable per-MAU pricing for a bounded driver roster, offline support, OpenMapTiles schema → self-host escape hatch is real (§24, resolves O10) |
+| **D37** | **⛔ SUPERSEDED by D52 / NAV-1.** Do not procure MapTiler or build PMTiles for active navigation. HERE SDK Navigate Edition supplies the active map, truck layers, map matching and offline regions. MapLibre may exist only as a DEV/non-driving preview and is removed before GA if nothing else needs it. | One data/rendering provider must own the safety path; a separate tile stack cannot provide HERE truck warners or offline truck map matching and adds a second visual truth. |
 | **D38** | **Numeric entry = native `decimal-pad`** in v1 (accessible, fast, familiar) with the large-value display + sticky submit; a custom glove keypad is deferred unless post-launch field data shows a need | Removes the build-time keypad question; native pad is the accessible default (§24, resolves O15) |
 | **D39** | **v1 build order (retargeted by D41):** Phases 0–1 (foundation + identity, **built**) → Phase 2 (offline spine + Home) → Phase 3 (**Assignments: equipment, loads & dispatch** — the daily job) → Phases 5 / 5E / 5N / 5M (Performance, Entitlements, Notifications, Messages) → 6 (Hazmat) → 7 (Training). **Amended by D52:** navigation is no longer in this order at all. | Ships identity + the loads spine first, then the surfaces that make the daily job complete; Supersedes the former fuel-capture-first order (§24 O6) |
 | **D40** | **Icon system = Material Symbols** (default **Rounded**, **Outlined** available, **fill** variants), baked at **weight 200 / grade 200 / opsz 24** as subset static font instances (~92KB for all 4), rendered via `<Icon name … variant fill className>` with a generated codepoint map + a `gen-material-symbols.py` regen script. Supersedes the earlier lucide mention (D18/D23) | User spec; RN can't set grade/fill axes at runtime, so instancing is the only precise way. Self-hosted, no runtime dep, token-colored |
@@ -467,7 +468,7 @@ point at their replacement, so a decision is never silently dropped.
 | **D49** | **Build the dispatch surface in Phase 3 (work package 3D), not "later."** `apps/web/src/features/dispatch/**` under the **existing** Dispatch nav section (`auth.ts` already grants `dispatch: manage` to admin/fleet_manager/dispatcher — no auth change): **Loads** queue with the approval checklist, load detail/editor with stops + required-photo builder + `load_events` timeline, **Create load**, **Assignments** (live duty board + history), **Exceptions**. Retires `seed_driver_load.sql` | §14.2 previously rejected a dispatch UI as "a second full feature." That reasoning does not survive D45: an approval gate operated from a SQL editor is not an approval gate. Loads must be creatable, assignable, approvable and releasable in a browser or Phase 3 has no input |
 | **D50** | **Terminology lock — "assignment" stops meaning three things.** **Equipment assignment** = the domicile default (`vehicles.assigned_driver_id`); **duty session** = driver + equipment over time (`0086`); **load assignment** = `loads.driver_id` plus its release state. `driver_vehicle_assignments` (`0051`) keeps its telematics job and is annotated in place as a non-truth-source | The single word was carrying a static admin column, a Samsara inference table, and a dispatch decision — which is how the plan came to assume all three existed when only the first did |
 | **D51** | **Information architecture — four tabs, a reserved center slot, two top-bar icons.** Bottom bar: **Home · Loads · Score · More**, capped at five including the reserved center. **Messages** and **Notifications** are **top-bar icons with full pages**, not tabs. **Hazmat is a step inside the load flow** (auto-inserted when `loads.hazmat`), with reference material under **More** — never a tab. The tab label reads **"Loads"** while the page header reads **Assignments**. Contextual work (stop capture, hazmat step, duty check-in) is a modal route over the shell. Full rationale + route tree in §22.1 | A driver's bar should hold what they open *without a reason*; anything opened *because something happened* belongs in the top bar or in context. Messages/notifications are interrupt-driven and would sit idle in a permanent slot. Hazmat is not a place — it is something a load requires, and a standing tab would invite hazmat paperwork detached from its load. "Loads" is driver vocabulary and fits the 11px label where "Assignments" truncates |
-| **D52** | **Navigation is deferred to its own programme.** Phase 4 (Planned Navigation & Fueling) leaves the driver-app critical path and is planned separately once the app ships. The **center tab slot is designed in but not rendered**; `navigate.tsx` / `drive.tsx` stay as the seam. Everything server-side it would consume — `0059`/`0060` route geometries, `0074` fuel plans, `0058` smart-fueling spine, `packages/shared/src/smartFueling/` — is already built and untouched. Choosing between *display-only corridor guidance* (the former §8 position) and *true turn-by-turn on HERE SDK Navigate Edition* moves into that programme, along with its licensing, per-driver cost, native config-plugin bridge, offline map packs and background-location store declarations | User direction (2026-07). Navigation is a product of its own scale, and the audit showed nothing was built (`navigate.tsx` is a redirect stub, MapLibre is not a dependency, MapTiler T8 not procured, no HERE Navigate licensing task exists anywhere). Cutting it out of the critical path lets the daily job — check in, see loads, accept, capture proof, get told things — ship complete |
+| **D52** | **Navigation is a separate programme, now specified in `NAVIGATION-PROGRAMME-PLAN.md`.** It remains outside the shipped driver-app critical path and `nav.preview` remains unreleased until its own GA gate. The architecture decision is now locked: **HERE SDK Navigate Edition owns active guidance**; HERE Routing v8 remains the server planner; a short-lived HERE route handle transfers a validated, load-bound route into the phone. MapLibre is DEV/non-driving preview only and Google Maps is not a truck-safety fallback. The programme adds strict combination-profile provenance, critical-notice rejection, live freshness, route publication/audit, native guidance, offline truck maps/routing, dynamic rerouting, motion lockouts, dual-source phone+Samsara visibility, facility entrances, MASVS security, SLOs and staged pilots. The **center tab slot stays designed in but not rendered** until NP7. | User direction (2026-08-07) after review of the existing HERE code and current HERE/Uber Freight research. The old handover left the core product decision open and overstated the readiness of the server-side path: critical HERE notices were ignored, active weights could be capped downward, trailer/load inputs were incomplete, cached results had no live freshness, and no load-bound driver delivery path existed. |
 | **D53** | **Notifications are a first-class module** (Phase 5N): `notification_events` + per-user `notification_reads` + `device_push_tokens`, Expo Push delivery, a driver **notification centre** behind the top-bar bell, per-category preferences and quiet hours, and deep links that open the exact load or thread. Categories: load offered/changed/canceled, message received, duty auto-close, performance week settled, training due. Driver-scoped RESTRICTIVE RLS with raw-PostgREST deny cases | The audit found **zero** driver notification infrastructure — the only `notifications.ts` emails office recipients about anomalies. Without push, dispatch releasing a load is invisible until the driver happens to open the app, which defeats the whole approval flow built in 3B/3D |
 | **D54** | **Messages are a first-class module** (Phase 5M): `message_threads` + `thread_participants` + `messages` + read state, office↔driver, optionally bound to a load (`threads.load_id`) so a conversation carries its context. Outbound rides the **existing Phase-2 outbox** with client-UUID PKs, so a message written in a dead zone is never lost; inbound uses **Supabase Realtime** with a cache-backed fallback poll. Dispatch gets an inbox in the web Dispatch section. Retention + export are admin settings; bodies are covered by the audit trail and never hard-deleted by a driver | The audit found no table, no plan section, no mention anywhere in the repo. This is the first surface in the stack needing **inbound** realtime — D4's offline model is write-only today — so it is authored as its own module rather than bolted onto an existing phase. Store note: Apple treats in-app user-generated content as needing report/block affordances even for internal-only apps |
 | **D55** | **Module entitlements — `org_modules` (module key → enabled, per org).** Keys: `hazmatguard`, `training`, `messages`, `notifications`, `dispatch`, `navigation`. Delivered in the bootstrap payload; enforced in **three** places — RLS predicates on the module's own tables, an API guard, and the UI (a disabled module's surfaces do not render). Absent key = disabled | The plan repeatedly says "entitlement-gated (`hazmatguard`)" but the audit found **no entitlement, plan or subscription model anywhere** — zero matches across migrations, API, web and shared. HazmatGuard and Training are separately-sellable products, so the gate must exist before either ships, and gating only in the UI would not survive a driver JWT hitting PostgREST |
@@ -495,7 +496,7 @@ resolutions are auditable rather than buried in a 58-row register.
 | **D16** ("lockout after N fails") | `N` was never given, so an implementer would invent one | **10 consecutive failures per email / 15 min, released after 30 min**, keyed on email + `sub`, never IP alone |
 | **D5 / D13 / D12 / D19 / D21 / D24** | Written in fuel vocabulary that D41 removed; D13's storage path did not match what `0085` actually built | D5 tagged retired; the rest amended to the surfaces that exist. D13 now states the real path `${org}/${driver}/${load}/${photo}.webp` |
 | **D17** (tab bar) | Still described the pre-D51 bar including a live center Navigate tab | **⛔ Superseded by D51** |
-| **D37** (MapTiler) | Locked a vendor for a phase that D52 moved out of scope, with **T8** telling someone to go buy tiles | **⏸️ Deferred with D52**; T8 put on hold |
+| **D37** (MapTiler) | Locked a second map vendor before the active-guidance architecture existed | **⛔ Superseded by D52/NAV-1**; HERE owns active maps and offline truck data; T8 retired |
 | **D9** (RLS coverage) | Enumerated seven tables from Phase 1 and was never extended, so new modules had no checklist | Enumeration refreshed per migration, with the rule that a module adds its tables here in the same migration that creates them (D56) |
 | **D33** (push transport) | Correct and still live — but the Notifications *module* (D53) was authored as if no push decision existed | D33 relabelled as the transport layer **under** D53. *(Correction to the previous audit: the transport decision did exist; what was missing was tables, delivery, preferences, the in-app centre and any phase to build them.)* |
 
@@ -531,7 +532,7 @@ decisions in Round 5 — see §24 for the mapping.)
 | T5 | **Seed a reviewer demo driver account** (CG2/D26) — org + assigned vehicle + sample fills, live backend | Before submission | Put creds in App Store Connect App Review Info + Play App access (invite-only apps auto-reject without it) |
 | T6 | **Set up private distribution** (D25): Apple Business Manager Custom App (Org ID); Managed Google Play private app (Org ID) | Before submission | Unlisted is the Apple fallback if ABM enrolment isn't possible |
 | T7 | **Verify every native dependency is New-Architecture-ready** on SDK 57 | Phase 0 | Audit the pinned set (MapLibre 11, expo-sqlite, image-manipulator, reanimated 4, gorhom sheet, etc.) |
-| T8 | **⏸️ ON HOLD — MapTiler procurement moves to the navigation programme (D37/D52). Do not buy tiles yet.** The font half is **done**: Hanken Grotesk ships via `@expo-google-fonts/hanken-grotesk` (D36 amended) | Navigation programme | Nothing to do now; re-opened when navigation is planned |
+| T8 | **🚫 RETIRED — do not procure MapTiler.** D52/NAV-1 chose HERE SDK Navigate for active maps and offline truck data. The font half is **done**: Hanken Grotesk ships via `@expo-google-fonts/hanken-grotesk` (D36 amended) | — | HERE licensing/procurement is NP0 in `NAVIGATION-PROGRAMME-PLAN.md` |
 | T10 | **Verify tabular figures on device** for Hanken Grotesk — render the odometer, gallons, MPG and score readouts and confirm digits do not shift width between frames (D36) | Before 3C ships a numeric surface | If it fails, bundle **IBM Plex Mono for numerals only**; do not reopen the UI typeface |
 | T11 | **Move `/api/me` rate limiting from IP-keyed to per-JWT-`sub`** with the D57 buckets and business caps | Before 3C ships | Today one `meLimiter` covers all of `/api/me` at 120/15min keyed by IP — a depot behind one NAT would lock itself out |
 | T9 | **Add `fuelguard://accept-invite` to the Supabase Redirect URLs allow-list** (prod Dashboard → Auth → URL Configuration; local `config.toml` already updated) | Before the first real driver invite | Without it, GoTrue falls back to `site_url` and the invite link opens the web instead of the app |
@@ -1420,11 +1421,12 @@ phone with a human approval in between. After 3C, the full daily job runs offlin
 
 ---
 
-## §15. Navigation — deferred to its own programme (D52)
+## §15. Navigation — standalone programme (D52)
 
-> **Not a driver-app phase any more.** Navigation was Phase 4; **D52** moves it out of the critical
-> path to be planned separately once the app ships. This section is kept as the handover note so the
-> navigation programme starts from what exists rather than rediscovering it.
+> **Not a driver-app phase.** Navigation remains outside this app's shipped critical path, but it is
+> now specified in **`NAVIGATION-PROGRAMME-PLAN.md`**. That document is the source of truth for NAV
+> decisions, phases NP0–NP7, safety invariants, security, SLOs and release gates. This section is the
+> handover from the original driver-app plan.
 
 **What is already built and untouched (the whole server-side brain):**
 
@@ -1437,20 +1439,24 @@ phone with a human approval in between. After 3C, the full daily job runs offlin
   thresholds. `apps/web/src/features/fueling/**` renders all of it for dispatch today.
 - **`apps/api/src/lib/here.ts`** + `services/routeGeometry.ts` — the live HERE fetch, retry and parse.
 
-**What was never built** (the audit finding behind D52): `apps/driver/app/(tabs)/navigate.tsx` is a
-three-line redirect to `/drive`; **MapLibre is not a dependency** of `apps/driver`; the MapTiler
-account (**T8**) is not procured; and no task anywhere covers **HERE SDK Navigate Edition** licensing.
+**What is not production navigation:** the current `navigate.tsx` / `drive.tsx` seam and
+`features/nav/` are an NP0 MapLibre spike with a hardcoded route and sample fuel stops. MapLibre has
+since been added as a dependency, correcting the old audit statement that it was absent, but it is a
+renderer—not a truck navigation engine. HERE Navigate licensing, native integration and the full
+safety/reliability programme remain unbuilt.
 
-**The decision the programme owns.** The former §8 position locked v1 to *display-only* — render the
-HERE polyline with maneuver/corridor cards over MapLibre, with true voice turn-by-turn deferred. That
-choice is now open again and belongs to the navigation plan, together with everything it drags in:
-SDK licensing and per-driver cost, an Expo config-plugin native bridge, offline map packs, background
-location and its Apple/Google declarations, and battery behaviour on an all-day shift.
+**The architecture is now decided.** Active guidance uses HERE SDK Navigate Edition and its native
+map/VisualNavigator. HERE Routing v8 calculates a validated route server-side and a fresh,
+short-lived route handle imports it into the device. MapLibre remains DEV/non-driving preview only;
+Google Maps is not a commercial-truck fallback. The full rationale and implementation are in the
+standalone programme.
 
 **The seams left in place.** The center tab slot is designed into the shell but not rendered (§22.1);
-`navigate.tsx` and `drive.tsx` stay in the route tree; a load reaching `in_transit` is the natural
-trigger; and `loads.hazmat` + the vehicle's routing profile already carry everything a truck-legal
-route request needs. Nothing in Phases 3, 5, 5N or 5M depends on navigation existing.
+`navigate.tsx` and `drive.tsx` stay in the route tree; and a load reaching `in_transit` is the natural
+trigger. The old claim that `loads.hazmat` plus the vehicle profile already carried every routing
+input is withdrawn: the standalone programme adds classified hazardous goods, actual/current and
+axle weights, trailer-composed dimensions, source/verification metadata and facility truck
+entrances. Nothing in Phases 3, 5, 5N or 5M depends on navigation existing.
 
 ---
 
@@ -2218,7 +2224,7 @@ package emits **no `.d.ts`**. Fixes:
 | O7 | zod v4 on Hermes | **Metro package-exports config; fallback zod 3.x** — verified in the Phase-0 spike (T2) |
 | O8 | image-manipulator WebP | **Pin ≥12.0.1** (verified in T2); JPEG fallback pre-documented |
 | O9 | Per-fill MPG | **Display server-written `computed_mpg`** (null until scored); never client-recompute |
-| O10 | Map tile host | **MapTiler Cloud**; fallback self-hosted Protomaps PMTiles (D37) |
+| O10 | Map tile host | **Superseded:** HERE SDK Navigate native map for active guidance (D52/NAV-1); MapLibre DEV/non-driving preview only; no MapTiler procurement |
 | O11 | Email-confirmation posture | **Enforce the invite token in accept** (D15); confirmations may stay off |
 | O12 | Session lifetime | **`jwt_expiry=3600`, rotation+reuse-detection on, inactivity 7d, time-box 30d** (D31) |
 | O13 | Certificate pinning | **Skip in v1** + compensating controls; dynamic-pinning fallback if threat rises (D34) |

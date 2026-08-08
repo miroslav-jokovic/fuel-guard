@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   AppText,
@@ -8,6 +8,7 @@ import {
   EmptyState,
   GroupedList,
   Icon,
+  OfflineBanner,
   Screen,
   ScreenHeader,
   SectionLabel,
@@ -15,6 +16,7 @@ import {
   type Tone,
 } from '@/components';
 import { apiFetch } from '@/lib/api';
+import { useFeatures } from '@/session/useFeatures';
 
 interface Citation { cfr: string; interpretation?: string }
 interface Finding { ruleId: string; tier: string; message: string; citations: Citation[] }
@@ -45,9 +47,11 @@ const TERMINAL = new Set(['cleared', 'analysis_green', 'rejected']);
 export default function HazmatVerdictScreen() {
   const { loadId } = useLocalSearchParams<{ loadId: string }>();
   const router = useRouter();
+  const features = useFeatures();
+  const hazmatEnabled = features.enabled('hazmat.capture');
   const query = useQuery({
     queryKey: ['me', 'hazmat', loadId, 'runs'],
-    enabled: Boolean(loadId),
+    enabled: hazmatEnabled && Boolean(loadId),
     queryFn: async ({ signal }): Promise<unknown[]> => {
       const response = await apiFetch<{ rows: unknown[] }>(`/api/me/hazmat/loads/${loadId}/runs`, { signal });
       if (!response.ok || !response.data) throw new Error(response.error?.message ?? 'Could not load the verdict');
@@ -62,10 +66,28 @@ export default function HazmatVerdictScreen() {
   const view = useMemo(() => (query.data ? parseRuns(query.data) : null), [query.data]);
   const meta = OUTCOME[view?.outcome ?? 'pending'] ?? PENDING;
 
+  if (features.isLoaded && !hazmatEnabled) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen padTop={false}>
+        <ScreenHeader title="Compliance verdict" onBack={() => router.back()} />
+        <Skeleton className="h-28 w-full rounded-xl" />
+      </Screen>
+    );
+  }
+
   return (
     <Screen padTop={false}>
       <ScreenHeader title="Compliance verdict" onBack={() => router.back()} />
-      {query.isLoading ? (
+      <OfflineBanner />
+      {query.isError && !query.data ? (
+        <Banner
+          tone="danger"
+          message={query.error.message || 'Could not load the compliance verdict.'}
+          actionLabel="Retry"
+          onAction={() => void query.refetch()}
+        />
+      ) : query.isLoading ? (
         <Skeleton className="h-28 w-full rounded-xl" />
       ) : !view ? (
         <EmptyState title="Analyzing" subtitle="The compliance check updates automatically after your BOL syncs." />
