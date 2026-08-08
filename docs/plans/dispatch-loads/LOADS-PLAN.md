@@ -140,9 +140,29 @@ be worse than the named gap; it stays under the blanket `apiLimiter` until it ha
 
 5.3 Five assertions in `duty-sessions.test.mjs`, including the stale-click race itself.
 
-5.4 **Outstanding: the history tab in `AssignmentsPage.vue`.** Held deliberately rather than rushed —
-    it is the first list surface built since `docs/DESIGN-SYSTEM-CONTRACT.md`, and it should be
-    `FilterBar` + `DataTable` + keyset `TablePagination` from the start rather than corrected after.
+5.4 **The history tab is built** — a tab on Assignments, not a page: it is one more view of the same
+    subject, not a second place to look for it. `FilterBar` with `DateRangeFilter` + driver as the
+    primary dimensions, truck and trailer in `#more` with chips, `DataTable` with the shared badge
+    vocabulary. Two departures from the contract's list recipe, both deliberate and both stated in
+    the file:
+
+    - **No search box.** The endpoint filters by driver, vehicle, trailer and date and has no text
+      search. A search field over server-paginated rows would only match what happens to be loaded,
+      which is worse than no search — the contract's own rule is never to ship a filter no query
+      consumes.
+    - **"Load more", not `TablePagination`.** Page numbers need a total, and the endpoint has none:
+      a `count: exact` over the attribution table is the very scan the date range exists to avoid.
+      The count reads "N segments loaded" rather than a fabricated total.
+
+    Opens on the last seven days — the endpoint requires a range, and a stated default is better than
+    either an empty screen or a silent unbounded query.
+
+5.4a Two pieces of design debt cleared while in the file: the board's HOS badge map was another
+    hand-rolled `rounded-full` fill with no ring, and the "Active drivers only" control was a raw
+    `<input type=checkbox>`. Both now use the shared vocabulary. `useTrailers` was also **promoted**
+    from `features/fleet/` to `composables/` — seven surfaces across four features read it, and
+    `check-feature-boundaries`' own comment names promotion as the intended fix for that shape rather
+    than another ALLOW-set entry.
 
 5.5 *Deferred by D-L6:* equipment reassign and take-over resolution from the board.
 

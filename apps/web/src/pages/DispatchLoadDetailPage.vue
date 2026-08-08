@@ -21,7 +21,7 @@ import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useTrailersQuery } from "@/features/fleet/useTrailers";
+import { useTrailersQuery } from "@/composables/useTrailers";
 import {
   statusLabel,
   useAssignLoad,

@@ -1,3 +1,10 @@
+/**
+ * Trailers data layer. Lives in `composables/` rather than `features/fleet/` because seven
+ * surfaces across four features read it — dispatch, hazmat, fuel and the fleet pages themselves.
+ * `check-feature-boundaries` names promotion out of a feature as the intended fix for exactly
+ * this shape, and the alternative (an entry in the ALLOW set) would have to be repeated for every
+ * feature that needs a trailer list next.
+ */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { Trailer, TrailerInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
@@ -11,7 +18,10 @@ export function useTrailersQuery() {
   return useQuery({
     queryKey: trailersKey,
     queryFn: async (): Promise<Trailer[]> => {
-      const { data, error } = await supabase.from("trailers").select(COLS).order("unit_number", { ascending: true });
+      const { data, error } = await supabase
+        .from("trailers")
+        .select(COLS)
+        .order("unit_number", { ascending: true });
       if (error) throw new Error(error.message);
       return (data ?? []) as Trailer[];
     },
@@ -35,7 +45,12 @@ export function useUpdateTrailer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; input: TrailerInput }): Promise<Trailer> => {
-      const { data, error } = await supabase.from("trailers").update(payload.input).eq("id", payload.id).select(COLS).single();
+      const { data, error } = await supabase
+        .from("trailers")
+        .update(payload.input)
+        .eq("id", payload.id)
+        .select(COLS)
+        .single();
       if (error) throw new Error(error.message);
       return data as Trailer;
     },
@@ -47,7 +62,10 @@ export function useUpdateTrailer() {
 export function useBulkUpdateTrailers() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { ids: string[]; patch: Partial<Pick<Trailer, "is_reefer" | "reefer_tank_capacity_gal" | "status">> }): Promise<number> => {
+    mutationFn: async (payload: {
+      ids: string[];
+      patch: Partial<Pick<Trailer, "is_reefer" | "reefer_tank_capacity_gal" | "status">>;
+    }): Promise<number> => {
       if (!payload.ids.length) return 0;
       const { error } = await supabase.from("trailers").update(payload.patch).in("id", payload.ids);
       if (error) throw new Error(error.message);

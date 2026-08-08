@@ -10,7 +10,7 @@ import {
   useUpdateTrailer,
   useRetireTrailer,
   useBulkUpdateTrailers,
-} from "@/features/fleet/useTrailers";
+} from "@/composables/useTrailers";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import SlideOver from "@/components/SlideOver.vue";
 import StatusBadge from "@/components/StatusBadge.vue";

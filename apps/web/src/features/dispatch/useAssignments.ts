@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { AssignmentRow } from "@fuelguard/shared";
+import type { Ref } from "vue";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
+import type { AssignmentHistoryResponse, AssignmentRow } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -15,7 +16,8 @@ export function useAssignmentsQuery() {
     queryKey: assignmentsKey,
     queryFn: async (): Promise<AssignmentRow[]> => {
       const res = await apiFetch<{ assignments: AssignmentRow[] }>("/api/dispatch/assignments");
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the duty board.");
+      if (!res.ok || !res.data)
+        throw new Error(res.error?.message ?? "Could not load the duty board.");
       return res.data.assignments;
     },
     // Duty state changes out-of-band as drivers check in/out — keep the board live without a reload.
@@ -39,5 +41,54 @@ export function useEndShift() {
       qc.invalidateQueries({ queryKey: assignmentsKey });
       qc.invalidateQueries({ queryKey: ["dispatch", "loads"] });
     },
+  });
+}
+
+// ── the attribution trail (L5 / D-L6) ────────────────────────────────────────────────
+
+export interface AssignmentHistoryFilters {
+  /** Required, not defaulted server-side: an unbounded attribution query is a table scan. */
+  from: string;
+  to: string;
+  driverId?: string;
+  vehicleId?: string;
+  trailerId?: string;
+}
+
+const HISTORY_PAGE_SIZE = 50;
+
+/**
+ * Keyset pages, accumulated. `TablePagination` is deliberately not used here and this is the one
+ * place in the app where that is right: page numbers need a total, and the endpoint has none — a
+ * `count: exact` over an attribution table is the scan the date range exists to avoid. So the footer
+ * offers "Load more" and the count shown is "N loaded", never a fabricated total.
+ */
+export function useAssignmentHistoryQuery(filters: Ref<AssignmentHistoryFilters>) {
+  return useInfiniteQuery({
+    queryKey: ["dispatch", "assignment-history", filters] as const,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }): Promise<AssignmentHistoryResponse> => {
+      const f = filters.value;
+      const params = new URLSearchParams({
+        from: f.from,
+        to: f.to,
+        limit: String(HISTORY_PAGE_SIZE),
+      });
+      if (f.driverId) params.set("driverId", f.driverId);
+      if (f.vehicleId) params.set("vehicleId", f.vehicleId);
+      if (f.trailerId) params.set("trailerId", f.trailerId);
+      if (pageParam) params.set("cursor", pageParam);
+
+      const res = await apiFetch<AssignmentHistoryResponse>(
+        `/api/dispatch/assignments/history?${params}`,
+      );
+      if (!res.ok || !res.data)
+        throw new Error(res.error?.message ?? "Could not load the assignment history.");
+      return res.data;
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    // History is a record of what already happened; polling it would be a request per minute for an
+    // answer that cannot change.
+    staleTime: 60_000,
   });
 }

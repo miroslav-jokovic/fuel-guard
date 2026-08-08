@@ -10,7 +10,7 @@ import { BADGE_BASE, txnStatusTone, toneClass } from "@/lib/badges";
 import { stationDateTime } from "@/lib/stationTime";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
-import { useTrailersQuery } from "@/features/fleet/useTrailers";
+import { useTrailersQuery } from "@/composables/useTrailers";
 import { useFuelTransactions, useFuelRangeTotals, useCreateFillUp, FUEL_PAGE_SIZE, type FuelFilters } from "@/features/fuel/useFuelLog";
 import SlideOver from "@/components/SlideOver.vue";
 import FillUpForm from "@/features/fuel/FillUpForm.vue";

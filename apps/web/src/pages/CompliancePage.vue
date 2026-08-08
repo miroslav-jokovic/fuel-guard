@@ -5,7 +5,7 @@ import { qualifyDriver } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useAllDriverCertsQuery, useCertificationsQuery } from "@/composables/useCompliance";
-import { useTrailersQuery } from "@/features/fleet/useTrailers";
+import { useTrailersQuery } from "@/composables/useTrailers";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";

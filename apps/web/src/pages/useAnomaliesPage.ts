@@ -2,7 +2,7 @@ import { ref, computed, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ANOMALY_SEVERITIES, type Anomaly, type AnomalyDisposition } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import { useTrailersQuery } from "@/features/fleet/useTrailers";
+import { useTrailersQuery } from "@/composables/useTrailers";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useAnomaliesQuery, useAnomalyTransition, useAnomalyTxnDrivers, type AnomalyFilters } from "@/features/anomalies/useAnomalies";
 import { useSessionStore } from "@/stores/session";

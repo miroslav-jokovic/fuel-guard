@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { shiftDuration, LOAD_STATUS_LABELS, type AssignmentRow, type LoadStatus } from "@fuelguard/shared";
+import {
+  shiftDuration,
+  LOAD_STATUS_LABELS,
+  type AssignmentRow,
+  type LoadStatus,
+} from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
@@ -8,6 +13,9 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
+import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import { useAssignmentsQuery, useEndShift } from "@/features/dispatch/useAssignments";
 
 /**
@@ -15,6 +23,9 @@ import { useAssignmentsQuery, useEndShift } from "@/features/dispatch/useAssignm
  * status, current truck + paired trailer, city location, how long they've been in the status, and the
  * load they are working. "End shift" only appears for a genuinely open in-app duty session (this fleet
  * doesn't use the in-app shift feature, so it stays hidden) — the board itself never depends on it.
+ *
+ * The HISTORY tab is the same subject over time (L5): who held which truck and trailer, for how long.
+ * A tab rather than a page — it is one more view of assignments, not a second place to look for them.
  */
 
 const session = useSessionStore();
@@ -45,17 +56,24 @@ const filtered = computed(() =>
   }),
 );
 
-// HOS duty badge — same states as the Drivers page.
-const HOS_BADGE: Record<string, { label: string; cls: string }> = {
-  driving: { label: "Driving", cls: "bg-success-50 text-success-700" },
-  on_duty: { label: "On duty", cls: "bg-info-50 text-info-700" },
-  off_duty: { label: "Off duty", cls: "bg-surface-muted text-ink-muted" },
-  sleeper: { label: "Sleeper", cls: "bg-brand-50 text-brand-700" },
-  yard_move: { label: "Yard move", cls: "bg-warning-50 text-warning-700" },
-  personal_conveyance: { label: "Personal", cls: "bg-warning-50 text-warning-700" },
-  unknown: { label: "—", cls: "bg-surface-muted text-ink-subtle" },
+/** HOS duty badge — tones from the shared vocabulary, so it matches every other status in the app.
+ *  Labels are lowercase because BADGE_BASE capitalises. */
+const HOS_BADGE: Record<string, { label: string; tone: string }> = {
+  driving: { label: "driving", tone: "success" },
+  on_duty: { label: "on duty", tone: "info" },
+  off_duty: { label: "off duty", tone: "neutral" },
+  sleeper: { label: "sleeper", tone: "brand" },
+  yard_move: { label: "yard move", tone: "warning" },
+  personal_conveyance: { label: "personal", tone: "warning" },
+  unknown: { label: "unknown", tone: "neutral" },
 };
 const hosBadge = (s: string | null) => HOS_BADGE[s ?? "unknown"] ?? HOS_BADGE.unknown!;
+
+const TABS = [
+  { value: "board", label: "Duty board" },
+  { value: "history", label: "History" },
+] as const;
+const tab = ref<(typeof TABS)[number]["value"]>("board");
 
 const loadLabel = (r: AssignmentRow) =>
   r.load_ref
@@ -79,67 +97,127 @@ async function end(r: AssignmentRow) {
 const columns: DataTableColumn[] = [
   { key: "driver_name", label: "Driver", headerClass: "min-w-[9rem]" },
   { key: "duty", label: "Duty status", headerClass: "min-w-[7rem]" },
-  { key: "vehicle_unit", label: "Truck", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "trailer_unit", label: "Trailer", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "location", label: "Location", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
-  { key: "duration", label: "In status", numeric: true, headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "load", label: "Current load", headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
+  {
+    key: "vehicle_unit",
+    label: "Truck",
+    headerClass: "min-w-[6rem]",
+    cellClass: "text-ink-secondary",
+  },
+  {
+    key: "trailer_unit",
+    label: "Trailer",
+    headerClass: "min-w-[6rem]",
+    cellClass: "text-ink-secondary",
+  },
+  {
+    key: "location",
+    label: "Location",
+    headerClass: "min-w-[9rem]",
+    cellClass: "text-ink-secondary",
+  },
+  {
+    key: "duration",
+    label: "In status",
+    numeric: true,
+    headerClass: "min-w-[6rem]",
+    cellClass: "text-ink-secondary",
+  },
+  {
+    key: "load",
+    label: "Current load",
+    headerClass: "min-w-[10rem]",
+    cellClass: "text-ink-secondary",
+  },
 ];
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Live from ELD telematics: each driver's duty status, truck, trailer, location, and load." />
+    <PageHeader
+      :description="
+        tab === 'board'
+          ? 'Live from ELD telematics: each driver\'s duty status, truck, trailer, location, and load.'
+          : 'Who held which truck and trailer, and when. The attribution trail behind every evidence panel.'
+      "
+    />
 
-    <FilterBar
-      v-model:search="search"
-      search-placeholder="Search driver, truck, location, load…"
-      :count="filtered.length"
-      count-label="drivers"
+    <nav
+      class="flex gap-1 rounded-lg bg-surface-muted p-1 text-sm"
+      role="tablist"
+      aria-label="Assignments view"
     >
-      <template #filters>
-        <label class="flex items-center gap-2 text-sm text-ink-secondary">
-          <input v-model="activeOnly" type="checkbox" class="rounded border-edge" />
-          Active drivers only
-        </label>
-      </template>
-    </FilterBar>
+      <button
+        v-for="t in TABS"
+        :key="t.value"
+        type="button"
+        role="tab"
+        class="rounded-md px-3 py-1.5 font-medium transition"
+        :class="
+          tab === t.value
+            ? 'bg-surface text-ink shadow-sm'
+            : 'text-ink-muted hover:text-ink-secondary'
+        "
+        :aria-selected="tab === t.value"
+        @click="tab = t.value"
+      >
+        {{ t.label }}
+      </button>
+    </nav>
 
-    <DataTable
-      :columns="columns"
-      :rows="filtered"
-      row-key="driver_id"
-      :loading="isLoading"
-      :error="isError ? (error instanceof Error ? error.message : 'Failed to load the duty board') : null"
-      :retrying="isFetching"
-      empty-text="No drivers on the roster yet."
-      @retry="refetch"
-    >
-      <template #cell-duty="{ row }">
-        <span
-          class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-          :class="hosBadge(row.duty_status).cls"
-          >{{ hosBadge(row.duty_status).label }}</span
-        >
-      </template>
-      <template #cell-vehicle_unit="{ row }">{{ row.vehicle_unit || "—" }}</template>
-      <template #cell-trailer_unit="{ row }">{{ row.trailer_unit || "—" }}</template>
-      <template #cell-location="{ row }">{{ row.location || "—" }}</template>
-      <template #cell-duration="{ row }">
-        {{ row.duty_since ? shiftDuration(row.duty_since, nowMs) : "—" }}
-      </template>
-      <template #cell-load="{ row }">{{ loadLabel(row) }}</template>
-      <template #actions="{ row }">
-        <BaseButton
-          v-if="session.canManage && hasOpenSession(row)"
-          variant="ghost"
-          size="sm"
-          :disabled="endShift.isPending.value"
-          @click="end(row)"
-        >
-          End shift
-        </BaseButton>
-      </template>
-    </DataTable>
+    <AssignmentHistory v-if="tab === 'history'" />
+
+    <template v-else>
+      <FilterBar
+        v-model:search="search"
+        search-placeholder="Search driver, truck, location, load…"
+        :count="filtered.length"
+        count-label="drivers"
+      >
+        <template #filters>
+          <BaseCheckbox v-model="activeOnly">Active drivers only</BaseCheckbox>
+        </template>
+      </FilterBar>
+
+      <DataTable
+        :columns="columns"
+        :rows="filtered"
+        row-key="driver_id"
+        :loading="isLoading"
+        :error="
+          isError
+            ? error instanceof Error
+              ? error.message
+              : 'Failed to load the duty board'
+            : null
+        "
+        :retrying="isFetching"
+        empty-text="No drivers on the roster yet."
+        @retry="refetch"
+      >
+        <template #cell-duty="{ row }">
+          <span :class="[BADGE_BASE, toneClass(hosBadge(row.duty_status).tone)]">
+            {{ hosBadge(row.duty_status).label }}
+          </span>
+        </template>
+        <template #cell-vehicle_unit="{ row }">{{ row.vehicle_unit || "—" }}</template>
+        <template #cell-trailer_unit="{ row }">{{ row.trailer_unit || "—" }}</template>
+        <template #cell-location="{ row }">{{ row.location || "—" }}</template>
+        <template #cell-duration="{ row }">
+          {{ row.duty_since ? shiftDuration(row.duty_since, nowMs) : "—" }}
+        </template>
+        <template #cell-load="{ row }">{{ loadLabel(row) }}</template>
+        <template #actions="{ row }">
+          <BaseButton
+            v-if="session.canManage && hasOpenSession(row)"
+            variant="ghost"
+            size="sm"
+            :disabled="endShift.isPending.value"
+            @click="end(row)"
+          >
+            End shift
+          </BaseButton>
+        </template>
+      </DataTable>
+    </template>
   </div>
 </template>
