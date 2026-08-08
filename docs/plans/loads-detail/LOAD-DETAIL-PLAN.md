@@ -244,10 +244,12 @@ A duty view joining `driver_duty_sessions` × `duty_equipment_segments` by drive
 page can say which truck and trailer the driver was actually in for each stop. Persist TMS
 `external_status` and `raw`, and surface both.
 
-### LD6 — Hazmat host
+### LD6 — Hazmat host — **UNBLOCKED 2026-08-08**
 
-The hazmat workspace opens as a section on this page (`HAZMAT-IA-PLAN.md` H-C1), once `hazmat_loads`
-carries its nullable `load_id`.
+The hazmat workspace opens as a section on this page (`HAZMAT-IA-PLAN.md` H-C1). The blocker is gone:
+`hazmat_loads.load_id` shipped in `0148`, and `getLoadDetail` already returns a `hazmat_record` block
+(id, status, tank state, newest analysis outcome) or null. What remains is the Vue side, held until
+the design-system rework settles.
 
 ## 7. Open questions
 

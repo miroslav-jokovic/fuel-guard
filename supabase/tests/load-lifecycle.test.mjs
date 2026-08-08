@@ -57,7 +57,7 @@ await db.exec(`
   create role service_role nologin bypassrls;
 `);
 
-for (const f of ["migrations/0001_extensions_and_enums.sql","migrations/0002_functions.sql","migrations/0003_core_tables.sql","migrations/0004_rls.sql","migrations/0005_storage.sql","migrations/0006_auth_hook.sql","migrations/0030_trailers.sql","migrations/0068_tms_integration.sql","migrations/0053_driver_performance_settings.sql","migrations/0054_driver_scores.sql","migrations/0055_driver_performance_weeks.sql","migrations/0083_driver_rls_matrix.sql","migrations/0084_driver_rls_writes.sql","migrations/0085_driver_loads.sql","migrations/0086_duty_sessions.sql","migrations/0087_load_lifecycle.sql","migrations/0141_driver_load_rpc_contract.sql","migrations/0142_load_approval_separation.sql"])
+for (const f of ["migrations/0001_extensions_and_enums.sql","migrations/0002_functions.sql","migrations/0003_core_tables.sql","migrations/0004_rls.sql","migrations/0005_storage.sql","migrations/0006_auth_hook.sql","migrations/0030_trailers.sql","migrations/0068_tms_integration.sql","migrations/0053_driver_performance_settings.sql","migrations/0054_driver_scores.sql","migrations/0055_driver_performance_weeks.sql","migrations/0083_driver_rls_matrix.sql","migrations/0084_driver_rls_writes.sql","migrations/0085_driver_loads.sql","migrations/0086_duty_sessions.sql","migrations/0087_load_lifecycle.sql","migrations/0141_driver_load_rpc_contract.sql","migrations/0142_load_approval_separation.sql","migrations/0088_module_entitlements.sql","migrations/0092_hazmat_core.sql","migrations/0148_hazmat_load_link.sql"])
   await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
 
 const ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'T') returning id`)).id;
@@ -231,6 +231,60 @@ ok("driver_type falls back to the org default", (await one(`select resolve_drive
 ok("a per-driver override wins", (await one(`select resolve_driver_type($1) t`, [OO])).t === "owner_operator");
 await db.query(`update organizations set default_driver_type='owner_operator' where id=$1`, [ORG]);
 ok("changing the org default moves un-overridden drivers", (await one(`select resolve_driver_type($1) t`, [CO])).t === "owner_operator");
+
+// ── the hazmat link (H-C1, migration 0148) ───────────────────────────────────
+//
+// `loads` and `hazmat_loads` were two parallel load entities with nothing between them. These
+// assertions are the invariant that makes one a property of the other rather than a second product:
+// a dispatch load has at most ONE current hazmat record, the link moves forward when a cleared record
+// is superseded and corrected, and it cannot be taken by anything else.
+const HZ = (n) => `900${n}0000-0000-0000-0000-000000000001`;
+const mkHazmat = async (id, org = ORG, supersedes = null) =>
+  (await one(
+    `insert into hazmat_loads (id, org_id, supersedes_load_id) values ($1,$2,$3) returning id`,
+    [id, org, supersedes])).id;
+
+const HL = await makeLoad("LD-HZ", CO);
+const H1 = await mkHazmat(HZ(1));
+await db.query(`select * from link_hazmat_load($1,$2,$3)`, [ORG, H1, HL]);
+ok("linking points the hazmat record at the dispatch load",
+  (await one(`select load_id from hazmat_loads where id=$1`, [H1])).load_id === HL);
+ok("...and flips loads.hazmat, so the board and the record cannot disagree",
+  (await one(`select hazmat from loads where id=$1`, [HL])).hazmat === true);
+
+const H2 = await mkHazmat(HZ(2));
+ok("an unrelated hazmat record cannot claim a load that is already linked (HZ003)",
+  (await err(db.query(`select * from link_hazmat_load($1,$2,$3)`, [ORG, H2, HL])))?.code === "HZ003");
+ok("...and the original link is untouched",
+  (await one(`select load_id from hazmat_loads where id=$1`, [H1])).load_id === HL);
+
+// A cleared hazmat load is immutable; a correction is a NEW row citing supersedes_load_id. Without
+// this the partial unique index would make every correction unlinkable.
+const H3 = await mkHazmat(HZ(3), ORG, H1);
+await db.query(`select * from link_hazmat_load($1,$2,$3)`, [ORG, H3, HL]);
+ok("a superseding record takes the link forward",
+  (await one(`select load_id from hazmat_loads where id=$1`, [H3])).load_id === HL);
+ok("...and the record it superseded is released, keeping one current record per load",
+  (await one(`select load_id from hazmat_loads where id=$1`, [H1])).load_id === null);
+ok("re-linking the SAME pair is a no-op, not an error (idempotent replay)",
+  (await err(db.query(`select * from link_hazmat_load($1,$2,$3)`, [ORG, H3, HL]))) === null);
+
+const ORG_B = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'Rival') returning id`)).id;
+const HB = await mkHazmat(HZ(4), ORG_B);
+ok("a hazmat record from another tenant is simply not found (HZ001)",
+  (await err(db.query(`select * from link_hazmat_load($1,$2,$3)`, [ORG, HB, HL])))?.code === "HZ001");
+ok("and another tenant cannot reach this org's load either (HZ002)",
+  (await err(db.query(`select * from link_hazmat_load($1,$2,$3)`, [ORG_B, HB, HL])))?.code === "HZ002");
+ok("the composite FK refuses a cross-tenant link written directly",
+  (await err(db.query(`update hazmat_loads set load_id=$1 where id=$2`, [HL, HB]))) !== null);
+
+// Retention outlives dispatch: deleting the dispatch row must release the link, never cascade into
+// the hazmat record, which is evidence.
+await db.query(`delete from loads where id=$1`, [HL]);
+ok("deleting the dispatch load releases the link",
+  (await one(`select load_id from hazmat_loads where id=$1`, [H3])).load_id === null);
+ok("...and the hazmat record itself survives",
+  (await one(`select count(*)::int n from hazmat_loads where id=$1`, [H3])).n === 1);
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

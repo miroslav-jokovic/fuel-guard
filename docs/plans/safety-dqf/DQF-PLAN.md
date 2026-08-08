@@ -111,22 +111,79 @@ text, where for CDL holders the CDLIS MVR replaces the paper medical certificate
 
 ## 6. Plan
 
-### DQ0 — Documents (the blocker)
+### DQ0 — Documents (the blocker) — **DONE 2026-08-08**
 
-- Migration: `documents` table (`org_id`, `subject_type` in driver/tractor/trailer/load, `subject_id`,
-  `kind`, `storage_path`, `content_type`, `bytes`, `sha256`, `page`, `variant`, `uploaded_by`,
-  `captured_at`, `created_at`), the FK from `certifications.document_id` and
-  `qualification_records.document_id`, a private `driver-docs` bucket with a size limit and an INSERT
-  policy scoped by `foldername[1] = auth_org_id()`, and RLS mirroring `certifications`' driver scope.
-- API: register + batch-sign endpoints modelled on `hazmatLoads.ts:139-198`.
-- Drop `master_documents`, `compliance_items`, `driver_endorsements` and their `schemaCheck` entries.
+Shipped as `0146_compliance_documents.sql` (additive) and `0147_retire_dead_compliance_tables.sql`
+(destructive), split so a later reader can tell which is which without reading the diff.
 
-### DQ1 — Make driver master data editable
+- Migration: `documents` (`org_id`, `subject_type`, `subject_id`, `kind`, `storage_path`,
+  `content_type`, `bytes`, `sha256`, `page`, `variant`, `captured_at`, `uploaded_by`, `created_at`),
+  the two FKs `certifications.document_id` and `qualification_records.document_id` reserved their
+  columns for, a private bucket with a 25MB limit and an INSERT policy scoped by
+  `foldername[1] = auth_org_id()`, and RLS mirroring `certifications`' driver scope.
+- API: `POST /api/compliance/documents` (register → signed upload URL) and
+  `GET /api/compliance/documents?subjectType&subjectId[&kind]` (one batch signed-read), modelled on
+  `hazmatLoads.ts:139-198`. Registration is audited as `compliance.document_registered`.
+- `master_documents`, `compliance_items` and `driver_endorsements` dropped with their `schemaCheck`
+  entries, after a grep proved the only references in the entire repo were those three probes and
+  four prose comments.
 
-`roster/drivers.ts:37` promises detail, update, endorsements and deactivate "on this same router" and
-none exist. Today the dashboard can **create** a driver with the full `0098` column set and then never
-edit any of it — `cdl_expires_at` and `medical_card_expires_at` are write-once. Add `GET /:id`,
-`PATCH /:id`, and deactivate. This blocks everything downstream.
+**Three departures from this plan, each deliberate:**
+
+1. **The bucket is `compliance-docs`, not `driver-docs`.** The subject vocabulary was always wider
+   than drivers — tractors, trailers, dispatch loads and the carrier itself — and a trailer's annual
+   inspection certificate filed in a bucket called "driver-docs" is a trap. A bucket cannot be
+   renamed later without moving every object in it, so the name had to be right the first time.
+2. **`subject_type` includes `organization`.** `certifications.subject_type` already accepts an
+   organization subject and the hazmat gate blocks on org-level certifications, so a PHMSA
+   registration certificate needed somewhere to live. `DOCUMENT_SUBJECT_TYPES` in
+   `complianceContract.ts` was extended to match.
+3. **No aggregate per-subject cap.** `hazmat_documents` caps at `MAX_BOL_PAGES` because each page
+   costs two vision-model calls; nothing is extracted here, and a cap on a qualification file would
+   fail the §391.51 retention it exists to serve. The bound is per request (page ≤ 50).
+
+**Append-only, and it is RLS that enforces it.** There is no UPDATE and no DELETE policy on
+`documents` — a safety file a manager can quietly rewrite is not evidence under §390.32(d). Removal
+is a service-role retention operation. Sixteen assertions in `supabase/tests/rls.test.mjs` pin this,
+including that one driver cannot read another driver's medical card and that no client can read the
+bucket directly at all. That file's expected count moved **159 → 175**.
+
+### DQ1 — Make driver master data editable — **DONE 2026-08-08**
+
+`roster/drivers.ts` promised detail, update, endorsements and deactivate "on this same router" and had
+none of them, so every column `0098` added was write-once: a driver created with a mistyped
+`cdl_expires_at` stayed that way forever.
+
+- `GET /:id` — the full profile, tenant-scoped on the query so a cross-org id is indistinguishable
+  from one that does not exist.
+- `PATCH /:id` — strict. An unknown key is a 400, not a silent no-op, because the columns absent from
+  the schema are absent for a reason: `identity_source` is derived, `user_id` and `app_access_enabled`
+  belong to the invite flow, `app_username` to the credentials router, the `samsara_*` and
+  `current_hos_*` columns to the syncs.
+- Dates are validated as `YYYY-MM-DD`, and a cleared `<input type="date">` (which posts `""`) now
+  reads as null instead of reaching Postgres as `''::date` and returning a 500.
+
+**Deactivation is a status edit, not its own endpoint.** `auth_driver_id()` (0083) resolves only
+'active' drivers, so `PATCH { status: 'terminated' }` ends driver-app access through the policies
+themselves — no session to revoke, no second code path that can disagree with the first. Four matrix
+assertions prove it: a terminated driver resolves to no identity, reads none of their own fuel history
+and none of their own safety documents, and the office still sees the record, because §391.51(c)
+retains it for three years past the end of employment.
+
+**Three rules live in a pure `resolveDriverUpdate`**, testable without a database because they are the
+rules and not incidental route code: editing an identity field claims the row from telematics; editing
+the name parts recomputes `full_name` (never the reverse, per 0098, and never to empty since the column
+is NOT NULL); terminating without a date stamps today, and never overwrites a date that already exists.
+
+**A live defect found on the way, fixed in the same change.** 0098 documents "enrich, never clobber"
+and the sync's deactivation pass honoured it — but the UPDATE-on-match path did not. It wrote
+`full_name`, `phone` and `samsara_username` over *every* matched row, including
+`identity_source = 'manual'`. An admin correcting a misspelled name through this new PATCH would have
+watched it revert on the next Samsara run, silently, with nothing logged; nothing asserted the
+behaviour either way. A manual row now gets only its `samsara_driver_id` refreshed — the link, not the
+identity. Shipping the edit surface without this would have been shipping something that does not work.
+
+Matrix count moved **175 → 179**.
 
 ### DQ2 — The Safety page
 

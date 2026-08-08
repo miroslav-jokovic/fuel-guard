@@ -119,18 +119,46 @@ site in dispatch. An unqualified driver can be assigned to a hazmat load and can
   eight failures.
 - Record **F-H3** as a product decision. Recommendation: warn at assignment, block at clear.
 
-### H-C1 — Link the loads (D-H2)
+### H-C1 — Link the loads (D-H2) — **DATA HALF DONE 2026-08-08; UI half deliberately held**
 
-- Migration: nullable `hazmat_loads.load_id uuid references loads(id) on delete set null`, unique
-  where not null; RLS unchanged.
-- `LoadsPage.vue`: the existing hazmat column becomes the entry point — a row action opening the
-  hazmat workspace for that load, and a hazmat filter.
-- The hazmat workspace moves from `/hazmat/loads/:id` into a SlideOver or detail surface reached from
-  Loads, following the pattern `TrailersPage` already uses. Note the dependency: **there is no load
-  detail page today** (`LoadsPage.vue` is the only Loads surface), so this is where the shape gets
-  decided.
-- Delete `HazmatLoadsPage.vue`, `HazmatPage.vue` and their routes and nav items.
-- Keep `HazmatLoadDetailPage.vue`'s content; it becomes the hazmat section, not a page.
+Split on purpose. The schema and API are the part that is safe to write while the driver-app design
+system is being reworked by hand; the page deletions and the nav change touch surfaces that are
+moving, and doing them now would mean writing against a moving target.
+
+**Shipped — `0148_hazmat_load_link.sql` and the API around it:**
+
+- Nullable `hazmat_loads.load_id`, with a partial unique index so a dispatch load carries at most one
+  CURRENT hazmat record.
+- The foreign key is **composite** — `(load_id, org_id)` against `loads(id, org_id)` — so a bug in a
+  service-role path cannot link one carrier's hazmat record to another carrier's load. A plain FK on
+  `load_id` alone would have allowed exactly that, and RLS would not have caught it, because the
+  service role bypasses RLS. The matrix asserts the refusal.
+- `on delete set null (load_id)`, column-scoped: deleting a dispatch load releases the link and never
+  cascades into the hazmat record, which is evidence with its own retention.
+- `link_hazmat_load(org, hazmat_load, load)` — SECURITY DEFINER, service-role grant only. A cleared
+  hazmat load is immutable and a correction is a NEW row citing `supersedes_load_id`, so a naive
+  unique index would have made every correction unlinkable. The function moves the link **forward
+  along the supersede chain**, releases the predecessor, and refuses (HZ003) to take it from any
+  record outside that chain — which is what stops an unrelated record quietly claiming a load's
+  hazmat history. Re-linking the same pair is a no-op, not an error.
+- Linking sets `loads.hazmat = true`, so the boolean the Loads board already reads can no longer
+  disagree with the record. One-way on purpose: unlinking does **not** clear it, because dispatch may
+  have marked a load hazmat for its own reasons and this function does not get to overrule them.
+- `POST /api/hazmat/loads/:id/link` and `DELETE /api/hazmat/loads/:id/link`, both audited.
+- `GET /api/dispatch/loads/:id` now returns `hazmat_record` — id, status, tank state, and the newest
+  analysis outcome — or null, which is the shape for the overwhelming majority of loads. **This is
+  what LD6 was waiting for.**
+
+Twelve new assertions in `supabase/tests/load-lifecycle.test.mjs` (42 → 54).
+
+**Still open, and intentionally so:**
+
+- `LoadsPage.vue`: the hazmat column becomes the entry point, plus a hazmat filter.
+- The workspace moves out of `/hazmat/loads/:id` and onto the load detail page as a section. The
+  dependency this plan flagged — "there is no load detail page today" — is gone: LD2 shipped
+  `DispatchLoadDetailPage.vue`, and `hazmat_record` is already on its payload.
+- Delete `HazmatLoadsPage.vue`, `HazmatPage.vue`, their routes and their nav items. Keep
+  `HazmatLoadDetailPage.vue`'s content; it becomes the section, not a page.
 
 ### H-C2 — Fold equipment into Trailers (D-H3, D-H4, D-H5)
 
