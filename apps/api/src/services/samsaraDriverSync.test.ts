@@ -7,7 +7,13 @@ import type { Env } from "../env.js";
 /** Fake admin: select → existing fixture; update/insert captured. Distinguishes the deactivation update
  *  (status:inactive + .in(ids)) from the per-driver identity updates. */
 function makeAdmin(existing: unknown[]) {
-  const captured = { deactivateIds: [] as string[], inserts: 0, identityUpdates: 0 };
+  const captured = {
+    deactivateIds: [] as string[],
+    inserts: 0,
+    identityUpdates: 0,
+    /** Every per-driver update payload, in order — what "enrich, never clobber" is asserted against. */
+    identityPatches: [] as Record<string, unknown>[],
+  };
   function builder(): any {
     let mode: string | null = null, payload: any = null, inIds: string[] | null = null;
     const b: any = {
@@ -21,7 +27,7 @@ function makeAdmin(existing: unknown[]) {
         if (mode === "select") return resolve({ data: existing, error: null });
         if (mode === "update") {
           if (payload?.status === "inactive" && inIds) captured.deactivateIds.push(...inIds);
-          else captured.identityUpdates++;
+          else { captured.identityUpdates++; captured.identityPatches.push(payload); }
           return resolve({ error: null });
         }
         return resolve({ error: null }); // insert
@@ -71,5 +77,41 @@ describe("syncDriversFromSamsara — deactivation reconcile", () => {
     const r = await syncDriversFromSamsara(admin, env, "org1", lister); // roster = [S2] (size 1)
     expect(r.deactivated).toBe(0);
     expect(captured.deactivateIds).toEqual([]);
+  });
+});
+
+/**
+ * "Enrich, never clobber" (0098 §4) on the UPDATE-on-match path.
+ *
+ * The deactivation pass above always honoured `identity_source`; this path did not, and nothing
+ * asserted it either way. The consequence was invisible and expensive: an admin corrects a misspelled
+ * name through the roster PATCH, the next sync matches the row by its Samsara id, and the correction
+ * is gone by morning with nothing logged. These two cases are the reason the roster edit surface can
+ * be trusted at all.
+ */
+describe("syncDriversFromSamsara — manual rows are not overwritten by the sync", () => {
+  const roster = async () => [
+    { id: "S1", name: "Samsara Spelling", driverActivationStatus: "active" },
+  ];
+
+  it("writes only the provenance link to a MANUAL row, never its name or phone", async () => {
+    const existing = [
+      { id: "d1", samsara_driver_id: "S1", full_name: "Corrected By Office", phone: "555-0100", samsara_username: null, identity_source: "manual", status: "active" },
+    ];
+    const { admin, captured } = makeAdmin(existing);
+    await syncDriversFromSamsara(admin, env, "org1", roster);
+    expect(captured.identityPatches).toEqual([{ samsara_driver_id: "S1" }]);
+  });
+
+  it("still refreshes identity on a SAMSARA-owned row", async () => {
+    const existing = [
+      { id: "d1", samsara_driver_id: "S1", full_name: "Old Name", phone: null, samsara_username: null, identity_source: "samsara", status: "active" },
+    ];
+    const { admin, captured } = makeAdmin(existing);
+    await syncDriversFromSamsara(admin, env, "org1", roster);
+    expect(captured.identityPatches[0]).toMatchObject({
+      full_name: "Samsara Spelling",
+      samsara_driver_id: "S1",
+    });
   });
 });

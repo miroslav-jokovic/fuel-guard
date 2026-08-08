@@ -8,12 +8,27 @@ import { DRIVER_TYPES } from "./loadsLifecycle.js";
  * ONE SOURCE OF TRUTH for the admin-owned driver/tractor/trailer records, consumed by the API
  * (request validation), the web app (typed reads) and the driver app. Master Data plan §7.
  *
- * M2 covers DRIVERS ONLY — list, create, and enroll-for-app-access. Tractors, trailers, terminals,
- * endorsements and compliance schemas land with the rest of the CRUD surface in M3.
+ * DRIVERS ONLY — list, detail, create, update, and enroll-for-app-access. Tractors, trailers and
+ * terminals land with the rest of the CRUD surface.
  *
  * PostgREST returns `numeric` as number|string, so every numeric column uses `z.coerce.number()`;
  * `date` columns arrive as ISO strings and stay `z.string()`.
  */
+
+/**
+ * A `date` column, as a browser date input actually behaves.
+ *
+ * Two things this catches that `z.string()` did not. A cleared `<input type="date">` posts `""`, and
+ * `''::date` is a Postgres error — so the endpoint used to answer a blank field with a 500. And a
+ * mistyped expiry reached the database as garbage rather than a 400. Both matter more here than
+ * anywhere else in the product: `cdl_expires_at` and `medical_card_expires_at` are what the
+ * qualification gate reads, and a driver's CDL expiry silently failing to save is a compliance
+ * incident, not a UI annoyance.
+ */
+export const isoDateSchema = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a date as YYYY-MM-DD").nullish(),
+);
 
 // ── vocabularies ──────────────────────────────────────────────────────────────
 
@@ -98,16 +113,16 @@ export const driverCreateSchema = z
     phone_alt: z.string().max(40).nullish(),
     status: driverStatusSchema.default("active"),
     driver_type: driverTypeSchema.nullish(),
-    hire_date: z.string().nullish(),
+    hire_date: isoDateSchema,
     home_terminal_id: z.uuid().nullish(),
     cdl_number: z.string().max(60).nullish(),
     cdl_state: z.string().max(10).nullish(),
     cdl_class: z.enum(CDL_CLASSES).nullish(),
-    cdl_issued_at: z.string().nullish(),
-    cdl_expires_at: z.string().nullish(),
+    cdl_issued_at: isoDateSchema,
+    cdl_expires_at: isoDateSchema,
     cdl_restrictions: z.string().max(200).nullish(),
-    medical_card_expires_at: z.string().nullish(),
-    date_of_birth: z.string().nullish(),
+    medical_card_expires_at: isoDateSchema,
+    date_of_birth: isoDateSchema,
     pay_type: z.enum(PAY_TYPES).nullish(),
     pay_rate: z.coerce.number().nonnegative().max(1_000_000).nullish(),
     per_diem: z.boolean().nullish(),
@@ -127,6 +142,183 @@ export const driverCreateResponseSchema = z.object({
   driver: driverListItemSchema,
 });
 export type DriverCreateResponse = z.infer<typeof driverCreateResponseSchema>;
+
+// ── detail + update ───────────────────────────────────────────────────────────
+
+/**
+ * The full profile behind one roster row — everything 0098 turned the telematics stub into.
+ *
+ * `samsara_driver_id` is exposed deliberately: paired with `identity_source` it is the answer to
+ * "why did this name change back", which is otherwise unanswerable from the UI.
+ */
+export const driverDetailSchema = driverListItemSchema.extend({
+  first_name: z.string().nullable(),
+  middle_name: z.string().nullable(),
+  last_name: z.string().nullable(),
+  phone_alt: z.string().nullable(),
+  date_of_birth: z.string().nullable(),
+  termination_date: z.string().nullable(),
+  address_line1: z.string().nullable(),
+  address_line2: z.string().nullable(),
+  city: z.string().nullable(),
+  state: z.string().nullable(),
+  postal_code: z.string().nullable(),
+  emergency_contact_name: z.string().nullable(),
+  emergency_contact_phone: z.string().nullable(),
+  emergency_contact_relation: z.string().nullable(),
+  cdl_state: z.string().nullable(),
+  cdl_class: z.string().nullable(),
+  cdl_issued_at: z.string().nullable(),
+  cdl_restrictions: z.string().nullable(),
+  medical_examiner_name: z.string().nullable(),
+  medical_registry_number: z.string().nullable(),
+  pay_type: z.string().nullable(),
+  pay_rate: z.coerce.number().nullable(),
+  per_diem: z.boolean().nullable(),
+  settlement_company: z.string().nullable(),
+  eld_id: z.string().nullable(),
+  samsara_driver_id: z.string().nullable(),
+  updated_at: z.string(),
+});
+export type DriverDetail = z.infer<typeof driverDetailSchema>;
+
+export const driverDetailResponseSchema = z.object({ driver: driverDetailSchema });
+export type DriverDetailResponse = z.infer<typeof driverDetailResponseSchema>;
+
+/**
+ * `PATCH /api/roster/drivers/:id` — the master-data edit surface.
+ *
+ * STRICT on purpose. The columns absent here are absent because something else owns them, and an
+ * unknown key is a 400 rather than a silent no-op: `org_id` and `id` (identity of the row),
+ * `identity_source` (derived from what you edited — see resolveDriverUpdate), `user_id` and
+ * `app_access_enabled` (owned by the invite/accept flow), `app_username` (the credentials router),
+ * `samsara_driver_id` / `samsara_username` / `efs_driver_id` (provenance the syncs own), and the
+ * `current_hos_*` columns (telematics). Sending one of those and having it quietly ignored is worse
+ * than being told no.
+ */
+export const driverUpdateSchema = z
+  .object({
+    full_name: z.string().min(1).max(200).optional(),
+    first_name: z.string().max(100).nullish(),
+    middle_name: z.string().max(100).nullish(),
+    last_name: z.string().max(100).nullish(),
+    employee_id: z.string().max(60).nullish(),
+    email: z.email().max(200).nullish(),
+    phone: z.string().max(40).nullish(),
+    phone_alt: z.string().max(40).nullish(),
+    status: driverStatusSchema.optional(),
+    driver_type: driverTypeSchema.nullish(),
+    hire_date: isoDateSchema,
+    termination_date: isoDateSchema,
+    home_terminal_id: z.uuid().nullish(),
+    date_of_birth: isoDateSchema,
+    address_line1: z.string().max(200).nullish(),
+    address_line2: z.string().max(200).nullish(),
+    city: z.string().max(120).nullish(),
+    state: z.string().max(40).nullish(),
+    postal_code: z.string().max(20).nullish(),
+    emergency_contact_name: z.string().max(200).nullish(),
+    emergency_contact_phone: z.string().max(40).nullish(),
+    emergency_contact_relation: z.string().max(60).nullish(),
+    cdl_number: z.string().max(60).nullish(),
+    cdl_state: z.string().max(10).nullish(),
+    cdl_class: z.enum(CDL_CLASSES).nullish(),
+    cdl_issued_at: isoDateSchema,
+    cdl_expires_at: isoDateSchema,
+    cdl_restrictions: z.string().max(200).nullish(),
+    medical_card_expires_at: isoDateSchema,
+    medical_examiner_name: z.string().max(200).nullish(),
+    medical_registry_number: z.string().max(60).nullish(),
+    pay_type: z.enum(PAY_TYPES).nullish(),
+    pay_rate: z.coerce.number().nonnegative().max(1_000_000).nullish(),
+    per_diem: z.boolean().nullish(),
+    settlement_company: z.string().max(200).nullish(),
+    eld_id: z.string().max(120).nullish(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: "Send at least one field to update" });
+export type DriverUpdateRequest = z.infer<typeof driverUpdateSchema>;
+
+/**
+ * The fields the Samsara sync also writes. Editing any of them is the admin CLAIMING this row from
+ * telematics — see resolveDriverUpdate. `samsara_username` is on the sync's list too but is not
+ * editable here, so it is not on this one.
+ */
+export const DRIVER_IDENTITY_FIELDS = [
+  "full_name", "first_name", "middle_name", "last_name", "phone",
+] as const;
+
+/** The subset of the current row resolveDriverUpdate needs to decide what an edit means. */
+export interface DriverUpdateContext {
+  identity_source: string;
+  termination_date: string | null;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+}
+
+export interface ResolvedDriverUpdate {
+  /** The column patch to send to the database. */
+  patch: Record<string, unknown>;
+  /** The edit claimed a telematics-owned row for the office (identity_source samsara → manual). */
+  claimedFromTelematics: boolean;
+  /** A termination date the caller did not supply was stamped, because the retention clock needs one. */
+  stampedTerminationDate: boolean;
+  /** `full_name` was recomputed from the structured parts because the caller changed them. */
+  derivedFullName: boolean;
+}
+
+/**
+ * Turn a validated PATCH into the actual column patch. Pure, so the three rules below are testable
+ * without a database — and they are the rules, not incidental route code.
+ *
+ * 1. **Editing identity claims the row.** The Samsara sync refreshes `full_name` and `phone` on every
+ *    run for rows it owns. An admin who corrects a misspelled name on a telematics-sourced row and
+ *    watches it revert the next morning has been told, correctly, that the product does not work. So
+ *    an identity edit flips `identity_source` to 'manual', which is the flag the sync honours. Only
+ *    an identity edit: correcting someone's pay rate should not sever their name refresh.
+ *
+ * 2. **Changing the parts changes the whole.** `full_name` is NOT NULL and is what the sync matcher
+ *    and every existing surface read. If the caller edits first/middle/last without sending
+ *    `full_name`, it is recomputed from the merged result — never the reverse, per 0098.
+ *
+ * 3. **Terminating starts a clock.** §391.51(c) retains the qualification file for three years from
+ *    the end of employment, so a termination with no date is a retention rule with no start. If the
+ *    caller sets `status: 'terminated'` without a date and the row has none, today's date is stamped.
+ *    An existing date is never overwritten — a correction to the status is not a correction to when.
+ */
+export function resolveDriverUpdate(
+  req: DriverUpdateRequest, current: DriverUpdateContext, today: string,
+): ResolvedDriverUpdate {
+  const patch: Record<string, unknown> = { ...req };
+  const touched = new Set(Object.keys(req));
+
+  const editedIdentity = DRIVER_IDENTITY_FIELDS.some((f) => touched.has(f));
+  const claimedFromTelematics = editedIdentity && current.identity_source !== "manual";
+  if (claimedFromTelematics) patch.identity_source = "manual";
+
+  const editedParts = touched.has("first_name") || touched.has("middle_name") || touched.has("last_name");
+  let derivedFullName = false;
+  if (editedParts && !touched.has("full_name")) {
+    const merged = deriveFullName({
+      first_name: touched.has("first_name") ? req.first_name : current.first_name,
+      middle_name: touched.has("middle_name") ? req.middle_name : current.middle_name,
+      last_name: touched.has("last_name") ? req.last_name : current.last_name,
+    });
+    // Never write an empty `full_name` — the column is NOT NULL and clearing every part is an edit
+    // to the parts, not a request to erase the person's name.
+    if (merged.length > 0) {
+      patch.full_name = merged;
+      derivedFullName = true;
+    }
+  }
+
+  const stampedTerminationDate =
+    req.status === "terminated" && !touched.has("termination_date") && current.termination_date == null;
+  if (stampedTerminationDate) patch.termination_date = today;
+
+  return { patch, claimedFromTelematics, stampedTerminationDate, derivedFullName };
+}
 
 // ── enroll for app access ─────────────────────────────────────────────────────
 

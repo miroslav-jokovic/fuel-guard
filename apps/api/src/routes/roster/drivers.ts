@@ -3,12 +3,16 @@ import { randomUUID } from "node:crypto";
 import {
   driverCreateSchema,
   driverInviteSchema,
+  driverUpdateSchema,
   deriveFullName,
   isEmailDomainAllowed,
+  resolveDriverUpdate,
   rolesThatCanView,
   rolesThatManage,
   type DriverCreateRequest,
   type DriverInviteRequest,
+  type DriverUpdateContext,
+  type DriverUpdateRequest,
 } from "@fuelguard/shared";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../../lib/http.js";
@@ -34,7 +38,11 @@ import { reconcileDrivers, mergeDriverPair } from "../../services/driverReconcil
  * truth the RLS policies in 0097–0101 mirror. Enrolling for app access is narrower than editing
  * master data (admin + fleet_manager only): it hands out a login, not a phone number.
  *
- * M3 adds detail/update/endorsements/deactivate on this same router.
+ * DEACTIVATION IS A STATUS EDIT, not its own endpoint. `PATCH { status: 'terminated' }` is the whole
+ * mechanism: `auth_driver_id()` (0083) resolves only 'active' drivers, so a non-active roster row
+ * stops resolving in the driver app on the next request — no session to revoke, no second code path
+ * that can disagree with the first. The roster row itself is never deleted; §391.51(c) retains the
+ * qualification file for three years past the end of employment.
  */
 
 /**
@@ -44,6 +52,19 @@ import { reconcileDrivers, mergeDriverPair } from "../../services/driverReconcil
  */
 const DRIVER_LIST_COLS =
   "id, full_name, status, employee_id, phone, email, driver_type, identity_source, app_access_enabled, user_id, cdl_number, cdl_expires_at, medical_card_expires_at, home_terminal_id, hire_date, created_at";
+
+/** The full profile — every column 0098 added, minus the ones another surface owns (app credentials,
+ *  telematics HOS snapshots, the EFS card link). Same one-literal rule as above. */
+const DRIVER_DETAIL_COLS =
+  "id, full_name, first_name, middle_name, last_name, status, driver_type, employee_id, email, phone, phone_alt, date_of_birth, hire_date, termination_date, home_terminal_id, address_line1, address_line2, city, state, postal_code, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, cdl_number, cdl_state, cdl_class, cdl_issued_at, cdl_expires_at, cdl_restrictions, medical_card_expires_at, medical_examiner_name, medical_registry_number, pay_type, pay_rate, per_diem, settlement_company, eld_id, identity_source, app_access_enabled, user_id, samsara_driver_id, created_at, updated_at";
+
+/** The compliance-relevant fields, whose BEFORE and AFTER values go into the audit row rather than
+ *  just the field name. A DOT auditor asks when a medical card expiry changed and to what; they do
+ *  not ask about somebody's home address, and copying every edited value into a log an admin can read
+ *  would turn the audit trail into a second, less protected copy of the driver's personal file. */
+const AUDITED_VALUE_FIELDS = [
+  "status", "termination_date", "cdl_number", "cdl_expires_at", "medical_card_expires_at", "driver_type",
+] as const;
 
 export function rosterDriversRouter(): Router {
   const router = Router();
@@ -117,6 +138,99 @@ export function rosterDriversRouter(): Router {
       });
 
       res.status(201).json({ driver: data });
+    }),
+  );
+
+  // The full profile behind one roster row (managers + dispatch/audit read).
+  router.get(
+    "/:id",
+    requireOrg,
+    canView,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const { data, error } = await admin
+        .from("drivers")
+        .select(DRIVER_DETAIL_COLS)
+        .eq("id", String(req.params.id ?? ""))
+        // Tenant scope on the query, not on the result: a cross-org id must be indistinguishable
+        // from one that does not exist.
+        .eq("org_id", req.auth!.orgId!)
+        .maybeSingle();
+      if (error) {
+        res.status(500).json(apiError("db_error", "Could not load driver"));
+        return;
+      }
+      if (!data) {
+        res.status(404).json(apiError("not_found", "Driver not found"));
+        return;
+      }
+      res.json({ driver: data });
+    }),
+  );
+
+  // Edit master data (admin/fleet_manager/safety_manager). Before this existed, every column 0098
+  // added was write-once: a driver created with a mistyped CDL expiry stayed that way forever.
+  router.patch(
+    "/:id",
+    requireOrg,
+    canManage,
+    validateBody(driverUpdateSchema),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const body = res.locals.body as DriverUpdateRequest;
+
+      // Read first: what an edit MEANS depends on the row's current state — whether telematics owns
+      // it, whether a termination date already exists, what the untouched name parts are.
+      const { data: current } = await admin
+        .from("drivers")
+        .select("id, identity_source, termination_date, first_name, middle_name, last_name")
+        .eq("id", id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!current) {
+        res.status(404).json(apiError("not_found", "Driver not found"));
+        return;
+      }
+
+      const resolved = resolveDriverUpdate(
+        body,
+        current as unknown as DriverUpdateContext,
+        new Date().toISOString().slice(0, 10),
+      );
+
+      const { data, error } = await admin
+        .from("drivers")
+        .update(resolved.patch)
+        .eq("id", id)
+        .eq("org_id", orgId)
+        .select(DRIVER_DETAIL_COLS)
+        .single();
+      if (error || !data) {
+        res.status(500).json(apiError("db_error", "Could not update driver"));
+        return;
+      }
+
+      const changed: Record<string, unknown> = {};
+      for (const f of AUDITED_VALUE_FIELDS) {
+        if (f in body) changed[f] = (body as Record<string, unknown>)[f];
+      }
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "driver.updated",
+        entity: "drivers",
+        entityId: id,
+        meta: {
+          fields: Object.keys(body).sort(),
+          changed,
+          claimedFromTelematics: resolved.claimedFromTelematics,
+          stampedTerminationDate: resolved.stampedTerminationDate,
+        },
+      });
+
+      res.json({ driver: data });
     }),
   );
 
