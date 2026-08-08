@@ -80,8 +80,22 @@ export function outcomeAfterFailure(
   message: string,
   now: number,
   random: () => number = Math.random,
+  retryAfterMs?: number,
 ): FailureOutcome {
   const attempts = rec.attempts + 1;
+
+  // A 429 is the server saying "later", never "no" (D57). Two consequences, and both matter:
+  //
+  //  - It NEVER dead-letters. The backoff curve tops out at five minutes, so eight attempts at a
+  //    daily cap burn through in about twenty minutes and would mark a driver's completed stop as
+  //    "needs attention" — losing real work to a quota that clears at midnight.
+  //  - It honours `Retry-After` when the server sends one. Nothing a client could compute would
+  //    guess nine hours, and retrying every five minutes until then is battery spent on refusals.
+  if (httpStatus === 429) {
+    const delay = retryAfterMs && retryAfterMs > 0 ? retryAfterMs : nextAttemptDelayMs(attempts, random);
+    return { status: 'failed', attempts, nextAttemptAt: now + delay, lastError: message };
+  }
+
   const transient = isTransient(httpStatus);
   if (!transient || attempts >= MAX_ATTEMPTS) {
     return { status: 'dead', attempts, nextAttemptAt: now, lastError: message };

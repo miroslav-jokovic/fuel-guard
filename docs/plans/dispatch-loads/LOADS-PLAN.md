@@ -79,20 +79,42 @@ changes under them.
 
 **Exit:** one data layer per concern; the dispatch engine has tests proportional to its blast radius.
 
-## L4 — D57 rate limits and abuse safety (1 day) · D-L5 · **gates switch-on**
+## L4 — D57 rate limits and abuse safety · D-L5 · **DONE 2026-08-08**
 
-4.1 A `subKeyed` limiter factory (JWT `sub`, never IP) applied to the four driver write groups with
-    D57's numbers.
-4.2 Server-counted daily business caps, distinct error codes from the per-minute limit, both
-    `429 + Retry-After`. Reuse an existing counter table if one fits before adding
-    `driver_write_counters`.
-4.3 Driver app: surface the two cases differently — "slow down, try again in a moment" vs "you've hit
-    today's maximum, contact dispatch" — and make sure the outbox treats a 429 as **transient**
-    (retryable), not dead-letter.
-4.4 Tests: per-`sub` isolation (two drivers behind one IP do not share a bucket — the whole point),
-    cap exhaustion, and the outbox's 429 handling.
+`packages/shared/src/driverWriteLimits.ts` carries D57's four buckets and their numbers, so the API
+that enforces them and the app that explains them cannot drift. `driverWriteBucket(method, path)`
+resolves a request to a bucket and is pure — a route that silently stops matching is not an error, it
+is an unlimited endpoint, which is the state this change exists to end. 30 assertions.
 
-**Exit:** a depot behind one NAT cannot lock itself out; a stolen token has a short runway.
+- **Per-minute** window: in memory, per API instance, keyed `bucket:sub`. Checked FIRST, so a runaway
+  retry loop is refused without touching the database. The honest caveat is that with N instances the
+  effective ceiling is N × the limit; irrelevant at one Railway service, and the daily cap behind it
+  is exact regardless. If this ever runs multi-instance at scale, that map moves to Redis — not the
+  counter table.
+- **Daily caps**: `0149_driver_write_counters` + `bump_driver_write_counter`, which increments and
+  judges in one statement. Doing that as SELECT-then-UPDATE in the API would be a lost-update bug
+  that only appears under the traffic the cap exists to survive. RLS denies every client: a driver
+  who could read their own counter could also delete it. Five matrix assertions pin that.
+- **Two codes, because they mean different things.** `rate_limited` is "try again in a moment";
+  `daily_cap_reached` is "that is today's maximum, talk to dispatch". Both `429 + Retry-After`, but
+  one resets in seconds and the other at midnight UTC. Collapsing them would have the app tell a
+  driver to wait a moment for something that will not clear for nine hours.
+- **Mounted inside the routers, after their own `requireAuth`.** At app level it would run before
+  authentication and have nothing to key on but an IP — exactly the failure D57 exists to prevent.
+- **The cap check fails OPEN, loudly.** If the counter is unreachable the driver's shift does not
+  stop: the per-minute window already bounds the damage, and refusing a completed stop to protect a
+  bookkeeping quota loses real work.
+
+**The client bug this exposed.** The outbox already treated 429 as transient — but the backoff curve
+tops out at five minutes and `MAX_ATTEMPTS` is 8, so a daily-capped record burned through every
+attempt in about twenty minutes and **dead-lettered**. A driver's completed stop would have landed in
+*Needs attention* over a quota that clears at midnight. `outcomeAfterFailure` now never dead-letters a
+429 and honours a server `Retry-After` (delta-seconds or HTTP date) over its own backoff.
+
+**Exit met:** a depot behind one NAT cannot lock itself out, and a stolen token has a short runway.
+
+**Left deliberately unlimited:** `/api/me/hazmat/*`. D57 did not size it, and inventing a number would
+be worse than the named gap; it stays under the blanket `apiLimiter` until it has its own.
 
 ## L5 — Assignments completion (2 days) · D-L6
 
@@ -126,7 +148,7 @@ changes under them.
 | L1 | Photos visible to dispatch | 1–2 d | **yes** |
 | L2 | Exceptions + `load_changed` | 1–2 d | wide rollout only |
 | L3 | Consolidation + service tests | 1–2 d | no |
-| L4 | D57 rate limits | 1 d | **yes** |
+| L4 | D57 rate limits | **done** | **yes** |
 | L5 | Assignments History | 2 d | no |
 | L6 | Pilot → wide | ½ d + device | — |
 

@@ -11,6 +11,19 @@ export interface ApiResult<T> {
   status: number;
   data?: T;
   error?: ApiError;
+  /** `Retry-After` in ms, when the server sent one. A 429 from a daily cap (D57) says "in nine
+   *  hours", which no client-side backoff curve would ever guess. */
+  retryAfterMs?: number;
+}
+
+/** RFC 9110 allows delta-seconds or an HTTP date. Both appear in the wild; parse both, trust neither. */
+function parseRetryAfter(raw: string | null): number | undefined {
+  if (!raw) return undefined;
+  const seconds = Number(raw.trim());
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
+  const at = Date.parse(raw);
+  if (!Number.isNaN(at)) return Math.max(0, at - Date.now());
+  return undefined;
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -103,10 +116,12 @@ export async function apiFetch<T = unknown>(
 
   if (!res.ok) {
     const err = (payload as { error?: ApiError } | undefined)?.error;
+    const retryAfterMs = parseRetryAfter(res.headers.get("Retry-After"));
     return {
       ok: false,
       status: res.status,
       error: err ?? { code: "error", message: `HTTP ${res.status}` },
+      ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
     };
   }
 

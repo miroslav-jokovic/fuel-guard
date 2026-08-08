@@ -39,7 +39,7 @@ const LOAD_KEYS = [['me', 'loads']] as const;
 async function post(path: string, body: unknown): Promise<void> {
   const res = await apiFetch(path, { method: 'POST', body });
   if (!res.ok) {
-    throw new SyncError(res.error?.message ?? 'Sync failed', res.status);
+    throw new SyncError(res.error?.message ?? 'Sync failed', res.status, res.retryAfterMs);
   }
 }
 

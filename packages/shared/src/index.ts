@@ -10,6 +10,7 @@ export * from "./hazmatReview.js";
 export * from "./qualificationGate.js";
 export * from "./complianceContract.js";
 export * from "./dqFile.js";
+export * from "./driverWriteLimits.js";
 export * from "./fleet.js";
 export * from "./vehicleSetupCsv.js";
 export * from "./fuel.js";

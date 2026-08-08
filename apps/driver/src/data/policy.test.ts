@@ -69,6 +69,32 @@ describe('outcomeAfterFailure', () => {
     expect(out.nextAttemptAt).toBe(12_000);
   });
 
+  it('NEVER dead-letters a 429, however many attempts it has burned (D57)', () => {
+    // The backoff curve tops out at five minutes, so eight attempts at a daily cap burn through in
+    // about twenty minutes. Dead-lettering there would put a driver's completed stop in "needs
+    // attention" over a quota that clears at midnight.
+    const exhausted = { ...rec(), attempts: MAX_ATTEMPTS + 3 };
+    const out = outcomeAfterFailure(exhausted, 429, "today's maximum", 10_000);
+    expect(out.status).toBe('failed');
+  });
+
+  it('honours a server Retry-After over its own backoff', () => {
+    const out = outcomeAfterFailure(rec(), 429, 'daily cap', 10_000, () => 0.5, 9 * 3_600_000);
+    expect(out.nextAttemptAt).toBe(10_000 + 9 * 3_600_000);
+  });
+
+  it('falls back to backoff when a 429 arrives without a Retry-After', () => {
+    const out = outcomeAfterFailure(rec(), 429, 'slow down', 10_000, () => 0.5);
+    expect(out.status).toBe('failed');
+    expect(out.nextAttemptAt).toBeGreaterThan(10_000);
+    expect(out.nextAttemptAt).toBeLessThanOrEqual(10_000 + 5 * 60_000);
+  });
+
+  it('ignores a nonsensical Retry-After rather than scheduling in the past', () => {
+    const out = outcomeAfterFailure(rec(), 429, 'slow down', 10_000, () => 0.5, 0);
+    expect(out.nextAttemptAt).toBeGreaterThan(10_000);
+  });
+
   it('dead-letters a permanent failure immediately — no pointless retries', () => {
     const out = outcomeAfterFailure(rec(), 422, 'validation failed', 10_000);
     expect(out.status).toBe('dead');

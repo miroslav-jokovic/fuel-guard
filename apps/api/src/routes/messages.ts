@@ -5,6 +5,7 @@ import {
   sendMessageRequestSchema,
 } from "@fuelguard/shared";
 import { requireAuth, requireOrg } from "../middleware/auth.js";
+import { driverWriteLimit } from "../middleware/driverWriteLimit.js";
 import { requireModule } from "../middleware/requireModule.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -24,6 +25,8 @@ import { createThread, getThread, listThreads, markThreadRead, sendMessage } fro
 export function messagesRouter(): Router {
   const router = Router();
   router.use(requireAuth, requireOrg, requireModule("messages"));
+  // D57: message writes share the driver write budget (20/min, 300/day).
+  router.use(driverWriteLimit());
 
   const param = (req: { params: Record<string, unknown> }, name: string): string => {
     const v = req.params[name];

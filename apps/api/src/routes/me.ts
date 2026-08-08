@@ -11,6 +11,7 @@ import {
   startShiftRequestSchema,
 } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
+import { driverWriteLimit } from "../middleware/driverWriteLimit.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
@@ -44,6 +45,8 @@ import { getResolvedFeatures } from "../services/driverAppFeatures.js";
 export function meRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+  // D57: per-`sub` write limits + daily caps. After requireAuth, because the key IS the JWT sub.
+  router.use(driverWriteLimit());
 
   /** Every driver route below needs the caller's roster driver row; 404 when no login is linked (D3). */
   const driverOnly = [requireOrg, requireRole("driver")] as const;

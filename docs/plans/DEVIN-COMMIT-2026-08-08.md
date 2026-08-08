@@ -1,45 +1,101 @@
-# Devin — commit DQ2
+# Devin — commit the design-system fixes and L4
 
-Everything before this is already on `main` and deployed: the two branches, migrations `0146`–`0148`,
-and F-H1 (`84ed95b`). `GET /api/version` reports `commit 84ed95b`, `schema.applied 0148`, `ok true`.
-
-One outstanding item from the previous round, for the report only: `f191dbc` merged
-`wip/driver-design-system-2` into `main` when the runbook said to leave it unmerged. Do not revert it;
-Miki knows.
-
----
-
-## The commit
-
-DQ2 — the §391.51 driver qualification file. Twelve paths, one commit.
+Everything before this is on `main` and deployed (`b5a586b`, `applied 0148`). Two commits here.
 
 ```bash
 cd ~/Projects/FuelGuard
 git switch main && git pull --ff-only
-git status --porcelain
-```
-
-Expect exactly:
-
-```
- M apps/api/src/services/compliance.ts
- M apps/web/src/composables/useCompliance.ts
- M apps/web/src/lib/nav.test.ts
- M apps/web/src/lib/nav.ts
- M apps/web/src/pages/CompliancePage.vue
- M apps/web/src/router/index.ts
- M docs/plans/safety-dqf/DQF-PLAN.md
- M packages/shared/src/complianceContract.ts
- M packages/shared/src/index.ts
-?? apps/web/src/features/compliance/
-?? packages/shared/src/dqFile.test.ts
-?? packages/shared/src/dqFile.ts
 ```
 
 If a stale `.git/index.lock` blocks you, delete it — one keeps reappearing from a concurrent git
-process, and Cowork can only move files on this machine, not unlink them. Look in `_to_delete/`.
+process, and Cowork can only move files, not unlink them. Look in `_to_delete/`.
 
-### Gate
+---
+
+## Commit 1 — design-system corrections
+
+```bash
+git add docs/DESIGN-SYSTEM-CONTRACT.md \
+        apps/web/src/features/compliance/DqFilePanel.vue \
+        apps/web/src/features/hazmat/CertManager.vue \
+        apps/web/src/pages/CompliancePage.vue \
+        apps/web/src/pages/DriversPage.vue
+
+git commit -m "Put the compliance surfaces back on the design system
+
+The qualification drawer was built by hand instead of from the components:
+a raw table where DataTable exists, status rendered as tinted words instead
+of badges, a local badge map using rounded-full and the -100/-700 pair so it
+sat next to StatusBadge looking like a different product, and a hidden file
+input driven by a synthetic click where FileDropzone is the sanctioned
+uploader. All corrected.
+
+Two of these were bugs, not taste. DqFilePanel and CertManager had no error
+state at all, so a failed fetch rendered as an empty checklist — a compliance
+drawer silently claiming a driver holds no CDL. And CertManager wrapped
+BaseCheckbox, which is itself a label, in another label: invalid HTML that
+breaks click-to-toggle.
+
+DriversPage used divide-border and border-border. There is no border token
+(it is edge), so those classes compiled to nothing and the elements have been
+rendering with no border at all. The token linter cannot see it because
+'border' is not a banned hue.
+
+Adds docs/DESIGN-SYSTEM-CONTRACT.md, measured from the code rather than from
+docs/DESIGN-SYSTEM.md, which is stale in three places."
+```
+
+---
+
+## Commit 2 — L4, D57 driver write limits
+
+```bash
+git add packages/shared/src/driverWriteLimits.ts \
+        packages/shared/src/driverWriteLimits.test.ts \
+        packages/shared/src/index.ts \
+        supabase/migrations/0149_driver_write_counters.sql \
+        apps/api/src/middleware/driverWriteLimit.ts \
+        apps/api/src/routes/me.ts apps/api/src/routes/messages.ts \
+        apps/driver/src/lib/api.ts apps/driver/src/data/handlers.ts \
+        apps/driver/src/data/sync.ts apps/driver/src/data/policy.ts \
+        apps/driver/src/data/policy.test.ts \
+        supabase/tests/rls.test.mjs \
+        docs/plans/dispatch-loads/LOADS-PLAN.md \
+        docs/plans/DEVIN-COMMIT-2026-08-08.md
+
+git commit -m "Add D57 driver write limits and daily caps
+
+The plan's own switch-on blocker for Loads, and nothing existed: all of
+/api/me sat behind one IP-keyed 120/15min limiter. Drivers share a carrier's
+NAT, so that throttles a whole yard the moment one phone retries in a loop.
+
+Per-minute windows are keyed on the JWT sub and held in memory, checked first
+so a runaway loop never reaches the database. Daily caps are a Postgres
+counter incremented and judged in one statement, because SELECT-then-UPDATE
+is a lost-update bug under exactly the traffic a cap exists to survive. RLS
+denies every client: a driver who could read their own counter could delete
+it.
+
+Two error codes, because they mean different things. rate_limited resets in
+seconds; daily_cap_reached resets at midnight. Both 429 + Retry-After.
+
+Mounted inside the routers after their own requireAuth — at app level it
+would run before authentication and have nothing to key on but an IP.
+
+The cap check fails open and logs. Refusing a driver's completed stop because
+a bookkeeping table is down loses real work to protect a quota.
+
+Fixes a client bug this exposed: the outbox treated 429 as transient, but the
+backoff tops out at five minutes and MAX_ATTEMPTS is 8, so a daily-capped
+record burned through every attempt in about twenty minutes and dead-lettered
+— putting a driver's completed stop in Needs attention over a quota that
+clears at midnight. A 429 now never dead-letters, and honours the server's
+Retry-After over its own backoff."
+```
+
+---
+
+## Gate, then push
 
 ```bash
 corepack enable
@@ -51,97 +107,46 @@ pnpm lint:boundaries && pnpm lint:tokens-parity && pnpm --filter @fuelguard/web 
 pnpm typecheck
 pnpm test
 pnpm build
-```
-
-Expected matrix counts, unchanged — there is no migration in this commit:
-**rls 179 · hazmat_rls 16 · load-lifecycle 54 · duty-sessions 20.**
-
-Two things `pnpm test` covers that nothing else can. `packages/shared/src/dqFile.test.ts` is new — 30
-assertions, its first real execution; the logic behind all 30 was verified by compiling the module and
-asserting against plain node, but that is not the same as running the suite. And
-`apps/web/src/lib/nav.test.ts` changed with the rename, so a stale expectation there will show up as a
-failure rather than as a silently wrong sidebar.
-
-If anything is red, report it; do not edit the assertions. Two of the 30 were wrong when first written
-and the code was right — the same could be true again in the other direction.
-
-### Commit and push
-
-```bash
-git add packages/shared/src/dqFile.ts packages/shared/src/dqFile.test.ts \
-        packages/shared/src/complianceContract.ts packages/shared/src/index.ts \
-        apps/api/src/services/compliance.ts \
-        apps/web/src/composables/useCompliance.ts \
-        apps/web/src/features/compliance/ \
-        apps/web/src/pages/CompliancePage.vue \
-        apps/web/src/lib/nav.ts apps/web/src/lib/nav.test.ts \
-        apps/web/src/router/index.ts \
-        docs/plans/safety-dqf/DQF-PLAN.md \
-        docs/plans/DEVIN-COMMIT-2026-08-08.md
-
-git commit -m "Add the electronic driver qualification file
-
-391.51 as a checklist: eighteen items with their citations and retention
-rules, the four 172.704(a) training types and the 383.93 endorsement when the
-carrier runs HazmatGuard. Pure and unit-tested in shared, so the dashboard and
-a future audit export read the same function.
-
-buildDqFile takes today as a parameter rather than reading the clock, because
-the question an auditor asks is what the file looked like on a date, which a
-function that looks at the wall clock cannot answer.
-
-Deliberately not the hazmat gate. qualificationGate decides whether a driver
-may haul a placardable load now; this decides whether the file is complete for
-an audit. They overlap on the CDL and the medical certificate and diverge
-everywhere else, and they are allowed to disagree: training on its third
-anniversary is due here and still a pass there.
-
-The panel is a section in the existing drawer, not a page. Rows without a scan
-get an Attach button that registers the document and PUTs the bytes straight
-to Storage through the DQ0 signed-upload path, with the SHA-256 computed in
-the browser first. A document id that points at nothing reports as no
-document, because a failed upload leaves the row behind and a checklist that
-trusted the id would promise a scan nobody can open.
-
-Renames the sidebar item to Driver Qualification. Safety was the drafted name
-but the section is already called Safety; the route stays /compliance."
 
 git push origin main
 ```
 
-No migration, so no Supabase workflow fires. Railway redeploys; confirm:
+Expected matrix counts: **rls 184 · hazmat_rls 16 · load-lifecycle 54 · duty-sessions 20.**
+`rls` moved 179 → 184 with the five assertions that no client can read, delete or forge a write
+counter.
+
+Two new suites get their first real execution here — `driverWriteLimits.test.ts` (30 assertions) and
+the four added to `apps/driver/src/data/policy.test.ts`. The logic behind the 30 was verified by
+compiling the module and asserting against plain node; that is not the same as running the suite. If
+anything is red, report it rather than editing assertions.
+
+`0149` applies on merge. Confirm:
 
 ```bash
-pnpm verify:live
+pnpm verify:live      # schema.applied must read 0149
 ```
-
-`commit` must equal `git rev-parse HEAD`, `schema.applied` stays **0148**, `ok` **true**.
-
-### Then eyeball it
-
-The one thing no test covers is whether the upload actually works end to end against real Storage.
-Open **Safety → Driver Qualification**, click a driver, and attach a PDF to any row. Expect the row to
-switch from **Attach** to **View**, and the link to open the scan. If it fails, capture the browser
-console and the network response for `POST /api/compliance/documents` and for the Storage PUT — those
-two calls are the whole path.
 
 ---
 
-## Clean the tree
+## Then check two things by hand
+
+1. **The limiter actually limits.** With a driver token, POST `/api/me/shift/start` eleven times
+   inside a minute. The eleventh must return `429`, `Retry-After`, and `code: "rate_limited"`.
+2. **Two drivers behind one IP do not share a bucket** — the entire point of D57. Exhaust driver A's
+   per-minute window, then immediately make one request as driver B from the same machine. B must
+   succeed.
+
+---
+
+## Clean up
 
 ```bash
 rm -rf _to_delete
 git status --porcelain
 ```
 
-Scratch files Cowork moved aside rather than deleted: patch scripts, two compiled-module verification
-directories, debug harnesses, and stale `index.lock` files. Nothing tracked.
-
----
-
 ## Report
 
-1. Full `pnpm test` output, especially `dqFile.test.ts`, `nav.test.ts`, and the four matrix counts.
-2. `pnpm verify:live` after the push.
-3. What happened when you attached a PDF, including the failure detail if it did not work.
-4. Confirm `_to_delete/` is gone.
+1. Full `pnpm test`, especially the two new suites and the four matrix counts.
+2. `pnpm verify:live` — `schema.applied` must be `0149`.
+3. The results of the two manual checks, with the actual response bodies.

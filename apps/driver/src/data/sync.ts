@@ -23,10 +23,14 @@ import { countNeedsAttention, countPending, outcomeAfterFailure, type OutboxReco
 /** Handlers throw this so the policy can tell a retryable blip from a permanent rejection. */
 export class SyncError extends Error {
   readonly status: number | undefined;
-  constructor(message: string, status?: number) {
+  /** Server-supplied `Retry-After`, in ms. A daily cap says "in nine hours", which no backoff curve
+   *  would ever guess — see policy.outcomeAfterFailure. */
+  readonly retryAfterMs: number | undefined;
+  constructor(message: string, status?: number, retryAfterMs?: number) {
     super(message);
     this.name = 'SyncError';
     this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -111,8 +115,9 @@ async function processOne(record: OutboxRecord): Promise<boolean> {
     return true;
   } catch (e) {
     const status = e instanceof SyncError ? e.status : undefined;
+    const retryAfterMs = e instanceof SyncError ? e.retryAfterMs : undefined;
     const message = e instanceof Error ? e.message : 'Unknown sync error';
-    const outcome = outcomeAfterFailure(record, status, message, Date.now());
+    const outcome = outcomeAfterFailure(record, status, message, Date.now(), Math.random, retryAfterMs);
     await markOutcome(record.id, outcome.status, outcome.attempts, outcome.nextAttemptAt, outcome.lastError);
     updateState({ lastError: message });
     return false;

@@ -145,6 +145,10 @@ async function main() {
     // Drops three tables this harness never loaded, so it is a no-op here. Present so that a future
     // reader does not conclude the retirement was skipped.
     "migrations/0147_retire_dead_compliance_tables.sql",
+    // D57 driver write caps. Its whole security property is that NO client can reach it — a driver
+    // who could read their own counter could also delete it — so it belongs in the matrix that
+    // proves what clients cannot do.
+    "migrations/0149_driver_write_counters.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -940,6 +944,23 @@ async function main() {
   ok("the office still sees the terminated driver — the record is retained, not deleted (§391.51(c))",
     ((await asUser(mgrA, "select count(*)::int n from drivers where id = $1", [SELF])).rows?.[0]?.n ?? 0) === 1);
   await db.query("update drivers set status = 'active' where id = $1", [SELF]);
+
+  // ── Driver write counters (0149, D57) — service-role bookkeeping, invisible to every client ────
+  await db.query(
+    `insert into driver_write_counters (org_id, user_id, bucket, day, count)
+     values ($1, $2, 'shift', current_date, 3)`, [ORG_A, DUID]);
+  ok("a driver cannot read their own write counter (0)",
+    (await asUser(drv, "select count(*)::int n from driver_write_counters")).rows?.[0]?.n === 0);
+  ok("nor can an admin — this is not fleet data (0)",
+    (await asUser(adminA, "select count(*)::int n from driver_write_counters")).rows?.[0]?.n === 0);
+  ok("a driver cannot delete their way out of a cap (0 rows)",
+    ((await asUser(drv, "delete from driver_write_counters where user_id = $1 returning user_id", [DUID])).rows?.length ?? 0) === 0);
+  ok("nor forge a fresh counter",
+    !!(await asUser(drv,
+      `insert into driver_write_counters (org_id, user_id, bucket, day, count) values ($1,$2,'shift',current_date,0)`,
+      [ORG_A, DUID])).error);
+  ok("the row is still there afterwards — the service role is the only writer",
+    (await db.query("select count(*)::int n from driver_write_counters")).rows[0].n === 1);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
