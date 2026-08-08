@@ -27,6 +27,37 @@ certifications seeding, BOL package-count extraction) is recorded in the IA plan
 **Owner actions this session adds:** apply migration `0153`; run `pnpm test` +
 `pnpm --filter @fuelguard/web build` on the Mac; delete the five files listed in `_to_delete/`.
 
+**Addendum 6 (H-C1 UI half):** hazmat is now worked FROM the load — board chip shows the linked
+record's state (+ "Hazmat — not cleared" exception filter, one batched query), and the load detail
+page gained the HazmatPanel: milestone status rail (from the locked state machine, token tones),
+last-analysis meta, start-record (create+link prefilled from dispatch), submit-&-analyze, review
+queue, roadside packet, workspace link. Original H-C1 page deletions superseded by D-H11 (hub stays).
+
+**Addendum 5 (H-CS — qualification-file seeding):** the F-H1 operational unlock. "Set up files"
+tab on Compliance (bulk grid: CDL/medical expiries, H/N/X letters, one training date+provider → all
+four §172.704(a) types; carrier card for PHMSA + financial responsibility). Pure expander in
+`shared/complianceSeed.ts` (5 tests), same schema/RPC/audit as single entry, skipExisting default.
+With this + an attested 2026.08.0, a correctly-filed fleet's clean loads can clear end-to-end.
+
+**Addendum 4 (H-EX — BOL extraction of packaging facts):** the photo path now feeds everything the
+manual path learned this session: "Ltd Qty" notations → `isLimitedQuantity` (dual-pass-confirmed
+ONLY — a one-pass read maps false + flag; engine re-verifies col 8A), `lq_mismatch` reconciliation
+vs the dispatcher's declaration, tote/IBC/hopper phrases now BULK (§171.8 — was non-bulk), and
+plural-tolerant phrase matching ("10 DRUMS" matched nothing before). Prompt v1.1.0. 39 extraction
+tests green vs the real dataset.
+
+**Addendum 3 (H-LQ rules — engine 0.10.0):** `isLimitedQuantity` declaration verified against HMT
+col. 8A + the 30 kg/66 lb cap (§172.500(b)(2)/§173.150(b)/§172.315(a), eCFR-sourced). Accepted →
+excepted from the whole placarding subpart + LQ mark + §172.203(b) BOL notation; refused/unverifiable
+→ fully regulated + conditional (never silently un-placards; pre-8A datasets always refuse). 87
+engine tests; goldens 13/13 with per-scenario dataset pins; LQ checkbox on both forms. Full effect
+arrives when 2026.08.0 is attested + promoted to LATEST.
+
+**Addendum 2 (H-LQ groundwork):** HMT columns 8A/8B now parse (both sources, triangulated,
+fixture-pinned); dataset **2026.08.0** cut via the real pipeline — ALL CLEAN, provisional/unattested,
+registered with LATEST still 2026.07.1. Owner action to promote it: re-run the cut with
+`--attested-by "<name>"`, save the report, move LATEST. Engine LQ rules are next.
+
 **Addendum (same day, post-c608885):** 7 packaging golden scenarios landed (all passing vs the real
 dataset — which ships NON-provisional, and clean packaged loads now reach `eligible` end-to-end).
 **D-H14 built**: the measured §171.8 classifier (eCFR + PHMSA 19-0045/10-0055 verified — gas test is

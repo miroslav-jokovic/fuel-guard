@@ -84,6 +84,21 @@ export function classifyLineLoadState(line: BolLineFields): LineLoadState {
   return "partial";
 }
 
+
+// ── H-LQ: the §172.203(b)/§172.315 notation as printed ─────────────────────────────────────────────
+const LQ_RX = /\b(limited\s+quantity|ltd\.?\s*qty\.?)\b/i;
+/**
+ * Does this printed line identify the material as a LIMITED QUANTITY? Checked across the marks array,
+ * the shipping-name text and the packaging phrase — shippers print it in any of the three. This is the
+ * paper-side half of §172.500(b)(2); the engine still independently verifies authorization (col 8A +
+ * the 66-lb cap) and refuses fail-closed, so a false positive here can never strip a placard on its own
+ * — and the pipeline additionally requires BOTH vision passes to agree before the flag is set at all.
+ */
+export function lineDeclaresLq(line: BolLineFields): boolean {
+  if ((line.marks ?? []).some((m) => LQ_RX.test(m))) return true;
+  return LQ_RX.test(line.psn ?? "") || LQ_RX.test(line.packaging ?? "");
+}
+
 /** Page completeness from "page X of N": complete only when a single page or when page===of on the last one. */
 export function pageComplete(bol: BolFields): boolean {
   const { page, of } = bol.pageInfo;

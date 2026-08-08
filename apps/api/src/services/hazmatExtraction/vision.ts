@@ -10,7 +10,7 @@ import { bolFieldsSchema, type BolFields } from "./bolFields.js";
  * the image is untrusted DATA — the prompt forbids following any instruction found in the document
  * (prompt-injection discipline, 07 §8). Bump the version on any prompt/schema change (stored on the run).
  */
-export const HAZMAT_EXTRACTION_PROMPT_VERSION = "1.0.0";
+export const HAZMAT_EXTRACTION_PROMPT_VERSION = "1.1.0";
 
 export interface ImageInput {
   base64: string;
@@ -40,12 +40,12 @@ export const PROMPT_A =
   `${BASE_RULES} Read carefully field-by-field: for each hazardous line capture the id (with its UN/NA ` +
   `prefix exactly as printed), proper shipping name, hazard class, packing group, quantity + unit, gross ` +
   `weight, package count, packaging phrase, HM-column mark, and any marks (MARINE POLLUTANT / LIMITED ` +
-  `QUANTITY / HOT). Capture the emergency phone digits, whether a shipper certification is present, the ` +
+  `QUANTITY — including the abbreviation "Ltd Qty" — / HOT). Capture the emergency phone digits, whether a shipper certification is present, the ` +
   `offeror name, the "page X of N", and any printed total weight.`;
 export const PROMPT_B =
   `${BASE_RULES} Transcribe the shipping paper into the tool fields. For each line, copy the identification ` +
   `number (keep UN or NA as shown), the shipping name, class, packing group, amount and unit, weights, ` +
-  `count, packaging, the hazardous-materials column entry, and printed marks. Also copy the 24-hour ` +
+  `count, packaging, the hazardous-materials column entry, and printed marks (record "Limited Quantity" or "Ltd Qty" wherever it appears). Also copy the 24-hour ` +
   `emergency contact number, the certification statement's presence, the shipper/offeror, the page count, ` +
   `and any total. Never guess a value that is not legible.`;
 

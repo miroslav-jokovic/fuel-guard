@@ -40,6 +40,9 @@ export const transcribedPgRowSchema = z.object({
   pg: z.enum(["I", "II", "III"]).nullable(),
   labelCodes: z.array(z.string()).default([]),
   specialProvisions: z.array(z.string()).default([]),
+  /** Columns 8A/8B (H-LQ). Optional so pre-2026.08 transcriptions stay valid; absent compares as null. */
+  exceptionsRef: z.string().nullable().optional(),
+  nonBulkPackagingRef: z.string().nullable().optional(),
   bulkPackagingRef: z.string().nullable().default(null),
   quantityLimits: z
     .object({
@@ -187,6 +190,10 @@ export function compareEntry(a: HmtEntry, b: TranscribedRow): FieldDiff[] {
       diffs.push({ field: `${label}.labelCodes`, sourceA: pa.labelCodes, sourceB: pb.labelCodes });
     if (!eqOrdered(pa.specialProvisions, pb.specialProvisions))
       diffs.push({ field: `${label}.specialProvisions`, sourceA: pa.specialProvisions, sourceB: pb.specialProvisions });
+    if (!eqScalar(pa.exceptionsRef ?? null, pb.exceptionsRef ?? null))
+      diffs.push({ field: `${label}.exceptionsRef`, sourceA: pa.exceptionsRef ?? null, sourceB: pb.exceptionsRef ?? null });
+    if (!eqScalar(pa.nonBulkPackagingRef ?? null, pb.nonBulkPackagingRef ?? null))
+      diffs.push({ field: `${label}.nonBulkPackagingRef`, sourceA: pa.nonBulkPackagingRef ?? null, sourceB: pb.nonBulkPackagingRef ?? null });
     if (!eqScalar(pa.bulkPackagingRef, pb.bulkPackagingRef))
       diffs.push({ field: `${label}.bulkPackagingRef`, sourceA: pa.bulkPackagingRef, sourceB: pb.bulkPackagingRef });
     const aq = pa.quantityLimits ?? { passengerAircraftRail: null, cargoAircraft: null };

@@ -20,6 +20,13 @@ export const pgRowSchema = z.object({
   pg: packingGroupSchema.nullable(),
   labelCodes: z.array(z.string()).default([]),
   specialProvisions: z.array(z.string()).default([]),
+  /** Column 8A — the §173.* EXCEPTIONS section for this row ("150" → §173.150), or null when the
+   *  printed cell is "None"/blank. The key LQ trigger (H-LQ). OPTIONAL (not defaulted) on purpose:
+   *  datasets minted before 2026.08.0 don't carry it, and a zod default would inject the field into
+   *  their parsed form and break their stored content checksums. */
+  exceptionsRef: z.string().nullable().optional(),
+  /** Column 8B — the §173.* NON-BULK packaging section. Same optionality reasoning as 8A. */
+  nonBulkPackagingRef: z.string().nullable().optional(),
   bulkPackagingRef: z.string().nullable().default(null),
   quantityLimits: z
     .object({

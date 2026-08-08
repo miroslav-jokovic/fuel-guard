@@ -95,6 +95,11 @@ export function validateBol(load: LoadInput): BolValidation {
     const basicDescription = parts.join(", ");
 
     const additionalRequired: string[] = [];
+    // H-LQ (0.10.0) — §172.203(b): a Limited Quantity line's description must say so. This is also
+    // one of the two identification routes that make §172.500(b)(2) apply at all.
+    if (line.isLimitedQuantity) {
+      additionalRequired.push("the words “Limited Quantity” (or “Ltd Qty”) on the description (§172.203(b))");
+    }
     // §172.203(k): technical name for G-symbol / n.o.s. entries.
     if ((entry.symbols ?? []).includes("G")) {
       additionalRequired.push("technical name(s) in parentheses (§172.203(k))");

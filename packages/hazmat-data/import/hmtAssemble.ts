@@ -160,6 +160,14 @@ interface DraftEntry {
  * a new entry; a blank PSN cell APPENDS a pgRow to the current entry; a non-empty PSN with no valid ID
  * (Forbidden / ID8000 / "see" cross-reference index rows) is not a shippable entry and resets `current`.
  */
+
+/** "150" → "150"; "None"/blank → null (§172.101 prints "None" where no exceptions section exists). */
+function normalizeSectionRef(raw: string): string | null {
+  const t = raw.trim();
+  if (!t || t.toLowerCase() === "none") return null;
+  return t;
+}
+
 export function assembleHmtEntries(rows: Cell[][]): HmtEntry[] {
   const drafts: DraftEntry[] = [];
   let current: DraftEntry | null = null;
@@ -199,6 +207,10 @@ export function assembleHmtEntries(rows: Cell[][]): HmtEntry[] {
       pg: PACKING_GROUPS.has(pgText) ? (pgText as "I" | "II" | "III") : null,
       labelCodes: labelText.toLowerCase() === "none" ? [] : splitList(texts[5] ?? "", /,/),
       specialProvisions: splitList(texts[6] ?? "", /,/),
+      // Columns 8A/8B (cells 7/8) were tokenized and DROPPED until 2026-08-08 (H-LQ groundwork).
+      // "None" prints in 8A for entries with no exceptions section — normalized to null, same as blank.
+      exceptionsRef: normalizeSectionRef(texts[7] ?? ""),
+      nonBulkPackagingRef: normalizeSectionRef(texts[8] ?? ""),
       bulkPackagingRef: (texts[9] ?? "") || null,
       quantityLimits: {
         passengerAircraftRail: (texts[10] ?? "") || null,

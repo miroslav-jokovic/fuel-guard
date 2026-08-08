@@ -7,13 +7,14 @@
 import { pathToFileURL } from "node:url";
 import { loadDataset } from "@hazmat/data";
 import { loadScenarios } from "./load.js";
-import { runSuite } from "./runner.js";
+import { runScenario } from "./runner.js";
 import { formatSuite } from "./report.js";
 
 export function runCli(): number {
-  const dataset = loadDataset();
   const scenarios = loadScenarios().map((l) => l.scenario);
-  const suite = runSuite(scenarios, dataset);
+  // Per-scenario dataset pins (H-LQ); default is the shipped LATEST.
+  const results = scenarios.map((s) => runScenario(s, s.datasetVersion ? loadDataset(s.datasetVersion) : loadDataset()));
+  const suite = { results, total: results.length, passed: results.filter((r) => r.passed).length, failed: results.filter((r) => !r.passed).length, allPassed: results.every((r) => r.passed) };
   process.stdout.write(formatSuite(suite) + "\n");
   return suite.allPassed ? 0 : 1;
 }

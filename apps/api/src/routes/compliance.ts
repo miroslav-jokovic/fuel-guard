@@ -16,7 +16,13 @@ import {
   documentExportRequestSchema,
   type DocumentExportRequest,
   dqExportListQuerySchema,
+  qualificationSeedSchema,
+  expandQualificationSeed,
+  filterAgainstExisting,
+  type QualificationSeedRequest,
+  type ExistingCertKey,
 } from "@fuelguard/shared";
+import { randomUUID } from "node:crypto";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -103,6 +109,54 @@ export function complianceRouter(): Router {
         },
       });
       res.status(201).json({ id: result.id, supersededId: result.supersededId });
+    }),
+  );
+
+  // ── H-CS: bulk qualification-file seeding (the F-H1 operational unlock) ───────────────────────
+  // One request seeds a whole roster through the SAME schema + insert_certification supersede RPC as
+  // the single-entry path — same validation, same audit surface, nothing bypassed. skipExisting
+  // (default) never supersedes a richer CertManager entry with a terser seeded one.
+  router.post(
+    "/certifications/seed",
+    requireOrg,
+    canManage,
+    validateBody(qualificationSeedSchema),
+    asyncHandler(async (req: Request, res: Response) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const body = res.locals.body as QualificationSeedRequest;
+
+      const expansions = expandQualificationSeed(body, orgId, () => randomUUID());
+      let toInsert = expansions;
+      let skippedCount = 0;
+      if (body.skipExisting && expansions.length > 0) {
+        const { data: existing } = await admin
+          .from("certifications")
+          .select("subject_type, subject_id, kind, qualifier, training_type")
+          .eq("org_id", orgId)
+          .is("superseded_by", null);
+        const filtered = filterAgainstExisting(expansions, (existing ?? []) as ExistingCertKey[]);
+        toInsert = filtered.toInsert;
+        skippedCount = filtered.skipped.length;
+      }
+
+      const failed: Array<{ kind: string; subjectId: string; error: string }> = [];
+      let created = 0;
+      for (const e of toInsert) {
+        const result = await insertCertification(admin, orgId, req.auth!.userId, e.request);
+        if ("code" in result) failed.push({ kind: e.request.kind, subjectId: e.request.subjectId, error: result.error });
+        else created++;
+      }
+
+      await writeAudit(admin, {
+        orgId,
+        actorId: req.auth!.userId,
+        action: "compliance.qualification_seeded",
+        entity: "certifications",
+        entityId: orgId,
+        meta: { drivers: body.drivers.length, created, skipped: skippedCount, failed: failed.length },
+      });
+      res.status(failed.length > 0 && created === 0 ? 500 : 201).json({ created, skipped: skippedCount, failed });
     }),
   );
 

@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { loadDataset } from "@hazmat/data";
 import { loadScenarios, acceptanceScenarios } from "./load.js";
-import { runScenario, runSuite } from "./runner.js";
+import { runScenario } from "./runner.js";
 import { formatScenario } from "./report.js";
 
-const dataset = loadDataset();
 const loaded = loadScenarios();
+// H-LQ: scenarios may pin a dataset version (column 8A landed in 2026.08.0). Default stays LATEST.
+const dsCache = new Map<string, ReturnType<typeof loadDataset>>();
+const dsFor = (version: string | null): ReturnType<typeof loadDataset> => {
+  const key = version ?? "__latest__";
+  if (!dsCache.has(key)) dsCache.set(key, version ? loadDataset(version) : loadDataset());
+  return dsCache.get(key)!;
+};
+const dataset = dsFor(null);
 
 describe("@hazmat/golden — acceptance suite (plan H2)", () => {
   it("loads scenarios and every one carries a `verifiedBy` (independent-authorship provenance)", () => {
@@ -13,8 +20,9 @@ describe("@hazmat/golden — acceptance suite (plan H2)", () => {
     for (const l of loaded) expect(l.scenario.verifiedBy.trim().length).toBeGreaterThan(0);
   });
 
-  it("ALL scenarios pass against the real shipped dataset", () => {
-    const suite = runSuite(loaded.map((l) => l.scenario), dataset);
+  it("ALL scenarios pass against the real shipped dataset (per-scenario version pins honored)", () => {
+    const results = loaded.map((l) => runScenario(l.scenario, dsFor(l.scenario.datasetVersion)));
+    const suite = { results, total: results.length, passed: results.filter((r) => r.passed).length, failed: results.filter((r) => !r.passed).length, allPassed: results.every((r) => r.passed) };
     if (!suite.allPassed) {
       const detail = suite.results.filter((r) => !r.passed).map(formatScenario).join("\n");
       throw new Error(`golden suite has ${suite.failed} failing scenario(s):\n${detail}`);

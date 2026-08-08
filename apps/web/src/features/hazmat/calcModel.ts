@@ -54,6 +54,9 @@ export interface CalcLineForm {
   isResidueLine: boolean;
   /** §173.150(f) offeror election — INPUT, never inferred (D1). */
   reclassedCombustible: boolean;
+  /** H-LQ: the offeror's Limited Quantity declaration (§172.203(b)/§172.315) — INPUT, never
+   *  inferred. The engine verifies it against HMT column 8A and refuses fail-closed. */
+  isLimitedQuantity: boolean;
 }
 
 export interface CalcForm {
@@ -158,6 +161,7 @@ export function emptyLine(equipmentType = ""): CalcLineForm {
     compartmentIndex: "",
     isResidueLine: false,
     reclassedCombustible: false,
+    isLimitedQuantity: false,
   };
 }
 
@@ -241,6 +245,7 @@ export function buildEngineLine(l: CalcLineForm, equipmentType = ""): Record<str
   return {
     hmtRef: product.hmtRef,
     reclassedCombustible: l.reclassedCombustible,
+    isLimitedQuantity: l.isLimitedQuantity,
     quantity: { value: numOrNull(l.quantityValue) ?? 0, unit: l.quantityUnit },
     grossWeightLb: lineGrossWeightLb(l),
     compartmentIndex: compartment === null ? null : Math.trunc(compartment),

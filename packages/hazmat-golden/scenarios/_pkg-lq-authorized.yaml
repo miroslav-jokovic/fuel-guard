@@ -1,0 +1,28 @@
+# HARNESS/ENGINEERING SCENARIO (H-LQ, D-H10 build-then-test) — eCFR-sourced, pending SME validation.
+name: "LQ — retail-case gasoline declared Limited Quantity: NO placard, LQ mark, aggregate excepted"
+docRef: "49 CFR 172.500(b)(2) (placarding subpart does not apply to LQ identified per 172.203(b)/172.315); 172.101 col. 8A → §173.150; 172.315(a) (surface mark); 173.150(b) (30 kg/66 lb package cap)"
+description: >
+  Dry van, 40 retail cases of gasoline (UN1203, Class 3, PG II), 2,000 lb gross (50 lb per case),
+  declared Limited Quantity on the BOL. WITHOUT the exception this load placards FLAMMABLE (≥1,001
+  lb) — with it, the placarding subpart does not apply: no placard, LQ square-on-point mark instead.
+  Pinned to 2026.08.0 (the first dataset carrying column 8A). No eligibility assertion: the pin's
+  provisional flag flips when the owner attests, and this scenario must survive that.
+verifiedBy: "Engineering (H-LQ) — eCFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+datasetVersion: "2026.08.0"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 220, unit: gal }
+      grossWeightLb: 2000
+      packagingKind: non_bulk
+      packageCount: 40
+      isLimitedQuantity: true
+expect:
+  placardsAbsent: [FLAMMABLE]
+  marks: [LIMITED_QUANTITY]
+  ergGuides:
+    - { idNumber: "1203", guide: "128" }
+  absentRuleIds: [lq_claim_refused, below_1001lb_no_placard]

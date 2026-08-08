@@ -1,6 +1,6 @@
 import type { DatasetIndex } from "@hazmat/data";
 import type { HazmatLine } from "@hazmat/engine";
-import { classifyLineLoadState, type BolFields } from "./bolFields.js";
+import { classifyLineLoadState, lineDeclaresLq, type BolFields } from "./bolFields.js";
 import { checkAgreement, checkArithmetic, reconcileDeclaredVsExtracted } from "./crossValidate.js";
 import { mapBolLines, type DeclaredLineRef, type MapBolResult } from "./mapBolLines.js";
 import { PROMPT_A, PROMPT_B, type ImageInput, type TokenUsage, type VisionExtractor } from "./vision.js";
@@ -83,16 +83,30 @@ export async function runExtraction(input: ExtractInput, deps: ExtractDeps): Pro
   });
 
   // 4a & 5. Resolve + map pass A's loaded lines to engine lines.
-  const loaded: BolFields = { ...a.fields, lines: a.fields.lines.filter((l) => classifyLineLoadState(l) !== "preprinted_not_loaded") };
-  const mapped = mapBolLines(input.index, loaded, { vehicleKind: input.vehicleKind, declaredLines: input.declaredLines });
+  // H-LQ: the "Limited Quantity" notation is asserted only when BOTH passes read it on the SAME line
+  // (original index alignment — the same alignment checkAgreement uses). One-pass reads already raised
+  // pass_disagreement:lqNotation above and map to false: fully regulated, never under-placarded.
+  const lqByIndex = a.fields.lines.map((l, i) => {
+    const bLine = b.fields.lines[i];
+    return lineDeclaresLq(l) && bLine != null && lineDeclaresLq(bLine);
+  });
+  const loadedMask = a.fields.lines.map((l) => classifyLineLoadState(l) !== "preprinted_not_loaded");
+  const loaded: BolFields = { ...a.fields, lines: a.fields.lines.filter((_, i) => loadedMask[i]) };
+  const lqConfirmed = lqByIndex.filter((_, i) => loadedMask[i]);
+  const mapped = mapBolLines(input.index, loaded, { vehicleKind: input.vehicleKind, declaredLines: input.declaredLines, lqConfirmed });
   for (const f of mapped.flags) flags.add(f);
   const engineLines = mapped.lines.filter((l) => l.engineLine).map((l) => l.engineLine!);
 
   // 4d. Declared-vs-extracted reconciliation, or the driver-self-created fail-closed flag.
   if (input.declaredLines && input.declaredLines.length > 0) {
     const extracted = mapped.lines
-      .filter((l) => l.ok && l.engineLine)
-      .map((l, i) => ({ hmtRef: l.engineLine!.hmtRef, quantityValue: loaded.lines[i]?.quantity.value ?? null }));
+      .map((l, i) => ({ line: l, i }))
+      .filter(({ line: l }) => l.ok && l.engineLine)
+      .map(({ line: l, i }) => ({
+        hmtRef: l.engineLine!.hmtRef,
+        quantityValue: loaded.lines[i]?.quantity.value ?? null,
+        isLimitedQuantity: l.engineLine!.isLimitedQuantity,
+      }));
     for (const f of reconcileDeclaredVsExtracted(input.declaredLines, extracted)) flags.add(f);
   } else {
     flags.add("lines_unconfirmed");

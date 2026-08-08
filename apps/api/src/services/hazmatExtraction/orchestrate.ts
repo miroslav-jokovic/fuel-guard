@@ -136,9 +136,15 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     }
 
     // Declared lines (dispatcher path) drive reclass-confirm + declared-vs-extracted reconciliation.
-    const declaredLines: DeclaredLineRef[] = (load.declared_lines as Array<{ hmtRef?: string; reclassedCombustible?: boolean; quantity?: { value?: number | null } }>)
+    const declaredLines: DeclaredLineRef[] = (load.declared_lines as Array<{ hmtRef?: string; reclassedCombustible?: boolean; isLimitedQuantity?: boolean; quantity?: { value?: number | null } }>)
       .filter((l) => typeof l.hmtRef === "string")
-      .map((l) => ({ hmtRef: l.hmtRef!, reclassedCombustible: l.reclassedCombustible, quantityValue: l.quantity?.value ?? null }));
+      .map((l) => ({
+        hmtRef: l.hmtRef!,
+        reclassedCombustible: l.reclassedCombustible,
+        // H-LQ: the dispatcher's LQ election rides into the paper-vs-declaration reconciliation.
+        isLimitedQuantity: l.isLimitedQuantity ?? false,
+        quantityValue: l.quantity?.value ?? null,
+      }));
 
     const extract = await runExtraction(
       { images, gateBuffers, index: buildDatasetIndex(dataset), models: { A: env.HAZMAT_MODEL_A, B: env.HAZMAT_MODEL_B }, vehicleKind: equipment.kind, declaredLines },

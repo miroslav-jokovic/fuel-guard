@@ -79,6 +79,9 @@ export const goldenScenarioSchema = z
     deliberateGap: z.string().default(""),
     /** Also run `validateBol` and check `expect.bol`. */
     runBol: z.boolean().default(false),
+    /** Pin this scenario to a specific dataset version (H-LQ: LQ scenarios need ≥ 2026.08.0 for
+     *  column 8A). null → the shipped LATEST_DATASET_VERSION, same as before. */
+    datasetVersion: z.string().nullable().default(null),
     /** The engine LoadInput minus dataset + evaluatedAt (runner injects both). */
     input: z.record(z.string(), z.unknown()),
     /** The independently-authored expectation. */

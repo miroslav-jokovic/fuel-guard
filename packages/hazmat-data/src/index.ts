@@ -1,6 +1,7 @@
 import raw202602 from "../datasets/2026.02.json" with { type: "json" };
 import raw202607 from "../datasets/2026.07.0.json" with { type: "json" };
 import raw2026071 from "../datasets/2026.07.1.json" with { type: "json" };
+import raw2026080 from "../datasets/2026.08.0.json" with { type: "json" };
 import rawReferenceText from "../datasets/referenceText.json" with { type: "json" };
 import rawInterpretations from "../datasets/interpretations.json" with { type: "json" };
 import { parseDataset, type Dataset } from "./schema.js";
@@ -28,6 +29,13 @@ const RAW: Readonly<Record<string, unknown>> = {
   "2026.02": raw202602,
   "2026.07.0": raw202607,
   "2026.07.1": raw2026071,
+  // 2026.08.0 (H-LQ groundwork): same captured sources as 2026.07.1, parser now carries columns
+  // 8A (exceptionsRef — the §173.150ff LQ trigger) and 8B (nonBulkPackagingRef). Triangulation ALL
+  // CLEAN; ships PROVISIONAL because it is not yet human-attested — attest with
+  // `npx tsx import/buildDataset.ts 2026.08.0 2026-07-28 2026-08-15 --attested-by "<name>"` and then
+  // move LATEST_DATASET_VERSION here. LATEST deliberately stays 2026.07.1 until that happens so no
+  // production load regresses to a provisional dataset.
+  "2026.08.0": raw2026080,
 };
 
 /** The newest published dataset — the default the API loads unless a caller pins an older version. */

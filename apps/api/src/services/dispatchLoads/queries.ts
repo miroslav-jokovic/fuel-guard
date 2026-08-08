@@ -32,6 +32,22 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
     byLoad.set(s.load_id, list);
   }
 
+  // H-C1 (UI half): the board's hazmat chip shows the RECORD's state, not just the boolean — one
+  // batched read over the linked records (partial unique index on load_id ⇒ at most one each).
+  // Only hazmat-marked rows can be linked (link_hazmat_load sets loads.hazmat = true, one-way).
+  const hazmatIds = rows.filter((r) => (r as { hazmat?: boolean }).hazmat).map((r) => r.id);
+  const hazmatStatusBy = new Map<string, string>();
+  if (hazmatIds.length > 0) {
+    const { data: hz } = await admin
+      .from("hazmat_loads")
+      .select("load_id, status")
+      .eq("org_id", orgId)
+      .in("load_id", hazmatIds);
+    for (const h of (hz ?? []) as { load_id: string | null; status: string }[]) {
+      if (h.load_id) hazmatStatusBy.set(h.load_id, h.status);
+    }
+  }
+
   return rows.map((r) => {
     const { drivers, vehicles, trailers, ...rest } = r as unknown as Record<string, unknown> & {
       drivers: Join;
@@ -44,6 +60,8 @@ export async function listLoads(admin: SupabaseClient, orgId: string): Promise<u
       vehicle_unit: one(vehicles)?.unit_number ?? null,
       trailer_unit: one(trailers)?.unit_number ?? null,
       stops: byLoad.get(r.id) ?? [],
+      // Null = hazmat-marked but no record started yet (or a non-hazmat load) — the chip says which.
+      hazmat_status: hazmatStatusBy.get(r.id) ?? null,
     };
   });
 }

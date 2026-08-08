@@ -6,7 +6,7 @@ import { z } from "zod";
  * @hazmat/data (boundary), so it reads the dataset through a minimal consumer view (`datasetRefSchema`)
  * — the full dataset is passed through; the engine reads only what a given phase needs.
  */
-export const ENGINE_VERSION = "0.9.0";
+export const ENGINE_VERSION = "0.10.0";
 
 export const datasetRefSchema = z
   .object({ version: z.string(), provisional: z.boolean().default(false) })
@@ -24,6 +24,11 @@ export const lineSchema = z.object({
   hmtRef: z.string(),
   /** The offeror's §173.150(f) election — INPUT, never inferred. */
   reclassedCombustible: z.boolean().default(false),
+  /** The offeror's LIMITED QUANTITY declaration (§172.203(b) paper notation / §172.315 mark) —
+   *  INPUT, never inferred, same posture as reclassedCombustible. Since 0.10.0 (H-LQ) the engine
+   *  VERIFIES the claim against HMT column 8A + the 30 kg/66 lb per-package cap and either applies
+   *  §172.500(b)(2) (excepted from the whole placarding subpart) or refuses it fail-closed. */
+  isLimitedQuantity: z.boolean().default(false),
   quantity: z.object({ value: z.number(), unit: quantityUnitSchema }),
   grossWeightLb: z.number().nullable().default(null),
   compartmentIndex: z.number().int().nullable().default(null),

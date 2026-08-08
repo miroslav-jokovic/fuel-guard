@@ -18,6 +18,7 @@ const base = (over: Partial<LoadInput> = {}): LoadInput =>
 const gasLine = {
   hmtRef: "T-UN0002#III",
   reclassedCombustible: false,
+  isLimitedQuantity: false,
   quantity: { value: 5000, unit: "gal" as const },
   grossWeightLb: 32000,
   compartmentIndex: null,

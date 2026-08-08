@@ -1,0 +1,24 @@
+# HARNESS/ENGINEERING SCENARIO (H-LQ, D-H10) — the fail-closed path on the CURRENT live dataset.
+name: "LQ — the same claim on a pre-8A dataset is REFUSED: fully regulated + routed to a reviewer"
+docRef: "49 CFR 172.500(b)(2); 172.101 col. 8A (absent before dataset 2026.08.0 → the claim cannot be verified → fail-closed)"
+description: >
+  Identical load to the authorized scenario, but evaluated on the shipped LATEST dataset, which
+  predates column 8A. The engine cannot verify LQ authorization, so it refuses the claim: FLAMMABLE
+  is still asserted (conservative), and a conditional routes the load to a reviewer. This scenario
+  is the guard that an unverifiable LQ claim can never silently un-placard a load.
+verifiedBy: "Engineering (H-LQ) — eCFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 220, unit: gal }
+      grossWeightLb: 2000
+      packagingKind: non_bulk
+      packageCount: 40
+      isLimitedQuantity: true
+expect:
+  eligibility: not_checked
+  placardsRequired: [FLAMMABLE]
+  findingRuleIds: [lq_claim_refused]

@@ -64,3 +64,38 @@ describe("crossValidate — declared vs extracted reconciliation (step 4d)", () 
     )).toContain("quantity_mismatch:UN1203-gasoline#II");
   });
 });
+
+describe("H-LQ cross-validation (2026-08-08)", () => {
+  const lineWith = (over: Record<string, unknown> = {}) => ({
+    idText: "UN1203", psn: "Gasoline", hazardClass: "3", pg: "II",
+    quantity: { value: 220, unit: "gal" }, grossWeightLb: 2000, packageCount: 40, marks: [], ...over,
+  });
+  const bolWith = (lines: unknown[]) => parseBolFields({ lines });
+
+  it("passes disagreeing on the LQ notation flag it — compared on the DERIVED signal, wording-proof", () => {
+    const a = bolWith([lineWith({ marks: ["LTD QTY"] })]); // abbreviation…
+    const b = bolWith([lineWith({})]);
+    expect(checkAgreement(a, b)).toContain("pass_disagreement:lqNotation:line1");
+    // …vs the long form on the OTHER pass is AGREEMENT, not a flag.
+    const b2 = bolWith([lineWith({ psn: "Gasoline, Limited Quantity" })]);
+    expect(checkAgreement(a, b2).filter((f) => f.includes("lqNotation"))).toEqual([]);
+  });
+
+  it("paper-vs-declaration LQ mismatch flags in both directions", () => {
+    const flags1 = reconcileDeclaredVsExtracted(
+      [{ hmtRef: "UN1203-gasoline#II", isLimitedQuantity: false }],
+      [{ hmtRef: "UN1203-gasoline#II", quantityValue: 220, isLimitedQuantity: true }],
+    );
+    expect(flags1).toContain("lq_mismatch:UN1203-gasoline#II");
+    const flags2 = reconcileDeclaredVsExtracted(
+      [{ hmtRef: "UN1203-gasoline#II", isLimitedQuantity: true }],
+      [{ hmtRef: "UN1203-gasoline#II", quantityValue: 220, isLimitedQuantity: false }],
+    );
+    expect(flags2).toContain("lq_mismatch:UN1203-gasoline#II");
+    const agree = reconcileDeclaredVsExtracted(
+      [{ hmtRef: "UN1203-gasoline#II", isLimitedQuantity: true }],
+      [{ hmtRef: "UN1203-gasoline#II", quantityValue: 220, isLimitedQuantity: true }],
+    );
+    expect(agree.filter((f) => f.startsWith("lq_"))).toEqual([]);
+  });
+});

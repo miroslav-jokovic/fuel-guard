@@ -170,14 +170,21 @@ moving, and doing them now would mean writing against a moving target.
 
 Twelve new assertions in `supabase/tests/load-lifecycle.test.mjs` (42 → 54).
 
-**Still open, and intentionally so:**
+**UI half BUILT 2026-08-08 (amended by D-H11 — the hub page STAYS per the owner):**
 
-- `LoadsPage.vue`: the hazmat column becomes the entry point, plus a hazmat filter.
-- The workspace moves out of `/hazmat/loads/:id` and onto the load detail page as a section. The
-  dependency this plan flagged — "there is no load detail page today" — is gone: LD2 shipped
-  `DispatchLoadDetailPage.vue`, and `hazmat_record` is already on its payload.
-- Delete `HazmatLoadsPage.vue`, `HazmatPage.vue`, their routes and their nav items. Keep
-  `HazmatLoadDetailPage.vue`'s content; it becomes the section, not a page.
+- The board's hazmat column now shows the linked RECORD's state, not a boolean — a chip per hazmat
+  load ("Not started" warning / Draft / Submitted / Analyzing / Needs review / Cleared / Rejected),
+  batched into `listLoads` via the 0148 partial-unique link. New "Hazmat — not cleared" filter
+  option: the exception view (anything short of cleared, including never-started).
+- `DispatchLoadDetailPage` gained the **Hazmat section** (`HazmatPanel.vue`): a milestone STATUS
+  RAIL (Declared → Submitted → Analyzed → Cleared, the freight-tracking pattern, drawn from the
+  locked `hazmatLifecycle` state machine with tones from the token set; terminal states degrade to
+  a chip), last-analysis outcome + tank state meta, and the actions — Start hazmat record
+  (creates + links in one step, prefilled with the equipment/driver/pickup dispatch already
+  entered), Submit & analyze, Open review queue, Roadside packet, Open workspace.
+- The full workspace (`/hazmat/loads/:id`) REMAINS as the deep surface (documents, runs, review) —
+  the section is the load-centric front door, per the owner's D-H11 direction to keep the hub. The
+  page deletions the original H-C1 text called for are superseded by D-H11.
 
 ### H-C2 — Fold equipment into Trailers (D-H3, D-H4, D-H5)
 
@@ -277,15 +284,78 @@ route truck non-bulk / charged 500-gal ASME bulk-at-any-weight) — all passing 
 dataset. §173.315 authorization for moving charged ASME tanks is flagged in the UI hint as outside
 calculator scope.
 
+### H-LQ — Limited Quantity rules (engine 0.10.0, built 2026-08-08)
+
+Sourced from the eCFR before a line of code (the D-H14 lesson): **§172.500(b)(2)** — the placarding
+subpart does not apply to a limited quantity *identified* per §172.203(b) (paper notation) or
+§172.315 (surface mark); **§173.150(b)/§173.155(b)** — the 30 kg (66 lb) per-package gross cap;
+**§172.315(a)** — the square-on-point mark.
+
+**Built:** `isLimitedQuantity` line input (offeror's declaration — INPUT, never inferred, the
+reclassedCombustible posture). The engine VERIFIES each claim: non-bulk only, class within the
+encoded 30-kg family (3 / combustible / 4.1 / 5.1 / 5.2 / 8 / 9 — gases (§173.306) and 6.1/6.2/1/7
+refused as not-encoded), HMT column 8A non-null on the resolved pgRow, and per-package gross ≤ 66 lb
+when count+weight are known. ACCEPTED → the line leaves the entire placarding subpart (no placard,
+no §172.504(c) aggregate, no DANGEROUS category), the §172.315 mark is emitted, and the §172.203(b)
+notation joins the BOL requirements; the line still gets ERG guides and stays in the §172.301(a)(3)
+marking aggregate (subpart D — over-display is the safe direction). REFUSED (any check fails, or
+the dataset predates column 8A) → fully regulated + `lq_claim_refused` conditional; a refusal can
+only ever OVER-placard. 9 new engine tests (87 total); golden harness gained per-scenario
+`datasetVersion` pins; 2 LQ goldens (authorized on 2026.08.0 / refused on the pre-8A LATEST — the
+guard that an unverifiable claim never silently un-placards). Both forms carry the LQ checkbox.
+
+**Remaining for full LQ depth:** gases (§173.306 semantics) and the §172.315(c) private-carrier
+alternative — recorded, not silently dropped. BOL extraction of the notation: DONE, below.
+
+### H-EX — BOL extraction of the packaging facts (built 2026-08-08)
+
+The scanner's schema already READ package count, per-package weight, packaging phrase and printed
+marks — the pipeline dropped them. Now:
+
+- **"Limited Quantity" / "Ltd Qty" → `isLimitedQuantity`**, under the strictest guard in the
+  pipeline: the notation is asserted ONLY when BOTH independent vision passes read it on the same
+  line (compared on the derived signal across marks ∪ name ∪ packaging, so "LTD QTY" vs "Limited
+  Quantity" is agreement). A one-pass read raises `pass_disagreement:lqNotation` and maps FALSE —
+  fully regulated, the only direction that cannot under-placard. The engine then still verifies the
+  claim (col 8A + 66-lb cap). Paper-vs-declaration disagreement in either direction raises
+  `lq_mismatch:<ref>` (dispatcher declares LQ the paper doesn't show, or vice versa). Prompt
+  version 1.0.0 → **1.1.0** (both prompts now name the "Ltd Qty" abbreviation).
+- **Packaging-phrase fixes (two real bugs):** totes/IBCs/portable tanks/hoppers were in the
+  NON-bulk branch (the §171.8 under-classification D-H14 closed on the manual side, alive on the
+  photo side); and every stem was singular-only behind `\b`, so "10 DRUMS" / "4 TOTES" never
+  matched at all and silently fell through to the vehicle default. Both fixed; plural-tolerant.
+- **Reconciliation hardening:** the declared-vs-extracted records now carry the LQ election, and a
+  pre-existing index-misalignment in building them (post-filter index against pre-filter lines)
+  was fixed on the way.
+
+10 new extraction tests (39 total in the module), all run against the real shipped dataset.
+
 ### Deferred, in priority order (recorded so nothing silently drops)
 
-1. **Limited Quantity rules** — the biggest coverage gap for packaged freight. Blocked on dataset
-   work: the HMT import does not yet carry column 8A (§172.101 exceptions), so LQ authorization per
-   entry is not evaluable. Import 8A first; then §173.150ff/§172.315 rules; keep fail-closed until.
+1. **Limited Quantity rules** — the biggest coverage gap for packaged freight. **Import half DONE
+   2026-08-08 (H-LQ groundwork):** the HMT parser now carries column 8A (`exceptionsRef` — "None"
+   normalized to null) and 8B (`nonBulkPackagingRef`); both flow through BOTH source parsers (shared
+   `hmtAssemble`), are compared by the eCFR↔GovInfo triangulation, and are pinned in the
+   hand-verified fixture (values derived from Source B so Source A must reproduce them
+   independently). Dataset **2026.08.0** was cut through the real pipeline from the same captured
+   sources as 2026.07.1 — triangulation ALL CLEAN (2400/2400 HMT keys; 1,781/3,001 pgRows carry an
+   exceptions ref) — and is REGISTERED but ships PROVISIONAL (unattested); `LATEST_DATASET_VERSION`
+   deliberately stays 2026.07.1 so no production load regresses. To promote: attest
+   (`--attested-by`) and move LATEST. Old-dataset checksums are untouched (new fields are zod
+   `.optional()`, never defaulted into pre-2026.08 parses). **Remaining:** the §173.150ff/§172.315
+   LQ *rules* in the engine (fail-closed until 2026.08.0 is live), with their own eCFR research
+   pass and golden scenarios.
 2. H-C1 UI half (loads-board entry point, workspace onto the dispatch load detail page) — still
    deliberately held for the design rework.
-3. Certifications seeding UX (F-H1's operational fix): bulk-import the roster's CDL/medical/
-   endorsement facts so the qualification gate can ever pass.
+3. **Certifications seeding UX — DONE 2026-08-08 (H-CS).** "Set up files" tab on the Compliance
+   page (managers only; label carries the not-started count): a bulk grid — per driver: CDL expiry,
+   medical expiry, H/N/X endorsement letters, one training date + provider (expanded server-side to
+   all four §172.704(a) types, mirroring how drivers actually train) — plus the carrier card (PHMSA
+   registration + financial responsibility, the org half of F-H1). Everything expands to ordinary
+   `CertificationCreateRequest`s (shared `complianceSeed.ts`, pure + tested) through the SAME schema,
+   `insert_certification` supersede RPC and audit trail as single entry — seeding is fast data
+   entry, never a gate bypass. `skipExisting` (default) never supersedes a richer CertManager entry.
+   `POST /api/compliance/certifications/seed`, audited as `compliance.qualification_seeded`.
 4. BOL extraction of package count + type (the §172.202(a)(7) fields are on every scanned paper —
    feed them into the same H-P1 line shape).
 5. Table 1 / explosives expansion packs; H2 capacity/compartment rules; remaining H-C3 compliance

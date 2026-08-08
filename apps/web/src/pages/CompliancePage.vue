@@ -21,6 +21,7 @@ import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
 import QualificationQueue from "@/features/compliance/QualificationQueue.vue";
+import QualificationSeedPanel from "@/features/compliance/QualificationSeedPanel.vue";
 import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
@@ -295,13 +296,26 @@ async function buildBinder(): Promise<void> {
   }
 }
 
-const tab = ref<"queue" | "roster" | "exports">("queue");
-const TABS = [
+type TabValue = "queue" | "roster" | "exports" | "setup";
+const tab = ref<TabValue>("queue");
+// H-CS: the seeding tab appears only for managers, and its label carries the not-started count —
+// on a fleet's first day this is the loudest signal on the page, by design (F-H1: nothing clears
+// until these files exist).
+const notStartedCount = computed(() => rows.value.filter((r) => r.state === "not_started").length);
+const TABS = computed<Array<{ value: TabValue; label: string }>>(() => [
   { value: "queue", label: "Needs attention" },
   { value: "roster", label: "All drivers" },
+  ...(session.canManage
+    ? [{ value: "setup" as const, label: notStartedCount.value > 0 ? `Set up files (${notStartedCount.value})` : "Set up files" }]
+    : []),
   { value: "exports", label: "Exports" },
-] as const;
+]);
 const carrierOpen = ref(false);
+const orgSeeded = computed(() => {
+  const kinds = new Set((orgCerts.value ?? []).map((c) => c.kind));
+  return kinds.has("phmsa_registration") && kinds.has("financial_responsibility");
+});
+const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name: r.full_name, state: r.state })));
 </script>
 
 <template>
@@ -349,6 +363,15 @@ const carrierOpen = ref(false);
       aria-labelledby="qualification-tab-queue"
     >
       <QualificationQueue />
+    </div>
+
+    <div
+      v-else-if="tab === 'setup'"
+      id="qualification-panel-setup"
+      role="tabpanel"
+      aria-labelledby="qualification-tab-setup"
+    >
+      <QualificationSeedPanel :key="seedDrivers.length" :drivers="seedDrivers" :org-seeded="orgSeeded" @seeded="tab = 'roster'" />
     </div>
 
     <div

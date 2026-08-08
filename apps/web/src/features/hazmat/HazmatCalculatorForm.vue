@@ -313,6 +313,7 @@ function resetAll() {
 
             <div class="mt-3 flex flex-wrap gap-4">
               <BaseCheckbox v-model="line.isResidueLine">Residue only</BaseCheckbox>
+              <BaseCheckbox v-model="line.isLimitedQuantity">Limited Quantity — as declared on the BOL (§172.203(b))</BaseCheckbox>
               <BaseCheckbox v-model="line.reclassedCombustible">Reclassified combustible (§173.150(f))</BaseCheckbox>
             </div>
           </div>

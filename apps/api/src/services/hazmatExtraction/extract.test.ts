@@ -87,7 +87,7 @@ describe("computeExtractionFlags — the outcome table (step 6)", () => {
       evaluatedAt: "2026-07-31T00:00:00Z",
       vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
       tankState: "loaded",
-      lines: [{ hmtRef: "UN1203-gasoline#II", reclassedCombustible: false, quantity: { value: 8000, unit: "gal" }, grossWeightLb: null, compartmentIndex: null, isResidueLine: false, flashPointF: null, ethanolPct: null, packagingKind: "non_bulk", packageCount: null }],
+      lines: [{ hmtRef: "UN1203-gasoline#II", reclassedCombustible: false, isLimitedQuantity: false, quantity: { value: 8000, unit: "gal" }, grossWeightLb: null, compartmentIndex: null, isResidueLine: false, flashPointF: null, ethanolPct: null, packagingKind: "non_bulk", packageCount: null }],
       claimedExceptions: { shipperClaimsNoPlacards: false, claimedSpecialPermits: [] },
       portContext: { vesselConnected: null, imdgPapers: null },
       tripContext: { previousOrCurrentBusinessDayIds: null, carrierRelationship: "unknown" },
@@ -98,5 +98,40 @@ describe("computeExtractionFlags — the outcome table (step 6)", () => {
     expect(verdict.placards.required.map((p) => p.placard)).toContain("FLAMMABLE");
     const extract = { usable: true, usabilityReasons: [], engineLines: load.lines, flags: [], usage: { input: 1, output: 1 }, models: { A: "a", B: "b" } } as ExtractResult;
     expect(computeExtractionFlags(extract, verdict, false)).toContain("eligibility_not_checked");
+  });
+});
+
+describe("runExtraction — H-LQ dual-pass confirmation (2026-08-08)", () => {
+  const lqBol = (marks: string[]) =>
+    parseBolFields({
+      lines: [{ idText: "UN1203", psn: "Gasoline", hazardClass: "3", pg: "II", quantity: { value: 220, unit: "gal" }, grossWeightLb: 2000, packageCount: 40, packaging: "40 cases", marks }],
+      emergencyPhone: "800-424-9300", shipperCertification: true,
+    });
+
+  it("BOTH passes reading the notation → the engine line carries isLimitedQuantity=true", async () => {
+    const r = await runExtraction(
+      { ...baseInput, vehicleKind: "van_or_flatbed", declaredLines: [{ hmtRef: "UN1203-gasoline#II", isLimitedQuantity: true, quantityValue: 220 }] },
+      { extractor: extractorOf((system) => (system === PROMPT_A ? lqBol(["LIMITED QUANTITY"]) : lqBol(["Ltd Qty"]))), ...alwaysUsable },
+    );
+    expect(r.engineLines[0]?.isLimitedQuantity).toBe(true);
+    expect(r.flags.filter((f) => f.includes("lqNotation") || f.startsWith("lq_"))).toEqual([]);
+  });
+
+  it("ONE pass only → flag + engine line maps FALSE (fully regulated — never under-placarded on a single read)", async () => {
+    const r = await runExtraction(
+      { ...baseInput, vehicleKind: "van_or_flatbed", declaredLines: [{ hmtRef: "UN1203-gasoline#II", isLimitedQuantity: false, quantityValue: 220 }] },
+      { extractor: extractorOf((system) => (system === PROMPT_A ? lqBol(["LIMITED QUANTITY"]) : lqBol([]))), ...alwaysUsable },
+    );
+    expect(r.flags).toContain("pass_disagreement:lqNotation:line1");
+    expect(r.engineLines[0]?.isLimitedQuantity).toBe(false);
+  });
+
+  it("confirmed paper notation the dispatcher never declared → lq_mismatch reconciliation flag", async () => {
+    const r = await runExtraction(
+      { ...baseInput, vehicleKind: "van_or_flatbed", declaredLines: [{ hmtRef: "UN1203-gasoline#II", isLimitedQuantity: false, quantityValue: 220 }] },
+      { extractor: extractorOf(() => lqBol(["LIMITED QUANTITY"])), ...alwaysUsable },
+    );
+    expect(r.engineLines[0]?.isLimitedQuantity).toBe(true); // the paper IS the §172.203(b) identification…
+    expect(r.flags).toContain("lq_mismatch:UN1203-gasoline#II"); // …but the disagreement with dispatch routes to review
   });
 });

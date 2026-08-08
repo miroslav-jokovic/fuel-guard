@@ -26,6 +26,9 @@ import {
   DANGEROUS_CATEGORY_BAR_LB,
   effectiveClassKey,
   isExplosivesDivision,
+  LQ_ENCODED_CLASS_KEYS,
+  LQ_PACKAGE_GROSS_CAP_LB,
+  pgRowForRef,
   readDataset,
   subsidiary505,
   toPlacardName,
@@ -33,7 +36,59 @@ import {
   type DsPlacard,
 } from "./classify.js";
 
-interface Resolved { line: LoadInput["lines"][number]; entry: DsEntry; spec: DsPlacard; placard: PlacardName }
+interface Resolved {
+  line: LoadInput["lines"][number];
+  entry: DsEntry;
+  spec: DsPlacard;
+  placard: PlacardName;
+  /** H-LQ (0.10.0): the offeror's LQ claim was VERIFIED and accepted — §172.500(b)(2) applies and
+   *  the line is excepted from the whole placarding subpart. Refused claims leave this false and
+   *  the line fully regulated (conservative). */
+  lqAccepted: boolean;
+}
+
+/**
+ * H-LQ (0.10.0) — verify one line's Limited Quantity claim, fail-closed. A claim is ACCEPTED only
+ * when every checkable fact supports it; anything else refuses (the line stays fully regulated —
+ * placards asserted, aggregate counted — plus a conditional routing it to a reviewer, which can
+ * only ever OVER-placard). Inner-receptacle limits (§173.150(b)(1) sizes) are not visible to the
+ * engine; the offeror's declaration carries them, same posture as reclassedCombustible.
+ */
+function verifyLqClaim(
+  line: LoadInput["lines"][number],
+  entry: DsEntry,
+  classKey: string,
+  isTank: boolean,
+): { accepted: true } | { accepted: false; reason: string; cfr: string } {
+  if (isTank || line.packagingKind === "bulk") {
+    return { accepted: false, reason: "a Limited Quantity is by definition non-bulk packaging — this line is bulk", cfr: "49 CFR 171.8" };
+  }
+  if (!LQ_ENCODED_CLASS_KEYS.has(classKey)) {
+    return {
+      accepted: false,
+      reason: `LQ semantics for class "${classKey}" are not encoded (gases use §173.306's own structure; Classes 1/7 and Divisions 6.1/6.2 sit outside the §172.315 mark scheme)`,
+      cfr: "49 CFR 172.315(a)",
+    };
+  }
+  const row = pgRowForRef(entry, line.hmtRef);
+  if (!row || !("exceptionsRef" in row)) {
+    return { accepted: false, reason: "the loaded dataset predates HMT column 8A (exceptions) — use dataset 2026.08.0 or later to evaluate LQ claims", cfr: "49 CFR 172.101 col. 8A" };
+  }
+  if (row.exceptionsRef == null) {
+    return { accepted: false, reason: `the §172.101 table lists NO exceptions section for ${entry.psnPrinted} (column 8A is "None") — a Limited Quantity is not authorized`, cfr: "49 CFR 172.101 col. 8A" };
+  }
+  if (line.grossWeightLb != null && line.packageCount != null && line.packageCount > 0) {
+    const perPackage = line.grossWeightLb / line.packageCount;
+    if (perPackage > LQ_PACKAGE_GROSS_CAP_LB) {
+      return {
+        accepted: false,
+        reason: `per-package gross weight ${Math.round(perPackage)} lb exceeds the 30 kg (66 lb) LQ package cap (§173.150(b)/§173.155(b) family)`,
+        cfr: "49 CFR 173.150(b)",
+      };
+    }
+  }
+  return { accepted: true };
+}
 
 // ── the ladder ───────────────────────────────────────────────────────────────────────────────────
 export interface PlacardComputation {
@@ -138,8 +193,47 @@ export function computePlacards(load: LoadInput): PlacardComputation {
       trace.push({ ruleId: "class_to_placard", fired: true, inputs: { hmtRef: line.hmtRef, placardName: spec.placardName }, citations: [{ cfr: `49 CFR ${spec.designRef ?? "172.504"}` }], note: "no placard for this class" });
       continue;
     }
-    resolved.push({ line, entry, spec, placard });
-    trace.push({ ruleId: "class_to_placard", fired: true, inputs: { hmtRef: line.hmtRef, class: entry.hazardClass, placard, table: spec.table }, citations: [{ cfr: `49 CFR ${spec.designRef ?? "172.504"}` }] });
+
+    // ── H-LQ (0.10.0): the Limited Quantity gate, per line ──────────────────────────────────────
+    let lqAccepted = false;
+    if (line.isLimitedQuantity) {
+      const lq = verifyLqClaim(line, entry, key, load.vehicle.kind === "cargo_tank");
+      if (lq.accepted) {
+        lqAccepted = true;
+        findings.push({
+          ruleId: "lq_excepted_from_placarding",
+          tier: "info",
+          message:
+            `${entry.psnPrinted} is declared a Limited Quantity and the HMT authorizes exceptions for it (§173.${pgRowForRef(entry, line.hmtRef)?.exceptionsRef}) — ` +
+            "identified per §172.203(b)/§172.315, the placarding subpart does not apply to this line (§172.500(b)(2)). " +
+            "The declaration (including inner-receptacle limits) is the offeror's; the LQ surface mark must be displayed.",
+          citations: [{ cfr: "49 CFR 172.500(b)(2)" }, { cfr: "49 CFR 172.315(a)" }],
+          evidence: { hmtRef: line.hmtRef, exceptionsRef: pgRowForRef(entry, line.hmtRef)?.exceptionsRef ?? null },
+        });
+        if (!placards.marks.some((m) => m.mark === "LIMITED_QUANTITY")) {
+          placards.marks.push({
+            mark: "LIMITED_QUANTITY",
+            positions: "one side or end of each package (square-on-point, ≥100 mm; 50 mm reduced size allowed)",
+            because: [{ cfr: "49 CFR 172.315(a)" }],
+          });
+        }
+        trace.push({ ruleId: "lq_gate", fired: true, inputs: { hmtRef: line.hmtRef, accepted: true }, citations: [{ cfr: "49 CFR 172.500(b)(2)" }] });
+      } else {
+        findings.push({
+          ruleId: "lq_claim_refused",
+          tier: "conditional",
+          message:
+            `The Limited Quantity claim on ${entry.psnPrinted} is REFUSED: ${lq.reason}. ` +
+            "The line is evaluated fully regulated (placards asserted, aggregate counted) — route to a hazmat-trained reviewer.",
+          citations: [{ cfr: lq.cfr }, { cfr: "49 CFR 172.500(b)(2)" }],
+          evidence: { hmtRef: line.hmtRef, reason: lq.reason },
+        });
+        trace.push({ ruleId: "lq_gate", fired: true, inputs: { hmtRef: line.hmtRef, accepted: false }, citations: [{ cfr: lq.cfr }], note: lq.reason });
+      }
+    }
+
+    resolved.push({ line, entry, spec, placard, lqAccepted });
+    trace.push({ ruleId: "class_to_placard", fired: true, inputs: { hmtRef: line.hmtRef, class: entry.hazardClass, placard, table: spec.table, lqAccepted }, citations: [{ cfr: `49 CFR ${spec.designRef ?? "172.504"}` }] });
   }
 
   // Table 1 gate verdict (D4-revised): any Table 1 line blocks the WHOLE load — no placards computed, a
@@ -192,7 +286,13 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   //   · RESIDUE-only non-bulk lines are excluded from the aggregate (§172.504(d), §173.29(c)).
   //   · §172.505 subsidiary materials placard regardless of the aggregate.
   const isTank = load.vehicle.kind === "cargo_tank";
-  const table2 = resolved.filter((r) => r.spec.table === 2); // Table 1 already gated out above
+  // H-LQ: an ACCEPTED Limited Quantity line is excepted from this entire subpart (§172.500(b)(2)) —
+  // it leaves the Table 2 processing here (no placard requirement, no §172.504(c) aggregate, no
+  // DANGEROUS category). Refused claims kept `lqAccepted: false` and stay fully regulated. LQ lines
+  // still receive ERG guides and the HOT check below, and they deliberately REMAIN in the
+  // §172.301(a)(3) marking aggregate — that is subpart D, not F, and keeping them can only
+  // over-display (safe direction).
+  const table2 = resolved.filter((r) => r.spec.table === 2 && !r.lqAccepted); // Table 1 already gated out above
   const isBulk = (r: Resolved): boolean => r.line.packagingKind === "bulk" || isTank;
   const has505 = (r: Resolved): boolean => subsidiary505(r.entry).pih || subsidiary505(r.entry).dww;
 

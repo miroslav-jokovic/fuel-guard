@@ -60,3 +60,27 @@ describe("mapBolLines — §173.150(f) combustible-liquid election (offeror's, D
     expect(r.lines[0]!.engineLine!.reclassedCombustible).toBe(false);
   });
 });
+
+describe("mapBolLines — H-LQ + H-P1 packaging alignment (2026-08-08)", () => {
+  const lqLine: Partial<BolLineFields> = {
+    idText: "UN1203", psn: "Gasoline", hazardClass: "3", pg: "II",
+    quantity: { value: 220, unit: "gal" }, grossWeightLb: 2000, packageCount: 40,
+    packaging: "40 cases", marks: ["LIMITED QUANTITY"],
+  };
+
+  it("sets isLimitedQuantity ONLY from the dual-pass confirmation array — never from one pass's text", () => {
+    const confirmed = mapBolLines(index, bol([lqLine]), { vehicleKind: "van_or_flatbed", lqConfirmed: [true] });
+    expect(confirmed.lines[0]!.engineLine!.isLimitedQuantity).toBe(true);
+    expect(confirmed.lines[0]!.provenance.isLimitedQuantity).toBe("extracted");
+    // Same printed marks, but no dual-pass confirmation → false (fully regulated, conservative).
+    const unconfirmed = mapBolLines(index, bol([lqLine]), { vehicleKind: "van_or_flatbed" });
+    expect(unconfirmed.lines[0]!.engineLine!.isLimitedQuantity).toBe(false);
+  });
+
+  it("totes/IBCs in the packaging phrase are BULK (§171.8) — the pre-D-H14 non-bulk mapping is gone", () => {
+    const tote = mapBolLines(index, bol([{ idText: "UN1203", psn: "Gasoline", pg: "II", quantity: { value: 1100, unit: "gal" }, packaging: "4 totes" }]), { vehicleKind: "van_or_flatbed" });
+    expect(tote.lines[0]!.engineLine!.packagingKind).toBe("bulk");
+    const ibc = mapBolLines(index, bol([{ idText: "UN1203", psn: "Gasoline", pg: "II", quantity: { value: 275, unit: "gal" }, packaging: "1 IBC" }]), { vehicleKind: "van_or_flatbed" });
+    expect(ibc.lines[0]!.engineLine!.packagingKind).toBe("bulk");
+  });
+});

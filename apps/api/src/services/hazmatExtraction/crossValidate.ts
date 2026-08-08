@@ -1,5 +1,5 @@
 import { normalizePsn } from "@hazmat/data";
-import { pageComplete, type BolFields, type BolLineFields } from "./bolFields.js";
+import { lineDeclaresLq, pageComplete, type BolFields, type BolLineFields } from "./bolFields.js";
 
 /**
  * Deterministic cross-validation (plan H6 step 4) — the checks that make a wrong read impossible to pass
@@ -22,6 +22,10 @@ function lineDisagreements(a: BolLineFields, b: BolLineFields, i: number): strin
   if (normName(a.quantity.unit) !== normName(b.quantity.unit)) out.push(at("quantityUnit"));
   if (a.packageCount !== b.packageCount) out.push(at("packageCount"));
   if (a.hmColumnMark !== b.hmColumnMark) out.push(at("hmColumnMark"));
+  // H-LQ: the LQ notation strips placards downstream — a one-pass-only read must never act. Compared
+  // on the DERIVED signal (marks ∪ name ∪ packaging), not raw strings, so wording variance between
+  // passes ("LTD QTY" vs "Limited Quantity") is agreement, not noise.
+  if (lineDeclaresLq(a) !== lineDeclaresLq(b)) out.push(at("lqNotation"));
   return out;
 }
 
@@ -68,10 +72,14 @@ export function checkArithmetic(bol: BolFields): string[] {
 export interface DeclaredForReconcile {
   hmtRef: string;
   quantityValue?: number | null;
+  /** H-LQ: the dispatcher's declared LQ election, when a declaration exists. */
+  isLimitedQuantity?: boolean | null;
 }
 export interface ExtractedForReconcile {
   hmtRef: string;
   quantityValue: number | null;
+  /** H-LQ: the dual-pass-confirmed paper notation (what the engine line will carry). */
+  isLimitedQuantity?: boolean;
 }
 
 /**
@@ -96,6 +104,11 @@ export function reconcileDeclaredVsExtracted(
     }
     if (d.quantityValue != null && e.quantityValue != null && offBy(e.quantityValue, d.quantityValue)) {
       flags.push(`quantity_mismatch:${e.hmtRef}`);
+    }
+    // H-LQ: paper and declaration must tell the same LQ story in BOTH directions — a paper notation
+    // the dispatcher never declared, or a declared LQ the paper does not show, is a review fact.
+    if (d.isLimitedQuantity != null && e.isLimitedQuantity != null && d.isLimitedQuantity !== e.isLimitedQuantity) {
+      flags.push(`lq_mismatch:${e.hmtRef}`);
     }
   }
   for (const d of declared) {

@@ -15,6 +15,8 @@ export type Provenance = "extracted" | "declared" | "dataset_default";
 export interface DeclaredLineRef {
   hmtRef: string;
   reclassedCombustible?: boolean;
+  /** H-LQ: the dispatcher's declared LQ election (reconciled against the paper's notation). */
+  isLimitedQuantity?: boolean;
   quantityValue?: number | null;
 }
 
@@ -37,16 +39,26 @@ export interface MapBolOptions {
   vehicleKind: "cargo_tank" | "van_or_flatbed";
   /** Dispatcher-declared lines (for the §173.150(f) reclass confirmation — the election is the offeror's). */
   declaredLines?: DeclaredLineRef[];
+  /** H-LQ: per-line dual-pass-CONFIRMED "Limited Quantity" notation, aligned to `bol.lines` — computed
+   *  by the pipeline from BOTH passes (extract.ts). Absent → false everywhere. A single-pass read is
+   *  never enough: setting this wrongly is the one extraction error that could UNDER-placard, so it
+   *  takes two independent reads to assert, and the engine still verifies col 8A + the 66-lb cap. */
+  lqConfirmed?: boolean[];
 }
 
 function derivePackaging(line: BolLineFields, vehicleKind: MapBolOptions["vehicleKind"]): "bulk" | "non_bulk" {
   const txt = (line.packaging ?? "").toLowerCase();
-  if (/\b(cargo tank|tank|bulk)\b/.test(txt)) return "bulk";
-  if (/\b(drum|case|carton|box|pail|tote|ibc|jerrican|cylinder|bag|package)\b/.test(txt)) return "non_bulk";
+  // H-P1 alignment: totes/IBCs and portable tanks are BULK (§171.8 — a 275/330-gal IBC exceeds 119
+  // gal even on a dry van), and hoppers/pneumatics are bulk solids. They were in the non-bulk branch
+  // until 2026-08-08 — the same under-classification the manual form's D-H14 rework closed.
+  // Plural-tolerant stems: real BOLs print "4 TOTES", "10 DRUMS" — the old singular-only word
+  // boundaries silently matched nothing and every phrase fell through to the vehicle default.
+  if (/\b(cargo tanks?|tanks?|bulk|totes?|ibcs?|portable tanks?|iso tanks?|hoppers?|pneumatics?)\b/.test(txt)) return "bulk";
+  if (/\b(drums?|cases?|cartons?|boxes|box|pails?|jerricans?|cylinders?|bags?|packages?)\b/.test(txt)) return "non_bulk";
   return vehicleKind === "cargo_tank" ? "bulk" : "non_bulk";
 }
 
-function mapLine(index: DatasetIndex, line: BolLineFields, opts: MapBolOptions): MappedLine {
+function mapLine(index: DatasetIndex, line: BolLineFields, opts: MapBolOptions, lqConfirmed: boolean): MappedLine {
   const flags: string[] = [];
   const provenance: Record<string, Provenance> = {};
   const printedCombustible = /combustible/i.test(line.hazardClass ?? "");
@@ -101,6 +113,11 @@ function mapLine(index: DatasetIndex, line: BolLineFields, opts: MapBolOptions):
   const engineLine: HazmatLine = {
     hmtRef: resolution.hmtRef,
     reclassedCombustible,
+    // H-LQ: true ONLY when BOTH vision passes independently read the §172.203(b)/§172.315 notation
+    // (extract.ts computes the confirmation; a one-pass read raises pass_disagreement:lqNotation and
+    // maps false — fully regulated, the conservative direction). The engine then verifies the claim
+    // against HMT column 8A + the 66-lb cap and refuses fail-closed if anything is off.
+    isLimitedQuantity: lqConfirmed,
     quantity,
     grossWeightLb: line.grossWeightLb,
     compartmentIndex: null, // per-compartment declaration deferred (engine does not read it — H5 audit / H2)
@@ -112,6 +129,7 @@ function mapLine(index: DatasetIndex, line: BolLineFields, opts: MapBolOptions):
   };
   provenance.grossWeightLb = "extracted";
   provenance.packagingKind = "extracted";
+  provenance.isLimitedQuantity = "extracted";
   provenance.flashPointF = "dataset_default";
   provenance.ethanolPct = "dataset_default";
 
@@ -121,7 +139,7 @@ function mapLine(index: DatasetIndex, line: BolLineFields, opts: MapBolOptions):
 }
 
 export function mapBolLines(index: DatasetIndex, bol: BolFields, opts: MapBolOptions): MapBolResult {
-  const lines = bol.lines.map((l) => mapLine(index, l, opts));
+  const lines = bol.lines.map((l, i) => mapLine(index, l, opts, opts.lqConfirmed?.[i] ?? false));
   const flags = [...new Set(lines.flatMap((l) => l.flags))];
   const allResolved = lines.every((l) => l.ok);
   return { lines, allResolved, flags };

@@ -49,6 +49,8 @@ export interface DispatchLoad {
   equipment: string | null;
   commodity: string | null;
   hazmat: boolean;
+  /** H-C1: the linked hazmat record's status ("draft" … "cleared"), null = none started. */
+  hazmat_status?: string | null;
   total_miles: number | null;
   driver_id: string | null;
   vehicle_id: string | null;
@@ -94,6 +96,17 @@ export interface DispatchStopDetail extends DispatchStop {
  * never declared them, which is why the office could not see who approved a load or what a driver
  * photographed at a stop.
  */
+/** The hazmat record a load carries (H-C1) — state + newest outcome; the verdict stays in the workspace. */
+export interface LinkedHazmatRecord {
+  id: string;
+  status: string;
+  tank_state: string;
+  created_at: string;
+  updated_at: string;
+  latest_outcome: string | null;
+  latest_run_at: string | null;
+}
+
 export interface LoadDetail extends DispatchLoad {
   created_by: string | null;
   approved_by: string | null;
@@ -108,6 +121,7 @@ export interface LoadDetail extends DispatchLoad {
   updated_at: string;
   stops: DispatchStopDetail[];
   events: LoadEventRow[];
+  hazmat_record: LinkedHazmatRecord | null;
 }
 
 

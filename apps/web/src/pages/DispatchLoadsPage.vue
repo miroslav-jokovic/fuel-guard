@@ -13,7 +13,7 @@ import { PlusIcon } from "@fuelguard/ui/icons";
  */
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { type DispatchException, EXCEPTION_LABELS, LOAD_STATUS_LABELS, LOAD_STATUSES } from "@fuelguard/shared";
+import { type DispatchException, EXCEPTION_LABELS, HAZMAT_LOAD_STATUS_LABELS, type HazmatLoadStatus, LOAD_STATUS_LABELS, LOAD_STATUSES } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -112,8 +112,12 @@ const sourceOptions = [
 const hazmatOptions = [
   { value: "", label: "All loads" },
   { value: "yes", label: "Hazmat only" },
+  { value: "attention", label: "Hazmat — not cleared" },
   { value: "no", label: "Non-hazmat" },
 ];
+/** H-C1: a hazmat load "needs attention" until its record is CLEARED — including never started. */
+const hazmatNeedsAttention = (load: DispatchLoad): boolean =>
+  load.hazmat && load.hazmat_status !== "cleared" && load.hazmat_status !== "cancelled" && load.hazmat_status !== "superseded";
 
 const counts = computed(() => {
   const result: Record<QueueTab, number> = {
@@ -140,7 +144,12 @@ const filtered = computed(() => {
     .filter((load) => !statusFilter.value || load.status === statusFilter.value)
     .filter((load) => !sourceFilter.value || load.source === sourceFilter.value)
     .filter((load) =>
-      !hazmatFilter.value || (hazmatFilter.value === "yes" ? load.hazmat : !load.hazmat),
+      !hazmatFilter.value ||
+        (hazmatFilter.value === "yes"
+          ? load.hazmat
+          : hazmatFilter.value === "attention"
+            ? hazmatNeedsAttention(load)
+            : !load.hazmat),
     )
     .filter((load) => {
       if (!term) return true;
@@ -173,12 +182,28 @@ const emptyText = computed(() =>
   (loads.value ?? []).length === 0 ? "No loads yet — create one or wait for a TMS feed." : "No loads match these filters.",
 );
 
+/** Chip copy + tone for the linked record's state. "Not started" is the loudest: the load is marked
+ *  hazmat and nothing can clear until the record exists. Tones stay within the token set. */
+function hazmatChipLabel(status: string | null | undefined): string {
+  if (!status) return "Not started";
+  return HAZMAT_LOAD_STATUS_LABELS[status as HazmatLoadStatus] ?? status;
+}
+function hazmatTone(status: string | null | undefined): string {
+  if (!status) return "warning";
+  if (status === "cleared") return "success";
+  if (status === "needs_review") return "warning";
+  if (status === "rejected") return "danger";
+  if (status === "submitted" || status === "extracting") return "brand";
+  return "neutral"; // draft / cancelled / superseded
+}
+
 const columns: DataTableColumn[] = [
   { key: "ref", label: "Load #", sortable: true, headerClass: "min-w-[8rem]", cellClass: "font-medium text-ink" },
   { key: "source", label: "Source", sortable: true, headerClass: "min-w-[7rem]" },
   { key: "driver_name", label: "Driver", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
   { key: "equipment", label: "Equipment", sortable: true, headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
   { key: "first_stop", label: "First appointment", headerClass: "min-w-[11rem]", cellClass: "text-ink-secondary" },
+  { key: "hazmat", label: "Hazmat", headerClass: "min-w-[8rem]" },
   { key: "readiness", label: "Approval readiness", headerClass: "min-w-[13rem]" },
   { key: "status", label: "Status", sortable: true, headerClass: "min-w-[9rem]" },
 ];
@@ -200,7 +225,12 @@ const filterChips = computed<FilterChip[]>(() => {
   const chips: FilterChip[] = [];
   if (statusFilter.value) chips.push({ key: "status", label: "Status", value: LOAD_STATUS_LABELS[statusFilter.value as keyof typeof LOAD_STATUS_LABELS] });
   if (sourceFilter.value) chips.push({ key: "source", label: "Source", value: sourceFilter.value === "tms" ? "TMS" : "Manual" });
-  if (hazmatFilter.value) chips.push({ key: "hazmat", label: "Load type", value: hazmatFilter.value === "yes" ? "Hazmat" : "Non-hazmat" });
+  if (hazmatFilter.value)
+    chips.push({
+      key: "hazmat",
+      label: "Load type",
+      value: hazmatFilter.value === "yes" ? "Hazmat" : hazmatFilter.value === "attention" ? "Hazmat — not cleared" : "Non-hazmat",
+    });
   return chips;
 });
 const moreCount = computed(() => (hazmatFilter.value ? 1 : 0));
@@ -404,6 +434,14 @@ onUnmounted(() => {
       </template>
       <template #cell-equipment="{ row }">{{ row.equipment ?? "—" }}</template>
       <template #cell-first_stop="{ row }"><span class="tabular-nums">{{ firstAppointment(row) }}</span></template>
+      <!-- H-C1: the record's STATE, not just a boolean — and the cell is the entry point (row click opens
+           the load, where the hazmat section lives). Non-hazmat loads show nothing: absence is the signal. -->
+      <template #cell-hazmat="{ row }">
+        <span v-if="row.hazmat" :class="[BADGE_BASE, toneClass(hazmatTone(row.hazmat_status))]">
+          {{ hazmatChipLabel(row.hazmat_status) }}
+        </span>
+        <span v-else class="text-ink-subtle">—</span>
+      </template>
       <!-- The checklist IS the product: a named list of what is missing, not a dead button. -->
       <template #cell-readiness="{ row }">
         <div v-if="checklistFor(row).canApprove" class="flex items-center gap-1.5">

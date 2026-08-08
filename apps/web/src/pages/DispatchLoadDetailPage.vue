@@ -22,6 +22,7 @@ import { useToastStore } from "@/stores/toast";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useTrailersQuery } from "@/composables/useTrailers";
+import HazmatPanel from "@/features/hazmat/HazmatPanel.vue";
 import {
   statusLabel,
   useAssignLoad,
@@ -348,6 +349,9 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
           </div>
         </dl>
       </BaseCard>
+
+      <!-- H-C1: hazmat is a property of THIS load — the record lives here, not on a parallel board. -->
+      <HazmatPanel v-if="load.hazmat || load.hazmat_record" :load="load" :can-manage="session.canManage" />
 
       <!-- Approval checklist -->
       <BaseCard v-if="checklist && (showApprove || canSubmit)">

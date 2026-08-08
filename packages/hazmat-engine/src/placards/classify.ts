@@ -14,7 +14,14 @@ import { assertsPoisonInhalation } from "./tableSelect.js";
  */
 
 // ── minimal consumer view of the dataset (engine may not import @hazmat/data) ────────────────────
-export interface DsPgRow { pg: "I" | "II" | "III" | null; labelCodes?: string[]; specialProvisions?: string[] }
+export interface DsPgRow {
+  pg: "I" | "II" | "III" | null;
+  labelCodes?: string[];
+  specialProvisions?: string[];
+  /** §172.101 column 8A (datasets ≥ 2026.08.0) — the §173.* exceptions section ("150" → §173.150),
+   *  null = printed "None"/blank, ABSENT (undefined) = the dataset predates the column (H-LQ). */
+  exceptionsRef?: string | null;
+}
 export interface DsEntry {
   entryId: string;
   psnPrinted: string;
@@ -82,3 +89,18 @@ export function subsidiary505(entry: DsEntry): { pih: boolean; dww: boolean } {
     dww: (entry.subsidiaryClasses ?? []).some((c) => c.trim() === "4.3"),
   };
 }
+
+/** The pgRow an `hmtRef` ("entryId#PG" / "entryId#none") points at; first row when no match. */
+export function pgRowForRef(entry: DsEntry, hmtRef: string): DsPgRow | null {
+  const token = hmtRef.split("#")[1] ?? "none";
+  const pg = token === "none" ? null : token;
+  return entry.pgRows.find((r) => (r.pg ?? null) === pg) ?? entry.pgRows[0] ?? null;
+}
+
+/** §173.150(b)/§173.155(b)-family LQ per-package cap: 30 kg (66 lb) gross. */
+export const LQ_PACKAGE_GROSS_CAP_LB = 66;
+
+/** The classes whose LQ semantics 0.10.0 ENCODES (the 30 kg/66 lb family with the §172.315 ground
+ *  mark). Gases (§173.306 — different structure) and Divisions 6.1/6.2 + Classes 1/7 (excluded from
+ *  the §172.315 mark scheme) are NOT encoded: an LQ claim there is refused fail-closed. */
+export const LQ_ENCODED_CLASS_KEYS = new Set<string>(["3", "combustible liquid", "4.1", "5.1", "5.2", "8", "9"]);
