@@ -5,6 +5,7 @@ import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { formatDate } from "@/lib/format";
 import { useCertificationHistoryQuery } from "@/composables/useCompliance";
 
 /**
@@ -44,8 +45,8 @@ const rows = computed<Row[]>(() =>
       .filter(Boolean)
       .join(" · "),
     identifier: c.identifier ?? "—",
-    covered: `${c.effective_from} → ${c.expires_at ?? "no expiry"}`,
-    standing: c.superseded_at ? `Replaced ${c.superseded_at.slice(0, 10)}` : "Replaced",
+    covered: `${formatDate(c.effective_from)} → ${c.expires_at ? formatDate(c.expires_at) : "No expiry"}`,
+    standing: c.superseded_at ? `Replaced ${formatDate(c.superseded_at)}` : "Replaced",
   })),
 );
 

@@ -1,5 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { formatPhone } from "./format";
+import { formatDate, formatDateTime, formatPhone } from "./format";
+
+describe("formatDate", () => {
+  it("formats a calendar date without timezone shifting", () => {
+    expect(formatDate("2026-08-08T00:00:00.000Z")).toBe("Aug 8, 2026");
+  });
+  it("returns an em dash for missing dates", () => {
+    expect(formatDate(null)).toBe("—");
+    expect(formatDate(undefined)).toBe("—");
+  });
+});
+
+describe("formatDateTime", () => {
+  it("formats a timestamp with date and time", () => {
+    expect(formatDateTime("2026-08-08T15:04:00.000Z")).toMatch(/Aug 8, 2026/);
+  });
+  it("returns an em dash for missing timestamps", () => {
+    expect(formatDateTime(null)).toBe("—");
+  });
+});
 
 describe("formatPhone", () => {
   it("formats a bare 10-digit number", () => {

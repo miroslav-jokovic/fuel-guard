@@ -4,6 +4,7 @@ import { DQ_ITEMS, type DqExportRow } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
 import { openBinder, useExportsQuery } from "@/composables/useDqExports";
 
@@ -45,6 +46,7 @@ interface Row extends DqExportRow {
 const rows = computed<Row[]>(() =>
   (query.data.value ?? []).map((e) => ({
     ...e,
+    as_at: formatDate(e.as_at),
     what:
       e.kind === "document"
         ? `${requirementLabel(e.requirement_key)} — ${e.driver_names[0] ?? "unknown driver"}`
@@ -52,7 +54,7 @@ const rows = computed<Row[]>(() =>
           ? `Qualification file — ${e.driver_names[0]}`
           : `Qualification files — ${e.driver_names.length} drivers`,
     who: e.requested_by_email ?? "—",
-    when: e.created_at.slice(0, 16).replace("T", " "),
+    when: formatDateTime(e.created_at),
     detail:
       e.status === "failed"
         ? (e.error ?? "No reason recorded.")

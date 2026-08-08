@@ -20,3 +20,25 @@ export function formatPhone(raw: string | null | undefined): string {
   if (!ten) return trimmed; // not a plain NANP number — leave it as the source had it
   return `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6)}`;
 }
+
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const day = iso.slice(0, 10);
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

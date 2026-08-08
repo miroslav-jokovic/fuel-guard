@@ -1,17 +1,30 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRoute, RouterLink } from "vue-router";
+import { useRoute } from "vue-router";
+import { AppIcon } from "@fuelguard/ui";
+import {
+  ArrowDownTrayIcon,
+  ArrowPathIcon,
+  ArrowUpTrayIcon,
+  ChevronLeftIcon,
+  ClipboardDocumentCheckIcon,
+  EyeIcon,
+} from "@fuelguard/ui/icons";
 import {
   buildDqFile,
+  DQ_GROUP_LABELS,
   dqAttention,
   dqGroups,
   moduleEnabled,
+  type DqGroup,
   type DqFileItem,
   type DqItemState,
 } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import FilterBar from "@/components/ui/FilterBar.vue";
+import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import ComboSelect from "@/components/ui/ComboSelect.vue";
@@ -31,6 +44,7 @@ import {
 import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
 import CertificationHistory from "@/features/compliance/CertificationHistory.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
+import { formatDate } from "@/lib/format";
 import { useExportDocument, useRequestBinder } from "@/composables/useDqExports";
 
 /**
@@ -56,19 +70,31 @@ const modules = useModulesQuery();
 const upload = useUploadDocument();
 
 const loading = computed(
-  () => certsQ.isLoading.value || recordsQ.isLoading.value || docsQ.isLoading.value,
+  () =>
+    driverQ.isLoading.value ||
+    certsQ.isLoading.value ||
+    recordsQ.isLoading.value ||
+    docsQ.isLoading.value ||
+    modules.isLoading.value,
 );
 const retrying = computed(
-  () => certsQ.isFetching.value || recordsQ.isFetching.value || docsQ.isFetching.value,
+  () =>
+    driverQ.isFetching.value ||
+    certsQ.isFetching.value ||
+    recordsQ.isFetching.value ||
+    docsQ.isFetching.value ||
+    modules.isFetching.value,
 );
 const errorMessage = computed<string | null>(() => {
-  const failed = [certsQ, recordsQ, docsQ].find((q) => q.isError.value);
+  const failed = [driverQ, certsQ, recordsQ, docsQ, modules].find((q) => q.isError.value);
   return failed ? (failed.error.value?.message ?? "Could not load the qualification file.") : null;
 });
 function retry(): void {
+  void driverQ.refetch();
   void certsQ.refetch();
   void recordsQ.refetch();
   void docsQ.refetch();
+  void modules.refetch();
 }
 
 const today = new Date().toISOString().slice(0, 10);
@@ -128,9 +154,9 @@ const urlById = computed(() => {
 interface Row {
   key: string;
   label: string;
-  citation: string;
-  group: string;
+  group: DqGroup;
   state: DqItemState;
+  evidenceDate: string | null;
   goodUntil: string | null;
   expiryUnknown: boolean;
   documentUrl: string | null;
@@ -138,9 +164,9 @@ interface Row {
 const toRow = (i: DqFileItem): Row => ({
   key: i.spec.key,
   label: i.spec.label,
-  citation: i.spec.citation,
   group: i.spec.group,
   state: i.state,
+  evidenceDate: i.evidenceDate,
   goodUntil: i.goodUntil,
   expiryUnknown: i.expiryUnknown,
   documentUrl: i.documentId ? (urlById.value.get(i.documentId) ?? null) : null,
@@ -148,6 +174,22 @@ const toRow = (i: DqFileItem): Row => ({
 
 const rows = computed<Row[]>(() =>
   file.value.items.filter((i) => showAll.value || attentionKeys.value.has(i.spec.key)).map(toRow),
+);
+const requirementSearch = ref("");
+const requirementGroup = ref("");
+const requirementGroupOptions = computed(() => [
+  { value: "", label: "All groups" },
+  ...Object.entries(DQ_GROUP_LABELS).map(([value, label]) => ({ value, label: String(label) })),
+]);
+const filteredRows = computed(() => {
+  const term = requirementSearch.value.trim().toLowerCase();
+  return rows.value.filter((row) => {
+    if (requirementGroup.value && row.group !== requirementGroup.value) return false;
+    return !term || row.label.toLowerCase().includes(term);
+  });
+});
+const hasRequirementFilter = computed(
+  () => Boolean(requirementSearch.value.trim() || requirementGroup.value),
 );
 
 const columns: DataTableColumn[] = [
@@ -158,6 +200,12 @@ const columns: DataTableColumn[] = [
     cellClass: "font-medium text-ink",
   },
   { key: "state", label: "Status", headerClass: "w-32" },
+  {
+    key: "evidenceDate",
+    label: "Evidence date",
+    headerClass: "w-36",
+    cellClass: "text-ink-secondary",
+  },
   { key: "goodUntil", label: "Good until", headerClass: "w-32", cellClass: "text-ink-secondary" },
   { key: "documentUrl", label: "Scan", headerClass: "w-24" },
 ];
@@ -238,9 +286,7 @@ async function fileDropped(): Promise<void> {
 
 <template>
   <div class="space-y-6">
-    <PageHeader
-      :description="`49 CFR §391.51. ${driverQ.data.value?.full_name ?? 'This driver'}'s qualification file.`"
-    >
+    <PageHeader description="Qualification file and supporting records for this driver.">
       <template #actions>
         <BaseButton
           v-if="session.canManage"
@@ -248,16 +294,27 @@ async function fileDropped(): Promise<void> {
           :disabled="requestBinder.isPending.value"
           @click="exportWholeFile"
         >
+          <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
           {{ requestBinder.isPending.value ? "Building…" : "Export this file" }}
         </BaseButton>
-        <RouterLink to="/compliance">
-          <BaseButton variant="ghost">Back to Driver Qualification</BaseButton>
-        </RouterLink>
+        <BaseButton variant="ghost" size="sm" to="/compliance">
+          <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
+          Driver Qualification
+        </BaseButton>
       </template>
     </PageHeader>
 
-    <!-- The summary strip: a complete group is one green line, so a clean file reads in a glance. -->
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <BaseCard v-if="driverQ.data.value" padding="sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-ink">{{ driverQ.data.value.full_name }}</h2>
+          <p class="mt-1 text-sm text-ink-muted">Driver qualification file</p>
+        </div>
+        <StatusBadge :status="driverQ.data.value.status" />
+      </div>
+    </BaseCard>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <BaseCard v-for="g in groups" :key="g.group" padding="sm">
         <p class="text-sm font-medium text-ink">{{ g.label }}</p>
         <p class="mt-2">
@@ -272,37 +329,46 @@ async function fileDropped(): Promise<void> {
       </BaseCard>
     </div>
 
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <p class="text-sm text-ink-secondary">
-        <span v-if="driverQ.data.value">
-          <StatusBadge :status="driverQ.data.value.status" />
-        </span>
-        <span class="ml-2"> {{ rows.length }} of {{ file.items.length }} requirements shown </span>
-      </p>
-      <BaseButton variant="ghost" size="sm" @click="showAll = !showAll">
-        {{
-          showAll ? "Show only what needs attention" : `Show all ${file.items.length} requirements`
-        }}
-      </BaseButton>
-    </div>
+    <FilterBar
+      v-model:search="requirementSearch"
+      search-placeholder="Search requirements…"
+      :count="filteredRows.length"
+      count-label="requirements"
+    >
+      <template #filters>
+        <FilterSelect
+          v-model="requirementGroup"
+          label="Group"
+          :options="requirementGroupOptions"
+        />
+      </template>
+      <template #actions>
+        <BaseButton variant="ghost" size="sm" @click="showAll = !showAll">
+          {{
+            showAll ? "Show only what needs attention" : `Show all ${file.items.length} requirements`
+          }}
+        </BaseButton>
+      </template>
+    </FilterBar>
 
     <DataTable
       :columns="columns"
-      :rows="rows"
+      :rows="filteredRows"
       row-key="key"
       :loading="loading"
       :error="errorMessage"
       :retrying="retrying"
       :empty-text="
-        showAll
-          ? 'Nothing on file yet. Drop a document below to start.'
-          : 'Nothing needs attention. This file is complete.'
+        hasRequirementFilter
+          ? 'No requirements match these filters.'
+          : showAll
+            ? 'Nothing on file yet. Drop a document below to start.'
+            : 'Nothing needs attention. This file is complete.'
       "
       @retry="retry"
     >
       <template #cell-label="{ row }">
         <span class="text-ink">{{ row.label }}</span>
-        <span class="mt-0.5 block text-xs text-ink-subtle">{{ row.citation }}</span>
       </template>
       <template #cell-state="{ row }">
         <span :class="[BADGE_BASE, toneClass(STATE_TONE[row.state])]">{{
@@ -312,8 +378,12 @@ async function fileDropped(): Promise<void> {
           >No expiry recorded.</span
         >
       </template>
+      <template #cell-evidenceDate="{ row }">
+        <span v-if="row.evidenceDate">{{ formatDate(row.evidenceDate) }}</span>
+        <span v-else class="text-ink-subtle">—</span>
+      </template>
       <template #cell-goodUntil="{ row }">
-        <span v-if="row.goodUntil">{{ row.goodUntil }}</span>
+        <span v-if="row.goodUntil">{{ formatDate(row.goodUntil) }}</span>
         <span v-else class="text-ink-subtle">—</span>
       </template>
       <template #cell-documentUrl="{ row }">
@@ -322,27 +392,38 @@ async function fileDropped(): Promise<void> {
           :href="row.documentUrl"
           target="_blank"
           rel="noopener"
-          class="font-medium text-brand-600 hover:text-brand-500"
-          >View</a
+          class="inline-flex items-center gap-1 font-medium text-brand-600 hover:text-brand-500"
+          :aria-label="`View scan for ${row.label}`"
         >
+          <AppIcon :icon="EyeIcon" class="size-4" aria-hidden="true" />
+          View
+        </a>
         <span v-else class="text-ink-subtle">—</span>
       </template>
       <template #actions="{ row }">
-        <div v-if="session.canManage" class="flex items-center justify-end gap-1">
-          <BaseButton variant="ghost" size="sm" @click.stop="openKey = row.key">
-            {{ row.state === "missing" ? "Record" : "Renew" }}
-          </BaseButton>
-          <KebabMenu v-if="row.documentUrl">
-            <button
-              type="button"
-              class="kebab-item"
-              :disabled="releasing === row.key"
-              @click="release(row)"
-            >
-              {{ releasing === row.key ? "Preparing…" : "Release stamped copy…" }}
-            </button>
-          </KebabMenu>
-        </div>
+        <KebabMenu
+          v-if="session.canManage"
+          :trigger-label="`${row.state === 'missing' ? 'Record' : 'Renew'} ${row.label}`"
+        >
+          <button type="button" class="kebab-item" @click="openKey = row.key">
+            <AppIcon
+              :icon="row.state === 'missing' ? ClipboardDocumentCheckIcon : ArrowPathIcon"
+              class="size-4"
+              aria-hidden="true"
+            />
+            {{ row.state === "missing" ? "Record requirement" : "Renew requirement" }}
+          </button>
+          <button
+            v-if="row.documentUrl"
+            type="button"
+            class="kebab-item"
+            :disabled="releasing === row.key"
+            @click="release(row)"
+          >
+            <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
+            {{ releasing === row.key ? "Preparing…" : "Release stamped copy" }}
+          </button>
+        </KebabMenu>
       </template>
     </DataTable>
 
@@ -374,6 +455,7 @@ async function fileDropped(): Promise<void> {
             :disabled="!dropKind || upload.isPending.value"
             @click="fileDropped"
           >
+            <AppIcon :icon="ArrowUpTrayIcon" class="size-4" aria-hidden="true" />
             {{ upload.isPending.value ? "Uploading…" : "File it" }}
           </BaseButton>
         </div>

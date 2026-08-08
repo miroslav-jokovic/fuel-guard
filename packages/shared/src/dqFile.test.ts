@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildDqFile, DQ_ITEMS, type DqCertInput, type DqDocumentInput, type DqRecordInput } from "./dqFile.js";
+import {
+  buildDqFile,
+  dqAttention,
+  DQ_ITEMS,
+  type DqCertInput,
+  type DqDocumentInput,
+  type DqRecordInput,
+} from "./dqFile.js";
 
 /**
  * The §391.51 checklist. Every assertion here is a question a DOT auditor asks out loud, which is the
@@ -178,6 +185,25 @@ describe("buildDqFile — the scan behind an item", () => {
     expect(item(f, "medical_card").documentId).toBeNull();
     // The item itself is still current — the certification is valid, only the scan is absent.
     expect(item(f, "medical_card").state).toBe("current");
+  });
+});
+
+describe("dqAttention — date projections", () => {
+  it("includes evidence dates for certification and record-backed requirements", () => {
+    const f = build({
+      includeHazmat: false,
+      certs: [cert({ kind: "medical_card", issuedAt: "2026-01-01", expiresAt: "2026-08-07" })],
+      records: [record({ kind: "annual_mvr_review", occurredOn: "2025-08-07" })],
+    });
+    const attention = dqAttention(f, TODAY);
+    expect(attention.find((item) => item.key === "medical_card")).toMatchObject({
+      evidenceDate: "2026-01-01",
+      goodUntil: "2026-08-07",
+    });
+    expect(attention.find((item) => item.key === "annual_mvr_review")).toMatchObject({
+      evidenceDate: "2025-08-07",
+      goodUntil: "2026-08-07",
+    });
   });
 });
 

@@ -225,24 +225,40 @@ exactly what was sent.
 a checklist that trusted the id would promise an auditor a scan that cannot be opened. The builder
 cross-checks every id against the documents actually registered.
 
-### DQ3 — Close the capture gaps
+### DQ3 — Close the capture gaps — **PARTLY DONE**
 
-- `qualification_records` gets its UI — the fifteen DQF events, with document upload.
+- ~~`qualification_records` gets its UI~~ — **done** in DQ2. `RequirementDrawer` writes all fifteen
+  events, scoped to the requirement, with the scan uploaded before the record so it cites a document
+  that exists.
 - `CertManager` gains the fields the API already accepts and the form omits: `issuingAuthority`,
   `trainingProviderAddress`, `trainingMaterials`, `notes`, `documentId`. Two of those are
-  §172.704(d)-required data we currently cannot capture at all.
-- History view — the API supports `includeHistory` and the UI never requests it, so the supersede chain
-  is invisible.
-- Equipment and organization certifications are already expressible (`subject_type` allows tractor,
-  trailer, organization) and unreachable in the UI. Wire the organization one at least: the hazmat gate
-  reads org-level certs and blocks on them.
+  §172.704(d)-required data we currently cannot capture at all. **Still open.**
+- ~~History view~~ — **done 2026-08-08** with the binder. `CertificationHistory.vue` requests
+  `includeHistory` and collapses the supersede chain under the current record. It was supported by
+  the API since 0127 and requested by nothing for eight months.
+- ~~Wire the organization one at least~~ — **done**: the carrier's own records open from the
+  qualification page header, on the generic `CertManager`, which is where "add any certification" is
+  genuinely the task. **Equipment (tractor, trailer) certifications remain unreachable in the UI.**
 
-### DQ4 — Retention and audit production
+### DQ4 — Retention and audit production — **AUDIT PRODUCTION DONE 2026-08-08; RETENTION OPEN**
 
-Per-class retention (D-DQ3), a purgeable report (D-DQ5), and a DQ file export — a single PDF or zip per
-driver, which is what §390.32(d)'s "accurately reproduced for later reference" means in practice during
-an audit. Add compliance tables to `dataRetention.ts`'s **forbidden** list so a future retention rule
-cannot quietly start pruning them.
+**Done — the export.** Not "a single PDF or zip per driver" as drafted, but one combined PDF for a
+whole sample: an auditor names fifteen drivers and gets fifteen §391.51 files in one file, in the
+order they named them. A zip cannot be printed at all and fifteen files are fifteen print jobs, which
+is what changed the shape. Migration 0152, `services/dqBinder/`, job kind `dq_binder`, and an Exports
+tab on the qualification page. Full reasoning in `DQ-BINDER-PLAN.md`.
+
+**Done — the forbidden list.** `certifications`, `qualification_records`, `documents` and `dq_exports`
+are pinned in `RETENTION_FORBIDDEN`, guarded by the existing test in `dataRetention.test.ts`.
+
+**Still open — per-class retention (D-DQ3).** Each `DqItemSpec` carries its retention rule as TEXT
+today and the UI shows it; nothing computes a date from it. The three clocks the plan identified —
+employment-plus-years, years-from-date, employment-plus-days — are still not modelled as data.
+
+**Still open — the purgeable report (D-DQ5).** Nothing is auto-purged, which is the safe half of the
+decision. The other half, a report of what has BECOME purgeable so a human can act on it, does not
+exist. Worth noting these two are one piece of work: the report is the only consumer per-class
+retention would have.
 
 ### DQ5 — Driver self-service
 

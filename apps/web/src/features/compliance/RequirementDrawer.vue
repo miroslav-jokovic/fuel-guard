@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
+import { AppIcon } from "@fuelguard/ui";
+import { ClipboardDocumentCheckIcon } from "@fuelguard/ui/icons";
 import {
   DQ_ITEMS,
   HAZMAT_TRAINING_TYPES,
@@ -160,8 +162,6 @@ async function save(): Promise<void> {
 <template>
   <SlideOver :open="open" size="lg" :title="spec?.label ?? 'Requirement'" @close="emit('close')">
     <div v-if="spec" class="space-y-6">
-      <p class="text-sm text-ink-muted">{{ spec.citation }}. {{ spec.retention }}</p>
-
       <div class="space-y-4">
         <template v-if="isCertification">
           <FormField
@@ -270,6 +270,7 @@ async function save(): Promise<void> {
       <div class="flex items-center justify-end gap-3">
         <BaseButton variant="ghost" :disabled="saving" @click="emit('close')">Cancel</BaseButton>
         <BaseButton variant="primary" :disabled="saving || !ready" @click="save">
+          <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-4" aria-hidden="true" />
           {{ saving ? "Saving…" : "Record it" }}
         </BaseButton>
       </div>

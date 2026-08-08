@@ -14,16 +14,16 @@ expiring Tuesday render identically. §391.51 genuinely has eighteen items and w
 without lying to an auditor — but we can rank and group them, so the screen answers *what do I do now*
 before it answers *what does the regulation require*.
 
-**The daily job has no screen.** A safety manager's actual morning question is "what expires in the
-next thirty days across my fleet". The roster is alphabetical with a comma-list of issues, and nothing
-in the product answers that question.
+**The daily job has no screen.** A safety manager's actual morning question is "which qualification
+items need attention across my fleet". The roster is alphabetical with a comma-list of issues, and
+nothing in the product answers that question.
 
 ## 2. Decisions
 
 **D-DQ6 · The entry point is a queue, not a roster.** Default tab **Needs attention**, one row per
-(driver × requirement), sorted soonest-first, banded **90 / 60 / 30 days**. That banding is what every
-DQF product converges on, so it is what a safety manager already expects to see. *All drivers* becomes
-the second tab rather than the default.
+(driver × requirement), sorted soonest-first. The queue supports independent inclusive ranges for
+**Good until** and **Evidence date**; items with missing selected dates remain visible in a clearly marked
+data-gap section. *All drivers* becomes the second tab rather than the default.
 
 **D-DQ7 · The driver file is a page, not a drawer.** `/compliance/:driverId`. Eighteen requirements,
 their documents, their history and eventually an export is a workspace, not a peek. This is the same
@@ -60,7 +60,7 @@ order precisely so that binder is later a renderer over an existing structure.
 
 ```
 Driver Qualification                       ← existing nav item, existing route
-├── Needs attention   (default)            ← queue: driver × requirement, soonest first, 90/60/30
+├── Needs attention   (default)            ← queue: driver × requirement, soonest first, date ranges
 └── All drivers                            ← the roster as it is today
         └── /compliance/:driverId          ← D-DQ7, the file
               ├── summary strip            ← state, counts, group cards
@@ -91,9 +91,9 @@ Every screen against `docs/DESIGN-SYSTEM-CONTRACT.md`.
   while a road-test certificate that was never filed has been absent for years and will keep.
 - `GET /api/compliance/overview` — `buildDqFile` run server-side per driver. Four fleet-wide reads,
   not four per driver. Reports `truncated` rather than silently returning a partial picture.
-- **Needs attention** is now the default tab; the roster is the second. Bands are 90 / 60 / 30, and a
-  band never hides something already expired or missing — a deadline filter that drops an overdue
-  medical card would be worse than no filter.
+- **Needs attention** is now the default tab; the roster is the second. The queue has independent
+  Good until and Evidence date ranges. Dated matches appear first, while outstanding items missing a
+  selected date remain visible in a clearly labeled data-gap section.
 - `/compliance/:id` — the file as a page. Five group cards, then one table showing only what needs
   attention until you ask for all eighteen.
 - `RequirementDrawer` — the form is scoped to the requirement. No Type dropdown, and only the fields
@@ -102,7 +102,9 @@ Every screen against `docs/DESIGN-SYSTEM-CONTRACT.md`.
 - `DqFilePanel.vue` deleted — superseded by the page, and leaving it would have left two answers to
   the same question in the tree.
 
-## 6. Still open
+## 6. Still open — **nothing; the binder shipped 2026-08-08**
 
-The audit binder (DQ4). The grouping and ordering here are §391.51 order precisely so that it is a
-renderer over an existing structure rather than a new one.
+The audit binder (DQ4) is built. The bet this plan made paid: because the grouping and ordering here
+were §391.51 order, the binder's checklist and separators are a renderer over `buildDqFile` rather
+than a second structure — the same function the queue and the driver page rank with. See
+`DQ-BINDER-PLAN.md`.

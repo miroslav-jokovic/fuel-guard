@@ -18,12 +18,22 @@ import { VueDatePicker } from "@vuepic/vue-datepicker";
  * first click a valid (single-date) selection that applies + closes the menu, so a
  * range can never be picked (vue-datepicker modes-configuration docs).
  */
-const props = withDefaults(defineProps<{ from?: string; to?: string; presets?: boolean; label?: string }>(), {
-  from: undefined,
-  to: undefined,
-  presets: true,
-  label: "Dates",
-});
+const props = withDefaults(
+  defineProps<{
+    from?: string;
+    to?: string;
+    presets?: boolean;
+    label?: string;
+    maxDate?: Date | null;
+  }>(),
+  {
+    from: undefined,
+    to: undefined,
+    presets: true,
+    label: "Dates",
+    maxDate: () => new Date(),
+  },
+);
 const emit = defineEmits<{ "update:from": [v: string | undefined]; "update:to": [v: string | undefined] }>();
 
 const model = computed<string[] | null>({
@@ -72,7 +82,7 @@ function clear() {
     model-type="yyyy-MM-dd"
     :enable-time-picker="false"
     :preset-dates="presetDates"
-    :max-date="new Date()"
+    :max-date="maxDate || undefined"
     auto-apply
     teleport
     :aria-labels="{ input: 'Filter by date range' }"
@@ -94,8 +104,11 @@ function clear() {
           v-if="display"
           class="-mr-0.5 rounded p-0.5 text-brand-700/70 hover:bg-brand-100 hover:text-brand-800"
           role="button"
+          tabindex="0"
           aria-label="Clear date filter"
           @click.stop="clear"
+          @keydown.enter.prevent.stop="clear"
+          @keydown.space.prevent.stop="clear"
         >
           <AppIcon :icon="XMarkIcon" class="size-3.5" aria-hidden="true" />
         </span>

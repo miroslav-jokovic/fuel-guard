@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
+import { AppIcon } from "@fuelguard/ui";
+import { ArrowDownTrayIcon, ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
 import type { QualCertSnapshot, QualState } from "@fuelguard/shared";
 import { qualifyDriver } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
@@ -29,8 +31,8 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 /**
  * Driver Qualification (DQ redesign, D-DQ6).
  *
- * Two tabs, and the DEFAULT is the queue, not the roster. A safety manager's morning question is
- * "what expires in the next thirty days across my fleet"; an alphabetical roster answers a question
+ * Three tabs, and the DEFAULT is the queue, not the roster. A safety manager's morning question is
+ * "which qualification items need attention across my fleet"; an alphabetical roster answers a question
  * nobody asked. The roster stays as the second tab, because "show me everyone" is a real need — just
  * not the daily one.
  *
@@ -65,11 +67,13 @@ const {
 // `vehicleKind: "cargo_tank"` and `orgHasSecurityPlan: false` were both literals — so a fleet that has
 // never hauled a tank in its life saw every driver as "Action required" for want of an N/X endorsement.
 // Both now come from what the organization actually has.
-const { data: trailers } = useTrailersQuery();
-const { data: orgCerts } = useCertificationsQuery(
+const trailersQ = useTrailersQuery();
+const orgCertsQ = useCertificationsQuery(
   ref("organization"),
   computed(() => session.orgId ?? null),
 );
+const trailers = trailersQ.data;
+const orgCerts = orgCertsQ.data;
 
 /** Tank endorsements matter to a fleet that owns tank equipment. Unknown-type trailers do not count:
  *  an unset type is a prompt to set it, not a reason to fail every driver. */
@@ -83,15 +87,38 @@ const orgHasSecurityPlan = computed(() =>
   (orgCerts.value ?? []).some((c) => c.kind === "security_plan" && !c.superseded_by),
 );
 
-const isLoading = computed(() => driversLoading.value || certsLoading.value);
-const isError = computed(() => driversFailed.value || certsFailed.value);
+const isLoading = computed(
+  () => driversLoading.value || certsLoading.value || trailersQ.isLoading.value || orgCertsQ.isLoading.value,
+);
+const isError = computed(
+  () =>
+    driversFailed.value ||
+    certsFailed.value ||
+    trailersQ.isError.value ||
+    orgCertsQ.isError.value,
+);
 const errorMessage = computed(() => {
-  const queryError = driversError.value ?? certsError.value;
+  const queryError =
+    driversError.value ??
+    certsError.value ??
+    trailersQ.error.value ??
+    orgCertsQ.error.value;
   return queryError instanceof Error ? queryError.message : "Failed to load compliance records";
 });
-const isFetching = computed(() => driversFetching.value || certsFetching.value);
+const isFetching = computed(
+  () =>
+    driversFetching.value ||
+    certsFetching.value ||
+    trailersQ.isFetching.value ||
+    orgCertsQ.isFetching.value,
+);
 function refetch() {
-  void Promise.all([refetchDrivers(), refetchCerts()]);
+  void Promise.all([
+    refetchDrivers(),
+    refetchCerts(),
+    trailersQ.refetch(),
+    orgCertsQ.refetch(),
+  ]);
 }
 
 const today = new Date().toISOString().slice(0, 10);
@@ -278,6 +305,17 @@ const toast = useToastStore();
 const selected = ref<Set<string>>(new Set());
 const requestBinder = useRequestBinder();
 const atCap = computed(() => selected.value.size >= DQ_EXPORT_MAX_DRIVERS);
+function setSelected(next: Set<string>): void {
+  if (next.size <= DQ_EXPORT_MAX_DRIVERS) {
+    selected.value = next;
+    return;
+  }
+  selected.value = new Set([...next].slice(0, DQ_EXPORT_MAX_DRIVERS));
+  toast.warning(
+    "Binder limit reached",
+    `A binder can contain up to ${DQ_EXPORT_MAX_DRIVERS} drivers. Build this binder, then select the remaining drivers.`,
+  );
+}
 
 async function buildBinder(): Promise<void> {
   const driverIds = [...selected.value];
@@ -308,12 +346,13 @@ const carrierOpen = ref(false);
 <template>
   <div class="space-y-6">
     <PageHeader
-      description="Monitor driver hazmat qualifications and resolve missing or expired credentials before dispatch."
+      description="Manage driver qualification files and resolve missing or expired credentials before dispatch."
     >
       <template #actions>
-        <BaseButton v-if="session.canManage" @click="carrierOpen = true"
-          >Carrier records</BaseButton
-        >
+        <BaseButton v-if="session.canManage" @click="carrierOpen = true">
+          <AppIcon :icon="ClipboardDocumentListIcon" class="size-4" aria-hidden="true" />
+          Carrier records
+        </BaseButton>
       </template>
     </PageHeader>
 
@@ -324,6 +363,7 @@ const carrierOpen = ref(false);
     >
       <button
         v-for="t in TABS"
+        :id="`qualification-tab-${t.value}`"
         :key="t.value"
         type="button"
         role="tab"
@@ -334,17 +374,37 @@ const carrierOpen = ref(false);
             : 'text-ink-muted hover:text-ink-secondary'
         "
         :aria-selected="tab === t.value"
+        :aria-controls="`qualification-panel-${t.value}`"
         @click="tab = t.value"
       >
         {{ t.label }}
       </button>
     </nav>
 
-    <QualificationQueue v-if="tab === 'queue'" />
+    <div
+      v-if="tab === 'queue'"
+      id="qualification-panel-queue"
+      role="tabpanel"
+      aria-labelledby="qualification-tab-queue"
+    >
+      <QualificationQueue />
+    </div>
 
-    <ExportHistory v-else-if="tab === 'exports'" />
+    <div
+      v-else-if="tab === 'exports'"
+      id="qualification-panel-exports"
+      role="tabpanel"
+      aria-labelledby="qualification-tab-exports"
+    >
+      <ExportHistory />
+    </div>
 
-    <template v-else>
+    <div
+      v-else
+      id="qualification-panel-roster"
+      role="tabpanel"
+      aria-labelledby="qualification-tab-roster"
+    >
       <FilterBar
         v-model:search="search"
         search-placeholder="Search driver or compliance issue…"
@@ -380,6 +440,7 @@ const carrierOpen = ref(false);
             :disabled="requestBinder.isPending.value"
             @click="buildBinder"
           >
+            <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
             {{ requestBinder.isPending.value ? "Building…" : "Build audit binder" }}
           </BaseButton>
         </div>
@@ -398,7 +459,7 @@ const carrierOpen = ref(false);
         :empty-text="
           (drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'
         "
-        @update:selected="selected = $event"
+        @update:selected="setSelected"
         @sort="onSort"
         @retry="refetch"
       >
@@ -445,7 +506,7 @@ const carrierOpen = ref(false);
           />
         </template>
       </DataTable>
-    </template>
+    </div>
 
     <SlideOver
       :open="carrierOpen"

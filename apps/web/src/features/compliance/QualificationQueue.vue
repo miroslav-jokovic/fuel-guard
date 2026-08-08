@@ -5,33 +5,36 @@ import { DQ_GROUP_LABELS, type DqGroup, type DqItemState } from "@fuelguard/shar
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
+import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { formatDate } from "@/lib/format";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { useComplianceOverviewQuery } from "@/composables/useCompliance";
+import {
+  classifyDqDateFilters,
+  type DqDateFilters,
+} from "./dqQueueFilters";
 
 /**
  * The work queue (DQ redesign, D-DQ6).
  *
- * A safety manager's morning question is "what expires in the next thirty days across my fleet", and
- * until now nothing in the product answered it. One row per driver × requirement, worst first —
+ * A safety manager's morning question is "which qualification items need attention across my fleet",
+ * and until now nothing in the product answered it. One row per driver × requirement, worst first —
  * ranked by the same function the driver file uses, so the two surfaces cannot disagree.
  *
- * Banded 90 / 60 / 30 because that is what every DQF product converges on, and therefore what a
- * safety manager already expects to read.
+ * The queue supports exact expiration and evidence-date ranges. Rows with missing dates remain visible
+ * in a clearly marked gap section so a filter never hides a data-quality problem.
  */
 const PAGE_SIZE = 20;
-const BANDS = [
-  { value: "30", label: "Due within 30 days" },
-  { value: "60", label: "Due within 60 days" },
-  { value: "90", label: "Due within 90 days" },
-  { value: "", label: "Everything outstanding" },
-] as const;
 
 const query = useComplianceOverviewQuery();
 
 const search = ref("");
-const band = ref<string>("30");
+const goodUntilFrom = ref<string>();
+const goodUntilTo = ref<string>();
+const evidenceDateFrom = ref<string>();
+const evidenceDateTo = ref<string>();
 const groupFilter = ref("");
 const page = ref(1);
 const sort = ref<SortState>({ key: null, dir: "asc" });
@@ -44,7 +47,9 @@ interface QueueRow {
   group: DqGroup;
   state: DqItemState;
   goodUntil: string | null;
+  evidenceDate: string | null;
   daysRemaining: number | null;
+  dateFilterGap: string | null;
 }
 
 /** Flattened in the order the API ranked them; the table only re-sorts when a header is clicked. */
@@ -58,7 +63,9 @@ const all = computed<QueueRow[]>(() =>
       group: a.group,
       state: a.state,
       goodUntil: a.goodUntil,
+      evidenceDate: a.evidenceDate,
       daysRemaining: a.daysRemaining,
+      dateFilterGap: null,
     })),
   ),
 );
@@ -68,29 +75,59 @@ const groupOptions = computed(() => [
   ...Object.entries(DQ_GROUP_LABELS).map(([value, label]) => ({ value, label })),
 ]);
 
+const dateFilters = computed<DqDateFilters>(() => ({
+  goodUntil: { from: goodUntilFrom.value, to: goodUntilTo.value },
+  evidenceDate: { from: evidenceDateFrom.value, to: evidenceDateTo.value },
+}));
+const dateFilterActive = computed(() =>
+  Boolean(
+    goodUntilFrom.value ||
+      goodUntilTo.value ||
+      evidenceDateFrom.value ||
+      evidenceDateTo.value,
+  ),
+);
+
 const filtered = computed(() =>
   all.value.filter((r) => {
-    // A band is a *deadline* filter, so it never hides something already overdue or absent —
-    // "due within 30 days" that silently drops an expired medical card would be worse than no filter.
-    if (band.value) {
-      const within = Number(band.value);
-      const overdue = r.state === "expired" || r.state === "missing";
-      if (!overdue && (r.daysRemaining === null || r.daysRemaining > within)) return false;
-    }
     if (groupFilter.value && r.group !== groupFilter.value) return false;
     const t = search.value.trim().toLowerCase();
-    if (!t) return true;
-    return [r.driver_name, r.label].some((f) => f.toLowerCase().includes(t));
+    if (t && ![r.driver_name, r.label].some((f) => f.toLowerCase().includes(t))) return false;
+    return true;
   }),
 );
 
-const sorted = computed(() =>
-  sortRows(filtered.value, sort.value, (row, key) => row[key as keyof QueueRow]),
+const classified = computed(() =>
+  filtered.value.flatMap((row) => {
+    const result = classifyDqDateFilters(row, dateFilters.value);
+    if (result.kind === "outside-range") return [];
+    return [
+      {
+        ...row,
+        dateFilterGap:
+          result.kind === "missing-date"
+            ? result.missing
+                .map((key) => (key === "goodUntil" ? "Missing good until date" : "Missing evidence date"))
+                .join(" · ")
+            : null,
+      },
+    ];
+  }),
 );
+const matchingRows = computed(() => classified.value.filter((row) => !row.dateFilterGap));
+const dateGapRows = computed(() => classified.value.filter((row) => row.dateFilterGap));
+const filteredRows = computed(() => [...matchingRows.value, ...dateGapRows.value]);
+const sorted = computed(() => [
+  ...sortRows(matchingRows.value, sort.value, (row, key) => row[key as keyof QueueRow]),
+  ...sortRows(dateGapRows.value, sort.value, (row, key) => row[key as keyof QueueRow]),
+]);
 const pageRows = computed(() =>
   sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 );
-watch([search, band, groupFilter], () => (page.value = 1));
+watch(
+  [search, goodUntilFrom, goodUntilTo, evidenceDateFrom, evidenceDateTo, groupFilter],
+  () => (page.value = 1),
+);
 
 const STATE_TONE: Record<DqItemState, string> = {
   current: "success",
@@ -137,6 +174,13 @@ const columns: DataTableColumn[] = [
     cellClass: "text-ink-secondary",
   },
   {
+    key: "evidenceDate",
+    label: "Evidence date",
+    sortable: true,
+    headerClass: "w-36",
+    cellClass: "text-ink-secondary",
+  },
+  {
     key: "daysRemaining",
     label: "Due",
     sortable: true,
@@ -155,14 +199,37 @@ function onSort(key: string): void {
     <FilterBar
       v-model:search="search"
       search-placeholder="Search driver or requirement…"
-      :count="filtered.length"
+      :count="filteredRows.length"
       count-label="items"
     >
       <template #filters>
-        <FilterSelect v-model="band" label="Deadline" :options="[...BANDS]" />
+        <DateRangeFilter
+          :from="goodUntilFrom"
+          :to="goodUntilTo"
+          :presets="false"
+          :max-date="null"
+          label="Good until"
+          @update:from="goodUntilFrom = $event"
+          @update:to="goodUntilTo = $event"
+        />
+        <DateRangeFilter
+          :from="evidenceDateFrom"
+          :to="evidenceDateTo"
+          :presets="false"
+          :max-date="null"
+          label="Evidence date"
+          @update:from="evidenceDateFrom = $event"
+          @update:to="evidenceDateTo = $event"
+        />
         <FilterSelect v-model="groupFilter" label="Group" :options="groupOptions" />
       </template>
     </FilterBar>
+
+    <p v-if="dateFilterActive && dateGapRows.length" class="text-sm text-warning-700">
+      Matching dated requirements appear first. {{ dateGapRows.length }} outstanding
+      {{ dateGapRows.length === 1 ? "requirement has" : "requirements have" }} a missing date and
+      {{ dateGapRows.length === 1 ? "is" : "are" }} shown below with the missing field identified.
+    </p>
 
     <p v-if="query.data.value?.truncated" class="text-sm text-warning-700">
       This picture is partial — the fleet has more qualification records than one read returns.
@@ -181,7 +248,8 @@ function onSort(key: string): void {
       "
       :retrying="query.isFetching.value"
       :sort="sort"
-      empty-text="Nothing needs attention in this window."
+      :row-class="(row) => (row.dateFilterGap ? 'bg-warning-50/40' : '')"
+      :empty-text="dateFilterActive ? 'No requirements match these date ranges.' : 'Nothing needs attention.'"
       @sort="onSort"
       @retry="query.refetch()"
     >
@@ -193,13 +261,26 @@ function onSort(key: string): void {
           {{ row.driver_name }}
         </RouterLink>
       </template>
+      <template #cell-label="{ row }">
+        <span class="text-ink">{{ row.label }}</span>
+        <span
+          v-if="row.dateFilterGap"
+          :class="['mt-1', BADGE_BASE, toneClass('warning')]"
+        >
+          {{ row.dateFilterGap }}
+        </span>
+      </template>
       <template #cell-state="{ row }">
         <span :class="[BADGE_BASE, toneClass(STATE_TONE[row.state])]">{{
           STATE_LABEL[row.state]
         }}</span>
       </template>
       <template #cell-goodUntil="{ row }">
-        <span v-if="row.goodUntil">{{ row.goodUntil }}</span>
+        <span v-if="row.goodUntil">{{ formatDate(row.goodUntil) }}</span>
+        <span v-else class="text-ink-subtle">—</span>
+      </template>
+      <template #cell-evidenceDate="{ row }">
+        <span v-if="row.evidenceDate">{{ formatDate(row.evidenceDate) }}</span>
         <span v-else class="text-ink-subtle">—</span>
       </template>
       <template #cell-daysRemaining="{ row }">{{ dueLabel(row) }}</template>
@@ -207,7 +288,7 @@ function onSort(key: string): void {
         <TablePagination
           :page="page"
           :page-size="PAGE_SIZE"
-          :total="filtered.length"
+          :total="filteredRows.length"
           :loading="query.isFetching.value"
           @update:page="page = $event"
         />

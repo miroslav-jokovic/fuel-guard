@@ -14,7 +14,7 @@ import {
 /**
  * The fleet-wide qualification picture (DQ redesign, D-DQ6).
  *
- * A safety manager's morning question is "what expires in the next thirty days across my fleet", and
+ * A safety manager's morning question is "which qualification items need attention across my fleet", and
  * nothing in the product answered it: the roster was alphabetical with a comma-list of issues.
  *
  * COMPUTED SERVER-SIDE WITH THE SAME FUNCTION THE DRIVER PAGE USES. `buildDqFile` runs here per

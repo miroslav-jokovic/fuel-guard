@@ -56,7 +56,7 @@ export interface DqFileInput {
   documents: DqDocumentInput[];
   /** Include the §172.704 / §383.93 items. False for a carrier without the hazmat module. */
   includeHazmat: boolean;
-  /** How far ahead counts as "expiring". The product's fixed 30-day lead time. */
+  /** How far ahead counts as "expiring" in the qualification-state calculation. */
   expiringWithinDays?: number;
 }
 
@@ -82,9 +82,6 @@ export interface DqFileSummary {
   counts: Record<DqItemState, number>;
 }
 
-/** 90 / 60 / 30 is what every DQF product bands on, so it is what a safety manager already reads. */
-export const DQ_URGENCY_BANDS = [30, 60, 90] as const;
-
 /**
  * One line of work: this driver, this requirement, this soon. The queue is a list of these, and the
  * driver file ranks its own rows with the same comparator — so the two surfaces can never disagree
@@ -97,6 +94,7 @@ export interface DqAttentionItem {
   group: DqGroup;
   state: DqItemState;
   goodUntil: string | null;
+  evidenceDate: string | null;
   /** Negative when overdue. Null when the item never expires and is simply absent. */
   daysRemaining: number | null;
 }
@@ -127,6 +125,7 @@ export function dqAttention(file: DqFileSummary, today: string): DqAttentionItem
       group: i.spec.group,
       state: i.state,
       goodUntil: i.goodUntil,
+      evidenceDate: i.evidenceDate,
       daysRemaining: i.goodUntil ? daysBetween(day(today), i.goodUntil) : null,
     }))
     .sort(compareAttention);
