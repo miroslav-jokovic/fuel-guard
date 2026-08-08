@@ -1,0 +1,32 @@
+# HARNESS/ENGINEERING SCENARIO (H-P1, D-H10) — CFR-derived, pending SME validation.
+name: "PKG — mixed drums (gasoline 900 lb + sulfuric acid 800 lb): DANGEROUS may replace both"
+docRef: "49 CFR 172.504(b) (≥2 non-bulk Table 2 categories, each <1,000 kg/2,205 lb from one facility → DANGEROUS option); 172.504(c)"
+description: >
+  Dry van, mixed non-bulk load: gasoline drums (Class 3, 900 lb) + sulfuric acid drums (Class 8,
+  800 lb). Aggregate 1,700 lb ≥ 1,001 → both categories placard; each is under the 2,205-lb
+  single-category bar, so one DANGEROUS placard may replace the pair.
+verifiedBy: "Engineering (H-P1) — CFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 220, unit: gal }
+      grossWeightLb: 900
+      packagingKind: non_bulk
+      packageCount: 4
+    - hmtRef: "UN1830-sulfuric-acid#II"
+      quantity: { value: 110, unit: gal }
+      grossWeightLb: 800
+      packagingKind: non_bulk
+      packageCount: 2
+expect:
+  # ELIGIBLE is the strong assertion: a clean, fully-described packaged load must not
+  # spuriously block under 0.9.0 (packageCount evaluated; dataset ships non-provisional).
+  eligibility: eligible
+  placardsRequired: [FLAMMABLE, CORROSIVE]
+  optionalSubstitutions:
+    - { instead: FLAMMABLE, use: DANGEROUS }
+    - { instead: CORROSIVE, use: DANGEROUS }
+  absentRuleIds: ["not_evaluated:lines[0].packageCount", "not_evaluated:lines[1].packageCount"]

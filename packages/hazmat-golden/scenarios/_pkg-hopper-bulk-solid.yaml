@@ -1,0 +1,26 @@
+# HARNESS/ENGINEERING SCENARIO (H-P1/D-H13, D-H10) — CFR-derived, pending SME validation.
+name: "PKG — ammonium nitrate in a hopper: bulk solid → OXIDIZER at any weight + ID display"
+docRef: "49 CFR 171.8 (bulk packaging >400 kg solids — a hopper qualifies); 172.504(c); 172.302(c)/172.331; ERG 2024 UN1942→140"
+description: >
+  Hopper trailer of ammonium nitrate (UN1942, 5.1, PG III), loose bulk. The engine kind is
+  van_or_flatbed (a hopper is not a cargo tank) but the LINE is bulk — placard regardless of the
+  1,001-lb bar and display UN1942. This is the case the old two-option carrier context got wrong.
+verifiedBy: "Engineering (H-P1) — CFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1942-ammonium-nitrate#III"
+      quantity: { value: 44000, unit: lb }
+      grossWeightLb: 44000
+      packagingKind: bulk
+expect:
+  # ELIGIBLE is the strong assertion: a clean, fully-described packaged load must not
+  # spuriously block under 0.9.0 (packageCount evaluated; dataset ships non-provisional).
+  eligibility: eligible
+  placardsRequired: [OXIDIZER]
+  idDisplays: ["UN1942"]
+  ergGuides:
+    - { idNumber: "1942", guide: "140" }
+  absentRuleIds: [below_1001lb_no_placard]

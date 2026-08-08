@@ -1,0 +1,28 @@
+# HARNESS/ENGINEERING SCENARIO (H-P1, D-H10 build-then-test) — authored from the CFR text, pending
+# SME validation. The "_" prefix keeps it out of the SME acceptance count on purpose.
+name: "PKG — four 275-gal IBC totes on a dry van are BULK: placarded at any quantity + ID display"
+docRef: "49 CFR 171.8 (IBC >119 gal = bulk packaging); 172.504(c) (1,001-lb exception is NON-bulk only); 172.302(c)/172.331 (bulk ID display); ERG 2024 UN1993→128"
+description: >
+  Dry van carrying 4 × 275-gal IBC totes of Flammable liquids, n.o.s. (UN1993, Class 3, PG II),
+  1,100 gal total, 9,240 lb gross. The package, not the vehicle, is bulk — the placard is required
+  regardless of aggregate weight and the ID number must be displayed.
+verifiedBy: "Engineering (H-P1) — CFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1993-flammable-liquids-n-o-s#II"
+      quantity: { value: 1100, unit: gal }
+      grossWeightLb: 9240
+      packagingKind: bulk
+      packageCount: 4
+expect:
+  # ELIGIBLE is the strong assertion: a clean, fully-described packaged load must not
+  # spuriously block under 0.9.0 (packageCount evaluated; dataset ships non-provisional).
+  eligibility: eligible
+  placardsRequired: [FLAMMABLE]
+  idDisplays: ["UN1993"]
+  ergGuides:
+    - { idNumber: "1993", guide: "128" }
+  absentRuleIds: ["not_evaluated:lines[0].packageCount", below_1001lb_no_placard]

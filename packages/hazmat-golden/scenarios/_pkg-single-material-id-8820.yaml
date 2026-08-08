@@ -1,0 +1,23 @@
+# HARNESS/ENGINEERING SCENARIO (H-P1, D-H10) — CFR-derived, pending SME validation.
+name: "PKG — 40 gasoline drums, 17,600 lb gross single material: vehicle ID display required (conditional)"
+docRef: "49 CFR 172.301(a)(3) (≥4,000 kg single material, non-bulk, one loading facility → display the ID number)"
+description: >
+  Dry van, 40 drums of gasoline only, 17,600 lb gross. Single-material non-bulk load over 4,000 kg —
+  the vehicle must display UN1203, asserted with the loading-facility/no-other-freight conditional.
+verifiedBy: "Engineering (H-P1) — CFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 2200, unit: gal }
+      grossWeightLb: 17600
+      packagingKind: non_bulk
+      packageCount: 40
+expect:
+  eligibility: not_checked
+  placardsRequired: [FLAMMABLE]
+  idDisplays: ["UN1203"]
+  findingRuleIds: [nonbulk_single_material_id_display]
+  absentRuleIds: ["not_evaluated:lines[0].packageCount"]

@@ -1,0 +1,23 @@
+# HARNESS/ENGINEERING SCENARIO (H-P1, D-H10) — CFR-derived, pending SME validation.
+name: "PKG — 4 gasoline drums, 800 lb gross: under the 1,001-lb bar, no placard required"
+docRef: "49 CFR 172.504(c) (aggregate <1,001 lb of non-bulk Table 2 → placards not required); 172.502(c) (may still be displayed)"
+description: >
+  Dry van, 4 × 55-gal drums of gasoline (UN1203, Class 3, PG II), 800 lb gross total. Non-bulk
+  Table 2 aggregate under 1,001 lb — FLAMMABLE is not required (and remains permitted).
+verifiedBy: "Engineering (H-P1) — CFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 220, unit: gal }
+      grossWeightLb: 800
+      packagingKind: non_bulk
+      packageCount: 4
+expect:
+  # ELIGIBLE is the strong assertion: a clean, fully-described packaged load must not
+  # spuriously block under 0.9.0 (packageCount evaluated; dataset ships non-provisional).
+  eligibility: eligible
+  placardsAbsent: [FLAMMABLE]
+  absentRuleIds: ["not_evaluated:lines[0].packageCount", aggregate_weight_unknown]

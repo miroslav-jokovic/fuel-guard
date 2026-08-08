@@ -1,0 +1,24 @@
+# HARNESS/ENGINEERING SCENARIO (H-P1 regression, D-H10) — the 0.9.0 contract change itself.
+name: "PKG — providing packageCount NEVER raises a not_evaluated block (engine 0.9.0 regression)"
+docRef: "49 CFR 172.202(a)(7) (shipping papers state package count/type); engine 0.9.0 H-P1 (packageCount evaluated into §172.504(c) evidence)"
+description: >
+  The same tanker load as the gasoline example but with a packageCount provided on the line. Before
+  0.9.0 this raised not_evaluated:lines[0].packageCount and blocked auto-clear — punishing the
+  accurate description every real BOL carries. It must never come back.
+verifiedBy: "Engineering (H-P1) — regression guard for the 0.9.0 contract"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: cargo_tank, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 8000, unit: gal }
+      grossWeightLb: 50000
+      packagingKind: bulk
+      packageCount: 1
+expect:
+  # ELIGIBLE is the strong assertion: a clean, fully-described packaged load must not
+  # spuriously block under 0.9.0 (packageCount evaluated; dataset ships non-provisional).
+  eligibility: eligible
+  placardsRequired: [FLAMMABLE]
+  absentRuleIds: ["not_evaluated:lines[0].packageCount"]

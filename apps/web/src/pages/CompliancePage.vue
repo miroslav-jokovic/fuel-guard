@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { AppIcon } from "@fuelguard/ui";
 import { ArrowDownTrayIcon, ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
-import type { QualCertSnapshot, QualState } from "@fuelguard/shared";
+import type { QualState } from "@fuelguard/shared";
 import { qualifyDriver } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -27,6 +27,7 @@ import { useToastStore } from "@/stores/toast";
 import { DQ_EXPORT_MAX_DRIVERS } from "@fuelguard/shared";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { certsByDriver, labelForCode, QUAL_LABEL, QUAL_TONE } from "@/features/compliance/qualificationRoster";
 
 /**
  * Driver Qualification (DQ redesign, D-DQ6).
@@ -123,47 +124,7 @@ function refetch() {
 
 const today = new Date().toISOString().slice(0, 10);
 
-const certsByDriver = computed(() => {
-  const m = new Map<string, QualCertSnapshot[]>();
-  for (const c of driverCerts.value ?? []) {
-    const arr = m.get(c.subject_id) ?? [];
-    arr.push({
-      kind: c.kind,
-      qualifier: c.qualifier,
-      trainingType: c.training_type,
-      issuedAt: c.issued_at,
-      expiresAt: c.expires_at,
-    });
-    m.set(c.subject_id, arr);
-  }
-  return m;
-});
-
-function labelForCode(code: string): string {
-  const c = code
-    .replace(/^driver_unqualified:/, "")
-    .replace(/^training_/, "training: ")
-    .replace(/_/g, " ");
-  return c.charAt(0).toUpperCase() + c.slice(1);
-}
-
-/**
- * How a qualification state is shown (F-H1). "Not started" is deliberately NEUTRAL, not red: on a
- * fleet's first day every driver is in that state, and a roster of red rows that all mean "nobody has
- * filed anything yet" is how a real disqualification later gets scrolled past. The gate itself is
- * unchanged — none of these three is `ready` except the first.
- */
-const QUAL_TONE: Record<QualState, string> = {
-  qualified: "success",
-  incomplete: "danger",
-  not_started: "neutral",
-};
-/** Lowercase because BADGE_BASE capitalises — the same reason every other badge source is lowercase. */
-const QUAL_LABEL: Record<QualState, string> = {
-  qualified: "ready",
-  incomplete: "action required",
-  not_started: "not started",
-};
+const certsBy = computed(() => certsByDriver(driverCerts.value ?? []));
 
 interface Row {
   id: string;
@@ -176,7 +137,7 @@ interface Row {
 }
 const rows = computed<Row[]>(() =>
   (drivers.value ?? []).map((d) => {
-    const certs = certsByDriver.value.get(d.id) ?? [];
+    const certs = certsBy.value.get(d.id) ?? [];
     const res = qualifyDriver({
       evalDate: today,
       driverStatus: d.status,

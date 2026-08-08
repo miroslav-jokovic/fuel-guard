@@ -1,0 +1,25 @@
+# HARNESS/ENGINEERING SCENARIO (H-P1, D-H10) — CFR-derived, pending SME validation.
+name: "PKG — 20 gasoline drums, 8,000 lb gross: over 1,001 lb → FLAMMABLE; under 8,820 lb → no vehicle ID"
+docRef: "49 CFR 172.504(c) (≥1,001 lb → placard); 172.301(a)(3) (vehicle ID only at ≥4,000 kg / 8,820 lb single-material non-bulk)"
+description: >
+  Dry van, 20 × 55-gal drums of gasoline, 8,000 lb gross. Over the placard bar, under the
+  single-material ID-display bar — placard yes, orange panel no.
+verifiedBy: "Engineering (H-P1) — CFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1203-gasoline#II"
+      quantity: { value: 1100, unit: gal }
+      grossWeightLb: 8000
+      packagingKind: non_bulk
+      packageCount: 20
+expect:
+  # ELIGIBLE is the strong assertion: a clean, fully-described packaged load must not
+  # spuriously block under 0.9.0 (packageCount evaluated; dataset ships non-provisional).
+  eligibility: eligible
+  placardsRequired: [FLAMMABLE]
+  ergGuides:
+    - { idNumber: "1203", guide: "128" }
+  absentRuleIds: ["not_evaluated:lines[0].packageCount", nonbulk_single_material_id_display, below_1001lb_no_placard]
