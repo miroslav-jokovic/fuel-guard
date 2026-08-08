@@ -339,7 +339,7 @@ async function onSubmit(input: DriverInput) {
               }}
             </BaseButton>
           </div>
-          <ul class="mt-2 divide-y divide-border rounded-md border border-border">
+          <ul class="mt-2 divide-y divide-edge-subtle rounded-md border border-edge">
             <li
               v-for="pr in reconcile.report.value?.pairs ?? []"
               :key="pr.sourceId"
@@ -370,7 +370,7 @@ async function onSubmit(input: DriverInput) {
               <span class="min-w-0 flex-1 truncate">{{ u.full_name }}</span>
               <select
                 v-model="linkTarget[u.id]"
-                class="rounded border border-border bg-surface px-2 py-1 text-xs"
+                class="rounded border border-edge bg-surface px-2 py-1 text-xs"
               >
                 <option value="">Select Samsara driver…</option>
                 <option v-for="c in samsaraCandidates" :key="c.id" :value="c.id">

@@ -19,6 +19,7 @@ import KebabMenu from "@/components/KebabMenu.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
 import DqFilePanel from "@/features/compliance/DqFilePanel.vue";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 /**
  * Driver Qualification — the §391.51 roster. Each driver's row shows whether they are
@@ -96,10 +97,16 @@ function labelForCode(code: string): string {
  * filed anything yet" is how a real disqualification later gets scrolled past. The gate itself is
  * unchanged — none of these three is `ready` except the first.
  */
-const QUAL_BADGE: Record<QualState, { label: string; class: string }> = {
-  qualified: { label: "Ready", class: "bg-success-100 text-success-700" },
-  incomplete: { label: "Action required", class: "bg-danger-100 text-danger-700" },
-  not_started: { label: "Not started", class: "bg-surface-muted text-ink-muted" },
+const QUAL_TONE: Record<QualState, string> = {
+  qualified: "success",
+  incomplete: "danger",
+  not_started: "neutral",
+};
+/** Lowercase because BADGE_BASE capitalises — the same reason every other badge source is lowercase. */
+const QUAL_LABEL: Record<QualState, string> = {
+  qualified: "ready",
+  incomplete: "action required",
+  not_started: "not started",
 };
 
 interface Row {
@@ -200,7 +207,6 @@ const columns: DataTableColumn[] = [
     key: "full_name",
     label: "Driver",
     sortable: true,
-    align: "left",
     headerClass: "min-w-[13rem]",
     cellClass: "font-medium text-ink",
   },
@@ -208,20 +214,17 @@ const columns: DataTableColumn[] = [
     key: "status",
     label: "Employment",
     sortable: true,
-    align: "left",
     headerClass: "min-w-[8rem]",
   },
   {
     key: "ready",
     label: "Qualification",
     sortable: true,
-    align: "left",
     headerClass: "min-w-[10rem]",
   },
   {
     key: "issueSummary",
     label: "Missing or expired",
-    align: "left",
     headerClass: "min-w-[20rem]",
     cellClass: "text-ink-secondary",
   },
@@ -264,7 +267,6 @@ const carrierOpen = ref(false);
       :columns="columns"
       :rows="pageRows"
       row-key="id"
-      dense
       :loading="isLoading"
       :error="isError ? errorMessage : null"
       :retrying="isFetching"
@@ -274,23 +276,19 @@ const carrierOpen = ref(false);
       @retry="refetch"
     >
       <template #cell-full_name="{ row }">
-        <button class="font-medium text-brand-600 hover:text-brand-500" @click="manage(row)">{{ row.full_name }}</button>
+        <button type="button" class="font-medium text-brand-600 hover:text-brand-500" @click="manage(row)">{{ row.full_name }}</button>
       </template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #cell-ready="{ row }">
-        <span
-          class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-          :class="QUAL_BADGE[row.state].class"
-        >{{ QUAL_BADGE[row.state].label }}</span>
+        <span :class="[BADGE_BASE, toneClass(QUAL_TONE[row.state])]">{{ QUAL_LABEL[row.state] }}</span>
       </template>
       <template #cell-issueSummary="{ row }">
         <span v-if="row.ready" class="text-ink-subtle">—</span>
         <div v-else class="flex min-w-0 items-center gap-2" :title="row.issueSummary">
-          <span class="max-w-[30rem] truncate text-ink-secondary">{{ row.issues[0] }}</span>
-          <span
-            v-if="row.issues.length > 1"
-            class="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink-muted"
-          >+{{ row.issues.length - 1 }} more</span>
+          <span class="truncate text-ink-secondary">{{ row.issues[0] }}</span>
+          <span v-if="row.issues.length > 1" :class="['shrink-0', BADGE_BASE, toneClass('neutral')]">
+            +{{ row.issues.length - 1 }} more
+          </span>
         </div>
       </template>
       <template #actions="{ row }">
@@ -311,6 +309,7 @@ const carrierOpen = ref(false);
 
     <SlideOver
       :open="driverOpen"
+      size="lg"
       :title="activeDriver ? `Qualification file — ${activeDriver.full_name}` : 'Qualification file'"
       @close="driverOpen = false"
     >
@@ -325,7 +324,7 @@ const carrierOpen = ref(false);
       </div>
     </SlideOver>
 
-    <SlideOver :open="carrierOpen" title="Carrier records (PHMSA registration, insurance)" @close="carrierOpen = false">
+    <SlideOver :open="carrierOpen" size="lg" title="Carrier records (PHMSA registration, insurance)" @close="carrierOpen = false">
       <CertManager v-if="session.orgId" subject-type="organization" :subject-id="session.orgId || ''" />
     </SlideOver>
   </div>

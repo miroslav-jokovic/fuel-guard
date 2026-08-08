@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, reactive, ref, toRef } from "vue";
+import { computed, reactive, toRef } from "vue";
 import type { CertificationCreateRequest, CertificationRow, CertificationKind } from "@fuelguard/shared";
 import { HAZMAT_TRAINING_TYPES } from "@fuelguard/shared";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
 import FormField from "@/components/ui/FormField.vue";
@@ -16,10 +18,9 @@ const toast = useToastStore();
 
 const subjectTypeRef = toRef(props, "subjectType");
 const subjectIdRef = computed<string | null>(() => props.subjectId);
-const { data: certs, isLoading } = useCertificationsQuery(subjectTypeRef, subjectIdRef);
+const { data: certs, isLoading, isError, error: loadError, isFetching, refetch } = useCertificationsQuery(subjectTypeRef, subjectIdRef);
 const createCert = useCreateCertification();
 const saving = computed(() => createCert.isPending.value);
-const saveError = ref<string | null>(null);
 
 const DRIVER_KINDS: CertificationKind[] = ["cdl", "medical_card", "endorsement", "hazmat_training", "twic"];
 const ORG_KINDS: CertificationKind[] = ["phmsa_registration", "financial_responsibility", "insurance", "hazmat_safety_permit", "security_plan", "operating_authority"];
@@ -33,8 +34,10 @@ const isTraining = computed(() => form.kind === "hazmat_training");
 function resetForm() { form.kind = ""; form.qualifier = ""; form.trainingType = ""; form.trainingProviderName = ""; form.trainingCertified = false; form.identifier = ""; form.issuedAt = ""; form.effectiveFrom = ""; form.expiresAt = ""; }
 
 async function submit() {
-  saveError.value = null;
-  if (!form.kind) { saveError.value = "Choose a certification type."; return; }
+  if (!form.kind) {
+    toast.error("Choose a certification type", "Pick what this record proves before saving it.");
+    return;
+  }
   const body: CertificationCreateRequest = {
     id: crypto.randomUUID(),
     subjectType: props.subjectType,
@@ -53,39 +56,62 @@ async function submit() {
     const r = await createCert.mutateAsync(body);
     toast.success("Certification saved", r.supersededId ? "Replaced the previous current record." : undefined);
     resetForm();
-  } catch (e) { saveError.value = e instanceof Error ? e.message : "Could not save the certification."; }
+  } catch (e) {
+    toast.error("Could not save the certification", e instanceof Error ? e.message : undefined);
+  }
 }
 
 const today = new Date().toISOString().slice(0, 10);
-function statusOf(c: CertificationRow): { label: string; cls: string } {
-  if (!c.expires_at) return { label: "no expiry", cls: "text-ink-muted" };
+
+function statusOf(c: CertificationRow): { label: string; tone: string } {
+  if (!c.expires_at) return { label: "no expiry", tone: "neutral" };
   const exp = c.expires_at.slice(0, 10);
-  if (exp < today) return { label: "expired", cls: "text-danger-600" };
-  const soon = new Date(today + "T00:00:00.000Z"); soon.setUTCDate(soon.getUTCDate() + 30);
-  if (exp <= soon.toISOString().slice(0, 10)) return { label: "expiring soon", cls: "text-warning-600" };
-  return { label: "valid", cls: "text-success-600" };
+  if (exp < today) return { label: "expired", tone: "danger" };
+  const soon = new Date(today + "T00:00:00.000Z");
+  soon.setUTCDate(soon.getUTCDate() + 30);
+  if (exp <= soon.toISOString().slice(0, 10)) return { label: "due soon", tone: "warning" };
+  return { label: "valid", tone: "success" };
 }
+
+const columns: DataTableColumn[] = [
+  { key: "kind", label: "Type", headerClass: "min-w-[10rem]", cellClass: "font-medium text-ink" },
+  { key: "qualifier", label: "Qualifier", headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  { key: "expires_at", label: "Expires", headerClass: "w-32", cellClass: "text-ink-secondary" },
+  { key: "status", label: "Status", headerClass: "w-32" },
+];
 </script>
 
 <template>
   <div class="space-y-6">
     <div>
       <h3 class="text-sm font-semibold text-ink">Current records</h3>
-      <p v-if="isLoading" class="mt-2 text-sm text-ink-muted">Loading…</p>
-      <p v-else-if="!certs || certs.length === 0" class="mt-2 text-sm text-ink-muted">No records on file yet.</p>
-      <table v-else class="mt-2 w-full text-sm">
-        <thead class="text-left text-xs uppercase tracking-wide text-ink-subtle">
-          <tr><th class="py-1 pr-3 font-medium">Type</th><th class="py-1 pr-3 font-medium">Qualifier</th><th class="py-1 pr-3 font-medium">Expires</th><th class="py-1 font-medium">Status</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="c in certs" :key="c.id" class="border-t border-edge-subtle">
-            <td class="py-1.5 pr-3 text-ink">{{ labelForKind(c.kind) }}</td>
-            <td class="py-1.5 pr-3 text-ink-secondary">{{ c.qualifier ?? (c.training_type ? labelForKind(c.training_type) : "—") }}</td>
-            <td class="py-1.5 pr-3 text-ink-secondary">{{ c.expires_at ?? "—" }}</td>
-            <td class="py-1.5"><span :class="statusOf(c).cls">{{ statusOf(c).label }}</span></td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="mt-3">
+        <DataTable
+          :columns="columns"
+          :rows="certs ?? []"
+          row-key="id"
+          :loading="isLoading"
+          :error="isError ? (loadError?.message ?? 'Could not load certifications.') : null"
+          :retrying="isFetching"
+          :sticky-header="false"
+          empty-text="No records on file yet."
+          @retry="refetch"
+        >
+          <template #cell-kind="{ row }">{{ labelForKind(row.kind) }}</template>
+          <template #cell-qualifier="{ row }">
+            <span v-if="row.qualifier">{{ row.qualifier }}</span>
+            <span v-else-if="row.training_type">{{ labelForKind(row.training_type) }}</span>
+            <span v-else class="text-ink-subtle">—</span>
+          </template>
+          <template #cell-expires_at="{ row }">
+            <span v-if="row.expires_at">{{ row.expires_at }}</span>
+            <span v-else class="text-ink-subtle">—</span>
+          </template>
+          <template #cell-status="{ row }">
+            <span :class="[BADGE_BASE, toneClass(statusOf(row).tone)]">{{ statusOf(row).label }}</span>
+          </template>
+        </DataTable>
+      </div>
     </div>
 
     <div class="border-t border-edge pt-5">
@@ -111,12 +137,13 @@ function statusOf(c: CertificationRow): { label: string; cls: string } {
           <FormField v-slot="{ id }" label="Effective from" hint="Defaults to today."><BaseInput :id="id" v-model="form.effectiveFrom" type="date" /></FormField>
           <FormField v-slot="{ id }" label="Expires"><BaseInput :id="id" v-model="form.expiresAt" type="date" /></FormField>
         </div>
-        <label v-if="isTraining" class="flex items-center gap-2 text-sm text-ink">
-          <BaseCheckbox v-model="form.trainingCertified" /> I certify this training record is complete (§172.704(d)).
-        </label>
-        <div class="flex items-center gap-3">
-          <BaseButton variant="primary" size="sm" :disabled="saving" @click="submit">{{ saving ? "Saving…" : "Add record" }}</BaseButton>
-          <p v-if="saveError" class="text-sm text-danger-600">{{ saveError }}</p>
+        <BaseCheckbox v-if="isTraining" v-model="form.trainingCertified">
+          I certify this training record is complete (§172.704(d)).
+        </BaseCheckbox>
+        <div>
+          <BaseButton variant="primary" :disabled="saving" @click="submit">
+            {{ saving ? "Saving…" : "Add record" }}
+          </BaseButton>
         </div>
       </div>
     </div>
