@@ -57,7 +57,7 @@ await db.exec(`
   create role service_role nologin bypassrls;
 `);
 
-for (const f of ["migrations/0001_extensions_and_enums.sql","migrations/0002_functions.sql","migrations/0003_core_tables.sql","migrations/0004_rls.sql","migrations/0005_storage.sql","migrations/0006_auth_hook.sql","migrations/0030_trailers.sql","migrations/0068_tms_integration.sql","migrations/0053_driver_performance_settings.sql","migrations/0054_driver_scores.sql","migrations/0055_driver_performance_weeks.sql","migrations/0083_driver_rls_matrix.sql","migrations/0084_driver_rls_writes.sql","migrations/0085_driver_loads.sql","migrations/0086_duty_sessions.sql","migrations/0087_load_lifecycle.sql","migrations/0141_driver_load_rpc_contract.sql","migrations/0142_load_approval_separation.sql","migrations/0088_module_entitlements.sql","migrations/0092_hazmat_core.sql","migrations/0148_hazmat_load_link.sql"])
+for (const f of ["migrations/0001_extensions_and_enums.sql","migrations/0002_functions.sql","migrations/0003_core_tables.sql","migrations/0004_rls.sql","migrations/0005_storage.sql","migrations/0006_auth_hook.sql","migrations/0030_trailers.sql","migrations/0068_tms_integration.sql","migrations/0053_driver_performance_settings.sql","migrations/0054_driver_scores.sql","migrations/0055_driver_performance_weeks.sql","migrations/0083_driver_rls_matrix.sql","migrations/0084_driver_rls_writes.sql","migrations/0085_driver_loads.sql","migrations/0086_duty_sessions.sql","migrations/0087_load_lifecycle.sql","migrations/0141_driver_load_rpc_contract.sql","migrations/0142_load_approval_separation.sql","migrations/0088_module_entitlements.sql","migrations/0092_hazmat_core.sql","migrations/0148_hazmat_load_link.sql","migrations/0150_duty_timeline_and_tms_provenance.sql"])
   await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
 
 const ORG = (await one(`insert into organizations (id,name) values (gen_random_uuid(),'T') returning id`)).id;
@@ -285,6 +285,63 @@ ok("deleting the dispatch load releases the link",
   (await one(`select load_id from hazmat_loads where id=$1`, [H3])).load_id === null);
 ok("...and the hazmat record itself survives",
   (await one(`select count(*)::int n from hazmat_loads where id=$1`, [H3])).n === 1);
+
+// ── the duty equipment timeline (LD5, migration 0150) ────────────────────────
+//
+// D43 made the duty segment the truth about equipment. Three rules have to hold or attribution is
+// quietly wrong, and "quietly" is the problem: a mis-attributed week of fuel looks like data.
+const SESS = '80000000-0000-0000-0000-000000000001';
+const SEG1 = '80000000-0000-0000-0000-000000000002';
+const SEG2 = '80000000-0000-0000-0000-000000000003';
+const at = (h) => `2026-08-08T${String(h).padStart(2, '0')}:00:00Z`;
+
+// A fresh driver: `idx_duty_sessions_one_open_per_driver` allows one open shift per driver, and the
+// duty assertions above already left one open on CO. That index is doing its job.
+// Fresh driver AND fresh equipment: two partial-unique indexes from 0086 are in force — one open
+// shift per driver, one driver-seat holder per truck — and the duty assertions above are still
+// holding V1/V2. Both indexes doing their job is why this block brings its own.
+const TLD = (await one(`insert into drivers (org_id, full_name) values ($1,'Timeline Driver') returning id`, [ORG])).id;
+const TLV1 = (await one(`insert into vehicles (org_id,unit_number,fuel_type,tank_capacity_gal) values ($1,'TL-1','diesel',120) returning id`, [ORG])).id;
+const TLV2 = (await one(`insert into vehicles (org_id,unit_number,fuel_type,tank_capacity_gal) values ($1,'TL-2','diesel',120) returning id`, [ORG])).id;
+const TLT1 = (await one(`insert into trailers (org_id,unit_number) values ($1,'TL-T1') returning id`, [ORG])).id;
+
+await db.query(
+  `insert into driver_duty_sessions (id, org_id, driver_id, started_at) values ($1,$2,$3,$4)`,
+  [SESS, ORG, TLD, at(6)]);
+await db.query(
+  `insert into duty_equipment_segments (id, org_id, session_id, vehicle_id, trailer_id, from_at, to_at)
+   values ($1,$2,$3,$4,$5,$6,$7)`,
+  [SEG1, ORG, SESS, TLV1, TLT1, at(6), at(12)]);
+// Deliberately backdated before the shift started — an offline replay can produce exactly this.
+await db.query(
+  `insert into duty_equipment_segments (id, org_id, session_id, vehicle_id, trailer_id, from_at, to_at)
+   values ($1,$2,$3,$4,null,$5,null)`,
+  [SEG2, ORG, SESS, TLV2, at(1)]);
+
+const covering = async (t) =>
+  (await db.query(
+    `select vehicle_id, trailer_id from driver_equipment_timeline
+      where driver_id = $1 and from_at <= $2 and (to_at is null or to_at > $2)
+      order by from_at desc limit 1`, [TLD, t])).rows[0];
+
+ok("a segment cannot start before its own shift did",
+  (await one(`select from_at from driver_equipment_timeline where segment_id = $1`, [SEG2])).from_at.toISOString().startsWith('2026-08-08T06:00'));
+ok("the covering segment at 08:00 is the first truck",
+  (await covering(at(8)))?.vehicle_id === TLV1);
+ok("the boundary belongs to the NEXT segment, not both",
+  (await covering(at(12)))?.vehicle_id === TLV2);
+ok("an open segment under an open shift stays open",
+  (await one(`select to_at from driver_equipment_timeline where segment_id = $1`, [SEG2])).to_at === null);
+
+// Ending the shift closes every segment under it, whether or not anyone wrote to_at. Without this
+// rule a forgotten sign-off attributes a truck to a driver indefinitely.
+await db.query(`update driver_duty_sessions set ended_at = $2, ended_reason = 'auto_timeout' where id = $1`, [SESS, at(18)]);
+ok("ending the shift closes an open segment at the shift's end",
+  (await one(`select to_at from driver_equipment_timeline where segment_id = $1`, [SEG2])).to_at.toISOString().startsWith('2026-08-08T18:00'));
+ok("...and nothing is attributed after it",
+  (await covering(at(19))) === undefined);
+ok("a segment that ended BEFORE the shift keeps its own end",
+  (await one(`select to_at from driver_equipment_timeline where segment_id = $1`, [SEG1])).to_at.toISOString().startsWith('2026-08-08T12:00'));
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

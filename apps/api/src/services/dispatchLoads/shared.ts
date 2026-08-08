@@ -36,7 +36,8 @@ export const LOAD_COLUMNS =
   "id, ref, status, equipment, commodity, hazmat, total_miles, driver_id, vehicle_id, trailer_id, " +
   "source, provider, external_id, created_by, submitted_at, approved_by, approved_at, released_at, " +
   "assigned_by, assigned_at, declined_at, decline_reason, cancel_reason, accepted_at, completed_at, " +
-  "notes, created_at, updated_at, drivers(full_name), vehicles(unit_number), trailers(unit_number)";
+  "notes, external_status, external_synced_at, created_at, updated_at, " +
+  "drivers(full_name), vehicles(unit_number), trailers(unit_number)";
 
 export const STOP_COLUMNS =
   "id, load_id, seq, kind, name, address_line, city, state, postal_code, lat, lon, " +

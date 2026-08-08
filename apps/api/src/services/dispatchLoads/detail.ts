@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LOAD_COLUMNS, STOP_COLUMNS, one, type Join } from "./shared.js";
 import { listEvents } from "./queries.js";
+import { externalPayload, stopEquipment } from "./duty.js";
 
 /**
  * The point-read behind `GET /api/dispatch/loads/:id` (ship-pipeline LD1 / D-LD2).
@@ -158,7 +159,7 @@ export async function getLoadDetail(
 
   // Stops, photos and the timeline are independent of one another — fetch them together rather than
   // in a waterfall. The load read above has to come first: it is what proves the org owns this id.
-  const [stopsResult, photosByStop, events, hazmatRecord] = await Promise.all([
+  const [stopsResult, photosByStop, events, hazmatRecord, provenance] = await Promise.all([
     admin
       .from("load_stops")
       .select(STOP_COLUMNS)
@@ -168,6 +169,7 @@ export async function getLoadDetail(
     stopPhotos(admin, orgId, loadId),
     listEvents(admin, orgId, loadId),
     linkedHazmat(admin, orgId, loadId),
+    externalPayload(admin, orgId, loadId),
   ]);
 
   const { drivers, vehicles, trailers, ...load } = row as unknown as Record<string, unknown> & {
@@ -176,9 +178,24 @@ export async function getLoadDetail(
     trailers: Join;
   };
 
-  const stops = ((stopsResult.data ?? []) as unknown as { id: string }[]).map((s) => ({
+  const rawStops = (stopsResult.data ?? []) as unknown as {
+    id: string;
+    arrived_at?: string | null;
+    completed_at?: string | null;
+  }[];
+
+  // LD5: which truck and trailer the driver was ACTUALLY in when they worked each stop. Depends on
+  // the stops, so it cannot join the fan-out above.
+  const equipment = await stopEquipment(admin, orgId, load.driver_id as string | null, rawStops, {
+    vehicle_id: (load.vehicle_id as string | null) ?? null,
+    trailer_id: (load.trailer_id as string | null) ?? null,
+  });
+
+  const stops = rawStops.map((s) => ({
     ...s,
     photos: photosByStop.get(s.id) ?? [],
+    // Null until the stop has been worked — dispatch's plan is already on the load itself.
+    actual_equipment: equipment.get(s.id) ?? null,
   }));
 
   return {
@@ -191,5 +208,8 @@ export async function getLoadDetail(
     // H-C1: the hazmat workspace opens from here, so hazmat stops needing a navigation section of
     // its own. Null for the overwhelming majority of loads, which is the correct shape.
     hazmat_record: hazmatRecord,
+    // LD5: what the source TMS last said. Null for a manually created load, which is most of them.
+    // The payload is office-only at the database (0150) as well as here.
+    external: provenance,
   };
 }

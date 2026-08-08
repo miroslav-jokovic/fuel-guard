@@ -36,7 +36,7 @@ function stubAdmin(opts: StubOptions): SupabaseClient {
   const tables = opts.tables ?? {};
   const builder = (table: string, rows: unknown[], error: { message: string } | null): Record<string, unknown> => {
     const self: Record<string, unknown> = {};
-    for (const m of ["select", "order", "in", "is", "not", "limit"]) self[m] = () => self;
+    for (const m of ["select", "order", "in", "is", "not", "limit", "or", "lte", "gte"]) self[m] = () => self;
     self.eq = (column: string, value: unknown) => {
       opts.filters?.push({ table, column, value });
       return self;

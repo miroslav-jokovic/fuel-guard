@@ -174,8 +174,12 @@ describe("re-syncing a load DISPATCH owns — the safety property", () => {
 
     expect(res.results[0]?.outcome).toBe("amended");
     expect(res.amended).toBe(1);
-    // The whole point: no UPDATE on `loads`, and no stop rewrite.
-    expect(loadWrites(writes).filter((w) => w.op === "update")).toHaveLength(0);
+    // Provenance updates the two external metadata columns, but never dispatch-owned fields or stops.
+    const updates = loadWrites(writes).filter((w) => w.op === "update");
+    expect(updates).toHaveLength(1);
+    expect(Object.keys(updates[0]?.payload as Record<string, unknown>).sort()).toEqual([
+      "external_status", "external_synced_at",
+    ]);
     expect(writes.filter((w) => w.table === "load_stops")).toHaveLength(0);
   });
 

@@ -36,6 +36,37 @@ export interface LoadIngestResult {
   results: TmsLoadResult[];
 }
 
+/**
+ * Record what the TMS said (LD5). `external_status` goes on the load — it is a status word, safe for
+ * a driver to see, and the field the cancellation path reads; the payload goes in
+ * `load_external_payloads`, which drivers cannot read at all, because a McLeod order carries rates.
+ *
+ * Best-effort on purpose: provenance is evidence about an ingest, and losing it must never fail the
+ * ingest itself. A load that arrived is worth more than the record of how it arrived.
+ */
+async function writeProvenance(
+  admin: SupabaseClient,
+  orgId: string,
+  loadId: string,
+  provider: string,
+  input: TmsLoadInput,
+): Promise<void> {
+  const syncedAt = new Date().toISOString();
+  const { error: loadErr } = await admin
+    .from("loads")
+    .update({ external_status: input.external_status ?? null, external_synced_at: syncedAt })
+    .eq("id", loadId)
+    .eq("org_id", orgId);
+  if (loadErr) console.error(`[tms-loads] external_status not recorded for ${loadId}: ${loadErr.message}`);
+
+  if (!input.raw) return;
+  const { error } = await admin.from("load_external_payloads").upsert(
+    { load_id: loadId, org_id: orgId, provider, raw: input.raw, synced_at: syncedAt },
+    { onConflict: "load_id" },
+  );
+  if (error) console.error(`[tms-loads] payload not recorded for ${loadId}: ${error.message}`);
+}
+
 async function lookup(
   admin: SupabaseClient,
   table: "vehicles" | "trailers",
@@ -251,6 +282,7 @@ export async function ingestLoads(
       if (error) throw new Error(error.message);
 
       const id = (data as { id: string }).id;
+      await writeProvenance(admin, orgId, id, provider, input);
       await writeStops(admin, orgId, id, input.stops);
       await event(admin, orgId, id, "created", { source: "tms", provider, external_id: input.external_id, stops: input.stops.length }, undefined, status);
       if (autoApprove) {
@@ -267,6 +299,7 @@ export async function ingestLoads(
       const patch = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
       const { error } = await admin.from("loads").update(patch).eq("id", prior.id);
       if (error) throw new Error(error.message);
+      await writeProvenance(admin, orgId, prior.id, provider, input);
       await writeStops(admin, orgId, prior.id, input.stops);
       results.push({ external_id: input.external_id, ref: input.ref, outcome: "updated" });
       continue;
@@ -278,6 +311,10 @@ export async function ingestLoads(
       const now = (prior as unknown as Record<string, unknown>)[f];
       return next !== undefined && next !== now;
     });
+
+    // Even an amendment dispatch has not applied is worth recording: it is the evidence behind the
+    // banner they are about to read.
+    await writeProvenance(admin, orgId, prior.id, provider, input);
 
     if (changed.length === 0) {
       results.push({ external_id: input.external_id, ref: prior.ref, outcome: "unchanged" });

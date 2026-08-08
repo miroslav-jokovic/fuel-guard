@@ -238,11 +238,35 @@ On the board, Exceptions is now its own table rather than a filter over the load
 sources have no load row to filter. Each row states what happened, which load, which driver, when, and
 the one action that clears it.
 
-### LD5 — Context (D-LD5, D-LD6)
+### LD5 — Context (D-LD5, D-LD6) — **DONE 2026-08-08**
 
-A duty view joining `driver_duty_sessions` × `duty_equipment_segments` by driver and time range, so the
-page can say which truck and trailer the driver was actually in for each stop. Persist TMS
-`external_status` and `raw`, and surface both.
+**`driver_equipment_timeline`** (0150) flattens sessions × segments into one interval per equipment
+holding. The attribution rule lives there and nowhere else, because two implementations of "which
+segment covers this instant" will eventually disagree and the one that disagrees quietly mis-attributes
+a week of fuel. Three rules it encodes: a segment cannot start before its own shift; a segment with no
+`to_at` is only open while its SESSION is open, so a forgotten sign-off does not attribute a truck
+indefinitely; and the driver is on the session, so every lookup is a join. Seven matrix assertions.
+
+`security_invoker = on` is load-bearing. A view runs with its OWNER's rights by default, which would
+have handed every caller an unfiltered read of two RLS-protected tables. Three more assertions pin
+that a driver sees only their own history through it.
+
+**Per stop, `actual_equipment`** — vehicle, trailer, seat, and `differs_from_plan`. Attributed at
+completion, falling back to arrival; a stop nobody has worked gets null rather than a guess at "now",
+which would attribute a future stop to whatever truck the driver is in today. One query per load
+regardless of stop count. D47 only ever fired an `equipment_mismatch` at accept or first pickup, so a
+driver who swapped mid-run was invisible to the office until now.
+
+**TMS provenance.** `external_status` and `raw` had been in `tmsLoadInputSchema` since 3E and were
+never written — the contract promised the office could see what McLeod said and it could not. Now
+recorded on every path the feed touches, including a sync that only amended, since that is the
+evidence behind the banner dispatch is about to read.
+
+**The raw payload is NOT a column on `loads`, deliberately.** `loads_driver_scope` lets a driver read
+their own load rows, and a McLeod order carries customer names, rates and pay. RLS is row-level, so a
+jsonb column there would be readable by anyone who can read the row. It lives in
+`load_external_payloads` with office-only policies and no write policy at all — provenance a human can
+edit is not provenance. Three assertions, including that the driver *on that very load* cannot read it.
 
 ### LD6 — Hazmat host — **UNBLOCKED 2026-08-08**
 

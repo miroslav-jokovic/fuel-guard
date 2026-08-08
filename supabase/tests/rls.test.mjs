@@ -149,6 +149,9 @@ async function main() {
     // who could read their own counter could also delete it — so it belongs in the matrix that
     // proves what clients cannot do.
     "migrations/0149_driver_write_counters.sql",
+    // LD5. The view is `security_invoker`, so it must inherit 0086's driver scope rather than hand
+    // every caller an unfiltered read of two RLS-protected tables — the default a view would have.
+    "migrations/0150_duty_timeline_and_tms_provenance.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -961,6 +964,30 @@ async function main() {
       [ORG_A, DUID])).error);
   ok("the row is still there afterwards — the service role is the only writer",
     (await db.query("select count(*)::int n from driver_write_counters")).rows[0].n === 1);
+
+  // ── The duty timeline view + TMS payloads (0150, LD5) ─────────────────────────────────────────
+  // Reuses the two sessions and segments the duty block above already created — one for the scoped
+  // driver, one for another driver in the same org. That is exactly the pair the view must separate.
+  ok("a manager sees both drivers' equipment history (2)",
+    (await asUser(mgrA, "select count(*)::int n from driver_equipment_timeline")).rows?.[0]?.n === 2);
+  ok("a driver sees ONLY their own — the view inherits 0086's scope, it does not bypass it (1)",
+    (await asUser(drv, "select count(*)::int n from driver_equipment_timeline")).rows?.[0]?.n === 1);
+  ok("cross-tenant: org B sees none of org A's timeline (0)",
+    (await asUser(mgrB, "select count(*)::int n from driver_equipment_timeline")).rows?.[0]?.n === 0);
+
+  const PLOAD = (await db.query(
+    `insert into loads (org_id, ref, driver_id, source, provider, external_id, status)
+     values ($1,'LD-TMS-1',$2,'tms','mcleod','M-1','draft') returning id`, [ORG_A, SELF])).rows[0].id;
+  await db.query(
+    `insert into load_external_payloads (load_id, org_id, provider, raw)
+     values ($1,$2,'mcleod','{"rate": 2450, "customer": "Acme"}')`, [PLOAD, ORG_A]);
+
+  ok("dispatch can read the raw TMS payload (1)",
+    (await asUser(dispatchA, "select count(*)::int n from load_external_payloads")).rows?.[0]?.n === 1);
+  ok("the DRIVER on that very load cannot — it carries the rate (0)",
+    (await asUser(drv, "select count(*)::int n from load_external_payloads")).rows?.[0]?.n === 0);
+  ok("nobody may edit provenance — no write policy exists (0 rows)",
+    ((await asUser(adminA, "update load_external_payloads set raw = '{}' returning load_id")).rows?.length ?? 0) === 0);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
