@@ -185,12 +185,45 @@ identity. Shipping the edit surface without this would have been shipping someth
 
 Matrix count moved **175 → 179**.
 
-### DQ2 — The Safety page
+### DQ2 — The qualification page — **DONE 2026-08-08**
 
-Rename Compliance to Safety. Roster view keeps the qualification column but **fixes the two hard-coded
-values at `CompliancePage.vue:85`** (`vehicleKind: "cargo_tank"`, `orgHasSecurityPlan: false`), deriving
-both from the driver's actual equipment and the org's certifications. Per-driver DQ file view: the
-§391.51 checklist, each item showing its document, its dates, its retention state, and what is missing.
+**Named "Driver Qualification", not "Safety".** The sidebar already had a **Safety** section with
+Compliance inside it, so the rename this plan drafted would have produced Safety → Safety. "Driver
+Qualification" is what the page is, and it is what McLeod and Samsara call the same surface. The route
+stays `/compliance` so no bookmark breaks. Owner decision, taken 2026-08-08.
+
+The two hard-coded values at `CompliancePage.vue` were already fixed under F-H2; the roster column now
+also distinguishes **Not started** from **Action required** (F-H1) and has its own filter for it.
+
+**`packages/shared/src/dqFile.ts` — the checklist as pure logic.** Eighteen items: §391.51(b) and its
+companions, plus the §383.93 endorsement and the four §172.704(a) training types when the carrier runs
+HazmatGuard. Each carries its citation and its retention rule as text. The builder takes `today` as a
+parameter rather than reading the clock, so the same file can be rendered *as at* an audit date —
+which is the question an auditor actually asks, and one a function that looks at the wall clock cannot
+answer. 30 assertions.
+
+Three scoping decisions worth keeping:
+
+1. **This is not the hazmat gate.** `qualificationGate.ts` decides whether a driver may haul a
+   placardable load right now; `dqFile.ts` decides whether their file is complete for an audit. They
+   overlap on the CDL and the medical certificate and diverge everywhere else. Merging them would mean
+   one silently answering the other's question. They can even disagree usefully: training on its third
+   anniversary is `expiring` in the file and still a pass at the gate.
+2. **The tank endorsement is not in the file.** It is a fact about the equipment on a given trip, not
+   about the driver's paperwork. The gate keeps it.
+3. **§391.27 is not in the file.** It was removed in 2020 and superseded by the Clearinghouse query.
+   Listing it would teach a carrier a requirement that no longer exists.
+
+**`DqFilePanel.vue` — a section in the existing drawer, not a page.** Clicking a driver opens the
+checklist first (the question the drawer was opened to answer) with the certification editor below it.
+Each row shows status, the date it is good until, and the scan; rows without a scan get an **Attach**
+button that registers the document and PUTs the bytes straight to Storage through DQ0's signed-upload
+path, with the SHA-256 computed in the browser before the upload so the register records the hash of
+exactly what was sent.
+
+**A dangling document id reports as no document.** A failed upload leaves the metadata row behind, and
+a checklist that trusted the id would promise an auditor a scan that cannot be opened. The builder
+cross-checks every id against the documents actually registered.
 
 ### DQ3 — Close the capture gaps
 

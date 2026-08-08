@@ -17,10 +17,11 @@ import StatusBadge from "@/components/StatusBadge.vue";
 import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
+import DqFilePanel from "@/features/compliance/DqFilePanel.vue";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 
 /**
- * Compliance — the "who can haul hazmat" roster. Each driver's row shows whether they are
+ * Driver Qualification — the §391.51 roster. Each driver's row shows whether they are
  * hazmat-qualified (computed with the SAME qualifyDriver gate the analysis uses) and what is
  * missing/expired; clicking a driver opens a drawer to manage their certifications. The carrier's
  * own records (PHMSA registration, insurance) live behind the header button. Populating these is
@@ -308,8 +309,20 @@ const carrierOpen = ref(false);
       </template>
     </DataTable>
 
-    <SlideOver :open="driverOpen" :title="activeDriver ? `Certifications — ${activeDriver.full_name}` : 'Certifications'" @close="driverOpen = false">
-      <CertManager v-if="activeDriver" :key="activeDriver.id" subject-type="driver" :subject-id="activeDriver.id" />
+    <SlideOver
+      :open="driverOpen"
+      :title="activeDriver ? `Qualification file — ${activeDriver.full_name}` : 'Qualification file'"
+      @close="driverOpen = false"
+    >
+      <!-- The §391.51 checklist first, because it is the question a manager opened this drawer to
+           answer; the certification editor below is how they act on it. One drawer, two sections —
+           a separate page for the checklist would put a third surface between them. -->
+      <div v-if="activeDriver" :key="activeDriver.id" class="space-y-6">
+        <DqFilePanel :driver-id="activeDriver.id" :can-manage="session.canManage" />
+        <div class="border-t border-edge pt-5">
+          <CertManager subject-type="driver" :subject-id="activeDriver.id" />
+        </div>
+      </div>
     </SlideOver>
 
     <SlideOver :open="carrierOpen" title="Carrier records (PHMSA registration, insurance)" @close="carrierOpen = false">

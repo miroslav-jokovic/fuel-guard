@@ -73,6 +73,10 @@ export const DOCUMENT_KINDS = [...CERTIFICATION_KINDS, ...QUALIFICATION_RECORD_K
 export const documentKindSchema = z.enum(DOCUMENT_KINDS);
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 
+/** The private Storage bucket the scans live in (migration 0146). Shared so the API that signs the
+ *  upload and the browser that PUTs to it cannot drift onto two different names. */
+export const DOCUMENTS_BUCKET = "compliance-docs";
+
 /** Scans and photographs only. Anything else is a document management system, which this is not. */
 export const DOCUMENT_CONTENT_TYPES = [
   "application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic",

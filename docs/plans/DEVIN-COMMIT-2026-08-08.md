@@ -1,24 +1,17 @@
-# Devin — commit F-H1
+# Devin — commit DQ2
 
-**Everything else in this file's earlier version is already done.** Recorded here so nobody re-runs it:
+Everything before this is already on `main` and deployed: the two branches, migrations `0146`–`0148`,
+and F-H1 (`84ed95b`). `GET /api/version` reports `commit 84ed95b`, `schema.applied 0148`, `ok true`.
 
-- `wip/driver-design-system-2` (`fce5f2e`) and the four backend commits `18d8251`, `c2a84e1`,
-  `8cffdf9`, `0099e7b` are on `main` and pushed.
-- The gitignore rule for `apps/driver/modules/capture-native/android/.gradle/` was already on `main`
-  as `c71160f`; the extra commit that version asked for was redundant.
-- Migrations `0146`–`0148` applied. `GET /api/version` reports `commit f191dbc`, `schema.applied
-  0148`, `state current`, `ok true`.
-
-**One deviation to flag, not to undo.** `f191dbc` merged `wip/driver-design-system-2` into `main`;
-the runbook said to push that branch and leave it unmerged, because it is in-progress work. It is
-live now. Nothing is broken — the gate is green and the deploy is healthy — but Miki should know his
-in-flight design rework is on `main` rather than parked on a branch. Do not revert it without asking.
+One outstanding item from the previous round, for the report only: `f191dbc` merged
+`wip/driver-design-system-2` into `main` when the runbook said to leave it unmerged. Do not revert it;
+Miki knows.
 
 ---
 
-## The one commit left — F-H1
+## The commit
 
-Six files are uncommitted. All of them are F-H1.
+DQ2 — the §391.51 driver qualification file. Twelve paths, one commit.
 
 ```bash
 cd ~/Projects/FuelGuard
@@ -26,22 +19,27 @@ git switch main && git pull --ff-only
 git status --porcelain
 ```
 
-Expect exactly these, and nothing else:
+Expect exactly:
 
 ```
- M apps/api/src/services/qualification.ts
+ M apps/api/src/services/compliance.ts
+ M apps/web/src/composables/useCompliance.ts
+ M apps/web/src/lib/nav.test.ts
+ M apps/web/src/lib/nav.ts
  M apps/web/src/pages/CompliancePage.vue
- M docs/plans/DEVIN-COMMIT-2026-08-08.md
- M docs/plans/hazmat-consolidation/HAZMAT-IA-PLAN.md
- M packages/shared/src/qualificationGate.ts
-?? packages/shared/src/qualificationGate.test.ts
+ M apps/web/src/router/index.ts
+ M docs/plans/safety-dqf/DQF-PLAN.md
+ M packages/shared/src/complianceContract.ts
+ M packages/shared/src/index.ts
+?? apps/web/src/features/compliance/
+?? packages/shared/src/dqFile.test.ts
+?? packages/shared/src/dqFile.ts
 ```
 
 If a stale `.git/index.lock` blocks you, delete it — one keeps reappearing from a concurrent git
-process, and Cowork can only move files on this machine, not unlink them. Check `_to_delete/` for the
-ones it has already moved aside.
+process, and Cowork can only move files on this machine, not unlink them. Look in `_to_delete/`.
 
-### Run the gate
+### Gate
 
 ```bash
 corepack enable
@@ -55,48 +53,63 @@ pnpm test
 pnpm build
 ```
 
-Expected matrix counts, unchanged by this commit:
+Expected matrix counts, unchanged — there is no migration in this commit:
 **rls 179 · hazmat_rls 16 · load-lifecycle 54 · duty-sessions 20.**
 
-`pnpm test` is the one that matters. `packages/shared/src/qualificationGate.test.ts` is new — 22
-assertions — and vitest cannot run in the Cowork sandbox, so this is its first real execution. The
-logic behind all 22 was verified by compiling the module and asserting against plain node, but that
-is not the same as running the suite. If it is red, report the failure; do not edit the assertions.
+Two things `pnpm test` covers that nothing else can. `packages/shared/src/dqFile.test.ts` is new — 30
+assertions, its first real execution; the logic behind all 30 was verified by compiling the module and
+asserting against plain node, but that is not the same as running the suite. And
+`apps/web/src/lib/nav.test.ts` changed with the rename, so a stale expectation there will show up as a
+failure rather than as a silently wrong sidebar.
+
+If anything is red, report it; do not edit the assertions. Two of the 30 were wrong when first written
+and the code was right — the same could be true again in the other direction.
 
 ### Commit and push
 
 ```bash
-git add packages/shared/src/qualificationGate.ts \
-        packages/shared/src/qualificationGate.test.ts \
-        apps/api/src/services/qualification.ts \
+git add packages/shared/src/dqFile.ts packages/shared/src/dqFile.test.ts \
+        packages/shared/src/complianceContract.ts packages/shared/src/index.ts \
+        apps/api/src/services/compliance.ts \
+        apps/web/src/composables/useCompliance.ts \
+        apps/web/src/features/compliance/ \
         apps/web/src/pages/CompliancePage.vue \
-        docs/plans/hazmat-consolidation/HAZMAT-IA-PLAN.md \
+        apps/web/src/lib/nav.ts apps/web/src/lib/nav.test.ts \
+        apps/web/src/router/index.ts \
+        docs/plans/safety-dqf/DQF-PLAN.md \
         docs/plans/DEVIN-COMMIT-2026-08-08.md
 
-git commit -m "Tell an unstarted qualification file apart from an incomplete one
+git commit -m "Add the electronic driver qualification file
 
-An empty certifications table produced seven driver findings and two org
-findings that all restated one fact: nobody has filed anything yet. On a
-fleet's first day that is every driver, and a roster of red rows that all mean
-the same thing is how a real disqualification later gets scrolled past.
+391.51 as a checklist: eighteen items with their citations and retention
+rules, the four 172.704(a) training types and the 383.93 endorsement when the
+carrier runs HazmatGuard. Pure and unit-tested in shared, so the dashboard and
+a future audit export read the same function.
 
-qualifyDriver and qualifyOrg now return a state, and with zero certifications
-the findings collapse to one that names what the file needs. This is not a
-softening: qualified stays false and the codes keep the driver_unqualified:
-prefix that makes a finding unclearable — asserted explicitly, because that is
-the property most likely to be broken by accident later.
+buildDqFile takes today as a parameter rather than reading the clock, because
+the question an auditor asks is what the file looked like on a date, which a
+function that looks at the wall clock cannot answer.
 
-Employment status survives the collapse; a terminated driver is disqualified
-whether or not anyone started their file. The roster badge for not-started is
-neutral rather than red, and the filter gained a Not started option.
+Deliberately not the hazmat gate. qualificationGate decides whether a driver
+may haul a placardable load now; this decides whether the file is complete for
+an audit. They overlap on the CDL and the medical certificate and diverge
+everywhere else, and they are allowed to disagree: training on its third
+anniversary is due here and still a pass there.
 
-Adds qualificationGate.ts's first test file: 22 assertions, covering the
-10.4/10.5 predicates that had never been tested directly."
+The panel is a section in the existing drawer, not a page. Rows without a scan
+get an Attach button that registers the document and PUTs the bytes straight
+to Storage through the DQ0 signed-upload path, with the SHA-256 computed in
+the browser first. A document id that points at nothing reports as no
+document, because a failed upload leaves the row behind and a checklist that
+trusted the id would promise a scan nobody can open.
+
+Renames the sidebar item to Driver Qualification. Safety was the drafted name
+but the section is already called Safety; the route stays /compliance."
 
 git push origin main
 ```
 
-No migration in this commit, so no Supabase workflow fires. Railway will redeploy; confirm with:
+No migration, so no Supabase workflow fires. Railway redeploys; confirm:
 
 ```bash
 pnpm verify:live
@@ -104,25 +117,31 @@ pnpm verify:live
 
 `commit` must equal `git rev-parse HEAD`, `schema.applied` stays **0148**, `ok` **true**.
 
+### Then eyeball it
+
+The one thing no test covers is whether the upload actually works end to end against real Storage.
+Open **Safety → Driver Qualification**, click a driver, and attach a PDF to any row. Expect the row to
+switch from **Attach** to **View**, and the link to open the scan. If it fails, capture the browser
+console and the network response for `POST /api/compliance/documents` and for the Storage PUT — those
+two calls are the whole path.
+
 ---
 
-## Then clean the tree
+## Clean the tree
 
 ```bash
 rm -rf _to_delete
 git status --porcelain
 ```
 
-`_to_delete/` holds scratch files Cowork moved aside rather than deleted — patch scripts, two debug
-harnesses, a compiled-module verification directory, and one or more stale `index.lock` files.
-Nothing in it is tracked.
+Scratch files Cowork moved aside rather than deleted: patch scripts, two compiled-module verification
+directories, debug harnesses, and stale `index.lock` files. Nothing tracked.
 
 ---
 
 ## Report
 
-1. Full `pnpm test` output, especially `qualificationGate.test.ts` and the four matrix counts.
+1. Full `pnpm test` output, especially `dqFile.test.ts`, `nav.test.ts`, and the four matrix counts.
 2. `pnpm verify:live` after the push.
-3. Confirm `_to_delete/` is gone and `git status` is clean.
-4. Whether `wip/driver-design-system-2` should stay on `origin` now that it is merged — ask Miki, do
-   not delete it on your own.
+3. What happened when you attached a PDF, including the failure detail if it did not work.
+4. Confirm `_to_delete/` is gone.

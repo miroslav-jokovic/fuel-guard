@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  documentStoragePath,
+  DOCUMENTS_BUCKET, documentStoragePath,
   type CertificationCreateRequest, type CertificationListQuery,
   type DocumentListQuery, type DocumentRegisterRequest, type DocumentRegisterResponse, type DocumentRow,
   type QualificationRecordCreateRequest,
@@ -87,7 +87,6 @@ export async function listQualificationRecords(
 
 // ── documents (DQ0) — register → signed upload → batch signed read ────────────────────────
 
-export const DOCUMENTS_BUCKET = "compliance-docs";
 /** Signed-read TTL. Five minutes is long enough to render a page and short enough that a leaked URL
  *  in a log or a screenshot has expired before anyone finds it — the hazmat path's value (D20). */
 export const DOCUMENT_URL_TTL_SEC = 300;

@@ -110,9 +110,12 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         { name: "Alerts", to: "/anomalies", icon: ExclamationTriangleIcon, show: canViewSection(role, "safety") },
         { name: "Driver Performance", to: "/driver-performance", icon: TrophyIcon, show: canViewSection(role, "safety") },
         { name: "Idling", to: "/idling", icon: ClockIcon, show: canViewSection(role, "safety") },
-        // Certifications and operating credentials are reviewed as part of the safety workflow.
-        // Keep the existing Fleet capability gate so this IA move does not broaden access.
-        { name: "Compliance", to: "/compliance", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "fleet") },
+        // The driver qualification file (§391.51) — certifications, the DQF event history, and the
+        // scans behind both. Named for what it is rather than "Compliance", which said nothing, and
+        // rather than "Safety", which is the section it already sits in. Keeps the existing Fleet
+        // capability gate so the rename does not broaden access, and keeps /compliance so nobody's
+        // bookmark breaks.
+        { name: "Driver Qualification", to: "/compliance", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "fleet") },
         { name: "HazmatGuard", to: "/hazmat", icon: ShieldExclamationIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
         { name: "Placard Calculator", to: "/hazmat/calculator", icon: ClipboardDocumentCheckIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
         { name: "Hazmat Loads", to: "/hazmat/loads", icon: LoadsIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
