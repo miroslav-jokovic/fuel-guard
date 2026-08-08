@@ -182,7 +182,10 @@ export async function runEfsSoapIngest(
   }
 
   let processingId: string | undefined;
-  if (ingest.importId) {
+  if (
+    ingest.importId &&
+    (ingest.alreadyImported || ingest.newFuel > 0 || ingest.newDeclined > 0)
+  ) {
     processingId = await registerEfsProcessingRun(admin, {
       orgId,
       importId: ingest.importId,
