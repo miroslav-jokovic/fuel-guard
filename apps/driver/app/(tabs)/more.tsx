@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { GroupedList, ListRow, Screen, ScreenHeader, SectionLabel } from '@/components';
+import { Banner, GroupedList, ListRow, Screen, ScreenHeader, SectionLabel } from '@/components';
 import { dutyView, useShift } from '@/features/duty/useDuty';
 import { useFeatures } from '@/session/useFeatures';
 
@@ -7,12 +7,23 @@ export default function More() {
   const router = useRouter();
   const shift = useShift();
   const duty = dutyView(shift.data);
-  const { enabled } = useFeatures();
+  const { enabled, scoreDetailTab } = useFeatures();
   const hazmatEnabled = enabled('hazmat.capture');
+  const messagesEnabled = enabled('messages');
+  const scoreEnabled = enabled('tab.score');
 
   return (
     <Screen>
-      <ScreenHeader title="More" subtitle="Support, tools, and account" />
+      <ScreenHeader title="More" subtitle="Shift tools, support, and account" />
+
+      {shift.isError && !shift.data ? (
+        <Banner
+          tone="danger"
+          message="Could not verify your current shift."
+          actionLabel="Retry"
+          onAction={() => void shift.refetch()}
+        />
+      ) : null}
 
       {duty.onDuty ? (
         <>
@@ -30,6 +41,34 @@ export default function More() {
               title="End shift"
               subtitle="Sign off and release your equipment"
               onPress={() => router.push('/duty/end-shift')}
+            />
+          </GroupedList>
+        </>
+      ) : null}
+
+      {messagesEnabled ? (
+        <>
+          <SectionLabel>Support</SectionLabel>
+          <GroupedList>
+            <ListRow
+              title="Message dispatch"
+              subtitle="Start or continue a conversation with your fleet"
+              icon="mail"
+              onPress={() => router.push('/messages')}
+            />
+          </GroupedList>
+        </>
+      ) : null}
+
+      {scoreEnabled && !scoreDetailTab ? (
+        <>
+          <SectionLabel>Performance</SectionLabel>
+          <GroupedList>
+            <ListRow
+              title="Driver score"
+              subtitle="Weekly breakdown and coaching"
+              icon="speed"
+              onPress={() => router.push('/score')}
             />
           </GroupedList>
         </>

@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs/types';
+import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 import type { IconName } from '@/theme/hugeIcons';
@@ -16,18 +16,21 @@ const TAB_ICON: Record<string, IconName> = {
 /** Stable four-item shell with visible labels, native-size glyphs, and a 52pt content target. */
 export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const activeRoute = state.routes[state.index];
+  const scoreIsHidden = activeRoute?.name === 'score'
+    && (descriptors[activeRoute.key]?.options as { href?: unknown } | undefined)?.href === null;
 
   return (
     <View
       className="flex-row border-t border-edge-subtle bg-surface-raised"
-      style={{ paddingTop: 5, paddingBottom: Math.max(insets.bottom, 6) }}
+      style={{ paddingTop: 4, paddingBottom: Math.max(insets.bottom, 4) }}
     >
       {state.routes.map((route, index) => {
         const icon = TAB_ICON[route.name];
         if (!icon) return null;
         if ((descriptors[route.key]?.options as { href?: unknown } | undefined)?.href === null) return null;
 
-        const focused = state.index === index;
+        const focused = state.index === index || (route.name === 'more' && scoreIsHidden);
         const optionTitle = descriptors[route.key]?.options.title;
         const label = typeof optionTitle === 'string' ? optionTitle : route.name;
 

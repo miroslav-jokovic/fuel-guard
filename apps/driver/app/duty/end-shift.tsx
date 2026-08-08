@@ -44,6 +44,20 @@ export default function EndShift() {
     }
   };
 
+  if (shift.isError && !shift.data) {
+    return (
+      <Screen>
+        <ScreenHeader title="End your day" onClose={() => router.back()} />
+        <Banner
+          tone="danger"
+          message="Could not verify your current shift."
+          actionLabel="Retry"
+          onAction={() => void shift.refetch()}
+        />
+      </Screen>
+    );
+  }
+
   if (!duty.onDuty) {
     return (
       <Screen>

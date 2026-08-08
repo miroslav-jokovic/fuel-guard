@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Image, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { photoSlotLabel } from '@fuelguard/shared';
 import {
   ActionBar,
@@ -17,6 +17,7 @@ import {
   Screen,
   ScreenHeader,
   SectionLabel,
+  Skeleton,
 } from '@/components';
 import { appointmentLabel, placeLabel } from '@/features/loads/loadViewModel';
 import { useCompleteStop, useLoad } from '@/features/loads/useLoads';
@@ -28,6 +29,7 @@ import {
   type SessionCapture,
 } from '@/features/loads/stopCaptureModel';
 import { haptics } from '@/lib/haptics';
+import { useFeatures } from '@/session/useFeatures';
 
 /**
  * Stop capture (Phase 3C, D21). The driver works one stop: photograph each required slot, then
@@ -37,7 +39,9 @@ import { haptics } from '@/lib/haptics';
 export default function StopCapture() {
   const router = useRouter();
   const { id, stopId } = useLocalSearchParams<{ id: string; stopId: string }>();
-  const load = useLoad(id);
+  const features = useFeatures();
+  const loadsEnabled = features.enabled('tab.loads');
+  const load = useLoad(id, loadsEnabled);
   const stop = load?.stops.find((s) => s.id === stopId) ?? null;
   const complete = useCompleteStop();
 
@@ -47,11 +51,21 @@ export default function StopCapture() {
   const [reasonMode, setReasonMode] = useState<'completed' | 'skipped' | null>(null);
   const [reason, setReason] = useState('');
 
+  if (features.isLoaded && !loadsEnabled) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen>
+        <ScreenHeader title="Stop" onBack={() => router.back()} />
+        <Skeleton className="h-44 w-full rounded-2xl" />
+      </Screen>
+    );
+  }
+
   if (!load || !stop) {
     return (
       <Screen>
         <ScreenHeader title="Stop" onBack={() => router.back()} />
-        <Banner tone="info" message="This stop is no longer available. Pull to refresh your list." />
+        <Banner tone="info" message="This stop is no longer available. Return to Loads and refresh your assignments." />
       </Screen>
     );
   }
@@ -267,12 +281,13 @@ export default function StopCapture() {
 function ReasonInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <Input
+      accessibilityLabel="Reason for this stop update"
       value={value}
       onChangeText={onChange}
       placeholder="A short note dispatch will see"
       multiline
       numberOfLines={3}
-      style={{ minHeight: 72, paddingTop: 10 }}
+      style={{ minHeight: 72, paddingTop: 8 }}
       maxLength={500}
     />
   );

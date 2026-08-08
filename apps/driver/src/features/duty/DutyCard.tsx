@@ -1,6 +1,7 @@
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import { AppText, Badge, Button, Card, Icon, Skeleton } from '@/components';
 import type { DutyView } from './useDuty';
+import { layout } from '@/theme/tokens';
 
 function sinceLabel(iso: string | null): string {
   if (!iso) return '';
@@ -24,6 +25,8 @@ export function DutyCard({
   onChange: () => void;
   onEnd?: () => void;
 }) {
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= layout.largeTextBreakpoint;
   if (loading) return <Skeleton className="h-28 w-full rounded-xl" />;
 
   if (!duty.onDuty) {
@@ -44,7 +47,7 @@ export function DutyCard({
   const since = sinceLabel(duty.startedAt);
   return (
     <Card>
-      <View className="flex-row items-center gap-2">
+      <View className="flex-row flex-wrap items-center gap-2">
         <Badge label={pending ? 'Syncing' : 'On duty'} tone={pending ? 'info' : 'success'} dot />
         {since ? <AppText variant="caption" tone="muted" tabular>Since {since}</AppText> : null}
       </View>
@@ -62,9 +65,9 @@ export function DutyCard({
           className={duty.hasTrailer ? 'text-operation-complete' : 'text-warning'}
         />
       </View>
-      <View className="flex-row gap-2">
-        <View className="flex-1"><Button label="Change" variant="secondary" size="sm" icon="edit" onPress={onChange} /></View>
-        {onEnd ? <View className="flex-1"><Button label="End shift" variant="ghost" size="sm" icon="logout" onPress={onEnd} /></View> : null}
+      <View className={largeText ? 'gap-2' : 'flex-row gap-2'}>
+        <View className={largeText ? '' : 'flex-1'}><Button label="Change" variant="secondary" size="sm" icon="edit" onPress={onChange} /></View>
+        {onEnd ? <View className={largeText ? '' : 'flex-1'}><Button label="End shift" variant="ghost" size="sm" icon="logout" onPress={onEnd} /></View> : null}
       </View>
     </Card>
   );

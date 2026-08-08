@@ -21,8 +21,8 @@
     --color-surface-inverse: 15 23 42;
     --color-ink: 15 23 42;
     --color-ink-secondary: 51 65 85;
-    --color-ink-muted: 91 107 128;
-    --color-ink-subtle: 125 141 163;
+    --color-ink-muted: 71 85 105;
+    --color-ink-subtle: 94 110 131;
     --color-ink-disabled: 148 163 184;
     --color-ink-inverse: 255 255 255;
     --color-edge-subtle: 226 232 240;
@@ -36,11 +36,11 @@
     --color-danger: 185 28 28;
     --color-warning: 146 64 14;
     --color-caution: 194 65 12;
-    --color-success: 21 128 61;
+    --color-success: 18 118 55;
     --color-info: 29 78 216;
     --color-operation-current: 29 78 216;
     --color-operation-next: 3 105 161;
-    --color-operation-complete: 21 128 61;
+    --color-operation-complete: 18 118 55;
     --color-operation-blocked: 185 28 28;
     --color-sync-local: 3 105 161;
     --color-sync-pending: 146 64 14;
@@ -59,8 +59,8 @@
     --color-surface-inverse: 244 247 250;
     --color-ink: 244 247 250;
     --color-ink-secondary: 203 213 225;
-    --color-ink-muted: 148 163 184;
-    --color-ink-subtle: 100 116 139;
+    --color-ink-muted: 174 187 205;
+    --color-ink-subtle: 140 155 176;
     --color-ink-disabled: 71 85 105;
     --color-ink-inverse: 10 15 23;
     --color-edge-subtle: 30 43 59;

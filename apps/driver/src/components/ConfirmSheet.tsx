@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Modal, Pressable, View } from 'react-native';
+import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from './AppText';
@@ -43,6 +43,7 @@ export function ConfirmSheet({
   onCancel: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const { reduceMotion } = useTheme();
 
   useEffect(() => {
@@ -56,34 +57,45 @@ export function ConfirmSheet({
           entering={reduceMotion ? undefined : FadeIn.duration(140)}
           className="absolute inset-0 bg-surface-inverse/40"
         >
-          <Pressable className="flex-1" accessibilityLabel="Dismiss" onPress={onCancel} />
+          <Pressable
+            className="flex-1"
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss confirmation"
+            onPress={onCancel}
+          />
         </Animated.View>
         <Animated.View
           entering={reduceMotion ? undefined : SlideInDown.springify().damping(28).stiffness(320)}
-          className="gap-4 rounded-t-2xl border-t border-edge-subtle bg-surface-raised px-5 pt-3"
-          style={{ paddingBottom: insets.bottom + 16 }}
+          className="rounded-t-2xl border-t border-edge-subtle bg-surface-raised px-4 pt-3"
+          style={{ maxHeight: height - insets.top - 8, paddingBottom: insets.bottom + 16 }}
           accessibilityViewIsModal
         >
           <View className="h-1 w-9 self-center rounded-full bg-edge-strong" />
-          <View className="flex-row items-start gap-3">
-            <View className={`h-10 w-10 items-center justify-center rounded-lg ${BG[tone]}`}>
-              <Icon name={icon} size={21} fill className={FG[tone]} />
+          <ScrollView
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerClassName="gap-4 py-4"
+          >
+            <View className="flex-row items-start gap-3">
+              <View className={`h-10 w-10 items-center justify-center rounded-lg ${BG[tone]}`}>
+                <Icon name={icon} size={21} fill className={FG[tone]} />
+              </View>
+              <View className="flex-1 gap-1">
+                <AppText variant="navigationTitle" accessibilityRole="header">{title}</AppText>
+                <AppText variant="supporting" tone="secondary">{message}</AppText>
+              </View>
             </View>
-            <View className="flex-1 gap-1">
-              <AppText variant="navigationTitle" accessibilityRole="header">{title}</AppText>
-              <AppText variant="supporting" tone="secondary">{message}</AppText>
+            <View className="gap-2">
+              <Button
+                label={confirmLabel}
+                variant={tone === 'danger' ? 'danger' : 'primary'}
+                loading={loading}
+                haptic="warning"
+                onPress={onConfirm}
+              />
+              <Button label={cancelLabel} variant="ghost" onPress={onCancel} />
             </View>
-          </View>
-          <View className="gap-2">
-            <Button
-              label={confirmLabel}
-              variant={tone === 'danger' ? 'danger' : 'primary'}
-              loading={loading}
-              haptic="warning"
-              onPress={onConfirm}
-            />
-            <Button label={cancelLabel} variant="ghost" onPress={onCancel} />
-          </View>
+          </ScrollView>
         </Animated.View>
       </View>
     </Modal>

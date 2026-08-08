@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DECLINE_REASON_LABELS,
   equipmentRequiresTrailer,
@@ -23,6 +23,7 @@ import {
   Screen,
   ScreenHeader,
   SectionLabel,
+  Skeleton,
   TaskStepper,
   type TaskStep,
 } from '@/components';
@@ -35,6 +36,7 @@ import {
   useStartLoad,
 } from '@/features/loads/useLoads';
 import { dutyView, useShift } from '@/features/duty/useDuty';
+import { useFeatures } from '@/session/useFeatures';
 
 const STOP_STATE = {
   pending: { label: 'Pending', text: 'text-ink-muted', icon: 'schedule' },
@@ -48,12 +50,8 @@ function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; o
   const completedPhotos = stop.required_photos.length - missing.length;
   const state = STOP_STATE[stop.status];
 
-  return (
-    <Pressable
-      accessibilityRole={onPress ? 'button' : undefined}
-      onPress={onPress}
-      className={`min-h-[76px] flex-row items-start gap-3 bg-surface px-4 py-3 ${onPress ? 'active:bg-surface-selected' : ''}`}
-    >
+  const content = (
+    <>
       <View
         className={`mt-0.5 h-7 w-7 items-center justify-center rounded-full border ${
           stop.status === 'completed'
@@ -72,7 +70,7 @@ function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; o
         )}
       </View>
       <View className="flex-1 gap-0.5">
-        <View className="flex-row items-start gap-2">
+        <View className="flex-row flex-wrap items-start gap-2">
           <AppText variant="rowTitle" className="flex-1">{stop.name}</AppText>
           <View className="flex-row items-center gap-1">
             <Icon name={state.icon} size={14} className={state.text} />
@@ -84,7 +82,7 @@ function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; o
           {stop.kind === 'pickup' ? 'Pick up' : 'Deliver'} · {appointmentLabel(stop)} · {stopTime(stop.appointment_start)}
         </AppText>
         {stop.required_photos.length > 0 ? (
-          <View className="mt-1 flex-row items-center gap-1.5">
+          <View className="mt-1 flex-row items-center gap-2">
             <Icon name="photo_camera" size={14} className={missing.length > 0 ? 'text-ink-muted' : 'text-operation-complete'} />
             <AppText variant="caption" tone={missing.length > 0 ? 'muted' : 'success'}>
               {completedPhotos} of {stop.required_photos.length} required photos
@@ -93,6 +91,15 @@ function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; o
         ) : null}
       </View>
       {onPress ? <Icon name="chevron_right" size={19} className="mt-1 text-ink-subtle" /> : null}
+    </>
+  );
+
+  const className = 'min-h-[76px] flex-row items-start gap-3 bg-surface px-4 py-3';
+  if (!onPress) return <View accessible className={className}>{content}</View>;
+
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} className={`${className} active:bg-surface-selected`}>
+      {content}
     </Pressable>
   );
 }
@@ -100,21 +107,33 @@ function StopRow({ stop, isNext, onPress }: { stop: LoadStop; isNext: boolean; o
 export default function LoadDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const load = useLoad(id);
+  const features = useFeatures();
+  const loadsEnabled = features.enabled('tab.loads');
+  const load = useLoad(id, loadsEnabled);
   const shift = useShift();
   const duty = dutyView(shift.data);
-  const { copy } = useAcceptance();
+  const { copy } = useAcceptance(loadsEnabled);
   const accept = useAcceptLoad();
-  const decline = useDeclineLoad();
+  const decline = useDeclineLoad(loadsEnabled);
   const start = useStartLoad();
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState<DeclineReason | null>(null);
+
+  if (features.isLoaded && !loadsEnabled) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen padTop={false}>
+        <ScreenHeader title="Load" onBack={() => router.back()} />
+        <Skeleton className="h-44 w-full rounded-2xl" />
+      </Screen>
+    );
+  }
 
   if (!load) {
     return (
       <Screen padTop={false}>
         <ScreenHeader title="Load" onBack={() => router.back()} />
-        <Banner tone="info" message="This load is no longer available. Pull to refresh your list." />
+        <Banner tone="info" message="This load is no longer available. Return to Loads and refresh your assignments." />
       </Screen>
     );
   }

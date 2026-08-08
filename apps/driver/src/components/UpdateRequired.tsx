@@ -1,6 +1,8 @@
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
+import { layout } from '@/theme/tokens';
 
 /**
  * Blocking update gate (hardening plan 4.6). Rendered INSTEAD of the navigator when this build's
@@ -10,14 +12,28 @@ import { Icon } from './Icon';
  * (isVersionBelow) on any malformed config, so a typo in the dashboard can never brick a fleet.
  */
 export function UpdateRequired({ minVersion }: { minVersion: string }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View className="flex-1 items-center justify-center gap-4 bg-canvas px-8">
-      <Icon name="download" size={48} className="text-brand" />
-      <AppText variant="screenTitle" className="text-center">Update required</AppText>
-      <AppText tone="secondary" className="max-w-md text-center">
-        Your fleet requires FuelGuard Driver {minVersion} or newer. Update from the app store, then
-        reopen the app — your queued work is safe and will sync as usual.
-      </AppText>
-    </View>
+    <ScrollView
+      className="flex-1 bg-canvas"
+      contentContainerClassName="gap-4 px-4"
+      contentContainerStyle={{
+        paddingTop: insets.top + layout.regionGap,
+        paddingBottom: insets.bottom + layout.sectionGap,
+      }}
+      showsVerticalScrollIndicator={false}
+    >
+      <View className="flex-row items-center gap-2">
+        <Icon name="download" size={24} className="text-brand" />
+        <AppText variant="sectionTitle" tone="secondary">FuelGuard Driver</AppText>
+      </View>
+      <View className="gap-2">
+        <AppText variant="screenTitle">Update required</AppText>
+        <AppText tone="secondary">
+          Your fleet requires FuelGuard Driver {minVersion} or newer. Update from the app store, then
+          reopen the app. Your queued work is safe and will sync as usual.
+        </AppText>
+      </View>
+    </ScrollView>
   );
 }

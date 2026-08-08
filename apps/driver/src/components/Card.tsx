@@ -14,13 +14,11 @@ export function Card({
   children: ReactNode;
   onPress?: () => void;
   padded?: boolean;
-  variant?: 'grouped' | 'operational' | 'raised' | 'plain';
+  variant?: 'grouped' | 'operational';
 }) {
   const surface = {
     grouped: ui.card,
     operational: 'rounded-2xl border border-edge bg-surface',
-    raised: 'rounded-xl border border-edge-subtle bg-surface-raised shadow-sm',
-    plain: 'bg-transparent',
   }[variant];
   const base = `${surface} ${padded ? ui.cardContent : ''}`;
   if (onPress) {

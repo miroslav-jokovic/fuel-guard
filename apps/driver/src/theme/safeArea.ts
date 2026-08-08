@@ -26,3 +26,13 @@ import { layout } from './tokens';
 export function screenTopPadding(insetTop: number, padTop: boolean): number {
   return insetTop + (padTop ? layout.screenInset : 0);
 }
+
+/** Content ends one real section after the safe area; task footers own their own safe-area inset. */
+export function screenBottomPadding(
+  insetBottom: number,
+  hasFooter: boolean,
+  protectedByTabBar = false,
+): number {
+  if (hasFooter) return layout.screenInset;
+  return (protectedByTabBar ? 0 : insetBottom) + layout.sectionGap;
+}

@@ -74,5 +74,7 @@ release gate in place. Typecheck clean across shared · api · admin-api (tsc) a
   need a device and an owner. Nothing ships until B–D are signed off.
 - Backlog: D-PM2 telematics odometer cross-check (assignments board slice), stale-data chips,
   Home off-duty CTA emphasis, validating `duty_ended_needs_reason` after a data check.
-- Remaining unreleased blocks: `training` (Phase 7 of the master plan) and `nav.preview`
-  (the navigation programme).
+- Remaining unreleased blocks: `training` (Phase 7 of the master plan) and `nav.preview`.
+  Navigation is now fully specified in `NAVIGATION-PROGRAMME-PLAN.md` (HERE Navigate, phases NP0–NP7)
+  but implementation remains **not started** beyond the DEV-only MapLibre NP0 visual spike and the
+  existing server route/fuel-planning foundation. Do not flip `released:true` before NP7.

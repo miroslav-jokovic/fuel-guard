@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import {
   Banner,
   EmptyState,
@@ -14,6 +14,7 @@ import { LoadCard } from '@/features/loads/LoadCard';
 import { CurrentLoadCard } from '@/features/loads/CurrentLoadCard';
 import { bucketLoads, toActive, toSummary } from '@/features/loads/loadViewModel';
 import { useLoads } from '@/features/loads/useLoads';
+import { useFeatures } from '@/session/useFeatures';
 
 type Bucket = 'upcoming' | 'current' | 'previous';
 
@@ -40,13 +41,25 @@ const EMPTY: Record<Bucket, { title: string; subtitle: string }> = {
  */
 export default function Loads() {
   const router = useRouter();
-  const { data, isPending, isError, error, refetch } = useLoads();
+  const features = useFeatures();
+  const enabled = features.enabled('tab.loads');
+  const { data, isPending, isError, error, refetch } = useLoads(enabled);
   const buckets = bucketLoads(data?.loads ?? []);
   // Land on whatever the driver is actually doing.
   const [bucket, setBucket] = useState<Bucket>(buckets.current.length > 0 ? 'current' : 'upcoming');
 
   const rows = buckets[bucket];
   const showSkeletons = isPending && !data;
+
+  if (features.isLoaded && !enabled) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen>
+        <ScreenHeader title="Loads" subtitle="Current work and released assignments" />
+        <Skeleton className="h-[180px] w-full rounded-xl" />
+      </Screen>
+    );
+  }
 
   return (
     <Screen>

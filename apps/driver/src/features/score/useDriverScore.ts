@@ -12,9 +12,10 @@ import { ApiQueryError } from '@/lib/queryClient';
  */
 export const ME_SCORE_KEY = ['me', 'score'] as const;
 
-export function useDriverScore(): UseQueryResult<MeScoreResponse, Error> {
+export function useDriverScore(enabled = true): UseQueryResult<MeScoreResponse, Error> {
   return useQuery({
     queryKey: ME_SCORE_KEY,
+    enabled,
     queryFn: async ({ signal }) => {
       const res = await apiFetch('/api/me/score', { schema: meScoreResponseSchema, signal });
       if (!res.ok || !res.data) {

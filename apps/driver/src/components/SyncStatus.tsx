@@ -41,6 +41,7 @@ export function SyncStatus() {
       icon={running ? 'sync' : needsAttention > 0 ? 'sync_problem' : online ? 'cloud_done' : 'cloud_off'}
       title="Sync"
       subtitle={subtitle}
+      disabled={running}
       onPress={() => { void runSync(); }}
       right={
         needsAttention > 0 ? (
@@ -59,7 +60,11 @@ export function NeedsAttentionNote() {
   const { needsAttention } = useSyncState();
   if (needsAttention === 0) return null;
   return (
-    <View className="min-h-11 flex-row items-start gap-2 rounded-lg border border-danger/20 bg-danger/10 px-3 py-2.5">
+    <View
+      className="min-h-11 flex-row items-start gap-2 rounded-lg border border-danger/20 bg-danger/10 px-3 py-2"
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+    >
       <Icon name="sync_problem" size={18} className="mt-0.5 text-sync-failed" />
       <AppText variant="supporting" tone="secondary" className="flex-1">
         {needsAttention} {needsAttention === 1 ? 'item' : 'items'} couldn’t sync. Your work is safe;

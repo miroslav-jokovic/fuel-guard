@@ -12,10 +12,10 @@ import {
   Badge,
   AppText,
   Banner,
-  Button,
   EmptyState,
   GroupedList,
   Icon,
+  IconButton,
   ListRow,
   OfflineBanner,
   Screen,
@@ -77,6 +77,14 @@ export default function NotificationsCentre() {
   );
 
   if (features.isLoaded && !features.enabled('notifications')) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen padTop={false}>
+        <ScreenHeader title="Notifications" onClose={() => router.back()} />
+        <Skeleton className="h-[60px] w-full rounded-xl" />
+      </Screen>
+    );
+  }
 
   const rows = q.data?.notifications ?? [];
   const unread = q.data?.unread ?? 0;
@@ -112,7 +120,13 @@ export default function NotificationsCentre() {
         onClose={() => router.back()}
         right={
           unread > 0 ? (
-            <Button label="Mark all read" variant="secondary" size="sm" onPress={() => markRead.mutate(undefined)} />
+            <IconButton
+              name="done"
+              label={markRead.isPending ? 'Marking notifications read' : 'Mark all notifications read'}
+              variant="tonal"
+              disabled={markRead.isPending}
+              onPress={() => markRead.mutate(undefined)}
+            />
           ) : undefined
         }
       />
@@ -126,6 +140,7 @@ export default function NotificationsCentre() {
           onAction={() => void q.refetch()}
         />
       ) : null}
+      {markRead.isError ? <Banner tone="danger" message={markRead.error.message || 'Could not mark notifications read.'} /> : null}
 
       {showSkeletons ? (
         <>
@@ -137,7 +152,7 @@ export default function NotificationsCentre() {
         <EmptyState
           icon="notifications"
           title="Nothing yet"
-          subtitle="New loads, hazmat verdicts, shift events and your weekly score land here."
+          subtitle="Fleet alerts, assignments, and shift updates land here."
         />
       ) : (
         <GroupedList>
@@ -169,6 +184,7 @@ export default function NotificationsCentre() {
               key={category}
               title={NOTIFICATION_CATEGORY_LABELS[category]}
               value={!muted.has(category)}
+              disabled={updatePrefs.isPending}
               onValueChange={() => { void toggleMute(category); }}
             />
           ) : (

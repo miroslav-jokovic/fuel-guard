@@ -26,21 +26,8 @@ export function ListRow({
   destructive?: boolean;
 }) {
   const tone = destructive ? 'danger' : disabled ? 'disabled' : 'primary';
-  return (
-    <Pressable
-      accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityState={onPress ? { disabled } : undefined}
-      disabled={disabled}
-      onPress={
-        onPress
-          ? () => {
-              haptics.select();
-              onPress();
-            }
-          : undefined
-      }
-      className={`${ui.listRow} ${onPress ? 'active:bg-surface-selected' : ''} ${disabled ? 'opacity-60' : ''}`}
-    >
+  const content = (
+    <>
       {icon ? (
         <View className="w-6 items-center justify-center">
           <Icon
@@ -56,6 +43,24 @@ export function ListRow({
         {subtitle ? <AppText variant="supporting" tone={disabled ? 'disabled' : 'muted'}>{subtitle}</AppText> : null}
       </View>
       {right ?? (onPress ? <Icon name="chevron_right" size={20} className="text-ink-subtle" /> : null)}
+    </>
+  );
+
+  const className = `${ui.listRow} ${disabled ? 'opacity-60' : ''}`;
+  if (!onPress) return <View accessible className={className}>{content}</View>;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={() => {
+        haptics.select();
+        onPress();
+      }}
+      className={`${className} active:bg-surface-selected`}
+    >
+      {content}
     </Pressable>
   );
 }

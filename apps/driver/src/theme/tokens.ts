@@ -4,6 +4,7 @@ export const space = {
   control: 8,
   related: 12,
   component: 16,
+  comfortable: 20,
   section: 24,
   region: 32,
   screen: 40,
@@ -35,8 +36,9 @@ export const layout = {
   regionGap: 32,
   groupedRowMinHeight: 52,
   cardPadding: 16,
-  scrollBottomInset: 88,
-  operationalModuleMaxHeight: 200,
+  modalInset: 20,
+  /** Horizontal metric and choice layouts stack before accessibility sizes begin crowding copy. */
+  largeTextBreakpoint: 1.35,
 } as const;
 
 /**

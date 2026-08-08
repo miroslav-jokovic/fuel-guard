@@ -53,6 +53,7 @@ export function useMarkRead() {
     // Optimistic: the badge clears the instant the driver acts; the poll reconciles.
     onMutate: async (ids) => {
       await qc.cancelQueries({ queryKey: ME_NOTIFICATIONS_KEY });
+      const previous = qc.getQueryData<MeNotificationsResponse>(ME_NOTIFICATIONS_KEY);
       qc.setQueryData<MeNotificationsResponse>(ME_NOTIFICATIONS_KEY, (prev) => {
         if (!prev) return prev;
         const nowIso = new Date().toISOString();
@@ -62,6 +63,10 @@ export function useMarkRead() {
         );
         return { ...prev, notifications, unread: notifications.filter((n) => n.read_at === null).length };
       });
+      return { previous };
+    },
+    onError: (_error, _ids, context) => {
+      if (context?.previous) qc.setQueryData(ME_NOTIFICATIONS_KEY, context.previous);
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: ME_NOTIFICATIONS_KEY }),
   });

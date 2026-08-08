@@ -50,9 +50,10 @@ const meLoadsResponseSchema = z.object({
 });
 export type MeLoadsResponse = z.infer<typeof meLoadsResponseSchema>;
 
-export function useLoads(): UseQueryResult<MeLoadsResponse, Error> {
+export function useLoads(enabled = true): UseQueryResult<MeLoadsResponse, Error> {
   return useQuery({
     queryKey: ME_LOADS_KEY,
+    enabled,
     queryFn: async ({ signal }) => {
       const res = await apiFetch('/api/me/loads', { schema: meLoadsResponseSchema, signal });
       if (!res.ok || !res.data) {
@@ -68,8 +69,8 @@ export function useLoads(): UseQueryResult<MeLoadsResponse, Error> {
 }
 
 /** One load out of the cached list — detail never re-fetches on its own (D29, no waterfall). */
-export function useLoad(id: string | undefined): Load | null {
-  const { data } = useLoads();
+export function useLoad(id: string | undefined, enabled = true): Load | null {
+  const { data } = useLoads(enabled);
   if (!id) return null;
   return data?.loads.find((l) => l.id === id) ?? null;
 }
@@ -78,8 +79,8 @@ export function useLoad(id: string | undefined): Load | null {
  * The two labels and the one behavioural difference between a company driver and an owner-operator
  * (D46). Served by the API so the resolution rule lives in exactly one place.
  */
-export function useAcceptance(): { type: DriverType; copy: AcceptanceCopy } {
-  const { data } = useLoads();
+export function useAcceptance(enabled = true): { type: DriverType; copy: AcceptanceCopy } {
+  const { data } = useLoads(enabled);
   const type = resolveDriverType(data?.driver_type ?? null, null);
   return { type, copy: acceptanceCopy(type) };
 }
@@ -163,9 +164,9 @@ export function useAcceptLoad() {
  * queue); for a company driver it stays put with the exception logged — so the optimistic update
  * has to know which population this driver is in.
  */
-export function useDeclineLoad() {
+export function useDeclineLoad(enabled = true) {
   const qc = useQueryClient();
-  const { copy } = useAcceptance();
+  const { copy } = useAcceptance(enabled);
   return useMutation({
     mutationFn: async (input: { loadId: string; reason: DeclineReason; note?: string }) => {
       await enqueue({

@@ -19,7 +19,7 @@ export function Toast({ tone = 'success', message }: { tone?: Tone; message: str
   return (
     <Animated.View
       entering={reduceMotion ? undefined : FadeInDown.duration(160)}
-      className="flex-row items-center gap-2.5 self-stretch rounded-lg bg-surface-inverse px-4 py-3"
+      className="flex-row items-center gap-3 self-stretch rounded-lg bg-surface-inverse px-4 py-3"
       accessibilityRole="alert"
     >
       <Icon name={ICON[tone]} size={18} fill className={FG[tone]} />

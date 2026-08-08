@@ -14,7 +14,11 @@ const forbidden = [
   { pattern: /<Text(?:\s|>)/, message: 'use AppText instead of raw React Native Text' },
   { pattern: /\bAlert\.alert\s*\(/, message: 'use ConfirmSheet or an intentional Banner instead of native Alert' },
   { pattern: /from\s+['"]@\/theme\/ramps['"]/, message: 'screens and components must use semantic color roles, not primitive ramps' },
-  { pattern: /(?:rounded|border|shadow|space|gap|p[trblxy]?|m[trblxy]?)-\[/, message: 'do not introduce arbitrary layout values; use the 8pt design scale or update DESIGN.md first' },
+  { pattern: /from\s+['"]@react-navigation\//, message: 'SDK 56+ app code must import navigation APIs from the matching expo-router entry point' },
+  { pattern: /(?:rounded|border|shadow|space|gap|p[trblxy]?|m[trblxy]?)-\[/, message: 'do not introduce arbitrary layout values; use the semantic 4pt-based scale or update DESIGN.md first' },
+  { pattern: /\bshadow-(?:sm|md|lg|xl|2xl)\b/, message: 'shadows are reserved for system navigation, sheets, and overlays rather than content surfaces' },
+  { pattern: /\btext-\[/, message: 'use the semantic typography scale rather than an arbitrary text size' },
+  { pattern: /\b(?:gap|p[trblxy]?|m[trblxy]?)-(?:1\.5|2\.5)\b/, message: 'use 4pt-based structural spacing; 2pt optical spacing is only for tightly stacked text' },
 ];
 
 const files = [];

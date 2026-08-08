@@ -32,7 +32,7 @@ const LABEL_TONE: Record<Variant, TextTone> = {
   ghost: 'secondary',
 };
 const SIZE: Record<Size, { view: string; text: string; icon: number; gap: number }> = {
-  sm: { view: 'min-h-11 rounded-lg px-3', text: 'text-supporting', icon: 18, gap: 6 },
+  sm: { view: 'min-h-11 rounded-lg px-3', text: 'text-supporting', icon: 18, gap: 8 },
   md: { view: 'min-h-12 rounded-lg px-4', text: 'text-action', icon: 20, gap: 8 },
   lg: { view: 'min-h-14 rounded-lg px-5', text: 'text-nav', icon: 22, gap: 8 },
 };
@@ -94,7 +94,7 @@ export function Button({
           style={{ columnGap: s.gap, opacity: loading ? 0 : 1 }}
         >
           {icon ? <Icon name={icon} fill={iconFill} size={s.icon} className={LABEL[variant]} /> : null}
-          <AppText variant="action" tone={LABEL_TONE[variant]} className={s.text}>{label}</AppText>
+          <AppText variant="action" tone={LABEL_TONE[variant]} className={`shrink text-center ${s.text}`}>{label}</AppText>
         </View>
         {loading ? (
           <View className="absolute inset-0 items-center justify-center">
