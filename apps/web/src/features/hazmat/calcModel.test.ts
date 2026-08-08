@@ -10,6 +10,7 @@ import {
   parseBusinessDayIds,
   type CalcForm,
 } from "./calcModel";
+// (D-H14 cases below exercise linePackagingKind's capacity override end-to-end through the form model.)
 
 const gasoline: HazmatProduct = {
   hmtRef: "UN1203-gasoline#II",
@@ -89,6 +90,25 @@ describe("calcModel — form → /calc request (plan H5, reworked by H-P1)", () 
     expect(equipmentFromTrailerType("dry_van")).toBe("van");
     expect(equipmentFromTrailerType("other")).toBe("");
     expect(equipmentFromTrailerType(null)).toBe("");
+  });
+
+  it("D-H14: a measured per-package capacity overrides the type default, both directions", () => {
+    // A 130-gal oversized drum is bulk despite the drum default (§171.8(1)).
+    const bigDrum = { ...emptyLine("van"), product: gasoline, packageType: "drum", perPackageCapacityValue: "130", perPackageCapacityUnit: "gal" };
+    expect(linePackagingKind(bigDrum, "van")).toBe("bulk");
+    const req = buildCalcRequest(formWith({ equipmentType: "van", lines: [bigDrum] }));
+    expect((req.load as { lines: Array<Record<string, unknown>> }).lines[0]!.packagingKind).toBe("bulk");
+    // A 55-gal drum with its capacity stated stays non-bulk (measured, not just trusted).
+    const drum = { ...emptyLine("van"), product: gasoline, packageType: "drum", perPackageCapacityValue: "55", perPackageCapacityUnit: "gal" };
+    expect(linePackagingKind(drum, "van")).toBe("non_bulk");
+  });
+
+  it("D-H14: gases use the water-capacity test — 420-lb cylinder (1,000 lb WC) non-bulk, ASME tank bulk", () => {
+    const propane: HazmatProduct = { ...gasoline, hmtRef: "UN1075-petroleum-gases-liquefied#none", entryId: "UN1075-petroleum-gases-liquefied", idNumber: "1075", psn: "Petroleum gases, liquefied", hazardClass: "2.1", pg: null, label: "UN1075" };
+    const exchange = { ...emptyLine("van"), product: propane, packageType: "cylinder", perPackageCapacityValue: "1000", perPackageCapacityUnit: "lb" };
+    expect(linePackagingKind(exchange, "van")).toBe("non_bulk"); // PHMSA 19-0045's exact case
+    const asmeAsCylinder = { ...emptyLine("flatbed"), product: propane, packageType: "cylinder", perPackageCapacityValue: "4170", perPackageCapacityUnit: "lb" };
+    expect(linePackagingKind(asmeAsCylinder, "flatbed")).toBe("bulk"); // the D-H14 gap: capacity beats the mislabeled type
   });
 
   it("parses business-day IDs and normalizes to null when blank", () => {

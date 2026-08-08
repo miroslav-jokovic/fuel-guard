@@ -21,12 +21,15 @@ import {
   equipmentFromTrailerType,
   equipmentSpec,
   useHazmatCalc,
+  linePackagingDerivation,
   EQUIPMENT_OPTIONS,
   TANK_STATE_OPTIONS,
   QUANTITY_UNIT_OPTIONS,
   GROSS_WEIGHT_UNIT_OPTIONS,
   PACKAGE_TYPE_OPTIONS,
+  CAPACITY_UNIT_OPTIONS,
   type CalcForm,
+  type CalcLineForm,
   type CalcResult,
 } from "@/features/hazmat/useHazmatCalc";
 
@@ -97,6 +100,17 @@ const equipmentNote = computed(() => {
 
 const isTank = computed(() => equipmentSpec(form.equipmentType)?.vehicleKind === "cargo_tank");
 const packageHint = (type: string): string | undefined => packageTypeSpec(type)?.hint;
+
+/** D-H14: the measured §171.8 note for a line — shown whenever a capacity was applied, loudest
+ *  when it CONTRADICTS the package type's default. */
+function capacityNote(line: CalcLineForm): { text: string; warn: boolean } | null {
+  const d = linePackagingDerivation(line, form.equipmentType);
+  if (d.source !== "capacity" || !d.because) return null;
+  return {
+    text: (d.overrodeType ? "Capacity overrides the package type — " : "Measured: ") + d.because + ".",
+    warn: d.overrodeType,
+  };
+}
 
 function addLine() {
   form.lines.push(emptyLine(form.equipmentType));
@@ -264,7 +278,23 @@ function resetAll() {
               <FormField v-if="isTank && line.packageType === 'bulk_cargo'" v-slot="{ id }" label="Compartment #">
                 <BaseInput :id="id" v-model="line.compartmentIndex" type="number" inputmode="numeric" min="1" placeholder="1" />
               </FormField>
+              <template v-if="line.packageType !== 'bulk_cargo'">
+                <!-- D-H14: optional measured size — the §171.8 answer beats the type default. -->
+                <FormField v-slot="{ id }" label="Per-package size" hint="Optional. >119 gal liquid / >1,000 lb water cap. = bulk (§171.8).">
+                  <BaseInput :id="id" v-model="line.perPackageCapacityValue" type="number" inputmode="decimal" min="0" placeholder="55" />
+                </FormField>
+                <FormField v-slot="{ id }" label="Size unit">
+                  <ComboSelect :id="id" v-model="line.perPackageCapacityUnit" :options="CAPACITY_UNIT_OPTIONS" />
+                </FormField>
+              </template>
             </div>
+            <p
+              v-if="capacityNote(line)"
+              class="mt-2 rounded-md px-3 py-1.5 text-xs ring-1 ring-inset"
+              :class="capacityNote(line)!.warn ? 'bg-warning-50 text-warning-800 ring-warning-200' : 'bg-surface text-ink-muted ring-edge'"
+            >
+              {{ capacityNote(line)!.text }}
+            </p>
 
             <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <FormField v-slot="{ id }" label="Total quantity">

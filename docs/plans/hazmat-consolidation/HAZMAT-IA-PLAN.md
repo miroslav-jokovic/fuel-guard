@@ -254,6 +254,29 @@ The product owner reviewed the hazmat integration and directed the following. De
   picker fills it (and tank capacity) from the trailer row; hopper defaults bulk
   (`resolveVehicleKind` gained `defaultLinePackaging`).
 
+### D-H14 — the measured §171.8 classifier (owner-directed, built 2026-08-08)
+
+The owner probed the packaging model with real cases (store propane sizes) and found the gap: the
+vocabulary TRUSTED types, never MEASURED capacity — and the gas test was missing entirely.
+Research verified against the eCFR text + PHMSA interps 19-0045/10-0055:
+
+- §171.8 thresholds, metric governing: liquids **> 450 L (119 gal)**; solids **> 400 kg AND
+  > 450 L** (a TWO-part test); gases **water capacity > 454 kg (1,000 lb)** — NOT 1,000 L (an
+  from-memory error caught by this research; the code now encodes the verified figures).
+- The 420-lb/1,000-lb-WC propane cylinder is NON-bulk (PHMSA 19-0045's exact case); every consumer
+  size below it likewise. Charged ASME tanks (250+ gal) and tube-trailer tubes are bulk.
+- Classification rides on the packaging's capacity, never its contents (PHMSA 10-0055).
+
+**Built:** `classifyByCapacity` + `derivePackaging` in shared (three tests verbatim, tie-toward-bulk
+on incomplete info per D2); optional per-package size field on calculator + load form whose measured
+answer OVERRIDES the type default both directions with a visible reason (loud when it contradicts
+the type); phase from hazard class (Class 2 → gas test; else conservative liquid test); new package
+types `asme_tank` + `tube_trailer`; corrected labels (two-part solid test, gas criterion, cylinder
+1,000-lb-WC boundary). 15 new unit tests + 2 D-H14 model tests + 2 golden scenarios (cylinder
+route truck non-bulk / charged 500-gal ASME bulk-at-any-weight) — all passing against the real
+dataset. §173.315 authorization for moving charged ASME tanks is flagged in the UI hint as outside
+calculator scope.
+
 ### Deferred, in priority order (recorded so nothing silently drops)
 
 1. **Limited Quantity rules** — the biggest coverage gap for packaged freight. Blocked on dataset

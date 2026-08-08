@@ -1,0 +1,28 @@
+# HARNESS/ENGINEERING SCENARIO (D-H14, D-H10) — CFR-derived, pending SME validation.
+name: "PKG — charged 500-gal ASME propane tank on a flatbed: BULK receptacle → placard + ID at any quantity"
+docRef: "49 CFR 171.8(3) (water capacity >454 kg/1,000 lb = bulk gas receptacle — a 500-gal ASME tank is ~4,170 lb WC); 172.504(c); 172.302(c)/172.331; ERG 2024 UN1075→115"
+description: >
+  A charged 500-gal ASME propane tank moved on a flatbed is BULK packaging regardless of how much
+  propane is inside — FLAMMABLE GAS placard and UN1075 display at any quantity. (Whether moving it
+  charged is authorized at all is a separate §173.315 question outside the calculator.)
+verifiedBy: "Engineering (D-H14) — CFR-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1075-petroleum-gases-liquefied#none"
+      quantity: { value: 400, unit: gal }
+      grossWeightLb: 900
+      packagingKind: bulk
+      packageCount: 1
+expect:
+  # ELIGIBLE is the strong assertion: bulk placards at ANY weight (900 lb gross would be under the
+  # 1,001-lb bar if this were mistaken for non-bulk — the exact D-H14 failure this scenario pins).
+  eligibility: eligible
+  placardsRequired: [FLAMMABLE_GAS]
+  placardsAbsent: [DANGEROUS]
+  idDisplays: ["UN1075"]
+  ergGuides:
+    - { idNumber: "1075", guide: "115" }
+  absentRuleIds: [below_1001lb_no_placard, "not_evaluated:lines[0].packageCount"]

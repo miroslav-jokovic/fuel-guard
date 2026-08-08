@@ -27,6 +27,13 @@ certifications seeding, BOL package-count extraction) is recorded in the IA plan
 **Owner actions this session adds:** apply migration `0153`; run `pnpm test` +
 `pnpm --filter @fuelguard/web build` on the Mac; delete the five files listed in `_to_delete/`.
 
+**Addendum (same day, post-c608885):** 7 packaging golden scenarios landed (all passing vs the real
+dataset — which ships NON-provisional, and clean packaged loads now reach `eligible` end-to-end).
+**D-H14 built**: the measured §171.8 classifier (eCFR + PHMSA 19-0045/10-0055 verified — gas test is
+water capacity > 454 kg/1,000 lb; solids are a two-part test) with per-package capacity override on
+both forms, `asme_tank`/`tube_trailer` types, 15 classifier unit tests + 2 propane goldens. See the
+IA plan §6 D-H14 for the research record.
+
 ## Position — 2026-08-06
 
 FuelGuard is now at **backend parity with every completed HazmatGuard milestone**: **M0.5 defects · M1 ·

@@ -19,6 +19,7 @@ import {
   QUANTITY_UNIT_OPTIONS,
   GROSS_WEIGHT_UNIT_OPTIONS,
   PACKAGE_TYPE_OPTIONS,
+  CAPACITY_UNIT_OPTIONS,
   TANK_STATE_OPTIONS,
 } from "@/features/hazmat/calcModel";
 import {
@@ -157,6 +158,14 @@ async function save() {
               <FormField v-if="line.packageType !== 'bulk_cargo'" v-slot="{ id }" label="Package count" hint="§172.202(a)(7)">
                 <BaseInput :id="id" v-model="line.packageCount" type="number" inputmode="numeric" min="0" placeholder="4" />
               </FormField>
+              <template v-if="line.packageType !== 'bulk_cargo'">
+                <FormField v-slot="{ id }" label="Per-package size" hint="Optional. >119 gal liquid / >1,000 lb water cap. = bulk (§171.8).">
+                  <BaseInput :id="id" v-model="line.perPackageCapacityValue" type="number" inputmode="decimal" min="0" placeholder="55" />
+                </FormField>
+                <FormField v-slot="{ id }" label="Size unit">
+                  <ComboSelect :id="id" v-model="line.perPackageCapacityUnit" :options="CAPACITY_UNIT_OPTIONS" />
+                </FormField>
+              </template>
             </div>
             <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <FormField v-slot="{ id }" label="Total quantity">

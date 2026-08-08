@@ -1,0 +1,27 @@
+# HARNESS/ENGINEERING SCENARIO (D-H14, D-H10 build-then-test) — CFR + PHMSA 19-0045 derived,
+# pending SME validation. "_" prefix keeps it out of the SME acceptance count on purpose.
+name: "PKG — propane cylinder exchange truck: NON-bulk (PHMSA 19-0045), placard by weight, single-material ID conditional"
+docRef: "49 CFR 171.8(3) (gas receptacle ≤454 kg/1,000 lb water cap. = non-bulk; PHMSA interp 19-0045); 172.504(c); 172.301(a)(3); ERG 2024 UN1075→115"
+description: >
+  Route truck of propane exchange cylinders only (UN1075, Div 2.1) — every consumer size through the
+  420-lb/1,000-lb-WC cylinder is NON-bulk. 9,600 lb gross of one material: FLAMMABLE GAS required
+  (≥1,001 lb) AND the §172.301(a)(3) single-material ID display asserts with its conditional.
+verifiedBy: "Engineering (D-H14) — CFR/PHMSA-derived, pending SME validation (D-H10)"
+verifiedOn: "2026-08-08"
+input:
+  vehicle: { kind: van_or_flatbed, cargoTankCapacityGal: null, compartments: null }
+  tankState: loaded
+  lines:
+    - hmtRef: "UN1075-petroleum-gases-liquefied#none"
+      quantity: { value: 9600, unit: lb }
+      grossWeightLb: 9600
+      packagingKind: non_bulk
+      packageCount: 120
+expect:
+  eligibility: not_checked
+  placardsRequired: [FLAMMABLE_GAS]
+  idDisplays: ["UN1075"]
+  ergGuides:
+    - { idNumber: "1075", guide: "115" }
+  findingRuleIds: [nonbulk_single_material_id_display]
+  absentRuleIds: ["not_evaluated:lines[0].packageCount"]

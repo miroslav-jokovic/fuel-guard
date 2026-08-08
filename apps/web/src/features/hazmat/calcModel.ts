@@ -1,10 +1,13 @@
 import type { HazmatCalcRequest, HazmatProduct } from "@fuelguard/shared";
 import {
+  capacityFromForm,
+  derivePackaging,
   isVehiclePackaging,
   PACKAGE_TYPE_OPTIONS,
   packageTypeSpec,
-  packagingKindFor,
+  phaseForHazardClass,
   weightToLb,
+  type DerivedPackaging,
 } from "@fuelguard/shared";
 import type { Verdict } from "@hazmat/engine";
 
@@ -38,6 +41,10 @@ export interface CalcLineForm {
   packageType: string;
   /** Count of DOT packages ("4 totes" → 4). Blank/irrelevant for loose bulk. */
   packageCount: string;
+  /** D-H14: OPTIONAL per-package size. When set, the measured §171.8 answer overrides the type
+   *  default (gal/L = receptacle volume; lb/kg = water capacity, for gases). */
+  perPackageCapacityValue: string;
+  perPackageCapacityUnit: string;
   quantityValue: string;
   quantityUnit: string;
   grossWeightValue: string;
@@ -119,6 +126,13 @@ export const GROSS_WEIGHT_UNIT_OPTIONS: Array<{ value: string; label: string }> 
   { value: "lb", label: "lb" },
   { value: "kg", label: "kg" },
 ];
+/** D-H14: per-package size units. gal/L are receptacle volume; lb/kg are water capacity (gases). */
+export const CAPACITY_UNIT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "gal", label: "gal" },
+  { value: "L", label: "L" },
+  { value: "lb", label: "lb (water cap.)" },
+  { value: "kg", label: "kg (water cap.)" },
+];
 export { PACKAGE_TYPE_OPTIONS };
 
 /**
@@ -135,6 +149,8 @@ export function emptyLine(equipmentType = ""): CalcLineForm {
     product: null,
     packageType,
     packageCount: "",
+    perPackageCapacityValue: "",
+    perPackageCapacityUnit: "gal",
     quantityValue: "",
     quantityUnit: spec?.defaultUnit ?? (eq?.defaultLinePackaging === "bulk" ? "gal" : "lb"),
     grossWeightValue: "",
@@ -189,14 +205,27 @@ export function hasResolvedLine(form: CalcForm): boolean {
 }
 
 /**
- * The line's §171.8 packaging answer: derived from the package type; when the type is unset, the
- * equipment's default — bulk on a tanker/hopper, non-bulk on package equipment — so an incomplete
- * line degrades to the same answer the old binary dropdown defaulted to, never to silence.
+ * The line's full §171.8 derivation (D-H14): a measured per-package capacity beats the type
+ * default — both directions, with the reason and an `overrodeType` flag the UI surfaces. The phase
+ * comes from the product's hazard class (Class 2 → gas test; else the conservative liquid test).
+ * When neither capacity nor type answers, the equipment's default applies — bulk on a
+ * tanker/hopper, non-bulk on package equipment — so an incomplete line degrades to the same answer
+ * the old binary dropdown defaulted to, never to silence.
  */
+export function linePackagingDerivation(line: CalcLineForm, equipmentType: string): DerivedPackaging {
+  const derived = derivePackaging({
+    packageType: line.packageType,
+    phase: phaseForHazardClass(line.product?.hazardClass ?? null),
+    capacity: capacityFromForm(numOrNull(line.perPackageCapacityValue), line.perPackageCapacityUnit),
+  });
+  if (derived.source !== "none") return derived;
+  const fallback = equipmentSpec(equipmentType)?.defaultLinePackaging ?? "bulk";
+  return { kind: fallback, source: "none", because: null, overrodeType: false };
+}
+
+/** The bare §171.8 answer (see linePackagingDerivation for the reasoned version). */
 export function linePackagingKind(line: CalcLineForm, equipmentType: string): "bulk" | "non_bulk" {
-  const derived = packagingKindFor(line.packageType);
-  if (derived) return derived;
-  return equipmentSpec(equipmentType)?.defaultLinePackaging ?? "bulk";
+  return linePackagingDerivation(line, equipmentType).kind;
 }
 
 /** The line's gross weight in pounds (kg converted; §172.504(c) evaluates pounds). */
