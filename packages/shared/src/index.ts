@@ -9,6 +9,7 @@ export * from "./hazmatLifecycle.js";
 export * from "./hazmatReview.js";
 export * from "./qualificationGate.js";
 export * from "./complianceContract.js";
+export * from "./dqExportContract.js";
 export * from "./dqFile.js";
 export * from "./driverWriteLimits.js";
 export * from "./fleet.js";

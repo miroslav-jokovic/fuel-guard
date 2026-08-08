@@ -49,14 +49,71 @@ export interface RetentionRule {
  * days is ample for the Data & Sync freshness UI. Caches: rebuilt/re-fetched on demand.
  */
 export const RETENTION_RULES: RetentionRule[] = [
-  { table: "idle_events", timeColumn: "started_at", keepDays: 400, strategy: "id", orgScoped: true, why: "raw Samsara idling events; aggregated into idle_rollup_days" },
-  { table: "hos_duty_segments", timeColumn: "started_at", keepDays: 400, strategy: "id", orgScoped: true, why: "raw ELD duty intervals; duty split preserved in idle_rollup_days" },
-  { table: "idle_park_sessions", timeColumn: "started_at", keepDays: 400, strategy: "id", orgScoped: true, why: "derived park sessions; mode split preserved in idle_rollup_days" },
-  { table: "vehicle_engine_days", timeColumn: "day", keepDays: 400, strategy: "id", orgScoped: true, why: "per-day engine totals; mirrored in idle_rollup_days" },
-  { table: "driver_vehicle_assignments", timeColumn: "end_at", keepDays: 400, strategy: "timeSlice", orgScoped: true, why: "closed assignment intervals (lt on end_at never matches open ones); attribution stored on rollup days" },
-  { table: "jobs", timeColumn: "created_at", keepDays: 90, strategy: "id", orgScoped: true, onlyWhenIn: { column: "status", values: ["done", "failed"] }, why: "finished background-job ledger rows; freshness UI only needs recent history" },
-  { table: "route_geometries", timeColumn: "created_at", keepDays: 180, strategy: "id", orgScoped: false, why: "global route polyline cache; re-fetched on demand" },
-  { table: "weather_cache", timeColumn: "hour_utc", keepDays: 400, strategy: "timeSlice", orgScoped: false, why: "global hourly weather grid; only consulted for events inside the raw-telematics window" },
+  {
+    table: "idle_events",
+    timeColumn: "started_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "raw Samsara idling events; aggregated into idle_rollup_days",
+  },
+  {
+    table: "hos_duty_segments",
+    timeColumn: "started_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "raw ELD duty intervals; duty split preserved in idle_rollup_days",
+  },
+  {
+    table: "idle_park_sessions",
+    timeColumn: "started_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "derived park sessions; mode split preserved in idle_rollup_days",
+  },
+  {
+    table: "vehicle_engine_days",
+    timeColumn: "day",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "per-day engine totals; mirrored in idle_rollup_days",
+  },
+  {
+    table: "driver_vehicle_assignments",
+    timeColumn: "end_at",
+    keepDays: 400,
+    strategy: "timeSlice",
+    orgScoped: true,
+    why: "closed assignment intervals (lt on end_at never matches open ones); attribution stored on rollup days",
+  },
+  {
+    table: "jobs",
+    timeColumn: "created_at",
+    keepDays: 90,
+    strategy: "id",
+    orgScoped: true,
+    onlyWhenIn: { column: "status", values: ["done", "failed"] },
+    why: "finished background-job ledger rows; freshness UI only needs recent history",
+  },
+  {
+    table: "route_geometries",
+    timeColumn: "created_at",
+    keepDays: 180,
+    strategy: "id",
+    orgScoped: false,
+    why: "global route polyline cache; re-fetched on demand",
+  },
+  {
+    table: "weather_cache",
+    timeColumn: "hour_utc",
+    keepDays: 400,
+    strategy: "timeSlice",
+    orgScoped: false,
+    why: "global hourly weather grid; only consulted for events inside the raw-telematics window",
+  },
   /**
    * D-LD8. 49 CFR Part 379 App. A puts freight bills and bills of lading at ONE year — but Carmack
    * (49 U.S.C. §14706(e)) lets a shipper file for nine months after delivery and sue for two years
@@ -69,7 +126,14 @@ export const RETENTION_RULES: RetentionRule[] = [
    * on its next pass after the 24-hour grace. Two mechanisms built for other reasons compose into
    * the policy, and neither had to change.
    */
-  { table: "load_stop_photos", timeColumn: "uploaded_at", keepDays: 1095, strategy: "id", orgScoped: true, why: "proof-of-work photos; 3y covers the Carmack claim window (9mo to file + 2y to sue) past the 1y §379 floor" },
+  {
+    table: "load_stop_photos",
+    timeColumn: "uploaded_at",
+    keepDays: 1095,
+    strategy: "id",
+    orgScoped: true,
+    why: "proof-of-work photos; 3y covers the Carmack claim window (9mo to file + 2y to sue) past the 1y §379 floor",
+  },
 ];
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */
@@ -86,6 +150,20 @@ export const RETENTION_FORBIDDEN = [
   "organizations",
   "drivers",
   "vehicles",
+  /**
+   * D-BD12 — the driver qualification file. §391.51 measures retention in YEARS (the MVR review for
+   * three, the file itself for as long as the driver is employed plus three), and §390.32(d) requires
+   * an electronic record to still be reproducible when asked for. Until now nothing stopped someone
+   * adding these to a retention rule in six months and quietly pruning a driver's history — the
+   * history the binder is built to reproduce. `documents` is the scan behind every one of these rows
+   * and is append-only by RLS for exactly the same reason.
+   */
+  "certifications",
+  "qualification_records",
+  "documents",
+  /** The export ledger (0152). The bytes expire after seven days; the row that says who pulled a
+   *  driver's medical card out of the system does not (D-BD9). */
+  "dq_exports",
 ] as const;
 
 export interface RetentionTableResult {
@@ -132,7 +210,10 @@ async function pruneById(
     const { error: derr } = await d;
     if (derr) throw new Error(`${rule.table} delete: ${derr.message}`);
     deleted += ids.length;
-    if (ids.length < BATCH) { batches++; break; }
+    if (ids.length < BATCH) {
+      batches++;
+      break;
+    }
   }
   return { table: rule.table, deleted, capped: batches >= MAX_BATCHES };
 }

@@ -45,6 +45,50 @@ export const DQ_GROUP_LABELS: Record<DqGroup, string> = {
   hazmat: "Hazmat",
 };
 
+/**
+ * Every `certifications.kind` and `qualification_records.kind`, in English.
+ *
+ * `DqItemSpec.label` names a REQUIREMENT — "Pre-employment driving record inquiry" — and several
+ * requirements can be proved by the same kind of row. History is the other direction: it starts from
+ * the rows, so it needs a name for the row's own kind. Keeping both here means the binder, the file
+ * page and the history drawer read the same words for the same thing.
+ */
+export const DQ_KIND_LABELS: Record<string, string> = {
+  // certifications
+  cdl: "Commercial driver's licence",
+  medical_card: "Medical examiner's certificate",
+  endorsement: "Endorsement",
+  hazmat_training: "Hazmat training",
+  twic: "TWIC card",
+  registration: "Vehicle registration",
+  annual_inspection: "Annual inspection",
+  insurance: "Insurance",
+  ifta: "IFTA licence",
+  irp: "IRP registration",
+  phmsa_registration: "PHMSA registration",
+  hazmat_safety_permit: "Hazmat safety permit",
+  security_plan: "Security plan",
+  financial_responsibility: "Proof of financial responsibility",
+  operating_authority: "Operating authority",
+  // qualification records — the §391.51 event set
+  employment_application: "Employment application",
+  mvr: "Driving record inquiry",
+  annual_mvr_review: "Annual driving record review",
+  road_test: "Road test",
+  cdl_equivalency: "Licence equivalency to a road test",
+  previous_employer_inquiry: "Previous employer inquiry",
+  previous_employer_response: "Previous employer response",
+  clearinghouse_full: "Clearinghouse full query",
+  clearinghouse_limited: "Clearinghouse limited query",
+  eldt: "Entry-level driver training",
+  spe_certificate: "Skill performance evaluation certificate",
+  medical_registry_verification: "Medical examiner registry verification",
+  drug_test: "Drug test",
+  alcohol_test: "Alcohol test",
+  accident: "Accident record",
+  other: "Other document",
+};
+
 export interface DqItemSpec {
   key: string;
   label: string;
