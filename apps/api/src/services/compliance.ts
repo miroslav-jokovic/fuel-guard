@@ -1,11 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CertificationCreateRequest, CertificationListQuery, QualificationRecordCreateRequest } from "@fuelguard/shared";
+import {
+  documentStoragePath,
+  type CertificationCreateRequest, type CertificationListQuery,
+  type DocumentListQuery, type DocumentRegisterRequest, type DocumentRegisterResponse, type DocumentRow,
+  type QualificationRecordCreateRequest,
+} from "@fuelguard/shared";
 
 /**
- * Compliance master data service — the CERTIFICATIONS slice (PLAN §3.1 / §10.1, M1). Thin data
- * layer over Supabase: routes gate by role, RLS (0127) is the PostgREST backstop, and the pure
- * decision logic lives in @fuelguard/shared (complianceContract). qualification_records /
- * documents / compliance_items attach here with the rest of M1.
+ * Compliance master data service — certifications (§3.1 / §10.1), qualification records (§3.2) and
+ * documents (DQ0). Thin data layer over Supabase: routes gate by role, RLS (0127 / 0129 / 0146) is
+ * the PostgREST backstop, and the pure decision logic lives in @fuelguard/shared
+ * (complianceContract). `compliance_items` and `master_documents` were retired by 0147.
  */
 
 export type ServiceError = { error: string; code: string };
@@ -78,4 +83,86 @@ export async function listQualificationRecords(
   const { data, error } = await query.order("occurred_on", { ascending: false });
   if (error) return err("query_failed", error.message);
   return { rows: data ?? [] };
+}
+
+// ── documents (DQ0) — register → signed upload → batch signed read ────────────────────────
+
+export const DOCUMENTS_BUCKET = "compliance-docs";
+/** Signed-read TTL. Five minutes is long enough to render a page and short enough that a leaked URL
+ *  in a log or a screenshot has expired before anyone finds it — the hazmat path's value (D20). */
+export const DOCUMENT_URL_TTL_SEC = 300;
+
+const DOCUMENT_COLUMNS =
+  "id, subject_type, subject_id, kind, content_type, bytes, sha256, page, variant, captured_at, created_at, storage_path";
+
+/**
+ * Register a document and hand back a signed upload URL. The bytes never touch this process.
+ *
+ * Deliberately NOT carrying `hazmat_documents`' MAX_BOL_PAGES cap: that cap exists because every
+ * registered hazmat page becomes two vision-model calls, and no extraction runs here. A driver's
+ * qualification file legitimately accumulates documents for as long as they are employed, and a cap
+ * on it would fail the exact §391.51 retention it is supposed to serve. The per-request bound
+ * (page ≤ 50, one file per call) is in the schema.
+ */
+export async function registerDocument(
+  admin: SupabaseClient, orgId: string, userId: string, req: DocumentRegisterRequest,
+): Promise<DocumentRegisterResponse | ServiceError> {
+  const storagePath = documentStoragePath(orgId, req.subjectType, req.subjectId, req.id, req.contentType);
+  const { data: signed, error: signErr } = await admin.storage.from(DOCUMENTS_BUCKET).createSignedUploadUrl(storagePath);
+  if (signErr || !signed) return err("sign_failed", signErr?.message ?? "Failed to sign upload URL.");
+  // Idempotent replay: a retry after a dropped response re-signs and leaves the row alone.
+  const { error } = await admin.from("documents").upsert({
+    id: req.id, org_id: orgId,
+    subject_type: req.subjectType, subject_id: req.subjectId, kind: req.kind,
+    storage_path: storagePath, content_type: req.contentType,
+    bytes: req.bytes ?? null, sha256: req.sha256, page: req.page, variant: req.variant,
+    captured_at: req.capturedAt ?? null, uploaded_by: userId,
+  }, { onConflict: "id", ignoreDuplicates: true });
+  if (error) return err("insert_failed", error.message);
+  return { documentId: req.id, storagePath, uploadUrl: signed.signedUrl, token: signed.token };
+}
+
+type DocumentDbRow = {
+  id: string; subject_type: string; subject_id: string; kind: string;
+  content_type: string; bytes: number | null; sha256: string; page: number; variant: string;
+  captured_at: string | null; created_at: string; storage_path: string;
+};
+
+/** Every document for one subject, each with a short-lived signed download URL. */
+export async function listDocuments(
+  admin: SupabaseClient, orgId: string, q: DocumentListQuery,
+): Promise<{ rows: DocumentRow[] } | ServiceError> {
+  let query = admin.from("documents").select(DOCUMENT_COLUMNS)
+    .eq("org_id", orgId).eq("subject_type", q.subjectType).eq("subject_id", q.subjectId);
+  if (q.kind) query = query.eq("kind", q.kind);
+  const { data, error } = await query.order("created_at", { ascending: false });
+  if (error) return err("query_failed", error.message);
+  const docs = (data ?? []) as DocumentDbRow[];
+  return { rows: await signDocumentRows(admin, docs) };
+}
+
+/** ONE batch Storage call for the whole set, never one round trip per row (D20). Signing failures
+ *  degrade a single row to `url: null` rather than failing the page — the metadata is still the
+ *  answer to "is this document on file", which is what a §391.51 review actually asks. */
+async function signDocumentRows(admin: SupabaseClient, docs: DocumentDbRow[]): Promise<DocumentRow[]> {
+  const byPath = new Map<string, string>();
+  if (docs.length > 0) {
+    const { data: signed } = await admin.storage.from(DOCUMENTS_BUCKET)
+      .createSignedUrls(docs.map((d) => d.storage_path), DOCUMENT_URL_TTL_SEC);
+    for (const s of signed ?? []) if (s.signedUrl && s.path) byPath.set(s.path, s.signedUrl);
+  }
+  return docs.map((d) => ({
+    id: d.id,
+    subjectType: d.subject_type as DocumentRow["subjectType"],
+    subjectId: d.subject_id,
+    kind: d.kind,
+    contentType: d.content_type,
+    bytes: d.bytes,
+    sha256: d.sha256,
+    page: d.page,
+    variant: d.variant,
+    capturedAt: d.captured_at,
+    createdAt: d.created_at,
+    url: byPath.get(d.storage_path) ?? null,
+  }));
 }
