@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   qualifyDriver, qualifyOrg, qualificationEvalDate,
-  type QualCertSnapshot, type QualFinding,
+  type QualCertSnapshot, type QualFinding, type QualState,
 } from "@fuelguard/shared";
 import { loadDataset, evaluateSecurityPlanApplicability, evaluateSafetyPermitApplicability, type SecurityPlanLine } from "@hazmat/data";
 
@@ -15,10 +15,17 @@ import { loadDataset, evaluateSecurityPlanApplicability, evaluateSafetyPermitApp
  * medical card and the same photo MUST re-evaluate).
  */
 
+/** `unassigned` is the API's own state — no driver is on the load, so there is no file to judge.
+ *  qualifyDriver never returns it, which is why it is spelled out here rather than in the pure gate. */
+export type DriverQualState = QualState | "unassigned";
+
 export interface QualificationEvaluation {
   flags: string[];
   driverFindings: QualFinding[];
   orgFindings: QualFinding[];
+  /** F-H1: has anyone started this driver's file at all, or is it merely incomplete? */
+  driverState: DriverQualState;
+  orgState: QualState;
   evalDate: string;
   usedFallback: boolean;
   /** sha256 over the canonical qualification inputs — a §10.10 hash term. */
@@ -29,6 +36,8 @@ export interface QualificationEvaluation {
     usedFallback: boolean;
     driver: QualFinding[];
     org: QualFinding[];
+    driverState: DriverQualState;
+    orgState: QualState;
   };
 }
 
@@ -76,6 +85,7 @@ export async function evaluateQualification(
   const orgHasSecurityPlan = orgCerts.some((c) => c.kind === "security_plan");
 
   let driverFindings: QualFinding[];
+  let driverState: DriverQualState;
   const driverCerts = ((driverCertsRes.data ?? []) as CertRow[]).map(toSnapshot);
   const driverStatus = (driverRes.data as { status: string } | null)?.status ?? null;
   if (!load.driver_id) {
@@ -87,8 +97,11 @@ export async function evaluateQualification(
       message: "No driver is assigned to this load — a qualified driver must be assigned before it can clear (§5).",
       citation: "49 CFR §177.800(c) / PLAN §5",
     }];
+    driverState = "unassigned";
   } else {
-    driverFindings = qualifyDriver({ evalDate, driverStatus, certs: driverCerts, vehicleKind, orgHasSecurityPlan }).findings;
+    const driverResult = qualifyDriver({ evalDate, driverStatus, certs: driverCerts, vehicleKind, orgHasSecurityPlan });
+    driverFindings = driverResult.findings;
+    driverState = driverResult.state;
   }
 
   // M9 (§172.800(b), PROVISIONAL — SME attestation pending): does the load trip the large-bulk
@@ -105,7 +118,8 @@ export async function evaluateQualification(
   // evaluable §385.403 category (large explosives). SafetyPermitLine is structurally identical to secLines.
   const requiresSafetyPermit = evaluateSafetyPermitApplicability(loadDataset(), secLines).required;
 
-  const orgFindings = qualifyOrg({ evalDate, certs: orgCerts, requiresSecurityPlan, requiresSafetyPermit }).findings;
+  const orgResult = qualifyOrg({ evalDate, certs: orgCerts, requiresSecurityPlan, requiresSafetyPermit });
+  const orgFindings = orgResult.findings;
 
   const inputsDigest = createHash("sha256").update(canonical({
     evalDate: evalDate.slice(0, 10), usedFallback,
@@ -114,7 +128,12 @@ export async function evaluateQualification(
 
   return {
     flags: [...driverFindings, ...orgFindings].map((f) => f.code),
-    driverFindings, orgFindings, evalDate, usedFallback, inputsDigest,
-    record: { evalDate, usedFallback, driver: driverFindings, org: orgFindings },
+    driverFindings, orgFindings,
+    driverState, orgState: orgResult.state,
+    evalDate, usedFallback, inputsDigest,
+    record: {
+      evalDate, usedFallback, driver: driverFindings, org: orgFindings,
+      driverState, orgState: orgResult.state,
+    },
   };
 }

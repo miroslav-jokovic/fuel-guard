@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { QualCertSnapshot } from "@fuelguard/shared";
+import type { QualCertSnapshot, QualState } from "@fuelguard/shared";
 import { qualifyDriver } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -89,11 +89,24 @@ function labelForCode(code: string): string {
   return c.charAt(0).toUpperCase() + c.slice(1);
 }
 
+/**
+ * How a qualification state is shown (F-H1). "Not started" is deliberately NEUTRAL, not red: on a
+ * fleet's first day every driver is in that state, and a roster of red rows that all mean "nobody has
+ * filed anything yet" is how a real disqualification later gets scrolled past. The gate itself is
+ * unchanged — none of these three is `ready` except the first.
+ */
+const QUAL_BADGE: Record<QualState, { label: string; class: string }> = {
+  qualified: { label: "Ready", class: "bg-success-100 text-success-700" },
+  incomplete: { label: "Action required", class: "bg-danger-100 text-danger-700" },
+  not_started: { label: "Not started", class: "bg-surface-muted text-ink-muted" },
+};
+
 interface Row {
   id: string;
   full_name: string;
   status: string;
   ready: boolean;
+  state: QualState;
   issues: string[];
   issueSummary: string;
 }
@@ -107,6 +120,7 @@ const rows = computed<Row[]>(() =>
       full_name: d.full_name,
       status: d.status,
       ready: res.qualified,
+      state: res.state,
       issues,
       issueSummary: issues.join(", "),
     };
@@ -121,6 +135,9 @@ const readyOptions = [
   { value: "", label: "All qualifications" },
   { value: "ready", label: "Ready" },
   { value: "not_ready", label: "Action required" },
+  // Its own filter because it is its own job: onboarding a fleet is not the same task as chasing an
+  // expired medical card, and during a rollout this is the only list that matters.
+  { value: "not_started", label: "Not started" },
 ];
 const statusOptions = computed(() => [
   { value: "", label: "All employment statuses" },
@@ -139,6 +156,7 @@ const filtered = computed(() =>
   rows.value.filter((r) => {
     if (readyFilter.value === "ready" && !r.ready) return false;
     if (readyFilter.value === "not_ready" && r.ready) return false;
+    if (readyFilter.value === "not_started" && r.state !== "not_started") return false;
     if (statusFilter.value && r.status !== statusFilter.value) return false;
     if (issueFilter.value && !r.issues.includes(issueFilter.value)) return false;
     const term = search.value.trim().toLowerCase();
@@ -261,8 +279,8 @@ const carrierOpen = ref(false);
       <template #cell-ready="{ row }">
         <span
           class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-          :class="row.ready ? 'bg-success-100 text-success-700' : 'bg-danger-100 text-danger-700'"
-        >{{ row.ready ? "Ready" : "Action required" }}</span>
+          :class="QUAL_BADGE[row.state].class"
+        >{{ QUAL_BADGE[row.state].label }}</span>
       </template>
       <template #cell-issueSummary="{ row }">
         <span v-if="row.ready" class="text-ink-subtle">—</span>

@@ -110,13 +110,32 @@ site in dispatch. An unqualified driver can be assigned to a hazmat load and can
 
 ### H-C0 — Stop the bleeding (small, independent, do first)
 
-- Fix **F-H2**: derive `vehicleKind` from the driver's actual assigned equipment and
-  `orgHasSecurityPlan` from the org's certifications, instead of hard-coding both. Gate the Compliance
-  nav item on the hazmat module where the grading is hazmat-specific.
-- Decide **F-H1**: an empty `certifications` table blocking every hazmat load is correct behaviour and
-  a terrible first-run experience. Either seed Silvicom's driver certifications through `CertManager`,
-  or add an explicit "qualification file not started" state that says so plainly rather than listing
-  eight failures.
+- **F-H2 — DONE.** `CompliancePage.vue` derives `vehicleKind` from the fleet's actual equipment and
+  `orgHasSecurityPlan` from the org's certifications; both were literals.
+- **F-H1 — DONE 2026-08-08.** The decision was the second option: an explicit state, not seeded data.
+  Seeding Silvicom's certifications would have hidden the problem for one customer and left it for
+  every customer after them.
+
+  `qualifyDriver` and `qualifyOrg` now return `state: "qualified" | "not_started" | "incomplete"`.
+  With **zero** certifications on file the findings collapse to one — `driver_unqualified:
+  file_not_started` (or `org_unqualified:file_not_started`) — naming what the file needs. With one or
+  more, every gap is named individually again, because from that point each is a distinct fact about
+  a real file.
+
+  **This is not a softening of the gate**, and the tests say so in as many words: `qualified` stays
+  false, and the code keeps the `driver_unqualified:` / `org_unqualified:` prefix that
+  `hazmatReview.ts` matches to make a finding UNCLEARABLE. If that prefix were ever dropped, an empty
+  qualification file would silently become a supervisor-clearable risk decision.
+
+  Two details worth keeping: employment status survives the collapse, because a terminated driver is
+  disqualified whether or not anyone started their file; and the roster badge for `not_started` is
+  neutral, not red. On a fleet's first day every driver is in that state, and a roster of red rows
+  that all mean "nobody has filed anything yet" is how a real disqualification later gets scrolled
+  past. The Compliance filter gained a **Not started** option, because onboarding a fleet and chasing
+  an expired medical card are two different jobs.
+
+  `qualificationGate.ts` also gained its first test file — 22 assertions, covering the §10.4/§10.5
+  predicates that had never been tested directly as well as the new state.
 - Record **F-H3** as a product decision. Recommendation: warn at assignment, block at clear.
 
 ### H-C1 — Link the loads (D-H2) — **DATA HALF DONE 2026-08-08; UI half deliberately held**

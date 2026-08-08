@@ -33,12 +33,37 @@ export interface QualFinding {
   citation: string;
 }
 
+/**
+ * Why a subject is not qualified, at a glance (F-H1).
+ *
+ * `not_started` and `incomplete` are both fail-closed and both unclearable — the distinction is not a
+ * softening of the gate, it is an honest reading of the evidence. A driver with nothing on file
+ * produces seven findings that all restate one fact, and an organization with nothing on file
+ * produces two more; eleven red rows on a fleet's first day look like a broken product rather than an
+ * empty filing cabinet, and that is how a real disqualification later gets ignored.
+ *
+ * The collapse loses nothing: when there are zero certifications there is nothing subject-specific to
+ * record. "No CDL on file, no medical on file, no H endorsement on file" is one sentence written
+ * seven times. As soon as a single certification exists the gate goes back to naming every gap,
+ * because from then on each one is a distinct fact about a real file.
+ */
+export type QualState = "qualified" | "not_started" | "incomplete";
+
 export interface QualResult {
   qualified: boolean;
+  /** Which of the three shapes this is — see QualState. Never softens `qualified`. */
+  state: QualState;
   findings: QualFinding[];
   /** The flag codes alone (what lands in hazmat_runs.flags). */
   flags: string[];
 }
+
+const result = (findings: QualFinding[], state?: QualState): QualResult => ({
+  qualified: findings.length === 0,
+  state: state ?? (findings.length === 0 ? "qualified" : "incomplete"),
+  findings,
+  flags: findings.map((f) => f.code),
+});
 
 export interface DriverQualInput {
   /** ISO date/time the load is evaluated at (§10.3 — planned_pickup_at, or now as fallback). */
@@ -64,6 +89,24 @@ const dateOf = (iso: string): string => iso.slice(0, 10);
 export function qualifyDriver(input: DriverQualInput): QualResult {
   const findings: QualFinding[] = [];
   const evalDate = dateOf(input.evalDate);
+
+  // Employment is a fact about the person, not about the filing cabinet: a terminated driver is
+  // disqualified whether or not anyone ever started their file. So it is computed first and survives
+  // the first-run collapse below.
+  const employment: QualFinding[] = input.driverStatus !== "active"
+    ? [D("employment", `Driver employment status is '${input.driverStatus ?? "unknown"}', not active.`, "49 CFR §391 (driver qualification)")]
+    : [];
+
+  // FIRST RUN (F-H1). Still unqualified, still unclearable — the `driver_unqualified:` prefix is what
+  // hazmatReview.ts matches on, so nothing about clearability changes here.
+  if (input.certs.length === 0) {
+    return result([
+      D("file_not_started",
+        "No certifications have been recorded for this driver yet — their qualification file has not been started. It needs a CDL, a medical certificate, an H or X endorsement, and current hazmat training.",
+        "49 CFR §391.51 (driver qualification file)"),
+      ...employment,
+    ], "not_started");
+  }
   const current = (kind: string, qualifier?: string): QualCertSnapshot | undefined =>
     input.certs.find((c) => c.kind === kind && (qualifier === undefined || c.qualifier === qualifier));
 
@@ -106,12 +149,11 @@ export function qualifyDriver(input: DriverQualInput): QualResult {
     }
   }
 
-  // Employment.
-  if (input.driverStatus !== "active") {
-    findings.push(D("employment", `Driver employment status is '${input.driverStatus ?? "unknown"}', not active.`, "49 CFR §391 (driver qualification)"));
-  }
+  // Employment — computed at the top so it survives the first-run collapse; appended here to keep
+  // the plan's finding order unchanged.
+  findings.push(...employment);
 
-  return { qualified: findings.length === 0, findings, flags: findings.map((f) => f.code) };
+  return result(findings);
 }
 
 export interface OrgQualInput {
@@ -139,6 +181,16 @@ const O = (code: string, message: string, citation: string): QualFinding =>
 export function qualifyOrg(input: OrgQualInput): QualResult {
   const findings: QualFinding[] = [];
   const evalDate = dateOf(input.evalDate);
+
+  // FIRST RUN (F-H1) — the carrier's own file. Every check below is certification-derived, so with
+  // nothing on file there is no partial state to describe, only a filing cabinet nobody has opened.
+  if (input.certs.length === 0) {
+    return result([
+      O("file_not_started",
+        "No certifications have been recorded for this carrier yet — its compliance file has not been started. It needs a PHMSA hazmat registration and a financial-responsibility certification.",
+        "49 CFR Part 107 subpart G"),
+    ], "not_started");
+  }
   const check = (kind: string, code: string, label: string, citation: string) => {
     const c = input.certs.find((x) => x.kind === kind);
     if (!c) findings.push(O(code, `No current ${label} on file for the carrier.`, citation));
@@ -157,7 +209,7 @@ export function qualifyOrg(input: OrgQualInput): QualResult {
   if (input.requiresSafetyPermit) {
     check("hazmat_safety_permit", "hazmat_safety_permit", "§385.403 FMCSA safety permit (provisional applicability — SME attestation pending)", "49 CFR §385.403(b)");
   }
-  return { qualified: findings.length === 0, findings, flags: findings.map((f) => f.code) };
+  return result(findings);
 }
 
 /** §10.3 — which date to evaluate at, and whether the info flag must be added. */
