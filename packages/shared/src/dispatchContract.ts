@@ -110,6 +110,51 @@ export type AssignmentRow = z.infer<typeof assignmentRowSchema>;
 export const assignmentsResponseSchema = z.object({ assignments: z.array(assignmentRowSchema) });
 export type AssignmentsResponse = z.infer<typeof assignmentsResponseSchema>;
 
+// ── assignment history (L5 / D-L6) — the attribution trail ────────────────────────────
+
+/**
+ * `GET /api/dispatch/assignments/history`. §14.9 designates this the audit record behind every
+ * evidence panel the detection engine renders; until L5 it could only be read with SQL access.
+ *
+ * `from`/`to` are required rather than defaulted. An unbounded attribution query over a hundred-truck
+ * fleet is a table scan, and a silent default would be a different question from the one asked.
+ */
+export const assignmentHistoryQuerySchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+  driverId: z.uuid().optional(),
+  vehicleId: z.uuid().optional(),
+  trailerId: z.uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  /** Keyset cursor — the `from_at` of the last row seen. Offset paging skips rows on a live table. */
+  cursor: z.string().optional(),
+});
+export type AssignmentHistoryQuery = z.infer<typeof assignmentHistoryQuerySchema>;
+
+export const assignmentHistoryRowSchema = z.object({
+  session_id: z.uuid(),
+  segment_id: z.uuid(),
+  driver_id: z.uuid(),
+  driver_name: z.string().nullable(),
+  vehicle_id: z.uuid().nullable(),
+  vehicle_unit: z.string().nullable(),
+  trailer_id: z.uuid().nullable(),
+  trailer_unit: z.string().nullable(),
+  seat: z.string(),
+  confirmed_by: z.string(),
+  session_source: z.string(),
+  from_at: z.string(),
+  /** Null means still held — the driver has not signed off and the shift has not timed out. */
+  to_at: z.string().nullable(),
+});
+export type AssignmentHistoryRow = z.infer<typeof assignmentHistoryRowSchema>;
+
+export const assignmentHistoryResponseSchema = z.object({
+  segments: z.array(assignmentHistoryRowSchema),
+  nextCursor: z.string().nullable(),
+});
+export type AssignmentHistoryResponse = z.infer<typeof assignmentHistoryResponseSchema>;
+
 /** How long a shift has run, for the board's "on duty 11h 20m" column. */
 export function shiftDuration(startedAt: string | null, nowMs: number): string {
   if (!startedAt) return "—";

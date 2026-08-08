@@ -57,6 +57,19 @@ export const RETENTION_RULES: RetentionRule[] = [
   { table: "jobs", timeColumn: "created_at", keepDays: 90, strategy: "id", orgScoped: true, onlyWhenIn: { column: "status", values: ["done", "failed"] }, why: "finished background-job ledger rows; freshness UI only needs recent history" },
   { table: "route_geometries", timeColumn: "created_at", keepDays: 180, strategy: "id", orgScoped: false, why: "global route polyline cache; re-fetched on demand" },
   { table: "weather_cache", timeColumn: "hour_utc", keepDays: 400, strategy: "timeSlice", orgScoped: false, why: "global hourly weather grid; only consulted for events inside the raw-telematics window" },
+  /**
+   * D-LD8. 49 CFR Part 379 App. A puts freight bills and bills of lading at ONE year — but Carmack
+   * (49 U.S.C. §14706(e)) lets a shipper file for nine months after delivery and sue for two years
+   * after a denial, so a proof-of-delivery photo can decide a claim close to three years out.
+   * Retaining for the regulatory floor and destroying the photograph that would have won the claim is
+   * the worst of both: compliant, and out of pocket.
+   *
+   * Deleting the row is the whole mechanism. The object then has no row pointing at it, and the
+   * `load-photos` orphan sweep already running in hazmatStorageReconcileScheduler removes the bytes
+   * on its next pass after the 24-hour grace. Two mechanisms built for other reasons compose into
+   * the policy, and neither had to change.
+   */
+  { table: "load_stop_photos", timeColumn: "uploaded_at", keepDays: 1095, strategy: "id", orgScoped: true, why: "proof-of-work photos; 3y covers the Carmack claim window (9mo to file + 2y to sue) past the 1y §379 floor" },
 ];
 
 /** Tables that must NEVER appear in RETENTION_RULES — pinned by a guard test. */

@@ -116,15 +116,38 @@ attempt in about twenty minutes and **dead-lettered**. A driver's completed stop
 **Left deliberately unlimited:** `/api/me/hazmat/*`. D57 did not size it, and inventing a number would
 be worse than the named gap; it stays under the blanket `apiLimiter` until it has its own.
 
-## L5 — Assignments completion (2 days) · D-L6
+## L5 — Assignments completion · D-L6 · **BACKEND DONE 2026-08-08; history tab outstanding**
 
-5.1 **History tab**: segments for a driver / vehicle / trailer over a date range — the attribution
-    trail the detection engine's evidence panels cite. Server-side filtering + pagination.
-5.2 Fix the `driverId` vs `sessionId` param drift on the end-session endpoint while in there.
-5.3 Tests: history returns the right segments across a shift boundary and a take-over.
-5.4 *Deferred by D-L6:* equipment reassign and take-over resolution from the board.
+5.1 **The endpoint is built.** `GET /api/dispatch/assignments/history` — reads
+    `driver_equipment_timeline` (0150), so "what counts as a holding" is the same rule the load detail
+    page uses rather than a second answer to the same question. `from`/`to` are **required**, not
+    defaulted: an unbounded attribution query over a hundred-truck fleet is a table scan, and a silent
+    default answers a different question from the one asked. Filters by driver / vehicle / trailer,
+    keyset paginated (offset paging skips rows on a table still being written), three name lookups per
+    page rather than one per row. **Overlap, not containment** — a segment that started before the
+    window and is still open belongs in it, and containment would hide exactly the long shift an
+    investigation is chasing.
 
-**Exit:** an anomaly investigation can answer "who was in this truck at 14:20 on the 3rd" from the UI.
+5.2 **The param drift is fixed, and it was a real race.** `POST /assignments/:driverId/end` closed
+    "whatever this driver has open", but the board is a snapshot refetched every sixty seconds. A
+    driver who signed off and checked into another truck inside that window had their **new** shift
+    closed by a click on a stale row — silently, reported as success. Now
+    `POST /assignments/:sessionId/end` → `end_duty_session_by_id` (0151), which closes the session
+    dispatch actually saw, no-ops on one already closed, and 404s across tenants. It also closes the
+    segments under the session, so the truck is genuinely released. `end_duty_session(p_driver, …)`
+    stays for the driver app, which means "close MY open shift" and has no stale snapshot to be wrong
+    about — two callers, two questions, two functions.
+
+5.3 Five assertions in `duty-sessions.test.mjs`, including the stale-click race itself.
+
+5.4 **Outstanding: the history tab in `AssignmentsPage.vue`.** Held deliberately rather than rushed —
+    it is the first list surface built since `docs/DESIGN-SYSTEM-CONTRACT.md`, and it should be
+    `FilterBar` + `DataTable` + keyset `TablePagination` from the start rather than corrected after.
+
+5.5 *Deferred by D-L6:* equipment reassign and take-over resolution from the board.
+
+**Exit:** an anomaly investigation can answer "who was in this truck at 14:20 on the 3rd" — over the
+API today, from the UI when 5.4 lands.
 
 ## L6 — Switch-on (½ day + the device pass) · D-L9
 
@@ -149,7 +172,7 @@ be worse than the named gap; it stays under the blanket `apiLimiter` until it ha
 | L2 | Exceptions + `load_changed` | 1–2 d | wide rollout only |
 | L3 | Consolidation + service tests | 1–2 d | no |
 | L4 | D57 rate limits | **done** | **yes** |
-| L5 | Assignments History | 2 d | no |
+| L5 | Assignments History | **backend done** | no |
 | L6 | Pilot → wide | ½ d + device | — |
 
 **Critical path to a pilot:** L0 → L1 → L4 → L6. Roughly three to four days of work.

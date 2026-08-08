@@ -26,8 +26,13 @@ export function useAssignmentsQuery() {
 export function useEndShift() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (driverId: string): Promise<void> => {
-      const res = await apiFetch(`/api/dispatch/assignments/${driverId}/end`, { method: "POST" });
+    /**
+     * Keyed on the SESSION, not the driver (L5). The board is refetched every sixty seconds, so a
+     * driver who signs off and checks into another truck inside that window would otherwise have
+     * their NEW shift closed by a click on a stale row — silently, and reported as success.
+     */
+    mutationFn: async (sessionId: string): Promise<void> => {
+      const res = await apiFetch(`/api/dispatch/assignments/${sessionId}/end`, { method: "POST" });
       if (!res.ok) throw new Error(res.error?.message ?? "Could not end the shift.");
     },
     onSuccess: () => {

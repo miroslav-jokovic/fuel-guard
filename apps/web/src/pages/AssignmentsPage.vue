@@ -66,8 +66,10 @@ const loadLabel = (r: AssignmentRow) =>
 const hasOpenSession = (r: AssignmentRow) => r.session_id != null;
 
 async function end(r: AssignmentRow) {
+  // `hasOpenSession` already gates the button; this narrows the nullable type rather than asserting.
+  if (!r.session_id) return;
   try {
-    await endShift.mutateAsync(r.driver_id);
+    await endShift.mutateAsync(r.session_id);
     toast.success(`Ended ${r.driver_name}'s shift`);
   } catch (e) {
     toast.error("Could not end the shift", e instanceof Error ? e.message : undefined);

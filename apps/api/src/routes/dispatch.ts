@@ -11,6 +11,8 @@ import {
 } from "@fuelguard/shared";
 import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
 import { requireModule } from "../middleware/requireModule.js";
+import { assignmentHistoryQuerySchema } from "@fuelguard/shared";
+import { listAssignmentHistory } from "../services/dispatchLoads/history.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
@@ -275,20 +277,40 @@ export function dispatchRouter(): Router {
   // ── the assignments board ───────────────────────────────────────────────────
   /** Close a shift a driver forgot to end, so their truck is selectable again (D44.5). */
   router.post(
-    "/assignments/:driverId/end",
+    "/assignments/:sessionId/end",
     canManage,
     asyncHandler(async (req, res) => {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
-      const driverId = param(req, "driverId");
-      await endDutySession(admin, req.auth!.orgId!, driverId);
+      const sessionId = param(req, "sessionId");
+      const result = await endDutySession(admin, req.auth!.orgId!, sessionId);
+      if (!result.ok) {
+        res.status(result.status).json(apiError(result.code, result.message));
+        return;
+      }
       await writeAudit(admin, {
         orgId: req.auth!.orgId!,
         actorId: req.auth!.userId,
         action: "dispatch.shift_ended",
         entity: "driver_duty_sessions",
-        entityId: driverId,
+        entityId: sessionId,
       });
       res.json({ ok: true });
+    }),
+  );
+
+  /** The attribution trail (L5 / D-L6) — segments per driver / vehicle / trailer over a date range. */
+  router.get(
+    "/assignments/history",
+    canView,
+    asyncHandler(async (req, res) => {
+      const parsed = assignmentHistoryQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("bad_query", parsed.error.message));
+        return;
+      }
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const result = await listAssignmentHistory(admin, req.auth!.orgId!, parsed.data);
+      res.json({ segments: result.rows, nextCursor: result.nextCursor });
     }),
   );
 
