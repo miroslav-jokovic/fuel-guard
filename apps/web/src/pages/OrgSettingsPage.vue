@@ -15,6 +15,7 @@ const save = useSaveOrgSettings();
 
 const form = reactive({
   name: "",
+  dotNumber: "",
   allowedDomains: "",
   open24_7: false,
   start: "05:00",
@@ -29,6 +30,7 @@ watch(
   (o) => {
     if (!o) return;
     form.name = o.name;
+    form.dotNumber = o.dot_number ?? "";
     form.allowedDomains = (o.allowed_domains ?? []).join(", ");
     const oStart = o.operating_hours?.start ?? "05:00";
     const oEnd = o.operating_hours?.end ?? "20:00";
@@ -46,13 +48,22 @@ const toast = useToastStore();
 const fieldErr = ref<Record<string, string>>({});
 
 async function onSave() {
-  const emails = form.emails.split(/[,\s]+/).map((e) => e.trim()).filter(Boolean);
-  const domains = form.allowedDomains.split(/[,\s]+/).map((d) => d.trim().toLowerCase()).filter(Boolean);
+  const emails = form.emails
+    .split(/[,\s]+/)
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const domains = form.allowedDomains
+    .split(/[,\s]+/)
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
   const result = orgSettingsFormSchema.safeParse({
     name: form.name,
+    dot_number: form.dotNumber.trim(),
     allowed_domains: domains,
     // 24/7 is encoded as start === end (the off-hours rule then never fires).
-    operating_hours: form.open24_7 ? { start: "00:00", end: "00:00", tz: form.tz } : { start: form.start, end: form.end, tz: form.tz },
+    operating_hours: form.open24_7
+      ? { start: "00:00", end: "00:00", tz: form.tz }
+      : { start: form.start, end: form.end, tz: form.tz },
     notifications_enabled: form.notifications_enabled,
     notification_emails: emails,
   });
@@ -84,6 +95,21 @@ async function onSave() {
         <FormField v-slot="{ id }" class="mt-4" label="Name" :error="fieldErr.name">
           <BaseInput :id="id" v-model="form.name" :invalid="Boolean(fieldErr.name)" />
         </FormField>
+
+        <FormField
+          v-slot="{ id }"
+          class="mt-4"
+          label="USDOT number"
+          hint="Printed on driver qualification files exported for an audit."
+          :error="fieldErr.dot_number"
+        >
+          <BaseInput
+            :id="id"
+            v-model="form.dotNumber"
+            placeholder="e.g. 1234567"
+            :invalid="Boolean(fieldErr.dot_number)"
+          />
+        </FormField>
         <FormField
           v-slot="{ id }"
           class="mt-4"
@@ -100,16 +126,31 @@ async function onSave() {
 
       <BaseCard as="section">
         <h3 class="text-base font-semibold text-ink">Operating hours</h3>
-        <p class="mt-1 text-xs text-ink-muted">Used by the off-hours anomaly rule. Turn on 24/7 if the fleet runs around the clock — the rule then never flags a fill for its time of day.</p>
+        <p class="mt-1 text-xs text-ink-muted">
+          Used by the off-hours anomaly rule. Turn on 24/7 if the fleet runs around the clock — the
+          rule then never flags a fill for its time of day.
+        </p>
         <div class="mt-4">
           <BaseCheckbox v-model="form.open24_7">Open 24/7 (no off-hours)</BaseCheckbox>
         </div>
         <div class="mt-4 grid grid-cols-3 gap-4" :class="form.open24_7 ? 'opacity-50' : ''">
           <FormField v-slot="{ id }" label="Start" :error="fieldErr['operating_hours.start']">
-            <BaseInput :id="id" v-model="form.start" :disabled="form.open24_7" placeholder="05:00" :invalid="Boolean(fieldErr['operating_hours.start'])" />
+            <BaseInput
+              :id="id"
+              v-model="form.start"
+              :disabled="form.open24_7"
+              placeholder="05:00"
+              :invalid="Boolean(fieldErr['operating_hours.start'])"
+            />
           </FormField>
           <FormField v-slot="{ id }" label="End" :error="fieldErr['operating_hours.end']">
-            <BaseInput :id="id" v-model="form.end" :disabled="form.open24_7" placeholder="20:00" :invalid="Boolean(fieldErr['operating_hours.end'])" />
+            <BaseInput
+              :id="id"
+              v-model="form.end"
+              :disabled="form.open24_7"
+              placeholder="20:00"
+              :invalid="Boolean(fieldErr['operating_hours.end'])"
+            />
           </FormField>
           <FormField v-slot="{ id }" label="Timezone">
             <BaseInput :id="id" v-model="form.tz" placeholder="America/Chicago" />
@@ -119,7 +160,11 @@ async function onSave() {
 
       <p class="text-xs text-ink-muted">
         Looking for alert recipients? They now live in
-        <RouterLink to="/settings/notifications" class="font-medium text-brand-600 hover:text-brand-500">Settings → Notifications</RouterLink>.
+        <RouterLink
+          to="/settings/notifications"
+          class="font-medium text-brand-600 hover:text-brand-500"
+          >Settings → Notifications</RouterLink
+        >.
       </p>
 
       <div class="flex items-center gap-3">

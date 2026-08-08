@@ -29,6 +29,9 @@ import {
   useUploadDocument,
 } from "@/composables/useCompliance";
 import RequirementDrawer from "@/features/compliance/RequirementDrawer.vue";
+import CertificationHistory from "@/features/compliance/CertificationHistory.vue";
+import KebabMenu from "@/components/KebabMenu.vue";
+import { useExportDocument, useRequestBinder } from "@/composables/useDqExports";
 
 /**
  * One driver's §391.51 file (DQ redesign, D-DQ7).
@@ -159,6 +162,50 @@ const columns: DataTableColumn[] = [
   { key: "documentUrl", label: "Scan", headerClass: "w-24" },
 ];
 
+// ── releasing a document (D-BD10) ─────────────────────────────────────────────────────
+//
+// Internal sharing is ACCESS, not attachment: dispatch can already open this page, so "dispatch
+// needs the CDL" is answered by a link. This is the outward case — a broker or shipper who has no
+// login — and what makes it safe to send is the stamp: driver, requirement, validity, who released
+// it, so a page that surfaces in somebody's inbox six months later can still be traced.
+const exportDoc = useExportDocument();
+const requestBinder = useRequestBinder();
+const releasing = ref<string | null>(null);
+
+const slug = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+async function release(row: Row): Promise<void> {
+  releasing.value = row.key;
+  try {
+    await exportDoc.mutateAsync({
+      driverId: driverId.value,
+      requirementKey: row.key,
+      asAt: null,
+      filename: `${slug(driverQ.data.value?.full_name ?? "driver")}-${slug(row.label)}-${today}.pdf`,
+    });
+    toast.success("Document released", "It is stamped with today's date and this driver's name.");
+  } catch (e) {
+    toast.error("Could not release the document", e instanceof Error ? e.message : undefined);
+  }
+  releasing.value = null;
+}
+
+async function exportWholeFile(): Promise<void> {
+  try {
+    await requestBinder.mutateAsync({ driverIds: [driverId.value], asAt: null });
+    toast.success(
+      "Building the file",
+      "It appears under Exports on the qualification page shortly.",
+    );
+  } catch (e) {
+    toast.error("Could not start the export", e instanceof Error ? e.message : undefined);
+  }
+}
+
 // ── the drawer ────────────────────────────────────────────────────────────────────────
 const openKey = ref<string | null>(null);
 
@@ -195,6 +242,14 @@ async function fileDropped(): Promise<void> {
       :description="`49 CFR §391.51. ${driverQ.data.value?.full_name ?? 'This driver'}'s qualification file.`"
     >
       <template #actions>
+        <BaseButton
+          v-if="session.canManage"
+          variant="ghost"
+          :disabled="requestBinder.isPending.value"
+          @click="exportWholeFile"
+        >
+          {{ requestBinder.isPending.value ? "Building…" : "Export this file" }}
+        </BaseButton>
         <RouterLink to="/compliance">
           <BaseButton variant="ghost">Back to Driver Qualification</BaseButton>
         </RouterLink>
@@ -273,14 +328,21 @@ async function fileDropped(): Promise<void> {
         <span v-else class="text-ink-subtle">—</span>
       </template>
       <template #actions="{ row }">
-        <BaseButton
-          v-if="session.canManage"
-          variant="ghost"
-          size="sm"
-          @click.stop="openKey = row.key"
-        >
-          {{ row.state === "missing" ? "Record" : "Renew" }}
-        </BaseButton>
+        <div v-if="session.canManage" class="flex items-center justify-end gap-1">
+          <BaseButton variant="ghost" size="sm" @click.stop="openKey = row.key">
+            {{ row.state === "missing" ? "Record" : "Renew" }}
+          </BaseButton>
+          <KebabMenu v-if="row.documentUrl">
+            <button
+              type="button"
+              class="kebab-item"
+              :disabled="releasing === row.key"
+              @click="release(row)"
+            >
+              {{ releasing === row.key ? "Preparing…" : "Release stamped copy…" }}
+            </button>
+          </KebabMenu>
+        </div>
       </template>
     </DataTable>
 
@@ -317,6 +379,8 @@ async function fileDropped(): Promise<void> {
         </div>
       </div>
     </BaseCard>
+
+    <CertificationHistory :driver-id="driverId" />
 
     <RequirementDrawer
       :open="openKey !== null"

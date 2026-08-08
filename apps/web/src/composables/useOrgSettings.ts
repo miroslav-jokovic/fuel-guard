@@ -3,7 +3,8 @@ import type { OrgSettings, OrgSettingsForm } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
-const COLS = "id, name, allowed_domains, operating_hours, notification_emails, notifications_enabled";
+const COLS =
+  "id, name, dot_number, allowed_domains, operating_hours, notification_emails, notifications_enabled";
 
 export function useOrgSettingsQuery() {
   return useQuery({
@@ -26,6 +27,9 @@ export function useSaveOrgSettings() {
         .from("organizations")
         .update({
           name: form.name,
+          // Empty means "not recorded", and null is how the column says that — an empty string would
+          // print as a blank USDOT line on every binder cover rather than as an honest absence.
+          dot_number: form.dot_number ? form.dot_number : null,
           operating_hours: form.operating_hours,
           notification_emails: form.notification_emails,
           notifications_enabled: form.notifications_enabled,

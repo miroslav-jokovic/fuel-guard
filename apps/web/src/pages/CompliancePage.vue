@@ -19,6 +19,10 @@ import SlideOver from "@/components/SlideOver.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import CertManager from "@/features/hazmat/CertManager.vue";
 import QualificationQueue from "@/features/compliance/QualificationQueue.vue";
+import ExportHistory from "@/features/compliance/ExportHistory.vue";
+import { useRequestBinder } from "@/composables/useDqExports";
+import { useToastStore } from "@/stores/toast";
+import { DQ_EXPORT_MAX_DRIVERS } from "@fuelguard/shared";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
@@ -265,10 +269,38 @@ const columns: DataTableColumn[] = [
   },
 ];
 
-const tab = ref<"queue" | "roster">("queue");
+/**
+ * The auditor's ask, on the surface they already use (D-BD2). An auditor names a sample of drivers;
+ * ticking them here and pressing one button produces their §391.51 files as ONE PDF, in the order
+ * they were named, ready to print or attach. Fifteen separate files would be fifteen print jobs.
+ */
+const toast = useToastStore();
+const selected = ref<Set<string>>(new Set());
+const requestBinder = useRequestBinder();
+const atCap = computed(() => selected.value.size >= DQ_EXPORT_MAX_DRIVERS);
+
+async function buildBinder(): Promise<void> {
+  const driverIds = [...selected.value];
+  if (driverIds.length === 0) return;
+  try {
+    await requestBinder.mutateAsync({ driverIds, asAt: null });
+    selected.value = new Set();
+    tab.value = "exports";
+    // It is a job, so the honest thing to say is what happens next and roughly when — not "Done".
+    toast.success(
+      "Building the binder",
+      `${driverIds.length} qualification ${driverIds.length === 1 ? "file" : "files"}. It appears under Exports in a minute or two.`,
+    );
+  } catch (e) {
+    toast.error("Could not start the binder", e instanceof Error ? e.message : undefined);
+  }
+}
+
+const tab = ref<"queue" | "roster" | "exports">("queue");
 const TABS = [
   { value: "queue", label: "Needs attention" },
   { value: "roster", label: "All drivers" },
+  { value: "exports", label: "Exports" },
 ] as const;
 const carrierOpen = ref(false);
 </script>
@@ -310,6 +342,8 @@ const carrierOpen = ref(false);
 
     <QualificationQueue v-if="tab === 'queue'" />
 
+    <ExportHistory v-else-if="tab === 'exports'" />
+
     <template v-else>
       <FilterBar
         v-model:search="search"
@@ -330,10 +364,33 @@ const carrierOpen = ref(false);
         </template>
       </FilterBar>
 
+      <div
+        v-if="selected.size > 0"
+        class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
+      >
+        <span class="text-sm font-medium text-brand-800"> {{ selected.size }} selected </span>
+        <span v-if="atCap" class="text-sm text-brand-800">
+          That is the most drivers one binder holds. Send the rest as a second binder.
+        </span>
+        <div class="ml-auto flex items-center gap-2">
+          <BaseButton variant="ghost" size="sm" @click="selected = new Set()">Clear</BaseButton>
+          <BaseButton
+            variant="primary"
+            size="sm"
+            :disabled="requestBinder.isPending.value"
+            @click="buildBinder"
+          >
+            {{ requestBinder.isPending.value ? "Building…" : "Build audit binder" }}
+          </BaseButton>
+        </div>
+      </div>
+
       <DataTable
         :columns="columns"
         :rows="pageRows"
         row-key="id"
+        selectable
+        :selected="selected"
         :loading="isLoading"
         :error="isError ? errorMessage : null"
         :retrying="isFetching"
@@ -341,6 +398,7 @@ const carrierOpen = ref(false);
         :empty-text="
           (drivers ?? []).length === 0 ? 'No drivers yet.' : 'No drivers match these filters.'
         "
+        @update:selected="selected = $event"
         @sort="onSort"
         @retry="refetch"
       >
