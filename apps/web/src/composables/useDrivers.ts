@@ -1,5 +1,7 @@
+import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
-import type { Driver, DriverInput } from "@fuelguard/shared";
+import type { Driver, DriverDetail, DriverInput } from "@fuelguard/shared";
+import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
 const DRIVER_COLS =
@@ -9,6 +11,19 @@ const driversKey = ["drivers"] as const;
 
 // Samsara driver sync now runs as a background job (kind `sync_drivers`) — the Drivers page drives it via
 // useBackgroundSync + the jobs ledger, so there's no inline-mutation hook here anymore (plan WQ1c).
+
+/** One driver's full profile — DQ1's `GET /api/roster/drivers/:id`. */
+export function useDriverQuery(id: Ref<string>) {
+  return useQuery({
+    queryKey: ["roster", "driver", id] as const,
+    enabled: computed(() => Boolean(id.value)),
+    queryFn: async (): Promise<DriverDetail | null> => {
+      const res = await apiFetch<{ driver: DriverDetail }>(`/api/roster/drivers/${id.value}`);
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not load the driver.");
+      return res.data.driver;
+    },
+  });
+}
 
 export function useDriversQuery() {
   return useQuery({

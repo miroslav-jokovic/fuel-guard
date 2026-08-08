@@ -38,7 +38,12 @@ const routes: RouteRecordRaw[] = [
   },
 
   // App pages (require auth + org membership).
-  { path: "/", name: "dashboard", component: DashboardPage, meta: { requiresAuth: true, title: "Dashboard" } },
+  {
+    path: "/",
+    name: "dashboard",
+    component: DashboardPage,
+    meta: { requiresAuth: true, title: "Dashboard" },
+  },
   {
     path: "/assignments",
     name: "assignments",
@@ -98,7 +103,12 @@ const routes: RouteRecordRaw[] = [
     path: "/hazmat/loads/new",
     name: "hazmat-load-new",
     component: () => import("@/pages/HazmatLoadFormPage.vue"),
-    meta: { requiresAuth: true, requiresManage: true, title: "New Hazmat Load", parent: "/hazmat/loads" },
+    meta: {
+      requiresAuth: true,
+      requiresManage: true,
+      title: "New Hazmat Load",
+      parent: "/hazmat/loads",
+    },
   },
   {
     path: "/hazmat/loads/:id",
@@ -116,7 +126,12 @@ const routes: RouteRecordRaw[] = [
     path: "/hazmat/settings/equipment",
     name: "hazmat-equipment",
     component: () => import("@/pages/HazmatEquipmentPage.vue"),
-    meta: { requiresAuth: true, requiresManage: true, title: "Cargo-Tank Profiles", parent: "/hazmat" },
+    meta: {
+      requiresAuth: true,
+      requiresManage: true,
+      title: "Cargo-Tank Profiles",
+      parent: "/hazmat",
+    },
   },
   {
     path: "/vehicles",
@@ -188,6 +203,14 @@ const routes: RouteRecordRaw[] = [
     path: "/compliance",
     name: "compliance",
     component: () => import("@/pages/CompliancePage.vue"),
+    meta: { requiresAuth: true, title: "Driver Qualification" },
+  },
+  {
+    // D-DQ7: the file is a page, not a drawer. Nested under the list it belongs to rather than
+    // added to the sidebar — this is a detail view, not a new section.
+    path: "/compliance/:id",
+    name: "driver-qualification",
+    component: () => import("@/pages/DriverQualificationPage.vue"),
     meta: { requiresAuth: true, title: "Driver Qualification" },
   },
   {
@@ -265,13 +288,23 @@ const routes: RouteRecordRaw[] = [
     path: "/settings/thresholds",
     name: "thresholds",
     component: () => import("@/pages/ThresholdsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Anomaly Thresholds", parent: "/settings" },
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: "Anomaly Thresholds",
+      parent: "/settings",
+    },
   },
   {
     path: "/settings/driver-performance",
     name: "driver-performance-settings",
     component: () => import("@/pages/DriverPerformanceSettingsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Driver Performance", parent: "/settings" },
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: "Driver Performance",
+      parent: "/settings",
+    },
   },
   {
     // Dispatch inbox (Phase 7, D-PM4). View access mirrors the nav gate: dispatch section, any
@@ -293,7 +326,12 @@ const routes: RouteRecordRaw[] = [
     path: "/settings/fuel-planning",
     name: "fuel-planning-settings",
     component: () => import("@/pages/FuelPlanningSettingsPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "Planned Fueling", parent: "/settings" },
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: "Planned Fueling",
+      parent: "/settings",
+    },
   },
   {
     path: "/settings/data",
@@ -305,7 +343,12 @@ const routes: RouteRecordRaw[] = [
     path: "/settings/efs-soap",
     name: "efs-soap",
     component: () => import("@/pages/EfsSoapPage.vue"),
-    meta: { requiresAuth: true, requiresAdmin: true, title: "EFS Integration", parent: "/settings" },
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: "EFS Integration",
+      parent: "/settings",
+    },
   },
   {
     path: "/settings/org",
@@ -323,7 +366,12 @@ const routes: RouteRecordRaw[] = [
     path: "/settings/audit",
     name: "audit",
     component: () => import("@/pages/AuditPage.vue"),
-    meta: { requiresAuth: true, requiresAuditAccess: true, title: "Audit Log", parent: "/settings" },
+    meta: {
+      requiresAuth: true,
+      requiresAuditAccess: true,
+      title: "Audit Log",
+      parent: "/settings",
+    },
   },
 ];
 
@@ -348,9 +396,11 @@ router.beforeEach(async (to) => {
     return to.name === "driver-app" ? true : { name: "driver-app" };
   }
   // Authenticated with an org.
-  if (to.name === "login" || to.name === "pending" || to.name === "driver-app") return { name: "dashboard" };
+  if (to.name === "login" || to.name === "pending" || to.name === "driver-app")
+    return { name: "dashboard" };
   if (to.meta.requiresAdmin && !session.admin) return { name: "dashboard" };
   if (to.meta.requiresManage && !session.canManage) return { name: "dashboard" };
-  if (to.meta.requiresAuditAccess && !(session.admin || session.readOnly)) return { name: "dashboard" };
+  if (to.meta.requiresAuditAccess && !(session.admin || session.readOnly))
+    return { name: "dashboard" };
   return true;
 });

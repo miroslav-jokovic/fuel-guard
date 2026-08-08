@@ -1,11 +1,21 @@
 import { computed, type Ref } from "vue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import type {
-  CertificationCreateRequest, CertificationRow,
-  DocumentKind, DocumentRegisterRequest, DocumentRegisterResponse, DocumentRow,
+  CertificationCreateRequest,
+  CertificationRow,
+  DocumentKind,
+  DocumentRegisterRequest,
+  DocumentRegisterResponse,
+  DocumentRow,
+  QualificationRecordCreateRequest,
   QualificationRecordRow,
+  ComplianceOverviewResponse,
 } from "@fuelguard/shared";
-import { DOCUMENTS_BUCKET, DOCUMENT_CONTENT_TYPES, type DocumentContentType } from "@fuelguard/shared";
+import {
+  DOCUMENTS_BUCKET,
+  DOCUMENT_CONTENT_TYPES,
+  type DocumentContentType,
+} from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
@@ -134,8 +144,12 @@ export function useUploadDocument() {
         page: 1,
         variant: "original",
       };
-      const res = await apiFetch<DocumentRegisterResponse>("/api/compliance/documents", { method: "POST", body });
-      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not register the document.");
+      const res = await apiFetch<DocumentRegisterResponse>("/api/compliance/documents", {
+        method: "POST",
+        body,
+      });
+      if (!res.ok || !res.data)
+        throw new Error(res.error?.message ?? "Could not register the document.");
 
       const { error } = await supabase.storage
         .from(DOCUMENTS_BUCKET)
@@ -149,10 +163,47 @@ export function useUploadDocument() {
   });
 }
 
+/**
+ * The fleet picture behind the queue (D-DQ6). Ranked server-side by the same function the driver file
+ * uses, so the queue and the file cannot disagree about what is due.
+ */
+export function useComplianceOverviewQuery() {
+  return useQuery({
+    queryKey: ["compliance", "overview"] as const,
+    queryFn: async (): Promise<ComplianceOverviewResponse> => {
+      const res = await apiFetch<ComplianceOverviewResponse>("/api/compliance/overview");
+      if (!res.ok || !res.data)
+        throw new Error(res.error?.message ?? "Could not load the qualification queue.");
+      return res.data;
+    },
+    // Expiry dates move once a day at most; polling a compliance rollup would be a fleet-wide
+    // recomputation for an answer that has not changed.
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** A §391.51 event — append-only, so a correction is a new row rather than an edit. */
+export function useCreateQualificationRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: QualificationRecordCreateRequest): Promise<{ id: string }> => {
+      const res = await apiFetch<{ id: string }>("/api/compliance/qualification-records", {
+        method: "POST",
+        body: input,
+      });
+      if (!res.ok || !res.data) throw new Error(res.error?.message ?? "Could not save the record.");
+      return res.data;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["compliance"] }),
+  });
+}
+
 export function useCreateCertification() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: CertificationCreateRequest): Promise<{ id: string; supersededId: string | null }> => {
+    mutationFn: async (
+      input: CertificationCreateRequest,
+    ): Promise<{ id: string; supersededId: string | null }> => {
       const res = await apiFetch<{ id: string; supersededId: string | null }>(
         "/api/compliance/certifications",
         { method: "POST", body: input },

@@ -16,165 +16,12 @@
  * deliberate, audited operation, never a side effect of rendering a page.
  */
 
-/** Where an item's evidence lives: a `certifications` row, or a `qualification_records` row. */
-export type DqEvidenceSource = "certification" | "record";
+import { DQ_ITEMS, DQ_GROUPS, DQ_GROUP_LABELS } from "./dqCatalogue.js";
+import type { DqGroup, DqItemSpec, DqItemState } from "./dqCatalogue.js";
 
-/**
- * How an item goes stale.
- *   expiry     — the evidence carries its own expiry date (CDL, medical certificate)
- *   annual     — good for one year from the date it happened (§391.25 review, §382.701(b) query)
- *   triennial  — good for three years from the date it was issued (§172.704(c)(2) training)
- *   one_time   — a hiring-time event that never expires (application, road test, pre-employment MVR)
- */
-export type DqRecurrence = "expiry" | "annual" | "triennial" | "one_time";
-
-/** `hazmat` items only apply to a carrier running the HazmatGuard module. */
-export type DqScope = "always" | "hazmat";
-
-export type DqItemState = "current" | "expiring" | "expired" | "missing";
-
-export interface DqItemSpec {
-  key: string;
-  label: string;
-  citation: string;
-  source: DqEvidenceSource;
-  /** Any one of these `kind` values satisfies the item — §391.51(b)(4) accepts a road test OR the
-   *  §391.33 licence equivalency, which is one requirement with two lawful evidences. */
-  evidenceKinds: string[];
-  /** Endorsements: any of these qualifier letters satisfies it. */
-  qualifiers?: string[];
-  /** Hazmat training: the §172.704(a) type this item is about. */
-  trainingType?: string;
-  recurrence: DqRecurrence;
-  scope: DqScope;
-  /** The retention rule, as text. Shown, never acted on. */
-  retention: string;
-}
-
-/**
- * §391.51(b) and its companions, in the order an auditor works through them: hire, licence, medical,
- * then the recurring obligations. `eldt` and the Clearinghouse items are not in §391.51(b) itself but
- * are asked for alongside it and have nowhere else to live.
- *
- * Deliberately absent: the tank endorsement (equipment-dependent, the gate's business, not the
- * file's) and the §391.27 annual list of violations (removed in 2020, superseded by the
- * Clearinghouse query — filing it would be teaching a carrier a requirement that no longer exists).
- */
-export const DQ_ITEMS: readonly DqItemSpec[] = [
-  {
-    key: "employment_application", label: "Employment application",
-    citation: "49 CFR §391.21 / §391.51(b)(1)",
-    source: "record", evidenceKinds: ["employment_application"], recurrence: "one_time", scope: "always",
-    retention: "Retained for the duration of employment plus 3 years (§391.51(c)).",
-  },
-  {
-    key: "mvr_preemployment", label: "Pre-employment driving record inquiry",
-    citation: "49 CFR §391.23(a)(1) / §391.51(b)(2)",
-    source: "record", evidenceKinds: ["mvr"], recurrence: "one_time", scope: "always",
-    retention: "Retained for the duration of employment plus 3 years (§391.51(c)).",
-  },
-  {
-    key: "previous_employer_inquiry", label: "Previous-employer safety inquiry sent",
-    citation: "49 CFR §391.23(a)(2)",
-    source: "record", evidenceKinds: ["previous_employer_inquiry"], recurrence: "one_time", scope: "always",
-    retention: "Retained for the duration of employment plus 3 years (§391.51(c)).",
-  },
-  {
-    key: "previous_employer_response", label: "Previous-employer response (or documented non-response)",
-    citation: "49 CFR §391.23(d)",
-    source: "record", evidenceKinds: ["previous_employer_response"], recurrence: "one_time", scope: "always",
-    retention: "Retained for the duration of employment plus 3 years (§391.51(c)).",
-  },
-  {
-    key: "road_test", label: "Road test certificate, or licence equivalency",
-    citation: "49 CFR §391.31 / §391.33 / §391.51(b)(4)-(5)",
-    source: "record", evidenceKinds: ["road_test", "cdl_equivalency"], recurrence: "one_time", scope: "always",
-    retention: "Retained for the duration of employment plus 3 years (§391.51(c)).",
-  },
-  {
-    key: "eldt", label: "Entry-level driver training",
-    citation: "49 CFR §380.725",
-    source: "record", evidenceKinds: ["eldt"], recurrence: "one_time", scope: "always",
-    retention: "Retained for the duration of employment plus 3 years (§391.51(c)).",
-  },
-  {
-    key: "cdl", label: "Commercial driver's licence",
-    citation: "49 CFR §391.51(b)(6)",
-    source: "certification", evidenceKinds: ["cdl"], recurrence: "expiry", scope: "always",
-    retention: "Superseded copies are retained; the file keeps the chain (§391.51(c)).",
-  },
-  {
-    key: "medical_card", label: "Medical examiner's certificate",
-    citation: "49 CFR §391.43 / §391.51(b)(7)",
-    source: "certification", evidenceKinds: ["medical_card"], recurrence: "expiry", scope: "always",
-    retention: "Retained for 3 years from the date of issue (§391.51(d)(2)).",
-  },
-  {
-    key: "medical_registry_verification", label: "National Registry examiner verification",
-    citation: "49 CFR §391.23(m)",
-    source: "record", evidenceKinds: ["medical_registry_verification"], recurrence: "one_time", scope: "always",
-    retention: "Retained for 3 years from the date of the verification (§391.23(m)(2)).",
-  },
-  {
-    key: "drug_test_preemployment", label: "Pre-employment controlled-substances test",
-    citation: "49 CFR §382.301",
-    source: "record", evidenceKinds: ["drug_test"], recurrence: "one_time", scope: "always",
-    retention: "Held in the confidential DOT testing file, separate from the DQ file (§40.333).",
-  },
-  {
-    key: "clearinghouse_preemployment", label: "Clearinghouse full query (pre-employment)",
-    citation: "49 CFR §382.701(a)",
-    source: "record", evidenceKinds: ["clearinghouse_full"], recurrence: "one_time", scope: "always",
-    retention: "Retained for 3 years (§382.701(d)).",
-  },
-  {
-    key: "annual_mvr_review", label: "Annual review of driving record",
-    citation: "49 CFR §391.25 / §391.51(b)(8)",
-    source: "record", evidenceKinds: ["annual_mvr_review"], recurrence: "annual", scope: "always",
-    retention: "Retained for 3 years from the date of the review (§391.51(d)(1)).",
-  },
-  {
-    key: "clearinghouse_annual", label: "Clearinghouse limited query (annual)",
-    citation: "49 CFR §382.701(b)",
-    source: "record", evidenceKinds: ["clearinghouse_limited"], recurrence: "annual", scope: "always",
-    retention: "Retained for 3 years (§382.701(d)).",
-  },
-  {
-    key: "endorsement_hazmat", label: "Hazmat endorsement (H or X)",
-    citation: "49 CFR §383.93",
-    source: "certification", evidenceKinds: ["endorsement"], qualifiers: ["H", "X"],
-    recurrence: "expiry", scope: "hazmat",
-    retention: "Superseded copies are retained; the file keeps the chain (§391.51(c)).",
-  },
-  {
-    key: "training_general_awareness", label: "Hazmat training — general awareness",
-    citation: "49 CFR §172.704(a)(1)",
-    source: "certification", evidenceKinds: ["hazmat_training"], trainingType: "general_awareness",
-    recurrence: "triennial", scope: "hazmat",
-    retention: "Retained while employed and for 90 days afterwards (§172.704(d)).",
-  },
-  {
-    key: "training_function_specific", label: "Hazmat training — function specific",
-    citation: "49 CFR §172.704(a)(2)",
-    source: "certification", evidenceKinds: ["hazmat_training"], trainingType: "function_specific",
-    recurrence: "triennial", scope: "hazmat",
-    retention: "Retained while employed and for 90 days afterwards (§172.704(d)).",
-  },
-  {
-    key: "training_safety", label: "Hazmat training — safety",
-    citation: "49 CFR §172.704(a)(3)",
-    source: "certification", evidenceKinds: ["hazmat_training"], trainingType: "safety",
-    recurrence: "triennial", scope: "hazmat",
-    retention: "Retained while employed and for 90 days afterwards (§172.704(d)).",
-  },
-  {
-    key: "training_security_awareness", label: "Hazmat training — security awareness",
-    citation: "49 CFR §172.704(a)(4)",
-    source: "certification", evidenceKinds: ["hazmat_training"], trainingType: "security_awareness",
-    recurrence: "triennial", scope: "hazmat",
-    retention: "Retained while employed and for 90 days afterwards (§172.704(d)).",
-  },
-] as const;
+// The catalogue is part of this module's public surface — a consumer should not have to know the
+// vocabulary moved house.
+export * from "./dqCatalogue.js";
 
 // ── inputs ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -235,6 +82,113 @@ export interface DqFileSummary {
   counts: Record<DqItemState, number>;
 }
 
+/** 90 / 60 / 30 is what every DQF product bands on, so it is what a safety manager already reads. */
+export const DQ_URGENCY_BANDS = [30, 60, 90] as const;
+
+/**
+ * One line of work: this driver, this requirement, this soon. The queue is a list of these, and the
+ * driver file ranks its own rows with the same comparator — so the two surfaces can never disagree
+ * about what matters most, which is the failure mode of computing urgency twice.
+ */
+export interface DqAttentionItem {
+  key: string;
+  label: string;
+  citation: string;
+  group: DqGroup;
+  state: DqItemState;
+  goodUntil: string | null;
+  /** Negative when overdue. Null when the item never expires and is simply absent. */
+  daysRemaining: number | null;
+}
+
+const DAY_MS = 86_400_000;
+
+function daysBetween(today: string, until: string): number {
+  return Math.round(
+    (Date.parse(`${until}T00:00:00.000Z`) - Date.parse(`${today}T00:00:00.000Z`)) / DAY_MS,
+  );
+}
+
+/**
+ * Rank: expired first, then missing, then soonest-expiring. Overdue beats absent because a lapsed
+ * medical card grounds a driver today, while a road-test certificate that was never filed has been
+ * absent for years and will keep — an ordering that flatters the file over the driver is worse than
+ * no ordering.
+ */
+const STATE_RANK: Record<DqItemState, number> = { expired: 0, missing: 1, expiring: 2, current: 3 };
+
+export function dqAttention(file: DqFileSummary, today: string): DqAttentionItem[] {
+  return file.items
+    .filter((i) => i.state !== "current")
+    .map((i) => ({
+      key: i.spec.key,
+      label: i.spec.label,
+      citation: i.spec.citation,
+      group: i.spec.group,
+      state: i.state,
+      goodUntil: i.goodUntil,
+      daysRemaining: i.goodUntil ? daysBetween(day(today), i.goodUntil) : null,
+    }))
+    .sort(compareAttention);
+}
+
+export function compareAttention(a: DqAttentionItem, b: DqAttentionItem): number {
+  const byState = STATE_RANK[a.state] - STATE_RANK[b.state];
+  if (byState !== 0) return byState;
+  // Within a state, soonest first; an item with no date sorts last rather than as "due today".
+  if (a.daysRemaining === null && b.daysRemaining === null) return a.label.localeCompare(b.label);
+  if (a.daysRemaining === null) return 1;
+  if (b.daysRemaining === null) return -1;
+  return a.daysRemaining - b.daysRemaining;
+}
+
+export interface DqGroupSummary {
+  group: DqGroup;
+  label: string;
+  counts: Record<DqItemState, number>;
+  /** The group's own worst state — what the summary card shows in one word. */
+  state: DqItemState;
+}
+
+/** Per-group rollup for the file's summary strip (D-DQ8). A group with nothing wrong reads `current`. */
+export function dqGroups(file: DqFileSummary): DqGroupSummary[] {
+  const out: DqGroupSummary[] = [];
+  for (const group of DQ_GROUPS) {
+    const items = file.items.filter((i) => i.spec.group === group);
+    if (items.length === 0) continue; // hazmat, on a carrier without the module
+    const counts: Record<DqItemState, number> = { current: 0, expiring: 0, expired: 0, missing: 0 };
+    for (const i of items) counts[i.state] += 1;
+    const state: DqItemState =
+      counts.expired > 0
+        ? "expired"
+        : counts.missing > 0
+          ? "missing"
+          : counts.expiring > 0
+            ? "expiring"
+            : "current";
+    out.push({ group, label: DQ_GROUP_LABELS[group], counts, state });
+  }
+  return out;
+}
+
+/** One driver's line in the fleet picture (D-DQ6). Ranked server-side; the client only renders. */
+export interface DriverOverviewRow {
+  driver_id: string;
+  driver_name: string;
+  driver_status: string;
+  state: DqFileSummary["state"];
+  counts: Record<DqItemState, number>;
+  groups: DqGroupSummary[];
+  attention: DqAttentionItem[];
+}
+
+export interface ComplianceOverviewResponse {
+  drivers: DriverOverviewRow[];
+  includesHazmat: boolean;
+  /** True when the qualification-record read hit its cap — the picture is partial, and says so. */
+  truncated: boolean;
+}
+
 const DEFAULT_EXPIRING_DAYS = 30;
 
 const day = (iso: string): string => iso.slice(0, 10);
@@ -252,10 +206,12 @@ function addDays(iso: string, days: number): string {
 }
 
 function matchCert(spec: DqItemSpec, certs: DqCertInput[]): DqCertInput | undefined {
-  return certs.find((c) =>
-    spec.evidenceKinds.includes(c.kind)
-    && (!spec.qualifiers || (c.qualifier != null && spec.qualifiers.includes(c.qualifier)))
-    && (!spec.trainingType || c.trainingType === spec.trainingType));
+  return certs.find(
+    (c) =>
+      spec.evidenceKinds.includes(c.kind) &&
+      (!spec.qualifiers || (c.qualifier != null && spec.qualifiers.includes(c.qualifier))) &&
+      (!spec.trainingType || c.trainingType === spec.trainingType),
+  );
 }
 
 /** The most recent occurrence — `qualification_records` is append-only, so a correction is a new row. */
@@ -283,7 +239,12 @@ function goodUntilFor(spec: DqItemSpec, cert?: DqCertInput, record?: DqRecordInp
   }
 }
 
-function stateFor(present: boolean, goodUntil: string | null, today: string, horizon: string): DqItemState {
+function stateFor(
+  present: boolean,
+  goodUntil: string | null,
+  today: string,
+  horizon: string,
+): DqItemState {
   if (!present) return "missing";
   if (goodUntil == null) return "current";
   if (goodUntil < today) return "expired";
@@ -303,26 +264,26 @@ export function buildDqFile(input: DqFileInput): DqFileSummary {
   const horizon = addDays(today, input.expiringWithinDays ?? DEFAULT_EXPIRING_DAYS);
   const docIds = new Set(input.documents.map((d) => d.id));
 
-  const items: DqFileItem[] = DQ_ITEMS
-    .filter((spec) => spec.scope === "always" || input.includeHazmat)
-    .map((spec) => {
-      const cert = spec.source === "certification" ? matchCert(spec, input.certs) : undefined;
-      const record = spec.source === "record" ? matchRecord(spec, input.records) : undefined;
-      const present = Boolean(cert ?? record);
-      const goodUntil = goodUntilFor(spec, cert, record);
-      // A filed document id that points at nothing is not a filed document. The register and the
-      // bytes can drift (a failed upload leaves a row behind), and a checklist that trusts the id
-      // would report a scan the auditor cannot open.
-      const rawDocId = cert?.documentId ?? record?.documentId ?? null;
-      return {
-        spec,
-        state: stateFor(present, goodUntil, today, horizon),
-        goodUntil,
-        evidenceDate: cert?.issuedAt ? day(cert.issuedAt) : record ? day(record.occurredOn) : null,
-        expiryUnknown: spec.recurrence === "expiry" && present && goodUntil == null,
-        documentId: rawDocId && docIds.has(rawDocId) ? rawDocId : null,
-      };
-    });
+  const items: DqFileItem[] = DQ_ITEMS.filter(
+    (spec) => spec.scope === "always" || input.includeHazmat,
+  ).map((spec) => {
+    const cert = spec.source === "certification" ? matchCert(spec, input.certs) : undefined;
+    const record = spec.source === "record" ? matchRecord(spec, input.records) : undefined;
+    const present = Boolean(cert ?? record);
+    const goodUntil = goodUntilFor(spec, cert, record);
+    // A filed document id that points at nothing is not a filed document. The register and the
+    // bytes can drift (a failed upload leaves a row behind), and a checklist that trusts the id
+    // would report a scan the auditor cannot open.
+    const rawDocId = cert?.documentId ?? record?.documentId ?? null;
+    return {
+      spec,
+      state: stateFor(present, goodUntil, today, horizon),
+      goodUntil,
+      evidenceDate: cert?.issuedAt ? day(cert.issuedAt) : record ? day(record.occurredOn) : null,
+      expiryUnknown: spec.recurrence === "expiry" && present && goodUntil == null,
+      documentId: rawDocId && docIds.has(rawDocId) ? rawDocId : null,
+    };
+  });
 
   const counts: Record<DqItemState, number> = { current: 0, expiring: 0, expired: 0, missing: 0 };
   for (const i of items) counts[i.state] += 1;
@@ -330,7 +291,11 @@ export function buildDqFile(input: DqFileInput): DqFileSummary {
   const nothingFiled = input.certs.length === 0 && input.records.length === 0;
   return {
     items,
-    state: nothingFiled ? "not_started" : counts.missing + counts.expired === 0 ? "complete" : "incomplete",
+    state: nothingFiled
+      ? "not_started"
+      : counts.missing + counts.expired === 0
+        ? "complete"
+        : "incomplete",
     counts,
   };
 }

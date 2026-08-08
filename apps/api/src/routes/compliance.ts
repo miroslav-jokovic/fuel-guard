@@ -17,6 +17,7 @@ import {
   insertQualificationRecord, listQualificationRecords,
   registerDocument, listDocuments,
 } from "../services/compliance.js";
+import { getComplianceOverview } from "../services/complianceOverview.js";
 
 /**
  * Compliance master data API — /api/compliance/* (PLAN §3 / M1.5, FuelGuard slice).
@@ -87,6 +88,19 @@ export function complianceRouter(): Router {
     const result = await listQualificationRecords(admin, req.auth!.orgId!, driverId, kind);
     if ("code" in result) { res.status(500).json(apiError(result.code, result.error)); return; }
     res.json({ records: result.rows });
+  }));
+
+  /**
+   * The fleet picture (D-DQ6) — every driver's state, group rollup, and what needs attention, ranked
+   * by the same function the driver file uses so the two can never disagree about what is due.
+   *
+   * `canView`, not `canManage`: a dispatcher planning a hazmat load needs to know who is short of
+   * what without being able to change it.
+   */
+  router.get("/overview", requireOrg, canView, asyncHandler(async (req: Request, res: Response) => {
+    const admin = getSupabaseAdmin(getAppLocals(req).env);
+    const today = new Date().toISOString().slice(0, 10);
+    res.json(await getComplianceOverview(admin, req.auth!.orgId!, today));
   }));
 
   // ── documents (DQ0) — the scan behind any record ────────────────────────────────────
