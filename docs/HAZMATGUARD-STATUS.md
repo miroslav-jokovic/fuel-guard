@@ -8,6 +8,25 @@ porting *into* FuelGuard. When they disagree, HazmatGuard's PLAN wins and FuelGu
 
 ---
 
+## Position — 2026-08-08
+
+**Owner decision (D-H10): do NOT wait for the SME.** Build everything completely; validate against
+real BOLs after the build. Attestation/provisional flags stay false until that validation actually
+runs — the decision changes sequencing, not what the flags claim.
+
+This session executed the owner's consolidation directives (see the IA plan §6 for full detail):
+**H-C4 nav trim** (one HazmatGuard sidebar entry, review badge on it) · **H-C2** (migration `0153`:
+cargo tank data onto `trailers`/`vehicles`, profile table/API/page deleted, one-read
+`readEquipmentKind`, F-P5 reproduce-kind bug fixed) · **H-P1 packaging model**
+(`shared/hazmatPackaging.ts` — package-type vocabulary, §171.8 bulk derivation, lb/kg conversion,
+package counts; calculator + load form reworked) · **D-H13** ("Carrier context" → Equipment in
+trailer vocabulary; hopper lines default BULK) · **engine `0.9.0`** (`packageCount` evaluated — no
+longer blocks auto-clear). Deferred queue (LQ rules blocked on dataset column 8A, H-C1 UI half,
+certifications seeding, BOL package-count extraction) is recorded in the IA plan.
+
+**Owner actions this session adds:** apply migration `0153`; run `pnpm test` +
+`pnpm --filter @fuelguard/web build` on the Mac; delete the five files listed in `_to_delete/`.
+
 ## Position — 2026-08-06
 
 FuelGuard is now at **backend parity with every completed HazmatGuard milestone**: **M0.5 defects · M1 ·

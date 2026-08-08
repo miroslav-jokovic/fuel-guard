@@ -54,6 +54,13 @@ describe("loadFormModel — form → POST /hazmat/loads (plan H5)", () => {
     expect(buildCreateLoadRequest("id", formWith({ plannedPickupAt: "" })).plannedPickupAt).toBeNull();
   });
 
+  it("derives line packaging from the package type under the trailer's equipment (H-P1)", () => {
+    const drums = buildCreateLoadRequest("id", formWith({ equipmentType: "van", lines: [{ ...emptyLine("van"), product: gasoline, packageType: "drum", packageCount: "8" }] }));
+    expect(drums.declaredLines[0]).toMatchObject({ packagingKind: "non_bulk", packageCount: 8 });
+    const tote = buildCreateLoadRequest("id", formWith({ equipmentType: "van", lines: [{ ...emptyLine("van"), product: gasoline, packageType: "ibc_tote" }] }));
+    expect(tote.declaredLines[0]).toMatchObject({ packagingKind: "bulk" }); // §171.8 — a tote is bulk even on a van
+  });
+
   it("parseList + loadFormHasProduct helpers", () => {
     expect(parseList(" a , b c ")).toEqual(["a", "b c"]);
     expect(parseList("")).toEqual([]);

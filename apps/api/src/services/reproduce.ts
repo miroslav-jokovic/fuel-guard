@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadDataset, LATEST_DATASET_VERSION, listDatasetVersions } from "@hazmat/data";
 import { ENGINE_VERSION, evaluateLoad, type Verdict } from "@hazmat/engine";
 import { buildManualLoadInput, type CargoTankProfileRow, type ManualLoadRow } from "./hazmatAnalysis.js";
+import { readEquipmentKind } from "./hazmatEquipment.js";
 
 /**
  * M12.2 — the reproducible verdict. A recorded run is a deterministic function of
@@ -109,12 +110,11 @@ export async function reproduceRun(
   if (!loadRow) return err("not_found", "Load not found.");
   const load = loadRow as unknown as ManualLoadRow;
 
-  let profile: CargoTankProfileRow | null = null;
-  if (load.trailer_id || load.vehicle_id) {
-    const q = admin.from("hazmat_cargo_tank_profiles").select("cargo_capacity_gal, compartments").eq("org_id", orgId);
-    const { data: p } = await (load.trailer_id ? q.eq("trailer_id", load.trailer_id) : q.eq("vehicle_id", load.vehicle_id)).maybeSingle();
-    profile = (p as CargoTankProfileRow | null) ?? null;
-  }
+  // H-C2: the tank data lives on the equipment row. Reproduction also passes the resolved KIND now —
+  // the original run evaluated under `equipment.kind`, and the old code here silently defaulted to
+  // `cargo_tank`, so any van/flatbed run could reproduce differently for no real reason (F-P5).
+  const equipment = await readEquipmentKind(admin, orgId, load);
+  const profile: CargoTankProfileRow | null = equipment.tank;
 
   // Which lines fed the recorded verdict?
   const recordedLines = run.extraction?.engineLines;
@@ -129,12 +129,12 @@ export async function reproduceRun(
   }
 
   const dataset = loadDataset(run.dataset_version);
-  const reproduced = evaluateLoad(buildManualLoadInput(load, profile, dataset, new Date().toISOString(), linesOverride));
+  const reproduced = evaluateLoad(buildManualLoadInput(load, profile, dataset, new Date().toISOString(), linesOverride, equipment.kind));
 
   const identical = canonical(reproduced) === canonical(stored);
   const identicalModuloVersions = identical || canonical(stripVersions(reproduced)) === canonical(stripVersions(stored));
 
-  const current = evaluateLoad(buildManualLoadInput(load, profile, loadDataset(LATEST_DATASET_VERSION), new Date().toISOString(), linesOverride));
+  const current = evaluateLoad(buildManualLoadInput(load, profile, loadDataset(LATEST_DATASET_VERSION), new Date().toISOString(), linesOverride, equipment.kind));
 
   return {
     ...base,

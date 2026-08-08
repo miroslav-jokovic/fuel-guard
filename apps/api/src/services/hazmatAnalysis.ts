@@ -40,6 +40,8 @@ export interface ManualLoadRow {
   driver_id: string | null;
   planned_pickup_at: string | null;
 }
+/** The equipment row's cargo-tank data (H-C2 — lives on `trailers`/`vehicles`, read via
+ *  `readEquipmentKind`; the `hazmat_cargo_tank_profiles` table is gone). */
 export interface CargoTankProfileRow {
   cargo_capacity_gal: number | null;
   compartments: unknown;
@@ -178,17 +180,9 @@ export async function executeManualAnalysis(
     if (!load) return;
     const l = load as unknown as ManualLoadRow;
 
-    let profile: CargoTankProfileRow | null = null;
-    if (l.trailer_id || l.vehicle_id) {
-      const q = admin.from("hazmat_cargo_tank_profiles").select("cargo_capacity_gal, compartments").eq("org_id", orgId);
-      const { data: p } = await (l.trailer_id ? q.eq("trailer_id", l.trailer_id) : q.eq("vehicle_id", l.vehicle_id)).maybeSingle();
-      profile = (p as CargoTankProfileRow | null) ?? null;
-    }
-
-    // F-P2: the carrier context comes from the equipment the load is actually on. Until now this line
-    // was a hard-coded `cargo_tank` with a comment claiming the profile refined it — the profile only
-    // ever supplied capacity and compartments, so the trailer a dispatcher picked changed nothing.
-    const equipment = await readEquipmentKind(admin, orgId, l, profile !== null);
+    // F-P2/H-C2: kind AND tank data come from the equipment the load is actually on, in one read.
+    const equipment = await readEquipmentKind(admin, orgId, l);
+    const profile: CargoTankProfileRow | null = equipment.tank;
 
     // §5/§5.1 (M3): the qualification gate runs on EVERY analysis; its failures are UNCLEARABLE
     // (§10.2) — an unqualified driver / lapsed org registration can see a verdict but never a

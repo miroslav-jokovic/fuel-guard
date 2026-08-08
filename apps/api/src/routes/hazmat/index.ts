@@ -12,10 +12,8 @@ import {
   hazmatReviewRequestSchema, type HazmatReviewRequest,
   hazmatClearRequestSchema, type HazmatClearRequest,
   hazmatProductsQuerySchema, type HazmatProductsResponse,
-  hazmatCargoTankProfileCreateSchema, type HazmatCargoTankProfileCreateRequest,
-  hazmatCargoTankProfileUpdateSchema, type HazmatCargoTankProfileUpdateRequest,
   type HazmatAnalyzeResponse,
-  HAZMAT_REVIEW_ROLES, HAZMAT_EQUIPMENT_WRITE_ROLES,
+  HAZMAT_REVIEW_ROLES,
   rolesThatCanView, rolesThatManage,
 } from "@fuelguard/shared";
 import { loadDataset, loadReferenceText } from "@hazmat/data";
@@ -34,7 +32,6 @@ import { startManualAnalysis } from "../../services/hazmatAnalysis.js";
 import { startExtractionAnalysis } from "../../services/hazmatExtraction/orchestrate.js";
 import { computeCalc } from "../../services/hazmatCalc.js";
 import { searchProducts } from "../../services/hazmatProducts.js";
-import { listProfiles, createProfile, updateProfile, deleteProfile } from "../../services/hazmatProfiles.js";
 import { notifyDriverOfOutcome } from "../../services/hazmatNotify.js";
 import { gatherPacketData, renderPacketPdf } from "../../services/defensePacket.js";
 import { reproduceRun } from "../../services/reproduce.js";
@@ -51,8 +48,7 @@ const isServiceError = (v: unknown): v is ServiceError =>
 const httpFor = (code: string): number =>
   code === "not_found" ? 404 :
   code === "not_editable" || code === "illegal_transition" || code === "provisional_dataset" || code === "not_clearable" ? 409 :
-  code === "sign_failed" || code === "insert_failed" || code === "update_failed" || code === "upsert_failed" || code === "query_failed" || code === "delete_failed" ? 500 :
-  code === "profile_exists" ? 409 : 400;
+  code === "sign_failed" || code === "insert_failed" || code === "update_failed" || code === "upsert_failed" || code === "query_failed" || code === "delete_failed" ? 500 : 400;
 
 export function hazmatRouter(): Router {
   const router = Router();
@@ -61,7 +57,6 @@ export function hazmatRouter(): Router {
   const canView = requireRole(...rolesThatCanView("hazmat"));
   const canManage = requireRole(...rolesThatManage("hazmat"));
   const canReview = requireRole(...HAZMAT_REVIEW_ROLES);
-  const canWriteEquipment = requireRole(...HAZMAT_EQUIPMENT_WRITE_ROLES); // matches 0092 RLS (no dispatcher)
   const orgOf = (req: Request): string => req.auth!.orgId!;
   const userOf = (req: Request): string => req.auth!.userId;
   const param = (req: Request, name: string): string => {
@@ -274,39 +269,9 @@ export function hazmatRouter(): Router {
     res.json({ ok: true });
   }));
 
-  // ── cargo-tank profiles (H5) — capacity + compartment plan per truck/trailer ─
-  router.get("/profiles", canView, asyncHandler(async (req: Request, res: Response) => {
-    const admin = getSupabaseAdmin(getAppLocals(req).env);
-    const result = await listProfiles(admin, orgOf(req));
-    if (isServiceError(result)) { fail(res, result); return; }
-    res.json({ profiles: result.rows });
-  }));
-
-  router.post("/profiles", canWriteEquipment, validateBody(hazmatCargoTankProfileCreateSchema), asyncHandler(async (req: Request, res: Response) => {
-    const body = res.locals.body as HazmatCargoTankProfileCreateRequest;
-    const admin = getSupabaseAdmin(getAppLocals(req).env);
-    const result = await createProfile(admin, orgOf(req), body);
-    if (isServiceError(result)) { fail(res, result); return; }
-    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.profile_created", entity: "hazmat_cargo_tank_profiles", entityId: result.id });
-    res.status(201).json({ id: result.id });
-  }));
-
-  router.put("/profiles/:id", canWriteEquipment, validateBody(hazmatCargoTankProfileUpdateSchema), asyncHandler(async (req: Request, res: Response) => {
-    const body = res.locals.body as HazmatCargoTankProfileUpdateRequest;
-    const admin = getSupabaseAdmin(getAppLocals(req).env);
-    const result = await updateProfile(admin, orgOf(req), param(req, "id"), body);
-    if (isServiceError(result)) { fail(res, result); return; }
-    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.profile_updated", entity: "hazmat_cargo_tank_profiles", entityId: param(req, "id") });
-    res.json({ ok: true });
-  }));
-
-  router.delete("/profiles/:id", canWriteEquipment, asyncHandler(async (req: Request, res: Response) => {
-    const admin = getSupabaseAdmin(getAppLocals(req).env);
-    const result = await deleteProfile(admin, orgOf(req), param(req, "id"));
-    if (isServiceError(result)) { fail(res, result); return; }
-    await writeAudit(admin, { orgId: orgOf(req), actorId: userOf(req), action: "hazmat.profile_deleted", entity: "hazmat_cargo_tank_profiles", entityId: param(req, "id") });
-    res.json({ ok: true });
-  }));
+  // ── cargo-tank profiles: REMOVED (H-C2/D-H3). Capacity + compartments live on the trailers/
+  // vehicles rows, written through the fleet surface under the fleet RLS; the analysis paths read
+  // them via readEquipmentKind. The /profiles CRUD, its service and its page are gone.
 
   // ── CFR reference text (D12) — display + audit only; NEVER fed to the engine ─────────────────
   router.get("/reference/:section", canView, asyncHandler(async (req: Request, res: Response) => {

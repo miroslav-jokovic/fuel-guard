@@ -205,12 +205,21 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   const aggregateLb = weights.reduce<number>((s, w) => s + (w ?? 0), 0);
   const thresholdMet = counted.length === 0 ? false : !weightKnown || aggregateLb >= 1001;
 
+  // H-P1 (0.9.0): the declared package count (§172.202(a)(7) — every shipping paper states one) is
+  // read into the aggregate's evidence. It does not change the §172.504(c) arithmetic — the CFR
+  // thresholds are weights, not counts — but it is part of what a reviewer checks the weight against,
+  // so it belongs in the record rather than in the "accepted and ignored" list.
+  const packageCounts = counted.map((r) => r.line.packageCount);
+  const packageCountKnown = packageCounts.every((c) => c != null);
+  const totalPackages = packageCountKnown ? packageCounts.reduce<number>((s, c) => s + (c ?? 0), 0) : null;
+
   trace.push({
     ruleId: "weight_threshold_1001lb",
     fired: true,
     inputs: {
       aggregateLb: weightKnown ? aggregateLb : null,
       countedLines: counted.length,
+      countedPackages: totalPackages,
       alwaysPlacardLines: alwaysPlacard.length,
       residueExcluded: excludedResidue.length,
       thresholdMet,
@@ -403,6 +412,10 @@ export function computePlacards(load: LoadInput): PlacardComputation {
         because: [{ cfr: "49 CFR 172.301(a)(3)" }],
       });
     }
+    const nbPackageCounts = nonBulk.map((r) => r.line.packageCount);
+    const nbPackages = nbPackageCounts.every((c) => c != null)
+      ? nbPackageCounts.reduce<number>((s, c) => s + (c ?? 0), 0)
+      : null;
     findings.push({
       ruleId: "nonbulk_single_material_id_display",
       tier: "conditional",
@@ -411,7 +424,7 @@ export function computePlacards(load: LoadInput): PlacardComputation {
         `when it is ≥ 4,000 kg (8,820 lb), all loaded at one facility, and the vehicle carries no other material (§172.301(a)(3)). ` +
         `Confirm the loading-facility and no-other-material conditions.`,
       citations: [{ cfr: "49 CFR 172.301(a)(3)" }],
-      evidence: { aggregateLb: nbWeightKnown ? nbAggregateLb : null, idNumber },
+      evidence: { aggregateLb: nbWeightKnown ? nbAggregateLb : null, packageCount: nbPackages, idNumber },
     });
     trace.push({
       ruleId: "nonbulk_id_display_172_301",

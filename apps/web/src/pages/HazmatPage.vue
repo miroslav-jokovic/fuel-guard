@@ -35,10 +35,11 @@ const tools: Array<{ name: string; description: string; action: string; to: stri
     icon: ShieldExclamationIcon,
   },
   {
-    name: "Cargo-Tank Profiles",
-    description: "Maintain tank capacity and compartment details for the trucks and trailers used in load analysis.",
-    action: "Manage profiles",
-    to: "/hazmat/settings/equipment",
+    // H-C2: tank data lives on the trailer now — this routes to the fleet surface, not a hazmat page.
+    name: "Tank Equipment",
+    description: "Tank capacity and compartments live on each trailer. Mark a trailer as a tanker and enter its tank there.",
+    action: "Open Trailers",
+    to: "/trailers",
     icon: TrailerIcon,
   },
 ];

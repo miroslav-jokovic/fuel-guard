@@ -9,6 +9,9 @@ import { buildEngineLines, emptyLine, type CalcLineForm } from "./calcModel";
 export interface LoadForm {
   vehicleId: string; // "" = none
   trailerId: string; // "" = none
+  /** Calculator equipment vocabulary (H-P1) — derived from the chosen trailer's type; drives each
+   *  line's default packaging and the fallback when a line's package type is left unset. */
+  equipmentType: string;
   driverId: string;
   tankState: string;
   carrierRelationship: string;
@@ -29,6 +32,7 @@ export function emptyLoadForm(): LoadForm {
   return {
     vehicleId: "",
     trailerId: "",
+    equipmentType: "",
     driverId: "",
     tankState: "loaded",
     carrierRelationship: "unknown",
@@ -64,7 +68,7 @@ export function buildCreateLoadRequest(id: string, form: LoadForm): HazmatCreate
     tankState: form.tankState,
     carrierRelationship: form.carrierRelationship,
     plannedPickupAt: form.plannedPickupAt ? new Date(form.plannedPickupAt).toISOString() : null,
-    declaredLines: buildEngineLines(form.lines),
+    declaredLines: buildEngineLines(form.lines, form.equipmentType),
     specialPermitNumbers: parseList(form.specialPermitNumbers),
     claimedNoPlacards: form.claimedNoPlacards,
     supersedesLoadId: null,

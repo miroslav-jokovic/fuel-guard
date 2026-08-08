@@ -7,6 +7,7 @@ export * from "./apiContract.js";
 export * from "./hazmatApi.js";
 export * from "./hazmatLifecycle.js";
 export * from "./hazmatReview.js";
+export * from "./hazmatPackaging.js";
 export * from "./qualificationGate.js";
 export * from "./complianceContract.js";
 export * from "./dqExportContract.js";

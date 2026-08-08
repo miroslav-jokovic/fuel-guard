@@ -25,6 +25,10 @@ const form = reactive({
   year: props.trailer?.year?.toString() ?? "",
   plate: props.trailer?.plate ?? "",
   trailer_type: props.trailer?.trailer_type ?? "",
+  // H-C2: cargo-tank data lives on the trailer (the Cargo-Tank Profiles page is gone). Compartments
+  // edit as comma-separated gallons — "3000, 3200, 3000" — and are rebuilt as {index, capacityGal}.
+  cargo_capacity_gal: props.trailer?.cargo_capacity_gal?.toString() ?? "",
+  cargo_compartments_text: (props.trailer?.cargo_compartments ?? []).map((c) => String(c.capacityGal)).join(", "),
   is_reefer: props.trailer?.is_reefer ?? false,
   reefer_tank_capacity_gal: props.trailer?.reefer_tank_capacity_gal?.toString() ?? "50",
   status: props.trailer?.status ?? "active",
@@ -32,9 +36,26 @@ const form = reactive({
   samsara_asset_id: props.trailer?.samsara_asset_id ?? "",
 });
 
+/** "3000, 3200" → [{index:1, capacityGal:3000}, …]; invalid/blank entries dropped, re-indexed 1..N. */
+function parseCompartments(text: string): Array<{ index: number; capacityGal: number }> {
+  const out: Array<{ index: number; capacityGal: number }> = [];
+  for (const part of text.split(",")) {
+    const n = Number(part.trim());
+    if (part.trim() !== "" && Number.isFinite(n) && n >= 0) out.push({ index: out.length + 1, capacityGal: n });
+  }
+  return out;
+}
+
 const errors = ref<Record<string, string>>({});
 function onSubmit() {
-  const result = trailerInputSchema.safeParse({ ...form });
+  const { cargo_compartments_text, ...rest } = form;
+  const isTanker = form.trailer_type === "tanker";
+  const result = trailerInputSchema.safeParse({
+    ...rest,
+    // Only a tanker carries cargo-tank data; switching the type away clears it rather than orphaning it.
+    cargo_capacity_gal: isTanker ? form.cargo_capacity_gal : "",
+    cargo_compartments: isTanker ? parseCompartments(cargo_compartments_text) : [],
+  });
   if (!result.success) {
     const map: Record<string, string> = {};
     for (const issue of result.error.issues) {
@@ -77,6 +98,20 @@ function onSubmit() {
         :options="[{ value: '', label: 'Not set' }, ...TRAILER_TYPES.map((t) => ({ value: t, label: TRAILER_TYPE_LABELS[t] }))]"
       />
     </FormField>
+
+    <!-- H-C2: a tank is a trailer — its cargo data lives here, not on a separate hazmat page. -->
+    <div v-if="form.trailer_type === 'tanker'" class="rounded-md bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
+      <p class="text-sm font-medium text-ink">Cargo tank</p>
+      <p class="mt-0.5 text-xs text-ink-muted">Used by HazmatGuard load analysis. This is the CARGO tank, not a fuel tank.</p>
+      <div class="mt-2 grid grid-cols-2 gap-3">
+        <FormField v-slot="{ id }" label="Capacity (gal)" :error="errors.cargo_capacity_gal">
+          <BaseInput :id="id" v-model="form.cargo_capacity_gal" inputmode="decimal" placeholder="9200" :invalid="!!errors.cargo_capacity_gal" />
+        </FormField>
+        <FormField v-slot="{ id }" label="Compartments (gal, comma-separated)" hint="Blank = single tank.">
+          <BaseInput :id="id" v-model="form.cargo_compartments_text" placeholder="3000, 3200, 3000" />
+        </FormField>
+      </div>
+    </div>
 
     <div class="rounded-md bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
       <BaseCheckbox v-model="form.is_reefer">

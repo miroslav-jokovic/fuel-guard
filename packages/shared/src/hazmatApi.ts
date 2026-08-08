@@ -63,12 +63,6 @@ export interface HazmatProductsResponse {
 // TIGHTER — separation of duties (D6): dispatchers create loads, they do NOT clear them.
 export const HAZMAT_REVIEW_ROLES: readonly UserRole[] = ["admin", "fleet_manager", "safety_manager"];
 
-// Cargo-tank profile WRITES must match the 0092 table RLS (admin/fleet_manager/safety_manager). A
-// dispatcher "manages" the hazmat section (creates loads) but NOT equipment config — gating profile
-// writes with the generic canManage would let a dispatcher write through the service-role API what RLS
-// denies them directly. Keep these two sets in lockstep with the migration.
-export const HAZMAT_EQUIPMENT_WRITE_ROLES: readonly UserRole[] = ["admin", "fleet_manager", "safety_manager"];
-
 // ── shared enums (mirror the migration check constraints) ─────────────────────
 export const hazmatTankStateSchema = z.enum(["loaded", "residue_uncleaned", "cleaned_and_purged"]);
 export const hazmatCarrierRelationshipSchema = z.enum([
@@ -190,52 +184,15 @@ export type OrgHazmatPolicy = z.infer<typeof orgHazmatPolicySchema>;
 export const hazmatPolicyPutRequestSchema = z.strictObject({ policy: orgHazmatPolicySchema });
 export type HazmatPolicyPutRequest = z.infer<typeof hazmatPolicyPutRequestSchema>;
 
-// ── cargo-tank profiles (plan H5) — capacity + compartment plan per truck/trailer ────────────────
-// Feeds the engine `vehicle` block. NOTE (verified 2026-07-31): the engine does not yet READ capacity or
-// compartments — those rules are H2 (capacity → ID-display threshold; compartments → per-compartment math).
-// Captured now so the data + audit trail exist and take effect when that logic lands. Exactly one of
-// vehicleId/trailerId (mirrors the 0092 check constraint).
+// ── cargo-tank data — H-C2 (D-H3): the profile table, API and page are GONE. Capacity and
+// compartments live on `trailers`/`vehicles` (shared/fleet.ts `trailerInputSchema`), entered on the
+// Trailers page when a trailer is marked `tanker`, and read by the analysis paths via
+// `readEquipmentKind`. Only the compartment shape survives here — it is the engine's input shape.
 export const hazmatCompartmentSchema = z.object({
   index: z.number().int().min(1),
   capacityGal: z.number().nonnegative(),
 });
 export type HazmatCompartment = z.infer<typeof hazmatCompartmentSchema>;
-
-export const hazmatCargoTankProfileCreateSchema = z
-  .object({
-    id: z.string().uuid(), // client-generated (idempotent replay)
-    vehicleId: z.string().uuid().nullable().default(null),
-    trailerId: z.string().uuid().nullable().default(null),
-    cargoCapacityGal: z.number().nonnegative().nullable().default(null),
-    compartments: z.array(hazmatCompartmentSchema).default([]),
-  })
-  .refine((v) => (v.vehicleId === null) !== (v.trailerId === null), {
-    message: "Provide exactly one of vehicleId or trailerId.",
-  });
-export type HazmatCargoTankProfileCreateRequest = z.infer<typeof hazmatCargoTankProfileCreateSchema>;
-
-// Equipment binding is immutable once set (it's the profile's identity); only capacity/compartments edit.
-export const hazmatCargoTankProfileUpdateSchema = z
-  .object({
-    cargoCapacityGal: z.number().nonnegative().nullable().default(null),
-    compartments: z.array(hazmatCompartmentSchema).default([]),
-  })
-  .strict();
-export type HazmatCargoTankProfileUpdateRequest = z.infer<typeof hazmatCargoTankProfileUpdateSchema>;
-
-export interface HazmatCargoTankProfileRow {
-  id: string;
-  org_id: string;
-  vehicle_id: string | null;
-  trailer_id: string | null;
-  cargo_capacity_gal: number | null;
-  compartments: HazmatCompartment[];
-  created_at: string;
-  updated_at: string;
-}
-export interface HazmatCargoTankProfilesResponse {
-  profiles: HazmatCargoTankProfileRow[];
-}
 
 
 // ── POST /hazmat/loads/:id/analyze — kicks off the in-process manual analysis (202 + runId) ─────

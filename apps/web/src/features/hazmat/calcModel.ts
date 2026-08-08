@@ -1,14 +1,32 @@
 import type { HazmatCalcRequest, HazmatProduct } from "@fuelguard/shared";
+import {
+  isVehiclePackaging,
+  PACKAGE_TYPE_OPTIONS,
+  packageTypeSpec,
+  packagingKindFor,
+  weightToLb,
+} from "@fuelguard/shared";
 import type { Verdict } from "@hazmat/engine";
 
 /**
- * Placard Calculator form model + pure form→request logic (plan H5). Kept free of any runtime imports
- * (no @/lib/api / supabase) so it unit-tests without the browser client — the composables in
- * useHazmatCalc.ts add the Vue Query wiring on top. Free-text products are impossible: a line without a
- * resolved `hmtRef` is dropped, never guessed (fail-closed at the source, mirroring resolveHmtLine, H6).
+ * Placard Calculator form model + pure form→request logic (plan H5, reworked by H-P1). Kept free of
+ * any runtime imports (no @/lib/api / supabase) so it unit-tests without the browser client — the
+ * composables in useHazmatCalc.ts add the Vue Query wiring on top. Free-text products are impossible:
+ * a line without a resolved `hmtRef` is dropped, never guessed (fail-closed at the source, H6).
+ *
+ * H-P1 changes the questions the form asks, not the engine contract:
+ *  · "Carrier context" (engine jargon: cargo_tank / van_or_flatbed) became EQUIPMENT — stated in
+ *    trailer terms (tanker, hopper, van…), the same vocabulary as the Trailers page. The engine
+ *    kind + each line's default packaging are derived (EQUIPMENT_OPTIONS), never asked raw. It also
+ *    collided with the load form's genuinely-named "carrier relationship" (§172.506) — a different
+ *    fact that stays where it was.
+ *  · "Bulk / Non-bulk" became PACKAGE TYPE (drums, totes, cylinders…) — the §171.8 answer is a
+ *    property of the package and is derived (hazmatPackaging.ts). A 275-gal tote on a dry van is
+ *    bulk; asking a dispatcher to know that is how loads get under-placarded.
+ *  · Gross weight takes lb OR kg and converts; package count is captured (§172.202(a)(7) — every
+ *    real BOL states it) and sent to the engine.
  */
 export type QuantityUnit = "gal" | "lb" | "kg" | "L";
-export type PackagingKind = "bulk" | "non_bulk";
 export type VehicleKind = "cargo_tank" | "van_or_flatbed";
 export type TankState = "loaded" | "residue_uncleaned" | "cleaned_and_purged";
 
@@ -16,10 +34,15 @@ export type TankState = "loaded" | "residue_uncleaned" | "cleaned_and_purged";
 // StopDraft.kind), constrained by the option lists and validated by the engine schema server-side.
 export interface CalcLineForm {
   product: HazmatProduct | null;
+  /** BOL package vocabulary (hazmatPackaging.ts) — bulk/non-bulk is DERIVED from this. */
+  packageType: string;
+  /** Count of DOT packages ("4 totes" → 4). Blank/irrelevant for loose bulk. */
+  packageCount: string;
   quantityValue: string;
   quantityUnit: string;
-  packagingKind: string;
-  grossWeightLb: string;
+  grossWeightValue: string;
+  /** "lb" | "kg" — converted to lb for the engine (§172.504(c) evaluates pounds). */
+  grossWeightUnit: string;
   compartmentIndex: string;
   isResidueLine: boolean;
   /** §173.150(f) offeror election — INPUT, never inferred (D1). */
@@ -27,7 +50,8 @@ export interface CalcLineForm {
 }
 
 export interface CalcForm {
-  vehicleKind: string;
+  /** Trailer-vocabulary equipment ("tanker" | "hopper" | "van" | "reefer" | "flatbed" | ""). */
+  equipmentType: string;
   cargoTankCapacityGal: string;
   tankState: string;
   /** §172.336(c) table: comma/space-separated IDs retained from the previous or current business day. */
@@ -42,10 +66,44 @@ export interface CalcResult {
   verdict: Verdict;
 }
 
-export const VEHICLE_KIND_OPTIONS: Array<{ value: VehicleKind; label: string }> = [
-  { value: "cargo_tank", label: "Cargo tank (bulk)" },
-  { value: "van_or_flatbed", label: "Van / flatbed (non-bulk)" },
+/**
+ * The user states equipment in fleet terms; the engine kind and the default line packaging are
+ * derived, mirroring `resolveVehicleKind` (shared) so the calculator and a real analysis of the same
+ * trailer cannot disagree. A hopper is van_or_flatbed for the engine's tank rules yet defaults its
+ * lines BULK — it is bulk packaging under §171.8 (the old two-option dropdown could not say this).
+ */
+export interface EquipmentSpec {
+  value: string;
+  label: string;
+  vehicleKind: VehicleKind;
+  defaultLinePackaging: "bulk" | "non_bulk";
+  /** The line package type a fresh line starts as on this equipment. */
+  defaultPackageType: string;
+}
+export const EQUIPMENT_OPTIONS: readonly EquipmentSpec[] = [
+  { value: "tanker", label: "Tanker / cargo tank (bulk liquid)", vehicleKind: "cargo_tank", defaultLinePackaging: "bulk", defaultPackageType: "bulk_cargo" },
+  { value: "hopper", label: "Hopper / pneumatic (bulk dry)", vehicleKind: "van_or_flatbed", defaultLinePackaging: "bulk", defaultPackageType: "bulk_cargo" },
+  { value: "van", label: "Dry van / box truck (packages)", vehicleKind: "van_or_flatbed", defaultLinePackaging: "non_bulk", defaultPackageType: "" },
+  { value: "reefer", label: "Reefer (packages)", vehicleKind: "van_or_flatbed", defaultLinePackaging: "non_bulk", defaultPackageType: "" },
+  { value: "flatbed", label: "Flatbed / step deck (packages)", vehicleKind: "van_or_flatbed", defaultLinePackaging: "non_bulk", defaultPackageType: "" },
 ];
+
+export function equipmentSpec(value: string): EquipmentSpec | null {
+  return EQUIPMENT_OPTIONS.find((o) => o.value === value) ?? null;
+}
+
+/** The fleet's `trailer_type` vocabulary → the calculator's equipment vocabulary. */
+export function equipmentFromTrailerType(trailerType: string | null | undefined): string {
+  switch (trailerType) {
+    case "tanker": return "tanker";
+    case "hopper": return "hopper";
+    case "reefer": return "reefer";
+    case "flatbed": return "flatbed";
+    case "dry_van": return "van";
+    default: return ""; // "other" / unset — the user states it
+  }
+}
+
 export const TANK_STATE_OPTIONS: Array<{ value: TankState; label: string }> = [
   { value: "loaded", label: "Loaded" },
   { value: "residue_uncleaned", label: "Residue — uncleaned" },
@@ -57,27 +115,30 @@ export const QUANTITY_UNIT_OPTIONS: Array<{ value: QuantityUnit; label: string }
   { value: "lb", label: "lb" },
   { value: "kg", label: "kg" },
 ];
-export const PACKAGING_KIND_OPTIONS: Array<{ value: PackagingKind; label: string }> = [
-  { value: "bulk", label: "Bulk" },
-  { value: "non_bulk", label: "Non-bulk" },
+export const GROSS_WEIGHT_UNIT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "lb", label: "lb" },
+  { value: "kg", label: "kg" },
 ];
+export { PACKAGE_TYPE_OPTIONS };
 
 /**
- * A fresh line, shaped by the carrier context the user has stated (F-P4).
- *
- * These used to be literals: every line began as bulk gallons, which is a fuel tanker's answer and
- * nobody else's. On a van or flatbed it was wrong on every line, and — since packaging drives the
- * §172.504(c) aggregate and the ID-display rules — wrong in a way that changed the verdict. Derive
- * them instead, and leave them editable.
+ * A fresh line, shaped by the equipment the user has stated (F-P4 / H-P1). On a tanker or hopper the
+ * line starts as loose bulk in gallons; on package equipment the package type is deliberately BLANK —
+ * the §171.8 answer rides on it, so the user states what the BOL says rather than inheriting a guess.
+ * Everything stays editable.
  */
-export function emptyLine(vehicleKind = ""): CalcLineForm {
-  const isTank = vehicleKind === "cargo_tank";
+export function emptyLine(equipmentType = ""): CalcLineForm {
+  const eq = equipmentSpec(equipmentType);
+  const packageType = eq?.defaultPackageType ?? "";
+  const spec = packageTypeSpec(packageType);
   return {
     product: null,
+    packageType,
+    packageCount: "",
     quantityValue: "",
-    quantityUnit: isTank ? "gal" : "lb",
-    packagingKind: isTank ? "bulk" : "non_bulk",
-    grossWeightLb: "",
+    quantityUnit: spec?.defaultUnit ?? (eq?.defaultLinePackaging === "bulk" ? "gal" : "lb"),
+    grossWeightValue: "",
+    grossWeightUnit: "lb",
     compartmentIndex: "",
     isResidueLine: false,
     reclassedCombustible: false,
@@ -85,15 +146,15 @@ export function emptyLine(vehicleKind = ""): CalcLineForm {
 }
 
 /**
- * An empty form states nothing about the vehicle. `vehicleKind` is deliberately unset rather than
- * defaulted: it is the single input that most changes the answer — bulk versus non-bulk decides
- * whether the 1,001 lb aggregate applies at all — and a default of `cargo_tank` meant anyone who never
- * touched the dropdown, including every anonymous visitor to the public calculator, silently
- * calculated as a fuel tanker. The form requires a choice instead of guessing one.
+ * An empty form states nothing about the equipment. `equipmentType` is deliberately unset rather than
+ * defaulted: it is the input that most changes the answer — bulk versus non-bulk decides whether the
+ * 1,001 lb aggregate applies at all — and a default of `tanker` meant anyone who never touched the
+ * dropdown, including every anonymous visitor to the public calculator, silently calculated as a
+ * fuel tanker. The form requires a choice instead of guessing one.
  */
 export function emptyForm(): CalcForm {
   return {
-    vehicleKind: "",
+    equipmentType: "",
     cargoTankCapacityGal: "",
     tankState: "loaded",
     businessDayIds: "",
@@ -101,9 +162,9 @@ export function emptyForm(): CalcForm {
   };
 }
 
-/** Is this form answerable? The engine needs a carrier context and at least one resolved product. */
+/** Is this form answerable? The engine needs the equipment stated and at least one resolved product. */
 export function calcFormReady(form: CalcForm): boolean {
-  return form.vehicleKind !== "" && form.lines.some((l) => l.product != null);
+  return equipmentSpec(form.equipmentType) !== null && form.lines.some((l) => l.product != null);
 }
 
 const numOrNull = (s: string): number | null => {
@@ -127,27 +188,44 @@ export function hasResolvedLine(form: CalcForm): boolean {
   return form.lines.some((l) => l.product !== null);
 }
 
+/**
+ * The line's §171.8 packaging answer: derived from the package type; when the type is unset, the
+ * equipment's default — bulk on a tanker/hopper, non-bulk on package equipment — so an incomplete
+ * line degrades to the same answer the old binary dropdown defaulted to, never to silence.
+ */
+export function linePackagingKind(line: CalcLineForm, equipmentType: string): "bulk" | "non_bulk" {
+  const derived = packagingKindFor(line.packageType);
+  if (derived) return derived;
+  return equipmentSpec(equipmentType)?.defaultLinePackaging ?? "bulk";
+}
+
+/** The line's gross weight in pounds (kg converted; §172.504(c) evaluates pounds). */
+export function lineGrossWeightLb(line: CalcLineForm): number | null {
+  return weightToLb(numOrNull(line.grossWeightValue), line.grossWeightUnit);
+}
+
 /** Map one resolved form line to a canonical engine `LoadInput` line (also used for a load's declared_lines). */
-export function buildEngineLine(l: CalcLineForm): Record<string, unknown> {
+export function buildEngineLine(l: CalcLineForm, equipmentType = ""): Record<string, unknown> {
   const product = l.product as HazmatProduct;
   const compartment = numOrNull(l.compartmentIndex);
+  const count = isVehiclePackaging(l.packageType) ? null : numOrNull(l.packageCount);
   return {
     hmtRef: product.hmtRef,
     reclassedCombustible: l.reclassedCombustible,
     quantity: { value: numOrNull(l.quantityValue) ?? 0, unit: l.quantityUnit },
-    grossWeightLb: numOrNull(l.grossWeightLb),
+    grossWeightLb: lineGrossWeightLb(l),
     compartmentIndex: compartment === null ? null : Math.trunc(compartment),
     isResidueLine: l.isResidueLine,
     flashPointF: null,
     ethanolPct: null,
-    packagingKind: l.packagingKind,
-    packageCount: null,
+    packagingKind: linePackagingKind(l, equipmentType),
+    packageCount: count === null ? null : Math.trunc(count),
   };
 }
 
 /** Resolved lines only (unknown products dropped, never guessed — fail-closed at the source). */
-export function buildEngineLines(lines: CalcLineForm[]): Record<string, unknown>[] {
-  return lines.filter((l) => l.product !== null).map(buildEngineLine);
+export function buildEngineLines(lines: CalcLineForm[], equipmentType = ""): Record<string, unknown>[] {
+  return lines.filter((l) => l.product !== null).map((l) => buildEngineLine(l, equipmentType));
 }
 
 /**
@@ -156,12 +234,14 @@ export function buildEngineLines(lines: CalcLineForm[]): Record<string, unknown>
  * are dropped, never guessed.
  */
 export function buildCalcRequest(form: CalcForm): HazmatCalcRequest {
-  const lines = buildEngineLines(form.lines);
+  const eq = equipmentSpec(form.equipmentType);
+  const vehicleKind = eq?.vehicleKind ?? "cargo_tank"; // unreachable when calcFormReady gates; conservative anyway
+  const lines = buildEngineLines(form.lines, form.equipmentType);
 
   const load = {
     vehicle: {
-      kind: form.vehicleKind,
-      cargoTankCapacityGal: form.vehicleKind === "cargo_tank" ? numOrNull(form.cargoTankCapacityGal) : null,
+      kind: vehicleKind,
+      cargoTankCapacityGal: vehicleKind === "cargo_tank" ? numOrNull(form.cargoTankCapacityGal) : null,
       compartments: null,
     },
     tankState: form.tankState,

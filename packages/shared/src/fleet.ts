@@ -112,6 +112,9 @@ export interface Vehicle {
   /** Provenance of tank_capacity_gal: 'manual' = human-entered, 'auto' = self-healed from the
    *  sensor-measured capacity (WP-CAP decideCapacityAutoFix; every correction audit-logged). */
   tank_capacity_source?: "auto" | "manual" | null;
+  /** CARGO tank capacity for straight trucks/bobtails (H-C2) — distinct from tank_capacity_gal (FUEL). */
+  cargo_capacity_gal?: number | null;
+  cargo_compartments?: Array<{ index: number; capacityGal: number }> | null;
   created_at: string;
   updated_at: string;
 }
@@ -145,6 +148,14 @@ export interface VehicleKindResolution {
   /** False when the answer is a fallback rather than a fact — the caller must say so out loud. */
   confident: boolean;
   because: string;
+  /**
+   * What a fresh product line on this equipment should default its packaging to (H-P1). Distinct
+   * from `kind` because a HOPPER is `van_or_flatbed` for the engine's tank-specific rules (tank
+   * state, §172.542/544 wording, the N/X endorsement) yet IS bulk packaging under §171.8 — its
+   * lines must default bulk or the 1,001-lb Table 2 threshold gets applied to a bulk load, which
+   * under-placards. Editable per line; this is only the starting answer.
+   */
+  defaultLinePackaging: "bulk" | "non_bulk";
 }
 
 /**
@@ -161,31 +172,50 @@ export interface VehicleKindResolution {
  */
 export function resolveVehicleKind(input: {
   trailerType?: string | null;
-  /** A cargo-tank profile only ever exists for tank equipment, so its presence is evidence. */
+  /** Cargo-tank data (capacity/compartments) only ever exists for tank equipment — evidence. */
   hasCargoTankProfile?: boolean;
 }): VehicleKindResolution {
   const type = input.trailerType?.trim().toLowerCase();
   if (type === "tanker") {
-    return { kind: "cargo_tank", confident: true, because: "the trailer is marked as a tanker" };
+    return {
+      kind: "cargo_tank",
+      confident: true,
+      because: "the trailer is marked as a tanker",
+      defaultLinePackaging: "bulk",
+    };
+  }
+  if (type === "hopper") {
+    // A hopper is NOT a cargo tank (no tank state, no §172.542 wording, no N/X endorsement), but it
+    // IS bulk packaging under §171.8 (>882 lb solids capacity) — lines default bulk so the Table 2
+    // 1,001-lb exception is never applied to a bulk load (H-P1; the old mapping under-classified).
+    return {
+      kind: "van_or_flatbed",
+      confident: true,
+      because: "the trailer is marked as a hopper — bulk packaging (§171.8), not a cargo tank",
+      defaultLinePackaging: "bulk",
+    };
   }
   if (type && (TRAILER_TYPES as readonly string[]).includes(type)) {
     return {
       kind: "van_or_flatbed",
       confident: true,
       because: `the trailer is marked as ${TRAILER_TYPE_LABELS[type as TrailerType].toLowerCase()}`,
+      defaultLinePackaging: "non_bulk",
     };
   }
   if (input.hasCargoTankProfile) {
     return {
       kind: "cargo_tank",
       confident: true,
-      because: "this equipment has a cargo-tank profile",
+      because: "this equipment has cargo-tank capacity on file",
+      defaultLinePackaging: "bulk",
     };
   }
   return {
     kind: "cargo_tank",
     confident: false,
     because: "the equipment type is not set — assuming a cargo tank, the conservative reading",
+    defaultLinePackaging: "bulk",
   };
 }
 
@@ -200,6 +230,18 @@ export const trailerInputSchema = z.object({
   plate: optionalText,
   /** Equipment type (0100). Drives the hazmat carrier context — `tanker` means bulk. */
   trailer_type: z.enum(TRAILER_TYPES).nullish(),
+  /**
+   * Cargo-tank capacity + compartment plan (H-C2 / D-H3): moved here from the dropped
+   * `hazmat_cargo_tank_profiles` table — a tank is a trailer, not a parallel entity. CARGO capacity;
+   * `reefer_tank_capacity_gal` below is the reefer's FUEL tank and is unrelated.
+   */
+  cargo_capacity_gal: z.preprocess(
+    (v) => (v === "" || v == null ? null : v),
+    z.coerce.number().nonnegative().nullable().default(null),
+  ),
+  cargo_compartments: z
+    .array(z.object({ index: z.number().int(), capacityGal: z.number().nonnegative() }))
+    .default([]),
   /** Whether this trailer is a reefer (refrigerated). Only reefers drive the reefer fuel checks. */
   is_reefer: z.coerce.boolean().default(false),
   /** Reefer (refrigeration) tank capacity in gallons. Standard reefer tank ≈ 50 gal. */
@@ -224,6 +266,10 @@ export interface Trailer {
   year: number | null;
   plate: string | null;
   trailer_type: TrailerType | null;
+  /** Cargo-tank capacity in gallons (H-C2) — null = unknown → engine conservative path. */
+  cargo_capacity_gal: number | null;
+  /** Cargo-tank compartment plan [{index, capacityGal}] (H-C2). Empty = single tank / not a tank. */
+  cargo_compartments: Array<{ index: number; capacityGal: number }>;
   is_reefer: boolean;
   reefer_tank_capacity_gal: number;
   status: VehicleStatus;

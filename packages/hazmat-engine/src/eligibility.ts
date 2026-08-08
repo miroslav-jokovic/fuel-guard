@@ -37,11 +37,14 @@ export const UNEVALUATED_INPUTS: readonly Probe[] = [
 // so an unevaluated value cannot make this verdict wrong. Auditing it would make `eligible`
 // unreachable for every real app load (the app always sends it), recreating G3. Recorded in PLAN.
 
-const LINE_PROBES: ReadonlyArray<{ key: "flashPointF" | "ethanolPct" | "compartmentIndex" | "packageCount"; note: string } | { key: "isResidueLine"; note: string }> = [
+// packageCount left this list in 0.9.0 (H-P1): it is now read by computePlacards (recorded in the
+// weight-threshold and ID-display evidence, and cross-checked against the packaging kind). Real BOLs
+// always state a package count (§172.202(a)(7)), so keeping it "unevaluated" meant every accurately
+// described load blocked auto-clear — the tool punished precision.
+const LINE_PROBES: ReadonlyArray<{ key: "flashPointF" | "ethanolPct" | "compartmentIndex"; note: string } | { key: "isResidueLine"; note: string }> = [
   { key: "flashPointF", note: "flash-point reclass verification pending (H2)" },
   { key: "ethanolPct", note: "ethanol-blend rules pending (H2)" },
   { key: "compartmentIndex", note: "compartment rules pending (H2)" },
-  { key: "packageCount", note: "package-count rules pending (H2)" },
   { key: "isResidueLine", note: "residue-line semantics pending (H2/H9)" },
 ];
 

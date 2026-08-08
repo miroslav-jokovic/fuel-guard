@@ -90,6 +90,14 @@ describe("input audit (M5.3 — G5: nothing accepted and silently ignored)", () 
     expect(v.eligibility.blocks.map((b) => b.ruleId)).toContain("not_evaluated:lines[0].flashPointF");
   });
 
+  it("packageCount is EVALUATED since 0.9.0 (H-P1) — providing it never blocks auto-clear", () => {
+    const v = evaluateLoad(cleanLoad({ lines: [{ ...cleanLine(), packageCount: 4 }] as unknown as LoadInput["lines"] }));
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("not_evaluated:lines[0].packageCount");
+    // …and it lands in the §172.504(c) evidence rather than the ignored list.
+    const threshold = v.trace.find((t) => t.ruleId === "weight_threshold_1001lb");
+    expect(threshold === undefined || "countedPackages" in (threshold.inputs ?? {})).toBe(true);
+  });
+
   it("the audit trace lists every unevaluated provided path", () => {
     const v = evaluateLoad(cleanLoad({ policy: { x: 1 } as unknown as LoadInput["policy"] }));
     const audit = v.trace.find((t) => t.ruleId === "input_audit");

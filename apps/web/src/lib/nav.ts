@@ -116,11 +116,10 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // capability gate so the rename does not broaden access, and keeps /compliance so nobody's
         // bookmark breaks.
         { name: "Driver Qualification", to: "/compliance", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "fleet") },
-        { name: "HazmatGuard", to: "/hazmat", icon: ShieldExclamationIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
-        { name: "Placard Calculator", to: "/hazmat/calculator", icon: ClipboardDocumentCheckIcon, show: isStaff && moduleEnabled(modules, "hazmatguard") },
-        { name: "Hazmat Loads", to: "/hazmat/loads", icon: LoadsIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
-        { name: "Hazmat Review", to: "/hazmat/review", icon: ClipboardDocumentCheckIcon, show: canViewSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard"), badge: counts.hazmatReview },
-        { name: "Cargo-Tank Profiles", to: "/hazmat/settings/equipment", icon: TrailerIcon, show: canManageSection(role, "hazmat") && moduleEnabled(modules, "hazmatguard") },
+        // ONE hazmat entry (H-C4, owner decision 2026-08-08): the hub routes to the calculator, the
+        // loads board and the review queue — duplicating them here duplicated Loads/Trailers for no
+        // gain. The review badge rides on the hub so the queue still announces itself.
+        { name: "HazmatGuard", to: "/hazmat", icon: ShieldExclamationIcon, show: isStaff && moduleEnabled(modules, "hazmatguard"), badge: counts.hazmatReview },
       ],
     },
     {

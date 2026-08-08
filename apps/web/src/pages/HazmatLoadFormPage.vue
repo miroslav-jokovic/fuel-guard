@@ -12,11 +12,13 @@ import ComboSelect from "@/components/ui/ComboSelect.vue";
 import ProductPicker from "@/features/hazmat/ProductPicker.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
-import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatProfiles";
+import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
 import {
   emptyLine,
+  equipmentFromTrailerType,
   QUANTITY_UNIT_OPTIONS,
-  PACKAGING_KIND_OPTIONS,
+  GROSS_WEIGHT_UNIT_OPTIONS,
+  PACKAGE_TYPE_OPTIONS,
   TANK_STATE_OPTIONS,
 } from "@/features/hazmat/calcModel";
 import {
@@ -47,8 +49,21 @@ const vehicleOptions = computed(() => [
 ]);
 const trailerOptions = computed(() => [
   { value: "", label: "— none —" },
-  ...(trailers.value ?? []).map((t) => ({ value: t.id, label: `Trailer ${t.unit_number}` })),
+  ...(trailers.value ?? []).map((t) => ({
+    value: t.id,
+    label: t.trailer_type ? `Trailer ${t.unit_number} — ${t.trailer_type.replace("_", " ")}` : `Trailer ${t.unit_number}`,
+  })),
 ]);
+
+/** H-P1: the chosen trailer states the equipment — untouched lines pick up its packaging defaults. */
+function onTrailerChange(id: string) {
+  form.trailerId = id;
+  const trailer = (trailers.value ?? []).find((t) => t.id === id);
+  form.equipmentType = equipmentFromTrailerType(trailer?.trailer_type);
+  for (const line of form.lines) {
+    if (line.product == null) Object.assign(line, emptyLine(form.equipmentType));
+  }
+}
 const driverOptions = computed(() => [
   { value: "", label: "— none —" },
   ...(drivers.value ?? []).map((d) => ({ value: d.id, label: d.full_name })),
@@ -57,7 +72,7 @@ const driverOptions = computed(() => [
 const canSave = computed(() => loadFormHasProduct(form));
 
 function addLine() {
-  form.lines.push(emptyLine());
+  form.lines.push(emptyLine(form.equipmentType));
 }
 function removeLine(i: number) {
   form.lines.splice(i, 1);
@@ -91,8 +106,8 @@ async function save() {
           <FormField v-slot="{ id }" label="Vehicle">
             <ComboSelect :id="id" v-model="form.vehicleId" :options="vehicleOptions" placeholder="Search vehicles…" />
           </FormField>
-          <FormField v-slot="{ id }" label="Trailer">
-            <ComboSelect :id="id" v-model="form.trailerId" :options="trailerOptions" placeholder="Search trailers…" />
+          <FormField v-slot="{ id }" label="Trailer" hint="Its type sets each line's packaging default.">
+            <ComboSelect :id="id" :model-value="form.trailerId" :options="trailerOptions" placeholder="Search trailers…" @update:model-value="onTrailerChange" />
           </FormField>
           <FormField v-slot="{ id }" label="Driver">
             <ComboSelect :id="id" v-model="form.driverId" :options="driverOptions" placeholder="Search drivers…" />
@@ -136,17 +151,25 @@ async function save() {
               <ProductPicker v-else @select="(p) => selectProduct(i, p)" />
             </div>
             <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <FormField v-slot="{ id }" label="Quantity">
+              <FormField v-slot="{ id }" label="Packaging" class="col-span-2" hint="As the BOL states it — bulk vs non-bulk is derived. Count packages, not pallets.">
+                <ComboSelect :id="id" v-model="line.packageType" :options="PACKAGE_TYPE_OPTIONS" placeholder="Drums, totes, boxes…" />
+              </FormField>
+              <FormField v-if="line.packageType !== 'bulk_cargo'" v-slot="{ id }" label="Package count" hint="§172.202(a)(7)">
+                <BaseInput :id="id" v-model="line.packageCount" type="number" inputmode="numeric" min="0" placeholder="4" />
+              </FormField>
+            </div>
+            <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <FormField v-slot="{ id }" label="Total quantity">
                 <BaseInput :id="id" v-model="line.quantityValue" type="number" inputmode="decimal" min="0" placeholder="8000" />
               </FormField>
               <FormField v-slot="{ id }" label="Unit">
                 <ComboSelect :id="id" v-model="line.quantityUnit" :options="QUANTITY_UNIT_OPTIONS" />
               </FormField>
-              <FormField v-slot="{ id }" label="Packaging">
-                <ComboSelect :id="id" v-model="line.packagingKind" :options="PACKAGING_KIND_OPTIONS" />
+              <FormField v-slot="{ id }" label="Gross weight" hint="Non-bulk Table 2.">
+                <BaseInput :id="id" v-model="line.grossWeightValue" type="number" inputmode="decimal" min="0" placeholder="1254" />
               </FormField>
-              <FormField v-slot="{ id }" label="Gross wt (lb)" hint="Non-bulk Table 2.">
-                <BaseInput :id="id" v-model="line.grossWeightLb" type="number" inputmode="decimal" min="0" placeholder="1254" />
+              <FormField v-slot="{ id }" label="Weight unit" hint="kg converts to lb.">
+                <ComboSelect :id="id" v-model="line.grossWeightUnit" :options="GROSS_WEIGHT_UNIT_OPTIONS" />
               </FormField>
             </div>
             <div class="mt-3 flex flex-wrap gap-4">

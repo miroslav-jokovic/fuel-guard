@@ -16,7 +16,7 @@ import { enqueueJob } from "../queue/enqueue.js";
 import type { DeclaredLineRef } from "./mapBolLines.js";
 import { evaluateQualification } from "../qualification.js";
 import { QUALIFICATION_EVAL_AT_NOW_FLAG } from "@fuelguard/shared";
-import { hasCargoTankProfile, readEquipmentKind } from "../hazmatEquipment.js";
+import { readEquipmentKind } from "../hazmatEquipment.js";
 
 /**
  * Extraction analysis path (plan H6-orchestrator). Mirrors the manual path (startManualAnalysis) but the
@@ -87,7 +87,7 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
     // F-P2: read the carrier context from the equipment before anything that depends on it. The
     // qualification digest below is a cache-key term, and the kind is one of its inputs — so this has
     // to happen first or a trailer type change would replay a stale verdict.
-    const equipment = await readEquipmentKind(admin, orgId, load, await hasCargoTankProfile(admin, orgId, load));
+    const equipment = await readEquipmentKind(admin, orgId, load); // kind + tank data in one read (H-C2)
 
     // §5/§5.1 (M3): qualification gate — evaluated BEFORE hashing because its inputs are a cache-key
     // term (§10.10): renew a medical card and the same photo MUST re-evaluate, not replay a stale pass.
@@ -147,12 +147,7 @@ export async function executeExtraction(admin: SupabaseClient, orgId: string, lo
 
     let verdict: Verdict | null = null;
     if (extract.usable && extract.engineLines.length > 0) {
-      let profile: CargoTankProfileRow | null = null;
-      if (load.trailer_id || load.vehicle_id) {
-        const q = admin.from("hazmat_cargo_tank_profiles").select("cargo_capacity_gal, compartments").eq("org_id", orgId);
-        const { data: p } = await (load.trailer_id ? q.eq("trailer_id", load.trailer_id) : q.eq("vehicle_id", load.vehicle_id)).maybeSingle();
-        profile = (p as CargoTankProfileRow | null) ?? null;
-      }
+      const profile: CargoTankProfileRow | null = equipment.tank; // H-C2: from the equipment row
       verdict = evaluateLoad(buildManualLoadInput(load, profile, dataset, now, extract.engineLines, equipment.kind));
     }
 

@@ -220,7 +220,55 @@ fitness check (asserting every page uses `PageHeader`, the standard container an
 empty-state components) is worth adding *after* that rework, so its grandfather list starts near empty;
 adding it now would fight the edits in flight.
 
-## 6. Open questions
+## 6. Update 2026-08-08 — owner review: packaging model, equipment reframe, and the SME decision
+
+The product owner reviewed the hazmat integration and directed the following. Decisions D-H10+.
+
+| # | Decision | Rationale |
+| --- | --- | --- |
+| D-H10 | **Do not wait for the SME.** Build every feature completely; validate with real-BOL testing (M8-style) AFTER the build. | Owner call 2026-08-08. Attestation/provisional flags are NOT flipped by this decision — they state verification facts, and they flip when the post-build validation actually runs. What changes is sequencing: SME sign-off stops being a build gate. |
+| D-H11 | The sidebar keeps **one** hazmat entry — the HazmatGuard hub — which routes to calculator/loads/review. Amends H-C4, which deleted the hub too. | The owner wants the hub as the module's front door. The review badge moves onto the hub item. |
+| D-H12 | **Packaging is a vocabulary, not a boolean** (H-P1). Lines are stated as package type (drums, IBC/totes, cylinders, boxes…) + package count + total quantity + gross weight (lb or kg); §171.8 bulk/non-bulk is DERIVED from the package type. Pallets are unitization, never a package type. | Real BOLs state count × package type (§172.202(a)(7)). Asking a dispatcher "bulk or non-bulk?" is asking them to know that a 275-gal tote is bulk on a dry van — the single most error-prone question in the form, and the wrong answer under-placards. |
+| D-H13 | **"Carrier context" is renamed and reframed as Equipment**, stated in trailer vocabulary and derived from the fleet where possible. A hopper resolves to `van_or_flatbed` for the engine's tank rules but defaults its lines BULK (§171.8). | The label was engine jargon, collided with the load form's real "carrier relationship" (§172.506), and its two options couldn't express a hopper — whose old mapping (`van_or_flatbed` + non-bulk lines) could apply the 1,001-lb exception to a bulk load. |
+
+### Executed 2026-08-08 (this session)
+
+- **H-C4 (as amended by D-H11) — DONE.** `nav.ts` down to one HazmatGuard item carrying the review
+  badge; nav tests assert the sub-items stay gone. Hub page's Cargo-Tank Profiles card now points at
+  Trailers.
+- **H-C2 — DONE.** Migration `0153`: `cargo_capacity_gal` + `cargo_compartments` on `trailers` AND
+  `vehicles`, backfilled from `hazmat_cargo_tank_profiles`, table dropped. `TrailerForm` shows the
+  cargo-tank block when the type is `tanker` (D-H5 is superseded: the fields are surfaced now because
+  the analysis paths read the equipment row, and the H2 capacity *rules* remain pending).
+  `readEquipmentKind` fetches kind + tank data in one read; `hazmatAnalysis`/`orchestrate`/`reproduce`
+  dropped their profile queries; the `/hazmat/profiles` API, its service, page, form model and
+  composable are deleted; `/hazmat/settings/equipment` redirects to `/trailers`.
+  **Found on the way (F-P5):** `reproduce.ts` never passed the resolved vehicle kind, silently
+  defaulting to `cargo_tank` — any van/flatbed run could "fail" reproduction. Fixed.
+- **H-P1 packaging model — DONE.** `shared/hazmatPackaging.ts` (package-type vocabulary with §171.8
+  derivation + lb/kg conversion); calculator and load form ask package type + count + total quantity
+  + gross weight (lb|kg); engine `0.9.0` EVALUATES `packageCount` (it leaves `UNEVALUATED_INPUTS`,
+  lands in the §172.504(c)/§172.301(a)(3) evidence) so an accurately described load no longer blocks
+  auto-clear on the package count every BOL states.
+- **D-H13 equipment reframe — DONE.** Calculator asks "Equipment" in trailer terms; fleet trailer
+  picker fills it (and tank capacity) from the trailer row; hopper defaults bulk
+  (`resolveVehicleKind` gained `defaultLinePackaging`).
+
+### Deferred, in priority order (recorded so nothing silently drops)
+
+1. **Limited Quantity rules** — the biggest coverage gap for packaged freight. Blocked on dataset
+   work: the HMT import does not yet carry column 8A (§172.101 exceptions), so LQ authorization per
+   entry is not evaluable. Import 8A first; then §173.150ff/§172.315 rules; keep fail-closed until.
+2. H-C1 UI half (loads-board entry point, workspace onto the dispatch load detail page) — still
+   deliberately held for the design rework.
+3. Certifications seeding UX (F-H1's operational fix): bulk-import the roster's CDL/medical/
+   endorsement facts so the qualification gate can ever pass.
+4. BOL extraction of package count + type (the §172.202(a)(7) fields are on every scanned paper —
+   feed them into the same H-P1 line shape).
+5. Table 1 / explosives expansion packs; H2 capacity/compartment rules; remaining H-C3 compliance
+   consolidation.
+
+## 7. Open questions
 
 1. **H2 capacity rules** — D-H5 hides the fields until the engine reads them. If H2 is far off, is
    there a reason to keep the columns at all, or should they land with the rules?

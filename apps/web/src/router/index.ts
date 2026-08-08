@@ -123,15 +123,9 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Hazmat Review", parent: "/hazmat" },
   },
   {
+    // H-C2: Cargo-Tank Profiles page removed — tank capacity lives on the trailer (Fleet → Trailers).
     path: "/hazmat/settings/equipment",
-    name: "hazmat-equipment",
-    component: () => import("@/pages/HazmatEquipmentPage.vue"),
-    meta: {
-      requiresAuth: true,
-      requiresManage: true,
-      title: "Cargo-Tank Profiles",
-      parent: "/hazmat",
-    },
+    redirect: "/trailers",
   },
   {
     path: "/vehicles",

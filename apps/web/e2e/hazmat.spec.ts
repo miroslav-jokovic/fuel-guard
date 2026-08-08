@@ -24,19 +24,26 @@ test.describe("HazmatGuard — Placard Calculator (H5)", () => {
     await expect(page).not.toHaveURL(/\/login/);
   }
 
+  /** H-P1: the form requires the equipment to be stated — there is no default. */
+  async function pickEquipment(page: Page, label: RegExp) {
+    await page.getByLabel("Equipment").click();
+    await page.getByRole("option", { name: label }).click();
+  }
+
   /** Add a product line: type a query, pick the first matching result, set the quantity. */
   async function addProduct(page: Page, lineIndex: number, query: string, qty: string) {
     const pickers = page.getByPlaceholder("Search by UN/NA number or shipping name…");
     await pickers.nth(lineIndex).click();
     await pickers.nth(lineIndex).fill(query);
     await page.getByRole("option").first().click();
-    await page.getByLabel("Quantity").nth(lineIndex).fill(qty);
+    await page.getByLabel("Total quantity").nth(lineIndex).fill(qty);
   }
 
   test("gasoline + diesel split → FLAMMABLE placard and 1203 ID display", async ({ page }) => {
     await login(page);
     await page.goto("/hazmat/calculator");
 
+    await pickEquipment(page, /Tanker/i);
     await addProduct(page, 0, "1203", "5000"); // gasoline UN1203
     await page.getByRole("button", { name: "Add product" }).click();
     await addProduct(page, 1, "1202", "3000"); // diesel UN1202
@@ -52,7 +59,7 @@ test.describe("HazmatGuard — Placard Calculator (H5)", () => {
     await login(page);
     await page.goto("/hazmat/calculator");
 
-    // vehicle defaults to cargo tank; switch tank state to residue.
+    await pickEquipment(page, /Tanker/i); // the tank-state field only renders for a cargo tank
     await page.getByText("Tank state").click();
     await page.getByRole("option", { name: /Residue/i }).click();
 
