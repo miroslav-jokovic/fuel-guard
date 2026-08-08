@@ -26,7 +26,7 @@ export function OfflineBanner() {
       exiting={reduceMotion ? undefined : FadeOutUp.duration(120)}
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
-      className={`min-h-11 flex-row items-center gap-2.5 rounded-lg border border-edge-subtle px-3 py-2 ${
+      className={`min-h-11 flex-row items-center gap-3 rounded-lg border border-edge-subtle px-3 py-2 ${
         offline ? 'bg-warning/10' : 'bg-info/10'
       }`}
     >

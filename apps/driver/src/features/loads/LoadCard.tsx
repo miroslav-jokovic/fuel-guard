@@ -1,5 +1,6 @@
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import { AppText, Badge, Card, Icon, type Tone } from '@/components';
+import { layout } from '@/theme/tokens';
 
 export type LoadStatus = 'upcoming' | 'in_transit' | 'delivered' | 'canceled';
 
@@ -36,6 +37,8 @@ export function RouteRail({
   destination: string;
   destTime: string;
 }) {
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= layout.largeTextBreakpoint;
   return (
     <View className="flex-row gap-3">
       <View className="w-4 items-center py-1">
@@ -44,13 +47,13 @@ export function RouteRail({
         <View className="h-2.5 w-2.5 rounded-full bg-operation-current" />
       </View>
       <View className="flex-1 gap-3">
-        <View className="flex-row items-start justify-between gap-3">
-          <AppText variant="rowTitle" className="flex-1">{origin}</AppText>
-          <AppText variant="caption" tone="muted" tabular className="text-right">{originTime}</AppText>
+        <View className={largeText ? 'gap-0.5' : 'flex-row items-start justify-between gap-3'}>
+          <AppText variant="rowTitle" className={largeText ? '' : 'flex-1'}>{origin}</AppText>
+          <AppText variant="caption" tone="muted" tabular className={largeText ? '' : 'text-right'}>{originTime}</AppText>
         </View>
-        <View className="flex-row items-start justify-between gap-3">
-          <AppText variant="rowTitle" className="flex-1">{destination}</AppText>
-          <AppText variant="caption" tone="muted" tabular className="text-right">{destTime}</AppText>
+        <View className={largeText ? 'gap-0.5' : 'flex-row items-start justify-between gap-3'}>
+          <AppText variant="rowTitle" className={largeText ? '' : 'flex-1'}>{destination}</AppText>
+          <AppText variant="caption" tone="muted" tabular className={largeText ? '' : 'text-right'}>{destTime}</AppText>
         </View>
       </View>
     </View>
@@ -59,16 +62,20 @@ export function RouteRail({
 
 export function LoadCard({ load, onPress }: { load: LoadSummary; onPress?: () => void }) {
   const status = LOAD_STATUS[load.status];
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= layout.largeTextBreakpoint;
   return (
     <Card onPress={onPress}>
-      <View className="flex-row items-center gap-2">
-        <AppText variant="caption" tone="muted" className="flex-1 font-semibold uppercase tracking-wider">
+      <View className={largeText ? 'gap-2' : 'flex-row items-center gap-2'}>
+        <AppText variant="caption" tone="muted" className={`${largeText ? '' : 'flex-1'} font-semibold uppercase tracking-wider`}>
           {load.ref}
         </AppText>
-        {load.hazmat ? <Badge label="Hazmat" tone="warning" icon="warning" /> : null}
-        <View className="flex-row items-center gap-1">
-          <Icon name={status.icon} size={14} className={status.text} />
-          <AppText variant="caption" className={`font-medium ${status.text}`}>{status.label}</AppText>
+        <View className="flex-row flex-wrap items-center gap-2">
+          {load.hazmat ? <Badge label="Hazmat" tone="warning" icon="warning" /> : null}
+          <View className="flex-row items-center gap-1">
+            <Icon name={status.icon} size={14} className={status.text} />
+            <AppText variant="caption" className={`font-medium ${status.text}`}>{status.label}</AppText>
+          </View>
         </View>
       </View>
       <RouteRail
@@ -77,7 +84,7 @@ export function LoadCard({ load, onPress }: { load: LoadSummary; onPress?: () =>
         destination={load.destination}
         destTime={load.destTime}
       />
-      <View className="flex-row items-center gap-2 border-t border-edge-subtle pt-2.5">
+      <View className="flex-row flex-wrap items-center gap-2 border-t border-edge-subtle pt-3">
         <Icon name="route" size={15} className="text-ink-muted" />
         <AppText variant="supporting" tone="muted" className="flex-1">
           {load.stops} stops · {load.miles} · {load.equipment}

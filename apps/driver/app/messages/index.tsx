@@ -35,9 +35,17 @@ export default function MessagesInbox() {
   const startThread = useStartThread();
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
-  useMessagesRealtime();
+  useMessagesRealtime(undefined, features.enabled('messages'));
 
   if (features.isLoaded && !features.enabled('messages')) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen padTop={false}>
+        <ScreenHeader title="Messages" onClose={() => router.back()} />
+        <Skeleton className="h-[60px] w-full rounded-xl" />
+      </Screen>
+    );
+  }
 
   const rows = sortThreads(threads.data?.threads ?? []);
   const showSkeletons = threads.isPending && !threads.data;
@@ -58,6 +66,7 @@ export default function MessagesInbox() {
         composing ? (
           <ActionBar>
             <Input
+              accessibilityLabel="Message dispatch"
               placeholder="Message dispatch…"
               value={draft}
               onChangeText={setDraft}

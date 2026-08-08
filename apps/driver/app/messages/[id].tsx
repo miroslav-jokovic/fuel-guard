@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   MESSAGE_REPORT_LABELS,
   MESSAGE_REPORT_REASONS,
@@ -33,6 +33,59 @@ import {
 } from '@/features/messages/useMessages';
 import { useSession } from '@/session/SessionProvider';
 import { haptics } from '@/lib/haptics';
+import { useFeatures } from '@/session/useFeatures';
+
+function MessageBubble({
+  message,
+  mine,
+  onReport,
+}: {
+  message: Message;
+  mine: boolean;
+  onReport: () => void;
+}) {
+  const content = (
+    <>
+      {!mine && message.sender_name ? (
+        <AppText variant="caption" tone="secondary" className="pb-0.5 font-semibold">{message.sender_name}</AppText>
+      ) : null}
+      <AppText
+        variant="body"
+        tone={mine ? 'inverse' : 'primary'}
+        className={message.deleted_at ? 'italic' : ''}
+      >
+        {messageBody(message)}
+      </AppText>
+      <AppText
+        variant="caption"
+        tone={mine ? 'inverse' : 'subtle'}
+        tabular
+        className="pt-0.5 text-right"
+      >
+        {new Date(message.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+      </AppText>
+    </>
+  );
+
+  const className = `max-w-[80%] rounded-xl px-3 py-2 ${mine ? 'self-end bg-brand' : 'self-start bg-surface-muted'}`;
+  if (mine) return <View className={className}>{content}</View>;
+
+  return (
+    <Pressable
+      onLongPress={onReport}
+      delayLongPress={400}
+      accessibilityRole="button"
+      accessibilityHint="Long press or use the Report action to report this message"
+      accessibilityActions={[{ name: 'report', label: 'Report message' }]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'report') onReport();
+      }}
+      className={`${className} active:opacity-80`}
+    >
+      {content}
+    </Pressable>
+  );
+}
 
 /**
  * One conversation (Phase 7). Replies ride the outbox (typed in a dead zone → lands on reconnect);
@@ -44,7 +97,9 @@ export default function ThreadScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { userId } = useSession();
-  const q = useThreadDetail(id);
+  const features = useFeatures();
+  const messagesEnabled = features.enabled('messages');
+  const q = useThreadDetail(id, messagesEnabled);
   const send = useSendMessage(id);
   const markRead = useMarkThreadRead();
   const report = useReportMessage();
@@ -52,18 +107,28 @@ export default function ThreadScreen() {
   const [reporting, setReporting] = useState<Message | null>(null);
   const [reportReason, setReportReason] = useState<MessageReportReason | null>(null);
   const scroller = useRef<ScrollView>(null);
-  useMessagesRealtime(id);
+  useMessagesRealtime(id, messagesEnabled);
 
   // An open conversation is a read conversation — once, when it loads, and again on new messages.
   const messageCount = q.data?.messages.length ?? 0;
   useEffect(() => {
-    if (id && messageCount > 0) markRead.mutate(id);
+    if (messagesEnabled && id && messageCount > 0) markRead.mutate(id);
     scroller.current?.scrollToEnd({ animated: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- markRead is a stable mutation handle
-  }, [id, messageCount]);
+  }, [id, messageCount, messagesEnabled]);
 
   const thread = q.data?.thread;
   const messages = q.data?.messages ?? [];
+
+  if (features.isLoaded && !messagesEnabled) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen padTop={false}>
+        <ScreenHeader title="Conversation" onBack={() => router.back()} />
+        <Skeleton className="h-[48px] w-3/4 rounded-xl" />
+      </Screen>
+    );
+  }
 
   const submit = async () => {
     const body = draft.trim();
@@ -93,6 +158,7 @@ export default function ThreadScreen() {
           <View className="flex-row items-center gap-2">
             <View className="flex-1">
               <Input
+                accessibilityLabel="Message"
                 placeholder="Type a message…"
                 value={draft}
                 onChangeText={setDraft}
@@ -139,29 +205,12 @@ export default function ThreadScreen() {
           {messages.map((m) => {
             const mine = m.sender_user_id === userId;
             return (
-              <Pressable
+              <MessageBubble
                 key={m.id}
-                onLongPress={mine ? undefined : () => setReporting(m)}
-                delayLongPress={400}
-                accessibilityHint={mine ? undefined : 'Long press to report this message'}
-                className={`max-w-[80%] rounded-xl px-3 py-2 ${
-                  mine ? 'self-end bg-brand' : 'self-start bg-surface-muted'
-                }`}
-              >
-                {!mine && m.sender_name ? (
-                  <AppText variant="caption" tone="secondary" className="pb-0.5 font-semibold">{m.sender_name}</AppText>
-                ) : null}
-                <AppText variant="body" className={`${mine ? 'text-brand-fg' : 'text-ink'} ${m.deleted_at ? 'italic' : ''}`}>
-                  {messageBody(m)}
-                </AppText>
-                <AppText
-                  variant="caption"
-                  tabular
-                  className={`pt-0.5 text-right ${mine ? 'text-brand-fg/70' : 'text-ink-subtle'}`}
-                >
-                  {new Date(m.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                </AppText>
-              </Pressable>
+                message={m}
+                mine={mine}
+                onReport={() => setReporting(m)}
+              />
             );
           })}
           {messages.length === 0 ? (
@@ -173,7 +222,7 @@ export default function ThreadScreen() {
       {/* Report sheet: pick a reason, then confirm. */}
       {reporting && !reportReason ? (
         <View className="gap-2">
-          <SectionLabel>Report this message</SectionLabel>
+          <SectionLabel compact>Report this message</SectionLabel>
           <GroupedList>
             {MESSAGE_REPORT_REASONS.map((r) => (
               <ListRow key={r} title={MESSAGE_REPORT_LABELS[r]} icon="report" onPress={() => setReportReason(r)} />

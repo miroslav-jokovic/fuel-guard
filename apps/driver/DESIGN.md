@@ -14,6 +14,8 @@ The implemented primitive migration and screen recomposition are recorded in
 [`Phase 3`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-PHASE-3.md) and
 [`Phase 4`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-PHASE-4.md). Their
 compact-density, semantic-token, container, and task-hierarchy rules apply immediately.
+The post-implementation findings, corrections, and owner device gate are recorded in the
+[`implementation audit`](../../docs/plans/drivers-app/DRIVER-APP-DESIGN-SYSTEM-2-AUDIT.md).
 
 ## Product character
 
@@ -31,7 +33,7 @@ The visual signature is:
 - Restrained borders and surfaces instead of decorative gradients or floating glass effects.
 - Strong operational status communication: text + icon + tone, never color alone.
 - Large, tabular, glanceable numbers for score, distance, time, fuel, and load data.
-- Contextual work in modal routes; the four-tab shell remains stable.
+- Contextual work in modal routes; tabs remain top-level destinations rather than task actions.
 
 Do not replace these traits with a bundled generic UI font, dashboard gradients, arbitrary
 illustrations, emoji, or ad-hoc icon imports outside the semantic `Icon` adapter.
@@ -45,14 +47,18 @@ that Apple mandates one universal numeric grid.
 
 - Every screen starts with `Screen`; do not hand-roll safe-area padding.
 - Use `ScreenHeader` for titles, subtitles, back actions, close actions, and trailing actions.
-- Keep the bottom tab shell stable: Today, Loads, optional Score, More.
+- Keep enabled tabs in one stable order: Today, Loads, Score, More. Existing fleet feature flags may
+  omit Loads or Score; do not add more conditional tab behavior before resolving the exception in
+  the implementation audit.
 - Use modal routes for contextual work such as load details, driving, capture, duty, and settings.
 - Respect the device's safe areas and keyboard; never place essential content under system chrome.
 
 ### Spacing and layout
 
-- Use a 4pt base quantum. Primary structural alignment uses 8, 16, 24, and 32pt; 12pt is reserved
-  for tightly related content. Apple alignment does not require every dimension to be divisible by 8.
+- Use a 4pt structural base quantum. Primary structural alignment uses 8, 16, 24, and 32pt; 12pt is
+  reserved for tightly related content, and 20pt is a comfortable control or sheet inset. A 2pt
+  value is allowed only for optical stacked-text adjustment or a hairline, never structural layout.
+  Apple alignment does not require every dimension to be divisible by 8.
 - Standard screen content margin: 16pt.
 - Standard section separation: 24pt.
 - Standard component gap: 16pt; use 12pt only within a related content group.
@@ -74,8 +80,8 @@ that Apple mandates one universal numeric grid.
   areas, accessibility text, translated copy, and blocking errors take precedence over this baseline.
 - Use 24pt between genuine workflow regions. Use 32pt or more only for a real workflow boundary or
   an empty-state explanation, never as decorative breathing room.
-- A primary operational module should normally remain under 200pt at default text size. It may grow
-  for content, accessibility, or safety copy; it may not grow for decoration.
+- A primary operational module has no fixed height target. Its current state and primary action must
+  remain visible without decorative filler, and it must grow for Dynamic Type or safety copy.
 - Group related rows into one surface with separators. Do not render every row as an independent
   rounded, bordered, shadowed card.
 - Do not place a generic card inside another card. An inner surface must represent an independent
@@ -96,6 +102,8 @@ that Apple mandates one universal numeric grid.
   one-off screen.
 - Support Dynamic Type and readable text hierarchy. Do not cap content scaling to protect a fixed
   layout; make the layout wrap, grow, or stack. The icon component may remain a fixed glyph box.
+- At the shared large-text breakpoint, horizontal metrics, paired actions, route timestamps, and
+  segmented choices stack vertically instead of compressing or truncating operational copy.
 - Respect Reduce Motion, Bold Text, and high-text-contrast platform preferences through
   `ThemeProvider`; primitives do not perform their own disconnected platform checks.
 - Body text must remain readable in light and dark modes and in sunlight.
@@ -127,7 +135,8 @@ use raw hex values, generic Tailwind palette classes, or inline color styles.
 
 Use `src/theme/tokens.ts` for non-color decisions:
 
-- Spacing: 4, 8, 12, 16, 24, 32, 40pt, chosen by semantic relationship
+- Spacing: 4, 8, 12, 16, 20, 24, 32, 40pt, chosen by semantic relationship; 2pt only for the optical
+  exceptions defined above
 - Radii: 10pt controls, 12pt grouped containers, 16pt operational heroes, and full only where semantic
 - Targets: 44pt minimum, 48pt comfortable, 52pt grouped row, 56pt driving-critical action
 - Type: semantic `AppText` roles, platform UI for operational copy, Hanken for display/numerals

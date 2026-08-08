@@ -106,6 +106,7 @@ export default function CheckIn() {
   const shift = useShift();
   const equipment = useEquipment();
   const duty = dutyView(shift.data);
+  const swapUnavailable = mode === 'swap' && shift.isError && !shift.data;
   const startShift = useStartShift();
   const changeEquipment = useChangeEquipment();
 
@@ -215,6 +216,7 @@ export default function CheckIn() {
 
   const searchBox = (
     <Input
+      accessibilityLabel="Search equipment by unit number"
       placeholder="Search by unit number"
       value={search}
       onChangeText={setSearch}
@@ -241,7 +243,7 @@ export default function CheckIn() {
               label={mode === 'swap' ? 'Save equipment' : 'Start my shift'}
               size="lg"
               icon="check"
-              disabled={!canSubmit(s, mode, odometerMode, odometer)}
+              disabled={swapUnavailable || !canSubmit(s, mode, odometerMode, odometer)}
               loading={startShift.isPending || changeEquipment.isPending}
               haptic="success"
               onPress={() => void submit()}
@@ -272,6 +274,14 @@ export default function CheckIn() {
           message="Could not load your fleet list. You can still work offline once you have checked in."
           actionLabel="Retry"
           onAction={() => void equipment.refetch()}
+        />
+      ) : null}
+      {swapUnavailable ? (
+        <Banner
+          tone="danger"
+          message="Could not verify your current shift. Retry before changing equipment."
+          actionLabel="Retry"
+          onAction={() => void shift.refetch()}
         />
       ) : null}
       {heldNotice ? <Banner tone="info" message={heldNotice} /> : null}

@@ -32,9 +32,35 @@ describe('Design System 2.0 semantic colors', () => {
   });
 
   it.each(Object.entries(roleValues))('%s keeps operational text and primary actions readable', (_, theme) => {
-    expect(contrast(theme.ink, theme.canvas)).toBeGreaterThanOrEqual(7);
-    expect(contrast(theme['ink-secondary'], theme.canvas)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(theme['ink-muted'], theme.canvas)).toBeGreaterThanOrEqual(4.5);
+    const contentSurfaces = [
+      'canvas',
+      'surface',
+      'surface-subtle',
+      'surface-muted',
+      'surface-raised',
+      'surface-selected',
+      'brand-subtle',
+    ] as const;
+    for (const background of contentSurfaces) {
+      expect(contrast(theme.ink, theme[background]), `ink on ${background}`).toBeGreaterThanOrEqual(7);
+    }
+    for (const foreground of ['ink-secondary', 'ink-muted', 'ink-subtle'] as const) {
+      for (const background of contentSurfaces) {
+        expect(contrast(theme[foreground], theme[background]), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
     expect(contrast(theme['brand-fg'], theme.brand)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(theme['brand-fg'], theme['brand-pressed'])).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(theme['ink-inverse'], theme['surface-inverse'])).toBeGreaterThanOrEqual(7);
+    expect(contrast(theme['ink-inverse'], theme.danger)).toBeGreaterThanOrEqual(4.5);
+    for (const foreground of [
+      'brand', 'danger', 'warning', 'caution', 'success', 'info',
+      'operation-current', 'operation-next', 'operation-complete', 'operation-blocked',
+      'sync-local', 'sync-pending', 'sync-failed',
+    ] as const) {
+      for (const background of contentSurfaces) {
+        expect(contrast(theme[foreground], theme[background]), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
   });
 });

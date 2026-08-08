@@ -1,4 +1,5 @@
 import { Text, type TextProps, type TextStyle } from 'react-native';
+import { useTheme } from '@/theme/ThemeProvider';
 
 export type TextVariant =
   | 'caption'
@@ -52,6 +53,19 @@ const TONE: Record<TextTone, string> = {
   info: 'text-info',
 };
 
+const BOLD_TEXT_VARIANT: Record<TextVariant, string> = {
+  caption: 'font-medium',
+  supporting: 'font-medium',
+  body: 'font-medium',
+  action: 'font-bold',
+  navigationTitle: 'font-bold',
+  rowTitle: 'font-semibold',
+  sectionTitle: 'font-bold',
+  screenTitle: '',
+  numericCompact: 'font-display-bold',
+  numericHero: '',
+};
+
 export interface AppTextProps extends TextProps {
   variant?: TextVariant;
   tone?: TextTone;
@@ -73,13 +87,14 @@ export function AppText({
   allowFontScaling = true,
   ...props
 }: AppTextProps) {
+  const { boldText } = useTheme();
   const numericStyle: TextStyle | undefined = tabular ? { fontVariant: ['tabular-nums'] } : undefined;
 
   return (
     <Text
       {...props}
       allowFontScaling={allowFontScaling}
-      className={`${VARIANT[variant]} ${TONE[tone]} ${className}`.trim()}
+      className={`${VARIANT[variant]} ${boldText ? BOLD_TEXT_VARIANT[variant] : ''} ${TONE[tone]} ${className}`.trim()}
       style={[numericStyle, style]}
     />
   );

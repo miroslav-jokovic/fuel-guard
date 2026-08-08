@@ -11,9 +11,10 @@ import { ApiQueryError } from '@/lib/queryClient';
  */
 export const ME_HAZMAT_LOADS_KEY = ['me', 'hazmat', 'loads'] as const;
 
-export function useHazmatChecks(): UseQueryResult<MeHazmatLoadsResponse, Error> {
+export function useHazmatChecks(enabled = true): UseQueryResult<MeHazmatLoadsResponse, Error> {
   return useQuery({
     queryKey: ME_HAZMAT_LOADS_KEY,
+    enabled,
     queryFn: async ({ signal }) => {
       const res = await apiFetch('/api/me/hazmat/loads', {
         schema: meHazmatLoadsResponseSchema,

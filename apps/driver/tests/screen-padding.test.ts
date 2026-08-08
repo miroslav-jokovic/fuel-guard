@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screenTopPadding } from '@/theme/safeArea';
+import { screenBottomPadding, screenTopPadding } from '@/theme/safeArea';
 import { layout } from '@/theme/tokens';
 
 /**
@@ -32,5 +32,11 @@ describe('screenTopPadding', () => {
   it('is stable on a device that reports no inset', () => {
     expect(screenTopPadding(0, false)).toBe(0);
     expect(screenTopPadding(0, true)).toBe(layout.screenInset);
+  });
+
+  it('ends scroll content with one section, not a decorative tab-sized void', () => {
+    expect(screenBottomPadding(34, false)).toBe(34 + layout.sectionGap);
+    expect(screenBottomPadding(34, true)).toBe(layout.screenInset);
+    expect(screenBottomPadding(34, false, true)).toBe(layout.sectionGap);
   });
 });

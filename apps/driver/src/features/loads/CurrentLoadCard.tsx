@@ -25,7 +25,7 @@ export function CurrentLoadCard({
     <Card variant="operational">
       <View className="flex-row items-center gap-2">
         <View className="flex-1 gap-0.5">
-          <View className="flex-row items-center gap-2">
+          <View className="flex-row flex-wrap items-center gap-2">
             <AppText variant="caption" tone="muted" className="font-semibold uppercase tracking-wider">{load.ref}</AppText>
             {load.hazmat ? <Badge label="Hazmat" tone="warning" icon="warning" /> : null}
           </View>
@@ -49,7 +49,7 @@ export function CurrentLoadCard({
         value={progress}
       />
 
-      <View className="flex-row items-start gap-2.5 border-t border-edge-subtle pt-3">
+      <View className="flex-row items-start gap-3 border-t border-edge-subtle pt-3">
         <Icon name="pin_drop" size={19} className="mt-0.5 text-operation-current" />
         <View className="flex-1 gap-0.5">
           <AppText variant="sectionTitle">Next · {load.nextAction}</AppText>

@@ -51,12 +51,21 @@ function rowDate(iso: string): string {
 export default function HazmatHub() {
   const router = useRouter();
   const features = useFeatures();
-  const checks = useHazmatChecks();
+  const hazmatEnabled = features.enabled('hazmat.capture');
+  const checks = useHazmatChecks(hazmatEnabled);
 
   // Deep-link guard: the More entry already hides when the feature is off; this covers a direct
   // navigation. Only redirect once the bootstrap has LOADED — a cold start must not bounce an
   // entitled driver off the hub while the cache rehydrates (server RLS is the real boundary).
-  if (features.isLoaded && !features.enabled('hazmat.capture')) return <Redirect href="/home" />;
+  if (features.isLoaded && !hazmatEnabled) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen padTop={false}>
+        <ScreenHeader title="Hazmat checks" onClose={() => router.back()} />
+        <Skeleton className="h-[60px] w-full rounded-xl" />
+      </Screen>
+    );
+  }
   const rows = checks.data?.loads ?? [];
   const showSkeletons = checks.isPending && !checks.data;
 

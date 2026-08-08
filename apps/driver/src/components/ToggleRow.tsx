@@ -20,13 +20,14 @@ export function ToggleRow({
   const { themeKey } = useTheme();
   const colors = roleColors[themeKey];
   return (
-    <View className={`min-h-[52px] flex-row items-center gap-3 bg-surface px-4 py-2.5 ${disabled ? 'opacity-60' : ''}`}>
+    <View className={`min-h-[52px] flex-row items-center gap-3 bg-surface px-4 py-2 ${disabled ? 'opacity-60' : ''}`}>
       <View className="flex-1 gap-0.5">
-        <AppText variant="rowTitle" tone={disabled ? 'disabled' : 'primary'}>{title}</AppText>
-        {subtitle ? <AppText variant="supporting" tone={disabled ? 'disabled' : 'muted'}>{subtitle}</AppText> : null}
+        <AppText accessible={false} variant="rowTitle" tone={disabled ? 'disabled' : 'primary'}>{title}</AppText>
+        {subtitle ? <AppText accessible={false} variant="supporting" tone={disabled ? 'disabled' : 'muted'}>{subtitle}</AppText> : null}
       </View>
       <Switch
         accessibilityLabel={title}
+        accessibilityHint={subtitle}
         accessibilityState={{ disabled, checked: value }}
         disabled={disabled}
         value={value}

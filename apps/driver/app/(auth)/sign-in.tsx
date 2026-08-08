@@ -115,8 +115,7 @@ export default function SignIn() {
                 accessibilityRole="button"
                 accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                 onPress={() => setShowPassword((v) => !v)}
-                hitSlop={8}
-                className="absolute inset-y-0 right-3 justify-center"
+                className="absolute inset-y-0 right-0 w-12 items-center justify-center"
               >
                 <Icon
                   name={showPassword ? 'visibility_off' : 'visibility'}
@@ -149,7 +148,7 @@ export default function SignIn() {
           <Pressable
             accessibilityRole="button"
             onPress={() => activateDevBypass()}
-            className="items-center py-3"
+            className="min-h-11 items-center justify-center px-3"
           >
             <AppText variant="caption" tone="subtle">Development bypass</AppText>
           </Pressable>

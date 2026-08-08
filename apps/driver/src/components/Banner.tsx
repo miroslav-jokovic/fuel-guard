@@ -31,10 +31,13 @@ export function Banner({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const actionable = Boolean(actionLabel && onAction);
   return (
     <View
-      className={`min-h-11 flex-row items-center gap-2.5 rounded-lg border border-edge-subtle px-3 py-2 ${BG[tone]}`}
-      accessibilityRole="alert"
+      className={`min-h-11 flex-row items-center gap-3 rounded-lg border border-edge-subtle px-3 py-2 ${BG[tone]}`}
+      accessible={!actionable}
+      accessibilityRole={actionable ? undefined : 'alert'}
+      accessibilityLiveRegion="polite"
     >
       <Icon name={icon ?? ICON[tone]} size={18} className={FG[tone]} />
       <AppText variant="supporting" tone="secondary" className="flex-1">{message}</AppText>

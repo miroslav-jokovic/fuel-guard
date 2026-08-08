@@ -1,6 +1,10 @@
 import { AppText } from './AppText';
 
-/** Sentence-case grouped heading. Uppercase micro-labels are reserved for immutable short codes. */
-export function SectionLabel({ children }: { children: string }) {
-  return <AppText variant="sectionTitle" tone="secondary" className="pt-1">{children}</AppText>;
+/** Sentence-case heading with 24pt before its section and 8pt before its first child. */
+export function SectionLabel({ children, compact = false }: { children: string; compact?: boolean }) {
+  return (
+    <AppText variant="sectionTitle" tone="secondary" className={compact ? '' : 'mt-2 -mb-2'}>
+      {children}
+    </AppText>
+  );
 }

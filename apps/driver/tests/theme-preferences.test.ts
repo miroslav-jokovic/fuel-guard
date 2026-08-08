@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveThemeKey } from '@/theme/preferences';
+import { isContrastMode, isThemeMode, resolveThemeKey } from '@/theme/preferences';
 
 describe('resolveThemeKey', () => {
   it('follows the platform appearance in system mode', () => {
@@ -20,5 +20,13 @@ describe('resolveThemeKey', () => {
   it('supports explicit high contrast without changing light/dark intent', () => {
     expect(resolveThemeKey('light', 'dark', 'high', false)).toBe('highContrastLight');
     expect(resolveThemeKey('dark', 'light', 'high', false)).toBe('highContrastDark');
+  });
+
+  it('rejects malformed persisted appearance values', () => {
+    expect(isThemeMode('system')).toBe(true);
+    expect(isThemeMode('sepia')).toBe(false);
+    expect(isThemeMode(null)).toBe(false);
+    expect(isContrastMode('high')).toBe(true);
+    expect(isContrastMode('maximum')).toBe(false);
   });
 });

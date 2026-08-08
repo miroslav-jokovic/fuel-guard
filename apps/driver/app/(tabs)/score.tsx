@@ -1,4 +1,5 @@
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
+import { Redirect, useRouter } from 'expo-router';
 import {
   AppText,
   Banner,
@@ -14,25 +15,49 @@ import {
 } from '@/components';
 import { buildScoreView, type ScoreTile } from '@/features/score/scoreModel';
 import { useDriverScore } from '@/features/score/useDriverScore';
+import { useFeatures } from '@/session/useFeatures';
+import { layout } from '@/theme/tokens';
+
+function ScoreTrend({ tile }: { tile: ScoreTile }) {
+  if (!tile.trend) return <AppText variant="caption" tone="muted">No week-over-week change yet</AppText>;
+  return (
+    <View className="flex-row items-center gap-1">
+      <Icon
+        name={tile.trend.direction === 'up' ? 'trending_up' : 'trending_down'}
+        size={14}
+        className={tile.trend.positive ? 'text-success' : 'text-warning'}
+      />
+      <AppText variant="caption" tone={tile.trend.positive ? 'success' : 'warning'}>{tile.trend.label}</AppText>
+    </View>
+  );
+}
 
 function ScoreMetricRow({ tile }: { tile: ScoreTile }) {
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= layout.largeTextBreakpoint;
+  if (largeText) {
+    return (
+      <View className="min-h-[64px] gap-2 bg-surface px-4 py-3">
+        <View className="flex-row items-start gap-3">
+          <View className="w-6 items-center"><Icon name={tile.icon} size={20} className="text-ink-secondary" /></View>
+          <View className="flex-1 gap-0.5">
+            <AppText variant="rowTitle">{tile.label}</AppText>
+            <ScoreTrend tile={tile} />
+          </View>
+        </View>
+        <View className="flex-row gap-3">
+          <View className="w-6" />
+          <AppText variant="numericCompact" tabular>{tile.value}</AppText>
+        </View>
+      </View>
+    );
+  }
   return (
     <View className="min-h-[64px] flex-row items-center gap-3 bg-surface px-4 py-3">
       <View className="w-6 items-center"><Icon name={tile.icon} size={20} className="text-ink-secondary" /></View>
       <View className="flex-1 gap-0.5">
         <AppText variant="rowTitle">{tile.label}</AppText>
-        {tile.trend ? (
-          <View className="flex-row items-center gap-1">
-            <Icon
-              name={tile.trend.direction === 'up' ? 'trending_up' : 'trending_down'}
-              size={14}
-              className={tile.trend.positive ? 'text-success' : 'text-warning'}
-            />
-            <AppText variant="caption" tone={tile.trend.positive ? 'success' : 'warning'}>{tile.trend.label}</AppText>
-          </View>
-        ) : (
-          <AppText variant="caption" tone="muted">No week-over-week change yet</AppText>
-        )}
+        <ScoreTrend tile={tile} />
       </View>
       {tile.spark ? <View className="w-20"><Sparkline data={tile.spark} height={18} /></View> : null}
       <AppText variant="numericCompact" tabular>{tile.value}</AppText>
@@ -41,13 +66,33 @@ function ScoreMetricRow({ tile }: { tile: ScoreTile }) {
 }
 
 export default function Score() {
-  const query = useDriverScore();
+  const router = useRouter();
+  const features = useFeatures();
+  const scoreEnabled = features.enabled('tab.score');
+  const { scoreDetailTab } = features;
+  const { fontScale } = useWindowDimensions();
+  const largeText = fontScale >= layout.largeTextBreakpoint;
+  const query = useDriverScore(scoreEnabled);
   const view = buildScoreView(query.data);
   const loading = query.isPending && !query.data;
 
+  if (features.isLoaded && !scoreEnabled) return <Redirect href="/home" />;
+  if (!features.isLoaded) {
+    return (
+      <Screen>
+        <ScreenHeader title="Score" subtitle="Weekly performance" />
+        <Skeleton className="h-36 w-full rounded-2xl" />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
-      <ScreenHeader title="Score" subtitle={view.weekLabel ?? 'Weekly performance'} />
+      <ScreenHeader
+        title="Score"
+        subtitle={view.weekLabel ?? 'Weekly performance'}
+        onBack={scoreDetailTab ? undefined : () => router.back()}
+      />
 
       {query.isError && !query.data ? (
         <Banner
@@ -69,7 +114,7 @@ export default function Score() {
         <>
           {view.state === 'ready' ? (
             <View className="gap-3 rounded-2xl border border-edge bg-surface p-4">
-              <View className="flex-row items-end gap-4">
+              <View className={largeText ? 'gap-3' : 'flex-row items-end gap-4'}>
                 <View className="flex-1 gap-0.5">
                   <AppText variant="caption" tone="muted">Weekly score</AppText>
                   <View className="flex-row items-baseline gap-1">
@@ -77,7 +122,7 @@ export default function Score() {
                     <AppText variant="supporting" tone="muted">/ 100</AppText>
                   </View>
                 </View>
-                <View className="items-end gap-1">
+                <View className={`${largeText ? 'items-start' : 'items-end'} gap-1`}>
                   {view.rankLabel ? (
                     <>
                       <AppText variant="caption" tone="muted">Fleet rank</AppText>
@@ -98,7 +143,7 @@ export default function Score() {
               </View>
               <Progress value={(view.score ?? 0) / 100} />
               {view.isWinner ? (
-                <View className="flex-row items-center gap-1.5 border-t border-edge-subtle pt-3">
+                <View className="flex-row items-center gap-2 border-t border-edge-subtle pt-3">
                   <Icon name="military_tech" size={18} className="text-success" />
                   <AppText variant="supporting" tone="success" className="font-medium">Top score in your fleet this week</AppText>
                 </View>

@@ -18,14 +18,18 @@ export function ScreenHeader({
   right?: ReactNode;
 }) {
   const contextual = onBack != null || onClose != null;
+  const leadingAction = onBack
+    ? <IconButton name="arrow_back" label="Back" onPress={onBack} />
+    : onClose
+      ? <IconButton name="close" label="Close" onPress={onClose} />
+      : null;
   return (
     <View className="min-h-11 flex-row items-start gap-2">
-      {onBack ? <IconButton name="arrow_back" label="Back" onPress={onBack} /> : null}
+      {leadingAction}
       <View className="min-h-11 flex-1 justify-center gap-1">
         <AppText
           variant={contextual ? 'navigationTitle' : 'screenTitle'}
           accessibilityRole="header"
-          numberOfLines={contextual ? 2 : undefined}
         >
           {title}
         </AppText>
@@ -39,7 +43,7 @@ export function ScreenHeader({
         ) : null}
       </View>
       {right}
-      {onClose ? <IconButton name="close" label="Close" onPress={onClose} /> : null}
+      {onBack && onClose ? <IconButton name="close" label="Close" onPress={onClose} /> : null}
     </View>
   );
 }

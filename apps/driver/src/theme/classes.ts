@@ -9,7 +9,7 @@ export const ui = {
   sectionLabel: 'pt-1 font-ui text-section-title font-semibold text-ink-secondary',
   card: 'rounded-xl border border-edge-subtle bg-surface',
   cardContent: 'p-4 gap-2',
-  listRow: 'min-h-[52px] flex-row items-center gap-3 bg-surface px-4 py-2.5',
+  listRow: 'min-h-[52px] flex-row items-center gap-3 bg-surface px-4 py-2',
   control: 'rounded-lg',
   focusRing: 'focus:border-2 focus:border-edge-focus',
 } as const;

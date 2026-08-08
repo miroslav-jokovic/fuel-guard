@@ -96,7 +96,10 @@ export default function Settings() {
               { label: 'High', value: 'high' },
             ]}
           />
-          <AppText variant="caption" tone="muted">High contrast strengthens text, borders, and operational states.</AppText>
+          <AppText variant="caption" tone="muted">
+            System follows the phone’s supported contrast preference. High always strengthens text, borders, and
+            operational states.
+          </AppText>
         </View>
       </View>
 
