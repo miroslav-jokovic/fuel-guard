@@ -160,6 +160,44 @@ async function main() {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
 
+  // The security matrix intentionally loads a minimal migration subset. These derived scoring columns are
+  // created by migrations omitted from that subset, so mirror their production shapes before exercising
+  // migration 0156's database function.
+  await db.exec(`
+    alter table fuel_transactions add column if not exists case_level text;
+    alter table fuel_transactions add column if not exists case_score numeric;
+    alter table fuel_transactions add column if not exists case_signals jsonb;
+    alter table fuel_transactions add column if not exists case_gates jsonb;
+    alter table fuel_transactions add column if not exists attribution_verdict text;
+    alter table fuel_transactions add column if not exists logbook_vehicle_id uuid;
+    alter table fuel_transactions add column if not exists samsara_odometer numeric;
+    alter table fuel_transactions add column if not exists samsara_odometer_at timestamptz;
+    alter table fuel_transactions add column if not exists samsara_odometer_source text;
+    alter table fuel_transactions add column if not exists samsara_location_matched boolean;
+    alter table fuel_transactions add column if not exists samsara_location_confidence text;
+    alter table fuel_transactions add column if not exists samsara_nearest_station_miles numeric;
+    alter table fuel_transactions add column if not exists station_lat numeric;
+    alter table fuel_transactions add column if not exists station_lng numeric;
+    alter table fuel_transactions add column if not exists samsara_tank_short_gal numeric;
+    alter table fuel_transactions add column if not exists samsara_tank_observed_gal numeric;
+    alter table fuel_transactions add column if not exists samsara_fuel_pct_before numeric;
+    alter table fuel_transactions add column if not exists samsara_fuel_pct_after numeric;
+    alter table fuel_transactions add column if not exists samsara_observed_state text;
+    alter table fuel_transactions add column if not exists samsara_observed_city text;
+    alter table fuel_transactions add column if not exists samsara_observed_address text;
+    alter table fuel_transactions add column if not exists samsara_observed_lat numeric;
+    alter table fuel_transactions add column if not exists samsara_observed_lng numeric;
+    alter table fuel_transactions add column if not exists fueling_time_basis text;
+    alter table fuel_transactions add column if not exists samsara_recon_at timestamptz;
+    alter table fuel_transactions add column if not exists samsara_recon_checked_at timestamptz;
+    alter table fuel_transactions add column if not exists samsara_recon_status text;
+    alter table fuel_transactions add column if not exists samsara_recon_error text;
+    alter table fuel_transactions add column if not exists samsara_recon_evidence_version int not null default 1;
+    alter table anomalies add column if not exists fueled_at timestamptz;
+  `);
+  await db.exec(read("migrations/0156_atomic_scoring_persistence.sql"));
+  await db.exec(read("migrations/0157_reconciliation_evidence_preservation.sql"));
+
   // Non-privileged role RLS applies to (mirrors Supabase 'authenticated').
   await db.exec(`
     create role app_user nologin;
@@ -1969,6 +2007,92 @@ async function main() {
         "select count(*)::int n from storage.objects where bucket_id = 'compliance-exports'",
       )
     ).rows[0].n === 1,
+  );
+
+  // ── Atomic scoring persistence (0156) ─────────────────────────────────────
+  // The API computes the JSON result; this verifies the database commit boundary and replay behavior.
+  const scoreAttempt = "00000000-0000-4000-8000-00000000f001";
+  const scoreAttemptReplay = "00000000-0000-4000-8000-00000000f002";
+  const scoreTxn = someTxn;
+  const scoreOutcome = JSON.stringify({
+    has_anomaly: false,
+    max_severity: null,
+    case_level: "clear",
+    case_score: 0,
+    case_signals: [],
+    case_gates: {},
+  });
+  await db.query(
+    `insert into scoring_attempts (id, org_id, transaction_id, engine_version, result_hash)
+     values ($1,$2,$3,'test-engine','sha256:test-1')`,
+    [scoreAttempt, ORG_A, scoreTxn],
+  );
+  const firstScore = await db.query(
+    `select public.persist_scoring_outcome_v2(
+      $1,$2,$3,null,$4,'test-engine','sha256:test-1',null,$5::jsonb,$6,$7,$8,$9
+    ) as result`,
+    [scoreAttempt, ORG_A, scoreTxn, "2026-08-08T12:00:00Z", scoreOutcome, "2026-08-08T12:01:00Z", "no_data", null, 1],
+  );
+  ok(
+    "atomic scoring RPC persists the clear outcome",
+    firstScore.rows[0]?.result?.idempotent === false &&
+      (await db.query("select case_level, has_anomaly from fuel_transactions where id=$1", [scoreTxn])).rows[0]?.case_level === "clear" &&
+      (await db.query("select case_level, has_anomaly from fuel_transactions where id=$1", [scoreTxn])).rows[0]?.has_anomaly === false,
+    JSON.stringify(firstScore.rows[0]),
+  );
+  const replayScore = await db.query(
+    `select public.persist_scoring_outcome_v2(
+      $1,$2,$3,null,$4,'test-engine','sha256:test-1',null,$5::jsonb,$6,$7,$8,$9
+    ) as result`,
+    [scoreAttempt, ORG_A, scoreTxn, "2026-08-08T12:00:00Z", scoreOutcome, "2026-08-08T12:01:00Z", "no_data", null, 1],
+  );
+  ok(
+    "replaying a succeeded scoring attempt is idempotent",
+    replayScore.rows[0]?.result?.idempotent === true &&
+      (await db.query("select count(*)::int n from scoring_attempts where id=$1 and status='succeeded'", [scoreAttempt])).rows[0]?.n === 1,
+    JSON.stringify(replayScore.rows[0]),
+  );
+
+  const caseOutcome = JSON.stringify({
+    has_anomaly: true,
+    max_severity: "high",
+    case_level: "alert",
+    case_score: 110,
+    case_signals: [{ ruleId: "tank_fill_short", weight: 60 }],
+    case_gates: {},
+  });
+  await db.query(
+    `insert into scoring_attempts (id, org_id, transaction_id, engine_version, result_hash)
+     values ($1,$2,$3,'test-engine','sha256:test-2')`,
+    [scoreAttemptReplay, ORG_A, scoreTxn],
+  );
+  await db.query(
+    `select public.persist_scoring_outcome_v2(
+      $1,$2,$3,null,$4,'test-engine','sha256:test-2',
+      $5::jsonb,$6::jsonb,$7,$8,$9,$10
+    ) as result`,
+    [
+      scoreAttemptReplay,
+      ORG_A,
+      scoreTxn,
+      "2026-08-08T12:00:00Z",
+      JSON.stringify({
+        rule_id: "theft_case",
+        severity: "high",
+        message: "test case",
+        evidence: { level: "alert" },
+      }),
+      caseOutcome,
+      "2026-08-08T12:02:00Z",
+      "success",
+      null,
+      2,
+    ],
+  );
+  ok(
+    "atomic scoring RPC creates one active case with its outcome",
+    (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'", [scoreTxn])).rows[0]?.n === 1 &&
+      (await db.query("select has_anomaly from fuel_transactions where id=$1", [scoreTxn])).rows[0]?.has_anomaly === true,
   );
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

@@ -100,6 +100,10 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     fueling_time_basis: recon.fuelingTimeBasis,
     // The telematics-recovered instant is stored here, never over fueled_at.
     samsara_recon_at: recon.reconAt,
+    samsara_recon_checked_at: recon.reconCheckedAt,
+    samsara_recon_status: recon.reconStatus,
+    samsara_recon_error: recon.reconError,
+    samsara_recon_evidence_version: recon.reconEvidenceVersion,
   };
 }
 
@@ -171,7 +175,7 @@ export async function persistScoringOutcome(
     outcome: Record<string, unknown>;
   },
 ): Promise<{ idempotent: boolean; anomalyId: string | null }> {
-  const { data, error } = await admin.rpc("persist_scoring_outcome", {
+  const { data, error } = await admin.rpc("persist_scoring_outcome_v2", {
     p_attempt_id: input.attempt.id,
     p_org_id: input.orgId,
     p_transaction_id: input.txnId,
@@ -181,6 +185,10 @@ export async function persistScoringOutcome(
     p_result_hash: input.attempt.resultHash,
     p_case: casePayload(input.caseFired),
     p_outcome: input.outcome,
+    p_recon_checked_at: input.outcome.samsara_recon_checked_at ?? null,
+    p_recon_status: input.outcome.samsara_recon_status ?? null,
+    p_recon_error: input.outcome.samsara_recon_error ?? null,
+    p_recon_evidence_version: input.outcome.samsara_recon_evidence_version ?? 1,
   });
   if (error) throw new Error(`[scoring] atomic persistence failed for ${input.txnId}: ${error.message}`);
   const result = (data ?? {}) as { idempotent?: boolean; anomaly_id?: string | null };

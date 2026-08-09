@@ -126,7 +126,6 @@ const vehicleRow = {
 };
 
 /** The existing-anomalies read is the only anomalies select that carries "source" in its column list. */
-const _isExistingAnomalyRead = (_q: SelectState) => false;
 
 describe("scoreTransaction — characterization (skipRecon rebuild path)", () => {
   it("scores a clean tractor fill through the atomic persistence RPC", async () => {
@@ -137,7 +136,7 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
 
-    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome");
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2");
     expect(rpc).toBeTruthy();
     expect(rpc!.args.p_case).toBeNull();
     expect((rpc!.args.p_outcome as Record<string, unknown>).has_anomaly).toBe(false);
@@ -161,7 +160,7 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
 
-    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome");
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2");
     expect(rpc).toBeTruthy();
     expect((rpc!.args.p_case as Record<string, unknown>).rule_id).toBe("theft_case");
     expect((rpc!.args.p_case as Record<string, unknown>).severity).toBe("high");
@@ -177,7 +176,7 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
 
-    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome");
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2");
     expect(rpc).toBeTruthy();
     expect(rpc!.args.p_case).toBeNull();
     expect((rpc!.args.p_outcome as Record<string, unknown>).case_level).toBe("clear");
@@ -192,7 +191,7 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
 
-    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome");
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2");
     expect(rpc).toBeTruthy();
     expect((rpc!.args.p_case as Record<string, unknown>).rule_id).toBe("theft_case");
     expect(rpc!.args.p_attempt_id).toBeTruthy();
