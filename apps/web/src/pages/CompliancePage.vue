@@ -3,8 +3,7 @@ import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { AppIcon } from "@fuelguard/ui";
 import { ArrowDownTrayIcon, ClipboardDocumentListIcon } from "@fuelguard/ui/icons";
-import type { QualState } from "@fuelguard/shared";
-import { qualifyDriver } from "@fuelguard/shared";
+import { DQ_EXPORT_MAX_DRIVERS } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import { useDriversQuery } from "@/composables/useDrivers";
 import { useAllDriverCertsQuery, useCertificationsQuery } from "@/composables/useCompliance";
@@ -25,10 +24,15 @@ import QualificationSeedPanel from "@/features/compliance/QualificationSeedPanel
 import ExportHistory from "@/features/compliance/ExportHistory.vue";
 import { useRequestBinder } from "@/composables/useDqExports";
 import { useToastStore } from "@/stores/toast";
-import { DQ_EXPORT_MAX_DRIVERS } from "@fuelguard/shared";
 import { sortRows, toggleSort, type SortState } from "@/lib/sort";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { certsByDriver, labelForCode, QUAL_LABEL, QUAL_TONE } from "@/features/compliance/qualificationRoster";
+import {
+  certsByDriver,
+  labelForCode,
+  QUAL_LABEL,
+  QUAL_TONE,
+} from "@/features/compliance/qualificationRoster";
+import { buildQualificationRosterRows } from "@/features/compliance/qualificationRosterRows";
 
 /**
  * Driver Qualification (DQ redesign, D-DQ6).
@@ -127,36 +131,14 @@ const today = new Date().toISOString().slice(0, 10);
 
 const certsBy = computed(() => certsByDriver(driverCerts.value ?? []));
 
-interface Row {
-  id: string;
-  full_name: string;
-  status: string;
-  ready: boolean;
-  state: QualState;
-  issues: string[];
-  issueSummary: string;
-}
-const rows = computed<Row[]>(() =>
-  (drivers.value ?? []).map((d) => {
-    const certs = certsBy.value.get(d.id) ?? [];
-    const res = qualifyDriver({
-      evalDate: today,
-      driverStatus: d.status,
-      certs,
-      vehicleKind: vehicleKind.value,
-      orgHasSecurityPlan: orgHasSecurityPlan.value,
-    });
-    const issues = res.findings.map((f) => labelForCode(f.code));
-    return {
-      id: d.id,
-      full_name: d.full_name,
-      status: d.status,
-      ready: res.qualified,
-      state: res.state,
-      issues,
-      issueSummary: issues.join(", "),
-    };
-  }),
+const rows = computed(() =>
+  buildQualificationRosterRows(
+    drivers.value ?? [],
+    certsBy.value,
+    today,
+    vehicleKind.value,
+    orgHasSecurityPlan.value,
+  ),
 );
 
 const search = ref("");
