@@ -38,11 +38,33 @@ export async function executeJob(
     await driver.fail(job.id, `no handler registered for kind ${job.kind}`, false, 0);
     return "no_handler";
   }
+  let leaseLost = false;
+  let renewFailures = 0;
   const renew = setInterval(() => {
-    void driver.renew(job.id, opts.workerId, opts.leaseSeconds).catch(() => undefined);
+    void driver.renew(job.id, opts.workerId, opts.leaseSeconds)
+      .then((owned) => {
+        if (owned) {
+          renewFailures = 0;
+          return;
+        }
+        renewFailures++;
+        leaseLost = true;
+        console.error(`[queue] lease renewal rejected for job ${job.id} after ${renewFailures} failure(s); refusing completion`);
+      })
+      .catch((error) => {
+        renewFailures++;
+        console.error(`[queue] lease renewal failed for job ${job.id} (${renewFailures}):`, error instanceof Error ? error.message : error);
+        if (renewFailures >= 2) leaseLost = true;
+      });
   }, opts.renewEveryMs);
   try {
     const stats = await handler(ctx, job, (done, total) => driver.progress(job.id, done, total));
+    if (leaseLost) {
+      // Do not complete a job after ownership was lost. Its lease expiry/reclaimer will make it retryable;
+      // completing here could overwrite a newer worker's state.
+      console.error(`[queue] job ${job.id} finished after lease loss; leaving it for lease recovery`);
+      return "failed";
+    }
     await driver.complete(job.id, stats ?? {});
     return "done";
   } catch (e) {

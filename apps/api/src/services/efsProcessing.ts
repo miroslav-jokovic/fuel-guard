@@ -153,22 +153,10 @@ async function emitDeclinedAlerts(
 }
 
 async function claim(admin: SupabaseClient, id: string): Promise<ProcessingRow | null> {
-  const { data, error } = await admin
-    .from("efs_processing_runs")
-    .select("id, org_id, import_id, feed, status, attempts")
-    .eq("id", id)
-    .in("status", ["pending", "failed"])
-    .maybeSingle();
+  const { data, error } = await admin.rpc("claim_efs_processing_run", { p_id: id });
   if (error) throw new Error(error.message);
-  if (!data) return null;
-  const row = data as ProcessingRow;
-  const updated = await admin
-    .from("efs_processing_runs")
-    .update({ attempts: row.attempts + 1, scoring_started_at: new Date().toISOString(), last_error: null })
-    .eq("id", id)
-    .in("status", ["pending", "failed"]);
-  if (updated.error) throw new Error(updated.error.message);
-  return row;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? (row as ProcessingRow) : null;
 }
 
 export async function processEfsProcessingRun(

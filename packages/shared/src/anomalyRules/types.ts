@@ -28,6 +28,8 @@ export interface TxnView {
    * `fueledAt`.
    */
   eventAt?: string | null;
+  /** Fuel purchased between this fill and the prior baseline fill, used when historical rows were skipped. */
+  intermediateGallons?: number;
   /**
    * Whether we trust the fueling INSTANT (not the day). true = corroborated by a telematics stop or a
    * manual entry; false = an uncorroborated EFS posted time (may be an auth/settlement time). When false,
@@ -200,6 +202,7 @@ export interface RuleContext {
   /** Gallons from fills BETWEEN previousTxn and txn (exclusive) that were skipped when picking
    *  previousTxn (blank odometer / flagged entry). Their fuel was burned inside the span, so the
    *  per-fill MPG / top-off / band math must include it (WP4) or MPG reads inflated. Default 0. */
+  /** Fuel purchased between this fill and the prior baseline fill, used when historical rows were skipped. */
   intermediateGallons?: number;
   thresholds: Thresholds;
   operatingHours: OperatingHours;

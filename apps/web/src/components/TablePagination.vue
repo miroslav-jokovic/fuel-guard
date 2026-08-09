@@ -8,8 +8,8 @@ import { computed, ref, watch } from "vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 
 const props = withDefaults(
-  defineProps<{ page: number; pageSize?: number; total: number; loading?: boolean }>(),
-  { pageSize: 20, loading: false },
+  defineProps<{ page: number; pageSize?: number; total: number; loading?: boolean; jumpable?: boolean }>(),
+  { pageSize: 20, loading: false, jumpable: true },
 );
 const emit = defineEmits<{ "update:page": [n: number] }>();
 
@@ -50,7 +50,7 @@ const commitJump = () => {
       <template v-else>No results</template>
     </p>
     <div class="flex items-center gap-3">
-      <label v-if="totalPages > 1" class="hidden items-center gap-1.5 text-sm text-ink-muted sm:flex">
+      <label v-if="totalPages > 1 && jumpable" class="hidden items-center gap-1.5 text-sm text-ink-muted sm:flex">
         <span>Page</span>
         <input
           type="number"

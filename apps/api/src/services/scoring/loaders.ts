@@ -3,7 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TxnView, Thresholds, OperatingHours, FueledAtPrecision } from "@fuelguard/shared";
 
 export const FTXN_COLS =
-  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, control_id, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, samsara_nearest_station_miles, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at, samsara_recon_checked_at, samsara_recon_status, samsara_recon_error, samsara_recon_evidence_version, ambient_temp_f, case_level, case_signals, attribution_verdict, logbook_vehicle_id";
+  "id, org_id, vehicle_id, driver_id, fueled_at, fueled_at_precision, odometer, gallons, price_per_gal, total_cost, version, source, card_ref, control_id, city, state, location_text, tank_type, samsara_odometer, samsara_odometer_at, samsara_odometer_source, samsara_location_matched, samsara_location_confidence, samsara_nearest_station_miles, station_lat, station_lng, samsara_tank_short_gal, samsara_tank_observed_gal, samsara_fuel_pct_before, samsara_fuel_pct_after, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, fueling_time_basis, samsara_recon_at, samsara_recon_checked_at, samsara_recon_status, samsara_recon_error, samsara_recon_evidence_version, ambient_temp_f, case_level, case_signals, attribution_verdict, logbook_vehicle_id, created_at";
+
+/** Query slack covers the existing Samsara reconciliation windows; event-time filtering remains exact in memory. */
+export const EVENT_TIME_QUERY_SLACK_MS = 36 * 3_600_000;
 
 export const ODOMETER_RULE_IDS = [
   "odometer_missing",
@@ -88,6 +91,27 @@ export interface FtxnRow {
   /** WP-ATTR — logbook check of the fill's vehicle attribution ('confirmed' | 'suspect' | 'unknown'). */
   attribution_verdict?: string | null;
   logbook_vehicle_id?: string | null;
+  created_at: string;
+}
+
+export function rowEventTime(r: Pick<FtxnRow, "fueled_at" | "fueled_at_precision" | "source" | "fueling_time_basis" | "samsara_recon_at" | "samsara_location_matched">): string {
+  const tankConfirmed = r.fueling_time_basis === "tank_confirmed";
+  const telemMatched = r.samsara_recon_at != null && r.samsara_location_matched === true;
+  return (tankConfirmed || telemMatched) && r.samsara_recon_at != null ? r.samsara_recon_at : r.fueled_at;
+}
+
+export function rowTimeReliable(r: Pick<FtxnRow, "fueled_at_precision" | "source" | "fueling_time_basis" | "samsara_recon_at" | "samsara_location_matched">): boolean {
+  const tankConfirmed = r.fueling_time_basis === "tank_confirmed";
+  const telemMatched = r.samsara_recon_at != null && r.samsara_location_matched === true;
+  return tankConfirmed || telemMatched || r.source === "manual";
+}
+
+/** Oldest-to-newest ordering for temporal scoring. Equal event times use business time, creation time, then id. */
+export function compareTxnRows(a: FtxnRow, b: FtxnRow): number {
+  return Date.parse(rowEventTime(a)) - Date.parse(rowEventTime(b))
+    || Date.parse(a.fueled_at) - Date.parse(b.fueled_at)
+    || Date.parse(a.created_at) - Date.parse(b.created_at)
+    || a.id.localeCompare(b.id);
 }
 
 export function toTxnView(r: FtxnRow): TxnView {
@@ -101,8 +125,8 @@ export function toTxnView(r: FtxnRow): TxnView {
   const tankConfirmed = r.fueling_time_basis === "tank_confirmed";
   const telemMatched = r.samsara_recon_at != null && r.samsara_location_matched === true;
   const hasRecoveredTime = tankConfirmed || telemMatched;
-  const eventAt = r.samsara_recon_at ?? r.fueled_at;
-  const timeConfirmed = hasRecoveredTime || r.source === "manual";
+  const eventAt = rowEventTime(r);
+  const timeConfirmed = rowTimeReliable(r);
   const precision: FueledAtPrecision = hasRecoveredTime ? "instant" : rowPrecision(r);
   return {
     id: r.id,
@@ -184,20 +208,23 @@ export async function loadOperatingHours(
 export async function sumIntermediateGallons(
   admin: SupabaseClient,
   vehicleId: string,
-  prevFueledAt: string,
-  fueledAt: string,
+  previous: FtxnRow,
+  current: FtxnRow,
   excludeId: string,
 ): Promise<number> {
-  if (prevFueledAt >= fueledAt) return 0;
+  const previousMs = Date.parse(previous.fueled_at);
+  const currentMs = Date.parse(current.fueled_at);
+  const fromIso = new Date(Math.min(previousMs, currentMs)).toISOString();
+  const toIso = new Date(Math.max(previousMs, currentMs)).toISOString();
   const { data } = await admin
     .from("fuel_transactions")
-    .select("id, gallons")
+    .select(FTXN_COLS)
     .eq("vehicle_id", vehicleId)
     .eq("tank_type", "tractor")
-    .gt("fueled_at", prevFueledAt)
-    .lt("fueled_at", fueledAt);
-  return ((data ?? []) as { id: string; gallons: number | string }[])
-    .filter((x) => x.id !== excludeId)
+    .gte("fueled_at", fromIso)
+    .lte("fueled_at", toIso);
+  return ((data ?? []) as FtxnRow[])
+    .filter((x) => x.id !== excludeId && compareTxnRows(x, previous) > 0 && compareTxnRows(x, current) < 0)
     .reduce((s, x) => s + (Number(x.gallons) || 0), 0);
 }
 

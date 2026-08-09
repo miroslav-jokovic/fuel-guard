@@ -94,6 +94,17 @@ describe("queue — executeJob", () => {
     expect(calls.failed[0]).toMatchObject({ retry: false });
   });
 
+  it("refuses to complete a job after lease ownership is lost", async () => {
+    registerHandler("efs_ingest", async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return { found: 3 };
+    });
+    const { driver, calls } = fakeDriver({ renew: async () => false });
+    const outcome = await executeJob(driver, ctx, job(), { ...execOpts, renewEveryMs: 1 });
+    expect(outcome).toBe("failed");
+    expect(calls.completed).toHaveLength(0);
+  });
+
   it("threads progress from the handler through to the driver", async () => {
     registerHandler("efs_ingest", async (_ctx, _job, report) => {
       await report(5, 10);

@@ -202,7 +202,11 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
   const baseline = effectiveBaseline(vehicle, recentTxns);
   if (windowGallons <= 0 || baseline == null || baseline <= 0 || windowMiles == null)
     return none("cumulative_overfuel");
-  const cap = resolveCapacity(vehicle).gallons; // sensor-measured > entered > billed-history (WP-CAP)
+  const resolved = resolveCapacity(vehicle); // sensor-measured > entered > billed-history (WP-CAP)
+  // Without any capacity source, this rule cannot grant the legitimate one-tank reserve. Suppressing is safer
+  // than treating an unknown tank as 0 gal and turning ordinary purchases into false overfuel cases.
+  if (resolved.confidence === "none" || resolved.gallons <= 0) return none("cumulative_overfuel");
+  const cap = resolved.gallons;
   const burnable = windowMiles / baseline;
   // 2026-08 — MEASURED idle burn. The miles→MPG conversion is blind to fuel burned while parked: a
   // truck that drove 84 mi in 48h while idling 30h (sleeper HVAC, hot-weather) really burned ~25 gal

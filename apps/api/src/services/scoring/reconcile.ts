@@ -246,7 +246,10 @@ async function liveReconciliation(
   }
 }
 
-function applyReconciledTime(result: ReconResult, txn: TxnView, r: FtxnRow): void {
+export function applyReconciledContext(result: ReconResult, txn: TxnView, r: FtxnRow): void {
+  // Live geocoding is part of this fill's rule context immediately; do not wait for a later rebuild.
+  txn.stationLat = result.stationLat;
+  txn.stationLng = result.stationLng;
   const telematicsConfirmed =
     result.fuelingTimeBasis === "tank_confirmed" ||
     (result.reconAt != null && result.samsaraLocationMatched === true);
@@ -328,7 +331,7 @@ export async function resolveReconciliation(
       result.reconCheckedAt = new Date().toISOString();
     }
     // If live returned no data or failed, result intentionally retains all stored evidence.
-    applyReconciledTime(result, txn, r);
+    applyReconciledContext(result, txn, r);
   }
 
   await suppressSystematicStationOffset(admin, orgId, r, result);

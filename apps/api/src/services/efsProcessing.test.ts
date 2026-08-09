@@ -25,6 +25,15 @@ function fakeAdmin() {
   };
 
   const admin = {
+    rpc: async (fn: string) => {
+      if (fn === "claim_efs_processing_run") {
+        if (processing.status === "succeeded") return { data: [], error: null };
+        processing.status = "running";
+        processing.attempts += 1;
+        return { data: [processing], error: null };
+      }
+      return { data: null, error: null };
+    },
     from(table: string) {
       let mode: "select" | "update" = "select";
       let patch: Record<string, unknown> = {};

@@ -9,31 +9,40 @@ import { fileURLToPath, URL } from "node:url";
 const buildId = process.env.RAILWAY_GIT_COMMIT_SHA ?? `local-${Date.now()}`;
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [
-    vue(),
-    tailwindcss(),
-    {
-      name: "fuelguard-emit-version",
-      apply: "build",
-      generateBundle() {
-        this.emitFile({
-          type: "asset",
-          fileName: "version.json",
-          source: JSON.stringify({ version: buildId }),
-        });
+export default defineConfig(({ mode }) => {
+  if (mode === "production") {
+    const missing = [
+      !process.env.VITE_SUPABASE_URL && "VITE_SUPABASE_URL",
+      !process.env.VITE_SUPABASE_ANON_KEY && "VITE_SUPABASE_ANON_KEY",
+    ].filter(Boolean);
+    if (missing.length) throw new Error(`Production web build is missing: ${missing.join(", ")}`);
+  }
+  return {
+    plugins: [
+      vue(),
+      tailwindcss(),
+      {
+        name: "fuelguard-emit-version",
+        apply: "build",
+        generateBundle() {
+          this.emitFile({
+            type: "asset",
+            fileName: "version.json",
+            source: JSON.stringify({ version: buildId }),
+          });
+        },
+      },
+    ],
+    define: {
+      __APP_VERSION__: JSON.stringify(buildId),
+    },
+    resolve: {
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
       },
     },
-  ],
-  define: {
-    __APP_VERSION__: JSON.stringify(buildId),
-  },
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    server: {
+      port: 5173,
     },
-  },
-  server: {
-    port: 5173,
-  },
+  };
 });

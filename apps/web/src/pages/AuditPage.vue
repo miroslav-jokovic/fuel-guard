@@ -6,14 +6,22 @@ import FilterBar from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 const filters = ref<AuditFilters>({});
-const { data: logs, isLoading, isError, error, isFetching, refetch } = useAuditQuery(filters);
-
 const page = ref(1);
-watch(filters, () => (page.value = 1), { deep: true });
-const total = computed(() => logs.value?.length ?? 0);
-const pageRows = computed(() => (logs.value ?? []).slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+const cursors = ref<(string | null)[]>([null]);
+const cursor = computed(() => cursors.value[page.value - 1] ?? null);
+const { data: auditPage, isLoading, isError, error, isFetching, refetch } = useAuditQuery(filters, cursor);
+
+watch(filters, () => {
+  page.value = 1;
+  cursors.value = [null];
+}, { deep: true });
+watch(() => auditPage.value?.nextCursor, (next) => {
+  if (next && cursors.value.length === page.value) cursors.value.push(next);
+});
+const total = computed(() => auditPage.value?.total ?? 0);
+const pageRows = computed(() => auditPage.value?.rows ?? []);
 
 /** Two-way proxy for the action search ("" ⇄ undefined). */
 const search = computed({
@@ -61,6 +69,8 @@ const columns: DataTableColumn[] = [
           :page="page"
           :page-size="PAGE_SIZE"
           :total="total"
+          :loading="isFetching"
+          :jumpable="false"
           @update:page="page = $event"
         />
       </template>

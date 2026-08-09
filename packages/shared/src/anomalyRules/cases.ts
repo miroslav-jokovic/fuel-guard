@@ -89,12 +89,14 @@ export function correlateSignals(fired: RuleResult[]): CaseAssessment {
 
   const overwhelming = topWeight >= OVERWHELMING_WEIGHT;
   const corroborated = axes.length >= 2 && score >= ALERT_SCORE;
+  const hasCriticalSignal = signals.some((s) => s.severity === "critical");
 
   let level: CaseLevel;
   let severity: AnomalySeverity;
   if (overwhelming || corroborated) {
     level = "alert";
-    severity = overwhelming && corroborated ? "critical" : "high";
+    // A contributing critical physical signal remains critical even when it is the sole overwhelming axis.
+    severity = hasCriticalSignal ? "critical" : "high";
   } else if (topWeight >= REVIEW_WEIGHT) {
     level = "review";
     severity = "medium";
@@ -164,7 +166,9 @@ export function reconcileAnomalies(
   existing: ExistingAnomaly[],
   fired: RuleResult[],
 ): AnomalyReconciliation {
-  const active = existing.filter((a) => a.status !== "superseded");
+  // Closed cases are historical outcomes, not active blockers. A later detection must create a new case
+  // so a previously dismissed/resolved event cannot hide a new recurrence.
+  const active = existing.filter((a) => a.status === "open" || a.status === "investigating");
   const activeRuleIds = new Set<string>(active.map((a) => a.rule_id));
   const firedRuleIds = new Set<string>(fired.map((f) => f.ruleId));
 

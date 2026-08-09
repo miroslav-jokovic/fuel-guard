@@ -3,12 +3,12 @@
  *  the inlined blocks — same queries, same ordering, same defaults when a stage doesn't apply. */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  contaminatesBaseline, robustWindowMiles, verifyFillAttribution, isDriverOffDutyAtFill, ATTRIBUTION_TIME_BUFFER_MS,
-  IDLE_BURN_GPH,
+  verifyFillAttribution, isDriverOffDutyAtFill, ATTRIBUTION_TIME_BUFFER_MS,
+  IDLE_BURN_GPH, eventTime,
   type TxnView, type VehicleView, type Thresholds, type AttributionCheck, type LogbookSegment,
 } from "@fuelguard/shared";
 import { writeAudit } from "../../lib/audit.js";
-import { FTXN_COLS, ODOMETER_RULE_IDS, toTxnView, sumIntermediateGallons, n } from "./loaders.js";
+import { n, rowEventTime } from "./loaders.js";
 import type { FtxnRow } from "./loaders.js";
 
 export interface VehicleContext {
@@ -170,109 +170,7 @@ export async function healMissingAttribution(
   return null;
 }
 
-export interface ConsumptionContext {
-  previousTxn: TxnView | null;
-  recentTxns: TxnView[];
-  intermediateGallons: number;
-  windowGallons: number;
-  windowMiles: number | null;
-  /** WP-ATTR — gallons excluded from the window because their fills' attribution is logbook-contradicted. */
-  windowSuspectGallons: number;
-}
 
-/** Tractor consumption context: the previous clean fill, the recent-fills baseline window, intermediate
- *  gallons, and the rolling-window gallons/miles. TRACTOR fills only — reefer (ULSR) gallons must never
- *  enter a tractor's consumption math, so a reefer fill returns the empty defaults. */
-export async function loadConsumptionContext(
-  admin: SupabaseClient,
-  txn: TxnView,
-  r: FtxnRow,
-  txnId: string,
-  winStartIso: string,
-): Promise<ConsumptionContext> {
-  let previousTxn: TxnView | null = null;
-  let recentTxns: TxnView[] = [];
-  let intermediateGallons = 0;
-  let windowGallons = 0;
-  let windowMiles: number | null = null;
-  let windowSuspectGallons = 0;
-
-  if (txn.vehicleId && txn.tankType !== "reefer") {
-    const { data: prevRows } = await admin
-      .from("fuel_transactions")
-      .select(FTXN_COLS)
-      .eq("vehicle_id", txn.vehicleId)
-      .eq("tank_type", "tractor")
-      .lt("fueled_at", r.fueled_at)
-      .not("odometer", "is", null)
-      .order("fueled_at", { ascending: false })
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(12);
-    const rows = (prevRows ?? []) as FtxnRow[];
-
-    const candidateIds = rows.map((x) => x.id);
-    let badIds = new Set<string>();
-    if (candidateIds.length) {
-      const { data: anoms } = await admin
-        .from("anomalies")
-        .select("transaction_id, rule_id, status")
-        .in("transaction_id", candidateIds)
-        .neq("status", "superseded")
-        .in("rule_id", ODOMETER_RULE_IDS);
-      badIds = new Set((anoms ?? []).map((a) => a.transaction_id as string));
-    }
-    // Previous fill = the most recent fill whose odometer is NOT already flagged as anomalous (legacy
-    // anomalies rows OR persisted case_signals). Comparing against a known-bad reading cascaded false
-    // regressions / MPG anomalies onto every correct entry after it.
-    const ODO_SIGNALS = new Set(ODOMETER_RULE_IDS);
-    const odoBad = (x: FtxnRow) => badIds.has(x.id) || (x.case_signals ?? []).some((sg) => ODO_SIGNALS.has(sg.ruleId));
-    // WP-ATTR: a fill whose attribution the driver's logbook contradicts carries another truck's
-    // gallons/odometer — it must not serve as the previous fill or train the baseline.
-    const attrBad = (x: FtxnRow) => x.attribution_verdict === "suspect";
-    const prevRow = rows.find((x) => !odoBad(x) && !attrBad(x)) ?? null;
-    previousTxn = prevRow ? toTxnView(prevRow) : null;
-    // WP6: theft-contaminated fills (volume-axis evidence / alert cases) must not train the baseline —
-    // sustained theft would drag the median down until its own deviations stop firing.
-    recentTxns = rows.filter((x) => !odoBad(x) && !attrBad(x) && !contaminatesBaseline(x.case_level, x.case_signals)).slice(0, 6).map(toTxnView).reverse();
-    if (prevRow) intermediateGallons = await sumIntermediateGallons(admin, txn.vehicleId, prevRow.fueled_at, r.fueled_at, txnId); // WP4
-
-    const { data: winRows } = await admin
-      .from("fuel_transactions")
-      .select("id, gallons, odometer, samsara_odometer, samsara_odometer_source, attribution_verdict")
-      .eq("vehicle_id", txn.vehicleId)
-      .eq("tank_type", "tractor")
-      .gte("fueled_at", winStartIso)
-      .lte("fueled_at", r.fueled_at)
-      // OLDEST→NEWEST for robustWindowMiles' regression check; created_at,id tiebreakers make the order
-      // deterministic when date-only rows share the noon-sentinel fueled_at (R-2 — rebuild idempotency).
-      .order("fueled_at", { ascending: true })
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true });
-    const wrAll = (winRows ?? []) as {
-      id: string;
-      gallons: number | string;
-      odometer: number | string | null;
-      samsara_odometer: number | string | null;
-      samsara_odometer_source: string | null;
-      attribution_verdict: string | null;
-    }[];
-    // WP-ATTR: logbook-contradicted fills are another truck's fuel — excluding them from the window is
-    // exactly the driver-changed-truck false-alert fix. The CURRENT fill always stays in (its own
-    // verdict gates the rule separately via attributionSuspect); the excluded gallons are reported so
-    // evidence can show what was left out.
-    const wr = wrAll.filter((x) => x.id === txnId || x.attribution_verdict !== "suspect");
-    windowSuspectGallons = wrAll.filter((x) => x.id !== txnId && x.attribution_verdict === "suspect").reduce((s, x) => s + Number(x.gallons), 0);
-    windowGallons = wr.reduce((s, x) => s + Number(x.gallons), 0);
-    // Miles driven from the CLEAN OBD Samsara odometer span when available; fall back to the entered span only
-    // when it doesn't regress; else null → cumulative_overfuel stays silent (data-quality, not a false alarm).
-    windowMiles = robustWindowMiles(
-      wr.map((x) => ({ enteredOdometer: n(x.odometer), samsaraOdometer: n(x.samsara_odometer), samsaraSource: x.samsara_odometer_source })),
-    ).miles;
-  }
-
-  return { previousTxn, recentTxns, intermediateGallons, windowGallons, windowMiles, windowSuspectGallons };
-}
 
 /**
  * WP-BEH — chronic-short accumulator inputs: the trailing measured fills (rise recorded by Samsara)
@@ -283,11 +181,12 @@ export async function loadTankResidualWindow(
   admin: SupabaseClient,
   txn: TxnView,
   r: FtxnRow,
+  winEndIso?: string,
 ): Promise<{ fills: number; sumShortGal: number; totalBilledGal: number; shortFills: number } | null> {
   if (!txn.vehicleId || txn.tankType === "reefer") return null;
   const { data } = await admin
     .from("fuel_transactions")
-    .select("gallons, samsara_tank_observed_gal, attribution_verdict, fueling_time_basis")
+    .select("gallons, samsara_tank_observed_gal, attribution_verdict, fueling_time_basis, fueled_at, fueled_at_precision, source, samsara_recon_at, samsara_location_matched")
     .eq("vehicle_id", txn.vehicleId)
     .eq("tank_type", "tractor")
     .not("samsara_tank_observed_gal", "is", null)
@@ -297,13 +196,26 @@ export async function loadTankResidualWindow(
     // read as chronic skimming. A rise-event measurement reads the level at the exact fueling instant.
     .eq("fueling_time_basis", "tank_confirmed")
     .gt("gallons", 0)
-    .lte("fueled_at", r.fueled_at)
+    .lte("fueled_at", winEndIso ?? r.fueled_at)
     .order("fueled_at", { ascending: false })
     .order("created_at", { ascending: false })
     .order("id", { ascending: false }) // deterministic sample at the limit boundary (audit A2.5)
     .limit(10);
-  const rows = ((data ?? []) as { gallons: number | string; samsara_tank_observed_gal: number | string; attribution_verdict: string | null }[])
-    .filter((x) => x.attribution_verdict !== "suspect");
+  const anchorMs = Date.parse(eventTime(txn));
+  const rows = ((data ?? []) as {
+    gallons: number | string;
+    samsara_tank_observed_gal: number | string;
+    attribution_verdict: string | null;
+    fueled_at: string;
+    fueled_at_precision: string | null;
+    source: string;
+    fueling_time_basis: string | null;
+    samsara_recon_at: string | null;
+    samsara_location_matched: boolean | null;
+  }[]).filter((x) => {
+    const at = Date.parse(rowEventTime(x));
+    return x.attribution_verdict !== "suspect" && Number.isFinite(at) && at <= anchorMs;
+  });
   if (rows.length === 0) return null;
   let sumShortGal = 0;
   let totalBilledGal = 0;
@@ -330,12 +242,12 @@ export async function loadTankResidualWindow(
 export async function loadWindowIdleGallons(
   admin: SupabaseClient,
   txn: TxnView,
-  r: FtxnRow,
   winStartIso: string,
+  winEndIso?: string,
 ): Promise<number> {
   if (!txn.vehicleId || txn.tankType === "reefer") return 0;
   const winStartMs = Date.parse(winStartIso);
-  const winEndMs = Date.parse(r.fueled_at);
+  const winEndMs = Date.parse(winEndIso ?? eventTime(txn));
   if (!Number.isFinite(winStartMs) || !Number.isFinite(winEndMs) || winEndMs <= winStartMs) return 0;
   // Fetch day rows covering the window ± one day of slack for timezone-offset day boundaries.
   const fromDay = new Date(winStartMs - 86_400_000).toISOString().slice(0, 10);
@@ -372,8 +284,8 @@ export async function loadReeferContext(
   admin: SupabaseClient,
   orgId: string,
   txn: TxnView,
-  r: FtxnRow,
   winStartIso: string,
+  winEndIso: string,
 ): Promise<ReeferContext> {
   let reeferTankCapacityGal: number | null = null;
   let reeferWindowGallons = 0;
@@ -399,7 +311,7 @@ export async function loadReeferContext(
       .eq("vehicle_id", txn.vehicleId)
       .eq("tank_type", "reefer")
       .gte("fueled_at", winStartIso)
-      .lte("fueled_at", r.fueled_at);
+      .lte("fueled_at", winEndIso);
     reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce((s, x) => s + Number(x.gallons), 0);
   }
   return { reeferTankCapacityGal, reeferWindowGallons };
@@ -420,8 +332,8 @@ export async function loadReeferDiversionContext(
   admin: SupabaseClient,
   orgId: string,
   txn: TxnView,
-  r: FtxnRow,
   thresholds: Thresholds,
+  winEndIso?: string,
 ): Promise<ReeferDiversionContext> {
   let reeferPaired = false;
   let orgUsesReeferFuel = false;
@@ -440,14 +352,16 @@ export async function loadReeferDiversionContext(
     reeferPaired = ((pairedRows ?? []) as unknown[]).length > 0;
     if (reeferPaired) {
       const days = thresholds.reeferDiversionWindowDays ?? 30;
-      const divStart = new Date(Date.parse(r.fueled_at) - days * 86_400_000).toISOString();
+      const anchorMs = Date.parse(eventTime(txn));
+      const divStart = new Date(anchorMs - days * 86_400_000).toISOString();
+      const divEnd = winEndIso ?? eventTime(txn);
       const { data: divRows } = await admin
         .from("fuel_transactions")
         .select("gallons, tank_type")
         .eq("org_id", orgId)
         .eq("vehicle_id", txn.vehicleId)
         .gte("fueled_at", divStart)
-        .lte("fueled_at", r.fueled_at);
+        .lte("fueled_at", divEnd);
       for (const x of (divRows ?? []) as { gallons: number | string; tank_type: string | null }[]) {
         const g = Number(x.gallons) || 0;
         if (x.tank_type === "reefer") reeferDiversionReeferGal += g;
@@ -461,7 +375,7 @@ export async function loadReeferDiversionContext(
         .eq("org_id", orgId)
         .eq("tank_type", "reefer")
         .gte("fueled_at", divStart)
-        .lte("fueled_at", r.fueled_at)
+        .lte("fueled_at", divEnd)
         .limit(1);
       orgUsesReeferFuel = ((orgReefer ?? []) as unknown[]).length > 0;
 
@@ -484,7 +398,7 @@ export async function loadReeferDiversionContext(
           .eq("vehicle_id", txn.vehicleId)
           .eq("temperature_controlled", true)
           .gte("started_at", divStart)
-          .lte("started_at", r.fueled_at)
+          .lte("started_at", divEnd)
           .limit(1);
         reeferLoadInWindow = ((tempLoads ?? []) as unknown[]).length > 0;
       }

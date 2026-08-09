@@ -4,6 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   runAllRules,
   correlateSignals,
+  eventTime,
+  timeReliable,
   CASE_RULE_ID,
   shouldReattribute,
   type RuleContext,
@@ -22,7 +24,6 @@ import { FTXN_COLS, toTxnView, loadThresholds, loadOperatingHours, n } from "./l
 import type { FtxnRow, ScoreOpts } from "./loaders.js";
 import {
   loadVehicleContext,
-  loadConsumptionContext,
   loadWindowIdleGallons,
   loadReeferContext,
   loadReeferDiversionContext,
@@ -30,6 +31,7 @@ import {
   healMissingAttribution,
   loadTankResidualWindow,
 } from "./context.js";
+import { loadConsumptionContext } from "./consumptionContext.js";
 import {
   buildTxnOutcomePatch,
   failScoringAttempt,
@@ -98,15 +100,18 @@ async function loadRuleInputs(
   r: FtxnRow,
   txnId: string,
   winStartIso: string,
+  winEndIso: string,
   thresholds: Awaited<ReturnType<typeof loadThresholds>>,
   vehicle: Awaited<ReturnType<typeof loadVehicleContext>>["vehicle"],
 ): Promise<RuleInputs> {
-  const consumption = await loadConsumptionContext(admin, txn, r, txnId, winStartIso);
-  const tankResidualWindow = await loadTankResidualWindow(admin, txn, r);
-  const windowIdleGallons = await loadWindowIdleGallons(admin, txn, r, winStartIso);
+  const consumption = await loadConsumptionContext(admin, txn, r, txnId, winStartIso, winEndIso);
+  // Historical trend rules use the same intermediate-fuel correction as the current-fill MPG calculation.
+  txn.intermediateGallons = consumption.intermediateGallons;
+  const tankResidualWindow = await loadTankResidualWindow(admin, txn, r, winEndIso);
+  const windowIdleGallons = await loadWindowIdleGallons(admin, txn, winStartIso, winEndIso);
   const cardCtx = await resolveCardContext(admin, orgId, txn, winStartIso, r.fueled_at);
-  const reefer = await loadReeferContext(admin, orgId, txn, r, winStartIso);
-  const reeferDiversion = await loadReeferDiversionContext(admin, orgId, txn, r, thresholds);
+  const reefer = await loadReeferContext(admin, orgId, txn, winStartIso, winEndIso);
+  const reeferDiversion = await loadReeferDiversionContext(admin, orgId, txn, thresholds, winEndIso);
   const driverHomeAtFill = txn.driverId
     ? await deriveDriverHomeAtFill(admin, orgId, txn.driverId, r.fueled_at)
     : undefined;
@@ -216,14 +221,29 @@ async function dispatchAlertSweep(
       .eq("status", "open")
       .maybeSingle();
     if (openCase?.id) {
-      void dispatchJob(admin, env, "pattern_sweep", {
-        orgId,
-        payload: { anomalyId: openCase.id as string },
-        dedupKey: `sweep:${openCase.id as string}`,
-      });
+      const request = await admin.from("pattern_sweep_requests").upsert(
+        { org_id: orgId, anomaly_id: openCase.id as string, status: "pending", next_attempt_at: new Date().toISOString() },
+        { onConflict: "anomaly_id", ignoreDuplicates: true },
+      );
+      if (request.error) throw new Error(request.error.message);
+      const { data: sweepRequest } = await admin.from("pattern_sweep_requests")
+        .select("id").eq("anomaly_id", openCase.id as string).maybeSingle();
+      try {
+        await dispatchJob(admin, env, "pattern_sweep", {
+          orgId,
+          payload: { anomalyId: openCase.id as string, requestId: sweepRequest?.id as string | undefined },
+          dedupKey: `sweep:${openCase.id as string}`,
+        });
+      } catch (error) {
+        // Evidence enrichment must not fail scoring, but its failure must be operationally visible.
+        console.error(
+          `[scoring] pattern sweep dispatch failed for ${openCase.id as string}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
     }
-  } catch {
-    /* the sweep is evidence enrichment — never let it disturb scoring */
+  } catch (error) {
+    console.error("[scoring] pattern sweep lookup failed:", error instanceof Error ? error.message : error);
   }
 }
 
@@ -266,11 +286,10 @@ export async function scoreTransaction(
 
   const thresholds = opts.ctx?.thresholds ?? (await loadThresholds(admin, orgId));
   const operatingHours = opts.ctx?.operatingHours ?? (await loadOperatingHours(admin, orgId));
-  const windowMs = (thresholds.cumulativeWindowHours ?? 48) * 3_600_000;
-  // Rolling windows anchor on the STORED fueled_at (business time) — never the recovered instant.
-  const winStartIso = new Date(new Date(r.fueled_at).getTime() - windowMs).toISOString();
 
-  // Samsara reconciliation: the fueling-time odometer truth + recovered fueling time + location check.
+  // Samsara reconciliation runs before temporal context loading: the recovered event time and live station
+  // coordinates must participate in the first scoring pass, not only in a later rebuild.
+  //
   // Also applies the telematics-recovered instant to `txn` in memory — so it must run before the context
   // loaders and rule evaluation below. Kept whole as `recon` and threaded into the ruleCtx + the outcome write.
   const recon = await resolveReconciliation(
@@ -283,6 +302,11 @@ export async function scoreTransaction(
     samsaraVehicleId,
     opts,
   );
+  const windowMs = (thresholds.cumulativeWindowHours ?? 48) * 3_600_000;
+  const windowAnchorIso = timeReliable(txn) ? eventTime(txn) : txn.fueledAt;
+  const windowAnchorMs = Date.parse(windowAnchorIso);
+  const winStartIso = new Date(windowAnchorMs - windowMs).toISOString();
+  const winEndIso = new Date(windowAnchorMs + windowMs).toISOString();
 
   const { check: attribution, driverOffDutyAtFill } = await loadAttributionCheck(admin, orgId, txn);
   if (
@@ -303,6 +327,7 @@ export async function scoreTransaction(
     r,
     txnId,
     winStartIso,
+    winEndIso,
     thresholds,
     vehicle,
   );

@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { anomalyTransitionSchema, thresholdsFormSchema } from "./index.js";
+import { anomalyTransitionSchema, isAnomalyTransitionAllowed, thresholdsFormSchema } from "./index.js";
 
 describe("anomalyTransitionSchema", () => {
   it("allows moving to investigating without a note", () => {
     expect(anomalyTransitionSchema.safeParse({ status: "investigating", version: 1 }).success).toBe(true);
   });
-  it("requires a note when resolving or dismissing", () => {
+  it("requires a note and disposition when resolving or dismissing", () => {
     expect(anomalyTransitionSchema.safeParse({ status: "resolved", version: 1 }).success).toBe(false);
-    expect(anomalyTransitionSchema.safeParse({ status: "resolved", note: "checked, legit", version: 1 }).success).toBe(true);
+    expect(anomalyTransitionSchema.safeParse({ status: "resolved", note: "checked, legit", version: 1 }).success).toBe(false);
+    expect(anomalyTransitionSchema.safeParse({ status: "resolved", note: "checked, legit", disposition: "benign_explained", version: 1 }).success).toBe(true);
+    expect(anomalyTransitionSchema.safeParse({ status: "investigating", disposition: "confirmed", version: 1 }).success).toBe(false);
   });
   it("rejects an invalid status", () => {
     expect(anomalyTransitionSchema.safeParse({ status: "open", version: 1 }).success).toBe(false);
@@ -16,6 +18,17 @@ describe("anomalyTransitionSchema", () => {
     expect(anomalyTransitionSchema.safeParse({ status: "resolved", note: "theft", disposition: "confirmed", version: 1 }).success).toBe(true);
     expect(anomalyTransitionSchema.safeParse({ status: "dismissed", note: "bad data", disposition: "false_positive", version: 1 }).success).toBe(true);
     expect(anomalyTransitionSchema.safeParse({ status: "resolved", note: "x", disposition: "bogus", version: 1 }).success).toBe(false);
+  });
+});
+
+describe("anomaly workflow transitions", () => {
+  it("allows only active progression or explicit reopen", () => {
+    expect(isAnomalyTransitionAllowed("open", "investigating")).toBe(true);
+    expect(isAnomalyTransitionAllowed("investigating", "resolved")).toBe(true);
+    expect(isAnomalyTransitionAllowed("resolved", "investigating")).toBe(true);
+    expect(isAnomalyTransitionAllowed("dismissed", "investigating")).toBe(true);
+    expect(isAnomalyTransitionAllowed("resolved", "dismissed")).toBe(false);
+    expect(isAnomalyTransitionAllowed("superseded", "investigating")).toBe(false);
   });
 });
 

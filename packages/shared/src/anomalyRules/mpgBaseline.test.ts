@@ -46,6 +46,14 @@ describe("MPG baseline training guard", () => {
     expect(recentMpgSeries(txns)).not.toContain(0.5);
   });
 
+  it("includes intermediate gallons when building historical MPG intervals", () => {
+    const first = fill(0, 100, 0);
+    const second = fill(700, 100, 1);
+    const third = fill(1400, 100, 2);
+    third.intermediateGallons = 100;
+    expect(recentMpgSeries([first, second, third])).toEqual([7, 3.5]);
+  });
+
   it("falls back to a stored baseline only when it is itself plausible", () => {
     const one = [fill(0, 100, 0), fill(700, 100, 1)]; // <3 plausible → use stored
     expect(effectiveBaseline(veh(6.5), one)).toBe(6.5); // plausible stored → used

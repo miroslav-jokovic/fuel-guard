@@ -163,9 +163,9 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome_v2");
     expect(rpc).toBeTruthy();
     expect((rpc!.args.p_case as Record<string, unknown>).rule_id).toBe("theft_case");
-    expect((rpc!.args.p_case as Record<string, unknown>).severity).toBe("high");
+    expect((rpc!.args.p_case as Record<string, unknown>).severity).toBe("critical");
     expect((rpc!.args.p_outcome as Record<string, unknown>).has_anomaly).toBe(true);
-    expect((rpc!.args.p_outcome as Record<string, unknown>).max_severity).toBe("high"); // single axis → 'high', not 'critical'
+    expect((rpc!.args.p_outcome as Record<string, unknown>).max_severity).toBe("critical");
   });
 
   it("sends a clean outcome to the atomic RPC so stale cases can be superseded in the database transaction", async () => {

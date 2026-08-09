@@ -191,6 +191,7 @@ export async function deliverPending(
 
   let sent = 0;
   let failed = 0;
+  const failureReasons = new Set<string>();
   const deadTokens = new Set<string>();
 
   for (let i = 0; i < messages.length; i += BATCH) {
@@ -209,6 +210,7 @@ export async function deliverPending(
           return;
         }
         failed += 1;
+        failureReasons.add(ticket.message ?? ticket.details?.error ?? "push_ticket_failed");
         if (ticket.details?.error === "DeviceNotRegistered") {
           const token = tokenOf[i + n];
           if (token) deadTokens.add(token);
@@ -216,14 +218,17 @@ export async function deliverPending(
       });
     } catch (e) {
       failed += slice.length;
-      console.error("[push] batch failed:", e instanceof Error ? e.message : e);
+      const message = e instanceof Error ? e.message : String(e);
+      failureReasons.add(message);
+      console.error("[push] batch failed:", message);
     }
   }
 
-  // Stamp every row we attempted, so a transient Expo outage does not replay the whole backlog on
-  // the next tick — the in-app centre still shows them, which is the fallback that matters.
+  // Keep attempted events visible in the in-app centre, but persist the delivery failure so operations can
+  // distinguish a delivered push from an attempted/failed push instead of losing the reason in logs.
   const ids = rows.map((r) => r.id);
-  await admin.from("notification_events").update({ pushed_at: new Date().toISOString() }).in("id", ids);
+  const pushError = failureReasons.size ? [...failureReasons].slice(0, 5).join("; ").slice(0, 2000) : null;
+  await admin.from("notification_events").update({ pushed_at: new Date().toISOString(), push_error: pushError }).in("id", ids);
 
   if (deadTokens.size > 0) {
     await admin

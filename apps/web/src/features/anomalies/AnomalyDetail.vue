@@ -312,7 +312,7 @@ const {
         <textarea
           v-model="note"
           rows="2"
-          placeholder="Resolution note (optional for investigating, recommended for resolve / dismiss)"
+          placeholder="Resolution note (required for resolve / dismiss; optional when investigating)"
           class="block w-full rounded-md border-0 bg-surface px-3 py-1.5 text-base text-ink ring-1 ring-inset ring-edge-strong placeholder:text-ink-subtle focus:ring-2 focus:ring-brand-600 sm:text-sm"
         ></textarea>
         <div class="flex flex-wrap gap-2">
@@ -338,6 +338,10 @@ const {
       </div>
     </div>
     <div v-else class="border-t border-edge pt-4 text-sm text-ink-muted">
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <p>Closed case — the original disposition is historical.</p>
+        <BaseButton size="sm" :disabled="transition.isPending.value" @click="doTransition('investigating')">Reopen investigation</BaseButton>
+      </div>
       <p v-if="anomaly.status === 'resolved'">
         Resolved<span v-if="anomaly.resolution_note"> — {{ anomaly.resolution_note }}</span>
       </p>

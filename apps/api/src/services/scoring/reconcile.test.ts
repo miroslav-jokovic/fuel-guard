@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mergeReconciliation, reconBasisRank, type ReconResult } from "./reconcile.js";
+import { applyReconciledContext, mergeReconciliation, reconBasisRank, type ReconResult } from "./reconcile.js";
+import { compareTxnRows, rowEventTime, rowTimeReliable } from "./loaders.js";
+import type { FtxnRow } from "./loaders.js";
 
 const result = (over: Partial<ReconResult> = {}): ReconResult => ({
   crossSourceOdometer: null,
@@ -30,6 +32,26 @@ const result = (over: Partial<ReconResult> = {}): ReconResult => ({
 });
 
 describe("reconciliation evidence precedence", () => {
+  it("uses a corroborated event time and marks it reliable", () => {
+    const row = {
+      id: "t1",
+      fueled_at: "2026-08-08T18:00:00Z",
+      fueled_at_precision: "instant",
+      source: "efs",
+      fueling_time_basis: "tank_confirmed",
+      samsara_recon_at: "2026-08-08T12:00:00Z",
+      samsara_location_matched: false,
+    } as FtxnRow;
+    expect(rowEventTime(row)).toBe("2026-08-08T12:00:00Z");
+    expect(rowTimeReliable(row)).toBe(true);
+  });
+
+  it("orders a fill by event time before its stored business time", () => {
+    const olderEvent = { id: "a", fueled_at: "2026-08-08T18:00:00Z", created_at: "2026-08-08T19:00:00Z", fueled_at_precision: "instant", source: "efs", fueling_time_basis: "tank_confirmed", samsara_recon_at: "2026-08-08T12:00:00Z", samsara_location_matched: true } as FtxnRow;
+    const newerEvent = { id: "b", fueled_at: "2026-08-08T13:00:00Z", created_at: "2026-08-08T14:00:00Z", fueled_at_precision: "instant", source: "efs", fueling_time_basis: "tank_confirmed", samsara_recon_at: "2026-08-08T13:00:00Z", samsara_location_matched: true } as FtxnRow;
+    expect(compareTxnRows(olderEvent, newerEvent)).toBeLessThan(0);
+  });
+
   it("ranks fueling evidence from date-only through tank-confirmed", () => {
     expect(reconBasisRank(null)).toBe(0);
     expect(reconBasisRank("date_only")).toBe(1);
@@ -60,6 +82,16 @@ describe("reconciliation evidence precedence", () => {
     expect(merged.tankObservedRiseGal).toBe(90);
     expect(merged.stationLat).toBe(32.78); // fills a missing legacy pin only
     expect(merged.reconEvidenceVersion).toBe(5);
+  });
+
+  it("applies live station coordinates to the current rule transaction immediately", () => {
+    const txn = { stationLat: null, stationLng: null, eventAt: null, timeConfirmed: false, fueledAtPrecision: "instant" } as unknown as import("@fuelguard/shared").TxnView;
+    const recon = result({ stationLat: 32.78, stationLng: -96.8, fuelingTimeBasis: "tank_confirmed", reconAt: "2026-08-08T12:00:00Z" });
+    applyReconciledContext(recon, txn, { source: "efs" } as FtxnRow);
+    expect(txn.stationLat).toBe(32.78);
+    expect(txn.stationLng).toBe(-96.8);
+    expect(txn.eventAt).toBe("2026-08-08T12:00:00Z");
+    expect(txn.timeConfirmed).toBe(true);
   });
 
   it("accepts equal-or-stronger live evidence and retains non-null stored fields", () => {

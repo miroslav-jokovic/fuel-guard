@@ -13,7 +13,8 @@
  * MANUAL assignments (human ground truth), and only for fills recent enough for the record to apply.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardIdentityKey, isFullCardNumber, sameCardFill, dominantVehicle, type TxnView } from "@fuelguard/shared";
+import { cardIdentityKey, isFullCardNumber, sameCardFill, dominantVehicle, eventTime, timeReliable, type TxnView } from "@fuelguard/shared";
+import { EVENT_TIME_QUERY_SLACK_MS, rowEventTime } from "./loaders.js";
 
 /** As-of learning window (days before the fill) — matches the nightly learner's window. */
 const ASSIGN_WINDOW_DAYS = 60;
@@ -49,7 +50,11 @@ export async function resolveCardContext(
   const identityKey = cardIdentityKey(txn.cardRef, txn.controlId);
   if (!identityKey) return { ...UNIDENTIFIABLE };
   const me = { cardRef: txn.cardRef ?? null, controlId: txn.controlId ?? null };
-  const assignStartIso = new Date(Date.parse(fueledAt) - ASSIGN_WINDOW_DAYS * 86_400_000).toISOString();
+  const anchorIso = timeReliable(txn) ? eventTime(txn) : fueledAt;
+  const anchorMs = Date.parse(anchorIso);
+  const assignStartIso = new Date(anchorMs - ASSIGN_WINDOW_DAYS * 86_400_000).toISOString();
+  // Include business timestamps on either side of the event anchor; filtering below uses the effective event time.
+  const assignEndIso = new Date(anchorMs + EVENT_TIME_QUERY_SLACK_MS).toISOString();
 
   // ONE fetch covers both needs: the card's fills over the trailing 60 days (as-of assignment) — the
   // short misuse window (count) is a subset filtered in code.
@@ -67,27 +72,46 @@ export async function resolveCardContext(
   if (txn.controlId) scanCols.push("control_id");
   if (txn.cardRef && isFullCardNumber(txn.cardRef)) scanCols.push("card_ref");
 
-  const seen = new Map<string, { card_ref: string | null; control_id: string | null; vehicle_id: string | null; fueled_at: string; id: string }>();
+  type CardRow = {
+    id: string;
+    card_ref: string | null;
+    control_id: string | null;
+    vehicle_id: string | null;
+    fueled_at: string;
+    fueled_at_precision: string | null;
+    source: string;
+    fueling_time_basis: string | null;
+    samsara_recon_at: string | null;
+    samsara_location_matched: boolean | null;
+  };
+  const seen = new Map<string, CardRow>();
   for (const col of scanCols) {
     const val = col === "card_ref" ? txn.cardRef : txn.controlId;
     if (!val) continue;
     const { data: rows } = await admin
       .from("fuel_transactions")
-      .select("id, card_ref, control_id, vehicle_id, fueled_at")
+      .select("id, card_ref, control_id, vehicle_id, fueled_at, fueled_at_precision, source, fueling_time_basis, samsara_recon_at, samsara_location_matched")
       .eq("org_id", orgId)
       .eq(col, val)
       .gte("fueled_at", assignStartIso)
-      .lte("fueled_at", fueledAt)
+      .lte("fueled_at", assignEndIso)
       .order("fueled_at", { ascending: false })
       .limit(400);
-    for (const x of (rows ?? []) as { id: string; card_ref: string | null; control_id: string | null; vehicle_id: string | null; fueled_at: string }[]) {
+    for (const x of (rows ?? []) as CardRow[]) {
       seen.set(x.id, x);
     }
   }
-  const mine = [...seen.values()].filter((x) => sameCardFill({ cardRef: x.card_ref, controlId: x.control_id }, me));
+  const mine = [...seen.values()]
+    .filter((x) => sameCardFill({ cardRef: x.card_ref, controlId: x.control_id }, me))
+    .filter((x) => {
+      const at = Date.parse(rowEventTime(x));
+      return Number.isFinite(at) && at >= Date.parse(assignStartIso) && at <= anchorMs;
+    })
+    .sort((a, b) => Date.parse(rowEventTime(a)) - Date.parse(rowEventTime(b)) || a.id.localeCompare(b.id));
 
   const cardVehicleCountInWindow = new Set(
-    mine.filter((x) => x.fueled_at >= winStartIso).map((x) => x.vehicle_id).filter(Boolean),
+    mine.filter((x) => Date.parse(rowEventTime(x)) >= Date.parse(winStartIso) && Date.parse(rowEventTime(x)) <= anchorMs)
+      .map((x) => x.vehicle_id).filter(Boolean),
   ).size;
 
   // As-of assignment: dominant vehicle over the trailing window, EXCLUDING the fill being scored (a
@@ -96,7 +120,7 @@ export async function resolveCardContext(
 
   // Manual assignment (current state, human ground truth) — applied only to recent-era fills.
   let cardManualAssignedVehicleId: string | null = null;
-  const fillAgeDays = (Date.now() - Date.parse(fueledAt)) / 86_400_000;
+  const fillAgeDays = (Date.now() - anchorMs) / 86_400_000;
   if (fillAgeDays <= MANUAL_APPLICABLE_DAYS) {
     const { data: manualRow } = await admin
       .from("fuel_cards")

@@ -194,6 +194,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Drivers" },
   },
   {
+    path: "/drivers/:id",
+    name: "driver-detail",
+    component: () => import("@/pages/DriverDetailPage.vue"),
+    meta: { requiresAuth: true, title: "Driver" },
+  },
+  {
     path: "/compliance",
     name: "compliance",
     component: () => import("@/pages/CompliancePage.vue"),

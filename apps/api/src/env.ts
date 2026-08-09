@@ -20,7 +20,7 @@ const EnvSchema = z.object({
   // in server-side with their username-backed credentials. Same key the web ships publicly.
   SUPABASE_ANON_KEY: z.string().optional(),
   // Where the invite email should send users to finish sign-up (the web app's accept page).
-  WEB_APP_URL: z.string().url().catch("http://localhost:5173"),
+  WEB_APP_URL: z.string().url().default("http://localhost:5173"),
   // Single-service deploy: absolute path to the built web SPA to serve. Defaults next to the API
   // (apps/web/dist). Leave unset in API-only/dev runs and nothing static is served.
   WEB_DIST: z.string().optional(),
@@ -286,6 +286,18 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
   const env = parsed.data;
+
+  if (env.NODE_ENV === "production") {
+    const missing = [
+      !env.SUPABASE_URL && "SUPABASE_URL",
+      !env.SUPABASE_SERVICE_ROLE_KEY && "SUPABASE_SERVICE_ROLE_KEY",
+      env.WEB_APP_URL.startsWith("http://localhost") && "WEB_APP_URL",
+      env.ALLOWED_ORIGINS.some((origin) => origin.startsWith("http://localhost")) && "ALLOWED_ORIGINS",
+    ].filter(Boolean) as string[];
+    if (missing.length) {
+      throw new Error(`Invalid production environment: missing or unsafe configuration: ${missing.join(", ")}`);
+    }
+  }
 
   // Single-service deploy convenience: the web build already ships the anon key as
   // VITE_SUPABASE_ANON_KEY in the same Railway environment — accept it as the API-side fallback so the

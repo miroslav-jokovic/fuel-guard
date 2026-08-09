@@ -8,8 +8,23 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { scoringHealth } from "../services/scoringHealth.js";
 
 const qstr = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
+const REPORT_PAGE = 1000;
+
+async function fetchPaged<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += REPORT_PAGE) {
+    const { data, error } = await build(offset, offset + REPORT_PAGE - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as T[];
+    out.push(...batch);
+    if (batch.length < REPORT_PAGE) return out;
+  }
+}
 
 function defaultRange(from?: string, to?: string): { from: string; to: string } {
   const end = to ? new Date(to) : new Date();
@@ -32,26 +47,30 @@ interface TxnExport {
 }
 
 async function loadTxnExport(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<TxnExport[]> {
-  const { data } = await admin
+  return fetchPaged<TxnExport>((lo, hi) => admin
     .from("fuel_transactions")
     .select("fueled_at, gallons, odometer, price_per_gal, total_cost, computed_mpg, source, location_text, max_severity, vehicles(unit_number), drivers(full_name)")
     .eq("org_id", orgId)
     .gte("fueled_at", from)
     .lte("fueled_at", to)
-    .order("fueled_at", { ascending: false });
-  return (data ?? []) as unknown as TxnExport[];
+    .order("fueled_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(lo, hi));
 }
 
 /** Load entered-vs-Samsara odometer rows (with driver/vehicle labels + the per-vehicle calibration
  *  offset, so the report judges deviations the same way the anomaly rule does). */
 async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<OdoRow[]> {
-  const { data } = await admin
+  const data = await fetchPaged((lo, hi) => admin
     .from("fuel_transactions")
     .select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles(unit_number, odometer_offset), drivers(full_name)")
     .eq("org_id", orgId)
     .gte("fueled_at", from)
-    .lte("fueled_at", to);
-  return ((data ?? []) as unknown as {
+    .lte("fueled_at", to)
+    .order("fueled_at", { ascending: true })
+    .order("id", { ascending: true })
+    .range(lo, hi));
+  return (data as unknown as {
     odometer: number | string | null;
     samsara_odometer: number | string | null;
     driver_id: string | null;
@@ -111,6 +130,16 @@ export function reportsRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       res.json(computeDetectionMetrics(await loadCaseDispositions(admin, orgId)));
+    }),
+  );
+
+  // Scoring/telemetry health — operational visibility for the anomaly pipeline.
+  router.get(
+    "/scoring-health",
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const days = Number(req.query.days ?? 7);
+      res.json(await scoringHealth(admin, req.auth!.orgId!, Number.isFinite(days) ? days : 7));
     }),
   );
 
@@ -221,15 +250,17 @@ export function reportsRouter(): Router {
       const admin = getSupabaseAdmin(getAppLocals(req).env);
       const orgId = req.auth!.orgId!;
       const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
-      const { data } = await admin
+      const data = await fetchPaged((lo, hi) => admin
         .from("anomalies")
         .select("created_at, rule_id, severity, status, message, vehicles(unit_number)")
         .eq("org_id", orgId)
         .neq("status", "superseded")
         .gte("created_at", from)
         .lte("created_at", to)
-        .order("created_at", { ascending: false });
-      const rows = ((data ?? []) as unknown as { created_at: string; rule_id: string; severity: string; status: string; message: string; vehicles: { unit_number: string } | null }[]).map((a) => ({
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(lo, hi));
+      const rows = (data as unknown as { created_at: string; rule_id: string; severity: string; status: string; message: string; vehicles: { unit_number: string } | null }[]).map((a) => ({
         created_at: a.created_at,
         unit: a.vehicles?.unit_number ?? "",
         rule: a.rule_id,
@@ -260,9 +291,9 @@ export function reportsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
 
-      const [{ data: txns }, { data: anomalies }, { data: vehicles }, { data: drivers }, { data: org }] = await Promise.all([
-        admin.from("fuel_transactions").select("id, gallons, total_cost, computed_mpg, fueled_at, vehicle_id, driver_id").eq("org_id", orgId).gte("fueled_at", from).lte("fueled_at", to),
-        admin.from("anomalies").select("id, transaction_id, vehicle_id, severity, status").eq("org_id", orgId),
+      const [txns, anomalies, { data: vehicles }, { data: drivers }, { data: org }] = await Promise.all([
+        fetchPaged<FuelTransaction>((lo, hi) => admin.from("fuel_transactions").select("id, gallons, total_cost, computed_mpg, fueled_at, vehicle_id, driver_id").eq("org_id", orgId).gte("fueled_at", from).lte("fueled_at", to).order("fueled_at", { ascending: true }).order("id", { ascending: true }).range(lo, hi)),
+        fetchPaged<Anomaly>((lo, hi) => admin.from("anomalies").select("id, transaction_id, vehicle_id, severity, status").eq("org_id", orgId).order("id", { ascending: true }).range(lo, hi)),
         admin.from("vehicles").select("id, unit_number").eq("org_id", orgId),
         admin.from("drivers").select("id, full_name").eq("org_id", orgId),
         admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle(),

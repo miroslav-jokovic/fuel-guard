@@ -428,7 +428,7 @@ const EXPORTS = [
       <!-- Risk lists -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <RiskList title="Top vehicles by risk" :rows="s?.topVehiclesByRisk ?? []" link-base="/vehicles" empty-label="No flagged vehicles" />
-        <RiskList title="Top drivers by risk" :rows="s?.topDriversByRisk ?? []" empty-label="No flagged drivers" />
+        <RiskList title="Top drivers by risk" :rows="s?.topDriversByRisk ?? []" link-base="/drivers" empty-label="No flagged drivers" />
       </div>
     </div>
   </div>

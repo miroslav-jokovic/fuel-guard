@@ -52,6 +52,8 @@ export {
   IDLE_BURN_GPH,
   localHourMinute,
   isOffHours,
+  eventTime,
+  timeReliable,
 } from "./helpers.js";
 export {
   learnOdometerOffset,
@@ -66,6 +68,7 @@ export type {
   WindowMilesResult,
 } from "./learning.js";
 export { runAllRules } from "./rules.js";
+export { MPG_SUSTAINED_MIN_FILLS, MPG_SUSTAINED_MIN_MILES } from "./rulesEfficiency.js";
 export {
   MARKET_PRICE_OUTLIER_MULT,
   SAME_SITE_MILES,

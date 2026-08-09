@@ -169,7 +169,7 @@ export const MAX_TRAINABLE_MPG = 15;
 export function recentMpgSeries(ordered: TxnView[]): number[] {
   const out: number[] = [];
   for (let i = 1; i < ordered.length; i++) {
-    const mpg = computedMpg(ordered[i]!, ordered[i - 1]!);
+    const mpg = computedMpg(ordered[i]!, ordered[i - 1]!, ordered[i]!.intermediateGallons ?? 0);
     if (mpg != null && mpg >= MIN_TRAINABLE_MPG && mpg <= MAX_TRAINABLE_MPG) out.push(mpg);
   }
   return out;

@@ -33,20 +33,37 @@ export interface Anomaly {
  * Workflow transition request. A note is required when resolving or dismissing (audit trail), and
  * the caller's `version` must match for an optimistic-concurrency update (audit H6 → 409 on mismatch).
  */
+export const ANOMALY_CLOSING_STATUSES = ["resolved", "dismissed"] as const;
+export type AnomalyClosingStatus = (typeof ANOMALY_CLOSING_STATUSES)[number];
+
+/** Valid workflow transitions. Resolved/dismissed -> investigating is the explicit reopen operation. */
+export const ANOMALY_ALLOWED_TRANSITIONS: Record<AnomalyStatus, readonly AnomalyStatus[]> = {
+  open: ["investigating", "resolved", "dismissed"],
+  investigating: ["resolved", "dismissed"],
+  resolved: ["investigating"],
+  dismissed: ["investigating"],
+  superseded: [],
+};
+
+export function isAnomalyTransitionAllowed(from: AnomalyStatus, to: AnomalyStatus): boolean {
+  return ANOMALY_ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
 export const anomalyTransitionSchema = z
   .object({
     status: z.enum(["investigating", "resolved", "dismissed"]),
     note: z.string().trim().max(2000).optional(),
-    /**
-     * Ground-truth outcome. Optional on the wire (back-compat), but the UI requires it when closing a
-     * case so the accuracy program always has a label. Only meaningful on resolve/dismiss.
-     */
+    /** Required for every close so the accuracy program receives a ground-truth label. */
     disposition: z.enum(ANOMALY_DISPOSITIONS).optional(),
     version: z.number().int().nonnegative(),
   })
   .refine((d) => d.status === "investigating" || (d.note && d.note.length > 0), {
     message: "A note is required when resolving or dismissing an anomaly",
     path: ["note"],
+  })
+  .refine((d) => d.status === "investigating" ? d.disposition == null : d.disposition != null, {
+    message: "A disposition is required when resolving or dismissing an anomaly",
+    path: ["disposition"],
   });
 export type AnomalyTransition = z.infer<typeof anomalyTransitionSchema>;
 

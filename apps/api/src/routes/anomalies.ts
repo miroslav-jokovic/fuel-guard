@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { anomalyTransitionSchema, type AnomalyTransition } from "@fuelguard/shared";
+import { anomalyTransitionSchema, isAnomalyTransitionAllowed, type AnomalyTransition, type AnomalyStatus } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { apiError, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
@@ -52,6 +52,26 @@ export function anomaliesRouter(): Router {
     }),
   );
 
+  // Immutable workflow history for audit/review.
+  router.get(
+    "/:id/history",
+    requireOrg,
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const orgId = req.auth!.orgId!;
+      const id = String(req.params.id ?? "");
+      const { data, error } = await admin
+        .from("anomaly_transitions")
+        .select("id, from_status, to_status, from_version, to_version, note, disposition, actor_id, created_at")
+        .eq("org_id", orgId)
+        .eq("anomaly_id", id)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true });
+      if (error) throw new Error(error.message);
+      res.json(data ?? []);
+    }),
+  );
+
   // On-demand sweep (reviewer button; also covers rebuild-created cases, which don't auto-sweep).
   router.post(
     "/:id/sweep",
@@ -88,7 +108,7 @@ export function anomaliesRouter(): Router {
 
       const { data: cur } = await admin
         .from("anomalies")
-        .select("id, status, version")
+        .select("id, status, version, disposition")
         .eq("id", id)
         .eq("org_id", orgId)
         .maybeSingle();
@@ -100,36 +120,23 @@ export function anomaliesRouter(): Router {
         res.status(409).json(apiError("conflict", "This anomaly was updated by someone else; refresh and retry"));
         return;
       }
-
-      const patch: Record<string, unknown> = {
-        status,
-        version: cur.version + 1,
-        resolution_note: note ?? null,
-        assigned_to: req.auth!.userId,
-      };
-      if (status === "resolved" || status === "dismissed") {
-        patch.resolved_by = req.auth!.userId;
-        patch.resolved_at = new Date().toISOString();
-        // Ground-truth outcome for the accuracy program. Only recorded on close; a reopened case that is
-        // later re-closed overwrites it (latest reviewer judgment wins).
-        if (disposition) {
-          patch.disposition = disposition;
-          patch.disposition_by = req.auth!.userId;
-          patch.disposition_at = new Date().toISOString();
-        }
+      if (!isAnomalyTransitionAllowed(cur.status as AnomalyStatus, status as AnomalyStatus)) {
+        res.status(409).json(apiError("invalid_transition", `Cannot move an anomaly from ${cur.status} to ${status}`));
+        return;
       }
 
-      // Re-assert the version in the WHERE clause to defeat a race.
-      const { data: upd } = await admin
-        .from("anomalies")
-        .update(patch)
-        .eq("id", id)
-        .eq("org_id", orgId)
-        .eq("version", version)
-        .select("id")
-        .maybeSingle();
-      if (!upd) {
-        res.status(409).json(apiError("conflict", "Concurrent update — refresh and retry"));
+      const { data: transitioned, error: transitionError } = await admin.rpc("transition_anomaly", {
+        p_org_id: orgId,
+        p_anomaly_id: id,
+        p_actor_id: req.auth!.userId,
+        p_target_status: status,
+        p_note: note ?? null,
+        p_disposition: disposition ?? null,
+        p_expected_version: version,
+      });
+      if (transitionError) {
+        const conflict = transitionError.message.includes("conflict") || transitionError.message.includes("version");
+        res.status(conflict ? 409 : 422).json(apiError(conflict ? "conflict" : "invalid_transition", transitionError.message));
         return;
       }
 
@@ -139,9 +146,9 @@ export function anomaliesRouter(): Router {
         action: "anomaly.status_changed",
         entity: "anomalies",
         entityId: id,
-        meta: { from: cur.status, to: status, disposition: disposition ?? null },
+        meta: { from: cur.status, to: status, disposition: disposition ?? null, transition: transitioned },
       });
-      res.json({ ok: true });
+      res.json({ ok: true, transition: transitioned });
     }),
   );
 

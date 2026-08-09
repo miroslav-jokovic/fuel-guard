@@ -245,6 +245,23 @@ export async function latestJob(
   return (data as JobRow | null) ?? null;
 }
 
+/** Failed terminal jobs require operator visibility/retry; never leave them only in logs. */
+export async function failedJobs(
+  admin: SupabaseClient,
+  orgId: string,
+  limit = 50,
+): Promise<JobRow[]> {
+  const { data, error } = await admin
+    .from("jobs")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("status", "failed")
+    .order("finished_at", { ascending: false })
+    .limit(Math.min(Math.max(Math.trunc(limit), 1), 200));
+  if (error) throw new Error(error.message);
+  return (data ?? []) as JobRow[];
+}
+
 /** The most-recent SUCCESSFUL job of a kind — drives the "data as of HH:MM" freshness label. */
 export async function lastDoneJob(
   admin: SupabaseClient,

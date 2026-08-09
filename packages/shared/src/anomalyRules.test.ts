@@ -143,8 +143,10 @@ describe("correlateSignals (multi-signal → one case)", () => {
     expect(c.level).toBe("review");
     expect(c.severity).toBe("medium");
   });
-  it("an overwhelming physical signal (tank space) → alert on its own", () => {
-    expect(correlateSignals([sig("tank_space_exceeded", "critical")]).level).toBe("alert");
+  it("an overwhelming physical signal (tank space) → critical alert on its own", () => {
+    const c = correlateSignals([sig("tank_space_exceeded", "critical")]);
+    expect(c.level).toBe("alert");
+    expect(c.severity).toBe("critical");
   });
   it("two independent axes agreeing → alert", () => {
     const c = correlateSignals([sig("location_mismatch"), sig("tank_fill_short")]);
@@ -250,6 +252,11 @@ describe("Phase 2 — learned combined tank capacity", () => {
     expect(effectiveCapacityGal({ ...vehicle, tankCapacityGal: 240, observedMaxFillGal: 210 })).toBe(240); // never lowers
   });
 
+  it("suppresses cumulative_overfuel when no capacity source exists", () => {
+    const noCapacity = { ...vehicle, tankCapacityGal: 0 };
+    expect(ids(ctx({ vehicle: noCapacity, windowGallons: 200, windowMiles: 1000 }))).not.toContain("cumulative_overfuel");
+  });
+
   it("a legitimate both-tank fill fires exceeds_tank_capacity ONLY before capacity is learned", () => {
     const singleTankEntered: VehicleView = { ...vehicle, tankCapacityGal: 120 }; // one tank entered
     const bothTankFill = txn({ gallons: 200, odometer: 100000 }); // fills both saddle tanks
@@ -295,7 +302,7 @@ describe("Tier 3 — efficiency", () => {
   it("does not fire mpg_deviation for a normal economy fill", () => {
     expect(ids(ctx())).not.toContain("mpg_deviation");
   });
-  it("mpg_sustained_decline fires on a downward trend", () => {
+  it("mpg_sustained_decline fires on a downward trend with enough distance", () => {
     // build 6 prior fills: high mpg then low mpg, 100 gal each, 1 day apart
     const recent: TxnView[] = [];
     let odo = 90000;
@@ -306,6 +313,18 @@ describe("Tier 3 — efficiency", () => {
     });
     const cur = txn({ odometer: odo + 500, gallons: 100, fueledAt: "2026-05-17T17:00:00Z" }); // 5 mpg
     expect(ids(ctx({ vehicle: reliable, txn: cur, previousTxn: recent[recent.length - 1]!, recentTxns: recent }))).toContain("mpg_sustained_decline");
+  });
+
+  it("mpg_sustained_decline stays silent when six intervals do not cover enough miles", () => {
+    const recent: TxnView[] = [];
+    let odo = 90000;
+    const mpgs = [7, 7, 7, 5, 5, 5];
+    mpgs.forEach((m, i) => {
+      odo += m * 10;
+      recent.push(txn({ id: `short${i}`, odometer: odo, gallons: 10, fueledAt: `2026-05-${10 + i}T17:00:00Z` }));
+    });
+    const cur = txn({ odometer: odo + 50, gallons: 10, fueledAt: "2026-05-17T17:00:00Z" });
+    expect(ids(ctx({ vehicle: reliable, txn: cur, previousTxn: recent[recent.length - 1]!, recentTxns: recent }))).not.toContain("mpg_sustained_decline");
   });
 });
 
@@ -872,6 +891,15 @@ describe("reconcileAnomalies (audit M5)", () => {
     expect(toInsert.map((r) => r.ruleId)).not.toContain("odometer_regression");
     // off_hours no longer fires and is open → superseded
     expect(toSupersedeIds).toContain("a1");
+  });
+
+  it("does not let a closed historical case suppress a new recurrence", () => {
+    const fired: RuleResult = { ruleId: "theft_case" as RuleId, fired: true, severity: "high", message: "repeat", evidence: {} };
+    const result = reconcileAnomalies(
+      [{ id: "closed", rule_id: "theft_case", status: "dismissed", source: "rules" }],
+      [fired],
+    );
+    expect(result.toInsert).toEqual([fired]);
   });
 });
 

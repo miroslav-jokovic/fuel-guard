@@ -5,6 +5,7 @@ import {
   computedMpg,
   effectiveBaseline,
   median,
+  milesSinceLast,
   none,
   recentMpgSeries,
   r2,
@@ -43,12 +44,20 @@ function ruleMpgDeviation(ctx: RuleContext): RuleResult {
   return none("mpg_deviation");
 }
 
+export const MPG_SUSTAINED_MIN_FILLS = 6;
+export const MPG_SUSTAINED_MIN_MILES = 750;
+
 function ruleMpgSustainedDecline(ctx: RuleContext): RuleResult {
   const { txn, recentTxns } = ctx;
   // Built from per-fill MPGs — same reliability caveat as mpg_deviation: a run of irregular / dual-tank
   // fills drags the recent median down artificially. Reliability gate centralized in ruleEligible (docs/12).
-  const series = recentMpgSeries([...recentTxns, txn]);
-  if (series.length < 6) return none("mpg_sustained_decline");
+  const ordered = [...recentTxns, txn];
+  const series = recentMpgSeries(ordered);
+  const totalMiles = ordered.slice(1).reduce((sum, current, i) => sum + (milesSinceLast(current, ordered[i]!) ?? 0), 0);
+  // Six tiny intervals can be dominated by odometer/sensor resolution noise. Require a real distance span
+  // before calling a trend sustained; this is an evidence gate, not a sensitivity change.
+  if (series.length < MPG_SUSTAINED_MIN_FILLS || totalMiles < MPG_SUSTAINED_MIN_MILES)
+    return none("mpg_sustained_decline");
   const last3 = median(series.slice(-3));
   const prior3 = median(series.slice(-6, -3));
   // Base 10% decline threshold, widened by the cold-weather allowance (P-6b) so a legitimate fall→winter

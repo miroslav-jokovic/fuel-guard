@@ -3,7 +3,7 @@ import { requireAuth, requireOrg, requireRole } from "../middleware/auth.js";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
-import { latestJob, lastDoneJob, requestJobCancel, type JobKind } from "../services/jobs.js";
+import { failedJobs, latestJob, lastDoneJob, requestJobCancel, type JobKind } from "../services/jobs.js";
 import { queueMetrics } from "../services/queue/metrics.js";
 
 const KNOWN_KINDS = new Set<JobKind>([
@@ -44,6 +44,18 @@ export function jobsRouter(): Router {
       }
       const [latest, lastDone] = await Promise.all([latestJob(admin, orgId, kind), lastDoneJob(admin, orgId, kind)]);
       res.json({ latest, lastDone });
+    }),
+  );
+
+  // Failed terminal jobs — operator visibility for jobs that exhausted retries or were explicitly parked.
+  router.get(
+    "/failed",
+    requireOrg,
+    requireRole("admin", "fleet_manager"),
+    asyncHandler(async (req, res) => {
+      const admin = getSupabaseAdmin(getAppLocals(req).env);
+      const limit = Number(req.query.limit ?? 50);
+      res.json(await failedJobs(admin, req.auth!.orgId!, Number.isFinite(limit) ? limit : 50));
     }),
   );
 

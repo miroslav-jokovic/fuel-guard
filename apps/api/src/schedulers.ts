@@ -14,6 +14,7 @@ import { startDutySessionSweeper } from "./services/dutySessionSweeper.js";
 import { startHazmatStorageReconcileScheduler } from "./services/hazmatStorageReconcileScheduler.js";
 import { startNotificationPushScheduler } from "./services/notificationPush.js";
 import { startDqExportSweeper } from "./services/dqExportSweeper.js";
+import { startPatternSweepScheduler } from "./services/patternSweepScheduler.js";
 
 /**
  * Start every background scheduler (Samsara sync, rebuild-on-boot, weekly digest, nightly reconcile,
@@ -47,4 +48,5 @@ export function startAllSchedulers(env: Env): void {
   startHazmatStorageReconcileScheduler(env); // §13.5/M11: nightly hazmat storage-orphan reconcile
   startNotificationPushScheduler(env); // Expo Push delivery of pending notification_events (5N/Phase 6)
   startDqExportSweeper(env); // D-BD4: a finished audit binder is a PII aggregate with a 7-day life
+  startPatternSweepScheduler(env); // durable enrichment requests survive queue dispatch outages
 }

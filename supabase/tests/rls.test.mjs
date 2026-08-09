@@ -194,9 +194,15 @@ async function main() {
     alter table fuel_transactions add column if not exists samsara_recon_error text;
     alter table fuel_transactions add column if not exists samsara_recon_evidence_version int not null default 1;
     alter table anomalies add column if not exists fueled_at timestamptz;
+    alter table anomalies add column if not exists disposition text;
+    alter table anomalies add column if not exists disposition_by uuid;
+    alter table anomalies add column if not exists disposition_at timestamptz;
   `);
   await db.exec(read("migrations/0156_atomic_scoring_persistence.sql"));
   await db.exec(read("migrations/0157_reconciliation_evidence_preservation.sql"));
+  await db.exec(read("migrations/0158_anomaly_case_lifecycle.sql"));
+  await db.exec(read("migrations/0154_efs_alert_pipeline.sql"));
+  await db.exec(read("migrations/0159_operational_scoring_reliability.sql"));
 
   // Non-privileged role RLS applies to (mirrors Supabase 'authenticated').
   await db.exec(`
@@ -2093,6 +2099,47 @@ async function main() {
     "atomic scoring RPC creates one active case with its outcome",
     (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'", [scoreTxn])).rows[0]?.n === 1 &&
       (await db.query("select has_anomaly from fuel_transactions where id=$1", [scoreTxn])).rows[0]?.has_anomaly === true,
+  );
+
+  const activeCase = (await db.query("select id, version from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'", [scoreTxn])).rows[0];
+  const transitionResult = await db.query(
+    `select public.transition_anomaly($1,$2,$3,'dismissed','legitimate split purchase','benign_explained', $4) as result`,
+    [ORG_A, activeCase.id, DUID, activeCase.version],
+  );
+  ok(
+    "case closure writes disposition and immutable transition history",
+    transitionResult.rows[0]?.result?.to_status === "dismissed" &&
+      (await db.query("select count(*)::int n from anomaly_transitions where anomaly_id=$1", [activeCase.id])).rows[0]?.n === 1,
+    JSON.stringify(transitionResult.rows[0]),
+  );
+
+  const scoreAttemptRefire = "00000000-0000-4000-8000-00000000f003";
+  await db.query(
+    `insert into scoring_attempts (id, org_id, transaction_id, engine_version, result_hash)
+     values ($1,$2,$3,'test-engine','sha256:test-3')`,
+    [scoreAttemptRefire, ORG_A, scoreTxn],
+  );
+  await db.query(
+    `select public.persist_scoring_outcome_v2(
+      $1,$2,$3,null,$4,'test-engine','sha256:test-3',$5::jsonb,$6::jsonb,$7,$8,$9,$10
+    ) as result`,
+    [
+      scoreAttemptRefire,
+      ORG_A,
+      scoreTxn,
+      "2026-08-08T12:00:00Z",
+      JSON.stringify({ rule_id: "theft_case", severity: "high", message: "repeat case", evidence: {} }),
+      caseOutcome,
+      "2026-08-08T12:03:00Z",
+      "success",
+      null,
+      3,
+    ],
+  );
+  ok(
+    "a recurrence after dismissal creates a new open case",
+    (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'", [scoreTxn])).rows[0]?.n === 1 &&
+      (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case'", [scoreTxn])).rows[0]?.n === 2,
   );
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);

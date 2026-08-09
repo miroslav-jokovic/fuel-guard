@@ -57,15 +57,23 @@ export async function learnVehicleValues(
   {
     const { data: tankRows } = await admin
       .from("fuel_transactions")
-      .select("samsara_tank_observed_gal, gallons")
+      .select("samsara_tank_observed_gal, gallons, fueling_time_basis, attribution_verdict")
       .eq("vehicle_id", vehicleId)
+      .eq("tank_type", "tractor")
+      .eq("fueling_time_basis", "tank_confirmed")
       .not("samsara_tank_observed_gal", "is", null)
       .gt("gallons", 0)
       .order("fueled_at", { ascending: false })
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(12);
-    const tankPairs = ((tankRows ?? []) as { samsara_tank_observed_gal: number | string; gallons: number | string }[])
+    const tankPairs = ((tankRows ?? []) as {
+      samsara_tank_observed_gal: number | string;
+      gallons: number | string;
+      fueling_time_basis: string | null;
+      attribution_verdict: string | null;
+    }[])
+      .filter((p) => p.fueling_time_basis === "tank_confirmed" && p.attribution_verdict !== "suspect")
       .map((p) => ({ observedRiseGal: Number(p.samsara_tank_observed_gal), billedGallons: Number(p.gallons) }))
       .reverse();
     const rel = learnTankSensorReliability(tankPairs);
@@ -115,9 +123,10 @@ export async function learnVehicleValues(
   {
     const { data: capRows } = await admin
       .from("fuel_transactions")
-      .select("gallons, samsara_fuel_pct_before, samsara_fuel_pct_after")
+      .select("gallons, samsara_fuel_pct_before, samsara_fuel_pct_after, fueling_time_basis, attribution_verdict")
       .eq("vehicle_id", vehicleId)
       .eq("tank_type", "tractor")
+      .eq("fueling_time_basis", "tank_confirmed")
       .not("samsara_fuel_pct_before", "is", null)
       .not("samsara_fuel_pct_after", "is", null)
       .gt("gallons", 0)
@@ -125,7 +134,14 @@ export async function learnVehicleValues(
       .order("created_at", { ascending: false })
       .order("id", { ascending: false }) // deterministic sample at the limit boundary (audit A2.5)
       .limit(30);
-    const obs = ((capRows ?? []) as { gallons: number | string; samsara_fuel_pct_before: number | string; samsara_fuel_pct_after: number | string }[])
+    const obs = ((capRows ?? []) as {
+      gallons: number | string;
+      samsara_fuel_pct_before: number | string;
+      samsara_fuel_pct_after: number | string;
+      fueling_time_basis: string | null;
+      attribution_verdict: string | null;
+    }[])
+      .filter((p) => p.fueling_time_basis === "tank_confirmed" && p.attribution_verdict !== "suspect")
       .map((p) => ({ gallons: Number(p.gallons), pctBefore: Number(p.samsara_fuel_pct_before), pctAfter: Number(p.samsara_fuel_pct_after) }))
       .reverse();
     const cap = learnSensorCapacity(obs);

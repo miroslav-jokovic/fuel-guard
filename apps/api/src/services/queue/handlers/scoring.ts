@@ -77,6 +77,22 @@ export const rescoreDeclinedHandler: JobHandler = async (ctx, job) => {
  *  run while a rebuild scores, and a re-run simply replaces the report (idempotent upsert). */
 export const patternSweepHandler: JobHandler = async (ctx, job) => {
   const anomalyId = asStr(job.payload.anomalyId) ?? "";
-  const r = await runPatternSweep(ctx.admin, job.org_id, anomalyId);
-  return { anomalyId, generated: r.generated, ...(r.reason ? { reason: r.reason } : {}) };
+  const requestId = asStr(job.payload.requestId);
+  try {
+    const r = await runPatternSweep(ctx.admin, job.org_id, anomalyId);
+    if (requestId) {
+      await ctx.admin.from("pattern_sweep_requests").update({
+        status: "succeeded", last_error: null, updated_at: new Date().toISOString(),
+      }).eq("id", requestId);
+    }
+    return { anomalyId, generated: r.generated, ...(r.reason ? { reason: r.reason } : {}) };
+  } catch (error) {
+    if (requestId) {
+      await ctx.admin.from("pattern_sweep_requests").update({
+        status: "failed", next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
+        last_error: error instanceof Error ? error.message : String(error), updated_at: new Date().toISOString(),
+      }).eq("id", requestId);
+    }
+    throw error;
+  }
 };
