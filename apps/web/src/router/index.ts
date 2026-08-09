@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
-import DashboardPage from "@/pages/DashboardPage.vue";
 import { useSessionStore } from "@/stores/session";
 
 const routes: RouteRecordRaw[] = [
@@ -41,7 +40,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: "/",
     name: "dashboard",
-    component: DashboardPage,
+    component: () => import("@/pages/DashboardPage.vue"),
     meta: { requiresAuth: true, title: "Dashboard" },
   },
   {

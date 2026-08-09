@@ -11,13 +11,17 @@
 // live project (see docs/db-verify.md). The SQL editor bypasses RLS and must not be used to verify.
 
 import { PGlite } from "@electric-sql/pglite";
-import { readFileSync } from "node:fs";
+import { assertTenantIsolation } from "./lib/tenantIsolation.mjs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SUPA = join(HERE, "..");
 const read = (rel) => readFileSync(join(SUPA, rel), "utf8");
+const MIGRATIONS = readdirSync(join(SUPA, "migrations"))
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
 
 const ORG_A = "00000000-0000-0000-0000-0000000000a1"; // Silvicom (seed)
 const ORG_B = "00000000-0000-0000-0000-0000000000b2"; // second tenant
@@ -85,6 +89,13 @@ async function main() {
     as $fn$
       select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1];
     $fn$;
+    -- Supabase CLI owns this ledger; migration 0140 reads it to expose the applied schema version.
+    create schema supabase_migrations;
+    create table supabase_migrations.schema_migrations (
+      version text primary key,
+      name text,
+      statements text[]
+    );
     create role supabase_auth_admin nologin;
     create role authenticated nologin;
     create role anon nologin;
@@ -93,132 +104,13 @@ async function main() {
     create role service_role nologin bypassrls;
   `);
 
-  // pgcrypto is preinstalled on Supabase; gen_random_uuid() is core in PG16/PGlite, so strip it here.
-  for (const f of [
-    "migrations/0001_extensions_and_enums.sql",
-    "migrations/0002_functions.sql",
-    "migrations/0003_core_tables.sql",
-    "migrations/0004_rls.sql",
-    "migrations/0005_storage.sql",
-    "migrations/0006_auth_hook.sql",
-    "migrations/0007_imports.sql",
-    "migrations/0008_ai_verifications.sql",
-    "migrations/0009_notifications_audit_triggers.sql",
-    "migrations/0010_detection_hardening.sql",
-    "migrations/0011_faithful_efs_storage.sql",
-    "migrations/0012_samsara.sql",
-    "migrations/0013_tank_fill.sql",
-    "migrations/0014_upsert_safe_indexes.sql",
-    "migrations/0015_driver_samsara.sql",
-    "migrations/0030_trailers.sql",
-    "migrations/0068_tms_integration.sql",
-    "migrations/0053_driver_performance_settings.sql",
-    "migrations/0054_driver_scores.sql",
-    "migrations/0055_driver_performance_weeks.sql",
-    "migrations/0083_driver_rls_matrix.sql",
-    "migrations/0084_driver_rls_writes.sql",
-    "migrations/0085_driver_loads.sql",
-    "migrations/0086_duty_sessions.sql",
-    "migrations/0087_load_lifecycle.sql",
-    "migrations/0088_module_entitlements.sql",
-    "migrations/0089_notifications.sql",
-    // Phase 7/9: office↔driver correspondence. Its realtime-publication statement is already
-    // guarded on the publication existing, so it is a no-op here.
-    "migrations/0096_messages.sql",
-    // Phase 4/9: the driver-app control plane (org feature rows + per-driver overrides).
-    "migrations/0134_driver_app_features.sql",
-    // Phase 9: closes the driver fuel-write gap these very assertions exposed.
-    "migrations/0135_driver_fuel_write_closure.sql",
-    // Phase 9: closes the driver_time_off / tms_movements read leaks + the ended-shift invariant.
-    "migrations/0136_phase9_driver_scope_closures.sql",
-    // Phase 9: keeps the operational update-policy channel enabled while allowing config changes.
-    "migrations/0137_core_app_feature_invariant.sql",
-    // Reconciles the legacy duplicate 0016 vehicle fuel-level migration into the unique ledger version.
-    "migrations/0138_vehicle_fuel_level_legacy_reconcile.sql",
-    // 0141 replaces 0087's driver load RPCs with caller-checked ones AND drops the old overloads.
-    // It was missing from this list, so the matrix carried 0087's `authenticated`-granted 2-arg
-    // versions that production has not had since 0141 shipped — the 0162 exposure assertion below
-    // caught that immediately. Loading it keeps the matrix describing the real schema.
-    "migrations/0141_driver_load_rpc_contract.sql",
-    // Compliance/DQF. 0127 and 0129 were never in this matrix even though `certifications` holds the
-    // most sensitive rows in the product — a driver's medical card and drug-test results. 0146 adds
-    // the documents table those two reserved a column for, and its driver scope is the reason to
-    // assert here rather than trust the policy text.
-    "migrations/0127_hazmat_certifications.sql",
-    "migrations/0129_hazmat_qualification_records.sql",
-    "migrations/0146_compliance_documents.sql",
-    // Drops three tables this harness never loaded, so it is a no-op here. Present so that a future
-    // reader does not conclude the retirement was skipped.
-    "migrations/0147_retire_dead_compliance_tables.sql",
-    // D57 driver write caps. Its whole security property is that NO client can reach it — a driver
-    // who could read their own counter could also delete it — so it belongs in the matrix that
-    // proves what clients cannot do.
-    "migrations/0149_driver_write_counters.sql",
-    // LD5. The view is `security_invoker`, so it must inherit 0086's driver scope rather than hand
-    // every caller an unfiltered read of two RLS-protected tables — the default a view would have.
-    "migrations/0150_duty_timeline_and_tms_provenance.sql",
-    // The audit binder. Its whole security story is negative space — the export ledger has no write
-    // policy and the output bucket has no policy AT ALL — and negative space is exactly what a policy
-    // reading cannot confirm and this matrix can.
-    "migrations/0152_dq_exports.sql",
-    // 0162 revokes the SECURITY DEFINER functions that take a tenant or a user as a PARAMETER.
-    // Loaded here because the assertions below are its regression test: three duty-session RPCs were
-    // granted to `authenticated` by 0086 with no caller check at all, so any signed-in user could
-    // drive a duty session for any driver in any org straight through PostgREST.
-    "migrations/0162_definer_exposure_closure.sql",
-  ]) {
-    await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
+  // Apply the exact lexical migration order used by Supabase production. Never read from _deploy/.
+  console.log(`Applying ${MIGRATIONS.length} migrations in lexical order`);
+  for (const name of MIGRATIONS) {
+    await db.exec(
+      read(`migrations/${name}`).replace(/create extension if not exists pgcrypto;?/gi, ""),
+    );
   }
-
-  // The security matrix intentionally loads a minimal migration subset. These derived scoring columns are
-  // created by migrations omitted from that subset, so mirror their production shapes before exercising
-  // migration 0156's database function.
-  await db.exec(`
-    alter table fuel_transactions add column if not exists case_level text;
-    alter table fuel_transactions add column if not exists case_score numeric;
-    alter table fuel_transactions add column if not exists case_signals jsonb;
-    alter table fuel_transactions add column if not exists case_gates jsonb;
-    alter table fuel_transactions add column if not exists attribution_verdict text;
-    alter table fuel_transactions add column if not exists logbook_vehicle_id uuid;
-    alter table fuel_transactions add column if not exists samsara_odometer numeric;
-    alter table fuel_transactions add column if not exists samsara_odometer_at timestamptz;
-    alter table fuel_transactions add column if not exists samsara_odometer_source text;
-    alter table fuel_transactions add column if not exists samsara_location_matched boolean;
-    alter table fuel_transactions add column if not exists samsara_location_confidence text;
-    alter table fuel_transactions add column if not exists samsara_nearest_station_miles numeric;
-    alter table fuel_transactions add column if not exists station_lat numeric;
-    alter table fuel_transactions add column if not exists station_lng numeric;
-    alter table fuel_transactions add column if not exists samsara_tank_short_gal numeric;
-    alter table fuel_transactions add column if not exists samsara_tank_observed_gal numeric;
-    alter table fuel_transactions add column if not exists samsara_fuel_pct_before numeric;
-    alter table fuel_transactions add column if not exists samsara_fuel_pct_after numeric;
-    alter table fuel_transactions add column if not exists samsara_observed_state text;
-    alter table fuel_transactions add column if not exists samsara_observed_city text;
-    alter table fuel_transactions add column if not exists samsara_observed_address text;
-    alter table fuel_transactions add column if not exists samsara_observed_lat numeric;
-    alter table fuel_transactions add column if not exists samsara_observed_lng numeric;
-    alter table fuel_transactions add column if not exists fueling_time_basis text;
-    alter table fuel_transactions add column if not exists samsara_recon_at timestamptz;
-    alter table fuel_transactions add column if not exists samsara_recon_checked_at timestamptz;
-    alter table fuel_transactions add column if not exists samsara_recon_status text;
-    alter table fuel_transactions add column if not exists samsara_recon_error text;
-    alter table fuel_transactions add column if not exists samsara_recon_evidence_version int not null default 1;
-    alter table anomalies add column if not exists fueled_at timestamptz;
-    alter table anomalies add column if not exists disposition text;
-    alter table anomalies add column if not exists disposition_by uuid;
-    alter table anomalies add column if not exists disposition_at timestamptz;
-    alter table fuel_transactions add column if not exists fueled_at_precision text;
-    alter table fuel_transactions add column if not exists card_ref text;
-    alter table fuel_transactions add column if not exists tank_type text;
-    alter table fuel_transactions add column if not exists transaction_id uuid;
-    alter table fuel_transactions add column if not exists control_id text;
-  `);
-  await db.exec(read("migrations/0156_atomic_scoring_persistence.sql"));
-  await db.exec(read("migrations/0157_reconciliation_evidence_preservation.sql"));
-  await db.exec(read("migrations/0158_anomaly_case_lifecycle.sql"));
-  await db.exec(read("migrations/0154_efs_alert_pipeline.sql"));
-  await db.exec(read("migrations/0159_operational_scoring_reliability.sql"));
-  await db.exec(read("migrations/0160_canonical_fuel_balance.sql"));
 
   // Non-privileged role RLS applies to (mirrors Supabase 'authenticated').
   await db.exec(`
@@ -674,6 +566,10 @@ async function main() {
    * These fixtures used to insert `status:'offered'` directly, which the 0087 guard now refuses —
    * so this helper is also a live check that the approval gate itself still admits a complete load.
    */
+  const APPROVER = "00000000-0000-0000-0000-0000000a0001";
+  await db.query(
+    `insert into auth.users (id, email) values ('${APPROVER}', 'approver@example.com')`,
+  );
   const offeredLoad = async (ref, driverId) => {
     const id = (
       await db.query(
@@ -686,7 +582,9 @@ async function main() {
          ('${ORG_A}','${id}',1,'pickup','Origin yard',  now(), now() + interval '2 hours'),
          ('${ORG_A}','${id}',2,'dropoff','Destination', now() + interval '5 hours', now() + interval '7 hours')`,
     );
-    await db.query(`update loads set status='approved', approved_at=now() where id='${id}'`);
+    await db.query(
+      `update loads set status='approved', approved_by='${DUID}', approved_at=now() where id='${id}'`,
+    );
     await db.query(`update loads set status='offered' where id='${id}'`);
     // The checklist stops were scaffolding for the approval gate only. Drop them so each test
     // below still reasons about exactly the stop fixtures it creates for itself.
@@ -1011,7 +909,9 @@ async function main() {
        ('${ORG_A}','${APPRLOAD}',1,'pickup','Origin yard',  now(), now() + interval '2 hours'),
        ('${ORG_A}','${APPRLOAD}',2,'dropoff','Destination', now() + interval '5 hours', now() + interval '7 hours')`,
   );
-  await db.query(`update loads set status='approved', approved_at=now() where id='${APPRLOAD}'`);
+  await db.query(
+    `update loads set status='approved', approved_by='${DUID}', approved_at=now() where id='${APPRLOAD}'`,
+  );
   await db.query(
     `insert into load_stops (org_id, load_id, seq, kind, name) values ('${ORG_A}','${PENDLOAD}',1,'pickup','Hidden Shipper')`,
   );
@@ -2053,25 +1953,58 @@ async function main() {
     `select public.persist_scoring_outcome_v2(
       $1,$2,$3,null,$4,'test-engine','sha256:test-1',null,$5::jsonb,$6,$7,$8,$9
     ) as result`,
-    [scoreAttempt, ORG_A, scoreTxn, "2026-08-08T12:00:00Z", scoreOutcome, "2026-08-08T12:01:00Z", "no_data", null, 1],
+    [
+      scoreAttempt,
+      ORG_A,
+      scoreTxn,
+      "2026-08-08T12:00:00Z",
+      scoreOutcome,
+      "2026-08-08T12:01:00Z",
+      "no_data",
+      null,
+      1,
+    ],
   );
   ok(
     "atomic scoring RPC persists the clear outcome",
     firstScore.rows[0]?.result?.idempotent === false &&
-      (await db.query("select case_level, has_anomaly from fuel_transactions where id=$1", [scoreTxn])).rows[0]?.case_level === "clear" &&
-      (await db.query("select case_level, has_anomaly from fuel_transactions where id=$1", [scoreTxn])).rows[0]?.has_anomaly === false,
+      (
+        await db.query("select case_level, has_anomaly from fuel_transactions where id=$1", [
+          scoreTxn,
+        ])
+      ).rows[0]?.case_level === "clear" &&
+      (
+        await db.query("select case_level, has_anomaly from fuel_transactions where id=$1", [
+          scoreTxn,
+        ])
+      ).rows[0]?.has_anomaly === false,
     JSON.stringify(firstScore.rows[0]),
   );
   const replayScore = await db.query(
     `select public.persist_scoring_outcome_v2(
       $1,$2,$3,null,$4,'test-engine','sha256:test-1',null,$5::jsonb,$6,$7,$8,$9
     ) as result`,
-    [scoreAttempt, ORG_A, scoreTxn, "2026-08-08T12:00:00Z", scoreOutcome, "2026-08-08T12:01:00Z", "no_data", null, 1],
+    [
+      scoreAttempt,
+      ORG_A,
+      scoreTxn,
+      "2026-08-08T12:00:00Z",
+      scoreOutcome,
+      "2026-08-08T12:01:00Z",
+      "no_data",
+      null,
+      1,
+    ],
   );
   ok(
     "replaying a succeeded scoring attempt is idempotent",
     replayScore.rows[0]?.result?.idempotent === true &&
-      (await db.query("select count(*)::int n from scoring_attempts where id=$1 and status='succeeded'", [scoreAttempt])).rows[0]?.n === 1,
+      (
+        await db.query(
+          "select count(*)::int n from scoring_attempts where id=$1 and status='succeeded'",
+          [scoreAttempt],
+        )
+      ).rows[0]?.n === 1,
     JSON.stringify(replayScore.rows[0]),
   );
 
@@ -2113,11 +2046,22 @@ async function main() {
   );
   ok(
     "atomic scoring RPC creates one active case with its outcome",
-    (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'", [scoreTxn])).rows[0]?.n === 1 &&
-      (await db.query("select has_anomaly from fuel_transactions where id=$1", [scoreTxn])).rows[0]?.has_anomaly === true,
+    (
+      await db.query(
+        "select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'",
+        [scoreTxn],
+      )
+    ).rows[0]?.n === 1 &&
+      (await db.query("select has_anomaly from fuel_transactions where id=$1", [scoreTxn])).rows[0]
+        ?.has_anomaly === true,
   );
 
-  const activeCase = (await db.query("select id, version from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'", [scoreTxn])).rows[0];
+  const activeCase = (
+    await db.query(
+      "select id, version from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'",
+      [scoreTxn],
+    )
+  ).rows[0];
   const transitionResult = await db.query(
     `select public.transition_anomaly($1,$2,$3,'dismissed','legitimate split purchase','benign_explained', $4) as result`,
     [ORG_A, activeCase.id, DUID, activeCase.version],
@@ -2125,7 +2069,11 @@ async function main() {
   ok(
     "case closure writes disposition and immutable transition history",
     transitionResult.rows[0]?.result?.to_status === "dismissed" &&
-      (await db.query("select count(*)::int n from anomaly_transitions where anomaly_id=$1", [activeCase.id])).rows[0]?.n === 1,
+      (
+        await db.query("select count(*)::int n from anomaly_transitions where anomaly_id=$1", [
+          activeCase.id,
+        ])
+      ).rows[0]?.n === 1,
     JSON.stringify(transitionResult.rows[0]),
   );
 
@@ -2144,7 +2092,12 @@ async function main() {
       ORG_A,
       scoreTxn,
       "2026-08-08T12:00:00Z",
-      JSON.stringify({ rule_id: "theft_case", severity: "high", message: "repeat case", evidence: {} }),
+      JSON.stringify({
+        rule_id: "theft_case",
+        severity: "high",
+        message: "repeat case",
+        evidence: {},
+      }),
       caseOutcome,
       "2026-08-08T12:03:00Z",
       "success",
@@ -2154,8 +2107,18 @@ async function main() {
   );
   ok(
     "a recurrence after dismissal creates a new open case",
-    (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'", [scoreTxn])).rows[0]?.n === 1 &&
-      (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case'", [scoreTxn])).rows[0]?.n === 2,
+    (
+      await db.query(
+        "select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'",
+        [scoreTxn],
+      )
+    ).rows[0]?.n === 1 &&
+      (
+        await db.query(
+          "select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case'",
+          [scoreTxn],
+        )
+      ).rows[0]?.n === 2,
   );
 
   // ── SECURITY DEFINER exposure (0162) ────────────────────────────────────────
@@ -2170,7 +2133,12 @@ async function main() {
   // the caller's own JWT claims; `authenticated` must keep EXECUTE on those or every policy that
   // calls them errors instead of filtering.
   const CALLER_SCOPED_HELPERS = new Set([
-    "auth_org_id", "auth_role", "auth_user_id", "auth_driver_id", "auth_in_thread", "auth_module_enabled",
+    "auth_org_id",
+    "auth_role",
+    "auth_user_id",
+    "auth_driver_id",
+    "auth_in_thread",
+    "auth_module_enabled",
   ]);
 
   const definers = await db.query(`
@@ -2194,10 +2162,19 @@ async function main() {
 
   // Spot-assert the three the 0141 sweep missed, by name, so a regression names itself in the output
   // rather than hiding inside the aggregate above.
-  for (const fn of ["start_duty_session", "change_duty_equipment", "end_duty_session", "emit_notification", "revoke_push_tokens"]) {
+  for (const fn of [
+    "start_duty_session",
+    "change_duty_equipment",
+    "end_duty_session",
+    "emit_notification",
+    "revoke_push_tokens",
+  ]) {
     const row = definers.rows.find((r) => r.proname === fn);
-    ok(`${fn} is service-role only`, !!row && !row.auth_can && !row.anon_can,
-       row ? `authenticated=${row.auth_can} anon=${row.anon_can}` : "FUNCTION NOT FOUND");
+    ok(
+      `${fn} is service-role only`,
+      !!row && !row.auth_can && !row.anon_can,
+      row ? `authenticated=${row.auth_can} anon=${row.anon_can}` : "FUNCTION NOT FOUND",
+    );
   }
 
   // The policy helpers must NOT have been caught by the sweep — revoking these breaks every policy
@@ -2206,6 +2183,24 @@ async function main() {
     const row = definers.rows.find((r) => r.proname === fn);
     if (row) ok(`${fn} keeps EXECUTE for authenticated (policies call it)`, row.auth_can === true);
   }
+
+  // ── Cross-tenant isolation, every RLS table (Stage 2.2) ─────────────────────
+  const iso = await assertTenantIsolation({
+    db,
+    asUser,
+    ok,
+    orgA: ORG_A,
+    orgB: ORG_B,
+    viewer: { org_id: ORG_A, user_role: "admin" },
+    handSeed: {
+      org_usage_month: (org) =>
+        `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
+    },
+  });
+  console.log(
+    `\n[tenant isolation] ${iso.covered} tables covered, ${iso.exempt} exempt, ${iso.unseedable.length} unseedable, ${iso.leaked} leaking`,
+  );
+  for (const [t, why] of iso.unseedable) console.log(`   UNSEEDABLE ${t}: ${why}`);
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

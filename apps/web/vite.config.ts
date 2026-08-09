@@ -36,6 +36,9 @@ export default defineConfig(({ mode }) => {
     define: {
       __APP_VERSION__: JSON.stringify(buildId),
     },
+    build: {
+      chunkSizeWarningLimit: 1050,
+    },
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),

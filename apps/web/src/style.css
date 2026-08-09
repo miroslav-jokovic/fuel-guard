@@ -2,7 +2,9 @@
 
 @font-face {
   font-family: "Hanken Grotesk";
-  src: url("/fonts/HankenGrotesk-400-Regular.ttf") format("truetype");
+  src:
+    url("/fonts/HankenGrotesk-400-Regular.woff2") format("woff2"),
+    url("/fonts/HankenGrotesk-400-Regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -10,7 +12,9 @@
 
 @font-face {
   font-family: "Hanken Grotesk";
-  src: url("/fonts/HankenGrotesk-400-Italic.ttf") format("truetype");
+  src:
+    url("/fonts/HankenGrotesk-400-Italic.woff2") format("woff2"),
+    url("/fonts/HankenGrotesk-400-Italic.ttf") format("truetype");
   font-style: italic;
   font-weight: 400;
   font-display: swap;
@@ -18,7 +22,9 @@
 
 @font-face {
   font-family: "Hanken Grotesk";
-  src: url("/fonts/HankenGrotesk-500-Regular.ttf") format("truetype");
+  src:
+    url("/fonts/HankenGrotesk-500-Regular.woff2") format("woff2"),
+    url("/fonts/HankenGrotesk-500-Regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 500;
   font-display: swap;
@@ -26,7 +32,9 @@
 
 @font-face {
   font-family: "Hanken Grotesk";
-  src: url("/fonts/HankenGrotesk-500-Italic.ttf") format("truetype");
+  src:
+    url("/fonts/HankenGrotesk-500-Italic.woff2") format("woff2"),
+    url("/fonts/HankenGrotesk-500-Italic.ttf") format("truetype");
   font-style: italic;
   font-weight: 500;
   font-display: swap;
@@ -34,7 +42,9 @@
 
 @font-face {
   font-family: "Hanken Grotesk";
-  src: url("/fonts/HankenGrotesk-600-Regular.ttf") format("truetype");
+  src:
+    url("/fonts/HankenGrotesk-600-Regular.woff2") format("woff2"),
+    url("/fonts/HankenGrotesk-600-Regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 600;
   font-display: swap;
@@ -42,14 +52,16 @@
 
 @font-face {
   font-family: "Hanken Grotesk";
-  src: url("/fonts/HankenGrotesk-700-Regular.ttf") format("truetype");
+  src:
+    url("/fonts/HankenGrotesk-700-Regular.woff2") format("woff2"),
+    url("/fonts/HankenGrotesk-700-Regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 700;
   font-display: swap;
 }
 
 @theme inline {
-  --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-sans: "Hanken Grotesk", system-ui, sans-serif;
 }
 
 body {
@@ -165,8 +177,8 @@ body {
   /* app background + raised surfaces */
   --canvas: var(--ramp-neutral-50);
   --surface: #ffffff;
-  --surface-subtle: var(--ramp-neutral-50);   /* table headers, hover rows */
-  --surface-muted: var(--ramp-neutral-100);   /* soft buttons, wells       */
+  --surface-subtle: var(--ramp-neutral-50); /* table headers, hover rows */
+  --surface-muted: var(--ramp-neutral-100); /* soft buttons, wells       */
   --surface-inverse: var(--ramp-neutral-900); /* code blocks, tooltips     */
 
   /* text */
@@ -177,9 +189,9 @@ body {
   --ink-inverse: #ffffff;
 
   /* hairlines & control borders */
-  --edge-subtle: var(--ramp-neutral-100);     /* row dividers  */
-  --edge: var(--ramp-neutral-200);            /* card rings    */
-  --edge-strong: var(--ramp-neutral-300);     /* input borders */
+  --edge-subtle: var(--ramp-neutral-100); /* row dividers  */
+  --edge: var(--ramp-neutral-200); /* card rings    */
+  --edge-strong: var(--ramp-neutral-300); /* input borders */
 
   /* Codex-inspired workspace navigation: warm graphite rather than blue-black.
      These are semantic component roles, not brand colors. */
@@ -195,8 +207,8 @@ body {
 
   /* data-viz roles — canvas charts resolve these at runtime
      (features/dashboard/chartTheme.ts); keep in sync with the ramps */
-  --viz-brand: var(--ramp-brand-600);            /* MPG line            */
-  --viz-spend: oklch(59.6% 0.145 163.225);       /* fuel spend (emerald) */
+  --viz-brand: var(--ramp-brand-600); /* MPG line            */
+  --viz-spend: oklch(59.6% 0.145 163.225); /* fuel spend (emerald) */
   --viz-spend-hover: oklch(50.8% 0.118 165.612); /* emerald-700          */
   --viz-severity-critical: var(--ramp-danger-700);
   --viz-severity-high: var(--ramp-caution-500);
