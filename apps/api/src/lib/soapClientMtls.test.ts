@@ -53,6 +53,10 @@ const env = {
   NODE_ENV: "test",
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
+  // This suite performs REAL handshakes against an https server on 127.0.0.1, which the SSRF gate in
+  // soapFetch (audit 2026-08-09 §3.8) blocks by design. Same escape hatch a developer running a local
+  // mock endpoint uses; it cannot be set in production. lib/ssrfGuard.test.ts covers the gate itself.
+  EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
 } as Env;
 
 const SOAP_OK = '<?xml version="1.0"?><ok/>';

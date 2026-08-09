@@ -76,7 +76,7 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     case_score: assessment.score,
     case_signals: assessment.signals,
     // WP6: WHY detection was limited on this fill (ineligible rules + the gating inputs).
-    case_gates: summarizeFillGates(computeFillConfidence(ruleCtx)),
+    case_gates: { ...summarizeFillGates(computeFillConfidence(ruleCtx)), fuel_balance: ruleCtx.fuelBalance ?? null },
     // WP-ATTR: the logbook attribution verdict (+ the contradicting logbook truck when suspect).
     attribution_verdict: attribution.verdict,
     logbook_vehicle_id: attribution.verdict === "suspect" ? attribution.logbookVehicleId : null,

@@ -189,6 +189,7 @@ export async function loadTankResidualWindow(
     .select("gallons, samsara_tank_observed_gal, attribution_verdict, fueling_time_basis, fueled_at, fueled_at_precision, source, samsara_recon_at, samsara_location_matched")
     .eq("vehicle_id", txn.vehicleId)
     .eq("tank_type", "tractor")
+    .eq("is_canonical", true)
     .not("samsara_tank_observed_gal", "is", null)
     // 2026-08 hardening: TANK-CONFIRMED measurements only. The fallback pre-fill reading (no detected
     // rise event) is up to 45 min STALE-HIGH — fuel burned on the approach understates every rise by

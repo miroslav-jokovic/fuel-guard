@@ -1,0 +1,113 @@
+name: Require CI green
+description: >
+  Blocks a deploy until the CI workflow has CONCLUDED SUCCESSFULLY for this exact commit.
+
+  WHY THIS EXISTS (audit 2026-08-09, finding 3.1). migrate.yml, driver-ota.yml and
+  driver-android.yml all triggered on `push: main` independently of ci.yml. GitHub Actions cannot
+  express a cross-workflow dependency in `on:`, so all four ran in parallel: a push that broke every
+  test in the repo still applied migrations to the production database and published an OTA bundle
+  to every driver's phone. `deploy-verify.yml` runs afterwards and so cannot prevent any of it.
+
+  This action is the missing edge. It polls the Actions API for the CI run on the SAME head SHA and
+  fails closed — on failure, on cancellation, and on timeout. Waiting is correct here: the deploy
+  workflows start at the same moment CI does, so "no run yet" and "still running" are the normal
+  first states, not errors.
+
+  The calling job MUST grant `permissions: actions: read`.
+
+inputs:
+  workflow:
+    description: Filename of the workflow that must have passed.
+    required: false
+    default: ci.yml
+  sha:
+    description: Commit to check. Defaults to the SHA this workflow is running against.
+    required: false
+    default: ""
+  timeout-minutes:
+    description: How long to wait for CI to conclude before failing.
+    required: false
+    default: "45"
+  bypass:
+    description: >
+      Set to "true" ONLY from a workflow_dispatch `force` input, to ship during an incident when CI
+      is itself broken. Every bypass is recorded in the job summary.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Require CI green for this commit
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        WORKFLOW: ${{ inputs.workflow }}
+        INPUT_SHA: ${{ inputs.sha }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        BYPASS: ${{ inputs.bypass }}
+      run: |
+        set -uo pipefail
+
+        sha="${INPUT_SHA:-$GITHUB_SHA}"
+        run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs"
+
+        if [ "$BYPASS" = "true" ]; then
+          echo "::warning::CI gate BYPASSED by an explicit force input. Deploying ${sha::7} without a green CI run."
+          {
+            echo "### ⚠️ CI gate bypassed"
+            echo "Deploying \`${sha::7}\` without requiring a green CI run, because this run was"
+            echo "dispatched with \`force: true\`. This is only appropriate when CI itself is broken."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+
+        deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+        echo "Waiting for '${WORKFLOW}' to conclude for commit ${sha::7} (timeout ${TIMEOUT_MINUTES}m)..."
+
+        while :; do
+          json=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW}/runs?head_sha=${sha}&per_page=20" \
+            2>/dev/null || echo '{"workflow_runs":[]}')
+
+          # Several runs can share a head SHA (a re-run, or a push plus a manual dispatch). The most
+          # recently started one is the authoritative answer for this commit.
+          latest=$(echo "$json" | jq -c '[.workflow_runs[]?] | sort_by(.run_started_at) | last // empty')
+
+          if [ -z "$latest" ] || [ "$latest" = "null" ]; then
+            echo "  no ${WORKFLOW} run recorded for ${sha::7} yet — waiting"
+          else
+            status=$(echo "$latest"     | jq -r '.status // "unknown"')
+            conclusion=$(echo "$latest" | jq -r '.conclusion // ""')
+            id=$(echo "$latest"         | jq -r '.id // ""')
+            echo "  status=${status} conclusion=${conclusion:-pending}"
+
+            if [ "$status" = "completed" ]; then
+              case "$conclusion" in
+                success)
+                  echo "✓ CI passed for ${sha::7} — ${run_url}/${id}"
+                  echo "CI gate: ✓ passed for \`${sha::7}\` ([run](${run_url}/${id}))" >> "$GITHUB_STEP_SUMMARY"
+                  exit 0
+                  ;;
+                skipped)
+                  # A skipped CI run proves nothing. Treat it exactly like a failure.
+                  echo "::error::CI was SKIPPED for ${sha::7}. A skipped run is not evidence that anything works — refusing to deploy."
+                  echo "CI gate: ✗ skipped for \`${sha::7}\` ([run](${run_url}/${id})) — deploy blocked." >> "$GITHUB_STEP_SUMMARY"
+                  exit 1
+                  ;;
+                *)
+                  echo "::error::CI concluded '${conclusion}' for ${sha::7}. Refusing to deploy. See ${run_url}/${id}"
+                  echo "CI gate: ✗ ${conclusion} for \`${sha::7}\` ([run](${run_url}/${id})) — deploy blocked." >> "$GITHUB_STEP_SUMMARY"
+                  exit 1
+                  ;;
+              esac
+            fi
+          fi
+
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "::error::Timed out after ${TIMEOUT_MINUTES}m waiting for ${WORKFLOW} on ${sha::7}. Refusing to deploy on an unknown CI state."
+            echo "CI gate: ✗ timed out waiting for CI on \`${sha::7}\` — deploy blocked." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          sleep 20
+        done

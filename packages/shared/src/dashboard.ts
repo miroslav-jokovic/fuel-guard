@@ -21,6 +21,13 @@ export interface RiskRow {
   criticalCount: number;
 }
 
+export type DashboardTransaction = Pick<FuelTransaction, "id" | "vehicle_id" | "driver_id" | "fueled_at" | "gallons" | "total_cost" | "computed_mpg"> & {
+  tank_type?: "tractor" | "reefer" | null;
+  samsara_recon_at?: string | null;
+};
+
+export type DashboardAnomaly = Pick<Anomaly, "id" | "transaction_id" | "vehicle_id" | "severity" | "status">;
+
 export interface DashboardSummary {
   totalSpend: number;
   totalGallons: number;
@@ -112,8 +119,8 @@ function emptySeverity(): Record<AnomalySeverity, number> {
  * range-filtered anomalies here makes the card disagree with the page it links to.
  */
 export function aggregateDashboard(
-  transactions: FuelTransaction[],
-  anomalies: Anomaly[],
+  transactions: DashboardTransaction[],
+  anomalies: DashboardAnomaly[],
   vehicles: Pick<Vehicle, "id" | "unit_number">[],
   drivers: Pick<Driver, "id" | "full_name">[],
   opts: DashboardOptions = {},

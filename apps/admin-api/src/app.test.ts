@@ -22,7 +22,7 @@ const admin: PlatformAdmin = {
   id: "a1", email: "owner@uncdevelopment.com", userId: "u1", role: "platform_owner",
   status: "active", mfaEnrolledAt: "2026-01-01T00:00:00Z", lastReauthAt: null,
 };
-const aal2: PlatformToken = { userId: "u1", email: "owner@uncdevelopment.com", aal: "aal2", amr: ["password", "totp"], sessionId: "s1" };
+const aal2: PlatformToken = { userId: "u1", email: "owner@uncdevelopment.com", aal: "aal2", amr: [{ method: "password", timestamp: null }, { method: "totp", timestamp: 1_770_000_000 }], sessionId: "s1" };
 
 describe("admin-api app", () => {
   let ctx: Awaited<ReturnType<typeof start>>;

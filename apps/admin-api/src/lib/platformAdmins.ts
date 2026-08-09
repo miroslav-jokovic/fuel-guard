@@ -34,6 +34,11 @@ const toAdmin = (r: Row): PlatformAdmin => ({
   role: r.role,
   status: r.status,
   mfaEnrolledAt: r.mfa_enrolled_at,
+  // VESTIGIAL (audit 2026-08-09, finding 3.8). Nothing in this codebase has ever WRITTEN
+  // platform_admins.last_reauth_at, so this is always null. Step-up freshness now comes from the
+  // caller's JWT `amr` timestamps (middleware/platformAuth.ts), which needs no write path and cannot
+  // be refreshed by an attacker holding only a stolen access token. Kept on the type for now so the
+  // column drop is a separate, deliberate migration; do not reintroduce a dependency on it.
   lastReauthAt: r.last_reauth_at,
 });
 
@@ -55,6 +60,22 @@ export async function lookupPlatformAdmin(
   let row = (byId.data as Row | null) ?? null;
 
   if (!row && identity.email) {
+    // The email claim alone must NEVER be enough to claim cross-tenant authority (audit 2026-08-09,
+    // finding 3.5). platform_admins rows are seeded with user_id NULL and linked on first login, and
+    // the seeded addresses are in the repository — so if the project ever allows sign-up without
+    // confirming the address, anyone could register the owner's email, self-enrol a TOTP factor to
+    // reach aal2, and this fallback would hand them platform_owner over every tenant.
+    //
+    // Supabase does not put confirmation status in the access token, so it is read from the auth
+    // record itself. This costs one round trip on the FIRST login of each platform admin and nothing
+    // thereafter, because the user_id link above short-circuits it forever after.
+    const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(identity.userId);
+    const confirmedAt = authUser?.user?.email_confirmed_at ?? null;
+    const confirmedEmail = authUser?.user?.email?.toLowerCase() ?? null;
+    if (authErr || !confirmedAt || !confirmedEmail) return null;
+    // The token's claim and the auth record must agree; trust the record, not the claim.
+    if (confirmedEmail !== identity.email.toLowerCase()) return null;
+
     // Emails are stored lower-cased (no citext), so match case-insensitively by lower-casing here.
     const byEmail = await admin
       .from("platform_admins")

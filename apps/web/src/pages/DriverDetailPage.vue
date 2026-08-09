@@ -24,6 +24,7 @@ async function fetchAllFills(driverId: string): Promise<FuelTransaction[]> {
       .from("fuel_transactions")
       .select("id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at")
       .eq("driver_id", driverId)
+      .eq("is_canonical", true)
       .order("fueled_at", { ascending: true })
       .order("id", { ascending: true })
       .range(offset, offset + PAGE - 1);
@@ -77,7 +78,7 @@ const mpgChart = computed<ChartConfiguration>(() => ({
         label: "MPG",
         data: mpgPoints.value.map((t) => Number(t.computed_mpg)),
         borderColor: viz.brand,
-        backgroundColor: areaFill("--viz-brand") as unknown as string,
+        backgroundColor: areaFill("--viz-brand"),
         fill: true,
         tension: 0.35,
         borderWidth: 2.5,

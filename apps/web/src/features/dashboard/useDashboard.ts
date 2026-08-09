@@ -53,6 +53,7 @@ export function useDashboard(range: Ref<{ from: string; to: string }>) {
           supabase
             .from("fuel_transactions")
             .select("id, vehicle_id, driver_id, fueled_at, gallons, total_cost, computed_mpg, tank_type, samsara_recon_at")
+            .eq("is_canonical", true)
             .gte("fueled_at", from)
             .lte("fueled_at", to)
             .order("fueled_at", { ascending: true })

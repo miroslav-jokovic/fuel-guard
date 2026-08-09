@@ -481,7 +481,7 @@ work proceeds on an unlicensed assumption.
 
 - Navigation tables, immutable events, RLS, service APIs and audit.
 - Dispatcher route review/publish/supersede UI bound to a load and duty equipment.
-- Driver active-route API, acknowledgment/activation and idempotent event outbox.
+- Driver active-route API, acknowledgment and activation with an idempotent event outbox.
 - Push notification for published/changed/canceled route.
 
 **Exit:** one versioned route travels dispatcher → assigned driver → acknowledgment with complete

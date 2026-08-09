@@ -86,7 +86,14 @@ function fakeClient(store: Store): SupabaseClient {
   } as unknown as SupabaseClient;
 }
 
-const aal2: PlatformToken = { userId: "u1", email: "owner@uncdevelopment.com", aal: "aal2", amr: ["totp"], sessionId: "s1" };
+const secondsAgo = (n: number) => Math.floor((Date.now() - n * 1000) / 1000);
+const aal2: PlatformToken = {
+  userId: "u1",
+  email: "owner@uncdevelopment.com",
+  aal: "aal2",
+  amr: [{ method: "password", timestamp: secondsAgo(120) }, { method: "totp", timestamp: secondsAgo(30) }],
+  sessionId: "s1",
+};
 const owner: PlatformAdmin = { id: "a1", email: "owner@uncdevelopment.com", userId: "u1", role: "platform_owner", status: "active", mfaEnrolledAt: "x", lastReauthAt: null };
 const readonly: PlatformAdmin = { ...owner, role: "platform_readonly" };
 const H = { authorization: "Bearer x", "content-type": "application/json" };

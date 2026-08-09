@@ -31,6 +31,7 @@ const { data: txns } = useQuery({
       .from("fuel_transactions")
       .select("id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, state, source, computed_mpg, has_anomaly, max_severity, ai_risk_level, created_at")
       .eq("vehicle_id", id.value)
+      .eq("is_canonical", true)
       .order("fueled_at", { ascending: true })
       .limit(200);
     return (data ?? []) as FuelTransaction[];

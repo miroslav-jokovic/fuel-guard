@@ -1,6 +1,12 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
-import { requirePlatformAuth, requireAAL2, requirePlatformAdmin, requirePlatformRole } from "../middleware/platformAuth.js";
+import {
+  requirePlatformAuth,
+  requireAAL2,
+  requirePlatformAdmin,
+  requirePlatformRole,
+  requireStepUp,
+} from "../middleware/platformAuth.js";
 import { adminClient } from "../lib/supabaseAdmin.js";
 import { writePlatformAudit } from "../lib/audit.js";
 import { apiError } from "../lib/http.js";
@@ -68,11 +74,18 @@ export function orgsRouter(): Router {
   });
 
   // Enable/disable an EXISTING optional module for an org (platform kill switch). Owner/admin only,
-  // audited, reversible (no step-up). Never provisions or touches secrets — that stays in the customer flow.
+  // audited. Never provisions or touches secrets — that stays in the customer flow.
+  //
+  // Step-up required (audit 2026-08-09, finding 3.8). "Reversible" was the old justification for
+  // skipping it, and it is the wrong test: reversibility says how hard the damage is to undo, not how
+  // hard the action is to reach. Turning a tenant's module off is a production outage for them, and
+  // AAL2 alone only proves MFA happened at SOME point in this hour-long token's life — not that the
+  // person issuing the command is the person who passed it.
   const toggleSchema = z.object({ enabled: z.boolean() });
   r.post(
     "/:id/modules/:provider",
     requirePlatformRole("platform_owner", "platform_admin"),
+    requireStepUp,
     async (req: Request, res: Response) => {
       const id = req.params.id;
       const provider = req.params.provider;
@@ -114,10 +127,15 @@ export function orgsRouter(): Router {
   // is what makes HazmatGuard/Training/etc exist for a tenant at all. Owner/admin only, audited to
   // the platform trail AND the customer's own trail (a bought/removed product is visible to them).
   // Upsert semantics: the first grant creates the row (unlike the integration toggle, which only
-  // flips existing connections). Reversible, so no step-up beyond the router's AAL2 gate.
+  // flips existing connections).
+  //
+  // Step-up required (audit 2026-08-09, finding 3.8) — this is a commercial grant against a customer
+  // account, and the same argument as the module toggle above applies: reversible is not the same as
+  // low-stakes, and AAL2 is a property of the session, not of this request.
   r.post(
     "/:id/entitlements/:moduleKey",
     requirePlatformRole("platform_owner", "platform_admin"),
+    requireStepUp,
     async (req: Request, res: Response) => {
       const id = req.params.id;
       const moduleKey = req.params.moduleKey;
@@ -158,10 +176,16 @@ export function orgsRouter(): Router {
   // ── Read-only impersonation ("view as customer") ──────────────────────────────────────────────
   // Start a time-boxed, reason-required grant. Support role and up (never platform_readonly). Dual-audited:
   // our platform log AND the customer's own audit_logs, so platform involvement is transparent to them.
+  //
+  // Step-up required (audit 2026-08-09, finding 3.8). This is the crown jewel of the platform plane —
+  // it mints cross-tenant read access to a customer's data — and it was reachable for the full life of
+  // a stolen access token. Of everything behind this router, this is the one that most needs the
+  // operator to prove a second factor at the moment they act.
   const startSchema = z.object({ reason: z.string().trim().min(3).max(500) });
   r.post(
     "/:id/impersonation",
     requirePlatformRole("platform_owner", "platform_admin", "platform_support"),
+    requireStepUp,
     async (req: Request, res: Response) => {
       const id = req.params.id;
       if (typeof id !== "string") {

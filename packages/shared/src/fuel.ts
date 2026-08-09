@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { FuelType, AnomalySeverity } from "./constants.js";
+import type { FuelBalanceEvidence } from "./anomalyRules/types.js";
 
 const optionalText = z.preprocess(
   (v) => (v === "" || v == null ? undefined : v),
@@ -79,7 +80,7 @@ export interface FuelTransaction {
   case_score?: number | null;
   case_signals?: { ruleId: string; axis: string; weight: number; severity: string; message: string }[] | null;
   /** WP6 — why detection was LIMITED on this fill: gating inputs + rules ineligible to fire. */
-  case_gates?: { tankSensor: string; odoSource: string | null; fillSize: string; ineligible: string[] } | null;
+  case_gates?: { tankSensor: string; odoSource: string | null; fillSize: string; ineligible: string[]; fuel_balance?: FuelBalanceEvidence | null } | null;
   ai_risk_level: AnomalySeverity | null;
   samsara_location_confidence?: string | null;
   /** tractor propulsion tank vs reefer (trailer) tank. Default 'tractor'. */

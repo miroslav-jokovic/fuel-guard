@@ -715,6 +715,25 @@ describe("learnOdometerOffset", () => {
 });
 
 describe("hardening — cumulative overfuel", () => {
+  it("uses tank-balance mode instead of MPG fallback when confirmed tank evidence exists", () => {
+    const c = ctx({
+      windowGallons: 386.01,
+      windowMiles: 1386.8,
+      fuelBalance: {
+        mode: "tank_balance", purchasedGallons: 386.01, canonicalTransactionCount: 2,
+        startTankGallons: 24, endTankGallons: 192, consumedGallons: 218,
+        capacityGallons: 240, sampleCount: 2, mileageBasis: "samsara_obd",
+        baselineMpg: 6.5, baselineSource: "vehicle_configured", duplicateGallonsExcluded: 0,
+      },
+    });
+    expect(ids(c)).not.toContain("cumulative_overfuel");
+  });
+
+  it("uses the configured vehicle baseline for the MPG fallback", () => {
+    const c = ctx({ vehicle: { ...vehicle, tankCapacityGal: 240, baselineMpg: 6.5 }, windowGallons: 386.01, windowMiles: 1386.8 });
+    expect(ids(c)).not.toContain("cumulative_overfuel");
+  });
+
   it("fires when window gallons exceed burnable + a tank", () => {
     // 120 gal tank, baseline 6.4 → 100 mi window burns ~15.6 gal; ceiling ≈ 135.6. 400 gal > ceiling.
     const c = ctx({ windowGallons: 400, windowMiles: 100 });

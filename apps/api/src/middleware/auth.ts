@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import type { UserRole } from "@fuelguard/shared";
 import { apiError } from "../lib/http.js";
-import { verifyAccessToken, getProjectJwks } from "../lib/auth.js";
+import { verifyAccessToken, getProjectJwks, projectTokenAudience } from "../lib/auth.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import * as Sentry from "@sentry/node";
 
@@ -19,7 +19,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   const locals = getAppLocals(req);
   const verify =
-    locals.verifyToken ?? ((t: string) => verifyAccessToken(t, getProjectJwks(locals.env)));
+    locals.verifyToken ??
+    ((t: string) =>
+      verifyAccessToken(t, getProjectJwks(locals.env), projectTokenAudience(locals.env)));
 
   verify(token)
     .then((ctx) => {

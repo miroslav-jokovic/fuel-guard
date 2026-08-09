@@ -3,7 +3,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   contaminatesBaseline,
   robustWindowMiles,
+  resolveCapacity,
   type TxnView,
+  type VehicleView,
+  type FuelBalanceEvidence,
 } from "@fuelguard/shared";
 import {
   compareTxnRows,
@@ -24,6 +27,59 @@ export interface ConsumptionContext {
   windowMiles: number | null;
   /** WP-ATTR — gallons excluded from the window because their fills' attribution is logbook-contradicted. */
   windowSuspectGallons: number;
+  fuelBalance: FuelBalanceEvidence;
+}
+
+type TankBalanceRow = {
+  id: string;
+  created_at: string;
+  fueled_at: string;
+  fueled_at_precision: string | null;
+  source: string;
+  fueling_time_basis: string | null;
+  samsara_recon_at: string | null;
+  samsara_location_matched: boolean | null;
+  samsara_fuel_pct_before: number | string | null;
+  samsara_fuel_pct_after: number | string | null;
+};
+
+export function resolveFuelBalance(
+  rows: TankBalanceRow[],
+  vehicle: VehicleView,
+  purchasedGallons: number,
+  mileageBasis: FuelBalanceEvidence["mileageBasis"],
+  baselineMpg: number | null,
+  duplicateGallonsExcluded = 0,
+): FuelBalanceEvidence {
+  const capacity = resolveCapacity(vehicle).gallons;
+  const ordered = rows
+    .filter((x) => x.fueling_time_basis === "tank_confirmed")
+    .filter((x) => {
+      const before = n(x.samsara_fuel_pct_before);
+      const after = n(x.samsara_fuel_pct_after);
+      return before != null && after != null && before >= 0 && before <= 100 && after >= 0 && after <= 100;
+    })
+    .sort((a, b) => Date.parse(rowEventTime(a)) - Date.parse(rowEventTime(b)) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+  const fallback: FuelBalanceEvidence = {
+    mode: "mpg_fallback", purchasedGallons: Math.round(purchasedGallons * 100) / 100,
+    canonicalTransactionCount: rows.length, startTankGallons: null, endTankGallons: null,
+    consumedGallons: null, capacityGallons: capacity || null, sampleCount: 0,
+    mileageBasis, baselineMpg, baselineSource: baselineMpg != null ? "vehicle_configured" : "none", duplicateGallonsExcluded,
+  };
+  if (ordered.length < 2 || capacity <= 0) return fallback;
+  const startTankGallons = capacity * n(ordered[0]!.samsara_fuel_pct_before)! / 100;
+  const endTankGallons = capacity * n(ordered.at(-1)!.samsara_fuel_pct_after)! / 100;
+  const consumedGallons = startTankGallons + purchasedGallons - endTankGallons;
+  if (consumedGallons < 0 || consumedGallons > purchasedGallons + capacity) return fallback;
+  return {
+    ...fallback,
+    mode: "tank_balance",
+    startTankGallons: Math.round(startTankGallons * 100) / 100,
+    endTankGallons: Math.round(endTankGallons * 100) / 100,
+    consumedGallons: Math.round(consumedGallons * 100) / 100,
+    capacityGallons: capacity,
+    sampleCount: ordered.length,
+  };
 }
 
 /** Tractor consumption context ordered by the effective fueling event time, not only stored business time. */
@@ -34,6 +90,7 @@ export async function loadConsumptionContext(
   txnId: string,
   winStartIso: string,
   winEndIso: string,
+  vehicle: VehicleView,
 ): Promise<ConsumptionContext> {
   let previousTxn: TxnView | null = null;
   let recentTxns: TxnView[] = [];
@@ -41,6 +98,20 @@ export async function loadConsumptionContext(
   let windowGallons = 0;
   let windowMiles: number | null = null;
   let windowSuspectGallons = 0;
+  let fuelBalance: FuelBalanceEvidence = {
+    mode: "mpg_fallback",
+    purchasedGallons: 0,
+    canonicalTransactionCount: 0,
+    startTankGallons: null,
+    endTankGallons: null,
+    consumedGallons: null,
+    capacityGallons: null,
+    sampleCount: 0,
+    mileageBasis: "none",
+    baselineMpg: vehicle.baselineMpg ?? null,
+    baselineSource: vehicle.baselineMpg != null ? "vehicle_configured" : "none",
+    duplicateGallonsExcluded: 0,
+  };
 
   if (txn.vehicleId && txn.tankType !== "reefer") {
     const previousQuery = () =>
@@ -49,6 +120,7 @@ export async function loadConsumptionContext(
         .select(FTXN_COLS)
         .eq("vehicle_id", txn.vehicleId)
         .eq("tank_type", "tractor")
+        .eq("is_canonical", true)
         .not("odometer", "is", null);
     // Fetch both business-time sides. A recovered event time can move a fill across the fueled_at boundary,
     // so a single `fueled_at < current` query cannot reliably find the actual previous fill.
@@ -109,7 +181,7 @@ export async function loadConsumptionContext(
 
     const { data: winRows } = await admin
       .from("fuel_transactions")
-      .select("id, fueled_at, created_at, fueled_at_precision, source, fueling_time_basis, samsara_recon_at, samsara_location_matched, gallons, odometer, samsara_odometer, samsara_odometer_source, attribution_verdict")
+      .select("id, is_canonical, fueled_at, created_at, fueled_at_precision, source, fueling_time_basis, samsara_recon_at, samsara_location_matched, samsara_fuel_pct_before, samsara_fuel_pct_after, gallons, odometer, samsara_odometer, samsara_odometer_source, attribution_verdict")
       .eq("vehicle_id", txn.vehicleId)
       .eq("tank_type", "tractor")
       .gte("fueled_at", winStartIso)
@@ -120,6 +192,7 @@ export async function loadConsumptionContext(
       .order("id", { ascending: true });
     const wrAll = ((winRows ?? []) as {
       id: string;
+      is_canonical: boolean;
       fueled_at: string;
       created_at: string;
       fueled_at_precision: string | null;
@@ -127,6 +200,8 @@ export async function loadConsumptionContext(
       fueling_time_basis: string | null;
       samsara_recon_at: string | null;
       samsara_location_matched: boolean | null;
+      samsara_fuel_pct_before: number | string | null;
+      samsara_fuel_pct_after: number | string | null;
       gallons: number | string;
       odometer: number | string | null;
       samsara_odometer: number | string | null;
@@ -138,16 +213,21 @@ export async function loadConsumptionContext(
       const end = Date.parse(winEndIso);
       return Number.isFinite(at) && at >= start && at <= end;
     });
+    const duplicateGallonsExcluded = wrAll
+      .filter((x) => x.is_canonical === false)
+      .reduce((sum, x) => sum + (Number(x.gallons) || 0), 0);
     // The current fill stays in; attribution-suspect historical fills are excluded from the vehicle window.
-    const wr = wrAll.filter((x) => x.id === txnId || x.attribution_verdict !== "suspect");
+    const wr = wrAll.filter((x) => x.is_canonical !== false && (x.id === txnId || x.attribution_verdict !== "suspect"));
     windowSuspectGallons = wrAll
       .filter((x) => x.id !== txnId && x.attribution_verdict === "suspect")
       .reduce((s, x) => s + Number(x.gallons), 0);
     windowGallons = wr.reduce((s, x) => s + Number(x.gallons), 0);
-    windowMiles = robustWindowMiles(
+    const mileage = robustWindowMiles(
       wr.map((x) => ({ enteredOdometer: n(x.odometer), samsaraOdometer: n(x.samsara_odometer), samsaraSource: x.samsara_odometer_source })),
-    ).miles;
+    );
+    windowMiles = mileage.miles;
+    fuelBalance = resolveFuelBalance(wr, vehicle, windowGallons, mileage.basis, vehicle.baselineMpg ?? null, duplicateGallonsExcluded);
   }
 
-  return { previousTxn, recentTxns, intermediateGallons, windowGallons, windowMiles, windowSuspectGallons };
+  return { previousTxn, recentTxns, intermediateGallons, windowGallons, windowMiles, windowSuspectGallons, fuelBalance };
 }

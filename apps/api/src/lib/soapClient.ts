@@ -1,6 +1,7 @@
 import { createHash, X509Certificate } from "node:crypto";
 import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
 import type { Env } from "../env.js";
+import { BlockedEndpointError, allowPrivateEndpoints, assertOutboundUrlAllowed } from "./ssrfGuard.js";
 
 /**
  * Rate-limited SOAP client factory. Every EFS SOAP call goes through here so ONE place enforces:
@@ -16,6 +17,10 @@ import type { Env } from "../env.js";
  *    5xx/network errors back off with jitter, up to EFS_SOAP_MAX_RETRIES.
  *  - **Direct or platform-static egress.** EFS allowlists the Railway static outbound IPv4s; direct
  *    fetch is used by default. The proxy variable remains available for a future dedicated hop.
+ *  - **Egress safety (SSRF).** The endpoint URL is tenant-supplied, so every dispatch is re-validated
+ *    against lib/ssrfGuard.ts first — https only, no embedded credentials, and no host that resolves
+ *    into loopback/link-local/private space. Redirects are refused rather than followed. See the gate
+ *    inside soapFetch() and security audit 2026-08-09 finding 3.8.
  *  - **Mutual TLS.** When a client certificate is configured — per-org (`efs_soap_client_certs`) or
  *    deploy-wide (`EFS_SOAP_CLIENT_*`) — requests go over `node:https` with that material, through a
  *    keep-alive agent pooled by certificate identity, with a TLS 1.2 floor and classified handshake
@@ -364,7 +369,8 @@ function httpsPost(url: string, headers: Record<string, string>, body: string, t
 export type SoapPriority = "live" | "backfill";
 
 export interface SoapRequestOptions {
-  /** Full endpoint URL (from `efs_soap_credentials.endpoint_url`). */
+  /** Full endpoint URL (from `efs_soap_credentials.endpoint_url`). TENANT-SUPPLIED — re-validated by
+   *  the SSRF gate in soapFetch() on every call, never trusted because it was checked when stored. */
   url: string;
   /** Complete SOAP envelope body (XML string). */
   body: string;
@@ -405,7 +411,7 @@ export function soapLaneRps(env: Env, priority: SoapPriority, liveFraction = 0.7
  *   • parsing the response body (envelope + operation-specific unwrap)
  *   • sending the already-authenticated SOAP body supplied by the EFS operation layer
  *
- * This function ONLY does: pace → dispatch → retry-on-transient → return.
+ * This function ONLY does: validate-target → pace → dispatch → retry-on-transient → return.
  *
  * Egress proxying is intentionally not enabled in this client yet; Railway's static outbound IPs are
  * the production path. If a dedicated proxy is introduced, it should be wired here without changing
@@ -428,6 +434,21 @@ export async function soapFetch(
     opts.tls === null ? null : (opts.tls ?? (opts.fetchImpl ? null : envTlsMaterial(env)));
   if (tls) assertTlsPolicy(env, tls);
 
+  // ── SSRF gate (security audit 2026-08-09, finding 3.8) ────────────────────────────────────────
+  // `opts.url` originates from an ORG ADMIN typing into the EFS settings page, and the poller dials it
+  // from inside the Railway network every few minutes. routes/integrations.ts validates it at write
+  // time; this check is NOT redundant with that one. A stored endpoint can predate the write-time
+  // check, arrive from the EFS_SOAP_ENDPOINT_URL env fallback, be edited straight in the database, or
+  // simply be a name whose DNS answer changed after it was accepted. This is the last thing that runs
+  // before a socket is opened, so this is the check that has to hold.
+  //
+  // Validated once per soapFetch call rather than once per retry: retries reuse the same target within
+  // a few seconds, and re-resolving on each one buys a narrower TOCTOU window than the one already
+  // inherent in "we resolve, then Node resolves again to connect" (documented in ssrfGuard.ts).
+  const targetUrl = await assertOutboundUrlAllowed(opts.url, {
+    allowPrivateAddresses: allowPrivateEndpoints(env),
+  });
+
   const headers: Record<string, string> = {
     "Content-Type": 'text/xml; charset="utf-8"',
     ...(opts.soapAction !== null ? { SOAPAction: opts.soapAction ?? "" } : {}),
@@ -441,9 +462,30 @@ export async function soapFetch(
     let out: SoapResponse;
     try {
       if (tls) {
-        out = await httpsPost(opts.url, headers, opts.body, tls);
+        // node:https does not follow redirects at all — a 3xx comes back to the caller as-is, and
+        // efsSoap.ts then fails to parse it as SOAP. That is the behaviour we want, and it is why the
+        // fetch branch below is made to match it.
+        out = await httpsPost(targetUrl, headers, opts.body, tls);
       } else {
-        const res = await doFetch(opts.url, { method: "POST", headers, body: opts.body });
+        // `redirect: "manual"` is load-bearing, not a style preference. fetch DEFAULTS to following
+        // redirects, and it follows them itself: the URL validated above gets checked, the hop it is
+        // sent to next does not. That makes any open redirector a complete bypass of the gate
+        // (`https://public.example.com/r?to=http://169.254.169.254/`). We refuse rather than
+        // follow-and-recheck each hop, for two reasons: the mTLS path above has never followed
+        // redirects, so an endpoint that requires one is already broken for every mTLS deployment;
+        // and re-POSTing the SOAP envelope — which carries the org's EFS username and password — to
+        // whatever host a redirect names is not worth doing for a fixed, EFS-issued URL.
+        const res = await doFetch(targetUrl, { method: "POST", headers, body: opts.body, redirect: "manual" });
+        if (res.status >= 300 && res.status < 400) {
+          throw new BlockedEndpointError(
+            "redirect",
+            "The EFS endpoint redirected the request. Configure the final endpoint URL that EFS issued.",
+            // The Location goes in the LOG-ONLY detail. A public host can redirect to an internal one,
+            // so echoing the target back to the admin who supplied the URL would hand them precisely
+            // the internal-network oracle that finding 3.8 is about.
+            `endpoint answered HTTP ${res.status} redirect to ${res.headers.get("location") ?? "(no Location header)"}`,
+          );
+        }
         if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
           const ra = parseRetryAfter(res.headers.get("retry-after"));
           await sleep(ra ?? backoffMs(attempt));
@@ -454,6 +496,9 @@ export async function soapFetch(
         return { status: res.status, headers: res.headers, body: await res.text() };
       }
     } catch (e) {
+      // A refused endpoint is a decision, not a transient failure: retrying re-runs the same checks,
+      // reaches the same answer, and burns another paced slot on a request we are never going to make.
+      if (e instanceof BlockedEndpointError) throw e;
       if (attempt >= maxRetries) throw e;
       await sleep(backoffMs(attempt++));
       continue;

@@ -186,6 +186,21 @@ export interface OperatingHours {
   tz: string; // IANA tz
 }
 
+export interface FuelBalanceEvidence {
+  mode: "tank_balance" | "mpg_fallback";
+  purchasedGallons: number;
+  canonicalTransactionCount: number;
+  startTankGallons: number | null;
+  endTankGallons: number | null;
+  consumedGallons: number | null;
+  capacityGallons: number | null;
+  sampleCount: number;
+  mileageBasis: "samsara_obd" | "entered" | "none";
+  baselineMpg: number | null;
+  baselineSource: "vehicle_configured" | "recent_series" | "none";
+  duplicateGallonsExcluded: number;
+}
+
 export interface RuleContext {
   txn: TxnView;
   vehicle: VehicleView;
@@ -215,6 +230,8 @@ export interface RuleContext {
   /** Sum of gallons for this vehicle within the cumulative window (incl. this txn). WP-ATTR: excludes
    *  fills whose attribution the driver's logbook contradicts (another truck's fuel). */
   windowGallons?: number;
+  /** Canonical physical-fuel balance used to explain cumulative consumption decisions. */
+  fuelBalance?: FuelBalanceEvidence | null;
   /** 2026-08 — MEASURED idle-burn allowance (gallons) for the cumulative window, derived from the
    *  synced Samsara engine-time facts (vehicle_engine_days.idle_sec × IDLE_BURN_GPH, edge days
    *  pro-rated). cumulative_overfuel adds it to the burnable ceiling: a truck that idled 30h in the

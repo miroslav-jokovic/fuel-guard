@@ -35,6 +35,11 @@ on:
         description: "Release notes shown on the install page"
         required: false
         default: ""
+      force:
+        description: "Build and publish even if CI has not passed (incident recovery only)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: driver-android
@@ -44,8 +49,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read # the CI gate reads workflow run status
     steps:
       - uses: actions/checkout@v4
+
+      # Audit 2026-08-09 finding 3.1: this workflow used to run in parallel with CI, so a push with
+      # a red test suite still produced and published a signed APK. Fail closed instead.
+      - name: Require CI green for this commit
+        uses: ./.github/actions/require-ci-green
+        with:
+          bypass: ${{ github.event.inputs.force || 'false' }}
 
       - name: Assert required secrets are present
         env:

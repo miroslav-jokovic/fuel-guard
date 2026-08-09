@@ -14,6 +14,7 @@ import {
 } from "../services/efsSoapCredentials.js";
 import { pingEfsSoap } from "../lib/efsSoap.js";
 import { describeTlsMaterial, invalidateTlsAgents } from "../lib/soapClient.js";
+import { allowPrivateEndpoints, checkOutboundUrl } from "../lib/ssrfGuard.js";
 import {
   ClientCertServiceError,
   activatePendingCert,
@@ -324,6 +325,10 @@ export function integrationsRouter(): Router {
     }),
   );
 
+  // `endpointUrl` gets its real check from lib/ssrfGuard.ts inside the handler, not here:
+  // `z.string().url()` accepts `http://169.254.169.254/` and `file:///etc/passwd` quite happily, and
+  // the real check needs a DNS resolution, which a Zod schema has no business doing. See security
+  // audit 2026-08-09 finding 3.8.
   const efsEnableSchema = z.object({
     environment: z.enum(["sandbox", "production"]),
     endpointUrl: z.string().url(),
@@ -346,9 +351,27 @@ export function integrationsRouter(): Router {
         return;
       }
       const input = parsed.data;
+      // SSRF gate at WRITE time (audit 2026-08-09 §3.8). An org admin is a CUSTOMER, not an operator:
+      // without this, "enable EFS" is a request-forgery primitive that makes our servers dial the
+      // cloud metadata service or sweep the Railway private network on the poller's schedule, with the
+      // HTTP status, the XML parse outcome and roundtripMs all reported back through
+      // /efs-soap/test-connection. Refusing to STORE the endpoint is the cheap half of the fix — the
+      // soap client re-checks before every dispatch, because rows can also arrive from elsewhere.
+      const endpoint = await checkOutboundUrl(input.endpointUrl, {
+        allowPrivateAddresses: allowPrivateEndpoints(env),
+      });
+      if (!endpoint.ok) {
+        // `detail` names the address we resolved and stays in the server log; the admin gets only
+        // `message`, which deliberately cannot distinguish "does not resolve" from "resolves inside
+        // our network" — that distinction is itself the oracle being closed.
+        console.warn(`[integrations] refused EFS SOAP endpoint for org ${orgId}: ${endpoint.reason} — ${endpoint.detail}`);
+        res.status(400).json(apiError("invalid_endpoint_url", endpoint.message));
+        return;
+      }
       await upsertEfsSoapCredentials(admin, orgId, {
         environment: input.environment,
-        endpointUrl: input.endpointUrl,
+        // Store the URL we actually validated, so no second parser can disagree about the host.
+        endpointUrl: endpoint.url,
         soapUsername: input.soapUsername,
         soapPassword: input.soapPassword,
         accountId: input.accountId ?? null,
@@ -362,7 +385,7 @@ export function integrationsRouter(): Router {
         entity: "efs_soap_credentials",
         meta: {
           environment: input.environment,
-          endpointUrl: input.endpointUrl,
+          endpointUrl: endpoint.url,
           usernamePrefix: input.soapUsername.slice(0, 3),
           hasAccountId: input.accountId != null,
         },

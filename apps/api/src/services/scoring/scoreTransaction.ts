@@ -104,7 +104,7 @@ async function loadRuleInputs(
   thresholds: Awaited<ReturnType<typeof loadThresholds>>,
   vehicle: Awaited<ReturnType<typeof loadVehicleContext>>["vehicle"],
 ): Promise<RuleInputs> {
-  const consumption = await loadConsumptionContext(admin, txn, r, txnId, winStartIso, winEndIso);
+  const consumption = await loadConsumptionContext(admin, txn, r, txnId, winStartIso, winEndIso, vehicle);
   // Historical trend rules use the same intermediate-fuel correction as the current-fill MPG calculation.
   txn.intermediateGallons = consumption.intermediateGallons;
   const tankResidualWindow = await loadTankResidualWindow(admin, txn, r, winEndIso);
@@ -154,6 +154,7 @@ function buildRuleContext(
     crossSourceOdometer: recon.crossSourceOdometer,
     crossSourceOdometerSource: recon.crossSourceOdometerSource,
     windowGallons: consumption.windowGallons,
+    fuelBalance: consumption.fuelBalance,
     windowMiles: consumption.windowMiles,
     windowSuspectGallons: consumption.windowSuspectGallons,
     windowIdleGallons: inputs.windowIdleGallons,
@@ -263,6 +264,8 @@ export async function scoreTransaction(
   if (rowError) throw new Error(`[scoring] could not load transaction ${txnId}: ${rowError.message}`);
   if (!row) return;
   const r = row as FtxnRow;
+  // Duplicate source rows remain auditable but must never be scored as independent physical fills.
+  if (r.is_canonical === false) return;
   const txn = toTxnView(r);
 
   // WP-BEH — SELF-HEAL blanks from the logbook (never overwrites): a missing driver is filled in place;

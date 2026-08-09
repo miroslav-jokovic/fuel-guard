@@ -1,6 +1,6 @@
 import { Router } from "express";
 import PDFDocument from "pdfkit";
-import { toCsv, aggregateDashboard, odometerAccuracy, computeDetectionMetrics, CASE_RULE_ID, type FuelTransaction, type Anomaly, type OdoRow, type DispositionCaseInput } from "@fuelguard/shared";
+import { toCsv, aggregateDashboard, odometerAccuracy, computeDetectionMetrics, CASE_RULE_ID, type DashboardTransaction, type DashboardAnomaly, type OdoRow, type DispositionCaseInput } from "@fuelguard/shared";
 import { generateAndSendDigest } from "../services/digest.js";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
 import { asyncHandler } from "../lib/http.js";
@@ -13,8 +13,10 @@ import { scoringHealth } from "../services/scoringHealth.js";
 const qstr = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 const REPORT_PAGE = 1000;
 
+type PagedResult<T> = { data: T[] | null; error: { message: string } | null };
+
 async function fetchPaged<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+  build: (from: number, to: number) => PromiseLike<PagedResult<T>>,
 ): Promise<T[]> {
   const out: T[] = [];
   for (let offset = 0; ; offset += REPORT_PAGE) {
@@ -34,7 +36,8 @@ function defaultRange(from?: string, to?: string): { from: string; to: string } 
 
 interface TxnExport {
   fueled_at: string;
-  gallons: number;
+  gallons: number | string;
+
   odometer: number | null;
   price_per_gal: number | null;
   total_cost: number | null;
@@ -42,14 +45,15 @@ interface TxnExport {
   source: string;
   location_text: string | null;
   max_severity: string | null;
-  vehicles: { unit_number: string } | null;
-  drivers: { full_name: string } | null;
+  vehicles: { unit_number: string }[];
+  drivers: { full_name: string }[];
 }
 
 async function loadTxnExport(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<TxnExport[]> {
   return fetchPaged<TxnExport>((lo, hi) => admin
     .from("fuel_transactions")
     .select("fueled_at, gallons, odometer, price_per_gal, total_cost, computed_mpg, source, location_text, max_severity, vehicles(unit_number), drivers(full_name)")
+    .eq("is_canonical", true)
     .eq("org_id", orgId)
     .gte("fueled_at", from)
     .lte("fueled_at", to)
@@ -61,30 +65,32 @@ async function loadTxnExport(admin: SupabaseClient, orgId: string, from: string,
 /** Load entered-vs-Samsara odometer rows (with driver/vehicle labels + the per-vehicle calibration
  *  offset, so the report judges deviations the same way the anomaly rule does). */
 async function loadOdoRows(admin: SupabaseClient, orgId: string, from: string, to: string): Promise<OdoRow[]> {
-  const data = await fetchPaged((lo, hi) => admin
+  type OdoSourceRow = {
+    odometer: number | string | null;
+    samsara_odometer: number | string | null;
+    driver_id: string | null;
+    vehicle_id: string | null;
+    vehicles: { unit_number: string; odometer_offset: number | string | null }[];
+    drivers: { full_name: string }[];
+  };
+  const data = await fetchPaged<OdoSourceRow>((lo, hi) => admin
     .from("fuel_transactions")
     .select("odometer, samsara_odometer, driver_id, vehicle_id, vehicles(unit_number, odometer_offset), drivers(full_name)")
+    .eq("is_canonical", true)
     .eq("org_id", orgId)
     .gte("fueled_at", from)
     .lte("fueled_at", to)
     .order("fueled_at", { ascending: true })
     .order("id", { ascending: true })
     .range(lo, hi));
-  return (data as unknown as {
-    odometer: number | string | null;
-    samsara_odometer: number | string | null;
-    driver_id: string | null;
-    vehicle_id: string | null;
-    vehicles: { unit_number: string; odometer_offset: number | string | null } | null;
-    drivers: { full_name: string } | null;
-  }[]).map((r) => ({
+  return data.map((r) => ({
     driverId: r.driver_id,
-    driverName: r.drivers?.full_name ?? null,
+    driverName: r.drivers[0]?.full_name ?? null,
     vehicleId: r.vehicle_id,
-    unit: r.vehicles?.unit_number ?? null,
+    unit: r.vehicles[0]?.unit_number ?? null,
     entered: r.odometer == null ? null : Number(r.odometer),
     samsara: r.samsara_odometer == null ? null : Number(r.samsara_odometer),
-    odometerOffset: r.vehicles?.odometer_offset == null ? 0 : Number(r.vehicles.odometer_offset),
+    odometerOffset: r.vehicles[0]?.odometer_offset == null ? 0 : Number(r.vehicles[0].odometer_offset),
   }));
 }
 
@@ -212,8 +218,8 @@ export function reportsRouter(): Router {
       const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
       const rows = (await loadTxnExport(admin, orgId, from, to)).map((t) => ({
         fueled_at: t.fueled_at,
-        unit: t.vehicles?.unit_number ?? "",
-        driver: t.drivers?.full_name ?? "",
+        unit: t.vehicles[0]?.unit_number ?? "",
+        driver: t.drivers[0]?.full_name ?? "",
         odometer: t.odometer ?? "",
         gallons: t.gallons,
         price_per_gal: t.price_per_gal ?? "",
@@ -260,9 +266,10 @@ export function reportsRouter(): Router {
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .range(lo, hi));
-      const rows = (data as unknown as { created_at: string; rule_id: string; severity: string; status: string; message: string; vehicles: { unit_number: string } | null }[]).map((a) => ({
+      type AnomalyExportRow = { created_at: string; rule_id: string; severity: string; status: string; message: string; vehicles: { unit_number: string }[] };
+      const rows = (data as AnomalyExportRow[]).map((a) => ({
         created_at: a.created_at,
-        unit: a.vehicles?.unit_number ?? "",
+        unit: a.vehicles[0]?.unit_number ?? "",
         rule: a.rule_id,
         severity: a.severity,
         status: a.status,
@@ -292,17 +299,17 @@ export function reportsRouter(): Router {
       const { from, to } = defaultRange(qstr(req.query.from), qstr(req.query.to));
 
       const [txns, anomalies, { data: vehicles }, { data: drivers }, { data: org }] = await Promise.all([
-        fetchPaged<FuelTransaction>((lo, hi) => admin.from("fuel_transactions").select("id, gallons, total_cost, computed_mpg, fueled_at, vehicle_id, driver_id").eq("org_id", orgId).gte("fueled_at", from).lte("fueled_at", to).order("fueled_at", { ascending: true }).order("id", { ascending: true }).range(lo, hi)),
-        fetchPaged<Anomaly>((lo, hi) => admin.from("anomalies").select("id, transaction_id, vehicle_id, severity, status").eq("org_id", orgId).order("id", { ascending: true }).range(lo, hi)),
+        fetchPaged<DashboardTransaction>((lo, hi) => admin.from("fuel_transactions").select("id, gallons, total_cost, computed_mpg, fueled_at, vehicle_id, driver_id").eq("is_canonical", true).eq("org_id", orgId).gte("fueled_at", from).lte("fueled_at", to).order("fueled_at", { ascending: true }).order("id", { ascending: true }).range(lo, hi)),
+        fetchPaged<DashboardAnomaly>((lo, hi) => admin.from("anomalies").select("id, transaction_id, vehicle_id, severity, status").eq("org_id", orgId).order("id", { ascending: true }).range(lo, hi)),
         admin.from("vehicles").select("id, unit_number").eq("org_id", orgId),
         admin.from("drivers").select("id, full_name").eq("org_id", orgId),
         admin.from("organizations").select("operating_hours").eq("id", orgId).maybeSingle(),
       ]);
       const summary = aggregateDashboard(
-        (txns ?? []) as unknown as FuelTransaction[],
-        (anomalies ?? []) as unknown as Anomaly[],
-        (vehicles ?? []) as { id: string; unit_number: string }[],
-        (drivers ?? []) as { id: string; full_name: string }[],
+        txns,
+        anomalies,
+        vehicles ?? [],
+        drivers ?? [],
         { tz: (org?.operating_hours as { tz?: string } | null)?.tz ?? null },
       );
 

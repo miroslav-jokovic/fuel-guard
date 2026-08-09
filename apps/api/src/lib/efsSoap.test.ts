@@ -9,6 +9,10 @@ const env = {
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90,
+  // These tests inject a fetch stub and never open a socket, but the SSRF gate in soapFetch (audit
+  // 2026-08-09 §3.8) would still try to RESOLVE ws.efsllc.com — a network call this offline suite
+  // must not make. The address checks are skipped here; lib/ssrfGuard.test.ts is where they are tested.
+  EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
 } as Env;
 
 const creds: EfsSoapCredentials = {

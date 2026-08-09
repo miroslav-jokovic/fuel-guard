@@ -26,6 +26,7 @@ export type {
   TxnView,
   VehicleView,
   ObservedCapacityResult,
+  FuelBalanceEvidence,
   Thresholds,
   OperatingHours,
   RuleContext,

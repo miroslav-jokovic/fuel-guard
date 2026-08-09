@@ -35,6 +35,11 @@ on:
         description: "Update message shown in the xprem dashboard"
         required: false
         default: ""
+      force:
+        description: "Publish even if CI has not passed (incident recovery only)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: driver-ota
@@ -42,7 +47,7 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write # to dispatch the Android build when the native side changed
+  actions: write # to dispatch the Android build when the native side changed, and to read the CI gate
 
 jobs:
   publish:
@@ -50,6 +55,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      # Audit 2026-08-09 finding 3.1: this workflow used to run in parallel with CI, so a push with
+      # a red test suite still shipped JavaScript to every installed driver phone. Fail closed.
+      - name: Require CI green for this commit
+        uses: ./.github/actions/require-ci-green
+        with:
+          bypass: ${{ github.event.inputs.force || 'false' }}
 
       - name: Assert required secrets are present
         env:

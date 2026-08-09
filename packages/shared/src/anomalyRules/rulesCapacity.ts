@@ -199,7 +199,12 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
   const { vehicle, recentTxns, thresholds } = ctx;
   const windowGallons = ctx.windowGallons ?? 0;
   const windowMiles = ctx.windowMiles ?? null;
-  const baseline = effectiveBaseline(vehicle, recentTxns);
+  // A confirmed tank balance measures actual consumed fuel directly; the MPG-reserve fallback must not
+  // reinterpret the same window and create a second, contradictory accusation.
+  if (ctx.fuelBalance?.mode === "tank_balance") return none("cumulative_overfuel");
+  const baseline = vehicle.baselineMpg != null && vehicle.baselineMpg > 0
+    ? vehicle.baselineMpg
+    : effectiveBaseline(vehicle, recentTxns);
   if (windowGallons <= 0 || baseline == null || baseline <= 0 || windowMiles == null)
     return none("cumulative_overfuel");
   const resolved = resolveCapacity(vehicle); // sensor-measured > entered > billed-history (WP-CAP)
@@ -228,7 +233,7 @@ function ruleCumulativeOverfuel(ctx: RuleContext): RuleResult {
       ruleId: "cumulative_overfuel",
       fired: true,
       severity: "high",
-      message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${windowMiles} mi${idleNote} (+${cap} gal tank).`,
+      message: `Purchased ${r2(windowGallons)} gal in ${hrs}h but could burn only ~${r2(burnable)} gal over ${r2(windowMiles)} mi${idleNote} (+${cap} gal tank; baseline ${r2(baseline)} MPG).`,
       evidence: {
         windowGallons: r2(windowGallons),
         windowMiles,

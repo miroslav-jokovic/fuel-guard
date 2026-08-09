@@ -3,6 +3,7 @@ import { DOMParser, type Element as XmlElement, type Node as XmlNode } from "@xm
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials, FeedName } from "../services/efsSoapCredentials.js";
 import { buildWsSecurityUsernameTokenHeader, classifyTlsError, describeTlsMaterial, soapFetch, type EfsTlsMaterial, type SoapPriority } from "./soapClient.js";
+import { BlockedEndpointError } from "./ssrfGuard.js";
 
 /**
  * EFS CardManagementWS operations. The production WSDL defines SOAP 1.1 operations:
@@ -55,7 +56,9 @@ export class EfsSoapError extends Error {
       | "auth"
       | "malformed_response"
       | "rate_limited"
-      | "tls",
+      | "tls"
+      // The endpoint URL itself was refused before any socket was opened (lib/ssrfGuard.ts).
+      | "blocked_endpoint",
     public detail?: unknown,
   ) {
     super(message);
@@ -264,6 +267,14 @@ async function requestXml(
     return { body: response.body, headers: response.headers };
   } catch (error) {
     if (error instanceof EfsSoapError) throw error;
+    // A refused endpoint (lib/ssrfGuard.ts, audit 2026-08-09 §3.8) is a CONFIGURATION answer, not a
+    // network or TLS symptom — classifyTlsError below would only guess at it. Carry the guard's
+    // caller-safe message through so the settings page says something an admin can act on, and keep
+    // only the reason code as detail: the guard's `detail` names internal addresses and must not
+    // travel any further than the log line that already printed it.
+    if (error instanceof BlockedEndpointError) {
+      throw new EfsSoapError(error.message, "blocked_endpoint", { reason: error.reason });
+    }
     // A handshake failure is the single most likely mTLS symptom and the least self-explanatory, so
     // it never reaches the operator as a bare "transport" error. classifyTlsError turns an OpenSSL
     // alert code into the action that fixes it.

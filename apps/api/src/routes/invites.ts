@@ -304,6 +304,23 @@ export function invitesRouter(): Router {
         return;
       }
 
+      // An UNVERIFIED email claim must not be able to consume an invite (audit 2026-08-09, finding
+      // 3.5). Acceptance is authorized purely by "my token says I am this address" — the invite
+      // token generated at creation is never presented — so if the project ever allows sign-up
+      // without confirming the address, learning an invited address (or just an allowed domain)
+      // would be enough to take a pending invite, including an admin one.
+      //
+      // Confirmation status is not in the access token, so read it from the auth record and trust
+      // that over the claim. Wiring the invite token end-to-end is the stronger fix and is tracked
+      // separately; this closes the hole without touching the email delivery flow.
+      const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(req.auth!.userId);
+      const confirmedAt = authUser?.user?.email_confirmed_at ?? null;
+      const confirmedEmail = authUser?.user?.email?.toLowerCase() ?? null;
+      if (authErr || !confirmedAt || confirmedEmail !== email.toLowerCase()) {
+        res.status(403).json(apiError("email_unverified", "Confirm your email address before accepting an invitation"));
+        return;
+      }
+
       const now = new Date().toISOString();
       const { data: invite } = await admin
         .from("invites")

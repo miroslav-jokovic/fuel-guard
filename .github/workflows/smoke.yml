@@ -1,6 +1,6 @@
 name: Production smoke test
 
-# Phase 9 deploy verification. Requires repository variable WEB_URL, for example:
+# Phase 9 deploy verification. Requires repository variable API_URL, for example:
 # https://fleetguardweb-production.up.railway.app
 on:
   workflow_dispatch: {}
@@ -14,14 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      # Valid GitHub Actions repository-variable context. Configure WEB_URL in repository Variables.
-      WEB_URL: ${{ vars.WEB_URL }}
+      # Reuse the deployment verification URL; the Railway service serves both API and SPA.
+      API_URL: ${{ vars.API_URL }}
     steps:
       - uses: actions/checkout@v4
       - name: Require production URL
         run: |
-          if [ -z "$WEB_URL" ]; then
-            echo "::error::Repository variable WEB_URL is not set — cannot run production smoke tests."
+          if [ -z "$API_URL" ]; then
+            echo "::error::Repository variable API_URL is not set — cannot run production smoke tests."
             exit 1
           fi
       - uses: pnpm/action-setup@v4
@@ -35,5 +35,5 @@ jobs:
       - run: pnpm --filter @fuelguard/web exec playwright install --with-deps chromium
       - name: Run unauthenticated smoke tests
         env:
-          BASE_URL: ${{ env.WEB_URL }}
+          BASE_URL: ${{ env.API_URL }}
         run: pnpm --filter @fuelguard/web e2e --project=chromium

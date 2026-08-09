@@ -92,6 +92,7 @@ export async function resolveCardContext(
       .from("fuel_transactions")
       .select("id, card_ref, control_id, vehicle_id, fueled_at, fueled_at_precision, source, fueling_time_basis, samsara_recon_at, samsara_location_matched")
       .eq("org_id", orgId)
+      .eq("is_canonical", true)
       .eq(col, val)
       .gte("fueled_at", assignStartIso)
       .lte("fueled_at", assignEndIso)

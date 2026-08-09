@@ -22,6 +22,21 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Audit 2026-08-09 finding 3.7: nothing in this repository would have noticed a committed
+      # credential. Runs before install so a leak fails in seconds rather than after a full build.
+      # Scans `git archive HEAD` (tracked content only) via scripts/scan-secrets.mjs, so an
+      # untracked local .env never false-alarms while a committed one fails the build.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.18.4
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Secret scan
+        run: pnpm lint:secrets
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -39,6 +54,11 @@ jobs:
 
       - name: Migration versions
         run: pnpm lint:migrations
+
+      # Audit 2026-08-09 finding 5.2: a test file that is never collected reads as coverage it has
+      # not earned. This repo had shipped that bug three times before anything checked for it.
+      - name: Test collection
+        run: pnpm lint:tests
 
       - name: Design tokens
         run: pnpm --filter @fuelguard/web lint:tokens

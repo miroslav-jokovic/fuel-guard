@@ -62,6 +62,7 @@ export function useFuelTransactions(filters: Ref<FuelFilters>, page: Ref<number>
       let q = supabase
         .from("fuel_transactions")
         .select(FUEL_COLS, { count: "exact" })
+        .eq("is_canonical", true)
         .order(f.sortKey ?? "fueled_at", { ascending: f.sortKey ? f.sortDir !== "desc" : false })
         .range(start, start + FUEL_PAGE_SIZE - 1);
       if (f.vehicleId) q = q.eq("vehicle_id", f.vehicleId);
@@ -123,6 +124,7 @@ export function useFuelRangeTotals(filters: Ref<FuelFilters>) {
         let q = supabase
           .from("fuel_transactions")
           .select("vehicle_id, odometer, samsara_odometer, samsara_odometer_source, gallons, total_cost, computed_mpg, has_anomaly")
+          .eq("is_canonical", true)
           // vehicle_id then fueled_at keeps each truck's readings contiguous AND ordered → stable paging.
           .order("vehicle_id", { ascending: true })
           .order("fueled_at", { ascending: true })

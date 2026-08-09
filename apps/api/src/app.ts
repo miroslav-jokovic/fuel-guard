@@ -92,6 +92,21 @@ export function createApp(env: Env): Express {
   app.use("/api/tms", ingestLimiter);
   app.use("/api/tms", tmsIngestRouter());
 
+  // Rate limiting (audit M8): a general API cap + stricter caps on sensitive/expensive routes.
+  //
+  // The general cap is mounted HERE, ahead of every body parser, on purpose. It used to sit below
+  // them, which meant an unauthenticated POST to /api/transactions/import-report was buffered and
+  // JSON.parsed at up to 25mb BEFORE the limiter ever ran — the 429 was returned after the cost had
+  // already been paid, on the single service that also serves the SPA (audit 2026-08-09, finding
+  // 3.8). Middleware runs in registration order, so ordering is the whole fix.
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: 600,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+  });
+  app.use("/api", apiLimiter);
+
   // Browser report upload (P0-1): a month of EFS rows as JSON can exceed the general 1mb cap — give
   // ONLY this route a bigger parser (mounted first; express.json skips bodies already parsed).
   app.use("/api/transactions/import-report", express.json({ limit: "25mb" }));
@@ -106,13 +121,6 @@ export function createApp(env: Env): Express {
     }),
   );
 
-  // Rate limiting (audit M8): a general API cap + a stricter cap on sensitive/expensive routes.
-  const apiLimiter = rateLimit({
-    windowMs: 15 * 60_000,
-    limit: 600,
-    standardHeaders: "draft-7",
-    legacyHeaders: false,
-  });
   const strictLimiter = rateLimit({
     windowMs: 15 * 60_000,
     limit: 30,
@@ -126,7 +134,6 @@ export function createApp(env: Env): Express {
     standardHeaders: "draft-7",
     legacyHeaders: false,
   });
-  app.use("/api", apiLimiter);
   app.use("/api/invites", strictLimiter);
   app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target
   app.use("/api/reports", strictLimiter);

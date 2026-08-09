@@ -11,7 +11,12 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['tests/**/*.test.ts'],
+    // Every co-located test counts. This was 'tests/**/*.test.ts' only, which silently excluded
+    // src/data/policy.test.ts (offline outbox retry policy, 20 cases) and src/lib/jwt.test.ts
+    // (driver auth-claim decoding, 4 cases) — 24 tests that had never executed, and passed the
+    // moment they were collected. scripts/check-test-collection.mjs now fails the build if any
+    // *.test.ts(x) file is not collected by its workspace runner (audit 2026-08-09, finding 5.2).
+    include: ['tests/**/*.test.ts?(x)', 'src/**/*.test.ts?(x)'],
     environment: 'node',
   },
 });

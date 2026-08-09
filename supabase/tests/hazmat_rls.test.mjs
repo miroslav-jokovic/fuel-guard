@@ -69,6 +69,10 @@ async function main() {
 
   // The real hazmat schema + RLS under test.
   await db.exec(read("migrations/0092_hazmat_core.sql"));
+  // 0161 repairs hazmat_loads_driver_update (its WITH CHECK dropped org_id and status, so a driver
+  // could self-clear a load or move it to another tenant) and makes org_id immutable everywhere.
+  // Applied here because these assertions are the regression test for it.
+  await db.exec(read("migrations/0161_hazmat_draft_and_org_immutability.sql"));
 
   await db.exec(`
     grant usage on schema public, storage to app_user;
@@ -95,7 +99,7 @@ async function main() {
   const adminB = { org_id: ORG_B, user_role: "admin", sub: U2 };
   const n = (r) => r.rows?.[0]?.n;
 
-  console.log("\n-- HazmatGuard RLS matrix (0092) --");
+  console.log("\n-- HazmatGuard RLS matrix (0092 + 0161) --");
 
   // Loads: driver create gated on driversMayCreateLoads
   ok("driver create load DENIED (driversMayCreateLoads=false)",
@@ -113,6 +117,28 @@ async function main() {
     n(await asUser(admin, "select count(*)::int n from hazmat_loads")) === 2);
   ok("cross-org isolation: org B sees 0 org A loads",
     n(await asUser(adminB, "select count(*)::int n from hazmat_loads")) === 0);
+
+  // Loads: UPDATE. 0092 shipped SELECT and INSERT assertions and no UPDATE ones at all, which is why
+  // the WITH CHECK defect below survived from 0092 to the 2026-08-09 audit. A driver may edit their
+  // OWN DRAFT and it must still be their own draft afterwards.
+  //
+  // Note on the two shapes: a USING failure filters the row out (0 rows affected); a WITH CHECK or
+  // trigger failure RAISES. Both are asserted explicitly so a policy that starts silently matching
+  // nothing cannot be mistaken for one that is correctly refusing.
+  ok("driver CAN edit own draft (1 row)",
+    (await asUser(driver, `update hazmat_loads set claimed_no_placards=true where id='${LOAD1}' returning id`)).rows?.length === 1);
+  ok("driver CANNOT self-clear their draft — the hazmat_reviews separation of duties holds",
+    !!(await asUser(driver, `update hazmat_loads set status='cleared' where id='${LOAD1}'`)).error);
+  ok("driver CANNOT move their draft into another tenant",
+    !!(await asUser(driver, `update hazmat_loads set org_id='${ORG_B}' where id='${LOAD1}'`)).error);
+  ok("driver CANNOT reassign their draft to another user",
+    !!(await asUser(driver, `update hazmat_loads set created_by='${U2}' where id='${LOAD1}'`)).error);
+  ok("driver CANNOT edit somebody else's load (0 rows — filtered by USING)",
+    (await asUser(driver, `update hazmat_loads set claimed_no_placards=true where id='${LOAD2}' returning id`)).rows?.length === 0);
+  ok("manager CAN still clear a load (the legitimate path is unaffected)",
+    (await asUser(admin, `update hazmat_loads set status='cleared' where id='${LOAD1}' returning id`)).rows?.length === 1);
+  ok("not even a manager may move a load between tenants (org_id immutability, 0161)",
+    !!(await asUser(admin, `update hazmat_loads set org_id='${ORG_B}' where id='${LOAD2}'`)).error);
 
   // Reviews: separation of duties + reviewer identity + immutability
   ok("dispatcher CANNOT read reviews (0)",
@@ -145,7 +171,10 @@ async function main() {
   ok("driver storage insert into ANOTHER org folder DENIED",
     !!(await asUser(driver, `insert into storage.objects (bucket_id,name) values ('hazmat','${ORG_B}/${LOAD1}/doc.webp')`)).error);
 
-  console.log(`\n${fail === 0 ? "PASS" : "FAIL"} — ${pass} passed, ${fail} failed`);
+  // Same machine-readable line as the other three matrices. scripts/run-tests.mjs treats a matrix
+  // that emits no RESULT line as a FAILURE, so this format is a contract, not decoration: it is how
+  // "the matrix did not execute" is told apart from "the matrix passed".
+  console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }
 

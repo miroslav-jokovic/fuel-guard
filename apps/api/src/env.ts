@@ -256,6 +256,18 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  // Escape hatch for pointing the EFS SOAP client at a LOCAL endpoint — a mock CardManagementWS on
+  // localhost, or a staging box on a private VLAN — during development. It disables the outbound
+  // ADDRESS checks added for security audit 2026-08-09 finding 3.8 (lib/ssrfGuard.ts); https and the
+  // ban on credentials embedded in the URL still apply, since neither has a development use.
+  //
+  // Like EFS_SOAP_TLS_INSECURE this is REFUSED — thrown, not warned about — when NODE_ENV=production.
+  // Turning it on there would restore the exact request-forgery hole the guard exists to close, and a
+  // bypass that can ship is not a bypass, it is the vulnerability with an env var in front of it.
+  EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 
   // GovInfo API (api.govinfo.gov) — used for HMDB/regulatory data lookups. Optional; features
   // that need it will fail clearly when unset.

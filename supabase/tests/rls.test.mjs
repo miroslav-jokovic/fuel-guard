@@ -135,6 +135,11 @@ async function main() {
     "migrations/0137_core_app_feature_invariant.sql",
     // Reconciles the legacy duplicate 0016 vehicle fuel-level migration into the unique ledger version.
     "migrations/0138_vehicle_fuel_level_legacy_reconcile.sql",
+    // 0141 replaces 0087's driver load RPCs with caller-checked ones AND drops the old overloads.
+    // It was missing from this list, so the matrix carried 0087's `authenticated`-granted 2-arg
+    // versions that production has not had since 0141 shipped — the 0162 exposure assertion below
+    // caught that immediately. Loading it keeps the matrix describing the real schema.
+    "migrations/0141_driver_load_rpc_contract.sql",
     // Compliance/DQF. 0127 and 0129 were never in this matrix even though `certifications` holds the
     // most sensitive rows in the product — a driver's medical card and drug-test results. 0146 adds
     // the documents table those two reserved a column for, and its driver scope is the reason to
@@ -156,6 +161,11 @@ async function main() {
     // policy and the output bucket has no policy AT ALL — and negative space is exactly what a policy
     // reading cannot confirm and this matrix can.
     "migrations/0152_dq_exports.sql",
+    // 0162 revokes the SECURITY DEFINER functions that take a tenant or a user as a PARAMETER.
+    // Loaded here because the assertions below are its regression test: three duty-session RPCs were
+    // granted to `authenticated` by 0086 with no caller check at all, so any signed-in user could
+    // drive a duty session for any driver in any org straight through PostgREST.
+    "migrations/0162_definer_exposure_closure.sql",
   ]) {
     await db.exec(read(f).replace(/create extension if not exists pgcrypto;?/gi, ""));
   }
@@ -197,12 +207,18 @@ async function main() {
     alter table anomalies add column if not exists disposition text;
     alter table anomalies add column if not exists disposition_by uuid;
     alter table anomalies add column if not exists disposition_at timestamptz;
+    alter table fuel_transactions add column if not exists fueled_at_precision text;
+    alter table fuel_transactions add column if not exists card_ref text;
+    alter table fuel_transactions add column if not exists tank_type text;
+    alter table fuel_transactions add column if not exists transaction_id uuid;
+    alter table fuel_transactions add column if not exists control_id text;
   `);
   await db.exec(read("migrations/0156_atomic_scoring_persistence.sql"));
   await db.exec(read("migrations/0157_reconciliation_evidence_preservation.sql"));
   await db.exec(read("migrations/0158_anomaly_case_lifecycle.sql"));
   await db.exec(read("migrations/0154_efs_alert_pipeline.sql"));
   await db.exec(read("migrations/0159_operational_scoring_reliability.sql"));
+  await db.exec(read("migrations/0160_canonical_fuel_balance.sql"));
 
   // Non-privileged role RLS applies to (mirrors Supabase 'authenticated').
   await db.exec(`
@@ -2141,6 +2157,55 @@ async function main() {
     (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case' and status='open'", [scoreTxn])).rows[0]?.n === 1 &&
       (await db.query("select count(*)::int n from anomalies where transaction_id=$1 and rule_id='theft_case'", [scoreTxn])).rows[0]?.n === 2,
   );
+
+  // ── SECURITY DEFINER exposure (0162) ────────────────────────────────────────
+  //
+  // RLS is only half the boundary. A SECURITY DEFINER function runs as its owner and bypasses every
+  // policy above, so anything callable by `authenticated` or `anon` is a door around this entire
+  // matrix. Twelve migrations revoke EXECUTE for exactly that reason; several did not, and Postgres
+  // grants EXECUTE to PUBLIC by default — so "nobody granted it" is not the same as "nobody has it".
+  //
+  // The rule asserted here: a SECURITY DEFINER function that takes a tenant or a user as a PARAMETER
+  // is service-role only. The exceptions are the policy helpers, which take no parameter and read
+  // the caller's own JWT claims; `authenticated` must keep EXECUTE on those or every policy that
+  // calls them errors instead of filtering.
+  const CALLER_SCOPED_HELPERS = new Set([
+    "auth_org_id", "auth_role", "auth_user_id", "auth_driver_id", "auth_in_thread", "auth_module_enabled",
+  ]);
+
+  const definers = await db.query(`
+    select p.proname,
+           p.oid::regprocedure::text as sig,
+           has_function_privilege('authenticated', p.oid, 'execute') as auth_can,
+           has_function_privilege('anon',          p.oid, 'execute') as anon_can
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prosecdef and p.prorettype <> 'trigger'::regtype::oid
+     order by p.proname`);
+
+  const exposed = definers.rows.filter(
+    (r) => (r.auth_can || r.anon_can) && !CALLER_SCOPED_HELPERS.has(r.proname),
+  );
+  ok(
+    `no parameterised SECURITY DEFINER function is callable by anon/authenticated (${definers.rows.length} checked)`,
+    exposed.length === 0,
+    exposed.map((r) => r.sig).join("; "),
+  );
+
+  // Spot-assert the three the 0141 sweep missed, by name, so a regression names itself in the output
+  // rather than hiding inside the aggregate above.
+  for (const fn of ["start_duty_session", "change_duty_equipment", "end_duty_session", "emit_notification", "revoke_push_tokens"]) {
+    const row = definers.rows.find((r) => r.proname === fn);
+    ok(`${fn} is service-role only`, !!row && !row.auth_can && !row.anon_can,
+       row ? `authenticated=${row.auth_can} anon=${row.anon_can}` : "FUNCTION NOT FOUND");
+  }
+
+  // The policy helpers must NOT have been caught by the sweep — revoking these breaks every policy
+  // that calls them, which would show up as errors rather than as denied rows.
+  for (const fn of ["auth_org_id", "auth_role", "auth_user_id"]) {
+    const row = definers.rows.find((r) => r.proname === fn);
+    if (row) ok(`${fn} keeps EXECUTE for authenticated (policies call it)`, row.auth_can === true);
+  }
 
   console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

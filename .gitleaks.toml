@@ -1,0 +1,37 @@
+# Secret scanning configuration (audit 2026-08-09, finding 3.7).
+#
+# WHY THIS EXISTS. No secret has ever been committed to this repository - `.env` is correctly
+# ignored and `git log --all -- apps/api/.env` is empty. What was missing was anything that would
+# NOTICE if one were. apps/api/.env holds a live Supabase service-role key (which bypasses every RLS
+# policy in the schema) alongside Anthropic, Resend and HERE keys, and during the 2026-08-09 audit
+# all three .env files travelled out of the repo inside a source archive built from the working tree
+# rather than from `git archive`. Nothing caught it, because nothing was looking.
+#
+# CI runs gitleaks in GIT mode, deliberately: it scans committed content, so an untracked local
+# .env is invisible (no false alarm on every developer's machine) while a committed one is caught
+# immediately (which is the case that matters).
+#
+# Adding an allowlist entry here is a decision to stop looking at something. Each one below states
+# what it exempts and why, and two of them are temporary.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Reviewed exemptions - see the note on each."
+
+paths = [
+  # TEMPORARY (backlog 1.x). Seven locally-generated test keys for the mTLS client-certificate
+  # tests. They are not EFS-issued and protect nothing, but committing private keys defeats
+  # secret-scanning signal: a real leak gets lost among them. These should be generated into a temp
+  # directory at test setup instead, at which point this entry is deleted.
+  '''apps/api/src/lib/__fixtures__/mtls/.*\.key$''',
+]
+
+regexes = [
+  # Elided PEM placeholders in documentation and test fixtures - a key body truncated with "...".
+  # A real private key never contains an ellipsis, so this is narrow by construction. Covers
+  # apps/api/src/lib/secretBox.test.ts:14 and the EFS_SOAP_CLIENT_KEY_PEM example in
+  # docs/plans/WP3C-FALSE-ALERT-FIX-AND-ALERT-RESET.md:330.
+  '''-----BEGIN[ A-Z]*PRIVATE KEY-----(\\n|\n)[A-Za-z0-9+/=]*\.\.\.''',
+]
