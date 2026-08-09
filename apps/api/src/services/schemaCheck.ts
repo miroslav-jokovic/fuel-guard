@@ -66,6 +66,7 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // The safety file's document store. Unapplied 0146 makes every upload fail at the signed-URL step
   // with a schema-cache error that reads like a Storage misconfiguration rather than a missing table.
   { table: "documents", column: "storage_path", migration: "0146" },
+  { table: "duty_equipment_segments", column: "updated_at", migration: "0155" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */
