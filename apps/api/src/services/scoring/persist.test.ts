@@ -99,7 +99,7 @@ describe("scoring persistence contract", () => {
 
     expect(result).toEqual({ idempotent: true, anomalyId: "case-1" });
     expect(calls[0]).toMatchObject({
-      kind: "rpc:persist_scoring_outcome",
+      kind: "rpc:persist_scoring_outcome_v2",
       payload: {
         p_attempt_id: "attempt-1",
         p_org_id: "org-1",
@@ -109,6 +109,8 @@ describe("scoring persistence contract", () => {
         p_result_hash: "sha256:result",
         p_case: null,
         p_outcome: { case_level: "clear", has_anomaly: false },
+        p_recon_status: null,
+        p_recon_evidence_version: 1,
       },
     });
   });

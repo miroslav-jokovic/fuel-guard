@@ -64,6 +64,8 @@ const BASIS: Record<string, { label: string; cls: string }> = {
   date_only: { label: "Date only", cls: "bg-surface-muted text-ink-secondary" },
 };
 const basis = computed(() => BASIS[props.txn.fueling_time_basis ?? ""] ?? { label: "Not reconciled", cls: "bg-surface-muted text-ink-muted" });
+const reconStatus = computed(() => props.txn.samsara_recon_status ?? (reconciled.value ? "success" : "skipped"));
+const reconCheckedLabel = computed(() => props.txn.samsara_recon_checked_at ? fmtTz(props.txn.samsara_recon_checked_at) : null);
 
 // ── location ────────────────────────────────────────────────────────────────────
 const efsPlace = computed(() => props.txn.location_text || [props.txn.city, props.txn.state].filter(Boolean).join(", ") || "—");
@@ -84,6 +86,12 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
   <div class="space-y-4">
     <p v-if="!reconciled" class="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-warning-200">
       This fill hasn't been reconciled against Samsara yet. Run <strong>Re-sync Samsara</strong> from Settings → Data & Sync to populate these.
+    </p>
+    <p v-else-if="reconStatus === 'failed'" class="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-warning-200">
+      The latest Samsara refresh failed{{ reconCheckedLabel ? ` at ${reconCheckedLabel}` : "" }}. Previously stored telemetry evidence was preserved.
+    </p>
+    <p v-else-if="reconStatus === 'no_data'" class="rounded-md bg-surface-muted px-3 py-2 text-xs text-ink-secondary ring-1 ring-edge">
+      Samsara returned no data on the latest refresh{{ reconCheckedLabel ? ` at ${reconCheckedLabel}` : "" }}. Previously stored telemetry evidence was preserved.
     </p>
 
     <!-- Odometer -->

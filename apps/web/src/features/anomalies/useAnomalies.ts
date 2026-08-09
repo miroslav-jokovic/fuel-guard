@@ -15,6 +15,10 @@ export interface AnomalyTxnDetail extends FuelTransaction {
   // Fueling-event audit fields (migration 0028 + earlier recon columns).
   samsara_odometer: number | null;
   samsara_recon_at: string | null;
+  samsara_recon_checked_at: string | null;
+  samsara_recon_status: string | null;
+  samsara_recon_error: string | null;
+  samsara_recon_evidence_version: number | null;
   station_lat: number | null;
   station_lng: number | null;
   samsara_observed_state: string | null;
@@ -106,7 +110,7 @@ export function useTransaction(transactionId: Ref<string | null>) {
       const { data, error } = await supabase
         .from("fuel_transactions")
         .select(
-          "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, city, state, card_ref, control_id, source, import_id, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_matched, samsara_location_confidence, samsara_odometer, samsara_recon_at, station_lat, station_lng, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, samsara_fuel_pct_before, samsara_fuel_pct_after, fueling_time_basis, created_at",
+          "id, org_id, vehicle_id, driver_id, fueled_at, odometer, gallons, price_per_gal, total_cost, location_text, city, state, card_ref, control_id, source, import_id, computed_mpg, has_anomaly, max_severity, ai_risk_level, samsara_location_matched, samsara_location_confidence, samsara_odometer, samsara_recon_at, samsara_recon_checked_at, samsara_recon_status, samsara_recon_error, samsara_recon_evidence_version, station_lat, station_lng, samsara_observed_state, samsara_observed_city, samsara_observed_address, samsara_observed_lat, samsara_observed_lng, samsara_fuel_pct_before, samsara_fuel_pct_after, fueling_time_basis, created_at",
         )
         .eq("id", id)
         .maybeSingle();
