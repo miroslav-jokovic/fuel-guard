@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const mocks = vi.hoisted(() => ({
   scoreImport: vi.fn(),
@@ -27,7 +28,7 @@ function fakeAdmin() {
     from(table: string) {
       let mode: "select" | "update" = "select";
       let patch: Record<string, unknown> = {};
-      const chain: Record<string, any> = {
+      const chain: Record<string, unknown> = {
         select: () => chain,
         eq: () => chain,
         in: () => chain,
@@ -63,7 +64,7 @@ function fakeAdmin() {
       };
       return chain;
     },
-  } as any;
+  } as unknown as SupabaseClient;
   return { admin, processing, updates };
 }
 

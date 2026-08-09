@@ -116,7 +116,7 @@ attempt in about twenty minutes and **dead-lettered**. A driver's completed stop
 **Left deliberately unlimited:** `/api/me/hazmat/*`. D57 did not size it, and inventing a number would
 be worse than the named gap; it stays under the blanket `apiLimiter` until it has its own.
 
-## L5 — Assignments completion · D-L6 · **BACKEND DONE 2026-08-08; history tab outstanding**
+## L5 — Assignments completion · D-L6 · **DONE 2026-08-08**
 
 5.1 **The endpoint is built.** `GET /api/dispatch/assignments/history` — reads
     `driver_equipment_timeline` (0150), so "what counts as a holding" is the same rule the load detail
@@ -166,8 +166,8 @@ be worse than the named gap; it stays under the blanket `apiLimiter` until it ha
 
 5.5 *Deferred by D-L6:* equipment reassign and take-over resolution from the board.
 
-**Exit:** an anomaly investigation can answer "who was in this truck at 14:20 on the 3rd" — over the
-API today, from the UI when 5.4 lands.
+**Exit:** met. An anomaly investigation can answer "who was in this truck at 14:20 on the 3rd" from
+the UI, over the API, or from the load detail page's own duty context.
 
 ## L6 — Switch-on (½ day + the device pass) · D-L9
 
@@ -192,7 +192,7 @@ API today, from the UI when 5.4 lands.
 | L2 | Exceptions + `load_changed` | 1–2 d | wide rollout only |
 | L3 | Consolidation + service tests | 1–2 d | no |
 | L4 | D57 rate limits | **done** | **yes** |
-| L5 | Assignments History | **backend done** | no |
+| L5 | Assignments History | **done** | no |
 | L6 | Pilot → wide | ½ d + device | — |
 
 **Critical path to a pilot:** L0 → L1 → L4 → L6. Roughly three to four days of work.
