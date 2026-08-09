@@ -14,9 +14,11 @@ interface Write {
   payload?: Record<string, unknown>;
 }
 type SelectState = { table: string; select: string; eq: Record<string, unknown> };
+type RpcCall = { fn: string; args: Record<string, unknown> };
 
 function makeAdmin(resolve: (q: SelectState) => unknown[]) {
   const writes: Write[] = [];
+  const rpcCalls: RpcCall[] = [];
   function selectBuilder(table: string, select: string) {
     const eq: Record<string, unknown> = {};
     const state: SelectState = { table, select, eq };
@@ -35,16 +37,20 @@ function makeAdmin(resolve: (q: SelectState) => unknown[]) {
       or: () => b,
       order: () => b,
       limit: () => b,
-      single: async () => ({ data: resolve(state)[0] ?? null }),
-      maybeSingle: async () => ({ data: resolve(state)[0] ?? null }),
-      then: (r: (v: { data: unknown }) => unknown) =>
-        Promise.resolve({ data: resolve(state) }).then(r),
+      single: async () => ({ data: resolve(state)[0] ?? null, error: null }),
+      maybeSingle: async () => ({ data: resolve(state)[0] ?? null, error: null }),
+      then: (r: (v: { data: unknown; error: null }) => unknown) =>
+        Promise.resolve({ data: resolve(state), error: null }).then(r),
     };
     return b;
   }
   function writeBuilder(table: string, op: Write["op"], payload?: Record<string, unknown>) {
     writes.push({ table, op, payload });
     const b = {
+      select: () => ({
+        single: async () => ({ data: { id: payload?.id ?? "attempt-1" }, error: null }),
+        maybeSingle: async () => ({ data: { id: payload?.id ?? "attempt-1" }, error: null }),
+      }),
       eq: () => b,
       in: () => b,
       neq: () => b,
@@ -59,8 +65,12 @@ function makeAdmin(resolve: (q: SelectState) => unknown[]) {
       update: (payload: Record<string, unknown>) => writeBuilder(table, "update", payload),
       delete: () => writeBuilder(table, "delete"),
     }),
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+      return { data: { idempotent: false, anomaly_id: args.p_case ? "a1" : null }, error: null };
+    },
   } as unknown as SupabaseClient;
-  return { admin, writes };
+  return { admin, writes, rpcCalls };
 }
 
 const env = {} as unknown as Env;
@@ -116,22 +126,21 @@ const vehicleRow = {
 };
 
 /** The existing-anomalies read is the only anomalies select that carries "source" in its column list. */
-const isExistingAnomalyRead = (q: SelectState) =>
-  q.table === "anomalies" && q.select.includes("source");
+const _isExistingAnomalyRead = (_q: SelectState) => false;
 
 describe("scoreTransaction — characterization (skipRecon rebuild path)", () => {
-  it("scores a clean tractor fill: updates the transaction, writes no anomaly", async () => {
-    const { admin, writes } = makeAdmin((q) => {
+  it("scores a clean tractor fill through the atomic persistence RPC", async () => {
+    const { admin, rpcCalls } = makeAdmin((q) => {
       if (q.table === "fuel_transactions" && q.eq.id === "t1") return [txnRow];
       if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
       return [];
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
 
-    const ftxn = writes.find((w) => w.table === "fuel_transactions" && w.op === "update");
-    expect(ftxn, "fuel_transactions should be updated").toBeTruthy();
-    expect(ftxn!.payload!.has_anomaly).toBe(false);
-    expect(writes.filter((w) => w.table === "anomalies" && w.op === "insert")).toHaveLength(0);
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome");
+    expect(rpc).toBeTruthy();
+    expect(rpc!.args.p_case).toBeNull();
+    expect((rpc!.args.p_outcome as Record<string, unknown>).has_anomaly).toBe(false);
   });
 
   it("returns early (no writes) when the transaction row is missing", async () => {
@@ -145,64 +154,48 @@ describe("scoreTransaction — characterization (skipRecon rebuild path)", () =>
     // overwhelming lone volume signal → an 'alert' case. No other rule can fire: the window/prev queries
     // return no rows, so consumption/odometer signals stay silent.
     const overfill = { ...txnRow, gallons: 300 };
-    const { admin, writes } = makeAdmin((q) => {
+    const { admin, rpcCalls } = makeAdmin((q) => {
       if (q.table === "fuel_transactions" && q.eq.id === "t1") return [overfill];
       if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
       return [];
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
 
-    const inserts = writes.filter((w) => w.table === "anomalies" && w.op === "insert");
-    expect(inserts, "one theft_case anomaly should be inserted").toHaveLength(1);
-    expect(inserts[0]!.payload!.rule_id).toBe("theft_case");
-    expect(inserts[0]!.payload!.status).toBe("open");
-    expect(inserts[0]!.payload!.transaction_id).toBe("t1");
-
-    const ftxn = writes.find((w) => w.table === "fuel_transactions" && w.op === "update");
-    expect(ftxn!.payload!.has_anomaly).toBe(true);
-    expect(ftxn!.payload!.max_severity).toBe("high"); // single axis → 'high', not 'critical'
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome");
+    expect(rpc).toBeTruthy();
+    expect((rpc!.args.p_case as Record<string, unknown>).rule_id).toBe("theft_case");
+    expect((rpc!.args.p_case as Record<string, unknown>).severity).toBe("high");
+    expect((rpc!.args.p_outcome as Record<string, unknown>).has_anomaly).toBe(true);
+    expect((rpc!.args.p_outcome as Record<string, unknown>).max_severity).toBe("high"); // single axis → 'high', not 'critical'
   });
 
-  it("supersedes a stale open case when the fill now scores clean", async () => {
-    // The fill is clean (no rule fires) but an open rules-sourced theft_case still exists from a prior score.
-    // reconcileAnomalies must supersede it (never leave a stale alert) and insert nothing new.
-    const staleCase = { id: "a1", rule_id: "theft_case", status: "open", source: "rules" };
-    const { admin, writes } = makeAdmin((q) => {
+  it("sends a clean outcome to the atomic RPC so stale cases can be superseded in the database transaction", async () => {
+    const { admin, rpcCalls } = makeAdmin((q) => {
       if (q.table === "fuel_transactions" && q.eq.id === "t1") return [txnRow];
       if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
-      if (isExistingAnomalyRead(q)) return [staleCase];
       return [];
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
 
-    expect(writes.filter((w) => w.table === "anomalies" && w.op === "insert")).toHaveLength(0);
-    const supersede = writes.find((w) => w.table === "anomalies" && w.op === "update");
-    expect(supersede, "the stale open case should be superseded").toBeTruthy();
-    expect(supersede!.payload!.status).toBe("superseded");
-
-    const ftxn = writes.find((w) => w.table === "fuel_transactions" && w.op === "update");
-    expect(ftxn!.payload!.has_anomaly).toBe(false);
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome");
+    expect(rpc).toBeTruthy();
+    expect(rpc!.args.p_case).toBeNull();
+    expect((rpc!.args.p_outcome as Record<string, unknown>).case_level).toBe("clear");
   });
 
-  it("keeps an open case in place (no duplicate insert) when the same signal re-fires", async () => {
-    // Overfill again, but an open theft_case already exists → reconcileAnomalies inserts nothing and the
-    // open case is refreshed in place (an anomalies update to the existing row), not duplicated.
+  it("sends a re-fired case to the atomic RPC with an idempotency identity", async () => {
     const overfill = { ...txnRow, gallons: 300 };
-    const openCase = { id: "a1", rule_id: "theft_case", status: "open", source: "rules" };
-    const { admin, writes } = makeAdmin((q) => {
+    const { admin, rpcCalls } = makeAdmin((q) => {
       if (q.table === "fuel_transactions" && q.eq.id === "t1") return [overfill];
       if (q.table === "vehicles" && q.eq.id === "v1") return [vehicleRow];
-      if (isExistingAnomalyRead(q)) return [openCase];
       return [];
     });
     await scoreTransaction(admin, env, "org1", "t1", { skipRecon: true, skipLearn: true });
 
-    expect(writes.filter((w) => w.table === "anomalies" && w.op === "insert")).toHaveLength(0);
-    const anomalyUpdate = writes.find((w) => w.table === "anomalies" && w.op === "update");
-    expect(anomalyUpdate, "the open case should be refreshed in place").toBeTruthy();
-    expect(anomalyUpdate!.payload!.severity).toBe("high");
-
-    const ftxn = writes.find((w) => w.table === "fuel_transactions" && w.op === "update");
-    expect(ftxn!.payload!.has_anomaly).toBe(true);
+    const rpc = rpcCalls.find((c) => c.fn === "persist_scoring_outcome");
+    expect(rpc).toBeTruthy();
+    expect((rpc!.args.p_case as Record<string, unknown>).rule_id).toBe("theft_case");
+    expect(rpc!.args.p_attempt_id).toBeTruthy();
+    expect(rpc!.args.p_result_hash).toMatch(/^sha256:/);
   });
 });

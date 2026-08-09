@@ -14,7 +14,23 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import { isAnalyzing } from "@/features/hazmat/useHazmatLoads";
-import type { LinkedHazmatRecord, LoadDetail } from "@/features/dispatch/useDispatchLoads";
+
+interface HazmatPanelRecord {
+  id: string;
+  status: string;
+  tank_state: string;
+  updated_at: string;
+  latest_outcome: string | null;
+  latest_run_at: string | null;
+}
+interface HazmatPanelLoad {
+  id: string;
+  vehicle_id: string | null;
+  trailer_id: string | null;
+  driver_id: string | null;
+  stops: Array<{ kind: string; appointment_start: string | null }>;
+  hazmat_record: HazmatPanelRecord | null;
+}
 
 /**
  * The hazmat section of the DISPATCH load page (H-C1's UI half — the workspace opens from the load,
@@ -27,11 +43,11 @@ import type { LinkedHazmatRecord, LoadDetail } from "@/features/dispatch/useDisp
  * (`hazmatLifecycle`), tones only from the token palette, and degrades to a plain terminal chip for
  * rejected/cancelled/superseded — a rail implies forward motion those states do not have.
  */
-const props = defineProps<{ load: LoadDetail; canManage: boolean }>();
+const props = defineProps<{ load: HazmatPanelLoad; canManage: boolean }>();
 
 const toast = useToastStore();
 const qc = useQueryClient();
-const record = computed<LinkedHazmatRecord | null>(() => props.load.hazmat_record);
+const record = computed<HazmatPanelRecord | null>(() => props.load.hazmat_record);
 
 // ── the status rail ──────────────────────────────────────────────────────────
 interface RailStage {

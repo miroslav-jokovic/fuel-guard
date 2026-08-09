@@ -30,7 +30,15 @@ import {
   healMissingAttribution,
   loadTankResidualWindow,
 } from "./context.js";
-import { persistAnomalies, persistTxnOutcome, learnAndUpdateVehicle } from "./persist.js";
+import {
+  buildTxnOutcomePatch,
+  failScoringAttempt,
+  learnAndUpdateVehicle,
+  persistScoringOutcome,
+  scoringEngineVersion,
+  scoringResultHash,
+  startScoringAttempt,
+} from "./persist.js";
 import { dispatchJob } from "../queue/dispatch.js";
 
 type RuleInputs = {
@@ -72,13 +80,14 @@ async function reattributeIfNeeded(
       fueledAt: r.fueled_at,
     },
   });
-  await admin
+  const { error } = await admin
     .from("fuel_transactions")
     .update({
       vehicle_id: attribution.logbookVehicleId,
       logbook_vehicle_id: attribution.logbookVehicleId,
     })
     .eq("id", txnId);
+  if (error) throw new Error(`[scoring] could not reattribute transaction ${txnId}: ${error.message}`);
   return true;
 }
 
@@ -225,12 +234,13 @@ export async function scoreTransaction(
   txnId: string,
   opts: ScoreOpts = {},
 ): Promise<void> {
-  const { data: row } = await admin
+  const { data: row, error: rowError } = await admin
     .from("fuel_transactions")
     .select(FTXN_COLS)
     .eq("id", txnId)
     .eq("org_id", orgId)
     .single();
+  if (rowError) throw new Error(`[scoring] could not load transaction ${txnId}: ${rowError.message}`);
   if (!row) return;
   const r = row as FtxnRow;
   const txn = toTxnView(r);
@@ -314,11 +324,7 @@ export async function scoreTransaction(
   // (or one physically-impossible one) become a single "theft_case" alert.
   const assessment = correlateSignals(fired);
   const caseFired = makeCaseFired(assessment);
-
-  await persistAnomalies(admin, orgId, txnId, txn.vehicleId, r.fueled_at, caseFired);
-  await dispatchAlertSweep(admin, env, orgId, txnId, assessment, opts.skipLearn);
-
-  await persistTxnOutcome(admin, txnId, {
+  const outcome = buildTxnOutcomePatch({
     txn,
     previousTxn: inputs.consumption.previousTxn,
     intermediateGallons: inputs.consumption.intermediateGallons,
@@ -327,6 +333,41 @@ export async function scoreTransaction(
     recon,
     attribution,
   });
+  const engineVersion = scoringEngineVersion();
+  const attempt = await startScoringAttempt(admin, {
+    orgId,
+    txnId,
+    engineVersion,
+    resultHash: scoringResultHash({ txnId, engineVersion, caseFired, outcome }),
+  });
+
+  // The database RPC commits anomaly reconciliation, the transaction outcome, and attempt completion
+  // together. A retry of this same attempt is idempotent if the response was lost after commit.
+  try {
+    await persistScoringOutcome(admin, {
+      attempt,
+      orgId,
+      txnId,
+      vehicleId: txn.vehicleId,
+      fueledAt: r.fueled_at,
+      caseFired,
+      outcome,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      await failScoringAttempt(admin, attempt.id, message);
+    } catch (recordError) {
+      console.error(
+        `[scoring] failed to record attempt failure ${attempt.id}:`,
+        recordError instanceof Error ? recordError.message : recordError,
+      );
+    }
+    throw error;
+  }
+
+  await dispatchAlertSweep(admin, env, orgId, txnId, assessment, opts.skipLearn);
+
   await learnAndUpdateVehicle(
     admin,
     txn,
