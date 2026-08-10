@@ -45,8 +45,10 @@ const SKIP = new Set(["node_modules", "dist", ".git", "coverage", ".pnpm-store",
 const GRANDFATHERED = {
   "apps/api/src/routes/integrations.ts": 832,
   "apps/api/src/lib/samsara.ts": 640,
-  "apps/api/src/lib/soapClient.ts": 571,
-  "apps/api/src/lib/efsSoap.ts": 519,
+  // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
+  // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
+  // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this
+  // list; do not re-add one instead of splitting.
 };
 
 const SOURCE_EXT = new Set([".ts", ".tsx", ".vue"]);

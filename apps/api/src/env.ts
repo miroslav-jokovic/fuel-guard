@@ -189,6 +189,42 @@ const EnvSchema = z.object({
   // Rate limiting — mirrors samsaraHttp.ts. Adjust once EFS provides their per-token limits.
   EFS_SOAP_MAX_RPS: z.coerce.number().min(0.1).default(2),
   EFS_SOAP_MAX_RETRIES: z.coerce.number().int().min(0).default(4),
+  // Card control's own request budget. Deliberately NOT a third slice of EFS_SOAP_MAX_RPS: splitting
+  // that would silently slow both existing pollers the day card control ships. The cost of the
+  // choice is that total offered load is EFS_SOAP_MAX_RPS + EFS_SOAP_INTERACTIVE_RPS, so keep
+  // EFS_SOAP_MAX_RPS below the vendor ceiling accordingly. The guide warns (p11) that excessive
+  // polling can lead to account suspension by WEX IT — raise either number only with their limits in
+  // hand, never by guessing.
+  EFS_SOAP_INTERACTIVE_RPS: z.coerce.number().min(0.1).default(1),
+  // Per-request deadlines. Before these existed NEITHER dispatch branch in soapClient.ts set any
+  // timeout, so a half-open socket hung until the process died. A human waiting on a card lock gets
+  // the tighter one; a backfill page nobody is watching gets the looser one.
+  EFS_SOAP_TIMEOUT_MS: z.coerce.number().int().min(1000).default(20_000),
+  EFS_SOAP_INTERACTIVE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(10_000),
+  // Session cache lifetime. EFS expires the login clientId daily around 03:00 CT (guide p11), and
+  // efsSoapSession.ts takes the MINIMUM of this and the next 02:55 CT, so a shorter value here is
+  // always safe and a longer one never outlives the vendor's own reset.
+  EFS_SOAP_SESSION_TTL_MS: z.coerce.number().int().min(60_000).default(20 * 60 * 1000),
+  // How long the SHARED login circuit breaker stays open after a credential verdict
+  // (InvalidLoginException / InvalidAccountException / AccountLockedException). Shared because the
+  // same service account drives transaction ingestion: without one breaker in front of both, card
+  // control and the two pollers race each other into the vendor's lockout.
+  EFS_LOGIN_BREAKER_MS: z.coerce.number().int().min(60_000).default(30 * 60 * 1000),
+  // ── Card control (docs/plans/EFS-CARD-CONTROL-PLAN.md) ────────────────────────────────────────
+  // Master switch for card WRITES. Default false, and it is only the first of four ANDed facts —
+  // the org must also be enabled, its SOAP credentials enabled, and its write entitlement confirmed
+  // by the probe. Reads are unaffected: turning writes off must not blind the operator.
+  EFS_CARD_CONTROL_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
+  // Gates the QA entitlement probe endpoint. Staging only, and unset again once the probe has run.
+  EFS_CARD_CONTROL_PROBE_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
+  // How often the card mirror is swept. DAILY on purpose: card configuration changes when a human
+  // changes it, and spending the shared service account's rate budget on data that has not moved is
+  // exactly the "excessive polling" the EFS guide warns can get an account suspended (p11).
+  EFS_CARD_SYNC_HOURS: z.coerce.number().min(1).max(168).default(24),
+  // Per-card getCardv2 calls per sweep. The roster (one call) is always complete; this bounds the
+  // DEPTH pass, which is one paced request per card and would otherwise run for minutes on a large
+  // fleet. Cards catch up across runs.
+  EFS_CARD_SYNC_MAX_DETAIL: z.coerce.number().int().min(1).max(5000).default(200),
   // First-sync backfill window in days. Bounded so a misconfiguration can't request a decade of history.
   EFS_SOAP_BACKFILL_DAYS: z.coerce.number().int().min(1).max(730).default(90),
   // Maximum days of history per SOAP request. The EFS Card Web Service Integration Guide (p.11,
