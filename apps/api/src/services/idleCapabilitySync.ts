@@ -61,6 +61,12 @@ function requireDatabaseSuccess(error: { message: string } | null, operation: st
   if (error) throw new Error(`Idle capability ${operation} failed: ${error.message}`);
 }
 
+/** Persisted park-session fields are integer seconds in migration 0076. Keep this boundary explicit even
+ * if a future parser starts returning millisecond-derived fractional seconds. */
+function persistedSeconds(value: number): number {
+  return Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
+}
+
 async function reconcileCapabilityRows(
   admin: SupabaseClient,
   orgId: string,
@@ -168,10 +174,10 @@ async function syncIdleVehicle(
       vehicle_id: vehicleId,
       started_at: new Date(s.startMs).toISOString(),
       ended_at: new Date(s.endMs).toISOString(),
-      duration_sec: s.durationSec,
-      idle_sec: s.idleSec,
-      off_sec: s.offSec,
-      cycles: s.cycles,
+      duration_sec: persistedSeconds(s.durationSec),
+      idle_sec: persistedSeconds(s.idleSec),
+      off_sec: persistedSeconds(s.offSec),
+      cycles: persistedSeconds(s.cycles),
       mode: s.mode,
       observed_mode: evidence.observedMode,
       evidence_status: evidence.evidenceStatus,

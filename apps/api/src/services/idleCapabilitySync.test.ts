@@ -252,4 +252,39 @@ describe("syncIdleCapabilities Phase 1 reconciliation", () => {
     expect(state.deletedParkSessionIds).toHaveLength(0);
     expect(state.vehicleUpdates.size).toBe(0);
   });
+
+  it("normalizes millisecond-derived session values before integer-column writes", async () => {
+    const state: FakeSupabaseState = {
+      vehicles: [{ id: "v1", samsara_vehicle_id: "s1" }],
+      engineDays: [],
+      parkSessions: [],
+      deletedEngineDayIds: [],
+      deletedParkSessionIds: [],
+      parkUpserts: [],
+      vehicleUpdates: new Map(),
+      currentVehicleId: null,
+    };
+
+    await syncIdleCapabilities(makeAdmin(state), {} as Env, "org-1", {
+      sinceDays: 1,
+      engineStatesFetcher: fetcher([
+        {
+          id: "s1",
+          engineStates: [
+            { time: "2026-08-09T00:00:00.000Z", value: "Idle" },
+            { time: "2026-08-09T00:30:00.999Z", value: "Off" },
+            { time: "2026-08-09T01:00:01.998Z", value: "Idle" },
+          ],
+        },
+      ]),
+    });
+
+    const row = state.parkUpserts[0];
+    expect(row).toBeDefined();
+    if (row === undefined) return;
+    expect(row).toMatchObject({ duration_sec: 3_602, idle_sec: 1_801, off_sec: 1_801, cycles: 1 });
+    for (const key of ["duration_sec", "idle_sec", "off_sec", "cycles"]) {
+      expect(Number.isInteger(row[key] as number)).toBe(true);
+    }
+  });
 });

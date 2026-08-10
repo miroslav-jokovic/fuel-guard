@@ -53,17 +53,14 @@ interface IdleEventRow {
   duration_sec: number;
 }
 
+/**
+ * HOS evidence owns only these columns. The capability sync owns the base park-session columns;
+ * including them here makes an evidence refresh race with/rewrite the source-of-truth session and can
+ * invalidate the HOS count constraint when the observed duration changes by a rounded second.
+ */
 interface ParkSessionEvidenceWrite {
   id: string;
   org_id: string;
-  vehicle_id: string;
-  started_at: string;
-  ended_at: string;
-  duration_sec: number;
-  idle_sec: number;
-  off_sec: number;
-  cycles: number;
-  mode: string;
   hos_evidence_status: IdleDutyEvidenceStatus;
   hos_covered_sec: number;
   hos_rest_sec: number;
@@ -86,6 +83,10 @@ function requireDatabaseSuccess(error: { message: string } | null, operation: st
 
 function roundedSeconds(value: number): number {
   return Math.max(0, Math.round(value));
+}
+
+function boundedCoveredSeconds(value: number, durationSec: number): number {
+  return Math.min(roundedSeconds(value), roundedSeconds(durationSec));
 }
 
 function includeUncoveredSeconds(
@@ -325,16 +326,10 @@ export async function syncIdleDutyEvidence(
     writes.push({
       id: session.id,
       org_id: session.org_id,
-      vehicle_id: session.vehicle_id,
-      started_at: session.started_at,
-      ended_at: session.ended_at,
-      duration_sec: session.duration_sec,
-      idle_sec: session.idle_sec,
-      off_sec: session.off_sec,
-      cycles: session.cycles,
-      mode: session.mode,
       hos_evidence_status: evidence.status,
-      hos_covered_sec: roundedSeconds(evidence.overlap.coveredSec),
+      // The database constraint compares this to the persisted integer duration_sec. The timestamp
+      // overlap is fractional at millisecond precision, so round and clamp to that stored duration.
+      hos_covered_sec: boundedCoveredSeconds(evidence.overlap.coveredSec, session.duration_sec),
       hos_rest_sec: roundedSeconds(evidence.overlap.restSec),
       hos_work_sec: roundedSeconds(evidence.overlap.workSec),
       hos_driving_sec: roundedSeconds(evidence.overlap.drivingSec),
