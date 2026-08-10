@@ -21,11 +21,11 @@
 
 ## Stage 0 — Accounts you'll need (5 min)
 
-| Service | Plan | What it's for |
-|---------|------|----------------|
-| **GitHub** | free | Holds the repo; Railway deploys from it. Push FuelGuard to a GitHub repo if it isn't already. |
-| **Supabase** | Free tier | Postgres database, Auth (logins), Storage (receipt photos). |
-| **Railway** | Trial/Hobby | Hosting. Sign in with GitHub so it can see your repo. |
+| Service      | Plan        | What it's for                                                                                 |
+| ------------ | ----------- | --------------------------------------------------------------------------------------------- |
+| **GitHub**   | free        | Holds the repo; Railway deploys from it. Push FuelGuard to a GitHub repo if it isn't already. |
+| **Supabase** | Free tier   | Postgres database, Auth (logins), Storage (receipt photos).                                   |
+| **Railway**  | Trial/Hobby | Hosting. Sign in with GitHub so it can see your repo.                                         |
 
 > Push the repo to GitHub first (private is fine). Railway builds from a GitHub repo, so this is the
 > prerequisite for Stage 3.
@@ -35,34 +35,42 @@
 ## Stage 1 — Supabase project & schema
 
 ### 1.1 Create the project
+
 1. Supabase dashboard → **New project**. Name it `fuelguard-prod`.
 2. Pick a strong **database password** and **save it** (you'll need it for the CLI). Choose the region
    closest to your drivers/office.
 3. Wait ~2 minutes for it to provision.
 
-### 1.2 Apply the database schema (13 migrations + nothing else for prod)
+### 1.2 Apply the database schema (all tracked migrations + nothing else for prod)
+
 The migrations build every table, all Row-Level-Security policies, the `receipts` storage bucket, the
 audit triggers, and the auth-hook **function**. Two ways to run them — pick one.
 
 **Option 1 — Supabase CLI (recommended, one command):**
+
 ```bash
 # install once:  npm i -g supabase   (or: brew install supabase/tap/supabase)
 supabase login
 supabase link --project-ref <YOUR-PROJECT-REF>     # ref is in Project Settings → General
-supabase db push                                    # applies everything in supabase/migrations in order
+supabase migration list --linked                   # inspect local/remote history first
+supabase db push                                    # applies pending files in supabase/migrations in order
+supabase migration list --linked                   # verify the remote history after the push
 ```
 
-**Option 2 — SQL editor (no tools):** open **SQL Editor** in the dashboard and paste the contents of
-each file in `supabase/migrations/` **in numerical order** `0001 → 0013`, running each one before the
-next.
+**Option 2 — SQL editor (exception only):** use the dashboard only when the CLI cannot be used, and
+execute every file in `supabase/migrations/` in numerical order. Record the applied migration history
+and do not run demo seed data.
 
 > ⚠️ **Do NOT run `supabase/seed.sql` in production** — it's demo data (fake trucks and ~140 fake
 > fuel transactions) for local testing. Production starts empty; we add the real org in Stage 2.
 
-**Check:** Table Editor shows `organizations`, `vehicles`, `fuel_transactions`, `anomalies`,
-`efs_transactions`, `integration_credentials`, etc. Storage shows a private **`receipts`** bucket.
+**Check:** the remote migration history contains every tracked migration through the highest local
+version (currently `0170`), and Table Editor shows `organizations`, `vehicles`, `fuel_transactions`,
+`anomalies`, `efs_transactions`, `integration_credentials`, etc. Storage shows a private
+**`receipts`** bucket.
 
-### 1.3 Enable the Custom Access Token hook  ← easy to forget, nothing works without it
+### 1.3 Enable the Custom Access Token hook ← easy to forget, nothing works without it
+
 This is what stamps each login with the user's `org_id` and role so the security rules know who they
 are.
 
@@ -73,17 +81,19 @@ are.
 **Check:** the hook shows as Enabled, pointing at `custom_access_token_hook`.
 
 ### 1.4 Auth settings
+
 1. **Authentication → Providers → Email:** keep **Email** enabled. Turn **Confirm email** on.
 2. **Authentication → Sign-ups:** the app is invite-only; you can leave public sign-ups on for now
    (RLS still denies any user with no membership) and tighten later.
 3. **URL configuration:** we'll fill in the real Railway domain in Stage 4 — leave defaults for now.
 
 ### 1.5 Grab the three keys (Project Settings → API)
-| Key | Where it's used | Secret? |
-|-----|------------------|---------|
-| **Project URL** (`https://xxxx.supabase.co`) | web build + API | no |
-| **anon public** key | web build (browser) | no (safe in browser) |
-| **service_role** key | API only | **YES — never put in the browser / web vars** |
+
+| Key                                          | Where it's used     | Secret?                                       |
+| -------------------------------------------- | ------------------- | --------------------------------------------- |
+| **Project URL** (`https://xxxx.supabase.co`) | web build + API     | no                                            |
+| **anon public** key                          | web build (browser) | no (safe in browser)                          |
+| **service_role** key                         | API only            | **YES — never put in the browser / web vars** |
 
 Keep these handy for Stage 3.
 
@@ -124,32 +134,35 @@ app is deployed in Stage 3.)
 ## Stage 3 — Deploy to Railway
 
 ### 3.1 Create the service from your repo
+
 1. Railway → **New Project → Deploy from GitHub repo** → pick the FuelGuard repo.
 2. Railway reads **`railway.json`** in the repo, so the build and start commands are already set:
-   - build: `pnpm install && pnpm --filter @fuelguard/web build`  (builds the SPA)
-   - start: `pnpm --filter @fuelguard/api start`  (Node API that also serves the SPA)
+   - build: `pnpm install && pnpm --filter @fuelguard/web build` (builds the SPA)
+   - start: `pnpm --filter @fuelguard/api start` (Node API that also serves the SPA)
    - health check: `/healthz`
 3. The first build will likely **fail or come up unconfigured** — that's expected, we haven't added
    the environment variables yet. Continue to 3.2.
 
 ### 3.2 Add environment variables (Service → **Variables**)
+
 Paste these in. **Do not set `PORT`** — Railway injects it automatically and the app reads it.
 
-| Variable | Value | Required |
-|----------|-------|----------|
-| `VITE_SUPABASE_URL` | your Supabase Project URL | ✅ (web build) |
-| `VITE_SUPABASE_ANON_KEY` | your Supabase **anon** key | ✅ (web build) |
-| `SUPABASE_URL` | same Supabase Project URL | ✅ (API) |
-| `SUPABASE_SERVICE_ROLE_KEY` | your Supabase **service_role** key (secret) | ✅ (API) |
-| `WEB_APP_URL` | `https://fleetguardweb-production.up.railway.app` | ✅ (invite links) |
-| `ALLOWED_ORIGINS` | `https://fleetguardweb-production.up.railway.app` | ✅ |
-| `NODE_ENV` | `production` | recommended |
-| `ANTHROPIC_API_KEY` | Anthropic key | optional (AI verification; engine runs without it) |
-| `RESEND_API_KEY` | `re_...` from resend.com | ✅ (invite emails) |
-| `MAIL_FROM` | `FuelGuard <miki@silvicominc.com>` | ✅ (invite emails) |
-| `SAMSARA_API_TOKEN` | Samsara API token | optional (telematics; add when ready) |
+| Variable                    | Value                                             | Required                                           |
+| --------------------------- | ------------------------------------------------- | -------------------------------------------------- |
+| `VITE_SUPABASE_URL`         | your Supabase Project URL                         | ✅ (web build)                                     |
+| `VITE_SUPABASE_ANON_KEY`    | your Supabase **anon** key                        | ✅ (web build)                                     |
+| `SUPABASE_URL`              | same Supabase Project URL                         | ✅ (API)                                           |
+| `SUPABASE_SERVICE_ROLE_KEY` | your Supabase **service_role** key (secret)       | ✅ (API)                                           |
+| `WEB_APP_URL`               | `https://fleetguardweb-production.up.railway.app` | ✅ (invite links)                                  |
+| `ALLOWED_ORIGINS`           | `https://fleetguardweb-production.up.railway.app` | ✅                                                 |
+| `NODE_ENV`                  | `production`                                      | recommended                                        |
+| `ANTHROPIC_API_KEY`         | Anthropic key                                     | optional (AI verification; engine runs without it) |
+| `RESEND_API_KEY`            | `re_...` from resend.com                          | ✅ (invite emails)                                 |
+| `MAIL_FROM`                 | `FuelGuard <miki@silvicominc.com>`                | ✅ (invite emails)                                 |
+| `SAMSARA_API_TOKEN`         | Samsara API token                                 | optional (telematics; add when ready)              |
 
 > ⚠️ **Two completely different domains** — do not confuse them:
+>
 > - **`WEB_APP_URL`** = `fleetguardweb-production.up.railway.app` — the Railway app URL that goes **inside** invite emails as the link destination. No verification needed anywhere.
 > - **`MAIL_FROM` sender domain** = `silvicominc.com` — the domain Resend sends **from**. This is your company email domain and must be verified in Resend (Stage 5). Railway's domain is never used here.
 
@@ -158,6 +171,7 @@ Paste these in. **Do not set `PORT`** — Railway injects it automatically and t
 > talks to the API on the same domain by default.
 
 ### 3.3 Domain (already generated)
+
 Your Railway domain is **`https://fleetguardweb-production.up.railway.app`**. Both
 `WEB_APP_URL` and `ALLOWED_ORIGINS` should be set to this value (no trailing slash) as shown in
 the table above. **Redeploy** after setting variables so the build picks them up.
@@ -192,14 +206,14 @@ the table above. **Redeploy** after setting variables so the build picks them up
 
 ## Troubleshooting
 
-| Symptom | Likely cause / fix |
-|---------|--------------------|
-| Build fails on `pnpm`/`tsx` | Railway uses Node from `.nvmrc` (22) + `packageManager` (pnpm). Ensure both files are committed. The build installs dev deps (`--prod=false`) so `vite`/`tsx` are present. |
-| App loads but every API call is 401/403 | Auth hook not enabled (Stage 1.3) or you logged in **before** enabling it — log out and back in. |
-| Logged in but stuck on "account pending" | No `memberships` row for your user (Stage 2), or wrong `org_id`/role. |
-| Login page loads but data calls fail in console (CSP/blocked) | `VITE_SUPABASE_URL` wrong or missing at build time → rebuild after setting it. |
-| Invite emails not arriving | Set `RESEND_API_KEY` in Railway (see Stage 5). Check Railway Logs for `[mailer]` error lines — 401 = bad/missing key. The UI always has a copy-link fallback. |
-| `/healthz` works but `/` is blank/404 | The web build didn't run or `apps/web/dist` is empty — check the build logs; `railway.json` build command must succeed. |
+| Symptom                                                       | Likely cause / fix                                                                                                                                                         |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build fails on `pnpm`/`tsx`                                   | Railway uses Node from `.nvmrc` (22) + `packageManager` (pnpm). Ensure both files are committed. The build installs dev deps (`--prod=false`) so `vite`/`tsx` are present. |
+| App loads but every API call is 401/403                       | Auth hook not enabled (Stage 1.3) or you logged in **before** enabling it — log out and back in.                                                                           |
+| Logged in but stuck on "account pending"                      | No `memberships` row for your user (Stage 2), or wrong `org_id`/role.                                                                                                      |
+| Login page loads but data calls fail in console (CSP/blocked) | `VITE_SUPABASE_URL` wrong or missing at build time → rebuild after setting it.                                                                                             |
+| Invite emails not arriving                                    | Set `RESEND_API_KEY` in Railway (see Stage 5). Check Railway Logs for `[mailer]` error lines — 401 = bad/missing key. The UI always has a copy-link fallback.              |
+| `/healthz` works but `/` is blank/404                         | The web build didn't run or `apps/web/dist` is empty — check the build logs; `railway.json` build command must succeed.                                                    |
 
 ---
 
@@ -210,25 +224,29 @@ Invitation emails go through **Resend** using their shared sender address (`onbo
 work (the admin copies a link), but recipients won't get an email automatically.
 
 ### 5.1 Create a Resend account & API key
+
 1. Sign up at **https://resend.com** (free tier: 3,000 emails/month, 100/day).
 2. **API Keys → Create API Key** — name it `fuelguard-prod`, permission: **Sending access**.
 3. Copy the key (`re_...`).
 
 ### 5.2 Set Railway environment variables
+
 Railway → your service → **Variables**:
 
-| Variable | Value |
-|----------|-------|
-| `RESEND_API_KEY` | `re_...` (from step 5.1) |
-| `MAIL_FROM` | `FuelGuard <onboarding@resend.dev>` *(default — no DNS needed)* |
+| Variable         | Value                                                           |
+| ---------------- | --------------------------------------------------------------- |
+| `RESEND_API_KEY` | `re_...` (from step 5.1)                                        |
+| `MAIL_FROM`      | `FuelGuard <onboarding@resend.dev>` _(default — no DNS needed)_ |
 
 `MAIL_PROVIDER` is optional — the server auto-detects it from the key. Then **Redeploy**.
 The startup log will print:
+
 ```
 [env] MAIL_PROVIDER auto-set to 'resend' (RESEND_API_KEY is present)
 ```
 
 ### 5.3 Verify it works
+
 1. Settings → Users → invite any address.
 2. Railway **Logs** — a successful send shows no `[mailer]` error lines.
 3. `[mailer] resend 401` → `RESEND_API_KEY` is wrong or missing.
@@ -236,16 +254,20 @@ The startup log will print:
 > The invite UI always shows a **copy link** button so admins can share the link manually as a fallback.
 
 ### Later — switch to your own domain sender (optional)
+
 Once you have DNS access to `silvicominc.com`, verify it in **resend.com/domains** (add the
 3 DNS records Resend shows you) and set:
+
 ```
 MAIL_FROM=FuelGuard <miki@silvicominc.com>
 ```
+
 Emails will then arrive from your company address instead of `onboarding@resend.dev`.
 
 ---
 
 ## Going further (optional, after it's live)
+
 - **Custom domain:** Railway → Settings → Networking → Custom Domain (add a CNAME at your DNS).
 - **Separate staging:** repeat with a second Supabase project + Railway service (`fuelguard-staging`).
 - **Samsara:** add `SAMSARA_API_TOKEN` and map each vehicle's `samsara_vehicle_id` (docs/10).

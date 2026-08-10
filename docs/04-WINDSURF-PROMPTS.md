@@ -1,7 +1,7 @@
 # FuelGuard — Windsurf Prompt Pack
 
 > Copy-paste prompts, in order. One block per phase from `03-ROADMAP.md`.
-> **How to use:** paste the *System primer* once at the start of a Windsurf session (or set it as workspace rules). Then run prompts in order. Don't start a phase until the previous one runs clean.
+> **How to use:** paste the _System primer_ once at the start of a Windsurf session (or set it as workspace rules). Then run prompts in order. Don't start a phase until the previous one runs clean.
 
 ---
 
@@ -338,17 +338,18 @@ Add Playwright e2e: login → log a bad fill-up → see the anomaly in the queue
 ```
 Deploy per docs/05-SETUP-GUIDE.md.
 
-- Configure Railway monorepo with two services from this repo:
-    web: build apps/web, serve dist as static (Caddy), env VITE_SUPABASE_URL,
-         VITE_SUPABASE_ANON_KEY, VITE_API_URL.
-    api: build+run apps/api, env SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ALLOWED_ORIGINS,
-         mail creds, NODE_ENV=production.
-  Use Railway reference variables so web's VITE_API_URL points at api's public domain and api's
-  ALLOWED_ORIGINS includes web's domain. Note Vite vars are build-time — rebuild on change.
+- Configure the current single Railway service from `railway.json`: its build command installs the
+  frozen workspace dependencies and builds `apps/web`, while `pnpm --filter @fuelguard/api start`
+  serves the API and the built SPA from one domain. Set the browser build variables
+  `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, plus the API variables documented in
+  `docs/11-DEPLOYMENT.md`. `VITE_*` values are build-time values, so redeploy after changing them.
+  Do not add a second web/API service unless the deployment architecture is intentionally changed.
 - Provision a dedicated production Supabase project; run migrations; seed ONLY the org row;
   enable the Custom Access Token hook; configure Auth email templates and redirect URLs to the
-  Railway web domain.
-- Add per-service railway.json / nixpacks config and a deploy section to the README.
+  Railway service domain. Apply migrations with `supabase migration list --linked` →
+  `supabase db push` → `supabase migration list --linked`; never run demo seed data in production.
+- Keep the existing `railway.json`, migration workflow, deployment verification workflow, and
+  Playwright smoke workflow as the release gates.
 - Run the Playwright smoke test against the live URL. Then invite the first real admin
   (an @silvicominc.com address) and verify end-to-end.
 ```
@@ -358,8 +359,8 @@ Deploy per docs/05-SETUP-GUIDE.md.
 ## Tips for driving Windsurf well
 
 - Keep each prompt to **one phase**; let it finish, review the diff, run lint+test, then continue.
-- If it drifts from `/docs`, reply: *"Re-read docs/02-DATA-MODEL.md §X and align — don't invent schema."*
+- If it drifts from `/docs`, reply: _"Re-read docs/02-DATA-MODEL.md §X and align — don't invent schema."_
 - Ask it to **write the tests first** for the anomaly rules; they're the riskiest logic.
-- When a UI task starts, point it at the exact template path (e.g. *"use
-  TemplatesTailwind/application-ui-v4/vue/forms/..."*) so it reuses rather than rebuilds.
+- When a UI task starts, point it at the exact template path (e.g. _"use
+  TemplatesTailwind/application-ui-v4/vue/forms/..."_) so it reuses rather than rebuilds.
 - Commit at the end of every phase with a conventional message; tag `phase-N-done`.
