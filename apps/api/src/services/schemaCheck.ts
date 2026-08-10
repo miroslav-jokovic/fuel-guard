@@ -74,6 +74,12 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // with a schema-cache error that reads like a Storage misconfiguration rather than a missing table.
   { table: "documents", column: "storage_path", migration: "0146" },
   { table: "duty_equipment_segments", column: "updated_at", migration: "0155" },
+  // The EFS card mirror and its control settings. Probed for exactly the reason this file exists: with
+  // 0171 unapplied the Cards page answers "Could not load the card list (ref: …)", which reads like an
+  // application bug and sends somebody to the wrong place. `card_ref_hmac` rather than `id`, so the
+  // probe fails if 0171 ran but its columns did not.
+  { table: "efs_cards", column: "card_ref_hmac", migration: "0171" },
+  { table: "efs_card_control_settings", column: "write_entitlement", migration: "0173" },
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */
