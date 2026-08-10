@@ -116,3 +116,12 @@ export const SIGNAL_META: Record<RuleId, { axis: SignalAxis; weight: number }> =
   reefer_overfuel_rate: { axis: "reefer", weight: 75 },
   reefer_fuel_diversion: { axis: "reefer", weight: 60 },
 };
+
+/**
+ * Content hash of the detection contract (rule ids + axes + weights + suppression).
+ *
+ * Stamped onto every scoring attempt so history can be partitioned by the logic that produced
+ * it. Changes when the ruleset changes and NOT when an unrelated commit ships — which is what
+ * makes "was this scored before or after the fix?" an answerable question.
+ */
+export const RULESET_HASH = "2c3703172ebe";

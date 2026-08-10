@@ -16,6 +16,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -133,5 +134,35 @@ for (const r of rules) L.push(`  ${r.id}: { axis: ${q(r.axis)}, weight: ${r.weig
 L.push("};");
 L.push("");
 
+// ── ruleset identity ─────────────────────────────────────────────────────────
+// A content hash of the DETECTION CONTRACT: which rules exist, what each is worth, which axis it
+// scores on, and which are suppressed. Emitted here rather than computed at runtime so it lands in
+// the diff, and so `lint:codegen` (which fails on generated-file drift) already guards it.
+//
+// WHY (audit 2026-08-09 follow-up). scoringEngineVersion() stamped every scoring_attempt with the
+// git commit — so a README typo produced a "new engine", while a genuine rule change was
+// indistinguishable from any other deploy. After Stage 3 corrected several rules, the first question
+// anyone asks is "was this fill scored before or after the reefer fix?", and a commit SHA cannot
+// answer it. This hash can: it changes when, and only when, the detection contract changes.
+//
+// Deliberately NOT included: rule prose/labels (wording is not detection), and per-org threshold
+// overrides (tenant configuration, recorded per scoring run, not part of the shipped ruleset).
+const rulesetFingerprint = JSON.stringify(
+  rules
+    .map((r) => ({ id: r.id, axis: r.axis, weight: r.weight, suppressed: suppressed.includes(r.id) }))
+    .sort((a, b) => a.id.localeCompare(b.id)),
+);
+const rulesetHash = createHash("sha256").update(rulesetFingerprint).digest("hex").slice(0, 12);
+
+L.push("/**");
+L.push(" * Content hash of the detection contract (rule ids + axes + weights + suppression).");
+L.push(" *");
+L.push(" * Stamped onto every scoring attempt so history can be partitioned by the logic that produced");
+L.push(" * it. Changes when the ruleset changes and NOT when an unrelated commit ships — which is what");
+L.push(" * makes \"was this scored before or after the fix?\" an answerable question.");
+L.push(" */");
+L.push(`export const RULESET_HASH = ${q(rulesetHash)};`);
+L.push("");
+
 writeFileSync(OUT, L.join("\n"));
-console.log(`✓ gen-rule-catalog: wrote ${rules.length} rules → catalog.generated.ts`);
+console.log(`✓ gen-rule-catalog: wrote ${rules.length} rules → catalog.generated.ts (ruleset ${rulesetHash})`);

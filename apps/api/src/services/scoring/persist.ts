@@ -2,6 +2,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  RULESET_HASH,
   correlateSignals,
   computedMpg,
   computeFillConfidence,
@@ -39,8 +40,23 @@ export interface ScoringAttempt {
 }
 
 /** Current deployed code identity, used to make persisted scoring results reproducible. */
+/**
+ * What produced this score: the DETECTION CONTRACT first, the build second.
+ *
+ * This used to return the git commit alone (or the literal string "unknown" when build info was
+ * absent, which is every local run). That answers "which deploy" and not "which logic" — a README
+ * typo minted a new engine version, while the Stage 3 rule corrections were indistinguishable from
+ * any other push. After a rule changes, the only question that matters about a historical score is
+ * "was this produced by the old logic or the new?", and a commit SHA cannot answer it without a
+ * commit-to-logic map nobody maintains.
+ *
+ * RULESET_HASH is a content hash of the rule catalogue (ids + axes + weights + suppression), so it
+ * changes when and only when the detection contract does. The commit is kept alongside it because it
+ * still identifies the exact build for everything the hash deliberately excludes — context loaders,
+ * capacity resolution, reconciliation. Format: `rs-<hash>+<commit>`.
+ */
 export function scoringEngineVersion(): string {
-  return getBuildInfo().commit ?? "unknown";
+  return `rs-${RULESET_HASH}+${getBuildInfo().commit ?? "nocommit"}`;
 }
 
 function canonicalJson(value: unknown): string {

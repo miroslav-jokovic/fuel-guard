@@ -34,7 +34,8 @@
  * hash. The harness refuses to run when a target file already differs from git HEAD, so it can never
  * clobber uncommitted work — pass --allow-dirty only if you know why.
  */
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
@@ -126,12 +127,24 @@ const MUTATIONS = [
   {
     id: "api-idleRollup-unscoped",
     why: "Same class, different service — proves the recorder assertion is applied, not just available.",
-    file: "apps/api/src/services/idleRollup.ts",
-    find: '      .eq("org_id", orgId).gte("day", w.fromDate)',
+    file: "apps/api/src/services/idleRollupInputs.ts",
+    find: '      .eq("org_id", orgId)\n      .gte("day", w.fromDate)',
     replace: '      .gte("day", w.fromDate)',
     detect: apiTest("src/services/idleRollup.test.ts"),
   },
   // ── the fitness functions themselves ────────────────────────────────────────
+  {
+    id: "waiver-growth-unchecked",
+    why:
+      "Restores the unconditional waiver Set the file-size gate used to have. Its comment said the " +
+      "list 'may only SHRINK' and nothing enforced it, so the four waived files grew 282 lines in " +
+      "three weeks — the gate's own exemptions became the only unbounded files in the repo.",
+    file: "scripts/check-file-size.mjs",
+    find: "      if (lines > pin) grown.push({ rel, lines, pin });",
+    replace: "      if (false) grown.push({ rel, lines, pin });",
+    detect: ["node", ["scripts/check-waiver-growth.mjs"]],
+  },
+
   {
     id: "driver-tests-uncollected",
     why: "Re-narrows the driver include glob — the bug that hid 24 tests for months, three times over.",
@@ -175,6 +188,84 @@ if (!allowDirty) {
   }
 }
 
+/**
+ * CRASH SAFETY.
+ *
+ * This harness edits real source files and restores them in a `finally`. That is not enough: a
+ * `finally` does not run when the process is killed, and this one was — twice — by a command timeout
+ * mid-sweep. The first kill left two stray lines in efsSoap.ts (which then failed the very gate the
+ * mutation was testing); the second left `imports_select` open to `using (true)` in a migration,
+ * which is a tenant-isolation hole sitting in the working tree looking like a real regression.
+ *
+ * So every mutation's original content is written to a vault on disk first, signal handlers restore
+ * on the way out, and a vault left over from a killed run is replayed BEFORE anything else happens.
+ * A rig that can damage the tree it is testing is worse than no rig, because the damage looks like a
+ * finding.
+ */
+const VAULT = join(tmpdir(), "fuelguard-mutation-vault");
+const vaultPath = (rel) => join(VAULT, rel.replace(/[\\/]/g, "__"));
+
+function recoverStaleVault() {
+  if (!existsSync(VAULT)) return;
+  const left = readdirSync(VAULT);
+  if (left.length === 0) return;
+  console.warn(`⚠ restoring ${left.length} file(s) left mutated by an interrupted run:`);
+  for (const name of left) {
+    const { rel, content } = JSON.parse(readFileSync(join(VAULT, name), "utf8"));
+    writeFileSync(join(ROOT, rel), content);
+    console.warn(`  - ${rel}`);
+    rmSync(join(VAULT, name), { force: true });
+  }
+}
+recoverStaleVault();
+mkdirSync(VAULT, { recursive: true });
+
+/** Files currently mutated, so a signal can put them back. */
+const inFlight = new Map();
+let unwound = false;
+function unwind() {
+  if (unwound) return;
+  unwound = true;
+  for (const [rel, content] of inFlight) {
+    try {
+      writeFileSync(join(ROOT, rel), content);
+      rmSync(vaultPath(rel), { force: true });
+    } catch (err) {
+      console.error(`FATAL: could not restore ${rel}: ${String(err)}`);
+    }
+  }
+}
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => { unwind(); process.exit(130); });
+process.on("uncaughtException", (err) => { unwind(); console.error(err); process.exit(1); });
+process.on("exit", unwind);
+
+/**
+ * Self-heal a leftover mutation, even under --allow-dirty.
+ *
+ * The vault above handles SIGINT/SIGTERM. It cannot handle SIGKILL, and the dirty-tree refusal is
+ * bypassed exactly when you need it most — during development, when the tree is legitimately dirty
+ * and everyone passes --allow-dirty out of habit. That combination left a tenant-isolation hole
+ * (`imports_select ... using (true)`) sitting in a migration looking like a real regression.
+ *
+ * This check is precise rather than general: a file that is MISSING the mutation's `find` text and
+ * CONTAINS its `replace` text is not ambiguous — it is this harness's own damage. Restore it from
+ * HEAD and say so. Anything else is left alone; the dirty guard still owns that case.
+ */
+for (const m of selected) {
+  const path = join(ROOT, m.file);
+  let current;
+  try { current = readFileSync(path, "utf8"); } catch { continue; }
+  if (current.includes(m.find) || !current.includes(m.replace)) continue;
+  const head = spawnSync("git", ["show", `HEAD:${m.file}`], { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  if (head.status !== 0) {
+    console.error(`Leftover mutation "${m.id}" in ${m.file}, and it could not be read from HEAD. Restore it by hand.`);
+    process.exit(2);
+  }
+  if (!head.stdout.includes(m.find)) continue; // HEAD does not have the clean text either — not ours to fix
+  writeFileSync(path, head.stdout);
+  console.warn(`⚠ restored ${m.file} — it was left mutated by "${m.id}" in an interrupted run.`);
+}
+
 const results = [];
 for (const m of selected) {
   const path = join(ROOT, m.file);
@@ -188,6 +279,8 @@ for (const m of selected) {
 
   let status, note;
   try {
+    writeFileSync(vaultPath(m.file), JSON.stringify({ rel: m.file, content: original }));
+    inFlight.set(m.file, original);
     writeFileSync(path, original.replace(m.find, m.replace));
     const [cmd, cmdArgs] = m.detect;
     const run = spawnSync(cmd, cmdArgs, { cwd: ROOT, encoding: "utf8" });
@@ -204,6 +297,8 @@ for (const m of selected) {
     }
   } finally {
     writeFileSync(path, original);
+    inFlight.delete(m.file);
+    rmSync(vaultPath(m.file), { force: true });
     if (sha(readFileSync(path, "utf8")) !== before) {
       console.error(`\nFATAL: ${m.file} was NOT restored. Restore it from git before doing anything else.`);
       process.exit(2);

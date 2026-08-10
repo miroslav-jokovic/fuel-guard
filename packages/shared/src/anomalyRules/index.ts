@@ -70,6 +70,7 @@ export type {
 } from "./learning.js";
 export { runAllRules } from "./rules.js";
 export { MPG_SUSTAINED_MIN_FILLS, MPG_SUSTAINED_MIN_MILES } from "./rulesEfficiency.js";
+export { RULESET_HASH } from "./catalog.generated.js";
 export {
   MARKET_PRICE_OUTLIER_MULT,
   SAME_SITE_MILES,

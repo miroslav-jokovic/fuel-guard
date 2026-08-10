@@ -60,7 +60,12 @@ function functionsIn(relPath) {
   return found;
 }
 
+// Same warning band as the file-size gate: a function creeping toward the ceiling should be visible
+// BEFORE it fails on whoever happens to touch it next. A budget with no warning band ambushes people,
+// and the reasonable response to an ambush is to add a waiver — which is how these gates die.
+const WARN_AT = Math.floor(MAX * 0.9);
 const violations = [];
+const warnings = [];
 const stale = [];
 const seenGrandfathered = new Set();
 
@@ -75,6 +80,7 @@ for (const relPath of listFiles()) {
       continue;
     }
     if (fn.span > MAX) violations.push(`${relPath}#${fn.name}  ${fn.span} lines  (over the ${MAX}-line function budget — split into an orchestrator + stage helpers)`);
+    else if (fn.span >= WARN_AT) warnings.push({ key, span: fn.span });
   }
 }
 // A grandfathered key that no longer matches any function (renamed/removed) is also stale.
@@ -83,6 +89,10 @@ for (const key of Object.keys(GRANDFATHERED)) if (!seenGrandfathered.has(key)) s
 if (stale.length) {
   console.warn(`ℹ ${stale.length} grandfathered entr(y/ies) can be removed:`);
   for (const s of stale) console.warn("  " + s);
+}
+if (warnings.length) {
+  console.warn(`\n⚠ ${warnings.length} function(s) within ${MAX - WARN_AT} lines of the ${MAX}-line budget (not a failure):`);
+  for (const w of warnings.sort((a, b) => b.span - a.span)) console.warn(`  ${w.span}  ${w.key}`);
 }
 if (violations.length) {
   console.error(`✗ ${violations.length} function-size violation(s):`);
