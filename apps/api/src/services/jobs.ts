@@ -43,6 +43,10 @@ export type JobKind =
  */
 export const scoringDedupKey = (orgId: string): string => `scoring:${orgId}`;
 
+/** Idle capability reconciliation and HOS evidence both mutate idle_park_sessions. They must share one
+ * active slot even though they remain separate job kinds for UI/reporting purposes. */
+export const idleSyncDedupKey = (orgId: string): string => `idle-foundation:${orgId}`;
+
 /** Job kinds whose work scores fuel transactions — dispatchJob applies the scoring mutex to these. */
 export const SCORING_JOB_KINDS: ReadonlySet<JobKind> = new Set<JobKind>([
   "rebuild",
@@ -53,6 +57,11 @@ export const SCORING_JOB_KINDS: ReadonlySet<JobKind> = new Set<JobKind>([
   "efs_ingest", // legacy file ingestion scores its new rows inline
   "efs_process_import", // durable post-EFS scoring and alert processing
   "nightly_reconcile", // runs syncFuelEventsFromEfs + backfillOrg internally
+]);
+
+export const IDLE_SESSION_MUTATION_KINDS: ReadonlySet<JobKind> = new Set<JobKind>([
+  "sync_idle",
+  "sync_hos",
 ]);
 
 export type JobStatus = "queued" | "running" | "done" | "failed";

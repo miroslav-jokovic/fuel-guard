@@ -1,7 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
 import {
-  JobConflictError, runJob, scoringDedupKey, SCORING_JOB_KINDS, type JobKind, type RunJobResult,
+  IDLE_SESSION_MUTATION_KINDS,
+  JobConflictError,
+  idleSyncDedupKey,
+  runJob,
+  scoringDedupKey,
+  SCORING_JOB_KINDS,
+  type JobKind,
+  type RunJobResult,
 } from "../jobs.js";
 import { enqueueJob } from "./enqueue.js";
 import { getHandler } from "./registry.js";
@@ -37,6 +44,8 @@ export async function dispatchJob(
       ? opts.dedupKey
       : SCORING_JOB_KINDS.has(kind)
         ? scoringDedupKey(opts.orgId)
+        : IDLE_SESSION_MUTATION_KINDS.has(kind)
+          ? idleSyncDedupKey(opts.orgId)
         : null;
 
   if (env.JOB_EXECUTION_MODE === "queue") {

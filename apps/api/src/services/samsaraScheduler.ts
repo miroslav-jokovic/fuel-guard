@@ -14,7 +14,14 @@ import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
 import { syncIdleRollup } from "./idleRollup.js";
 import { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
 import { runDataRetention } from "./dataRetention.js";
-import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "./jobs.js";
+import {
+  idleSyncDedupKey,
+  startJob,
+  finishJob,
+  startJobHeartbeat,
+  JobConflictError,
+  type JobKind,
+} from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
 
 /** Orgs to auto-sync: those with a per-org token, plus — when the single-tenant env token is set —
@@ -57,10 +64,11 @@ async function runOrgTier(
   orgId: string,
   kind: JobKind,
   work: () => Promise<Record<string, unknown>>,
+  dedupKey?: string | null,
 ): Promise<void> {
   if (env.JOB_EXECUTION_MODE === "queue") {
     try {
-      await enqueueJob(admin, kind, { orgId }); // scheduler runs carry no actor + an empty payload
+      await enqueueJob(admin, kind, { orgId, dedupKey }); // scheduler runs carry no actor + an empty payload
     } catch (e) {
       if (e instanceof JobConflictError) return; // already queued/running for this (org, kind)
       console.error(
@@ -72,7 +80,7 @@ async function runOrgTier(
   }
   let jobId: string;
   try {
-    jobId = await startJob(admin, orgId, kind); // scheduler runs have no requested_by
+    jobId = await startJob(admin, orgId, kind, { dedupKey }); // scheduler runs have no requested_by
   } catch (e) {
     if (e instanceof JobConflictError) return; // a run of this kind is already active for the org
     console.error(
@@ -212,7 +220,7 @@ export function startSamsaraScheduler(env: Env): void {
           learnedEnvelopeNotApplicable: r.idleLearnedEnvelopes.notApplicable,
           learnedEnvelopeRowsWritten: r.idleLearnedEnvelopes.rowsWritten,
         };
-      });
+      }, idleSyncDedupKey(orgId));
       await runOrgTier(admin, env, orgId, "sync_hos", async () => {
         const r = await syncHosDutySegments(admin, env, orgId);
         const dutyEvidence = await syncIdleDutyEvidence(admin, orgId);
@@ -248,7 +256,7 @@ export function startSamsaraScheduler(env: Env): void {
           rollupRows: rollup.rows,
           rollupWritten: rollup.written,
         };
-      });
+      }, idleSyncDedupKey(orgId));
       await runOrgTier(admin, env, orgId, "snapshot_driver_week", async () => {
         const r = await snapshotSettledWeeks(admin, env, orgId);
         return { weeksFrozen: r.weeksFrozen.length, rowsWritten: r.rowsWritten };
