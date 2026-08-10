@@ -5,12 +5,14 @@ import {
   parseHosLogs,
   hosOverlapSeconds,
   hosVehicleOverlapSeconds,
-  buildHosVehicleTimeline,
-  buildHosVehicleTimelines,
-  hosVehicleTimelineOverlapSeconds,
   parseHosClocks,
   type HosSegment,
 } from "./hos.js";
+import {
+  buildHosVehicleTimeline,
+  buildHosVehicleTimelines,
+  hosVehicleTimelineOverlapSeconds,
+} from "./hosVehicleTimeline.js";
 
 const iso = (ms: number) => new Date(ms).toISOString();
 const H = 3600_000;

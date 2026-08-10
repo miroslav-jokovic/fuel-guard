@@ -21,7 +21,8 @@ export interface IdleDutyEvidenceSyncResult {
 }
 
 const PAGE_SIZE = 1000;
-const UPSERT_CHUNK = 500;
+/** Rows per apply_idle_hos_evidence call — one round trip per chunk, not per row. */
+const WRITE_CHUNK = 500;
 const SEGMENT_PAD_MS = 72 * 3_600_000;
 const EVIDENCE_VERSION = "vehicle-hos-v1" as const;
 
@@ -54,13 +55,20 @@ interface IdleEventRow {
 }
 
 /**
- * HOS evidence owns only these columns. The capability sync owns the base park-session columns;
- * including them here makes an evidence refresh race with/rewrite the source-of-truth session and can
- * invalidate the HOS count constraint when the observed duration changes by a rounded second.
+ * HOS evidence owns only these columns; the capability sync owns the base park-session columns. That
+ * ownership split has to be expressed as an UPDATE, not as an upsert carrying a subset of columns.
+ *
+ * WHY (incident 2026-08-10 — this took down BOTH sync_hos and sync_idle). A PostgREST upsert compiles to
+ * `INSERT … ON CONFLICT (id) DO UPDATE`, and Postgres evaluates NOT NULL on the proposed tuple BEFORE
+ * conflict arbitration. idle_park_sessions.vehicle_id / started_at / ended_at / duration_sec / idle_sec /
+ * off_sec / mode are all NOT NULL with no default (migration 0076), so an upsert that omits them fails
+ * with `null value in column "vehicle_id" … violates not-null constraint` even though every row it
+ * targets already exists. The job then failed before syncIdleRollup ran, so the Idling page went stale
+ * too. `apply_idle_hos_evidence` (migration 0174) is the set-based UPDATE equivalent: org-scoped by
+ * parameter, one round trip per chunk, and unable to resurrect a session the capability sync deleted.
  */
 interface ParkSessionEvidenceWrite {
   id: string;
-  org_id: string;
   hos_evidence_status: IdleDutyEvidenceStatus;
   hos_covered_sec: number;
   hos_rest_sec: number;
@@ -325,7 +333,6 @@ export async function syncIdleDutyEvidence(
     else insufficient += 1;
     writes.push({
       id: session.id,
-      org_id: session.org_id,
       hos_evidence_status: evidence.status,
       // The database constraint compares this to the persisted integer duration_sec. The timestamp
       // overlap is fractional at millisecond precision, so round and clamp to that stored duration.
@@ -340,13 +347,16 @@ export async function syncIdleDutyEvidence(
     });
   }
 
+  // rowsWritten is what the DATABASE reports it changed, not the size of the payload we sent — a
+  // session removed by capability reconciliation between the read and this write is simply not counted.
   let rowsWritten = 0;
-  for (let i = 0; i < writes.length; i += UPSERT_CHUNK) {
-    const { error } = await admin
-      .from("idle_park_sessions")
-      .upsert(writes.slice(i, i + UPSERT_CHUNK), { onConflict: "id" });
-    requireDatabaseSuccess(error, "session evidence upsert");
-    rowsWritten += Math.min(UPSERT_CHUNK, writes.length - i);
+  for (let i = 0; i < writes.length; i += WRITE_CHUNK) {
+    const { data, error } = await admin.rpc("apply_idle_hos_evidence", {
+      p_org: orgId,
+      p_rows: writes.slice(i, i + WRITE_CHUNK),
+    });
+    requireDatabaseSuccess(error, "session evidence update");
+    rowsWritten += typeof data === "number" ? data : 0;
   }
   return { sessions: sessions.length, sufficient, insufficient, ambiguous, rowsWritten };
 }

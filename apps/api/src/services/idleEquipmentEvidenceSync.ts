@@ -21,7 +21,8 @@ export interface IdleEquipmentEvidenceSyncResult {
 }
 
 const PAGE_SIZE = 1000;
-const UPSERT_CHUNK = 500;
+/** Rows per apply_idle_equipment_evidence call — one round trip per chunk, not per row. */
+const WRITE_CHUNK = 500;
 
 interface ParkSessionRow {
   id: string;
@@ -46,9 +47,14 @@ interface VehicleEquipmentRow {
   has_optimized_idle: boolean | null;
 }
 
+/**
+ * Equipment evidence owns only these columns. Written with `apply_idle_equipment_evidence` (migration
+ * 0174) rather than a partial upsert: a PostgREST upsert compiles to `INSERT … ON CONFLICT DO UPDATE`
+ * and Postgres checks NOT NULL on the proposed tuple before conflict arbitration, so omitting the base
+ * park-session columns fails with a not-null violation on rows that already exist (incident 2026-08-10).
+ */
 interface SessionEvidenceWrite {
   id: string;
-  org_id: string;
   equipment_profile: IdleEquipmentProfile;
   equipment_evidence_status: IdleEquipmentEvidenceStatus;
   ambient_sample_count: number;
@@ -223,7 +229,6 @@ export async function syncIdleEquipmentEvidence(
     addStatus(result, evidence.status);
     writes.push({
       id: session.id,
-      org_id: session.org_id,
       equipment_profile: evidence.profile,
       equipment_evidence_status: evidence.status,
       ambient_sample_count: evidence.ambientSampleCount,
@@ -240,11 +245,13 @@ export async function syncIdleEquipmentEvidence(
     });
   }
 
-  for (let i = 0; i < writes.length; i += UPSERT_CHUNK) {
-    const chunk = writes.slice(i, i + UPSERT_CHUNK);
-    const { error } = await admin.from("idle_park_sessions").upsert(chunk, { onConflict: "id" });
-    requireDatabaseSuccess(error, "session evidence upsert");
-    result.rowsWritten += chunk.length;
+  for (let i = 0; i < writes.length; i += WRITE_CHUNK) {
+    const { data, error } = await admin.rpc("apply_idle_equipment_evidence", {
+      p_org: orgId,
+      p_rows: writes.slice(i, i + WRITE_CHUNK),
+    });
+    requireDatabaseSuccess(error, "session evidence update");
+    result.rowsWritten += typeof data === "number" ? data : 0;
   }
   return result;
 }

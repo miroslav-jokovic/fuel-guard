@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
+import {
+  createSupabaseRecorder,
+  expectOrgScoped,
+  type SupabaseRecorder,
+} from "../testing/supabaseRecorder.js";
 import { syncIdleEquipmentEvidence } from "./idleEquipmentEvidenceSync.js";
+
+/**
+ * Written through `apply_idle_equipment_evidence` (migration 0174), never a partial upsert on
+ * idle_park_sessions — that upsert failed the table's NOT NULL constraints on rows that already existed.
+ */
+function equipmentEvidenceRows(rec: SupabaseRecorder): Record<string, unknown>[] {
+  return rec
+    .rpcs()
+    .filter((call) => call.fn === "apply_idle_equipment_evidence")
+    .flatMap((call) => (call.args as { p_rows: Record<string, unknown>[] }).p_rows);
+}
 
 const ORG = "org-1";
 const END = "2026-08-02T00:00:00.000Z";
@@ -77,6 +92,7 @@ describe("syncIdleEquipmentEvidence", () => {
           ],
         },
       },
+      rpc: { apply_idle_equipment_evidence: 4 },
     });
 
     const result = await syncIdleEquipmentEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
@@ -89,7 +105,7 @@ describe("syncIdleEquipmentEvidence", () => {
       unknown: 1,
       rowsWritten: 4,
     });
-    expect(rec.writtenRows("idle_park_sessions")).toEqual(
+    expect(equipmentEvidenceRows(rec)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "p1",
@@ -117,6 +133,9 @@ describe("syncIdleEquipmentEvidence", () => {
         }),
       ]),
     );
+    expect(equipmentEvidenceRows(rec)[0]).not.toHaveProperty("org_id");
+    expect(rec.forTable("idle_park_sessions").filter((q) => q.write !== null)).toHaveLength(0);
+    for (const call of rec.rpcs()) expect((call.args as { p_org: string }).p_org).toBe(ORG);
     expectOrgScoped(rec, ORG);
   });
 
@@ -131,5 +150,6 @@ describe("syncIdleEquipmentEvidence", () => {
       "Idle equipment evidence session read failed",
     );
     expect(rec.writes()).toHaveLength(0);
+    expect(rec.rpcs()).toHaveLength(0);
   });
 });
