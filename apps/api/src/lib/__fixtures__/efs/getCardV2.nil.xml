@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getCardv2Response>
+      <return>
+        <companyXRef>FG-TEST</companyXRef>
+        <handEnter>ALLOW</handEnter>
+        <infoSource>CARD</infoSource>
+        <limitSource>CARD</limitSource>
+        <locationSource>CARD</locationSource>
+        <timeSource>CARD</timeSource>
+        <originalStatus xsi:nil="true"/>
+        <lastTransaction xsi:nil="1"/>
+        <lastUsedDate xsi:nil="true"/>
+        <overrideAllLocations>false</overrideAllLocations>
+        <override>0</override>
+        <policyNumber>7</policyNumber>
+        <status>Hold</status>
+        <payrollStatus>Active</payrollStatus>
+        <infos>
+          <infoId>UNIT</infoId>
+          <lengthCheck>false</lengthCheck>
+          <matchValue>7781</matchValue>
+          <maximum>0</maximum>
+          <minimum>0</minimum>
+          <reportValue xsi:nil="true"/>
+          <validationType>EXACT_MATCH</validationType>
+          <value>0</value>
+        </infos>
+      </return>
+    </getCardv2Response>
+  </soap:Body>
+</soap:Envelope>

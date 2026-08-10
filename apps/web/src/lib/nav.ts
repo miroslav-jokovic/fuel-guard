@@ -12,6 +12,7 @@ import {
   OdometerIcon,
   PetrolPumpIcon,
   ReconciliationIcon,
+  FuelCardIcon,
   RejectionIcon,
   ShieldCheckIcon,
   ShieldExclamationIcon,
@@ -86,6 +87,9 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         { name: "Fuel Log", to: "/fuel-log", icon: PetrolPumpIcon, show: true },
         { name: "Transactions", to: "/transactions", icon: TransactionIcon, show: canViewSection(role, "fuel") },
         { name: "Rejections", to: "/rejections", icon: RejectionIcon, show: canViewSection(role, "fuel") },
+        // EFS card inventory + control. Read-only until the write entitlement is confirmed; the
+        // page itself explains that, so the nav entry does not need to know.
+        { name: "Cards", to: "/fuel-cards", icon: FuelCardIcon, show: canViewSection(role, "fuel") },
         { name: "Import", to: "/import", icon: ArrowUpTrayIcon, show: canManageSection(role, "fuel") },
         { name: "Reconciliation", to: "/fuel-reconciliation", icon: ReconciliationIcon, show: canManageSection(role, "fuel") },
       ],

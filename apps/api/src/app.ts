@@ -22,6 +22,7 @@ import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { fuelingRouter } from "./routes/fueling.js";
+import { fuelCardsRouter } from "./routes/fuelCards/read.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { tmsIngestRouter } from "./routes/tmsIngest.js";
 import { aiRouter } from "./routes/ai.js";
@@ -138,6 +139,7 @@ export function createApp(env: Env): Express {
   app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target
   app.use("/api/reports", strictLimiter);
   app.use("/api/integrations", strictLimiter);
+  app.use("/api/fuel-cards", strictLimiter); // dials a rate-paced vendor on a shared service account
   app.use("/api/ai", strictLimiter);
   app.use("/api/public", calcLimiter); // M7 public calculator — unauthenticated, tighter limit
 
@@ -192,6 +194,7 @@ export function createApp(env: Env): Express {
   app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
   app.use("/api/fueling", fuelingRouter());
+  app.use("/api/fuel-cards", fuelCardsRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here

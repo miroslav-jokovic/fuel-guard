@@ -249,6 +249,20 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Rejections" },
   },
   {
+    // Read is open to every fuel-viewing role; the write actions gate themselves from the
+    // server-computed `capabilities`, which the browser cannot work out on its own.
+    path: "/fuel-cards",
+    name: "fuel-cards",
+    component: () => import("@/pages/FuelCardsPage.vue"),
+    meta: { requiresAuth: true, title: "Fuel Cards" },
+  },
+  {
+    path: "/fuel-cards/:id",
+    name: "fuel-card-detail",
+    component: () => import("@/pages/FuelCardDetailPage.vue"),
+    meta: { requiresAuth: true, title: "Fuel Card", parent: "/fuel-cards" },
+  },
+  {
     path: "/anomalies",
     name: "anomalies",
     component: () => import("@/pages/AnomaliesPage.vue"),

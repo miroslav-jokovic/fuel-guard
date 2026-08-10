@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getCardv2Response>
+      <return>
+        <companyXRef>FG-TEST</companyXRef>
+        <handEnter>POLICY</handEnter>
+        <infoSource>CARD</infoSource>
+        <limitSource>CARD</limitSource>
+        <locationSource>POLICY</locationSource>
+        <timeSource>POLICY</timeSource>
+        <overrideAllLocations>false</overrideAllLocations>
+        <override>0</override>
+        <locationOverride>0</locationOverride>
+        <payrollStatus>Inactive</payrollStatus>
+        <policyNumber>3</policyNumber>
+        <status>Active</status>
+        <infos>
+          <infoId>DRID</infoId>
+          <lengthCheck>false</lengthCheck>
+          <matchValue>D-0001</matchValue>
+          <maximum>0</maximum>
+          <minimum>0</minimum>
+          <reportValue></reportValue>
+          <validationType>EXACT_MATCH</validationType>
+          <value>0</value>
+        </infos>
+        <limits>
+          <hours>24</hours>
+          <limit>150</limit>
+          <limitId>ULSD</limitId>
+          <minHours>0</minHours>
+        </limits>
+        <locationGroups>4410</locationGroups>
+        <locations>115732</locations>
+      </return>
+    </getCardv2Response>
+  </soap:Body>
+</soap:Envelope>

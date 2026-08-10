@@ -125,6 +125,7 @@ export {
   CardExchange01Icon          as TransactionIcon,
   PetrolPumpIcon              as PetrolPumpIcon,
   CreditCardNotAcceptIcon     as RejectionIcon,
+  CreditCardIcon              as FuelCardIcon,
   WalletDone02Icon            as ReconciliationIcon,
   DeliveryTruck01Icon         as LoadsIcon,
   GasPipeIcon                 as TruckStopIcon,

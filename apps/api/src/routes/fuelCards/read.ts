@@ -1,0 +1,288 @@
+import { Router } from "express";
+import { z } from "zod";
+import { maskPan, mergeEffectiveConfig, rolesThatCanView, rolesThatManage } from "@fuelguard/shared";
+import { getAppLocals } from "../../lib/appLocals.js";
+import { EfsSoapError } from "../../lib/efsSoapSession.js";
+import { getPolicy, searchLocation } from "../../lib/efsCardOps.js";
+import { apiError, asyncHandler, dbErrorResponse } from "../../lib/http.js";
+import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
+import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
+import {
+  EFS_CARD_DETAIL_COLS,
+  EFS_CARD_LIST_COLS,
+  loadCardNumber,
+  refreshCardDetail,
+} from "../../services/efsCardMirror.js";
+import { loadCardControlAccess } from "../../services/efsCardControlAccess.js";
+import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
+import { dispatchJob } from "../../services/queue/dispatch.js";
+
+/**
+ * Reading EFS cards. No writes here — see the docblock in efsCardOps.ts for why the write half waits
+ * on the entitlement probe, and why this half is worth shipping on its own.
+ *
+ * TENANCY. `getSupabaseAdmin` is the SERVICE ROLE and bypasses RLS, so every query in this file
+ * derives `orgId` from the verified JWT (never the body, never a query param) and chains
+ * `.eq("org_id", orgId)`. A row that does not match is a 404, never a 403 — we do not confirm that
+ * another tenant's card exists.
+ *
+ * PANs. Every route keys on `efs_cards.id`, a uuid. No card number appears in a path, an access log,
+ * a Referer header or browser history, and `card_number_sealed` is never in a select list — the
+ * column lists in efsCardMirror.ts are explicit for exactly that reason.
+ */
+
+const listQuerySchema = z.object({
+  status: z.string().optional(),
+  search: z.string().trim().max(64).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+const locationQuerySchema = z.object({
+  state: z.string().trim().max(2).optional(),
+  city: z.string().trim().max(30).optional(),
+  name: z.string().trim().max(45).optional(),
+  locId: z.string().trim().regex(/^[0-9]{1,7}$/).optional(),
+  country: z.enum(["USA", "CAN", "MXN"]).optional(),
+});
+
+interface CardRow {
+  id: string;
+  card_last4: string;
+  status: string;
+  policy_number: number | null;
+  driver_id_prompt: string | null;
+  unit_prompt: string | null;
+  driver_name: string | null;
+  override_uses: number | null;
+  last_used_date: string | null;
+  fuel_card_id: string | null;
+  synced_at: string;
+  sync_error: string | null;
+}
+
+const toSummary = (row: CardRow) => ({
+  id: row.id,
+  last4: row.card_last4,
+  maskedRef: maskPan(row.card_last4),
+  status: row.status,
+  policyNumber: row.policy_number,
+  driverIdPrompt: row.driver_id_prompt,
+  unitPrompt: row.unit_prompt,
+  driverName: row.driver_name,
+  overrideUses: row.override_uses,
+  lastUsedDate: row.last_used_date,
+  fuelCardId: row.fuel_card_id,
+  syncedAt: row.synced_at,
+  syncError: row.sync_error,
+});
+
+/** Map a vendor failure to a status an operator can act on, without echoing EFS verbatim. */
+function efsErrorResponse(res: import("express").Response, error: unknown): void {
+  if (!(error instanceof EfsSoapError)) throw error;
+  const status = error.code === "account_locked" || error.code === "auth" ? 502 : 502;
+  res.status(status).json(apiError(`efs_${error.code}`, error.message));
+}
+
+export function fuelCardsRouter(): Router {
+  const router = Router();
+  router.use(requireAuth);
+
+  const canView = requireRole(...rolesThatCanView("fuel"));
+  const canManage = requireRole(...rolesThatManage("fuel"));
+
+  // ── Fixed paths first. `/:id` would otherwise swallow "locations", "policies" and "sync". ───────
+
+  /** Location search for the override picker. An operator knows "the Love's on I-57", not a 6-digit id. */
+  router.get("/locations", requireOrg, canView, asyncHandler(async (req, res) => {
+    const parsed = locationQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid search"));
+      return;
+    }
+    const { env } = getAppLocals(req);
+    const admin = getSupabaseAdmin(env);
+    const creds = await getEfsSoapCredentials(admin, env, req.auth!.orgId!);
+    if (!creds?.enabled) {
+      res.status(409).json(apiError("efs_not_configured", "EFS is not connected for this company."));
+      return;
+    }
+    try {
+      res.json({ locations: await searchLocation(env, creds, parsed.data) });
+    } catch (error) {
+      efsErrorResponse(res, error);
+    }
+  }));
+
+  /**
+   * Policy-level configuration. Needed because getCardv2 returns CARD-level records ONLY, even when
+   * the source says BOTH (p36) — without this the page shows half the rules the pump enforces.
+   */
+  router.get("/policies/:policyNumber", requireOrg, canView, asyncHandler(async (req, res) => {
+    const policyNumber = Number(req.params.policyNumber);
+    if (!Number.isInteger(policyNumber) || policyNumber < 1 || policyNumber > 99) {
+      res.status(400).json(apiError("invalid_request", "Policy numbers are 1 to 99."));
+      return;
+    }
+    const { env } = getAppLocals(req);
+    const admin = getSupabaseAdmin(env);
+    const creds = await getEfsSoapCredentials(admin, env, req.auth!.orgId!);
+    if (!creds?.enabled) {
+      res.status(409).json(apiError("efs_not_configured", "EFS is not connected for this company."));
+      return;
+    }
+    try {
+      res.json({ policy: await getPolicy(env, creds, policyNumber) });
+    } catch (error) {
+      efsErrorResponse(res, error);
+    }
+  }));
+
+  /** Queue a full mirror refresh. 202 + jobId; the ledger refuses a second concurrent sweep per org. */
+  router.post("/sync", requireOrg, canManage, asyncHandler(async (req, res) => {
+    const { env } = getAppLocals(req);
+    const admin = getSupabaseAdmin(env);
+    const result = await dispatchJob(admin, env, "efs_card_sync", {
+      orgId: req.auth!.orgId!,
+      payload: { orgId: req.auth!.orgId! },
+      requestedBy: req.auth!.userId,
+    });
+    if ("conflict" in result) {
+      res.status(409).json(apiError("job_running", "A card refresh is already running — watch its progress."));
+      return;
+    }
+    res.status(202).json({ ok: true, queued: true, jobId: result.jobId });
+  }));
+
+  // ── The list ────────────────────────────────────────────────────────────────────────────────────
+
+  router.get("/", requireOrg, canView, asyncHandler(async (req, res) => {
+    const parsed = listQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid filter"));
+      return;
+    }
+    const { env } = getAppLocals(req);
+    const admin = getSupabaseAdmin(env);
+    const orgId = req.auth!.orgId!;
+
+    let query = admin.from("efs_cards").select(EFS_CARD_LIST_COLS).eq("org_id", orgId);
+    if (parsed.data.status) query = query.eq("status", parsed.data.status);
+    if (parsed.data.search) {
+      // Last four, unit number or driver id — the three things an operator actually has to hand.
+      const term = parsed.data.search.replace(/[%,()]/g, "");
+      query = query.or(`card_last4.ilike.%${term}%,unit_prompt.ilike.%${term}%,driver_id_prompt.ilike.%${term}%`);
+    }
+    const { data, error } = await query.order("card_last4").limit(parsed.data.limit ?? 200);
+    if (error) {
+      dbErrorResponse(res, "fuel-cards.list", error, "Could not load the card list");
+      return;
+    }
+
+    const access = await loadCardControlAccess(admin, env, orgId, req.auth!.userId, req.auth!.role);
+    res.json({
+      cards: (data as unknown as CardRow[]).map(toSummary),
+      total: data?.length ?? 0,
+      capabilities: access,
+    });
+  }));
+
+  // ── One card ────────────────────────────────────────────────────────────────────────────────────
+
+  router.get("/:id", requireOrg, canView, asyncHandler(async (req, res) => {
+    const { env } = getAppLocals(req);
+    const admin = getSupabaseAdmin(env);
+    const orgId = req.auth!.orgId!;
+
+    const { data, error } = await admin
+      .from("efs_cards")
+      .select(EFS_CARD_DETAIL_COLS)
+      .eq("id", String(req.params.id))
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (error) {
+      dbErrorResponse(res, "fuel-cards.detail", error, "Could not load that card");
+      return;
+    }
+    // 404 rather than 403 for another org's id: a 403 would confirm the card exists.
+    if (!data) {
+      res.status(404).json(apiError("not_found", "That card is not in this company."));
+      return;
+    }
+
+    const row = data as unknown as CardRow & {
+      document: Record<string, unknown>;
+      card_version: string;
+      info_source: string | null; limit_source: string | null; time_source: string | null;
+      hand_enter: string | null; company_xref: string | null;
+      payroll_status: string | null; payroll_use: string | null; last_transaction: string | null;
+    };
+
+    // The policy half is best-effort. A card page that fails because the vendor is slow is worse than
+    // one that renders card-level truth and says the policy could not be read.
+    let policy = null;
+    let policyError: string | null = null;
+    if (row.policy_number != null) {
+      try {
+        const creds = await getEfsSoapCredentials(admin, env, orgId);
+        if (creds?.enabled) policy = await getPolicy(env, creds, row.policy_number);
+      } catch (error) {
+        policyError = error instanceof EfsSoapError ? error.message : "Could not read the policy";
+      }
+    }
+
+    const document = row.document as {
+      infos?: { infoId: string }[]; limits?: { limitId: string }[];
+      timeRestrictions?: { day: number }[];
+    };
+    const access = await loadCardControlAccess(admin, env, orgId, req.auth!.userId, req.auth!.role);
+
+    res.json({
+      card: { ...toSummary(row), companyXref: row.company_xref, handEnter: row.hand_enter,
+              payrollStatus: row.payroll_status, payrollUse: row.payroll_use,
+              lastTransaction: row.last_transaction, version: row.card_version, document: row.document },
+      // Computed server-side so "card level always trumps policy" (p37) lives in ONE place and every
+      // surface that ever renders it agrees.
+      effective: {
+        infos: mergeEffectiveConfig(document.infos ?? [], policy?.infos ?? [], row.info_source, (i) => i.infoId),
+        limits: mergeEffectiveConfig(document.limits ?? [], policy?.limits ?? [], row.limit_source, (l) => l.limitId),
+        timeRestrictions: mergeEffectiveConfig(
+          document.timeRestrictions ?? [], policy?.timeRestrictions ?? [], row.time_source, (t) => String(t.day),
+        ),
+        sources: { infoSource: row.info_source, limitSource: row.limit_source, timeSource: row.time_source },
+        policyDescription: policy?.description ?? null,
+        policyError,
+      },
+      capabilities: access,
+    });
+  }));
+
+  /**
+   * Re-read one card from EFS, now. Synchronous: it is one paced vendor call, an operator is waiting,
+   * and a job id for a two-second read would be theatre.
+   */
+  router.post("/:id/refresh", requireOrg, canView, asyncHandler(async (req, res) => {
+    const { env } = getAppLocals(req);
+    const admin = getSupabaseAdmin(env);
+    const orgId = req.auth!.orgId!;
+
+    const creds = await getEfsSoapCredentials(admin, env, orgId);
+    if (!creds?.enabled) {
+      res.status(409).json(apiError("efs_not_configured", "EFS is not connected for this company."));
+      return;
+    }
+    // The unseal is the only place a PAN enters memory on this path, and it is org-scoped.
+    const cardNumber = await loadCardNumber(admin, env, orgId, String(req.params.id));
+    if (!cardNumber) {
+      res.status(404).json(apiError("not_found", "That card is not in this company."));
+      return;
+    }
+    try {
+      const { cardVersion } = await refreshCardDetail(admin, env, creds, cardNumber, { priority: "interactive" });
+      res.json({ ok: true, version: cardVersion });
+    } catch (error) {
+      efsErrorResponse(res, error);
+    }
+  }));
+
+  return router;
+}

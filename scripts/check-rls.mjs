@@ -21,8 +21,8 @@ const files = readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort();
 const created = new Map(); // table → migration file that created it
 const rlsEnabled = new Set();
 
-const CREATE_RE = /create\s+table\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)/gi;
-const RLS_RE = /alter\s+table\s+([a-z_][a-z0-9_]*)\s+enable\s+row\s+level\s+security/gi;
+const CREATE_RE = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)/gi;
+const RLS_RE = /alter\s+table\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)\s+enable\s+row\s+level\s+security/gi;
 
 for (const f of files) {
   const sql = readFileSync(join(DIR, f), "utf8");

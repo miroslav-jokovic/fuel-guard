@@ -38,3 +38,24 @@ describe("buildNavGroups", () => {
     expect(driverSafety).toBeUndefined();
   });
 });
+
+describe("fuel cards", () => {
+  it("shows Cards to every role that can VIEW the fuel section", () => {
+    for (const role of ["admin", "fleet_manager", "dispatcher", "safety_manager", "auditor"] as const) {
+      const fuel = buildNavGroups(role, null).find((g) => g.label === "Fuel");
+      expect(fuel?.items.filter((i) => i.show).map((i) => i.name)).toContain("Cards");
+    }
+  });
+
+  it("hides Cards from a driver", () => {
+    // The card inventory is a fraud-detection surface; a driver reading it is reading about themselves.
+    const fuel = buildNavGroups("driver", null).find((g) => g.label === "Fuel");
+    expect(fuel?.items.filter((i) => i.show).map((i) => i.name) ?? []).not.toContain("Cards");
+  });
+
+  it("needs no module entitlement — card control is not a separate product", () => {
+    // It is what the EFS integration the customer already pays for does once EFS allows it.
+    const fuel = buildNavGroups("admin", null).find((g) => g.label === "Fuel");
+    expect(fuel?.items.find((i) => i.name === "Cards")?.show).toBe(true);
+  });
+});

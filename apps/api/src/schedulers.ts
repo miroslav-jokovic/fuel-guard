@@ -6,6 +6,7 @@ import { startRebuildOnBoot } from "./services/rebuildScheduler.js";
 import { startDigestScheduler } from "./services/digestScheduler.js";
 import { startNightlyReconcileScheduler } from "./services/nightlyReconcile.js";
 import { startEfsIngestScheduler } from "./services/efsIngestScheduler.js";
+import { startEfsCardSyncScheduler } from "./services/efsCardSyncScheduler.js";
 import { startEfsSoapPoller } from "./services/efsSoapPoller.js";
 import { startEfsProcessingScheduler } from "./services/efsProcessingScheduler.js";
 import { startEfsSoapCertExpiryWatcher } from "./services/efsSoapCertExpiry.js";
@@ -43,6 +44,8 @@ export function startAllSchedulers(env: Env): void {
   startEfsSoapPoller(env); // per-org EFS SOAP acquisition (posted + rejected feeds); gated on EFS_SOAP_ENABLED
   startEfsProcessingScheduler(env); // durable post-acquisition scoring + alert emission
   startEfsSoapCertExpiryWatcher(env); // daily: warn before an mTLS client certificate takes the feed down
+  startEfsCardSyncScheduler(env); // daily: refresh the EFS card mirror (config changes are rare; the
+  //                                  transaction feeds above are the ones that need minutes)
   startPostedPriceScheduler(env); // global posted-price refresh from Pilot's public table
   startDutySessionSweeper(env); // close abandoned driver shifts so their truck is released (D44.5)
   startHazmatStorageReconcileScheduler(env); // §13.5/M11: nightly hazmat storage-orphan reconcile

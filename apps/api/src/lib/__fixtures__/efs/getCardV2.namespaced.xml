@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ns2="http://ws.efsllc.com/cardmanagement">
+  <soap:Body>
+    <ns2:getCardv2Response>
+      <ns2:return>
+        <ns2:companyXRef>FG-TEST</ns2:companyXRef>
+        <ns2:handEnter>ALLOW</ns2:handEnter>
+        <ns2:infoSource>CARD</ns2:infoSource>
+        <ns2:limitSource>CARD</ns2:limitSource>
+        <ns2:locationSource>CARD</ns2:locationSource>
+        <ns2:timeSource>CARD</ns2:timeSource>
+        <ns2:overrideAllLocations>false</ns2:overrideAllLocations>
+        <ns2:override>0</ns2:override>
+        <ns2:policyNumber>9</ns2:policyNumber>
+        <ns2:status>Active</ns2:status>
+        <ns2:payrollStatus>Follows</ns2:payrollStatus>
+        <ns2:infos>
+          <ns2:infoId>DRID</ns2:infoId>
+          <ns2:matchValue>D-9000</ns2:matchValue>
+          <ns2:validationType>EXACT_MATCH</ns2:validationType>
+        </ns2:infos>
+        <ns2:infos>
+          <ns2:infoId>UNIT</ns2:infoId>
+          <ns2:matchValue>4004</ns2:matchValue>
+          <ns2:validationType>EXACT_MATCH</ns2:validationType>
+        </ns2:infos>
+      </ns2:return>
+    </ns2:getCardv2Response>
+  </soap:Body>
+</soap:Envelope>

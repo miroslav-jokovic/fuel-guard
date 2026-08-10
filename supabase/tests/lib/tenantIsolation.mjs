@@ -146,6 +146,7 @@ function literalFromCheck(meta, table, col) {
 /** A minimal, constraint-satisfying literal for one column. */
 function valueFor(meta, table, c, orgId, tsIndex = 0) {
   if (c.col === "org_id") return `'${orgId}'::uuid`;
+  if (c.col === "card_last4") return "'0000'";
   if (c.typtype === "e") {
     const labels = meta.enumOf.get(c.typname) ?? [];
     if (labels.length) return `'${labels[0]}'`;
