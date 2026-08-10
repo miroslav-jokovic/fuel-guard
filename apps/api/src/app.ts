@@ -22,6 +22,7 @@ import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { fuelingRouter } from "./routes/fueling.js";
+import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
 import { fuelCardsRouter } from "./routes/fuelCards/read.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { tmsIngestRouter } from "./routes/tmsIngest.js";
@@ -194,7 +195,7 @@ export function createApp(env: Env): Express {
   app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
   app.use("/api/fueling", fuelingRouter());
-  app.use("/api/fuel-cards", fuelCardsRouter());
+  app.use("/api/fuel-cards", fuelCardsRouter(), fuelCardProbeRouter()); // reads + admin-only diagnostics
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here

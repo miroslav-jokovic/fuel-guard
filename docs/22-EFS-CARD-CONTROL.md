@@ -128,3 +128,105 @@ Locks a card to planned fuel stops: per stop `tripNumber`, `tripSeq`, `locationI
    state — replaces assumption-based `fuel_cards` rows with vendor truth).
 4. Then mutations, each as getCardv2 → mutate → setCardV2 full-echo + audit row + optimistic-lock
    check (re-read after write).
+
+---
+
+## Entitlement findings — 2026-08-10 (production, live account)
+
+The guide never documents which operations a given service account may call, and §"Rollout order"
+above prescribed a QA probe to settle it. The answer arrived earlier than planned, from the Phase A
+card sweep hitting production. Recording it here because the entitlement answer is a durable fact.
+
+### What EFS actually allows this account
+
+| Operation | Result | Evidence |
+|---|---|---|
+| `login` | **allowed** | every call below got far enough to be refused on its own merits |
+| `getMCTransExtLocV2` (posted transactions) | **allowed** | `posted_last_success_at` 19:21:35Z, `posted_last_error` null |
+| `getTranRejects` (rejected authorizations) | **failing** | `ERROR running command 109491258416` — last success 18:55:26Z |
+| `getCardSummariesV2` / `getCardSummaries` | **REFUSED** | `Not Allowed 109491436176`, `Not Allowed 109491388553` |
+
+### The conclusion, and why it is not the obvious one
+
+The guide's error table says `NotAllowed` means "Access blocked by firewall. Contact your account
+manager." (p9). That reading is WRONG for this case, and believing it would have sent us to the
+network team for a week.
+
+The posted-transaction feed **succeeded at 19:21:35 — after** the card sweeps were refused at 19:10
+and 19:14, on the same account, the same endpoint and the same egress addresses. A firewall does not
+allowlist one SOAP operation and block another on the same connection. So:
+
+- credentials: fine
+- egress allowlisting: fine
+- TLS / routing: fine
+- **card-management operations: not entitled for this service account**
+
+### What to ask WEX for
+
+Name the operations explicitly. Reads first — they are what Phase A needs and they are refused today:
+
+- `getCardSummaries` and `getCardSummariesV2` (card inventory)
+- `getCardv2` (one card's configuration)
+- `getPolicy` (policy-level rules; needed because getCard omits them, p36)
+- `searchLocation` (location ids for override targeting, p132)
+
+Then the write set, which the Phase B gate needs and which has NOT been probed:
+
+- `setCardV2`, and later `setCardRefreshingLimits`
+
+Quote a reference number from a refusal — EFS formats these faults as `<message> <reference>`, e.g.
+`Not Allowed 109491436176`. The reference changes per request; any recent one will do.
+
+### Two things this changes in the plan
+
+1. **The Phase B gate cannot be attempted yet.** It assumed reads were permitted and only writes were
+   in doubt. Reads are refused, so all six gate steps are blocked behind the same permission.
+2. **Nothing in the read layer is wrong.** The mirror, the routes and the pages are correct and
+   waiting on one entitlement. When it lands, the sweep should populate without a code change.
+
+### Separately: the rejected-transaction feed is failing
+
+`rejected_last_error` = `ERROR running command 109491258416`, last success 18:55:26Z. Same
+`<message> <reference>` shape, different message from the card refusal — and `getTranRejects` is the
+FRAUD signal, polled every 5 minutes. This predates the card work and is not caused by it, but it is
+worth raising with WEX in the same conversation.
+
+### CORRECTION — 2026-08-10, after the vendor replied
+
+The conclusion above ("not entitled") is **wrong**, and is left in place only so the reasoning that
+produced it stays legible. WEX's answer:
+
+> "You should have access to all of this with your API/Web Service login. Are you also getting Not
+> Allowed on these methods? That would be IP." — and separately: "This error means we are blocking
+> IPs, so I need to check if we need to add more IPs or if we missed some."
+
+So `Not Allowed` is an **IP allowlist** refusal, not an entitlement one. The service account already
+carries the card-management operations. Better news than the diagnosis: nothing has to be bought or
+provisioned, an address has to be added.
+
+**Why the evidence pointed the other way, and what it actually implies.** The timing was real: the
+posted-transaction feed succeeded at 14:21:35 CT, ten minutes after `getCardSummariesV2` was refused
+at 14:10:50 and 14:11:12, and both calls run through the same process, the same credential and the
+same egress addresses. A single flat IP allowlist cannot produce that. Both readings cannot be true
+at once, so one of these must hold:
+
+1. **WEX allowlists per SERVICE, not per account.** The transaction operations and the card-management
+   operations sit behind different hosts or appliances, each with its own allowlist. Our addresses are
+   on the transaction one and not the card one. This reconciles every fact and is the most likely
+   answer.
+2. **The two calls did not leave from the same address.** Worth ruling out rather than assuming: if a
+   dedicated worker service is deployed (docs/WORKER-DEPLOYMENT.md) it is a separate Railway service
+   with its own egress, and a multi-replica consumer can present more than one address. Both feeds and
+   the card sweep go through `dispatchJob`, so they *should* share a process — but "should" is not
+   "checked".
+
+**The methodological lesson, recorded because it will recur.** The guide's error table gives
+`NotAllowed` exactly one meaning ("Access blocked by firewall", p9). We had strong contrary evidence
+and used it to overturn the documentation. The evidence was sound and the inference was still wrong,
+because it rested on an unstated assumption — that one allowlist governs the whole endpoint. When
+vendor documentation and local evidence disagree, ask the vendor before concluding; the round trip is
+cheaper than the wrong remedy.
+
+**Still open:** only `getCardSummariesV2` has ever been attempted. The sweep stops at its first call,
+so `getCardv2`, `getPolicy` and `searchLocation` are untested and we cannot yet say whether they are
+refused too — which is precisely what WEX asked.

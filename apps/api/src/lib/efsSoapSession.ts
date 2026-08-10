@@ -66,6 +66,9 @@ export class EfsSoapError extends Error {
       | "session_expired"
       // `AccountLockedException` — the shared service account is locked out. Opens the breaker.
       | "account_locked"
+      // `NotAllowed` — EFS refused the OPERATION, not the credential. Distinct from `auth` because the
+      // remedy is different: an allowlist entry or an entitlement from WEX, not a new password.
+      | "not_allowed"
       // A write was well-formed but the vendor refused it ("a decline error with text", p136).
       | "declined"
       // OUR OWN guard refused to send a lossy full-document echo. Never a vendor condition — this is
@@ -89,7 +92,12 @@ const FAULT_CODES: ReadonlyArray<[RegExp, EfsSoapError["code"], string?]> = [
   [/InvalidLoginException/i, "auth", "EFS rejected the password for this service account."],
   [/InvalidAccountException/i, "auth", "EFS does not recognise this service account username."],
   [/InvalidClientId/i, "session_expired"],
-  [/NotAllowed/i, "auth", "EFS blocked the request at its firewall. Our egress addresses may no longer be allowlisted."],
+  // The guide names this fault "NotAllowed" (p9); the service actually emits "Not Allowed 109491436176"
+  // — a space, and a reference number that changes per request. Matching only the documented spelling
+  // meant a real access refusal fell through to the generic heuristic and was reported as an untyped
+  // soap_fault with no explanation. Match both spellings; the raw faultstring (with the reference WEX
+  // support will ask for) is preserved in `detail`.
+  [/Not\s*Allowed/i, "not_allowed", "EFS refused this operation for our service account. Per the integration guide this is an access block — either our egress addresses are not allowlisted, or the account is not entitled to this call. The reference number in the fault is what WEX support will ask for."],
   [/InvalidParameterNameID/i, "soap_fault"],
 ];
 
@@ -187,7 +195,17 @@ export async function requestXml(
     }
     // EFS may return a SOAP Fault with HTTP 500. Parse the body before classifying the status so the
     // caller receives the documented fault code/message instead of an opaque transport error.
-    parseSoap(response.body);
+    try {
+      parseSoap(response.body);
+    } catch (fault) {
+      // A fault carries no hint of which call produced it. Without the operation name, "Not Allowed"
+      // cannot distinguish a blocked egress address (everything fails) from an unentitled operation
+      // (only this one does) — and those have completely different remedies.
+      if (fault instanceof EfsSoapError) {
+        throw new EfsSoapError(`${fault.message} [${operation}]`, fault.code, fault.detail);
+      }
+      throw fault;
+    }
     if (response.status === 429) {
       throw new EfsSoapError(`EFS rate-limited the ${operation} request`, "rate_limited", response.status);
     }

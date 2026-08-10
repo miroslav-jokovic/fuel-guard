@@ -311,7 +311,11 @@ describe("EFS fault classification", () => {
     ["AccountLockedException", "account_locked"],
     ["InvalidLoginException", "auth"],
     ["InvalidAccountException", "auth"],
-    ["NotAllowed", "auth"],
+    // The guide spells it "NotAllowed"; the live service emits "Not Allowed 109491436176". Both are
+    // the same refusal, and both must classify — matching only the documented spelling is what let a
+    // real access block reach an operator as an unexplained soap_fault.
+    ["NotAllowed", "not_allowed"],
+    ["Not Allowed 109491436176", "not_allowed"],
     ["InvalidParameterNameID", "soap_fault"],
   ])("maps the documented fault %s to code %s", async (faultName, expected) => {
     vi.spyOn(console, "error").mockImplementation(() => {});

@@ -16,6 +16,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { cardStatusLabel, cardStatusTone, freshness } from "@/features/fuelCards/cardControlModel";
+import { useJob } from "@/features/jobs/useJob";
 import { useEfsCards, useSyncEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
 const PAGE_SIZE = 20;
@@ -29,6 +30,45 @@ const page = ref(1);
 
 const query = useEfsCards({ search, status });
 const sync = useSyncEfsCards();
+
+/**
+ * The sweep runs in the background, so the button alone tells you nothing. This is what turns
+ * "I pressed refresh and nothing happened" into an answer: the ledger row carries the outcome, and
+ * a sweep that found nothing is a DIFFERENT fact from one that never ran.
+ */
+const syncJob = useJob("efs_card_sync");
+
+const syncOutcome = computed(() => {
+  if (syncJob.isRunning.value) return { tone: "info", text: "Reading the card list from EFS…" };
+  const job = syncJob.latest.value;
+  if (!job) return null;
+  if (job.status === "failed") {
+    // EFS answers "Not Allowed <ref>" when the service account may not call an operation. Verified
+    // against this account: the posted-transaction feed succeeds minutes either side of the refusal,
+    // so this is neither a credential nor an egress problem and re-trying will never fix it. Say the
+    // thing that does.
+    if (/not\s*allowed/i.test(job.error ?? "")) {
+      return {
+        tone: "warning",
+        text: "EFS has not enabled card operations for this account. Transaction feeds work, so this is an entitlement rather than a connection problem — ask your WEX representative to enable card management for the service account.",
+      };
+    }
+    return { tone: "danger", text: `EFS refresh failed: ${job.error ?? "no reason reported"}` };
+  }
+  const stats = job.stats as { cardsSeen?: number; upserted?: number; detailed?: number; failed?: number; errors?: string[]; reason?: string };
+  // The handler answers `skipped` when EFS is not connected — an ordinary state, not an error, but
+  // one nobody can act on unless it is said out loud.
+  if (stats?.reason === "efs_soap_disabled") {
+    return { tone: "warning", text: "EFS is not connected for this company, so there is nothing to read yet." };
+  }
+  if ((stats?.failed ?? 0) > 0 && (stats?.upserted ?? 0) === 0) {
+    return { tone: "danger", text: `EFS refresh could not store any cards: ${stats?.errors?.[0] ?? "see the API log"}` };
+  }
+  if ((stats?.cardsSeen ?? 0) === 0) {
+    return { tone: "warning", text: "EFS returned no cards for this account. Check that the service account can see this fleet's cards." };
+  }
+  return null;
+});
 
 watch([search, status], () => { page.value = 1; });
 
@@ -63,6 +103,9 @@ async function onSync(): Promise<void> {
   try {
     await sync.mutateAsync();
     toast.success("Refresh started");
+    // The ledger row appears as soon as the job is enqueued; markRunning shows it without a poll wait.
+    syncJob.markRunning();
+    void syncJob.refresh();
   } catch (e) {
     toast.error("Could not start the refresh", e instanceof Error ? e.message : undefined);
   }
@@ -73,11 +116,15 @@ async function onSync(): Promise<void> {
   <div class="space-y-6">
     <PageHeader description="Every EFS card on this account, with the settings EFS currently reports.">
       <template #actions>
-        <BaseButton variant="secondary" :disabled="sync.isPending.value" @click="onSync">
-          {{ sync.isPending.value ? "Starting…" : "Refresh from EFS" }}
+        <BaseButton variant="secondary" :disabled="sync.isPending.value || syncJob.isRunning.value" @click="onSync">
+          {{ sync.isPending.value || syncJob.isRunning.value ? "Refreshing…" : "Refresh from EFS" }}
         </BaseButton>
       </template>
     </PageHeader>
+
+    <p v-if="syncOutcome" class="text-sm" :class="syncOutcome.tone === 'danger' ? 'text-danger-700' : syncOutcome.tone === 'warning' ? 'text-caution-700' : 'text-ink-muted'">
+      {{ syncOutcome.text }}
+    </p>
 
     <p v-if="listFreshness.stale && rows.length > 0" class="text-sm text-caution-700">
       {{ listFreshness.text }}

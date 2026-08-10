@@ -23,6 +23,7 @@ const KNOWN_KINDS = new Set<JobKind>([
   "nightly_reconcile",
   "efs_ingest",
   "efs_process_import",
+  "efs_card_sync",
 ]);
 
 export function jobsRouter(): Router {

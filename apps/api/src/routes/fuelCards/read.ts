@@ -141,6 +141,17 @@ export function fuelCardsRouter(): Router {
   router.post("/sync", requireOrg, canManage, asyncHandler(async (req, res) => {
     const { env } = getAppLocals(req);
     const admin = getSupabaseAdmin(env);
+    // Refuse here rather than queueing a job that can only no-op. The handler ALSO checks, because a
+    // scheduled sweep has no request to answer — but a person who just pressed a button deserves the
+    // reason now, not a silent "skipped" buried in a job row they have no way to look at.
+    const creds = await getEfsSoapCredentials(admin, env, req.auth!.orgId!);
+    if (!creds?.enabled) {
+      res.status(409).json(apiError(
+        "efs_not_configured",
+        "EFS is not connected for this company. Connect it in Settings → EFS Integration, then refresh the card list.",
+      ));
+      return;
+    }
     const result = await dispatchJob(admin, env, "efs_card_sync", {
       orgId: req.auth!.orgId!,
       payload: { orgId: req.auth!.orgId! },
