@@ -55,6 +55,9 @@ jobs:
       - name: Migration versions
         run: pnpm lint:migrations
 
+      - name: Upsert-as-update guard
+        run: pnpm lint:upserts
+
       # Audit 2026-08-09 finding 5.2: a test file that is never collected reads as coverage it has
       # not earned. This repo had shipped that bug three times before anything checked for it.
       - name: Test collection

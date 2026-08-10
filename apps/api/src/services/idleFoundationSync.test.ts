@@ -117,5 +117,36 @@ describe("syncIdleFoundation", () => {
     expect(result.idleDutyEvidence.sufficient).toBe(3);
     expect(result.idleEquipmentEvidence.inside).toBe(2);
     expect(result.idleLearnedEnvelopes.sufficient).toBe(1);
+    // Every stage is timed, in run order — this is what makes a 26-minute failure diagnosable.
+    expect(Object.keys(result.stageMs)).toEqual([
+      "idleEvents",
+      "idleCapabilities",
+      "idleTelemetry",
+      "idleDutyEvidence",
+      "idleEquipmentEvidence",
+      "idleLearnedEnvelopes",
+    ]);
+    for (const ms of Object.values(result.stageMs)) expect(ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it("names the failing stage and how far into the run it died", async () => {
+    idleEvents.syncIdleEvents.mockResolvedValue({ fetched: 1, upserted: 1 });
+    idleCapabilities.syncIdleCapabilities.mockResolvedValue({ vehicles: 1, learned: 1 });
+    idleTelemetry.syncIdleTelemetry.mockResolvedValue({ vehicles: 1 });
+    idleDutyEvidence.syncIdleDutyEvidence.mockResolvedValue({ sessions: 1 });
+    idleEquipmentEvidence.syncIdleEquipmentEvidence.mockResolvedValue({ sessions: 1 });
+    // The exact production failure: the last stage of six, 26 minutes in, reported as one line of SQL
+    // text with no indication of which stage produced it.
+    const cause = new Error(
+      'Idle learned envelope learned-envelope upsert failed: null value in column "unit_number" of relation "vehicles" violates not-null constraint',
+    );
+    idleLearnedEnvelopes.syncIdleLearnedEnvelopes.mockRejectedValue(cause);
+
+    await expect(
+      syncIdleFoundation({} as SupabaseClient, {} as Env, "org-1", {}),
+    ).rejects.toThrow(/idle foundation stage "idleLearnedEnvelopes" failed after \d+s/);
+    await expect(
+      syncIdleFoundation({} as SupabaseClient, {} as Env, "org-1", {}),
+    ).rejects.toThrow(/unit_number/);
   });
 });

@@ -49,6 +49,46 @@ describe("laneRps — two-tier rate split (F5)", () => {
 
 const env = { SAMSARA_MAX_RPS: 1000, SAMSARA_MAX_RETRIES: 4 } as unknown as Env; // high rps → no pacing waits
 
+describe("samsaraFetch — per-attempt deadline (incident 2026-08-10)", () => {
+  beforeEach(() => __resetSamsaraPacing());
+
+  it("passes an AbortSignal on every attempt, so a hung connection cannot burn 5 minutes", async () => {
+    const signals: unknown[] = [];
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (_u, init) => {
+      signals.push((init as RequestInit | undefined)?.signal);
+      return jsonRes(200);
+    });
+    await samsaraFetch({ ...env, SAMSARA_REQUEST_TIMEOUT_MS: 120_000 } as unknown as Env, "tok", "https://api.samsara.test/x", { fetchImpl });
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+  });
+
+  it("treats a timed-out attempt as a retryable network error, not a fatal one", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(Object.assign(new Error("The operation was aborted"), { name: "TimeoutError" }))
+      .mockResolvedValueOnce(jsonRes(200));
+    const res = await samsaraFetch(
+      { ...env, SAMSARA_REQUEST_TIMEOUT_MS: 50 } as unknown as Env,
+      "tok",
+      "https://api.samsara.test/x",
+      { fetchImpl },
+    );
+    expect(res.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("omits the signal entirely when the deadline is disabled", async () => {
+    const signals: unknown[] = [];
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (_u, init) => {
+      signals.push((init as RequestInit | undefined)?.signal);
+      return jsonRes(200);
+    });
+    await samsaraFetch({ ...env, SAMSARA_REQUEST_TIMEOUT_MS: 0 } as unknown as Env, "tok", "https://api.samsara.test/x", { fetchImpl });
+    expect(signals[0]).toBeUndefined();
+  });
+});
+
 const jsonRes = (status: number, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify({ ok: status < 400 }), { status, headers });
 

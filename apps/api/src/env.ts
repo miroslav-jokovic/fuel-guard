@@ -71,6 +71,10 @@ const EnvSchema = z.object({
   // large backfill finish in minutes. Retries honor Retry-After + exponential backoff before failing.
   SAMSARA_MAX_RPS: z.coerce.number().min(0.1).default(20),
   SAMSARA_MAX_RETRIES: z.coerce.number().int().min(0).default(4),
+  // Per-ATTEMPT deadline on every Samsara request. Without one, a hung connection waited on undici's
+  // 300s default and each retry paid it again. 120s is generous for the widest stats-history page and
+  // still bounds a wedged batch to minutes. 0 disables (tests only).
+  SAMSARA_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(0).default(120_000),
   // Two-tier priority split of SAMSARA_MAX_RPS: this fraction is RESERVED for "live" traffic (schedulers,
   // interactive recon) so a bulk backfill can never starve live data updates. Backfill gets the remainder.
   // e.g. 0.6 → live paced at 60% of the cap, backfill at 40%; combined never exceeds the token limit.

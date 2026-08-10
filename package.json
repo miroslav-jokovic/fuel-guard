@@ -31,6 +31,8 @@
     "lint:filesize": "node scripts/check-file-size.mjs",
     "lint:funcsize": "node scripts/check-function-size.mjs",
     "lint:migrations": "node scripts/check-migration-versions.mjs",
+    "//lint:upserts": "Bans `.upsert(x, { onConflict: \"id\" })` into a table with NOT NULL columns the payload cannot be shown to carry. Postgres evaluates NOT NULL on the proposed tuple BEFORE conflict arbitration, so that call fails on rows that already exist \u2014 the defect that shipped three times and took the Idling and HOS syncs down (incident 2026-08-10).",
+    "lint:upserts": "node scripts/check-partial-upserts.mjs",
     "//lint:tests": "Fails when a *.test.* file exists that its workspace runner never collects. Third occurrence of that bug: apps/driver narrowed `include` to tests/** and 24 cases in src/ had never run (audit 2026-08-09).",
     "lint:tests": "node scripts/check-test-collection.mjs",
     "//mutation:check": "Breaks the code on purpose and requires the suite to go red. A SURVIVED mutation is a hole in the tests; a STALE one means the code moved and that check has been testing nothing. Runs weekly in CI (.github/workflows/mutation-check.yml).",

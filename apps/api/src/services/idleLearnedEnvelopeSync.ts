@@ -14,7 +14,8 @@ export interface IdleLearnedEnvelopeSyncResult {
 }
 
 const PAGE_SIZE = 1000;
-const UPSERT_CHUNK = 500;
+/** Rows per apply_idle_learned_envelope call — one round trip per chunk, not per vehicle. */
+const WRITE_CHUNK = 500;
 const DEFAULT_LEARNING_DAYS = 400;
 const EVIDENCE_VERSION = "optimized-envelope-v1" as const;
 
@@ -32,9 +33,20 @@ interface ParkSessionRow {
   ambient_unknown_idle_sec: number | string;
 }
 
+/**
+ * This sync owns only the idle_learned_envelope_* columns on `vehicles`, and writes them with
+ * `apply_idle_learned_envelope` (migration 0175) — never an upsert carrying a subset of columns.
+ *
+ * WHY (incident 2026-08-10, third occurrence of this defect). A PostgREST upsert compiles to
+ * `INSERT … ON CONFLICT DO UPDATE`, and Postgres evaluates NOT NULL on the proposed tuple BEFORE
+ * conflict arbitration. `vehicles.unit_number` and `vehicles.tank_capacity_gal` are NOT NULL with no
+ * default (migration 0003), so the write failed on rows that already existed:
+ *   `null value in column "unit_number" of relation "vehicles" violates not-null constraint`.
+ * It is also the wrong verb on principle: `vehicles` is the fleet identity table, and an evidence job
+ * has no business being able to CREATE a row in it. An UPDATE cannot.
+ */
 interface LearnedEnvelopeWrite {
   id: string;
-  org_id: string;
   idle_learned_envelope_status: IdleLearnedEnvelopeStatus;
   idle_learned_envelope_low_f: number | null;
   idle_learned_envelope_high_f: number | null;
@@ -173,7 +185,6 @@ export async function syncIdleLearnedEnvelopes(
     else result.notApplicable += 1;
     writes.push({
       id: vehicle.id,
-      org_id: orgId,
       idle_learned_envelope_status: learned.status,
       idle_learned_envelope_low_f: learned.lowF,
       idle_learned_envelope_high_f: learned.highF,
@@ -187,11 +198,13 @@ export async function syncIdleLearnedEnvelopes(
     });
   }
 
-  for (let i = 0; i < writes.length; i += UPSERT_CHUNK) {
-    const chunk = writes.slice(i, i + UPSERT_CHUNK);
-    const { error } = await admin.from("vehicles").upsert(chunk, { onConflict: "id" });
-    requireDatabaseSuccess(error, "learned-envelope upsert");
-    result.rowsWritten += chunk.length;
+  for (let i = 0; i < writes.length; i += WRITE_CHUNK) {
+    const { data, error } = await admin.rpc("apply_idle_learned_envelope", {
+      p_org: orgId,
+      p_rows: writes.slice(i, i + WRITE_CHUNK),
+    });
+    requireDatabaseSuccess(error, "learned-envelope update");
+    result.rowsWritten += typeof data === "number" ? data : 0;
   }
   return result;
 }
