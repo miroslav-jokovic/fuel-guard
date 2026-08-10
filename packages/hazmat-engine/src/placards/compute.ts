@@ -32,6 +32,8 @@ import {
   pgRowForRef,
 } from "./classify.js";
 import {
+  ID_NUMBER_PROHIBITED_PLACARDS,
+  planIdDisplay,
   type PlacardComputation,
   type Resolved,
   verifyLqClaim,
@@ -288,6 +290,47 @@ export function computePlacards(load: LoadInput): PlacardComputation {
       evidence: { lines: excludedResidue.length },
     });
   }
+  placards.aggregate = {
+    countedLines: counted.length,
+    countedPackages: totalPackages,
+    countedGrossWeightLb: weightKnown ? aggregateLb : null,
+    thresholdMet,
+    alwaysPlacardLines: alwaysPlacard.length,
+    residueExcludedLines: excludedResidue.length,
+    thresholds: { placardLb: 1001, dangerousCategoryLb: DANGEROUS_CATEGORY_BAR_LB, nonBulkIdDisplayLb: 8820 },
+  };
+
+  // H-P1 follow-up: the package count was recorded and never questioned. "Count packages, not pallets"
+  // was a form hint with nothing behind it, so a line reading 22 pallets instead of 1,056 boxes passed
+  // silently — and the per-package gross it implies is the one number that catches it. A non-bulk
+  // package cannot plausibly gross more than a §171.8 non-bulk receptacle can hold, so a per-package
+  // gross above 882 lb (400 kg) means either the count is unitization or the packaging is really bulk.
+  // Conditional, not a verdict: the engine asks, it does not overrule the paper.
+  for (const r of counted) {
+    const count = r.line.packageCount;
+    const gross = r.line.grossWeightLb;
+    if (count == null || count <= 0 || gross == null) continue;
+    const perPackageLb = gross / count;
+    if (perPackageLb <= 882) continue;
+    findings.push({
+      ruleId: "package_count_implausible_for_non_bulk",
+      tier: "conditional",
+      message:
+        `${r.entry.psnPrinted}: ${count} non-bulk package(s) against ${Math.round(gross)} lb gross is ${Math.round(perPackageLb)} lb per package. ` +
+        "A non-bulk receptacle tops out near the §171.8 limits, so either the count is pallets/units rather than DOT packages (§172.202(a)(7) states packages), " +
+        "or this line is bulk packaging and must placard at any quantity. Confirm the count and the packaging before relying on the aggregate.",
+      citations: [{ cfr: "49 CFR 172.202(a)(7)" }, { cfr: "49 CFR 171.8" }, { cfr: "49 CFR 172.504(c)" }],
+      evidence: { hmtRef: r.line.hmtRef, packageCount: count, grossWeightLb: gross, perPackageLb: Math.round(perPackageLb) },
+    });
+    trace.push({
+      ruleId: "package_count_plausibility",
+      fired: true,
+      inputs: { hmtRef: r.line.hmtRef, packageCount: count, grossWeightLb: gross, perPackageLb: Math.round(perPackageLb) },
+      citations: [{ cfr: "49 CFR 172.202(a)(7)" }, { cfr: "49 CFR 171.8" }],
+      note: "Per-package gross exceeds what a non-bulk receptacle plausibly holds.",
+    });
+  }
+
   if (counted.length > 0 && weightKnown && !thresholdMet) {
     findings.push({
       ruleId: "below_1001lb_no_placard",
@@ -323,7 +366,11 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   // A Table 2 material can carry an inhalation or dangerous-when-wet subsidiary hazard, and then it
   // needs that placard IN ADDITION to its own. D4 kept these live precisely because dropping them
   // "would be a silent hole"; they were nevertheless never implemented.
+  // §172.334 also bars an identification number on a placard displayed for a SUBSIDIARY hazard. That
+  // is a fact about WHY the placard is up, not about its design, so it can only be recorded here.
+  const subsidiaryPlacards = new Set<PlacardName>();
   const add505 = (placard: PlacardName, cfr: string, rs: Resolved[]): void => {
+    subsidiaryPlacards.add(placard);
     if (placards.required.some((p) => p.placard === placard)) return;
     placards.required.push({ placard, positions: "each_side_and_each_end", because: [{ cfr }] });
     trace.push({
@@ -395,6 +442,13 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     }
   }
 
+  // The placards an identification number may be displayed ACROSS on this load (§172.332(c)), after
+  // §172.334 removes the barred designs and anything §172.505 raised for a subsidiary hazard.
+  const idCarrierPlacards = placards.required
+    .map((p) => p.placard)
+    .filter((p) => !subsidiaryPlacards.has(p) && !ID_NUMBER_PROHIBITED_PLACARDS.has(p));
+  const idPlan = planIdDisplay(idCarrierPlacards);
+
   // 6) §172.302(c)/172.331 ID-number display for bulk (R3: exact bulk trigger pending the SME footnote)
   const bulkLines = resolved.filter((r) => r.line.packagingKind === "bulk" || isTank);
   const seenId = new Set<string>();
@@ -404,7 +458,9 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     seenId.add(idNumber);
     placards.idDisplays.push({
       idNumber,
-      format: "orange_panel",
+      format: idPlan.format,
+      alternateFormats: idPlan.alternateFormats,
+      onPlacards: idPlan.onPlacards,
       positions: "each_side_and_each_end",
       because: [{ cfr: "49 CFR 172.302(c)" }, { cfr: "49 CFR 172.331" }],
     });
@@ -438,9 +494,11 @@ export function computePlacards(load: LoadInput): PlacardComputation {
       seenId.add(idNumber);
       placards.idDisplays.push({
         idNumber,
-        format: "orange_panel",
+        format: idPlan.format,
+        alternateFormats: idPlan.alternateFormats,
+        onPlacards: idPlan.onPlacards,
         positions: "each_side_and_each_end",
-        because: [{ cfr: "49 CFR 172.301(a)(3)" }],
+        because: [{ cfr: "49 CFR 172.301(a)(3)" }, { cfr: "49 CFR 172.332" }, { cfr: "49 CFR 172.336" }],
       });
     }
     const nbPackageCounts = nonBulk.map((r) => r.line.packageCount);
@@ -464,6 +522,48 @@ export function computePlacards(load: LoadInput): PlacardComputation {
       citations: [{ cfr: "49 CFR 172.301(a)(3)" }],
       note: "R1 resolved: the 8,820 lb figure is the 4,000 kg non-bulk single-material trigger (PHMSA Chart 15).",
     });
+  }
+
+  // 6c) §172.332 / §172.334 / §172.336 — HOW the required number is displayed.
+  //
+  // Previously the engine asserted `orange_panel` and said nothing else, which reads as "the orange
+  // panel is the answer". It is one of three lawful presentations, and on a single-hazard load the
+  // one carriers actually run is the number across the placard (§172.332(c)) — one diamond instead of
+  // a worded diamond plus a separate panel. The other two stay on the record with their citations.
+  if (placards.idDisplays.length > 0) {
+    trace.push({
+      ruleId: "id_display_format_172_332",
+      fired: true,
+      inputs: {
+        recommended: idPlan.format,
+        alternates: idPlan.alternateFormats.map((f) => f.format),
+        carrierPlacards: idPlan.onPlacards,
+        barredByS334: placards.required
+          .map((p) => p.placard)
+          .filter((p) => ID_NUMBER_PROHIBITED_PLACARDS.has(p) || subsidiaryPlacards.has(p)),
+      },
+      citations: [{ cfr: "49 CFR 172.332(b)" }, { cfr: "49 CFR 172.332(c)" }, { cfr: "49 CFR 172.334" }, { cfr: "49 CFR 172.336(b)" }],
+      note:
+        idPlan.onPlacards.length > 0
+          ? "The number may be displayed across the placard itself; orange panel and white square-on-point remain available."
+          : "Every required placard on this load is barred from carrying an identification number (§172.334) — the number needs its own orange panel or white square-on-point.",
+    });
+
+    // The §172.504(b) DANGEROUS substitution and a required ID display do not compose: DANGEROUS may
+    // never carry a number (§172.334). A carrier that takes the substitution to save placards still
+    // has to hang panels, and finding that out at the dock is exactly the kind of surprise this tool
+    // exists to prevent — so it is said here, at the point the substitution is offered.
+    if (placards.optionalSubstitutions.some((s) => s.use === "DANGEROUS")) {
+      findings.push({
+        ruleId: "dangerous_substitution_blocks_id_on_placard",
+        tier: "info",
+        message:
+          "This load may substitute one DANGEROUS placard for its specific placards (§172.504(b)), but a DANGEROUS placard may not display an identification number (§172.334). " +
+          `If you take the substitution, ${[...new Set(placards.idDisplays.map((d) => d.idNumber))].join(", ")} must go on orange panels or white square-on-point displays instead.`,
+        citations: [{ cfr: "49 CFR 172.334" }, { cfr: "49 CFR 172.504(b)" }, { cfr: "49 CFR 172.332(b)" }],
+        evidence: { ids: [...new Set(placards.idDisplays.map((d) => d.idNumber))] },
+      });
+    }
   }
 
   // 7) ERG guides + HOT mark

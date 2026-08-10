@@ -10,11 +10,18 @@ import { PALETTE } from "./svg.js";
  * geometry spec, the §172.407(d)(5) PANTONE colors (eCFR-verified 2026-08), the per-placard design-section
  * citations, and a SHA-256 pin over every rendered SVG so the art cannot drift silently.
  *
- * What is NOT done (needs the source art + a human): the pictograms are still programmatic stylized
- * approximations, not traced from Chart 17 — `symbolProvisional` stays true for the placeholder set, every
- * `reviewer`/`attestedAt` is null, and `PLACARD_ART_ATTESTED` is false. Producing pixel-accurate official
- * pictograms cannot be derived from the CFR text; it requires the Chart 17 artwork + per-placard SME
- * sign-off. Until then every rendering surface must label the art a SPECIMEN, not a placard (§11.7).
+ * What is NOT done (needs the source art + a human): the pictograms are programmatic constructions, not
+ * traced from Chart 17 — every `reviewer`/`attestedAt` is null and `PLACARD_ART_ATTESTED` is false.
+ * Producing pixel-accurate official pictograms cannot be derived from the CFR text; it requires the
+ * Chart 17 artwork + per-placard SME sign-off. Until then every rendering surface must label the art a
+ * SPECIMEN, not a placard (§11.7).
+ *
+ * 2026-08: the symbol set was rebuilt (skull-and-crossbones, ISO trefoil, the corrosive tubes/plate/hand,
+ * flame-on-circle, exploding bomb) and the geometry brought onto the §172.519 figures, so the drawings are
+ * recognisable at placard scale and provably inside the diamond. `symbolProvisional` drops to false for the
+ * rebuilt set — it tracks "is this still a sketch", not "has a human signed this off". The second question
+ * is what `PLACARD_ART_ATTESTED` is for, and it is still false. Every SHA below was regenerated in the same
+ * change; a regression pin is only meaningful if it moves with the art.
  */
 
 export const PLACARD_ART_SOURCE = {
@@ -79,31 +86,31 @@ export interface PlacardProvenance {
  * traced art lands, these are regenerated and re-attested in the same commit.
  */
 const SVG_SHA256: Record<PlacardName, string> = {
-  FLAMMABLE: "9bc744d1ac3908ed685f0ce4abeeba69cbe866487deafd392085e3ec3d1438f0",
-  GASOLINE: "789de9ea17527b881a2aeb980fe63b6cc32669bab8f0ee11a1f7e161be557960",
-  COMBUSTIBLE: "c99ef06f612897f0dd8db2a1829eeeea14ee0b56149a90f4feeadc0428d3259a",
-  FUEL_OIL: "44fc09bec907b7ac3631e7b4d7baeaf26cf4fdecc369df8f6e94d39c9bd05ad8",
-  FLAMMABLE_GAS: "077640874cf326e3750ebc399cfece231b0d5928a0c5af25d0774acc9e0ba3dd",
-  NON_FLAMMABLE_GAS: "d657865d28679dd93fc7f17befdefa9b4c58235b1657a0a8591047608e7b60d7",
-  OXYGEN: "d42853ae0beb89a4f7a665a4e0b488424645b293a076e8df080dd981cd970e69",
-  POISON_GAS: "5cb0c22e7f1f22315aa7a4398d887fbb6b627ea1397798d04898e2bbcda18693",
-  FLAMMABLE_SOLID: "216772a98898b2a767fb10d735654e805c2f2b045789307e66723e7c61821564",
-  SPONTANEOUSLY_COMBUSTIBLE: "b08930cba86f46c4bfe0602f8a72f1741c46fad1c5a6f6219d2011dcdf0f134a",
-  DANGEROUS_WHEN_WET: "1737433922a66b1d150d0d8f30102227ded45d96db7a08dc5553e87fbc89caa7",
-  OXIDIZER: "14db1a6cb5ba1e9b287013ea354ed3befd0a3b83ee31455e39f4468ef4b47f4d",
-  ORGANIC_PEROXIDE: "5416598d970103b1f7d737a0af895589a55b84a20d7a35f9a209fa5135aa6220",
-  POISON: "1818540f7ebe13a46da9b0bb25c5608e86998b51747f79b39454e83a66a8abfb",
-  POISON_INHALATION_HAZARD: "1557b26e34b8b19f8d7352a6acd50bc0ce2f1a26ca1b735b63efe872ccecb8e5",
-  CORROSIVE: "0b366d96b899a0943ef8cd1a13f133172d3cc45bd8047ff3afb099c27513f99c",
-  RADIOACTIVE: "6007b0ef75eb8b638284ba7ede4542bd88d7bc7625bad493b0a21a839c8dd582",
-  CLASS_9: "430fe3af4b6f31c59ef0e0591791d5872265c17bb7f895dfb40cd68f8df39f0e",
-  DANGEROUS: "1fdd71a9518dfc3727af315a5033d0f5c7485e7cf3b27812e574a018b11a0edd",
-  EXPLOSIVES_1_1: "5d50df5ce76913b2588ecdc29a39bfe7b3365140edeba0e1774a478a3f5e3740",
-  EXPLOSIVES_1_2: "eca2bcd752796ab5bffcd192730b7483b0c535e0b134fe1fa9dbc1fa97a80776",
-  EXPLOSIVES_1_3: "06cf46fcd10036e9b6dff3828f02d09b21682ff5449cf6a4befc45952b576413",
-  EXPLOSIVES_1_4: "6d0f51a091eae6dedb65e1b6fa9367111d54f7a3df36daf29db8f6b0692c02b6",
-  EXPLOSIVES_1_5: "40cf707f3b40c40220ad800c2fff0823eaae32471e8dc5e8d7e312e56be0a9b7",
-  EXPLOSIVES_1_6: "8aa879ef36613a5e5bb031d234e861e26a258a2d37865eb663dbb52a83cb1029",
+  FLAMMABLE: "96594567229aa7cce61cc04788e93201442c5f6d7bf561beaf117dcc127dca4b",
+  GASOLINE: "47182d8db2fc97381b915ac442ab253a8a6558748424893fade6035bcc585949",
+  COMBUSTIBLE: "cf732b43eecf71096720b055edfaa96f72235ffb73f9875ddc23142b2ad5c7ac",
+  FUEL_OIL: "bea1e1f6ef9fa21fe8677d2cf15a00b9d27e78d1e7450350fdf8f9519cc50c35",
+  FLAMMABLE_GAS: "8f65a434e9a095516ec3aef09f74319bc15a6ca2734153fb203c1cdf79126691",
+  NON_FLAMMABLE_GAS: "0b66c7739f703b3e5e13e6c2ac35756ddd7b5deb9a4f8356dd825b02d2ad96ee",
+  OXYGEN: "5646e9441792a26ebb49640b36dd75a24370eecceec1b1a9ef2d3bc07dcb62be",
+  POISON_GAS: "f448296fb0884854e5bd890cde512297711638f4af228fa4d6b438d6d3e23371",
+  FLAMMABLE_SOLID: "0d9b2926ad3a8913e64225c2b8d04f1f0dbd167daa93b85d495deef2350e4a9a",
+  SPONTANEOUSLY_COMBUSTIBLE: "ad9d0830e6435502426d6bdea9af8a9b7c17e714f2b33f554526f5a4f884ae6a",
+  DANGEROUS_WHEN_WET: "f37531180fdda4b15ccb06a1917128e07d6ef058315b1dbf94b91bf9af40c55d",
+  OXIDIZER: "18d96f49fbcbf96754319af12ac41393fb28c76a814f1c282fc6e45fcc80d993",
+  ORGANIC_PEROXIDE: "656038763e9f07207a3ccee72d630495033d93d7f839630edc5f118c3b916746",
+  POISON: "13c20d8654884dbb9aca51cf151d05abdf1d6e6a814bed08a572774aaf5183b5",
+  POISON_INHALATION_HAZARD: "26e9f0815bb2ac7ab84db7719fbf817318425312c33f559eec44768979897379",
+  CORROSIVE: "3f497732a570d0287955d233fcbffc883a1483fb230a84b5125ca2b864276a36",
+  RADIOACTIVE: "94fe2bac53311c856d3db968f2d0d14be06d6a0477abdd22ee835826a7cad5a2",
+  CLASS_9: "bc120ab4fcc3122b9e6bb1762afc15619063ed4b983b6cabf263e0e39ca270d7",
+  DANGEROUS: "f77fc1850ddcad8d85ad93119caada538b043adacca282caa09776c7d34b2d02",
+  EXPLOSIVES_1_1: "713086f5a3622702dea6d979d9f096c6c3be4397def991bd154f30814181aa65",
+  EXPLOSIVES_1_2: "c385b9e348a97e17ab23227ae4555d7da2331e71fcf0a528b3aa403bea4f1d37",
+  EXPLOSIVES_1_3: "b92608b7e4011efdbbf95f916ac2b6e81845bbfe4280de4dfa94049e281c97f2",
+  EXPLOSIVES_1_4: "b755e1a499341c576d04b212b1e38347bcd0613d6b1f8123abf67aac2b394a7d",
+  EXPLOSIVES_1_5: "4362f305a2f0d64a01565839a6e2092896e60983867a956dd606e82de7c42e07",
+  EXPLOSIVES_1_6: "3c53670691dade5ae8559cba1c9839c82b776bfd5b21c8b16239eab7fcab88dc",
 };
 
 function pantoneFor(svg: string): string[] {

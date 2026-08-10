@@ -1,4 +1,12 @@
-import type { Finding, LoadInput, PlacardName, PlacardOutput, TraceNode } from "../types.js";
+import type {
+  Citation,
+  Finding,
+  IdDisplayFormat,
+  LoadInput,
+  PlacardName,
+  PlacardOutput,
+  TraceNode,
+} from "../types.js";
 import {
   LQ_ENCODED_CLASS_KEYS,
   LQ_PACKAGE_GROSS_CAP_LB,
@@ -72,6 +80,65 @@ export function verifyLqClaim(
     }
   }
   return { accepted: true };
+}
+
+// ── identification-number DISPLAY formats (§172.332 / §172.334 / §172.336) ─────────────────────
+//
+// An identification number is ONE requirement with several lawful presentations. The engine used to
+// assert `format: "orange_panel"` and stop, which reads as "the orange panel is the answer" — so a
+// 44,307 lb van of UN1789 came back as a worded CORROSIVE diamond PLUS a separate orange panel, when
+// the display that actually rolls down the road is a single CORROSIVE diamond with 1789 across its
+// center. §172.301(a)(3) says the marking is made "as specified in §172.332 or §172.336", and those
+// sections authorize all three.
+
+/** §172.334(a): placard designs that may NEVER carry an identification number. */
+export const ID_NUMBER_PROHIBITED_PLACARDS: ReadonlySet<PlacardName> = new Set<PlacardName>([
+  "RADIOACTIVE",
+  "DANGEROUS",
+  "EXPLOSIVES_1_1",
+  "EXPLOSIVES_1_2",
+  "EXPLOSIVES_1_3",
+  "EXPLOSIVES_1_4",
+  "EXPLOSIVES_1_5",
+  "EXPLOSIVES_1_6",
+]);
+
+export interface IdDisplayPlan {
+  format: IdDisplayFormat;
+  alternateFormats: Array<{ format: IdDisplayFormat; because: Citation[]; note?: string }>;
+  onPlacards: PlacardName[];
+}
+
+/**
+ * Every lawful way to display `idNumber` on this vehicle, recommended first.
+ *
+ * `carriers` are the placards REQUIRED for the load that the number may legally ride on: the caller
+ * removes anything §172.505 put up for a subsidiary hazard (that bar is a property of WHY the placard
+ * is displayed, not of its design, so only the caller knows it), and this function removes the
+ * designs §172.334 bars outright. If nothing survives, the number needs its own panel and
+ * `onPlacards` comes back empty — never a silent omission.
+ */
+export function planIdDisplay(carriers: readonly PlacardName[]): IdDisplayPlan {
+  const onPlacards = carriers.filter((p) => !ID_NUMBER_PROHIBITED_PLACARDS.has(p));
+  const orangePanel = {
+    format: "orange_panel" as const,
+    because: [{ cfr: "49 CFR 172.332(b)" }],
+    note: "160 × 400 mm orange panel with a 15 mm black border; 100 mm black numerals.",
+  };
+  const whiteSquare = {
+    format: "white_square_on_point" as const,
+    because: [{ cfr: "49 CFR 172.336(b)" }],
+    note: "A plain white square-on-point the size of a placard. It is expressly NOT a placard — it does not satisfy any placarding requirement on its own.",
+  };
+  if (onPlacards.length === 0) {
+    return { format: "orange_panel", alternateFormats: [orangePanel, whiteSquare], onPlacards: [] };
+  }
+  const onPlacard = {
+    format: "on_placard" as const,
+    because: [{ cfr: "49 CFR 172.332(c)" }],
+    note: "Across the center area of the placard: 88 mm black Alpine/Alternate Gothic No. 3 numerals on a 100 × 215 mm white background whose top sits ~40 mm above the placard centerline. No UN/NA prefix on the placard itself.",
+  };
+  return { format: "on_placard", alternateFormats: [onPlacard, orangePanel, whiteSquare], onPlacards };
 }
 
 export function withheld(reason: string, evidence: Record<string, unknown>): Finding {

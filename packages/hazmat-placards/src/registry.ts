@@ -2,9 +2,14 @@
  * The placard-art registry (Phase H2 support). One entry per engine `PlacardName`, so the placard the
  * engine's `computePlacards` emits can be rendered as its exact DOT diamond. Backgrounds/colors/wording
  * follow the §172.521–172.560 design sections (cited per entry). `symbolProvisional` marks the entries
- * whose pictogram is a stylized approximation pending official artwork — the FUEL-relevant placards
- * (flame family, gas cylinder, Class 9 stripes, DANGEROUS) are exact; the skull/corrosive/trefoil/
- * explosion/oxidizer pictograms are recognizable placeholders flagged for a visual pass.
+ * whose pictogram is a stylized approximation pending official artwork.
+ *
+ * 2026-08: the skull / corrosive / trefoil / oxidizer / explosion pictograms were redrawn from their
+ * design sections (see svg.ts) — each is now built from explicit, auditable primitives (the trefoil is
+ * a true ISO three-blade construction, the corrosive symbol actually shows two tubes eating a plate and
+ * a hand) rather than the earlier stroke sketches. `symbolProvisional` therefore drops to false for the
+ * redrawn set; it stays TRUE only where the design still needs a human eye on the artwork, and
+ * `PLACARD_ART_ATTESTED` (provenance.ts) remains the real launch gate regardless.
  *
  * Zero runtime dependencies (only the `PlacardName` type is imported, and types are erased at build),
  * so this package is framework-agnostic and extractable as a copy, not a rename.
@@ -25,6 +30,14 @@ export interface PlacardArt {
   svg: string;
   /** true when the pictogram is a stylized placeholder pending official artwork. */
   symbolProvisional: boolean;
+  /**
+   * §172.334: true when this placard may NEVER carry an identification number across its center —
+   * RADIOACTIVE, every EXPLOSIVES division, and DANGEROUS. (A placard displayed for a SUBSIDIARY
+   * hazard is also barred, but that is a property of the load, not of the design, so the engine
+   * decides it.) The engine owns the load-level rule; this flag is the artwork's own refusal, so no
+   * caller can produce an unlawful placard just by passing an id.
+   */
+  idNumberProhibited: boolean;
 }
 
 const R = PALETTE;
@@ -35,6 +48,18 @@ interface Entry {
   provisional: boolean;
   d: Design;
 }
+
+/** §172.334(a) — placards that may not display an identification number. */
+const ID_NUMBER_PROHIBITED: ReadonlySet<string> = new Set<string>([
+  "RADIOACTIVE",
+  "DANGEROUS",
+  "EXPLOSIVES_1_1",
+  "EXPLOSIVES_1_2",
+  "EXPLOSIVES_1_3",
+  "EXPLOSIVES_1_4",
+  "EXPLOSIVES_1_5",
+  "EXPLOSIVES_1_6",
+]);
 
 const DEFS: Record<PlacardName, Entry> = {
   FLAMMABLE: { label: "FLAMMABLE", designRef: "49 CFR 172.542", provisional: false,
@@ -49,9 +74,9 @@ const DEFS: Record<PlacardName, Entry> = {
     d: { text: "FLAMMABLE GAS", classNumber: "2", background: { kind: "solid", color: R.red }, symbol: "flame", ink: R.white } },
   NON_FLAMMABLE_GAS: { label: "NON-FLAMMABLE GAS", designRef: "49 CFR 172.528", provisional: false,
     d: { text: "NON-FLAMMABLE GAS", classNumber: "2", background: { kind: "solid", color: R.green }, symbol: "cylinder", ink: R.white } },
-  OXYGEN: { label: "OXYGEN", designRef: "49 CFR 172.530", provisional: true,
+  OXYGEN: { label: "OXYGEN", designRef: "49 CFR 172.530", provisional: false,
     d: { text: "OXYGEN", classNumber: "2", background: { kind: "solid", color: R.yellow }, symbol: "oxidizer", ink: R.black } },
-  POISON_GAS: { label: "POISON GAS", designRef: "49 CFR 172.540", provisional: true,
+  POISON_GAS: { label: "POISON GAS", designRef: "49 CFR 172.540", provisional: false,
     d: { text: "POISON GAS", classNumber: "2", background: { kind: "solid", color: R.white }, symbol: "skull", ink: R.black } },
   FLAMMABLE_SOLID: { label: "FLAMMABLE SOLID", designRef: "49 CFR 172.546", provisional: false,
     d: { text: "FLAMMABLE SOLID", classNumber: "4", background: { kind: "stripes", base: R.white, stripe: R.red, region: "full" }, symbol: "flame", ink: R.black } },
@@ -59,27 +84,27 @@ const DEFS: Record<PlacardName, Entry> = {
     d: { text: "SPONTANEOUSLY COMBUSTIBLE", classNumber: "4", background: { kind: "split", top: R.white, bottom: R.red }, symbol: "flame", ink: R.black, symbolInk: R.black, textInk: R.white } },
   DANGEROUS_WHEN_WET: { label: "DANGEROUS WHEN WET", designRef: "49 CFR 172.548", provisional: false,
     d: { text: "DANGEROUS WHEN WET", classNumber: "4", background: { kind: "solid", color: R.blue }, symbol: "flame", ink: R.white } },
-  OXIDIZER: { label: "OXIDIZER", designRef: "49 CFR 172.550", provisional: true,
+  OXIDIZER: { label: "OXIDIZER", designRef: "49 CFR 172.550", provisional: false,
     d: { text: "OXIDIZER", classNumber: "5.1", background: { kind: "solid", color: R.yellow }, symbol: "oxidizer", ink: R.black } },
-  ORGANIC_PEROXIDE: { label: "ORGANIC PEROXIDE", designRef: "49 CFR 172.552", provisional: true,
+  ORGANIC_PEROXIDE: { label: "ORGANIC PEROXIDE", designRef: "49 CFR 172.552", provisional: false,
     d: { text: "ORGANIC PEROXIDE", classNumber: "5.2", background: { kind: "split", top: R.red, bottom: R.yellow }, symbol: "flame", ink: R.black, symbolInk: R.white, textInk: R.black } },
-  POISON: { label: "POISON", designRef: "49 CFR 172.554", provisional: true,
+  POISON: { label: "POISON", designRef: "49 CFR 172.554", provisional: false,
     d: { text: "POISON", classNumber: "6", background: { kind: "solid", color: R.white }, symbol: "skull", ink: R.black } },
-  POISON_INHALATION_HAZARD: { label: "INHALATION HAZARD", designRef: "49 CFR 172.555", provisional: true,
+  POISON_INHALATION_HAZARD: { label: "INHALATION HAZARD", designRef: "49 CFR 172.555", provisional: false,
     d: { text: "INHALATION HAZARD", classNumber: "6", background: { kind: "solid", color: R.white }, symbol: "skull", ink: R.black } },
-  CORROSIVE: { label: "CORROSIVE", designRef: "49 CFR 172.558", provisional: true,
+  CORROSIVE: { label: "CORROSIVE", designRef: "49 CFR 172.558", provisional: false,
     d: { text: "CORROSIVE", classNumber: "8", background: { kind: "split", top: R.white, bottom: R.black }, symbol: "corrosive", ink: R.black, symbolInk: R.black, textInk: R.white } },
-  RADIOACTIVE: { label: "RADIOACTIVE", designRef: "49 CFR 172.556", provisional: true,
+  RADIOACTIVE: { label: "RADIOACTIVE", designRef: "49 CFR 172.556", provisional: false,
     d: { text: "RADIOACTIVE", classNumber: "7", background: { kind: "split", top: R.yellow, bottom: R.white }, symbol: "trefoil", ink: R.black, symbolInk: R.black, textInk: R.black } },
   CLASS_9: { label: "", designRef: "49 CFR 172.560", provisional: false,
     d: { text: "", classNumber: "9", background: { kind: "stripes", base: R.white, stripe: R.black, region: "top" }, symbol: "none", ink: R.black, underlineNumber: true } },
   DANGEROUS: { label: "DANGEROUS", designRef: "49 CFR 172.504(f) / 172.522", provisional: true,
     d: { text: "DANGEROUS", classNumber: null, background: { kind: "solid", color: R.red }, symbol: "none", ink: R.white } },
-  EXPLOSIVES_1_1: { label: "EXPLOSIVES", designRef: "49 CFR 172.522", provisional: true,
+  EXPLOSIVES_1_1: { label: "EXPLOSIVES", designRef: "49 CFR 172.522", provisional: false,
     d: { text: "EXPLOSIVES", classNumber: "1.1", background: { kind: "solid", color: R.orange }, symbol: "explosion", ink: R.black } },
-  EXPLOSIVES_1_2: { label: "EXPLOSIVES", designRef: "49 CFR 172.522", provisional: true,
+  EXPLOSIVES_1_2: { label: "EXPLOSIVES", designRef: "49 CFR 172.522", provisional: false,
     d: { text: "EXPLOSIVES", classNumber: "1.2", background: { kind: "solid", color: R.orange }, symbol: "explosion", ink: R.black } },
-  EXPLOSIVES_1_3: { label: "EXPLOSIVES", designRef: "49 CFR 172.522", provisional: true,
+  EXPLOSIVES_1_3: { label: "EXPLOSIVES", designRef: "49 CFR 172.522", provisional: false,
     d: { text: "EXPLOSIVES", classNumber: "1.3", background: { kind: "solid", color: R.orange }, symbol: "explosion", ink: R.black } },
   EXPLOSIVES_1_4: { label: "EXPLOSIVES 1.4", designRef: "49 CFR 172.523", provisional: false,
     d: { text: "EXPLOSIVES", classNumber: "1.4", background: { kind: "solid", color: R.orange }, symbol: "none", ink: R.black } },
@@ -97,8 +122,9 @@ function build(): Record<PlacardName, PlacardArt> {
       label: e.label,
       classNumber: e.d.classNumber,
       designRef: e.designRef,
-      svg: renderPlacardSvg(e.d),
+      svg: renderPlacardSvg(e.d, { idSuffix: key.toLowerCase() }),
       symbolProvisional: e.provisional,
+      idNumberProhibited: ID_NUMBER_PROHIBITED.has(key),
     };
   }
   return out;
@@ -106,3 +132,21 @@ function build(): Record<PlacardName, PlacardArt> {
 
 /** Complete art for every engine `PlacardName`. */
 export const PLACARD_ART: Record<PlacardName, PlacardArt> = build();
+
+/**
+ * The same placard drawn with an identification number across its center area (§172.332(c)) — the
+ * display a Class 8 muriatic-acid van actually carries: one CORROSIVE diamond reading 1789, not a
+ * worded diamond plus a separate orange panel.
+ *
+ * Returns `null` when §172.334 bars the number for that design (RADIOACTIVE, EXPLOSIVES, DANGEROUS)
+ * or when the id has no digits, so an unlawful placard cannot be produced by accident. Callers that
+ * get `null` must fall back to an orange panel or a white square-on-point.
+ */
+export function renderPlacardWithIdNumber(name: PlacardName, idNumber: string): string | null {
+  const entry = DEFS[name];
+  if (!entry) return null;
+  if (ID_NUMBER_PROHIBITED.has(name)) return null;
+  const digits = idNumber.replace(/[^0-9]/g, "");
+  if (digits.length === 0) return null;
+  return renderPlacardSvg(entry.d, { idNumber: digits, idSuffix: `${name.toLowerCase()}-${digits}` });
+}

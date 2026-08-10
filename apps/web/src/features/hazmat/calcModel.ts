@@ -246,7 +246,10 @@ export function buildEngineLine(l: CalcLineForm, equipmentType = ""): Record<str
     hmtRef: product.hmtRef,
     reclassedCombustible: l.reclassedCombustible,
     isLimitedQuantity: l.isLimitedQuantity,
-    quantity: { value: numOrNull(l.quantityValue) ?? 0, unit: l.quantityUnit },
+    // A blank quantity is UNKNOWN, not zero. Coercing it to 0 made "the dispatcher did not fill this
+    // in" indistinguishable from "the BOL declares none" — and `grossWeightLb` on the next line has
+    // always sent null for exactly that reason.
+    quantity: { value: numOrNull(l.quantityValue), unit: l.quantityUnit },
     grossWeightLb: lineGrossWeightLb(l),
     compartmentIndex: compartment === null ? null : Math.trunc(compartment),
     isResidueLine: l.isResidueLine,

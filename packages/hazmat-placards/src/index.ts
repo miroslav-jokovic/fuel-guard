@@ -8,8 +8,8 @@ import type { PlacardName } from "@hazmat/engine";
 import { PLACARD_ART, type PlacardArt } from "./registry.js";
 
 export type { PlacardArt } from "./registry.js";
-export { PLACARD_ART } from "./registry.js";
-export { renderPlacardSvg, PALETTE, type Design, type SymbolId, type Background } from "./svg.js";
+export { PLACARD_ART, renderPlacardWithIdNumber } from "./registry.js";
+export { renderPlacardSvg, PALETTE, type Design, type SymbolId, type Background, type RenderOptions } from "./svg.js";
 export {
   PLACARD_ART_PROVENANCE,
   PLACARD_ART_ATTESTED,

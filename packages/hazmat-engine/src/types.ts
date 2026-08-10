@@ -29,7 +29,13 @@ export const lineSchema = z.object({
    *  VERIFIES the claim against HMT column 8A + the 30 kg/66 lb per-package cap and either applies
    *  §172.500(b)(2) (excepted from the whole placarding subpart) or refuses it fail-closed. */
   isLimitedQuantity: z.boolean().default(false),
-  quantity: z.object({ value: z.number(), unit: quantityUnitSchema }),
+  /**
+   * The declared net quantity. NULLABLE on purpose: the calculator form used to coerce a blank field
+   * to `0`, which made "the dispatcher did not state a quantity" indistinguishable from "the BOL says
+   * zero" — the opposite of the fail-closed posture `grossWeightLb` already had, and a value the
+   * security-plan threshold downstream would have read as a real declaration.
+   */
+  quantity: z.object({ value: z.number().nullable().default(null), unit: quantityUnitSchema }),
   grossWeightLb: z.number().nullable().default(null),
   compartmentIndex: z.number().int().nullable().default(null),
   isResidueLine: z.boolean().default(false),
@@ -103,6 +109,15 @@ export interface TraceNode {
   citations: Citation[];
   note?: string;
 }
+/**
+ * How an identification number may be displayed on a transport vehicle.
+ *  · `on_placard`          — across the center area of the placard itself, §172.332(c)
+ *  · `orange_panel`        — the 160 × 400 mm orange panel, §172.332(b)
+ *  · `white_square_on_point` — a plain white square-on-point the size of a placard, §172.336(b);
+ *                            explicitly NOT a placard.
+ */
+export type IdDisplayFormat = "on_placard" | "orange_panel" | "white_square_on_point";
+
 export interface PlacardOutput {
   required: Array<{ placard: PlacardName; positions: "each_side_and_each_end"; because: Citation[] }>;
   /**
@@ -114,9 +129,51 @@ export interface PlacardOutput {
   permitted: Array<{ placard: PlacardName; because: Citation[] }>;
   optionalSubstitutions: Array<{ instead: PlacardName; use: PlacardName; because: Citation[] }>;
   prohibited: Array<{ placard: PlacardName; because: Citation[] }>;
-  idDisplays: Array<{ idNumber: string; format: "on_placard" | "orange_panel" | "white_square_on_point"; positions: string; because: Citation[] }>;
+  idDisplays: Array<{
+    idNumber: string;
+    /**
+     * The display the engine RECOMMENDS. An identification number is one requirement with several
+     * lawful presentations, and the engine used to hardcode `orange_panel` as if it were the only
+     * one — so a Class 8 van came back as "worded CORROSIVE placard + separate orange panel" when
+     * the display that actually rolls down the road is a single CORROSIVE diamond reading 1789
+     * across its center (§172.332(c)). `alternateFormats` carries the rest; nothing here is a
+     * statement that the others are unlawful.
+     */
+    format: IdDisplayFormat;
+    /** Every lawful presentation for this number on THIS load, recommended first (§172.334 applied). */
+    alternateFormats: Array<{ format: IdDisplayFormat; because: Citation[]; note?: string }>;
+    /**
+     * When `on_placard` is available: the required placards this number may be displayed across.
+     * §172.334 removes RADIOACTIVE, every EXPLOSIVES division, DANGEROUS and any placard shown for
+     * a subsidiary hazard, so an empty list means the number needs its own panel.
+     */
+    onPlacards: PlacardName[];
+    positions: string;
+    because: Citation[];
+  }>;
   ergGuides: Array<{ idNumber: string; guide: string }>;
   marks: Array<{ mark: "MARINE_POLLUTANT" | "LIMITED_QUANTITY" | "HOT"; positions: string; because: Citation[] }>;
+  /**
+   * The arithmetic the placarding decision actually ran on. It existed only inside a trace node's
+   * `inputs`, so the UI could report "44,307 lb" buried in one finding's prose but could not show the
+   * reviewer WHICH lines were counted, which were excluded, and how the total sat against the three
+   * bars that matter. A verdict a dispatcher cannot check is a verdict they will not trust.
+   */
+  aggregate?: {
+    /** Non-bulk Table-2 lines that count toward the §172.504(c) 1,001 lb threshold. */
+    countedLines: number;
+    /** §172.202(a)(7) package count over the counted lines; null when any line left it blank. */
+    countedPackages: number | null;
+    /** Their aggregate gross weight in pounds; null when any counted line left the weight blank. */
+    countedGrossWeightLb: number | null;
+    thresholdMet: boolean;
+    /** Lines that placard regardless of the aggregate — bulk packaging or a §172.505 subsidiary. */
+    alwaysPlacardLines: number;
+    /** Residue-only non-bulk lines excluded by §172.504(d) / §173.29(c). */
+    residueExcludedLines: number;
+    /** The three bars, so the UI never has to hardcode them. */
+    thresholds: { placardLb: number; dangerousCategoryLb: number; nonBulkIdDisplayLb: number };
+  };
 }
 export interface Verdict {
   engineVersion: string;
