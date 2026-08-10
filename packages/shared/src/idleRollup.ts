@@ -15,13 +15,12 @@
  * Day bucketing is UTC (`toISOString().slice(0,10)`), matching what the page previously did client-side,
  * so numbers do not shift with this move. Pure and deterministic — no I/O, fully unit-tested.
  */
+import { hosOverlapSeconds, type HosSegment } from "./hos.js";
 import {
   buildHosVehicleTimelines,
-  hosOverlapSeconds,
   hosVehicleTimelineOverlapSeconds,
-  type HosSegment,
   type HosVehicleTimeline,
-} from "./hos.js";
+} from "./hosVehicleTimeline.js";
 
 export interface RollupEngineDay {
   vehicleId: string;

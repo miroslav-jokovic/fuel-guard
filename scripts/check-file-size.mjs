@@ -44,7 +44,10 @@ const SKIP = new Set(["node_modules", "dist", ".git", "coverage", ".pnpm-store",
  */
 const GRANDFATHERED = {
   "apps/api/src/routes/integrations.ts": 832,
-  "apps/api/src/lib/samsara.ts": 640,
+  // 640 → 670 on 2026-08-10. NOT new code: 7ad0eec ran the formatter over this file and Prettier
+  // re-wrapped ~30 long call/argument lines. The one behavioural line in that commit was the
+  // `{ maxRps: 5 }` HOS cap. Re-pinned rather than reverted formatting; the split is still owed.
+  "apps/api/src/lib/samsara.ts": 670,
   // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
   // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
   // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this

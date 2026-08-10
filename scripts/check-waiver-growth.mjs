@@ -20,7 +20,11 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
-const VICTIM = "apps/api/src/lib/efsSoap.ts"; // a pinned waiver
+// A file that is ACTUALLY in check-file-size.mjs's GRANDFATHERED map. This pointed at efsSoap.ts,
+// which left that map on 2026-08-10 when the EFS card-control work split it — so the probe was
+// growing an unwaived file, the gate failed for the ordinary over-budget reason, and the probe read
+// that as its own assertion failing. Keep this in sync when the waiver list changes.
+const VICTIM = "apps/api/src/lib/samsara.ts"; // a pinned waiver
 const target = join(ROOT, VICTIM);
 const backup = join(tmpdir(), "fuelguard-waiver-growth-probe.bak");
 

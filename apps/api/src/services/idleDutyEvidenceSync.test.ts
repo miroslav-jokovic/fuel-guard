@@ -1,10 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
+import {
+  createSupabaseRecorder,
+  expectOrgScoped,
+  type SupabaseRecorder,
+} from "../testing/supabaseRecorder.js";
 import { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
 
 const ORG = "org-1";
 const START = "2026-08-01T00:00:00.000Z";
 const END = "2026-08-02T00:00:00.000Z";
+
+/** The RPC returns the number of rows it actually updated; scripted per test. */
+const rpcUpdating = (rows: number) => ({ apply_idle_hos_evidence: rows });
+
+/**
+ * The write path is `apply_idle_hos_evidence` (migration 0174), not a table upsert. That is load-bearing:
+ * a PostgREST upsert carrying only the hos_* columns compiles to `INSERT … ON CONFLICT DO UPDATE`, and
+ * Postgres checks NOT NULL before conflict arbitration, so it fails on rows that already exist. These
+ * helpers assert the RPC contract — and `expectNoSessionTableWrite` is the regression guard that fails if
+ * anyone reintroduces a direct write to idle_park_sessions here.
+ */
+function hosEvidenceRows(rec: SupabaseRecorder): Record<string, unknown>[] {
+  return rec
+    .rpcs()
+    .filter((call) => call.fn === "apply_idle_hos_evidence")
+    .flatMap((call) => (call.args as { p_rows: Record<string, unknown>[] }).p_rows);
+}
+
+function expectRpcOrgScoped(rec: SupabaseRecorder, orgId: string): void {
+  const calls = rec.rpcs().filter((call) => call.fn === "apply_idle_hos_evidence");
+  expect(calls.length).toBeGreaterThan(0);
+  for (const call of calls) expect((call.args as { p_org: string }).p_org).toBe(orgId);
+}
+
+function expectNoSessionTableWrite(rec: SupabaseRecorder): void {
+  expect(rec.forTable("idle_park_sessions").filter((q) => q.write !== null)).toHaveLength(0);
+}
 
 describe("syncIdleDutyEvidence", () => {
   it("writes full rest/work coverage and preserves ambiguity instead of guessing", async () => {
@@ -81,6 +112,7 @@ describe("syncIdleDutyEvidence", () => {
         },
         idle_events: { pages: [[]] },
       },
+      rpc: rpcUpdating(3),
     });
 
     const result = await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
@@ -92,11 +124,10 @@ describe("syncIdleDutyEvidence", () => {
       ambiguous: 1,
       rowsWritten: 3,
     });
-    expect(rec.writtenRows("idle_park_sessions")).toEqual(
+    expect(hosEvidenceRows(rec)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "p1",
-          org_id: ORG,
           hos_evidence_status: "sufficient",
           hos_covered_sec: 10_800,
           hos_rest_sec: 10_800,
@@ -120,6 +151,10 @@ describe("syncIdleDutyEvidence", () => {
         }),
       ]),
     );
+    // The tenant no longer rides in the row payload — it is the RPC's p_org argument.
+    expect(hosEvidenceRows(rec)[0]).not.toHaveProperty("org_id");
+    expectNoSessionTableWrite(rec);
+    expectRpcOrgScoped(rec, ORG);
     expectOrgScoped(rec, ORG);
   });
 
@@ -150,6 +185,7 @@ describe("syncIdleDutyEvidence", () => {
       "HOS segment read failed",
     );
     expect(rec.writes()).toHaveLength(0);
+    expect(rec.rpcs()).toHaveLength(0);
   });
 
   it("uses explicit idle-event driver attribution when the HOS log has no vehicle link", async () => {
@@ -193,19 +229,57 @@ describe("syncIdleDutyEvidence", () => {
           ],
         },
       },
+      rpc: rpcUpdating(1),
     });
 
     const result = await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
 
     expect(result).toMatchObject({ sessions: 1, sufficient: 1, rowsWritten: 1 });
-    expect(rec.writtenRows("idle_park_sessions")[0]).toMatchObject({
+    expect(hosEvidenceRows(rec)[0]).toMatchObject({
       id: "p-driver-fallback",
       hos_evidence_status: "sufficient",
       hos_rest_sec: 3_600,
     });
-    expect(rec.writtenRows("idle_park_sessions")[0]).not.toHaveProperty("vehicle_id");
-    expect(rec.writtenRows("idle_park_sessions")[0]).not.toHaveProperty("duration_sec");
+    // Base park-session columns stay out of the payload — the capability sync owns them. Under the old
+    // upsert that omission was what triggered the not-null violation; under the RPC it is simply an
+    // UPDATE that does not touch them.
+    expect(hosEvidenceRows(rec)[0]).not.toHaveProperty("vehicle_id");
+    expect(hosEvidenceRows(rec)[0]).not.toHaveProperty("duration_sec");
+    expectNoSessionTableWrite(rec);
+    expectRpcOrgScoped(rec, ORG);
     expectOrgScoped(rec, ORG);
+  });
+
+  it("reports the row count the database actually changed, not the payload size", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        idle_park_sessions: {
+          data: [
+            {
+              id: "p-vanished",
+              org_id: ORG,
+              vehicle_id: "v9",
+              started_at: START,
+              ended_at: "2026-08-01T01:00:00.000Z",
+              duration_sec: 3_600,
+              idle_sec: 3_600,
+              off_sec: 0,
+              cycles: 0,
+              mode: "continuous",
+            },
+          ],
+        },
+        hos_duty_segments: { data: [] },
+        idle_events: { data: [] },
+      },
+      // Capability reconciliation deleted the session between the read and the write: the UPDATE
+      // matches nothing. That is a real outcome, not a silent success on one row.
+      rpc: rpcUpdating(0),
+    });
+
+    const result = await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
+
+    expect(result).toMatchObject({ sessions: 1, rowsWritten: 0 });
   });
 
   it("rounds and clamps covered seconds to the persisted session duration", async () => {
@@ -241,11 +315,12 @@ describe("syncIdleDutyEvidence", () => {
         },
         idle_events: { data: [] },
       },
+      rpc: rpcUpdating(1),
     });
 
     await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
 
-    expect(rec.writtenRows("idle_park_sessions")[0]).toMatchObject({
+    expect(hosEvidenceRows(rec)[0]).toMatchObject({
       id: "p-rounding",
       hos_covered_sec: 13_449,
       hos_rest_sec: 13_450,
