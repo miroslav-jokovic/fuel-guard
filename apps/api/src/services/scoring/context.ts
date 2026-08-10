@@ -135,7 +135,18 @@ export async function healMissingAttribution(
         entityId: txnId,
         meta: { kind: "vehicle", vehicleId, driverId: txn.driverId, fueledAt: txn.fueledAt },
       });
-      await admin.from("fuel_transactions").update({ vehicle_id: vehicleId }).eq("id", txnId);
+      // The write is CHECKED, like every other write in this subsystem (audit 2026-08-09, finding E).
+      // Ignoring `{ error }` here reported "vehicle_filled" on a rejected update, and the caller then
+      // re-scored the fill under a vehicle the row is not attributed to — persisting evidence (baselines,
+      // tank context, capacity) that cites a truck the transaction does not belong to. A permission or
+      // constraint failure must stop the self-heal, not be laundered into a confident verdict.
+      const { error: fillVehicleError } = await admin
+        .from("fuel_transactions")
+        .update({ vehicle_id: vehicleId })
+        .eq("id", txnId);
+      if (fillVehicleError) {
+        throw new Error(`[scoring] could not attribute vehicle for ${txnId}: ${fillVehicleError.message}`);
+      }
       return "vehicle_filled";
     }
     return null;
@@ -162,7 +173,18 @@ export async function healMissingAttribution(
         entityId: txnId,
         meta: { kind: "driver", driverId, vehicleId: txn.vehicleId, fueledAt: txn.fueledAt },
       });
-      await admin.from("fuel_transactions").update({ driver_id: driverId }).eq("id", txnId);
+      // Checked before the in-memory state is mutated (audit 2026-08-09, finding E). The old order
+      // set `txn.driverId` regardless of the outcome, so a REJECTED driver update still steered the
+      // rest of scoring: driver-scoped context loaded for that driver, and the anomaly evidence was
+      // persisted naming a driver the transaction is not attributed to — an accusation against someone
+      // the database never linked to the fill.
+      const { error: fillDriverError } = await admin
+        .from("fuel_transactions")
+        .update({ driver_id: driverId })
+        .eq("id", txnId);
+      if (fillDriverError) {
+        throw new Error(`[scoring] could not attribute driver for ${txnId}: ${fillDriverError.message}`);
+      }
       txn.driverId = driverId; // applied in place — driver-scoped context loads AFTER this
     }
     return null;
@@ -286,8 +308,22 @@ export async function loadReeferContext(
   orgId: string,
   txn: TxnView,
   winStartIso: string,
-  winEndIso: string,
 ): Promise<ReeferContext> {
+  /**
+   * The upper bound is DERIVED here, not accepted from the caller — deliberately.
+   *
+   * The scoring window is built as `anchor ± cumulativeWindowHours`, i.e. twice the configured span,
+   * and this loader used to be handed that far edge while ruleReeferOverfuelRate sized its physical
+   * ceiling from `gph * cumulativeWindowHours`. Ninety-six hours of purchases were judged against a
+   * forty-eight-hour burn allowance: three honest 45-gal fills over four days summed to 135 gal
+   * against a 122-gal ceiling and fired a weight-75 `high` theft alert, with evidence reading
+   * "bought 135 gal in 48h" for fuel that spanned four days (audit 2026-08-09, finding 4.1a).
+   *
+   * Taking the bound as a parameter is what allowed the wrong one to be passed, so the parameter is
+   * gone. Clipping to the fill being scored also makes re-scoring deterministic — a fill can no
+   * longer flip to an alert because a LATER purchase entered its window.
+   */
+  const anchorIso = txn.fueledAt;
   let reeferTankCapacityGal: number | null = null;
   let reeferWindowGallons = 0;
   if (txn.vehicleId && txn.tankType === "reefer") {
@@ -312,7 +348,7 @@ export async function loadReeferContext(
       .eq("vehicle_id", txn.vehicleId)
       .eq("tank_type", "reefer")
       .gte("fueled_at", winStartIso)
-      .lte("fueled_at", winEndIso);
+      .lte("fueled_at", anchorIso);
     reeferWindowGallons = ((rwin ?? []) as { gallons: number | string }[]).reduce((s, x) => s + Number(x.gallons), 0);
   }
   return { reeferTankCapacityGal, reeferWindowGallons };

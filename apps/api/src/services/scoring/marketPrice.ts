@@ -9,7 +9,26 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const WINDOW_DAYS = 3;
 const MIN_SAMPLES = 5;
-const memo = new Map<string, number | null>();
+/**
+ * RESOLVED medians only (audit 2026-08-09, finding D).
+ *
+ * A state-day median that has cleared MIN_SAMPLES is a settled fact — more stations reporting will not
+ * move a robust median enough to matter inside one scoring run — so it is memoized for the life of the
+ * process. A NEGATIVE result is not a fact about the day at all: it is a fact about how far that day's
+ * price ingest has got. Typing this map as `number` is what makes caching one unrepresentable. The old
+ * `Map<string, number | null>` had no TTL and no invalidation, so the FIRST fill scored in a state
+ * before its ingest landed silenced the market branch of `cost_outlier` for every later fill in that
+ * state on that date — and since `costMinPerGal` / `costMaxPerGal` default to null the absolute branch
+ * is normally dead too, which left the rule with nothing at all to fire on for the rest of the day.
+ */
+const memo = new Map<string, number>();
+/**
+ * A MISS is remembered only until this instant (epoch ms). That keeps a bulk rebuild over a state-day
+ * whose price table is genuinely empty from re-querying once per fill, while a fill scored a minute
+ * after the ingest lands still sees the market: bounded staleness instead of permanent poisoning.
+ */
+const missUntil = new Map<string, number>();
+const MISS_TTL_MS = 60_000;
 const MEMO_CAP = 1000;
 
 export async function loadMarketPricePerGal(
@@ -21,7 +40,10 @@ export async function loadMarketPricePerGal(
   if (!st) return null;
   const day = fueledAt.slice(0, 10);
   const key = `${st}|${day}`;
-  if (memo.has(key)) return memo.get(key)!;
+  const memoized = memo.get(key);
+  if (memoized !== undefined) return memoized;
+  const missExpiresAt = missUntil.get(key);
+  if (missExpiresAt !== undefined && Date.now() < missExpiresAt) return null;
 
   const t = Date.parse(fueledAt);
   const from = new Date(t - WINDOW_DAYS * 86_400_000).toISOString();
@@ -49,8 +71,14 @@ export async function loadMarketPricePerGal(
   const stationPrices = [...byStation.values()].map((ps) => median(ps));
   const result = stationPrices.length >= MIN_SAMPLES ? Math.round(median(stationPrices) * 1000) / 1000 : null;
 
-  if (memo.size >= MEMO_CAP) memo.clear();
-  memo.set(key, result);
+  if (result != null) {
+    if (memo.size >= MEMO_CAP) memo.clear();
+    memo.set(key, result);
+    missUntil.delete(key); // the market arrived — stop treating this state-day as empty
+  } else {
+    if (missUntil.size >= MEMO_CAP) missUntil.clear();
+    missUntil.set(key, Date.now() + MISS_TTL_MS);
+  }
   return result;
 }
 

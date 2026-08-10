@@ -40,11 +40,45 @@ export interface AvoidableInput {
   hasOptimizedIdle: boolean | null;
   /** Behavior learned from the truck's own park sessions (learnIdleCapability). */
   learnedCapability: IdleCapability;
+  /** Complete temperature evidence for Optimized Idle continuous sessions, when available. */
+  optimizedEnvelope?: OptimizedEnvelopeEvidence;
+  /** Direct HOS overlap evidence for the continuous idle candidate, when available. */
+  dutyEvidence?: IdleDutyEvidence;
+}
+
+export type OptimizedEnvelopeEvidenceStatus =
+  "sufficient" | "insufficient" | "ambiguous" | "unavailable";
+
+export type OptimizedEnvelopeEvidenceSource = "documented_default" | "learned_behavioral" | "none";
+
+export interface OptimizedEnvelopeEvidence {
+  status: OptimizedEnvelopeEvidenceStatus;
+  source: OptimizedEnvelopeEvidenceSource;
+  insideSec: number;
+  outsideSec: number;
+  unknownSec: number;
+  ambiguousSec: number;
+}
+
+export type IdleDutyEvidenceStatus = "sufficient" | "insufficient" | "ambiguous" | "unavailable";
+
+export interface IdleDutyEvidence {
+  status: IdleDutyEvidenceStatus;
+  /** Continuous idle seconds directly overlapping an on-duty HOS interval. */
+  workSec: number;
+  /** Candidate seconds without a usable HOS interval. */
+  unknownSec: number;
+  /** Candidate seconds with conflicting HOS intervals. */
+  ambiguousSec: number;
+  /** Direct on-duty idle seconds covered by the operational grace period. */
+  graceSec: number;
 }
 
 export interface AvoidableOpts {
   /** Fraction (0–1) of the period that must be observed to trust/score it. Default 0.5. */
   minCoverage?: number;
+  /** On-duty operational grace before work idle becomes avoidable. Default 15 minutes. */
+  onDutyGraceSec?: number;
 }
 
 export interface AvoidableResult {
@@ -62,6 +96,12 @@ export interface AvoidableResult {
   avoidableIdleSec: number;
   /** Continuous idle on a truck with no alternative evidence → reported, not blamed. */
   unavoidableIdleSec: number;
+  /** Optimized-Idle continuous time outside the active temperature envelope. */
+  justifiedIdleSec: number;
+  /** Continuous time whose temperature evidence is missing or conflicting. */
+  uncertainIdleSec: number;
+  /** Direct on-duty continuous idle covered by the operational grace period. */
+  operationalGraceIdleSec: number;
   hasAlternative: boolean;
   alternative: IdleAlternative;
   /** Observed fraction of the period (0–1). */
@@ -70,7 +110,10 @@ export interface AvoidableResult {
   confident: boolean;
 }
 
-function resolveAlternative(i: AvoidableInput): { hasAlternative: boolean; alternative: IdleAlternative } {
+function resolveAlternative(i: AvoidableInput): {
+  hasAlternative: boolean;
+  alternative: IdleAlternative;
+} {
   // Did the truck HAVE an alternative to main-engine idle? The CURATED Vehicles equipment flags
   // (has_apu / has_optimized_idle) are the SOLE source of truth — an admin record of what the truck is
   // actually fitted with, not a guess.
@@ -91,7 +134,8 @@ function resolveAlternative(i: AvoidableInput): { hasAlternative: boolean; alter
   if (i.hasApu === false) return { hasAlternative: false, alternative: "none" };
   // No admin flag, but the truck DEMONSTRABLY only ever idles continuously → safe to state it had no
   // alternative (it never rests off / cycles), so its idle is unavoidable rather than "unknown".
-  if (i.learnedCapability === "continuous_only") return { hasAlternative: false, alternative: "none" };
+  if (i.learnedCapability === "continuous_only")
+    return { hasAlternative: false, alternative: "none" };
   // No admin flag + equipment unconfirmed → can't judge; excluded from scoring rather than blamed. This is
   // where a learned "apu"/"ecu_optimized" lands now: reported, never counted as avoidable waste.
   return { hasAlternative: false, alternative: "unknown" };
@@ -100,6 +144,7 @@ function resolveAlternative(i: AvoidableInput): { hasAlternative: boolean; alter
 /** Compute the avoidable-idle verdict for one truck over one period, from stored facts only. */
 export function computeAvoidable(input: AvoidableInput, opts: AvoidableOpts = {}): AvoidableResult {
   const minCoverage = opts.minCoverage ?? 0.5;
+  const onDutyGraceSec = Math.max(0, opts.onDutyGraceSec ?? 15 * 60);
   const engineOnSec = Math.max(0, input.driveSec) + Math.max(0, input.idleSec);
 
   let managedIdleSec = 0;
@@ -123,13 +168,74 @@ export function computeAvoidable(input: AvoidableInput, opts: AvoidableOpts = {}
   const shortIdleSec = Math.max(0, observedIdle - (managedIdleSec + continuousIdleSec));
 
   const { hasAlternative, alternative } = resolveAlternative(input);
-  const avoidableIdleSec = hasAlternative ? continuousIdleSec : 0;
-  const unavoidableIdleSec = hasAlternative ? 0 : continuousIdleSec;
+  let avoidableIdleSec = hasAlternative ? continuousIdleSec : 0;
+  let unavoidableIdleSec = hasAlternative ? 0 : continuousIdleSec;
+  let justifiedIdleSec = 0;
+  let uncertainIdleSec = 0;
+  let operationalGraceIdleSec = 0;
+  if (hasAlternative && alternative === "optimized_idle" && input.optimizedEnvelope != null) {
+    if (input.optimizedEnvelope.status === "sufficient") {
+      const insideSec = Math.min(continuousIdleSec, Math.max(0, input.optimizedEnvelope.insideSec));
+      const outsideSec = Math.min(
+        continuousIdleSec - insideSec,
+        Math.max(0, input.optimizedEnvelope.outsideSec),
+      );
+      const uncertainFromEvidence = Math.min(
+        continuousIdleSec - insideSec - outsideSec,
+        Math.max(0, input.optimizedEnvelope.unknownSec) +
+          Math.max(0, input.optimizedEnvelope.ambiguousSec),
+      );
+      avoidableIdleSec = insideSec;
+      justifiedIdleSec = outsideSec;
+      uncertainIdleSec = uncertainFromEvidence;
+    } else {
+      avoidableIdleSec = 0;
+      uncertainIdleSec = continuousIdleSec;
+    }
+    unavoidableIdleSec = Math.max(
+      0,
+      continuousIdleSec - avoidableIdleSec - justifiedIdleSec - uncertainIdleSec,
+    );
+  }
+
+  let dutyCanJudge = true;
+  if (input.dutyEvidence != null && continuousIdleSec > 0) {
+    const duty = input.dutyEvidence;
+    if (duty.status === "sufficient") {
+      operationalGraceIdleSec = Math.min(
+        continuousIdleSec,
+        Math.min(Math.max(0, duty.graceSec), onDutyGraceSec),
+      );
+      avoidableIdleSec = Math.max(0, avoidableIdleSec - operationalGraceIdleSec);
+      unavoidableIdleSec = Math.max(
+        0,
+        continuousIdleSec -
+          avoidableIdleSec -
+          justifiedIdleSec -
+          uncertainIdleSec -
+          operationalGraceIdleSec,
+      );
+    } else {
+      // HOS is the only source that can distinguish rest from loading/waiting. Do not score a candidate
+      // when the direct overlap is missing or conflicting; the row remains visible as uncertain.
+      avoidableIdleSec = 0;
+      justifiedIdleSec = 0;
+      operationalGraceIdleSec = 0;
+      uncertainIdleSec = continuousIdleSec;
+      unavoidableIdleSec = 0;
+      dutyCanJudge = false;
+    }
+  }
 
   const coverage = input.periodSec > 0 ? Math.min(1, input.coverageSec / input.periodSec) : 0;
   // Judgeable = we can say whether continuous idle was avoidable (an alternative exists, or we've established none).
-  const canJudge = alternative !== "unknown";
-  const confident = coverage >= minCoverage && canJudge;
+  const envelopeCanJudge =
+    alternative !== "optimized_idle" ||
+    continuousIdleSec <= 0 ||
+    input.optimizedEnvelope == null ||
+    input.optimizedEnvelope.status === "sufficient";
+  const canJudge = alternative !== "unknown" && envelopeCanJudge;
+  const confident = coverage >= minCoverage && canJudge && dutyCanJudge;
 
   return {
     engineOnSec,
@@ -141,6 +247,9 @@ export function computeAvoidable(input: AvoidableInput, opts: AvoidableOpts = {}
     shortIdleSec: Math.round(shortIdleSec),
     avoidableIdleSec: Math.round(avoidableIdleSec),
     unavoidableIdleSec: Math.round(unavoidableIdleSec),
+    justifiedIdleSec: Math.round(justifiedIdleSec),
+    uncertainIdleSec: Math.round(uncertainIdleSec),
+    operationalGraceIdleSec: Math.round(operationalGraceIdleSec),
     hasAlternative,
     alternative,
     coverage: Math.round(coverage * 1000) / 1000,

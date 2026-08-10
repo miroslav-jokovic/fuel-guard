@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { AUDIT_VERDICTS, CASE_RULE_ID, computeRecallMetrics } from "@fuelguard/shared";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
-import { apiError, asyncHandler, validateBody } from "../lib/http.js";
+import { apiError, dbErrorResponse, asyncHandler, validateBody } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
@@ -48,7 +48,7 @@ export function auditRouter(): Router {
       const n = Math.min(Math.max(Number(req.query.n) || 20, 1), 50);
       const { data, error } = await admin.rpc("sample_clear_transactions", { p_org: orgId, p_limit: n });
       if (error) {
-        res.status(500).json(apiError("sample_failed", error.message));
+        dbErrorResponse(res, "sample_clear_transactions rpc", error, "Could not sample transactions", "sample_failed");
         return;
       }
       const rows = ((data ?? []) as SampledRow[]).map((r) => ({

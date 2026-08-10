@@ -1,49 +1,30 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from "vitest";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { syncIdleEvents } from "./idleSync.js";
+import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import type { Env } from "../env.js";
 
 /**
- * A tiny chainable Supabase fake: every builder method returns the same node (so any `.select().eq().not()...`
- * chain works), awaiting a node yields that table's fixture, and `.upsert()` captures the written rows.
+ * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). Attribution is the whole
+ * point of this pipeline: an idle event is pinned to a vehicle and a driver by looking them up by
+ * SAMSARA id, which is only unique within the fleet that owns the integration. Without
+ * `.eq("org_id", …)` on those lookups — the filter the old fake discarded — an event could be
+ * attributed to another tenant's driver and priced off their fuel history. Same fixtures and the same
+ * derived numbers as before, now with the scope asserted.
  */
-function makeAdmin(fixtures: Record<string, { data: unknown }>) {
-  const captured: Record<string, Record<string, unknown>[]> = {};
-  function node(table: string): any {
-    const result = fixtures[table] ?? { data: [] };
-    const proxy: any = new Proxy(function () {}, {
-      get(_t, prop) {
-        if (prop === "then") return (resolve: (v: unknown) => unknown) => resolve(result);
-        if (prop === "upsert")
-          return (rows: unknown) => {
-            const arr = Array.isArray(rows) ? rows : [rows];
-            (captured[table] ||= []).push(...(arr as Record<string, unknown>[]));
-            return Promise.resolve({ error: null });
-          };
-        return () => proxy;
-      },
-      apply: () => proxy,
-    });
-    return proxy;
-  }
-  return { admin: { from: (t: string) => node(t) } as unknown as SupabaseClient, captured };
-}
+const ORG = "org1";
 
 describe("syncIdleEvents (end-to-end pipeline)", () => {
   it("parses, classifies, prices, and attributes idle events into idle_events rows", async () => {
-    const { admin, captured } = makeAdmin({
-      fuel_transactions: { data: [{ price_per_gal: 4 }] },
-      idle_settings: { data: null }, // use defaults (comfort 20-85, min 5 min, ...)
-      vehicles: { data: [{ id: "veh1", samsara_vehicle_id: "v1", has_apu: false }] },
-      drivers: {
-        data: [
+    const rec = createSupabaseRecorder({
+      tables: {
+        fuel_transactions: [{ price_per_gal: 4 }],
+        idle_settings: { data: null }, // use defaults (comfort 20-85, min 5 min, ...)
+        vehicles: [{ id: "veh1", samsara_vehicle_id: "v1", has_apu: false }],
+        drivers: [
           { id: "d1", samsara_driver_id: "op1" },
           { id: "d2", samsara_driver_id: "op2" },
         ],
-      },
-      driver_vehicle_assignments: {
-        data: [
+        driver_vehicle_assignments: [
           {
             vehicle_samsara_id: "v1",
             driver_samsara_id: "op2",
@@ -78,10 +59,10 @@ describe("syncIdleEvents (end-to-end pipeline)", () => {
     };
 
     const env = { WEATHER_BACKFILL_ENABLED: false } as unknown as Env;
-    const res = await syncIdleEvents(admin, env, "org1", { idlingFetcher: async () => raw });
+    const res = await syncIdleEvents(rec.client, env, ORG, { idlingFetcher: async () => raw });
 
     expect(res.fetched).toBe(2);
-    const rows = captured.idle_events ?? [];
+    const rows = rec.writtenRows("idle_events");
     expect(rows).toHaveLength(2);
     const A = rows.find((r) => r.samsara_event_id === "A") as Record<string, unknown>;
     const B = rows.find((r) => r.samsara_event_id === "B") as Record<string, unknown>;
@@ -101,5 +82,9 @@ describe("syncIdleEvents (end-to-end pipeline)", () => {
     expect(B.driver_source).toBe("inferred");
     expect(B.fuel_gal).toBeNull();
     expect(Number(B.idle_gal)).toBeGreaterThan(0); // estimated (learned/fleet rate, temperature-adjusted)
+
+    // Every read that fed those two rows — price history, thresholds, vehicle/driver resolution,
+    // assignments — and every row written names this org.
+    expectOrgScoped(rec, ORG);
   });
 });

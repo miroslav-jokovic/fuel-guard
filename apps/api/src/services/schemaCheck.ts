@@ -24,6 +24,11 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "idle_events", column: "driver_source", migration: "0051" },
   { table: "driver_vehicle_assignments", column: "driver_samsara_id", migration: "0051" },
   { table: "vehicles", column: "idle_states_sec", migration: "0052" },
+  { table: "vehicles", column: "idle_evidence_version", migration: "0164" },
+  { table: "idle_telemetry_windows", column: "evidence_version", migration: "0165" },
+  { table: "idle_park_sessions", column: "hos_evidence_version", migration: "0166" },
+  { table: "idle_park_sessions", column: "equipment_evidence_status", migration: "0167" },
+  { table: "vehicles", column: "idle_learned_envelope_status", migration: "0168" },
   { table: "efs_transactions", column: "tran_time", migration: "0047" },
   { table: "driver_performance_settings", column: "org_id", migration: "0053" },
   { table: "driver_scores", column: "id", migration: "0054" },
@@ -61,6 +66,8 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // Idle rollup (the Idling page's read path). Unapplied 0114 makes the rollup refresh fail and leaves
   // the page's tables empty even though the raw syncs are green.
   { table: "idle_rollup_days", column: "continuous_idle_sec", migration: "0114" },
+  { table: "idle_rollup_days", column: "optimized_envelope_status", migration: "0169" },
+  { table: "idle_rollup_days", column: "hos_evidence_status", migration: "0170" },
   // Company-issued driver credentials. Unapplied 0116 makes login create/reset fail at the DB layer.
   { table: "drivers", column: "app_username", migration: "0116" },
   // The safety file's document store. Unapplied 0146 makes every upload fail at the signed-URL step

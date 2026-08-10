@@ -9,6 +9,8 @@ import {
   resolveTankFuel,
   resolveOdometer,
   resolveLocation,
+  resolveCapacity,
+  type VehicleView,
 } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { makeSamsaraFetcher, type SamsaraFetcher } from "../lib/samsara.js";
@@ -66,9 +68,26 @@ export interface ReconInput {
   locationName: string | null;
   /** True when fueledAt carries a real time-of-day (timed EFS report / manual) vs date-only. */
   preciseTime: boolean;
-  /** Billed gallons + tank capacity, for the advisory tank-fill check. */
+  /** Billed gallons, for the advisory tank-fill check. */
   gallons: number | null;
-  tankCapacityGal: number | null;
+  /**
+   * The TRUCK, not a capacity number — deliberately (audit 2026-08-09, finding A).
+   *
+   * This input used to be `tankCapacityGal: number | null`, and the scoring caller filled it with
+   * `vehicle.tankCapacityGal` — the RAW entered nameplate — while every capacity RULE judges against
+   * `resolveCapacity(vehicle).gallons` (sensor-measured physics > entered > billed history). On a truck
+   * whose nameplate was mis-entered as 120 for a true 240, the observed tank-rise ratios this
+   * reconciliation produces cluster at 0.5, so learnTankSensorReliability never marks the sensor
+   * reliable, and `ruleEligible` then permanently disables SIX detectors (tank_space_exceeded,
+   * tank_fill_short, mpg_deviation, implausible_topoff, mpg_sustained_decline, tank_chronic_short) on
+   * exactly the trucks the capacity resolver exists to rescue.
+   *
+   * Accepting the capacity as a number is what allowed the wrong one to be passed, so the number is
+   * gone: this module resolves the capacity itself, through the same resolver the rules use, and no
+   * caller can hand it a second opinion. null = no truck context (the decline / diagnostics probes),
+   * which reads as "capacity unknown" exactly as it did before.
+   */
+  vehicle: VehicleView | null;
 }
 
 export interface ReconResult {
@@ -196,6 +215,12 @@ export async function reconcileWithSamsara(
   // a fill, but if the truck came within a generous radius we use it to VETO a false location mismatch.
   const nearMiles = stationCoords ? minSampleDistanceMiles(samples, stationCoords.lat, stationCoords.lng) : null;
 
+  // The ONE capacity this reconciliation measures against — the same value the capacity rules judge
+  // against (sensor-measured physics > entered nameplate > billed history). Resolved here rather than
+  // taken from the caller so the observed-rise gallons written back to the fill, and the rules that
+  // later consume them, can never be reconciling against two different tank sizes (finding A above).
+  const capacityGal = input.vehicle ? resolveCapacity(input.vehicle).gallons || null : null;
+
   // Tank-rise fueling event — the report-time-INDEPENDENT anchor. When present it pins the exact fueling
   // instant, the odometer at that instant, and the truck's observed location (docs/10 §14).
   const fuelReadings = parseFuelPercents(vehicleRaw);
@@ -203,7 +228,7 @@ export async function reconcileWithSamsara(
     state: input.state,
     city: input.city,
     gallons: input.gallons,
-    tankCapacityGal: input.tankCapacityGal,
+    tankCapacityGal: capacityGal,
     reportedAtIso: input.fueledAt,
   });
   /** How the fueling instant was determined (confidence ladder). */
@@ -242,7 +267,7 @@ export async function reconcileWithSamsara(
   // so pctBefore is gated on the same trusted physical anchor as the odometer (a tank rise, an in-city
   // stop, or GPS-confirmed proximity). We pass the real anchor `at` (NOT a noon/date-only fallback) so an
   // unanchored fill yields no before-level and can't false-fire tank_space_exceeded. ──
-  const tank = resolveTankFuel(fuelReadings, at, input.gallons, input.tankCapacityGal, fuelEvent?.pctAfter ?? null, trusted, fuelEvent?.pctBefore ?? null);
+  const tank = resolveTankFuel(fuelReadings, at, input.gallons, capacityGal, fuelEvent?.pctAfter ?? null, trusted, fuelEvent?.pctBefore ?? null);
 
   return {
     crossSourceOdometer: reading?.miles ?? null,

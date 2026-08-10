@@ -1,0 +1,61 @@
+name: Mutation check
+
+# Does the test suite still bite? (audit 2026-08-09, Stage 2.6)
+#
+# CI answers "do the tests pass". It cannot answer "would the tests notice if this were broken",
+# and that question has already had the wrong answer here: before Stage 2, opening three of the most
+# sensitive SELECT policies in the schema — every org's fuel data, driver PII and anomalies made
+# world-readable — left the RLS matrix reporting 209 passed, 0 failed, identical to a clean run.
+#
+# This job introduces those defects on purpose, one at a time, and requires the suite to go red.
+# A SURVIVED mutation is a hole in the safety net. A STALE one is worse: the code moved, the pattern
+# no longer matches, and that check has been testing nothing since.
+#
+# It runs weekly rather than on every PR because it is a property of the SUITE, not of a change —
+# but it also runs on pushes to main that touch the things it protects, so a weakened assertion is
+# caught in hours rather than at the end of the week.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "apps/api/src/services/**"
+      - "apps/api/src/testing/**"
+      - "apps/driver/vitest.config.ts"
+      - "scripts/mutation-check.mjs"
+      - "scripts/check-test-collection.mjs"
+
+concurrency:
+  group: mutation-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package for React Native
+        run: pnpm --filter @fuelguard/shared build:rn
+
+      # The harness edits files in place and restores them in a `finally`, verifying the restore by
+      # content hash. A fresh checkout makes that safe; it still refuses to run against a dirty tree.
+      - name: Run the mutation check
+        run: pnpm mutation:check

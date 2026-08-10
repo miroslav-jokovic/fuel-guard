@@ -11,6 +11,11 @@
 // live project (see docs/db-verify.md). The SQL editor bypasses RLS and must not be used to verify.
 
 import { PGlite } from "@electric-sql/pglite";
+// Real contrib extensions, not stripped ones. 0163 creates a GIN trigram index on audit_logs.action;
+// loading pg_trgm here means the matrix applies that DDL for real rather than editing it out, which
+// is the whole point of applying the production ledger verbatim (Stage 2.1). Add to this list when a
+// migration needs another contrib extension — do NOT start deleting `create extension` lines.
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { assertTenantIsolation } from "./lib/tenantIsolation.mjs";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -38,14 +43,35 @@ const ok = (name, cond, extra = "") => {
   }
 };
 
-const db = new PGlite();
+const db = new PGlite({ extensions: { pg_trgm } });
 
 /** Execute a query as an end-user JWT (non-superuser role + claims), inside a rolled-back txn. */
 async function asUser(claims, sql, params = []) {
   await db.exec("begin");
   try {
-    await db.exec("set local role app_user");
+    await db.exec("set local role authenticated");
     await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const res = await db.query(sql, params);
+    await db.exec("rollback");
+    return { rows: res.rows };
+  } catch (e) {
+    await db.exec("rollback");
+    return { error: e.message };
+  }
+}
+
+/**
+ * Execute a query as the real `anon` role with NO JWT claims — the unauthenticated party holding
+ * only the publishable anon key that ships in every browser bundle and every mobile build.
+ */
+async function asAnon(sql, params = []) {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role anon");
+    // PostgREST always sets a claims payload; for an anonymous request it is the anon key's own JWT,
+    // which carries a role and no org. Modelled exactly: NULL or '' would make auth_org_id() throw
+    // on `''::jsonb` and every assertion would fail as an ERROR rather than testing anything.
+    await db.query("select set_config('request.jwt.claims', '{\"role\":\"anon\"}', true)");
     const res = await db.query(sql, params);
     await db.exec("rollback");
     return { rows: res.rows };
@@ -100,9 +126,24 @@ async function main() {
     create role authenticated nologin;
     create role anon nologin;
     -- Supabase's privileged API role. Migrations grant to it; it bypasses RLS there and is never
-    -- what this matrix tests through (every assertion below runs as app_user).
+    -- what this matrix tests through (every assertion below runs as the authenticated role).
     create role service_role nologin bypassrls;
   `);
+
+  // Supabase's real default privileges, installed BEFORE the migrations run -- which is when the
+  // platform installs them, and why the order matters. This harness previously applied a blanket
+  // `grant all on all tables to app_user` AFTERWARDS, which would silently override anything a
+  // migration had revoked: a future `revoke select on <table> from authenticated` would be handed
+  // straight back by the test rig, and the matrix would report access that production denies
+  // (Stage 2.3). Supabase grants anon/authenticated full DML on public tables and relies on RLS as
+  // the gate, so that is modelled faithfully rather than approximated -- the policies below do the
+  // work here for exactly the reason they do in production.
+  await db.exec(
+    "grant usage on schema public, storage to anon, authenticated, service_role;" +
+    "alter default privileges in schema public grant all on tables to anon, authenticated, service_role;" +
+    "alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;" +
+    "alter default privileges in schema storage grant all on tables to anon, authenticated, service_role;",
+  );
 
   // Apply the exact lexical migration order used by Supabase production. Never read from _deploy/.
   console.log(`Applying ${MIGRATIONS.length} migrations in lexical order`);
@@ -112,13 +153,9 @@ async function main() {
     );
   }
 
-  // Non-privileged role RLS applies to (mirrors Supabase 'authenticated').
-  await db.exec(`
-    create role app_user nologin;
-    grant usage on schema public, storage to app_user;
-    grant all on all tables in schema public to app_user;
-    grant all on all tables in schema storage to app_user;
-  `);
+  // The auth/storage shim tables were created BEFORE the default privileges above, so they need
+  // their grants explicitly; everything the migrations created picked the defaults up on creation.
+  await db.exec("grant all on all tables in schema storage to anon, authenticated, service_role;");
 
   await db.exec(read("seed.sql"));
   await db.exec(`
@@ -2192,13 +2229,14 @@ async function main() {
     orgA: ORG_A,
     orgB: ORG_B,
     viewer: { org_id: ORG_A, user_role: "admin" },
+    asAnon,
     handSeed: {
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
     },
   });
   console.log(
-    `\n[tenant isolation] ${iso.covered} tables covered, ${iso.exempt} exempt, ${iso.unseedable.length} unseedable, ${iso.leaked} leaking`,
+    `\n[tenant isolation] ${iso.covered} tables covered, ${iso.exempt} exempt, ${iso.unseedable.length} unseedable, ${iso.leaked} leaking, ${iso.anonLeaks} anon-readable`,
   );
   for (const [t, why] of iso.unseedable) console.log(`   UNSEEDABLE ${t}: ${why}`);
 

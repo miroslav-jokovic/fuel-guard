@@ -203,21 +203,30 @@ export async function loadOperatingHours(
 }
 
 /**
- * Gallons from tractor fills strictly BETWEEN the chosen previous fill and this one (WP4). Those fills
- * were skipped when picking previousTxn (blank odometer / flagged entry), but their fuel WAS burned
- * inside the odometer span — omitting it inflates per-fill MPG and masks deviations.
+ * EVERY tractor fill in a business-time span — the fuel universe intermediate-gallons is summed from.
+ *
+ * Deliberately unfiltered beyond vehicle + tank: no `.not("odometer","is",null)`, no case/attribution
+ * exclusion. A fill that was skipped when picking previousTxn (blank odometer, flagged entry,
+ * logbook-suspect) still put real fuel in the tank inside the odometer span, and that is exactly the
+ * fuel this span accounting exists to recover (WP4).
+ *
+ * Split out of the old `sumIntermediateGallons` for audit 2026-08-09 finding B: the fill under test got
+ * its intermediate gallons from this query while each BASELINE fill derived the same figure from the
+ * previous-fill candidate rows — which carry `.not("odometer","is",null)`. Blank-odometer fills were
+ * therefore charged to the fill under test and omitted from every baseline, so three such gaps lifted a
+ * true-6.0-MPG truck's median baseline to 9–10 and the next honest fill fired `mpg_deviation` against
+ * its own history. One loader + one pure summer means both sides can only ever see the same fuel.
  */
-export async function sumIntermediateGallons(
+export async function loadSpanFills(
   admin: SupabaseClient,
   vehicleId: string,
-  previous: FtxnRow,
-  current: FtxnRow,
-  excludeId: string,
-): Promise<number> {
-  const previousMs = Date.parse(previous.fueled_at);
-  const currentMs = Date.parse(current.fueled_at);
-  const fromIso = new Date(Math.min(previousMs, currentMs)).toISOString();
-  const toIso = new Date(Math.max(previousMs, currentMs)).toISOString();
+  fromRow: FtxnRow,
+  toRow: FtxnRow,
+): Promise<FtxnRow[]> {
+  const fromMs = Date.parse(fromRow.fueled_at);
+  const toMs = Date.parse(toRow.fueled_at);
+  const fromIso = new Date(Math.min(fromMs, toMs)).toISOString();
+  const toIso = new Date(Math.max(fromMs, toMs)).toISOString();
   const { data } = await admin
     .from("fuel_transactions")
     .select(FTXN_COLS)
@@ -225,7 +234,21 @@ export async function sumIntermediateGallons(
     .eq("tank_type", "tractor")
     .gte("fueled_at", fromIso)
     .lte("fueled_at", toIso);
-  return ((data ?? []) as FtxnRow[])
+  return (data ?? []) as FtxnRow[];
+}
+
+/**
+ * Gallons from tractor fills strictly BETWEEN two fills, in event-time order (WP4). Pure — it sums
+ * whatever `spanFills` contains, so the caller's single `loadSpanFills` result serves the fill under
+ * test and every baseline fill identically (audit 2026-08-09, finding B).
+ */
+export function sumGallonsBetween(
+  spanFills: FtxnRow[],
+  previous: FtxnRow,
+  current: FtxnRow,
+  excludeId: string,
+): number {
+  return spanFills
     .filter((x) => x.id !== excludeId && compareTxnRows(x, previous) > 0 && compareTxnRows(x, current) < 0)
     .reduce((s, x) => s + (Number(x.gallons) || 0), 0);
 }

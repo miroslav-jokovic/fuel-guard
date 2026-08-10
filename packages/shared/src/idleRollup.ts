@@ -32,6 +32,34 @@ export interface RollupSession {
   idleSec: number;
   /** idle_park_sessions.mode: continuous | optimized_cycling | apu_or_off */
   mode: string;
+  optimizedEnvelope?: RollupEnvelopeEvidence;
+  dutyEvidence?: RollupDutyEvidence;
+}
+
+export type RollupEnvelopeEvidenceStatus =
+  "sufficient" | "insufficient" | "ambiguous" | "not_applicable" | "unavailable";
+
+export type RollupEnvelopeEvidenceSource = "documented_default" | "learned_behavioral" | "none";
+
+export interface RollupEnvelopeEvidence {
+  status: RollupEnvelopeEvidenceStatus;
+  source: RollupEnvelopeEvidenceSource;
+  insideSec: number;
+  outsideSec: number;
+  unknownSec: number;
+  ambiguousSec: number;
+}
+
+export type RollupDutyEvidenceStatus =
+  "sufficient" | "insufficient" | "ambiguous" | "not_applicable" | "unavailable";
+
+export interface RollupDutyEvidence {
+  status: RollupDutyEvidenceStatus;
+  restSec: number;
+  workSec: number;
+  unknownSec: number;
+  ambiguousSec: number;
+  graceSec: number;
 }
 
 export interface RollupIdleEvent {
@@ -62,6 +90,18 @@ export interface IdleRollupDay {
   restIdleSec: number;
   workIdleSec: number;
   otherIdleSec: number;
+  optimizedEnvelopeInsideSec: number;
+  optimizedEnvelopeOutsideSec: number;
+  optimizedEnvelopeUnknownSec: number;
+  optimizedEnvelopeAmbiguousSec: number;
+  optimizedEnvelopeStatus: RollupEnvelopeEvidenceStatus;
+  optimizedEnvelopeSource: RollupEnvelopeEvidenceSource;
+  hosRestSec: number;
+  hosWorkSec: number;
+  hosUnknownSec: number;
+  hosAmbiguousSec: number;
+  hosGraceSec: number;
+  hosEvidenceStatus: RollupDutyEvidenceStatus;
   attributedDriverId: string | null;
 }
 
@@ -86,6 +126,18 @@ function accFor(map: Map<string, Acc>, vehicleId: string, day: string): Acc {
       restIdleSec: 0,
       workIdleSec: 0,
       otherIdleSec: 0,
+      optimizedEnvelopeInsideSec: 0,
+      optimizedEnvelopeOutsideSec: 0,
+      optimizedEnvelopeUnknownSec: 0,
+      optimizedEnvelopeAmbiguousSec: 0,
+      optimizedEnvelopeStatus: "not_applicable",
+      optimizedEnvelopeSource: "none",
+      hosRestSec: 0,
+      hosWorkSec: 0,
+      hosUnknownSec: 0,
+      hosAmbiguousSec: 0,
+      hosGraceSec: 0,
+      hosEvidenceStatus: "not_applicable",
     };
     map.set(key, a);
   }
@@ -96,7 +148,11 @@ const topOf = (m: Map<string, number> | undefined): string | null => {
   if (!m) return null;
   let best: string | null = null;
   let bestDur = -1;
-  for (const [d, du] of m) if (du > bestDur) { best = d; bestDur = du; }
+  for (const [d, du] of m)
+    if (du > bestDur) {
+      best = d;
+      bestDur = du;
+    }
   return best;
 };
 
@@ -151,6 +207,41 @@ export function buildIdleRollupDays(input: {
     const a = accFor(acc, s.vehicleId, dayOf(s.startedAtMs));
     if (s.mode === "continuous") a.continuousIdleSec += Math.max(0, s.idleSec);
     else a.managedIdleSec += Math.max(0, s.idleSec); // apu_or_off | optimized_cycling
+    if (s.mode === "continuous" && s.optimizedEnvelope != null) {
+      a.optimizedEnvelopeInsideSec += Math.max(0, s.optimizedEnvelope.insideSec);
+      a.optimizedEnvelopeOutsideSec += Math.max(0, s.optimizedEnvelope.outsideSec);
+      a.optimizedEnvelopeUnknownSec += Math.max(0, s.optimizedEnvelope.unknownSec);
+      a.optimizedEnvelopeAmbiguousSec += Math.max(0, s.optimizedEnvelope.ambiguousSec);
+      const statusRank: Record<RollupEnvelopeEvidenceStatus, number> = {
+        not_applicable: 0,
+        sufficient: 1,
+        insufficient: 2,
+        ambiguous: 3,
+        unavailable: 4,
+      };
+      if (statusRank[s.optimizedEnvelope.status] > statusRank[a.optimizedEnvelopeStatus])
+        a.optimizedEnvelopeStatus = s.optimizedEnvelope.status;
+      if (s.optimizedEnvelope.source === "learned_behavioral")
+        a.optimizedEnvelopeSource = "learned_behavioral";
+      else if (a.optimizedEnvelopeSource === "none")
+        a.optimizedEnvelopeSource = s.optimizedEnvelope.source;
+    }
+    if (s.mode === "continuous" && s.dutyEvidence != null) {
+      a.hosRestSec += Math.max(0, s.dutyEvidence.restSec);
+      a.hosWorkSec += Math.max(0, s.dutyEvidence.workSec);
+      a.hosUnknownSec += Math.max(0, s.dutyEvidence.unknownSec);
+      a.hosAmbiguousSec += Math.max(0, s.dutyEvidence.ambiguousSec);
+      a.hosGraceSec += Math.max(0, s.dutyEvidence.graceSec);
+      const statusRank: Record<RollupDutyEvidenceStatus, number> = {
+        not_applicable: 0,
+        sufficient: 1,
+        insufficient: 2,
+        ambiguous: 3,
+        unavailable: 4,
+      };
+      if (statusRank[s.dutyEvidence.status] > statusRank[a.hosEvidenceStatus])
+        a.hosEvidenceStatus = s.dutyEvidence.status;
+    }
   }
 
   // Idle events: HOS duty overlay + operator attribution weight. No driver / no segments → other
@@ -166,9 +257,11 @@ export function buildIdleRollupDays(input: {
       const o = hosOverlapSeconds(segs, ev.startMs, ev.startMs + dur * 1000);
       a.restIdleSec += o.restSec;
       a.workIdleSec += o.workSec;
-      a.otherIdleSec += o.drivingSec + o.excludedSec + o.unknownSec + Math.max(0, dur - o.coveredSec);
+      a.otherIdleSec +=
+        o.drivingSec + o.excludedSec + o.unknownSec + Math.max(0, dur - o.coveredSec);
     }
-    if (ev.driverId) addWeight(weightByDay, weightByVeh, ev.vehicleId, dayOf(ev.startMs), ev.driverId, dur);
+    if (ev.driverId)
+      addWeight(weightByDay, weightByVeh, ev.vehicleId, dayOf(ev.startMs), ev.driverId, dur);
   }
 
   // Assignment intervals: fold each interval's per-day overlap into the same attribution weights (the
@@ -180,7 +273,15 @@ export function buildIdleRollupDays(input: {
     if (!(e > s)) continue;
     for (let dayStart = Math.floor(s / DAY_MS) * DAY_MS; dayStart < e; dayStart += DAY_MS) {
       const ov = Math.min(e, dayStart + DAY_MS) - Math.max(s, dayStart);
-      if (ov > 0) addWeight(weightByDay, weightByVeh, asg.vehicleId, dayOf(dayStart), asg.driverId, ov / 1000);
+      if (ov > 0)
+        addWeight(
+          weightByDay,
+          weightByVeh,
+          asg.vehicleId,
+          dayOf(dayStart),
+          asg.driverId,
+          ov / 1000,
+        );
     }
   }
 

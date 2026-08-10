@@ -1,8 +1,31 @@
 /** EFS report detection + transaction normalization + faithful lines + store re-derivation. */
+import { nonUsdGallonsReason } from "./currency.js";
 import type { FuelType } from "../constants.js";
 import { FUEL_PRODUCT_CODES, tankTypeForItem, fuelEventDateKey } from "./types.js";
 import type { RawRow, ParsedFuelLine, SkippedRow, ReportKind } from "./types.js";
-import { str, num, efsInstant, parseEfsTime, isNoonSentinelIso } from "./dateTime.js";
+import { str, num, efsInstant, parseEfsTime } from "./dateTime.js";
+
+/**
+ * CURRENCY / UNIT GUARD — fail closed on anything that is not USD per US gallon (audit 2026-08-09,
+ * finding G).
+ *
+ * Every consumer of a parsed fuel line treats `Qty` as US GALLONS and `Amt` as US DOLLARS: the tank
+ * rules compare gallons against tank capacity, the MPG rules divide miles by gallons, and cost_outlier
+ * compares $/gal against a USD market median. The documented ground truth for the EFS Transaction
+ * Report is `USD/Gallons`, and the Currency column WAS parsed and stored — but nothing ever read it.
+ *
+ * A Canadian fuelling settles in CAD per LITRE. Read as gallons, 450 L becomes "450 gallons", which
+ * fires `exceeds_tank_capacity` at CRITICAL severity against a driver who did nothing wrong, and drags
+ * that truck's cost and MPG comparisons with it. We do NOT convert: an exchange rate we do not have,
+ * applied to a report we cannot verify, would launder a guess into evidence. Skipping the row with a
+ * stated reason keeps the gap VISIBLE in the import summary and leaves the decision to a human.
+ *
+ * A blank / absent Currency is read as the documented USD/Gallons default — older exports omit the
+ * column entirely, and rejecting those would silently drop a fleet's whole history.
+ */
+/** Filler words a spelled-out currency carries ("US Dollars / Gallons"). Only ever consumed AFTER a
+ *  recognised US currency token, so "CAD Dollars" is still rejected on its first token. */
+
 
 /** Fuel type from a product code or description; excludes DEF/AdBlue (not propulsion fuel). */
 export function fuelTypeFromText(s: string | null | undefined): FuelType | null {
@@ -100,6 +123,13 @@ export function normalizeTransactionRows(rows: RawRow[]): {
     const gallons = num(pick(row, "Qty", "Quantity"));
     if (gallons == null || gallons <= 0) {
       skipped.push({ row_number: rowNumber, reason: "no gallons", item });
+      return;
+    }
+    // Qty is about to be read as US gallons and Amt as USD — refuse the row if its own Currency column
+    // says otherwise, rather than mis-scaling it into a critical capacity alert (finding G above).
+    const currencyReason = nonUsdGallonsReason(str(pick(row, "Currency", "Transaction Currency")));
+    if (currencyReason) {
+      skipped.push({ row_number: rowNumber, reason: currencyReason, item });
       return;
     }
     const state = str(pick(row, "State/ Prov", "State/Prov", "State", "Location State"));
@@ -399,6 +429,11 @@ export interface EfsStoreLine {
   item: string | null;
   qty: number | null;
   amt: number | null;
+  /** The faithful row's Currency column. The store persists it, so the repair path can apply the SAME
+   *  fail-closed USD/gallons guard the direct parser does — otherwise a non-USD row rejected at import
+   *  would walk straight back in through the re-derivation (audit 2026-08-09, finding G). Optional so
+   *  a caller that has not selected the column keeps the documented USD/Gallons default. */
+  currency?: string | null;
 }
 
 export interface DerivedFuelEvents {
@@ -410,90 +445,7 @@ export interface DerivedFuelEvents {
   skippedBlankInvoice: number;
   /** Rows with no tran_date / no positive qty — unusable, counted. */
   skippedUnusable: number;
-}
-
-/**
- * Re-derive merged fuel events from faithful EFS store lines. Produces the SAME external_ref, merge
- * and precision semantics as `normalizeTransactionRows` on the original file (one event per
- * card|invoice|business-date; gallons/cost summed; price re-derived from the merged totals).
- */
-export function deriveFuelEventsFromEfsStore(lines: EfsStoreLine[]): DerivedFuelEvents {
-  const byKey = new Map<string, ParsedFuelLine>();
-  let skippedNonFuel = 0;
-  let skippedBlankInvoice = 0;
-  let skippedUnusable = 0;
-
-  for (const l of lines) {
-    const item = (str(l.item) ?? "").toUpperCase();
-    const fuelType = FUEL_PRODUCT_CODES[item] ?? fuelTypeFromText(item);
-    if (!fuelType) {
-      skippedNonFuel += 1;
-      continue;
-    }
-    if (l.tran_date == null || l.qty == null || l.qty <= 0 || l.fueled_at == null) {
-      skippedUnusable += 1;
-      continue;
-    }
-    const invoice = str(l.invoice);
-    const txnId = str(l.transaction_id);
-    // Skip only when there is NEITHER a transaction id NOR an invoice to key on (the direct parser keeps
-    // anything with either). Keying on invoice alone here — instead of the shared builder — is what let
-    // this path mint an invoice-ref twin of every transactionId-ref fill the direct parser had stored.
-    if (!invoice && !txnId) {
-      skippedBlankInvoice += 1;
-      continue;
-    }
-    const dateKey = fuelEventDateKey({
-      card: str(l.card_num),
-      identity: txnId,
-      invoice,
-      fallback: `${l.fueled_at ?? ""}|${l.amt ?? ""}|${l.qty}`,
-      tranDate: l.tran_date,
-    });
-    const tankType = tankTypeForItem(item);
-    const ref = tankType === "reefer" ? `${dateKey}|reefer` : dateKey;
-    const key = `${dateKey}|${tankType}`;
-    const existing = byKey.get(key);
-    if (existing) {
-      existing.gallons += l.qty;
-      existing.total_cost = (existing.total_cost ?? 0) + (l.amt ?? 0);
-      // Keep the earliest instant in the group as the fueling time.
-      if (new Date(l.fueled_at).getTime() < new Date(existing.fueled_at).getTime()) {
-        existing.fueled_at = l.fueled_at;
-      }
-    } else {
-      byKey.set(key, {
-        external_ref: ref,
-        transaction_id: str(l.transaction_id),
-        unit: str(l.unit),
-        driver_name: str(l.driver_name),
-        card_ref: str(l.card_num),
-        control_id: str(l.control_id),
-        driver_ext_id: str(l.driver_ext_id),
-        fueled_at: l.fueled_at,
-        tran_date: l.tran_date,
-        fueled_at_precision: isNoonSentinelIso(l.fueled_at) ? "date" : "instant",
-        odometer: l.odometer,
-        gallons: l.qty,
-        price_per_gal: null, // re-derived from merged totals below
-        total_cost: l.amt,
-        fuel_type: fuelType,
-        tank_type: tankType,
-        item,
-        location_text: str(l.location_name),
-        city: str(l.city),
-        state: str(l.state),
-      });
-    }
-  }
-
-  const events = [...byKey.values()].map((e) => ({
-    ...e,
-    price_per_gal:
-      e.total_cost != null && e.gallons > 0
-        ? Math.round((e.total_cost / e.gallons) * 1000) / 1000
-        : e.price_per_gal,
-  }));
-
-  return { events, skippedNonFuel, skippedBlankInvoice, skippedUnusable };
+  /** Rows whose Currency is present and is not USD/gallons — `qty` and `amt` cannot be read on the
+   *  scales this system assumes, so they are skipped rather than mis-scaled (finding G). */
+  skippedNonUsd: number;
 }

@@ -16,6 +16,9 @@ const DS = {
     { entryId: "oxidizer", hazardClass: "5.1" },
     { entryId: "explosive", hazardClass: "1.1D" },
     { entryId: "hot", hazardClass: "9" },
+    // A Class 3 flammable that is ALSO dangerous-when-wet — the shape that exposed the defect.
+    { entryId: "flam-dww", hazardClass: "3", subsidiaryClasses: ["4.3"] },
+    { entryId: "corrosive", hazardClass: "8" },
   ],
   placards: [{ classOrDivision: "3", table: 2, placardName: "FLAMMABLE", designRef: "172.542", wordingOptions: [] }],
   erg: [],
@@ -23,6 +26,7 @@ const DS = {
     { rowClass: "3", colClass: "5.1", value: "O", notes: null },
     { rowClass: "3", colClass: "1.1 1.2", value: "X", notes: null },
     { rowClass: "5.1", colClass: "8 liquids only", value: "O", notes: null },
+    { rowClass: "4.3", colClass: "8", value: "X", notes: null },
   ],
 };
 
@@ -73,6 +77,32 @@ describe("checkSegregation — §177.848(d)", () => {
     expect(ids(r)).toContain("segregation_prohibited");
     expect(r.findings.find((x) => x.ruleId === "segregation_prohibited")!.tier).toBe("violation");
     expect(r.hasViolation).toBe(true);
+  });
+
+  // Regression: §177.848 segregates on HAZARD, and a subsidiary risk is a hazard the material really
+  // carries. The class set was built from `hazardClass` alone, so a Class 3 flammable with a
+  // subsidiary 4.3 sitting beside a Class 8 corrosive produced `segregation_none` at tier `info` —
+  // an explicit "no restriction applies" in place of a real prohibition. computePlacards was already
+  // reading the same field for §172.505 subsidiary placards (audit 2026-08-09, finding 4.2).
+  it("subsidiary 4.3 + class 8 → PROHIBITED, even though neither PRIMARY class is restricted", () => {
+    const r = checkSegregation(mkLoad(["flam-dww", "corrosive"]));
+    expect(ids(r)).toContain("segregation_prohibited");
+    expect(ids(r)).not.toContain("segregation_none");
+    expect(r.hasViolation).toBe(true);
+  });
+
+  it("names the material the subsidiary risk came from, not just the bare class", () => {
+    const r = checkSegregation(mkLoad(["flam-dww", "corrosive"]));
+    const f = r.findings.find((x) => x.ruleId === "segregation_prohibited")!;
+    const ev = f.evidence as { sourcesA: string[]; sourcesB: string[] };
+    const all = [...ev.sourcesA, ...ev.sourcesB].join(" | ");
+    expect(all).toContain("flam-dww (subsidiary 4.3)");
+    expect(all).toContain("corrosive (class 8)");
+  });
+
+  it("a primary 3 with no subsidiary risk is still unrestricted against class 8", () => {
+    // Control: proves the tests above detect the SUBSIDIARY risk, not merely the presence of class 8.
+    expect(ids(checkSegregation(mkLoad(["gas", "corrosive"])))).toContain("segregation_none");
   });
 
   it("class 9 (elevated-temp) with fuel → not in the grid, no restriction", () => {

@@ -226,7 +226,12 @@ async function liveReconciliation(
         locationName: r.location_text,
         preciseTime: txn.fueledAtPrecision === "instant",
         gallons: txn.gallons,
-        tankCapacityGal: vehicle.tankCapacityGal || null,
+        // The whole truck, not a capacity number: reconcileWithSamsara resolves the capacity through
+        // resolveCapacity() — the SAME source every capacity rule reads. This line used to pass
+        // `vehicle.tankCapacityGal`, the raw entered nameplate, which is how a mis-entered 120 on a
+        // true 240-gal truck taught the tank-sensor learner that the sensor only sees half the fill
+        // (audit 2026-08-09, finding A; see the `vehicle` field on ReconInput).
+        vehicle,
       },
       undefined,
       undefined,

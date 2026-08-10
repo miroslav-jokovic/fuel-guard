@@ -2,6 +2,7 @@
 // runtime cycle: index -> rules -> fillConfidence -> index, which Metro warns can expose partially
 // initialized exports on React Native.
 import { RULE_IDS, type RuleId } from "./anomalyRules/ids.js";
+import { resolveCapacity } from "./anomalyRules/capacityResolve.js";
 import type { RuleContext } from "./anomalyRules/types.js";
 
 /**
@@ -47,7 +48,14 @@ export function computeFillConfidence(ctx: RuleContext): FillConfidence {
   const odoSource: FillConfidence["odoSource"] =
     src == null ? null : src === "obd" ? "obd" : "other";
 
-  const cap = ctx.vehicle.tankCapacityGal;
+  // The measurable-fill floor is a fraction of the truck's REAL tank, so it must read the same capacity
+  // the capacity rules do — sensor-measured physics > entered nameplate > billed history — and not the
+  // raw entered number (audit 2026-08-09, finding A). Reading `tankCapacityGal` here mis-sized the floor
+  // in both directions on precisely the trucks the resolver exists to rescue: a nameplate mis-entered as
+  // 120 for a true 240-gal truck set the floor at 9.6 gal instead of 19.2 (sensor-noise-sized fills
+  // judged "measurable"), and a truck with NO entered capacity but a sensor-measured one fell to
+  // fillSize "unknown" — which does not gate — even though its true floor was knowable.
+  const cap = resolveCapacity(ctx.vehicle).gallons;
   const gal = ctx.txn.gallons;
   let fillSize: FillConfidence["fillSize"] = "unknown";
   if (cap > 0 && gal != null && gal > 0) {

@@ -1,11 +1,22 @@
 import { computed, type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { computeAvoidable, avoidableCost, idleScore, type IdleCapability } from "@fuelguard/shared";
+import {
+  computeAvoidable,
+  avoidableCost,
+  idleScore,
+  type IdleCapability,
+  type IdleDutyEvidence,
+  type OptimizedEnvelopeEvidence,
+} from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 
-const DEFAULT_COST_BASIS: IdleCostBasis = { idleGalPerHour: 0.8, fuelPricePerGal: 4.0, priceSource: "default" };
+const DEFAULT_COST_BASIS: IdleCostBasis = {
+  idleGalPerHour: 0.8,
+  fuelPricePerGal: 4.0,
+  priceSource: "default",
+};
 
 const PAGE = 1000;
 const WINDOW_DAYS = 30;
@@ -23,6 +34,9 @@ export interface TruckBreakdown {
   continuousH: number;
   avoidableH: number;
   unavoidableH: number;
+  justifiedH: number;
+  uncertainH: number;
+  operationalGraceH: number;
   avoidableUsd: number;
   score: number | null; // idle score (avoidable ÷ engine-on)
   alternative: string; // apu | optimized_idle | learned_apu | learned_optimized | none | unknown
@@ -59,8 +73,16 @@ function rangeBounds(f: IdleDateFilter) {
   // `idle_rollup_days.day` is a calendar date and the picker gives calendar dates, so we compare on the
   // picked YYYY-MM-DD DIRECTLY (round-tripping through Date shifted the end date for browsers west of UTC).
   const toDate = f.to ? f.to.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  const fromDate = f.from ? f.from.slice(0, 10) : new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const days = Math.max(1, Math.round((Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) / 86_400_000));
+  const fromDate = f.from
+    ? f.from.slice(0, 10)
+    : new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const days = Math.max(
+    1,
+    Math.round(
+      (Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) /
+        86_400_000,
+    ),
+  );
   return { fromDate, toDate, days };
 }
 
@@ -80,6 +102,20 @@ export interface RollupRow {
   rest_idle_sec: number;
   work_idle_sec: number;
   other_idle_sec: number;
+  optimized_envelope_inside_sec: number;
+  optimized_envelope_outside_sec: number;
+  optimized_envelope_unknown_sec: number;
+  optimized_envelope_ambiguous_sec: number;
+  optimized_envelope_status:
+    "sufficient" | "insufficient" | "ambiguous" | "not_applicable" | "unavailable";
+  optimized_envelope_source: "documented_default" | "learned_behavioral" | "none";
+  hos_rest_sec: number;
+  hos_work_sec: number;
+  hos_unknown_sec: number;
+  hos_ambiguous_sec: number;
+  hos_grace_sec: number;
+  hos_evidence_status:
+    "sufficient" | "insufficient" | "ambiguous" | "not_applicable" | "unavailable";
   attributed_driver_id: string | null;
 }
 
@@ -90,7 +126,7 @@ export async function fetchRollupRows(fromDate: string, toDate: string): Promise
     const { data, error } = await supabase
       .from("idle_rollup_days")
       .select(
-        "vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec, managed_idle_sec, continuous_idle_sec, rest_idle_sec, work_idle_sec, other_idle_sec, attributed_driver_id",
+        "vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec, managed_idle_sec, continuous_idle_sec, rest_idle_sec, work_idle_sec, other_idle_sec, optimized_envelope_inside_sec, optimized_envelope_outside_sec, optimized_envelope_unknown_sec, optimized_envelope_ambiguous_sec, optimized_envelope_status, optimized_envelope_source, hos_rest_sec, hos_work_sec, hos_unknown_sec, hos_ambiguous_sec, hos_grace_sec, hos_evidence_status, attributed_driver_id",
       )
       .gte("day", fromDate)
       .lte("day", toDate)
@@ -118,12 +154,73 @@ export interface VehicleRollupSums {
   rest: number;
   work: number;
   other: number;
+  optimizedEnvelopeInside: number;
+  optimizedEnvelopeOutside: number;
+  optimizedEnvelopeUnknown: number;
+  optimizedEnvelopeAmbiguous: number;
+  optimizedEnvelopeStatus: RollupRow["optimized_envelope_status"];
+  optimizedEnvelopeSource: RollupRow["optimized_envelope_source"];
+  hosRest: number;
+  hosWork: number;
+  hosUnknown: number;
+  hosAmbiguous: number;
+  hosGrace: number;
+  hosEvidenceStatus: RollupRow["hos_evidence_status"];
+}
+
+function envelopeFor(
+  s: VehicleRollupSums,
+  hasOptimizedIdle: boolean | null,
+): OptimizedEnvelopeEvidence | undefined {
+  if (hasOptimizedIdle !== true || s.continuous <= 0) return undefined;
+  return {
+    status:
+      s.optimizedEnvelopeStatus === "not_applicable" ? "unavailable" : s.optimizedEnvelopeStatus,
+    source: s.optimizedEnvelopeSource,
+    insideSec: s.optimizedEnvelopeInside,
+    outsideSec: s.optimizedEnvelopeOutside,
+    unknownSec: s.optimizedEnvelopeUnknown,
+    ambiguousSec: s.optimizedEnvelopeAmbiguous,
+  };
+}
+
+function dutyEvidenceFor(s: VehicleRollupSums): IdleDutyEvidence | undefined {
+  if (s.continuous <= 0) return undefined;
+  return {
+    status: s.hosEvidenceStatus === "not_applicable" ? "unavailable" : s.hosEvidenceStatus,
+    workSec: s.hosWork,
+    unknownSec: s.hosUnknown,
+    ambiguousSec: s.hosAmbiguous,
+    graceSec: s.hosGrace,
+  };
 }
 
 export function sumRollupByVehicle(rows: RollupRow[]): Map<string, VehicleRollupSums> {
   const out = new Map<string, VehicleRollupSums>();
   for (const r of rows) {
-    const s = out.get(r.vehicle_id) ?? { drive: 0, idle: 0, off: 0, cov: 0, managed: 0, continuous: 0, rest: 0, work: 0, other: 0 };
+    const s = out.get(r.vehicle_id) ?? {
+      drive: 0,
+      idle: 0,
+      off: 0,
+      cov: 0,
+      managed: 0,
+      continuous: 0,
+      rest: 0,
+      work: 0,
+      other: 0,
+      optimizedEnvelopeInside: 0,
+      optimizedEnvelopeOutside: 0,
+      optimizedEnvelopeUnknown: 0,
+      optimizedEnvelopeAmbiguous: 0,
+      optimizedEnvelopeStatus: "not_applicable",
+      optimizedEnvelopeSource: "none",
+      hosRest: 0,
+      hosWork: 0,
+      hosUnknown: 0,
+      hosAmbiguous: 0,
+      hosGrace: 0,
+      hosEvidenceStatus: "not_applicable",
+    };
     s.drive += Number(r.drive_sec);
     s.idle += Number(r.idle_sec);
     s.off += Number(r.off_sec);
@@ -133,6 +230,37 @@ export function sumRollupByVehicle(rows: RollupRow[]): Map<string, VehicleRollup
     s.rest += Number(r.rest_idle_sec);
     s.work += Number(r.work_idle_sec);
     s.other += Number(r.other_idle_sec);
+    s.optimizedEnvelopeInside += Number(r.optimized_envelope_inside_sec);
+    s.optimizedEnvelopeOutside += Number(r.optimized_envelope_outside_sec);
+    s.optimizedEnvelopeUnknown += Number(r.optimized_envelope_unknown_sec);
+    s.optimizedEnvelopeAmbiguous += Number(r.optimized_envelope_ambiguous_sec);
+    const statusRank: Record<RollupRow["optimized_envelope_status"], number> = {
+      not_applicable: 0,
+      sufficient: 1,
+      insufficient: 2,
+      ambiguous: 3,
+      unavailable: 4,
+    };
+    if (statusRank[r.optimized_envelope_status] > statusRank[s.optimizedEnvelopeStatus])
+      s.optimizedEnvelopeStatus = r.optimized_envelope_status;
+    if (r.optimized_envelope_source === "learned_behavioral")
+      s.optimizedEnvelopeSource = "learned_behavioral";
+    else if (s.optimizedEnvelopeSource === "none")
+      s.optimizedEnvelopeSource = r.optimized_envelope_source;
+    s.hosRest += Number(r.hos_rest_sec);
+    s.hosWork += Number(r.hos_work_sec);
+    s.hosUnknown += Number(r.hos_unknown_sec);
+    s.hosAmbiguous += Number(r.hos_ambiguous_sec);
+    s.hosGrace += Number(r.hos_grace_sec);
+    const hosStatusRank: Record<RollupRow["hos_evidence_status"], number> = {
+      not_applicable: 0,
+      sufficient: 1,
+      insufficient: 2,
+      ambiguous: 3,
+      unavailable: 4,
+    };
+    if (hosStatusRank[r.hos_evidence_status] > hosStatusRank[s.hosEvidenceStatus])
+      s.hosEvidenceStatus = r.hos_evidence_status;
     out.set(r.vehicle_id, s);
   }
   return out;
@@ -151,7 +279,11 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
     queryFn: async (): Promise<IdleBreakdown> => {
       const { fromDate, toDate } = rangeBounds(toValue(filters));
       const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
-      const costOf = (sec: number) => avoidableCost(sec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd;
+      const costOf = (sec: number) =>
+        avoidableCost(sec, {
+          idleGalPerHour: cb.idleGalPerHour,
+          fuelPricePerGal: cb.fuelPricePerGal,
+        }).usd;
 
       const rows = await fetchRollupRows(fromDate, toDate);
       const sums = sumRollupByVehicle(rows);
@@ -163,7 +295,13 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
       // data days — rather than spanning from the earliest row — also survives a stray old row that
       // would otherwise stretch the span and re-zero the card. Selected span still caps it, and no
       // rows at all → 1 day (fleet zeros, honestly).
-      const selectedDays = Math.max(1, Math.round((Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) / 86_400_000));
+      const selectedDays = Math.max(
+        1,
+        Math.round(
+          (Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) /
+            86_400_000,
+        ),
+      );
       const daysWithData = new Set(rows.map((r) => r.day)).size;
       const days = Math.max(1, Math.min(selectedDays, daysWithData));
 
@@ -199,6 +337,8 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           hasApu: v.has_apu ?? null,
           hasOptimizedIdle: v.has_optimized_idle ?? null,
           learnedCapability: (v.idle_capability ?? "unknown") as IdleCapability,
+          optimizedEnvelope: envelopeFor(s, v.has_optimized_idle ?? null),
+          dutyEvidence: dutyEvidenceFor(s),
         });
         trucks.push({
           vehicleId: v.id,
@@ -212,6 +352,9 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           continuousH: hrs(r.continuousIdleSec),
           avoidableH: hrs(r.avoidableIdleSec),
           unavoidableH: hrs(r.unavoidableIdleSec),
+          justifiedH: hrs(r.justifiedIdleSec),
+          uncertainH: hrs(r.uncertainIdleSec),
+          operationalGraceH: hrs(r.operationalGraceIdleSec),
           avoidableUsd: costOf(r.avoidableIdleSec),
           score: idleScore(r.avoidableIdleSec, r.engineOnSec),
           alternative: r.alternative,
@@ -225,7 +368,13 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
       }
       trucks.sort((a, b) => b.avoidableUsd - a.avoidableUsd || b.avoidableH - a.avoidableH);
 
-      let engineOn = 0, drive = 0, idle = 0, off = 0, avoidH = 0, avoidUsd = 0, confidentTrucks = 0;
+      let engineOn = 0,
+        drive = 0,
+        idle = 0,
+        off = 0,
+        avoidH = 0,
+        avoidUsd = 0,
+        confidentTrucks = 0;
       for (const t of trucks) {
         engineOn += t.engineOnH;
         drive += t.driveH;

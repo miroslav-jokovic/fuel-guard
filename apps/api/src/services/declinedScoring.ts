@@ -68,7 +68,9 @@ async function vehicleAtDeclineLocation(
     // noon sentinel, and treating THAT as precise could raise a false mismatch. Detect it.
     preciseTime: !isNoonSentinelIso(d.declined_at),
     gallons: null,
-    tankCapacityGal: null,
+    // No truck context on a decline probe — capacity is unknown, and reconcileWithSamsara
+    // resolves it from the vehicle rather than accepting a number (audit 2026-08-09, finding A).
+    vehicle: null,
   }).catch(() => null);
   if (!recon) return { matched: null, confidence: null, stationLat: null, stationLng: null };
   return { matched: recon.locationMatched, confidence: recon.locationConfidence, stationLat: recon.stationLat, stationLng: recon.stationLng };

@@ -74,6 +74,14 @@ export const RETENTION_RULES: RetentionRule[] = [
     why: "derived park sessions; mode split preserved in idle_rollup_days",
   },
   {
+    table: "idle_telemetry_windows",
+    timeColumn: "synced_at",
+    keepDays: 400,
+    strategy: "id",
+    orgScoped: true,
+    why: "derived current-window telemetry evidence; rebuilt from Samsara vehicle stats",
+  },
+  {
     table: "vehicle_engine_days",
     timeColumn: "day",
     keepDays: 400,

@@ -42,6 +42,9 @@ export interface EfsSyncResult {
   skippedNonFuel: number;
   skippedBlankInvoice: number;
   skippedUnusable: number;
+  /** Stored lines whose Currency is present and is not USD/gallons — skipped rather than mis-scaled
+   *  (audit 2026-08-09, finding G). */
+  skippedNonUsd: number;
   /** Rows the repair touched — the caller re-scores these (in the background; Samsara-rate-limited). */
   touchedIds: string[];
 }
@@ -55,7 +58,9 @@ async function loadAllEfsLines(admin: SupabaseClient, orgId: string): Promise<Ef
   for (let fromRow = 0; ; fromRow += PAGE) {
     const { data, error } = await admin
       .from("efs_transactions")
-      .select("card_num, control_id, transaction_id, invoice, tran_date, fueled_at, unit, driver_name, odometer, location_name, city, state, item, qty, amt")
+      // `currency` feeds the fail-closed USD/gallons guard in deriveFuelEventsFromEfsStore — without
+      // it a non-USD row rejected at import would walk back in through this repair path (finding G).
+      .select("card_num, control_id, transaction_id, invoice, tran_date, fueled_at, unit, driver_name, odometer, location_name, city, state, item, qty, amt, currency")
       .eq("org_id", orgId)
       .order("tran_date", { ascending: true })
       .order("line_number", { ascending: true })
@@ -79,6 +84,7 @@ async function loadAllEfsLines(admin: SupabaseClient, orgId: string): Promise<Ef
         item: (r.item as string) ?? null,
         qty: n(r.qty),
         amt: n(r.amt),
+        currency: (r.currency as string) ?? null,
       });
     }
     if (rows.length < PAGE) break;
@@ -194,7 +200,7 @@ export async function syncFuelEventsFromEfs(
         total_rows: derived.events.length,
         inserted_rows: toInsert.length,
         duplicate_rows: unchanged,
-        skipped_rows: derived.skippedNonFuel + derived.skippedBlankInvoice + derived.skippedUnusable,
+        skipped_rows: derived.skippedNonFuel + derived.skippedBlankInvoice + derived.skippedUnusable + derived.skippedNonUsd,
         created_by: actorId,
       })
       .select("id")
@@ -255,6 +261,7 @@ export async function syncFuelEventsFromEfs(
     skippedNonFuel: derived.skippedNonFuel,
     skippedBlankInvoice: derived.skippedBlankInvoice,
     skippedUnusable: derived.skippedUnusable,
+    skippedNonUsd: derived.skippedNonUsd,
     touchedIds,
   };
 }

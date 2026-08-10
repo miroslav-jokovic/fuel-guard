@@ -174,6 +174,57 @@ describe("Tier 1 — odometer", () => {
     // 99400 → 200000 over 48h ⇒ ~2096 mph
     expect(ids(ctx({ txn: txn({ odometer: 200000 }) }))).toContain("odometer_implausible_jump");
   });
+  // Regression: the rule measured elapsed time from fueledAt while the GATE that selects it measures
+  // eventTime. For an EFS date-only row, fueledAt is a noon-UTC sentinel that telematics never
+  // overwrites, so two corroborated fills on the same tran date gave hours = 0 and the rule went
+  // silent — and because the gate is exclusive, odometer_daily_cap was not registered either
+  // (audit 2026-08-09, finding 4.1b). Both cases below FAIL on the pre-fix code.
+  it("odometer_implausible_jump fires on EFS date-only fills whose real times were recovered", () => {
+    // Same noon-UTC sentinel on both rows; the recovered instants are 3h apart. 1200 mi / 3h = 400 mph.
+    const prev = {
+      ...txn(),
+      id: "prev",
+      fueledAt: "2026-06-10T12:00:00Z",
+      eventAt: "2026-06-10T06:00:00Z",
+      timeConfirmed: true,
+      precision: "instant" as const,
+      odometer: 100000,
+    };
+    const cur = {
+      ...txn(),
+      fueledAt: "2026-06-10T12:00:00Z",
+      eventAt: "2026-06-10T09:00:00Z",
+      timeConfirmed: true,
+      precision: "instant" as const,
+      odometer: 101200,
+    };
+    const out = ids(ctx({ txn: cur, previousTxn: prev }));
+    expect(out).toContain("odometer_implausible_jump");
+  });
+
+  it("odometer_implausible_jump stays quiet when the recovered interval makes the distance plausible", () => {
+    // Same shape, but 20 hours apart: 1200 mi / 20h = 60 mph, under the 85 mph threshold. This is the
+    // control — it proves the test above is detecting the speed, not merely the fixture shape.
+    const prev = {
+      ...txn(),
+      id: "prev",
+      fueledAt: "2026-06-10T12:00:00Z",
+      eventAt: "2026-06-09T13:00:00Z",
+      timeConfirmed: true,
+      precision: "instant" as const,
+      odometer: 100000,
+    };
+    const cur = {
+      ...txn(),
+      fueledAt: "2026-06-10T12:00:00Z",
+      eventAt: "2026-06-10T09:00:00Z",
+      timeConfirmed: true,
+      precision: "instant" as const,
+      odometer: 101200,
+    };
+    expect(ids(ctx({ txn: cur, previousTxn: prev }))).not.toContain("odometer_implausible_jump");
+  });
+
   it("does not fire odometer rules for a clean reading", () => {
     expect(ids(ctx())).not.toContain("odometer_regression");
   });

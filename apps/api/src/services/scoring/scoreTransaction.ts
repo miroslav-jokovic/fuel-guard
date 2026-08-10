@@ -110,7 +110,7 @@ async function loadRuleInputs(
   const tankResidualWindow = await loadTankResidualWindow(admin, txn, r, winEndIso);
   const windowIdleGallons = await loadWindowIdleGallons(admin, txn, winStartIso, winEndIso);
   const cardCtx = await resolveCardContext(admin, orgId, txn, winStartIso, r.fueled_at);
-  const reefer = await loadReeferContext(admin, orgId, txn, winStartIso, winEndIso);
+  const reefer = await loadReeferContext(admin, orgId, txn, winStartIso);
   const reeferDiversion = await loadReeferDiversionContext(admin, orgId, txn, thresholds, winEndIso);
   const driverHomeAtFill = txn.driverId
     ? await deriveDriverHomeAtFill(admin, orgId, txn.driverId, r.fueled_at)

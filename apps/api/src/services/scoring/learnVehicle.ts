@@ -178,6 +178,13 @@ export async function learnVehicleValues(
   }
 
   if (Object.keys(vehUpdate).length) {
-    await admin.from("vehicles").update(vehUpdate).eq("id", vehicleId);
+    // CHECKED, like every other write in this subsystem (audit 2026-08-09, finding E). This is the
+    // only place the learned per-truck state — odometer offset, tank-sensor reliability + sigma,
+    // observed/sensor capacity, an auto-corrected nameplate — is committed, and a capacity auto-fix
+    // has ALREADY been audit-logged by the time we get here. Swallowing the error left an audit entry
+    // claiming a correction that never landed, and every later fill re-derived the same learned values
+    // from scratch and silently failed to persist them again.
+    const { error } = await admin.from("vehicles").update(vehUpdate).eq("id", vehicleId);
+    if (error) throw new Error(`[scoring] could not update learned state for vehicle ${vehicleId}: ${error.message}`);
   }
 }

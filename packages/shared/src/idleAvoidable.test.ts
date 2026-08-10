@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { computeAvoidable, avoidableCost, idleScore, type AvoidableInput } from "./idleAvoidable.js";
+import {
+  computeAvoidable,
+  avoidableCost,
+  idleScore,
+  type AvoidableInput,
+} from "./idleAvoidable.js";
 
 const H = 3600;
 const base: AvoidableInput = {
@@ -55,6 +60,78 @@ describe("computeAvoidable", () => {
     expect(r.hasAlternative).toBe(true);
   });
 
+  it("counts only complete in-envelope Optimized Idle evidence as avoidable", () => {
+    const r = computeAvoidable({
+      ...base,
+      hasOptimizedIdle: true,
+      optimizedEnvelope: {
+        status: "sufficient",
+        source: "documented_default",
+        insideSec: 2 * H,
+        outsideSec: 3 * H,
+        unknownSec: 0,
+        ambiguousSec: 0,
+      },
+    });
+    expect(r.avoidableIdleSec).toBe(2 * H);
+    expect(r.justifiedIdleSec).toBe(3 * H);
+    expect(r.uncertainIdleSec).toBe(0);
+    expect(r.unavoidableIdleSec).toBe(0);
+    expect(r.confident).toBe(true);
+  });
+
+  it("does not blame Optimized Idle continuous time when temperature evidence is incomplete", () => {
+    const r = computeAvoidable({
+      ...base,
+      hasOptimizedIdle: true,
+      optimizedEnvelope: {
+        status: "insufficient",
+        source: "documented_default",
+        insideSec: 0,
+        outsideSec: 0,
+        unknownSec: 5 * H,
+        ambiguousSec: 0,
+      },
+    });
+    expect(r.avoidableIdleSec).toBe(0);
+    expect(r.uncertainIdleSec).toBe(5 * H);
+    expect(r.confident).toBe(false);
+  });
+
+  it("applies only the bounded on-duty grace when HOS overlap is sufficient", () => {
+    const r = computeAvoidable({
+      ...base,
+      hasApu: true,
+      dutyEvidence: {
+        status: "sufficient",
+        workSec: 2 * H,
+        unknownSec: 0,
+        ambiguousSec: 0,
+        graceSec: 15 * 60,
+      },
+    });
+    expect(r.avoidableIdleSec).toBe(5 * H - 15 * 60);
+    expect(r.operationalGraceIdleSec).toBe(15 * 60);
+    expect(r.confident).toBe(true);
+  });
+
+  it("does not score continuous idle when HOS evidence is incomplete or conflicting", () => {
+    const r = computeAvoidable({
+      ...base,
+      hasApu: true,
+      dutyEvidence: {
+        status: "insufficient",
+        workSec: 0,
+        unknownSec: 5 * H,
+        ambiguousSec: 0,
+        graceSec: 0,
+      },
+    });
+    expect(r.avoidableIdleSec).toBe(0);
+    expect(r.uncertainIdleSec).toBe(5 * H);
+    expect(r.confident).toBe(false);
+  });
+
   it("Demonstrably continuous-only: same idle is UNAVOIDABLE, not blamed", () => {
     const r = computeAvoidable({ ...base, hasApu: null, learnedCapability: "continuous_only" });
     expect(r.avoidableIdleSec).toBe(0);
@@ -98,7 +175,11 @@ describe("computeAvoidable", () => {
   });
 
   it("Unknown capability + no admin flag → not confident (excluded from scoring), nothing blamed", () => {
-    const r = computeAvoidable({ ...base, sessions: [{ idleSec: 3 * H, mode: "continuous" }], learnedCapability: "unknown" });
+    const r = computeAvoidable({
+      ...base,
+      sessions: [{ idleSec: 3 * H, mode: "continuous" }],
+      learnedCapability: "unknown",
+    });
     expect(r.alternative).toBe("unknown");
     expect(r.avoidableIdleSec).toBe(0);
     expect(r.unavoidableIdleSec).toBe(3 * H);
@@ -124,7 +205,10 @@ describe("avoidableCost", () => {
     expect(avoidableCost(1 * H)).toEqual({ gallons: 0.8, usd: 3.2 });
   });
   it("honors custom burn and price", () => {
-    expect(avoidableCost(2 * H, { idleGalPerHour: 1, fuelPricePerGal: 5 })).toEqual({ gallons: 2, usd: 10 });
+    expect(avoidableCost(2 * H, { idleGalPerHour: 1, fuelPricePerGal: 5 })).toEqual({
+      gallons: 2,
+      usd: 10,
+    });
   });
 });
 

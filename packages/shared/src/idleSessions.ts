@@ -56,6 +56,116 @@ export interface IdleSession {
   mode: IdleMode;
 }
 
+/** Observed behavior labels. These deliberately do not claim what equipment is installed. */
+export type IdleObservedMode =
+  | "continuous_main_engine"
+  | "optimized_cycling_observed"
+  | "engine_off_observed"
+  | "unknown";
+
+/** Data sufficiency only; this is not classifier accuracy. */
+export type IdleEvidenceStatus = "sufficient" | "insufficient";
+
+/** Version of the evidence contract derived from the current engineStates + decorated GPS inputs. */
+export const IDLE_EVIDENCE_VERSION = "engine-states-v1" as const;
+
+export interface IdleSessionEvidence {
+  observedMode: IdleObservedMode;
+  evidenceStatus: IdleEvidenceStatus;
+  /** Reserved for a calibrated accuracy estimate; null until the labeled evaluation phase is complete. */
+  confidence: number | null;
+  stateSampleCount: number;
+  /** Count of engine-state samples carrying a decorated GPS speed; not an independent GPS-feed count. */
+  gpsStateSampleCount: number;
+  sourceCoverageSec: number;
+  stationarySec: number;
+  maxSpeedMph: number | null;
+  evidenceVersion: typeof IDLE_EVIDENCE_VERSION;
+}
+
+export interface IdleVehicleEvidence {
+  observedMode: IdleObservedMode;
+  evidenceStatus: IdleEvidenceStatus;
+  /** Reserved for a calibrated accuracy estimate; null until the labeled evaluation phase is complete. */
+  confidence: number | null;
+  sessions: number;
+  parkedSec: number;
+  stateSampleCount: number;
+  /** Count of engine-state samples carrying a decorated GPS speed; not an independent GPS-feed count. */
+  gpsStateSampleCount: number;
+  evidenceVersion: typeof IDLE_EVIDENCE_VERSION;
+}
+
+function observedModeForSession(mode: IdleMode): Exclude<IdleObservedMode, "unknown"> {
+  if (mode === "continuous") return "continuous_main_engine";
+  if (mode === "optimized_cycling") return "optimized_cycling_observed";
+  return "engine_off_observed";
+}
+
+/** Build session evidence without inferring APU, battery HVAC, or Optimized Idle equipment. */
+export function buildIdleSessionEvidence(session: IdleSession, samples: EngineSample[]): IdleSessionEvidence {
+  const contributing = samples.filter((sample) => sample.t >= session.startMs && sample.t < session.endMs);
+  const speeds = contributing
+    .map((sample) => sample.speedMph)
+    .filter((speed): speed is number => speed != null && Number.isFinite(speed) && speed >= 0);
+  return {
+    observedMode: observedModeForSession(session.mode),
+    evidenceStatus: contributing.length > 0 ? "sufficient" : "insufficient",
+    confidence: null,
+    stateSampleCount: contributing.length,
+    gpsStateSampleCount: speeds.length,
+    sourceCoverageSec: session.durationSec,
+    stationarySec: session.durationSec,
+    maxSpeedMph: speeds.length > 0 ? speeds.reduce((max, speed) => Math.max(max, speed), 0) : null,
+    evidenceVersion: IDLE_EVIDENCE_VERSION,
+  };
+}
+
+/** Summarize observed parked behavior independently from manually confirmed vehicle equipment. */
+export function summarizeIdleEvidence(
+  sessions: IdleSession[],
+  samples: EngineSample[],
+  opts: { minSessions?: number } = {},
+): IdleVehicleEvidence {
+  const sessionEvidence = sessions.map((session) => buildIdleSessionEvidence(session, samples));
+  const parkedSec = sessions.reduce((sum, session) => sum + session.idleSec + session.offSec, 0);
+  const stateSampleCount = sessionEvidence.reduce((sum, evidence) => sum + evidence.stateSampleCount, 0);
+  const gpsStateSampleCount = sessionEvidence.reduce((sum, evidence) => sum + evidence.gpsStateSampleCount, 0);
+  const minSessions = opts.minSessions ?? 4;
+  if (sessions.length < minSessions || parkedSec <= 0) {
+    return {
+      observedMode: "unknown",
+      evidenceStatus: "insufficient",
+      confidence: null,
+      sessions: sessions.length,
+      parkedSec: Math.round(parkedSec),
+      stateSampleCount,
+      gpsStateSampleCount,
+      evidenceVersion: IDLE_EVIDENCE_VERSION,
+    };
+  }
+
+  const timeByMode: Record<Exclude<IdleObservedMode, "unknown">, number> = {
+    continuous_main_engine: 0,
+    optimized_cycling_observed: 0,
+    engine_off_observed: 0,
+  };
+  for (const session of sessions) timeByMode[observedModeForSession(session.mode)] += session.idleSec + session.offSec;
+  const observedMode = (Object.keys(timeByMode) as Exclude<IdleObservedMode, "unknown">[]).reduce((best, mode) =>
+    timeByMode[mode] > timeByMode[best] ? mode : best,
+  );
+  return {
+    observedMode,
+    evidenceStatus: "sufficient",
+    confidence: null,
+    sessions: sessions.length,
+    parkedSec: Math.round(parkedSec),
+    stateSampleCount,
+    gpsStateSampleCount,
+    evidenceVersion: IDLE_EVIDENCE_VERSION,
+  };
+}
+
 export interface IdleSessionOpts {
   /** A park session must be at least this long (default 30 min). Shorter stops aren't rest/wait/load. */
   minSessionSec?: number;

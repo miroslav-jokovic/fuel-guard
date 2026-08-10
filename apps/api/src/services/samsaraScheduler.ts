@@ -1,13 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { syncVehiclesFromSamsara, syncVehicleStatsFromSamsara, NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import {
+  syncVehiclesFromSamsara,
+  syncVehicleStatsFromSamsara,
+  NoSamsaraTokenError,
+} from "./samsaraVehicleSync.js";
 import { syncDriversFromSamsara } from "./samsaraDriverSync.js";
 import { syncRecentDriverScoreWeeks } from "./driverScoreSync.js";
 import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
-import { syncIdleEvents } from "./idleSync.js";
+import { syncIdleFoundation } from "./idleFoundationSync.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
 import { syncIdleRollup } from "./idleRollup.js";
+import { syncIdleDutyEvidence } from "./idleDutyEvidenceSync.js";
 import { runDataRetention } from "./dataRetention.js";
 import { startJob, finishJob, startJobHeartbeat, JobConflictError, type JobKind } from "./jobs.js";
 import { enqueueJob } from "./queue/enqueue.js";
@@ -58,7 +63,10 @@ async function runOrgTier(
       await enqueueJob(admin, kind, { orgId }); // scheduler runs carry no actor + an empty payload
     } catch (e) {
       if (e instanceof JobConflictError) return; // already queued/running for this (org, kind)
-      console.error(`[samsara-sched] ${kind} enqueue failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+      console.error(
+        `[samsara-sched] ${kind} enqueue failed for org ${orgId}:`,
+        e instanceof Error ? e.message : e,
+      );
     }
     return;
   }
@@ -67,7 +75,10 @@ async function runOrgTier(
     jobId = await startJob(admin, orgId, kind); // scheduler runs have no requested_by
   } catch (e) {
     if (e instanceof JobConflictError) return; // a run of this kind is already active for the org
-    console.error(`[samsara-sched] ${kind} start failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+    console.error(
+      `[samsara-sched] ${kind} start failed for org ${orgId}:`,
+      e instanceof Error ? e.message : e,
+    );
     return;
   }
   const stopHeartbeat = startJobHeartbeat(admin, jobId); // P0-4: big-fleet stat syncs can outlive one lease
@@ -79,8 +90,14 @@ async function runOrgTier(
       await finishJob(admin, jobId, { status: "done", stats: { skipped: "no token" } });
       return;
     }
-    await finishJob(admin, jobId, { status: "failed", error: e instanceof Error ? e.message : String(e) });
-    console.error(`[samsara-sched] ${kind} failed for org ${orgId}:`, e instanceof Error ? e.message : e);
+    await finishJob(admin, jobId, {
+      status: "failed",
+      error: e instanceof Error ? e.message : String(e),
+    });
+    console.error(
+      `[samsara-sched] ${kind} failed for org ${orgId}:`,
+      e instanceof Error ? e.message : e,
+    );
   } finally {
     stopHeartbeat();
   }
@@ -139,9 +156,16 @@ export function startSamsaraScheduler(env: Env): void {
   startTier(env, "identity", 90_000, identityMs, async (admin) => {
     for (const orgId of await orgsToSync(admin, env)) {
       await runOrgTier(admin, env, orgId, "sync_vehicles", async () => {
-        try { await syncDriversFromSamsara(admin, env, orgId); } catch { /* non-fatal */ }
+        try {
+          await syncDriversFromSamsara(admin, env, orgId);
+        } catch {
+          /* non-fatal */
+        }
         const r = await syncVehiclesFromSamsara(admin, env, orgId);
-        await admin.from("integration_credentials").update({ last_synced_at: new Date().toISOString() }).eq("org_id", orgId);
+        await admin
+          .from("integration_credentials")
+          .update({ last_synced_at: new Date().toISOString() })
+          .eq("org_id", orgId);
         return { total: r.total, created: r.created, updated: r.updated, assigned: r.assigned };
       });
     }
@@ -157,11 +181,41 @@ export function startSamsaraScheduler(env: Env): void {
         return { weeks: r.weeks, upserted: r.totalUpserted };
       });
       await runOrgTier(admin, env, orgId, "sync_idle", async () => {
-        const r = await syncIdleEvents(admin, env, orgId);
-        return { fetched: r.fetched, upserted: r.upserted };
+        const r = await syncIdleFoundation(admin, env, orgId);
+        return {
+          fetched: r.idleEvents.fetched,
+          upserted: r.idleEvents.upserted,
+          capabilityVehicles: r.idleCapabilities.vehicles,
+          capabilityLearned: r.idleCapabilities.learned,
+          capabilityVehiclesWithData: r.idleCapabilities.vehiclesWithData,
+          capabilityVehiclesWithoutData: r.idleCapabilities.vehiclesWithoutData,
+          capabilityBatches: r.idleCapabilities.batches,
+          engineDaysWritten: r.idleCapabilities.engineDays,
+          parkSessionsWritten: r.idleCapabilities.parkSessions,
+          staleEngineDaysDeleted: r.idleCapabilities.staleEngineDaysDeleted,
+          staleParkSessionsDeleted: r.idleCapabilities.staleParkSessionsDeleted,
+          telemetryVehicles: r.idleTelemetry.vehicles,
+          telemetryVehiclesWithData: r.idleTelemetry.vehiclesWithTelemetry,
+          telemetryWindowsWritten: r.idleTelemetry.windowsWritten,
+          telemetrySamples: r.idleTelemetry.samples,
+          equipmentEvidenceSessions: r.idleEquipmentEvidence.sessions,
+          equipmentEvidenceInside: r.idleEquipmentEvidence.inside,
+          equipmentEvidenceOutside: r.idleEquipmentEvidence.outside,
+          equipmentEvidenceMixed: r.idleEquipmentEvidence.mixed,
+          equipmentEvidenceInsufficient: r.idleEquipmentEvidence.insufficient,
+          equipmentEvidenceAmbiguous: r.idleEquipmentEvidence.ambiguous,
+          equipmentEvidenceUnknown: r.idleEquipmentEvidence.unknown,
+          equipmentEvidenceRowsWritten: r.idleEquipmentEvidence.rowsWritten,
+          learnedEnvelopeVehicles: r.idleLearnedEnvelopes.vehicles,
+          learnedEnvelopeSufficient: r.idleLearnedEnvelopes.sufficient,
+          learnedEnvelopeInsufficient: r.idleLearnedEnvelopes.insufficient,
+          learnedEnvelopeNotApplicable: r.idleLearnedEnvelopes.notApplicable,
+          learnedEnvelopeRowsWritten: r.idleLearnedEnvelopes.rowsWritten,
+        };
       });
       await runOrgTier(admin, env, orgId, "sync_hos", async () => {
         const r = await syncHosDutySegments(admin, env, orgId);
+        const dutyEvidence = await syncIdleDutyEvidence(admin, orgId);
         // Same follow-up the manual/queue handler does: stamp each driver's CURRENT duty status, truck and
         // city (clocks + one fleet GPS snapshot). Best-effort — the scheduled job's segment stats stand even
         // if the live-status pass hiccups. Without this the Drivers page only refreshed on a manual click.
@@ -187,7 +241,18 @@ export function startSamsaraScheduler(env: Env): void {
             `[samsara-sched] idle rollup (org ${orgId}) failed: ${e instanceof Error ? e.message : e}`,
           );
         }
-        return { fetched: r.fetched, upserted: r.upserted, currentDrivers, located, rollupWritten };
+        return {
+          fetched: r.fetched,
+          upserted: r.upserted,
+          currentDrivers,
+          located,
+          dutyEvidenceSessions: dutyEvidence.sessions,
+          dutyEvidenceSufficient: dutyEvidence.sufficient,
+          dutyEvidenceInsufficient: dutyEvidence.insufficient,
+          dutyEvidenceAmbiguous: dutyEvidence.ambiguous,
+          dutyEvidenceRowsWritten: dutyEvidence.rowsWritten,
+          rollupWritten,
+        };
       });
       await runOrgTier(admin, env, orgId, "snapshot_driver_week", async () => {
         const r = await snapshotSettledWeeks(admin, env, orgId);

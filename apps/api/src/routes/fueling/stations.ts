@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import { requireOrg } from "../../middleware/auth.js";
-import { apiError, asyncHandler } from "../../lib/http.js";
+import { dbErrorResponse, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { resolveEffectivePrice, median, DEFAULT_PRICE_LOOKBACK_HOURS, type DiscountRule } from "@fuelguard/shared";
@@ -41,7 +41,7 @@ export function registerStationRoutes(router: Router): void {
           .eq("org_id", orgId).eq("product", "diesel")
           .order("observed_at", { ascending: false })
           .range(from, from + PAGE - 1);
-        if (error) { res.status(500).json(apiError("db_error", error.message)); return; }
+        if (error) { dbErrorResponse(res, "fuel_prices read", error, "Could not load fuel prices"); return; }
         for (const p of (data ?? []) as Array<{ station_id: string; net_price: number | string | null; posted_price: number | string | null; observed_at: string }>) {
           const net = p.net_price != null ? Number(p.net_price) : null;
           const atMs = Date.parse(p.observed_at);
@@ -64,7 +64,7 @@ export function registerStationRoutes(router: Router): void {
           .select("id, brand, store_number, name, state, city, lat, lng, exit, coord_source")
           .eq("status", "active").in("brand", enabledBrands)
           .range(from, from + PAGE - 1);
-        if (error) { res.status(500).json(apiError("db_error", error.message)); return; }
+        if (error) { dbErrorResponse(res, "fuel_stations read", error, "Could not load fuel stations"); return; }
         for (const st of (data ?? []) as StMeta[]) meta.set(st.id, st);
         if (!data || data.length < PAGE) break;
       }
@@ -77,7 +77,7 @@ export function registerStationRoutes(router: Router): void {
           .eq("product", "diesel").gte("observed_at", new Date(cutoffMs).toISOString())
           .order("observed_at", { ascending: false })
           .range(from, from + PAGE - 1);
-        if (error) { res.status(500).json(apiError("db_error", error.message)); return; }
+        if (error) { dbErrorResponse(res, "fuel_prices_posted read", error, "Could not load posted prices"); return; }
         for (const p of (data ?? []) as Array<{ station_id: string; price: number | string; currency: string; unit: string; observed_at: string }>) {
           if (!posted.has(p.station_id)) posted.set(p.station_id, { price: Number(p.price), currency: p.currency, unit: p.unit, at: p.observed_at });
         }

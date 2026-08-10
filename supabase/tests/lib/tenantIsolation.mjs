@@ -144,7 +144,7 @@ function literalFromCheck(meta, table, col) {
 }
 
 /** A minimal, constraint-satisfying literal for one column. */
-function valueFor(meta, table, c, orgId) {
+function valueFor(meta, table, c, orgId, tsIndex = 0) {
   if (c.col === "org_id") return `'${orgId}'::uuid`;
   if (c.typtype === "e") {
     const labels = meta.enumOf.get(c.typname) ?? [];
@@ -162,7 +162,13 @@ function valueFor(meta, table, c, orgId) {
   }
   if (/^(smallint|integer|bigint|numeric|real|double precision)/.test(t)) return "1";
   if (t === "boolean") return "false";
-  if (/^timestamp|^date$|^time/.test(t)) return "now()";
+  if (/^timestamp|^date$|^time/.test(t)) {
+    // Successive timestamp columns get strictly increasing values. `check (window_end > window_start)`
+    // is a common idiom in this schema, and filling every timestamp with `now()` violates it — which
+    // shows up as "cannot seed" for a table whose schema is perfectly fine. Columns are visited in
+    // attnum order, so the later one wins.
+    return tsIndex === 0 ? "now()" : `now() + interval '${tsIndex} minute'`;
+  }
   if (t === "jsonb" || t === "json") return `'{}'::${t}`;
   if (t === "inet" || t === "cidr") return `'127.0.0.1'::${t}`;
   if (t === "bytea") return "'\\x'::bytea";
@@ -183,6 +189,7 @@ async function seed(db, meta, table, orgId, inProgress = new Set()) {
     const pk = meta.pkOf.get(table);
     const names = [];
     const values = [];
+    let tsSeen = 0;
 
     for (const c of cols) {
       const required = c.notnull && !c.has_default && !c.is_identity && !c.is_generated;
@@ -209,7 +216,7 @@ async function seed(db, meta, table, orgId, inProgress = new Set()) {
         continue;
       }
       names.push(q(c.col));
-      values.push(valueFor(meta, table, c, orgId));
+      values.push(valueFor(meta, table, c, orgId, /^timestamp|^date$|^time/.test(c.typ) ? tsSeen++ : 0));
     }
 
     const returning = pk ? ` returning ${q(pk)}` : "";
@@ -230,13 +237,19 @@ async function seed(db, meta, table, orgId, inProgress = new Set()) {
  * a non-privileged role with JWT claims. `viewer` must belong to `orgA` and must NOT be a member of
  * `orgB` — it is the party that must see nothing.
  *
+ * `asAnon` runs a query as the real `anon` role with NO JWT claims — an unauthenticated caller
+ * holding nothing but the publishable anon key that ships in every browser bundle. When supplied,
+ * every covered table is also asserted to return NOTHING to that party. This harness had never once
+ * tested as anon, which mattered: the missing function REVOKEs found in Stage 1 were callable by
+ * `anon`, not merely by `authenticated`.
+ *
  * `handSeed` is the escape hatch for tables the generic synthesiser cannot build — typically a
  * multi-column CHECK it has no way to reason about. Each entry is `table: (orgId) => sql`, and it is
  * deliberately a visible, shrinking list rather than a skip: a table that is hard to seed still has
  * to be covered, and writing three lines of INSERT is cheaper than discovering later that it never
  * was.
  */
-export async function assertTenantIsolation({ db, asUser, ok, orgA, orgB, viewer, handSeed = {} }) {
+export async function assertTenantIsolation({ db, asUser, ok, orgA, orgB, viewer, handSeed = {}, asAnon = null }) {
   const meta = await introspect(db);
 
   // Before anything else: a tenant table that never had RLS turned on would be filtered out of the
@@ -286,6 +299,7 @@ export async function assertTenantIsolation({ db, asUser, ok, orgA, orgB, viewer
 
   // The assertion proper. One per table, so a regression names the table it broke.
   let leaked = 0;
+  let anonLeaks = 0;
   for (const tbl of covered) {
     const r = await asUser(
       viewer,
@@ -301,6 +315,19 @@ export async function assertTenantIsolation({ db, asUser, ok, orgA, orgB, viewer
       isolated,
       r.error ? `ERROR ${r.error}` : `saw ${r.rows?.[0]?.n} org-B row(s)`,
     );
+
+    if (asAnon) {
+      // Not "no other org's rows" — NO rows. An unauthenticated caller has no org, so every policy
+      // of the form `org_id = auth_org_id()` compares against NULL and must match nothing at all.
+      const a = await asAnon(`select count(*)::int n from public.${q(tbl)}`);
+      const locked = !a.error && a.rows?.[0]?.n === 0;
+      if (!locked) anonLeaks++;
+      ok(
+        `anon lockout: ${tbl} returns nothing without a session`,
+        locked,
+        a.error ? `ERROR ${a.error}` : `saw ${a.rows?.[0]?.n} row(s)`,
+      );
+    }
   }
 
   // Coverage is itself an assertion. Without this, a table that silently stopped being seeded would
@@ -311,5 +338,5 @@ export async function assertTenantIsolation({ db, asUser, ok, orgA, orgB, viewer
     unseedable.map(([t, why]) => `${t}: ${why}`).join(" | "),
   );
 
-  return { covered: covered.length, exempt: exempt.length, unseedable, leaked };
+  return { covered: covered.length, exempt: exempt.length, unseedable, leaked, anonLeaks };
 }

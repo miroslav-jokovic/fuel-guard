@@ -1,75 +1,67 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from "vitest";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { reconcileAnomalyFlags } from "./anomalyFlagReconcile.js";
 
-/** Chainable fake: select resolves the table fixture; update captures {patch, ids}. */
-function makeAdmin(fixtures: Record<string, { data: unknown }>) {
-  const updates: { table: string; patch: Record<string, unknown>; ids: string[] }[] = [];
-  function node(table: string): any {
-    const fx = fixtures[table] ?? { data: [] };
-    let patch: Record<string, unknown> | null = null;
-    const proxy: any = new Proxy(function () {}, {
-      get(_t, prop) {
-        if (prop === "then")
-          return (resolve: (v: unknown) => unknown) => resolve({ ...fx, error: null });
-        if (prop === "update")
-          return (p: Record<string, unknown>) => {
-            patch = p;
-            return proxy;
-          };
-        if (prop === "in")
-          return (col: string, vals: string[]) => {
-            if (patch && col === "id") {
-              updates.push({ table, patch, ids: vals });
-              const done = Promise.resolve({ error: null });
-              // subsequent chaining still works; awaiting resolves ok
-              return Object.assign(done, { eq: () => done, in: () => done });
-            }
-            return proxy;
-          };
-        return () => proxy;
-      },
-      apply: () => proxy,
-    });
-    return proxy;
-  }
-  return { admin: { from: (t: string) => node(t) } as unknown as SupabaseClient, updates };
-}
+/**
+ * These tests used to build a chainable Proxy whose fallthrough was `return () => proxy`, which
+ * accepted `.eq("org_id", orgId)` and threw it away. Every assertion below passed identically whether
+ * or not this service scoped its four queries to one tenant — and since the API talks to Postgres
+ * with the service role, RLS was not going to catch it either (audit 2026-08-09, Stage 2.5).
+ * The shared recorder keeps the same ergonomics and remembers the query, so `expectOrgScoped` can
+ * assert the thing that actually matters.
+ */
+const ORG = "org1";
+
+/** Ids named in the `.in("id", [...])` of a write — what the old fake exposed as `updates[].ids`. */
+const writtenIds = (q: { filters(): Array<{ col: string; val: unknown }> }) =>
+  (q.filters().find((f) => f.col === "id")?.val ?? []) as string[];
+
+/** The row patch a recorded write carried. */
+const patchOf = (q: { write: { payload: unknown } | null }): Record<string, unknown> =>
+  (q.write?.payload ?? {}) as Record<string, unknown>;
 
 describe("reconcileAnomalyFlags", () => {
   it("clears flags whose anomalies are all superseded/absent, restores missing flags with max severity", async () => {
-    const { admin, updates } = makeAdmin({
-      anomalies: {
-        data: [
+    const rec = createSupabaseRecorder({
+      tables: {
+        anomalies: [
           { transaction_id: "t2", severity: "medium" },
           { transaction_id: "t2", severity: "critical" },
           { transaction_id: "t3", severity: "low" },
         ],
+        // t1 is flagged but has NO live anomaly (dead link) → cleared.
+        // t2 is flagged AND live → untouched. t3 has live anomalies but no flag → restored.
+        fuel_transactions: [{ id: "t1" }, { id: "t2" }],
       },
-      // t1 is flagged but has NO live anomaly (dead link) → cleared.
-      // t2 is flagged AND live → untouched. t3 has live anomalies but no flag → restored.
-      fuel_transactions: { data: [{ id: "t1" }, { id: "t2" }] },
     });
-    const res = await reconcileAnomalyFlags(admin, "org1");
+
+    const res = await reconcileAnomalyFlags(rec.client, ORG);
     expect(res).toEqual({ cleared: 1, restored: 1 });
 
-    const clear = updates.find((u) => u.patch.has_anomaly === false)!;
-    expect(clear.ids).toEqual(["t1"]);
-    expect(clear.patch.max_severity).toBeNull();
+    const writes = rec.writes();
+    const clear = writes.find((w) => patchOf(w).has_anomaly === false);
+    const restore = writes.find((w) => patchOf(w).has_anomaly === true);
+    if (!clear || !restore) throw new Error("expected one clearing and one restoring update");
 
-    const restore = updates.find((u) => u.patch.has_anomaly === true)!;
-    expect(restore.ids).toEqual(["t3"]);
-    expect(restore.patch.max_severity).toBe("low");
+    expect(writtenIds(clear)).toEqual(["t1"]);
+    expect(patchOf(clear).max_severity).toBeNull();
+    expect(writtenIds(restore)).toEqual(["t3"]);
+    expect(patchOf(restore).max_severity).toBe("low");
+
+    // The point of the recorder: every read AND every write named this org.
+    expectOrgScoped(rec, ORG);
   });
 
   it("does nothing when flags already match the live anomalies", async () => {
-    const { admin, updates } = makeAdmin({
-      anomalies: { data: [{ transaction_id: "t1", severity: "high" }] },
-      fuel_transactions: { data: [{ id: "t1" }] },
+    const rec = createSupabaseRecorder({
+      tables: {
+        anomalies: [{ transaction_id: "t1", severity: "high" }],
+        fuel_transactions: [{ id: "t1" }],
+      },
     });
-    const res = await reconcileAnomalyFlags(admin, "org1");
+    const res = await reconcileAnomalyFlags(rec.client, ORG);
     expect(res).toEqual({ cleared: 0, restored: 0 });
-    expect(updates).toHaveLength(0);
+    expect(rec.writes()).toHaveLength(0);
+    expectOrgScoped(rec, ORG);
   });
 });

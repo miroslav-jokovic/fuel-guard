@@ -7,7 +7,11 @@ import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
 import { fetchRollupRows, sumRollupByVehicle } from "./useIdleBreakdown";
 
 const WINDOW_DAYS = 30;
-const DEFAULT_COST_BASIS: IdleCostBasis = { idleGalPerHour: 0.8, fuelPricePerGal: 4.0, priceSource: "default" };
+const DEFAULT_COST_BASIS: IdleCostBasis = {
+  idleGalPerHour: 0.8,
+  fuelPricePerGal: 4.0,
+  priceSource: "default",
+};
 
 /** One driver's idle scorecard for the range, attributed from the rollup's per-day dominant driver. */
 export interface DriverIdleRow {
@@ -24,8 +28,16 @@ export interface DriverIdleRow {
 function bounds(f: IdleDateFilter) {
   // Compare on the picked calendar date directly (`day` is a calendar date; see useIdleBreakdown).
   const toDate = f.to ? f.to.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  const fromDate = f.from ? f.from.slice(0, 10) : new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const days = Math.max(1, Math.round((Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) / 86_400_000));
+  const fromDate = f.from
+    ? f.from.slice(0, 10)
+    : new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const days = Math.max(
+    1,
+    Math.round(
+      (Date.parse(`${toDate}T23:59:59.999Z`) - Date.parse(`${fromDate}T00:00:00.000Z`)) /
+        86_400_000,
+    ),
+  );
   return { fromDate, toDate, days };
 }
 
@@ -55,21 +67,35 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
         .select("id, has_apu, has_optimized_idle, idle_capability")
         .neq("status", "retired");
       if (verr) throw new Error(verr.message);
-      const vehicles = (vdata ?? []) as { id: string; has_apu: boolean | null; has_optimized_idle: boolean | null; idle_capability: string | null }[];
+      const vehicles = (vdata ?? []) as {
+        id: string;
+        has_apu: boolean | null;
+        has_optimized_idle: boolean | null;
+        idle_capability: string | null;
+      }[];
       const vehById = new Map(vehicles.map((v) => [v.id, v]));
 
       const { data: ddata, error: derr } = await supabase.from("drivers").select("id, full_name");
       if (derr) throw new Error(derr.message);
-      const nameById = new Map(((ddata ?? []) as { id: string; full_name: string }[]).map((d) => [d.id, d.full_name]));
+      const nameById = new Map(
+        ((ddata ?? []) as { id: string; full_name: string }[]).map((d) => [d.id, d.full_name]),
+      );
 
       // Truck verdict over the whole range (confident + hasAlternative) — only confident trucks feed scoring.
       const periodSec = days * 86_400;
-      const verdict = new Map<string, { confident: boolean; hasAlternative: boolean }>();
+      const verdict = new Map<
+        string,
+        { confident: boolean; hasAlternative: boolean; avoidableSec: number; continuousSec: number }
+      >();
       for (const v of vehicles) {
         const s = sums.get(v.id);
         if (!s) continue;
         const r = computeAvoidable({
-          driveSec: s.drive, idleSec: s.idle, offSec: s.off, coverageSec: s.cov, periodSec,
+          driveSec: s.drive,
+          idleSec: s.idle,
+          offSec: s.off,
+          coverageSec: s.cov,
+          periodSec,
           // Mode SUMS are all computeAvoidable uses — two synthetic sessions reproduce it exactly.
           sessions: [
             { idleSec: s.continuous, mode: "continuous" },
@@ -78,32 +104,77 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
           hasApu: v.has_apu ?? null,
           hasOptimizedIdle: v.has_optimized_idle ?? null,
           learnedCapability: (v.idle_capability ?? "unknown") as IdleCapability,
+          optimizedEnvelope:
+            v.has_optimized_idle === true && s.continuous > 0
+              ? {
+                  status:
+                    s.optimizedEnvelopeStatus === "not_applicable"
+                      ? "unavailable"
+                      : s.optimizedEnvelopeStatus,
+                  source: s.optimizedEnvelopeSource,
+                  insideSec: s.optimizedEnvelopeInside,
+                  outsideSec: s.optimizedEnvelopeOutside,
+                  unknownSec: s.optimizedEnvelopeUnknown,
+                  ambiguousSec: s.optimizedEnvelopeAmbiguous,
+                }
+              : undefined,
+          dutyEvidence:
+            s.continuous > 0
+              ? {
+                  status:
+                    s.hosEvidenceStatus === "not_applicable" ? "unavailable" : s.hosEvidenceStatus,
+                  workSec: s.hosWork,
+                  unknownSec: s.hosUnknown,
+                  ambiguousSec: s.hosAmbiguous,
+                  graceSec: s.hosGrace,
+                }
+              : undefined,
         });
-        verdict.set(v.id, { confident: r.confident, hasAlternative: r.hasAlternative });
+        verdict.set(v.id, {
+          confident: r.confident,
+          hasAlternative: r.hasAlternative,
+          avoidableSec: r.avoidableIdleSec,
+          continuousSec: r.continuousIdleSec,
+        });
       }
 
       // Group the attributed truck-days by driver.
-      type Tot = { engineOnSec: number; idleSec: number; avoidableSec: number; confidentEngineOnSec: number };
+      type Tot = {
+        engineOnSec: number;
+        idleSec: number;
+        avoidableSec: number;
+        confidentEngineOnSec: number;
+      };
       const byDriver = new Map<string | null, Tot>();
       for (const r of rows) {
         if (!vehById.has(r.vehicle_id)) continue; // retired trucks excluded, as before
         const ver = verdict.get(r.vehicle_id);
         const engineOnSec = Number(r.drive_sec) + Number(r.idle_sec);
-        const t = byDriver.get(r.attributed_driver_id) ?? { engineOnSec: 0, idleSec: 0, avoidableSec: 0, confidentEngineOnSec: 0 };
+        const t = byDriver.get(r.attributed_driver_id) ?? {
+          engineOnSec: 0,
+          idleSec: 0,
+          avoidableSec: 0,
+          confidentEngineOnSec: 0,
+        };
         t.engineOnSec += engineOnSec;
         t.idleSec += Number(r.idle_sec);
         t.confidentEngineOnSec += ver?.confident ? engineOnSec : 0;
-        if (ver?.confident && ver.hasAlternative) t.avoidableSec += Number(r.continuous_idle_sec);
+        if (ver?.confident && ver.hasAlternative && ver.continuousSec > 0)
+          t.avoidableSec += Number(r.continuous_idle_sec) * (ver.avoidableSec / ver.continuousSec);
         byDriver.set(r.attributed_driver_id, t);
       }
 
       const out: DriverIdleRow[] = [...byDriver.entries()].map(([driverId, t]) => ({
         driverId: driverId == null ? "__unattributed__" : driverId,
-        driverName: driverId == null ? "Unattributed" : nameById.get(driverId) ?? "Unknown driver",
+        driverName:
+          driverId == null ? "Unattributed" : (nameById.get(driverId) ?? "Unknown driver"),
         engineOnH: hrs(t.engineOnSec),
         idleH: hrs(t.idleSec),
         avoidableH: hrs(t.avoidableSec),
-        avoidableUsd: avoidableCost(t.avoidableSec, { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal }).usd,
+        avoidableUsd: avoidableCost(t.avoidableSec, {
+          idleGalPerHour: cb.idleGalPerHour,
+          fuelPricePerGal: cb.fuelPricePerGal,
+        }).usd,
         idlePct: t.engineOnSec > 0 ? Math.round((t.idleSec / t.engineOnSec) * 1000) / 10 : 0,
         score: idleScore(t.avoidableSec, t.confidentEngineOnSec),
       }));

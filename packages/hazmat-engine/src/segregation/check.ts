@@ -11,11 +11,20 @@
  * Pure function; reads the dataset through a minimal consumer view (the engine may not import
  * @hazmat/data). Never under-restricts: when a class maps to several qualified grid labels (e.g. the
  * two 2.3 zones), it takes the most severe applicable value.
+ *
+ * SUBSIDIARY classes count. §177.848 segregates on hazard, and a material's subsidiary risk is a
+ * hazard it actually carries — a Class 3 flammable with a subsidiary 4.3 is dangerous-when-wet on
+ * the truck regardless of what its primary class says. This check used to build its class set from
+ * `hazardClass` alone, so that load beside a Class 8 corrosive produced `segregation_none` at tier
+ * `info`: an explicit "no restriction applies" standing in for a real 4.3 × 8 restriction. The same
+ * dataset field was already being read one module over — `computePlacards` uses it for the §172.505
+ * subsidiary placards — so the engine knew the hazard and the segregation check simply did not ask
+ * (audit 2026-08-09, finding 4.2).
  */
 
 import type { Finding, LoadInput, TraceNode } from "../types.js";
 
-interface DsEntry { entryId: string; hazardClass: string | null }
+interface DsEntry { entryId: string; hazardClass: string | null; subsidiaryClasses?: string[] }
 interface DsSegCell { rowClass: string; colClass: string; value: "X" | "O" | "*"; notes: string | null }
 interface DsView { entries: DsEntry[]; segregation: DsSegCell[] }
 
@@ -62,14 +71,28 @@ export function checkSegregation(load: LoadInput): SegregationResult {
     return { findings, trace, hasViolation: false, gridPresent: false };
   }
 
-  // distinct hazard classes on the load (resolved from the dataset)
-  const classes = new Set<string>();
+  // Distinct hazard classes on the load, PRIMARY AND SUBSIDIARY, with a note of where each came
+  // from. The provenance is not decoration: "Class 4.3 and Class 8 may not be loaded together" sends
+  // a loader looking for a 4.3 placard that is not on the paperwork, whereas "Class 4.3 (subsidiary
+  // risk of gas — UN1203) and Class 8" names the drum they are actually holding.
+  const classSources = new Map<string, Set<string>>();
+  const noteClass = (raw: string | null | undefined, entryId: string, kind: "class" | "subsidiary") => {
+    const text = (raw ?? "").trim();
+    if (!text) return;
+    const base = baseClass(text);
+    if (!base) return;
+    if (!classSources.has(base)) classSources.set(base, new Set<string>());
+    classSources.get(base)!.add(`${entryId} (${kind} ${text})`);
+  };
   for (const line of load.lines) {
     const entryId = line.hmtRef.split("#")[0];
     const entry = ds.entries.find((e) => e.entryId === entryId);
-    const hc = entry?.hazardClass;
-    if (hc) classes.add(baseClass(hc));
+    if (!entry) continue;
+    noteClass(entry.hazardClass, entry.entryId, "class");
+    for (const sub of entry.subsidiaryClasses ?? []) noteClass(sub, entry.entryId, "subsidiary");
   }
+  const classes = new Set<string>(classSources.keys());
+  const sourcesFor = (cls: string): string[] => [...(classSources.get(cls) ?? [])].sort();
 
   const gridLabels = new Set<string>();
   for (const c of ds.segregation) {
@@ -106,7 +129,7 @@ export function checkSegregation(load: LoadInput): SegregationResult {
           tier: "violation",
           message: `Class ${a} and class ${b} materials may NOT be loaded, transported, or stored together on the same vehicle (§177.848(d)).`,
           citations: cite,
-          evidence: { classA: a, classB: b, value: "X" },
+          evidence: { classA: a, classB: b, value: "X", sourcesA: sourcesFor(a), sourcesB: sourcesFor(b) },
         });
       } else if (worst === "O") {
         findings.push({
@@ -114,7 +137,7 @@ export function checkSegregation(load: LoadInput): SegregationResult {
           tier: "conditional",
           message: `Class ${a} and class ${b} materials must be segregated "Away From" each other — allowed only with the §177.848(d) separation maintained.`,
           citations: cite,
-          evidence: { classA: a, classB: b, value: "O" },
+          evidence: { classA: a, classB: b, value: "O", sourcesA: sourcesFor(a), sourcesB: sourcesFor(b) },
         });
       } else {
         findings.push({
@@ -122,7 +145,7 @@ export function checkSegregation(load: LoadInput): SegregationResult {
           tier: "conditional",
           message: `Class ${a} and class ${b} materials are subject to the specific segregation in §177.848 — review the applicable note before loading together.`,
           citations: cite,
-          evidence: { classA: a, classB: b, value: "*" },
+          evidence: { classA: a, classB: b, value: "*", sourcesA: sourcesFor(a), sourcesB: sourcesFor(b) },
         });
       }
     }

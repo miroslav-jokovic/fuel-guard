@@ -31,7 +31,10 @@ export interface StationIdentity {
   /** Chain key (pilot, flying_j, loves, ta, petro) or null for independents. */
   brand: string | null;
   brandLabel: string | null;
-  /** Store number embedded in the Location Name (e.g. "PILOT JAMESTOWN 305" → "305"). */
+  /** The chain's store number, read from the token run that FOLLOWS the brand in the Location Name
+   *  ("PILOT JAMESTOWN 305" → "305"). Null when the name carries no unambiguous store number, or when
+   *  there is no brand to anchor it to — a bare number in an independent's name is as likely to be a
+   *  street number or a highway as a store number. */
   storeNumber: string | null;
   /** Stable cache key. brand+store# is unique nationwide; else falls back to name|city|state. */
   siteKey: string;
@@ -40,6 +43,47 @@ export interface StationIdentity {
 }
 
 const clean = (s: string | null | undefined) => (s ?? "").trim();
+
+/**
+ * Tokens that introduce a HIGHWAY, exit or mile-marker number rather than a store number. Chain
+ * Location Names routinely carry both — "LOVES TRAVEL STOP 456 EXIT 12", "TA WYTHEVILLE 234 I 81" —
+ * and the road number is the one printed LAST, so it is exactly what a last-number-wins reader picks up.
+ */
+const ROAD_NUMBER_QUALIFIERS = new Set([
+  "exit", "ex", "ext",
+  "i", "ih", "us", "usa", "hwy", "highway", "sr", "st", "rt", "rte", "route", "fm", "loop", "bus",
+  "mm", "mile", "marker", "mp", "exitno",
+]);
+
+/**
+ * The chain's store number, anchored to the brand token.
+ *
+ * Audit 2026-08-09, finding C: this used to be "the LAST standalone number in the name", which on the
+ * two commonest real-world shapes reads the road off the sign instead of the store —
+ * "LOVES TRAVEL STOP 456 EXIT 12" → 12, "TA WYTHEVILLE 234 I 81" → 81. Those become the siteKeys
+ * `loves#12` and `ta#81`, which are the REAL store numbers of two other stations, and the geocode cache
+ * they index is keyed on nothing but that string (no org, no city, no state). So one station silently
+ * served another's coordinates — feeding `location_mismatch` (weight 50) and `impossible_travel`
+ * (weight 70), two independent signals on the location axis, from a station the truck was never near.
+ *
+ * Chains print the store number immediately after the brand-and-town part of the name, and the road
+ * numbers after it, so we walk FORWARD from the end of the brand match and take the first number that
+ * is not introduced by a road qualifier. A "#" prefix is taken as the store number outright — that
+ * marker is never used for a highway. Returns null rather than guessing, and the caller then falls back
+ * to the unambiguous name|city|state key, which costs a cache miss and never a wrong coordinate.
+ */
+function storeNumberAfterBrand(nameAfterBrand: string): string | null {
+  const tokens = nameAfterBrand.split(/\s+/).filter(Boolean);
+  for (let i = 0; i < tokens.length; i++) {
+    const m = /^(#?)(\d{1,5})[.,;:]?$/.exec(tokens[i]!);
+    if (!m) continue;
+    if (m[1] === "#") return m[2]!; // "LOVE'S #452" — an explicit store marker, never a road
+    const prev = (tokens[i - 1] ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    if (ROAD_NUMBER_QUALIFIERS.has(prev)) continue; // "EXIT 12", "I 81" — the road, not the store
+    return m[2]!;
+  }
+  return null;
+}
 
 /**
  * Extract a stable station identity from the EFS Location Name (+ city/state). Truck-stop names carry
@@ -52,9 +96,21 @@ export function parseStationIdentity(
   state: string | null,
 ): StationIdentity {
   const n = clean(name);
-  const brand = STATION_BRANDS.find((b) => b.patterns.some((p) => p.test(n))) ?? null;
-  // Store number = the last standalone number in the name (chains print it after the city).
-  const storeNumber = (n.match(/(?:^|\s|#)(\d{1,5})(?:\s|$)/g)?.pop()?.match(/\d{1,5}/)?.[0]) ?? null;
+  // Keep the brand's position, not just the fact that it matched: the store number is only meaningful
+  // relative to it (see storeNumberAfterBrand). Brand order still matters (Flying J before a stray J).
+  let brand: (typeof STATION_BRANDS)[number] | null = null;
+  let brandEnd = 0;
+  outer: for (const b of STATION_BRANDS) {
+    for (const p of b.patterns) {
+      const m = p.exec(n);
+      if (m) {
+        brand = b;
+        brandEnd = m.index + m[0].length;
+        break outer;
+      }
+    }
+  }
+  const storeNumber = brand ? storeNumberAfterBrand(n.slice(brandEnd)) : null;
 
   const c = clean(city).toLowerCase();
   const st = clean(state).toLowerCase();

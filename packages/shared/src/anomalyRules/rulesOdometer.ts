@@ -4,6 +4,7 @@ import type { RuleContext, RuleResult } from "./types.js";
 import {
   daysBetween,
   effectiveBaseline,
+  eventTime,
   hoursBetween,
   isFuelVehicle,
   milesSinceLast,
@@ -78,7 +79,16 @@ function ruleOdometerImplausibleJump(ctx: RuleContext): RuleResult {
   const { txn, previousTxn, thresholds } = ctx;
   const miles = milesSinceLast(txn, previousTxn);
   if (miles == null || !previousTxn) return none("odometer_implausible_jump");
-  const hours = hoursBetween(previousTxn.fueledAt, txn.fueledAt);
+  // eventTime(), not fueledAt — the SAME clock the gate in rules.ts used to choose this rule over
+  // odometer_daily_cap (it selects on timeReliable(), which is a property of eventTime). fueledAt is
+  // the business timestamp and is never overwritten, so for an EFS date-only row it stays the
+  // noon-UTC sentinel even after telematics recovers the real fuelling instant. Measuring against it
+  // meant two corroborated fills on the same tran date gave hours = 0 and the rule returned silently,
+  // while the two sibling rules that ask the same question (rapid_repeat_fueling, impossible_travel)
+  // both used eventTime and fired correctly. Because the gate is exclusive, odometer_daily_cap was
+  // not registered either — so odometer padding on recovered EFS fills went completely unchecked
+  // (audit 2026-08-09, finding 4.1b).
+  const hours = hoursBetween(eventTime(previousTxn), eventTime(txn));
   if (hours <= 0) return none("odometer_implausible_jump");
   const mph = miles / hours;
   if (mph > thresholds.maxPlausibleMph) {

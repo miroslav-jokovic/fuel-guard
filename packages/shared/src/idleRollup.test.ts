@@ -73,9 +73,77 @@ describe("buildIdleRollupDays", () => {
     });
   });
 
+  it("preserves Optimized Idle envelope evidence with the continuous session", () => {
+    const rows = buildIdleRollupDays({
+      engineDays: [],
+      sessions: [
+        {
+          vehicleId: "v1",
+          startedAtMs: T0 + H,
+          idleSec: 3600,
+          mode: "continuous",
+          optimizedEnvelope: {
+            status: "sufficient",
+            source: "learned_behavioral",
+            insideSec: 1800,
+            outsideSec: 1200,
+            unknownSec: 600,
+            ambiguousSec: 0,
+          },
+        },
+      ],
+      events: [],
+      segmentsByDriver: new Map(),
+      assignments: [],
+      ...win,
+    });
+    expect(rows[0]).toMatchObject({
+      continuousIdleSec: 3600,
+      optimizedEnvelopeInsideSec: 1800,
+      optimizedEnvelopeOutsideSec: 1200,
+      optimizedEnvelopeUnknownSec: 600,
+      optimizedEnvelopeStatus: "sufficient",
+      optimizedEnvelopeSource: "learned_behavioral",
+    });
+  });
+
+  it("preserves direct HOS evidence and the operational grace in the rollup", () => {
+    const rows = buildIdleRollupDays({
+      engineDays: [],
+      sessions: [
+        {
+          vehicleId: "v1",
+          startedAtMs: T0 + H,
+          idleSec: 3600,
+          mode: "continuous",
+          dutyEvidence: {
+            status: "sufficient",
+            restSec: 1800,
+            workSec: 1800,
+            unknownSec: 0,
+            ambiguousSec: 0,
+            graceSec: 900,
+          },
+        },
+      ],
+      events: [],
+      segmentsByDriver: new Map(),
+      assignments: [],
+      ...win,
+    });
+    expect(rows[0]).toMatchObject({
+      hosRestSec: 1800,
+      hosWorkSec: 1800,
+      hosGraceSec: 900,
+      hosEvidenceStatus: "sufficient",
+    });
+  });
+
   it("attributes the day to the dominant driver by idle-event duration", () => {
     const rows = buildIdleRollupDays({
-      engineDays: [{ vehicleId: "v1", day: D1, driveSec: 0, idleSec: 0, offSec: 0, coverageSec: 0 }],
+      engineDays: [
+        { vehicleId: "v1", day: D1, driveSec: 0, idleSec: 0, offSec: 0, coverageSec: 0 },
+      ],
       sessions: [],
       events: [
         { vehicleId: "v1", driverId: "dA", startMs: T0 + H, durationSec: 600 },
@@ -106,7 +174,9 @@ describe("buildIdleRollupDays", () => {
 
   it("folds assignment day-overlap into attribution and clamps open intervals to the window", () => {
     const rows = buildIdleRollupDays({
-      engineDays: [{ vehicleId: "v1", day: D1, driveSec: 100, idleSec: 50, offSec: 0, coverageSec: 150 }],
+      engineDays: [
+        { vehicleId: "v1", day: D1, driveSec: 100, idleSec: 50, offSec: 0, coverageSec: 150 },
+      ],
       sessions: [],
       events: [{ vehicleId: "v1", driverId: "dA", startMs: T0 + H, durationSec: 60 }], // 60s for dA
       segmentsByDriver: new Map(),

@@ -4,10 +4,10 @@ import {
   NoSamsaraTokenError,
 } from "../../samsaraVehicleSync.js";
 import { syncTrailersFromSamsara } from "../../samsaraTrailerSync.js";
-import { syncIdleEvents } from "../../idleSync.js";
-import { syncIdleCapabilities } from "../../idleCapabilitySync.js";
+import { syncIdleFoundation } from "../../idleFoundationSync.js";
 import { syncHosDutySegments, syncHosCurrentStatus } from "../../hosSync.js";
 import { syncIdleRollup } from "../../idleRollup.js";
+import { syncIdleDutyEvidence } from "../../idleDutyEvidenceSync.js";
 import { syncDriversFromSamsara } from "../../samsaraDriverSync.js";
 import { syncDriverScores, syncRecentDriverScoreWeeks } from "../../driverScoreSync.js";
 import { snapshotSettledWeeks } from "../../driverPerformanceSnapshot.js";
@@ -65,7 +65,7 @@ export const syncVehiclesHandler: JobHandler = async (ctx, job) => {
         const tr = await syncTrailersFromSamsara(admin, env, orgId);
         console.log(`[samsara] trailer sync: ${tr.total} trailers, ${tr.paired} paired`);
       });
-      await nonFatal("idle sync", orgId, () => syncIdleEvents(admin, env, orgId));
+      await syncIdleFoundation(admin, env, orgId);
       await nonFatal("driver-score sync", orgId, () => syncDriverScores(admin, env, orgId));
     } else {
       await admin
@@ -146,6 +146,7 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
   const sinceDays = asNum(job.payload.sinceDays) ?? undefined;
   try {
     const result = await syncHosDutySegments(admin, env, orgId, { sinceDays });
+    const dutyEvidence = await syncIdleDutyEvidence(admin, orgId, { sinceDays });
     let currentDrivers = 0;
     let located = 0;
     await nonFatal("hos current status", orgId, async () => {
@@ -161,35 +162,55 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
         actorId,
         action: "integration.samsara.hos_synced",
         entity: "hos_duty_segments",
-        meta: { ...result, currentDrivers, located },
+        meta: {
+          ...result,
+          currentDrivers,
+          located,
+          dutyEvidenceSessions: dutyEvidence.sessions,
+          dutyEvidenceSufficient: dutyEvidence.sufficient,
+          dutyEvidenceInsufficient: dutyEvidence.insufficient,
+          dutyEvidenceAmbiguous: dutyEvidence.ambiguous,
+          dutyEvidenceRowsWritten: dutyEvidence.rowsWritten,
+        },
       });
     }
-    return { ...result, currentDrivers, located };
+    return {
+      ...result,
+      currentDrivers,
+      located,
+      dutyEvidenceSessions: dutyEvidence.sessions,
+      dutyEvidenceSufficient: dutyEvidence.sufficient,
+      dutyEvidenceInsufficient: dutyEvidence.insufficient,
+      dutyEvidenceAmbiguous: dutyEvidence.ambiguous,
+      dutyEvidenceRowsWritten: dutyEvidence.rowsWritten,
+    };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
     throw e;
   }
 };
 
-/** Idling events + (best-effort) per-truck idle-capability learning. */
+/** Idling events + complete per-truck idle-capability foundation refresh. */
 export const syncIdleHandler: JobHandler = async (ctx, job) => {
   const { admin, env } = ctx;
   const orgId = job.org_id;
   const actorId = asStr(job.payload.actorId);
+  const sinceDays = asNum(job.payload.sinceDays) ?? undefined;
   try {
-    const result = await syncIdleEvents(admin, env, orgId);
-    let learned = 0;
-    await nonFatal("idle capability", orgId, async () => {
-      const cap = await syncIdleCapabilities(admin, env, orgId);
-      learned = cap.learned;
-      console.log(`[samsara] idle capability: ${cap.learned}/${cap.vehicles} trucks classified`);
-    });
+    const foundation = await syncIdleFoundation(admin, env, orgId, { sinceDays });
+    const result = foundation.idleEvents;
+    const cap = foundation.idleCapabilities;
+    const telemetry = foundation.idleTelemetry;
+    const equipment = foundation.idleEquipmentEvidence;
+    console.log(`[samsara] idle capability: ${cap.learned}/${cap.vehicles} trucks classified`);
     // Refresh the pre-aggregated idle_rollup_days the Idling page reads (best-effort — raw sync stands).
     let rollupWritten = 0;
     await nonFatal("idle rollup", orgId, async () => {
       const r = await syncIdleRollup(admin, orgId);
       rollupWritten = r.written;
-      console.log(`[samsara] idle rollup: ${r.written}/${r.rows} day-rows written (${r.windowDays}d window)`);
+      console.log(
+        `[samsara] idle rollup: ${r.written}/${r.rows} day-rows written (${r.windowDays}d window)`,
+      );
     });
     if (actorId) {
       await writeAudit(admin, {
@@ -197,10 +218,68 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
         actorId,
         action: "integration.samsara.idle_synced",
         entity: "idle_events",
-        meta: { ...result, capabilityLearned: learned, rollupWritten },
+        meta: {
+          ...result,
+          capabilityLearned: cap.learned,
+          capabilityVehicles: cap.vehicles,
+          capabilityVehiclesWithData: cap.vehiclesWithData,
+          capabilityVehiclesWithoutData: cap.vehiclesWithoutData,
+          capabilityBatches: cap.batches,
+          engineDaysWritten: cap.engineDays,
+          parkSessionsWritten: cap.parkSessions,
+          staleEngineDaysDeleted: cap.staleEngineDaysDeleted,
+          staleParkSessionsDeleted: cap.staleParkSessionsDeleted,
+          telemetryVehicles: telemetry.vehicles,
+          telemetryVehiclesWithData: telemetry.vehiclesWithTelemetry,
+          telemetryWindowsWritten: telemetry.windowsWritten,
+          telemetrySamples: telemetry.samples,
+          equipmentEvidenceSessions: equipment.sessions,
+          equipmentEvidenceInside: equipment.inside,
+          equipmentEvidenceOutside: equipment.outside,
+          equipmentEvidenceMixed: equipment.mixed,
+          equipmentEvidenceInsufficient: equipment.insufficient,
+          equipmentEvidenceAmbiguous: equipment.ambiguous,
+          equipmentEvidenceUnknown: equipment.unknown,
+          equipmentEvidenceRowsWritten: equipment.rowsWritten,
+          learnedEnvelopeVehicles: foundation.idleLearnedEnvelopes.vehicles,
+          learnedEnvelopeSufficient: foundation.idleLearnedEnvelopes.sufficient,
+          learnedEnvelopeInsufficient: foundation.idleLearnedEnvelopes.insufficient,
+          learnedEnvelopeNotApplicable: foundation.idleLearnedEnvelopes.notApplicable,
+          learnedEnvelopeRowsWritten: foundation.idleLearnedEnvelopes.rowsWritten,
+          rollupWritten,
+        },
       });
     }
-    return { ...result, capabilityLearned: learned, rollupWritten };
+    return {
+      ...result,
+      capabilityLearned: cap.learned,
+      capabilityVehicles: cap.vehicles,
+      capabilityVehiclesWithData: cap.vehiclesWithData,
+      capabilityVehiclesWithoutData: cap.vehiclesWithoutData,
+      capabilityBatches: cap.batches,
+      engineDaysWritten: cap.engineDays,
+      parkSessionsWritten: cap.parkSessions,
+      staleEngineDaysDeleted: cap.staleEngineDaysDeleted,
+      staleParkSessionsDeleted: cap.staleParkSessionsDeleted,
+      telemetryVehicles: telemetry.vehicles,
+      telemetryVehiclesWithData: telemetry.vehiclesWithTelemetry,
+      telemetryWindowsWritten: telemetry.windowsWritten,
+      telemetrySamples: telemetry.samples,
+      equipmentEvidenceSessions: equipment.sessions,
+      equipmentEvidenceInside: equipment.inside,
+      equipmentEvidenceOutside: equipment.outside,
+      equipmentEvidenceMixed: equipment.mixed,
+      equipmentEvidenceInsufficient: equipment.insufficient,
+      equipmentEvidenceAmbiguous: equipment.ambiguous,
+      equipmentEvidenceUnknown: equipment.unknown,
+      equipmentEvidenceRowsWritten: equipment.rowsWritten,
+      learnedEnvelopeVehicles: foundation.idleLearnedEnvelopes.vehicles,
+      learnedEnvelopeSufficient: foundation.idleLearnedEnvelopes.sufficient,
+      learnedEnvelopeInsufficient: foundation.idleLearnedEnvelopes.insufficient,
+      learnedEnvelopeNotApplicable: foundation.idleLearnedEnvelopes.notApplicable,
+      learnedEnvelopeRowsWritten: foundation.idleLearnedEnvelopes.rowsWritten,
+      rollupWritten,
+    };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
     throw e;
@@ -240,7 +319,9 @@ export const syncDriverScoresHandler: JobHandler = async (ctx, job) => {
     // one click makes the whole page current. The driver-score SCHEDULER tier omits the flag because idle
     // is its own scheduled tier — refreshing here too would double-sync it every cycle.
     if (job.payload.refreshIdle === true) {
-      await nonFatal("driver-score idle refresh", orgId, () => syncIdleEvents(admin, env, orgId));
+      await nonFatal("driver-score idle refresh", orgId, () =>
+        syncIdleFoundation(admin, env, orgId),
+      );
     }
     const cur = result.results[0];
     const summary = {

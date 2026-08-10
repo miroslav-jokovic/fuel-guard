@@ -29,6 +29,30 @@ describe("computeFillConfidence", () => {
     expect(computeFillConfidence(base({ txn: { ...txn, gallons: 8 } })).fillSize).toBe("too_small");
     expect(computeFillConfidence(base({ vehicle: { ...vehicle, tankCapacityGal: 0 } })).fillSize).toBe("unknown");
   });
+
+  /**
+   * Audit 2026-08-09 finding A — the capacity SOURCE mismatch. The measurable-fill floor is 8% of the
+   * truck's tank, so it has to read the same capacity the capacity RULES read (`resolveCapacity`:
+   * sensor-measured physics > entered nameplate > billed history). Reading the raw `tankCapacityGal`
+   * sized the floor off a number a human typed, on exactly the trucks the resolver exists to rescue.
+   */
+  it("sizes the measurable-fill floor from the RESOLVED capacity, not the entered nameplate", () => {
+    // A true 240-gal truck whose nameplate was mis-entered as 120. Floor = 8% of 240 = 19.2 gal, so a
+    // 16-gal splash is sensor noise. Off the nameplate the floor was 8% of 120 = 9.6 → clamped up to the
+    // 15-gal absolute minimum, and the splash read as "measurable" — a rise inside the sensor's own
+    // noise band, handed to tank_fill_short / tank_space_exceeded / mpg_deviation as signal.
+    const misEntered: VehicleView = { ...vehicle, tankCapacityGal: 120, sensorCapacityGal: 240, sensorCapacitySamples: 9 };
+    expect(computeFillConfidence(base({ vehicle: misEntered, txn: { ...txn, gallons: 16 } })).fillSize).toBe("too_small");
+    expect(computeFillConfidence(base({ vehicle: misEntered, txn: { ...txn, gallons: 90 } })).fillSize).toBe("measurable");
+  });
+
+  it("knows a fill's size on a truck with NO entered capacity but a sensor-measured one", () => {
+    // No nameplate + a physics measurement: this read as "unknown" (which does not gate) even though the
+    // true tank size was knowable. Floor = 8% of 200 = 16 gal.
+    const sensorOnly: VehicleView = { ...vehicle, tankCapacityGal: 0, sensorCapacityGal: 200, sensorCapacitySamples: 9 };
+    expect(computeFillConfidence(base({ vehicle: sensorOnly, txn: { ...txn, gallons: 12 } })).fillSize).toBe("too_small");
+    expect(computeFillConfidence(base({ vehicle: sensorOnly, txn: { ...txn, gallons: 90 } })).fillSize).toBe("measurable");
+  });
 });
 
 describe("ruleEligible — reproduces the previous inline guards exactly", () => {

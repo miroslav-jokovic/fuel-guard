@@ -61,7 +61,9 @@ async function runTestReconcile(
       locationName: target.location_text,
       preciseTime: target.fueled_at_precision === "instant",
       gallons: target.gallons,
-      tankCapacityGal: null,
+      // Connectivity probe only — no VehicleView is loaded here, so capacity stays unknown
+      // (reconcileWithSamsara resolves it from the vehicle; audit 2026-08-09, finding A).
+      vehicle: null,
     });
     return r
       ? {

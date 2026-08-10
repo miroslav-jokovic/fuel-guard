@@ -4,6 +4,7 @@ import {
   hosDutyKind,
   parseHosLogs,
   hosOverlapSeconds,
+  hosVehicleOverlapSeconds,
   parseHosClocks,
   type HosSegment,
 } from "./hos.js";
@@ -149,6 +150,52 @@ describe("hosOverlapSeconds", () => {
   it("returns zeros for an empty/inverted range", () => {
     expect(hosOverlapSeconds(segs, T0 + H, T0 + H).coveredSec).toBe(0);
     expect(hosOverlapSeconds(segs, T0 + 2 * H, T0 + H).coveredSec).toBe(0);
+  });
+});
+
+describe("hosVehicleOverlapSeconds", () => {
+  it("counts same-kind team-driver overlap once and ignores intervals for another vehicle", () => {
+    const o = hosVehicleOverlapSeconds(
+      [
+        { driverId: "1", vehicleId: "truck-1", status: "sleeper", startMs: T0, endMs: T0 + 2 * H },
+        { driverId: "2", vehicleId: "truck-1", status: "off_duty", startMs: T0 + H, endMs: T0 + 3 * H },
+        { driverId: "3", vehicleId: "truck-2", status: "on_duty", startMs: T0, endMs: T0 + 3 * H },
+      ],
+      "truck-1",
+      T0,
+      T0 + 3 * H,
+    );
+    expect(o.restSec).toBe(3 * 3600);
+    expect(o.coveredSec).toBe(3 * 3600);
+    expect(o.ambiguousSec).toBe(0);
+    expect(o.segmentCount).toBe(2);
+  });
+
+  it("marks conflicting overlapping duty kinds ambiguous instead of guessing", () => {
+    const o = hosVehicleOverlapSeconds(
+      [
+        { driverId: "1", vehicleId: "truck-1", status: "sleeper", startMs: T0, endMs: T0 + 2 * H },
+        { driverId: "2", vehicleId: "truck-1", status: "on_duty", startMs: T0 + H, endMs: T0 + 3 * H },
+      ],
+      "truck-1",
+      T0,
+      T0 + 3 * H,
+    );
+    expect(o.restSec).toBe(3600);
+    expect(o.workSec).toBe(3600);
+    expect(o.ambiguousSec).toBe(3600);
+    expect(o.coveredSec).toBe(3 * 3600);
+  });
+
+  it("leaves gaps uncovered and returns no evidence for unlinked HOS intervals", () => {
+    const o = hosVehicleOverlapSeconds(
+      [{ driverId: "1", status: "sleeper", startMs: T0, endMs: T0 + H }],
+      "truck-1",
+      T0,
+      T0 + 2 * H,
+    );
+    expect(o.coveredSec).toBe(0);
+    expect(o.segmentCount).toBe(0);
   });
 });
 

@@ -23,6 +23,7 @@ export type HosStatus =
 
 const STATUS_MAP: Record<string, HosStatus> = {
   offduty: "off_duty",
+  sleeper: "sleeper",
   sleeperbed: "sleeper",
   sleeperberth: "sleeper", // tolerate the alternate spelling seen in some docs/SDKs
   driving: "driving",
@@ -179,6 +180,13 @@ export interface HosOverlap {
   coveredSec: number;
 }
 
+export interface HosVehicleOverlap extends HosOverlap {
+  /** Time where different duty kinds overlap for the same vehicle; never assigned to a bucket. */
+  ambiguousSec: number;
+  /** Number of vehicle-linked HOS intervals that contributed to the range. */
+  segmentCount: number;
+}
+
 /**
  * Split a time range [startMs,endMs) by duty kind, from a driver's segments (already filtered to that driver
  * or a single-driver truck window). Segments with a null end are treated as running to `endMs`. Overlap is
@@ -224,6 +232,83 @@ export function hosOverlapSeconds(
     }
   }
   return acc;
+}
+
+/**
+ * Split a parked vehicle range using only HOS intervals explicitly linked to that vehicle.
+ *
+ * HOS logs are driver records, and team-driver intervals can overlap on one truck. This sweep counts time
+ * once: duplicate intervals with the same duty kind are harmless, while conflicting duty kinds become
+ * ambiguous instead of being double-counted or guessed as rest/work.
+ */
+export function hosVehicleOverlapSeconds(
+  segments: HosSegment[],
+  vehicleId: string,
+  startMs: number,
+  endMs: number,
+): HosVehicleOverlap {
+  const result: HosVehicleOverlap = {
+    restSec: 0,
+    workSec: 0,
+    drivingSec: 0,
+    excludedSec: 0,
+    unknownSec: 0,
+    coveredSec: 0,
+    ambiguousSec: 0,
+    segmentCount: 0,
+  };
+  if (!(endMs > startMs)) return result;
+
+  const relevant = segments.filter((segment) => {
+    if (segment.vehicleId !== vehicleId) return false;
+    const segmentEnd = segment.endMs ?? endMs;
+    return segmentEnd > startMs && segment.startMs < endMs;
+  });
+  result.segmentCount = relevant.length;
+  if (relevant.length === 0) return result;
+
+  const boundaries = new Set<number>([startMs, endMs]);
+  for (const segment of relevant) {
+    boundaries.add(Math.max(startMs, segment.startMs));
+    boundaries.add(Math.min(endMs, segment.endMs ?? endMs));
+  }
+  const ordered = [...boundaries].sort((a, b) => a - b);
+  for (let i = 0; i + 1 < ordered.length; i += 1) {
+    const lo = ordered[i]!;
+    const hi = ordered[i + 1]!;
+    if (!(hi > lo)) continue;
+    const activeKinds = new Set<HosDutyKind>();
+    for (const segment of relevant) {
+      const segmentEnd = segment.endMs ?? endMs;
+      if (segment.startMs < hi && segmentEnd > lo) activeKinds.add(hosDutyKind(segment.status));
+    }
+    const seconds = (hi - lo) / 1000;
+    if (activeKinds.size === 0) continue;
+    result.coveredSec += seconds;
+    if (activeKinds.size > 1) {
+      result.ambiguousSec += seconds;
+      continue;
+    }
+    const kind = activeKinds.values().next().value as HosDutyKind;
+    switch (kind) {
+      case "rest":
+        result.restSec += seconds;
+        break;
+      case "work":
+        result.workSec += seconds;
+        break;
+      case "driving":
+        result.drivingSec += seconds;
+        break;
+      case "excluded":
+        result.excludedSec += seconds;
+        break;
+      default:
+        result.unknownSec += seconds;
+        break;
+    }
+  }
+  return result;
 }
 
 /** One driver's CURRENT HOS snapshot, from GET /fleet/hos/clocks (currentDutyStatus + currentVehicle). */

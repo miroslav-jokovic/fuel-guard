@@ -2,10 +2,14 @@ import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { reconcileWithSamsara, SamsaraUnavailableError } from "./samsaraRecon.js";
 import type { Env } from "../env.js";
+import type { VehicleView } from "@fuelguard/shared";
 
 const env = { SITE_PROX_MILES: 0.5, LOCATION_MISMATCH_MIN_MILES: 50 } as unknown as Env;
 const admin = {} as unknown as SupabaseClient; // unused when fetcher + geocode are injected
 const noGeocode = async () => null;
+/** The truck under test — reconcileWithSamsara resolves its own capacity via resolveCapacity(), so
+ *  the input carries the VehicleView rather than a capacity number (audit 2026-08-09, finding A). */
+const veh120: VehicleView = { id: "v1", fuelType: "diesel", tankCapacityGal: 120, baselineMpg: 6.5 };
 
 // One simulated day: driving in TX, then a fuel stop in Dallas where the tank jumps 20% → 85%.
 const rawStats = {
@@ -42,7 +46,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
         locationName: "Loves Dallas",
         preciseTime: true,
         gallons: 90,
-        tankCapacityGal: 120,
+        vehicle: veh120,
       },
       async () => rawStats,
       noGeocode,
@@ -66,7 +70,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
       admin,
       env,
       "org1",
-      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, vehicle: veh120 },
       async () => noFuel,
       noGeocode,
     );
@@ -89,7 +93,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
       admin,
       env,
       "org1",
-      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:00:00", city: "Dallas", state: "TX", locationName: "Pilot Dallas", preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:00:00", city: "Dallas", state: "TX", locationName: "Pilot Dallas", preciseTime: true, gallons: 90, vehicle: veh120 },
       async () => ({ data: [{ gps: okGps, fuelPercents: [] }] }),
       farStationTX,
     );
@@ -109,7 +113,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
         admin,
         env,
         "org1",
-        { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+        { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, vehicle: veh120 },
         throwingFetcher,
         noGeocode,
       ),
@@ -121,7 +125,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
       admin,
       env,
       "org1",
-      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, vehicle: veh120 },
       async () => ({ data: [] }),
       noGeocode,
     );
@@ -138,7 +142,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
       locationName: "Loves Dallas",
       preciseTime: true,
       gallons: 90,
-      tankCapacityGal: 120,
+      vehicle: veh120,
     };
     // Per-fill path: fetcher returns just this fill's data.
     const perFill = await reconcileWithSamsara(admin, env, "org1", fillInput, async () => rawStats, noGeocode);
@@ -172,7 +176,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
       admin,
       env,
       "org1",
-      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T09:00:00", city: "Dallas", state: "TX", locationName: "Loves Dallas", preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T09:00:00", city: "Dallas", state: "TX", locationName: "Loves Dallas", preciseTime: true, gallons: 90, vehicle: veh120 },
       undefined,
       noGeocode,
       { prefetchedRaw: wide },
@@ -192,7 +196,7 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
       admin,
       env,
       "org1",
-      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Waco", state: "TX", locationName: null, preciseTime: true, gallons: 90, tankCapacityGal: 120 },
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Waco", state: "TX", locationName: null, preciseTime: true, gallons: 90, vehicle: veh120 },
       async () => ({ data: [{ gps: rawStats.data[0]!.gps, fuelPercents: [] }] }), // Dallas stops, no fuel %
       noGeocode,
     ).then((recon) => {
@@ -201,5 +205,54 @@ describe("reconcileWithSamsara — tank-rise anchor", () => {
       expect(recon!.crossSourceOdometer).toBeNull(); // but not at the Waco station → no trusted odometer
       expect(recon!.crossSourceOdometerAt).toBeNull();
     });
+  });
+});
+
+/**
+ * Regression test for audit 2026-08-09 finding A — the capacity SOURCE mismatch.
+ *
+ * The observed tank rise this module writes back to the fill is the input BOTH
+ * learnTankSensorReliability and the tank rules consume, so it must be measured against the same
+ * capacity the rules judge against: `resolveCapacity(vehicle).gallons` (sensor-measured physics >
+ * entered nameplate > billed history). It used to be measured against whatever number the caller put in
+ * `tankCapacityGal`, and the scoring caller put the RAW entered nameplate there — so a truck whose
+ * nameplate was mis-entered as 120 for a true 240-gal tank produced observed/billed ratios clustered at
+ * ~0.5. That is indistinguishable from "one sensor on a dual independent tank", which is precisely the
+ * pattern learnTankSensorReliability refuses to certify, so six detectors stayed off forever.
+ */
+describe("reconcileWithSamsara — tank measured against the RESOLVED capacity", () => {
+  /** Same truck, same fill: the record says 120 gal, the physics say 240 (learnSensorCapacity's median). */
+  const misEntered: VehicleView = { ...veh120, sensorCapacityGal: 240, sensorCapacitySamples: 9 };
+
+  it("sizes the observed rise from the sensor-measured tank, not the mis-entered nameplate", async () => {
+    const recon = await reconcileWithSamsara(
+      admin,
+      env,
+      "org1",
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, vehicle: misEntered },
+      async () => rawStats,
+      noGeocode,
+    );
+    // The tank went 20% → 85%: 65% of a 240-gal tank is 156 gal, 65% of the mis-entered 120 is 78.
+    expect(recon!.tankObservedRiseGal).toBe(156);
+    expect(recon!.tankObservedRiseGal).not.toBe(78);
+    // 90 honest gallons into a tank that rose 156 gal-equivalent is no shortfall at all. Against the
+    // nameplate it looked 12 gal short — the observed/billed ratio (0.87 vs 1.73) that trains the
+    // sensor-reliability learner, and the number tank_fill_short would have been judged on.
+    expect(recon!.tankFillShortGal).toBe(0);
+  });
+
+  it("still reports no tank measurement when there is no truck to resolve a capacity from", async () => {
+    const recon = await reconcileWithSamsara(
+      admin,
+      env,
+      "org1",
+      { vehicleId: "v1", samsaraVehicleId: "sv1", fueledAt: "2026-06-30T14:05:00", city: "Dallas", state: "TX", locationName: null, preciseTime: true, gallons: 90, vehicle: null },
+      async () => rawStats,
+      noGeocode,
+    );
+    expect(recon!.tankObservedRiseGal).toBeNull();
+    expect(recon!.tankFillShortGal).toBeNull();
+    expect(recon!.tankPctBefore).toBe(20); // the raw levels are still recorded — only the volume is unknown
   });
 });

@@ -13,6 +13,7 @@ import {
   deriveFuelEventsFromEfsStore,
   attributeDeclinedRow,
   learnEfsDriverIds,
+  nonUsdGallonsReason,
 } from "./index.js";
 
 // Real column headers from the Silvicom EFS exports (docs/08 §0).
@@ -257,6 +258,62 @@ describe("parseStationIdentity", () => {
     const s = parseStationIdentity("JOE'S TRUCK PLAZA", "Reno", "NV");
     expect(s.brand).toBeNull();
     expect(s.siteKey).toBe("joe's truck plaza|reno|nv");
+  });
+
+  /**
+   * Regression test for audit 2026-08-09 finding C — siteKey COLLISIONS.
+   *
+   * The store number used to be "the last standalone number in the name". Chain Location Names print
+   * the road AFTER the store ("LOVES TRAVEL STOP 456 EXIT 12", "TA WYTHEVILLE 234 I 81"), so the last
+   * number is the exit or the interstate: those names keyed as `loves#12` and `ta#81`, which are the
+   * real store numbers of two OTHER stations. The geocode cache that key indexes is not org-scoped and
+   * carries nothing but the string, so one station served another's coordinates — and those coordinates
+   * feed `location_mismatch` (weight 50) and `impossible_travel` (weight 70), two separate location-axis
+   * signals, against a driver who was exactly where the receipt says.
+   */
+  describe("store number is anchored to the brand, never the road", () => {
+    const cases: { name: string; brand: string | null; storeNumber: string | null; siteKey: string }[] = [
+      // The two shapes from the finding. Before the fix these were "12" and "81".
+      { name: "LOVES TRAVEL STOP 456 EXIT 12", brand: "loves", storeNumber: "456", siteKey: "loves#456" },
+      { name: "TA WYTHEVILLE 234 I 81", brand: "ta", storeNumber: "234", siteKey: "ta#234" },
+      // …and the stations they used to collide WITH, which must keep their own keys.
+      { name: "LOVES TRAVEL STOP 12", brand: "loves", storeNumber: "12", siteKey: "loves#12" },
+      { name: "TA 81", brand: "ta", storeNumber: "81", siteKey: "ta#81" },
+      // Ordinary shapes, unchanged.
+      { name: "PILOT JAMESTOWN 305", brand: "pilot", storeNumber: "305", siteKey: "pilot#305" },
+      { name: "FLYING J 617", brand: "flying_j", storeNumber: "617", siteKey: "flying_j#617" },
+      { name: "LOVE'S #452", brand: "loves", storeNumber: "452", siteKey: "loves#452" },
+      { name: "LOVES TRAVEL STOP 452", brand: "loves", storeNumber: "452", siteKey: "loves#452" },
+      // "#" is a store marker, so it wins even where a road qualifier precedes the store number.
+      { name: "PILOT TRAVEL CENTER EXIT 4 #305", brand: "pilot", storeNumber: "305", siteKey: "pilot#305" },
+      // A road number BEFORE the store number must not be mistaken for it either.
+      { name: "TA I 81 WYTHEVILLE 234", brand: "ta", storeNumber: "234", siteKey: "ta#234" },
+      // Mile marker / route qualifiers.
+      { name: "PETRO MM 118", brand: "petro", storeNumber: null, siteKey: "petro mm 118|kingman|az" },
+      // No number after the brand at all → fall back to the unambiguous name|city|state key rather
+      // than reaching backwards for a number that means something else.
+      { name: "305 MAIN ST PILOT", brand: "pilot", storeNumber: null, siteKey: "305 main st pilot|kingman|az" },
+      // An independent's street number is not a store number, and there is no brand to key it under.
+      { name: "JOE'S TRUCK PLAZA 4400 W HWY 66", brand: null, storeNumber: null, siteKey: "joe's truck plaza 4400 w hwy 66|kingman|az" },
+    ];
+
+    for (const c of cases) {
+      it(`${c.name} → ${c.siteKey}`, () => {
+        const s = parseStationIdentity(c.name, "Kingman", "AZ");
+        expect(s.brand).toBe(c.brand);
+        expect(s.storeNumber).toBe(c.storeNumber);
+        expect(s.siteKey).toBe(c.siteKey);
+      });
+    }
+
+    it("gives two different stations two different keys (the actual collision)", () => {
+      const withExit = parseStationIdentity("LOVES TRAVEL STOP 456 EXIT 12", "Amarillo", "TX");
+      const store12 = parseStationIdentity("LOVES TRAVEL STOP 12", "Bordentown", "NJ");
+      expect(withExit.siteKey).not.toBe(store12.siteKey);
+      const withHighway = parseStationIdentity("TA WYTHEVILLE 234 I 81", "Wytheville", "VA");
+      const store81 = parseStationIdentity("TA 81", "Ontario", "CA");
+      expect(withHighway.siteKey).not.toBe(store81.siteKey);
+    });
   });
 });
 
@@ -622,5 +679,99 @@ describe("52-column transexport variant — faithful capture (WP1 D5/F6)", () =>
     const { fuelLines } = normalizeTransactionRows([row]);
     expect(fuelLines).toHaveLength(1);
     expect(fuelLines[0]!.driver_ext_id).toBe("1981");
+  });
+});
+
+/**
+ * Regression test for audit 2026-08-09 finding G — EFS currency assumed.
+ *
+ * `Qty` is read as US gallons and `Amt` as USD everywhere downstream: the tank rules compare gallons to
+ * tank capacity, the MPG rules divide miles by gallons, cost_outlier compares $/gal to a USD market
+ * median. The documented ground truth is `USD/Gallons` — and the Currency column WAS parsed and stored,
+ * but nothing read it. A CAD/Litre row read on those scales turns 450 litres into "450 gallons" and
+ * fires `exceeds_tank_capacity` at critical severity against an honest driver.
+ *
+ * Skipping is the conservative action, not converting: an exchange rate we do not have, applied to a
+ * report we cannot verify, would launder a guess into evidence. The skip carries a stated reason so the
+ * import summary shows the gap instead of hiding it.
+ */
+describe("nonUsdGallonsReason — fail closed on anything but USD/gallons", () => {
+  const cases: { currency: string | null; reason: string | null }[] = [
+    { currency: "USD/Gallons", reason: null }, // the documented ground truth
+    { currency: "usd/gallons", reason: null },
+    { currency: "USD", reason: null },
+    { currency: "USD/GAL", reason: null },
+    { currency: "US Dollars / Gallons", reason: null },
+    { currency: null, reason: null }, // absent → the documented default (older exports omit the column)
+    { currency: "", reason: null },
+    { currency: "   ", reason: null },
+    { currency: "CAD/Litres", reason: "non-USD currency (CAD/Litres)" },
+    { currency: "CAD", reason: "non-USD currency (CAD)" },
+    { currency: "MXN/Litros", reason: "non-USD currency (MXN/Litros)" },
+    // Right currency, wrong unit — still mis-scaled, still refused.
+    { currency: "USD/Litres", reason: "non-gallon unit (USD/Litres)" },
+    { currency: "USD/L", reason: "non-gallon unit (USD/L)" },
+    // An unfamiliar token is a reason to skip, never a licence to assume.
+    { currency: "XYZ", reason: "non-USD currency (XYZ)" },
+  ];
+  for (const c of cases) {
+    it(`${c.currency === null ? "(null)" : `"${c.currency}"`} → ${c.reason ?? "accepted"}`, () => {
+      expect(nonUsdGallonsReason(c.currency)).toBe(c.reason);
+    });
+  }
+});
+
+describe("normalizeTransactionRows — non-USD rows are skipped, never mis-scaled", () => {
+  const cadRow = {
+    "Card #": "94507", "Tran Date": "2026-06-29", Invoice: "0801987714", Unit: "691",
+    "Driver Name": "PIERRE LEBLANC", Odometer: "293580", "Location Name": "PETRO CANADA 12",
+    City: "WINDSOR", "State/ Prov": "ON", Item: "ULSD", "Unit Price": "1.699",
+    Qty: "450.0", Amt: "764.55", Currency: "CAD/Litres",
+  };
+
+  it("skips a CAD/Litre fill instead of importing 450 litres as 450 gallons", () => {
+    const { fuelLines, skipped } = normalizeTransactionRows([cadRow]);
+    expect(fuelLines).toHaveLength(0);
+    expect(skipped).toEqual([{ row_number: 1, reason: "non-USD currency (CAD/Litres)", item: "ULSD" }]);
+  });
+
+  it("does not merge a non-USD line into a USD invoice's gallons", () => {
+    const usdTwin = { ...cadRow, Currency: "USD/Gallons", Qty: "120.0", Amt: "507.24" };
+    const { fuelLines } = normalizeTransactionRows([usdTwin, cadRow]);
+    expect(fuelLines).toHaveLength(1);
+    expect(fuelLines[0]!.gallons).toBe(120); // NOT 570 — the litres never join the sum
+    expect(fuelLines[0]!.total_cost).toBe(507.24);
+  });
+
+  it("still imports the documented USD/Gallons rows untouched", () => {
+    const { fuelLines } = normalizeTransactionRows(txnRows);
+    expect(fuelLines).toHaveLength(1);
+    expect(fuelLines[0]!.gallons).toBe(141.7);
+  });
+});
+
+describe("deriveFuelEventsFromEfsStore — the repair path applies the same guard", () => {
+  const storeLine = (over: Record<string, unknown> = {}) => ({
+    card_num: "94507", transaction_id: "1562529156", control_id: null, driver_ext_id: null,
+    invoice: "0801987714", tran_date: "2026-06-29", fueled_at: "2026-06-29T12:00:00.000Z",
+    unit: "691", driver_name: "PIERRE LEBLANC", odometer: 293580, location_name: "PETRO CANADA 12",
+    city: "WINDSOR", state: "ON", item: "ULSD", qty: 450, amt: 764.55, currency: "USD/Gallons",
+    ...over,
+  });
+
+  it("skips a stored non-USD line rather than re-importing it as gallons", () => {
+    const r = deriveFuelEventsFromEfsStore([storeLine({ currency: "CAD/Litres" })]);
+    expect(r.events).toHaveLength(0);
+    expect(r.skippedNonUsd).toBe(1);
+    expect(r.skippedUnusable).toBe(0); // counted for what it IS, not lumped in with unusable rows
+  });
+
+  it("keeps deriving USD lines, and lines from callers that did not select Currency", () => {
+    expect(deriveFuelEventsFromEfsStore([storeLine()]).events).toHaveLength(1);
+    const noColumn = storeLine();
+    delete (noColumn as Record<string, unknown>).currency;
+    const r = deriveFuelEventsFromEfsStore([noColumn]);
+    expect(r.events).toHaveLength(1);
+    expect(r.skippedNonUsd).toBe(0);
   });
 });

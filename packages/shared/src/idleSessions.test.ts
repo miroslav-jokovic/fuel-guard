@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { buildIdleSessions, learnIdleCapability, parseEngineStates, type EngineSample, type IdleSession } from "./idleSessions.js";
+import {
+  buildIdleSessionEvidence,
+  buildIdleSessions,
+  learnIdleCapability,
+  parseEngineStates,
+  summarizeIdleEvidence,
+  type EngineSample,
+  type IdleSession,
+} from "./idleSessions.js";
 
 describe("parseEngineStates", () => {
   it("parses engineStates with the decorated gps speed", () => {
@@ -101,5 +109,45 @@ describe("learnIdleCapability", () => {
     const r = learnIdleCapability([sess("continuous"), sess("continuous"), sess("continuous"), sess("continuous")]);
     expect(r.capability).toBe("continuous_only");
     expect(r.optimizedPct).toBe(0);
+  });
+});
+
+describe("idle evidence model", () => {
+  it("labels engine-off behavior without claiming an APU", () => {
+    const samples = [s(0, "Idle"), s(10, "Off"), s(120, "On", 60), s(130, "On", 60)];
+    const sessions = buildIdleSessions(samples);
+    const evidence = buildIdleSessionEvidence(sessions[0]!, samples);
+
+    expect(evidence.observedMode).toBe("engine_off_observed");
+    expect(evidence.evidenceStatus).toBe("sufficient");
+    expect(evidence.confidence).toBeNull();
+    expect(evidence.evidenceVersion).toBe("engine-states-v1");
+  });
+
+  it("keeps vehicle behavior unknown until the minimum session history exists", () => {
+    const samples = [s(0, "Idle"), s(120, "On", 60), s(130, "On", 60)];
+    const sessions = buildIdleSessions(samples);
+    const evidence = summarizeIdleEvidence(sessions, samples);
+
+    expect(evidence.observedMode).toBe("unknown");
+    expect(evidence.evidenceStatus).toBe("insufficient");
+    expect(evidence.confidence).toBeNull();
+  });
+
+  it("summarizes repeated continuous behavior separately from equipment capability", () => {
+    const sessions: IdleSession[] = [0, 200, 400, 600].map((start) => ({
+      startMs: start * MIN,
+      endMs: (start + 120) * MIN,
+      durationSec: 120 * 60,
+      idleSec: 120 * 60,
+      offSec: 0,
+      cycles: 0,
+      mode: "continuous",
+    }));
+    const evidence = summarizeIdleEvidence(sessions, []);
+
+    expect(evidence.observedMode).toBe("continuous_main_engine");
+    expect(evidence.evidenceStatus).toBe("sufficient");
+    expect(evidence.sessions).toBe(4);
   });
 });

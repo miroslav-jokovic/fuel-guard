@@ -42,8 +42,23 @@ const db = new PGlite();
 async function asUser(claims, sql, params = []) {
   await db.exec("begin");
   try {
-    await db.exec("set local role app_user");
+    await db.exec("set local role authenticated");
     await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const res = await db.query(sql, params);
+    await db.exec("rollback");
+    return { rows: res.rows };
+  } catch (e) {
+    await db.exec("rollback");
+    return { error: e.message };
+  }
+}
+
+/** As the real `anon` role — an unauthenticated caller holding only the publishable anon key. */
+async function asAnon(sql, params = []) {
+  await db.exec("begin");
+  try {
+    await db.exec("set local role anon");
+    await db.query("select set_config('request.jwt.claims', '{\"role\":\"anon\"}', true)");
     const res = await db.query(sql, params);
     await db.exec("rollback");
     return { rows: res.rows };
@@ -63,7 +78,9 @@ async function main() {
     create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, created_at timestamptz default now());
     alter table storage.objects enable row level security;
     create function storage.foldername(t text) returns text[] language sql immutable as $fn$ select string_to_array(t, '/') $fn$;
-    create role app_user nologin;
+    create role anon nologin;
+    create role authenticated nologin;
+    create role service_role nologin bypassrls;
     create function auth_org_id()  returns uuid language sql stable as $fn$ select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'org_id', '')::uuid $fn$;
     create function auth_role()    returns text language sql stable as $fn$ select current_setting('request.jwt.claims', true)::jsonb ->> 'user_role' $fn$;
     create function auth_user_id() returns uuid language sql stable as $fn$ select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid $fn$;
@@ -83,9 +100,9 @@ async function main() {
   await db.exec(read("migrations/0161_hazmat_draft_and_org_immutability.sql"));
 
   await db.exec(`
-    grant usage on schema public, storage to app_user;
-    grant all on all tables in schema public to app_user;
-    grant all on all tables in schema storage to app_user;
+    grant usage on schema public, storage to anon, authenticated, service_role;
+    grant all on all tables in schema public to anon, authenticated, service_role;
+    grant all on all tables in schema storage to anon, authenticated, service_role;
   `);
 
   // Seed (as the privileged default role — RLS bypassed for setup).
@@ -207,6 +224,28 @@ async function main() {
     !!(await asUser(admin, `update hazmat_loads set org_id='${ORG_B}' where id='${LOAD2}'`)).error,
   );
 
+  // The two assertions above run as app_user, so RLS is in the path and the manager policy's WITH
+  // CHECK alone refuses them — which means neither can tell whether 0161's trigger exists at all.
+  // The trigger's actual job is the case RLS never sees: the API holds the SERVICE ROLE and bypasses
+  // every policy above, so an application bug that rewrites org_id has nothing else in its way.
+  // Assert it where it matters — as the owner, no role switch, no policy in the path.
+  //
+  // (scripts/mutation-check.mjs found this gap: deleting the trigger left every assertion green.)
+  let orgMoveBlocked = false;
+  let orgMoveError = "";
+  try {
+    await db.query(`update hazmat_loads set org_id = '${ORG_B}' where id = '${LOAD1}'`);
+    await db.query(`update hazmat_loads set org_id = '${ORG_A}' where id = '${LOAD1}'`); // undo
+  } catch (e) {
+    orgMoveBlocked = true;
+    orgMoveError = e.message;
+  }
+  ok(
+    "org_id is immutable even for the SERVICE ROLE — the path RLS does not cover (0161)",
+    orgMoveBlocked && /immutable/i.test(orgMoveError),
+    orgMoveBlocked ? orgMoveError.slice(0, 90) : "the update succeeded — the trigger is not there",
+  );
+
   // Reviews: separation of duties + reviewer identity + immutability
   ok(
     "dispatcher CANNOT read reviews (0)",
@@ -299,6 +338,7 @@ async function main() {
     orgA: ORG_A,
     orgB: ORG_B,
     viewer: { org_id: ORG_A, user_role: "admin", sub: U2 },
+    asAnon,
     handSeed: {
       // `check (num_nonnulls(trailer_id, vehicle_id) = 1)` — a two-column invariant the generic
       // synthesiser cannot satisfy, since it fills each column independently. (0153 drops this table
@@ -310,7 +350,7 @@ async function main() {
     },
   });
   console.log(
-    `\n[tenant isolation] ${iso.covered} tables covered, ${iso.exempt} exempt, ${iso.unseedable.length} unseedable, ${iso.leaked} leaking`,
+    `\n[tenant isolation] ${iso.covered} tables covered, ${iso.exempt} exempt, ${iso.unseedable.length} unseedable, ${iso.leaked} leaking, ${iso.anonLeaks} anon-readable`,
   );
   for (const [t, why] of iso.unseedable) console.log(`   UNSEEDABLE ${t}: ${why}`);
 

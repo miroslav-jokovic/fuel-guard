@@ -43,6 +43,8 @@ export * from "./recon/trailerPairing.js";
 export * from "./recon/stationCoord.js";
 export * from "./idleScoring.js";
 export * from "./idleSessions.js";
+export * from "./idleTelemetry.js";
+export * from "./idleEquipmentEvidence.js";
 export * from "./idleAvoidable.js";
 export * from "./idleDriverAttribution.js";
 export * from "./idleConfidence.js";

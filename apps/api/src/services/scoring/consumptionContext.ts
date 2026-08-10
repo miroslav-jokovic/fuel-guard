@@ -14,7 +14,8 @@ import {
   ODOMETER_RULE_IDS,
   rowEventTime,
   toTxnView,
-  sumIntermediateGallons,
+  loadSpanFills,
+  sumGallonsBetween,
   n,
 } from "./loaders.js";
 import type { FtxnRow } from "./loaders.js";
@@ -167,17 +168,36 @@ export async function loadConsumptionContext(
       .filter((x) => !odoBad(x) && !attrBad(x) && !contaminatesBaseline(x.case_level, x.case_signals))
       .slice(0, 6)
       .reverse();
+    /**
+     * ONE fuel universe for EVERY intermediate-gallons figure on this vehicle (audit 2026-08-09,
+     * finding B).
+     *
+     * The fill under test used to take its intermediate gallons from a dedicated query over ALL
+     * tractor fills in the span, while each BASELINE fill derived the same figure from `rows` — the
+     * previous-fill candidates, which are loaded with `.not("odometer", "is", null)`. A blank-odometer
+     * fill was therefore charged against the fill under test's odometer span and omitted from every
+     * baseline's. That does not merely add noise; it biases the baseline in one direction only. Three
+     * such gaps moved a true-6.0-MPG truck's median baseline to 9–10 MPG, and the next honest fill
+     * fired `mpg_deviation` against a history that never happened.
+     *
+     * `loadSpanFills` is the only producer of this set, and it applies no odometer / case /
+     * attribution filter — precisely because a skipped fill's fuel was still burned inside the span —
+     * so the two sides can no longer quietly diverge. The span reaches back to the OLDEST fill either
+     * side needs and `sumGallonsBetween` clips each pair exactly as the old query's in-memory filter
+     * did, so the fill under test's own figure is unchanged.
+     */
+    const spanAnchor =
+      [prevRow, recentRows[0]]
+        .filter((x): x is FtxnRow => x != null)
+        .sort((a, b) => Date.parse(a.fueled_at) - Date.parse(b.fueled_at))[0] ?? null;
+    const spanFills = spanAnchor ? await loadSpanFills(admin, txn.vehicleId, spanAnchor, r) : [];
     recentTxns = recentRows.map((row, index) => {
       const view = toTxnView(row);
       const previous = recentRows[index - 1];
-      if (previous) {
-        view.intermediateGallons = rows
-          .filter((x) => compareTxnRows(x, previous) > 0 && compareTxnRows(x, row) < 0)
-          .reduce((sum, x) => sum + (Number(x.gallons) || 0), 0);
-      }
+      if (previous) view.intermediateGallons = sumGallonsBetween(spanFills, previous, row, txnId);
       return view;
     });
-    if (prevRow) intermediateGallons = await sumIntermediateGallons(admin, txn.vehicleId, prevRow, r, txnId);
+    if (prevRow) intermediateGallons = sumGallonsBetween(spanFills, prevRow, r, txnId);
 
     const { data: winRows } = await admin
       .from("fuel_transactions")

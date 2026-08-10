@@ -244,14 +244,61 @@ export function makeSamsaraVehiclesGpsFetcher(env: Env, token: string): AssetGps
 }
 
 /** Vehicle engineStates history decorated with gps (speed), for idle park-session / mode analysis. */
+export interface SamsaraEngineStateRecord {
+  time?: string;
+  value?: string;
+  decorations?: {
+    gps?: {
+      speedMilesPerHour?: number;
+    };
+  };
+}
+
+export interface SamsaraEngineVehicleRecord {
+  id?: string | number;
+  engineStates?: SamsaraEngineStateRecord[];
+}
+
+export interface SamsaraNumericStatEvent {
+  time?: string;
+  value?: number;
+}
+
+export interface SamsaraVehicleTelemetryRecord {
+  id?: string | number;
+  batteryMilliVolts?: SamsaraNumericStatEvent[];
+  engineRpm?: SamsaraNumericStatEvent[];
+  engineLoadPercent?: SamsaraNumericStatEvent[];
+  ecuSpeedMph?: SamsaraNumericStatEvent[];
+}
+
+export interface EngineStatesFetchResult {
+  data: SamsaraEngineVehicleRecord[];
+  /** False means Samsara indicated another page but the configured page cap was reached. */
+  complete: boolean;
+  pages: number;
+}
+
+export interface VehicleTelemetryFetchResult {
+  data: SamsaraVehicleTelemetryRecord[];
+  complete: boolean;
+  pages: number;
+}
+
+export type VehicleTelemetryFetcher = (
+  ids: string[],
+  startIso: string,
+  endIso: string,
+) => Promise<VehicleTelemetryFetchResult>;
+
 export type EngineStatesFetcher = (
   ids: string[],
   startIso: string,
   endIso: string,
-) => Promise<{ data: unknown[] }>;
+) => Promise<EngineStatesFetchResult>;
 export function makeSamsaraEngineStatesFetcher(env: Env, token: string): EngineStatesFetcher {
   return async (ids, startIso, endIso) => {
-    const merged = new Map<string, { id?: string | number; engineStates?: unknown[] }>();
+    const merged = new Map<string, SamsaraEngineVehicleRecord>();
     let after: string | undefined;
     let pages = 0;
     do {
@@ -265,7 +312,7 @@ export function makeSamsaraEngineStatesFetcher(env: Env, token: string): EngineS
       const res = await samsaraFetch(env, token, url, { priority: "backfill" });
       if (!res.ok) throw new Error(`Samsara API ${res.status}`);
       const page = (await res.json()) as {
-        data?: { id?: string | number; engineStates?: unknown[] }[];
+        data?: SamsaraEngineVehicleRecord[];
         pagination?: { hasNextPage?: boolean; endCursor?: string };
       };
       for (const v of page.data ?? []) {
@@ -275,11 +322,95 @@ export function makeSamsaraEngineStatesFetcher(env: Env, token: string): EngineS
         else if (v.engineStates?.length)
           cur.engineStates = [...(cur.engineStates ?? []), ...v.engineStates];
       }
-      after = page.pagination?.hasNextPage ? page.pagination.endCursor : undefined;
+      const hasNextPage = page.pagination?.hasNextPage === true;
+      const nextCursor = page.pagination?.endCursor;
+      if (hasNextPage && !nextCursor) {
+        throw new Error("Samsara engine-states pagination reported a next page without a cursor");
+      }
+      after = hasNextPage ? nextCursor : undefined;
       pages += 1;
     } while (after && pages < MAX_STATS_PAGES);
-    return { data: [...merged.values()] };
+    return { data: [...merged.values()], complete: after == null, pages };
   };
+}
+
+/** Historical numeric telemetry used for idle evidence. The two requests respect Samsara's three-type limit. */
+export function makeSamsaraVehicleTelemetryFetcher(env: Env, token: string): VehicleTelemetryFetcher {
+  return async (ids, startIso, endIso) => {
+    const first = await fetchVehicleTelemetryStats(env, token, ids, startIso, endIso, "batteryMilliVolts,engineRpm,engineLoadPercent");
+    const second = await fetchVehicleTelemetryStats(env, token, ids, startIso, endIso, "ecuSpeedMph");
+    const merged = new Map<string, SamsaraVehicleTelemetryRecord>();
+    for (const record of [...first.data, ...second.data]) {
+      const key = String(record.id ?? "");
+      if (!key) continue;
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, {
+          id: record.id,
+          batteryMilliVolts: [...(record.batteryMilliVolts ?? [])],
+          engineRpm: [...(record.engineRpm ?? [])],
+          engineLoadPercent: [...(record.engineLoadPercent ?? [])],
+          ecuSpeedMph: [...(record.ecuSpeedMph ?? [])],
+        });
+      } else {
+        existing.batteryMilliVolts = [...(existing.batteryMilliVolts ?? []), ...(record.batteryMilliVolts ?? [])];
+        existing.engineRpm = [...(existing.engineRpm ?? []), ...(record.engineRpm ?? [])];
+        existing.engineLoadPercent = [...(existing.engineLoadPercent ?? []), ...(record.engineLoadPercent ?? [])];
+        existing.ecuSpeedMph = [...(existing.ecuSpeedMph ?? []), ...(record.ecuSpeedMph ?? [])];
+      }
+    }
+    return {
+      data: [...merged.values()],
+      complete: first.complete && second.complete,
+      pages: first.pages + second.pages,
+    };
+  };
+}
+
+async function fetchVehicleTelemetryStats(
+  env: Env,
+  token: string,
+  ids: string[],
+  startIso: string,
+  endIso: string,
+  types: string,
+): Promise<VehicleTelemetryFetchResult> {
+  const merged = new Map<string, SamsaraVehicleTelemetryRecord>();
+  let after: string | undefined;
+  let pages = 0;
+  do {
+    const url = new URL("/fleet/vehicles/stats/history", env.SAMSARA_API_URL);
+    url.searchParams.set("vehicleIds", ids.join(","));
+    url.searchParams.set("types", types);
+    url.searchParams.set("startTime", startIso);
+    url.searchParams.set("endTime", endIso);
+    if (after) url.searchParams.set("after", after);
+    const res = await samsaraFetch(env, token, url, { priority: "backfill" });
+    if (!res.ok) throw new Error(`Samsara API ${res.status}`);
+    const page = (await res.json()) as {
+      data?: SamsaraVehicleTelemetryRecord[];
+      pagination?: { hasNextPage?: boolean; endCursor?: string };
+    };
+    for (const record of page.data ?? []) {
+      const key = String(record.id ?? "");
+      if (!key) continue;
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, { ...record });
+      } else {
+        existing.batteryMilliVolts = [...(existing.batteryMilliVolts ?? []), ...(record.batteryMilliVolts ?? [])];
+        existing.engineRpm = [...(existing.engineRpm ?? []), ...(record.engineRpm ?? [])];
+        existing.engineLoadPercent = [...(existing.engineLoadPercent ?? []), ...(record.engineLoadPercent ?? [])];
+        existing.ecuSpeedMph = [...(existing.ecuSpeedMph ?? []), ...(record.ecuSpeedMph ?? [])];
+      }
+    }
+    const hasNextPage = page.pagination?.hasNextPage === true;
+    const nextCursor = page.pagination?.endCursor;
+    if (hasNextPage && !nextCursor) throw new Error("Samsara telemetry pagination reported a next page without a cursor");
+    after = hasNextPage ? nextCursor : undefined;
+    pages += 1;
+  } while (after && pages < MAX_STATS_PAGES);
+  return { data: [...merged.values()], complete: after == null, pages };
 }
 
 /** Idling events over a window (GET /idling/events) — paginated + merged. Scope: Read Idling. */

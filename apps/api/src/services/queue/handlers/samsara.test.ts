@@ -15,9 +15,9 @@ const vehicleSync = vi.hoisted(() => ({
   syncVehicleStatsFromSamsara: vi.fn(),
 }));
 const trailerSync = vi.hoisted(() => ({ syncTrailersFromSamsara: vi.fn() }));
-const idleSync = vi.hoisted(() => ({ syncIdleEvents: vi.fn() }));
-const idleCap = vi.hoisted(() => ({ syncIdleCapabilities: vi.fn() }));
+const idleFoundation = vi.hoisted(() => ({ syncIdleFoundation: vi.fn() }));
 const hosSync = vi.hoisted(() => ({ syncHosDutySegments: vi.fn(), syncHosCurrentStatus: vi.fn() }));
+const idleDutyEvidence = vi.hoisted(() => ({ syncIdleDutyEvidence: vi.fn() }));
 const driverSync = vi.hoisted(() => ({ syncDriversFromSamsara: vi.fn() }));
 const scoreSync = vi.hoisted(() => ({
   syncDriverScores: vi.fn(),
@@ -31,9 +31,9 @@ vi.mock("../../samsaraVehicleSync.js", () => ({
   NoSamsaraTokenError,
 }));
 vi.mock("../../samsaraTrailerSync.js", () => trailerSync);
-vi.mock("../../idleSync.js", () => idleSync);
-vi.mock("../../idleCapabilitySync.js", () => idleCap);
+vi.mock("../../idleFoundationSync.js", () => idleFoundation);
 vi.mock("../../hosSync.js", () => hosSync);
+vi.mock("../../idleDutyEvidenceSync.js", () => idleDutyEvidence);
 vi.mock("../../samsaraDriverSync.js", () => driverSync);
 vi.mock("../../driverScoreSync.js", () => scoreSync);
 vi.mock("../../driverPerformanceSnapshot.js", () => ({ snapshotSettledWeeks: vi.fn() }));
@@ -83,7 +83,20 @@ describe("syncVehiclesHandler", () => {
       updated: 1,
       paired: 1,
     });
-    idleSync.syncIdleEvents.mockResolvedValue({ fetched: 5, upserted: 5 });
+    idleFoundation.syncIdleFoundation.mockResolvedValue({
+      idleEvents: { fetched: 5, upserted: 5 },
+      idleCapabilities: {
+        vehicles: 1,
+        learned: 1,
+        engineDays: 1,
+        parkSessions: 1,
+        vehiclesWithData: 1,
+        vehiclesWithoutData: 0,
+        staleEngineDaysDeleted: 0,
+        staleParkSessionsDeleted: 0,
+        batches: 1,
+      },
+    });
     scoreSync.syncDriverScores.mockResolvedValue({
       upserted: 6,
       safetyOk: true,
@@ -99,7 +112,7 @@ describe("syncVehiclesHandler", () => {
 
     expect(driverSync.syncDriversFromSamsara).toHaveBeenCalled();
     expect(trailerSync.syncTrailersFromSamsara).toHaveBeenCalled();
-    expect(idleSync.syncIdleEvents).toHaveBeenCalled();
+    expect(idleFoundation.syncIdleFoundation).toHaveBeenCalled();
     expect(scoreSync.syncDriverScores).toHaveBeenCalled();
     expect(lastSyncedEq).not.toHaveBeenCalled(); // full path does NOT stamp last_synced_at
     expect(audit.writeAudit).toHaveBeenCalledWith(
@@ -123,7 +136,7 @@ describe("syncVehiclesHandler", () => {
 
     expect(driverSync.syncDriversFromSamsara).toHaveBeenCalled();
     expect(trailerSync.syncTrailersFromSamsara).not.toHaveBeenCalled();
-    expect(idleSync.syncIdleEvents).not.toHaveBeenCalled();
+    expect(idleFoundation.syncIdleFoundation).not.toHaveBeenCalled();
     expect(scoreSync.syncDriverScores).not.toHaveBeenCalled();
     expect(lastSyncedEq).toHaveBeenCalledWith("org_id", "org-1");
     expect(audit.writeAudit).not.toHaveBeenCalled();
@@ -150,13 +163,26 @@ describe("syncDriverScoresHandler — refreshIdle gate", () => {
 
   it("refreshes idle only when payload.refreshIdle is set (manual button)", async () => {
     scoreSync.syncRecentDriverScoreWeeks.mockResolvedValue(scores);
-    idleSync.syncIdleEvents.mockResolvedValue({ fetched: 1, upserted: 1 });
+    idleFoundation.syncIdleFoundation.mockResolvedValue({
+      idleEvents: { fetched: 1, upserted: 1 },
+      idleCapabilities: {
+        vehicles: 0,
+        learned: 0,
+        engineDays: 0,
+        parkSessions: 0,
+        vehiclesWithData: 0,
+        vehiclesWithoutData: 0,
+        staleEngineDaysDeleted: 0,
+        staleParkSessionsDeleted: 0,
+        batches: 0,
+      },
+    });
     const out = await syncDriverScoresHandler(
       ctx,
       job("sync_driver_scores", { refreshIdle: true, actorId: "u1" }),
       async () => {},
     );
-    expect(idleSync.syncIdleEvents).toHaveBeenCalledTimes(1);
+    expect(idleFoundation.syncIdleFoundation).toHaveBeenCalledTimes(1);
     expect(out).toMatchObject({
       upserted: 7,
       safetyOk: true,
@@ -169,7 +195,7 @@ describe("syncDriverScoresHandler — refreshIdle gate", () => {
   it("does NOT refresh idle for the scheduler tier (no flag) — idle is its own tier", async () => {
     scoreSync.syncRecentDriverScoreWeeks.mockResolvedValue(scores);
     await syncDriverScoresHandler(ctx, job("sync_driver_scores", {}), async () => {});
-    expect(idleSync.syncIdleEvents).not.toHaveBeenCalled();
+    expect(idleFoundation.syncIdleFoundation).not.toHaveBeenCalled();
     expect(audit.writeAudit).not.toHaveBeenCalled();
   });
 });
@@ -196,6 +222,13 @@ describe("syncHosHandler", () => {
   it("syncs duty segments; passes payload.sinceDays for a backfill; audits only with an actor", async () => {
     hosSync.syncHosDutySegments.mockResolvedValue({ fetched: 12, upserted: 12 });
     hosSync.syncHosCurrentStatus.mockResolvedValue({ drivers: 7 });
+    idleDutyEvidence.syncIdleDutyEvidence.mockResolvedValue({
+      sessions: 10,
+      sufficient: 8,
+      insufficient: 1,
+      ambiguous: 1,
+      rowsWritten: 10,
+    });
 
     const out = await syncHosHandler(
       ctx,
@@ -205,7 +238,16 @@ describe("syncHosHandler", () => {
     expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", {
       sinceDays: 120,
     });
-    expect(out).toEqual({ fetched: 12, upserted: 12, currentDrivers: 7 });
+    expect(out).toEqual({
+      fetched: 12,
+      upserted: 12,
+      currentDrivers: 7,
+      dutyEvidenceSessions: 10,
+      dutyEvidenceSufficient: 8,
+      dutyEvidenceInsufficient: 1,
+      dutyEvidenceAmbiguous: 1,
+      dutyEvidenceRowsWritten: 10,
+    });
     expect(audit.writeAudit).toHaveBeenCalledWith(
       admin,
       expect.objectContaining({ action: "integration.samsara.hos_synced", actorId: "u1" }),
@@ -214,6 +256,13 @@ describe("syncHosHandler", () => {
     vi.clearAllMocks();
     hosSync.syncHosDutySegments.mockResolvedValue({ fetched: 3, upserted: 3 });
     hosSync.syncHosCurrentStatus.mockResolvedValue({ drivers: 0 });
+    idleDutyEvidence.syncIdleDutyEvidence.mockResolvedValue({
+      sessions: 0,
+      sufficient: 0,
+      insufficient: 0,
+      ambiguous: 0,
+      rowsWritten: 0,
+    });
     await syncHosHandler(ctx, job("sync_hos", {}), async () => {}); // scheduler run: no actor, rolling window
     expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", {
       sinceDays: undefined,

@@ -5,7 +5,11 @@ import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
 import { writeAudit } from "../lib/audit.js";
 import { runSamsaraDiagnostics } from "../services/samsaraDiagnostics.js";
-import { getTmsIntegrationStatus, enableTmsIntegration, disableTmsIntegration } from "../services/tmsIngest.js";
+import {
+  getTmsIntegrationStatus,
+  enableTmsIntegration,
+  disableTmsIntegration,
+} from "../services/tmsIngest.js";
 import {
   disableEfsSoapCredentials,
   getEfsSoapCredentials,
@@ -35,7 +39,9 @@ import { z } from "zod";
  *  The web watches the (org, kind) ledger row via useJob(kind) for progress + the final result stats. */
 function jobResponse(res: import("express").Response, result: RunJobResult): void {
   if ("conflict" in result) {
-    res.status(409).json(apiError("job_running", "That operation is already running — watch its progress."));
+    res
+      .status(409)
+      .json(apiError("job_running", "That operation is already running — watch its progress."));
   } else {
     res.status(202).json({ ok: true, queued: true, jobId: result.jobId });
   }
@@ -56,17 +62,27 @@ export function integrationsRouter(): Router {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
-      const parsed = z.object({ token: z.string().trim().min(20).max(200) }).safeParse(req.body ?? {});
+      const parsed = z
+        .object({ token: z.string().trim().min(20).max(200) })
+        .safeParse(req.body ?? {});
       if (!parsed.success) {
-        res.status(400).json(apiError("bad_request", "Provide the Samsara API token as { token }."));
+        res
+          .status(400)
+          .json(apiError("bad_request", "Provide the Samsara API token as { token }."));
         return;
       }
       try {
         await saveSamsaraToken(admin, env, orgId, parsed.data.token);
       } catch (e) {
         if (e instanceof SecretBoxError && e.code === "not_configured") {
-          res.status(422).json(apiError("secrets_key_missing",
-            "SECRETS_ENCRYPTION_KEY is not configured — refusing to store the token unencrypted. Set it (openssl rand -base64 32) and retry."));
+          res
+            .status(422)
+            .json(
+              apiError(
+                "secrets_key_missing",
+                "SECRETS_ENCRYPTION_KEY is not configured — refusing to store the token unencrypted. Set it (openssl rand -base64 32) and retry.",
+              ),
+            );
           return;
         }
         throw e;
@@ -117,7 +133,9 @@ export function integrationsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const actorId = req.auth!.userId;
       const result = await dispatchJob(admin, env, "sync_vehicles", {
-        orgId: req.auth!.orgId!, payload: { full: true, actorId }, requestedBy: actorId,
+        orgId: req.auth!.orgId!,
+        payload: { full: true, actorId },
+        requestedBy: actorId,
       });
       jobResponse(res, result);
     }),
@@ -133,13 +151,16 @@ export function integrationsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const actorId = req.auth!.userId;
       const result = await dispatchJob(admin, env, "sync_trailers", {
-        orgId: req.auth!.orgId!, payload: { actorId }, requestedBy: actorId,
+        orgId: req.auth!.orgId!,
+        payload: { actorId },
+        requestedBy: actorId,
       });
       jobResponse(res, result);
     }),
   );
 
-  // Pull idling events from Samsara into idle_events (idle tracking + driver fuel scoring).
+  // Pull idling events from Samsara into idle_events (idle tracking + driver fuel scoring). Optional body
+  // { sinceDays } enables a bounded historical backfill so Phase 6 can learn from a seasonal window.
   router.post(
     "/samsara/sync-idle",
     requireOrg,
@@ -148,8 +169,14 @@ export function integrationsRouter(): Router {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
       const actorId = req.auth!.userId;
+      const parsed = z
+        .object({ sinceDays: z.coerce.number().int().positive().max(400).optional() })
+        .safeParse(req.body ?? {});
+      const sinceDays = parsed.success ? parsed.data.sinceDays : undefined;
       const result = await dispatchJob(admin, env, "sync_idle", {
-        orgId: req.auth!.orgId!, payload: { actorId }, requestedBy: actorId,
+        orgId: req.auth!.orgId!,
+        payload: { actorId, ...(sinceDays != null ? { sinceDays } : {}) },
+        requestedBy: actorId,
       });
       jobResponse(res, result);
     }),
@@ -171,7 +198,9 @@ export function integrationsRouter(): Router {
           ? Math.min(370, Math.max(1, Math.round(raw.sinceDays)))
           : undefined;
       const result = await dispatchJob(admin, env, "sync_hos", {
-        orgId: req.auth!.orgId!, payload: { actorId, ...(sinceDays ? { sinceDays } : {}) }, requestedBy: actorId,
+        orgId: req.auth!.orgId!,
+        payload: { actorId, ...(sinceDays ? { sinceDays } : {}) },
+        requestedBy: actorId,
       });
       jobResponse(res, result);
     }),
@@ -187,7 +216,9 @@ export function integrationsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const actorId = req.auth!.userId;
       const result = await dispatchJob(admin, env, "sync_drivers", {
-        orgId: req.auth!.orgId!, payload: { actorId }, requestedBy: actorId,
+        orgId: req.auth!.orgId!,
+        payload: { actorId },
+        requestedBy: actorId,
       });
       jobResponse(res, result);
     }),
@@ -222,7 +253,9 @@ export function integrationsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const actorId = req.auth!.userId;
       const result = await dispatchJob(admin, env, "sync_driver_scores", {
-        orgId: req.auth!.orgId!, payload: { actorId, refreshIdle: true }, requestedBy: actorId,
+        orgId: req.auth!.orgId!,
+        payload: { actorId, refreshIdle: true },
+        requestedBy: actorId,
       });
       jobResponse(res, result);
     }),
@@ -238,7 +271,9 @@ export function integrationsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const actorId = req.auth!.userId;
       const result = await dispatchJob(admin, env, "snapshot_driver_week", {
-        orgId: req.auth!.orgId!, payload: { actorId }, requestedBy: actorId,
+        orgId: req.auth!.orgId!,
+        payload: { actorId },
+        requestedBy: actorId,
       });
       jobResponse(res, result);
     }),
@@ -347,7 +382,9 @@ export function integrationsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const parsed = efsEnableSchema.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid body"));
+        res
+          .status(400)
+          .json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid body"));
         return;
       }
       const input = parsed.data;
@@ -364,7 +401,9 @@ export function integrationsRouter(): Router {
         // `detail` names the address we resolved and stays in the server log; the admin gets only
         // `message`, which deliberately cannot distinguish "does not resolve" from "resolves inside
         // our network" — that distinction is itself the oracle being closed.
-        console.warn(`[integrations] refused EFS SOAP endpoint for org ${orgId}: ${endpoint.reason} — ${endpoint.detail}`);
+        console.warn(
+          `[integrations] refused EFS SOAP endpoint for org ${orgId}: ${endpoint.reason} — ${endpoint.detail}`,
+        );
         res.status(400).json(apiError("invalid_endpoint_url", endpoint.message));
         return;
       }
@@ -423,7 +462,9 @@ export function integrationsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const creds = await getEfsSoapCredentials(admin, env, orgId);
       if (!creds) {
-        res.status(400).json(apiError("efs_soap_not_configured", "EFS SOAP credentials are not set"));
+        res
+          .status(400)
+          .json(apiError("efs_soap_not_configured", "EFS SOAP credentials are not set"));
         return;
       }
       const started = Date.now();
@@ -432,7 +473,12 @@ export function integrationsRouter(): Router {
       // Attribute the handshake to the certificate that was actually presented, so the settings page
       // can show "last handshake OK / rejected" per certificate rather than a global integration flag.
       if (creds.tls?.source === "org" && creds.tls.certId) {
-        await recordHandshake(admin, creds.tls.certId, result.ok, result.ok ? null : result.error.message);
+        await recordHandshake(
+          admin,
+          creds.tls.certId,
+          result.ok,
+          result.ok ? null : result.error.message,
+        );
       }
       await writeAudit(admin, {
         orgId,
@@ -478,7 +524,9 @@ export function integrationsRouter(): Router {
       }
       const kind = feedParam === "posted" ? "efs_soap_posted" : "efs_soap_rejected";
       const result = await dispatchJob(admin, env, kind, {
-        orgId: req.auth!.orgId!, payload: { actorId }, requestedBy: actorId,
+        orgId: req.auth!.orgId!,
+        payload: { actorId },
+        requestedBy: actorId,
       });
       jobResponse(res, result);
     }),
@@ -548,12 +596,20 @@ export function integrationsRouter(): Router {
       const actorId = req.auth!.userId;
       const parsed = clientCertSchema.safeParse(req.body);
       if (!parsed.success) {
-        res.status(400).json(apiError("invalid_body", parsed.error.issues[0]?.message ?? "invalid body"));
+        res
+          .status(400)
+          .json(apiError("invalid_body", parsed.error.issues[0]?.message ?? "invalid body"));
         return;
       }
       try {
         const { certPem, keyPem, passphrase, caPem, activate } = parsed.data;
-        const uploaded = await uploadClientCert(admin, env, orgId, { certPem, keyPem, passphrase, caPem }, actorId);
+        const uploaded = await uploadClientCert(
+          admin,
+          env,
+          orgId,
+          { certPem, keyPem, passphrase, caPem },
+          actorId,
+        );
         await writeAudit(admin, {
           orgId,
           actorId,
@@ -589,7 +645,9 @@ export function integrationsRouter(): Router {
             immediate: true,
           },
         });
-        res.status(201).json({ cert: promoted.activated, warnings: uploaded.warnings, activated: true });
+        res
+          .status(201)
+          .json({ cert: promoted.activated, warnings: uploaded.warnings, activated: true });
       } catch (e) {
         if (e instanceof ClientCertServiceError) {
           res.status(certErrorStatus(e.code)).json(apiError(`efs_soap_cert_${e.code}`, e.message));
@@ -613,7 +671,9 @@ export function integrationsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const creds = await getEfsSoapCredentials(admin, env, orgId);
       if (!creds) {
-        res.status(400).json(apiError("efs_soap_not_configured", "EFS SOAP credentials are not set"));
+        res
+          .status(400)
+          .json(apiError("efs_soap_not_configured", "EFS SOAP credentials are not set"));
         return;
       }
       let pending;
@@ -627,12 +687,24 @@ export function integrationsRouter(): Router {
         throw e;
       }
       if (!pending) {
-        res.status(409).json(apiError("efs_soap_cert_no_pending", "No pending certificate to test — upload one first."));
+        res
+          .status(409)
+          .json(
+            apiError(
+              "efs_soap_cert_no_pending",
+              "No pending certificate to test — upload one first.",
+            ),
+          );
         return;
       }
       const result = await pingEfsSoap(env, creds, { tlsOverride: pending });
       if (pending.certId) {
-        await recordHandshake(admin, pending.certId, result.ok, result.ok ? null : result.error.message);
+        await recordHandshake(
+          admin,
+          pending.certId,
+          result.ok,
+          result.ok ? null : result.error.message,
+        );
       }
       await writeAudit(admin, {
         orgId,
@@ -640,10 +712,20 @@ export function integrationsRouter(): Router {
         action: "integration.efs_soap.client_cert_tested",
         entity: "efs_soap_client_certs",
         entityId: pending.certId ?? undefined,
-        meta: { ok: result.ok, fingerprint: pending.fingerprintSha256, tls: result.tls, errorCode: result.ok ? null : result.error.code },
+        meta: {
+          ok: result.ok,
+          fingerprint: pending.fingerprintSha256,
+          tls: result.tls,
+          errorCode: result.ok ? null : result.error.code,
+        },
       });
       if (result.ok) {
-        res.json({ ok: true, roundtripMs: result.roundtripMs, tls: result.tls, fingerprint: pending.fingerprintSha256 });
+        res.json({
+          ok: true,
+          roundtripMs: result.roundtripMs,
+          tls: result.tls,
+          fingerprint: pending.fingerprintSha256,
+        });
       } else {
         res.status(502).json({
           ...apiError(`efs_soap_${result.error.code}`, result.error.message),
