@@ -11,7 +11,12 @@ import {
 /** Minimal fake covering exactly the call chains jobs.ts uses:
  *  from().insert().select().single()  and  from().update().eq().
  * `activeRow` (if set) is what the stale-reclaim lookup returns after a 23505. */
-function makeFake(opts: { conflictOnInsert?: boolean; activeRow?: { id: string; started_at: string; lease_expires_at?: string | null } } = {}) {
+function makeFake(
+  opts: {
+    conflictOnInsert?: boolean;
+    activeRow?: { id: string; started_at: string; lease_expires_at?: string | null };
+  } = {},
+) {
   const inserts: Record<string, unknown>[] = [];
   const updates: { id: string; patch: Record<string, unknown> }[] = [];
   let idCounter = 0;
@@ -91,11 +96,20 @@ describe("startJob", () => {
     const { admin, inserts } = makeFake();
     const id = await startJob(admin, "org1", "rebuild", { total: 100, requestedBy: "u1" });
     expect(id).toBe("job-1");
-    expect(inserts[0]).toMatchObject({ org_id: "org1", kind: "rebuild", status: "running", total: 100, requested_by: "u1" });
+    expect(inserts[0]).toMatchObject({
+      org_id: "org1",
+      kind: "rebuild",
+      status: "running",
+      total: 100,
+      requested_by: "u1",
+    });
   });
 
   it("throws JobConflictError when a FRESH run holds the slot (23505, active row recent)", async () => {
-    const { admin } = makeFake({ conflictOnInsert: true, activeRow: { id: "cur", started_at: new Date().toISOString() } });
+    const { admin } = makeFake({
+      conflictOnInsert: true,
+      activeRow: { id: "cur", started_at: new Date().toISOString() },
+    });
     await expect(startJob(admin, "org1", "rebuild")).rejects.toBeInstanceOf(JobConflictError);
   });
 
@@ -106,11 +120,14 @@ describe("startJob", () => {
 
   it("reclaims a STALE no-lease slot (legacy crashed/wedged run) and takes it over", async () => {
     const threeHoursAgo = new Date(Date.now() - 3 * 3_600_000).toISOString();
-    const { admin, updates } = makeFake({ conflictOnInsert: true, activeRow: { id: "dead", started_at: threeHoursAgo } });
+    const { admin, updates } = makeFake({
+      conflictOnInsert: true,
+      activeRow: { id: "dead", started_at: threeHoursAgo },
+    });
     const id = await startJob(admin, "org1", "rebuild");
     expect(id).toBe("job-1"); // the retried insert succeeded
     const failed = updates.find((u) => u.id === "dead");
-    expect(failed?.patch).toMatchObject({ status: "failed" }); // the stale row was reclaimed
+    expect(failed?.patch).toMatchObject({ status: "failed", lease_expires_at: null }); // the stale row was reclaimed
   });
 
   it("P0-4: a long-running blocker with a LIVE lease is NEVER evicted, whatever its age", async () => {
@@ -157,7 +174,9 @@ describe("runJob", () => {
   it("does not run the work and returns conflict when one is already active", async () => {
     const { admin } = makeFake({ conflictOnInsert: true });
     let ran = false;
-    const res = await runJob(admin, "org1", "rebuild", async () => { ran = true; });
+    const res = await runJob(admin, "org1", "rebuild", async () => {
+      ran = true;
+    });
     expect(res).toEqual({ conflict: true });
     await flush();
     expect(ran).toBe(false);
@@ -176,6 +195,7 @@ describe("runJob", () => {
     const done = updates.find((u) => u.patch.status === "done");
     expect(done?.patch).toMatchObject({ status: "done", stats: { count: 10 } });
     expect(done?.patch.finished_at).toBeTruthy();
+    expect(done?.patch.lease_expires_at).toBeNull();
   });
 
   it("finishes the job as failed (with the error) when the work throws", async () => {
@@ -186,5 +206,6 @@ describe("runJob", () => {
     await flush();
     const failed = updates.find((u) => u.patch.status === "failed");
     expect(failed?.patch).toMatchObject({ status: "failed", error: "boom" });
+    expect(failed?.patch.lease_expires_at).toBeNull();
   });
 });

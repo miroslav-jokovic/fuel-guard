@@ -69,6 +69,7 @@ export interface JobRow {
   requested_by: string | null;
   started_at: string | null;
   finished_at: string | null;
+  lease_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -223,6 +224,7 @@ export async function finishJob(
       error: patch.error ?? null,
       stats: patch.stats ?? {},
       finished_at: now,
+      lease_expires_at: null,
       updated_at: now,
     })
     .eq("id", id);
@@ -376,6 +378,7 @@ export async function reclaimInterruptedJobs(admin: SupabaseClient): Promise<num
       status: "failed",
       error: "interrupted (lease expired / process died)",
       finished_at: now,
+      lease_expires_at: null,
       updated_at: now,
     })
     .eq("status", "running")

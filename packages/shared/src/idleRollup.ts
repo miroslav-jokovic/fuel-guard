@@ -15,7 +15,7 @@
  * Day bucketing is UTC (`toISOString().slice(0,10)`), matching what the page previously did client-side,
  * so numbers do not shift with this move. Pure and deterministic — no I/O, fully unit-tested.
  */
-import { hosOverlapSeconds, type HosSegment } from "./hos.js";
+import { hosOverlapSeconds, hosVehicleOverlapSeconds, type HosSegment } from "./hos.js";
 
 export interface RollupEngineDay {
   vehicleId: string;
@@ -175,8 +175,8 @@ function addWeight(
 }
 
 /**
- * Build the rollup rows for a window. `segmentsByDriver` is keyed by OUR driver id (only linked segments
- * matter — an unlinked segment can never join to an event). Rows exist for every (vehicle, day) that has
+ * Build the rollup rows for a window. HOS can join by vehicle even when its driver is unresolved; driver-keyed
+ * segments remain the fallback for logs without a vehicle link. Rows exist for every (vehicle, day) that has
  * ANY signal (engine time, a park session, or an idle event), so nothing observed is dropped.
  */
 export function buildIdleRollupDays(input: {
@@ -184,6 +184,7 @@ export function buildIdleRollupDays(input: {
   sessions: RollupSession[];
   events: RollupIdleEvent[];
   segmentsByDriver: Map<string, HosSegment[]>;
+  segmentsByVehicle?: Map<string, HosSegment[]>;
   assignments: RollupAssignment[];
   /** Window bounds — open-ended assignments are clamped here (never iterated to infinity). */
   windowStartMs: number;
@@ -250,15 +251,33 @@ export function buildIdleRollupDays(input: {
     const dur = Math.max(0, ev.durationSec);
     if (dur <= 0) continue;
     const a = accFor(acc, ev.vehicleId, dayOf(ev.startMs));
-    const segs = ev.driverId ? input.segmentsByDriver.get(ev.driverId) : undefined;
-    if (!segs || segs.length === 0) {
-      a.otherIdleSec += dur;
-    } else {
-      const o = hosOverlapSeconds(segs, ev.startMs, ev.startMs + dur * 1000);
+    const vehicleSegments = input.segmentsByVehicle?.get(ev.vehicleId);
+    if (vehicleSegments != null && vehicleSegments.length > 0) {
+      const o = hosVehicleOverlapSeconds(
+        vehicleSegments,
+        ev.vehicleId,
+        ev.startMs,
+        ev.startMs + dur * 1000,
+      );
       a.restIdleSec += o.restSec;
       a.workIdleSec += o.workSec;
       a.otherIdleSec +=
-        o.drivingSec + o.excludedSec + o.unknownSec + Math.max(0, dur - o.coveredSec);
+        o.drivingSec +
+        o.excludedSec +
+        o.unknownSec +
+        o.ambiguousSec +
+        Math.max(0, dur - o.coveredSec);
+    } else {
+      const segs = ev.driverId ? input.segmentsByDriver.get(ev.driverId) : undefined;
+      if (!segs || segs.length === 0) {
+        a.otherIdleSec += dur;
+      } else {
+        const o = hosOverlapSeconds(segs, ev.startMs, ev.startMs + dur * 1000);
+        a.restIdleSec += o.restSec;
+        a.workIdleSec += o.workSec;
+        a.otherIdleSec +=
+          o.drivingSec + o.excludedSec + o.unknownSec + Math.max(0, dur - o.coveredSec);
+      }
     }
     if (ev.driverId)
       addWeight(weightByDay, weightByVeh, ev.vehicleId, dayOf(ev.startMs), ev.driverId, dur);

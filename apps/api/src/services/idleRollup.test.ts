@@ -34,7 +34,13 @@ describe("syncIdleRollup", () => {
           { vehicle_id: "v1", driver_id: "d1", started_at: todayT(2), duration_sec: 600 },
         ],
         hos_duty_segments: [
-          { driver_id: "d1", status: "sleeper", started_at: todayT(0), ended_at: todayT(6) },
+          {
+            driver_id: null,
+            vehicle_id: "v1",
+            status: "sleeper",
+            started_at: todayT(0),
+            ended_at: todayT(6),
+          },
         ],
         driver_vehicle_assignments: [],
         vehicles: [{ id: "v1", samsara_vehicle_id: "s1" }],

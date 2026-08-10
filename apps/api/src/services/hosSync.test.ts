@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { syncHosDutySegments, syncHosCurrentStatus } from "./hosSync.js";
-import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
+import {
+  createSupabaseRecorder,
+  expectOrgScoped,
+  type SupabaseRecorder,
+} from "../testing/supabaseRecorder.js";
 import type { Env } from "../env.js";
 
 /**
@@ -73,9 +77,27 @@ describe("syncHosDutySegments (end-to-end)", () => {
         drivers: [{ id: "d1", samsara_driver_id: "op1" }],
         hos_duty_segments: [
           // op1's OLD segment at a start the fresh response no longer has → orphan, must be deleted.
-          { id: "seg-stale", samsara_driver_id: "op1", started_at: iso(T0 + 30 * 60_000), driver_id: "d1", status: "driving", ended_at: iso(T0 + 2 * H), samsara_vehicle_id: null, vehicle_id: null },
+          {
+            id: "seg-stale",
+            samsara_driver_id: "op1",
+            started_at: iso(T0 + 30 * 60_000),
+            driver_id: "d1",
+            status: "driving",
+            ended_at: iso(T0 + 2 * H),
+            samsara_vehicle_id: null,
+            vehicle_id: null,
+          },
           // op9 is ABSENT from this response (pagination/permissions) — silence is not authority; keep.
-          { id: "seg-keep", samsara_driver_id: "op9", started_at: iso(T0 + H), driver_id: null, status: "off_duty", ended_at: null, samsara_vehicle_id: null, vehicle_id: null },
+          {
+            id: "seg-keep",
+            samsara_driver_id: "op9",
+            started_at: iso(T0 + H),
+            driver_id: null,
+            status: "off_duty",
+            ended_at: null,
+            samsara_vehicle_id: null,
+            vehicle_id: null,
+          },
         ],
       },
     });
@@ -83,7 +105,9 @@ describe("syncHosDutySegments (end-to-end)", () => {
       data: [{ driver: { id: "op1" }, logs: [{ logStartTime: iso(T0), dutyStatus: "driving" }] }],
     });
     const res = await syncHosDutySegments(rec.client, env, ORG, {
-      startIso: iso(T0), endIso: iso(T0 + 10 * H), hosFetcher,
+      startIso: iso(T0),
+      endIso: iso(T0 + 10 * H),
+      hosFetcher,
     });
     expect(res.removed).toBe(1);
     expect(deletedIds(rec, "hos_duty_segments")).toEqual(["seg-stale"]); // op9's row untouched
@@ -160,7 +184,10 @@ describe("syncHosCurrentStatus (clocks + GPS city)", () => {
         },
       ],
     });
-    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, { clocksFetcher, gpsFetcher });
+    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, {
+      clocksFetcher,
+      gpsFetcher,
+    });
     expect(res).toEqual({ drivers: 2, located: 1 });
     const patches = rec.writtenRows("drivers");
     expect(patches).toHaveLength(2);
@@ -181,7 +208,10 @@ describe("syncHosCurrentStatus (clocks + GPS city)", () => {
     const gpsFetcher = async () => {
       throw new Error("Samsara API 500");
     };
-    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, { clocksFetcher, gpsFetcher });
+    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, {
+      clocksFetcher,
+      gpsFetcher,
+    });
     expect(res).toEqual({ drivers: 2, located: 0 });
     const patches = rec.writtenRows("drivers");
     expect(patches).toHaveLength(2);
@@ -196,7 +226,10 @@ describe("syncHosCurrentStatus (clocks + GPS city)", () => {
   it("clears the city for a truck without a GPS fix", async () => {
     const rec = createSupabaseRecorder({ tables: { drivers: driverRows } });
     const gpsFetcher = async () => ({ data: [] }); // snapshot succeeded, but no fixes reported
-    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, { clocksFetcher, gpsFetcher });
+    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, {
+      clocksFetcher,
+      gpsFetcher,
+    });
     expect(res).toEqual({ drivers: 2, located: 0 });
     expect(rec.writtenRows("drivers")[0]).toMatchObject({ current_location: null });
   });
@@ -326,6 +359,26 @@ describe("syncHosDutySegments — diff-before-write + chunked fetch", () => {
       [iso(T0 + 7 * D), iso(T0 + 14 * D)],
       [iso(T0 + 14 * D), iso(T0 + 20 * D)],
     ]);
+  });
+
+  it("defaults to the same 30-day trailing window as parked-idle evidence", async () => {
+    const calls: [string, string][] = [];
+    const hosFetcher = async (s: string, e: string) => {
+      calls.push([s, e]);
+      return { data: [] };
+    };
+    const D = 86_400_000;
+    const endMs = T0 + 31 * D;
+    const rec = createSupabaseRecorder({ tables: { drivers: [] } });
+
+    await syncHosDutySegments(rec.client, env, ORG, {
+      endIso: iso(endMs),
+      hosFetcher,
+    });
+
+    expect(calls[0]).toEqual([iso(T0 + D), iso(T0 + 8 * D)]);
+    expect(calls.at(-1)).toEqual([iso(T0 + 29 * D), iso(endMs)]);
+    expect(calls).toHaveLength(5);
   });
 });
 

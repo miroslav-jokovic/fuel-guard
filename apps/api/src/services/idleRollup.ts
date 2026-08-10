@@ -1,9 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAll, readIdleRollupInputs } from "./idleRollupInputs.js";
+import { buildSessionDutyEvidence } from "./idleSessionDutyEvidence.js";
 import {
   buildIdleRollupDays,
-  hosOverlapSeconds,
-  hosVehicleOverlapSeconds,
   summarizeIdleEquipmentEvidence,
   type IdleEquipmentEvidenceStatus,
   type IdleRollupDay,
@@ -11,7 +10,6 @@ import {
   type HosStatus,
   type RollupAssignment,
   type RollupEnvelopeEvidence,
-  type RollupDutyEvidence,
 } from "@fuelguard/shared";
 
 /**
@@ -206,87 +204,6 @@ function sessionEnvelope(
   };
 }
 
-function sessionDutyEvidence(
-  session: RawSession,
-  events: RawEvent[],
-  segmentsByDriver: Map<string, HosSegment[]>,
-  segmentsByVehicle: Map<string, HosSegment[]>,
-): RollupDutyEvidence | undefined {
-  if (session.mode !== "continuous") return undefined;
-  const startMs = Date.parse(session.started_at);
-  const rawEndMs = session.ended_at == null ? NaN : Date.parse(session.ended_at);
-  const idleSec = Math.max(0, finiteNumber(session.idle_sec) ?? 0);
-  if (!Number.isFinite(startMs) || !(rawEndMs > startMs) || idleSec <= 0)
-    return {
-      status: "unavailable",
-      restSec: 0,
-      workSec: 0,
-      unknownSec: idleSec,
-      ambiguousSec: 0,
-      graceSec: 0,
-    };
-
-  let restSec = 0;
-  let workSec = 0;
-  let unknownSec = 0;
-  let ambiguousSec = 0;
-  let coveredSec = 0;
-  for (const event of events) {
-    if (event.vehicle_id !== session.vehicle_id) continue;
-    const eventStartMs = Date.parse(event.started_at);
-    const eventDurationSec = Math.max(0, finiteNumber(event.duration_sec) ?? 0);
-    const eventEndMs = eventStartMs + eventDurationSec * 1000;
-    const overlapStartMs = Math.max(startMs, eventStartMs);
-    const overlapEndMs = Math.min(rawEndMs, eventEndMs);
-    if (!Number.isFinite(eventStartMs) || !(overlapEndMs > overlapStartMs)) continue;
-    const overlapSec = (overlapEndMs - overlapStartMs) / 1000;
-    const vehicleSegments = segmentsByVehicle.get(session.vehicle_id);
-    const vehicleOverlap =
-      vehicleSegments == null
-        ? null
-        : hosVehicleOverlapSeconds(
-            vehicleSegments,
-            session.vehicle_id,
-            overlapStartMs,
-            overlapEndMs,
-          );
-    const overlap =
-      vehicleOverlap != null && vehicleOverlap.segmentCount > 0
-        ? vehicleOverlap
-        : event.driver_id == null
-          ? null
-          : hosOverlapSeconds(
-              segmentsByDriver.get(event.driver_id) ?? [],
-              overlapStartMs,
-              overlapEndMs,
-            );
-    if (overlap == null) {
-      unknownSec += overlapSec;
-      continue;
-    }
-    restSec += overlap.restSec;
-    workSec += overlap.workSec;
-    unknownSec += overlap.unknownSec + Math.max(0, overlapSec - overlap.coveredSec);
-    if ("ambiguousSec" in overlap && typeof overlap.ambiguousSec === "number")
-      ambiguousSec += overlap.ambiguousSec;
-    coveredSec += overlap.coveredSec;
-  }
-  const status =
-    ambiguousSec > 0
-      ? "ambiguous"
-      : coveredSec >= idleSec && unknownSec <= 0
-        ? "sufficient"
-        : "insufficient";
-  return {
-    status,
-    restSec,
-    workSec,
-    unknownSec: unknownSec + Math.max(0, idleSec - coveredSec - unknownSec),
-    ambiguousSec,
-    graceSec: Math.min(workSec, 15 * 60),
-  };
-}
-
 /** True when the stored rollup row already equals the computed one — nothing to write. */
 function rollupUnchanged(ex: RawRollupRow | undefined, r: IdleRollupDay): boolean {
   if (!ex) return false;
@@ -387,15 +304,17 @@ export async function syncIdleRollup(
   const segmentsByVehicle = new Map<string, HosSegment[]>();
   for (const s of segments) {
     const normalized: HosSegment = {
-      driverId: s.driver_id,
+      driverId: s.driver_id ?? "unresolved",
       vehicleId: s.vehicle_id,
       status: s.status as HosStatus,
       startMs: Date.parse(s.started_at),
       endMs: s.ended_at ? Date.parse(s.ended_at) : null,
     };
-    const driverSegments = segmentsByDriver.get(s.driver_id) ?? [];
-    driverSegments.push(normalized);
-    segmentsByDriver.set(s.driver_id, driverSegments);
+    if (s.driver_id != null) {
+      const driverSegments = segmentsByDriver.get(s.driver_id) ?? [];
+      driverSegments.push(normalized);
+      segmentsByDriver.set(s.driver_id, driverSegments);
+    }
     if (s.vehicle_id != null) {
       const vehicleSegments = segmentsByVehicle.get(s.vehicle_id) ?? [];
       vehicleSegments.push(normalized);
@@ -422,7 +341,7 @@ export async function syncIdleRollup(
         idleSec: Number(s.idle_sec),
         mode: s.mode,
         optimizedEnvelope: sessionEnvelope(s, vehicleById.get(s.vehicle_id), events),
-        dutyEvidence: sessionDutyEvidence(s, events, segmentsByDriver, segmentsByVehicle),
+        dutyEvidence: buildSessionDutyEvidence(s, events, segmentsByDriver, segmentsByVehicle),
       })),
     events: events
       .filter((e) => e.vehicle_id)
@@ -433,6 +352,7 @@ export async function syncIdleRollup(
         durationSec: Number(e.duration_sec),
       })),
     segmentsByDriver,
+    segmentsByVehicle,
     assignments,
     windowStartMs: startMs,
     windowEndMs: endMs,
@@ -443,7 +363,7 @@ export async function syncIdleRollup(
     admin
       .from("idle_rollup_days")
       .select(
-        "vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec, managed_idle_sec, continuous_idle_sec, rest_idle_sec, work_idle_sec, other_idle_sec, optimized_envelope_inside_sec, optimized_envelope_outside_sec, optimized_envelope_unknown_sec, optimized_envelope_ambiguous_sec, optimized_envelope_status, optimized_envelope_source, attributed_driver_id",
+        "vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec, managed_idle_sec, continuous_idle_sec, rest_idle_sec, work_idle_sec, other_idle_sec, optimized_envelope_inside_sec, optimized_envelope_outside_sec, optimized_envelope_unknown_sec, optimized_envelope_ambiguous_sec, optimized_envelope_status, optimized_envelope_source, hos_rest_sec, hos_work_sec, hos_unknown_sec, hos_ambiguous_sec, hos_grace_sec, hos_evidence_status, attributed_driver_id",
       )
       .eq("org_id", orgId)
       .gte("day", fromDate)

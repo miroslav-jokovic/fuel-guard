@@ -34,7 +34,7 @@ interface RawEvent {
 }
 
 interface RawSegment {
-  driver_id: string;
+  driver_id: string | null;
   vehicle_id: string | null;
   status: string;
   started_at: string;
@@ -106,7 +106,6 @@ export async function readIdleRollupInputs(
       .from("hos_duty_segments")
       .select("driver_id, vehicle_id, status, started_at, ended_at")
       .eq("org_id", orgId)
-      .not("driver_id", "is", null)
       .gte("started_at", new Date(Date.parse(w.fromIso) - SEGMENT_PAD_MS).toISOString())
       .lte("started_at", w.toIso)
       .order("started_at", { ascending: true })

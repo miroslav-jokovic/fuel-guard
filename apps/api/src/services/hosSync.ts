@@ -32,14 +32,11 @@ const READ_PAGE = 1000;
  *  time out (500/504) on the idle feed; 7-day windows answer reliably (same fix as idleSync). */
 const HOS_FETCH_CHUNK_DAYS = 7;
 /**
- * Default trailing window. Was 30 days — combined with blind upserts that stamped a fresh `updated_at` on
- * EVERY row, each 6-hourly run rewrote the whole month (~100k rows) into a table that had grown past 500k
- * rows, bloating it until single statements hit Postgres' statement timeout and the job failed. 7 days
- * keeps late ELD amendments converging (Samsara notes driver-app data settles within days) while the
- * diff-before-write below reduces steady-state writes to just what changed. Deeper history remains
- * available via the manual `sinceDays` backfill (chunked, so it stays reliable).
+ * Default trailing window. The idling UI and parked-session evidence both operate on 30 days, so HOS must
+ * cover the same range or older idle sessions remain permanently unsupported. Requests are still split into
+ * 7-day Samsara calls below, and diff-before-write keeps steady-state database writes bounded.
  */
-const DEFAULT_SINCE_DAYS = 7;
+const DEFAULT_SINCE_DAYS = 30;
 
 /**
  * If Samsara returned per-driver items but NONE parsed into segments, the nested-log field names differ from
@@ -265,7 +262,11 @@ export async function syncHosDutySegments(
   let removed = 0;
   for (let i = 0; i < orphanIds.length; i += UPSERT_CHUNK) {
     const chunk = orphanIds.slice(i, i + UPSERT_CHUNK);
-    const { error } = await admin.from("hos_duty_segments").delete().in("id", chunk).eq("org_id", orgId);
+    const { error } = await admin
+      .from("hos_duty_segments")
+      .delete()
+      .in("id", chunk)
+      .eq("org_id", orgId);
     if (error) throw new Error(error.message);
     removed += chunk.length;
   }

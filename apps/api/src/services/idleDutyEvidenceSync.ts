@@ -19,6 +19,7 @@ export interface IdleDutyEvidenceSyncResult {
 
 const PAGE_SIZE = 1000;
 const UPSERT_CHUNK = 500;
+const SEGMENT_PAD_MS = 72 * 3_600_000;
 const EVIDENCE_VERSION = "vehicle-hos-v1" as const;
 
 interface ParkSessionRow {
@@ -27,14 +28,48 @@ interface ParkSessionRow {
   vehicle_id: string;
   started_at: string;
   ended_at: string;
+  duration_sec: number;
+  idle_sec: number;
+  off_sec: number;
+  cycles: number;
+  mode: string;
 }
 
 interface HosSegmentRow {
   driver_id: string | null;
-  vehicle_id: string;
+  vehicle_id: string | null;
   status: string;
   started_at: string;
   ended_at: string | null;
+}
+
+interface IdleEventRow {
+  vehicle_id: string | null;
+  driver_id: string | null;
+  started_at: string;
+  duration_sec: number;
+}
+
+interface ParkSessionEvidenceWrite {
+  id: string;
+  org_id: string;
+  vehicle_id: string;
+  started_at: string;
+  ended_at: string;
+  duration_sec: number;
+  idle_sec: number;
+  off_sec: number;
+  cycles: number;
+  mode: string;
+  hos_evidence_status: IdleDutyEvidenceStatus;
+  hos_covered_sec: number;
+  hos_rest_sec: number;
+  hos_work_sec: number;
+  hos_driving_sec: number;
+  hos_excluded_sec: number;
+  hos_unknown_sec: number;
+  hos_ambiguous_sec: number;
+  hos_evidence_version: typeof EVIDENCE_VERSION;
 }
 
 interface DutyEvidenceValues {
@@ -50,14 +85,74 @@ function roundedSeconds(value: number): number {
   return Math.max(0, Math.round(value));
 }
 
-function buildEvidence(segments: HosSegment[], session: ParkSessionRow): DutyEvidenceValues {
+function includeUncoveredSeconds(
+  overlap: HosVehicleOverlap,
+  durationSec: number,
+): HosVehicleOverlap {
+  return {
+    ...overlap,
+    unknownSec:
+      overlap.unknownSec +
+      overlap.drivingSec +
+      overlap.excludedSec +
+      Math.max(0, durationSec - overlap.coveredSec),
+  };
+}
+
+function buildEvidence(
+  segmentsByVehicle: Map<string, HosSegment[]>,
+  segmentsByDriver: Map<string, HosSegment[]>,
+  events: IdleEventRow[],
+  session: ParkSessionRow,
+): DutyEvidenceValues {
   const startMs = Date.parse(session.started_at);
   const endMs = Date.parse(session.ended_at);
   const durationSecExact =
     Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
       ? (endMs - startMs) / 1000
       : 0;
-  const overlap = hosVehicleOverlapSeconds(segments, session.vehicle_id, startMs, endMs);
+  const vehicleSegments = segmentsByVehicle.get(session.vehicle_id) ?? [];
+  if (vehicleSegments.length > 0) {
+    const overlap = includeUncoveredSeconds(
+      hosVehicleOverlapSeconds(vehicleSegments, session.vehicle_id, startMs, endMs),
+      durationSecExact,
+    );
+    const fullCoverage = durationSecExact > 0 && overlap.coveredSec >= durationSecExact;
+    const status: IdleDutyEvidenceStatus =
+      overlap.ambiguousSec > 0
+        ? "ambiguous"
+        : fullCoverage && overlap.unknownSec === 0
+          ? "sufficient"
+          : "insufficient";
+    return { status, overlap };
+  }
+
+  const fallbackSegments: HosSegment[] = [];
+  for (const event of events) {
+    if (event.vehicle_id !== session.vehicle_id || event.driver_id == null) continue;
+    const eventStartMs = Date.parse(event.started_at);
+    const eventDurationSec = Math.max(0, Number(event.duration_sec));
+    const eventEndMs = eventStartMs + eventDurationSec * 1000;
+    const overlapStartMs = Math.max(startMs, eventStartMs);
+    const overlapEndMs = Math.min(endMs, eventEndMs);
+    if (!Number.isFinite(eventStartMs) || !(overlapEndMs > overlapStartMs)) continue;
+    for (const segment of segmentsByDriver.get(event.driver_id) ?? []) {
+      const segmentEndMs = segment.endMs ?? overlapEndMs;
+      const segmentStartMs = Math.max(overlapStartMs, segment.startMs);
+      const clippedEndMs = Math.min(overlapEndMs, segmentEndMs);
+      if (!(clippedEndMs > segmentStartMs)) continue;
+      fallbackSegments.push({
+        ...segment,
+        vehicleId: session.vehicle_id,
+        startMs: segmentStartMs,
+        endMs: clippedEndMs,
+      });
+    }
+  }
+  const overlap = includeUncoveredSeconds(
+    hosVehicleOverlapSeconds(fallbackSegments, session.vehicle_id, startMs, endMs),
+    durationSecExact,
+  );
   const fullCoverage = durationSecExact > 0 && overlap.coveredSec >= durationSecExact;
   const status: IdleDutyEvidenceStatus =
     overlap.ambiguousSec > 0
@@ -78,7 +173,9 @@ async function readSessions(
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await admin
       .from("idle_park_sessions")
-      .select("id, org_id, vehicle_id, started_at, ended_at")
+      .select(
+        "id, org_id, vehicle_id, started_at, ended_at, duration_sec, idle_sec, off_sec, cycles, mode",
+      )
       .eq("org_id", orgId)
       .gte("started_at", fromIso)
       .lt("started_at", endIso)
@@ -99,14 +196,15 @@ async function readHosSegments(
   endIso: string,
 ): Promise<HosSegmentRow[]> {
   const out: HosSegmentRow[] = [];
+  const paddedFromIso = new Date(Date.parse(fromIso) - SEGMENT_PAD_MS).toISOString();
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await admin
       .from("hos_duty_segments")
       .select("driver_id, vehicle_id, status, started_at, ended_at")
       .eq("org_id", orgId)
-      .not("vehicle_id", "is", null)
+      .gte("started_at", paddedFromIso)
       .lte("started_at", endIso)
-      .or(`ended_at.is.null,ended_at.gte.${fromIso}`)
+      .or(`ended_at.is.null,ended_at.gte.${paddedFromIso}`)
       .order("started_at", { ascending: true })
       .order("vehicle_id", { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
@@ -117,8 +215,36 @@ async function readHosSegments(
   }
 }
 
-function mapSegments(rows: HosSegmentRow[]): Map<string, HosSegment[]> {
+async function readIdleEvents(
+  admin: SupabaseClient,
+  orgId: string,
+  fromIso: string,
+  endIso: string,
+): Promise<IdleEventRow[]> {
+  const out: IdleEventRow[] = [];
+  const paddedFromIso = new Date(Date.parse(fromIso) - SEGMENT_PAD_MS).toISOString();
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await admin
+      .from("idle_events")
+      .select("vehicle_id, driver_id, started_at, duration_sec")
+      .eq("org_id", orgId)
+      .gte("started_at", paddedFromIso)
+      .lte("started_at", endIso)
+      .order("started_at", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    requireDatabaseSuccess(error, "idle event read");
+    const batch = (data ?? []) as IdleEventRow[];
+    out.push(...batch);
+    if (batch.length < PAGE_SIZE) return out;
+  }
+}
+
+function mapSegments(rows: HosSegmentRow[]): {
+  byVehicle: Map<string, HosSegment[]>;
+  byDriver: Map<string, HosSegment[]>;
+} {
   const byVehicle = new Map<string, HosSegment[]>();
+  const byDriver = new Map<string, HosSegment[]>();
   for (const row of rows) {
     const startMs = Date.parse(row.started_at);
     const endMs = row.ended_at == null ? null : Date.parse(row.ended_at);
@@ -128,6 +254,7 @@ function mapSegments(rows: HosSegmentRow[]): Map<string, HosSegment[]> {
     )
       continue;
     const status: HosStatus = normalizeHosStatus(row.status);
+    if (row.driver_id == null && row.vehicle_id == null) continue;
     const segment: HosSegment = {
       driverId: row.driver_id ?? "unresolved",
       vehicleId: row.vehicle_id,
@@ -135,11 +262,18 @@ function mapSegments(rows: HosSegmentRow[]): Map<string, HosSegment[]> {
       startMs,
       endMs,
     };
-    const list = byVehicle.get(row.vehicle_id) ?? [];
-    list.push(segment);
-    byVehicle.set(row.vehicle_id, list);
+    if (row.vehicle_id != null) {
+      const vehicleList = byVehicle.get(row.vehicle_id) ?? [];
+      vehicleList.push(segment);
+      byVehicle.set(row.vehicle_id, vehicleList);
+    }
+    if (row.driver_id != null) {
+      const driverList = byDriver.get(row.driver_id) ?? [];
+      driverList.push(segment);
+      byDriver.set(row.driver_id, driverList);
+    }
   }
-  return byVehicle;
+  return { byVehicle, byDriver };
 }
 
 export async function syncIdleDutyEvidence(
@@ -159,21 +293,32 @@ export async function syncIdleDutyEvidence(
   const sessions = await readSessions(admin, orgId, fromIso, endIso);
   if (sessions.length === 0)
     return { sessions: 0, sufficient: 0, insufficient: 0, ambiguous: 0, rowsWritten: 0 };
-  const hosRows = await readHosSegments(admin, orgId, fromIso, endIso);
-  const segmentsByVehicle = mapSegments(hosRows);
-  const writes: Record<string, string | number>[] = [];
+  const [hosRows, events] = await Promise.all([
+    readHosSegments(admin, orgId, fromIso, endIso),
+    readIdleEvents(admin, orgId, fromIso, endIso),
+  ]);
+  const { byVehicle: segmentsByVehicle, byDriver: segmentsByDriver } = mapSegments(hosRows);
+  const writes: ParkSessionEvidenceWrite[] = [];
   let sufficient = 0;
   let insufficient = 0;
   let ambiguous = 0;
 
   for (const session of sessions) {
-    const evidence = buildEvidence(segmentsByVehicle.get(session.vehicle_id) ?? [], session);
+    const evidence = buildEvidence(segmentsByVehicle, segmentsByDriver, events, session);
     if (evidence.status === "sufficient") sufficient += 1;
     else if (evidence.status === "ambiguous") ambiguous += 1;
     else insufficient += 1;
     writes.push({
       id: session.id,
       org_id: session.org_id,
+      vehicle_id: session.vehicle_id,
+      started_at: session.started_at,
+      ended_at: session.ended_at,
+      duration_sec: session.duration_sec,
+      idle_sec: session.idle_sec,
+      off_sec: session.off_sec,
+      cycles: session.cycles,
+      mode: session.mode,
       hos_evidence_status: evidence.status,
       hos_covered_sec: roundedSeconds(evidence.overlap.coveredSec),
       hos_rest_sec: roundedSeconds(evidence.overlap.restSec),
