@@ -200,4 +200,78 @@ describe("buildIdleRollupDays", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ vehicleId: "v9", day: D1, otherIdleSec: 120, driveSec: 0 });
   });
+
+  it("rounds every persisted seconds aggregate to an integer", () => {
+    const fractional = 13_449.999;
+    const rows = buildIdleRollupDays({
+      engineDays: [
+        {
+          vehicleId: "v1",
+          day: D1,
+          driveSec: fractional,
+          idleSec: fractional,
+          offSec: fractional,
+          coverageSec: fractional,
+        },
+      ],
+      sessions: [
+        {
+          vehicleId: "v1",
+          startedAtMs: T0 + H,
+          idleSec: fractional,
+          mode: "continuous",
+          optimizedEnvelope: {
+            status: "sufficient",
+            source: "documented_default",
+            insideSec: fractional,
+            outsideSec: fractional,
+            unknownSec: fractional,
+            ambiguousSec: fractional,
+          },
+          dutyEvidence: {
+            status: "sufficient",
+            restSec: fractional,
+            workSec: fractional,
+            unknownSec: fractional,
+            ambiguousSec: fractional,
+            graceSec: fractional,
+          },
+        },
+      ],
+      events: [{ vehicleId: "v1", driverId: "d1", startMs: T0, durationSec: fractional }],
+      segmentsByDriver: new Map([
+        [
+          "d1",
+          [
+            { driverId: "d1", status: "sleeper", startMs: T0, endMs: T0 + 4_000_000 },
+            { driverId: "d1", status: "on_duty", startMs: T0 + 4_000_000, endMs: T0 + 8_000_000 },
+          ],
+        ],
+      ]),
+      assignments: [],
+      ...win,
+    });
+
+    const seconds = [
+      "driveSec",
+      "idleSec",
+      "offSec",
+      "coverageSec",
+      "managedIdleSec",
+      "continuousIdleSec",
+      "restIdleSec",
+      "workIdleSec",
+      "otherIdleSec",
+      "optimizedEnvelopeInsideSec",
+      "optimizedEnvelopeOutsideSec",
+      "optimizedEnvelopeUnknownSec",
+      "optimizedEnvelopeAmbiguousSec",
+      "hosRestSec",
+      "hosWorkSec",
+      "hosUnknownSec",
+      "hosAmbiguousSec",
+      "hosGraceSec",
+    ] as const;
+    for (const field of seconds) expect(Number.isInteger(rows[0]![field])).toBe(true);
+  });
 });

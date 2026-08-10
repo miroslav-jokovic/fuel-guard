@@ -316,12 +316,32 @@ export function buildIdleRollupDays(input: {
   }
 
   const rows: IdleRollupDay[] = [];
+  const roundSeconds = (value: number): number => Math.round(value);
   for (const [key, a] of acc) {
     rows.push({
-      ...a,
-      restIdleSec: Math.round(a.restIdleSec),
-      workIdleSec: Math.round(a.workIdleSec),
-      otherIdleSec: Math.round(a.otherIdleSec),
+      vehicleId: a.vehicleId,
+      day: a.day,
+      driveSec: roundSeconds(a.driveSec),
+      idleSec: roundSeconds(a.idleSec),
+      offSec: roundSeconds(a.offSec),
+      coverageSec: roundSeconds(a.coverageSec),
+      managedIdleSec: roundSeconds(a.managedIdleSec),
+      continuousIdleSec: roundSeconds(a.continuousIdleSec),
+      restIdleSec: roundSeconds(a.restIdleSec),
+      workIdleSec: roundSeconds(a.workIdleSec),
+      otherIdleSec: roundSeconds(a.otherIdleSec),
+      optimizedEnvelopeInsideSec: roundSeconds(a.optimizedEnvelopeInsideSec),
+      optimizedEnvelopeOutsideSec: roundSeconds(a.optimizedEnvelopeOutsideSec),
+      optimizedEnvelopeUnknownSec: roundSeconds(a.optimizedEnvelopeUnknownSec),
+      optimizedEnvelopeAmbiguousSec: roundSeconds(a.optimizedEnvelopeAmbiguousSec),
+      optimizedEnvelopeStatus: a.optimizedEnvelopeStatus,
+      optimizedEnvelopeSource: a.optimizedEnvelopeSource,
+      hosRestSec: roundSeconds(a.hosRestSec),
+      hosWorkSec: roundSeconds(a.hosWorkSec),
+      hosUnknownSec: roundSeconds(a.hosUnknownSec),
+      hosAmbiguousSec: roundSeconds(a.hosAmbiguousSec),
+      hosGraceSec: roundSeconds(a.hosGraceSec),
+      hosEvidenceStatus: a.hosEvidenceStatus,
       attributedDriverId: topOf(weightByDay.get(key)) ?? topOf(weightByVeh.get(a.vehicleId)),
     });
   }

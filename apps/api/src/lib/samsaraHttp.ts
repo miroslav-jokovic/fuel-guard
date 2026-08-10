@@ -50,6 +50,8 @@ export interface SamsaraFetchOpts {
    * "backfill" — bulk re-sync; gets only the leftover share so it can never starve live traffic.
    */
   priority?: "live" | "backfill";
+  /** Optional endpoint-specific cap, applied below the configured lane rate. */
+  maxRps?: number;
 }
 
 /** Effective per-second cadence for a lane: live gets SAMSARA_LIVE_RPS_FRACTION of the cap, backfill the
@@ -69,8 +71,12 @@ export async function samsaraFetch(
   opts: SamsaraFetchOpts = {},
 ): Promise<Response> {
   const priority = opts.priority ?? "live";
-  const rps = laneRps(env, priority);
-  const slotKey = `${token}:${priority}`; // separate pacing slot per lane
+  const laneRate = laneRps(env, priority);
+  const rps =
+    opts.maxRps != null && Number.isFinite(opts.maxRps)
+      ? Math.min(laneRate, Math.max(0.1, opts.maxRps))
+      : laneRate;
+  const slotKey = `${token}:${priority}`; // shared token pacing slot per lane
   const maxRetries = opts.retry === false ? 0 : env.SAMSARA_MAX_RETRIES;
   const doFetch = opts.fetchImpl ?? fetch;
   const headers = { Authorization: `Bearer ${token}`, ...(opts.init?.headers ?? {}) };

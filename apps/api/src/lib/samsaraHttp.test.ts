@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { backoffMs, parseRetryAfter, samsaraFetch, laneRps, __resetSamsaraPacing } from "./samsaraHttp.js";
+import {
+  backoffMs,
+  parseRetryAfter,
+  samsaraFetch,
+  laneRps,
+  __resetSamsaraPacing,
+} from "./samsaraHttp.js";
 import type { Env } from "../env.js";
 
 describe("laneRps — two-tier rate split (F5)", () => {
@@ -12,6 +18,32 @@ describe("laneRps — two-tier rate split (F5)", () => {
   it("never drops a lane to zero even at extreme fractions", () => {
     const hot = { SAMSARA_MAX_RPS: 20, SAMSARA_LIVE_RPS_FRACTION: 1 } as unknown as Env;
     expect(laneRps(hot, "backfill")).toBeGreaterThanOrEqual(0.1);
+  });
+
+  it("honors a lower per-request cap without changing the lane split", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const starts: number[] = [];
+      const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => {
+        starts.push(Date.now());
+        return jsonRes(200);
+      });
+      await samsaraFetch(e, "tok", "https://api.samsara.test/hos", {
+        fetchImpl,
+        maxRps: 5,
+      });
+      const second = samsaraFetch(e, "tok", "https://api.samsara.test/hos", {
+        fetchImpl,
+        maxRps: 5,
+      });
+      await vi.runAllTimersAsync();
+      await second;
+      expect(starts).toEqual([0, 200]);
+      expect(laneRps(e, "live")).toBeCloseTo(12, 6);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
