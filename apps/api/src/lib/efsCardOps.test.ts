@@ -117,10 +117,14 @@ describe("getCardSummaries", () => {
     expect(rows[1]).toMatchObject({ override: true, beingOverridden: true, status: "Hold" });
   });
 
-  it("sends no search element by default — the sweep wants every card", async () => {
+  it("sends an EMPTY <request> by default — omitting it is what the binding rejects", async () => {
+    // docs/plans/EFS-SOAP-INTEGRATION-PLAN.md, learned against the production WSDL: "EFS's Axis2
+    // binding rejects omitted filter elements even though the WSDL marks them nillable." The working
+    // rejected-transaction call sends <cardNum></cardNum> for the same reason. "Optional" in the guide
+    // means send it empty, not leave it out — and no-filters is the sweep's NORMAL case.
     const s = stub(loginOk, summaries);
     await getCardSummaries(env, creds, { fetchImpl: s.fetchImpl });
-    expect(s.bodies[1]).not.toContain("<request>");
+    expect(s.bodies[1]).toContain("<request></request>");
     expect(s.bodies[1]).toContain("<CardManagementEP_getCardSummariesV2>");
   });
 
@@ -161,10 +165,12 @@ describe("getCardsWithNoDriverId", () => {
     expect(cards).toEqual(["70830000000000001", "70830000000000002"]);
   });
 
-  it("sends a blank cardType to mean 'all card types'", async () => {
+  it("sends cardType as an EMPTY element, not as an absent one", async () => {
+    // "if you only have one card type you can leave this field blank" (p46) — blank is an empty
+    // element. Dropping it is the omission the Axis2 binding refuses.
     const s = stub(loginOk, soap("<r><result/></r>"));
     await getCardsWithNoDriverId(env, creds, { fetchImpl: s.fetchImpl });
-    expect(s.bodies[1]).toContain("<CardManagementEP_getCardsWithNoDriverId>");
+    expect(s.bodies[1]).toContain("<cardType></cardType>");
   });
 });
 

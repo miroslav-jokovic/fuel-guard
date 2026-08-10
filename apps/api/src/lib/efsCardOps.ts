@@ -52,6 +52,21 @@ const OPS = {
 const el = (name: string, value: string | number | null | undefined): string =>
   value === null || value === undefined || value === "" ? "" : `<${name}>${xmlEscape(String(value))}</${name}>`;
 
+/**
+ * Emit the element even when the value is empty.
+ *
+ * ⚠ This is not a style choice. `docs/plans/EFS-SOAP-INTEGRATION-PLAN.md` records what the transaction
+ * feeds learned against the production WSDL: **"EFS's Axis2 binding rejects omitted filter elements
+ * even though the WSDL marks them nillable."** That is why the working rejected-feed request sends
+ * `<cardNum></cardNum><invoice></invoice><locationId>0</locationId>` rather than leaving them out.
+ *
+ * The guide describing a field as "optional" or "you can leave this field blank" means SEND IT EMPTY,
+ * not omit it. Anything the binding expects structurally uses this helper; only genuinely
+ * select-one-of-many criteria (searchLocation, p132) use `el` and are legitimately absent.
+ */
+const elAlways = (name: string, value: string | number | null | undefined): string =>
+  `<${name}>${value === null || value === undefined ? "" : xmlEscape(String(value))}</${name}>`;
+
 /** Reads run in the interactive lane by default: a person is usually waiting on one. */
 const DEFAULT_PRIORITY: SoapPriority = "interactive";
 
@@ -187,15 +202,44 @@ export async function getCardSummaries(
   creds: EfsSoapCredentials,
   opts: CardOpOptions & { searches?: readonly CardSearch[]; payrollUse?: "P" | "B" | "N"; useV2?: boolean } = {},
 ): Promise<CardSummaryRow[]> {
+  // The guide documents BOTH getCardSummaries (p44) and getCardSummariesV2 (p45), and says nothing
+  // about which one a given account is provisioned for. When v2 comes back refused rather than
+  // broken, fall back to v1 ONCE. That single extra call is what separates "this account is on the
+  // older API surface" from "EFS is blocking us outright" — and it answers the question in
+  // production, where the alternative is a round trip through support to ask.
+  if (opts.useV2 === undefined) {
+    try {
+      return await getCardSummaries(env, creds, { ...opts, useV2: true });
+    } catch (error) {
+      if (!(error instanceof EfsSoapError) || (error.code !== "not_allowed" && error.code !== "soap_fault")) throw error;
+      console.warn(`[efs-cards] getCardSummariesV2 refused (${error.code}: ${error.message}) — retrying the v1 operation once`);
+      try {
+        return await getCardSummaries(env, creds, { ...opts, useV2: false });
+      } catch (fallbackError) {
+        // Name BOTH outcomes. "v2 refused, v1 also refused" is an account-level block; "v2 refused,
+        // v1 worked" is a provisioning difference. One sentence, and nobody has to guess which.
+        const second = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        throw new EfsSoapError(
+          `EFS refused both card-list operations — v2: ${error.message}; v1: ${second}`,
+          error.code,
+          { v2: error.detail, v1: second },
+        );
+      }
+    }
+  }
   const operation = opts.useV2 === false ? OPS.getCardSummaries : OPS.getCardSummariesV2;
   const searches = (opts.searches ?? [])
-    .map((s) => `<request>${el("type", s.type)}${el("searchParam", s.searchParam)}</request>`)
+    .map((s) => `<request>${elAlways("type", s.type)}${elAlways("searchParam", s.searchParam)}</request>`)
     .join("");
-  const payrollUse = opts.payrollUse ? `<request>${el("payrUse", opts.payrollUse)}</request>` : "";
+  const payrollUse = opts.payrollUse ? `<request>${elAlways("payrUse", opts.payrollUse)}</request>` : "";
+  // With no filters at all, still send ONE empty <request>. Omitting it entirely is what the binding
+  // is documented to reject (see elAlways), and "no search" is the normal case for the mirror sweep —
+  // so this is the shape that runs every night, not an edge case.
+  const requestElements = searches || payrollUse ? `${payrollUse}${searches}` : "<request></request>";
   const xml = await call(
     env, creds, operation,
     (session) =>
-      `<CardManagementEP_${operation}>${el("clientId", session.clientId)}${payrollUse}${searches}</CardManagementEP_${operation}>`,
+      `<CardManagementEP_${operation}>${elAlways("clientId", session.clientId)}${requestElements}</CardManagementEP_${operation}>`,
     { priority: "backfill", ...opts },
   );
 
@@ -233,7 +277,7 @@ export async function getCardsWithNoDriverId(
   const xml = await call(
     env, creds, OPS.getCardsWithNoDriverId,
     (session) =>
-      `<CardManagementEP_getCardsWithNoDriverId>${el("clientId", session.clientId)}${el("cardType", opts.cardType ?? "")}</CardManagementEP_getCardsWithNoDriverId>`,
+      `<CardManagementEP_getCardsWithNoDriverId>${elAlways("clientId", session.clientId)}${elAlways("cardType", opts.cardType ?? "")}</CardManagementEP_getCardsWithNoDriverId>`,
     { priority: "backfill", ...opts },
   );
   // Output is a bare list of card numbers (`<value>` leaves), not records — resultRecords would drop
