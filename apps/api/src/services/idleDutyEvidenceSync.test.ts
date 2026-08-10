@@ -200,17 +200,55 @@ describe("syncIdleDutyEvidence", () => {
     expect(result).toMatchObject({ sessions: 1, sufficient: 1, rowsWritten: 1 });
     expect(rec.writtenRows("idle_park_sessions")[0]).toMatchObject({
       id: "p-driver-fallback",
-      vehicle_id: "v4",
-      started_at: START,
-      ended_at: "2026-08-01T01:00:00.000Z",
-      duration_sec: 3_600,
-      idle_sec: 3_600,
-      off_sec: 0,
-      cycles: 0,
-      mode: "continuous",
       hos_evidence_status: "sufficient",
       hos_rest_sec: 3_600,
     });
+    expect(rec.writtenRows("idle_park_sessions")[0]).not.toHaveProperty("vehicle_id");
+    expect(rec.writtenRows("idle_park_sessions")[0]).not.toHaveProperty("duration_sec");
     expectOrgScoped(rec, ORG);
+  });
+
+  it("rounds and clamps covered seconds to the persisted session duration", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        idle_park_sessions: {
+          data: [
+            {
+              id: "p-rounding",
+              org_id: ORG,
+              vehicle_id: "v1",
+              started_at: START,
+              // Timestamp precision can produce 13449.999 seconds while duration_sec is an integer.
+              ended_at: "2026-08-01T03:44:09.999Z",
+              duration_sec: 13_449,
+              idle_sec: 13_449,
+              off_sec: 0,
+              cycles: 0,
+              mode: "continuous",
+            },
+          ],
+        },
+        hos_duty_segments: {
+          data: [
+            {
+              driver_id: "d1",
+              vehicle_id: "v1",
+              status: "sleeper",
+              started_at: START,
+              ended_at: "2026-08-01T03:44:09.999Z",
+            },
+          ],
+        },
+        idle_events: { data: [] },
+      },
+    });
+
+    await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
+
+    expect(rec.writtenRows("idle_park_sessions")[0]).toMatchObject({
+      id: "p-rounding",
+      hos_covered_sec: 13_449,
+      hos_rest_sec: 13_450,
+    });
   });
 });
