@@ -2,12 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAll, readIdleRollupInputs } from "./idleRollupInputs.js";
 import { buildSessionDutyEvidence } from "./idleSessionDutyEvidence.js";
 import {
+  buildHosVehicleTimelines,
   buildIdleRollupDays,
   summarizeIdleEquipmentEvidence,
   type IdleEquipmentEvidenceStatus,
   type IdleRollupDay,
   type HosSegment,
   type HosStatus,
+  type HosVehicleTimeline,
   type RollupAssignment,
   type RollupEnvelopeEvidence,
 } from "@fuelguard/shared";
@@ -322,6 +324,12 @@ export async function syncIdleRollup(
     }
   }
 
+  const vehicleTimelines: Map<string, HosVehicleTimeline> = buildHosVehicleTimelines(
+    segmentsByVehicle,
+    startMs,
+    endMs,
+  );
+
   const rows = buildIdleRollupDays({
     engineDays: engineDays
       .filter((d) => d.vehicle_id)
@@ -341,7 +349,13 @@ export async function syncIdleRollup(
         idleSec: Number(s.idle_sec),
         mode: s.mode,
         optimizedEnvelope: sessionEnvelope(s, vehicleById.get(s.vehicle_id), events),
-        dutyEvidence: buildSessionDutyEvidence(s, events, segmentsByDriver, segmentsByVehicle),
+        dutyEvidence: buildSessionDutyEvidence(
+          s,
+          events,
+          segmentsByDriver,
+          segmentsByVehicle,
+          vehicleTimelines,
+        ),
       })),
     events: events
       .filter((e) => e.vehicle_id)
@@ -353,6 +367,7 @@ export async function syncIdleRollup(
       })),
     segmentsByDriver,
     segmentsByVehicle,
+    vehicleTimelines,
     assignments,
     windowStartMs: startMs,
     windowEndMs: endMs,

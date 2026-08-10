@@ -231,16 +231,9 @@ export function startSamsaraScheduler(env: Env): void {
           );
         }
         // Rollup refresh runs ONCE per tier cycle, here after BOTH of its feeds (idle ran earlier in this
-        // tier; duty segments just synced above). Best-effort — the segment stats stand regardless.
-        let rollupWritten = 0;
-        try {
-          const ru = await syncIdleRollup(admin, orgId);
-          rollupWritten = ru.written;
-        } catch (e) {
-          console.error(
-            `[samsara-sched] idle rollup (org ${orgId}) failed: ${e instanceof Error ? e.message : e}`,
-          );
-        }
+        // tier; duty segments just synced above). It is the derived view rendered by Idling, so a failed
+        // refresh must fail this ledger job and become visible/retryable instead of leaving stale data.
+        const rollup = await syncIdleRollup(admin, orgId);
         return {
           fetched: r.fetched,
           upserted: r.upserted,
@@ -251,7 +244,9 @@ export function startSamsaraScheduler(env: Env): void {
           dutyEvidenceInsufficient: dutyEvidence.insufficient,
           dutyEvidenceAmbiguous: dutyEvidence.ambiguous,
           dutyEvidenceRowsWritten: dutyEvidence.rowsWritten,
-          rollupWritten,
+          rollupWindowDays: rollup.windowDays,
+          rollupRows: rollup.rows,
+          rollupWritten: rollup.written,
         };
       });
       await runOrgTier(admin, env, orgId, "snapshot_driver_week", async () => {

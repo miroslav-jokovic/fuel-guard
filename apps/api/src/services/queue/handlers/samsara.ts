@@ -32,7 +32,7 @@ const asStr = (v: unknown): string | null => (typeof v === "string" && v.length 
 const asNum = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
-/** Wrap a best-effort sub-sync: log + swallow so one weak scope (idle, trailers) never fails the job. */
+/** Wrap an optional sub-sync: log + swallow only where a partial result is still operationally valid. */
 async function nonFatal(label: string, orgId: string, run: () => Promise<unknown>): Promise<void> {
   try {
     await run();
@@ -154,8 +154,9 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
       currentDrivers = c.drivers;
       located = c.located;
     });
-    // Duty segments feed the rollup's rest/on-duty split — refresh it (best-effort).
-    await nonFatal("idle rollup", orgId, () => syncIdleRollup(admin, orgId));
+    // The rollup is the derived view rendered by Idling. A successful source sync with a stale rollup is
+    // not a successful job, so let this error reject the job and use the queue retry policy.
+    const rollup = await syncIdleRollup(admin, orgId);
     if (actorId) {
       await writeAudit(admin, {
         orgId,
@@ -171,6 +172,9 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
           dutyEvidenceInsufficient: dutyEvidence.insufficient,
           dutyEvidenceAmbiguous: dutyEvidence.ambiguous,
           dutyEvidenceRowsWritten: dutyEvidence.rowsWritten,
+          rollupWindowDays: rollup.windowDays,
+          rollupRows: rollup.rows,
+          rollupWritten: rollup.written,
         },
       });
     }
@@ -183,6 +187,9 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
       dutyEvidenceInsufficient: dutyEvidence.insufficient,
       dutyEvidenceAmbiguous: dutyEvidence.ambiguous,
       dutyEvidenceRowsWritten: dutyEvidence.rowsWritten,
+      rollupWindowDays: rollup.windowDays,
+      rollupRows: rollup.rows,
+      rollupWritten: rollup.written,
     };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
@@ -203,15 +210,12 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
     const telemetry = foundation.idleTelemetry;
     const equipment = foundation.idleEquipmentEvidence;
     console.log(`[samsara] idle capability: ${cap.learned}/${cap.vehicles} trucks classified`);
-    // Refresh the pre-aggregated idle_rollup_days the Idling page reads (best-effort — raw sync stands).
-    let rollupWritten = 0;
-    await nonFatal("idle rollup", orgId, async () => {
-      const r = await syncIdleRollup(admin, orgId);
-      rollupWritten = r.written;
-      console.log(
-        `[samsara] idle rollup: ${r.written}/${r.rows} day-rows written (${r.windowDays}d window)`,
-      );
-    });
+    // The rollup is the derived view rendered by Idling. A successful source sync with a stale rollup is
+    // not a successful job, so let this error reject the job and use the queue retry policy.
+    const rollup = await syncIdleRollup(admin, orgId);
+    console.log(
+      `[samsara] idle rollup: ${rollup.written}/${rollup.rows} day-rows written (${rollup.windowDays}d window)`,
+    );
     if (actorId) {
       await writeAudit(admin, {
         orgId,
@@ -246,7 +250,9 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
           learnedEnvelopeInsufficient: foundation.idleLearnedEnvelopes.insufficient,
           learnedEnvelopeNotApplicable: foundation.idleLearnedEnvelopes.notApplicable,
           learnedEnvelopeRowsWritten: foundation.idleLearnedEnvelopes.rowsWritten,
-          rollupWritten,
+          rollupWindowDays: rollup.windowDays,
+          rollupRows: rollup.rows,
+          rollupWritten: rollup.written,
         },
       });
     }
@@ -278,7 +284,9 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
       learnedEnvelopeInsufficient: foundation.idleLearnedEnvelopes.insufficient,
       learnedEnvelopeNotApplicable: foundation.idleLearnedEnvelopes.notApplicable,
       learnedEnvelopeRowsWritten: foundation.idleLearnedEnvelopes.rowsWritten,
-      rollupWritten,
+      rollupWindowDays: rollup.windowDays,
+      rollupRows: rollup.rows,
+      rollupWritten: rollup.written,
     };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };

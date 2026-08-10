@@ -18,6 +18,7 @@ const trailerSync = vi.hoisted(() => ({ syncTrailersFromSamsara: vi.fn() }));
 const idleFoundation = vi.hoisted(() => ({ syncIdleFoundation: vi.fn() }));
 const hosSync = vi.hoisted(() => ({ syncHosDutySegments: vi.fn(), syncHosCurrentStatus: vi.fn() }));
 const idleDutyEvidence = vi.hoisted(() => ({ syncIdleDutyEvidence: vi.fn() }));
+const idleRollup = vi.hoisted(() => ({ syncIdleRollup: vi.fn() }));
 const driverSync = vi.hoisted(() => ({ syncDriversFromSamsara: vi.fn() }));
 const scoreSync = vi.hoisted(() => ({
   syncDriverScores: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("../../samsaraTrailerSync.js", () => trailerSync);
 vi.mock("../../idleFoundationSync.js", () => idleFoundation);
 vi.mock("../../hosSync.js", () => hosSync);
 vi.mock("../../idleDutyEvidenceSync.js", () => idleDutyEvidence);
+vi.mock("../../idleRollup.js", () => idleRollup);
 vi.mock("../../samsaraDriverSync.js", () => driverSync);
 vi.mock("../../driverScoreSync.js", () => scoreSync);
 vi.mock("../../driverPerformanceSnapshot.js", () => ({ snapshotSettledWeeks: vi.fn() }));
@@ -229,6 +231,7 @@ describe("syncHosHandler", () => {
       ambiguous: 1,
       rowsWritten: 10,
     });
+    idleRollup.syncIdleRollup.mockResolvedValue({ windowDays: 35, rows: 175, written: 12 });
 
     const out = await syncHosHandler(
       ctx,
@@ -247,6 +250,9 @@ describe("syncHosHandler", () => {
       dutyEvidenceInsufficient: 1,
       dutyEvidenceAmbiguous: 1,
       dutyEvidenceRowsWritten: 10,
+      rollupWindowDays: 35,
+      rollupRows: 175,
+      rollupWritten: 12,
     });
     expect(audit.writeAudit).toHaveBeenCalledWith(
       admin,
@@ -263,6 +269,7 @@ describe("syncHosHandler", () => {
       ambiguous: 0,
       rowsWritten: 0,
     });
+    idleRollup.syncIdleRollup.mockResolvedValue({ windowDays: 35, rows: 0, written: 0 });
     await syncHosHandler(ctx, job("sync_hos", {}), async () => {}); // scheduler run: no actor, rolling window
     expect(hosSync.syncHosDutySegments).toHaveBeenCalledWith(admin, ctx.env, "org-1", {
       sinceDays: undefined,
@@ -274,5 +281,22 @@ describe("syncHosHandler", () => {
     hosSync.syncHosDutySegments.mockRejectedValue(new NoSamsaraTokenError("no token"));
     const out = await syncHosHandler(ctx, job("sync_hos", {}), async () => {});
     expect(out).toEqual({ skipped: "no_samsara_token" });
+  });
+
+  it("fails when the derived rollup cannot refresh, so the queue retries instead of reporting stale data as done", async () => {
+    hosSync.syncHosDutySegments.mockResolvedValue({ fetched: 1, upserted: 1 });
+    hosSync.syncHosCurrentStatus.mockResolvedValue({ drivers: 0, located: 0 });
+    idleDutyEvidence.syncIdleDutyEvidence.mockResolvedValue({
+      sessions: 0,
+      sufficient: 0,
+      insufficient: 0,
+      ambiguous: 0,
+      rowsWritten: 0,
+    });
+    idleRollup.syncIdleRollup.mockRejectedValue(new Error("rollup timeout"));
+
+    await expect(syncHosHandler(ctx, job("sync_hos", {}), async () => {})).rejects.toThrow(
+      "rollup timeout",
+    );
   });
 });

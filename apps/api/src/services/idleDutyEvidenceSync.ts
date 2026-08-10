@@ -1,9 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  buildHosVehicleTimelines,
   hosVehicleOverlapSeconds,
+  hosVehicleTimelineOverlapSeconds,
   normalizeHosStatus,
   type HosSegment,
   type HosVehicleOverlap,
+  type HosVehicleTimeline,
   type HosStatus,
 } from "@fuelguard/shared";
 
@@ -104,6 +107,7 @@ function buildEvidence(
   segmentsByDriver: Map<string, HosSegment[]>,
   events: IdleEventRow[],
   session: ParkSessionRow,
+  vehicleTimelines: Map<string, HosVehicleTimeline>,
 ): DutyEvidenceValues {
   const startMs = Date.parse(session.started_at);
   const endMs = Date.parse(session.ended_at);
@@ -112,9 +116,12 @@ function buildEvidence(
       ? (endMs - startMs) / 1000
       : 0;
   const vehicleSegments = segmentsByVehicle.get(session.vehicle_id) ?? [];
+  const vehicleTimeline = vehicleTimelines.get(session.vehicle_id);
   if (vehicleSegments.length > 0) {
     const overlap = includeUncoveredSeconds(
-      hosVehicleOverlapSeconds(vehicleSegments, session.vehicle_id, startMs, endMs),
+      vehicleTimeline != null
+        ? hosVehicleTimelineOverlapSeconds(vehicleTimeline, startMs, endMs)
+        : hosVehicleOverlapSeconds(vehicleSegments, session.vehicle_id, startMs, endMs),
       durationSecExact,
     );
     const fullCoverage = durationSecExact > 0 && overlap.coveredSec >= durationSecExact;
@@ -298,13 +305,20 @@ export async function syncIdleDutyEvidence(
     readIdleEvents(admin, orgId, fromIso, endIso),
   ]);
   const { byVehicle: segmentsByVehicle, byDriver: segmentsByDriver } = mapSegments(hosRows);
+  const vehicleTimelines = buildHosVehicleTimelines(segmentsByVehicle, Date.parse(fromIso), endMs);
   const writes: ParkSessionEvidenceWrite[] = [];
   let sufficient = 0;
   let insufficient = 0;
   let ambiguous = 0;
 
   for (const session of sessions) {
-    const evidence = buildEvidence(segmentsByVehicle, segmentsByDriver, events, session);
+    const evidence = buildEvidence(
+      segmentsByVehicle,
+      segmentsByDriver,
+      events,
+      session,
+      vehicleTimelines,
+    );
     if (evidence.status === "sufficient") sufficient += 1;
     else if (evidence.status === "ambiguous") ambiguous += 1;
     else insufficient += 1;

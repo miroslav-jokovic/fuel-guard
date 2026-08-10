@@ -15,7 +15,13 @@
  * Day bucketing is UTC (`toISOString().slice(0,10)`), matching what the page previously did client-side,
  * so numbers do not shift with this move. Pure and deterministic — no I/O, fully unit-tested.
  */
-import { hosOverlapSeconds, hosVehicleOverlapSeconds, type HosSegment } from "./hos.js";
+import {
+  buildHosVehicleTimelines,
+  hosOverlapSeconds,
+  hosVehicleTimelineOverlapSeconds,
+  type HosSegment,
+  type HosVehicleTimeline,
+} from "./hos.js";
 
 export interface RollupEngineDay {
   vehicleId: string;
@@ -185,6 +191,7 @@ export function buildIdleRollupDays(input: {
   events: RollupIdleEvent[];
   segmentsByDriver: Map<string, HosSegment[]>;
   segmentsByVehicle?: Map<string, HosSegment[]>;
+  vehicleTimelines?: Map<string, HosVehicleTimeline>;
   assignments: RollupAssignment[];
   /** Window bounds — open-ended assignments are clamped here (never iterated to infinity). */
   windowStartMs: number;
@@ -193,6 +200,11 @@ export function buildIdleRollupDays(input: {
   const acc = new Map<string, Acc>();
   const weightByDay = new Map<string, Map<string, number>>();
   const weightByVeh = new Map<string, Map<string, number>>();
+  const vehicleTimelines =
+    input.vehicleTimelines ??
+    (input.segmentsByVehicle != null
+      ? buildHosVehicleTimelines(input.segmentsByVehicle, input.windowStartMs, input.windowEndMs)
+      : new Map<string, HosVehicleTimeline>());
 
   for (const d of input.engineDays) {
     const a = accFor(acc, d.vehicleId, d.day);
@@ -251,11 +263,10 @@ export function buildIdleRollupDays(input: {
     const dur = Math.max(0, ev.durationSec);
     if (dur <= 0) continue;
     const a = accFor(acc, ev.vehicleId, dayOf(ev.startMs));
-    const vehicleSegments = input.segmentsByVehicle?.get(ev.vehicleId);
-    if (vehicleSegments != null && vehicleSegments.length > 0) {
-      const o = hosVehicleOverlapSeconds(
-        vehicleSegments,
-        ev.vehicleId,
+    const vehicleTimeline = vehicleTimelines.get(ev.vehicleId);
+    if (vehicleTimeline != null) {
+      const o = hosVehicleTimelineOverlapSeconds(
+        vehicleTimeline,
         ev.startMs,
         ev.startMs + dur * 1000,
       );

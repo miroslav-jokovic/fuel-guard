@@ -1,7 +1,9 @@
 import {
+  hosVehicleTimelineOverlapSeconds,
   hosOverlapSeconds,
   hosVehicleOverlapSeconds,
   type HosSegment,
+  type HosVehicleTimeline,
   type RollupDutyEvidence,
 } from "@fuelguard/shared";
 
@@ -31,6 +33,7 @@ export function buildSessionDutyEvidence(
   events: IdleDutyEventInput[],
   segmentsByDriver: Map<string, HosSegment[]>,
   segmentsByVehicle: Map<string, HosSegment[]>,
+  vehicleTimelines?: Map<string, HosVehicleTimeline>,
 ): RollupDutyEvidence | undefined {
   if (session.mode !== "continuous") return undefined;
   const startMs = Date.parse(session.started_at);
@@ -47,8 +50,12 @@ export function buildSessionDutyEvidence(
     };
 
   const vehicleSegments = segmentsByVehicle.get(session.vehicle_id) ?? [];
-  if (vehicleSegments.length > 0) {
-    const overlap = hosVehicleOverlapSeconds(vehicleSegments, session.vehicle_id, startMs, endMs);
+  const vehicleTimeline = vehicleTimelines?.get(session.vehicle_id);
+  if (vehicleTimeline != null || vehicleSegments.length > 0) {
+    const overlap =
+      vehicleTimeline != null
+        ? hosVehicleTimelineOverlapSeconds(vehicleTimeline, startMs, endMs)
+        : hosVehicleOverlapSeconds(vehicleSegments, session.vehicle_id, startMs, endMs);
     const unknownSec =
       overlap.unknownSec +
       overlap.drivingSec +

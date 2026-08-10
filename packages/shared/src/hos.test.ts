@@ -5,6 +5,9 @@ import {
   parseHosLogs,
   hosOverlapSeconds,
   hosVehicleOverlapSeconds,
+  buildHosVehicleTimeline,
+  buildHosVehicleTimelines,
+  hosVehicleTimelineOverlapSeconds,
   parseHosClocks,
   type HosSegment,
 } from "./hos.js";
@@ -158,7 +161,13 @@ describe("hosVehicleOverlapSeconds", () => {
     const o = hosVehicleOverlapSeconds(
       [
         { driverId: "1", vehicleId: "truck-1", status: "sleeper", startMs: T0, endMs: T0 + 2 * H },
-        { driverId: "2", vehicleId: "truck-1", status: "off_duty", startMs: T0 + H, endMs: T0 + 3 * H },
+        {
+          driverId: "2",
+          vehicleId: "truck-1",
+          status: "off_duty",
+          startMs: T0 + H,
+          endMs: T0 + 3 * H,
+        },
         { driverId: "3", vehicleId: "truck-2", status: "on_duty", startMs: T0, endMs: T0 + 3 * H },
       ],
       "truck-1",
@@ -175,7 +184,13 @@ describe("hosVehicleOverlapSeconds", () => {
     const o = hosVehicleOverlapSeconds(
       [
         { driverId: "1", vehicleId: "truck-1", status: "sleeper", startMs: T0, endMs: T0 + 2 * H },
-        { driverId: "2", vehicleId: "truck-1", status: "on_duty", startMs: T0 + H, endMs: T0 + 3 * H },
+        {
+          driverId: "2",
+          vehicleId: "truck-1",
+          status: "on_duty",
+          startMs: T0 + H,
+          endMs: T0 + 3 * H,
+        },
       ],
       "truck-1",
       T0,
@@ -196,6 +211,69 @@ describe("hosVehicleOverlapSeconds", () => {
     );
     expect(o.coveredSec).toBe(0);
     expect(o.segmentCount).toBe(0);
+  });
+});
+
+describe("hos vehicle timelines", () => {
+  const segments: HosSegment[] = [
+    { driverId: "1", vehicleId: "truck-1", status: "sleeper", startMs: T0, endMs: T0 + 2 * H },
+    { driverId: "2", vehicleId: "truck-1", status: "on_duty", startMs: T0 + H, endMs: T0 + 3 * H },
+    { driverId: "3", vehicleId: "truck-2", status: "driving", startMs: T0, endMs: T0 + 3 * H },
+  ];
+
+  it("matches the conflict-aware overlap buckets and clips open segments to the window", () => {
+    const timeline = buildHosVehicleTimeline("truck-1", segments, T0 + 30 * 60_000, T0 + 4 * H);
+    const queryStart = T0 + 30 * 60_000;
+    const queryEnd = T0 + 3 * H;
+    const expected = hosVehicleOverlapSeconds(segments, "truck-1", queryStart, queryEnd);
+    const actual = hosVehicleTimelineOverlapSeconds(timeline, queryStart, queryEnd);
+    expect(actual).toMatchObject({
+      restSec: expected.restSec,
+      workSec: expected.workSec,
+      drivingSec: expected.drivingSec,
+      excludedSec: expected.excludedSec,
+      unknownSec: expected.unknownSec,
+      coveredSec: expected.coveredSec,
+      ambiguousSec: expected.ambiguousSec,
+    });
+    expect(timeline.intervals.every((interval) => interval.endMs <= T0 + 4 * H)).toBe(true);
+  });
+
+  it("does not mark duplicate same-kind coverage ambiguous and leaves gaps uncovered", () => {
+    const timeline = buildHosVehicleTimeline(
+      "truck-1",
+      [
+        { driverId: "1", vehicleId: "truck-1", status: "sleeper", startMs: T0, endMs: T0 + H },
+        { driverId: "2", vehicleId: "truck-1", status: "off_duty", startMs: T0, endMs: T0 + H },
+      ],
+      T0,
+      T0 + 3 * H,
+    );
+    const overlap = hosVehicleTimelineOverlapSeconds(timeline, T0, T0 + 3 * H);
+    expect(overlap).toMatchObject({ restSec: H / 1000, coveredSec: H / 1000, ambiguousSec: 0 });
+    expect(timeline.sourceSegmentCount).toBe(2);
+  });
+
+  it("retains an empty vehicle timeline so driver fallback cannot cross a vehicle boundary", () => {
+    const timelines = buildHosVehicleTimelines(
+      new Map([
+        [
+          "truck-1",
+          [{ driverId: "1", vehicleId: "truck-1", status: "sleeper", startMs: T0, endMs: T0 + H }],
+        ],
+      ]),
+      T0 + 2 * H,
+      T0 + 3 * H,
+    );
+    const timeline = timelines.get("truck-1");
+    expect(timeline).toBeDefined();
+    expect(timeline?.sourceSegmentCount).toBe(0);
+    expect(
+      timeline == null ? null : hosVehicleTimelineOverlapSeconds(timeline, T0 + 2 * H, T0 + 3 * H),
+    ).toMatchObject({
+      coveredSec: 0,
+      restSec: 0,
+    });
   });
 });
 
