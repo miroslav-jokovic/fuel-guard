@@ -67,7 +67,7 @@ Then, on the **API service only**:
 
 | Variable | Required value | Why |
 |---|---|---|
-| `EFS_SOAP_ENABLED` | `true` | Master EFS kill switch. `getEfsSoapCredentials` returns `enabled: row.enabled && env.EFS_SOAP_ENABLED`, so with this false **nothing dials EFS at all** — not QA, not production, and the card mirror never refreshes. A recent variable dump showed it as `false`; confirm and fix. |
+| `EFS_SOAP_ENABLED` | `true` | Master EFS kill switch. `getEfsSoapCredentials` returns `enabled: row.enabled && env.EFS_SOAP_ENABLED`, so with this false **nothing dials EFS at all** — not QA, not production, and the card mirror never refreshes. Verified already `true` on 2026-08-11; an earlier note here claimed it was `false`, which came from a variable dump of the *web* service. Confirm, do not change. |
 | `EFS_CARD_CONTROL_PROBE_ENABLED` | `true` | Gates the read-only write check. Miki reports this is already set — verify rather than assume. |
 | `EFS_CARD_CONTROL_ENABLED` | **must remain unset** | See hard rule 1. Verify it is absent. Do not create it. |
 
@@ -101,8 +101,19 @@ order by m.created_at asc limit 1;
 So adding Miki's existing account to a second org does nothing — his production membership is older
 and still wins. The QA org needs a separate auth user whose **only** membership is the QA org.
 
-**Miki does this part**: sign up `uncchicago85+efsqa@gmail.com` through the normal signup flow and
-confirm the email. Tell him when you are ready for it; do not create auth users yourself.
+**There is no self-serve signup.** The web app has `/login` (email + password) and `/accept-invite`;
+nothing else. Invites are org-scoped and admin-only, so they cannot bootstrap a brand-new org — there
+is no admin in it yet to send one. An earlier version of this document said "sign up through the
+normal signup flow", which is not a thing that exists.
+
+**Miki does this part**, in Supabase Studio → Authentication → Users → Add user:
+
+- email `uncchicago85+efsqa@gmail.com`
+- a password he chooses
+- auto-confirm the user, so there is no email round trip
+
+Do not create auth users yourself, and do not ask for that password. Tell Miki when you are ready
+for it, and wait.
 
 ### 3b — Create the org and the membership
 
@@ -150,7 +161,9 @@ Report the QA `org_id` from query 3. **Stop if query 3 returns anything other th
 
 Tell Miki:
 
-> Sign in as `uncchicago85+efsqa@gmail.com`, go to Settings → EFS Integration, and enter:
+> Sign in at https://fleetguardweb-production.up.railway.app as
+> `uncchicago85+efsqa@gmail.com`, then go to Settings → **EFS integration** (`/settings/efs-soap`)
+> and enter:
 >
 > - Endpoint: `https://ws.partner.efsllc.com/axis2/services/CardManagementWS`
 >   (no `?wsdl` — that is the WSDL document URL, not the SOAP endpoint)
@@ -232,11 +245,11 @@ Post back:
 
 Then stop. The next two steps are a human's:
 
-- `POST /api/fuel-cards/diagnose` as the QA admin against one of the 13 QA cards — proves login,
-  read entitlement, and prints our egress IP so the three allowlisted addresses can be confirmed.
-- `POST /api/fuel-cards/write-check` with `readOnly: true` — proves the echo against XML WEX wrote,
-  and reports which response shape the QA account returns. Both require a sign-in within the last
-  five minutes (`requireFreshAuth`).
+Settings → **Card control** (`/settings/card-control`) → the write-check panel, with the read-only
+box left ticked. It proves login, read entitlement and the echo against XML WEX wrote, and reports
+the response shape, the raw card document and our egress IP. No API client needed — and no separate
+`/diagnose` call, which has no UI. It needs a sign-in from the last five minutes
+(`requireFreshAuth`); the page prompts for it rather than failing.
 
 The QA cards, for reference — all 13 are disposable per WEX:
 
