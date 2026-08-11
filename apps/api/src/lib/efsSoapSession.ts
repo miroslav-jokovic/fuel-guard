@@ -112,7 +112,19 @@ function faultError(fault: XmlElement): EfsSoapError {
     findDescendant(fault, "detail")?.textContent ?? "",
   ].join(" ");
   for (const [pattern, code, friendly] of FAULT_CODES) {
-    if (pattern.test(haystack)) return new EfsSoapError(friendly ?? message, code, { faultstring: message });
+    if (!pattern.test(haystack)) continue;
+    // KEEP THE VENDOR'S OWN WORDS IN THE MESSAGE, not just in `detail`.
+    //
+    // EFS formats these faults as "<name> <reference>" — "Not Allowed 109491436176" — and the
+    // reference is the first thing WEX support asks for. An earlier version of this replaced the
+    // faultstring with the friendly text, which read better and threw away the only part of the
+    // string anybody outside this codebase can act on. The job ledger stores `message`, so anything
+    // not in `message` is effectively lost to whoever is reading the failure.
+    return new EfsSoapError(
+      friendly ? `${friendly} (EFS said: "${message}")` : message,
+      code,
+      { faultstring: message },
+    );
   }
   const lower = message.toLowerCase();
   const code = /rate|limit|429/.test(lower)

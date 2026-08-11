@@ -324,6 +324,19 @@ describe("EFS fault classification", () => {
     await expect(efsLogin(env, creds, "live", { fetchImpl: rec.fetchImpl })).rejects.toMatchObject({ code: expected });
   });
 
+it("keeps EFS's own faultstring — and its reference number — in the message", async () => {
+    // "Not Allowed 109491436176": the reference is the first thing WEX support asks for, and the job
+    // ledger stores `message`, so a friendly message that REPLACES the faultstring loses the only
+    // part anybody outside this codebase can act on.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    __resetEfsSessions();
+    const rec = recorder([], fault("Not Allowed 109491436176"));
+    await expect(efsLogin(env, creds, "live", { fetchImpl: rec.fetchImpl })).rejects.toMatchObject({
+      code: "not_allowed",
+    });
+    await expect(efsLogin(env, creds, "live", { fetchImpl: rec.fetchImpl })).rejects.toThrow(/109491436176/);
+  });
+
   it("reads a fault name out of <detail> when faultstring does not carry it", async () => {
     const body = `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>` +
       `<soap:Fault><faultstring>Request failed</faultstring><detail><reason>InvalidClientId</reason></detail></soap:Fault>` +
