@@ -69,6 +69,15 @@ export const VOLATILE_FIELDS: ReadonlySet<string> = new Set([
   "beingOverridden",
 ]);
 
+/**
+ * Identity, not configuration. `cardNumber` is a child of the card element on the nested response
+ * shape, and it is a PAN — it must not end up inside a token we persist in `efs_card_mutations`.
+ * Excluding it also keeps the version meaning the same thing on both shapes: the card's mutable
+ * configuration and nothing else.
+ */
+const IDENTITY_FIELDS = ["cardNumber", "cardNum", "CardNumber"] as const;
+const UNVERSIONED_FIELDS: ReadonlySet<string> = new Set([...VOLATILE_FIELDS, ...IDENTITY_FIELDS]);
+
 export const XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
 /**
  * Canonical leaf encoding. Real values are prefixed `v`, an xsi:nil leaf is the bare `n`, and a
@@ -82,8 +91,29 @@ export const encodeLeaf = (text: string): string => `v${text}`;
 // ─── Parsing ───────────────────────────────────────────────────────────────────────────────────
 
 export interface CardDocument {
-  /** The card element from the response. THE source of truth for any echo. */
+  /**
+   * The element that holds the card's repeated sub-objects. THE source of truth for any echo.
+   *
+   * On a FLAT response this is also the element holding the scalar header fields. On the NESTED
+   * shape this account's EFS actually returns, it is the outer element and `header` is a child of
+   * it — see `findCardRoot`.
+   */
   root: XmlElement;
+  /**
+   * The element that holds the scalar header fields (`status`, `policyNumber`, …).
+   *
+   * Identical to `root` on a flat response. Split out so field reads, field edits and the echo all
+   * address the same node no matter which shape arrived.
+   */
+  header: XmlElement;
+  /**
+   * Canonical-path prefix for header fields: `""` when flat, `"/header"` when nested.
+   *
+   * The fidelity guard compares an edit list against a canonicalised document, and an edit names a
+   * FIELD (`status`), not a path. This is what turns the one into the other, so the guard keeps
+   * comparing like for like when the vendor nests.
+   */
+  fieldPrefix: string;
   /** Lossy typed view — for the UI, validation and versioning. NEVER serialized back. */
   card: WsCard;
   /** Optimistic-concurrency token over the mutable configuration. */
@@ -129,18 +159,69 @@ function boolOrNull(value: string | null): boolean | null {
   return null;
 }
 
-/** Locate the card element by its contents rather than by a guessed wrapper name. */
-function findCardRoot(root: XmlElement): XmlElement | null {
+function hasCollectionChild(element: XmlElement): boolean {
+  return childElements(element).some((child) => COLLECTION_SET.has(localName(child)));
+}
+
+/**
+ * Locate the card by its contents rather than by a guessed wrapper name, and split the scalar header
+ * from the element that carries the repeated sub-objects.
+ *
+ * ── Why this is not just "find the element with the markers" ─────────────────────────────────────
+ *
+ * Every example in the guide is FLAT: `status`, `policyNumber`, `<infos>`, `<limits>` are all
+ * siblings under one wrapper. Production is not. This account's `getCardv2` returns
+ *
+ *     <result>
+ *       <cardNumber>…</cardNumber>
+ *       <header><status>HOLD</status><policyNumber>1</policyNumber>…</header>
+ *       <infos>…</infos> ×6
+ *       <locationGroups>1</locationGroups>
+ *     </result>
+ *
+ * The marker search lands on `<header>` — it holds five of the six markers — and `<header>` has no
+ * sub-objects. Read that as the whole card and `infos`, `limits`, `locationGroups`, `locations` and
+ * `timeRestrictions` all come back EMPTY. That is not merely a blank prompts table: an echo built
+ * from it omits every `<infos>` record, and by the vendor's own rule (p137) a `setCardV2` that omits
+ * a record DELETES it. Six prompts, including the Driver ID and the driver's name, on every card we
+ * touched. `assertEchoFidelity` would not have caught it either, because it compares the request
+ * against what the PARSER saw, and the parser had already lost them.
+ *
+ * ── The rule ─────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Find the marker element M, then decide whether M is the whole card or just its header:
+ *
+ *   1. M itself carries sub-objects → flat. M is both root and header. (Every guide example, and
+ *      every fixture but one.)
+ *   2. M carries none but its parent does → nested. The parent is the root, M is the header.
+ *   3. Neither carries any, and M is literally named `header` → nested, on a card that happens to
+ *      have no sub-objects at all. Still echo the wrapper back, because the shape of the request has
+ *      to match the shape of the response.
+ *   4. Otherwise → flat. The conservative default: a card with no sub-objects and no wrapper.
+ *
+ * Rules 1 and 2 are structural and carry the weight. Rule 3 is the only one that looks at a name,
+ * and it is reachable only when the structural signals are both silent.
+ */
+function findCardRoot(envelope: XmlElement): { root: XmlElement; header: XmlElement } | null {
   const looksLikeCard = (el: XmlElement): boolean => {
     const names = new Set(childElements(el).map(localName));
     // Two markers, not one: a `<status>` on its own could belong to almost anything in this WSDL.
     return CARD_MARKERS.filter((m) => names.has(m)).length >= 2;
   };
-  const queue: XmlElement[] = [root];
+  // Parent tracked explicitly rather than read back off `parentNode`, so the answer can never point
+  // outside the subtree we were handed.
+  const queue: { el: XmlElement; parent: XmlElement | null }[] = [{ el: envelope, parent: null }];
   while (queue.length > 0) {
-    const el = queue.shift()!;
-    if (looksLikeCard(el)) return el; // breadth-first → the SHALLOWEST match, i.e. the outermost card
-    queue.push(...childElements(el));
+    const { el, parent } = queue.shift()!;
+    if (looksLikeCard(el)) {
+      // breadth-first → the SHALLOWEST match, i.e. the outermost card
+      if (hasCollectionChild(el)) return { root: el, header: el };
+      if (parent && (hasCollectionChild(parent) || localName(el) === "header")) {
+        return { root: parent, header: el };
+      }
+      return { root: el, header: el };
+    }
+    queue.push(...childElements(el).map((child) => ({ el: child, parent: el })));
   }
   return null;
 }
@@ -199,36 +280,39 @@ export function describeAtPath(raw: unknown, path: readonly PropertyKey[]): stri
  */
 export function parseCardDocument(xml: string): CardDocument {
   const envelope = parseSoap(xml); // throws on SOAP Fault
-  const root = findCardRoot(envelope);
-  if (!root) {
+  const found = findCardRoot(envelope);
+  if (!found) {
     throw new EfsSoapError(
       "EFS returned a card response we could not read — no card element found",
       "malformed_response",
     );
   }
+  // Scalars come from `header`, sub-objects from `root`. On a flat response these are the same node
+  // and the distinction costs nothing; on the nested shape it is the whole fix.
+  const { root, header } = found;
   const raw = {
-    status: firstText(root, "status"),
-    originalStatus: firstText(root, "originalStatus"),
-    payrollStatus: firstText(root, "payrollStatus"),
-    payrollUse: firstText(root, "payrollUse"),
-    policyNumber: numberOrNull(firstText(root, "policyNumber")),
-    companyXRef: firstText(root, "companyXRef"),
-    handEnter: firstText(root, "handEnter"),
-    infoSource: firstText(root, "infoSource"),
-    limitSource: firstText(root, "limitSource"),
-    locationSource: firstText(root, "locationSource"),
-    timeSource: firstText(root, "timeSource"),
+    status: firstText(header, "status"),
+    originalStatus: firstText(header, "originalStatus"),
+    payrollStatus: firstText(header, "payrollStatus"),
+    payrollUse: firstText(header, "payrollUse"),
+    policyNumber: numberOrNull(firstText(header, "policyNumber")),
+    companyXRef: firstText(header, "companyXRef"),
+    handEnter: firstText(header, "handEnter"),
+    infoSource: firstText(header, "infoSource"),
+    limitSource: firstText(header, "limitSource"),
+    locationSource: firstText(header, "locationSource"),
+    timeSource: firstText(header, "timeSource"),
     // `override` is documented boolean(1); p194 sets it to a 1–9 use count. Read the number.
-    overrideUses: numberOrNull(firstText(root, "override")),
+    overrideUses: numberOrNull(firstText(header, "override")),
     // `locationOverride` is documented boolean(1); p194 sets it to a 6-digit location id. A bare
     // "0"/"1" means "no single-location override", so it is not an id and must not be shown as one.
     locationOverrideId: (() => {
-      const value = firstText(root, "locationOverride");
+      const value = firstText(header, "locationOverride");
       return value === null || value === "0" || value === "1" ? null : value;
     })(),
-    overrideAllLocations: boolOrNull(firstText(root, "overrideAllLocations")),
-    lastUsedDate: firstText(root, "lastUsedDate"),
-    lastTransaction: firstText(root, "lastTransaction"),
+    overrideAllLocations: boolOrNull(firstText(header, "overrideAllLocations")),
+    lastUsedDate: firstText(header, "lastUsedDate"),
+    lastTransaction: firstText(header, "lastTransaction"),
     infos: parseInfos(root),
     limits: parseLimits(root),
     locationGroups: collectElements(root, "locationGroups").map((el) => leafText(el) ?? "").filter(Boolean),
@@ -257,7 +341,14 @@ export function parseCardDocument(xml: string): CardDocument {
     );
   }
 
-  return { root, card: parsed.data, version: cardVersion(root), redactedXml: redactCardXml(xml) };
+  return {
+    root,
+    header,
+    fieldPrefix: root === header ? "" : `/${localName(header)}`,
+    card: parsed.data,
+    version: cardVersion(root),
+    redactedXml: redactCardXml(xml),
+  };
 }
 
 // ─── Canonical form ────────────────────────────────────────────────────────────────────────────
@@ -311,7 +402,7 @@ function canonicalString(doc: CanonicalDoc): string {
  * fill in progress must not invalidate a screen an operator is reading.
  */
 export function cardVersion(root: XmlElement): string {
-  return createHash("sha256").update(canonicalString(canonicalize(root, VOLATILE_FIELDS))).digest("hex");
+  return createHash("sha256").update(canonicalString(canonicalize(root, UNVERSIONED_FIELDS))).digest("hex");
 }
 
 // ─── Redaction ─────────────────────────────────────────────────────────────────────────────────

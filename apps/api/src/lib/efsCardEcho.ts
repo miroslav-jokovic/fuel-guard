@@ -44,6 +44,15 @@ export type CardEdit =
   | { op: "replaceAll"; name: CardCollection; records: Record<string, string | null>[] }
   | { op: "appendRecord"; name: CardCollection; record: Record<string, string | null> };
 
+/**
+ * Inputs, not echoed content.
+ *
+ * `clientId` and `cardNumber` are setCardV2 INPUTS (p137). `cardNumber` is ALSO a child of the card
+ * element on the nested response shape, which is why this set is consulted when building the request
+ * and not only when checking it: without it the element would appear twice.
+ */
+const REQUEST_ONLY_FIELDS: ReadonlySet<string> = new Set(["clientId", "cardNumber"]);
+
 function xmlEscapeText(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
@@ -98,9 +107,38 @@ export function serializeSetCardRequest(
     }
   }
 
+  const renderNewField = (name: string, edit: FieldEdit): string =>
+    edit.op === "setFieldNil" ? `<${name} xsi:nil="true"/>` : `<${name}>${xmlEscapeText(edit.value)}</${name}>`;
+
+  /** Echo a run of scalar fields, substituting any the edit list names. */
+  const renderFields = (children: readonly XmlElement[], seen: Set<string>): string[] =>
+    children.map((child) => {
+      const name = localName(child);
+      seen.add(name);
+      const edit = fieldEdits.get(name);
+      return edit ? renderNewField(name, edit) : serializeElement(child);
+    });
+
   const parts: string[] = [];
   const emittedCollections = new Set<string>();
   const emittedFields = new Set<string>();
+
+  // On the nested shape the header is rendered as one block, wrapper and all, so the request has the
+  // same shape as the response. Built up front because a field edit naming something the header does
+  // not yet carry has to be appended INSIDE the wrapper, not after it.
+  const nested = doc.header !== doc.root;
+  let headerXml = "";
+  if (nested) {
+    const wrapper = localName(doc.header);
+    const inner = renderFields(childElements(doc.header), emittedFields);
+    for (const [name, edit] of fieldEdits) {
+      if (!emittedFields.has(name)) {
+        emittedFields.add(name);
+        inner.push(renderNewField(name, edit));
+      }
+    }
+    headerXml = `<${wrapper}>${inner.join("")}</${wrapper}>`;
+  }
 
   for (const child of childElements(doc.root)) {
     const name = localName(child);
@@ -110,18 +148,27 @@ export function serializeSetCardRequest(
       parts.push(renderCollection(doc.root, name as CardCollection, collectionEdits.get(name) ?? []));
       continue;
     }
-    const edit = fieldEdits.get(name);
-    emittedFields.add(name);
-    if (!edit) parts.push(serializeElement(child));
-    else if (edit.op === "setFieldNil") parts.push(`<${name} xsi:nil="true"/>`);
-    else parts.push(`<${name}>${xmlEscapeText(edit.value)}</${name}>`);
+    if (nested && child === doc.header) {
+      parts.push(headerXml);
+      continue;
+    }
+    // The nested response carries the card's own `<cardNumber>` alongside the header. It is a
+    // setCardV2 INPUT (prepended below from `target`), so echoing the response's copy as well would
+    // put the element in the request twice.
+    if (REQUEST_ONLY_FIELDS.has(name)) continue;
+    // In nested mode, field edits belong to the header and were applied there; anything else sitting
+    // at root level is echoed verbatim. In flat mode this is where every header field is handled.
+    if (nested) parts.push(serializeElement(child));
+    else parts.push(...renderFields([child], emittedFields));
   }
 
   // A field the response did not carry but an edit names — e.g. setting overrideAllLocations on a card
-  // that has never had an override. Appended rather than dropped.
+  // that has never had an override. Appended rather than dropped. (Nested documents already did this
+  // inside the header wrapper.)
   for (const [name, edit] of fieldEdits) {
     if (emittedFields.has(name)) continue;
-    parts.push(edit.op === "setFieldNil" ? `<${name} xsi:nil="true"/>` : `<${name}>${xmlEscapeText(edit.value)}</${name}>`);
+    emittedFields.add(name);
+    parts.push(renderNewField(name, edit));
   }
   // Likewise a collection being introduced for the first time (an override's limits array, p194).
   for (const [name, list] of collectionEdits) {
@@ -158,15 +205,26 @@ function renderCollection(root: XmlElement, name: CardCollection, edits: readonl
 
 // ─── The fidelity guard ────────────────────────────────────────────────────────────────────────
 
-/** Apply an edit list to a canonical response so we know what the request SHOULD contain. */
+/**
+ * Apply an edit list to a canonical response so we know what the request SHOULD contain.
+ *
+ * `doc.fieldPrefix` is what keeps this honest across both response shapes. An edit names a FIELD
+ * (`status`); the canonical document holds PATHS (`/status` when flat, `/header/status` when
+ * nested). Rewriting the wrong path would make every write look unfaithful on the nested shape —
+ * or, far worse if the sense were inverted, make a lossy one look fine.
+ */
 function expectedCanonical(
   doc: CardDocument,
   edits: readonly CardEdit[],
   exclude: ReadonlySet<string> = new Set(),
 ): CanonicalDoc {
+  // `cardNumber` is dropped from the expectation for the same reason it is dropped from the request:
+  // it is an input, and on the nested shape the response carries its own copy inside the card.
+  const skip = new Set([...exclude, ...REQUEST_ONLY_FIELDS]);
   const expected: CanonicalDoc = new Map(
-    [...canonicalize(doc.root, exclude)].map(([path, values]) => [path, [...values]]),
+    [...canonicalize(doc.root, skip)].map(([path, values]) => [path, [...values]]),
   );
+  const field = (name: string): string => `${doc.fieldPrefix}/${name}`;
   const dropCollection = (name: string): void => {
     for (const path of [...expected.keys()]) {
       if (path === `/${name}` || path.startsWith(`/${name}/`)) expected.delete(path);
@@ -185,10 +243,10 @@ function expectedCanonical(
   for (const edit of edits) {
     switch (edit.op) {
       case "setField":
-        expected.set(`/${edit.name}`, [encodeLeaf(edit.value)]);
+        expected.set(field(edit.name), [encodeLeaf(edit.value)]);
         break;
       case "setFieldNil":
-        expected.set(`/${edit.name}`, [NIL]);
+        expected.set(field(edit.name), [NIL]);
         break;
       case "removeAll":
         dropCollection(edit.name);
@@ -222,9 +280,6 @@ function diffCanonical(expected: CanonicalDoc, actual: CanonicalDoc): EchoDiff[]
   return diffs.sort((x, y) => (x.path < y.path ? -1 : 1));
 }
 
-/** Inputs, not echoed content — legitimately present in the request and absent from the response. */
-const REQUEST_ONLY_FIELDS: ReadonlySet<string> = new Set(["clientId", "cardNumber"]);
-
 /**
  * What moved on the card that we did not ask to move.
  *
@@ -247,7 +302,11 @@ export function driftAgainstExpected(
   after: CardDocument,
   exclude: ReadonlySet<string> = new Set(),
 ): EchoDiff[] {
-  return diffCanonical(expectedCanonical(before, edits, exclude), canonicalize(after.root, exclude));
+  // Both sides drop REQUEST_ONLY_FIELDS so the two canonical documents are built the same way —
+  // `expectedCanonical` drops them unconditionally, and leaving them in on the `after` side would
+  // report the card's own number as drift on the nested shape.
+  const skip = new Set([...exclude, ...REQUEST_ONLY_FIELDS]);
+  return diffCanonical(expectedCanonical(before, edits, exclude), canonicalize(after.root, skip));
 }
 
 /**

@@ -178,11 +178,11 @@ export function editsLanded(after: CardDocument, edits: readonly CardEdit[]): bo
   for (const edit of edits) {
     switch (edit.op) {
       case "setField": {
-        if (fieldText(after.root, edit.name) !== edit.value) return false;
+        if (fieldText(after.header, edit.name) !== edit.value) return false;
         break;
       }
       case "setFieldNil": {
-        if (fieldText(after.root, edit.name) !== null) return false;
+        if (fieldText(after.header, edit.name) !== null) return false;
         break;
       }
       case "removeAll": {

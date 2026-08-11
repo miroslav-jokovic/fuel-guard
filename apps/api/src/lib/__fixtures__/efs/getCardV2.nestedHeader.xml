@@ -1,0 +1,108 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  THE PRODUCTION SHAPE, captured from a live account on 2026-08-11 (card ••••0986, redacted).
+
+  Every other fixture in this folder is FLAT: header fields and <infos> as siblings of one card
+  element. This account's EFS nests the header fields inside <header> and puts the repeated
+  sub-objects alongside it, under <result>.
+
+  That difference silently defeated the parser, which anchored on <header> and therefore saw ZERO
+  prompts, limits and location groups. The echo built from it would have sent the header alone — and
+  by the vendor's own rule (p137), a setCardV2 without an <infos> record DELETES that record. Six
+  prompts on this card, including the Driver ID and the driver's name, would have gone.
+
+  The card number is fake; the structure is exact.
+-->
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Body>
+    <ns5:getCardv2Response xmlns:ns5="http://com.tch.cards.service">
+      <result>
+        <cardNumber>70830000000000000</cardNumber>
+        <header>
+          <companyXRef></companyXRef>
+          <handEnter>POLICY</handEnter>
+          <infoSource>BOTH</infoSource>
+          <limitSource>POLICY</limitSource>
+          <locationOverride>0</locationOverride>
+          <locationSource>POLICY</locationSource>
+          <overrideAllLocations>false</overrideAllLocations>
+          <originalStatus xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="1" />
+          <payrollStatus>FOLLOWS</payrollStatus>
+          <override>0</override>
+          <policyNumber>1</policyNumber>
+          <status>HOLD</status>
+          <timeSource>BOTH</timeSource>
+          <lastUsedDate>2026-08-04T05:59:00.000-05:00</lastUsedDate>
+          <lastTransaction>1563122756</lastTransaction>
+          <payrollUse>N</payrollUse>
+          <payrollAtm>DISALLOW</payrollAtm>
+          <payrollChk>DISALLOW</payrollChk>
+          <payrollAch>DISALLOW</payrollAch>
+          <payrollWire>DISALLOW</payrollWire>
+          <payrollDebit>DISALLOW</payrollDebit>
+        </header>
+        <infos>
+          <infoId>UNIT</infoId>
+          <lengthCheck>false</lengthCheck>
+          <matchValue>685</matchValue>
+          <maximum>0</maximum>
+          <minimum>0</minimum>
+          <reportValue></reportValue>
+          <validationType>EXACT_MATCH</validationType>
+          <value>0</value>
+        </infos>
+        <infos>
+          <infoId>TRLR</infoId>
+          <lengthCheck>false</lengthCheck>
+          <matchValue></matchValue>
+          <maximum>0</maximum>
+          <minimum>0</minimum>
+          <reportValue>535966</reportValue>
+          <validationType>REPORT_ONLY</validationType>
+          <value>0</value>
+        </infos>
+        <infos>
+          <infoId>NAME</infoId>
+          <lengthCheck>false</lengthCheck>
+          <matchValue></matchValue>
+          <maximum>0</maximum>
+          <minimum>0</minimum>
+          <reportValue>MICHAEL KENLOCK</reportValue>
+          <validationType>REPORT_ONLY</validationType>
+          <value>0</value>
+        </infos>
+        <infos>
+          <infoId>TRIP</infoId>
+          <lengthCheck>false</lengthCheck>
+          <matchValue></matchValue>
+          <maximum>0</maximum>
+          <minimum>0</minimum>
+          <reportValue>0133088</reportValue>
+          <validationType>REPORT_ONLY</validationType>
+          <value>0</value>
+        </infos>
+        <infos>
+          <infoId>CNTN</infoId>
+          <lengthCheck>false</lengthCheck>
+          <matchValue></matchValue>
+          <maximum>0</maximum>
+          <minimum>0</minimum>
+          <reportValue>MKENLOCK</reportValue>
+          <validationType>REPORT_ONLY</validationType>
+          <value>0</value>
+        </infos>
+        <infos>
+          <infoId>DRID</infoId>
+          <lengthCheck>false</lengthCheck>
+          <matchValue>0225</matchValue>
+          <maximum>0</maximum>
+          <minimum>0</minimum>
+          <reportValue></reportValue>
+          <validationType>EXACT_MATCH</validationType>
+          <value>0</value>
+        </infos>
+        <locationGroups>1</locationGroups>
+      </result>
+    </ns5:getCardv2Response>
+  </soapenv:Body>
+</soapenv:Envelope>

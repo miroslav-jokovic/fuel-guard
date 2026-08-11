@@ -35,9 +35,17 @@ const ALL_FIXTURES = [
   "getCardV2.namespaced.xml",
   "getCardV2.autoRoll.xml",
   "getCardV2.overridden.xml",
+  // The production shape: header fields nested inside <header>, sub-objects as its siblings. Every
+  // property in this file must hold on it exactly as it does on the flat guide examples — that it
+  // did NOT is the bug this fixture exists for. See the comment at the head of the fixture.
+  "getCardV2.nestedHeader.xml",
 ];
 
 const TARGET = { clientId: "session-abc", cardNumber: "70830000000000000" };
+
+/** Inputs rather than echoed content. On the nested shape `cardNumber` is BOTH, so it is excluded
+ *  from the response side too whenever the two documents are compared. */
+const INPUT_FIELDS = new Set(["clientId", "cardNumber"]);
 
 /** Re-parse a serialized request body so assertions can look at it as a document. */
 function requestBody(xml: string) {
@@ -182,7 +190,7 @@ describe("zero-edit echo — the identity property", () => {
     const doc = parseCardDocument(fixture(name));
     const { body } = echo(doc);
     // Canonical equality both ways: nothing added, nothing dropped, nothing reordered.
-    expect(canonicalize(body, new Set(["clientId", "cardNumber"]))).toEqual(canonicalize(doc.root));
+    expect(canonicalize(body, INPUT_FIELDS)).toEqual(canonicalize(doc.root, INPUT_FIELDS));
   });
 
   it.each(ALL_FIXTURES)("emits exactly as many repeated elements as %s contained", (name) => {
@@ -338,6 +346,110 @@ describe("override recipes (guide p194)", () => {
     expect(xml).toContain("<limit>1000</limit>");
     expect(xml).not.toContain("CADV");
     expect(xml).toContain("<matchValue>D-4471</matchValue>"); // prompts untouched
+  });
+});
+
+describe("the nested <header> shape — what production actually returns", () => {
+  /**
+   * A near-miss postmortem, kept as tests.
+   *
+   * Every example in the guide is flat. The live account nests the header fields in `<header>` and
+   * hangs the sub-objects off the parent. The marker search landed on `<header>`, `collectElements`
+   * found no `<infos>` there, and the card parsed as if it had no prompts at all. The echo built
+   * from that document would have been well-formed, would have passed the fidelity guard (which
+   * compares the request against what the PARSER saw), and would have DELETED all six prompts —
+   * Driver ID and driver name included — on every card we touched.
+   *
+   * These tests are the shape of that failure, so it cannot come back.
+   */
+  const nested = () => parseCardDocument(fixture("getCardV2.nestedHeader.xml"));
+
+  it("reads the header fields through the wrapper", () => {
+    const doc = nested();
+    expect(doc.card.status).toBe("HOLD");
+    expect(doc.card.policyNumber).toBe(1);
+    expect(doc.card.handEnter).toBe("POLICY");
+    expect(doc.card.originalStatus).toBeNull(); // xsi:nil="1", the guide's own spelling
+  });
+
+  it("separates the header from the element that carries the sub-objects", () => {
+    const doc = nested();
+    expect(doc.root).not.toBe(doc.header);
+    expect(doc.fieldPrefix).toBe("/header");
+  });
+
+  it("finds all six prompts — the assertion the bug failed", () => {
+    const doc = nested();
+    expect(doc.card.infos).toHaveLength(6);
+    expect(doc.card.infos.map((i) => i.infoId)).toEqual(["UNIT", "TRLR", "NAME", "TRIP", "CNTN", "DRID"]);
+    // The two that are assignments rather than reporting, i.e. the two a lossy echo would unassign.
+    expect(doc.card.infos.find((i) => i.infoId === "DRID")?.matchValue).toBe("0225");
+    expect(doc.card.infos.find((i) => i.infoId === "UNIT")?.matchValue).toBe("685");
+    expect(doc.card.locationGroups).toEqual(["1"]);
+  });
+
+  it("echoes the wrapper back in the shape it arrived", () => {
+    const { xml, body } = echo(nested());
+    expect(xml).toContain("<header>");
+    expect(collectElements(body, "header")).toHaveLength(1);
+    // Header fields stay INSIDE the wrapper — a flattened echo is a different document.
+    expect(collectElements(body, "status")).toHaveLength(0);
+    expect(collectElements(collectElements(body, "header")[0]!, "status")).toHaveLength(1);
+  });
+
+  it("echoes every prompt, and the driver's own values with them", () => {
+    const { xml, body } = echo(nested());
+    expect(collectElements(body, "infos")).toHaveLength(6);
+    expect(xml).toContain("<infoId>DRID</infoId>");
+    expect(xml).toContain("<matchValue>0225</matchValue>");
+    expect(xml).toContain("<reportValue>MICHAEL KENLOCK</reportValue>");
+    expect(xml).toContain("<locationGroups>1</locationGroups>");
+  });
+
+  it("sends the card number once — it is an input, and the response carries its own copy", () => {
+    const { xml } = echo(nested());
+    expect(xml.match(/<cardNumber>/g)).toHaveLength(1);
+    expect(xml).toContain(`<cardNumber>${TARGET.cardNumber}</cardNumber>`);
+  });
+
+  it("changes exactly one leaf when locking, and it is inside the header", () => {
+    const doc = nested();
+    const edits: CardEdit[] = [{ op: "setField", name: "status", value: "Active" }];
+    const { body } = echo(doc, edits);
+
+    const before = canonicalize(doc.root, INPUT_FIELDS);
+    const after = canonicalize(body, INPUT_FIELDS);
+    const changed = [...after.keys()].filter((k) => JSON.stringify(after.get(k)) !== JSON.stringify(before.get(k)));
+    expect(changed).toEqual(["/header/status"]);
+    expect(after.get("/header/status")).toEqual(["vActive"]);
+  });
+
+  it("adds a brand-new field inside the wrapper, not next to it", () => {
+    // A field the response never carried still belongs to the header on this shape. Emitted at root
+    // level it would be a field EFS does not read, so the write would silently not take effect.
+    const stripped = fixture("getCardV2.nestedHeader.xml").replace(/\s*<companyXRef><\/companyXRef>/, "");
+    const doc = parseCardDocument(stripped);
+    const { body } = echo(doc, [{ op: "setField", name: "companyXRef", value: "FG-0225" }]);
+    expect(collectElements(body, "companyXRef")).toHaveLength(0);
+    expect(collectElements(collectElements(body, "header")[0]!, "companyXRef")).toHaveLength(1);
+  });
+
+  it("still refuses a request that drops the prompts", () => {
+    // The guard has to survive the nesting too, or the fix trades one silent deletion for another.
+    const doc = nested();
+    const { xml } = serializeSetCardRequest(doc, TARGET, []);
+    const sabotaged = xml.replace(/<infos>.*?<\/infos>/gs, "");
+    expect(() => assertEchoFidelity(doc, sabotaged, [])).toThrow(/faithfully echo/);
+  });
+
+  it("keeps the card number out of the version token", () => {
+    // `root` is the outer element on this shape, so the PAN is inside the subtree being hashed. The
+    // version is persisted on every mutation row; it must be about configuration, not identity.
+    const doc = nested();
+    const other = parseCardDocument(
+      fixture("getCardV2.nestedHeader.xml").replace("70830000000000000", "70831111111111111"),
+    );
+    expect(other.version).toBe(doc.version);
   });
 });
 
