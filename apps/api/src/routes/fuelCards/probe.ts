@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { policyNumberSchema } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import {
   getCardSummaries,
@@ -44,8 +45,13 @@ const probeSchema = z.object({
   /** A card number to try `getCardv2` against. Without it that step is skipped and so is the
    *  discriminator, which is the entire point — so the response says so out loud. */
   cardNumber: z.string().trim().regex(/^[0-9]{10,25}$/).optional(),
-  /** Policy to try `getPolicy` against. 1–99 (p35). */
-  policyNumber: z.coerce.number().int().min(1).max(99).optional(),
+  /**
+   * Policy to try `getPolicy` against. Optional, and normally BETTER left unset: when absent, the
+   * probe reads a policy number off a card this account actually owns. Asking EFS about a policy that
+   * does not exist earns "Invalid policy number", which reads as a broken integration and is not one —
+   * a guessed input produced exactly that false alarm in production.
+   */
+  policyNumber: policyNumberSchema.optional(),
 });
 
 interface StepResult {
@@ -122,15 +128,28 @@ export function fuelCardProbeRouter(): Router {
             return doc.card.infos.length;
           }));
         }
-        steps.push(await step("getCardSummariesV2", async () =>
-          (await getCardSummaries(env, creds, { useV2: true, priority: "interactive" })).length));
+        // Keep the summaries themselves: they are the only place we can learn a policy number that
+        // this account demonstrably owns.
+        let summaries: Awaited<ReturnType<typeof getCardSummaries>> = [];
+        steps.push(await step("getCardSummariesV2", async () => {
+          summaries = await getCardSummaries(env, creds, { useV2: true, priority: "interactive" });
+          return summaries.length;
+        }));
         steps.push(await step("getCardSummaries", async () =>
           (await getCardSummaries(env, creds, { useV2: false, priority: "interactive" })).length));
         steps.push(await step("getCardsWithNoDriverId", async () =>
           (await getCardsWithNoDriverId(env, creds, { priority: "interactive" })).length));
-        if (parsed.data.policyNumber) {
-          steps.push(await step("getPolicy", async () =>
-            (await getPolicy(env, creds, parsed.data.policyNumber!, { priority: "interactive" })).limits.length));
+
+        // Prefer a policy the fleet is actually on over one a human typed. Guarded by the same 1–99
+        // range as the input, because a summary row is vendor data and is read tolerantly (see
+        // cardControlContract.ts).
+        const observedPolicy = summaries
+          .map((row) => row.policyNumber)
+          .find((n): n is number => typeof n === "number" && n >= 1 && n <= 99);
+        const policyToProbe = parsed.data.policyNumber ?? observedPolicy;
+        if (policyToProbe !== undefined) {
+          steps.push(await step(`getPolicy(${policyToProbe})`, async () =>
+            (await getPolicy(env, creds, policyToProbe, { priority: "interactive" })).limits.length));
         }
         steps.push(await step("searchLocation", async () =>
           (await searchLocation(env, creds, { state: "IL", name: "LOVES" }, { priority: "interactive" })).length));
@@ -150,7 +169,9 @@ export function fuelCardProbeRouter(): Router {
               ? "Every card operation was refused while login succeeded. This is an access problem (IP allowlist or entitlement), not a request-shape problem."
               : cardSteps.every((s) => s.ok)
                 ? "All card operations succeeded."
-                : "Mixed results — see the per-operation errors below.";
+                : refused.length === 0
+                  ? "Nothing was refused — EFS access is working. The failures below are ours to fix, not WEX's: check the per-operation error text."
+                  : "Mixed results — see the per-operation errors below.";
 
       await writeAudit(admin, {
         orgId,

@@ -378,15 +378,41 @@ export async function searchLocation(
   query: LocationQuery,
   opts: CardOpOptions = {},
 ): Promise<EfsLocation[]> {
-  const fields =
-    el("locId", query.locId) + el("state", query.state) + el("city", query.city) +
-    el("name", query.name) + el("country", query.country) + el("chainId", query.chainId);
-  if (fields === "") {
+  // At least one REAL criterion, judged on the query object rather than on the serialized string —
+  // the string is never empty now (see below), so testing it would silently disable this guard.
+  const hasCriterion = [query.locId, query.state, query.city, query.name, query.country, query.chainId]
+    .some((v) => v !== null && v !== undefined && String(v).trim() !== "");
+  if (!hasCriterion) {
     throw new EfsSoapError("A location search needs at least one criterion", "not_implemented");
   }
+
+  /**
+   * ⚠ EVERY criterion element is sent, every time, in the guide's declared order.
+   *
+   * Production told us why. Sending only the two fields we wanted to filter on earned:
+   *
+   *   org.apache.axis2.databinding.ADBException: Unexpected subelement state
+   *
+   * — the ADB deserializer walking a fixed xsd:sequence, expecting `locId`, and finding `state`. This
+   * is the same binding behaviour the transaction feeds hit and recorded in
+   * docs/plans/EFS-SOAP-INTEGRATION-PLAN.md: "EFS's Axis2 binding rejects omitted filter elements even
+   * though the WSDL marks them nillable." The guide's "if searching a specific location set else don't
+   * set" (p132) describes intent, not wire format.
+   *
+   * Unused int fields go as 0, not empty: an empty `<locId></locId>` is not a valid xsd:int and the
+   * same deserializer would reject it. 0 as "no filter" is the convention already proven against this
+   * endpoint by the working getTranRejects request (`<locationId>0</locationId>`, efsSoap.ts).
+   */
+  const fields =
+    elAlways("locId", query.locId ?? 0) +
+    elAlways("state", query.state ?? "") +
+    elAlways("city", query.city ?? "") +
+    elAlways("name", query.name ?? "") +
+    elAlways("country", query.country ?? "") +
+    elAlways("chainId", query.chainId ?? 0);
   const xml = await call(
     env, creds, OPS.searchLocation,
-    (session) => `<CardManagementEP_searchLocation>${el("clientId", session.clientId)}${fields}</CardManagementEP_searchLocation>`,
+    (session) => `<CardManagementEP_searchLocation>${elAlways("clientId", session.clientId)}${fields}</CardManagementEP_searchLocation>`,
     opts,
   );
   return resultRecords(parseSoap(xml)).map((record) => ({

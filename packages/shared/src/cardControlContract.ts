@@ -4,7 +4,6 @@ import {
   EFS_CONFIG_SOURCES,
   EFS_EDITABLE_INFO_IDS,
   EFS_HAND_ENTER,
-  EFS_LIMIT_MAX,
   EFS_MATCH_VALUE_MAX,
   EFS_OVERRIDE_MAX_USES,
   EFS_OVERRIDE_MIN_USES,
@@ -33,10 +32,46 @@ import {
 
 // ─── The card document (read view) ─────────────────────────────────────────────────────────────
 
+/**
+ * A vendor-supplied enum on the READ path.
+ *
+ * Deliberately NOT `z.enum()`. The guide types these fields as `string (8)` and then names a few
+ * example values (p35–38); it does not promise the list is closed, and WEX ships values without
+ * telling us. Production proved the point: a card came back with a `status` outside our five, zod
+ * rejected the document, and `getCardv2` failed outright — the whole card page taken down by a value
+ * we only ever wanted to *print*.
+ *
+ * The rule this encodes: **reads are tolerant, writes are strict.** Receiving an unrecognised value is
+ * a fact to display verbatim (`cardStatusLabel` already falls back to the raw string); *sending* one
+ * is a bug, which is why `lockCardSchema.status` below is a real `z.enum` over EFS_WRITABLE_STATUSES.
+ *
+ * `known` is unused at runtime and present for the reader: it documents what we expect to see, and
+ * keeps the constant referenced so a catalog change still shows up here in a grep.
+ */
+const vendorEnum = (known: readonly string[]): z.ZodNullable<z.ZodString> => {
+  void known;
+  return z.string().nullable();
+};
+
+/**
+ * A vendor-supplied number on the READ path. Same reasoning: a policy number or override count
+ * outside the documented range is worth showing and worth alerting on, but it must not be able to
+ * make an entire card unreadable. Range checks belong on the write schemas, where we choose the
+ * value.
+ */
+const vendorInt = z.coerce.number().int().nullable().catch(null);
+
+/**
+ * A policy number WE choose — a route parameter or a probe input, not something EFS handed us. Strict
+ * on purpose, and the mirror image of `vendorInt` above: asking EFS for policy 139445 earns
+ * "Invalid policy number", which is a request we should never have sent. 1–99 per the guide (p84).
+ */
+export const policyNumberSchema = z.coerce.number().int().min(EFS_POLICY_MIN).max(EFS_POLICY_MAX);
+
 /** A pump prompt. `matchValue` with EXACT_MATCH is what makes the pump VALIDATE the entry. */
 export const wsCardInfoSchema = z.object({
   infoId: z.string(),
-  validationType: z.enum(EFS_VALIDATION_TYPES).nullable(),
+  validationType: vendorEnum(EFS_VALIDATION_TYPES),
   matchValue: z.string().nullable(),
   reportValue: z.string().nullable(),
   lengthCheck: z.boolean().nullable(),
@@ -51,43 +86,47 @@ export type WsCardInfo = z.infer<typeof wsCardInfoSchema>;
 export const wsCardLimitSchema = z.object({
   limitId: z.string(),
   // PostgREST hands numerics back as number|string, hence coerce throughout this file.
-  limit: z.coerce.number().min(0).max(EFS_LIMIT_MAX),
+  // Read-tolerant: EFS_LIMIT_MAX is our sanity bound for values we SET, and a vendor limit above it
+  // must be visible rather than fatal. See vendorEnum.
+  limit: z.coerce.number().catch(0),
   /** Hours the limit is good for before resetting. */
-  hours: z.coerce.number().int().nullable(),
+  hours: vendorInt,
   /** Minimum hours between uses. */
-  minHours: z.coerce.number().int().nullable(),
+  minHours: vendorInt,
   /** v2 only. `autoRollMax` of 0 means "no daily maximum" (p138) — NOT "no limit at all". */
-  autoRollMap: z.coerce.number().int().nullable(),
-  autoRollMax: z.coerce.number().int().nullable(),
+  autoRollMap: vendorInt,
+  autoRollMax: vendorInt,
 });
 export type WsCardLimit = z.infer<typeof wsCardLimitSchema>;
 
 /** Only the time-of-day part applies; the date reads 1970-01-01 and is meaningless (p37). */
 export const wsTimeRestrictionSchema = z.object({
-  day: z.coerce.number().int().min(1).max(7),
+  /** 1–7 per the guide; read-tolerant so an out-of-range day cannot make the card unreadable. */
+  day: z.coerce.number().int().catch(0),
   beginTime: z.string().nullable(),
   endTime: z.string().nullable(),
 });
 export type WsTimeRestriction = z.infer<typeof wsTimeRestrictionSchema>;
 
 export const wsCardSchema = z.object({
-  status: z.enum(EFS_CARD_STATUSES).nullable(),
+  status: vendorEnum(EFS_CARD_STATUSES),
   /** Frequently returned as xsi:nil (p35), which is why this is nullable rather than optional. */
   originalStatus: z.string().nullable(),
   payrollStatus: z.string().nullable(),
   payrollUse: z.string().nullable(),
-  policyNumber: z.coerce.number().int().min(EFS_POLICY_MIN).max(EFS_POLICY_MAX).nullable(),
+  /** Documented 1–99 (EFS_POLICY_MIN/MAX); read tolerantly — see vendorInt. */
+  policyNumber: vendorInt,
   companyXRef: z.string().nullable(),
-  handEnter: z.enum(EFS_HAND_ENTER).nullable(),
-  infoSource: z.enum(EFS_CONFIG_SOURCES).nullable(),
-  limitSource: z.enum(EFS_CONFIG_SOURCES).nullable(),
-  locationSource: z.enum(EFS_CONFIG_SOURCES).nullable(),
-  timeSource: z.enum(EFS_CONFIG_SOURCES).nullable(),
+  handEnter: vendorEnum(EFS_HAND_ENTER),
+  infoSource: vendorEnum(EFS_CONFIG_SOURCES),
+  limitSource: vendorEnum(EFS_CONFIG_SOURCES),
+  locationSource: vendorEnum(EFS_CONFIG_SOURCES),
+  timeSource: vendorEnum(EFS_CONFIG_SOURCES),
   /**
    * The guide types `override` as boolean(1) but the Overrides appendix (p194) sets it to 1–9 as a
    * COUNT of remaining uses. We surface the count, because "true" would throw the number away.
    */
-  overrideUses: z.coerce.number().int().min(0).max(EFS_OVERRIDE_MAX_USES).nullable(),
+  overrideUses: vendorInt,
   /** Likewise typed boolean(1) but carrying a 6-digit EFS location id when a single-location
    *  override is active (p194). */
   locationOverrideId: z.string().nullable(),
@@ -170,8 +209,8 @@ export const efsCardSummarySchema = z.object({
   id: z.string().uuid(),
   last4: z.string().length(4),
   maskedRef: z.string(),
-  status: z.enum(EFS_CARD_STATUSES).nullable(),
-  policyNumber: z.coerce.number().int().nullable(),
+  status: vendorEnum(EFS_CARD_STATUSES),
+  policyNumber: vendorInt,
   driverIdPrompt: z.string().nullable(),
   unitPrompt: z.string().nullable(),
   driverName: z.string().nullable(),

@@ -158,6 +158,40 @@ describe("syncEfsCards", () => {
 
     expect(rec.writtenRows("efs_cards")[0]!.status).toBe("Fraud");
   });
+
+  it("stores a status outside the documented list rather than dropping the card", async () => {
+    // Production returned one of these and z.enum rejected the whole document, so getCardv2 failed
+    // and the card page went with it. The guide types `status` as string(8) with examples, not a
+    // closed set (p38); migration 0175 removed the matching check constraint.
+    const odd = soap(`<r><result><value><cardNumber>${PAN_A}</cardNumber><status>Frozen</status></value></result></r>`);
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [], fuel_cards: [] } });
+    const result = await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, odd, cardDetail) });
+
+    expect(result.cardsSeen).toBe(1);
+    expect(rec.writtenRows("efs_cards")[0]!.status).toBe("Frozen");
+  });
+
+  it("says Unknown when EFS reports no status, rather than inventing Inactive", async () => {
+    // The column is not-null so something must go in it. Inactive is a real state an operator acts
+    // on; claiming it for a card we know nothing about is the kind of confident wrong answer that
+    // gets a working truck sent to a different pump.
+    const noStatus = soap(`<r><result><value><cardNumber>${PAN_A}</cardNumber><policyNumber>14</policyNumber></value></result></r>`);
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [], fuel_cards: [] } });
+    await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, noStatus, cardDetail) });
+
+    expect(rec.writtenRows("efs_cards")[0]!.status).toBe("Unknown");
+  });
+
+  it("keeps a config source it does not recognise instead of erasing it", async () => {
+    // normalizeSource used to null anything outside POLICY/CARD/BOTH, because 0171's constraint would
+    // have rejected the row — so the page said "we have no idea where this card's rules come from"
+    // when EFS had in fact told us.
+    const odd = soap(`<r><result><value><cardNumber>${PAN_A}</cardNumber><status>Active</status><infosrc>Mixed</infosrc></value></result></r>`);
+    const rec = createSupabaseRecorder({ tables: { efs_cards: [], fuel_cards: [] } });
+    await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, odd, cardDetail) });
+
+    expect(rec.writtenRows("efs_cards")[0]!.info_source).toBe("MIXED");
+  });
 });
 
 describe("cardRefHmac", () => {

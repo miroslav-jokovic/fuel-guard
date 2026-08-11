@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { maskPan, mergeEffectiveConfig, rolesThatCanView, rolesThatManage } from "@fuelguard/shared";
+import { maskPan, mergeEffectiveConfig, policyNumberSchema, rolesThatCanView, rolesThatManage } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { EfsSoapError } from "../../lib/efsSoapSession.js";
 import { getPolicy, searchLocation } from "../../lib/efsCardOps.js";
@@ -118,11 +118,14 @@ export function fuelCardsRouter(): Router {
    * the source says BOTH (p36) — without this the page shows half the rules the pump enforces.
    */
   router.get("/policies/:policyNumber", requireOrg, canView, asyncHandler(async (req, res) => {
-    const policyNumber = Number(req.params.policyNumber);
-    if (!Number.isInteger(policyNumber) || policyNumber < 1 || policyNumber > 99) {
+    // One shared rule rather than an inline copy: a policy number we CHOOSE is strict, unlike one EFS
+    // reports (see policyNumberSchema / vendorInt in cardControlContract.ts).
+    const policy = policyNumberSchema.safeParse(req.params.policyNumber);
+    if (!policy.success) {
       res.status(400).json(apiError("invalid_request", "Policy numbers are 1 to 99."));
       return;
     }
+    const policyNumber = policy.data;
     const { env } = getAppLocals(req);
     const admin = getSupabaseAdmin(env);
     const creds = await getEfsSoapCredentials(admin, env, req.auth!.orgId!);

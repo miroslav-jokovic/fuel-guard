@@ -166,6 +166,24 @@ function parseLimits(root: XmlElement): WsCard["limits"] {
 }
 
 /**
+ * Render the value at a zod issue path so a validation failure can quote it.
+ *
+ * Redacted and short: the path can land on a field that carries operational data, and this string
+ * ends up in an API error, a job row and a Sentry event.
+ */
+export function describeAtPath(raw: unknown, path: readonly (string | number)[]): string {
+  let node: unknown = raw;
+  for (const key of path) {
+    if (node === null || typeof node !== "object") return "not present";
+    node = (node as Record<string | number, unknown>)[key];
+  }
+  if (node === null) return "null";
+  if (node === undefined) return "absent";
+  const text = typeof node === "object" ? JSON.stringify(node) : String(node);
+  return JSON.stringify(redactCardXml(text).slice(0, 80));
+}
+
+/**
  * Parse a getCard/getCardv2 response.
  *
  * Throws `EfsSoapError` on a fault (via parseSoap), on unparseable XML, or when no card element can
@@ -217,10 +235,16 @@ export function parseCardDocument(xml: string): CardDocument {
 
   const parsed = wsCardSchema.safeParse(raw);
   if (!parsed.success) {
-    // An unrecognised enum value is a REAL signal (a status we have never seen), not a nuisance. Name
-    // the field so the probe output says which one rather than "validation failed".
+    // Name the field AND quote what EFS actually sent.
+    //
+    // The first version of this message named only the path, and production duly reported
+    // `status — Invalid option: expected one of "Active"|…`. Which value? Unknown. Diagnosing it cost
+    // a second production round trip that a dozen characters here would have avoided. An error about
+    // an unexpected value that does not contain the value is not a diagnostic.
+    const issue = parsed.error.issues[0];
     throw new EfsSoapError(
-      `EFS card document had an unexpected shape: ${parsed.error.issues[0]?.path.join(".")} — ${parsed.error.issues[0]?.message}`,
+      `EFS card document had an unexpected shape: ${issue?.path.join(".")} — ${issue?.message}` +
+        ` (EFS sent: ${describeAtPath(raw, issue?.path ?? [])})`,
       "malformed_response",
       { issues: parsed.error.issues.slice(0, 5) },
     );

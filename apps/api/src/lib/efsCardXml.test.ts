@@ -6,6 +6,7 @@ import {
   type CardDocument,
   canonicalize,
   cardVersion,
+  describeAtPath,
   maskPan,
   parseCardDocument,
   redactCardXml,
@@ -131,9 +132,48 @@ describe("parseCardDocument", () => {
     expect(() => parseCardDocument(empty)).toThrow(/no card element/i);
   });
 
-  it("names the offending field when a value is outside the documented enum", () => {
+  it("keeps a status EFS reports that is outside the documented list", () => {
+    // The inverse of what this test used to assert. z.enum on `status` took production down: a real
+    // card came back with a value outside our five, the document was rejected, and getCardv2 failed
+    // outright — the entire card page lost to a value we only ever wanted to PRINT. The guide types
+    // the field `string (8)` and names examples; it never promises a closed set.
     const weird = fixture("getCardV2.full.xml").replace("<status>Active</status>", "<status>Frozen</status>");
-    expect(() => parseCardDocument(weird)).toThrow(/status/);
+    expect(parseCardDocument(weird).card.status).toBe("Frozen");
+  });
+
+  it("keeps an unknown source and an out-of-range policy number rather than failing the read", () => {
+    // Same rule, applied to the fields most likely to grow a value: the *Source alphabet and the
+    // documented 1–99 policy range.
+    const weird = fixture("getCardV2.full.xml")
+      .replace(/<infoSource>[^<]*<\/infoSource>/, "<infoSource>MIXED</infoSource>")
+      .replace(/<policyNumber>[^<]*<\/policyNumber>/, "<policyNumber>139</policyNumber>");
+    const doc = parseCardDocument(weird);
+    expect(doc.card.infoSource).toBe("MIXED");
+    expect(doc.card.policyNumber).toBe(139);
+  });
+
+});
+
+describe("describeAtPath", () => {
+  // Why this is tested on its own: with the read schema now tolerant, no realistic vendor document
+  // still fails validation — so there is nothing left to drive the error path end to end. The helper
+  // is the part that has to be right the day somebody adds a strict field back, and the reason it
+  // exists is concrete: production reported `status — Invalid option: expected one of "Active"|…`
+  // with no mention of what was actually received, and answering that cost a second round trip.
+  it("quotes the value at the failing path, including nested ones", () => {
+    const raw = { status: "Frozen", infos: [{ infoId: "DRID", validationType: "SOMETHING_NEW" }] };
+    expect(describeAtPath(raw, ["status"])).toBe('"Frozen"');
+    expect(describeAtPath(raw, ["infos", 0, "validationType"])).toBe('"SOMETHING_NEW"');
+  });
+
+  it("distinguishes null, absent and unreachable rather than printing 'undefined'", () => {
+    expect(describeAtPath({ status: null }, ["status"])).toBe("null");
+    expect(describeAtPath({}, ["status"])).toBe("absent");
+    expect(describeAtPath({ status: "x" }, ["status", "deeper"])).toBe("not present");
+  });
+
+  it("redacts — the failing path can be a field that carries a card number", () => {
+    expect(describeAtPath({ matchValue: "7083050013944594622" }, ["matchValue"])).not.toMatch(/\d{12}/);
   });
 });
 

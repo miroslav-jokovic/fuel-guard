@@ -144,9 +144,10 @@ async function upsertFromSummary(
       card_number_sealed: seal(env, summary.cardNumber, secretAad(orgId, "efs_card_pan")),
       card_last4: last4,
       // A status EFS reports but the getCard enum omits (notably 'Fraud', the `U` search code) is
-      // stored verbatim; the check constraint accepts it. Coercing it to something familiar would
-      // hide the single most important thing about that card.
-      status: summary.status ?? "Inactive",
+      // stored verbatim — see 0175. Coercing it to something familiar would hide the single most
+      // important thing about that card. "Unknown" rather than "Inactive" when EFS reported none:
+      // the column is not-null, but inventing a real state is worse than admitting we have none.
+      status: summary.status ?? "Unknown",
       policy_number: summary.policyNumber,
       company_xref: summary.companyXref,
       payroll_status: summary.payrollStatus,
@@ -188,7 +189,10 @@ export async function refreshCardDetail(
       card_ref_hmac: cardRefHmac(env, creds.orgId, cardNumber),
       card_number_sealed: seal(env, cardNumber, secretAad(creds.orgId, "efs_card_pan")),
       card_last4: last4,
-      status: doc.card.status ?? "Inactive",
+      // "Unknown", not "Inactive". The column is not-null, so a card EFS reported without a status
+      // needs SOME value — but Inactive is a real state an operator acts on, and inventing it means
+      // the page confidently shows a working card as dead. Unknown renders verbatim.
+      status: doc.card.status ?? "Unknown",
       original_status: doc.card.originalStatus,
       payroll_status: doc.card.payrollStatus,
       payroll_use: doc.card.payrollUse,
@@ -292,8 +296,12 @@ export async function loadCardNumber(
 /** EFS returns sources as `Policy`/`Card`/`Both` on read and `POLICY`/`CARD`/`BOTH` on write (p35 vs p134). */
 function normalizeSource(value: string | null): string | null {
   if (!value) return null;
-  const upper = value.toUpperCase();
-  return upper === "POLICY" || upper === "CARD" || upper === "BOTH" ? upper : null;
+  // Case is normalised because EFS genuinely varies it between read and write. The VALUE is kept,
+  // whatever it is: this used to return null for anything outside the three documented sources —
+  // because 0171's check constraint would have rejected the row — so an unrecognised source was
+  // silently erased and the card rendered as though EFS had said nothing about where its rules come
+  // from. 0175 dropped that constraint for exactly this reason. An unexpected source is news.
+  return value.toUpperCase();
 }
 
 function errorText(error: unknown): string {

@@ -196,9 +196,13 @@ describe("getPolicy", () => {
     expect(result.timeRestrictions[0]?.day).toBe(1);
   });
 
-  it("names the offending field when the policy has an unexpected shape", async () => {
+  it("surfaces a limit above our sanity bound instead of rejecting the whole policy", async () => {
+    // Reads are tolerant, writes are strict. EFS_LIMIT_MAX is the bound on values WE set; a policy
+    // configured beyond it in the WEX portal is a thing to display — refusing to parse it would blank
+    // the effective-config table and tell the operator nothing about why.
     const s = stub(loginOk, soap("<r><result><limits><limitId>ULSD</limitId><limit>99999</limit></limits><description>x</description></result></r>"));
-    await expect(getPolicy(env, creds, 1, { fetchImpl: s.fetchImpl })).rejects.toThrow(/limits/);
+    const policy = await getPolicy(env, creds, 1, { fetchImpl: s.fetchImpl });
+    expect(policy.limits[0]).toMatchObject({ limitId: "ULSD", limit: 99999 });
   });
 });
 
@@ -226,11 +230,27 @@ describe("searchLocation", () => {
     expect(s.bodies).toHaveLength(0); // and it never opened a session to find out
   });
 
-  it("omits empty fields rather than sending empty elements", async () => {
+  it("sends every criterion element, in the guide's order, even when unset", async () => {
+    // This test previously asserted the OPPOSITE — that unset criteria were omitted — and production
+    // rejected that request with:
+    //
+    //   org.apache.axis2.databinding.ADBException: Unexpected subelement state
+    //
+    // i.e. the ADB deserializer walking a fixed xsd:sequence, expecting `locId` and finding `state`.
+    // Same binding behaviour the transaction feeds already documented. Unset ints go as 0, not empty,
+    // because an empty `<locId></locId>` is not a valid xsd:int.
     const s = stub(loginOk, locations);
     await searchLocation(env, creds, { city: "JOLIET", state: null, name: "" }, { fetchImpl: s.fetchImpl });
-    expect(s.bodies[1]).toContain("<city>JOLIET</city>");
-    expect(s.bodies[1]).not.toContain("<state>");
-    expect(s.bodies[1]).not.toContain("<name>");
+    const body = s.bodies[1]!;
+    expect(body).toContain("<locId>0</locId>");
+    expect(body).toContain("<state></state>");
+    expect(body).toContain("<city>JOLIET</city>");
+    expect(body).toContain("<name></name>");
+    expect(body).toContain("<country></country>");
+    expect(body).toContain("<chainId>0</chainId>");
+    // Order is what the binding actually enforces, so assert it rather than mere presence.
+    const order = ["locId", "state", "city", "name", "country", "chainId"].map((n) => body.indexOf(`<${n}>`));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(Math.min(...order)).toBeGreaterThan(body.indexOf("<clientId>"));
   });
 });

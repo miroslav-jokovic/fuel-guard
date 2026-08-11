@@ -2233,6 +2233,9 @@ async function main() {
     handSeed: {
       org_usage_month: (org) =>
         `insert into org_usage_month (org_id, yyyymm) values ('${org}', '2026-08')`,
+      efs_cards: (org) =>
+        `insert into efs_cards (org_id, card_last4, card_ref_hmac, card_number_sealed, status, document, card_version) ` +
+        `values ('${org}', '0000', md5(gen_random_uuid()::text), 'rls-test-sealed', 'Unknown', '{}'::jsonb, 'rls-test-version')`,
     },
   });
   console.log(
