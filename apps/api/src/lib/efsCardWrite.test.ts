@@ -103,16 +103,19 @@ describe("setCardV2 — the request", () => {
   it("refuses to send a request that does not faithfully echo the card", async () => {
     const s = stub(loginOk, soap(""));
     const before = doc();
-    // A corrupted document: the edit names a collection the serializer will render from the DOM, but
-    // the edit list claims a record count that does not match what will be emitted.
+    // An edit that targets `cardNumber` — a setCardv2 INPUT, not echoed content. The serializer will
+    // emit it inside <card>; the expectation excludes it as an input. The two disagree, and that
+    // disagreement is exactly what the guard exists to refuse.
+    //
+    // This used to be `[appendRecord, appendRecord, removeAll]`, which diverged only because the
+    // expectation applied edits in list order while the serializer treated the last removeAll as the
+    // base. That was two readings of one contradictory edit list disagreeing, not a lossy request —
+    // and it stopped diverging once both sides were made to agree about what an edit list means.
+    // The property worth pinning here is the one below: the guard runs on the bytes about to be
+    // sent, and aborts BEFORE the vendor is dialled.
     await expect(
       setCardV2(env, creds, before, CARD, [
-        // `replaceAll` with a record whose fields differ from what the serializer emits is caught by
-        // the canonical diff — the guard compares field PATHS, not just counts.
-        { op: "appendRecord", name: "infos", record: { infoId: "DRID" } },
-        { op: "appendRecord", name: "infos", record: { infoId: "DRID" } },
-        // ...and then a removeAll that contradicts both appends, so expectation and reality diverge.
-        { op: "removeAll", name: "infos" },
+        { op: "setField", name: "cardNumber", value: "70839999999999999" },
       ], { fetchImpl: s.fetchImpl }),
     ).rejects.toMatchObject({ code: "echo_unfaithful" });
     // Login happened; the write did NOT.

@@ -2,6 +2,12 @@ import { createHash } from "node:crypto";
 import { type WsCard, wsCardSchema } from "@fuelguard/shared";
 import { EfsSoapError, parseSoap } from "./efsSoapSession.js";
 import { childElements, collectElements, localName, type XmlElement } from "./efsXml.js";
+import { CONTAINER, NIL, XSI_NS, canonicalString, canonicalize, encodeLeaf, isNil } from "./efsCardCanonical.js";
+
+// The canonical form lives next door. This file stays its public face, so every existing import of
+// `canonicalize`/`NIL`/`isNil` from here still resolves and nothing downstream had to be touched.
+export { CONTAINER, NIL, XSI_NS, canonicalString, canonicalize, encodeLeaf, isNil };
+export type { CanonicalDoc } from "./efsCardCanonical.js";
 
 /**
  * The EFS card document: parse, edit, serialize, and refuse to send a lossy echo.
@@ -78,16 +84,6 @@ export const VOLATILE_FIELDS: ReadonlySet<string> = new Set([
 const IDENTITY_FIELDS = ["cardNumber", "cardNum", "CardNumber"] as const;
 const UNVERSIONED_FIELDS: ReadonlySet<string> = new Set([...VOLATILE_FIELDS, ...IDENTITY_FIELDS]);
 
-export const XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
-/**
- * Canonical leaf encoding. Real values are prefixed `v`, an xsi:nil leaf is the bare `n`, and a
- * container is the bare `c`. The prefixes exist so no real value can ever collide with a sentinel:
- * a field whose literal text is "n" encodes as "vn", not as nil.
- */
-export const NIL = "n";
-export const CONTAINER = "c";
-export const encodeLeaf = (text: string): string => `v${text}`;
-
 // ─── Parsing ───────────────────────────────────────────────────────────────────────────────────
 
 export interface CardDocument {
@@ -120,17 +116,6 @@ export interface CardDocument {
   version: string;
   /** The response body with card numbers redacted. Safe to persist and log; never used to build a write. */
   redactedXml: string;
-}
-
-/**
- * Accepts BOTH spellings of the nil attribute. The guide's own getCardv2 example writes
- * `<originalStatus xsi:nil="1" .../>` (p38) while the XML Schema canonical form is `"true"` — and the
- * two must be treated identically, because a nil read as a real value comes back as the literal
- * string "1", and a nil echoed as an empty element is a DIFFERENT document from the one we received.
- */
-export function isNil(element: XmlElement): boolean {
-  const attr = element.getAttribute("xsi:nil") ?? element.getAttribute("nil");
-  return attr === "true" || attr === "1";
 }
 
 function leafText(element: XmlElement): string | null {
@@ -365,49 +350,6 @@ export function documentShape(doc: CardDocument): "flat" | `nested:${string}` {
 }
 
 // ─── Canonical form ────────────────────────────────────────────────────────────────────────────
-
-/**
- * A document reduced to `path → ordered leaf values`. Whitespace, attribute order and element
- * formatting all normalise away; repeated elements append in document order; `xsi:nil` is a distinct
- * sentinel so a nil field can never compare equal to an empty one.
- *
- * This is the representation both the version hash and the fidelity guard are built on, which is what
- * makes them agree with each other by construction.
- */
-export type CanonicalDoc = Map<string, string[]>;
-
-export function canonicalize(root: XmlElement, exclude: ReadonlySet<string> = new Set()): CanonicalDoc {
-  const out: CanonicalDoc = new Map();
-  const push = (path: string, value: string): void => {
-    const existing = out.get(path);
-    if (existing) existing.push(value);
-    else out.set(path, [value]);
-  };
-  const walk = (element: XmlElement, prefix: string): void => {
-    for (const child of childElements(element)) {
-      const name = localName(child);
-      if (exclude.has(name)) continue;
-      const path = `${prefix}/${name}`;
-      const grandchildren = childElements(child);
-      if (grandchildren.length === 0) {
-        push(path, isNil(child) ? NIL : encodeLeaf((child.textContent ?? "").trim()));
-      } else {
-        // Mark the container itself so an emptied collection is distinguishable from an absent one.
-        push(path, CONTAINER);
-        walk(child, path);
-      }
-    }
-  };
-  walk(root, "");
-  return out;
-}
-
-function canonicalString(doc: CanonicalDoc): string {
-  return [...doc.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([path, values]) => `${path}=${values.join("")}`)
-    .join("");
-}
 
 /**
  * Optimistic-concurrency token. EFS gives us no ETag, no lastModified and no row version, so we make

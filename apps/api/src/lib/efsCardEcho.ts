@@ -269,37 +269,81 @@ function expectedCanonical(
       if (path === `/${name}` || path.startsWith(`/${name}/`)) expected.delete(path);
     }
   };
-  const addRecord = (name: string, record: Record<string, string | null>): void => {
-    const push = (path: string, value: string): void => {
-      const existing = expected.get(path);
-      if (existing) existing.push(value);
-      else expected.set(path, [value]);
-    };
-    push(`/${name}`, CONTAINER);
-    for (const [key, value] of Object.entries(record)) push(`/${name}/${key}`, value === null ? NIL : encodeLeaf(value));
-  };
+
+  // Collection edits are resolved per collection rather than one at a time, because the expected
+  // records have to end up in the SAME order `canonicalize` would put them in — which is sorted by
+  // content, not by the order a caller listed them. Building them the only way that cannot drift
+  // from the real thing: render the final record set with the very serializers the request uses,
+  // then canonicalize it. See the note on `canonicalize` for why order stopped being information.
+  const collectionEdits = new Map<string, CardEdit[]>();
 
   for (const edit of edits) {
-    switch (edit.op) {
-      case "setField":
-        expected.set(field(edit.name), [encodeLeaf(edit.value)]);
-        break;
-      case "setFieldNil":
-        expected.set(field(edit.name), [NIL]);
-        break;
-      case "removeAll":
-        dropCollection(edit.name);
-        break;
-      case "replaceAll":
-        dropCollection(edit.name);
-        for (const record of edit.records) addRecord(edit.name, record);
-        break;
-      case "appendRecord":
-        addRecord(edit.name, edit.record);
-        break;
+    if (edit.op === "setField") expected.set(field(edit.name), [encodeLeaf(edit.value)]);
+    else if (edit.op === "setFieldNil") expected.set(field(edit.name), [NIL]);
+    else {
+      const list = collectionEdits.get(edit.name) ?? [];
+      list.push(edit);
+      collectionEdits.set(edit.name, list);
+    }
+  }
+
+  for (const [name, list] of collectionEdits) {
+    // Derived from the EDIT LIST and the response DOM — deliberately NOT by calling the serializer.
+    // The guard's whole value is that expectation and reality are computed by two different routes;
+    // sharing `renderCollection` between them would make `assertEchoFidelity` a tautology.
+    const replace = [...list].reverse().find((e) => e.op === "replaceAll" || e.op === "removeAll");
+    const fragments: CanonicalDoc[] = [];
+    if (replace?.op === "removeAll") {
+      // nothing survives
+    } else if (replace?.op === "replaceAll") {
+      for (const record of replace.records) fragments.push(recordFromObject(name, record));
+    } else {
+      for (const el of collectElements(doc.root, name)) fragments.push(recordFromElement(name, el, skip));
+    }
+    for (const edit of list) {
+      if (edit.op === "appendRecord") fragments.push(recordFromObject(name, edit.record));
+    }
+
+    dropCollection(name);
+    // Sorted by content, because that is the order `canonicalize` produces on the other side — see
+    // the note on `canonicalize` about EFS returning <infos> in a different order on every read.
+    for (const fragment of [...fragments].sort((a, b) => {
+      const ka = fragmentKey(a);
+      const kb = fragmentKey(b);
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    })) {
+      for (const [path, values] of fragment) {
+        const existing = expected.get(path);
+        if (existing) existing.push(...values);
+        else expected.set(path, [...values]);
+      }
     }
   }
   return expected;
+}
+
+/** A repeated record built from an edit's plain object, rooted at `/name`. */
+function recordFromObject(name: string, record: Record<string, string | null>): CanonicalDoc {
+  const one: CanonicalDoc = new Map([[`/${name}`, [CONTAINER]]]);
+  for (const [key, value] of Object.entries(record)) {
+    one.set(`/${name}/${key}`, [value === null ? NIL : encodeLeaf(value)]);
+  }
+  return one;
+}
+
+/** A repeated record built from the response DOM, rooted at `/name`. */
+function recordFromElement(name: string, element: XmlElement, skip: ReadonlySet<string>): CanonicalDoc {
+  const one: CanonicalDoc = new Map([[`/${name}`, [CONTAINER]]]);
+  for (const [path, values] of canonicalize(element, skip)) one.set(`/${name}${path}`, [...values]);
+  return one;
+}
+
+/** Stable ordering key for one record. Only ever compared against another key. */
+function fragmentKey(fragment: CanonicalDoc): string {
+  return [...fragment.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([path, values]) => `${path}=${values.join("")}`)
+    .join("");
 }
 
 export interface EchoDiff {

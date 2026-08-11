@@ -358,6 +358,72 @@ describe("override recipes (guide p194)", () => {
   });
 });
 
+describe("EFS returns <infos> in a different order on every read", () => {
+  /**
+   * Observed, not theorised. Two read-only probe runs against the same QA card, seconds apart with
+   * no write between them, came back byte-identical except for the prompt order:
+   *
+   *     read 1:  UNIT, DRID, NAME
+   *     read 2:  NAME, UNIT, DRID
+   *
+   * Same three records, same values, same `lastTransaction`. Under document-order canonicalisation
+   * those hash to two different `cardVersion`s, and everything built on that token inherits the
+   * coin toss:
+   *
+   *   • The write probe reported THE GATE FAILED — "our request is silently altering cards" — on a
+   *     run whose echo was perfect, then passed on the next one. Same code, same card.
+   *   • `cardVersion` is the optimistic-concurrency token for every mutation, so a dispatcher would
+   *     have been told "this card changed in EFS" at random, on a card nobody had touched.
+   *   • `intentLanded` would have reported phantom drift on every write.
+   *
+   * Order is not information here and the vendor plainly does not treat it as such.
+   */
+  const permuted = (order: readonly number[]): string => {
+    const xml = fixture("getCardV2.nestedHeader.xml");
+    // `<infos>\n` — the newline matters. The fixture's own header comment mentions `<infos>` in
+    // prose, and a laxer pattern starts its first match there and swallows the real record after it.
+    const records = xml.match(/ *<infos>\n[\s\S]*?<\/infos>\n/g)!;
+    expect(records).toHaveLength(6);
+    return xml.replace(records.join(""), order.map((i) => records[i]!).join(""));
+  };
+
+  it("hashes to the same version however the vendor orders the prompts", () => {
+    const asSent = parseCardDocument(permuted([0, 1, 2, 3, 4, 5]));
+    const shuffled = parseCardDocument(permuted([5, 2, 0, 4, 1, 3]));
+    const reversed = parseCardDocument(permuted([5, 4, 3, 2, 1, 0]));
+    expect(shuffled.version).toBe(asSent.version);
+    expect(reversed.version).toBe(asSent.version);
+  });
+
+  it("still notices a prompt whose VALUE changed, in any order", () => {
+    // The tolerance must not become blindness. Records are compared whole, so a changed field makes
+    // a different record and the multiset differs — wherever it happens to sit in the document.
+    const asSent = parseCardDocument(permuted([0, 1, 2, 3, 4, 5]));
+    const edited = parseCardDocument(
+      permuted([5, 2, 0, 4, 1, 3]).replace("<matchValue>0225</matchValue>", "<matchValue>0311</matchValue>"),
+    );
+    expect(edited.version).not.toBe(asSent.version);
+  });
+
+  it("still notices a prompt that disappeared", () => {
+    const asSent = parseCardDocument(permuted([0, 1, 2, 3, 4, 5]));
+    const fewer = parseCardDocument(permuted([0, 1, 2, 3, 4]));
+    expect(fewer.version).not.toBe(asSent.version);
+  });
+
+  it("does not confuse two prompts that swapped their values", () => {
+    // The one case a naive "sort every path independently" fix would miss: association between an
+    // infoId and its own matchValue has to survive, or DRID=1001/UNIT=T001 would compare equal to
+    // DRID=T001/UNIT=1001.
+    const base = fixture("getCardV2.nestedHeader.xml");
+    const swapped = base
+      .replace("<matchValue>685</matchValue>", "<matchValue>@@</matchValue>")
+      .replace("<matchValue>0225</matchValue>", "<matchValue>685</matchValue>")
+      .replace("<matchValue>@@</matchValue>", "<matchValue>0225</matchValue>");
+    expect(parseCardDocument(swapped).version).not.toBe(parseCardDocument(base).version);
+  });
+});
+
 describe("the setCardv2 request signature — read off the WSDL, not the guide", () => {
   /**
    * Two bugs found in one Axis2 dispatch failure, both of them ours.
