@@ -2236,6 +2236,11 @@ async function main() {
       efs_cards: (org) =>
         `insert into efs_cards (org_id, card_last4, card_ref_hmac, card_number_sealed, status, document, card_version) ` +
         `values ('${org}', '0000', md5(gen_random_uuid()::text), 'rls-test-sealed', 'Unknown', '{}'::jsonb, 'rls-test-version')`,
+      efs_card_mutations: (org) =>
+        `with card as (insert into efs_cards (org_id, card_last4, card_ref_hmac, card_number_sealed, status, document, card_version) ` +
+        `values ('${org}', '0000', md5(gen_random_uuid()::text), 'rls-test-sealed', 'Unknown', '{}'::jsonb, 'rls-test-version') returning id) ` +
+        `insert into efs_card_mutations (org_id, efs_card_id, intent, reason) ` +
+        `select '${org}', id, 'lock', 'rls test' from card`,
     },
   });
   console.log(

@@ -49,7 +49,8 @@ import { versionRouter } from "./routes/version.js";
  * directly to Supabase (REST + realtime websockets + storage images), so those origins must be
  * allowed in connect/img. Harmless for API-only responses (JSON carries no CSP-restricted content).
  */
-function securityMiddleware() {
+function securityMiddleware(env: Env) {
+  const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
   return helmet({
     contentSecurityPolicy: {
       directives: {
@@ -61,6 +62,7 @@ function securityMiddleware() {
         imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
         connectSrc: [
           "'self'",
+          ...apiConnectSrc,
           "https://*.supabase.co",
           "wss://*.supabase.co",
           "https://*.sentry.io",
@@ -84,7 +86,7 @@ export function createApp(env: Env): Express {
   registerAllHandlers(); // queue handlers available for dispatchJob (both execution modes)
   app.set("trust proxy", 1); // Railway runs behind a proxy
 
-  app.use(securityMiddleware());
+  app.use(securityMiddleware(env));
   app.use(cors({ origin: env.ALLOWED_ORIGINS, credentials: true }));
 
   // TMS agent ingest — token-authenticated (NOT a browser/user), so it's mounted BEFORE the global 1 MB JSON
