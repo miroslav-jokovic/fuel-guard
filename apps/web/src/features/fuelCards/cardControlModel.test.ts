@@ -46,10 +46,18 @@ describe("freshness", () => {
     expect(freshness("2026-08-10T11:58:00Z", now)).toEqual({ text: "Checked 2 minutes ago.", stale: false });
   });
 
-  it("names the next action once it is stale", () => {
-    const out = freshness("2026-08-10T09:30:00Z", now);
-    expect(out.stale).toBe(true);
-    expect(out.text).toContain("Refresh");
+  it("names the next action once a SWEEP has been missed", () => {
+    // Rewritten deliberately. This used to assert that two and a half hours old was stale, which is
+    // what put a caution banner on a correctly-working page for most of every day — the sweep runs
+    // DAILY. Staleness is now measured against the cadence the server reports, not a fixed hour.
+    const missedASweep = freshness("2026-08-09T09:30:00Z", now);
+    expect(missedASweep.stale).toBe(true);
+    expect(missedASweep.text).toContain("Refresh");
+
+    // Hours old, inside the cadence: a fact, not a warning, and no call to action.
+    const withinCadence = freshness("2026-08-10T09:30:00Z", now);
+    expect(withinCadence.stale).toBe(false);
+    expect(withinCadence.text).not.toContain("Refresh");
   });
 
   it("counts in days once it is older than a day", () => {
@@ -322,5 +330,36 @@ describe("status rendering when EFS sends its own casing", () => {
   it("still shows a status it has no label for, verbatim and untoned", () => {
     expect(cardStatusLabel("SOMETHING_NEW")).toBe("SOMETHING_NEW");
     expect(cardStatusTone("SOMETHING_NEW")).toBe("neutral");
+  });
+});
+
+describe("freshness — an alarm that fires every day is not an alarm", () => {
+  const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+
+  it("stays quiet inside the sweep cadence", () => {
+    // The sweep is DAILY by design. Calling three hours old "stale" meant a correctly-working page
+    // demanded a refresh for roughly 23 hours out of every 24 — which is how a real warning gets
+    // ignored. 26h = one daily sweep plus grace.
+    const three = freshness(at(180), new Date(), 26 * 60);
+    expect(three.stale).toBe(false);
+    expect(three.text).toBe("Checked 3 hours ago.");
+    expect(three.text).not.toMatch(/refresh/i);
+  });
+
+  it("speaks up once a sweep has actually been missed", () => {
+    const late = freshness(at(27 * 60), new Date(), 26 * 60);
+    expect(late.stale).toBe(true);
+    expect(late.text).toMatch(/Refresh to see current settings/);
+  });
+
+  it("honours a tighter cadence when the server runs one", () => {
+    // An org sweeping every 6 hours should hear about a 9-hour-old mirror.
+    expect(freshness(at(9 * 60), new Date(), 8 * 60).stale).toBe(true);
+    expect(freshness(at(3 * 60), new Date(), 8 * 60).stale).toBe(false);
+  });
+
+  it("still treats never-checked as stale", () => {
+    expect(freshness(null).stale).toBe(true);
+    expect(freshness(null).text).toBe("Never checked.");
   });
 });

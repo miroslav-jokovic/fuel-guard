@@ -43,6 +43,8 @@ export interface EfsCardListResponse {
   cards: EfsCardRow[];
   total: number;
   capabilities: CardCapabilities;
+  /** The sweep cadence plus a grace margin — see freshness(). Absent on an older API. */
+  staleAfterMinutes?: number;
 }
 
 export interface EffectiveSection<T> {
@@ -60,6 +62,7 @@ export interface EfsCardDetailResponse {
     version: string;
     document: Record<string, unknown>;
   };
+  staleAfterMinutes?: number;
   effective: {
     infos: EffectiveSection<{ infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }>[];
     limits: EffectiveSection<{ limitId: string; limit: number; hours: number | null; minHours: number | null }>[];

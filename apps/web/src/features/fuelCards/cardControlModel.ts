@@ -54,29 +54,53 @@ export interface Freshness {
   stale: boolean;
 }
 
-const STALE_AFTER_MINUTES = 60;
+/**
+ * When the mirror stops being "recently checked".
+ *
+ * A DEFAULT, not the rule. The server knows the sweep cadence (`EFS_CARD_SYNC_HOURS`, 24 by design)
+ * and sends it as `staleAfterMinutes`; this is only what to assume before that arrives.
+ */
+const DEFAULT_STALE_AFTER_MINUTES = 26 * 60;
 
 /**
  * How old the mirror row is, in words.
  *
- * This exists because the mirror is swept DAILY: card configuration changes when a human changes it,
- * and polling a shared, rate-paced service account every few minutes for data that has not moved is
- * exactly the behaviour the guide warns can get an account suspended (p11). So the page has to be
- * honest about its own age and offer the refresh, rather than implying it is live.
+ * ── Why the threshold comes from the server ─────────────────────────────────────────────────────
+ * The mirror is swept DAILY on purpose: card configuration changes when a human changes it, and
+ * polling a shared, rate-paced service account for data that has not moved is exactly what the guide
+ * warns can get an account suspended (p11).
+ *
+ * The first version of this called anything over SIXTY MINUTES stale — so for roughly twenty-three
+ * hours out of every twenty-four, a correctly-working page shouted "Last checked over 3 hours ago.
+ * Refresh to see current settings." in caution type. That is not a staleness warning, it is the
+ * normal state of the system rendered as an alarm, and the cost is that the one time it matters
+ * nobody reads it.
+ *
+ * So: "stale" now means OLDER THAN A SWEEP — the API sends its own cadence plus a grace margin.
+ * Inside that window the line is a plain fact with no call to action; past it, something really has
+ * not run and the page says so.
  */
-export function freshness(syncedAt: string | null, now: Date = new Date()): Freshness {
+export function freshness(
+  syncedAt: string | null,
+  now: Date = new Date(),
+  staleAfterMinutes: number = DEFAULT_STALE_AFTER_MINUTES,
+): Freshness {
   if (!syncedAt) return { text: "Never checked.", stale: true };
   const ms = now.getTime() - new Date(syncedAt).getTime();
   if (Number.isNaN(ms)) return { text: "Never checked.", stale: true };
   const minutes = Math.max(0, Math.floor(ms / 60_000));
+  const stale = minutes >= staleAfterMinutes;
+  // Past the cadence the sentence earns a next action. Inside it, it is just how old the row is.
+  const suffix = stale ? " Refresh to see current settings." : "";
+
   if (minutes < 1) return { text: "Checked just now.", stale: false };
-  if (minutes < 60) return { text: `Checked ${minutes} minute${minutes === 1 ? "" : "s"} ago.`, stale: minutes >= STALE_AFTER_MINUTES };
+  if (minutes < 60) return { text: `Checked ${minutes} minute${minutes === 1 ? "" : "s"} ago.${suffix}`, stale };
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
-    return { text: `Last checked over ${hours === 1 ? "an hour" : `${hours} hours`} ago. Refresh to see current settings.`, stale: true };
+    return { text: `Checked ${hours === 1 ? "an hour" : `${hours} hours`} ago.${suffix}`, stale };
   }
   const days = Math.floor(hours / 24);
-  return { text: `Last checked ${days} day${days === 1 ? "" : "s"} ago. Refresh to see current settings.`, stale: true };
+  return { text: `Checked ${days} day${days === 1 ? "" : "s"} ago.${suffix}`, stale };
 }
 
 // ─── Effective configuration ───────────────────────────────────────────────────────────────────

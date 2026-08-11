@@ -39,7 +39,7 @@ const capabilities = computed(() => query.data.value?.capabilities ?? null);
 const notice = computed(() =>
   capabilities.value ? availability(capabilities.value, session.admin) : null,
 );
-const cardFreshness = computed(() => freshness(card.value?.syncedAt ?? null));
+const cardFreshness = computed(() => freshness(card.value?.syncedAt ?? null, new Date(), query.data.value?.staleAfterMinutes));
 
 const drawerOpen = ref(false);
 

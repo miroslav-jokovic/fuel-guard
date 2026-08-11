@@ -83,6 +83,18 @@ const toSummary = (row: CardRow) => ({
   syncError: row.sync_error,
 });
 
+/**
+ * When the browser should start calling this mirror stale.
+ *
+ * Derived from the sweep cadence rather than fixed, because the two are the same question. The page
+ * used to assume sixty minutes while the sweep runs daily, so it spent twenty-three hours a day
+ * telling an operator that a perfectly current page needed refreshing. One sweep plus two hours of
+ * grace: late enough that a working system is quiet, early enough that a sweep which did not run is
+ * visible before the next one is due.
+ */
+const staleAfterMinutes = (env: { EFS_CARD_SYNC_HOURS: number }): number =>
+  Math.round(env.EFS_CARD_SYNC_HOURS * 60) + 120;
+
 /** Map a vendor failure to a status an operator can act on, without echoing EFS verbatim. */
 function efsErrorResponse(res: import("express").Response, error: unknown): void {
   if (!(error instanceof EfsSoapError)) throw error;
@@ -206,6 +218,7 @@ export function fuelCardsRouter(): Router {
       cards: (data as unknown as CardRow[]).map(toSummary),
       total: data?.length ?? 0,
       capabilities: access,
+      staleAfterMinutes: staleAfterMinutes(env),
     });
   }));
 
@@ -276,6 +289,7 @@ export function fuelCardsRouter(): Router {
         policyError,
       },
       capabilities: access,
+      staleAfterMinutes: staleAfterMinutes(env),
     });
   }));
 
