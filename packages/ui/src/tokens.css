@@ -197,6 +197,9 @@
   --viz-severity-high: oklch(49.6% 0.265 301.924); /* purple: CVD-separated from critical red */
   --viz-severity-medium: var(--ramp-warning-700);
   --viz-severity-low: var(--ramp-neutral-600);
+  --viz-cost-moving: var(--viz-spend); /* normal fuel movement (emerald) */
+  --viz-cost-idle: var(--ramp-caution-700); /* avoidable idle cost (burnt orange) */
+  --viz-cost-reefer: var(--ramp-info-700); /* refrigerated equipment (blue) */
   --viz-grid: var(--ramp-neutral-100);
   --viz-tick: var(--ink-muted);
 }

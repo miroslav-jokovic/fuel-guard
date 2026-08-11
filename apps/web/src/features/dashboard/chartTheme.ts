@@ -18,10 +18,15 @@ const FALLBACK: Record<string, string> = {
   "--viz-severity-high": "#7e22ce",
   "--viz-severity-medium": "#a16207",
   "--viz-severity-low": "#4b5563",
+  "--viz-cost-moving": "#059669",
+  "--viz-cost-idle": "#ba2f12",
+  "--viz-cost-reefer": "#1447e6",
   "--viz-grid": "#f3f4f6",
   "--viz-tick": "#6b7280",
+  "--surface": "#ffffff",
   "--surface-inverse": "#111827",
   "--ink-inverse": "#ffffff",
+  "--edge-subtle": "#e9edf2",
   "--edge": "#e5e7eb",
   "--ramp-neutral-50": "#f9fafb",
   "--ramp-neutral-200": "#e5e7eb",
@@ -130,11 +135,21 @@ export const viz = {
 };
 
 /**
- * Cost-composition slices (Moving fuel / Idle waste / Reefer). Fixed hex, validated with the dataviz
- * palette checker against the card surface: all three PASS lightness, chroma, CVD separation
- * (worst adjacent deltaE 9.4) and >= 3:1 contrast; always shown with direct labels + a table fallback.
+ * Cost-composition slices (Moving fuel / Idle waste / Reefer). These resolve the canonical visualization
+ * roles so canvas and the visible legend stay in sync. The palette checker verifies white-surface contrast
+ * and protan/deutan/tritan separation; direct labels and the table fallback mean color is never the only cue.
  */
-export const COST_COLORS = { moving: "#059669", idle: "#c2410c", reefer: "#4338ca" } as const;
+export const COST_COLORS = {
+  get moving(): string {
+    return resolve("--viz-cost-moving");
+  },
+  get idle(): string {
+    return resolve("--viz-cost-idle");
+  },
+  get reefer(): string {
+    return resolve("--viz-cost-reefer");
+  },
+};
 
 /**
  * Scriptable Chart.js fill: a vertical gradient from the series color (soft at the top) fading to
@@ -152,33 +167,6 @@ export function areaFill(varName: string) {
     g.addColorStop(0, top);
     g.addColorStop(0.55, mid);
     g.addColorStop(1, bottom);
-    return g;
-  };
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const rgb = hexToRgb(hex);
-  return rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})` : hex;
-}
-
-/**
- * Per-slice LINEAR gradient for a doughnut: a top→bottom sheen (same axis as areaFill) fading from a soft
- * translucent tint at the top to the solid color at the base. A linear gradient keeps the ring's color
- * even across its thickness; a radial one (center-out) washed the inner edge of every slice and read as an
- * inside-out artifact. Falls back to the flat color before layout (and under jsdom). `hexColors` are the
- * slice hexes, index-aligned to the dataset.
- */
-export function donutGradient(hexColors: string[]) {
-  return (context: {
-    chart: { ctx: CanvasRenderingContext2D; chartArea?: { top: number; bottom: number } };
-    dataIndex: number;
-  }) => {
-    const color = hexColors[context.dataIndex] ?? hexColors[0] ?? "#000000";
-    const area = context.chart.chartArea;
-    if (!area) return color;
-    const g = context.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
-    g.addColorStop(0, hexToRgba(color, 0.62));
-    g.addColorStop(1, color);
     return g;
   };
 }

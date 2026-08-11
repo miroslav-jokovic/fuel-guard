@@ -58,30 +58,41 @@ const severity = [
   ["low", fallback("--viz-severity-low")],
 ];
 
-let failed = false;
-for (const [label, hex] of severity) {
-  const ratio = contrast(hex);
-  const pass = ratio >= 3;
-  console.log(`${pass ? "✓" : "✗"} ${label} / white: ${ratio.toFixed(2)}:1`);
-  failed ||= !pass;
-}
+const cost = [
+  ["moving", fallback("--viz-cost-moving")],
+  ["idle", fallback("--viz-cost-idle")],
+  ["reefer", fallback("--viz-cost-reefer")],
+];
 
-for (const [mode, matrix] of Object.entries(simulations)) {
-  const colors = severity.map(([label, hex]) => [label, simulate(linear(hex), matrix)]);
-  let minimum = Number.POSITIVE_INFINITY;
-  let closest = "";
-  for (let first = 0; first < colors.length; first++) {
-    for (let second = first + 1; second < colors.length; second++) {
-      const pairDistance = distance(colors[first][1], colors[second][1]);
-      if (pairDistance < minimum) {
-        minimum = pairDistance;
-        closest = `${colors[first][0]} / ${colors[second][0]}`;
+let failed = false;
+function validatePalette(name, palette) {
+  for (const [label, hex] of palette) {
+    const ratio = contrast(hex);
+    const pass = ratio >= 3;
+    console.log(`${pass ? "✓" : "✗"} ${name} ${label} / white: ${ratio.toFixed(2)}:1`);
+    failed ||= !pass;
+  }
+
+  for (const [mode, matrix] of Object.entries(simulations)) {
+    const colors = palette.map(([label, hex]) => [label, simulate(linear(hex), matrix)]);
+    let minimum = Number.POSITIVE_INFINITY;
+    let closest = "";
+    for (let first = 0; first < colors.length; first++) {
+      for (let second = first + 1; second < colors.length; second++) {
+        const pairDistance = distance(colors[first][1], colors[second][1]);
+        if (pairDistance < minimum) {
+          minimum = pairDistance;
+          closest = `${colors[first][0]} / ${colors[second][0]}`;
+        }
       }
     }
+    const pass = minimum >= 0.1;
+    console.log(`${pass ? "✓" : "✗"} ${name} ${mode} minimum separation: ${minimum.toFixed(3)} (${closest})`);
+    failed ||= !pass;
   }
-  const pass = minimum >= 0.1;
-  console.log(`${pass ? "✓" : "✗"} ${mode} minimum separation: ${minimum.toFixed(3)} (${closest})`);
-  failed ||= !pass;
 }
+
+validatePalette("severity", severity);
+validatePalette("cost", cost);
 
 if (failed) process.exit(1);

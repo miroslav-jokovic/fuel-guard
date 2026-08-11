@@ -32,9 +32,10 @@ import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
+import DonutBreakdown from "@/features/dashboard/DonutBreakdown.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
 import RiskList from "@/features/dashboard/RiskList.vue";
-import { viz, COST_COLORS, resolve, areaFill, donutGradient, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
+import { viz, COST_COLORS, areaFill, trendOptions, fmtDay, fmtMoney, fmtCompact } from "@/features/dashboard/chartTheme";
 
 const session = useSessionStore();
 // Date range scoping the whole page (YYYY-MM-DD | undefined). Default window: the last 30 days.
@@ -218,49 +219,12 @@ const costSlices = computed(() => {
   const tot = m + i + r;
   const pct = (v: number) => (tot > 0 ? Math.round((v / tot) * 100) : 0);
   return [
-    { label: "Moving fuel", value: m, pct: pct(m), color: COST_COLORS.moving },
-    { label: "Idle waste", value: i, pct: pct(i), color: COST_COLORS.idle },
-    { label: "Reefer", value: r, pct: pct(r), color: COST_COLORS.reefer },
+    { key: "moving", label: "Moving fuel", value: m, valueLabel: fmtMoney(m), pct: pct(m), color: COST_COLORS.moving },
+    { key: "idle", label: "Idle waste", value: i, valueLabel: fmtMoney(i), pct: pct(i), color: COST_COLORS.idle },
+    { key: "reefer", label: "Reefer", value: r, valueLabel: fmtMoney(r), pct: pct(r), color: COST_COLORS.reefer },
   ];
 });
 const costTotal = computed(() => costSlices.value.reduce((n, x) => n + x.value, 0));
-const costChart = computed<ChartConfiguration>(() => ({
-  type: "doughnut",
-  data: {
-    labels: costSlices.value.map((x) => x.label),
-    datasets: [
-      {
-        data: costSlices.value.map((x) => x.value),
-        backgroundColor: donutGradient(costSlices.value.map((x) => x.color)) as unknown as string,
-        borderColor: resolve("--ink-inverse"),
-        borderWidth: 0,
-        spacing: 3,
-        borderRadius: 6,
-        hoverOffset: 6,
-      },
-    ],
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    // Reserve a margin >= hoverOffset so the enlarged slice on hover never clips at the canvas edge.
-    layout: { padding: 10 },
-    cutout: "70%",
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: resolve("--surface-inverse"),
-        titleColor: resolve("--ramp-neutral-50"),
-        bodyColor: resolve("--ramp-neutral-200"),
-        padding: 10,
-        cornerRadius: 8,
-        callbacks: {
-          label: (item) => `${item.label}: ${fmtMoney(Number(item.parsed))}`,
-        },
-      },
-    },
-  },
-}));
 
 // Exports
 const toast = useToastStore();
@@ -400,26 +364,12 @@ const EXPORTS = [
       <!-- Cost composition + severity -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartCard title="Where fuel dollars go" subtitle="Moving fuel vs idle waste vs reefer · this range">
-          <div class="flex flex-col items-center gap-5 sm:flex-row">
-            <div class="relative h-44 w-44 shrink-0">
-              <BaseChart :config="costChart" :height="176" />
-              <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span class="text-lg font-semibold text-ink">${{ fmtCompact(costTotal) }}</span>
-                <span class="text-[11px] text-ink-tertiary">total</span>
-              </div>
-            </div>
-            <ul class="min-w-0 flex-1 space-y-2.5 self-stretch">
-              <li v-for="slice in costSlices" :key="slice.label" class="flex items-center justify-between gap-3 text-sm">
-                <span class="flex min-w-0 items-center gap-2">
-                  <span class="size-2.5 shrink-0 rounded-full" :style="{ backgroundColor: slice.color }" aria-hidden="true" /> <!-- token-check-disable-line: data-driven slice color from COST_COLORS -->
-                  <span class="truncate text-ink-secondary">{{ slice.label }}</span>
-                </span>
-                <span class="shrink-0 tabular-nums font-medium text-ink">
-                  {{ fmtMoney(slice.value) }} <span class="font-normal text-ink-tertiary">· {{ slice.pct }}%</span>
-                </span>
-              </li>
-            </ul>
-          </div>
+          <DonutBreakdown
+            :items="costSlices"
+            :center-value="`$${fmtCompact(costTotal)}`"
+            center-label="total spend"
+            :chart-label="`${fmtMoney(costTotal)} in fuel cost composition`"
+          />
           <table class="sr-only">
             <caption>Fuel cost composition</caption>
             <thead><tr><th scope="col">Category</th><th scope="col">Cost</th><th scope="col">Share</th></tr></thead>
