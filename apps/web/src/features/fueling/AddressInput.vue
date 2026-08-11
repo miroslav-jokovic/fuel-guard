@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { fetchAddressSuggestions, type AddressSuggestion } from "./useFuelPlan";
 
 const props = defineProps<{ modelValue: string; id?: string; placeholder?: string }>();
@@ -34,14 +35,21 @@ function pick(s: AddressSuggestion) {
 <template>
   <div class="relative" @focusout="open = false" @focusin="open = suggestions.length > 0">
     <BaseInput :id="id" :model-value="query" :placeholder="placeholder" autocomplete="off" @update:model-value="onInput" />
-    <ul v-if="open" class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge">
+    <ul v-if="open" class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-control bg-surface py-1 text-sm shadow-lg ring-1 ring-edge">
       <li
         v-for="(s, i) in suggestions"
         :key="i"
-        class="cursor-pointer truncate px-3 py-1.5 text-ink-secondary hover:bg-surface-subtle"
-        @mousedown.prevent="pick(s)"
       >
-        {{ s.label }}
+        <BaseButton
+          type="button"
+          variant="ghost"
+          block
+          class="justify-start truncate px-3 text-left font-normal"
+          @mousedown.prevent="pick(s)"
+          @click="pick(s)"
+        >
+          {{ s.label }}
+        </BaseButton>
       </li>
     </ul>
   </div>

@@ -19,6 +19,8 @@ import {
 import { RouterLink } from "vue-router";
 import FleetReadiness from "@/features/dashboard/FleetReadiness.vue";
 import { useSessionStore } from "@/stores/session";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import SettingsSection from "@/components/ui/SettingsSection.vue";
 
 const session = useSessionStore();
 const manageOrRead = session.canManage || session.readOnly;
@@ -48,51 +50,48 @@ const reportCards = [
 
 <template>
   <div class="space-y-8">
-    <section v-if="configCards.length" class="space-y-3">
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Configuration</h2>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <PageHeader description="Configuration, access, integrations, reporting, and fleet-readiness tools." />
+    <SettingsSection v-if="configCards.length" title="Configuration">
+      <div class="divide-y divide-edge-subtle rounded-surface bg-surface ring-1 ring-edge">
         <RouterLink
           v-for="c in configCards"
           :key="c.to"
           :to="c.to"
-          class="flex items-start gap-4 rounded-lg bg-surface p-5 shadow-sm ring-1 ring-edge hover:ring-brand-300"
+          class="flex items-start gap-4 p-4 hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
         >
-          <AppIcon :icon="c.icon" class="size-6 shrink-0 text-brand-500" aria-hidden="true" />
+          <AppIcon :icon="c.icon" class="size-5 shrink-0 text-brand-accent-strong" aria-hidden="true" />
           <div>
             <h3 class="text-sm font-semibold text-ink">{{ c.name }}</h3>
             <p class="mt-1 text-sm text-ink-muted">{{ c.desc }}</p>
           </div>
         </RouterLink>
       </div>
-    </section>
+    </SettingsSection>
 
-    <section v-if="session.canManage" class="space-y-3">
-      <div>
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Fleet readiness</h2>
-        <p class="mt-1 text-sm text-ink-muted">
-          Complete the fleet configuration required for reliable fuel and anomaly detection.
-        </p>
-      </div>
+    <SettingsSection
+      v-if="session.canManage"
+      title="Fleet readiness"
+      description="Complete the fleet configuration required for reliable fuel and anomaly detection."
+    >
       <FleetReadiness />
-    </section>
+    </SettingsSection>
 
-    <section v-if="reportCards.length" class="space-y-3">
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Reports &amp; detection health</h2>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <SettingsSection v-if="reportCards.length" title="Reports & detection health">
+      <div class="divide-y divide-edge-subtle rounded-surface bg-surface ring-1 ring-edge">
         <RouterLink
           v-for="c in reportCards"
           :key="c.to"
           :to="c.to"
-          class="flex items-start gap-4 rounded-lg bg-surface p-5 shadow-sm ring-1 ring-edge hover:ring-brand-300"
+          class="flex items-start gap-4 p-4 hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
         >
-          <AppIcon :icon="c.icon" class="size-6 shrink-0 text-brand-500" aria-hidden="true" />
+          <AppIcon :icon="c.icon" class="size-5 shrink-0 text-brand-accent-strong" aria-hidden="true" />
           <div>
             <h3 class="text-sm font-semibold text-ink">{{ c.name }}</h3>
             <p class="mt-1 text-sm text-ink-muted">{{ c.desc }}</p>
           </div>
         </RouterLink>
       </div>
-    </section>
+    </SettingsSection>
 
     <p v-if="!configCards.length && !reportCards.length" class="text-sm text-ink-muted">No settings available for your role.</p>
   </div>

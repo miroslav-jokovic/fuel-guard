@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 
 defineProps<{
   title: string;

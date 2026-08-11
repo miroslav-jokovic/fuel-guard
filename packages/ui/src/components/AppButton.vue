@@ -2,11 +2,7 @@
 import { computed } from "vue";
 import { RouterLink, type RouteLocationRaw } from "vue-router";
 
-/**
- * The one button (shared design primitive). Renders a <RouterLink> when `to` is set, else a <button>.
- * Mirrors apps/web BaseButton so both planes share one look. Variants: primary (brand CTA), secondary
- * (default workhorse), danger (destructive), soft (neutral fill), ghost (text-only). Sizes: sm | md.
- */
+/** Shared button for both applications. Gold is identity; graphite is action. */
 const props = withDefaults(
   defineProps<{
     variant?: "primary" | "secondary" | "danger" | "soft" | "ghost";
@@ -16,25 +12,33 @@ const props = withDefaults(
     disabled?: boolean;
     to?: RouteLocationRaw;
   }>(),
-  { variant: "secondary", size: "md", type: "button", block: false, disabled: false, to: undefined },
+  {
+    variant: "secondary",
+    size: "md",
+    type: "button",
+    block: false,
+    disabled: false,
+    to: undefined,
+  },
 );
 
 const VARIANTS: Record<NonNullable<typeof props.variant>, string> = {
-  primary: "bg-brand-600 text-ink-inverse shadow-sm hover:bg-brand-500",
-  secondary: "bg-surface text-ink-secondary ring-1 ring-inset ring-edge-strong hover:bg-surface-subtle",
-  danger: "bg-danger-600 text-ink-inverse shadow-sm hover:bg-danger-500",
-  soft: "bg-surface-muted text-ink-secondary hover:bg-neutral-200",
-  ghost: "text-ink-muted hover:text-ink-secondary",
+  primary: "bg-action-primary text-action-primary-foreground hover:bg-action-primary-hover",
+  secondary:
+    "bg-surface text-ink-secondary ring-1 ring-inset ring-edge-control hover:bg-surface-subtle",
+  danger: "bg-danger-solid text-danger-solid-foreground hover:bg-danger-600",
+  soft: "bg-surface-muted text-ink-secondary hover:bg-selected-surface",
+  ghost: "text-ink-secondary hover:bg-surface-muted hover:text-ink",
 };
 const SIZES: Record<NonNullable<typeof props.size>, string> = {
-  sm: "gap-x-1 px-2.5 py-1.5 text-sm",
-  md: "gap-x-1.5 px-3 py-2 text-sm",
+  sm: "h-8 gap-x-1 px-2.5 text-sm",
+  md: "h-9 gap-x-1.5 px-3 text-sm",
 };
 
 const cls = computed(() => [
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md font-semibold transition-colors",
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
-  "disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-control font-semibold transition-colors",
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
+  "disabled:pointer-events-none disabled:text-ink-disabled disabled:opacity-60",
   VARIANTS[props.variant],
   SIZES[props.size],
   props.block ? "flex w-full" : "",

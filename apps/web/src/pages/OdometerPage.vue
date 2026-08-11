@@ -10,8 +10,8 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
@@ -159,20 +159,20 @@ const columns: DataTableColumn[] = [
     >
       <template #empty>
         <p>No confirmed odometer mismatches in the last 90 days — either driver entries agree with telematics, or no fills have a confirmed fueling-time odometer yet.</p>
-        <p class="mt-1 text-ink-subtle">
-          If you just deployed the fueling-time fix, run a <RouterLink to="/settings/data" class="text-brand-600 hover:text-brand-500">Samsara re-sync / backfill</RouterLink>
-          to re-anchor odometer readings, then check <RouterLink to="/coverage" class="text-brand-600 hover:text-brand-500">Coverage</RouterLink> to see how many fills could be verified.
+        <p class="mt-1 text-ink-tertiary">
+          If you just deployed the fueling-time fix, run a <RouterLink to="/settings/data" class="text-link hover:text-link-hover">Samsara re-sync / backfill</RouterLink>
+          to re-anchor odometer readings, then check <RouterLink to="/coverage" class="text-link hover:text-link-hover">Coverage</RouterLink> to see how many fills could be verified.
         </p>
       </template>
       <template #cell-fueledAt="{ value }">{{ fmtDate(value) }}</template>
       <template #cell-unit="{ row }">
-        <RouterLink v-if="row.vehicleId" :to="`/vehicles/${row.vehicleId}`" class="text-brand-600 hover:text-brand-500">{{ row.unit ?? "—" }}</RouterLink>
+        <RouterLink v-if="row.vehicleId" :to="`/vehicles/${row.vehicleId}`" class="text-link hover:text-link-hover">{{ row.unit ?? "—" }}</RouterLink>
         <span v-else>{{ row.unit ?? "—" }}</span>
       </template>
       <template #cell-entered="{ value }">{{ fmtOdo(value) }}</template>
       <template #cell-samsara="{ row }">
         {{ fmtOdo(row.samsara) }}
-        <div v-if="row.samsaraOdometerAt" class="text-xs font-normal text-ink-subtle">read {{ fmtDateTime(row.samsaraOdometerAt) }}</div>
+        <div v-if="row.samsaraOdometerAt" class="text-xs font-normal text-ink-tertiary">read {{ fmtDateTime(row.samsaraOdometerAt) }}</div>
       </template>
       <template #cell-samsaraOdometerSource="{ value }">
         <span :class="[BADGE_BASE, source(value).cls]" :title="source(value).title">{{ source(value).label }}</span>
@@ -198,9 +198,9 @@ const columns: DataTableColumn[] = [
       <div class="flex flex-wrap gap-2">
         <span v-for="o in offenders" :key="o.key" class="inline-flex items-center gap-1.5 rounded-full bg-surface-subtle px-3 py-1 text-sm ring-1 ring-edge">
           <span class="font-medium text-ink">{{ o.label }}</span>
-          <span class="text-ink-subtle">·</span>
+          <span class="text-ink-tertiary">·</span>
           <span class="text-ink-secondary">{{ o.mismatches }}×</span>
-          <span class="text-ink-subtle">·</span>
+          <span class="text-ink-tertiary">·</span>
           <span class="text-ink-secondary">max {{ Math.round(o.maxAbsDiff) }} mi</span>
         </span>
       </div>

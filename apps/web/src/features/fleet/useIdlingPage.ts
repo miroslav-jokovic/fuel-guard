@@ -187,7 +187,7 @@ const recordedCls = (t: { has_apu: boolean | null }) =>
 const XCHECK: Record<string, { label: string; cls: string; title: string }> = {
   agree: { label: "Matches", cls: "text-success-600", title: "The data matches the recorded equipment" },
   disagree: { label: "Doesn't match", cls: "text-danger-600", title: "The data disagrees with the recorded equipment — worth a look" },
-  na: { label: "–", cls: "text-ink-subtle", title: "Not enough data to compare" },
+  na: { label: "–", cls: "text-ink-tertiary", title: "Not enough data to compare" },
 };
 const xcheck = (c: string) => XCHECK[c] ?? XCHECK.na!;
 
@@ -211,7 +211,7 @@ const drvPaged = computed(() =>
 watch(drvFiltered, () => (drvPage.value = 1));
 
 const drvColumns: DataTableColumn[] = [
-  { key: "rank", label: "#", cellClass: "text-ink-subtle" },
+  { key: "rank", label: "#", cellClass: "text-ink-tertiary" },
   { key: "driverName", label: "Driver" },
   { key: "score", label: "Idle score", sortable: true, numeric: true },
   { key: "engineOnH", label: "Engine hours", sortable: true, numeric: true, cellClass: "text-ink-secondary" },

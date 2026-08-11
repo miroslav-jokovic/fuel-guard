@@ -15,7 +15,9 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppSelect } from "@fuelguard/ui";
 import DriverForm from "@/features/fleet/DriverForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
@@ -29,10 +31,10 @@ const HOS_BADGE: Record<string, { label: string; cls: string }> = {
   driving: { label: "Driving", cls: "bg-info-100 text-info-700" },
   on_duty: { label: "On duty", cls: "bg-warning-100 text-warning-700" },
   sleeper: { label: "Sleeper", cls: "bg-surface-muted text-ink-secondary" },
-  off_duty: { label: "Off duty", cls: "bg-surface-muted text-ink-subtle" },
+  off_duty: { label: "Off duty", cls: "bg-surface-muted text-ink-tertiary" },
   yard_move: { label: "Yard move", cls: "bg-surface-muted text-ink-secondary" },
   personal_conveyance: { label: "Personal", cls: "bg-surface-muted text-ink-secondary" },
-  unknown: { label: "Unknown", cls: "bg-surface-muted text-ink-subtle" },
+  unknown: { label: "Unknown", cls: "bg-surface-muted text-ink-tertiary" },
 };
 const hosBadge = (s: string) => HOS_BADGE[s] ?? HOS_BADGE.unknown!;
 function hosAgo(iso: string | null): string {
@@ -71,7 +73,7 @@ watch(drivers, (list) => {
 const ACCESS_BADGE: Record<string, { label: string; cls: string }> = {
   active: { label: "Active", cls: "bg-success-100 text-success-700" },
   disabled: { label: "Disabled", cls: "bg-warning-100 text-warning-700" },
-  none: { label: "—", cls: "bg-surface-muted text-ink-subtle" },
+  none: { label: "—", cls: "bg-surface-muted text-ink-tertiary" },
 };
 const accessBadge = (d: Driver) => ACCESS_BADGE[driverAppAccess(d.user_id, d.app_access_enabled)]!;
 
@@ -235,8 +237,10 @@ async function onSubmit(input: DriverInput) {
       </template>
     </PageHeader>
 
+    <DataWorkspace>
     <FilterBar
       v-model:search="search"
+      embedded
       search-placeholder="Search name, driver ID, employee ID, phone…"
       :count="filtered.length"
       count-label="drivers"
@@ -247,6 +251,7 @@ async function onSubmit(input: DriverInput) {
     </FilterBar>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="pageRows"
       row-key="id"
@@ -266,13 +271,13 @@ async function onSubmit(input: DriverInput) {
         <span
           v-if="row.current_hos_status"
           :class="[
-            'inline-flex rounded px-1.5 py-0.5 text-xs font-semibold',
+            'inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold',
             hosBadge(row.current_hos_status).cls,
           ]"
           :title="hosAgo(row.current_hos_at)"
           >{{ hosBadge(row.current_hos_status).label }}</span
         >
-        <span v-else class="text-xs text-ink-subtle">—</span>
+        <span v-else class="text-xs text-ink-tertiary">—</span>
       </template>
       <template #cell-current_hos_vehicle="{ row }">{{ row.current_hos_vehicle || "—" }}</template>
       <template #cell-current_location="{ row }">{{ row.current_location || "—" }}</template>
@@ -291,10 +296,10 @@ async function onSubmit(input: DriverInput) {
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canManage">
-          <button class="kebab-item" @click="openEdit(row)">Edit driver</button>
-          <button class="kebab-item" @click="openAccess(row)">
+          <BaseButton class="kebab-item" @click="openEdit(row)">Edit driver</BaseButton>
+          <BaseButton class="kebab-item" @click="openAccess(row)">
             {{ row.user_id ? "Manage app login…" : "Create app login…" }}
-          </button>
+          </BaseButton>
         </KebabMenu>
       </template>
       <template #footer>
@@ -306,6 +311,7 @@ async function onSubmit(input: DriverInput) {
         />
       </template>
     </DataTable>
+    </DataWorkspace>
 
     <SlideOver
       :open="reconcileOpen"
@@ -339,7 +345,7 @@ async function onSubmit(input: DriverInput) {
               }}
             </BaseButton>
           </div>
-          <ul class="mt-2 divide-y divide-edge-subtle rounded-md border border-edge">
+          <ul class="mt-2 divide-y divide-edge-subtle rounded-control border border-edge">
             <li
               v-for="pr in reconcile.report.value?.pairs ?? []"
               :key="pr.sourceId"
@@ -349,11 +355,11 @@ async function onSubmit(input: DriverInput) {
                 ><span class="text-ink-secondary">{{ pr.sourceName }}</span> →
                 <span class="font-medium text-ink">{{ pr.canonicalName }}</span></span
               >
-              <span class="text-xs text-ink-subtle">by {{ pr.matchedBy }}</span>
+              <span class="text-xs text-ink-tertiary">by {{ pr.matchedBy }}</span>
             </li>
             <li
               v-if="!(reconcile.report.value?.pairs ?? []).length"
-              class="px-3 py-2 text-sm text-ink-subtle"
+              class="px-3 py-2 text-sm text-ink-tertiary"
             >
               No confident merges found.
             </li>
@@ -362,26 +368,23 @@ async function onSubmit(input: DriverInput) {
 
         <div>
           <h4 class="text-sm font-semibold text-ink">Link by hand ({{ stillUnmatched.length }})</h4>
-          <p class="mt-1 text-xs text-ink-subtle">
+          <p class="mt-1 text-xs text-ink-tertiary">
             Drivers with no confident Samsara match — pick the right person to merge into.
           </p>
           <ul class="mt-2 space-y-2">
             <li v-for="u in stillUnmatched" :key="u.id" class="flex items-center gap-2 text-sm">
               <span class="min-w-0 flex-1 truncate">{{ u.full_name }}</span>
-              <select
+              <AppSelect
                 v-model="linkTarget[u.id]"
-                class="rounded border border-edge bg-surface px-2 py-1 text-xs"
-              >
-                <option value="">Select Samsara driver…</option>
-                <option v-for="c in samsaraCandidates" :key="c.id" :value="c.id">
-                  {{ c.full_name }}
-                </option>
-              </select>
+                class="max-w-64"
+                placeholder="Select Samsara driver…"
+                :options="samsaraCandidates.map((candidate) => ({ value: candidate.id, label: candidate.full_name }))"
+              />
               <BaseButton size="sm" :disabled="!linkTarget[u.id]" @click="linkDriver(u.id)"
                 >Link</BaseButton
               >
             </li>
-            <li v-if="!stillUnmatched.length" class="text-sm text-ink-subtle">
+            <li v-if="!stillUnmatched.length" class="text-sm text-ink-tertiary">
               Nothing left to link.
             </li>
           </ul>

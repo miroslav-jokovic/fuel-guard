@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { ref, watch, onBeforeUnmount } from "vue";
 import type { HazmatProduct } from "@fuelguard/shared";
-import BaseInput from "@/components/ui/BaseInput.vue";
+import { AppInput as BaseInput } from "@fuelguard/ui";
 import { useHazmatProductsQuery } from "./useHazmatCalc";
 
 /**
@@ -49,7 +50,7 @@ function choose(p: HazmatProduct) {
     />
     <div
       v-if="open"
-      class="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-md bg-surface shadow-lg ring-1 ring-edge"
+      class="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-control bg-surface shadow-lg ring-1 ring-edge"
       role="listbox"
     >
       <p v-if="isFetching" class="px-3 py-2 text-sm text-ink-muted">Searching…</p>
@@ -59,13 +60,13 @@ function choose(p: HazmatProduct) {
       </p>
       <template v-else>
         <div v-if="!query" class="px-3 pt-2">
-          <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Common fuel products</p>
+          <p class="text-xs font-medium uppercase tracking-wide text-ink-tertiary">Common fuel products</p>
           <p class="pt-0.5 text-xs text-ink-muted">
             A shortcut, not the scope — search any UN/NA number or shipping name to reach the whole
             Hazardous Materials Table.
           </p>
         </div>
-        <button
+        <BaseButton
           v-for="p in products"
           :key="p.hmtRef"
           type="button"
@@ -76,13 +77,13 @@ function choose(p: HazmatProduct) {
           <span class="truncate">{{ p.label }}</span>
           <span
             v-if="p.isFuelCommon"
-            class="shrink-0 rounded bg-surface-muted px-1.5 py-0.5 text-xs font-medium text-ink-subtle ring-1 ring-inset ring-edge"
+            class="shrink-0 rounded-control bg-surface-muted px-1.5 py-0.5 text-xs font-medium text-ink-tertiary ring-1 ring-inset ring-edge"
             >fuel</span
           >
-        </button>
+        </BaseButton>
       </template>
     </div>
     <!-- click-away backdrop while open -->
-    <button v-if="open" type="button" class="fixed inset-0 z-10 cursor-default" tabindex="-1" aria-hidden="true" @click="open = false" />
+    <BaseButton v-if="open" type="button" class="fixed inset-0 z-10 cursor-default" tabindex="-1" aria-hidden="true" @click="open = false" />
   </div>
 </template>

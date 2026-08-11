@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { supabase } from "@/lib/supabase";
 import { useSessionStore } from "@/stores/session";
 
@@ -56,7 +56,7 @@ async function confirm(): Promise<void> {
   <div class="flex min-h-[26rem] flex-col justify-center">
     <h3 class="text-base font-semibold text-ink">Confirm it is you</h3>
     <p class="mt-2 text-sm leading-6 text-ink-muted">{{ props.reason }}</p>
-    <p class="mt-1 text-sm text-ink-subtle">
+    <p class="mt-1 text-sm text-ink-tertiary">
       Enter your password to continue. This is asked for actions that cannot be undone by clicking again.
     </p>
 

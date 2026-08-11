@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppCard, AppButton, AppInput } from "@fuelguard/ui";
+import { AppCard, AppButton, AppInput, AppPageHeader, AppTable } from "@fuelguard/ui";
 import AppShell from "@/layouts/AppShell.vue";
 import { apiGet, apiPost, type OrgDetail, type OrgMember, type Me } from "@/lib/api";
 import { useImpersonationStore } from "@/stores/impersonation";
@@ -106,14 +106,15 @@ async function toggleEntitlement(moduleKey: string, enabled: boolean) {
 
 <template>
   <AppShell>
-    <AppButton size="sm" variant="ghost" :to="{ name: 'customers' }">← Customers</AppButton>
-
     <div v-if="loading" class="mt-4 text-sm text-ink-muted">Loading…</div>
     <div v-else-if="error" class="mt-4 text-sm text-danger-600">{{ error }}</div>
 
     <template v-else-if="org">
-      <h1 class="mt-2 text-xl font-semibold text-ink">{{ org.name }}</h1>
-      <p class="mt-1 text-sm text-ink-muted">Created {{ fmtDate(org.createdAt) }}</p>
+      <AppPageHeader :title="org.name" :description="`Created ${fmtDate(org.createdAt)}`">
+        <template #back>
+          <AppButton size="sm" variant="ghost" :to="{ name: 'customers' }">← Customers</AppButton>
+        </template>
+      </AppPageHeader>
 
       <div class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <AppCard>
@@ -184,7 +185,7 @@ async function toggleEntitlement(moduleKey: string, enabled: boolean) {
           <li
             v-for="e in org.entitlements"
             :key="e.moduleKey"
-            class="flex items-center justify-between gap-2 rounded-md border border-edge-subtle px-3 py-2"
+            class="flex items-center justify-between gap-2 rounded-control border border-edge-subtle px-3 py-2"
           >
             <span class="text-ink">{{ MODULE_LABELS[e.moduleKey] ?? e.moduleKey }}</span>
             <div class="flex items-center gap-2">
@@ -207,7 +208,7 @@ async function toggleEntitlement(moduleKey: string, enabled: boolean) {
 
       <AppCard padding="none" class="mt-4">
         <h2 class="px-5 pt-5 text-sm font-semibold text-ink-secondary">Members</h2>
-        <table class="mt-3 w-full text-sm">
+        <AppTable class="mt-3 w-full text-sm">
           <thead class="bg-surface-subtle text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
             <tr>
               <th class="px-5 py-2">Email</th>
@@ -225,7 +226,7 @@ async function toggleEntitlement(moduleKey: string, enabled: boolean) {
               <td colspan="3" class="px-5 py-6 text-center text-ink-muted">No members.</td>
             </tr>
           </tbody>
-        </table>
+        </AppTable>
       </AppCard>
 
       <AppCard v-if="canImpersonate" class="mt-4">

@@ -41,7 +41,7 @@ const dismissed = ref(false);
         </button>
         <button
           type="button"
-          class="rounded-full bg-ink-inverse px-3.5 py-1.5 text-xs font-semibold text-ink shadow-sm transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-strong"
+          class="rounded-full bg-ink-inverse px-3.5 py-1.5 text-xs font-semibold text-ink transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-edge-control"
           @click="refresh"
         >
           Refresh

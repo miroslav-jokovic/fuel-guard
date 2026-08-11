@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppIcon } from "@fuelguard/ui";
 import {
   CheckCircleIcon,
@@ -7,7 +8,7 @@ import {
 } from "@fuelguard/ui/icons";
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -65,9 +66,9 @@ const textTone = (r: Row) =>
   </BaseCard>
 
   <BaseCard v-else>
-    <button
+    <BaseButton
       type="button"
-      class="flex w-full items-center justify-between gap-2 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+      class="flex w-full items-center justify-between gap-2 rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       :class="open ? 'mb-4' : ''"
       :aria-expanded="open"
       aria-controls="fleet-readiness-list"
@@ -76,7 +77,7 @@ const textTone = (r: Row) =>
       <span class="flex items-center gap-2">
         <AppIcon
           :icon="ChevronDownIcon"
-          class="size-4 text-ink-subtle transition-transform duration-200"
+          class="size-4 text-ink-tertiary transition-transform duration-200"
           :class="open ? '' : '-rotate-90'"
           aria-hidden="true"
         />
@@ -85,7 +86,7 @@ const textTone = (r: Row) =>
       <span :class="[BADGE_BASE, toneClass('warning'), 'normal-case']">
         <AppIcon :icon="ExclamationTriangleIcon" class="size-3.5" aria-hidden="true" /> {{ gaps }} to complete
       </span>
-    </button>
+    </BaseButton>
     <ul v-show="open" id="fleet-readiness-list" class="grid grid-cols-1 gap-x-10 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
       <li v-for="r in rows" :key="r.label" :title="r.why">
         <div class="flex items-center justify-between gap-3">
@@ -95,7 +96,7 @@ const textTone = (r: Row) =>
             <RouterLink
               v-if="r.ok < r.total"
               :to="r.to"
-              class="rounded text-xs font-medium text-brand-600 hover:text-brand-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+              class="rounded-control text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
             >
               Fix →
             </RouterLink>

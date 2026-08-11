@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { DQ_ITEMS, type DqExportRow } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useToastStore } from "@/stores/toast";
@@ -105,13 +105,13 @@ async function open(row: Row): Promise<void> {
   >
     <template #cell-what="{ row }">
       <span class="text-ink">{{ row.what }}</span>
-      <span v-if="row.detail" class="mt-0.5 block text-xs text-ink-subtle">{{ row.detail }}</span>
+      <span v-if="row.detail" class="mt-0.5 block text-xs text-ink-tertiary">{{ row.detail }}</span>
     </template>
     <template #cell-status="{ row }">
       <span :class="[BADGE_BASE, toneClass(STATUS_TONE[row.status])]">{{
         STATUS_LABEL[row.status]
       }}</span>
-      <span v-if="row.purged" class="mt-0.5 block text-xs text-ink-subtle"
+      <span v-if="row.purged" class="mt-0.5 block text-xs text-ink-tertiary"
         >file removed after 7 days</span
       >
     </template>
@@ -125,10 +125,10 @@ async function open(row: Row): Promise<void> {
       >
         {{ opening === row.id ? "Opening…" : "Download" }}
       </BaseButton>
-      <span v-else-if="row.kind === 'document'" class="text-xs text-ink-subtle"
+      <span v-else-if="row.kind === 'document'" class="text-xs text-ink-tertiary"
         >sent at the time</span
       >
-      <span v-else-if="row.purged" class="text-xs text-ink-subtle">generate again</span>
+      <span v-else-if="row.purged" class="text-xs text-ink-tertiary">generate again</span>
     </template>
   </DataTable>
 </template>

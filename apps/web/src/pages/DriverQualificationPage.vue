@@ -21,14 +21,14 @@ import {
   type DqItemState,
 } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
@@ -380,11 +380,11 @@ async function fileDropped(): Promise<void> {
       </template>
       <template #cell-evidenceDate="{ row }">
         <span v-if="row.evidenceDate">{{ formatDate(row.evidenceDate) }}</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-goodUntil="{ row }">
         <span v-if="row.goodUntil">{{ formatDate(row.goodUntil) }}</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-documentUrl="{ row }">
         <a
@@ -392,28 +392,28 @@ async function fileDropped(): Promise<void> {
           :href="row.documentUrl"
           target="_blank"
           rel="noopener"
-          class="inline-flex items-center gap-1 font-medium text-brand-600 hover:text-brand-500"
+          class="inline-flex items-center gap-1 font-medium text-link hover:text-link-hover"
           :aria-label="`View scan for ${row.label}`"
         >
           <AppIcon :icon="EyeIcon" class="size-4" aria-hidden="true" />
           View
         </a>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #actions="{ row }">
         <KebabMenu
           v-if="session.canManage"
           :trigger-label="`${row.state === 'missing' ? 'Record' : 'Renew'} ${row.label}`"
         >
-          <button type="button" class="kebab-item" @click="openKey = row.key">
+          <BaseButton type="button" class="kebab-item" @click="openKey = row.key">
             <AppIcon
               :icon="row.state === 'missing' ? ClipboardDocumentCheckIcon : ArrowPathIcon"
               class="size-4"
               aria-hidden="true"
             />
             {{ row.state === "missing" ? "Record requirement" : "Renew requirement" }}
-          </button>
-          <button
+          </BaseButton>
+          <BaseButton
             v-if="row.documentUrl"
             type="button"
             class="kebab-item"
@@ -422,7 +422,7 @@ async function fileDropped(): Promise<void> {
           >
             <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
             {{ releasing === row.key ? "Preparing…" : "Release stamped copy" }}
-          </button>
+          </BaseButton>
         </KebabMenu>
       </template>
     </DataTable>

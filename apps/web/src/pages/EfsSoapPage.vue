@@ -16,12 +16,12 @@ import {
   type TestConnectionResult,
 } from "@/features/settings/useEfsSoap";
 import { useToastStore } from "@/stores/toast";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import AppSelect, { type SelectOption } from "@/components/AppSelect.vue";
+import { AppSelect, type SelectOption } from "@fuelguard/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import EfsClientCertCard from "@/features/settings/EfsClientCertCard.vue";
 
@@ -188,7 +188,7 @@ const testChipClass = computed(() => {
     <PageHeader>
       EFS SOAP integration — the direct webservice link that delivers posted transactions and
       rejected authorization attempts into FuelGuard. One credential set covers both feeds. See
-      <code class="rounded bg-surface-muted px-1 py-0.5 text-xs">docs/plans/EFS-SOAP-INTEGRATION-PLAN.md</code>
+      <code class="rounded-control bg-surface-muted px-1 py-0.5 text-xs">docs/plans/EFS-SOAP-INTEGRATION-PLAN.md</code>
       for the full plan and the list of items still awaiting EFS's data release.
     </PageHeader>
 
@@ -341,7 +341,7 @@ const testChipClass = computed(() => {
           </BaseButton>
         </div>
 
-        <div v-if="testResult" class="mt-3 rounded-md bg-surface-subtle p-3 text-xs" :class="testChipClass">
+        <div v-if="testResult" class="mt-3 rounded-control bg-surface-subtle p-3 text-xs" :class="testChipClass">
           <template v-if="testResult.kind === 'success'">
             ✓ Connected — roundtrip {{ testResult.roundtripMs }} ms
           </template>

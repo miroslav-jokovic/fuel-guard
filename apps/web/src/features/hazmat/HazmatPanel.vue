@@ -8,8 +8,8 @@ import {
   type HazmatCreateLoadRequest,
   type HazmatLoadStatus,
 } from "@fuelguard/shared";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
@@ -171,7 +171,7 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
   <BaseCard>
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="flex items-start gap-3">
-        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning-50 text-warning-700">
+        <span class="flex size-9 shrink-0 items-center justify-center rounded-surface bg-warning-50 text-warning-700">
           <AppIcon :icon="ShieldExclamationIcon" class="size-5" aria-hidden="true" />
         </span>
         <div>
@@ -192,7 +192,7 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
 
     <!-- No record yet: the entry point IS the load (H-C1). -->
     <div v-if="!record" class="mt-4">
-      <p class="rounded-lg bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-inset ring-warning-200">
+      <p class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-inset ring-warning-200">
         No placards can be determined and nothing can clear until the hazmat record exists. Starting it
         copies the equipment, driver and pickup time dispatch already entered.
       </p>
@@ -210,19 +210,19 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
               class="flex size-6 items-center justify-center rounded-full text-[11px] font-semibold ring-1 ring-inset"
               :class="
                 stage.state === 'done'
-                  ? 'bg-brand-600 text-white ring-brand-600'
+                  ? 'bg-selected-strong text-ink ring-selected-strong'
                   : stage.state === 'current'
                     ? 'bg-brand-50 text-brand-700 ring-brand-600'
-                    : 'bg-surface text-ink-subtle ring-edge'
+                    : 'bg-surface text-ink-tertiary ring-edge'
               "
             >
               <span v-if="stage.state === 'done'" aria-hidden="true">✓</span>
-              <span v-else-if="stage.live" class="size-2 animate-pulse rounded-full bg-brand-600" aria-hidden="true" />
+              <span v-else-if="stage.live" class="size-2 animate-pulse rounded-full bg-brand-accent-strong" aria-hidden="true" />
               <span v-else aria-hidden="true">{{ i + 1 }}</span>
             </span>
             <span
               class="text-[11px] font-medium"
-              :class="stage.state === 'upcoming' ? 'text-ink-subtle' : 'text-ink-secondary'"
+              :class="stage.state === 'upcoming' ? 'text-ink-tertiary' : 'text-ink-secondary'"
             >
               {{ stage.label }}
             </span>
@@ -231,7 +231,7 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
             v-if="i < rail.length - 1"
             aria-hidden="true"
             class="mx-2 mb-5 h-px min-w-6 flex-1"
-            :class="stage.state === 'done' ? 'bg-brand-600' : 'bg-edge'"
+            :class="stage.state === 'done' ? 'bg-brand-accent-strong' : 'bg-edge'"
           />
         </template>
       </ol>
@@ -242,17 +242,17 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
 
       <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
         <div>
-          <dt class="text-ink-subtle">Last analysis</dt>
+          <dt class="text-ink-tertiary">Last analysis</dt>
           <dd class="text-ink">
             <span v-if="record.latest_outcome" :class="[BADGE_BASE, toneClass(outcomeTone)]">
               {{ record.latest_outcome === "green" ? "Green" : "Flagged" }}
             </span>
-            <span v-else class="text-ink-subtle">Not analyzed</span>
+            <span v-else class="text-ink-tertiary">Not analyzed</span>
           </dd>
         </div>
-        <div><dt class="text-ink-subtle">Analyzed at</dt><dd class="text-ink">{{ when(record.latest_run_at) }}</dd></div>
-        <div><dt class="text-ink-subtle">Tank state</dt><dd class="capitalize text-ink">{{ record.tank_state.replace(/_/g, " ") }}</dd></div>
-        <div><dt class="text-ink-subtle">Updated</dt><dd class="text-ink">{{ when(record.updated_at) }}</dd></div>
+        <div><dt class="text-ink-tertiary">Analyzed at</dt><dd class="text-ink">{{ when(record.latest_run_at) }}</dd></div>
+        <div><dt class="text-ink-tertiary">Tank state</dt><dd class="capitalize text-ink">{{ record.tank_state.replace(/_/g, " ") }}</dd></div>
+        <div><dt class="text-ink-tertiary">Updated</dt><dd class="text-ink">{{ when(record.updated_at) }}</dd></div>
       </dl>
 
       <div v-if="canManage" class="mt-4 flex flex-wrap items-center gap-2">
@@ -273,7 +273,7 @@ const outcomeTone = computed(() => (record.value?.latest_outcome === "green" ? "
           :href="packetHref"
           target="_blank"
           rel="noopener"
-          class="text-sm font-medium text-brand-600 hover:text-brand-500"
+          class="text-sm font-medium text-link hover:text-link-hover"
         >
           Roadside packet (PDF)
         </a>

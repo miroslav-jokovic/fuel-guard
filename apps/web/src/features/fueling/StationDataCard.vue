@@ -5,8 +5,8 @@ import {
   MapPinIcon,
 } from "@fuelguard/ui/icons";
 import { ref } from "vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
 import {
@@ -145,7 +145,7 @@ async function onSyncLoves() {
           network-wide posted retail prices — refreshed automatically, or on demand here.
         </p>
       </div>
-      <AppIcon :icon="MapPinIcon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+      <AppIcon :icon="MapPinIcon" class="size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
     </div>
 
     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">

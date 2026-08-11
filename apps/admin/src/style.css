@@ -3,3 +3,11 @@
    components so their utility classes are generated (node_modules isn't scanned by default). */
 @import "@fuelguard/ui/tokens.css";
 @source "../../../packages/ui/src/**/*.vue";
+
+html {
+  background: var(--canvas);
+}
+
+body {
+  font-family: theme(--font-sans);
+}

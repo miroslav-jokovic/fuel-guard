@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { AppCard, AppButton } from "@fuelguard/ui";
+import { AppBadge, AppCard, AppButton, AppPageHeader, AppTable } from "@fuelguard/ui";
 import AppShell from "@/layouts/AppShell.vue";
 import { apiGet, type ViewAnomaly } from "@/lib/api";
 import { useImpersonationStore } from "@/stores/impersonation";
@@ -54,9 +54,10 @@ const SEV: Record<string, string> = {
     </AppCard>
 
     <template v-else>
-      <div class="flex items-start justify-between gap-4 rounded-lg bg-warning-100 p-4 text-warning-800">
+      <AppPageHeader title="Read-only customer view" description="Support access is time-limited, read-only, and audited." />
+      <div class="flex items-start justify-between gap-4 rounded-surface bg-warning-100 p-4 text-warning-800">
         <div>
-          <h1 class="text-lg font-semibold">Read-only customer view</h1>
+          <h2 class="text-sm font-semibold">Support session active</h2>
           <p class="mt-0.5 text-sm">
             Session reason: “{{ grant.reason }}” · expires {{ fmtDateTime(grant.expiresAt) }}. Everything you
             do here is logged in this customer's own audit trail.
@@ -69,7 +70,7 @@ const SEV: Record<string, string> = {
 
       <AppCard padding="none" class="mt-4">
         <h2 class="px-5 pt-5 text-sm font-semibold text-ink-secondary">Recent alerts</h2>
-        <table class="mt-3 w-full text-sm">
+        <AppTable class="mt-3 w-full text-sm">
           <thead class="bg-surface-subtle text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
             <tr>
               <th class="px-5 py-2">Severity</th>
@@ -81,7 +82,7 @@ const SEV: Record<string, string> = {
           <tbody>
             <tr v-for="a in anomalies" :key="a.id" class="border-t border-edge-subtle">
               <td class="px-5 py-2 font-medium capitalize" :class="SEV[a.severity] ?? 'text-ink'">{{ a.severity }}</td>
-              <td class="px-5 py-2 capitalize text-ink-secondary">{{ a.status }}</td>
+              <td class="px-5 py-2"><AppBadge :tone="a.status === 'active' ? 'success' : 'neutral'">{{ a.status }}</AppBadge></td>
               <td class="px-5 py-2 text-ink">{{ a.message }}</td>
               <td class="px-5 py-2 text-ink-secondary">{{ fmtDateTime(a.createdAt) }}</td>
             </tr>
@@ -89,7 +90,7 @@ const SEV: Record<string, string> = {
               <td colspan="4" class="px-5 py-6 text-center text-ink-muted">No alerts.</td>
             </tr>
           </tbody>
-        </table>
+        </AppTable>
       </AppCard>
     </template>
   </AppShell>

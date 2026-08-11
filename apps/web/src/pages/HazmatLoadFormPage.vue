@@ -3,12 +3,13 @@ import { computed, reactive } from "vue";
 import { useRouter } from "vue-router";
 import type { HazmatProduct } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import FormField from "@/components/ui/FormField.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppDateTimeField } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import ProductPicker from "@/features/hazmat/ProductPicker.vue";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -120,7 +121,7 @@ async function save() {
             <ComboSelect :id="id" v-model="form.carrierRelationship" :options="CARRIER_RELATIONSHIP_OPTIONS" />
           </FormField>
           <FormField v-slot="{ id }" label="Planned pickup">
-            <BaseInput :id="id" v-model="form.plannedPickupAt" type="datetime-local" />
+            <AppDateTimeField :id="id" v-model="form.plannedPickupAt" />
           </FormField>
           <FormField v-slot="{ id }" label="Special permits (DOT-SP)" hint="Comma-separated, if claimed.">
             <BaseInput :id="id" v-model="form.specialPermitNumbers" placeholder="SP 12345, SP 20800" />
@@ -137,17 +138,17 @@ async function save() {
           <BaseButton variant="soft" size="sm" @click="addLine">Add product</BaseButton>
         </div>
         <div class="mt-3 space-y-4">
-          <div v-for="(line, i) in form.lines" :key="i" class="rounded-lg ring-1 ring-inset ring-edge p-3">
+          <div v-for="(line, i) in form.lines" :key="i" class="rounded-surface ring-1 ring-inset ring-edge p-3">
             <div class="flex items-start justify-between gap-2">
-              <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Line {{ i + 1 }}</p>
-              <button v-if="form.lines.length > 1" type="button" class="text-xs text-ink-muted hover:text-danger-600" @click="removeLine(i)">
+              <p class="text-xs font-medium uppercase tracking-wide text-ink-tertiary">Line {{ i + 1 }}</p>
+              <BaseButton v-if="form.lines.length > 1" type="button" class="text-xs text-ink-muted hover:text-danger-600" @click="removeLine(i)">
                 Remove
-              </button>
+              </BaseButton>
             </div>
             <div class="mt-2">
-              <div v-if="line.product" class="flex items-center justify-between gap-2 rounded-md bg-surface-muted px-3 py-2">
+              <div v-if="line.product" class="flex items-center justify-between gap-2 rounded-control bg-surface-muted px-3 py-2">
                 <span class="truncate text-sm text-ink">{{ line.product.label }}</span>
-                <button type="button" class="shrink-0 text-xs text-brand-600 hover:text-brand-500" @click="clearProduct(i)">Change</button>
+                <BaseButton type="button" class="shrink-0 text-xs text-link hover:text-link-hover" @click="clearProduct(i)">Change</BaseButton>
               </div>
               <ProductPicker v-else @select="(p) => selectProduct(i, p)" />
             </div>

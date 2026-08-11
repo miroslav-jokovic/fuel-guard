@@ -9,8 +9,8 @@ import {
   type Icon,
 } from "@fuelguard/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 
 const tools: Array<{ name: string; description: string; action: string; to: string; icon: Icon }> = [
   {
@@ -58,7 +58,7 @@ const tools: Array<{ name: string; description: string; action: string; to: stri
         <BaseCard v-for="tool in tools" :key="tool.to" as="article">
           <div class="flex h-full flex-col">
             <div class="flex items-start gap-4">
-              <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <span class="flex size-10 shrink-0 items-center justify-center rounded-surface bg-brand-50 text-brand-700">
                 <AppIcon :icon="tool.icon" class="size-5" aria-hidden="true" />
               </span>
               <div>

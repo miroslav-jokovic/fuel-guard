@@ -5,7 +5,7 @@ import {
   ChevronRightIcon,
 } from "@fuelguard/ui/icons";
 import { computed, ref, watch } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 
 const props = withDefaults(
   defineProps<{ page: number; pageSize?: number; total: number; loading?: boolean; jumpable?: boolean }>(),
@@ -60,7 +60,7 @@ const commitJump = () => {
           :value="draft"
           :disabled="loading"
           aria-label="Go to page"
-          class="w-14 rounded-md border-0 py-1 text-center text-sm text-ink ring-1 ring-edge-strong ring-inset focus:ring-2 focus:ring-brand-600 disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          class="w-14 rounded-control border-0 py-1 text-center text-sm text-ink ring-1 ring-edge-control ring-inset focus:ring-2 focus:ring-focus-ring disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           @input="draft = ($event.target as HTMLInputElement).value"
           @keyup.enter="commitJump"
           @blur="commitJump"

@@ -66,6 +66,15 @@ jobs:
       - name: Token parity (web ↔ @fuelguard/ui)
         run: pnpm lint:tokens-parity
 
+      - name: UI semantic contrast
+        run: pnpm lint:ui-contrast
+
+      - name: Chart color vision and contrast
+        run: pnpm lint:chart-colors
+
+      - name: UI component adoption
+        run: pnpm lint:ui-adoption
+
       - name: Feature boundaries
         run: pnpm lint:boundaries
 

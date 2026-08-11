@@ -4,7 +4,7 @@ import { shiftDuration, type AssignmentHistoryRow } from "@fuelguard/shared";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useDriversQuery } from "@/composables/useDrivers";
@@ -203,7 +203,7 @@ const stamp = (v: string): string =>
           >
             {{ query.isFetchingNextPage.value ? "Loading…" : "Load more" }}
           </BaseButton>
-          <p v-else-if="rows.length > 0" class="text-sm text-ink-subtle">
+          <p v-else-if="rows.length > 0" class="text-sm text-ink-tertiary">
             That is every segment in this range.
           </p>
         </div>

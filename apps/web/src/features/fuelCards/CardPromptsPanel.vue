@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { EFS_MATCH_VALUE_MAX, infoLabel, type PromptInput } from "@fuelguard/shared";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 /**
@@ -64,7 +64,7 @@ function update(index: number, patch: Partial<PromptInput>): void {
 
 <template>
   <div class="space-y-4">
-    <div v-for="(draft, index) in props.drafts" :key="draft.infoId" class="space-y-3 rounded-md border border-edge p-3">
+    <div v-for="(draft, index) in props.drafts" :key="draft.infoId" class="space-y-3 rounded-control border border-edge p-3">
       <p class="text-sm font-medium text-ink">{{ infoLabel(draft.infoId) }}</p>
       <FormField
         label="Value the driver must enter"
@@ -94,7 +94,7 @@ function update(index: number, patch: Partial<PromptInput>): void {
       </FormField>
     </div>
 
-    <p v-if="removesDriverId" class="rounded-md bg-danger-50 px-3 py-2 text-sm text-danger-700">
+    <p v-if="removesDriverId" class="rounded-control bg-danger-50 px-3 py-2 text-sm text-danger-700">
       Clearing the Driver ID stops the pump checking who is fueling this card, and FuelGuard loses its
       strongest signal for attributing a fill to a driver. You will be asked to confirm your password.
     </p>
@@ -102,7 +102,7 @@ function update(index: number, patch: Partial<PromptInput>): void {
     <div v-if="readOnlyRows.length > 0" class="space-y-1">
       <p class="text-sm text-ink-muted">Also on this card, and left untouched:</p>
       <ul class="space-y-1">
-        <li v-for="row in readOnlyRows" :key="row.infoId" class="flex items-center gap-2 text-sm text-ink-subtle">
+        <li v-for="row in readOnlyRows" :key="row.infoId" class="flex items-center gap-2 text-sm text-ink-tertiary">
           <span>{{ infoLabel(row.infoId) }}</span>
           <span v-if="row.validationType" :class="[BADGE_BASE, toneClass('neutral')]">{{ row.validationType }}</span>
           <span v-if="row.matchValue">{{ row.matchValue }}</span>

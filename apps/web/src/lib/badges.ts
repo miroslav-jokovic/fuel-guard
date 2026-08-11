@@ -13,7 +13,7 @@ const SOFT = {
 export type BadgeTone = keyof typeof SOFT;
 
 /** Base classes for a pill badge; combine with a tone from the helpers below. */
-export const BADGE_BASE = "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium capitalize";
+export const BADGE_BASE = "inline-flex items-center gap-1 rounded-detail px-2 py-0.5 text-xs font-medium capitalize";
 
 /** Soft badge classes for a semantic tone (unknown keys fall back to neutral). */
 export const toneClass = (key: string): string => SOFT[key as BadgeTone] ?? SOFT.neutral;

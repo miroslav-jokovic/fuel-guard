@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import type { PlanResult, PlanStopView } from "./useFuelPlan";
 
 const props = defineProps<{
@@ -68,7 +68,7 @@ const view = computed(() => {
     </svg>
     <div class="flex flex-wrap items-center gap-4 border-t border-edge px-4 py-2 text-xs text-ink-muted">
       <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-success-600" /> Start</span>
-      <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-brand-600" /> Destination</span>
+      <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-brand-accent-strong" /> Destination</span>
       <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-info-500" /> Fuel stop</span>
       <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-warning-500" /> Emergency stop</span>
     </div>

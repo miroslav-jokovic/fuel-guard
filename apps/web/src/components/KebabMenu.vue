@@ -44,7 +44,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
       :class="[
         $slots.trigger
           ? 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80'
-          : 'rounded-md p-1 text-ink-subtle hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-brand-600 focus:outline-none',
+          : 'rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary focus:ring-2 focus:ring-focus-ring focus:outline-none',
         block ? 'w-full' : '',
       ]"
       :aria-label="triggerLabel ?? ($slots.trigger ? undefined : 'Actions')"
@@ -57,14 +57,16 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
     </button>
     <Teleport to="body">
       <template v-if="open">
-        <div class="fixed inset-0 z-[9998]" @click.stop="open = false" />
+        <button type="button" class="fixed inset-0 z-[9998]" aria-label="Close actions menu" @click.stop="open = false" />
+        <!-- The panel delegates selection close to its keyboard-accessible menu-item buttons. -->
+        <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -->
         <div
           ref="panelRef"
           :style="floatingStyles"
           :class="
             tone === 'sidebar'
-              ? 'sidebar-glass-popover rounded-2xl'
-              : 'rounded-md bg-surface shadow-lg ring-1 ring-edge'
+              ? 'sidebar-glass-popover rounded-dialog'
+              : 'rounded-control bg-surface shadow-lg ring-1 ring-edge'
           "
           class="z-[9999] w-48 origin-top-right py-1"
           @click="open = false"

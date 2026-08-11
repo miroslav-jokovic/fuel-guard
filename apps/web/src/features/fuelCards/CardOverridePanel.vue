@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { EfsLocation } from "@fuelguard/shared";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
 
 /**
@@ -58,7 +58,7 @@ const ready = computed(
 
 <template>
   <div class="space-y-4">
-    <div v-if="active" class="rounded-md bg-surface-subtle px-3 py-2 text-sm text-ink">
+    <div v-if="active" class="rounded-control bg-surface-subtle px-3 py-2 text-sm text-ink">
       This card already has {{ props.overrideUses }} exception{{ props.overrideUses === 1 ? "" : "s" }} left
       <template v-if="props.locationOverrideId">at location #{{ props.locationOverrideId }}</template>
       <template v-else-if="props.overrideAllLocations">at any location</template>.

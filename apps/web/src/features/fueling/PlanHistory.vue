@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { computed, ref, watch } from "vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
@@ -142,31 +143,31 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
         <FilterSelect v-model="statusFilter" label="Status" :options="statusOptions" />
         <FilterSelect v-model="truckFilter" label="Truck" :options="truckOptions" />
         <DateRangeFilter :from="fromDate" :to="toDate" @update:from="fromDate = $event" @update:to="toDate = $event" />
-        <button
+        <BaseButton
           v-if="anyFilter"
           type="button"
           class="text-sm font-medium text-ink-muted hover:text-ink-secondary"
           @click="clearAll"
         >
           Clear all
-        </button>
+        </BaseButton>
       </template>
     </FilterBar>
 
     <div
       v-if="selectedIds.size > 0"
-      class="flex items-center justify-between rounded-lg bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-100"
+      class="flex items-center justify-between rounded-surface bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-100"
     >
       <span class="font-medium text-brand-800">{{ selectedIds.size }} selected</span>
       <div class="flex items-center gap-3">
-        <button
+        <BaseButton
           :disabled="bulkBusy"
           class="font-medium text-danger-600 hover:text-danger-500 disabled:opacity-50"
           @click="bulkDelete"
         >
           {{ bulkBusy ? "Deleting…" : "Delete" }}
-        </button>
-        <button class="font-medium text-ink-muted hover:text-ink-secondary" @click="selectedIds = new Set()">Clear</button>
+        </BaseButton>
+        <BaseButton class="font-medium text-ink-muted hover:text-ink-secondary" @click="selectedIds = new Set()">Clear</BaseButton>
       </div>
     </div>
 
@@ -190,7 +191,7 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
       <template #cell-unit_number="{ row }">{{ row.unit_number ?? "—" }}</template>
       <template #cell-route="{ row }">
         <span class="text-ink">{{ row.origin_label ?? "—" }}</span>
-        <span class="mx-1 text-ink-subtle">→</span>
+        <span class="mx-1 text-ink-tertiary">→</span>
         <span class="text-ink">{{ row.destination_label ?? "—" }}</span>
       </template>
       <template #cell-distance_miles="{ row }">{{ row.distance_miles != null ? `${row.distance_miles.toLocaleString()} mi` : "—" }}</template>
@@ -201,7 +202,7 @@ const usd = (n: number | null) => (n == null ? "—" : `$${n.toLocaleString(unde
       </template>
       <template #actions="{ row }">
         <KebabMenu>
-          <button class="kebab-item kebab-item-danger" @click="deleteOne(row)">Delete plan</button>
+          <BaseButton class="kebab-item kebab-item-danger" @click="deleteOne(row)">Delete plan</BaseButton>
         </KebabMenu>
       </template>
     </DataTable>

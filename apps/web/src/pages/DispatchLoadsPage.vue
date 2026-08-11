@@ -24,7 +24,7 @@ import SlideOver from "@/components/SlideOver.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import {
@@ -311,20 +311,20 @@ onUnmounted(() => {
     </PageHeader>
 
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <nav class="flex gap-1 rounded-lg bg-surface-muted p-1 text-sm" role="tablist" aria-label="Load queue">
-        <button
+      <nav class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm" role="tablist" aria-label="Load queue">
+        <BaseButton
           v-for="queue in QUEUE_TABS"
           :key="queue.value"
           type="button"
           role="tab"
-          class="rounded-md px-3 py-1.5 font-medium transition"
-          :class="tab === queue.value ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+          class="rounded-control px-3 py-1.5 font-medium transition"
+          :class="tab === queue.value ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
           :aria-selected="tab === queue.value"
           @click="tab = queue.value"
         >
           {{ queue.label }}
-          <span class="ml-0.5 text-ink-subtle">{{ counts[queue.value] }}</span>
-        </button>
+          <span class="ml-0.5 text-ink-tertiary">{{ counts[queue.value] }}</span>
+        </BaseButton>
       </nav>
     </div>
 
@@ -349,7 +349,7 @@ onUnmounted(() => {
 
     <div
       v-if="session.canManage && selected.size > 0"
-      class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
+      class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
     >
       <span class="text-sm font-medium text-brand-800">{{ selected.size }} selected</span>
       <BaseButton size="sm" :disabled="bulk.isPending.value || approvableIds.length === 0" @click="bulkDo('approve', approvableIds)">
@@ -383,7 +383,7 @@ onUnmounted(() => {
         <RouterLink
           v-if="row.load_id"
           :to="`/loads/${row.load_id}`"
-          class="font-medium text-brand-600 hover:text-brand-500"
+          class="font-medium text-link hover:text-link-hover"
         >
           {{ row.summary }}
         </RouterLink>
@@ -422,15 +422,15 @@ onUnmounted(() => {
       @row-click="openDetail"
     >
       <template #cell-ref="{ row }">
-        <button type="button" class="font-medium text-brand-600 hover:text-brand-500" @click.stop="openDetail(row)">
+        <BaseButton type="button" class="font-medium text-link hover:text-link-hover" @click.stop="openDetail(row)">
           {{ row.ref }}
-        </button>
+        </BaseButton>
       </template>
       <template #cell-source="{ row }">
         <span :class="[BADGE_BASE, toneClass(row.source === 'tms' ? 'info' : 'neutral')]"><span class="capitalize">{{ row.provider ?? row.source }}</span></span>
       </template>
       <template #cell-driver_name="{ row }">
-        <span :class="row.driver_name ? 'text-ink-secondary' : 'text-ink-subtle'">{{ row.driver_name ?? "Unassigned" }}</span>
+        <span :class="row.driver_name ? 'text-ink-secondary' : 'text-ink-tertiary'">{{ row.driver_name ?? "Unassigned" }}</span>
       </template>
       <template #cell-equipment="{ row }">{{ row.equipment ?? "—" }}</template>
       <template #cell-first_stop="{ row }"><span class="tabular-nums">{{ firstAppointment(row) }}</span></template>
@@ -440,7 +440,7 @@ onUnmounted(() => {
         <span v-if="row.hazmat" :class="[BADGE_BASE, toneClass(hazmatTone(row.hazmat_status))]">
           {{ hazmatChipLabel(row.hazmat_status) }}
         </span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <!-- The checklist IS the product: a named list of what is missing, not a dead button. -->
       <template #cell-readiness="{ row }">
@@ -460,7 +460,7 @@ onUnmounted(() => {
       </template>
       <template #actions="{ row }">
         <KebabMenu>
-          <button class="kebab-item" @click.stop="openDetail(row)">Open details</button>
+          <BaseButton class="kebab-item" @click.stop="openDetail(row)">Open details</BaseButton>
         </KebabMenu>
       </template>
       <template #footer>

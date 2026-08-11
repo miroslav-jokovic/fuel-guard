@@ -256,7 +256,7 @@ function onSort(key: string): void {
       <template #cell-driver_name="{ row }">
         <RouterLink
           :to="`/compliance/${row.driver_id}`"
-          class="font-medium text-brand-600 hover:text-brand-500"
+          class="font-medium text-link hover:text-link-hover"
         >
           {{ row.driver_name }}
         </RouterLink>
@@ -277,11 +277,11 @@ function onSort(key: string): void {
       </template>
       <template #cell-goodUntil="{ row }">
         <span v-if="row.goodUntil">{{ formatDate(row.goodUntil) }}</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-evidenceDate="{ row }">
         <span v-if="row.evidenceDate">{{ formatDate(row.evidenceDate) }}</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-daysRemaining="{ row }">{{ dueLabel(row) }}</template>
       <template #footer>

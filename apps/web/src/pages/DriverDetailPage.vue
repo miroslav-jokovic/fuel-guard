@@ -8,10 +8,11 @@ import { supabase } from "@/lib/supabase";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/features/dashboard/chartTheme";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const route = useRoute();
 const id = computed(() => String(route.params.id ?? ""));
@@ -109,11 +110,11 @@ const fillColumns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
+    <PageHeader :title="driver?.full_name ?? 'Driver'" description="Driver performance and fueling history" />
     <BaseCard v-if="driver">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-lg font-semibold text-ink">{{ driver.full_name }}</h2>
-          <p class="text-sm text-ink-muted">Driver performance and fueling history</p>
+          <h2 class="text-sm font-semibold text-ink">Driver summary</h2>
         </div>
         <StatusBadge :status="driver.status" />
       </div>

@@ -36,12 +36,12 @@ import {
   useSaveDriverOverride,
 } from "@/features/settings/useDriverAppFeatures";
 import { useToastStore } from "@/stores/toast";
-import AppSelect from "@/components/AppSelect.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseSwitch from "@/components/ui/BaseSwitch.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppSelect } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppSwitch as BaseSwitch } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 type SettingsTab = "features" | "app" | "exceptions";
 const activeTab = ref<SettingsTab>("features");
@@ -224,21 +224,21 @@ async function removeOverride(featureKey: string) {
       <p class="text-sm font-semibold text-danger-600">Driver App settings could not be loaded.</p>
       <p class="mt-1 text-sm text-ink-muted">{{ rowsQ.error.value?.message }} The controls remain unavailable until the connection is restored.</p>
     </BaseCard>
-    <nav class="flex gap-1 overflow-x-auto rounded-lg bg-surface-muted p-1" role="tablist" aria-label="Driver App settings">
-      <button
+    <nav class="flex gap-1 overflow-x-auto rounded-surface bg-surface-muted p-1" role="tablist" aria-label="Driver App settings">
+      <BaseButton
         v-for="tab in tabs"
         :id="`driver-app-tab-${tab.key}`"
         :key="tab.key"
         type="button"
         role="tab"
-        class="shrink-0 rounded-md px-3 py-2 text-sm font-medium transition"
-        :class="activeTab === tab.key ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+        class="shrink-0 rounded-control px-3 py-2 text-sm font-medium transition"
+        :class="activeTab === tab.key ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
         :aria-selected="activeTab === tab.key"
         :aria-controls="`driver-app-panel-${tab.key}`"
         @click="activeTab = tab.key"
       >
         {{ tab.label }}
-      </button>
+      </BaseButton>
     </nav>
     <section
       v-if="activeTab === 'features'"
@@ -265,7 +265,7 @@ async function removeOverride(featureKey: string) {
         <ul class="divide-y divide-edge-subtle">
           <li v-for="def in coreFeatures" :key="def.key" class="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div class="flex min-w-0 gap-3">
-              <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+              <span class="flex size-9 shrink-0 items-center justify-center rounded-surface bg-brand-50 text-brand-700">
                 <AppIcon :icon="featureIcon(def.key)" class="size-5" aria-hidden="true" />
               </span>
               <div class="min-w-0">
@@ -318,8 +318,8 @@ async function removeOverride(featureKey: string) {
           <li v-for="def in moduleFeatures" :key="def.key" class="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div class="flex min-w-0 gap-3">
               <span
-                class="flex size-9 shrink-0 items-center justify-center rounded-lg"
-                :class="entitled(def) ? 'bg-brand-50 text-brand-700' : 'bg-surface-muted text-ink-subtle'"
+                class="flex size-9 shrink-0 items-center justify-center rounded-surface"
+                :class="entitled(def) ? 'bg-brand-50 text-brand-700' : 'bg-surface-muted text-ink-tertiary'"
               >
                 <AppIcon :icon="featureIcon(def.key)" class="size-5" aria-hidden="true" />
               </span>
@@ -365,7 +365,7 @@ async function removeOverride(featureKey: string) {
       </div>
       <BaseCard as="section" padding="none">
         <div class="flex items-start gap-3 border-b border-edge-subtle p-5">
-          <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+          <span class="flex size-9 shrink-0 items-center justify-center rounded-surface bg-brand-50 text-brand-700">
             <AppIcon :icon="DevicePhoneMobileIcon" class="size-5" aria-hidden="true" />
           </span>
           <div>
@@ -374,7 +374,7 @@ async function removeOverride(featureKey: string) {
           </div>
         </div>
         <div class="space-y-5 p-5">
-          <div class="flex items-start gap-3 rounded-lg bg-surface-subtle p-4 ring-1 ring-edge-subtle">
+          <div class="flex items-start gap-3 rounded-surface bg-surface-subtle p-4 ring-1 ring-edge-subtle">
             <AppIcon :icon="InformationCircleIcon" class="mt-0.5 size-5 shrink-0 text-info-600" aria-hidden="true" />
             <div>
               <p class="text-sm font-medium text-ink">
@@ -413,7 +413,7 @@ async function removeOverride(featureKey: string) {
       </div>
       <BaseCard as="section">
         <div class="flex items-start gap-3">
-          <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+          <span class="flex size-9 shrink-0 items-center justify-center rounded-surface bg-brand-50 text-brand-700">
             <AppIcon :icon="UsersIcon" class="size-5" aria-hidden="true" />
           </span>
           <div class="min-w-0 flex-1">

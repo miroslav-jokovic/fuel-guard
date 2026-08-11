@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { AppCard } from "@fuelguard/ui";
+import { AppCard, AppPageHeader, AppTable } from "@fuelguard/ui";
 import AppShell from "@/layouts/AppShell.vue";
 import { apiGet, type OrgOverview } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
@@ -23,13 +23,12 @@ onMounted(async () => {
 
 <template>
   <AppShell>
-    <h1 class="text-xl font-semibold text-ink">Customers</h1>
-    <p class="mt-1 text-sm text-ink-muted">Every organization on the platform.</p>
+    <AppPageHeader title="Customers" description="Every organization on the platform." />
 
     <AppCard padding="none" class="mt-5">
       <div v-if="loading" class="p-6 text-sm text-ink-muted">Loading…</div>
       <div v-else-if="error" class="p-6 text-sm text-danger-600">{{ error }}</div>
-      <table v-else class="w-full text-sm">
+      <AppTable v-else class="w-full text-sm">
         <thead class="bg-surface-subtle text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
           <tr>
             <th class="px-4 py-2.5">Organization</th>
@@ -62,7 +61,7 @@ onMounted(async () => {
             <td colspan="6" class="px-4 py-6 text-center text-ink-muted">No organizations yet.</td>
           </tr>
         </tbody>
-      </table>
+      </AppTable>
     </AppCard>
   </AppShell>
 </template>

@@ -6,9 +6,10 @@ import {
   CARD_SCOPE_LABELS,
   type CardControlScope,
 } from "@fuelguard/shared";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import type { CardApproverRow, EligibleMember } from "./useCardControlSettings";
 
@@ -79,7 +80,7 @@ function add(): void {
 
 <template>
   <div class="space-y-5">
-    <p v-if="!props.enforced" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-700">
+    <p v-if="!props.enforced" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700">
       The approver list is not being enforced, so every {{ roleWords }} in this company can change
       cards. The names below are kept, and take effect again the moment you switch enforcement back on.
     </p>
@@ -88,7 +89,7 @@ function add(): void {
       Nobody is named yet. While the approver list is enforced, that means no one can change a card.
     </div>
 
-    <div v-for="approver in props.approvers" :key="approver.userId" class="space-y-3 rounded-md border border-edge p-3">
+    <div v-for="approver in props.approvers" :key="approver.userId" class="space-y-3 rounded-control border border-edge p-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-sm font-medium text-ink">{{ approver.email ?? approver.userId }}</span>
@@ -108,27 +109,23 @@ function add(): void {
       </p>
 
       <div class="grid gap-2 sm:grid-cols-2">
-        <label
+        <BaseCheckbox
           v-for="scope in CARD_CONTROL_SCOPES"
           :key="scope"
-          class="flex items-start gap-2 text-sm text-ink"
+          :model-value="approver.scopes.includes(scope)"
+          :disabled="props.busy"
+          class="items-start"
+          @update:model-value="toggleScope(approver, scope)"
         >
-          <input
-            type="checkbox"
-            class="mt-1"
-            :checked="approver.scopes.includes(scope)"
-            :disabled="props.busy"
-            @change="toggleScope(approver, scope)"
-          />
           <span>
             {{ CARD_SCOPE_LABELS[scope] }}
             <span class="block text-ink-muted">{{ CARD_SCOPE_DESCRIPTIONS[scope] }}</span>
           </span>
-        </label>
+        </BaseCheckbox>
       </div>
     </div>
 
-    <div class="space-y-3 rounded-md border border-dashed border-edge p-3">
+    <div class="space-y-3 rounded-control border border-dashed border-edge p-3">
       <h3 class="text-sm font-medium text-ink">Name someone</h3>
       <p v-if="addable.length === 0" class="text-sm text-ink-muted">
         Everyone eligible is already named. Card changes are limited to {{ roleWords }} — change a
@@ -147,16 +144,15 @@ function add(): void {
           </template>
         </FormField>
         <div class="grid gap-2 sm:grid-cols-2">
-          <label v-for="scope in CARD_CONTROL_SCOPES" :key="scope" class="flex items-start gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              class="mt-1"
-              :checked="addingScopes.includes(scope)"
-              :disabled="props.busy"
-              @change="toggleAddScope(scope)"
-            />
+          <BaseCheckbox
+            v-for="scope in CARD_CONTROL_SCOPES"
+            :key="scope"
+            :model-value="addingScopes.includes(scope)"
+            :disabled="props.busy"
+            @update:model-value="toggleAddScope(scope)"
+          >
             <span>{{ CARD_SCOPE_LABELS[scope] }}</span>
-          </label>
+          </BaseCheckbox>
         </div>
         <div class="flex justify-end">
           <BaseButton

@@ -104,15 +104,17 @@ watch(
 <template>
   <div ref="triggerRef" class="relative min-w-[10rem]">
     <!-- Trigger / input wrapper -->
+    <!-- The input/clear controls own keyboard interaction; this wrapper expands their pointer hit area. -->
+    <!-- eslint-disable-next-line vuejs-accessibility/click-events-have-key-events, vuejs-accessibility/no-static-element-interactions -->
     <div
-      class="flex w-full items-center gap-1.5 rounded-md border-0 bg-surface px-2.5 py-1.5 text-sm ring-1 ring-inset transition-shadow"
+      class="flex w-full items-center gap-1.5 rounded-control border-0 bg-surface px-2.5 py-1.5 text-sm ring-1 ring-inset transition-shadow"
       :class="[
-        open ? 'ring-2 ring-brand-600' : 'ring-edge-strong',
+        open ? 'ring-2 ring-brand-600' : 'ring-edge-control',
         disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
       ]"
       @click="openDropdown"
     >
-      <AppIcon :icon="TruckIcon" class="size-4 shrink-0 text-ink-subtle" />
+      <AppIcon :icon="TruckIcon" class="size-4 shrink-0 text-ink-tertiary" />
 
       <input
         v-if="open"
@@ -120,14 +122,14 @@ watch(
         v-model="search"
         type="text"
         :placeholder="placeholder"
-        class="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-subtle"
+        class="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-disabled"
         @keydown="onInputKeydown"
         @click.stop
       />
       <span
         v-else
         class="min-w-0 flex-1 truncate text-sm"
-        :class="isUnset ? 'text-ink-subtle' : 'text-ink'"
+        :class="isUnset ? 'text-ink-tertiary' : 'text-ink'"
       >
         {{ isUnset ? placeholder : selectedVehicle?.unit_number }}
       </span>
@@ -135,23 +137,23 @@ watch(
       <button
         v-if="!isUnset && !open"
         type="button"
-        class="ml-auto shrink-0 text-ink-subtle hover:text-ink-secondary"
+        class="ml-auto shrink-0 text-ink-tertiary hover:text-ink-secondary"
         aria-label="Clear vehicle filter"
         @click="clear"
       >
         <AppIcon :icon="XMarkIcon" class="size-4" />
       </button>
-      <AppIcon v-else :icon="ChevronUpDownIcon" class="ml-auto size-4 shrink-0 text-ink-subtle" />
+      <AppIcon v-else :icon="ChevronUpDownIcon" class="ml-auto size-4 shrink-0 text-ink-tertiary" />
     </div>
 
     <!-- Dropdown -->
     <Teleport to="body">
       <template v-if="open">
-        <div class="fixed inset-0 z-[9998]" @click="closeDropdown" />
+        <button type="button" class="fixed inset-0 z-[9998]" aria-label="Close vehicle options" @click="closeDropdown" />
         <div
           ref="panelRef"
           :style="floatingStyles"
-          class="z-[9999] overflow-hidden rounded-md bg-surface shadow-lg ring-1 ring-edge"
+          class="z-[9999] overflow-hidden rounded-control bg-surface shadow-lg ring-1 ring-edge"
         >
           <!-- "All vehicles" option -->
           <button
@@ -170,7 +172,7 @@ watch(
 
           <div class="max-h-56 overflow-y-auto border-t border-edge-subtle">
             <!-- No results -->
-            <p v-if="filteredVehicles.length === 0" class="px-3 py-2 text-sm text-ink-subtle italic">
+            <p v-if="filteredVehicles.length === 0" class="px-3 py-2 text-sm text-ink-tertiary italic">
               No vehicles match "{{ search }}"
             </p>
 
@@ -192,7 +194,7 @@ watch(
                 :class="v.id === modelValue ? 'opacity-100' : 'opacity-0'"
               />
               <span class="font-medium">{{ v.unit_number }}</span>
-              <span v-if="v.make || v.model" class="truncate text-xs text-ink-subtle">
+              <span v-if="v.make || v.model" class="truncate text-xs text-ink-tertiary">
                 {{ [v.year, v.make, v.model].filter(Boolean).join(" ") }}
               </span>
             </button>

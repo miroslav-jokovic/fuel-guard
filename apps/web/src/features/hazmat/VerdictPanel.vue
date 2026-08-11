@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import type { CalcResult } from "./useHazmatCalc";
 import PlacardDiamond from "./PlacardDiamond.vue";
@@ -105,7 +105,7 @@ const fmt = (n: number): string => n.toLocaleString("en-US");
         </li>
       </ul>
 
-      <p v-if="display.length" class="mt-4 border-t border-edge pt-3 text-xs text-ink-subtle">
+      <p v-if="display.length" class="mt-4 border-t border-edge pt-3 text-xs text-ink-tertiary">
         Placard images are <strong>specimens</strong> for identification, not regulation-ready artwork
         (49&nbsp;CFR&nbsp;§172.519).
       </p>
@@ -128,7 +128,7 @@ const fmt = (n: number): string => n.toLocaleString("en-US");
             <li
               v-for="(f, j) in d.alternateFormats"
               :key="j"
-              class="rounded-md px-3 py-2 text-xs ring-1 ring-inset"
+              class="rounded-control px-3 py-2 text-xs ring-1 ring-inset"
               :class="f.format === d.format ? 'bg-brand-50 text-ink ring-brand-200' : 'bg-surface text-ink-secondary ring-edge'"
             >
               <div class="flex flex-wrap items-center gap-2">
@@ -176,19 +176,19 @@ const fmt = (n: number): string => n.toLocaleString("en-US");
       </dl>
 
       <ul class="mt-4 space-y-1.5 text-xs">
-        <li class="flex items-center justify-between gap-3 rounded-md bg-surface-subtle px-3 py-1.5 ring-1 ring-inset ring-edge">
+        <li class="flex items-center justify-between gap-3 rounded-control bg-surface-subtle px-3 py-1.5 ring-1 ring-inset ring-edge">
           <span class="text-ink-secondary">1,001 lb — non-bulk Table 2 placarding (§172.504(c))</span>
           <span :class="[BADGE_BASE, toneClass(agg.thresholdMet ? 'brand' : 'neutral')]">
             {{ agg.thresholdMet ? "Met" : "Not met" }}
           </span>
         </li>
-        <li class="flex items-center justify-between gap-3 rounded-md bg-surface-subtle px-3 py-1.5 ring-1 ring-inset ring-edge">
+        <li class="flex items-center justify-between gap-3 rounded-control bg-surface-subtle px-3 py-1.5 ring-1 ring-inset ring-edge">
           <span class="text-ink-secondary">2,205 lb — single category keeps its own placard (§172.504(b))</span>
           <span :class="[BADGE_BASE, toneClass(agg.countedGrossWeightLb != null && agg.countedGrossWeightLb >= agg.thresholds.dangerousCategoryLb ? 'brand' : 'neutral')]">
             {{ agg.countedGrossWeightLb == null ? "Unknown" : agg.countedGrossWeightLb >= agg.thresholds.dangerousCategoryLb ? "Over" : "Under" }}
           </span>
         </li>
-        <li class="flex items-center justify-between gap-3 rounded-md bg-surface-subtle px-3 py-1.5 ring-1 ring-inset ring-edge">
+        <li class="flex items-center justify-between gap-3 rounded-control bg-surface-subtle px-3 py-1.5 ring-1 ring-inset ring-edge">
           <span class="text-ink-secondary">8,820 lb — single-material non-bulk ID display (§172.301(a)(3))</span>
           <span :class="[BADGE_BASE, toneClass(agg.countedGrossWeightLb != null && agg.countedGrossWeightLb >= agg.thresholds.nonBulkIdDisplayLb ? 'brand' : 'neutral')]">
             {{ agg.countedGrossWeightLb == null ? "Unknown" : agg.countedGrossWeightLb >= agg.thresholds.nonBulkIdDisplayLb ? "Over" : "Under" }}
@@ -267,7 +267,7 @@ const fmt = (n: number): string => n.toLocaleString("en-US");
     <BaseCard v-if="v.placards.ergGuides.length">
       <h3 class="text-sm font-semibold text-ink">Emergency Response Guide</h3>
       <ul class="mt-2 flex flex-wrap gap-2 text-sm">
-        <li v-for="(g, i) in v.placards.ergGuides" :key="i" class="rounded bg-surface-muted px-2 py-1 ring-1 ring-inset ring-edge">
+        <li v-for="(g, i) in v.placards.ergGuides" :key="i" class="rounded-control bg-surface-muted px-2 py-1 ring-1 ring-inset ring-edge">
           <span class="font-mono">{{ g.idNumber }}</span> → Guide <span class="font-semibold">{{ g.guide }}</span>
         </li>
       </ul>

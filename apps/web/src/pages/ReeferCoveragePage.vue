@@ -7,7 +7,7 @@ import { useTrailersQuery } from "@/composables/useTrailers";
 import { useDriversQuery } from "@/composables/useDrivers";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -144,7 +144,7 @@ const columns: DataTableColumn[] = [
     </FilterBar>
 
     <!-- No reefer↔truck pairing data at all → tell the user how to establish it. -->
-    <div v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" class="rounded-lg bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
+    <div v-if="!isLoading && !isError && activeAll.length && !anyReeferPaired" class="rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
       <p class="font-medium">No reefer trailers are paired to trucks yet.</p>
       <p class="mt-0.5 text-warning-700">
         Reefer fuel can't be attributed to a specific trailer until each reefer is identified and paired. On the

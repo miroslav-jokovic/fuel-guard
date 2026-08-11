@@ -2,7 +2,7 @@
 import { AppIcon } from "@fuelguard/ui";
 import { ChevronLeftIcon } from "@fuelguard/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import HazmatCalculatorForm from "@/features/hazmat/HazmatCalculatorForm.vue";
 </script>
 

@@ -84,18 +84,18 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
 
 <template>
   <div class="space-y-4">
-    <p v-if="!reconciled" class="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-warning-200">
+    <p v-if="!reconciled" class="rounded-control bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-warning-200">
       This fill hasn't been reconciled against Samsara yet. Run <strong>Re-sync Samsara</strong> from Settings → Data & Sync to populate these.
     </p>
-    <p v-else-if="reconStatus === 'failed'" class="rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-warning-200">
+    <p v-else-if="reconStatus === 'failed'" class="rounded-control bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-warning-200">
       The latest Samsara refresh failed{{ reconCheckedLabel ? ` at ${reconCheckedLabel}` : "" }}. Previously stored telemetry evidence was preserved.
     </p>
-    <p v-else-if="reconStatus === 'no_data'" class="rounded-md bg-surface-muted px-3 py-2 text-xs text-ink-secondary ring-1 ring-edge">
+    <p v-else-if="reconStatus === 'no_data'" class="rounded-control bg-surface-muted px-3 py-2 text-xs text-ink-secondary ring-1 ring-edge">
       Samsara returned no data on the latest refresh{{ reconCheckedLabel ? ` at ${reconCheckedLabel}` : "" }}. Previously stored telemetry evidence was preserved.
     </p>
 
     <!-- Odometer -->
-    <div class="rounded-lg border border-edge p-4">
+    <div class="rounded-surface border border-edge p-4">
       <h4 class="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">Odometer — driver entry vs telematics</h4>
       <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <dt class="text-ink-muted">Driver entered (report)</dt>
@@ -109,10 +109,10 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
         <dt class="text-ink-muted">Difference</dt>
         <dd class="text-right font-semibold" :class="beyondTolerance ? 'text-danger-700' : 'text-ink'">
           {{ signed(calibratedDiff) }}
-          <span v-if="odometerOffset && rawDiff != null" class="ml-1 text-xs font-normal text-ink-subtle">(raw {{ signed(rawDiff) }})</span>
+          <span v-if="odometerOffset && rawDiff != null" class="ml-1 text-xs font-normal text-ink-tertiary">(raw {{ signed(rawDiff) }})</span>
         </dd>
       </dl>
-      <p class="mt-2 text-xs" :class="beyondTolerance ? 'text-danger-600' : 'text-ink-subtle'">
+      <p class="mt-2 text-xs" :class="beyondTolerance ? 'text-danger-600' : 'text-ink-tertiary'">
         <template v-if="calibratedDiff == null">Not enough data to compare.</template>
         <template v-else-if="beyondTolerance">Exceeds the ±{{ TOL }} mi tolerance — the entered odometer disagrees with telematics.</template>
         <template v-else>Within the ±{{ TOL }} mi tolerance.</template>
@@ -120,10 +120,10 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
     </div>
 
     <!-- Time -->
-    <div class="rounded-lg border border-edge p-4">
+    <div class="rounded-surface border border-edge p-4">
       <div class="mb-3 flex items-center justify-between">
         <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Fueling time — reported vs actual</h4>
-        <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold', basis.cls]">{{ basis.label }}</span>
+        <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', basis.cls]">{{ basis.label }}</span>
       </div>
       <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <dt class="text-ink-muted">Reported (EFS)</dt>
@@ -135,11 +135,11 @@ const conf = computed(() => CONF[props.txn.samsara_location_confidence ?? ""] ??
         <dd class="text-right text-ink">{{ fmtTz(txn.samsara_recon_at) }}</dd>
       </dl>
       <p v-if="timeDeltaLabel" class="mt-2 text-xs text-ink-muted">{{ timeDeltaLabel }} · times in {{ tzLabel }}</p>
-      <p v-else class="mt-2 text-xs text-ink-subtle">Times shown in {{ tzLabel }}.</p>
+      <p v-else class="mt-2 text-xs text-ink-tertiary">Times shown in {{ tzLabel }}.</p>
     </div>
 
     <!-- Location -->
-    <div class="rounded-lg border border-edge p-4">
+    <div class="rounded-surface border border-edge p-4">
       <div class="mb-3 flex items-center justify-between">
         <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Location — station vs where the truck was</h4>
         <span class="text-xs font-semibold" :class="conf.cls">{{ conf.label }}</span>

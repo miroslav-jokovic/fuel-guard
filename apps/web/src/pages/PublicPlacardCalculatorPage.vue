@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import HazmatCalculatorForm from "@/features/hazmat/HazmatCalculatorForm.vue";
 
 /**
@@ -17,7 +17,7 @@ import HazmatCalculatorForm from "@/features/hazmat/HazmatCalculatorForm.vue";
         Enter what you're hauling and get the required DOT placards, ID-number displays, segregation and
         eligibility — every result cited to the exact 49 CFR section. No login, no sign-up.
       </p>
-      <div class="mx-auto mt-4 flex max-w-2xl flex-wrap justify-center gap-3 text-xs text-ink-subtle">
+      <div class="mx-auto mt-4 flex max-w-2xl flex-wrap justify-center gap-3 text-xs text-ink-tertiary">
         <span class="rounded-full bg-surface px-3 py-1 ring-1 ring-edge">Answers with CFR citations</span>
         <span class="rounded-full bg-surface px-3 py-1 ring-1 ring-edge">Deterministic — no AI in the verdict</span>
         <span class="rounded-full bg-surface px-3 py-1 ring-1 ring-edge">Free &amp; unauthenticated</span>

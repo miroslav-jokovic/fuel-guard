@@ -76,39 +76,42 @@ function browse() {
 </script>
 
 <template>
+  <!-- Drag events augment the keyboard-accessible browse button; the container is not a control. -->
+  <!-- eslint-disable-next-line vuejs-accessibility/no-static-element-interactions -->
   <div
-    role="button"
-    tabindex="0"
-    class="rounded-lg border-2 border-dashed px-6 py-12 text-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+    class="rounded-surface border-2 border-dashed text-center transition-colors focus-within:ring-2 focus-within:ring-focus-ring"
     :class="[
       dragging > 0
         ? 'border-brand-400 bg-brand-50/50'
-        : 'border-edge-strong bg-surface hover:border-ink-subtle',
+        : 'border-edge-control bg-surface hover:border-ink-subtle',
       disabled || busy ? 'pointer-events-none opacity-60' : 'cursor-pointer',
       shake ? 'border-danger-400' : '',
     ]"
     :aria-disabled="disabled || busy"
-    @click="browse"
-    @keydown.enter.prevent="browse"
-    @keydown.space.prevent="browse"
     @dragenter.prevent="dragging++"
     @dragover.prevent
     @dragleave.prevent="dragging = Math.max(0, dragging - 1)"
     @drop.prevent="onDrop"
   >
-    <AppIcon
-:icon="ArrowUpTrayIcon"
-      class="mx-auto size-10 transition-colors"
-      :class="dragging > 0 ? 'text-brand-500' : 'text-ink-subtle'"
-      aria-hidden="true"
-    />
-    <p class="mt-4 text-sm font-medium text-ink">
-      {{ busy ? busyLabel : label }}
-    </p>
-    <p class="mt-1 text-sm text-ink-muted">
-      or <span class="font-semibold text-brand-600">browse files</span>
-    </p>
-    <p v-if="hint" class="mt-2 text-xs text-ink-subtle">{{ hint }}</p>
+    <button
+      type="button"
+      class="w-full rounded-surface px-6 py-12 outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
+      :disabled="disabled || busy"
+      @click="browse"
+    >
+      <AppIcon
+        :icon="ArrowUpTrayIcon"
+        class="mx-auto size-10 text-brand-accent-strong transition-colors"
+        aria-hidden="true"
+      />
+      <span class="mt-4 block text-sm font-medium text-ink">
+        {{ busy ? busyLabel : label }}
+      </span>
+      <span class="mt-1 block text-sm text-ink-tertiary">
+        or <span class="font-semibold text-link">browse files</span>
+      </span>
+      <span v-if="hint" class="mt-2 block text-xs text-ink-tertiary">{{ hint }}</span>
+    </button>
     <input
       ref="inputRef"
       type="file"

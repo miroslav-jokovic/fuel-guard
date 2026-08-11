@@ -2,13 +2,14 @@
 import { computed, reactive, toRef } from "vue";
 import type { CertificationCreateRequest, CertificationRow, CertificationKind } from "@fuelguard/shared";
 import { HAZMAT_TRAINING_TYPES } from "@fuelguard/shared";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import FormField from "@/components/ui/FormField.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppDateField } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import { useToastStore } from "@/stores/toast";
 import { useCertificationsQuery, useCreateCertification } from "@/composables/useCompliance";
 
@@ -101,11 +102,11 @@ const columns: DataTableColumn[] = [
           <template #cell-qualifier="{ row }">
             <span v-if="row.qualifier">{{ row.qualifier }}</span>
             <span v-else-if="row.training_type">{{ labelForKind(row.training_type) }}</span>
-            <span v-else class="text-ink-subtle">—</span>
+            <span v-else class="text-ink-tertiary">—</span>
           </template>
           <template #cell-expires_at="{ row }">
             <span v-if="row.expires_at">{{ row.expires_at }}</span>
-            <span v-else class="text-ink-subtle">—</span>
+            <span v-else class="text-ink-tertiary">—</span>
           </template>
           <template #cell-status="{ row }">
             <span :class="[BADGE_BASE, toneClass(statusOf(row).tone)]">{{ statusOf(row).label }}</span>
@@ -133,9 +134,9 @@ const columns: DataTableColumn[] = [
           <BaseInput :id="id" v-model="form.identifier" placeholder="Optional" />
         </FormField>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <FormField v-slot="{ id }" label="Issued"><BaseInput :id="id" v-model="form.issuedAt" type="date" /></FormField>
-          <FormField v-slot="{ id }" label="Effective from" hint="Defaults to today."><BaseInput :id="id" v-model="form.effectiveFrom" type="date" /></FormField>
-          <FormField v-slot="{ id }" label="Expires"><BaseInput :id="id" v-model="form.expiresAt" type="date" /></FormField>
+          <FormField v-slot="{ id }" label="Issued"><AppDateField :id="id" v-model="form.issuedAt" /></FormField>
+          <FormField v-slot="{ id }" label="Effective from" hint="Defaults to today."><AppDateField :id="id" v-model="form.effectiveFrom" /></FormField>
+          <FormField v-slot="{ id }" label="Expires"><AppDateField :id="id" v-model="form.expiresAt" /></FormField>
         </div>
         <BaseCheckbox v-if="isTraining" v-model="form.trainingCertified">
           I certify this training record is complete (§172.704(d)).

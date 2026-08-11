@@ -52,12 +52,14 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
 </script>
 
 <template>
-  <div @mouseenter="openNow" @mouseleave="closeSoon">
+  <!-- Hover augments the contained trigger button; focus uses the same open/close path. -->
+  <!-- eslint-disable-next-line vuejs-accessibility/no-static-element-interactions -->
+  <div @mouseenter="openNow" @mouseleave="closeSoon" @focusin="openNow" @focusout="closeSoon">
     <button
       :id="`${sectionId}-trigger`"
       ref="triggerRef"
       type="button"
-      class="sidebar-nav-item flex min-h-9 w-full items-center justify-center rounded-lg p-2"
+      class="sidebar-nav-item flex min-h-9 w-full items-center justify-center rounded-surface p-2"
       :class="sectionActive() ? 'sidebar-nav-active' : 'sidebar-nav-inactive'"
       :aria-label="group.label ?? undefined"
       :aria-expanded="open"
@@ -69,16 +71,20 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
     </button>
 
     <Teleport to="body">
+      <!-- The floating region stays open while either pointer or keyboard focus is inside it. -->
+      <!-- eslint-disable-next-line vuejs-accessibility/no-static-element-interactions -->
       <div
         v-if="open"
         :id="`${sectionId}-panel`"
         ref="panelRef"
         :style="floatingStyles"
-        class="sidebar-glass-popover z-[9999] min-w-56 rounded-xl p-1.5"
+        class="sidebar-glass-popover z-[9999] min-w-56 rounded-dialog p-1.5"
         role="group"
         :aria-labelledby="`${sectionId}-trigger`"
         @mouseenter="openNow"
         @mouseleave="closeSoon"
+        @focusin="openNow"
+        @focusout="closeSoon"
         @keydown.escape.stop.prevent="closeAndReturnFocus"
       >
         <div class="sidebar-glass-material" aria-hidden="true" />
@@ -92,7 +98,7 @@ const sectionActive = () => props.group.items.some((i) => props.isCurrent(i.to))
             v-for="item in group.items"
             :key="item.name"
             :to="item.to"
-            class="sidebar-nav-item group flex min-h-9 items-center gap-x-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium leading-5"
+            class="sidebar-nav-item group flex min-h-9 items-center gap-x-2.5 rounded-surface px-2.5 py-1.5 text-sm font-medium leading-5"
             :class="isCurrent(item.to) ? 'sidebar-nav-active' : 'sidebar-nav-inactive'"
             :aria-current="isCurrent(item.to) ? 'page' : undefined"
             @click="open = false"

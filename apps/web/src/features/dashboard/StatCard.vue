@@ -2,7 +2,7 @@
 import { AppIcon } from "@fuelguard/ui";
 import { type Icon } from "@fuelguard/ui/icons";
 import { RouterLink } from "vue-router";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import SparkLine from "@/components/SparkLine.vue";
 import { viz } from "./chartTheme";
 
@@ -30,35 +30,35 @@ defineProps<{
     :is="to ? RouterLink : 'div'"
     v-bind="to ? { to } : {}"
     :class="[
-      'block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+      'block rounded-dialog focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
       to ? 'group cursor-pointer' : '',
     ]"
   >
     <BaseCard
       :class="[
         'h-full',
-        to ? 'transition duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md group-hover:ring-brand-200' : '',
+        to ? 'transition-colors duration-150 group-hover:bg-surface-subtle group-hover:ring-edge-control' : '',
       ]"
     >
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="truncate text-sm font-medium text-ink-muted">{{ label }}</p>
           <template v-if="loading">
-            <div class="mt-2.5 h-8 w-24 animate-pulse rounded-md bg-surface-muted" />
-            <div class="mt-2 h-3 w-16 animate-pulse rounded bg-surface-muted" />
+            <div class="mt-2.5 h-8 w-24 animate-pulse rounded-control bg-surface-muted" />
+            <div class="mt-2 h-3 w-16 animate-pulse rounded-control bg-surface-muted" />
           </template>
           <template v-else>
             <p class="mt-1.5 text-3xl font-semibold tracking-tight text-ink" :title="valueTitle">
               {{ value }}
             </p>
-            <p v-if="sub" class="mt-1 flex items-center gap-1 text-xs text-ink-subtle">
+            <p v-if="sub" class="mt-1 flex items-center gap-1 text-xs text-ink-tertiary">
               {{ sub }}
               <span v-if="to" class="text-brand-500 opacity-0 transition group-hover:opacity-100">&rarr;</span>
             </p>
           </template>
         </div>
         <span
-          :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-lg', tone]"
+          :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-surface', tone]"
           aria-hidden="true"
         >
           <AppIcon :icon="icon" class="size-5" />

@@ -2,7 +2,7 @@
 import { AppIcon } from "@fuelguard/ui";
 import { ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@fuelguard/ui/icons";
 import { computed, useSlots } from "vue";
-import BaseCard from "./BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import TableSkeleton from "@/components/TableSkeleton.vue";
 import ErrorState from "@/components/ErrorState.vue";
 import type { SortState } from "@/lib/sort";
@@ -17,7 +17,7 @@ import type { SortState } from "@/lib/sort";
  *              selectable :selected="selected" @update:selected="selected = $event"
  *              empty-text="No vehicles match these filters.">
  *     <template #cell-unit_number="{ row }">
- *       <RouterLink :to="`/vehicles/${row.id}`" class="font-medium text-brand-600 hover:text-brand-500">…</RouterLink>
+ *       <RouterLink :to="`/vehicles/${row.id}`" class="font-medium text-link hover:text-link-hover">…</RouterLink>
  *     </template>
  *     <template #actions="{ row }">
  *       <KebabMenu><button class="kebab-item" @click="openEdit(row)">Edit</button></KebabMenu>
@@ -71,6 +71,7 @@ const props = withDefaults(
     stickyHeader?: boolean;
     /** Extra classes per row (tints, cursor). Selected tint is built in. */
     rowClass?: (row: Row) => string;
+    embedded?: boolean;
   }>(),
   {
     rowKey: "id",
@@ -85,6 +86,7 @@ const props = withDefaults(
     nowrap: true,
     stickyHeader: true,
     rowClass: undefined,
+    embedded: false,
   },
 );
 
@@ -148,7 +150,7 @@ const isBlank = (v: unknown) => v == null || v === "";
 </script>
 
 <template>
-  <BaseCard padding="none">
+  <component :is="embedded ? 'div' : BaseCard" :padding="embedded ? undefined : 'none'">
     <TableSkeleton v-if="loading" :cols="skeletonCols" />
     <ErrorState v-else-if="error" :message="error" :retrying="retrying" @retry="emit('retry')" />
     <div v-else-if="rows.length === 0" class="px-6 py-10 text-center text-sm text-ink-muted">
@@ -168,7 +170,7 @@ const isBlank = (v: unknown) => v == null || v === "";
               <th v-if="selectable" scope="col" class="w-10 pl-6 pr-2" :class="dense ? 'py-2' : 'py-3'">
                 <input
                   type="checkbox"
-                  class="size-4 rounded border-edge-strong accent-brand-600"
+                  class="size-4 rounded-control border-edge-control accent-brand-600"
                   :checked="allSelected"
                   :indeterminate="someSelected"
                   aria-label="Select all rows"
@@ -191,7 +193,7 @@ const isBlank = (v: unknown) => v == null || v === "";
                   {{ col.label }}
                   <AppIcon v-if="sort?.key === col.key && sort?.dir === 'asc'" :icon="ChevronUpIcon" class="size-3.5 text-ink-muted" />
                   <AppIcon v-else-if="sort?.key === col.key && sort?.dir === 'desc'" :icon="ChevronDownIcon" class="size-3.5 text-ink-muted" />
-                  <AppIcon v-else :icon="ChevronUpDownIcon" class="size-3.5 text-ink-subtle group-hover:text-ink-subtle" />
+                  <AppIcon v-else :icon="ChevronUpDownIcon" class="size-3.5 text-ink-tertiary group-hover:text-ink-tertiary" />
                 </button>
                 <template v-else>{{ col.label }}</template>
               </th>
@@ -211,7 +213,7 @@ const isBlank = (v: unknown) => v == null || v === "";
               <td v-if="selectable" class="w-10 pl-6 pr-2" :class="dense ? 'py-2' : 'py-3'" @click.stop>
                 <input
                   type="checkbox"
-                  class="size-4 rounded border-edge-strong accent-brand-600"
+                  class="size-4 rounded-control border-edge-control accent-brand-600"
                   :checked="isSelected(row)"
                   :aria-label="`Select row ${keyOf(row)}`"
                   @change="toggleRow(row)"
@@ -223,7 +225,7 @@ const isBlank = (v: unknown) => v == null || v === "";
                 :class="[...cellCls(col, i), col.cellClass]"
               >
                 <slot :name="`cell-${col.key}`" :row="row" :value="cellValue(row, col)">
-                  <span v-if="isBlank(cellValue(row, col))" class="text-ink-subtle">—</span>
+                  <span v-if="isBlank(cellValue(row, col))" class="text-ink-tertiary">—</span>
                   <template v-else>{{ cellValue(row, col) }}</template>
                 </slot>
               </td>
@@ -236,5 +238,5 @@ const isBlank = (v: unknown) => v == null || v === "";
       </div>
       <slot name="footer" />
     </template>
-  </BaseCard>
+  </component>
 </template>

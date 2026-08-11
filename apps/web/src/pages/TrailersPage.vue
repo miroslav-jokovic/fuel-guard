@@ -21,7 +21,8 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import TrailerForm from "@/features/fleet/TrailerForm.vue";
 import { useToastStore } from "@/stores/toast";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -169,8 +170,10 @@ async function onRetire(t: Trailer) {
       </template>
     </PageHeader>
 
+    <DataWorkspace>
     <FilterBar
       v-model:search="search"
+      embedded
       search-placeholder="Search unit, make, model, plate…"
       :count="filtered.length"
       count-label="trailers"
@@ -184,16 +187,16 @@ async function onRetire(t: Trailer) {
     <!-- Bulk action bar -->
     <div
       v-if="session.canManage && selectedCount > 0"
-      class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
+      class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
     >
       <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
-      <button
+      <BaseButton
         :disabled="bulkUpdate.isPending.value"
-        class="rounded-md bg-surface px-3 py-1.5 text-sm font-medium text-info-700 ring-1 ring-info-300 ring-inset hover:bg-info-50 disabled:opacity-50"
+        class="rounded-control bg-surface px-3 py-1.5 text-sm font-medium text-info-700 ring-1 ring-info-300 ring-inset hover:bg-info-50 disabled:opacity-50"
         @click="bulkSet({ is_reefer: true })"
       >
         Mark as reefer
-      </button>
+      </BaseButton>
       <BaseButton
         size="sm"
         :disabled="bulkUpdate.isPending.value"
@@ -210,6 +213,7 @@ async function onRetire(t: Trailer) {
     </div>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="pageRows"
       row-key="id"
@@ -236,7 +240,7 @@ async function onRetire(t: Trailer) {
         <span v-else-if="row.trailer_type" :class="[BADGE_BASE, toneClass('neutral')]">
           {{ TRAILER_TYPE_LABELS[row.trailer_type] }}
         </span>
-        <span v-else class="text-xs text-ink-subtle">Not set</span>
+        <span v-else class="text-xs text-ink-tertiary">Not set</span>
       </template>
       <template #cell-reefer_tank_capacity_gal="{ row }">{{
         row.is_reefer ? row.reefer_tank_capacity_gal + " gal" : "N/A"
@@ -247,17 +251,17 @@ async function onRetire(t: Trailer) {
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canManage">
-          <button class="kebab-item" @click="openEdit(row)">Edit</button>
-          <button class="kebab-item" @click="toggleReefer(row)">
+          <BaseButton class="kebab-item" @click="openEdit(row)">Edit</BaseButton>
+          <BaseButton class="kebab-item" @click="toggleReefer(row)">
             {{ row.is_reefer ? "Unmark reefer" : "Mark as reefer" }}
-          </button>
-          <button
+          </BaseButton>
+          <BaseButton
             v-if="row.status !== 'retired'"
             class="kebab-item kebab-item-danger"
             @click="onRetire(row)"
           >
             Retire
-          </button>
+          </BaseButton>
         </KebabMenu>
       </template>
       <template #footer>
@@ -269,6 +273,7 @@ async function onRetire(t: Trailer) {
         />
       </template>
     </DataTable>
+    </DataWorkspace>
 
     <SlideOver
       :open="drawerOpen"

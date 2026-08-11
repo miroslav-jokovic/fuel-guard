@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppIcon } from "@fuelguard/ui";
+import { AppButton as BaseButton, AppIcon } from "@fuelguard/ui";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
@@ -18,6 +18,7 @@ import {
   ShieldExclamationIcon,
 } from "@fuelguard/ui/icons";
 import { ref, computed } from "vue";
+import { RouterLink } from "vue-router";
 import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/vue";
 import type { ChartConfiguration } from "chart.js";
 import { useDashboard } from "@/features/dashboard/useDashboard";
@@ -26,8 +27,9 @@ import { useSessionStore } from "@/stores/session";
 import { downloadReport } from "@/features/reports/download";
 import { useToastStore } from "@/stores/toast";
 import BaseChart from "@/components/BaseChart.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import StatCard from "@/features/dashboard/StatCard.vue";
 import ChartCard from "@/features/dashboard/ChartCard.vue";
 import SeverityBreakdown from "@/features/dashboard/SeverityBreakdown.vue";
@@ -148,6 +150,7 @@ const trust = computed(() => [
     to: "/rejections",
   },
 ]);
+const metricStrip = computed(() => [...fuelingStats.value, ...trust.value]);
 
 // Trends are zero-filled/org-tz-bucketed upstream; null MPG days render as honest GAPS (spanGaps off).
 const mpgChart = computed<ChartConfiguration>(() => ({
@@ -284,26 +287,25 @@ const EXPORTS = [
 <template>
   <div class="space-y-6">
     <!-- Page header: context + the one filter row that scopes everything below -->
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h2 class="text-lg font-semibold tracking-tight text-ink">Fleet overview</h2>
-        <p class="mt-0.5 flex items-center gap-1.5 text-sm text-ink-muted">
+    <PageHeader title="Fleet overview">
+      <template #default>
+        <span class="flex items-center gap-1.5">
           Fuel, waste &amp; risk · {{ rangeLabel }}
-          <AppIcon v-if="isFetching && !isLoading" :icon="ArrowPathIcon" class="size-3.5 animate-spin text-ink-subtle" aria-hidden="true" />
-        </p>
-      </div>
-
+          <AppIcon v-if="isFetching && !isLoading" :icon="ArrowPathIcon" class="size-3.5 animate-spin text-ink-tertiary" aria-hidden="true" />
+        </span>
+      </template>
+      <template #actions>
       <div class="flex flex-wrap items-center gap-3">
         <DateRangeFilter v-model:from="from" v-model:to="to" />
 
         <Menu v-if="session.canManage || session.readOnly" as="div" class="relative">
           <MenuButton
             :disabled="exporting"
-            class="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-sm font-medium text-ink-secondary shadow-sm ring-1 ring-edge-strong ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50"
+            class="inline-flex h-9 items-center gap-1.5 rounded-control bg-surface px-3 text-sm font-medium text-ink-secondary ring-1 ring-edge-control ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-50"
           >
             <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
             {{ exporting ? "Exporting…" : "Export" }}
-            <AppIcon :icon="ChevronDownIcon" class="size-4 text-ink-subtle" aria-hidden="true" />
+            <AppIcon :icon="ChevronDownIcon" class="size-4 text-ink-tertiary" aria-hidden="true" />
           </MenuButton>
           <transition
             enter-active-class="transition duration-100 ease-out"
@@ -313,21 +315,22 @@ const EXPORTS = [
             leave-from-class="scale-100 opacity-100"
             leave-to-class="scale-95 opacity-0"
           >
-            <MenuItems class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge focus:outline-none">
+            <MenuItems class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-control bg-surface py-1 text-sm shadow-lg ring-1 ring-edge focus:outline-none">
               <MenuItem v-for="exp in EXPORTS" :key="exp.label" v-slot="{ active }">
-                <button type="button" :class="['kebab-item flex items-start gap-3', active ? 'bg-surface-subtle' : '']" @click="exp.run()">
-                  <AppIcon :icon="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+                <BaseButton type="button" :class="['kebab-item flex items-start gap-3', active ? 'bg-surface-subtle' : '']" @click="exp.run()">
+                  <AppIcon :icon="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
                   <span>
                     <span class="block font-medium text-ink">{{ exp.label }}</span>
                     <span class="block text-xs text-ink-muted">{{ exp.description }}</span>
                   </span>
-                </button>
+                </BaseButton>
               </MenuItem>
             </MenuItems>
           </transition>
         </Menu>
       </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="space-y-6 transition-opacity duration-200" :class="isFetching && !isLoading ? 'opacity-60' : ''" :aria-busy="isFetching">
       <!-- KPI hero -->
@@ -335,25 +338,33 @@ const EXPORTS = [
         <StatCard v-for="stat in stats" :key="stat.label" v-bind="stat" :loading="isLoading" />
       </dl>
 
-      <!-- Fueling summary — the fuel picture for the selected range -->
-      <div>
-        <h3 class="mb-3 text-sm font-semibold text-ink-secondary">Fueling · {{ rangeLabel }}</h3>
-        <dl class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <StatCard v-for="stat in fuelingStats" :key="stat.label" v-bind="stat" :loading="isLoading || fuelLoading" />
+      <!-- Secondary measures share one compact scan strip instead of competing hero cards. -->
+      <BaseCard padding="none" as="section">
+        <div class="border-b border-edge-subtle px-4 py-3">
+          <h2 class="text-sm font-semibold text-ink">Operating metrics · {{ rangeLabel }}</h2>
+        </div>
+        <dl class="grid grid-cols-2 divide-x divide-y divide-edge-subtle sm:grid-cols-4 xl:grid-cols-8">
+          <RouterLink
+            v-for="stat in metricStrip"
+            :key="stat.label"
+            :to="stat.to"
+            class="min-w-0 px-4 py-3 hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
+          >
+            <dt class="truncate text-xs font-medium text-ink-tertiary">{{ stat.label }}</dt>
+            <dd class="mt-1 truncate text-lg font-semibold tabular-nums text-ink" :title="stat.valueTitle">
+              {{ isLoading || fuelLoading ? "—" : stat.value }}
+            </dd>
+            <dd class="truncate text-xs text-ink-tertiary">{{ stat.sub }}</dd>
+          </RouterLink>
         </dl>
-      </div>
-
-      <!-- Trust & leakage strip -->
-      <dl class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard v-for="stat in trust" :key="stat.label" v-bind="stat" :loading="isLoading" />
-      </dl>
+      </BaseCard>
 
       <!-- Trends -->
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <template v-if="isLoading">
           <BaseCard v-for="i in 2" :key="i">
-            <div class="h-4 w-32 animate-pulse rounded bg-surface-muted" />
-            <div class="mt-4 h-60 animate-pulse rounded-lg bg-surface-subtle" />
+            <div class="h-4 w-32 animate-pulse rounded-control bg-surface-muted" />
+            <div class="mt-4 h-60 animate-pulse rounded-surface bg-surface-subtle" />
           </BaseCard>
         </template>
         <template v-else>
@@ -394,7 +405,7 @@ const EXPORTS = [
               <BaseChart :config="costChart" :height="176" />
               <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                 <span class="text-lg font-semibold text-ink">${{ fmtCompact(costTotal) }}</span>
-                <span class="text-[11px] text-ink-subtle">total</span>
+                <span class="text-[11px] text-ink-tertiary">total</span>
               </div>
             </div>
             <ul class="min-w-0 flex-1 space-y-2.5 self-stretch">
@@ -404,7 +415,7 @@ const EXPORTS = [
                   <span class="truncate text-ink-secondary">{{ slice.label }}</span>
                 </span>
                 <span class="shrink-0 tabular-nums font-medium text-ink">
-                  {{ fmtMoney(slice.value) }} <span class="font-normal text-ink-subtle">· {{ slice.pct }}%</span>
+                  {{ fmtMoney(slice.value) }} <span class="font-normal text-ink-tertiary">· {{ slice.pct }}%</span>
                 </span>
               </li>
             </ul>

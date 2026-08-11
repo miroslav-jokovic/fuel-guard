@@ -4,12 +4,12 @@ import { AppIcon } from "@fuelguard/ui";
 import { ClipboardDocumentCheckIcon, PlusIcon, XMarkIcon } from "@fuelguard/ui/icons";
 import type { HazmatProduct } from "@fuelguard/shared";
 import { packageTypeSpec } from "@fuelguard/shared";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import FormField from "@/components/ui/FormField.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import ProductPicker from "@/features/hazmat/ProductPicker.vue";
 import VerdictPanel from "@/features/hazmat/VerdictPanel.vue";
 import { useHazmatTrailersQuery } from "@/features/hazmat/useHazmatEquipment";
@@ -231,7 +231,7 @@ function resetAll() {
             >
               <div class="flex items-stretch gap-2">
                 <BaseInput :id="id" v-model="form.cargoTankCapacityGal" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="9200" />
-                <span class="flex shrink-0 items-center rounded-md bg-surface-subtle px-3 text-sm text-ink-muted ring-1 ring-inset ring-edge">gal</span>
+                <span class="flex shrink-0 items-center rounded-control bg-surface-subtle px-3 text-sm text-ink-muted ring-1 ring-inset ring-edge">gal</span>
               </div>
             </FormField>
             <FormField v-slot="{ id }" label="Tank state">
@@ -242,7 +242,7 @@ function resetAll() {
 
         <p
           v-if="equipmentNote && equipmentNote.warn"
-          class="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
+          class="mt-3 rounded-surface bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
         >
           {{ equipmentNote.text }}
         </p>
@@ -268,7 +268,7 @@ function resetAll() {
         </div>
 
         <div class="mt-4 space-y-4">
-          <div v-for="(line, i) in form.lines" :key="i" class="overflow-hidden rounded-xl ring-1 ring-inset ring-edge">
+          <div v-for="(line, i) in form.lines" :key="i" class="overflow-hidden rounded-dialog ring-1 ring-inset ring-edge">
             <!-- identify -->
             <div class="flex items-center justify-between gap-2 border-b border-edge bg-surface-subtle px-4 py-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Product {{ i + 1 }}</p>
@@ -280,7 +280,7 @@ function resetAll() {
 
             <div class="space-y-4 p-4">
               <template v-if="line.product">
-                <div class="flex items-center justify-between gap-2 rounded-md bg-surface px-3 py-2 ring-1 ring-inset ring-edge">
+                <div class="flex items-center justify-between gap-2 rounded-control bg-surface px-3 py-2 ring-1 ring-inset ring-edge">
                   <span class="truncate text-sm text-ink">{{ line.product.label }}</span>
                   <BaseButton variant="ghost" size="sm" @click="clearProduct(i)">Change</BaseButton>
                 </div>
@@ -289,7 +289,7 @@ function resetAll() {
 
               <!-- package -->
               <div class="space-y-3">
-                <p class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Packaging</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Packaging</p>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <FormField
                     v-slot="{ id }"
@@ -337,14 +337,14 @@ function resetAll() {
                 <!-- the derived §171.8 answer, said out loud -->
                 <p
                   v-if="packagingBadge(line)"
-                  class="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md bg-surface-subtle px-3 py-2 text-xs ring-1 ring-inset ring-edge"
+                  class="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-control bg-surface-subtle px-3 py-2 text-xs ring-1 ring-inset ring-edge"
                 >
                   <span class="font-semibold text-ink">{{ packagingBadge(line)!.text }}</span>
                   <span class="text-ink-muted">{{ packagingBadge(line)!.source }}</span>
                 </p>
                 <p
                   v-if="capacityNote(line)"
-                  class="rounded-md px-3 py-1.5 text-xs ring-1 ring-inset"
+                  class="rounded-control px-3 py-1.5 text-xs ring-1 ring-inset"
                   :class="capacityNote(line)!.warn ? 'bg-warning-50 text-warning-800 ring-warning-200' : 'bg-surface text-ink-muted ring-edge'"
                 >
                   {{ capacityNote(line)!.text }}
@@ -353,7 +353,7 @@ function resetAll() {
 
               <!-- measure -->
               <div class="space-y-3">
-                <p class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">Quantity on the paper</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Quantity on the paper</p>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <FormField v-slot="{ id }" label="Total quantity">
                     <div class="flex items-stretch gap-2">
@@ -375,8 +375,8 @@ function resetAll() {
               </div>
 
               <!-- declare -->
-              <div class="space-y-2 rounded-lg bg-surface-subtle p-3 ring-1 ring-inset ring-edge">
-                <p class="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+              <div class="space-y-2 rounded-surface bg-surface-subtle p-3 ring-1 ring-inset ring-edge">
+                <p class="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">
                   Offeror declarations
                 </p>
                 <p class="text-xs text-ink-muted">
@@ -423,7 +423,7 @@ function resetAll() {
       </div>
       <p v-if="!canCalculate" class="text-xs text-ink-muted">Choose the equipment and add at least one regulated product to calculate.</p>
 
-      <p v-if="calc.isError.value" class="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+      <p v-if="calc.isError.value" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
         {{ calc.error.value instanceof Error ? calc.error.value.message : "Calculation failed." }}
       </p>
     </form>
@@ -432,7 +432,7 @@ function resetAll() {
       <VerdictPanel v-if="result" :result="result" />
       <BaseCard v-else class="text-center">
         <div class="py-10">
-          <span class="mx-auto flex size-11 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+          <span class="mx-auto flex size-11 items-center justify-center rounded-surface bg-brand-50 text-brand-700">
             <AppIcon :icon="ClipboardDocumentCheckIcon" class="size-6" aria-hidden="true" />
           </span>
           <p class="mt-3 text-sm font-medium text-ink">Results will appear here</p>

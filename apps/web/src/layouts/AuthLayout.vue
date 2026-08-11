@@ -12,7 +12,7 @@ import AppLogo from "@/components/AppLogo.vue";
       </div>
     </div>
     <div class="mt-10 sm:mx-auto sm:w-full sm:max-w-md">
-      <div class="bg-surface px-6 py-8 shadow-sm ring-1 ring-edge sm:rounded-lg sm:px-10">
+      <div class="bg-surface px-6 py-8 ring-1 ring-edge sm:rounded-surface sm:px-10">
         <slot />
       </div>
     </div>

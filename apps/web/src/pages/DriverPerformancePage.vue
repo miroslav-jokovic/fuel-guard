@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppIcon } from "@fuelguard/ui";
 import {
   TrophyIcon,
@@ -7,7 +8,7 @@ import { computed, ref, watch } from "vue";
 import { useDriverPerformance, type PerformanceDisplayRow } from "@/features/drivers/useDriverPerformance";
 import { useDriverPerformanceWeeksList, useDriverPerformanceWeek } from "@/features/drivers/useDriverPerformanceWeeks";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -155,10 +156,10 @@ const columns: DataTableColumn[] = [
 
     <div class="flex flex-wrap items-center justify-between gap-2">
       <p class="text-sm text-ink-muted">{{ weekLabel }} · ranked on {{ trailingWeeks }}-week trailing average · {{ methodLabel }}</p>
-      <button class="text-sm text-ink-muted underline-offset-2 hover:underline" @click="showInfo = !showInfo">How scoring works</button>
+      <BaseButton class="text-sm text-ink-muted underline-offset-2 hover:underline" @click="showInfo = !showInfo">How scoring works</BaseButton>
     </div>
 
-    <div v-if="showInfo" class="rounded-lg border border-edge bg-surface p-4 text-sm text-ink-secondary">
+    <div v-if="showInfo" class="rounded-surface border border-edge bg-surface p-4 text-sm text-ink-secondary">
       Each driver's three sub-scores (0–100, higher is better) are ranked across the fleet for the week, then blended
       with the configured weights (safety {{ weights.safety }}, efficiency {{ weights.efficiency }}, idling {{ weights.idling }}).
       Drivers must clear the weekly miles + hours gate to be ranked, and the final rank uses a {{ trailingWeeks }}-week
@@ -196,8 +197,8 @@ const columns: DataTableColumn[] = [
       @sort="sort = toggleSort(sort, $event)"
     >
       <template #cell-rank="{ row }">
-        <span v-if="row.rank" :class="['inline-flex min-w-[1.5rem] justify-center rounded px-1 text-xs font-semibold', toneClass(rankTone(row.rank))]">{{ row.rank }}</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-if="row.rank" :class="['inline-flex min-w-[1.5rem] justify-center rounded-control px-1 text-xs font-semibold', toneClass(rankTone(row.rank))]">{{ row.rank }}</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-safety="{ row }">
         <span class="text-ink">{{ num(row.safetyScore) }}</span>
@@ -216,8 +217,8 @@ const columns: DataTableColumn[] = [
       </template>
       <template #cell-exposure="{ row }">{{ num(row.miles) }} mi · {{ num(row.driveHours) }} h</template>
       <template #cell-status="{ row }">
-        <span v-if="row.eligible" :class="['inline-flex rounded px-1.5 py-0.5 text-xs', toneClass('success')]">Eligible</span>
-        <span v-else :class="['inline-flex rounded px-1.5 py-0.5 text-xs', toneClass('neutral')]" :title="row.ineligibleReason ?? ''">{{ REASON_LABEL[row.ineligibleReason ?? ''] ?? 'Not ranked' }}</span>
+        <span v-if="row.eligible" :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs', toneClass('success')]">Eligible</span>
+        <span v-else :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs', toneClass('neutral')]" :title="row.ineligibleReason ?? ''">{{ REASON_LABEL[row.ineligibleReason ?? ''] ?? 'Not ranked' }}</span>
       </template>
       <template #footer>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="filtered.length" @update:page="page = $event" />

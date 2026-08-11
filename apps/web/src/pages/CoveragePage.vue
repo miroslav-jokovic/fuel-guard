@@ -5,7 +5,7 @@ import { useDetectionCoverage, useCapacityHealth } from "@/features/fuel/useDete
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
@@ -79,7 +79,7 @@ const columns: DataTableColumn[] = [
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.reconciledPct)">
           {{ fmtPct(data.reconciledPct) }}
         </dd>
-        <dd class="mt-0.5 text-xs text-ink-subtle">
+        <dd class="mt-0.5 text-xs text-ink-tertiary">
           {{ data.blindFills.toLocaleString() }} of {{ data.totalFills.toLocaleString() }} fills
           blind
         </dd>
@@ -91,7 +91,7 @@ const columns: DataTableColumn[] = [
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.locationConfirmedPct)">
           {{ fmtPct(data.locationConfirmedPct) }}
         </dd>
-        <dd class="mt-0.5 text-xs text-ink-subtle">
+        <dd class="mt-0.5 text-xs text-ink-tertiary">
           GPS placed the truck at the station · {{ fmtPct(data.locationPct) }} judgeable (incl.
           in-state)
         </dd>
@@ -103,14 +103,14 @@ const columns: DataTableColumn[] = [
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.odometerPct)">
           {{ fmtPct(data.odometerPct) }}
         </dd>
-        <dd class="mt-0.5 text-xs text-ink-subtle">fueling-time odometer available</dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary">fueling-time odometer available</dd>
       </BaseCard>
       <BaseCard>
         <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Attributed</dt>
         <dd class="mt-1 text-2xl font-bold" :class="covTone(data.attributedPct)">
           {{ fmtPct(data.attributedPct) }}
         </dd>
-        <dd class="mt-0.5 text-xs text-ink-subtle">
+        <dd class="mt-0.5 text-xs text-ink-tertiary">
           {{ data.unattributed.toLocaleString() }} unmatched to a truck/driver
         </dd>
       </BaseCard>
@@ -122,7 +122,7 @@ const columns: DataTableColumn[] = [
           {{ fmtPct(capacity.setPct) }}
         </dd>
         <dd
-          class="mt-0.5 text-xs text-ink-subtle"
+          class="mt-0.5 text-xs text-ink-tertiary"
           :title="capacity.missing.map((m) => m.unit).join(', ')"
         >
           {{
@@ -165,7 +165,7 @@ const columns: DataTableColumn[] = [
           {{ fmtPct(data.cardIdentifiablePct) }}
         </dd>
         <dd
-          class="mt-0.5 text-xs text-ink-subtle"
+          class="mt-0.5 text-xs text-ink-tertiary"
           title="A masked last-4 with no Driver Control ID can't be told apart from another card — those fills are invisible to card-misuse checks"
         >
           {{ data.cardBlindFills.toLocaleString() }} of {{ data.cardFills.toLocaleString() }} card
@@ -180,9 +180,9 @@ const columns: DataTableColumn[] = [
         <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Fueling-time confidence
         </h3>
-        <p class="text-xs text-ink-subtle">
+        <p class="text-xs text-ink-tertiary">
           Last telematics match: {{ fmtDateTime(data.lastReconciledAt) }} ·
-          <RouterLink to="/settings/data" class="text-brand-600 hover:text-brand-500"
+          <RouterLink to="/settings/data" class="text-link hover:text-link-hover"
             >Re-sync</RouterLink
           >
         </p>
@@ -240,7 +240,7 @@ const columns: DataTableColumn[] = [
         <template #cell-vehicleId="{ row }">
           <RouterLink
             :to="`/vehicles/${row.vehicleId}`"
-            class="text-brand-600 hover:text-brand-500"
+            class="text-link hover:text-link-hover"
             >{{ unit(row.vehicleId) }}</RouterLink
           >
         </template>

@@ -7,7 +7,7 @@
  */
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -320,7 +320,7 @@ async function onSync(): Promise<void> {
     >
       <template #cell-driverName="{ row }">
         <span v-if="(row as EfsCardRow).driverName">{{ (row as EfsCardRow).driverName }}</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
 
       <template #cell-status="{ row }">
@@ -336,7 +336,7 @@ async function onSync(): Promise<void> {
         >
           {{ (row as EfsCardRow).overrideUses }} left
         </span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #footer>
         <TablePagination v-model:page="page" :page-size="PAGE_SIZE" :total="rows.length" />

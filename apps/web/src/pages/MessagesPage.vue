@@ -20,11 +20,11 @@ import {
   useThreadsQuery,
 } from "@/features/messages/useMessages";
 import { useToastStore } from "@/stores/toast";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 /**
@@ -164,7 +164,7 @@ function timeLabel(iso: string): string {
         <label
           v-for="d in appDrivers"
           :key="d.id"
-          class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-ink hover:bg-surface-subtle"
+          class="flex items-center gap-2 rounded-control px-2 py-1.5 text-sm text-ink hover:bg-surface-subtle"
         >
           <BaseCheckbox :model-value="picked.has(d.id)" @update:model-value="(v: boolean) => togglePick(d.id, v)" />
           {{ d.full_name }}
@@ -191,7 +191,7 @@ function timeLabel(iso: string): string {
       <BaseCard padding="none" class="max-h-[70vh] overflow-y-auto">
         <ul class="divide-y divide-edge-subtle">
           <li v-for="t in visibleThreads" :key="t.id">
-            <button
+            <BaseButton
               type="button"
               class="w-full px-4 py-3 text-left hover:bg-surface-subtle"
               :class="selectedId === t.id ? 'bg-surface-subtle' : ''"
@@ -205,10 +205,10 @@ function timeLabel(iso: string): string {
                 <span class="truncate text-sm text-ink-muted">{{ messagePreview(t.last_message) }}</span>
                 <span
                   v-if="t.unread > 0"
-                  class="shrink-0 rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-semibold text-white"
+                  class="shrink-0 rounded-full bg-brand-accent-strong px-1.5 py-0.5 text-xs font-semibold text-ink"
                 >{{ t.unread }}</span>
               </div>
-            </button>
+            </BaseButton>
           </li>
           <li v-if="visibleThreads.length === 0" class="px-4 py-8 text-center text-sm text-ink-muted">
             {{ threadsQ.isLoading.value ? "Loading…" : "No conversations in the last 90 days." }}
@@ -230,9 +230,9 @@ function timeLabel(iso: string): string {
           <div
             v-for="m in detailQ.data.value.messages"
             :key="m.id"
-            class="max-w-[75%] rounded-lg px-3 py-2 text-sm"
+            class="max-w-[75%] rounded-surface px-3 py-2 text-sm"
             :class="m.sender_user_id === session.userId
-              ? 'ml-auto bg-brand-600 text-white'
+              ? 'ml-auto bg-action-primary text-action-primary-foreground'
               : 'bg-surface-subtle text-ink'"
           >
             <div v-if="m.sender_user_id !== session.userId" class="text-xs font-semibold opacity-80">

@@ -8,11 +8,12 @@ import { reactive, ref, computed, watch } from "vue";
 import { routeFuelSettingsFormSchema, ROUTE_FUEL_SETTINGS_DEFAULTS, BRAND_LABELS, EQUIPMENT_TYPES, type RouteFuelSettingsForm } from "@fuelguard/shared";
 import { useRouteFuelSettings, useSaveRouteFuelSettings } from "@/features/fueling/useRouteFuelSettings";
 import { useToastStore } from "@/stores/toast";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { useDiscountRules, useSaveDiscountRules, DISCOUNT_TYPES, type DiscountRule } from "@/features/fueling/useDiscountRules";
 
@@ -77,13 +78,13 @@ async function onSave() {
 }
 
 // Per-brand discount rules (independent save; separate table).
-const SELECT_CLS = "w-full rounded-md border border-edge bg-surface px-2 py-1.5 text-sm text-ink";
 const { data: discountData } = useDiscountRules();
 const saveDiscounts = useSaveDiscountRules();
 const rules = ref<DiscountRule[]>([]);
 watch(discountData, (d) => { if (d) rules.value = d.map((r) => ({ ...r })); }, { immediate: true });
 function addRule() { rules.value.push({ brand: "", type: "flat", cents_off: 0 }); }
 function removeRule(i: number) { rules.value.splice(i, 1); }
+const discountTypeOptions = DISCOUNT_TYPES.map((value) => ({ value, label: value }));
 async function onSaveDiscounts() {
   try {
     await saveDiscounts.mutateAsync(rules.value);
@@ -207,9 +208,7 @@ const truck: NumField[] = [
         <h3 class="text-sm font-semibold text-ink">Default load</h3>
         <p class="mt-1 text-sm text-ink-muted">Your fleet's usual trailer/equipment. This pre-fills every new plan so hazmat is never assumed — dispatchers can still change it per load.</p>
         <FormField v-slot="{ id }" label="Default equipment / trailer" class="mt-4 sm:max-w-xs">
-          <select :id="id" v-model="form.default_equipment_type" :class="SELECT_CLS">
-            <option v-for="opt in EQUIPMENT_TYPES" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-          </select>
+          <AppSelect :id="id" v-model="form.default_equipment_type" :options="EQUIPMENT_TYPES" />
         </FormField>
       </BaseCard>
 
@@ -239,9 +238,7 @@ const truck: NumField[] = [
             <BaseInput :id="id" v-model="r.brand" placeholder="ta_petro" />
           </FormField>
           <FormField v-slot="{ id }" label="Type">
-            <select :id="id" v-model="r.type" :class="SELECT_CLS">
-              <option v-for="t in DISCOUNT_TYPES" :key="t" :value="t">{{ t }}</option>
-            </select>
+            <AppSelect :id="id" v-model="r.type" :options="discountTypeOptions" />
           </FormField>
           <FormField v-slot="{ id }" label="Cents off / gal">
             <BaseInput :id="id" v-model="r.cents_off" type="number" step="0.001" inputmode="decimal" />

@@ -10,7 +10,8 @@ import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppTable } from "@fuelguard/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import SlideOver from "@/components/SlideOver.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
@@ -219,8 +220,8 @@ const columns: DataTableColumn[] = [
           :title="(row.suspicion_reasons ?? []).map((r) => r.detail).join(' · ')"
           >{{ row.suspicion_level }}</span
         >
-        <span v-else-if="row.suspicion_level === 'clear'" class="text-xs text-ink-subtle">Clear</span>
-        <span v-else class="text-xs text-ink-subtle">—</span>
+        <span v-else-if="row.suspicion_level === 'clear'" class="text-xs text-ink-tertiary">Clear</span>
+        <span v-else class="text-xs text-ink-tertiary">—</span>
       </template>
       <template #cell-declined_at="{ row }">{{ fmt(row.declined_at, row.state) }}</template>
       <template #cell-error_code="{ row }">
@@ -249,10 +250,10 @@ const columns: DataTableColumn[] = [
           from attributed fill history (≥5 fills with a ≥70% majority on one truck); a card that floats
           between trucks gets no assignment. Manual assignments are never overwritten.
         </p>
-        <p v-if="!cardList.length" class="text-ink-subtle">
+        <p v-if="!cardList.length" class="text-ink-tertiary">
           No assignments learned yet — they appear after enough attributed fill history (or a Rescore).
         </p>
-        <table v-else class="w-full text-left text-sm">
+        <AppTable v-else class="w-full text-left text-sm">
           <thead>
             <tr class="text-xs uppercase tracking-wide text-ink-muted">
               <th class="py-1.5 pr-3 font-semibold">Card</th>
@@ -269,7 +270,7 @@ const columns: DataTableColumn[] = [
               </td>
             </tr>
           </tbody>
-        </table>
+        </AppTable>
       </div>
     </SlideOver>
 
@@ -280,7 +281,7 @@ const columns: DataTableColumn[] = [
           <div>
             <div class="text-lg font-semibold text-ink">Unit {{ selectedRow.unit || "—" }}</div>
             <div class="text-ink-muted">{{ fmt(selectedRow.declined_at, selectedRow.state) }}</div>
-            <div v-if="stationLocalNote(selectedRow.declined_at, selectedRow.state)" class="text-xs text-ink-subtle">
+            <div v-if="stationLocalNote(selectedRow.declined_at, selectedRow.state)" class="text-xs text-ink-tertiary">
               Station local: {{ stationLocalNote(selectedRow.declined_at, selectedRow.state) }}
             </div>
           </div>
@@ -289,10 +290,10 @@ const columns: DataTableColumn[] = [
             :class="[BADGE_BASE, suspicionTone(selectedRow.suspicion_level)]"
             >{{ selectedRow.suspicion_level }}</span
           >
-          <span v-else class="text-xs text-ink-subtle">Clear</span>
+          <span v-else class="text-xs text-ink-tertiary">Clear</span>
         </div>
 
-        <div class="rounded-md bg-danger-50 p-3 ring-1 ring-danger-100">
+        <div class="rounded-control bg-danger-50 p-3 ring-1 ring-danger-100">
           <div class="flex items-center gap-2">
             <span :class="[BADGE_BASE, toneClass('danger')]">{{ selectedRow.error_code }}</span>
             <span class="font-medium text-danger-800">{{ selectedRow.error_description }}</span>
@@ -311,13 +312,13 @@ const columns: DataTableColumn[] = [
         </div>
 
         <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
-          <div><dt class="text-xs text-ink-subtle">Driver</dt><dd class="text-ink">{{ selectedRow.driver_name || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-subtle">Card #</dt><dd class="text-ink">{{ selectedRow.card_ref || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-subtle">Invoice</dt><dd class="text-ink">{{ selectedRow.invoice || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-subtle">Location</dt><dd class="text-ink">{{ selectedRow.location_text || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-subtle">City</dt><dd class="text-ink">{{ selectedRow.city || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-subtle">State</dt><dd class="text-ink">{{ selectedRow.state || "—" }}</dd></div>
-          <div><dt class="text-xs text-ink-subtle">Import id</dt><dd class="font-mono text-xs text-ink">{{ selectedRow.import_id || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-tertiary">Driver</dt><dd class="text-ink">{{ selectedRow.driver_name || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-tertiary">Card #</dt><dd class="text-ink">{{ selectedRow.card_ref || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-tertiary">Invoice</dt><dd class="text-ink">{{ selectedRow.invoice || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-tertiary">Location</dt><dd class="text-ink">{{ selectedRow.location_text || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-tertiary">City</dt><dd class="text-ink">{{ selectedRow.city || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-tertiary">State</dt><dd class="text-ink">{{ selectedRow.state || "—" }}</dd></div>
+          <div><dt class="text-xs text-ink-tertiary">Import id</dt><dd class="font-mono text-xs text-ink">{{ selectedRow.import_id || "—" }}</dd></div>
         </dl>
       </div>
     </SlideOver>

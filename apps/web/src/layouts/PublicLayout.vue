@@ -2,7 +2,7 @@
 // Public, session-free marketing layout (M7). No sidebar and no user chrome, so it renders for
 // unauthenticated visitors and search crawlers. Reads nothing from the session store.
 import AppLogo from "@/components/AppLogo.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 </script>
 
 <template>

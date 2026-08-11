@@ -1,5 +1,37 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../../../apps/web/public/fonts/HankenGrotesk-400-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../../../apps/web/public/fonts/HankenGrotesk-500-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../../../apps/web/public/fonts/HankenGrotesk-600-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("../../../apps/web/public/fonts/HankenGrotesk-700-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    FuelGuard design tokens
    ────────────────────────────────────────────────────────────────────────
@@ -38,16 +70,16 @@
   --ramp-neutral-800: oklch(27.8% 0.033 256.848);
   --ramp-neutral-900: oklch(21% 0.034 264.665);
 
-  /* brand = indigo (swap this ramp to re-brand the app) */
-  --ramp-brand-50: oklch(96.2% 0.018 272.314);
-  --ramp-brand-100: oklch(93% 0.034 272.788);
-  --ramp-brand-200: oklch(87% 0.065 274.039);
-  --ramp-brand-300: oklch(78.5% 0.115 274.713);
-  --ramp-brand-400: oklch(67.3% 0.182 276.935);
-  --ramp-brand-500: oklch(58.5% 0.233 277.117);
-  --ramp-brand-600: oklch(51.1% 0.262 276.966);
-  --ramp-brand-700: oklch(45.7% 0.24 277.023);
-  --ramp-brand-800: oklch(39.8% 0.195 277.366);
+  /* brand = warm gold identity. Interactive actions use their own graphite role. */
+  --ramp-brand-50: oklch(98.5% 0.02 75);
+  --ramp-brand-100: oklch(96% 0.045 72);
+  --ramp-brand-200: oklch(92% 0.07 70);
+  --ramp-brand-300: oklch(87.5% 0.1 68);
+  --ramp-brand-400: oklch(83.7% 0.128 66.29);
+  --ramp-brand-500: oklch(75% 0.16 58);
+  --ramp-brand-600: oklch(65% 0.16 55);
+  --ramp-brand-700: oklch(55% 0.14 50);
+  --ramp-brand-800: oklch(46% 0.11 45);
 
   /* danger = red */
   --ramp-danger-50: oklch(97.1% 0.013 17.38);
@@ -60,16 +92,16 @@
   --ramp-danger-700: oklch(50.5% 0.213 27.518);
   --ramp-danger-800: oklch(44.4% 0.177 26.899);
 
-  /* caution = orange (severity "high" — between danger and warning) */
-  --ramp-caution-50: oklch(98% 0.016 73.684);
-  --ramp-caution-100: oklch(95.4% 0.038 75.164);
-  --ramp-caution-200: oklch(90.1% 0.076 70.697);
-  --ramp-caution-300: oklch(83.7% 0.128 66.29);
-  --ramp-caution-400: oklch(75% 0.183 55.934);
-  --ramp-caution-500: oklch(70.5% 0.213 47.604);
-  --ramp-caution-600: oklch(64.6% 0.222 41.116);
-  --ramp-caution-700: oklch(55.3% 0.195 38.402);
-  --ramp-caution-800: oklch(47% 0.157 37.304);
+  /* caution = red-orange severity-high, separated from the gold identity ramp */
+  --ramp-caution-50: oklch(98% 0.015 45);
+  --ramp-caution-100: oklch(95% 0.04 45);
+  --ramp-caution-200: oklch(90% 0.08 45);
+  --ramp-caution-300: oklch(83% 0.13 42);
+  --ramp-caution-400: oklch(74% 0.18 40);
+  --ramp-caution-500: oklch(67% 0.21 38);
+  --ramp-caution-600: oklch(60% 0.2 35);
+  --ramp-caution-700: oklch(52% 0.18 33);
+  --ramp-caution-800: oklch(45% 0.15 32);
 
   /* warning = muted golden amber — same hue family as before but far lower chroma, so badges read as
      calm gold (Radix/Linear-style) instead of neon lemon; stays clearly distinct from caution-orange. */
@@ -107,33 +139,64 @@
 
   /* ── 2. Semantic roles (a future .dark block re-points these) ────── */
   /* app background + raised surfaces */
-  --canvas: var(--ramp-neutral-50);
-  --surface: #ffffff;
-  --surface-subtle: var(--ramp-neutral-50);   /* table headers, hover rows */
-  --surface-muted: var(--ramp-neutral-100);   /* soft buttons, wells       */
-  --surface-inverse: var(--ramp-neutral-900); /* code blocks, tooltips     */
+  --canvas: oklch(0.968 0.007 247.896);
+  --surface: oklch(1 0 0);
+  --surface-subtle: oklch(0.984 0.003 247.858); /* table headers, hover rows */
+  --surface-muted: oklch(0.929 0.013 255.508); /* soft buttons, wells       */
+  --surface-inverse: oklch(0.208 0.042 265.755); /* code blocks, tooltips     */
 
   /* text */
-  --ink: var(--ramp-neutral-900);
-  --ink-secondary: var(--ramp-neutral-700);
-  --ink-muted: var(--ramp-neutral-500);
-  --ink-subtle: var(--ramp-neutral-400);
-  --ink-inverse: #ffffff;
+  --ink: oklch(0.208 0.042 265.755);
+  --ink-secondary: oklch(0.38 0.033 260);
+  --ink-muted: oklch(0.49 0.03 258);
+  --ink-tertiary: oklch(0.49 0.03 258);
+  --ink-subtle: oklch(0.64 0.025 258);
+  --ink-disabled: oklch(0.64 0.025 258);
+  --ink-inverse: oklch(1 0 0);
 
   /* hairlines & control borders */
-  --edge-subtle: var(--ramp-neutral-100);     /* row dividers  */
-  --edge: var(--ramp-neutral-200);            /* card rings    */
-  --edge-strong: var(--ramp-neutral-300);     /* input borders */
+  --edge-subtle: oklch(0.88 0.015 258); /* decorative row dividers */
+  --edge: oklch(0.78 0.02 258); /* surface grouping             */
+  --edge-strong: oklch(0.6 0.025 258); /* compatibility alias         */
+  --edge-control: oklch(0.6 0.025 258); /* essential control boundary  */
+
+  /* identity, interaction, links, selection, and focus are deliberately separate */
+  --brand-accent: oklch(0.837 0.128 66.29);
+  --brand-accent-soft: oklch(0.901 0.076 70.697);
+  --brand-accent-strong: oklch(0.65 0.16 55);
+  --action-primary: oklch(0.36 0.055 260);
+  --action-primary-hover: oklch(0.3 0.05 260);
+  --action-primary-foreground: oklch(1 0 0);
+  --link: oklch(0.49 0.18 255);
+  --link-hover: oklch(0.42 0.17 255);
+  --focus-ring: oklch(0.53 0.18 255);
+  --selected-surface: oklch(0.929 0.013 255.508);
+  --selected-strong: oklch(0.65 0.16 55);
+
+  /* destructive solid and subtle treatments must not share one foreground pair */
+  --danger-solid: oklch(0.53 0.2 27);
+  --danger-solid-foreground: oklch(1 0 0);
+  --danger-surface: oklch(0.96 0.025 20);
+  --danger-text: oklch(0.48 0.18 27);
+
+  /* semantic geometry and density */
+  --shape-detail: 0.1875rem;
+  --shape-control: 0.25rem;
+  --shape-surface: 0.375rem;
+  --shape-overlay: 0.5rem;
+  --shape-dialog: 0.625rem;
+  --control-height-compact: 2rem;
+  --control-height-default: 2.25rem;
 
   /* data-viz roles — canvas charts resolve these at runtime
      (features/dashboard/chartTheme.ts); keep in sync with the ramps */
-  --viz-brand: var(--ramp-brand-600);            /* MPG line            */
-  --viz-spend: oklch(59.6% 0.145 163.225);       /* fuel spend (emerald) */
+  --viz-brand: var(--brand-accent-strong); /* MPG line             */
+  --viz-spend: oklch(59.6% 0.145 163.225); /* fuel spend (emerald) */
   --viz-spend-hover: oklch(50.8% 0.118 165.612); /* emerald-700          */
-  --viz-severity-critical: var(--ramp-danger-700);
-  --viz-severity-high: var(--ramp-caution-500);
-  --viz-severity-medium: var(--ramp-warning-400);
-  --viz-severity-low: var(--ramp-neutral-400);
+  --viz-severity-critical: var(--ramp-danger-800);
+  --viz-severity-high: oklch(49.6% 0.265 301.924); /* purple: CVD-separated from critical red */
+  --viz-severity-medium: var(--ramp-warning-700);
+  --viz-severity-low: var(--ramp-neutral-600);
   --viz-grid: var(--ramp-neutral-100);
   --viz-tick: var(--ink-muted);
 }
@@ -144,6 +207,7 @@
    already reference roles, so no component changes will be needed. */
 
 @theme inline {
+  --font-sans: "Hanken Grotesk", system-ui, sans-serif;
   /* roles */
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -153,11 +217,34 @@
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);
   --color-ink-muted: var(--ink-muted);
+  --color-ink-tertiary: var(--ink-tertiary);
   --color-ink-subtle: var(--ink-subtle);
+  --color-ink-disabled: var(--ink-disabled);
   --color-ink-inverse: var(--ink-inverse);
   --color-edge-subtle: var(--edge-subtle);
   --color-edge: var(--edge);
   --color-edge-strong: var(--edge-strong);
+  --color-edge-control: var(--edge-control);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-soft: var(--brand-accent-soft);
+  --color-brand-accent-strong: var(--brand-accent-strong);
+  --color-action-primary: var(--action-primary);
+  --color-action-primary-hover: var(--action-primary-hover);
+  --color-action-primary-foreground: var(--action-primary-foreground);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-focus-ring: var(--focus-ring);
+  --color-selected-surface: var(--selected-surface);
+  --color-selected-strong: var(--selected-strong);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-solid-foreground: var(--danger-solid-foreground);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-text: var(--danger-text);
+  --radius-detail: var(--shape-detail);
+  --radius-control: var(--shape-control);
+  --radius-surface: var(--shape-surface);
+  --radius-overlay: var(--shape-overlay);
+  --radius-dialog: var(--shape-dialog);
 
   /* brand ramp */
   --color-brand-50: var(--ramp-brand-50);
@@ -244,7 +331,7 @@
     @apply bg-surface-subtle;
   }
   .kebab-item:disabled {
-    @apply cursor-not-allowed text-ink-subtle;
+    @apply cursor-not-allowed text-ink-tertiary;
   }
   .kebab-item-danger {
     @apply text-danger-600;
@@ -284,7 +371,7 @@
   --dp-range-between-border-color: var(--ramp-brand-50);
 }
 .dp__main {
-  /* sizing: match BaseInput / rounded-md controls */
+  /* sizing: match BaseInput / rounded-control controls */
   --dp-border-radius: 0.375rem;
   --dp-cell-border-radius: 0.375rem;
   --dp-font-family: inherit;

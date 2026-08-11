@@ -8,14 +8,15 @@ import { ref, computed, watch, onMounted } from "vue";
 import { RouterLink } from "vue-router";
 import { downloadReport } from "@/features/reports/download";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
-import AppSelect from "@/components/AppSelect.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppSelect } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { apiFetch } from "@/lib/api";
 import type { DetectionMetrics, RecallMetrics } from "@fuelguard/shared";
 import { useToastStore } from "@/stores/toast";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const toast = useToastStore();
 
@@ -72,7 +73,7 @@ async function loadAccuracy() {
 }
 const accTop = computed(() => acc.value.filter((r) => r.checked > 0).slice(0, 10));
 const accTone = (pct: number | null) =>
-  pct == null ? "text-ink-subtle" : pct >= 90 ? "text-success-700" : pct >= 70 ? "text-warning-700" : "text-danger-700";
+  pct == null ? "text-ink-tertiary" : pct >= 90 ? "text-success-700" : pct >= 70 ? "text-warning-700" : "text-danger-700";
 const accColumns = computed<DataTableColumn[]>(() => [
   { key: "label", label: by.value === "vehicle" ? "Unit" : "Driver", cellClass: "font-medium text-ink" },
   { key: "fills", label: "Fills", numeric: true, cellClass: "text-ink-secondary" },
@@ -113,7 +114,7 @@ async function loadRecall() {
 onMounted(loadRecall);
 const precisionTone = computed(() => {
   const p = metrics.value?.precision;
-  return p == null ? "text-ink-subtle" : p >= 0.9 ? "text-success-700" : p >= 0.75 ? "text-warning-700" : "text-danger-700";
+  return p == null ? "text-ink-tertiary" : p >= 0.9 ? "text-success-700" : p >= 0.75 ? "text-warning-700" : "text-danger-700";
 });
 
 const sendingDigest = ref(false);
@@ -129,37 +130,38 @@ async function sendDigest() {
 
 <template>
   <div class="space-y-6">
+    <PageHeader description="Review detection health and export operational reports for a selected period." />
     <!-- Detection accuracy — the measured trust metric -->
     <BaseCard>
       <div class="flex items-start justify-between">
         <div>
-          <h2 class="text-sm font-semibold text-ink">Detection accuracy <span class="font-normal text-ink-subtle">(all-time)</span></h2>
+          <h2 class="text-sm font-semibold text-ink">Detection accuracy <span class="font-normal text-ink-tertiary">(all-time)</span></h2>
           <p class="text-sm text-ink-muted">Measured from reviewer outcomes — precision is how often a raised case was a real issue.</p>
         </div>
       </div>
 
-      <div v-if="metricsLoading" class="mt-4 text-sm text-ink-subtle">Loading…</div>
+      <div v-if="metricsLoading" class="mt-4 text-sm text-ink-tertiary">Loading…</div>
       <template v-else-if="metrics && metrics.decided > 0">
         <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
             <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Precision</dt>
             <dd class="mt-1 text-2xl font-bold" :class="precisionTone">{{ pct(metrics.precision) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-subtle">95% CI {{ pct(metrics.precisionCiLow) }}–{{ pct(metrics.precisionCiHigh) }}</dd>
+            <dd class="mt-0.5 text-xs text-ink-tertiary">95% CI {{ pct(metrics.precisionCiLow) }}–{{ pct(metrics.precisionCiHigh) }}</dd>
           </div>
           <div>
             <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Non-issue rate</dt>
             <dd class="mt-1 text-2xl font-bold text-ink">{{ pct(metrics.nonIssueRate) }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-subtle">false alarms + legitimate, explained</dd>
+            <dd class="mt-0.5 text-xs text-ink-tertiary">false alarms + legitimate, explained</dd>
           </div>
           <div>
             <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Reviewed</dt>
-            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.decided.toLocaleString() }}<span class="text-base font-normal text-ink-subtle"> cases</span></dd>
-            <dd class="mt-0.5 text-xs text-ink-subtle">{{ metrics.confirmed }} confirmed · {{ metrics.inconclusive }} inconclusive</dd>
+            <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.decided.toLocaleString() }}<span class="text-base font-normal text-ink-tertiary"> cases</span></dd>
+            <dd class="mt-0.5 text-xs text-ink-tertiary">{{ metrics.confirmed }} confirmed · {{ metrics.inconclusive }} inconclusive</dd>
           </div>
           <div>
             <dt class="text-xs font-medium uppercase tracking-wide text-ink-muted">Awaiting review</dt>
             <dd class="mt-1 text-2xl font-bold text-ink">{{ metrics.pending.toLocaleString() }}</dd>
-            <dd class="mt-0.5 text-xs text-ink-subtle">label these to sharpen the number</dd>
+            <dd class="mt-0.5 text-xs text-ink-tertiary">label these to sharpen the number</dd>
           </div>
         </div>
 
@@ -167,7 +169,7 @@ async function sendDigest() {
           <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Precision by lead signal</p>
           <DataTable :columns="leadColumns" :rows="metrics.perLeadRule" row-key="ruleId" :sticky-header="false">
             <template #cell-precision="{ value }">
-              <span class="font-medium" :class="value == null ? 'text-ink-subtle' : value >= 0.9 ? 'text-success-700' : value >= 0.75 ? 'text-warning-700' : 'text-danger-700'">{{ pct(value) }}</span>
+              <span class="font-medium" :class="value == null ? 'text-ink-tertiary' : value >= 0.9 ? 'text-success-700' : value >= 0.75 ? 'text-warning-700' : 'text-danger-700'">{{ pct(value) }}</span>
             </template>
           </DataTable>
         </div>
@@ -175,12 +177,12 @@ async function sendDigest() {
           <span class="text-ink-muted">Estimated recall:</span>
           <template v-if="recall && recall.audited > 0">
             <span class="font-semibold text-ink">{{ pct(recall.estimatedRecall) }}</span>
-            <span class="text-xs text-ink-subtle">(range {{ pct(recall.recallLow) }}–{{ pct(recall.recallHigh) }}, from {{ recall.audited }} audits)</span>
+            <span class="text-xs text-ink-tertiary">(range {{ pct(recall.recallLow) }}–{{ pct(recall.recallHigh) }}, from {{ recall.audited }} audits)</span>
           </template>
-          <span v-else class="text-ink-subtle">not yet audited</span>
-          <RouterLink to="/recall-audit" class="ml-auto text-xs font-medium text-brand-600 hover:text-brand-500">Review cleared fills →</RouterLink>
+          <span v-else class="text-ink-tertiary">not yet audited</span>
+          <RouterLink to="/recall-audit" class="ml-auto text-xs font-medium text-link hover:text-link-hover">Review cleared fills →</RouterLink>
         </div>
-        <p class="mt-3 text-xs text-ink-subtle">
+        <p class="mt-3 text-xs text-ink-tertiary">
           Precision and recall are both measured, not asserted — intervals widen on small samples. Recall is
           estimated from a random audit of cleared, telematics-covered fills.
         </p>
@@ -226,7 +228,7 @@ async function sendDigest() {
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 class="text-sm font-semibold text-ink">Odometer accuracy</h3>
-          <p class="text-sm text-ink-muted">Driver-entered odometer vs. Samsara reading. See <RouterLink to="/odometer" class="font-medium text-brand-600 hover:text-brand-500">Odometer Mismatches</RouterLink> for the fill-by-fill list.</p>
+          <p class="text-sm text-ink-muted">Driver-entered odometer vs. Samsara reading. See <RouterLink to="/odometer" class="font-medium text-link hover:text-link-hover">Odometer Mismatches</RouterLink> for the fill-by-fill list.</p>
         </div>
         <div class="flex items-center gap-2">
           <AppSelect v-model="by" :options="[{ value: 'driver', label: 'By driver' }, { value: 'vehicle', label: 'By vehicle' }]" class="w-36" />

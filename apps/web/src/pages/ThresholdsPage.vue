@@ -3,15 +3,22 @@ import { reactive, ref, watch } from "vue";
 import { RULE_IDS, formatRuleId, thresholdsFormSchema, type ThresholdsForm } from "@fuelguard/shared";
 import { useThresholdsQuery, useSaveThresholds } from "@/features/settings/useThresholds";
 import { useToastStore } from "@/stores/toast";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useThresholdsQuery();
 const save = useSaveThresholds();
+
+function toggleRule(rule: string) {
+  const selected = form.disabled_rules as string[];
+  form.disabled_rules = selected.includes(rule)
+    ? selected.filter((candidate) => candidate !== rule)
+    : [...selected, rule];
+}
 
 const form = reactive<Record<string, unknown>>({
   mpg_drop_pct: 15,
@@ -97,13 +104,17 @@ const numFields: { key: string; label: string }[] = [
         <h3 class="text-base font-semibold text-ink">Disabled rules</h3>
         <p class="mt-1 text-xs text-ink-muted">Checked rules are turned off (everything else stays on).</p>
         <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label v-for="r in RULE_IDS" :key="r" class="flex items-center gap-2 text-sm text-ink-secondary">
-            <input v-model="(form.disabled_rules as string[])" type="checkbox" :value="r" class="size-4 rounded border-edge-strong accent-brand-600" />
+          <BaseCheckbox
+            v-for="r in RULE_IDS"
+            :key="r"
+            :model-value="(form.disabled_rules as string[]).includes(r)"
+            @update:model-value="toggleRule(r)"
+          >
             <span>
               <span class="block text-sm text-ink-secondary">{{ formatRuleId(r) }}</span>
-              <span class="block font-mono text-xs text-ink-subtle">{{ r }}</span>
+              <span class="block font-mono text-xs text-ink-tertiary">{{ r }}</span>
             </span>
-          </label>
+          </BaseCheckbox>
         </div>
       </BaseCard>
 

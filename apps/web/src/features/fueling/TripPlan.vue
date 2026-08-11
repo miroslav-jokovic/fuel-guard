@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppIcon } from "@fuelguard/ui";
 import {
   type Icon,
@@ -9,7 +10,7 @@ import {
   MapPinIcon,
 } from "@fuelguard/ui/icons";
 import { computed, reactive } from "vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { stripStepDistance } from "@fuelguard/shared";
 import type { PlanStopView } from "./useFuelPlan";
@@ -84,7 +85,7 @@ const openLegs = reactive<Record<number, boolean>>({});
 const toggleLeg = (i: number) => { openLegs[i] = !openLegs[i]; };
 
 const DOT: Record<string, string> = {
-  success: "bg-success-600 text-ink-inverse", brand: "bg-brand-600 text-ink-inverse",
+  success: "bg-success-600 text-ink-inverse", brand: "bg-brand-accent text-ink",
   info: "bg-info-600 text-ink-inverse", warning: "bg-warning-500 text-ink-inverse", caution: "bg-caution-500 text-ink-inverse",
 };
 </script>
@@ -117,12 +118,12 @@ const DOT: Record<string, string> = {
           <span class="absolute left-[15px] top-0 bottom-0 w-px bg-edge" aria-hidden="true" />
           <span class="w-8 shrink-0" aria-hidden="true" />
           <div class="min-w-0 flex-1 pb-4">
-            <button type="button" class="inline-flex items-center gap-1.5 rounded-md bg-surface-subtle px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-surface-muted" @click="toggleLeg(i)">
-              <AppIcon :icon="MapIcon" class="size-3.5 text-ink-subtle" aria-hidden="true" />
+            <BaseButton type="button" class="inline-flex items-center gap-1.5 rounded-control bg-surface-subtle px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-surface-muted" @click="toggleLeg(i)">
+              <AppIcon :icon="MapIcon" class="size-3.5 text-ink-tertiary" aria-hidden="true" />
               Drive {{ legs[i]!.miles.toLocaleString() }} mi
               <span class="text-ink-muted">· {{ legs[i]!.steps.length }} steps</span>
               <AppIcon :icon="ChevronDownIcon" class="size-3.5 transition-transform" :class="openLegs[i] ? 'rotate-180' : ''" aria-hidden="true" />
-            </button>
+            </BaseButton>
             <ol v-if="openLegs[i]" class="mt-2 space-y-1.5 border-l border-edge-subtle pl-3">
               <li v-for="(step, si) in legs[i]!.steps" :key="si" class="text-sm text-ink-secondary">
                 <!-- Defense-in-depth: strip HERE's embedded km/m so the turn-by-turn shows miles only,

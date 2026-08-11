@@ -21,9 +21,9 @@ import {
 } from "@fuelguard/shared";
 import { useToastStore } from "@/stores/toast";
 import SlideOver from "@/components/SlideOver.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import DriverAccountAccessControl from "./DriverAccountAccessControl.vue";
 import DriverAccessSummary from "./DriverAccessSummary.vue";
 import DriverCredentialHandoff from "./DriverCredentialHandoff.vue";
@@ -415,7 +415,7 @@ async function copyCredentials() {
             <h3 id="danger-zone-heading" class="text-sm font-semibold text-danger-700">
               Danger zone
             </h3>
-            <div class="mt-3 rounded-lg border border-danger-200 bg-danger-50 p-4">
+            <div class="mt-3 rounded-surface border border-danger-200 bg-danger-50 p-4">
               <div class="flex items-start gap-3">
                 <AppIcon
                   :icon="TrashIcon"
@@ -442,7 +442,7 @@ async function copyCredentials() {
             </div>
           </section>
 
-          <p class="flex items-center gap-2 text-xs text-ink-subtle">
+          <p class="flex items-center gap-2 text-xs text-ink-tertiary">
             <AppIcon :icon="ShieldCheckIcon" class="size-4 shrink-0" aria-hidden="true" />
             Every account action is recorded in the audit log.
           </p>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AppButton as BaseButton } from "@fuelguard/ui";
 /**
  * Entity-intelligence panel (2026-08, Phases 1–2) — CONTEXT for the reviewer, never a score input.
  * Phase 1: the derived-on-read risk snapshot for the case's driver / vehicle / card (open cases,
@@ -88,23 +89,23 @@ const declineRetries = (rep: PatternReport) =>
   <div class="space-y-3 border-t border-edge pt-4">
     <div class="flex items-center justify-between">
       <h3 class="text-sm font-semibold text-ink">Entity history</h3>
-      <button
-        class="text-xs font-medium text-brand-600 hover:text-brand-500 disabled:opacity-50"
+      <BaseButton
+        class="text-xs font-medium text-link hover:text-link-hover disabled:opacity-50"
         :disabled="sweeping"
         @click="sweep"
       >
         {{ report ? "Re-analyze history" : "Analyze history" }}
-      </button>
+      </BaseButton>
     </div>
-    <p v-if="sweepMsg" class="text-xs text-ink-subtle">{{ sweepMsg }}</p>
-    <p v-if="loading" class="text-sm text-ink-subtle italic">Loading history…</p>
+    <p v-if="sweepMsg" class="text-xs text-ink-tertiary">{{ sweepMsg }}</p>
+    <p v-if="loading" class="text-sm text-ink-tertiary italic">Loading history…</p>
 
     <!-- Phase 1: risk snapshot per entity -->
     <div v-else-if="risk" class="space-y-2">
       <div
         v-for="{ key, e } in entries(risk)"
         :key="key"
-        class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-surface-raised px-3 py-2 text-xs"
+        class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-control bg-surface-raised px-3 py-2 text-xs"
       >
         <span class="w-14 font-semibold text-ink-secondary">{{ entryLabel[key] }}</span>
         <span :class="e.confirmed > 0 ? 'font-semibold text-danger-700' : 'text-ink-muted'">
@@ -119,7 +120,7 @@ const declineRetries = (rep: PatternReport) =>
           {{ e.suspiciousDeclines }} suspicious declines
         </span>
       </div>
-      <p class="text-[11px] text-ink-subtle">
+      <p class="text-[11px] text-ink-tertiary">
         Near-miss = a fill whose case stayed clear but scored ≥ {{ risk.windows.nearThresholdScore }}.
         History is shown for context only — it never changes this case's score.
       </p>
@@ -127,12 +128,12 @@ const declineRetries = (rep: PatternReport) =>
 
     <!-- Phase 2: retrospective pattern report -->
     <div v-if="report" class="space-y-2 text-xs">
-      <div class="text-ink-subtle">
+      <div class="text-ink-tertiary">
         Pattern analysis · last {{ report.report.lookbackDays }} days · generated
         {{ new Date(report.generated_at).toLocaleString() }}
       </div>
       <template v-for="axis in (['driver', 'vehicle'] as const)" :key="axis">
-        <div v-if="report.report[axis]" class="rounded-md bg-surface-raised px-3 py-2">
+        <div v-if="report.report[axis]" class="rounded-control bg-surface-raised px-3 py-2">
           <div class="mb-1 font-semibold text-ink-secondary">
             {{ entryLabel[axis] }} · {{ report.report[axis]!.fills }} fills ·
             {{ report.report[axis]!.nearThresholdTotal }} near-miss
@@ -149,7 +150,7 @@ const declineRetries = (rep: PatternReport) =>
           </div>
         </div>
       </template>
-      <div v-if="report.report.cardDeclines && report.report.cardDeclines.total > 0" class="rounded-md bg-surface-raised px-3 py-2">
+      <div v-if="report.report.cardDeclines && report.report.cardDeclines.total > 0" class="rounded-control bg-surface-raised px-3 py-2">
         <div class="font-semibold text-ink-secondary">
           Card declines: {{ report.report.cardDeclines.total }}
           <span v-if="report.report.cardDeclines.suspicious > 0" class="text-warning-700">
@@ -158,7 +159,7 @@ const declineRetries = (rep: PatternReport) =>
         </div>
       </div>
     </div>
-    <p v-else-if="!loading" class="text-xs text-ink-subtle italic">
+    <p v-else-if="!loading" class="text-xs text-ink-tertiary italic">
       No pattern analysis yet — “Analyze history” sweeps this case's driver, truck, and card for
       recurring near-miss patterns and decline sequences.
     </p>

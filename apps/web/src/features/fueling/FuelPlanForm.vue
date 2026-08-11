@@ -10,13 +10,13 @@ import { reactive, computed, ref, watch } from "vue";
 import { EQUIPMENT_TYPES } from "@fuelguard/shared";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useRouteFuelSettings } from "./useRouteFuelSettings";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import AddressInput from "./AddressInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { HAZMAT_OPTIONS, TUNNEL_OPTIONS, fetchVehicleLocation, type PlanRequest } from "./useFuelPlan";
 
 const props = defineProps<{ loading?: boolean }>();
@@ -140,15 +140,15 @@ function submit() {
           :id="id" :model-value="form.origin" placeholder="City, ST or address"
           @update:model-value="(v: string) => { form.origin = v; form.originCoords = null; }"
           @select="(sug) => { form.origin = sug.label; form.originCoords = { lat: sug.lat, lng: sug.lng }; }" />
-        <button
+        <BaseButton
           type="button"
-          class="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
+          class="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-link hover:text-link-hover disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="!form.vehicleId || locating"
           @click="useTruckLocation"
         >
           <AppIcon :icon="MapPinIcon" class="size-3.5" aria-hidden="true" />
           {{ locating ? "Locating…" : "Use truck's current location" }}
-        </button>
+        </BaseButton>
         <p v-if="locateError" class="mt-1 text-xs text-danger-600">{{ locateError }}</p>
       </FormField>
       <FormField v-slot="{ id }" label="Destination">
@@ -161,7 +161,7 @@ function submit() {
 
     <!-- Placarded hazmat is opt-in: most loads (dry van, reefer, container) are not hazmat, so it never
          alters the route unless the dispatcher marks the load as placarded. -->
-    <div class="mt-4 rounded-md border border-edge bg-surface-subtle p-3">
+    <div class="mt-4 rounded-control border border-edge bg-surface-subtle p-3">
       <BaseCheckbox v-model="form.hazmatOn">This is a placarded hazmat load</BaseCheckbox>
       <div v-if="form.hazmatOn" class="mt-3 space-y-3">
         <div>
@@ -185,7 +185,7 @@ function submit() {
 
     <!-- Avoid all tunnels: independent of hazmat class/ADR category. Hazmat is barred from ~all tunnels, so a
          dispatcher can force a tunnel-free route for any load that shouldn't run them. -->
-    <div class="mt-4 rounded-md border border-edge bg-surface-subtle p-3">
+    <div class="mt-4 rounded-control border border-edge bg-surface-subtle p-3">
       <BaseCheckbox v-model="form.avoidTunnels">Avoid all tunnels</BaseCheckbox>
       <p class="mt-1 pl-6 text-xs text-ink-muted">Routes around every tunnel — recommended for hazmat and oversized loads. May add miles.</p>
     </div>

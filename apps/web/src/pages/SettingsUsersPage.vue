@@ -2,18 +2,19 @@
 import { ref, computed, onMounted } from "vue";
 import { USER_ROLES, USER_ROLE_LABELS, APP_SECTIONS, sectionAccess, type UserRole, type Invite, type OrgMember } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
-import AppSelect from "@/components/AppSelect.vue";
+import { AppSelect, AppTable } from "@fuelguard/ui";
 import KebabMenu from "@/components/KebabMenu.vue";
-import SearchInput from "@/components/SearchInput.vue";
+import { AppSearchField as SearchInput } from "@fuelguard/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { BADGE_BASE, inviteTone } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useSessionStore } from "@/stores/session";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const toast = useToastStore();
 const session = useSessionStore();
@@ -152,7 +153,7 @@ const permMatrix = computed(() =>
   })),
 );
 const accessText = (a: string) => (a === "manage" ? "Manage" : a === "view" ? "View" : "—");
-const accessCls = (a: string) => (a === "manage" ? "font-medium text-success-700" : a === "view" ? "text-ink-secondary" : "text-ink-subtle");
+const accessCls = (a: string) => (a === "manage" ? "font-medium text-success-700" : a === "view" ? "text-ink-secondary" : "text-ink-tertiary");
 
 // ── search + multi-select (members) ─────────────────────────────────────────
 const search = ref("");
@@ -193,6 +194,7 @@ onMounted(load);
 
 <template>
   <div class="space-y-6">
+    <PageHeader description="Invite office users, manage roles, and review pending access." />
     <BaseCard as="section">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -210,7 +212,7 @@ onMounted(load);
       </div>
       <div
         v-if="mailTest"
-        :class="['mt-3 rounded-md p-3 text-sm ring-1', mailTest.ok ? 'bg-success-50 text-success-800 ring-success-200' : 'bg-danger-50 text-danger-800 ring-danger-200']"
+        :class="['mt-3 rounded-control p-3 text-sm ring-1', mailTest.ok ? 'bg-success-50 text-success-800 ring-success-200' : 'bg-danger-50 text-danger-800 ring-danger-200']"
       >
         <p v-if="mailTest.ok">Sent via {{ mailTest.provider }} to {{ mailTest.to }} — check your inbox.</p>
         <p v-else>
@@ -236,7 +238,7 @@ onMounted(load);
           {{ submitting ? "Sending…" : "Send invite" }}
         </BaseButton>
       </form>
-      <p class="mt-2 text-xs text-ink-subtle">
+      <p class="mt-2 text-xs text-ink-tertiary">
         Looking for drivers? Driver-app logins aren't invited by email — issue a username + password
         from the <RouterLink to="/drivers" class="text-brand underline">Drivers page</RouterLink> (App access column).
       </p>
@@ -250,11 +252,11 @@ onMounted(load);
         </div>
       </div>
 
-      <div v-if="selectedIds.size > 0" class="flex items-center justify-between rounded-lg bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-100">
+      <div v-if="selectedIds.size > 0" class="flex items-center justify-between rounded-surface bg-brand-50 px-4 py-2.5 text-sm ring-1 ring-brand-100">
         <span class="font-medium text-brand-800">{{ selectedIds.size }} selected</span>
         <div class="flex items-center gap-3">
-          <button :disabled="bulkBusy" class="font-medium text-danger-600 hover:text-danger-500 disabled:opacity-50" @click="bulkRemove">Remove</button>
-          <button class="font-medium text-ink-muted hover:text-ink-secondary" @click="selectedIds = new Set()">Clear</button>
+          <BaseButton :disabled="bulkBusy" class="font-medium text-danger-600 hover:text-danger-500 disabled:opacity-50" @click="bulkRemove">Remove</BaseButton>
+          <BaseButton class="font-medium text-ink-muted hover:text-ink-secondary" @click="selectedIds = new Set()">Clear</BaseButton>
         </div>
       </div>
 
@@ -275,9 +277,9 @@ onMounted(load);
         <template #cell-joinedAt="{ row }">{{ new Date(row.joinedAt).toLocaleDateString() }}</template>
         <template #actions="{ row }">
           <KebabMenu v-if="row.userId !== session.userId">
-            <button class="kebab-item kebab-item-danger" @click="removeMember(row.userId)">Remove member</button>
+            <BaseButton class="kebab-item kebab-item-danger" @click="removeMember(row.userId)">Remove member</BaseButton>
           </KebabMenu>
-          <span v-else class="text-xs text-ink-subtle">You</span>
+          <span v-else class="text-xs text-ink-tertiary">You</span>
         </template>
       </DataTable>
     </section>
@@ -290,7 +292,7 @@ onMounted(load);
       <BaseCard v-if="showPerms" as="section">
         <p class="mb-3 text-sm text-ink-muted">What each role can access. <span class="font-medium text-success-700">Manage</span> = view + edit; View = read-only. Set a member's role in the table above.</p>
         <div class="overflow-x-auto">
-          <table class="min-w-full text-sm">
+          <AppTable class="min-w-full text-sm">
             <thead class="text-ink-muted">
               <tr>
                 <th class="py-2 pr-4 text-left font-medium">Role</th>
@@ -303,7 +305,7 @@ onMounted(load);
                 <td v-for="c in prow.cells" :key="c.section" class="px-3 py-2 text-center" :class="accessCls(c.access)">{{ accessText(c.access) }}</td>
               </tr>
             </tbody>
-          </table>
+          </AppTable>
         </div>
       </BaseCard>
     </section>
@@ -316,8 +318,8 @@ onMounted(load);
         </template>
         <template #actions="{ row }">
           <KebabMenu v-if="row.status === 'pending' || row.status === 'revoked' || row.status === 'expired'">
-            <button v-if="row.status === 'pending'" class="kebab-item kebab-item-danger" @click="revoke(row.id)">Revoke invite</button>
-            <button v-else class="kebab-item" @click="resend(row.id)">Resend invite</button>
+            <BaseButton v-if="row.status === 'pending'" class="kebab-item kebab-item-danger" @click="revoke(row.id)">Revoke invite</BaseButton>
+            <BaseButton v-else class="kebab-item" @click="resend(row.id)">Resend invite</BaseButton>
           </KebabMenu>
         </template>
       </DataTable>

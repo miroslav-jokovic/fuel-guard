@@ -5,10 +5,10 @@ import {
   ExclamationTriangleIcon,
 } from "@fuelguard/ui/icons";
 import { reactive, ref } from "vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import type { PlanRequest } from "./useFuelPlan";
 
 defineProps<{ message?: string; loading?: boolean }>();
@@ -51,10 +51,10 @@ function submit() {
           </BaseButton>
         </div>
 
-        <button type="button" class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800" @click="showHos = !showHos">
+        <BaseButton type="button" class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-link hover:text-link-hover" @click="showHos = !showHos">
           <AppIcon :icon="ChevronDownIcon" class="size-3.5 transition-transform" :class="showHos ? 'rotate-180' : ''" aria-hidden="true" />
           {{ showHos ? "Hide" : "Add" }} hours of service (optional)
-        </button>
+        </BaseButton>
         <div v-if="showHos" class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <FormField v-slot="{ id }" label="Drive (h)"><BaseInput :id="id" v-model="form.driveHours" type="number" inputmode="decimal" step="0.5" placeholder="11" /></FormField>
           <FormField v-slot="{ id }" label="Break in (h)"><BaseInput :id="id" v-model="form.breakHours" type="number" inputmode="decimal" step="0.5" placeholder="8" /></FormField>

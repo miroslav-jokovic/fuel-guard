@@ -5,7 +5,7 @@ import {
 } from "@fuelguard/ui/icons";
 import { RouterLink } from "vue-router";
 import type { RiskRow } from "@fuelguard/shared";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 
 defineProps<{
@@ -33,20 +33,20 @@ defineProps<{
           :is="linkBase ? RouterLink : 'div'"
           :to="linkBase ? `${linkBase}/${row.id}` : undefined"
           :class="[
-            'group -mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5',
+            'group -mx-2 flex items-center gap-3 rounded-surface px-2 py-2.5',
             linkBase &&
-              'hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-brand-600',
+              'hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-focus-ring',
           ]"
         >
           <span
-            class="flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-muted text-xs font-semibold text-ink-muted tabular-nums"
+            class="flex size-6 shrink-0 items-center justify-center rounded-control bg-surface-muted text-xs font-semibold text-ink-muted tabular-nums"
             aria-hidden="true"
           >
             {{ i + 1 }}
           </span>
           <span
             class="min-w-0 flex-1 truncate text-sm font-medium"
-            :class="linkBase ? 'text-ink group-hover:text-brand-600' : 'text-ink'"
+            :class="linkBase ? 'text-ink group-hover:text-link' : 'text-ink'"
           >
             {{ row.label }}
           </span>

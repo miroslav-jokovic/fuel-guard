@@ -9,7 +9,7 @@ withDefaults(defineProps<{ rows?: number; cols?: number }>(), { rows: 6, cols: 5
       <div
         v-for="c in cols"
         :key="c"
-        class="h-3 animate-pulse rounded bg-neutral-200"
+        class="h-3 animate-pulse rounded-control bg-neutral-200"
         :class="c === 1 ? 'w-24' : c === cols ? 'w-12' : 'flex-1'"
       />
     </div>

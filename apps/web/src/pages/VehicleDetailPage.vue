@@ -8,10 +8,11 @@ import { supabase } from "@/lib/supabase";
 import { stationDate } from "@/lib/stationTime";
 import BaseChart from "@/components/BaseChart.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import { viz, areaFill } from "@/features/dashboard/chartTheme";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
@@ -93,11 +94,14 @@ const fillColumns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
+    <PageHeader
+      :title="vehicle?.unit_number ?? 'Vehicle'"
+      :description="vehicle ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') : 'Vehicle performance and fueling history'"
+    />
     <BaseCard v-if="vehicle">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="text-lg font-semibold text-ink">{{ vehicle.unit_number }}</h2>
-          <p class="text-sm text-ink-muted">{{ [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") }} · {{ vehicle.fuel_type }}</p>
+          <h2 class="text-sm font-semibold text-ink">Vehicle summary · {{ vehicle.fuel_type }}</h2>
         </div>
         <StatusBadge :status="vehicle.status" />
       </div>

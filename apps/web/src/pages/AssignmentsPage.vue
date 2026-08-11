@@ -12,8 +12,8 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import AssignmentHistory from "@/features/dispatch/AssignmentHistory.vue";
 import { useAssignmentsQuery, useEndShift } from "@/features/dispatch/useAssignments";
@@ -142,26 +142,26 @@ const columns: DataTableColumn[] = [
     />
 
     <nav
-      class="flex gap-1 rounded-lg bg-surface-muted p-1 text-sm"
+      class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm"
       role="tablist"
       aria-label="Assignments view"
     >
-      <button
+      <BaseButton
         v-for="t in TABS"
         :key="t.value"
         type="button"
         role="tab"
-        class="rounded-md px-3 py-1.5 font-medium transition"
+        class="rounded-control px-3 py-1.5 font-medium transition"
         :class="
           tab === t.value
-            ? 'bg-surface text-ink shadow-sm'
+            ? 'bg-surface text-ink'
             : 'text-ink-muted hover:text-ink-secondary'
         "
         :aria-selected="tab === t.value"
         @click="tab = t.value"
       >
         {{ t.label }}
-      </button>
+      </BaseButton>
     </nav>
 
     <AssignmentHistory v-if="tab === 'history'" />

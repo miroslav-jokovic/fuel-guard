@@ -13,7 +13,7 @@
  * the enforced row reads normally, the superseded one sits beneath it in muted text.
  */
 import { computed } from "vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
@@ -60,7 +60,7 @@ const sections = computed(() => [
   },
 ]);
 
-const rowClass = (row: EffectiveDisplayRow): string => (row.enforced ? "" : "text-ink-subtle");
+const rowClass = (row: EffectiveDisplayRow): string => (row.enforced ? "" : "text-ink-tertiary");
 </script>
 
 <template>

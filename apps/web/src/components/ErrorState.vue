@@ -4,7 +4,7 @@ import {
   ArrowPathIcon,
   ExclamationTriangleIcon,
 } from "@fuelguard/ui/icons";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 
 withDefaults(defineProps<{ message?: string; retrying?: boolean }>(), {
   message: "Something went wrong while loading this data.",

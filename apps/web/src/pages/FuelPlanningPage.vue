@@ -5,7 +5,7 @@ import {
 } from "@fuelguard/ui/icons";
 import { ref, watch } from "vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import FuelPlanForm from "@/features/fueling/FuelPlanForm.vue";
 import PlanStatusBanner from "@/features/fueling/PlanStatusBanner.vue";
 import FuelPlanSummary from "@/features/fueling/FuelPlanSummary.vue";
@@ -83,17 +83,17 @@ async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manua
       </template>
     </PageHeader>
 
-    <div class="flex w-fit gap-1 rounded-lg bg-surface-muted p-1 text-sm">
-      <button
-        class="rounded-md px-3 py-1.5 font-medium transition"
-        :class="activeTab === 'plan' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+    <div class="flex w-fit gap-1 rounded-surface bg-surface-muted p-1 text-sm">
+      <BaseButton
+        class="rounded-control px-3 py-1.5 font-medium transition"
+        :class="activeTab === 'plan' ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
         @click="activeTab = 'plan'"
-      >Plan</button>
-      <button
-        class="rounded-md px-3 py-1.5 font-medium transition"
-        :class="activeTab === 'history' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+      >Plan</BaseButton>
+      <BaseButton
+        class="rounded-control px-3 py-1.5 font-medium transition"
+        :class="activeTab === 'history' ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
         @click="activeTab = 'history'"
-      >History</button>
+      >History</BaseButton>
     </div>
 
     <div v-show="activeTab === 'plan'" class="space-y-6">
@@ -107,10 +107,10 @@ async function onManualSubmit(manual: { fuelPct: number; hos: PlanRequest["manua
         :loading="plan.isPending.value"
         @submit="onManualSubmit"
       />
-      <p v-if="result.manualFuelUsed" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-800">
+      <p v-if="result.manualFuelUsed" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-800">
         Planned from a manually-entered fuel level — live Samsara data was unavailable for this truck.
       </p>
-      <p v-if="result.plan?.flags.includes('fills_uncapped_no_load_weight')" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-800">
+      <p v-if="result.plan?.flags.includes('fills_uncapped_no_load_weight')" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-800">
         No load weight entered, so fuel fills aren't capped for legal gross weight. If this truck is running heavy, double-check axle/gross weights before topping off.
       </p>
       <FuelPlanSummary v-if="result.plan" :result="result" />

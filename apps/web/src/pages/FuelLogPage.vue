@@ -20,8 +20,8 @@ import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
 import { useToastStore } from "@/stores/toast";
@@ -253,34 +253,34 @@ const columns: DataTableColumn[] = [
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total fill-ups</dt>
           <dd class="mt-1 text-2xl font-bold text-ink">{{ total.toLocaleString() }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-subtle">matching current filters</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">matching current filters</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Total miles</dt>
           <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalMiles, 0) }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-subtle">driven in selected range</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">driven in selected range</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Flagged</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="flaggedCount ? 'text-danger-600' : 'text-ink-subtle'">{{ flaggedCount }}</dd>
-          <dd class="mt-0.5 text-xs" :class="flaggedCount ? 'text-danger-400' : 'text-ink-subtle'">
+          <dd class="mt-1 text-2xl font-bold" :class="flaggedCount ? 'text-danger-600' : 'text-ink-tertiary'">{{ flaggedCount }}</dd>
+          <dd class="mt-0.5 text-xs" :class="flaggedCount ? 'text-danger-400' : 'text-ink-tertiary'">
             {{ flaggedCount ? 'anomalies need review' : 'none in selected range' }}
           </dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Clear</dt>
-          <dd class="mt-1 text-2xl font-bold" :class="clearCount ? 'text-success-600' : 'text-ink-subtle'">{{ clearCount }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-subtle">transactions with no flags</dd>
+          <dd class="mt-1 text-2xl font-bold" :class="clearCount ? 'text-success-600' : 'text-ink-tertiary'">{{ clearCount }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">transactions with no flags</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Gallons</dt>
           <dd class="mt-1 text-2xl font-bold text-ink">{{ fmtNum(totalGallons, 0) }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-subtle">in selected range</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">in selected range</dd>
         </div>
         <div class="px-5 py-4">
           <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Avg MPG</dt>
           <dd class="mt-1 text-2xl font-bold text-ink">{{ avgMpg != null ? avgMpg.toFixed(1) : '—' }}</dd>
-          <dd class="mt-0.5 text-xs text-ink-subtle">{{ hasCost ? fmtUsd(totalCost) + ' total cost' : 'gallon-weighted' }}</dd>
+          <dd class="mt-0.5 text-xs text-ink-tertiary">{{ hasCost ? fmtUsd(totalCost) + ' total cost' : 'gallon-weighted' }}</dd>
         </div>
       </dl>
     </BaseCard>

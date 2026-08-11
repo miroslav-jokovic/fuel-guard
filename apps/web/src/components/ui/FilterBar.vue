@@ -6,9 +6,9 @@ import {
 } from "@fuelguard/ui/icons";
 import { ref } from "vue";
 import { useFloating, offset, flip, shift, autoUpdate } from "@floating-ui/vue";
-import SearchInput from "@/components/SearchInput.vue";
-import BaseCard from "./BaseCard.vue";
-import BaseButton from "./BaseButton.vue";
+import { AppSearchField as SearchInput } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 
 /**
  * The standard table toolbar (see docs/DESIGN-SYSTEM.md §3). One card:
@@ -40,6 +40,7 @@ withDefaults(
     countLabel?: string;
     chips?: FilterChip[];
     moreCount?: number;
+    embedded?: boolean;
   }>(),
   {
     search: undefined,
@@ -48,6 +49,7 @@ withDefaults(
     countLabel: "results",
     chips: () => [],
     moreCount: 0,
+    embedded: false,
   },
 );
 const emit = defineEmits<{
@@ -68,7 +70,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
 </script>
 
 <template>
-  <BaseCard padding="sm">
+  <component :is="embedded ? 'div' : BaseCard" :padding="embedded ? undefined : 'sm'" :class="embedded ? 'p-4' : ''">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div v-if="search !== undefined" class="w-full lg:w-64 lg:shrink-0">
         <SearchInput
@@ -86,13 +88,13 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         <button
           ref="triggerRef"
           type="button"
-          class="inline-flex items-center gap-x-1.5 rounded-md bg-surface px-2.5 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-strong hover:bg-surface-subtle"
+          class="inline-flex items-center gap-x-1.5 rounded-control bg-surface px-2.5 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control hover:bg-surface-subtle"
           :aria-expanded="moreOpen"
           aria-haspopup="dialog"
           @click.stop="moreOpen = !moreOpen"
           @keydown.escape="moreOpen = false"
         >
-          <AppIcon :icon="FunnelIcon" class="size-4 text-ink-subtle" aria-hidden="true" />
+          <AppIcon :icon="FunnelIcon" class="size-4 text-ink-tertiary" aria-hidden="true" />
           Filters
           <span
             v-if="moreCount"
@@ -102,11 +104,11 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         </button>
         <Teleport to="body">
           <template v-if="moreOpen">
-            <div class="fixed inset-0 z-[9998]" @click.stop="moreOpen = false" />
+            <button type="button" class="fixed inset-0 z-[9998]" aria-label="Close more filters" @click.stop="moreOpen = false" />
             <div
               ref="panelRef"
               :style="floatingStyles"
-              class="z-[9999] w-72 rounded-md bg-surface p-4 text-sm shadow-lg ring-1 ring-edge"
+              class="z-[9999] w-72 rounded-control bg-surface p-4 text-sm shadow-lg ring-1 ring-edge"
               role="dialog"
               aria-label="More filters"
             >
@@ -132,15 +134,15 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         v-for="c in chips"
         :key="c.key"
         type="button"
-        class="group inline-flex items-center gap-1 rounded-md bg-surface-muted py-0.5 pr-1 pl-2 text-xs font-medium text-ink-secondary ring-1 ring-inset ring-edge hover:bg-neutral-200"
+        class="group inline-flex items-center gap-1 rounded-control bg-surface-muted py-0.5 pr-1 pl-2 text-xs font-medium text-ink-secondary ring-1 ring-inset ring-edge hover:bg-neutral-200"
         :aria-label="`Remove filter ${c.label}: ${c.value}`"
         @click="emit('remove', c.key)"
       >
         <span class="text-ink-muted">{{ c.label }}:</span>
         {{ c.value }}
-        <AppIcon :icon="XMarkIcon" class="size-3.5 text-ink-subtle group-hover:text-ink-secondary" aria-hidden="true" />
+        <AppIcon :icon="XMarkIcon" class="size-3.5 text-ink-tertiary group-hover:text-ink-secondary" aria-hidden="true" />
       </button>
       <BaseButton variant="ghost" size="sm" @click="emit('clear-all')">Clear all</BaseButton>
     </div>
-  </BaseCard>
+  </component>
 </template>

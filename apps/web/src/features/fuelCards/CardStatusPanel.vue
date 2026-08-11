@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { efsStatusEquals } from "@fuelguard/shared";
 import { cardStatusLabel, cardStatusTone } from "./cardControlModel";

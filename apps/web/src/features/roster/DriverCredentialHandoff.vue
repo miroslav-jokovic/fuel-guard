@@ -8,8 +8,8 @@ import {
   EyeSlashIcon,
 } from "@fuelguard/ui/icons";
 import type { DriverCredentialIssued } from "@fuelguard/shared";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 
 defineProps<{
   credential: DriverCredentialIssued;
@@ -24,7 +24,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="space-y-6" aria-live="polite">
-    <div class="rounded-lg bg-success-50 p-4 ring-1 ring-inset ring-success-200">
+    <div class="rounded-surface bg-success-50 p-4 ring-1 ring-inset ring-success-200">
       <div class="flex gap-3">
         <AppIcon
           :icon="CheckCircleIcon"
@@ -93,7 +93,7 @@ const emit = defineEmits<{
       </dl>
     </BaseCard>
 
-    <div class="flex gap-3 rounded-lg bg-surface-subtle p-4 ring-1 ring-inset ring-edge">
+    <div class="flex gap-3 rounded-surface bg-surface-subtle p-4 ring-1 ring-inset ring-edge">
       <AppIcon
         :icon="DevicePhoneMobileIcon"
         class="mt-0.5 size-5 shrink-0 text-ink-muted"

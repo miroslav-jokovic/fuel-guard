@@ -9,10 +9,12 @@ import {
   type FillUpInput,
 } from "@fuelguard/shared";
 import { genUuid } from "@/lib/uuid";
-import AppSelect from "@/components/AppSelect.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppSelect } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppDateTimeField } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
+import FileDropzone from "@/components/ui/FileDropzone.vue";
 
 const props = defineProps<{
   vehicles: Vehicle[];
@@ -63,9 +65,8 @@ const pricePreview = computed(() => {
   return derivePricePerGal(g, t);
 });
 
-function onFile(e: Event) {
-  const input = e.target as HTMLInputElement;
-  file.value = input.files?.[0] ?? null;
+function onFile(files: File[]) {
+  file.value = files[0] ?? null;
 }
 
 function onSubmit() {
@@ -116,7 +117,7 @@ function onSubmit() {
     </FormField>
 
     <FormField v-slot="{ id: fieldId }" label="Date &amp; time">
-      <BaseInput :id="fieldId" v-model="form.fueled_at_local" type="datetime-local" />
+      <AppDateTimeField :id="fieldId" v-model="form.fueled_at_local" />
     </FormField>
 
     <FormField v-slot="{ id: fieldId }" label="Odometer">
@@ -152,8 +153,13 @@ function onSubmit() {
       <p class="mt-1 text-xs text-ink-muted">How this fill was paid when it wasn't on an EFS card (cash, check, personal/fleet card…).</p>
     </FormField>
 
-    <FormField v-slot="{ id: fieldId }" label="Receipt photo (optional)">
-      <input :id="fieldId" type="file" accept="image/*" capture="environment" class="block w-full text-sm" @change="onFile" />
+    <FormField label="Receipt photo (optional)">
+      <FileDropzone
+        accept=".jpg,.jpeg,.png,.webp,.heic"
+        label="Add a receipt photo"
+        :hint="file?.name ?? 'JPEG, PNG, WebP, or HEIC'"
+        @files="onFile"
+      />
     </FormField>
 
     <div class="flex justify-end gap-3 pt-2">

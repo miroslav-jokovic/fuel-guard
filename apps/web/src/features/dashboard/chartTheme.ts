@@ -6,18 +6,18 @@ import type { ChartOptions, TooltipItem } from "chart.js";
  * each --viz-* role to an rgb() string at first use (cached; charts mount
  * after styles load). Hex fallbacks keep unit tests (jsdom) rendering.
  *
- * Colors were validated with the dataviz palette checker against the white
- * card surface (contrast ≥ 3:1, CVD ΔE 93 for the hue pair); severity steps
- * pass adjacent-CVD separation and always render next to labeled counts.
+ * scripts/check-chart-colors.mjs verifies contrast and pairwise separation
+ * under protan, deutan, and tritan simulation. Color is never the only cue:
+ * severity values also have direct labels and semantic table fallbacks.
  */
 const FALLBACK: Record<string, string> = {
-  "--viz-brand": "#4f46e5",
+  "--viz-brand": "#d76f04",
   "--viz-spend": "#059669",
   "--viz-spend-hover": "#047857",
-  "--viz-severity-critical": "#b91c1c",
-  "--viz-severity-high": "#f97316",
-  "--viz-severity-medium": "#fbbf24",
-  "--viz-severity-low": "#9ca3af",
+  "--viz-severity-critical": "#991b1b",
+  "--viz-severity-high": "#7e22ce",
+  "--viz-severity-medium": "#a16207",
+  "--viz-severity-low": "#4b5563",
   "--viz-grid": "#f3f4f6",
   "--viz-tick": "#6b7280",
   "--surface-inverse": "#111827",

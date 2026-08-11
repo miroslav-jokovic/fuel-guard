@@ -9,7 +9,7 @@ import { useDriversQuery } from "@/composables/useDrivers";
 import { useAllDriverCertsQuery, useCertificationsQuery } from "@/composables/useCompliance";
 import { useTrailersQuery } from "@/composables/useTrailers";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
@@ -314,20 +314,20 @@ const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name:
     </PageHeader>
 
     <nav
-      class="flex gap-1 rounded-lg bg-surface-muted p-1 text-sm"
+      class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm"
       role="tablist"
       aria-label="Qualification view"
     >
-      <button
+      <BaseButton
         v-for="t in TABS"
         :id="`qualification-tab-${t.value}`"
         :key="t.value"
         type="button"
         role="tab"
-        class="rounded-md px-3 py-1.5 font-medium transition"
+        class="rounded-control px-3 py-1.5 font-medium transition"
         :class="
           tab === t.value
-            ? 'bg-surface text-ink shadow-sm'
+            ? 'bg-surface text-ink'
             : 'text-ink-muted hover:text-ink-secondary'
         "
         :aria-selected="tab === t.value"
@@ -335,7 +335,7 @@ const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name:
         @click="tab = t.value"
       >
         {{ t.label }}
-      </button>
+      </BaseButton>
     </nav>
 
     <div
@@ -392,7 +392,7 @@ const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name:
 
       <div
         v-if="selected.size > 0"
-        class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
+        class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100"
       >
         <span class="text-sm font-medium text-brand-800"> {{ selected.size }} selected </span>
         <span v-if="atCap" class="text-sm text-brand-800">
@@ -432,7 +432,7 @@ const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name:
         <template #cell-full_name="{ row }">
           <RouterLink
             :to="`/compliance/${row.id}`"
-            class="font-medium text-brand-600 hover:text-brand-500"
+            class="font-medium text-link hover:text-link-hover"
           >
             {{ row.full_name }}
           </RouterLink>
@@ -444,7 +444,7 @@ const seedDrivers = computed(() => rows.value.map((r) => ({ id: r.id, full_name:
           }}</span>
         </template>
         <template #cell-issueSummary="{ row }">
-          <span v-if="row.ready" class="text-ink-subtle">—</span>
+          <span v-if="row.ready" class="text-ink-tertiary">—</span>
           <div v-else class="flex min-w-0 items-center gap-2" :title="row.issueSummary">
             <span class="truncate text-ink-secondary">{{ row.issues[0] }}</span>
             <span

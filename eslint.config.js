@@ -2,6 +2,7 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import pluginVue from "eslint-plugin-vue";
+import pluginVueA11y from "eslint-plugin-vuejs-accessibility";
 import prettier from "eslint-config-prettier";
 
 // Browser globals used by the web app (dependency-free; avoids the `globals` package).
@@ -53,6 +54,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...pluginVue.configs["flat/recommended"],
+  ...pluginVueA11y.configs["flat/recommended"],
   {
     // typescript-eslint infers the TSConfig root by walking up from each file. `apps/driver` carries its
     // own tsconfig (Expo/RN needs one), so from inside that subtree there are TWO candidate roots — the
@@ -105,6 +107,14 @@ export default tseslint.config(
           ],
         },
       ],
+      // Controls in the shared package receive their accessible name from the consuming
+      // FormField. These template-local rules cannot follow that component boundary.
+      "vuejs-accessibility/form-control-has-label": "off",
+      "vuejs-accessibility/label-has-for": "off",
+      // Vue component props and active-descendant listboxes are otherwise mistaken for
+      // native DOM attributes/roving-tabindex widgets by the static analyzer.
+      "vuejs-accessibility/aria-props": "off",
+      "vuejs-accessibility/interactive-supports-focus": "off",
     },
   },
   prettier,

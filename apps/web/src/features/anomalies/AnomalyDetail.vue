@@ -2,7 +2,9 @@
 import { formatRuleId, DISPOSITION_LABELS, type Anomaly, CORRELATION_THRESHOLDS } from "@fuelguard/shared";
 import AnomalyAudit from "./AnomalyAudit.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppTextarea } from "@fuelguard/ui";
+import { AppTable } from "@fuelguard/ui";
 import { BADGE_BASE, severityTone } from "@/lib/badges";
 import EntityHistory from "./EntityHistory.vue";
 import { useAnomalyDetail } from "./useAnomalyDetail";
@@ -35,7 +37,7 @@ const {
 
     <p class="text-sm leading-relaxed text-ink">{{ anomaly.message }}</p>
 
-    <dl v-if="txn" class="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-surface-subtle p-4 text-sm ring-1 ring-edge">
+    <dl v-if="txn" class="grid grid-cols-2 gap-x-4 gap-y-2 rounded-surface bg-surface-subtle p-4 text-sm ring-1 ring-edge">
       <div>
         <dt class="text-xs text-ink-muted">Source</dt>
         <dd class="font-medium text-ink">{{ txn.source }}</dd>
@@ -60,12 +62,12 @@ const {
     <!-- ② Case score banner (theft_case only) -->
     <div
       v-if="isCase && caseScore != null"
-      class="flex flex-wrap items-center gap-4 rounded-lg bg-warning-50 px-4 py-3 ring-1 ring-warning-200"
+      class="flex flex-wrap items-center gap-4 rounded-surface bg-warning-50 px-4 py-3 ring-1 ring-warning-200"
     >
       <div class="flex flex-1 flex-col gap-1 min-w-[10rem]">
         <div class="flex items-center justify-between text-xs">
           <span class="font-semibold text-ink-secondary">Correlation score</span>
-          <span class="font-bold text-ink">{{ caseScore }}<span class="font-normal text-ink-subtle"> / 200</span></span>
+          <span class="font-bold text-ink">{{ caseScore }}<span class="font-normal text-ink-tertiary"> / 200</span></span>
         </div>
         <div class="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
           <div
@@ -74,7 +76,7 @@ const {
             :style="{ width: `${Math.min(100, (caseScore / 200) * 100)}%` }"
           />
         </div>
-        <p class="text-[11px] leading-4 text-ink-subtle">
+        <p class="text-[11px] leading-4 text-ink-tertiary">
           Alert: one signal ≥ {{ CORRELATION_THRESHOLDS.overwhelming }}, or ≥2 independent axes scoring
           ≥ {{ CORRELATION_THRESHOLDS.alertScore }} combined · Review: one signal ≥ {{ CORRELATION_THRESHOLDS.review }}
         </p>
@@ -83,37 +85,37 @@ const {
         <span
           v-for="ax in caseAxes"
           :key="ax"
-          :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold uppercase', axisClass(ax)]"
+          :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold uppercase', axisClass(ax)]"
         >{{ ax }}</span>
       </div>
     </div>
 
     <!-- Tabs -->
     <div class="flex gap-1 border-b border-edge text-sm">
-      <button
+      <BaseButton
         class="-mb-px border-b-2 px-3 py-1.5 font-medium"
         :class="tab === 'overview' ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
         @click="tab = 'overview'"
       >
         Overview
-      </button>
-      <button
+      </BaseButton>
+      <BaseButton
         class="-mb-px border-b-2 px-3 py-1.5 font-medium"
         :class="tab === 'audit' ? 'border-brand-600 text-brand-700' : 'border-transparent text-ink-muted hover:text-ink-secondary'"
         @click="tab = 'audit'"
       >
         Odometer &amp; Location
-      </button>
+      </BaseButton>
     </div>
 
     <!-- AUDIT TAB -->
     <AnomalyAudit v-if="tab === 'audit' && txn" :txn="txn" :odometer-offset="odometerOffset" :tz="orgTz" />
-    <p v-else-if="tab === 'audit'" class="text-sm text-ink-subtle italic">Loading transaction…</p>
+    <p v-else-if="tab === 'audit'" class="text-sm text-ink-tertiary italic">Loading transaction…</p>
 
     <!-- OVERVIEW TAB -->
     <template v-if="tab === 'overview'">
     <!-- ③ Contributing signals / Why this fired -->
-    <div class="rounded-lg bg-surface-subtle p-4 ring-1 ring-edge">
+    <div class="rounded-surface bg-surface-subtle p-4 ring-1 ring-edge">
       <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-muted">
         {{ isCase ? "Contributing signals" : "Why this fired" }}
       </h4>
@@ -122,7 +124,7 @@ const {
       <ul v-if="isCase" class="mt-3 space-y-4">
         <li v-for="s in caseSignals" :key="s.ruleId" class="flex gap-3">
           <div class="flex shrink-0 flex-col items-start gap-1 pt-0.5">
-            <span :class="['inline-flex rounded px-1.5 py-0.5 text-xs font-semibold uppercase', axisClass(s.axis)]">
+            <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold uppercase', axisClass(s.axis)]">
               {{ s.axis }}
             </span>
             <span :class="[BADGE_BASE, severityTone(s.severity)]">{{ s.severity }}</span>
@@ -136,7 +138,7 @@ const {
                   :style="{ width: `${s.weight}%` }"
                 />
               </div>
-              <span class="shrink-0 text-xs text-ink-subtle">{{ s.weight }}/100</span>
+              <span class="shrink-0 text-xs text-ink-tertiary">{{ s.weight }}/100</span>
             </div>
             <p class="text-sm text-ink-secondary">{{ s.message }}</p>
             <p v-if="s.ruleId === 'card_multi_vehicle'" class="mt-0.5 text-xs font-medium text-brand-600">
@@ -158,20 +160,20 @@ const {
     </div>
 
     <!-- ④ Same-card fills — appears whenever card_multi_vehicle is in play -->
-    <div v-if="hasCardSignal" class="rounded-lg border border-warning-200 bg-warning-50/50 p-4">
+    <div v-if="hasCardSignal" class="rounded-surface border border-warning-200 bg-warning-50/50 p-4">
       <div class="mb-3 flex flex-wrap items-baseline gap-2">
         <h4 class="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Same-card fills</h4>
         <span v-if="cardRef" class="font-mono text-xs text-ink-muted">card {{ cardRef }}</span>
-        <span class="text-xs text-ink-subtle">· ±{{ windowHours }}h window</span>
+        <span class="text-xs text-ink-tertiary">· ±{{ windowHours }}h window</span>
       </div>
 
-      <p v-if="!txn" class="text-sm text-ink-subtle italic">Loading transaction…</p>
-      <p v-else-if="!cardRef" class="text-sm text-ink-subtle italic">No card reference on this transaction.</p>
-      <p v-else-if="siblingLoading" class="text-sm text-ink-subtle">Loading related fills…</p>
-      <p v-else-if="!siblingFills?.length" class="text-sm text-ink-subtle italic">No other fills found in this window.</p>
+      <p v-if="!txn" class="text-sm text-ink-tertiary italic">Loading transaction…</p>
+      <p v-else-if="!cardRef" class="text-sm text-ink-tertiary italic">No card reference on this transaction.</p>
+      <p v-else-if="siblingLoading" class="text-sm text-ink-tertiary">Loading related fills…</p>
+      <p v-else-if="!siblingFills?.length" class="text-sm text-ink-tertiary italic">No other fills found in this window.</p>
 
       <div v-else class="-mx-1 overflow-x-auto">
-        <table class="min-w-full text-sm">
+        <AppTable class="min-w-full text-sm">
           <thead>
             <tr class="border-b border-warning-200 text-xs text-ink-muted">
               <th class="px-2 py-1.5 text-left font-medium">Vehicle</th>
@@ -193,8 +195,8 @@ const {
             >
               <td class="px-2 py-2">
                 <div class="font-semibold text-ink">{{ unitNumber(fill.vehicle_id) }}</div>
-                <div class="text-xs text-ink-subtle">{{ vehicleDesc(fill.vehicle_id) }}</div>
-                <span v-if="fill.id === txn?.id" class="mt-0.5 inline-flex rounded bg-warning-200 px-1 py-0.5 text-xs font-medium text-warning-800">
+                <div class="text-xs text-ink-tertiary">{{ vehicleDesc(fill.vehicle_id) }}</div>
+                <span v-if="fill.id === txn?.id" class="mt-0.5 inline-flex rounded-control bg-warning-200 px-1 py-0.5 text-xs font-medium text-warning-800">
                   this fill
                 </span>
               </td>
@@ -208,19 +210,19 @@ const {
               </td>
             </tr>
           </tbody>
-        </table>
+        </AppTable>
       </div>
     </div>
 
     <!-- ⑤ Transaction details (full) -->
-    <div v-if="txn" class="rounded-lg border border-edge p-4">
+    <div v-if="txn" class="rounded-surface border border-edge p-4">
       <h4 class="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">Transaction</h4>
       <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <!-- Vehicle -->
         <dt class="text-ink-muted">Vehicle</dt>
         <dd class="text-right">
           <span class="font-semibold text-ink">{{ vehicleUnit }}</span>
-          <span v-if="vehicleDesc(txn.vehicle_id)" class="ml-1 text-xs text-ink-subtle">
+          <span v-if="vehicleDesc(txn.vehicle_id)" class="ml-1 text-xs text-ink-tertiary">
             {{ vehicleDesc(txn.vehicle_id) }}
           </span>
         </dd>
@@ -283,54 +285,53 @@ const {
     <div v-if="anomaly.status === 'open' || anomaly.status === 'investigating'" class="space-y-4 border-t border-edge pt-5">
       <div>
         <p class="mb-1.5 text-xs font-medium text-ink-muted">Quick action</p>
-        <button
+        <BaseButton
           :disabled="transition.isPending.value"
-          class="rounded-md bg-warning-50 px-3 py-2 text-sm font-medium text-warning-800 ring-1 ring-warning-200 hover:bg-warning-100 disabled:opacity-50"
+          class="rounded-control bg-warning-50 px-3 py-2 text-sm font-medium text-warning-800 ring-1 ring-warning-200 hover:bg-warning-100 disabled:opacity-50"
           title="Checked and confirmed not real — dismiss without re-raising"
           @click="doFalseAlarm"
         >
           Mark as false alarm
-        </button>
+        </BaseButton>
       </div>
       <div class="space-y-3">
         <p class="text-xs font-medium text-ink-muted">Advance status</p>
         <div>
-          <p class="mb-1.5 text-xs text-ink-muted">Outcome <span class="text-ink-subtle">(required to resolve or dismiss — this is what measures our accuracy)</span></p>
+          <p class="mb-1.5 text-xs text-ink-muted">Outcome <span class="text-ink-tertiary">(required to resolve or dismiss — this is what measures our accuracy)</span></p>
           <div class="flex flex-wrap gap-2">
-            <button
+            <BaseButton
               v-for="opt in DISPOSITION_OPTIONS"
               :key="opt.value"
               type="button"
               class="rounded-full px-3 py-1 text-sm ring-1 ring-inset transition-colors"
-              :class="disposition === opt.value ? 'bg-brand-600 text-ink-inverse ring-brand-600' : 'bg-surface text-ink-secondary ring-edge-strong hover:bg-surface-subtle'"
+              :class="disposition === opt.value ? 'bg-action-primary text-action-primary-foreground ring-action-primary' : 'bg-surface text-ink-secondary ring-edge-control hover:bg-surface-subtle'"
               @click="disposition = opt.value"
             >
               {{ opt.label }}
-            </button>
+            </BaseButton>
           </div>
         </div>
-        <textarea
+        <AppTextarea
           v-model="note"
           rows="2"
           placeholder="Resolution note (required for resolve / dismiss; optional when investigating)"
-          class="block w-full rounded-md border-0 bg-surface px-3 py-1.5 text-base text-ink ring-1 ring-inset ring-edge-strong placeholder:text-ink-subtle focus:ring-2 focus:ring-brand-600 sm:text-sm"
-        ></textarea>
+        />
         <div class="flex flex-wrap gap-2">
-          <button
+          <BaseButton
             v-if="anomaly.status === 'open'"
             :disabled="transition.isPending.value"
-            class="rounded-md bg-warning-100 px-3 py-2 text-sm font-medium text-warning-800 hover:bg-warning-200 disabled:opacity-50"
+            class="rounded-control bg-warning-100 px-3 py-2 text-sm font-medium text-warning-800 hover:bg-warning-200 disabled:opacity-50"
             @click="doTransition('investigating')"
           >
             Start investigating
-          </button>
-          <button
+          </BaseButton>
+          <BaseButton
             :disabled="transition.isPending.value"
-            class="rounded-md bg-success-600 px-3 py-2 text-sm font-semibold text-ink-inverse hover:bg-success-500 disabled:opacity-50"
+            class="rounded-control bg-success-600 px-3 py-2 text-sm font-semibold text-ink-inverse hover:bg-success-500 disabled:opacity-50"
             @click="doTransition('resolved')"
           >
             Resolve
-          </button>
+          </BaseButton>
           <BaseButton :disabled="transition.isPending.value" @click="doTransition('dismissed')">
             Dismiss
           </BaseButton>

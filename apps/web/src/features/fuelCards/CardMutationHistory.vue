@@ -70,8 +70,8 @@ const statusTone = (status: string): string => {
     <template #cell-status="{ row }">
       <div class="space-y-1">
         <span :class="[BADGE_BASE, toneClass(statusTone(row.status))]">{{ row.outcome }}</span>
-        <p v-if="row.efsFaultMessage" class="text-xs text-ink-subtle">{{ row.efsFaultMessage }}</p>
-        <p v-else-if="row.driftFields?.length" class="text-xs text-ink-subtle">
+        <p v-if="row.efsFaultMessage" class="text-xs text-ink-tertiary">{{ row.efsFaultMessage }}</p>
+        <p v-else-if="row.driftFields?.length" class="text-xs text-ink-tertiary">
           Also changed: {{ row.driftFields.map((f: string) => f.replace(/^\//, "")).join(", ") }}
         </p>
       </div>

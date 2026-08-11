@@ -29,7 +29,7 @@ const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "S
     <template #trigger>
       <div
         v-if="collapsed"
-        class="flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-white/[0.06]"
+        class="flex size-9 items-center justify-center rounded-surface transition-colors hover:bg-white/[0.06]"
         :title="email ?? undefined"
       >
         <span
@@ -41,7 +41,7 @@ const roleLabel = computed(() => (props.role ? USER_ROLE_LABELS[props.role] : "S
       </div>
       <div
         v-else
-        class="group flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/[0.06]"
+        class="group flex w-full items-center gap-2.5 rounded-surface px-2 py-1.5 text-left transition-colors hover:bg-white/[0.06]"
       >
         <span
           class="sidebar-avatar flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"

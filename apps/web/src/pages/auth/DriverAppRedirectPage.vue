@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import { useSessionStore } from "@/stores/session";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 
 // Drivers use the FuelGuard Driver app, not this office dashboard (Driver App, Phase 1 web gate).
 const session = useSessionStore();

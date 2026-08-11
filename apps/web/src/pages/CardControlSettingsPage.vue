@@ -2,10 +2,11 @@
 import { computed, ref } from "vue";
 import { AppIcon } from "@fuelguard/ui";
 import { CheckIcon, XMarkIcon } from "@fuelguard/ui/icons";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -164,35 +165,31 @@ async function run(): Promise<void> {
           </span>
         </div>
 
-        <label class="flex items-start gap-2 text-sm text-ink">
-          <input
-            type="checkbox"
-            class="mt-1"
-            :checked="settings.enabled"
-            :disabled="busy || (!settings.enabled && settings.writeEntitlement !== 'confirmed')"
-            @change="setEnabled(($event.target as HTMLInputElement).checked)"
-          />
+        <BaseCheckbox
+          :model-value="settings.enabled"
+          :disabled="busy || (!settings.enabled && settings.writeEntitlement !== 'confirmed')"
+          class="items-start"
+          @update:model-value="setEnabled"
+        >
           <span>
             Let this company change fuel cards.
             <span class="block text-ink-muted">
               Off by default. Being able to READ cards never implies permission to change them.
             </span>
           </span>
-        </label>
+        </BaseCheckbox>
 
-        <p v-if="settings.writeEntitlement !== 'confirmed'" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-700">
+        <p v-if="settings.writeEntitlement !== 'confirmed'" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700">
           Card actions cannot be switched on until the EFS write check has passed — run it below.
           <template v-if="settings.probeVerdict"> Last check: {{ settings.probeVerdict }}</template>
         </p>
 
-        <label class="flex items-start gap-2 text-sm text-ink">
-          <input
-            type="checkbox"
-            class="mt-1"
-            :checked="settings.requireApprover"
-            :disabled="busy"
-            @change="setRequireApprover(($event.target as HTMLInputElement).checked)"
-          />
+        <BaseCheckbox
+          :model-value="settings.requireApprover"
+          :disabled="busy"
+          class="items-start"
+          @update:model-value="setRequireApprover"
+        >
           <span>
             Only named people may change cards.
             <span class="block text-ink-muted">
@@ -200,7 +197,7 @@ async function run(): Promise<void> {
               in this company the ability to lock cards and grant fuel exceptions.
             </span>
           </span>
-        </label>
+        </BaseCheckbox>
       </div>
     </BaseCard>
 
@@ -245,8 +242,7 @@ async function run(): Promise<void> {
           </template>
         </FormField>
 
-        <label class="flex items-start gap-2 text-sm text-ink">
-          <input v-model="readOnly" type="checkbox" class="mt-1" :disabled="probe.isPending.value" />
+        <BaseCheckbox v-model="readOnly" :disabled="probe.isPending.value" class="items-start">
           <span>
             Check the echo only — do not send a change.
             <span class="block text-ink-muted">
@@ -254,7 +250,7 @@ async function run(): Promise<void> {
               changes nothing. Start here.
             </span>
           </span>
-        </label>
+        </BaseCheckbox>
 
         <FormField
           v-if="!readOnly"
@@ -294,7 +290,7 @@ async function run(): Promise<void> {
             />
             <span>
               <span class="text-ink">{{ step.step }}. {{ step.name }}</span>
-              <span class="ml-2 text-ink-subtle">{{ step.ms }}ms</span>
+              <span class="ml-2 text-ink-tertiary">{{ step.ms }}ms</span>
               <span v-if="step.detail" class="block text-ink-muted">{{ step.detail }}</span>
               <span v-if="step.error" class="block text-danger-700">{{ step.error }}</span>
             </span>

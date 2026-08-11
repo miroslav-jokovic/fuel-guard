@@ -10,12 +10,14 @@ import UpdateBanner from "@/components/UpdateBanner.vue";
 const route = useRoute();
 const isAuthLayout = computed(() => route.meta.layout === "auth");
 const isPublicLayout = computed(() => route.meta.layout === "public");
+const isLabLayout = computed(() => route.meta.layout === "lab");
 </script>
 
 <template>
   <!-- New-deploy banner: above every layout so it's visible on any page, not just the dashboard. -->
   <UpdateBanner />
-  <AuthLayout v-if="isAuthLayout">
+  <RouterView v-if="isLabLayout" />
+  <AuthLayout v-else-if="isAuthLayout">
     <RouterView />
   </AuthLayout>
   <PublicLayout v-else-if="isPublicLayout">

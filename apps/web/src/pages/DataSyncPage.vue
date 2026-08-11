@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { apiFetch } from "@/lib/api";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import { useJob } from "@/features/jobs/useJob";
 import { useSessionStore } from "@/stores/session";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const session = useSessionStore();
@@ -182,7 +182,7 @@ const integrity = computed(() => {
       <p v-if="diagError" class="mt-2 text-sm text-danger-600">{{ diagError }}</p>
       <pre
         v-if="diagJson"
-        class="mt-3 max-h-96 overflow-auto rounded-md bg-surface-muted p-3 text-xs text-ink-secondary"
+        class="mt-3 max-h-96 overflow-auto rounded-control bg-surface-muted p-3 text-xs text-ink-secondary"
         >{{ diagJson }}</pre>
     </BaseCard>
 
@@ -192,7 +192,7 @@ const integrity = computed(() => {
         <h3 class="text-sm font-semibold text-ink">Data integrity</h3>
         <span
           class="text-xs"
-          :class="nightly.failed.value ? 'text-danger-600' : 'text-ink-subtle'"
+          :class="nightly.failed.value ? 'text-danger-600' : 'text-ink-tertiary'"
           >{{ nightly.freshnessLabel.value }}</span
         >
       </div>

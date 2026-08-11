@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { AppButton, AppInput, AppCard } from "@fuelguard/ui";
+import { AppBadge, AppButton, AppInput, AppCard } from "@fuelguard/ui";
 import { useSessionStore } from "@/stores/session";
 
 const session = useSessionStore();
@@ -32,7 +32,7 @@ async function submit() {
   <div class="flex min-h-full items-center justify-center px-4 py-16">
     <AppCard class="w-full max-w-sm">
       <div class="mb-6 text-center">
-        <span class="rounded bg-brand-600 px-2 py-0.5 text-xs font-bold tracking-wide text-ink-inverse">PLATFORM</span>
+        <AppBadge tone="brand" class="font-bold tracking-wide">PLATFORM</AppBadge>
         <h1 class="mt-3 text-lg font-semibold text-ink">FuelGuard Control Plane</h1>
         <p class="mt-1 text-sm text-ink-muted">Authorized operators only.</p>
       </div>

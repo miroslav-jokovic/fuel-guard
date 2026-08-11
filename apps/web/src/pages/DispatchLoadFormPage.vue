@@ -21,11 +21,12 @@ import {
   type CreateLoadRequest,
   type StopInput,
 } from "@fuelguard/shared";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppDateTimeField } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import type { DispatchLoad } from "@/features/dispatch/useDispatchLoads";
 
@@ -261,18 +262,18 @@ function onSubmit() {
           <div
             v-for="(stop, i) in stops"
             :key="stop.id ?? i"
-            class="rounded-lg border border-edge bg-surface-muted/40 p-3"
+            class="rounded-surface border border-edge bg-surface-muted/40 p-3"
           >
             <div class="mb-2 flex items-center justify-between">
               <span class="text-xs font-semibold uppercase tracking-wide text-ink-muted">Stop {{ i + 1 }}</span>
-              <button
+              <BaseButton
                 type="button"
-                class="rounded-md p-1 text-ink-subtle hover:bg-surface-subtle hover:text-danger-600"
+                class="rounded-control p-1 text-ink-tertiary hover:bg-surface-subtle hover:text-danger-600"
                 :aria-label="`Remove stop ${i + 1}`"
                 @click="removeStop(i)"
               >
                 <AppIcon :icon="TrashIcon" class="size-4" aria-hidden="true" />
-              </button>
+              </BaseButton>
             </div>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <FormField v-slot="{ id }" label="Stop type">
@@ -294,10 +295,10 @@ function onSubmit() {
                 <BaseInput :id="id" v-model="stop.postal_code" placeholder="60431" />
               </FormField>
               <FormField v-slot="{ id }" label="Appointment start">
-                <BaseInput :id="id" v-model="stop.appointment_start" type="datetime-local" />
+                <AppDateTimeField :id="id" v-model="stop.appointment_start" />
               </FormField>
               <FormField v-slot="{ id }" label="Appointment end">
-                <BaseInput :id="id" v-model="stop.appointment_end" type="datetime-local" />
+                <AppDateTimeField :id="id" v-model="stop.appointment_end" />
               </FormField>
             </div>
             <div class="mt-3">
@@ -318,7 +319,7 @@ function onSubmit() {
       </div>
 
       <!-- The gate, live. Same function the queue and the trigger use. -->
-      <div class="rounded-lg border border-edge bg-surface-subtle p-3">
+      <div class="rounded-surface border border-edge bg-surface-subtle p-3">
         <div class="flex items-center justify-between gap-3">
           <div>
             <h3 class="text-sm font-semibold text-ink">Approval readiness</h3>

@@ -2,8 +2,8 @@
 import { AppIcon } from "@fuelguard/ui";
 import { NoSymbolIcon, ShieldCheckIcon } from "@fuelguard/ui/icons";
 import type { DriverAppAccess } from "@fuelguard/shared";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 
 defineProps<{
   access: Exclude<DriverAppAccess, "none">;
@@ -23,7 +23,7 @@ const emit = defineEmits<{
     <BaseCard padding="none" class="mt-3">
       <div class="flex items-center gap-3 p-4">
         <div
-          class="flex size-9 shrink-0 items-center justify-center rounded-lg"
+          class="flex size-9 shrink-0 items-center justify-center rounded-surface"
           :class="
             access === 'active'
               ? 'bg-success-50 text-success-700'

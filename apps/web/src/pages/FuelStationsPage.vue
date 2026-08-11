@@ -7,7 +7,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { toggleSort, sortRows, type SortState } from "@/lib/sort";
 
@@ -100,13 +100,13 @@ const columns: DataTableColumn[] = [
               {{ (row as FuelStationRow).city }}<span v-if="(row as FuelStationRow).exit" class="text-ink-muted"> · Exit {{ (row as FuelStationRow).exit }}</span>
               <span
                 v-if="(row as FuelStationRow).coordSource !== 'exact_export'"
-                class="ml-1 text-ink-subtle"
+                class="ml-1 text-ink-tertiary"
                 title="Approximate placement (city-centroid geocode). Upload the Pilot 'Download All Locations' export for exact coordinates."
               >≈</span>
             </template>
             <span
               v-else
-              class="text-ink-subtle"
+              class="text-ink-tertiary"
               title="No city on file yet — upload the Pilot 'Download All Locations' export to fill exact location and coordinates."
             >— ≈</span>
           </template>
@@ -124,7 +124,7 @@ const columns: DataTableColumn[] = [
             <span class="tabular-nums text-ink-muted">{{ price((row as FuelStationRow).postedPrice) }}</span>
           </template>
           <template #cell-ageHours="{ row }">
-            <span v-if="(row as FuelStationRow).netPrice == null || (row as FuelStationRow).ageHours == null" class="text-ink-subtle">—</span>
+            <span v-if="(row as FuelStationRow).netPrice == null || (row as FuelStationRow).ageHours == null" class="text-ink-tertiary">—</span>
             <span v-else :class="[BADGE_BASE, toneClass((row as FuelStationRow).stale ? 'warning' : 'success')]">
               {{ (row as FuelStationRow).ageHours }}h{{ (row as FuelStationRow).stale ? " · stale" : "" }}
             </span>

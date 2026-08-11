@@ -25,8 +25,9 @@ vi.mock("./useEfsCards", () => ({
   },
 }));
 
-vi.mock("@/components/SearchInput.vue", () => ({
-  default: {
+vi.mock("@fuelguard/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@fuelguard/ui")>()),
+  AppSearchField: {
     props: ["modelValue", "placeholder"],
     emits: ["update:modelValue"],
     template: `<input data-testid="search" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" />`,

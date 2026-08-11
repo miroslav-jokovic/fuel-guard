@@ -13,10 +13,10 @@ import {
   type Driver,
   type ApuType,
 } from "@fuelguard/shared";
-import AppSelect from "@/components/AppSelect.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppSelect } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 
 const props = defineProps<{
   vehicle?: Vehicle | null;
@@ -192,15 +192,15 @@ function onSubmit() {
             ]"
           />
         </FormField>
-        <button
+        <BaseButton
           v-if="showOptimizedSuggestion"
           type="button"
-          class="mt-1 rounded bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 ring-1 ring-brand-200 hover:bg-brand-100"
+          class="mt-1 rounded-control bg-brand-50 px-2 py-1 text-xs font-medium text-brand-700 ring-1 ring-brand-200 hover:bg-brand-100"
           :title="idleSuggestion?.reason"
           @click="applyOptimizedSuggestion"
         >
           Suggested: {{ idleSuggestion?.label }} — apply
-        </button>
+        </BaseButton>
       </div>
     </div>
 

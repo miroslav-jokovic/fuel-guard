@@ -9,11 +9,11 @@ import {
   type TrailerInput,
   type Vehicle,
 } from "@fuelguard/shared";
-import AppSelect from "@/components/AppSelect.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppSelect } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 
 const props = defineProps<{ trailer?: Trailer | null; vehicles: Vehicle[]; submitting?: boolean }>();
 const emit = defineEmits<{ submit: [input: TrailerInput]; cancel: [] }>();
@@ -100,7 +100,7 @@ function onSubmit() {
     </FormField>
 
     <!-- H-C2: a tank is a trailer — its cargo data lives here, not on a separate hazmat page. -->
-    <div v-if="form.trailer_type === 'tanker'" class="rounded-md bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
+    <div v-if="form.trailer_type === 'tanker'" class="rounded-control bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
       <p class="text-sm font-medium text-ink">Cargo tank</p>
       <p class="mt-0.5 text-xs text-ink-muted">Used by HazmatGuard load analysis. This is the CARGO tank, not a fuel tank.</p>
       <div class="mt-2 grid grid-cols-2 gap-3">
@@ -113,7 +113,7 @@ function onSubmit() {
       </div>
     </div>
 
-    <div class="rounded-md bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
+    <div class="rounded-control bg-info-50 px-3 py-2.5 ring-1 ring-info-100">
       <BaseCheckbox v-model="form.is_reefer">
         <span class="text-sm">
           <span class="font-medium text-ink">This is a reefer (refrigerated) trailer</span>

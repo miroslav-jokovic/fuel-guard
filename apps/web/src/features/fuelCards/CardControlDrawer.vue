@@ -5,7 +5,7 @@ import { EFS_EDITABLE_INFO_IDS, efsStatusEquals } from "@fuelguard/shared";
 import { AppIcon } from "@fuelguard/ui";
 import { ExclamationTriangleIcon } from "@fuelguard/ui/icons";
 import SlideOver from "@/components/SlideOver.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { useToastStore } from "@/stores/toast";
 import CardOverridePanel from "./CardOverridePanel.vue";
@@ -286,7 +286,7 @@ function close(): void {
       </div>
       <h3 class="mt-4 text-base font-semibold text-ink">{{ confirmation.title }}</h3>
       <p class="mt-2 max-w-sm text-sm leading-6 text-ink-muted">{{ confirmation.body }}</p>
-      <p class="mt-4 max-w-sm text-sm text-ink-subtle">Reason: {{ reason }}</p>
+      <p class="mt-4 max-w-sm text-sm text-ink-tertiary">Reason: {{ reason }}</p>
     </div>
 
     <div v-else class="space-y-5">

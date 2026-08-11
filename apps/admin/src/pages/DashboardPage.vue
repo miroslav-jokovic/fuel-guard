@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { AppCard } from "@fuelguard/ui";
+import { AppCard, AppPageHeader } from "@fuelguard/ui";
 import { supabase, ADMIN_API_URL } from "@/lib/supabase";
 import AppShell from "@/layouts/AppShell.vue";
 
@@ -29,10 +29,7 @@ onMounted(async () => {
 
 <template>
   <AppShell>
-    <h1 class="text-xl font-semibold text-ink">Overview</h1>
-    <p class="mt-1 text-sm text-ink-muted">
-      Phase 0 shell. Modules land here as later phases ship (customers, billing, backups, errors, audit).
-    </p>
+    <AppPageHeader title="Overview" description="Platform health, access, and customer operations." />
 
     <AppCard class="mt-5">
       <h2 class="text-sm font-semibold text-ink-secondary">Platform session</h2>

@@ -81,7 +81,7 @@ async function verify() {
       <template v-else>
         <div v-if="mode === 'enroll' && qrSvg" class="mt-4 flex flex-col items-center gap-2">
           <img :src="qrSvg" alt="Authenticator QR code" class="h-44 w-44" />
-          <code v-if="secret" class="rounded bg-surface-muted px-2 py-1 text-xs text-ink-secondary">{{ secret }}</code>
+          <code v-if="secret" class="rounded-control bg-surface-muted px-2 py-1 text-xs text-ink-secondary">{{ secret }}</code>
         </div>
 
         <form class="mt-5 space-y-4" @submit.prevent="verify">

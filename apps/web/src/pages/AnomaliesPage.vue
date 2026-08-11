@@ -5,12 +5,12 @@ import AnomalyDetail from "@/features/anomalies/AnomalyDetail.vue";
 import DateRangeFilter from "@/components/DateRangeFilter.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
 import TablePagination from "@/components/TablePagination.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import { BADGE_BASE, severityTone, statusTone } from "@/lib/badges";
 import { useAnomaliesPage } from "./useAnomaliesPage";
 
@@ -33,21 +33,21 @@ const {
     <PageHeader description="Fuel-card alerts from anomaly detection — theft, misuse, and data-quality signals across your fleet." />
 
     <!-- Tabs: all alerts vs reefer-fueling cases (design-system segmented control) -->
-    <div class="flex w-fit gap-1 rounded-lg bg-surface-muted p-1 text-sm">
-      <button
-        class="rounded-md px-3 py-1.5 font-medium transition"
-        :class="!filters.reeferOnly ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+    <div class="flex w-fit gap-1 rounded-surface bg-surface-muted p-1 text-sm">
+      <BaseButton
+        class="rounded-control px-3 py-1.5 font-medium transition"
+        :class="!filters.reeferOnly ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
         @click="filters = { ...filters, reeferOnly: undefined }"
       >
         All alerts
-      </button>
-      <button
-        class="rounded-md px-3 py-1.5 font-medium transition"
-        :class="filters.reeferOnly ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+      </BaseButton>
+      <BaseButton
+        class="rounded-control px-3 py-1.5 font-medium transition"
+        :class="filters.reeferOnly ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
         @click="filters = { ...filters, reeferOnly: true }"
       >
         Reefer fueling
-      </button>
+      </BaseButton>
     </div>
 
     <BaseCard v-if="filters.reeferOnly" as="div">
@@ -87,7 +87,7 @@ const {
     <!-- Bulk action bar -->
     <div
       v-if="selectedCount > 0"
-      class="flex flex-col gap-2 rounded-lg bg-brand-50 px-4 py-3 ring-1 ring-brand-200 sm:flex-row sm:items-center sm:justify-between"
+      class="flex flex-col gap-2 rounded-surface bg-brand-50 px-4 py-3 ring-1 ring-brand-200 sm:flex-row sm:items-center sm:justify-between"
     >
       <span class="text-sm font-medium text-brand-900">{{ selectedCount }} selected</span>
       <div class="flex flex-wrap gap-2">
@@ -131,12 +131,12 @@ const {
       </template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canManage && isActionable(row)">
-          <button class="kebab-item" @click="selectedRow = row">Review details</button>
-          <button v-if="row.status === 'open'" class="kebab-item" @click="rowAction(row, 'investigating')">Start investigating</button>
-          <button class="kebab-item" @click="rowAction(row, 'resolved', 'Resolved by reviewer', 'confirmed')">Resolve</button>
-          <button class="kebab-item kebab-item-danger" @click="rowAction(row, 'dismissed', 'False alarm', 'false_positive')">False alarm</button>
+          <BaseButton class="kebab-item" @click="selectedRow = row">Review details</BaseButton>
+          <BaseButton v-if="row.status === 'open'" class="kebab-item" @click="rowAction(row, 'investigating')">Start investigating</BaseButton>
+          <BaseButton class="kebab-item" @click="rowAction(row, 'resolved', 'Resolved by reviewer', 'confirmed')">Resolve</BaseButton>
+          <BaseButton class="kebab-item kebab-item-danger" @click="rowAction(row, 'dismissed', 'False alarm', 'false_positive')">False alarm</BaseButton>
         </KebabMenu>
-        <button v-else class="text-sm font-medium text-brand-600 hover:text-brand-500" @click="selectedRow = row">Review</button>
+        <BaseButton v-else class="text-sm font-medium text-link hover:text-link-hover" @click="selectedRow = row">Review</BaseButton>
       </template>
       <template #footer>
         <TablePagination :page="page" :page-size="PAGE_SIZE" :total="total" @update:page="page = $event" />

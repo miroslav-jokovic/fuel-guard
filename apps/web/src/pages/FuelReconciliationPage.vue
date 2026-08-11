@@ -15,8 +15,8 @@ import { readReportGrid } from "@/features/fueling/usePriceUpload";
 import { useSystemFillsQuery, type ReconWindow } from "@/features/reconcile/useFuelReconcile";
 import { useToastStore } from "@/stores/toast";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
@@ -158,7 +158,7 @@ const columns: DataTableColumn[] = [
     <!-- Upload -->
     <BaseCard v-if="!report">
       <div class="flex items-start gap-3">
-        <AppIcon :icon="ArrowUpTrayIcon" class="mt-0.5 size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+        <AppIcon :icon="ArrowUpTrayIcon" class="mt-0.5 size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
         <div class="min-w-0 flex-1">
           <h3 class="text-sm font-semibold text-ink">Vendor fuel report</h3>
           <p class="mt-1 text-sm text-ink-muted">
@@ -181,28 +181,28 @@ const columns: DataTableColumn[] = [
           <span class="text-ink-muted">Account {{ report.account ?? "—" }}</span>
           <span class="text-ink-muted">{{ report.startDate }} → {{ report.endDate }}</span>
           <span class="text-ink-muted">{{ report.fills.length.toLocaleString() }} diesel fills · {{ fmtGal(report.totalDieselGallons) }} gal · {{ fmtUsd(report.totalDieselNet) }} paid</span>
-          <span v-if="fillsLoading" class="text-ink-subtle">· matching your fills…</span>
+          <span v-if="fillsLoading" class="text-ink-tertiary">· matching your fills…</span>
         </div>
       </BaseCard>
 
-      <p v-if="isError" class="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
+      <p v-if="isError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-danger-100">
         Couldn't load your recorded fills: {{ error instanceof Error ? error.message : "unknown error" }}
       </p>
 
       <!-- Summary tiles -->
       <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <button
+        <BaseButton
           v-for="b in buckets"
           :key="b.key"
           type="button"
-          class="rounded-xl px-4 py-3 text-left ring-1 transition"
+          class="rounded-dialog px-4 py-3 text-left ring-1 transition"
           :class="[b.tone, (statusFilter === b.key || (b.key === 'discrepancies' && statusFilter === 'discrepancies')) ? 'ring-2' : '']"
           @click="statusFilter = b.key"
         >
           <dt class="text-xs font-medium uppercase tracking-wide opacity-80">{{ b.label }}</dt>
           <dd class="mt-1 text-2xl font-bold">{{ b.value.toLocaleString() }}</dd>
           <dd class="mt-0.5 text-xs opacity-80">{{ b.hint }}</dd>
-        </button>
+        </BaseButton>
       </dl>
 
       <FilterBar :count="rows.length" count-label="rows">
@@ -225,11 +225,11 @@ const columns: DataTableColumn[] = [
         </template>
         <template #cell-gallons="{ row }">
           <span class="tabular-nums">{{ fmtGal(row.repGal) }}</span>
-          <span class="text-ink-subtle"> / {{ fmtGal(row.sysGal) }}</span>
+          <span class="text-ink-tertiary"> / {{ fmtGal(row.sysGal) }}</span>
         </template>
         <template #cell-amount="{ row }">
           <span class="tabular-nums">{{ fmtUsd2(row.repAmt) }}</span>
-          <span class="text-ink-subtle"> / {{ fmtUsd2(row.sysAmt) }}</span>
+          <span class="text-ink-tertiary"> / {{ fmtUsd2(row.sysAmt) }}</span>
         </template>
         <template #cell-note="{ row }">{{ row.note }}</template>
       </DataTable>

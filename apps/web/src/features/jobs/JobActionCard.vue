@@ -3,8 +3,8 @@ import { computed } from "vue";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import { useJob } from "./useJob";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 
 const props = defineProps<{
   title: string;
@@ -84,7 +84,7 @@ async function run(body?: Record<string, unknown>, confirmMsg?: string) {
     <div v-if="isRunning" class="mt-4">
       <div class="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
         <div
-          class="h-full rounded-full bg-brand-500 transition-all"
+          class="h-full rounded-full bg-brand-accent-strong transition-all"
           :style="{ width: (progressPct ?? 15) + '%' }"
         />
       </div>
@@ -95,7 +95,7 @@ async function run(body?: Record<string, unknown>, confirmMsg?: string) {
     <p
       v-else
       class="mt-3 inline-flex items-center gap-1.5 text-xs"
-      :class="failed ? 'text-danger-600' : 'text-ink-subtle'"
+      :class="failed ? 'text-danger-600' : 'text-ink-tertiary'"
     >
       <span
         class="inline-block size-1.5 rounded-full"

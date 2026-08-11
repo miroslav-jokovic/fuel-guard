@@ -5,8 +5,9 @@ import { useQuery } from "@tanstack/vue-query";
 import { CASE_RULE_ID } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import { useVehiclesQuery } from "@/composables/useVehicles";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import { BADGE_BASE, severityTone, suspicionTone, toneClass } from "@/lib/badges";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data: vehicles } = useVehiclesQuery();
 const unit = (id: string | null) => (id ? (vehicles.value?.find((v) => v.id === id)?.unit_number ?? "—") : "—");
@@ -57,23 +58,20 @@ const empty = computed(() => !(alerts.value?.length || declines.value?.length ||
 
 <template>
   <div class="space-y-6">
-    <div class="rounded-md bg-warning-50 p-4 text-sm text-warning-800 ring-1 ring-warning-200">
-      Everything worth a look in one place — confirmed theft-risk alerts, suspicious declined attempts, and
-      real-time siphoning (sudden fuel-drop) events.
-    </div>
+    <PageHeader description="Confirmed theft-risk alerts, suspicious declined attempts, and real-time sudden fuel-drop events." />
 
     <!-- Theft alerts -->
     <BaseCard as="section" padding="none">
       <div class="flex items-center justify-between border-b border-edge-subtle px-5 py-3">
-        <h3 class="text-sm font-semibold text-ink">Active theft alerts <span class="font-normal text-ink-subtle">· {{ alerts?.length ?? 0 }}</span></h3>
-        <RouterLink to="/anomalies" class="text-xs font-medium text-brand-600 hover:text-brand-500">Open Anomalies →</RouterLink>
+        <h3 class="text-sm font-semibold text-ink">Active theft alerts <span class="font-normal text-ink-tertiary">· {{ alerts?.length ?? 0 }}</span></h3>
+        <RouterLink to="/anomalies" class="text-xs font-medium text-link hover:text-link-hover">Open Anomalies →</RouterLink>
       </div>
       <ul v-if="alerts?.length" class="divide-y divide-edge-subtle text-sm">
         <li v-for="a in alerts" :key="a.id" class="flex items-center gap-3 px-5 py-2.5">
           <span :class="[BADGE_BASE, severityTone(a.severity)]">{{ a.severity }}</span>
           <span class="font-medium text-ink">{{ unit(a.vehicle_id) }}</span>
           <span class="flex-1 truncate text-ink-secondary">{{ a.message }}</span>
-          <span class="whitespace-nowrap text-ink-subtle">{{ fmt(a.fueled_at ?? a.created_at) }}</span>
+          <span class="whitespace-nowrap text-ink-tertiary">{{ fmt(a.fueled_at ?? a.created_at) }}</span>
         </li>
       </ul>
       <p v-else class="px-5 py-4 text-sm text-ink-muted">No high-risk theft cases right now.</p>
@@ -82,15 +80,15 @@ const empty = computed(() => !(alerts.value?.length || declines.value?.length ||
     <!-- Suspicious declines -->
     <BaseCard as="section" padding="none">
       <div class="flex items-center justify-between border-b border-edge-subtle px-5 py-3">
-        <h3 class="text-sm font-semibold text-ink">Suspicious declined attempts <span class="font-normal text-ink-subtle">· {{ declines?.length ?? 0 }}</span></h3>
-        <RouterLink to="/rejections" class="text-xs font-medium text-brand-600 hover:text-brand-500">Open Rejections →</RouterLink>
+        <h3 class="text-sm font-semibold text-ink">Suspicious declined attempts <span class="font-normal text-ink-tertiary">· {{ declines?.length ?? 0 }}</span></h3>
+        <RouterLink to="/rejections" class="text-xs font-medium text-link hover:text-link-hover">Open Rejections →</RouterLink>
       </div>
       <ul v-if="declines?.length" class="divide-y divide-edge-subtle text-sm">
         <li v-for="d in declines" :key="d.id" class="flex items-center gap-3 px-5 py-2.5">
           <span :class="[BADGE_BASE, suspicionTone(d.suspicion_level)]">{{ d.suspicion_level }}</span>
           <span class="font-medium text-ink">{{ d.unit ?? "—" }}</span>
           <span class="flex-1 truncate text-ink-secondary">{{ (d.suspicion_reasons ?? [])[0]?.detail ?? `${d.city ?? ""} ${d.state ?? ""}` }}</span>
-          <span class="whitespace-nowrap text-ink-subtle">{{ fmt(d.declined_at) }}</span>
+          <span class="whitespace-nowrap text-ink-tertiary">{{ fmt(d.declined_at) }}</span>
         </li>
       </ul>
       <p v-else class="px-5 py-4 text-sm text-ink-muted">No suspicious declines. Run "Rescore" on the Rejections page if you've just imported.</p>
@@ -99,7 +97,7 @@ const empty = computed(() => !(alerts.value?.length || declines.value?.length ||
     <!-- Siphoning / fuel-drop events -->
     <BaseCard as="section" padding="none">
       <div class="border-b border-edge-subtle px-5 py-3">
-        <h3 class="text-sm font-semibold text-ink">Siphoning events (sudden fuel drops) <span class="font-normal text-ink-subtle">· {{ drops?.length ?? 0 }}</span></h3>
+        <h3 class="text-sm font-semibold text-ink">Siphoning events (sudden fuel drops) <span class="font-normal text-ink-tertiary">· {{ drops?.length ?? 0 }}</span></h3>
       </div>
       <ul v-if="drops?.length" class="divide-y divide-edge-subtle text-sm">
         <li v-for="ev in drops" :key="ev.id" class="flex items-center gap-3 px-5 py-2.5">
@@ -108,7 +106,7 @@ const empty = computed(() => !(alerts.value?.length || declines.value?.length ||
           </span>
           <span class="font-medium text-ink">{{ unit(ev.vehicle_id) }}</span>
           <span class="flex-1 truncate text-ink-secondary">{{ ev.address ?? "—" }}</span>
-          <span class="whitespace-nowrap text-ink-subtle">{{ fmt(ev.happened_at) }}</span>
+          <span class="whitespace-nowrap text-ink-tertiary">{{ fmt(ev.happened_at) }}</span>
         </li>
       </ul>
       <p v-else class="px-5 py-4 text-sm text-ink-muted">
@@ -116,6 +114,6 @@ const empty = computed(() => !(alerts.value?.length || declines.value?.length ||
       </p>
     </BaseCard>
 
-    <p v-if="empty" class="text-center text-sm text-ink-subtle">Nothing flagged right now — that's a good thing.</p>
+    <p v-if="empty" class="text-center text-sm text-ink-tertiary">Nothing flagged right now — that's a good thing.</p>
   </div>
 </template>

@@ -37,7 +37,7 @@ const ICON: Record<string, string> = {
 </script>
 
 <template>
-  <div class="flex items-start gap-3 rounded-lg p-4 ring-1" :class="PANEL[m.tone]">
+  <div class="flex items-start gap-3 rounded-surface p-4 ring-1" :class="PANEL[m.tone]">
     <AppIcon :icon="m.icon" class="mt-0.5 size-5 shrink-0" :class="ICON[m.tone]" aria-hidden="true" />
     <div class="min-w-0">
       <p class="text-sm font-semibold">{{ m.title }}</p>

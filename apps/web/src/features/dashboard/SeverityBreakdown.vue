@@ -5,7 +5,7 @@ import {
 } from "@fuelguard/ui/icons";
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 import { viz, resolveAlpha } from "./chartTheme";
 
 const props = defineProps<{
@@ -43,7 +43,7 @@ const dotStyle = (row: { color: string }) => ({ backgroundColor: row.color });
       <h3 class="text-sm font-semibold text-ink">Open cases by severity</h3>
       <RouterLink
         to="/anomalies"
-        class="rounded-md px-1.5 py-0.5 text-xs font-medium text-brand-600 hover:text-brand-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+        class="rounded-control px-1.5 py-0.5 text-xs font-medium text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
         View all →
       </RouterLink>
@@ -70,13 +70,13 @@ const dotStyle = (row: { color: string }) => ({ backgroundColor: row.color });
         <li v-for="row in rows" :key="row.key" class="flex items-center justify-between py-2 text-sm">
           <span class="inline-flex items-center gap-2">
             <span class="size-2.5 rounded-full" :style="dotStyle(row)" aria-hidden="true" />
-            <span :class="row.count > 0 ? 'text-ink-secondary' : 'text-ink-subtle'" class="capitalize">{{ row.key }}</span>
+            <span :class="row.count > 0 ? 'text-ink-secondary' : 'text-ink-tertiary'" class="capitalize">{{ row.key }}</span>
           </span>
           <span class="inline-flex items-baseline gap-2">
-            <span :class="row.count > 0 ? 'font-semibold text-ink' : 'text-ink-subtle'" class="tabular-nums">
+            <span :class="row.count > 0 ? 'font-semibold text-ink' : 'text-ink-tertiary'" class="tabular-nums">
               {{ row.count }}
             </span>
-            <span class="w-9 text-right text-xs tabular-nums text-ink-subtle">{{ row.pct.toFixed(0) }}%</span>
+            <span class="w-9 text-right text-xs tabular-nums text-ink-tertiary">{{ row.pct.toFixed(0) }}%</span>
           </span>
         </li>
       </ul>

@@ -2,7 +2,6 @@
 import { AppIcon } from "@fuelguard/ui";
 import {
   Bars3Icon,
-  ChevronLeftIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   XMarkIcon,
@@ -69,13 +68,13 @@ const activeClass = (to: string) =>
 /** Full expanded nav link — used in mobile drawer and expanded desktop sidebar. */
 const navLinkClass = (to: string) => [
   activeClass(to),
-  "sidebar-nav-item group flex min-h-9 items-center gap-x-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium leading-5",
+  "sidebar-nav-item group flex min-h-9 items-center gap-x-2.5 rounded-control px-2.5 py-1.5 text-sm font-medium leading-5",
 ];
 
 /** Icon-only nav link — used in collapsed desktop sidebar. */
 const navLinkClassCollapsed = (to: string) => [
   activeClass(to),
-  "sidebar-nav-item flex min-h-9 items-center justify-center rounded-lg p-2",
+  "sidebar-nav-item flex min-h-9 items-center justify-center rounded-control p-2",
 ];
 
 // Avatar initials from email (first char, uppercased).
@@ -125,7 +124,7 @@ async function signOut() {
               <div class="absolute top-0 left-full flex w-14 justify-center pt-3.5">
                 <button
                   type="button"
-                  class="sidebar-drawer-control -m-2.5 rounded-lg p-2.5"
+                  class="sidebar-drawer-control -m-2.5 rounded-surface p-2.5"
                   @click="mobileOpen = false"
                 >
                   <span class="sr-only">Close sidebar</span>
@@ -141,16 +140,16 @@ async function signOut() {
                   <div
                     class="sidebar-divider flex h-14 shrink-0 items-center gap-x-2.5 border-b px-1.5"
                   >
-                    <AppLogo class="size-7 shrink-0" :dark="true" />
+                    <AppLogo class="size-7 shrink-0" />
                     <img
                       src="/logo-wordmark.png"
                       alt="FuelGuard"
-                      class="h-5 object-contain brightness-0 invert"
+                      class="h-5 object-contain"
                       draggable="false"
                     />
                   </div>
                   <nav aria-label="Primary navigation" class="flex flex-1 flex-col pt-2">
-                    <ul role="list" class="flex flex-1 flex-col gap-y-0.5">
+                    <ul class="flex flex-1 flex-col gap-y-0.5">
                       <template v-for="group in navGroups" :key="group.label ?? '_top'">
                         <li
                           v-if="group.label"
@@ -206,12 +205,12 @@ async function signOut() {
             class="sidebar-divider flex h-14 shrink-0 items-center border-b"
             :class="sidebarCollapsed ? 'justify-center px-2' : 'gap-x-2.5 px-4'"
           >
-            <AppLogo class="size-7 shrink-0" :dark="true" />
+            <AppLogo class="size-7 shrink-0" />
             <img
               v-if="!sidebarCollapsed"
               src="/logo-wordmark.png"
               alt="FuelGuard"
-              class="h-5 object-contain brightness-0 invert"
+              class="h-5 object-contain"
               draggable="false"
             />
           </div>
@@ -224,7 +223,7 @@ async function signOut() {
             :class="sidebarCollapsed ? 'px-2' : 'px-3'"
           >
             <!-- Expanded: grouped section labels + full links -->
-            <ul v-if="!sidebarCollapsed" role="list" class="flex flex-1 flex-col gap-y-0.5">
+            <ul v-if="!sidebarCollapsed" class="flex flex-1 flex-col gap-y-0.5">
               <template v-for="group in navGroups" :key="group.label ?? '_top'">
                 <li
                   v-if="group.label"
@@ -250,7 +249,7 @@ async function signOut() {
               </template>
             </ul>
             <!-- Collapsed: ungrouped items as icons; each labeled section opens a flyout submenu on hover/click -->
-            <ul v-else role="list" class="flex flex-1 flex-col gap-y-1">
+            <ul v-else class="flex flex-1 flex-col gap-y-1">
               <template v-for="group in navGroups" :key="group.label ?? '_top'">
                 <template v-if="!group.label">
                   <li v-for="item in group.items" :key="item.name">
@@ -295,12 +294,12 @@ async function signOut() {
     >
       <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
-        class="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-x-4 border-b border-edge bg-surface px-4 shadow-sm sm:px-6 lg:px-8"
+        class="sticky top-0 z-40 flex h-12 shrink-0 items-center border-b border-edge-subtle bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-8"
       >
         <div class="flex items-center gap-x-3">
           <button
             type="button"
-            class="sidebar-shell-toggle -m-2.5 rounded-lg p-2.5 text-ink-secondary lg:hidden"
+            class="sidebar-shell-toggle -m-2.5 rounded-control p-2.5 text-ink-secondary lg:hidden"
             @click="mobileOpen = true"
           >
             <span class="sr-only">Open sidebar</span>
@@ -308,7 +307,7 @@ async function signOut() {
           </button>
           <button
             type="button"
-            class="sidebar-shell-toggle -ml-2 hidden size-9 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink lg:inline-flex"
+            class="sidebar-shell-toggle -ml-2 hidden size-9 items-center justify-center rounded-control text-ink-tertiary transition-colors hover:bg-surface-muted hover:text-ink lg:inline-flex"
             :title="sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'"
             :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
             :aria-expanded="!sidebarCollapsed"
@@ -321,34 +320,9 @@ async function signOut() {
               aria-hidden="true"
             />
           </button>
-          <span class="hidden h-5 w-px bg-edge lg:block" aria-hidden="true" />
-          <RouterLink
-            v-if="route.meta.parent"
-            :to="(route.meta.parent as string)"
-            class="-ml-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-ink-muted hover:bg-surface-muted hover:text-ink-secondary"
-          >
-            <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
-            <span class="hidden sm:inline">Back</span>
-          </RouterLink>
-          <h1 class="text-base font-semibold text-ink">
-            {{ (route.meta.title as string) ?? "FuelGuard" }}
-          </h1>
-        </div>
-        <div class="flex items-center gap-x-4">
-          <span class="hidden text-sm text-ink-muted sm:inline">
-            {{ session.email }}
-            <span v-if="session.role" class="ml-1 capitalize text-ink-subtle">· {{ session.role }}</span>
-          </span>
-          <button
-            type="button"
-            class="rounded-md bg-surface-muted px-3 py-1.5 text-sm font-medium text-ink-secondary transition-colors hover:bg-neutral-200"
-            @click="signOut"
-          >
-            Sign out
-          </button>
         </div>
       </header>
-      <main class="py-8">
+      <main class="py-6">
         <!-- Full-width content: tables use the whole screen; small gutters only. -->
         <div class="w-full px-4 sm:px-6 lg:px-8">
           <slot />

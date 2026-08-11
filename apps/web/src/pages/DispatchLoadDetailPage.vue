@@ -9,11 +9,11 @@ import {
   type AssignLoadRequest,
 } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import SlideOver from "@/components/SlideOver.vue";
 import DispatchLoadFormPage from "@/pages/DispatchLoadFormPage.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -303,10 +303,10 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
         </p>
 
         <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-          <div><dt class="text-ink-subtle">Driver</dt><dd class="text-ink">{{ load.driver_name ?? "Unassigned" }}</dd></div>
-          <div><dt class="text-ink-subtle">Truck</dt><dd class="text-ink">{{ load.vehicle_unit ?? "—" }}</dd></div>
-          <div><dt class="text-ink-subtle">Trailer</dt><dd class="text-ink">{{ load.trailer_unit ?? "—" }}</dd></div>
-          <div v-if="load.external_id"><dt class="text-ink-subtle">TMS reference</dt><dd class="font-mono text-ink">{{ load.external_id }}</dd></div>
+          <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ load.driver_name ?? "Unassigned" }}</dd></div>
+          <div><dt class="text-ink-tertiary">Truck</dt><dd class="text-ink">{{ load.vehicle_unit ?? "—" }}</dd></div>
+          <div><dt class="text-ink-tertiary">Trailer</dt><dd class="text-ink">{{ load.trailer_unit ?? "—" }}</dd></div>
+          <div v-if="load.external_id"><dt class="text-ink-tertiary">TMS reference</dt><dd class="font-mono text-ink">{{ load.external_id }}</dd></div>
         </dl>
 
         <div v-if="canReassign && session.canManage" class="mt-3">
@@ -330,10 +330,10 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
           </div>
         </div>
 
-        <p v-if="load.decline_reason" class="mt-3 rounded-lg bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-inset ring-warning-200">
+        <p v-if="load.decline_reason" class="mt-3 rounded-surface bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-inset ring-warning-200">
           Declined by the driver — &ldquo;{{ load.decline_reason }}&rdquo;
         </p>
-        <p v-if="load.cancel_reason" class="mt-3 rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-inset ring-danger-200">
+        <p v-if="load.cancel_reason" class="mt-3 rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-inset ring-danger-200">
           Cancelled — &ldquo;{{ load.cancel_reason }}&rdquo;
         </p>
       </BaseCard>
@@ -344,7 +344,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
         <p class="mt-1 text-xs text-ink-muted">Every stage this load has actually reached.</p>
         <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           <div v-for="stage in provenance" :key="stage.label">
-            <dt class="text-ink-subtle">{{ stage.label }}</dt>
+            <dt class="text-ink-tertiary">{{ stage.label }}</dt>
             <dd class="text-ink">{{ when(stage.at) }}</dd>
           </div>
         </dl>
@@ -372,7 +372,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
       <BaseCard>
         <h2 class="text-sm font-semibold text-ink">Stops</h2>
         <ol class="mt-3 space-y-3">
-          <li v-for="stop in load.stops" :key="stop.id" class="rounded-lg border border-edge p-3 text-sm">
+          <li v-for="stop in load.stops" :key="stop.id" class="rounded-surface border border-edge p-3 text-sm">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span class="font-medium text-ink">
                 {{ stop.seq }}. {{ stop.kind === "pickup" ? "Pickup" : "Drop-off" }} — {{ stop.name || "Unnamed" }}
@@ -398,7 +398,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
 
             <p
               v-if="stop.skip_reason"
-              class="mt-2 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
+              class="mt-2 rounded-surface bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
             >
               Driver&rsquo;s note — &ldquo;{{ stop.skip_reason }}&rdquo;
             </p>
@@ -409,7 +409,7 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
               <div v-for="group in slotGroups(stop)" :key="group.slot" class="flex flex-wrap items-center gap-2">
                 <span
                   :class="[
-                    'inline-flex min-w-[5rem] items-center rounded px-1.5 py-0.5 text-[11px]',
+                    'inline-flex min-w-[5rem] items-center rounded-control px-1.5 py-0.5 text-[11px]',
                     group.photos.length
                       ? 'bg-success-50 text-success-700'
                       : 'bg-warning-50 text-warning-700',
@@ -431,12 +431,12 @@ async function onEditSubmit(body: Parameters<typeof updateLoad.mutateAsync>[0]["
                     v-if="photo.url && !brokenPhotoIds.has(photo.id)"
                     :src="photo.url"
                     :alt="`${photo.slot} photo`"
-                    class="size-20 rounded-md object-cover ring-1 ring-edge"
+                    class="size-20 rounded-control object-cover ring-1 ring-edge"
                     @error="markBroken(photo.id)"
                   />
                   <span
                     v-else
-                    class="flex size-20 items-center justify-center rounded-md bg-danger-50 px-1 text-center text-[11px] text-danger-700 ring-1 ring-danger-200"
+                    class="flex size-20 items-center justify-center rounded-control bg-danger-50 px-1 text-center text-[11px] text-danger-700 ring-1 ring-danger-200"
                     :title="'The record says this photo exists but the image could not be retrieved.'"
                   >
                     Image missing

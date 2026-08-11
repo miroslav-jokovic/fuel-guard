@@ -3,11 +3,12 @@ import { reactive, ref, watch } from "vue";
 import { performanceSettingsFormSchema, NORMALIZATION_METHODS, IDLE_SCORE_BASES, type PerformanceSettingsForm } from "@fuelguard/shared";
 import { useDriverPerformanceSettings, useSaveDriverPerformanceSettings } from "@/features/drivers/useDriverPerformanceSettings";
 import { useToastStore } from "@/stores/toast";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useDriverPerformanceSettings();
@@ -66,6 +67,15 @@ const gateFields = [
   { key: "settle_hours", label: "Settle delay (hours)" },
   { key: "min_cohort_for_percentile", label: "Min cohort for percentile" },
 ];
+const normalizationOptions = NORMALIZATION_METHODS.map((value) => ({ value, label: value }));
+const weekStartOptions = [
+  { value: 1, label: "Monday" },
+  { value: 0, label: "Sunday" },
+];
+const idleScoreOptions = IDLE_SCORE_BASES.map((value) => ({
+  value,
+  label: value === "intensity" ? "Intensity (money-aligned)" : "Share (discipline ratio)",
+}));
 </script>
 
 <template>
@@ -87,20 +97,13 @@ const gateFields = [
         <h3 class="text-base font-semibold text-ink">Method & eligibility</h3>
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField v-slot="{ id }" label="Normalization method">
-            <select :id="id" v-model="form.normalization_method" class="w-full rounded-md border border-edge bg-surface px-2 py-1.5 text-sm text-ink">
-              <option v-for="m in NORMALIZATION_METHODS" :key="m" :value="m">{{ m }}</option>
-            </select>
+            <AppSelect :id="id" v-model="(form.normalization_method as string)" :options="normalizationOptions" />
           </FormField>
           <FormField v-slot="{ id }" label="Week starts on">
-            <select :id="id" v-model.number="form.week_starts_on" class="w-full rounded-md border border-edge bg-surface px-2 py-1.5 text-sm text-ink">
-              <option :value="1">Monday</option>
-              <option :value="0">Sunday</option>
-            </select>
+            <AppSelect :id="id" v-model="(form.week_starts_on as number)" :options="weekStartOptions" />
           </FormField>
           <FormField v-slot="{ id }" label="Idle score basis" hint="Intensity = avoidable idle vs engine-on time (money-aligned). Share = avoidable vs the driver's own idle.">
-            <select :id="id" v-model="form.idle_score_basis" class="w-full rounded-md border border-edge bg-surface px-2 py-1.5 text-sm text-ink">
-              <option v-for="b in IDLE_SCORE_BASES" :key="b" :value="b">{{ b === "intensity" ? "Intensity (money-aligned)" : "Share (discipline ratio)" }}</option>
-            </select>
+            <AppSelect :id="id" v-model="(form.idle_score_basis as string)" :options="idleScoreOptions" />
           </FormField>
           <FormField v-for="f in gateFields" :key="f.key" v-slot="{ id }" :label="f.label" :error="fieldErr[f.key]">
             <BaseInput :id="id" v-model="(form[f.key] as string)" inputmode="numeric" :invalid="Boolean(fieldErr[f.key])" />

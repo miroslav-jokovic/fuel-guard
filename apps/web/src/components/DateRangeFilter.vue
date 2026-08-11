@@ -76,43 +76,42 @@ function clear() {
 </script>
 
 <template>
-  <VueDatePicker
-    v-model="model"
-    :range="{ partialRange: false }"
-    model-type="yyyy-MM-dd"
-    :enable-time-picker="false"
-    :preset-dates="presetDates"
-    :max-date="maxDate || undefined"
-    auto-apply
-    teleport
-    :aria-labels="{ input: 'Filter by date range' }"
-  >
-    <template #trigger>
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium ring-1 ring-inset transition-colors"
-        :class="
-          display
-            ? 'bg-brand-50/60 text-brand-800 ring-brand-600/30 hover:bg-brand-50'
-            : 'bg-surface text-ink-secondary ring-edge-strong hover:bg-surface-subtle'
-        "
-        :aria-label="display ? `Date filter: ${display}` : 'Filter by date range'"
-      >
-        <AppIcon :icon="CalendarIcon" class="size-4 shrink-0" :class="display ? 'text-brand-600' : 'text-ink-subtle'" aria-hidden="true" />
-        {{ display ?? label }}
-        <span
-          v-if="display"
-          class="-mr-0.5 rounded p-0.5 text-brand-700/70 hover:bg-brand-100 hover:text-brand-800"
-          role="button"
-          tabindex="0"
-          aria-label="Clear date filter"
-          @click.stop="clear"
-          @keydown.enter.prevent.stop="clear"
-          @keydown.space.prevent.stop="clear"
+  <div class="inline-flex items-center gap-1">
+    <VueDatePicker
+      v-model="model"
+      :range="{ partialRange: false }"
+      model-type="yyyy-MM-dd"
+      :enable-time-picker="false"
+      :preset-dates="presetDates"
+      :max-date="maxDate || undefined"
+      auto-apply
+      teleport
+      :aria-labels="{ input: 'Filter by date range' }"
+    >
+      <template #trigger>
+        <button
+          type="button"
+          class="inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          :class="
+            display
+              ? 'bg-brand-50/60 text-brand-800 ring-brand-600/30 hover:bg-brand-50'
+              : 'bg-surface text-ink-secondary ring-edge-control hover:bg-surface-subtle'
+          "
+          :aria-label="display ? `Date filter: ${display}` : 'Filter by date range'"
         >
-          <AppIcon :icon="XMarkIcon" class="size-3.5" aria-hidden="true" />
-        </span>
-      </button>
-    </template>
-  </VueDatePicker>
+          <AppIcon :icon="CalendarIcon" class="size-4 shrink-0" :class="display ? 'text-brand-600' : 'text-ink-tertiary'" aria-hidden="true" />
+          {{ display ?? label }}
+        </button>
+      </template>
+    </VueDatePicker>
+    <button
+      v-if="display"
+      type="button"
+      class="inline-flex size-8 items-center justify-center rounded-control text-brand-700 ring-1 ring-inset ring-brand-600/30 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      aria-label="Clear date filter"
+      @click="clear"
+    >
+      <AppIcon :icon="XMarkIcon" class="size-4" aria-hidden="true" />
+    </button>
+  </div>
 </template>

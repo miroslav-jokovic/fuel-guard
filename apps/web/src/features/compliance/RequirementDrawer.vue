@@ -12,11 +12,12 @@ import {
   type QualificationRecordKind,
 } from "@fuelguard/shared";
 import SlideOver from "@/components/SlideOver.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import ComboSelect from "@/components/ui/ComboSelect.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppDateField } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppCombobox as ComboSelect } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import { useToastStore } from "@/stores/toast";
 import {
@@ -202,14 +203,14 @@ async function save(): Promise<void> {
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField v-slot="{ id }" label="Issued">
-              <BaseInput :id="id" v-model="form.issuedAt" type="date" />
+              <AppDateField :id="id" v-model="form.issuedAt" />
             </FormField>
             <FormField
               v-slot="{ id }"
               label="Expires"
               :hint="isTraining ? 'Training runs three years from the issue date.' : undefined"
             >
-              <BaseInput :id="id" v-model="form.expiresAt" type="date" />
+              <AppDateField :id="id" v-model="form.expiresAt" />
             </FormField>
           </div>
 
@@ -221,7 +222,7 @@ async function save(): Promise<void> {
         <template v-else>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField v-slot="{ id }" label="Date">
-              <BaseInput :id="id" v-model="form.occurredOn" type="date" />
+              <AppDateField :id="id" v-model="form.occurredOn" />
             </FormField>
             <FormField
               v-if="spec.recurrence === 'annual'"
@@ -229,7 +230,7 @@ async function save(): Promise<void> {
               label="Covers until"
               hint="Leave blank for one year from the date."
             >
-              <BaseInput :id="id" v-model="form.coversUntil" type="date" />
+              <AppDateField :id="id" v-model="form.coversUntil" />
             </FormField>
           </div>
           <FormField v-slot="{ id }" label="Result" hint="Optional.">

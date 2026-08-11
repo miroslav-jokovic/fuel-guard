@@ -76,7 +76,7 @@ function cfg(t: Toast): VariantConfig {
         <div
           v-for="t in toast.toasts"
           :key="t.id"
-          class="pointer-events-auto relative w-full overflow-hidden rounded-lg border-l-4 shadow-lg ring-1 ring-edge"
+          class="pointer-events-auto relative w-full overflow-hidden rounded-surface border-l-4 shadow-lg ring-1 ring-edge"
           :class="[cfg(t).borderClass, cfg(t).bgClass]"
           role="alert"
         >
@@ -95,7 +95,7 @@ function cfg(t: Toast): VariantConfig {
 
           <button
             type="button"
-            class="absolute right-2.5 top-2.5 rounded-md p-1 text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink-secondary focus:outline-none focus:ring-2 focus:ring-brand-600"
+            class="absolute right-2.5 top-2.5 rounded-control p-1 text-ink-tertiary transition-colors hover:bg-surface-muted hover:text-ink-secondary focus:outline-none focus:ring-2 focus:ring-focus-ring"
             :aria-label="`Dismiss ${t.variant} notification`"
             @click="toast.dismiss(t.id)"
           >

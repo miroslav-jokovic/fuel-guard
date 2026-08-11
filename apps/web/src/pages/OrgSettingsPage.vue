@@ -4,11 +4,12 @@ import { RouterLink } from "vue-router";
 import { orgSettingsFormSchema, type OrgSettingsForm } from "@fuelguard/shared";
 import { useOrgSettingsQuery, useSaveOrgSettings } from "@/composables/useOrgSettings";
 import { useToastStore } from "@/stores/toast";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const { data, isLoading } = useOrgSettingsQuery();
 const save = useSaveOrgSettings();
@@ -88,6 +89,7 @@ async function onSave() {
 
 <template>
   <div class="mx-auto max-w-2xl space-y-6">
+    <PageHeader description="Manage organization identity, access domains, and operating hours." />
     <div v-if="isLoading" class="text-sm text-ink-muted">Loading…</div>
     <form v-else class="space-y-6" @submit.prevent="onSave">
       <BaseCard as="section">
@@ -162,7 +164,7 @@ async function onSave() {
         Looking for alert recipients? They now live in
         <RouterLink
           to="/settings/notifications"
-          class="font-medium text-brand-600 hover:text-brand-500"
+          class="font-medium text-link hover:text-link-hover"
           >Settings → Notifications</RouterLink
         >.
       </p>

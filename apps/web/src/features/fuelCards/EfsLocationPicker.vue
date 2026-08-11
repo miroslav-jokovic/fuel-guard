@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { EfsLocation } from "@fuelguard/shared";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
-import SearchInput from "@/components/SearchInput.vue";
+import { AppSearchField as SearchInput } from "@fuelguard/ui";
 import { useEfsLocationSearch } from "./useEfsCards";
 
 /**
@@ -43,7 +43,7 @@ function select(location: EfsLocation): void {
 
 <template>
   <div class="space-y-3">
-    <div v-if="props.modelValue" class="flex items-center justify-between gap-3 rounded-md bg-surface-subtle px-3 py-2">
+    <div v-if="props.modelValue" class="flex items-center justify-between gap-3 rounded-control bg-surface-subtle px-3 py-2">
       <span class="text-sm text-ink">
         {{ props.modelValue.name ?? "Location" }}<template v-if="props.modelValue.city">, {{ props.modelValue.city }}</template>
         <template v-if="props.modelValue.state"> {{ props.modelValue.state }}</template>

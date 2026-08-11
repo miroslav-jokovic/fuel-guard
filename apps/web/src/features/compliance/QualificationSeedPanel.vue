@@ -2,11 +2,13 @@
 import { computed, reactive, ref } from "vue";
 import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import type { QualificationSeedRequest } from "@fuelguard/shared";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppDateField } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppTable } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 
@@ -115,10 +117,10 @@ async function save() {
       </p>
       <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField v-slot="{ id }" label="PHMSA hazmat registration expires" hint="49 CFR Part 107 subpart G">
-          <BaseInput :id="id" v-model="orgPhmsa" type="date" />
+          <AppDateField :id="id" v-model="orgPhmsa" />
         </FormField>
         <FormField v-slot="{ id }" label="Financial responsibility (insurance) expires" hint="49 CFR §387.9">
-          <BaseInput :id="id" v-model="orgFinancial" type="date" />
+          <AppDateField :id="id" v-model="orgFinancial" />
         </FormField>
       </div>
     </BaseCard>
@@ -146,7 +148,7 @@ async function save() {
       </FormField>
 
       <div class="mt-4 overflow-x-auto">
-        <table class="w-full min-w-[52rem] text-sm">
+        <AppTable class="w-full min-w-[52rem] text-sm">
           <thead>
             <tr class="border-b border-edge text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
               <th class="py-2 pr-3">Driver</th>
@@ -159,8 +161,8 @@ async function save() {
           <tbody>
             <tr v-for="r in rows" :key="r.driverId" class="border-b border-edge-subtle align-middle">
               <td class="py-2 pr-3 font-medium text-ink">{{ r.name }}</td>
-              <td class="py-2 pr-3"><BaseInput v-model="r.cdl" type="date" :aria-label="`CDL expiry for ${r.name}`" /></td>
-              <td class="py-2 pr-3"><BaseInput v-model="r.medical" type="date" :aria-label="`Medical expiry for ${r.name}`" /></td>
+              <td class="py-2 pr-3"><AppDateField v-model="r.cdl" :aria-label="`CDL expiry for ${r.name}`" /></td>
+              <td class="py-2 pr-3"><AppDateField v-model="r.medical" :aria-label="`Medical expiry for ${r.name}`" /></td>
               <td class="py-2 pr-3">
                 <div class="flex items-center gap-3 whitespace-nowrap">
                   <BaseCheckbox v-model="r.h">H</BaseCheckbox>
@@ -168,13 +170,13 @@ async function save() {
                   <BaseCheckbox v-model="r.x">X</BaseCheckbox>
                 </div>
               </td>
-              <td class="py-2"><BaseInput v-model="r.trainingDate" type="date" :aria-label="`Training completion for ${r.name}`" /></td>
+              <td class="py-2"><AppDateField v-model="r.trainingDate" :aria-label="`Training completion for ${r.name}`" /></td>
             </tr>
             <tr v-if="rows.length === 0">
               <td colspan="5" class="py-6 text-center text-ink-muted">Every driver already has a qualification file under way. 🎉</td>
             </tr>
           </tbody>
-        </table>
+        </AppTable>
       </div>
 
       <div class="mt-4 flex items-center gap-3">

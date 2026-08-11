@@ -6,8 +6,9 @@ import {
 } from "@fuelguard/ui/icons";
 import { ref } from "vue";
 import { apiFetch } from "@/lib/api";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppTextarea } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
 
 const question = ref("");
@@ -54,27 +55,27 @@ async function ask(q?: string) {
     </PageHeader>
 
     <form class="flex items-end gap-2" @submit.prevent="ask()">
-      <textarea
+      <AppTextarea
         v-model="question"
         rows="2"
         placeholder="e.g. Which drivers had the most location mismatches this month?"
-        class="block flex-1 rounded-md border-0 bg-surface px-3 py-2 text-sm text-ink ring-1 ring-edge-strong ring-inset placeholder:text-ink-subtle focus:ring-2 focus:ring-brand-600"
+        class="flex-1"
         @keydown.enter.exact.prevent="ask()"
-      ></textarea>
+      />
       <BaseButton variant="primary" type="submit" :disabled="loading || !question.trim()">
         <AppIcon :icon="PaperAirplaneIcon" class="size-4" /> {{ loading ? "Thinking…" : "Ask" }}
       </BaseButton>
     </form>
 
     <div class="flex flex-wrap gap-2">
-      <button
+      <BaseButton
         v-for="ex in examples"
         :key="ex"
         class="rounded-full bg-surface-subtle px-3 py-1 text-xs text-ink-secondary ring-1 ring-edge ring-inset hover:bg-surface-muted"
         @click="ask(ex)"
       >
         {{ ex }}
-      </button>
+      </BaseButton>
     </div>
 
     <BaseCard v-if="loading" class="text-sm text-ink-muted">
@@ -82,7 +83,7 @@ async function ask(q?: string) {
     </BaseCard>
     <div
       v-else-if="answer"
-      :class="['rounded-lg p-5 text-sm whitespace-pre-wrap shadow-sm ring-1', errored ? 'bg-danger-50 text-danger-700 ring-danger-200' : 'bg-surface text-ink-secondary ring-edge']"
+      :class="['rounded-surface p-5 text-sm whitespace-pre-wrap ring-1', errored ? 'bg-danger-50 text-danger-700 ring-danger-200' : 'bg-surface text-ink-secondary ring-edge']"
     >
       {{ answer }}
     </div>

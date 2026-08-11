@@ -3,7 +3,7 @@ import { AppIcon } from "@fuelguard/ui";
 import { DevicePhoneMobileIcon, KeyIcon } from "@fuelguard/ui/icons";
 import type { Driver, DriverAppAccess } from "@fuelguard/shared";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import BaseCard from "@/components/ui/BaseCard.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
 
 defineProps<{
   driver: Driver;
@@ -15,7 +15,7 @@ defineProps<{
   <BaseCard padding="none">
     <div class="flex items-start gap-3 p-4">
       <div
-        class="flex size-10 shrink-0 items-center justify-center rounded-lg"
+        class="flex size-10 shrink-0 items-center justify-center rounded-surface"
         :class="
           access === 'active'
             ? 'bg-success-50 text-success-700'

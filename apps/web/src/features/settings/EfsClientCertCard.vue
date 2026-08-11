@@ -2,10 +2,11 @@
 import { computed, reactive, ref } from "vue";
 import { AppIcon } from "@fuelguard/ui";
 import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from "@fuelguard/ui/icons";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppTextarea } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import { useToastStore } from "@/stores/toast";
 import {
   expiryTone,
@@ -147,7 +148,7 @@ async function onWithdraw(): Promise<void> {
     </div>
 
     <!-- ── Currently presenting ─────────────────────────────────────────────── -->
-    <div v-if="active" class="mt-4 rounded-md bg-surface-subtle p-3">
+    <div v-if="active" class="mt-4 rounded-control bg-surface-subtle p-3">
       <div class="flex items-start gap-2">
         <AppIcon :icon="CheckCircleIcon" class="size-5 shrink-0 text-success-500" />
         <div class="min-w-0 text-sm">
@@ -179,7 +180,7 @@ async function onWithdraw(): Promise<void> {
     </p>
 
     <!-- ── Staged, awaiting test + activation ───────────────────────────────── -->
-    <div v-if="pending" class="mt-4 rounded-md border border-caution-300 bg-caution-50 p-3">
+    <div v-if="pending" class="mt-4 rounded-control border border-caution-300 bg-caution-50 p-3">
       <div class="flex items-start gap-2">
         <AppIcon :icon="InformationCircleIcon" class="size-5 shrink-0 text-caution-600" />
         <div class="min-w-0 text-sm">
@@ -224,22 +225,22 @@ async function onWithdraw(): Promise<void> {
     <!-- ── Upload form ──────────────────────────────────────────────────────── -->
     <form v-if="showForm" class="mt-4 space-y-3 border-t border-edge pt-4" @submit.prevent="onUpload">
       <FormField v-slot="{ id }" label="Certificate (PEM)" hint="Leaf first, then any intermediates. Begins with -----BEGIN CERTIFICATE-----">
-        <textarea
+        <AppTextarea
           :id="id"
           v-model="form.certPem"
           rows="5"
           spellcheck="false"
-          class="block w-full rounded-md border-0 bg-surface px-3 py-2 font-mono text-xs text-ink ring-1 ring-inset ring-edge-strong focus:ring-2 focus:ring-brand-500"
+          class="font-mono text-xs"
           placeholder="-----BEGIN CERTIFICATE-----&#10;…"
         />
       </FormField>
       <FormField v-slot="{ id }" label="Private key (PEM)" hint="Sent once, encrypted before storage, never shown again.">
-        <textarea
+        <AppTextarea
           :id="id"
           v-model="form.keyPem"
           rows="5"
           spellcheck="false"
-          class="block w-full rounded-md border-0 bg-surface px-3 py-2 font-mono text-xs text-ink ring-1 ring-inset ring-edge-strong focus:ring-2 focus:ring-brand-500"
+          class="font-mono text-xs"
           placeholder="-----BEGIN PRIVATE KEY-----&#10;…"
         />
       </FormField>
@@ -251,12 +252,12 @@ async function onWithdraw(): Promise<void> {
         label="CA bundle (optional)"
         hint="Only if EFS's own certificate is signed by a private root your server doesn't already trust."
       >
-        <textarea
+        <AppTextarea
           :id="id"
           v-model="form.caPem"
           rows="3"
           spellcheck="false"
-          class="block w-full rounded-md border-0 bg-surface px-3 py-2 font-mono text-xs text-ink ring-1 ring-inset ring-edge-strong focus:ring-2 focus:ring-brand-500"
+          class="font-mono text-xs"
         />
       </FormField>
       <div class="flex gap-2">

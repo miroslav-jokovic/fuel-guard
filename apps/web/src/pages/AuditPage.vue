@@ -5,6 +5,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 
 const PAGE_SIZE = 50;
 const filters = ref<AuditFilters>({});
@@ -41,6 +42,7 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
+    <PageHeader description="Review security-sensitive changes and operational activity across your organization." />
     <FilterBar
       v-model:search="search"
       search-placeholder="Search by action (e.g. invite, anomaly, threshold)"
@@ -61,7 +63,7 @@ const columns: DataTableColumn[] = [
       <template #cell-created_at="{ value }">{{ fmt(value) }}</template>
       <template #cell-meta="{ row }">
         <template v-if="Object.keys(row.meta || {}).length">{{ JSON.stringify(row.meta) }}</template>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #footer>
         <TablePagination

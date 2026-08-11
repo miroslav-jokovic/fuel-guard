@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
 import type { HazmatLoadRow, HazmatRunRow } from "@fuelguard/shared";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCheckbox from "@/components/ui/BaseCheckbox.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
+import { AppTextarea } from "@fuelguard/ui";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import {
   ATTESTATION_TEXT,
@@ -94,7 +95,7 @@ async function reject() {
 
     <!-- advisories (D3): non-blocking context the reviewer should see but is not blocked on -->
     <div v-if="advisories.length" class="mt-4 border-t border-edge pt-4">
-      <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Advisories (non-blocking)</p>
+      <p class="text-xs font-medium uppercase tracking-wide text-ink-tertiary">Advisories (non-blocking)</p>
       <ul class="mt-2 space-y-2">
         <li v-for="(a, i) in advisories" :key="i" class="flex items-start gap-2 text-sm">
           <span :class="[BADGE_BASE, toneClass(advisoryTone(a.tier)), 'mt-0.5 shrink-0 !capitalize']">{{ a.tier }}</span>
@@ -105,17 +106,17 @@ async function reject() {
 
     <!-- BOL evidence -->
     <div v-if="bolImages.length" class="mt-4">
-      <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Document evidence</p>
+      <p class="text-xs font-medium uppercase tracking-wide text-ink-tertiary">Document evidence</p>
       <div class="mt-2 flex flex-wrap gap-2">
         <a v-for="d in bolImages" :key="d.id" :href="d.url!" target="_blank" rel="noopener noreferrer" class="block">
-          <img :src="d.url!" :alt="`${d.kind} page ${d.page}`" class="h-32 w-auto rounded-md ring-1 ring-edge" />
+          <img :src="d.url!" :alt="`${d.kind} page ${d.page}`" class="h-32 w-auto rounded-control ring-1 ring-edge" />
         </a>
       </div>
     </div>
 
     <!-- extraction evidence (D3): what the model read + both vision passes — the audit trail behind a photo verdict -->
     <div v-if="extraction" class="mt-4 border-t border-edge pt-4">
-      <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">Extraction evidence</p>
+      <p class="text-xs font-medium uppercase tracking-wide text-ink-tertiary">Extraction evidence</p>
       <p class="mt-2 text-sm text-ink">
         Model read <span class="font-semibold">{{ extraction.engineLineCount }}</span> line{{ extraction.engineLineCount === 1 ? "" : "s" }} —
         document <span :class="extraction.usable ? 'text-success-700' : 'text-danger-600'">{{ extraction.usable ? "usable" : "unusable" }}</span>.
@@ -130,12 +131,12 @@ async function reject() {
         <summary class="cursor-pointer text-sm font-medium text-ink-secondary">View extracted fields (pass A / pass B)</summary>
         <div class="mt-2 grid gap-3 sm:grid-cols-2">
           <div>
-            <p class="text-xs font-semibold text-ink-subtle">Pass A</p>
-            <pre class="mt-1 max-h-64 overflow-auto rounded-md bg-surface-muted p-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge">{{ prettyJson(extraction.passA) }}</pre>
+            <p class="text-xs font-semibold text-ink-tertiary">Pass A</p>
+            <pre class="mt-1 max-h-64 overflow-auto rounded-control bg-surface-muted p-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge">{{ prettyJson(extraction.passA) }}</pre>
           </div>
           <div>
-            <p class="text-xs font-semibold text-ink-subtle">Pass B</p>
-            <pre class="mt-1 max-h-64 overflow-auto rounded-md bg-surface-muted p-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge">{{ prettyJson(extraction.passB) }}</pre>
+            <p class="text-xs font-semibold text-ink-tertiary">Pass B</p>
+            <pre class="mt-1 max-h-64 overflow-auto rounded-control bg-surface-muted p-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge">{{ prettyJson(extraction.passB) }}</pre>
           </div>
         </div>
       </details>
@@ -143,7 +144,7 @@ async function reject() {
 
     <!-- hard block: provisional dataset or unusable read — cannot clear, must reject/re-run -->
     <div v-if="hardBlock" class="mt-4 space-y-3 border-t border-edge pt-4">
-      <p class="rounded-md bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20">{{ hardBlock }}</p>
+      <p class="rounded-control bg-warning-50 px-3 py-2 text-sm text-warning-700 ring-1 ring-inset ring-warning-600/20">{{ hardBlock }}</p>
       <BaseButton variant="danger" size="sm" :disabled="busy" @click="reject">Reject (illegible / wrong document)</BaseButton>
       <p v-if="actionError" class="text-sm text-danger-600">{{ actionError }}</p>
     </div>
@@ -155,10 +156,10 @@ async function reject() {
 
       <div v-if="gate.requiresOverride">
         <label class="block text-sm font-medium text-ink-secondary">Override reason (a violation is being cleared — {{ OVERRIDE_MIN_REASON }}+ chars)</label>
-        <textarea
+        <AppTextarea
           v-model="attempt.overrideReason"
           rows="2"
-          class="mt-1 block w-full rounded-md border-0 bg-surface px-3 py-1.5 text-base text-ink ring-1 ring-inset ring-edge-strong placeholder:text-ink-subtle focus:ring-2 focus:ring-brand-600 sm:text-sm"
+          class="mt-1"
           placeholder="Why is this being cleared despite the violation?"
         />
       </div>

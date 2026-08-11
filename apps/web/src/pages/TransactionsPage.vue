@@ -8,6 +8,7 @@ import FilterBar, { type FilterChip } from "@/components/ui/FilterBar.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { toggleSort, type SortState } from "@/lib/sort";
 import { stationTime, businessDate } from "@/lib/stationTime";
@@ -108,8 +109,10 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Every line from your uploaded EFS Transaction reports, exactly as received." />
 
+    <DataWorkspace>
     <FilterBar
       v-model:search="search"
+      embedded
       search-placeholder="Search driver, location, card, invoice…"
       :count="total"
       count-label="transactions"
@@ -130,6 +133,7 @@ const columns: DataTableColumn[] = [
     </FilterBar>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="rows"
       row-key="id"
@@ -160,5 +164,6 @@ const columns: DataTableColumn[] = [
         />
       </template>
     </DataTable>
+    </DataWorkspace>
   </div>
 </template>

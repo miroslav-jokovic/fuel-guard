@@ -5,12 +5,12 @@ import { HAZMAT_REVIEW_ROLES, type HazmatRunRow } from "@fuelguard/shared";
 import { useSessionStore } from "@/stores/session";
 import ReviewPanel from "@/features/hazmat/ReviewPanel.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
-import BaseInput from "@/components/ui/BaseInput.vue";
+import { AppInput as BaseInput } from "@fuelguard/ui";
 import { useVehiclesQuery } from "@/composables/useVehicles";
 import { useDriversQuery } from "@/composables/useDrivers";
 import LoadStatusBadge from "@/features/hazmat/LoadStatusBadge.vue";
@@ -210,10 +210,10 @@ function declaredLine(l: unknown): { hmtRef: string; qty: string } {
         <p v-if="actionError" class="mt-2 text-sm text-danger-600">{{ actionError }}</p>
 
         <dl class="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-          <div><dt class="text-ink-subtle">Vehicle</dt><dd class="text-ink">{{ vehicleLabel }}</dd></div>
-          <div><dt class="text-ink-subtle">Driver</dt><dd class="text-ink">{{ driverLabel }}</dd></div>
-          <div><dt class="text-ink-subtle">Tank state</dt><dd class="capitalize text-ink">{{ load.tank_state.replace(/_/g, " ") }}</dd></div>
-          <div><dt class="text-ink-subtle">Carrier</dt><dd class="capitalize text-ink">{{ load.carrier_relationship.replace(/_/g, " ") }}</dd></div>
+          <div><dt class="text-ink-tertiary">Vehicle</dt><dd class="text-ink">{{ vehicleLabel }}</dd></div>
+          <div><dt class="text-ink-tertiary">Driver</dt><dd class="text-ink">{{ driverLabel }}</dd></div>
+          <div><dt class="text-ink-tertiary">Tank state</dt><dd class="capitalize text-ink">{{ load.tank_state.replace(/_/g, " ") }}</dd></div>
+          <div><dt class="text-ink-tertiary">Carrier</dt><dd class="capitalize text-ink">{{ load.carrier_relationship.replace(/_/g, " ") }}</dd></div>
         </dl>
       </BaseCard>
 
@@ -245,7 +245,7 @@ function declaredLine(l: unknown): { hmtRef: string; qty: string } {
         </p>
         <ul class="mt-3 space-y-2">
           <li v-for="(f, i) in qualFindings" :key="i" class="text-sm">
-            <span class="inline-block rounded bg-danger-50 px-1.5 py-0.5 text-xs font-medium text-danger-700 ring-1 ring-inset ring-danger-200">{{ f.subject }}</span>
+            <span class="inline-block rounded-control bg-danger-50 px-1.5 py-0.5 text-xs font-medium text-danger-700 ring-1 ring-inset ring-danger-200">{{ f.subject }}</span>
             <span class="ml-2 text-ink">{{ f.message }}</span>
             <span class="ml-1 text-ink-muted">({{ f.citation }})</span>
           </li>
@@ -254,7 +254,7 @@ function declaredLine(l: unknown): { hmtRef: string; qty: string } {
 
       <!-- verdict -->
       <div v-if="latestRun">
-        <div v-if="runError" class="rounded-lg bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-inset ring-danger-200">
+        <div v-if="runError" class="rounded-surface bg-danger-50 px-4 py-3 text-sm text-danger-700 ring-1 ring-inset ring-danger-200">
           Analysis failed: {{ runError }}
         </div>
         <VerdictPanel v-else-if="verdictResult" :result="verdictResult" />

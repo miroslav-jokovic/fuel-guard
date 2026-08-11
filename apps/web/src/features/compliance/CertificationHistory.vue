@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from "vue";
 import { DQ_KIND_LABELS, type CertificationRow } from "@fuelguard/shared";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { formatDate } from "@/lib/format";
@@ -105,13 +105,13 @@ const columns: DataTableColumn[] = [
       >
         <template #cell-label="{ row }">
           <span class="text-ink">{{ row.label }}</span>
-          <span v-if="row.detail" class="mt-0.5 block text-xs text-ink-subtle">{{
+          <span v-if="row.detail" class="mt-0.5 block text-xs text-ink-tertiary">{{
             row.detail
           }}</span>
         </template>
         <template #cell-standing="{ row }">
           <span :class="[BADGE_BASE, toneClass('neutral')]">superseded</span>
-          <span class="mt-0.5 block text-xs text-ink-subtle">{{ row.standing }}</span>
+          <span class="mt-0.5 block text-xs text-ink-tertiary">{{ row.standing }}</span>
         </template>
       </DataTable>
     </div>

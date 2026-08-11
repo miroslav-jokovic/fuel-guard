@@ -396,12 +396,25 @@ const routes: RouteRecordRaw[] = [
   },
 ];
 
+const designSystemLabEnabled =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DESIGN_SYSTEM_LAB === "true";
+
+if (designSystemLabEnabled) {
+  routes.unshift({
+    path: "/__design-system",
+    name: "design-system-lab",
+    component: () => import("@/dev/DesignSystemLabPage.vue"),
+    meta: { public: true, layout: "lab", title: "Design system lab" },
+  });
+}
+
 export const router = createRouter({
   history: createWebHistory(),
   routes,
 });
 
 router.beforeEach(async (to) => {
+  if (designSystemLabEnabled && to.meta.layout === "lab") return true;
   const session = useSessionStore();
   if (!session.initialized) await session.init();
 

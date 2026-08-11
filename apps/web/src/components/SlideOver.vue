@@ -10,7 +10,7 @@ import {
   TransitionChild,
 } from "@headlessui/vue";
 import { computed, useSlots } from "vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 
 const props = withDefaults(
   defineProps<{
@@ -70,7 +70,7 @@ const panelWidth = computed(() => (props.size === "lg" ? "max-w-lg" : "max-w-md"
                     <BaseButton
                       variant="ghost"
                       size="sm"
-                      class="-mr-2 shrink-0 px-2 text-ink-subtle"
+                      class="-mr-2 shrink-0 px-2 text-ink-tertiary"
                       aria-label="Close drawer"
                       @click="emit('close')"
                     >

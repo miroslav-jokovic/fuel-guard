@@ -18,22 +18,22 @@ function ecfrHref(cfr: string): string | null {
 
 <template>
   <div v-if="citations.length" class="flex flex-wrap items-center gap-1.5">
-    <span class="text-xs font-medium text-ink-subtle">{{ label }}</span>
+    <span class="text-xs font-medium text-ink-tertiary">{{ label }}</span>
     <template v-for="(c, i) in citations" :key="i">
       <a
         v-if="ecfrHref(c.cfr)"
         :href="ecfrHref(c.cfr)!"
         target="_blank"
         rel="noopener noreferrer"
-        class="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink-secondary ring-1 ring-inset ring-edge hover:text-brand-600"
+        class="rounded-control bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink-secondary ring-1 ring-inset ring-edge hover:text-link"
       >
-        {{ c.cfr }}<span v-if="c.interpretation" class="text-ink-subtle"> · {{ c.interpretation }}</span>
+        {{ c.cfr }}<span v-if="c.interpretation" class="text-ink-tertiary"> · {{ c.interpretation }}</span>
       </a>
       <span
         v-else
-        class="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink-secondary ring-1 ring-inset ring-edge"
+        class="rounded-control bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink-secondary ring-1 ring-inset ring-edge"
       >
-        {{ c.cfr }}<span v-if="c.interpretation" class="text-ink-subtle"> · {{ c.interpretation }}</span>
+        {{ c.cfr }}<span v-if="c.interpretation" class="text-ink-tertiary"> · {{ c.interpretation }}</span>
       </span>
     </template>
   </div>

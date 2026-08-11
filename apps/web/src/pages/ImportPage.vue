@@ -12,8 +12,8 @@ import { useToastStore } from "@/stores/toast";
 import { apiFetch } from "@/lib/api";
 import { useQueryClient } from "@tanstack/vue-query";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import FileDropzone from "@/components/ui/FileDropzone.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
@@ -171,17 +171,17 @@ async function onRepair() {
   <div class="mx-auto max-w-3xl space-y-6">
     <PageHeader>Upload your fleet's reports and daily fuel prices.</PageHeader>
 
-    <div class="flex gap-1 rounded-lg bg-surface-muted p-1 text-sm">
-      <button
-        class="rounded-md px-3 py-1.5 font-medium transition"
-        :class="activeTab === 'efs' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+    <div class="flex gap-1 rounded-surface bg-surface-muted p-1 text-sm">
+      <BaseButton
+        class="rounded-control px-3 py-1.5 font-medium transition"
+        :class="activeTab === 'efs' ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
         @click="activeTab = 'efs'"
-      >EFS reports</button>
-      <button
-        class="rounded-md px-3 py-1.5 font-medium transition"
-        :class="activeTab === 'prices' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink-secondary'"
+      >EFS reports</BaseButton>
+      <BaseButton
+        class="rounded-control px-3 py-1.5 font-medium transition"
+        :class="activeTab === 'prices' ? 'bg-surface text-ink' : 'text-ink-muted hover:text-ink-secondary'"
         @click="activeTab = 'prices'"
-      >Fuel prices</button>
+      >Fuel prices</BaseButton>
     </div>
 
     <div v-show="activeTab === 'efs'" class="space-y-6">
@@ -211,20 +211,20 @@ async function onRepair() {
           stored data — no file re-upload needed. Safe to run any time; it only adds or corrects rows.
         </p>
       </div>
-      <button
+      <BaseButton
         :disabled="repairing"
-        class="shrink-0 rounded-md bg-surface px-3 py-2 text-sm font-semibold text-brand-600 ring-1 ring-brand-200 ring-inset hover:bg-brand-50 disabled:opacity-50"
+        class="shrink-0 rounded-control bg-surface px-3 py-2 text-sm font-semibold text-brand-600 ring-1 ring-brand-200 ring-inset hover:bg-brand-50 disabled:opacity-50"
         @click="onRepair"
       >
         {{ repairing ? "Repairing…" : "Repair fuel data" }}
-      </button>
+      </BaseButton>
     </BaseCard>
 
     <!-- Review queue -->
     <template v-if="previews.length">
       <BaseCard v-for="(preview, i) in previews" :key="preview.filename" class="space-y-5">
         <!-- Duplicate-file warning -->
-        <div v-if="preview.alreadyImported" class="flex items-start gap-3 rounded-md bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
+        <div v-if="preview.alreadyImported" class="flex items-start gap-3 rounded-control bg-warning-50 px-4 py-3 text-sm text-warning-800 ring-1 ring-warning-200">
           <span class="mt-0.5 shrink-0 text-warning-500">⚠</span>
           <p>
             <strong>This file was already imported.</strong>
@@ -237,7 +237,7 @@ async function onRepair() {
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <h3 class="flex flex-wrap items-center gap-2 text-base font-semibold text-ink">
-              <AppIcon :icon="DocumentTextIcon" class="size-5 shrink-0 text-ink-subtle" aria-hidden="true" />
+              <AppIcon :icon="DocumentTextIcon" class="size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
               <span class="truncate">{{ preview.filename }}</span>
               <span :class="[BADGE_BASE, toneClass(preview.kind === 'reject' ? 'warning' : 'brand')]">
                 {{ preview.kind === "reject" ? "Reject report" : "Transaction report" }}
@@ -245,48 +245,48 @@ async function onRepair() {
             </h3>
             <p class="mt-0.5 text-sm text-ink-muted">
               {{ preview.source.toUpperCase() }} · {{ preview.totalRows }} rows
-              <span v-if="preview.reportFrom" class="text-ink-subtle"> · {{ preview.reportFrom }} → {{ preview.reportTo }}</span>
+              <span v-if="preview.reportFrom" class="text-ink-tertiary"> · {{ preview.reportFrom }} → {{ preview.reportTo }}</span>
             </p>
-            <p class="mt-1 text-xs text-ink-subtle">
+            <p class="mt-1 text-xs text-ink-tertiary">
               Rows already in FuelGuard are detected and skipped automatically — safe to upload an overlapping period.
             </p>
           </div>
-          <button
+          <BaseButton
             type="button"
-            class="shrink-0 rounded-md p-1 text-ink-subtle hover:bg-surface-muted hover:text-ink-secondary"
+            class="shrink-0 rounded-control p-1 text-ink-tertiary hover:bg-surface-muted hover:text-ink-secondary"
             :aria-label="`Remove ${preview.filename} from the queue`"
             :disabled="committing"
             @click="removePreview(i)"
           >
             <AppIcon :icon="XMarkIcon" class="size-5" aria-hidden="true" />
-          </button>
+          </BaseButton>
         </div>
 
         <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <template v-if="preview.kind === 'transaction'">
-            <div class="rounded-md bg-surface-subtle p-3">
+            <div class="rounded-control bg-surface-subtle p-3">
               <dt class="text-xs text-ink-muted">New fill-ups</dt>
               <dd class="text-2xl font-semibold text-ink">{{ preview.newFuel.length }}</dd>
             </div>
-            <div class="rounded-md bg-surface-subtle p-3">
+            <div class="rounded-control bg-surface-subtle p-3">
               <dt class="text-xs text-ink-muted">Duplicates</dt>
               <dd class="text-2xl font-semibold text-ink-muted">{{ preview.duplicateFuelCount }}</dd>
             </div>
-            <div class="rounded-md bg-warning-50 p-3">
+            <div class="rounded-control bg-warning-50 p-3">
               <dt class="text-xs text-warning-700">Unattributed</dt>
               <dd class="text-2xl font-semibold text-warning-800">{{ preview.unattributedCount }}</dd>
             </div>
-            <div class="rounded-md bg-surface-subtle p-3">
+            <div class="rounded-control bg-surface-subtle p-3">
               <dt class="text-xs text-ink-muted">Non-fuel skipped</dt>
               <dd class="text-2xl font-semibold text-ink-muted">{{ preview.skippedCount }}</dd>
             </div>
           </template>
           <template v-else>
-            <div class="rounded-md bg-surface-subtle p-3">
+            <div class="rounded-control bg-surface-subtle p-3">
               <dt class="text-xs text-ink-muted">New declined</dt>
               <dd class="text-2xl font-semibold text-ink">{{ preview.newDeclined.length }}</dd>
             </div>
-            <div class="rounded-md bg-surface-subtle p-3">
+            <div class="rounded-control bg-surface-subtle p-3">
               <dt class="text-xs text-ink-muted">Duplicates</dt>
               <dd class="text-2xl font-semibold text-ink-muted">{{ preview.duplicateDeclinedCount }}</dd>
             </div>

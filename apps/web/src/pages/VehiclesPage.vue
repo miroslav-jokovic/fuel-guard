@@ -17,7 +17,8 @@ import TablePagination from "@/components/TablePagination.vue";
 import DataTable from "@/components/ui/DataTable.vue";
 import type { DataTableColumn } from "@/components/ui/DataTable.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import BaseButton from "@/components/ui/BaseButton.vue";
+import DataWorkspace from "@/components/ui/DataWorkspace.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
 import VehicleForm from "@/features/fleet/VehicleForm.vue";
 import VehicleSetupImport from "@/features/fleet/VehicleSetupImport.vue";
 import { useToastStore } from "@/stores/toast";
@@ -162,8 +163,10 @@ async function onRetire(v: Vehicle) {
       </template>
     </PageHeader>
 
+    <DataWorkspace>
     <FilterBar
       v-model:search="search"
+      embedded
       search-placeholder="Search unit, make, model, plate, VIN…"
       :count="filtered.length"
       count-label="vehicles"
@@ -174,7 +177,7 @@ async function onRetire(v: Vehicle) {
     </FilterBar>
 
     <!-- Bulk idle-reduction capability: select trucks, then set APU / Optimized-Idle on all of them at once. -->
-    <div v-if="session.canManage && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">
+    <div v-if="session.canManage && selectedCount > 0" class="flex flex-wrap items-center gap-2 rounded-surface bg-brand-50 px-4 py-2.5 ring-1 ring-brand-100">
       <span class="text-sm font-medium text-brand-800">{{ selectedCount }} selected</span>
       <span class="text-xs text-brand-700">Set idle-reduction capability:</span>
       <BaseButton size="sm" :disabled="bulkUpdate.isPending.value" @click="bulkSetCapability({ has_apu: true }, 'Marked as having an APU')">Has APU</BaseButton>
@@ -185,6 +188,7 @@ async function onRetire(v: Vehicle) {
     </div>
 
     <DataTable
+      embedded
       :columns="columns"
       :rows="pageRows"
       row-key="id"
@@ -200,43 +204,43 @@ async function onRetire(v: Vehicle) {
       @update:selected="selected = $event"
     >
       <template #cell-unit_number="{ row }">
-        <RouterLink :to="`/vehicles/${row.id}`" class="font-medium text-brand-600 hover:text-brand-500">{{ row.unit_number }}</RouterLink>
+        <RouterLink :to="`/vehicles/${row.id}`" class="font-medium text-link hover:text-link-hover">{{ row.unit_number }}</RouterLink>
       </template>
       <template #cell-vehicle="{ row }">{{ [row.year, row.make, row.model].filter(Boolean).join(" ") || "—" }}</template>
       <template #cell-tank_capacity_gal="{ row }">
         <span v-if="Number(row.tank_capacity_gal) > 0">{{ row.tank_capacity_gal }} gal</span>
         <span v-else-if="needsSetup(row)" :class="[BADGE_BASE, toneClass('warning')]">Set tank</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-baseline_mpg="{ row }">
         <span v-if="row.baseline_mpg">{{ row.baseline_mpg }}</span>
         <span v-else-if="needsSetup(row)" :class="[BADGE_BASE, toneClass('warning')]">Set MPG</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-samsara_fuel_percent="{ value }">
         <span v-if="value != null">{{ value }}%</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-current_odometer="{ row }">
         <span v-if="Number(row.current_odometer) > 0">{{ Math.round(Number(row.current_odometer)).toLocaleString() }} mi</span>
-        <span v-else class="text-ink-subtle">—</span>
+        <span v-else class="text-ink-tertiary">—</span>
       </template>
       <template #cell-assigned_driver_id="{ row }">{{ driverName(row.assigned_driver_id) }}</template>
       <template #cell-has_apu="{ value }">
         <span v-if="value === true" :class="[BADGE_BASE, toneClass('success')]">Yes</span>
-        <span v-else-if="value === false" class="text-ink-subtle">No</span>
+        <span v-else-if="value === false" class="text-ink-tertiary">No</span>
         <span v-else :class="[BADGE_BASE, toneClass('warning')]">Unset</span>
       </template>
       <template #cell-has_optimized_idle="{ value }">
         <span v-if="value === true" :class="[BADGE_BASE, toneClass('success')]">Yes</span>
-        <span v-else-if="value === false" class="text-ink-subtle">No</span>
+        <span v-else-if="value === false" class="text-ink-tertiary">No</span>
         <span v-else :class="[BADGE_BASE, toneClass('warning')]">Unset</span>
       </template>
       <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
       <template #actions="{ row }">
         <KebabMenu v-if="session.canManage">
-          <button class="kebab-item" @click="openEdit(row)">Edit vehicle</button>
-          <button v-if="row.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(row)">Retire vehicle</button>
+          <BaseButton class="kebab-item" @click="openEdit(row)">Edit vehicle</BaseButton>
+          <BaseButton v-if="row.status !== 'retired'" class="kebab-item kebab-item-danger" @click="onRetire(row)">Retire vehicle</BaseButton>
         </KebabMenu>
       </template>
       <template #footer>
@@ -248,6 +252,7 @@ async function onRetire(v: Vehicle) {
         />
       </template>
     </DataTable>
+    </DataWorkspace>
 
     <SlideOver :open="setupOpen" title="Import vehicles" @close="setupOpen = false">
       <VehicleSetupImport :vehicles="vehicles ?? []" @done="setupOpen = false" />
