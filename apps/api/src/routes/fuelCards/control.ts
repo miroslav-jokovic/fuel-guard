@@ -5,6 +5,7 @@ import {
   clearOverrideSchema,
   grantOverrideSchema,
   lockCardSchema,
+  efsStatusEquals,
   rolesThatManage,
   setPromptsSchema,
   unlockCardSchema,
@@ -192,7 +193,9 @@ export function fuelCardControlRouter(): Router {
       .from("efs_cards").select("status")
       .eq("id", prepared.ctx.efsCardId).eq("org_id", prepared.ctx.orgId).maybeSingle();
     const mirroredStatus = (data as { status?: string } | null)?.status ?? null;
-    if (mirroredStatus === "Fraud" && !hasFreshAuth(req)) {
+    // efsStatusEquals, not ===: this account reports FRAUD upper-cased, and an exact comparison
+    // would have waved the unlock straight past the step-up this branch exists to demand.
+    if (efsStatusEquals(mirroredStatus, "Fraud") && !hasFreshAuth(req)) {
       stepUpRequired(
         res, DEFAULT_STEP_UP_MAX_AGE_SEC,
         "This card is flagged for fraud. Confirm your password to unlock it.",
@@ -204,7 +207,7 @@ export function fuelCardControlRouter(): Router {
       intent: "unlock",
       auditAction: "card.unlocked",
       buildEdits: () => unlockEdits(),
-      auditMeta: (doc) => ({ statusBefore: doc.card.status, unlockedFromFraud: mirroredStatus === "Fraud" }),
+      auditMeta: (doc) => ({ statusBefore: doc.card.status, unlockedFromFraud: efsStatusEquals(mirroredStatus, "Fraud") }),
     });
   }));
 

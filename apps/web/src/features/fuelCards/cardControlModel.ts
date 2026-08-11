@@ -6,6 +6,7 @@ import {
   formatLimit,
   infoLabel,
   limitLabel,
+  canonicalEfsStatus,
 } from "@fuelguard/shared";
 
 /**
@@ -29,7 +30,9 @@ import {
  * somebody locks a card, not a fault. `Fraud` and `Deleted` are the ones that should stop a reader.
  */
 export function cardStatusTone(status: string | null): string {
-  switch (status) {
+  // Through canonicalEfsStatus, because a production account reports ACTIVE/INACTIVE/HOLD while the
+  // guide documents Active/Inactive/Hold. Switching on the raw text gave every card a neutral badge.
+  switch (canonicalEfsStatus(status)) {
     case "Active": return "success";
     case "Hold": return "warning";
     case "Inactive": return "neutral";
@@ -41,7 +44,7 @@ export function cardStatusTone(status: string | null): string {
 
 /** A status EFS reports that we have no label for is shown verbatim, never blanked. */
 export const cardStatusLabel = (status: string | null): string =>
-  status ? (EFS_CARD_STATUS_LABELS[status as EfsCardStatus] ?? status) : "Unknown";
+  status ? (EFS_CARD_STATUS_LABELS[canonicalEfsStatus(status) as EfsCardStatus] ?? status) : "Unknown";
 
 // ─── Freshness ─────────────────────────────────────────────────────────────────────────────────
 

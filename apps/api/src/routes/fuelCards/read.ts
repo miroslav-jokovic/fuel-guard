@@ -187,7 +187,9 @@ export function fuelCardsRouter(): Router {
     const orgId = req.auth!.orgId!;
 
     let query = admin.from("efs_cards").select(EFS_CARD_LIST_COLS).eq("org_id", orgId);
-    if (parsed.data.status) query = query.eq("status", parsed.data.status);
+    // ilike, not eq: the filter's values come from the documented enum (Active/Hold/…) while a
+    // production account stores ACTIVE/HOLD. `eq` matched nothing and the page looked empty.
+    if (parsed.data.status) query = query.ilike("status", parsed.data.status);
     if (parsed.data.search) {
       // Last four, unit number or driver id — the three things an operator actually has to hand.
       const term = parsed.data.search.replace(/[%,()]/g, "");

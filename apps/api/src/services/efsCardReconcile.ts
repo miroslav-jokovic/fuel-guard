@@ -28,12 +28,44 @@ import type { CardMutationContext, CardMutationOutcome, CardMutationPlan } from 
  * because somebody in the WEX portal changed a policy number in the same second.
  */
 export function intentLanded(before: CardDocument, after: CardDocument, edits: readonly CardEdit[]): boolean {
-  // Every edited path must match the expectation exactly. `driftAgainstExpected` with the volatile
-  // fields excluded gives us the full difference; the intent landed iff none of the differing paths
-  // is one an edit named.
+  // Every edited path must match the expectation. `driftAgainstExpected` with the volatile fields
+  // excluded gives the full difference; the intent landed iff no differing path is one an edit named.
   const editedPaths = new Set(edits.map((e) => `/${e.name}`));
   const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS);
-  return !diffs.some((d) => editedPaths.has(d.path) || [...editedPaths].some((p) => d.path.startsWith(`${p}/`)));
+  return !diffs.some(
+    (d) =>
+      (editedPaths.has(d.path) || [...editedPaths].some((p) => d.path.startsWith(`${p}/`)))
+      && !vendorNormalisedOnly(d),
+  );
+}
+
+/**
+ * A difference that is the vendor writing our value back in its own casing.
+ *
+ * ── The failure this exists to prevent ──────────────────────────────────────────────────────────
+ * We send `status = Hold`, following the guide's documented spelling (p134). This account's EFS
+ * stores and returns `HOLD`. The canonical diff saw `/status` differ, `intentLanded` said no, and a
+ * lock that had WORKED was recorded `failed`, audited `card.mutation_failed`, and reported to the
+ * operator as "EFS accepted the request but the card is unchanged" — inviting them to try again on a
+ * card that was already locked. Discovered against real mirror data before the first live write.
+ *
+ * ── Why this is narrow, and why it is safe ──────────────────────────────────────────────────────
+ * Only a value differing SOLELY by letter case counts, and only on a path an edit named. `Hold` vs
+ * `HOLD` passes; `Hold` vs `Held`, vs empty, vs nil, vs a different number of records does not. Drift
+ * on fields we did not touch is untouched by this and still reported exactly.
+ *
+ * Nothing is hidden by the tolerance: `after_document` on the ledger row records what EFS actually
+ * holds, so the row shows `HOLD` whatever this function concludes.
+ */
+function vendorNormalisedOnly(diff: EchoDiff): boolean {
+  if (diff.expected.length !== diff.actual.length || diff.expected.length === 0) return false;
+  return diff.expected.every((expected, i) => {
+    const actual = diff.actual[i] ?? "";
+    // Both must be real values: the encoding prefixes a leaf with "v", so a nil (`n`) or a container
+    // (`c`) sentinel can never be "the same text in another case".
+    if (!expected.startsWith("v") || !actual.startsWith("v")) return expected === actual;
+    return expected.slice(1).toLowerCase() === actual.slice(1).toLowerCase();
+  });
 }
 
 /**
@@ -52,10 +84,16 @@ function classifyDrift(
 ): { unexplained: EchoDiff[]; vendorMaintained: EchoDiff[] } {
   const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS);
   const touchedStatus = edits.some((e) => e.name === "status");
+  const editedPaths = new Set(edits.map((e) => `/${e.name}`));
   const unexplained: EchoDiff[] = [];
   const vendorMaintained: EchoDiff[] = [];
   for (const diff of diffs) {
+    // EFS keeping the status a card will return to, when we moved the status.
     if (touchedStatus && diff.path === "/originalStatus") vendorMaintained.push(diff);
+    // The vendor writing OUR value back in its own casing on a field we edited — `Hold` → `HOLD`.
+    // `intentLanded` already accepts it, so counting it as drift would report every single lock as
+    // "Applied, with other changes" and turn the drift signal into noise on the first live write.
+    else if (editedPaths.has(diff.path) && vendorNormalisedOnly(diff)) vendorMaintained.push(diff);
     else unexplained.push(diff);
   }
   return { unexplained, vendorMaintained };

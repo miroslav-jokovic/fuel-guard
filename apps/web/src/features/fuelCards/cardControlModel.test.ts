@@ -308,3 +308,19 @@ describe("effective config — the card/policy merge, as an operator reads it", 
     expect(rows[0]!.label).toMatch(/sunday/i);
   });
 });
+
+describe("status rendering when EFS sends its own casing", () => {
+  it("gives ACTIVE the same badge as Active", () => {
+    // Before this, every card in a fleet reporting upper-case statuses got a neutral grey badge — the
+    // one visual signal the page exists to give, switched off across the board.
+    expect(cardStatusTone("ACTIVE")).toBe("success");
+    expect(cardStatusTone("HOLD")).toBe("warning");
+    expect(cardStatusTone("INACTIVE")).toBe("neutral");
+    expect(cardStatusLabel("HOLD")).toBe("On hold");
+  });
+
+  it("still shows a status it has no label for, verbatim and untoned", () => {
+    expect(cardStatusLabel("SOMETHING_NEW")).toBe("SOMETHING_NEW");
+    expect(cardStatusTone("SOMETHING_NEW")).toBe("neutral");
+  });
+});

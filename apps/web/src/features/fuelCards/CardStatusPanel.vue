@@ -5,6 +5,7 @@ import BaseInput from "@/components/ui/BaseInput.vue";
 import ComboSelect from "@/components/ui/ComboSelect.vue";
 import FormField from "@/components/ui/FormField.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { efsStatusEquals } from "@fuelguard/shared";
 import { cardStatusLabel, cardStatusTone } from "./cardControlModel";
 
 /**
@@ -38,7 +39,9 @@ const emit = defineEmits<{
   unlock: [];
 }>();
 
-const locked = computed(() => props.status !== "Active");
+// `!==` here read every ACTIVE card as locked and offered Unlock on a working card: this account's
+// EFS returns the status upper-cased. Case is the only difference tolerated — see efsStatusEquals.
+const locked = computed(() => !efsStatusEquals(props.status, "Active"));
 const reasonValid = computed(() => props.reason.trim().length >= 3);
 
 const lockOptions = [

@@ -25,6 +25,43 @@
 export const EFS_CARD_STATUSES = ["Active", "Inactive", "Hold", "Deleted", "Fraud"] as const;
 export type EfsCardStatus = (typeof EFS_CARD_STATUSES)[number];
 
+/**
+ * Compare a vendor status with one of ours, the way EFS actually sends them.
+ *
+ * ── The fact this exists for ────────────────────────────────────────────────────────────────────
+ * The guide documents `Active` / `Inactive` / `Hold` (p35) and every fixture in this repo uses that
+ * spelling. A production account returns `ACTIVE` / `INACTIVE` / `HOLD` — the same states, different
+ * case. Migration 0176 already settled what to do about vendor values we did not expect: store them
+ * VERBATIM and never branch on them without a default. So the fix is not to rewrite what we store; it
+ * is to stop comparing stored vendor text with `===`.
+ *
+ * ── What `===` was actually costing ─────────────────────────────────────────────────────────────
+ * Every one of these was live before this helper existed:
+ *   • `status !== "Active"` read every active card as LOCKED, so the drawer offered Unlock on a card
+ *     that was working.
+ *   • `status === "Fraud"` missed `FRAUD`, skipping the step-up that unlocking a fraud-flagged card
+ *     is supposed to demand.
+ *   • Worst: after writing `status = "Hold"` the reconciler re-read `HOLD`, saw the field differ, and
+ *     recorded a lock that HAD WORKED as `failed` — telling an operator the card was unchanged and
+ *     inviting them to try again.
+ *
+ * Case is the only tolerance granted. `Hold` and `HOLD` are one state; `Hold` and `Held` are not, and
+ * an unrecognised value still renders verbatim rather than being coerced into something familiar.
+ */
+export function efsStatusEquals(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (a == null || b == null) return a === b;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/**
+ * The documented spelling of a vendor status, for display lookups. Returns the value UNCHANGED when
+ * it matches nothing we know — an unfamiliar state is news, and inventing a label for it hides that.
+ */
+export function canonicalEfsStatus(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  return EFS_CARD_STATUSES.find((known) => efsStatusEquals(known, value)) ?? value;
+}
+
 /** Statuses this product is willing to SET. Deliberately excludes Deleted and Fraud. */
 export const EFS_WRITABLE_STATUSES = ["Active", "Inactive", "Hold"] as const;
 export type EfsWritableStatus = (typeof EFS_WRITABLE_STATUSES)[number];

@@ -8,6 +8,7 @@ import {
   cardControlSettingsPatchSchema,
   isCardControlScope,
 } from "./cardControlContract.js";
+import { canonicalEfsStatus, efsStatusEquals } from "./efsCardCatalog.js";
 
 /**
  * The permission vocabulary, tested where it is defined. These strings are load-bearing in three
@@ -56,5 +57,32 @@ describe("card control scopes — the permission vocabulary", () => {
     for (const action of Object.values(CARD_CONTROL_AUDIT_ACTIONS)) {
       expect(action).toMatch(/^[a-z]+(\.[a-z_]+)+$/);
     }
+  });
+});
+
+describe("vendor status casing — what a production account actually sends", () => {
+  it("treats HOLD and Hold as one state", () => {
+    // Measured, not hypothetical: this fleet's 199 mirrored cards are ACTIVE / INACTIVE / HOLD, while
+    // the guide documents Active / Inactive / Hold (p35).
+    expect(efsStatusEquals("HOLD", "Hold")).toBe(true);
+    expect(efsStatusEquals("ACTIVE", "Active")).toBe(true);
+    expect(efsStatusEquals(" active ", "Active")).toBe(true);
+  });
+
+  it("does not treat a DIFFERENT state as the same one", () => {
+    // Case is the only tolerance. Anything else and an unfamiliar state would be silently coerced
+    // into a familiar one, which is the opposite of what migration 0176 decided.
+    expect(efsStatusEquals("Held", "Hold")).toBe(false);
+    expect(efsStatusEquals("", "Hold")).toBe(false);
+    expect(efsStatusEquals(null, "Hold")).toBe(false);
+    expect(efsStatusEquals(null, null)).toBe(true);
+  });
+
+  it("maps a vendor spelling back to the documented one for display, and leaves the rest alone", () => {
+    expect(canonicalEfsStatus("ACTIVE")).toBe("Active");
+    expect(canonicalEfsStatus("hold")).toBe("Hold");
+    // An unrecognised status is news; showing it verbatim is the point.
+    expect(canonicalEfsStatus("SOMETHING_NEW")).toBe("SOMETHING_NEW");
+    expect(canonicalEfsStatus(null)).toBeNull();
   });
 });

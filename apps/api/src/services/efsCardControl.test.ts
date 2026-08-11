@@ -237,3 +237,42 @@ describe("concurrency and caps", () => {
     expect(error.status).toBe(503);
   });
 });
+
+describe("the vendor writes our value back in its own casing", () => {
+  /**
+   * Measured against real mirror data before the first live write: this account's EFS stores statuses
+   * upper-cased (ACTIVE / INACTIVE / HOLD) while the guide documents Active / Inactive / Hold (p35).
+   * We send `Hold`; the card comes back `HOLD`.
+   */
+  const CARD_HELD_UPPERCASE = CARD_ACTIVE.replace("<status>Active</status>", "<status>HOLD</status>");
+
+  it("counts a lock as SUCCEEDED when the card comes back HOLD", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_UPPERCASE, CARD_HELD_UPPERCASE);
+    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+
+    // Without the casing tolerance this was `failed`: the operator was told "EFS accepted the request
+    // but the card is unchanged" about a card that was, in fact, locked — and invited to retry.
+    expect(outcome.status).toBe("succeeded");
+    expect(settled(rec)).toMatchObject({ status: "succeeded" });
+    // And the ledger still records what EFS actually holds, not what we sent.
+    expect((settled(rec).after_document as { status: string }).status).toBe("HOLD");
+  });
+
+  it("still calls it FAILED when the status is a genuinely different state", async () => {
+    // The tolerance is case ONLY. A card that came back Active after a lock is a real failure.
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_ACTIVE);
+    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    expect(outcome.status).toBe("failed");
+  });
+
+  it("does not let the tolerance swallow real drift on a field nobody edited", async () => {
+    const drifted = CARD_HELD_UPPERCASE.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>");
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), drifted, drifted);
+    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    expect(outcome.status).toBe("drift_detected");
+    expect(outcome.driftFields).toContain("/policyNumber");
+  });
+});

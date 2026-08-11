@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { CardCapabilities, EfsLocation, PromptInput } from "@fuelguard/shared";
-import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS, efsStatusEquals } from "@fuelguard/shared";
 import { AppIcon } from "@fuelguard/ui";
 import { ExclamationTriangleIcon } from "@fuelguard/ui/icons";
 import SlideOver from "@/components/SlideOver.vue";
@@ -154,7 +154,7 @@ const locationLabel = computed(() =>
 const confirmation = computed<CardConfirmation | null>(() => {
   switch (confirmAction.value) {
     case "lock": return lockConfirmation(lockStatus.value);
-    case "unlock": return unlockConfirmation(props.status === "Fraud");
+    case "unlock": return unlockConfirmation(efsStatusEquals(props.status, "Fraud"));
     case "override": return overrideConfirmation(uses.value, scopeKind.value === "location" ? locationLabel.value : null);
     case "clearOverride": return clearOverrideConfirmation();
     case "prompts": return promptsConfirmation(removesDriverId.value);
