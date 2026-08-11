@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   failScoringAttempt,
   persistScoringOutcome,
+  sanitizeOutcomePatch,
   scoringResultHash,
   startScoringAttempt,
 } from "./persist.js";
@@ -50,7 +51,10 @@ function fakeAdmin(options: FakeOptions = {}) {
     },
     async rpc(fn: string, args: Record<string, unknown>) {
       calls.push({ kind: `rpc:${fn}`, payload: args });
-      return { data: options.rpcData ?? { idempotent: false, anomaly_id: null }, error: options.rpcError ?? null };
+      return {
+        data: options.rpcData ?? { idempotent: false, anomaly_id: null },
+        error: options.rpcError ?? null,
+      };
     },
   } as unknown as SupabaseClient;
   return { admin, calls };
@@ -139,8 +143,52 @@ describe("scoring persistence contract", () => {
     });
 
     const failing = fakeAdmin({ updateError: { message: "ledger unavailable" } });
-    await expect(failScoringAttempt(failing.admin, "attempt-1", "database unavailable")).rejects.toThrow(
-      "could not record failed attempt",
-    );
+    await expect(
+      failScoringAttempt(failing.admin, "attempt-1", "database unavailable"),
+    ).rejects.toThrow("could not record failed attempt");
+  });
+});
+
+describe("sanitizeOutcomePatch — numeric column bounds (incident 2026-08-11)", () => {
+  it("nulls values the DB column cannot store and names them in case_gates.out_of_range", () => {
+    const patch = sanitizeOutcomePatch({
+      computed_mpg: 14000.25, // numeric(6,2) caps at 9999.99 — the overflow that killed the nightly
+      miles_since_last: 123.4,
+      samsara_fuel_pct_before: 55.2,
+      case_gates: { fuel_balance: null },
+    });
+    expect(patch.computed_mpg).toBeNull();
+    expect(patch.miles_since_last).toBe(123.4);
+    expect(patch.samsara_fuel_pct_before).toBe(55.2);
+    expect(patch.case_gates).toMatchObject({ fuel_balance: null, out_of_range: ["computed_mpg"] });
+  });
+
+  it("checks the way Postgres does: rounded to the column scale first", () => {
+    // 9999.994 rounds to 9999.99 (fits); 9999.995 rounds to 10000.00 (overflows numeric(6,2)).
+    expect(sanitizeOutcomePatch({ computed_mpg: 9999.994 }).computed_mpg).toBe(9999.994);
+    expect(sanitizeOutcomePatch({ computed_mpg: 9999.996 }).computed_mpg).toBeNull();
+  });
+
+  it("drops non-finite and non-number values, keeps nulls untouched, adds no gate when clean", () => {
+    const dirty = sanitizeOutcomePatch({ samsara_odometer: Number.NaN, station_lat: "41.9" });
+    expect(dirty.samsara_odometer).toBeNull();
+    expect(dirty.station_lat).toBeNull();
+    expect((dirty.case_gates as Record<string, unknown>).out_of_range).toEqual([
+      "samsara_odometer",
+      "station_lat",
+    ]);
+
+    const clean = sanitizeOutcomePatch({ computed_mpg: 6.7, miles_since_last: null });
+    expect(clean.case_gates).toBeUndefined();
+    expect(clean.miles_since_last).toBeNull();
+  });
+
+  it("covers every column with negative values too (numeric bounds are symmetric)", () => {
+    const patch = sanitizeOutcomePatch({
+      station_lng: -1000.1, // numeric(9,6) integer part maxes below 1000
+      samsara_observed_lng: -87.6,
+    });
+    expect(patch.station_lng).toBeNull();
+    expect(patch.samsara_observed_lng).toBe(-87.6);
   });
 });

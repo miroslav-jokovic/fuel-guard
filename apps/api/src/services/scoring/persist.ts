@@ -79,10 +79,67 @@ export function scoringResultHash(value: unknown): string {
   return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
 }
 
+/**
+ * DB numeric(p,s) capacity for every numeric column persist_scoring_outcome writes, keyed by outcome
+ * field. `limit` is 10^(p-s): Postgres raises `numeric field overflow` when the value, ROUNDED to the
+ * column's scale, reaches it.
+ *
+ * WHY (incident 2026-08-11). One fill with garbage input — an odometer typo or an OBD span glitch —
+ * yields a computed_mpg like 14,000; `computed_mpg numeric(6,2)` caps at 9,999.99, the RPC raises
+ * "numeric field overflow" (Postgres names no column), the whole nightly self-heal chain dies on that
+ * single row, and it dies again every night because the poisoned row sits inside the bounded rebuild
+ * window. A physically impossible value carries no information worth crashing for: it is nulled here,
+ * and the field is NAMED in case_gates.out_of_range so the UI's "why" surface and any query can see
+ * exactly what was dropped and why detection was limited. Rules still see the raw in-memory values —
+ * this touches only what is persisted.
+ */
+const OUTCOME_NUMERIC_BOUNDS: Record<string, { limit: number; scale: number }> = {
+  miles_since_last: { limit: 1e9, scale: 1 }, // numeric(10,1) — 0003
+  computed_mpg: { limit: 1e4, scale: 2 }, // numeric(6,2)  — 0003
+  samsara_odometer: { limit: 1e9, scale: 1 }, // numeric(10,1) — 0012
+  samsara_nearest_station_miles: { limit: 1e6, scale: 1 }, // numeric(7,1)  — 0040
+  station_lat: { limit: 1e3, scale: 6 }, // numeric(9,6)  — 0018
+  station_lng: { limit: 1e3, scale: 6 }, // numeric(9,6)  — 0018
+  samsara_tank_short_gal: { limit: 1e9, scale: 1 }, // numeric(10,1) — 0013
+  samsara_tank_observed_gal: { limit: 1e9, scale: 1 }, // numeric(10,1) — 0013
+  samsara_fuel_pct_before: { limit: 1e4, scale: 1 }, // numeric(5,1)  — 0020
+  samsara_fuel_pct_after: { limit: 1e4, scale: 1 }, // numeric(5,1)  — 0028
+  samsara_observed_lat: { limit: 1e3, scale: 6 }, // numeric(9,6)  — 0028
+  samsara_observed_lng: { limit: 1e3, scale: 6 }, // numeric(9,6)  — 0028
+};
+
+/** Does `value` fit its column? Checked the way Postgres does: rounded to the column scale first. */
+function fitsColumn(value: number, bound: { limit: number; scale: number }): boolean {
+  const factor = 10 ** bound.scale;
+  const rounded = Math.round(Math.abs(value) * factor) / factor;
+  return rounded < bound.limit;
+}
+
+/**
+ * Null every numeric outcome field its DB column cannot store (or that is not a finite number), and
+ * name the dropped fields in `case_gates.out_of_range`. Exported for tests.
+ */
+export function sanitizeOutcomePatch(patch: Record<string, unknown>): Record<string, unknown> {
+  const dropped: string[] = [];
+  for (const [field, bound] of Object.entries(OUTCOME_NUMERIC_BOUNDS)) {
+    const value = patch[field];
+    if (value == null) continue;
+    if (typeof value !== "number" || !Number.isFinite(value) || !fitsColumn(value, bound)) {
+      patch[field] = null;
+      dropped.push(field);
+    }
+  }
+  if (dropped.length) {
+    const gates = (patch.case_gates ?? {}) as Record<string, unknown>;
+    patch.case_gates = { ...gates, out_of_range: dropped };
+  }
+  return patch;
+}
+
 /** Convert the computed outcome to the snake_case JSON contract consumed by Postgres. */
 export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown> {
   const { txn, previousTxn, intermediateGallons, assessment, ruleCtx, recon, attribution } = a;
-  return {
+  return sanitizeOutcomePatch({
     miles_since_last: milesSinceLast(txn, previousTxn),
     computed_mpg: computedMpg(txn, previousTxn, intermediateGallons),
     has_anomaly: assessment.level !== "clear",
@@ -92,7 +149,10 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     case_score: assessment.score,
     case_signals: assessment.signals,
     // WP6: WHY detection was limited on this fill (ineligible rules + the gating inputs).
-    case_gates: { ...summarizeFillGates(computeFillConfidence(ruleCtx)), fuel_balance: ruleCtx.fuelBalance ?? null },
+    case_gates: {
+      ...summarizeFillGates(computeFillConfidence(ruleCtx)),
+      fuel_balance: ruleCtx.fuelBalance ?? null,
+    },
     // WP-ATTR: the logbook attribution verdict (+ the contradicting logbook truck when suspect).
     attribution_verdict: attribution.verdict,
     logbook_vehicle_id: attribution.verdict === "suspect" ? attribution.logbookVehicleId : null,
@@ -120,7 +180,7 @@ export function buildTxnOutcomePatch(a: TxnOutcomeArgs): Record<string, unknown>
     samsara_recon_status: recon.reconStatus,
     samsara_recon_error: recon.reconError,
     samsara_recon_evidence_version: recon.reconEvidenceVersion,
-  };
+  });
 }
 
 function casePayload(caseFired: RuleResult[]): Record<string, unknown> | null {
@@ -154,7 +214,11 @@ export async function startScoringAttempt(
     .single();
   if (error) throw new Error(`[scoring] could not start attempt ${id}: ${error.message}`);
   if (!data?.id) throw new Error(`[scoring] could not start attempt ${id}: no attempt id returned`);
-  return { id: data.id as string, engineVersion: input.engineVersion, resultHash: input.resultHash };
+  return {
+    id: data.id as string,
+    engineVersion: input.engineVersion,
+    resultHash: input.resultHash,
+  };
 }
 
 /** Mark a failed persistence attempt. The original scoring error remains the primary failure. */
@@ -170,7 +234,8 @@ export async function failScoringAttempt(
     .eq("status", "running")
     .select("id")
     .maybeSingle();
-  if (error) throw new Error(`[scoring] could not record failed attempt ${attemptId}: ${error.message}`);
+  if (error)
+    throw new Error(`[scoring] could not record failed attempt ${attemptId}: ${error.message}`);
   if (!data?.id) throw new Error(`[scoring] failed attempt ${attemptId} was not in running state`);
 }
 
@@ -206,7 +271,8 @@ export async function persistScoringOutcome(
     p_recon_error: input.outcome.samsara_recon_error ?? null,
     p_recon_evidence_version: input.outcome.samsara_recon_evidence_version ?? 1,
   });
-  if (error) throw new Error(`[scoring] atomic persistence failed for ${input.txnId}: ${error.message}`);
+  if (error)
+    throw new Error(`[scoring] atomic persistence failed for ${input.txnId}: ${error.message}`);
   const result = (data ?? {}) as { idempotent?: boolean; anomaly_id?: string | null };
   return { idempotent: result.idempotent === true, anomalyId: result.anomaly_id ?? null };
 }
@@ -238,7 +304,10 @@ export async function learnAndUpdateVehicle(
       .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) throw new Error(`[scoring] could not load latest odometer for ${txn.vehicleId}: ${error.message}`);
+    if (error)
+      throw new Error(
+        `[scoring] could not load latest odometer for ${txn.vehicleId}: ${error.message}`,
+      );
     if (lastRow?.odometer != null) vehUpdate.current_odometer = lastRow.odometer;
   }
 
@@ -249,7 +318,8 @@ export async function learnAndUpdateVehicle(
 
   if (Object.keys(vehUpdate).length) {
     const { error } = await admin.from("vehicles").update(vehUpdate).eq("id", txn.vehicleId);
-    if (error) throw new Error(`[scoring] could not update vehicle ${txn.vehicleId}: ${error.message}`);
+    if (error)
+      throw new Error(`[scoring] could not update vehicle ${txn.vehicleId}: ${error.message}`);
   }
 
   if (!opts.skipLearn) {

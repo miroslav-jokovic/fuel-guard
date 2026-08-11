@@ -121,8 +121,18 @@ export async function backfillOrg(
     const ids = await collectTxnIds(admin, orgId, { onlyUnreconciled, sinceDays });
     const total = ids.length;
     let done = 0;
+    // One poisoned fill must not abort the sweep (incident 2026-08-11: a single row's numeric overflow
+    // failed the ENTIRE nightly self-heal, every night, because the row sat inside the rebuild window).
+    // Each failure is already durably recorded on its scoring attempt; finish the fleet, then fail the
+    // JOB with a summary naming the rows — a diagnosis, not a mid-run abort that hides the other 99%.
+    const failures: { id: string; message: string }[] = [];
     for (const id of ids) {
-      await scoreTransaction(admin, env, orgId, id, { ...scoreOpts, ctx: ctxBase, skipLearn: true });
+      try {
+        await scoreTransaction(admin, env, orgId, id, { ...scoreOpts, ctx: ctxBase, skipLearn: true });
+      } catch (e) {
+        failures.push({ id, message: e instanceof Error ? e.message : String(e) });
+        console.error(`[backfill] rebuild scoring ${id} failed:`, failures.at(-1)!.message);
+      }
       done++;
       if (done % 50 === 0 || done === total) {
         if (onProgress) await onProgress(done, total);
@@ -136,6 +146,13 @@ export async function backfillOrg(
     // explains as ONE driver moving between trucks. Previously only scoreImportWithCascade did this,
     // so a full Rebuild left every such case sitting open with nothing to clear it.
     await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
+    if (failures.length) {
+      const sample = failures.slice(0, 3).map((f) => `${f.id}: ${f.message}`).join("; ");
+      throw new Error(
+        `rebuild scored ${total - failures.length}/${total} fills; ${failures.length} failed — ${sample}` +
+          (failures.length > 3 ? ` (+${failures.length - 3} more, see scoring_attempts)` : ""),
+      );
+    }
     return total;
   }
 
