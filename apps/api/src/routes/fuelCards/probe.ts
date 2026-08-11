@@ -11,6 +11,7 @@ import {
 import { searchLocation } from "../../lib/efsLocationSearch.js";
 import { EfsSoapError, efsLogin } from "../../lib/efsSoapSession.js";
 import { redactCardXml } from "../../lib/efsCardXml.js";
+import { egressAddress } from "../../lib/egressAddress.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { writeAudit } from "../../lib/audit.js";
@@ -81,31 +82,6 @@ async function step(operation: string, run: () => Promise<number>): Promise<Step
       // getCardv2 failure quotes the one we asked about.
       error: redactCardXml(error instanceof Error ? error.message : String(error)).slice(0, 300),
     };
-  }
-}
-
-/**
- * The address WEX sees when this process dials them.
- *
- * ── Why the probe reports this ───────────────────────────────────────────────────────────────────
- * Card operations have been refused, then worked (199 cards), then been refused again, from the same
- * build and the same credentials. An entitlement does not flap. An IP allowlist does — if this API's
- * egress address is drawn from a pool and only some of that pool is allowlisted, every run is a coin
- * toss, which is exactly the pattern observed. Naming the address turns that from a theory into a
- * value WEX can paste into their allowlist, and comparing it across runs settles whether it moves.
- *
- * Best-effort by construction: three seconds, and any failure returns null. A diagnostic that can
- * fail because an unrelated third party is down is not a diagnostic.
- */
-async function egressAddress(): Promise<string | null> {
-  try {
-    const res = await fetch("https://checkip.amazonaws.com", { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return null;
-    const text = (await res.text()).trim();
-    // Whatever comes back is echoed into a response and an audit row, so accept only an IP literal.
-    return /^[0-9a-f.:]{7,45}$/i.test(text) ? text : null;
-  } catch {
-    return null;
   }
 }
 

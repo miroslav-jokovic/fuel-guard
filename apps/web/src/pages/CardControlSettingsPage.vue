@@ -2,11 +2,10 @@
 import { computed, ref } from "vue";
 import { AppIcon } from "@fuelguard/ui";
 import { CheckIcon, XMarkIcon } from "@fuelguard/ui/icons";
-import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppCard as BaseCard } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
-import { AppCheckbox as BaseCheckbox } from "@fuelguard/ui";
-import { AppFormField as FormField } from "@fuelguard/ui";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import FormField from "@/components/ui/FormField.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
@@ -165,31 +164,35 @@ async function run(): Promise<void> {
           </span>
         </div>
 
-        <BaseCheckbox
-          :model-value="settings.enabled"
-          :disabled="busy || (!settings.enabled && settings.writeEntitlement !== 'confirmed')"
-          class="items-start"
-          @update:model-value="setEnabled"
-        >
+        <label class="flex items-start gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            class="mt-1"
+            :checked="settings.enabled"
+            :disabled="busy || (!settings.enabled && settings.writeEntitlement !== 'confirmed')"
+            @change="setEnabled(($event.target as HTMLInputElement).checked)"
+          />
           <span>
             Let this company change fuel cards.
             <span class="block text-ink-muted">
               Off by default. Being able to READ cards never implies permission to change them.
             </span>
           </span>
-        </BaseCheckbox>
+        </label>
 
-        <p v-if="settings.writeEntitlement !== 'confirmed'" class="rounded-control bg-caution-50 px-3 py-2 text-sm text-caution-700">
+        <p v-if="settings.writeEntitlement !== 'confirmed'" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-700">
           Card actions cannot be switched on until the EFS write check has passed — run it below.
           <template v-if="settings.probeVerdict"> Last check: {{ settings.probeVerdict }}</template>
         </p>
 
-        <BaseCheckbox
-          :model-value="settings.requireApprover"
-          :disabled="busy"
-          class="items-start"
-          @update:model-value="setRequireApprover"
-        >
+        <label class="flex items-start gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            class="mt-1"
+            :checked="settings.requireApprover"
+            :disabled="busy"
+            @change="setRequireApprover(($event.target as HTMLInputElement).checked)"
+          />
           <span>
             Only named people may change cards.
             <span class="block text-ink-muted">
@@ -197,7 +200,7 @@ async function run(): Promise<void> {
               in this company the ability to lock cards and grant fuel exceptions.
             </span>
           </span>
-        </BaseCheckbox>
+        </label>
       </div>
     </BaseCard>
 
@@ -242,7 +245,8 @@ async function run(): Promise<void> {
           </template>
         </FormField>
 
-        <BaseCheckbox v-model="readOnly" :disabled="probe.isPending.value" class="items-start">
+        <label class="flex items-start gap-2 text-sm text-ink">
+          <input v-model="readOnly" type="checkbox" class="mt-1" :disabled="probe.isPending.value" />
           <span>
             Check the echo only — do not send a change.
             <span class="block text-ink-muted">
@@ -250,7 +254,7 @@ async function run(): Promise<void> {
               changes nothing. Start here.
             </span>
           </span>
-        </BaseCheckbox>
+        </label>
 
         <FormField
           v-if="!readOnly"
@@ -290,12 +294,37 @@ async function run(): Promise<void> {
             />
             <span>
               <span class="text-ink">{{ step.step }}. {{ step.name }}</span>
-              <span class="ml-2 text-ink-tertiary">{{ step.ms }}ms</span>
+              <span class="ml-2 text-ink-subtle">{{ step.ms }}ms</span>
               <span v-if="step.detail" class="block text-ink-muted">{{ step.detail }}</span>
               <span v-if="step.error" class="block text-danger-700">{{ step.error }}</span>
             </span>
           </li>
         </ul>
+
+        <!--
+          The response shape, stated next to the verdict rather than buried in the document below.
+
+          This account answers `nested:header`; every example in the WEX guide is flat. Reading the
+          wrong one gave us a parser that saw zero prompts and an echo that would have deleted them.
+          A QA proof only carries to production if both environments say the same thing here.
+        -->
+        <p v-if="result.documentShape" class="text-sm text-ink-muted">
+          EFS answered in the <span class="font-medium text-ink">{{ result.documentShape }}</span>
+          shape. Compare it against the other environment before switching writes on — a proof
+          obtained on one shape does not carry to the other.
+        </p>
+
+        <details v-if="result.document" class="rounded-md border border-line">
+          <summary class="cursor-pointer px-3 py-2 text-sm text-ink">
+            The card as EFS sent it — card numbers masked
+          </summary>
+          <pre class="max-h-96 overflow-auto px-3 pb-3 text-xs leading-5 text-ink-muted">{{ result.document }}</pre>
+        </details>
+
+        <p v-if="result.egressIp" class="text-sm text-ink-muted">
+          This request left from <span class="font-mono text-ink">{{ result.egressIp }}</span> —
+          the address EFS sees, and the one that has to be on their allowlist.
+        </p>
 
         <p v-if="!result.persisted" class="text-sm text-caution-700">
           The result above is accurate, but it could not be saved to this company's settings. Card

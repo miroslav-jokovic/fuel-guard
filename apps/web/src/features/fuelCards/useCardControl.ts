@@ -213,6 +213,17 @@ export interface CardControlProbeResult {
   recommendation: string;
   verdict: string;
   steps: CardControlProbeStep[];
+  /**
+   * `flat` or `nested:<wrapper>`. A QA account and a production account are two different EFS
+   * installations, and a clean round-trip on one only transfers to the other if both answer in the
+   * same structure — so this is evidence, not trivia. Optional because a run that never reached
+   * step 3 has no document to describe.
+   */
+  documentShape?: string | null;
+  /** The card as EFS sent it, PANs already masked server-side. The fixture for the next bug. */
+  document?: string | null;
+  /** The address EFS saw us dial from — the one that has to be on their allowlist, per environment. */
+  egressIp?: string | null;
   persisted: boolean;
 }
 

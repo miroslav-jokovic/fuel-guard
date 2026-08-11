@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { assertEchoFidelity, serializeSetCardRequest } from "../../lib/efsCardEcho.js";
 import { documentShape, redactCardXml, type CardDocument } from "../../lib/efsCardXml.js";
+import { egressAddress } from "../../lib/egressAddress.js";
 import { getCardSummaries, getCardV2 } from "../../lib/efsCardOps.js";
 import { setCardV2 } from "../../lib/efsCardWrite.js";
 import { EfsSoapError, efsLogin } from "../../lib/efsSoapSession.js";
@@ -210,6 +211,9 @@ export function fuelCardWriteProbeRouter(): Router {
       }
 
       const { entitlement, recommendation, verdict } = judge(steps, readOnly);
+      // The address EFS saw. On a second environment this is the difference between "WEX has not
+      // enabled us" and "WEX allowlisted three IPs and we left from a fourth" — see lib/egressAddress.
+      const egressIp = await egressAddress();
 
       // Persist the verdict, never the card number. The settings row is what the capabilities gate
       // reads, so this write is the act that opens or keeps shut every write route in the product.
@@ -221,6 +225,7 @@ export function fuelCardWriteProbeRouter(): Router {
         versionBefore: before?.version ?? null,
         versionAfter: state.versionAfter,
         documentShape: before ? documentShape(before) : null,
+        egressIp,
         recommendation,
         verdict,
         steps,
@@ -259,6 +264,7 @@ export function fuelCardWriteProbeRouter(): Router {
         verdict,
         steps,
         documentShape: before ? documentShape(before) : null,
+        egressIp,
         /**
          * The card as EFS sent it, PANs masked — returned to the admin who ran the probe, and
          * deliberately NOT persisted.
