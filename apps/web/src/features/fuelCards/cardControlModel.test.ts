@@ -3,6 +3,7 @@ import type { CardCapabilities } from "@fuelguard/shared";
 import {
   availability,
   cardStatusLabel,
+  cardAssignmentRank,
   cardStatusTone,
   compareCardValues,
   freshness,
@@ -385,5 +386,28 @@ describe("sorting the card list", () => {
     expect(compareCardValues("Ann", "Bob", "asc")).toBeLessThan(0);
     expect(compareCardValues("Ann", "Bob", "desc")).toBeGreaterThan(0);
     expect(compareCardValues(null, "", "asc")).toBe(0);
+  });
+});
+
+describe("unassigned cards sink to the bottom", () => {
+  const card = (over: Partial<{ driverName: string | null; driverIdPrompt: string | null; unitPrompt: string | null }> = {}) =>
+    ({ driverName: null, driverIdPrompt: null, unitPrompt: null, ...over });
+
+  it("counts a card with ANY of driver, driver id or unit as assigned", () => {
+    expect(cardAssignmentRank(card({ driverName: "Dana" }))).toBe(0);
+    expect(cardAssignmentRank(card({ driverIdPrompt: "8311" }))).toBe(0);
+    expect(cardAssignmentRank(card({ unitPrompt: "711" }))).toBe(0);
+  });
+
+  it("counts nothing, and whitespace, as unassigned", () => {
+    expect(cardAssignmentRank(card())).toBe(1);
+    expect(cardAssignmentRank(card({ driverName: "   ", unitPrompt: "" }))).toBe(1);
+  });
+
+  it("ignores the fuel_cards link", () => {
+    // 17 of this account's cards are unlinked purely because two physical cards share a last four.
+    // That is FuelGuard's own attribution guess failing, and says nothing about whether a driver is
+    // using the card — sinking those would hide working cards.
+    expect(cardAssignmentRank(card({ driverIdPrompt: "0225" }))).toBe(0);
   });
 });

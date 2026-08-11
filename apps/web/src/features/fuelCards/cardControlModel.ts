@@ -129,6 +129,27 @@ export function compareCardValues(
   return raw * (dir === "asc" ? 1 : -1);
 }
 
+/**
+ * Whether a card is attached to anybody. 0 sorts first, 1 sorts last.
+ *
+ * "Unassigned" means EFS reports no driver, no driver id and no unit for it — nothing that says who
+ * or what uses this card. Those are spare stock: real, worth being able to find, and not what an
+ * operator opens this page to look at. Interleaved by card number they push the working fleet down
+ * the list, so the default order sinks them and everything else keeps its natural order above.
+ *
+ * Deliberately NOT based on the `fuel_cards` link. That link is FuelGuard's own attribution guess and
+ * is null for 17 of this account's cards purely because two physical cards share a last four — which
+ * says nothing about whether a driver is using them.
+ */
+export function cardAssignmentRank(card: {
+  driverName: string | null;
+  driverIdPrompt: string | null;
+  unitPrompt: string | null;
+}): 0 | 1 {
+  const has = (v: string | null): boolean => (v ?? "").trim() !== "";
+  return has(card.driverName) || has(card.driverIdPrompt) || has(card.unitPrompt) ? 0 : 1;
+}
+
 // ─── Effective configuration ───────────────────────────────────────────────────────────────────
 
 export interface EffectiveDisplayRow {

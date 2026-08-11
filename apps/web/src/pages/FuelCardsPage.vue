@@ -15,7 +15,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
-import { cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
+import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
 import { useEfsCards, useSyncEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
@@ -38,7 +38,11 @@ const override = ref("");
 const linked = ref("");
 const health = ref("");
 const page = ref(1);
-const sort = ref<{ key: string; dir: "asc" | "desc" }>({ key: "card_last4", dir: "asc" });
+/**
+ * `assignment` is the DEFAULT order, not a column: cards nobody is using sink to the bottom and the
+ * working fleet keeps card order above them. Clicking any header replaces it with that column.
+ */
+const sort = ref<{ key: string; dir: "asc" | "desc" }>({ key: "assignment", dir: "asc" });
 
 const query = useEfsCards({ search, status });
 const sync = useSyncEfsCards();
@@ -122,6 +126,16 @@ const rows = computed(() =>
 
 const sorted = computed(() => {
   const { key, dir } = sort.value;
+
+  if (key === "assignment") {
+    return [...rows.value].sort(
+      (a, b) =>
+        cardAssignmentRank(a) - cardAssignmentRank(b)
+        // Within each group, card order — the thing somebody reading a printed card is matching on.
+        || compareCardValues(a.last4, b.last4, "asc"),
+    );
+  }
+
   const value = (row: EfsCardRow): string | number => {
     switch (key) {
       case "status": return row.status ?? "";
