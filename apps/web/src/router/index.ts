@@ -263,6 +263,14 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: "Fuel Card", parent: "/fuel-cards" },
   },
   {
+    path: "/settings/card-control",
+    name: "card-control-settings",
+    component: () => import("@/pages/CardControlSettingsPage.vue"),
+    // Admin only: this page decides whether this company may change fuel cards at all, and running
+    // the check sends a real setCardV2 to a real card.
+    meta: { requiresAuth: true, requiresAdmin: true, title: "Card control", parent: "/settings" },
+  },
+  {
     path: "/anomalies",
     name: "anomalies",
     component: () => import("@/pages/AnomaliesPage.vue"),

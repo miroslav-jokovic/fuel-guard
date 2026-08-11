@@ -31,6 +31,8 @@ export interface EfsCardRow {
   unitPrompt: string | null;
   driverName: string | null;
   overrideUses: number | null;
+  overrideAllLocations: boolean | null;
+  locationOverrideId: string | null;
   lastUsedDate: string | null;
   fuelCardId: string | null;
   syncedAt: string;
@@ -96,6 +98,15 @@ export function useRefreshEfsCard() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => call<{ ok: true; version: string }>(`/api/fuel-cards/${id}/refresh`, "POST"),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: cardsKey }),
+  });
+}
+
+/** Queue a full mirror sweep. 202 + jobId; the ledger refuses a second concurrent run per company. */
+export function useSyncEfsCards() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => call<{ ok: true; queued: true; jobId: string }>("/api/fuel-cards/sync", "POST"),
     onSuccess: () => void qc.invalidateQueries({ queryKey: cardsKey }),
   });
 }

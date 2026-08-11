@@ -1,0 +1,164 @@
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import { AppIcon } from "@fuelguard/ui";
+import { CheckIcon, XMarkIcon } from "@fuelguard/ui/icons";
+import BaseButton from "@/components/ui/BaseButton.vue";
+import BaseCard from "@/components/ui/BaseCard.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import FormField from "@/components/ui/FormField.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
+import StepUpPrompt from "@/components/StepUpPrompt.vue";
+import { BADGE_BASE, toneClass } from "@/lib/badges";
+import { useToastStore } from "@/stores/toast";
+import { useCardControlProbe, CardControlApiError } from "@/features/fuelCards/useCardControl";
+
+/**
+ * The EFS write check — the gate that decides whether card actions exist at all.
+ *
+ * ── What this page is for ────────────────────────────────────────────────────────────────────────
+ * `setCardV2` is a full-document write: EFS accepts a well-formed request that silently deletes a
+ * driver assignment and reports nothing wrong. So before this product is allowed to change ANY card,
+ * six things have to be proved against real vendor data — and the sixth is the one that matters: a
+ * no-op echo must leave the card's version byte-identical. If it moves, our request altered a card
+ * while claiming to change nothing, and card actions stay switched off no matter what EFS said.
+ *
+ * ── Why the read-only run is the default ─────────────────────────────────────────────────────────
+ * Steps one to four need no write permission and touch nothing, and they answer the question that
+ * fails most often: does OUR echo reproduce THIS account's card XML exactly. Running that first costs
+ * one paced vendor call and can be done on any card. The write half needs a card WEX has confirmed is
+ * disposable, a typed confirmation naming its last four, and a sign-in from the last five minutes.
+ */
+
+const toast = useToastStore();
+const probe = useCardControlProbe();
+
+const cardNumber = ref("");
+const confirm = ref("");
+const readOnly = ref(true);
+const stepUp = ref(false);
+
+const last4 = computed(() => cardNumber.value.trim().slice(-4));
+const ready = computed(
+  () => /^[0-9]{10,25}$/.test(cardNumber.value.trim())
+    && (readOnly.value || confirm.value.trim().toUpperCase() === `WRITE ${last4.value}`),
+);
+
+const result = computed(() => probe.data.value ?? null);
+
+const entitlementTone = (entitlement: string): string =>
+  entitlement === "confirmed" ? "success" : entitlement === "denied" ? "danger" : "caution";
+
+async function run(): Promise<void> {
+  try {
+    const outcome = await probe.mutateAsync({
+      cardNumber: cardNumber.value.trim(),
+      confirm: confirm.value.trim(),
+      readOnly: readOnly.value,
+    });
+    // The card number is never persisted anywhere — not by the API, and not here.
+    cardNumber.value = "";
+    confirm.value = "";
+    if (outcome.entitlement === "confirmed") toast.success("Write access confirmed", outcome.verdict);
+    else toast.warning("Write access not confirmed", outcome.verdict);
+  } catch (error) {
+    if (error instanceof CardControlApiError && error.code === "step_up_required") {
+      stepUp.value = true;
+      return;
+    }
+    toast.error("Could not run the write check", error instanceof Error ? error.message : undefined);
+  }
+}
+</script>
+
+<template>
+  <div class="space-y-6">
+    <PageHeader description="Prove EFS will accept our card changes — and that a no-op change leaves a card untouched." />
+
+    <BaseCard v-if="stepUp">
+      <StepUpPrompt
+        reason="Running the EFS write check sends a real change to a real card."
+        @confirmed="stepUp = false; run()"
+        @cancel="stepUp = false"
+      />
+    </BaseCard>
+
+    <BaseCard v-else>
+      <div class="space-y-4">
+        <div class="space-y-1">
+          <h2 class="text-sm font-medium text-ink">Run the check</h2>
+          <p class="text-sm text-ink-muted">
+            Use a card WEX has confirmed is disposable, on the QA endpoint first. The card number is
+            never stored — only its last four digits appear in the audit log.
+          </p>
+        </div>
+
+        <FormField label="Card number" required hint="Digits only. Never saved.">
+          <template #default="{ id }">
+            <BaseInput :id="id" v-model="cardNumber" type="text" inputmode="numeric" autocomplete="off" :disabled="probe.isPending.value" />
+          </template>
+        </FormField>
+
+        <label class="flex items-start gap-2 text-sm text-ink">
+          <input v-model="readOnly" type="checkbox" class="mt-1" :disabled="probe.isPending.value" />
+          <span>
+            Check the echo only — do not send a change.
+            <span class="block text-ink-muted">
+              Proves our request reproduces this account's card exactly. Needs no write permission and
+              changes nothing. Start here.
+            </span>
+          </span>
+        </label>
+
+        <FormField
+          v-if="!readOnly"
+          label="Type the confirmation"
+          required
+          :hint="`Type WRITE ${last4 || '####'} to confirm a real setCardV2 against this card.`"
+        >
+          <template #default="{ id }">
+            <BaseInput :id="id" v-model="confirm" type="text" autocomplete="off" :disabled="probe.isPending.value" />
+          </template>
+        </FormField>
+
+        <div class="flex justify-end">
+          <BaseButton variant="primary" :disabled="!ready || probe.isPending.value" @click="run">
+            {{ probe.isPending.value ? "Checking…" : readOnly ? "Check the echo" : "Run the write check" }}
+          </BaseButton>
+        </div>
+      </div>
+    </BaseCard>
+
+    <BaseCard v-if="result">
+      <div class="space-y-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <h2 class="text-sm font-medium text-ink">Result</h2>
+          <span :class="[BADGE_BASE, toneClass(entitlementTone(result.entitlement))]">{{ result.entitlement }}</span>
+          <span class="text-sm text-ink-muted">{{ result.environment }}</span>
+        </div>
+        <p class="text-sm leading-6 text-ink">{{ result.verdict }}</p>
+
+        <ul class="space-y-2">
+          <li v-for="step in result.steps" :key="step.step" class="flex items-start gap-2 text-sm">
+            <AppIcon
+              :icon="step.ok ? CheckIcon : XMarkIcon"
+              class="mt-0.5 size-4 shrink-0"
+              :class="step.ok ? 'text-success-600' : 'text-danger-600'"
+              aria-hidden="true"
+            />
+            <span>
+              <span class="text-ink">{{ step.step }}. {{ step.name }}</span>
+              <span class="ml-2 text-ink-subtle">{{ step.ms }}ms</span>
+              <span v-if="step.detail" class="block text-ink-muted">{{ step.detail }}</span>
+              <span v-if="step.error" class="block text-danger-700">{{ step.error }}</span>
+            </span>
+          </li>
+        </ul>
+
+        <p v-if="!result.persisted" class="text-sm text-caution-700">
+          The result above is accurate, but it could not be saved to this company's settings. Card
+          actions stay switched off until it is — run the check again.
+        </p>
+      </div>
+    </BaseCard>
+  </div>
+</template>
