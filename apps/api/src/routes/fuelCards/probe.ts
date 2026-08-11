@@ -7,8 +7,8 @@ import {
   getCardV2,
   getCardsWithNoDriverId,
   getPolicy,
-  searchLocation,
 } from "../../lib/efsCardOps.js";
+import { searchLocation } from "../../lib/efsLocationSearch.js";
 import { EfsSoapError, efsLogin } from "../../lib/efsSoapSession.js";
 import { redactCardXml } from "../../lib/efsCardXml.js";
 import { apiError, asyncHandler } from "../../lib/http.js";

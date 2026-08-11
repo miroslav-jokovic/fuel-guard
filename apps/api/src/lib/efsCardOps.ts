@@ -1,5 +1,4 @@
 import {
-  type EfsLocation,
   type WsPolicy,
   parseEfsDateTime,
   wsPolicySchema,
@@ -37,6 +36,9 @@ import type { SoapPriority } from "./soapClient.js";
  * and its two-column tables render ambiguously for the search operations in particular. Where that is
  * true the code says so at the call site and takes the most literal reading. The QA probe is what
  * settles it; nothing here is a silent guess.
+ *
+ * `searchLocation` — the operation where that ambiguity actually bit — lives in efsLocationSearch.ts,
+ * split out at this file's 500-line budget, together with the request-shape ladder that resolves it.
  */
 
 const OPS = {
@@ -46,7 +48,6 @@ const OPS = {
   getCardSummariesV2: "getCardSummariesV2",
   getCardsWithNoDriverId: "getCardsWithNoDriverId",
   getPolicy: "getPolicy",
-  searchLocation: "searchLocation",
 } as const;
 
 const el = (name: string, value: string | number | null | undefined): string =>
@@ -61,10 +62,14 @@ const el = (name: string, value: string | number | null | undefined): string =>
  * `<cardNum></cardNum><invoice></invoice><locationId>0</locationId>` rather than leaving them out.
  *
  * The guide describing a field as "optional" or "you can leave this field blank" means SEND IT EMPTY,
- * not omit it. Anything the binding expects structurally uses this helper; only genuinely
- * select-one-of-many criteria (searchLocation, p132) use `el` and are legitimately absent.
+ * not omit it. Anything the binding expects structurally uses this helper; `el` is only for fields
+ * whose omission the binding demonstrably tolerates (clientId+cardNumber-style required pairs).
+ *
+ * Exported — along with `callCardOp`, `resultRecords` and `text` — for `efsLocationSearch.ts`, the
+ * operation module split out of this file at the 500-line budget. Same arrangement as the
+ * soapClient/efsTls split: the canonical home stays here, the split module imports.
  */
-const elAlways = (name: string, value: string | number | null | undefined): string =>
+export const elAlways = (name: string, value: string | number | null | undefined): string =>
   `<${name}>${value === null || value === undefined ? "" : xmlEscape(String(value))}</${name}>`;
 
 /** Reads run in the interactive lane by default: a person is usually waiting on one. */
@@ -74,7 +79,7 @@ export interface CardOpOptions extends EfsRequestOptions {
   priority?: SoapPriority;
 }
 
-async function call(
+export async function callCardOp(
   env: Env,
   creds: EfsSoapCredentials,
   operation: string,
@@ -104,14 +109,14 @@ async function call(
  * if there are any and fall back to every child that has children of its own. A record with no
  * sub-elements — `getCardsWithNoDriverId` returns bare card numbers — is handled by its own caller.
  */
-function resultRecords(root: XmlElement): XmlElement[] {
+export function resultRecords(root: XmlElement): XmlElement[] {
   const container = findDescendant(root, "result") ?? findDescendant(root, "return") ?? root;
   const values = collectElements(container, "value");
   if (values.length > 0) return values;
   return childElements(container).filter((child) => childElements(child).length > 0);
 }
 
-function text(parent: XmlElement, name: string): string | null {
+export function text(parent: XmlElement, name: string): string | null {
   const found = collectElements(parent, name)[0];
   if (!found) return null;
   const attr = found.getAttribute("xsi:nil") ?? found.getAttribute("nil");
@@ -147,7 +152,7 @@ export async function getCardV2(
   cardNumber: string,
   opts: CardOpOptions = {},
 ): Promise<CardDocument> {
-  const xml = await call(
+  const xml = await callCardOp(
     env, creds, OPS.getCardV2,
     (session) =>
       `<CardManagementEP_getCardv2>${el("clientId", session.clientId)}${el("cardNumber", cardNumber)}</CardManagementEP_getCardv2>`,
@@ -236,7 +241,7 @@ export async function getCardSummaries(
   // is documented to reject (see elAlways), and "no search" is the normal case for the mirror sweep —
   // so this is the shape that runs every night, not an edge case.
   const requestElements = searches || payrollUse ? `${payrollUse}${searches}` : "<request></request>";
-  const xml = await call(
+  const xml = await callCardOp(
     env, creds, operation,
     (session) =>
       `<CardManagementEP_${operation}>${elAlways("clientId", session.clientId)}${requestElements}</CardManagementEP_${operation}>`,
@@ -274,7 +279,7 @@ export async function getCardsWithNoDriverId(
   creds: EfsSoapCredentials,
   opts: CardOpOptions & { cardType?: "P" | "B" | "N" | "Y" | "L" } = {},
 ): Promise<string[]> {
-  const xml = await call(
+  const xml = await callCardOp(
     env, creds, OPS.getCardsWithNoDriverId,
     (session) =>
       `<CardManagementEP_getCardsWithNoDriverId>${elAlways("clientId", session.clientId)}${elAlways("cardType", opts.cardType ?? "")}</CardManagementEP_getCardsWithNoDriverId>`,
@@ -303,7 +308,7 @@ export async function getPolicy(
   policyNumber: number,
   opts: CardOpOptions = {},
 ): Promise<WsPolicy> {
-  const xml = await call(
+  const xml = await callCardOp(
     env, creds, OPS.getPolicy,
     (session) =>
       `<CardManagementEP_getPolicy>${el("clientId", session.clientId)}${el("policyNumber", policyNumber)}</CardManagementEP_getPolicy>`,
@@ -350,153 +355,6 @@ export async function getPolicy(
     );
   }
   return parsed.data;
-}
-
-// ─── searchLocation ────────────────────────────────────────────────────────────────────────────
-
-export interface LocationQuery {
-  locId?: string | null;
-  state?: string | null;
-  city?: string | null;
-  /** A "like" search (p132). */
-  name?: string | null;
-  country?: "USA" | "CAN" | "MXN" | null;
-  chainId?: string | null;
-}
-
-/**
- * How the criteria sit inside `CardManagementEP_searchLocation`. The guide documents the FIELDS
- * (p132) but not the element nesting around them — and for this WSDL that omission has already bitten
- * twice, in opposite directions:
- *
- *   • getTranRejects' section lists its criteria flat too (p107), yet the production WSDL wraps them
- *     in a `<search>` element — the working feed request in efsSoap.ts is the proof.
- *   • Sending searchLocation's criteria flat, in the guide's order, earned from production:
- *
- *       org.apache.axis2.databinding.ADBException: Unexpected subelement locId
- *
- *     The ADB deserializer rejected the FIRST criterion element as a direct child — which is exactly
- *     what it does when the request bean expects a wrapper object there instead. (An earlier attempt
- *     that omitted unset fields got "Unexpected subelement state" — same verdict, different first
- *     element. The two together rule flat-at-top-level out.)
- *
- * We cannot read the WSDL from here to settle the wrapper's name (EFS's firewall allowlists the
- * production egress address for HTTPS, and ?wsdl is not separately reachable), so the binding itself
- * is the oracle: try the plausible shapes in likelihood order, let ADB refuse the wrong ones — a
- * shape complaint is instant and harmless — and REMEMBER the one the endpoint accepts, per endpoint,
- * so the ladder runs at most once per process. `search` goes first because it is the wrapper this
- * same WSDL already proved for the other criteria-carrying operation.
- */
-type LocationRequestShape = "search" | "flat" | "criteria" | "request";
-const LOCATION_REQUEST_SHAPES: readonly LocationRequestShape[] = ["search", "flat", "criteria", "request"];
-
-/** Shape proven against each endpoint, keyed like the session cache. In-memory on purpose: it is a
- *  protocol fact, re-derivable in one round trip, not state worth a table. */
-const acceptedLocationShapes = new Map<string, LocationRequestShape>();
-
-/** Test seam. */
-export function __resetLocationShapes(): void {
-  acceptedLocationShapes.clear();
-}
-
-/** An ADB complaint about WHERE an element sat — as opposed to a refusal, a bad value or an outage.
- *  Only this advances the shape ladder; everything else is a real answer and is rethrown as-is. */
-const SHAPE_FAULT = /ADBException|Unexpected subelement/i;
-
-/**
- * Every criterion element is sent, every time, in the guide's declared order — "EFS's Axis2 binding
- * rejects omitted filter elements even though the WSDL marks them nillable"
- * (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md). Unused int fields go as 0, not empty: an empty
- * `<locId></locId>` is not a valid xsd:int, and 0-as-no-filter is the convention already proven
- * against this endpoint by the working getTranRejects request (`<locationId>0</locationId>`).
- */
-function locationCriteria(query: LocationQuery): string {
-  return (
-    elAlways("locId", query.locId ?? 0) +
-    elAlways("state", query.state ?? "") +
-    elAlways("city", query.city ?? "") +
-    elAlways("name", query.name ?? "") +
-    elAlways("country", query.country ?? "") +
-    elAlways("chainId", query.chainId ?? 0)
-  );
-}
-
-function locationBody(shape: LocationRequestShape, clientId: string, query: LocationQuery): string {
-  const fields = locationCriteria(query);
-  const inner = shape === "flat" ? fields : `<${shape}>${fields}</${shape}>`;
-  return `<CardManagementEP_searchLocation>${elAlways("clientId", clientId)}${inner}</CardManagementEP_searchLocation>`;
-}
-
-/**
- * Find EFS locations. Backs the single-location override picker — an operator knows "the Love's on
- * I-57", not a 6-digit id, and p194 requires a valid id.
- *
- * "the system needs to select 1 to many items to search, not all are required" (p132): an entirely
- * empty query would ask EFS for every location it has, so we refuse it here rather than find out what
- * that does to a paced connection.
- */
-export async function searchLocation(
-  env: Env,
-  creds: EfsSoapCredentials,
-  query: LocationQuery,
-  opts: CardOpOptions = {},
-): Promise<EfsLocation[]> {
-  // At least one REAL criterion, judged on the query object rather than on the serialized string —
-  // the string is never empty now (see locationCriteria), so testing it would silently disable this.
-  const hasCriterion = [query.locId, query.state, query.city, query.name, query.country, query.chainId]
-    .some((v) => v !== null && v !== undefined && String(v).trim() !== "");
-  if (!hasCriterion) {
-    throw new EfsSoapError("A location search needs at least one criterion", "not_implemented");
-  }
-
-  const shapeKey = `${creds.orgId}:${creds.endpointUrl}`;
-  const proven = acceptedLocationShapes.get(shapeKey);
-  // The proven shape first, then the rest — so if the binding ever changes under us (a WEX redeploy),
-  // the ladder re-runs instead of hard-failing on a memo.
-  const shapes = proven
-    ? [proven, ...LOCATION_REQUEST_SHAPES.filter((s) => s !== proven)]
-    : LOCATION_REQUEST_SHAPES;
-
-  const refusals: string[] = [];
-  for (const shape of shapes) {
-    let xml: string;
-    try {
-      xml = await call(
-        env, creds, OPS.searchLocation,
-        (session) => locationBody(shape, session.clientId, query),
-        opts,
-      );
-    } catch (error) {
-      const isShapeFault =
-        error instanceof EfsSoapError && error.code === "soap_fault" && SHAPE_FAULT.test(error.message);
-      if (!isShapeFault) throw error; // a real answer — auth, firewall, outage — not a shape question
-      refusals.push(`${shape}: ${error.message}`);
-      if (acceptedLocationShapes.get(shapeKey) === shape) acceptedLocationShapes.delete(shapeKey);
-      continue;
-    }
-    if (acceptedLocationShapes.get(shapeKey) !== shape) {
-      acceptedLocationShapes.set(shapeKey, shape);
-      // Loud once per process: this line is the protocol documentation the guide never wrote.
-      console.log(`[efs-cards] searchLocation: EFS accepted the "${shape}" request shape (org ${creds.orgId})`);
-    }
-    return resultRecords(parseSoap(xml)).map((record) => ({
-      locId: text(record, "locId") ?? "",
-      name: text(record, "name"),
-      city: text(record, "city"),
-      state: text(record, "state"),
-      country: text(record, "country"),
-      addr1: text(record, "addr1"),
-      phone: text(record, "phone"),
-    })).filter((l) => l.locId !== "");
-  }
-
-  // Every shape refused. Name each verdict: the next engineer's fix starts from EFS's own words, and
-  // the probe surfaces this message verbatim.
-  throw new EfsSoapError(
-    `EFS rejected every request shape we know for searchLocation — ${refusals.join("; ")}`,
-    "soap_fault",
-    { refusals },
-  );
 }
 
 // ─── small helpers ─────────────────────────────────────────────────────────────────────────────
