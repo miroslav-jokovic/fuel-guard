@@ -43,6 +43,39 @@ import { authRouter } from "./routes/auth.js";
 import { versionRouter } from "./routes/version.js";
 
 /**
+ * CSP tuned for the single-service deploy where this server also serves the SPA: the browser talks
+ * directly to Supabase (REST + realtime websockets + storage images), so those origins must be
+ * allowed in connect/img. In a split-service deploy, VITE_API_URL is the browser's API origin and
+ * must be allowed too. Harmless for API-only responses (JSON carries no CSP-restricted content).
+ */
+function securityMiddleware(env: Env) {
+  const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
+  return helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        // maplibre-gl runs its tile decoder in a Worker created from a blob: URL.
+        workerSrc: ["'self'", "blob:"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
+        connectSrc: [
+          "'self'",
+          ...apiConnectSrc,
+          "https://*.supabase.co",
+          "wss://*.supabase.co",
+          "https://*.sentry.io",
+        ],
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        frameAncestors: ["'self'"],
+      },
+    },
+  });
+}
+
+/**
  * Build the Express app. Factory with no side effects so tests can construct it freely and inject
  * app.locals.verifyToken to bypass real JWKS verification.
  */
@@ -52,35 +85,7 @@ export function createApp(env: Env): Express {
   registerAllHandlers(); // queue handlers available for dispatchJob (both execution modes)
   app.set("trust proxy", 1); // Railway runs behind a proxy
 
-  // CSP tuned for the single-service deploy where this server also serves the SPA: the browser talks
-  // directly to Supabase (REST + realtime websockets + storage images), so those origins must be
-  // allowed in connect/img. Harmless for API-only responses (JSON carries no CSP-restricted content).
-  const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
-          // maplibre-gl runs its tile decoder in a Worker created from a blob: URL.
-          workerSrc: ["'self'", "blob:"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
-          connectSrc: [
-            "'self'",
-            ...apiConnectSrc,
-            "https://*.supabase.co",
-            "wss://*.supabase.co",
-            "https://*.sentry.io",
-          ],
-          fontSrc: ["'self'", "data:"],
-          objectSrc: ["'none'"],
-          baseUri: ["'self'"],
-          frameAncestors: ["'self'"],
-        },
-      },
-    }),
-  );
+  app.use(securityMiddleware(env));
   app.use(cors({ origin: env.ALLOWED_ORIGINS, credentials: true }));
 
   // TMS agent ingest — token-authenticated (NOT a browser/user), so it's mounted BEFORE the global 1 MB JSON
