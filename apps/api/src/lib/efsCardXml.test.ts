@@ -463,6 +463,32 @@ describe("redaction", () => {
     expect(out).toBe("<locations>115732</locations><limit>250</limit>");
   });
 
+  it("KEEPS the EFS support reference in a fault string", () => {
+    // The whole point of that number is to be quoted back to WEX. The digit-run pass ate it — every
+    // refusal came out as `Not Allowed ••••3445`, and two rounds of diagnostics went to the vendor
+    // without the one value they had explicitly asked for.
+    expect(redactCardXml("Not Allowed 109491436176")).toBe("Not Allowed 109491436176");
+    expect(redactCardXml("ERROR running command 109491258416")).toBe("ERROR running command 109491258416");
+    expect(redactCardXml("Invalid policy number for 139445")).toBe("Invalid policy number for 139445");
+  });
+
+  it("keeps several references in one message, and still masks a PAN beside them", () => {
+    const out = redactCardXml(
+      'v2: Not Allowed 109491436176; v1: Not Allowed 109491388553; card 70830000000007521',
+    );
+    expect(out).toContain("Not Allowed 109491436176");
+    expect(out).toContain("Not Allowed 109491388553");
+    expect(out).not.toContain("70830000000007521");
+    expect(out).toContain("••••7521");
+  });
+
+  it("does not let the reference exemption become a way to smuggle a PAN through", () => {
+    // The exemption is keyed on the vendor's fault prefixes, and those prefixes never precede a card
+    // number. A PAN-length run is still masked even directly after one.
+    const out = redactCardXml("Not Allowed 70830000000007521");
+    expect(out).not.toContain("70830000000007521");
+  });
+
   it("masks for display without ever holding a full PAN", () => {
     expect(maskPan("7521")).toBe("•••• 7521");
   });

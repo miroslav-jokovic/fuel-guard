@@ -97,8 +97,15 @@ const FAULT_CODES: ReadonlyArray<[RegExp, EfsSoapError["code"], string?]> = [
   // meant a real access refusal fell through to the generic heuristic and was reported as an untyped
   // soap_fault with no explanation. Match both spellings; the raw faultstring (with the reference WEX
   // support will ask for) is preserved in `detail`.
-  [/Not\s*Allowed/i, "not_allowed", "EFS refused this operation for our service account. Per the integration guide this is an access block — either our egress addresses are not allowlisted, or the account is not entitled to this call. The reference number in the fault is what WEX support will ask for."],
-  [/InvalidParameterNameID/i, "soap_fault"],
+  // The guide defines this exactly, and more narrowly than we had been saying: "NotAllowed: Access
+  // blocked by firewall. Contact your account manager." (p9). Not an entitlement gap, and not a
+  // request we built wrong. Say what the vendor says — every hour spent re-reading our own request
+  // bodies after one of these is an hour the guide already told us not to spend.
+  [/Not\s*Allowed/i, "not_allowed", "EFS blocked this request at their firewall. The integration guide (p9) defines NotAllowed as \"Access blocked by firewall — contact your account manager\", so it is not a credential problem and not a malformed request. Quote the reference number to WEX."],
+  // The vendor's OWN code for "you built the request wrong": "InvalidParameterNameID: Incorrect
+  // parameter value. Correct and retry." (p9). Deliberately distinct from not_allowed — EFS separates
+  // our fault from their firewall, so our error surface does too.
+  [/InvalidParameterNameID/i, "soap_fault", "EFS rejected a parameter value in our request. Per the guide (p9) this one is ours to correct — it is not an access problem."],
 ];
 
 /** Classify a `<Fault>`. The named-exception table wins; the substring heuristics are the fallback for

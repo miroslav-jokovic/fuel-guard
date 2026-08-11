@@ -317,12 +317,42 @@ export function cardVersion(root: XmlElement): string {
  * back at us, an `<external_ref>`, a field WEX adds next year. A `getCardSummariesV2` response carries
  * the whole fleet's PANs in one body, so the general pass is not belt-and-braces, it is the one that
  * does most of the work.
+ *
+ * ── The exception, and why it is narrow ──────────────────────────────────────────────────────────
+ * EFS puts a SUPPORT REFERENCE NUMBER in its fault strings — `Not Allowed 109491436176`,
+ * `ERROR running command 109491258416`. Those are 12 digits, so the general pass ate them, and the
+ * diagnostic dutifully reported `Not Allowed ••••3445` — masking the single value WEX support asks
+ * for, in the one message whose entire purpose is to carry it. Two full rounds of diagnostics went
+ * back to the vendor without it.
+ *
+ * TWO conditions must hold before a digit run is spared, and they are deliberately redundant:
+ *
+ *   1. It directly follows one of EFS's own fault prefixes. Those introduce a support reference, and
+ *      a refusal of `getCardSummariesV2` is not about any one card in the first place.
+ *   2. It is at most 14 digits. Every EFS card number we have seen is 17–19 (`7083…`), so a run this
+ *      short cannot be a PAN.
+ *
+ * Either alone would be an argument. Requiring both means the PAN rule is not resting on a guess
+ * about the vendor's message formats — if WEX ever does quote a card number after "Not Allowed", the
+ * length bound still masks it. There is a test for exactly that.
  */
+const EFS_FAULT_REFERENCE = /\b(Not\s*Allowed|ERROR running command|Invalid policy number for)\s+(\d{6,14})\b/gi;
+
 export function redactCardXml(xml: string): string {
-  return xml
+  // Park the references, redact everything, then put them back. Simpler and safer than trying to
+  // write one regex that redacts digit runs EXCEPT after certain phrases.
+  const references: string[] = [];
+  const parked = xml.replace(EFS_FAULT_REFERENCE, (_m, prefix: string, ref: string) => {
+    references.push(ref);
+    return `${prefix} @@EFSREF${references.length - 1}@@`;
+  });
+
+  const redacted = parked
     .replace(/(<(?:cardNumber|cardNum|CardNumber)>)([^<]*)(<\/)/gi, (_m, open, value: string, close) =>
       `${open}${maskDigits(value)}${close}`)
     .replace(/\b\d{12,25}\b/g, (digits) => maskDigits(digits));
+
+  return redacted.replace(/@@EFSREF(\d+)@@/g, (_m, i: string) => references[Number(i)] ?? "");
 }
 
 function maskDigits(value: string): string {

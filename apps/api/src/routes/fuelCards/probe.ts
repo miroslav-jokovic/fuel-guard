@@ -84,6 +84,31 @@ async function step(operation: string, run: () => Promise<number>): Promise<Step
   }
 }
 
+/**
+ * The address WEX sees when this process dials them.
+ *
+ * ── Why the probe reports this ───────────────────────────────────────────────────────────────────
+ * Card operations have been refused, then worked (199 cards), then been refused again, from the same
+ * build and the same credentials. An entitlement does not flap. An IP allowlist does — if this API's
+ * egress address is drawn from a pool and only some of that pool is allowlisted, every run is a coin
+ * toss, which is exactly the pattern observed. Naming the address turns that from a theory into a
+ * value WEX can paste into their allowlist, and comparing it across runs settles whether it moves.
+ *
+ * Best-effort by construction: three seconds, and any failure returns null. A diagnostic that can
+ * fail because an unrelated third party is down is not a diagnostic.
+ */
+async function egressAddress(): Promise<string | null> {
+  try {
+    const res = await fetch("https://checkip.amazonaws.com", { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return null;
+    const text = (await res.text()).trim();
+    // Whatever comes back is echoed into a response and an audit row, so accept only an IP literal.
+    return /^[0-9a-f.:]{7,45}$/i.test(text) ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 export function fuelCardProbeRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -155,6 +180,7 @@ export function fuelCardProbeRouter(): Router {
           (await searchLocation(env, creds, { state: "IL", name: "LOVES" }, { priority: "interactive" })).length));
       }
 
+      const egressIp = await egressAddress();
       const cardSteps = steps.filter((s) => s.operation !== "login");
       const refused = cardSteps.filter((s) => !s.ok && (s.errorCode === "not_allowed" || /not\s*allowed/i.test(s.error ?? "")));
       const getCard = steps.find((s) => s.operation === "getCardv2");
@@ -166,7 +192,16 @@ export function fuelCardProbeRouter(): Router {
           : getCard?.ok && refused.length > 0
             ? "getCardv2 SUCCEEDED while other operations were refused. Access is fine; the refused requests are malformed on our side — most likely an omitted element the Axis2 binding requires."
             : refused.length === cardSteps.length && cardSteps.length > 0
-              ? "Every card operation was refused while login succeeded. This is an access problem (IP allowlist or entitlement), not a request-shape problem."
+              // Not a judgement call. The guide defines NotAllowed as "Access blocked by firewall.
+              // Contact your account manager." (p9), and gives a DIFFERENT code —
+              // InvalidParameterNameID — for a request we built wrong. Getting the firewall code is
+              // the vendor telling us to stop reading our own request bodies.
+              ? "Every card operation was blocked at EFS's firewall while login succeeded. The guide (p9) defines NotAllowed as a firewall block, not an entitlement gap and not a bad request — a malformed request earns InvalidParameterNameID instead." +
+                (egressIp
+                  // A firewall keys on the address, so name it. These operations have already
+                  // succeeded once from this same build, so what changed is on the network path.
+                  ? ` We reached EFS from ${egressIp} — confirm that exact address is allowlisted, and compare it against the previous run's.`
+                  : "")
               : cardSteps.every((s) => s.ok)
                 ? "All card operations succeeded."
                 : refused.length === 0
@@ -181,11 +216,14 @@ export function fuelCardProbeRouter(): Router {
         meta: {
           environment: creds.environment,
           verdict,
+          // Persisted so two runs can be compared without anyone having kept the JSON: an address
+          // that moves between runs IS the finding.
+          egressIp,
           steps: steps.map((s) => ({ operation: s.operation, ok: s.ok, errorCode: s.errorCode ?? null })),
         },
       });
 
-      res.json({ environment: creds.environment, verdict, steps, testedCard: !!parsed.data.cardNumber });
+      res.json({ environment: creds.environment, egressIp, verdict, steps, testedCard: !!parsed.data.cardNumber });
     }),
   );
 
