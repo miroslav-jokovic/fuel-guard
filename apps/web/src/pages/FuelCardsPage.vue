@@ -7,35 +7,27 @@
  */
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import BaseButton from "@/components/ui/BaseButton.vue";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { useToastStore } from "@/stores/toast";
 import { cardStatusLabel, cardStatusTone, freshness } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
-import { useEfsCards, useSyncEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
+import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
 const PAGE_SIZE = 20;
 
 const router = useRouter();
-const toast = useToastStore();
 
 const search = ref("");
 const status = ref("");
 const page = ref(1);
 
 const query = useEfsCards({ search, status });
-const sync = useSyncEfsCards();
 
-/**
- * The sweep runs in the background, so the button alone tells you nothing. This is what turns
- * "I pressed refresh and nothing happened" into an answer: the ledger row carries the outcome, and
- * a sweep that found nothing is a DIFFERENT fact from one that never ran.
- */
+/** The API scheduler owns the daily mirror sweep; this query only reports its latest outcome. */
 const syncJob = useJob("efs_card_sync");
 
 const syncOutcome = computed((): { tone: string; text: string; at?: string } | null => {
@@ -101,28 +93,11 @@ function onRemoveChip(key: string): void {
   if (key === "status") status.value = "";
 }
 
-async function onSync(): Promise<void> {
-  try {
-    await sync.mutateAsync();
-    toast.success("Refresh started");
-    // The ledger row appears as soon as the job is enqueued; markRunning shows it without a poll wait.
-    syncJob.markRunning();
-    void syncJob.refresh();
-  } catch (e) {
-    toast.error("Could not start the refresh", e instanceof Error ? e.message : undefined);
-  }
-}
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every EFS card on this account, with the settings EFS currently reports.">
-      <template #actions>
-        <BaseButton variant="secondary" :disabled="sync.isPending.value || syncJob.isRunning.value" @click="onSync">
-          {{ sync.isPending.value || syncJob.isRunning.value ? "Refreshing…" : "Refresh from EFS" }}
-        </BaseButton>
-      </template>
-    </PageHeader>
+    <PageHeader description="Every EFS card on this account, with the settings EFS currently reports." />
 
     <p v-if="syncOutcome" class="text-sm" :class="syncOutcome.tone === 'danger' ? 'text-danger-700' : syncOutcome.tone === 'warning' ? 'text-caution-700' : 'text-ink-muted'">
       {{ syncOutcome.text }}

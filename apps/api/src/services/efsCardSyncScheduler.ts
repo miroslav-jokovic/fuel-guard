@@ -2,6 +2,7 @@ import type { Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { dispatchJob } from "./queue/dispatch.js";
 import { orgsWithEfsSoap } from "./efsSoapCredentials.js";
+import { lastDoneJob } from "./jobs.js";
 
 /**
  * Keep the EFS card mirror fresh.
@@ -22,6 +23,16 @@ import { orgsWithEfsSoap } from "./efsSoapCredentials.js";
  * pass cannot overlap the next tick, per-org dispatch through the jobs ledger (which refuses an
  * overlapping run for the same org), and one org's failure never stopping the others.
  */
+export function isEfsCardSyncDue(
+  lastFinishedAt: string | null | undefined,
+  nowMs: number,
+  intervalMs: number,
+): boolean {
+  if (!lastFinishedAt) return true;
+  const finishedMs = Date.parse(lastFinishedAt);
+  return !Number.isFinite(finishedMs) || nowMs - finishedMs >= intervalMs;
+}
+
 export function startEfsCardSyncScheduler(env: Env): void {
   if (!env.EFS_SOAP_ENABLED) return; // the master EFS kill switch
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return; // not configured (e.g. local dev)
@@ -36,6 +47,8 @@ export function startEfsCardSyncScheduler(env: Env): void {
       const admin = getSupabaseAdmin(env);
       for (const orgId of await orgsWithEfsSoap(admin, env)) {
         try {
+          const lastDone = await lastDoneJob(admin, orgId, "efs_card_sync");
+          if (!isEfsCardSyncDue(lastDone?.finished_at, Date.now(), intervalMs)) continue;
           // A conflict means a sweep for this org is already active — that is the ledger doing its
           // job, not an error.
           await dispatchJob(admin, env, "efs_card_sync", { orgId, payload: { orgId } });

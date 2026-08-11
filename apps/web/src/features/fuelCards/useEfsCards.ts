@@ -100,15 +100,6 @@ export function useRefreshEfsCard() {
   });
 }
 
-/** Queue a full mirror sweep. 202 + jobId; the ledger refuses a second concurrent run per company. */
-export function useSyncEfsCards() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => call<{ ok: true; queued: true; jobId: string }>("/api/fuel-cards/sync", "POST"),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: cardsKey }),
-  });
-}
-
 /**
  * EFS location search, for the single-location override picker.
  *
