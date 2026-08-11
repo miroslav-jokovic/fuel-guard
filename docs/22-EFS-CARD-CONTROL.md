@@ -19,6 +19,57 @@ endpoint and login token.
 - ⚠ Entitlements are NOT documented per-operation — whether OUR service account may call the write
   operations must be confirmed against the QA endpoint (or with the WEX rep) before building UI.
 
+## The WSDL is the contract; the guide only describes it (read 2026-08-11)
+
+`https://ws.partner.efsllc.com/axis2/services/CardManagementWS?wsdl` — reachable from an allowlisted
+egress address, and it settles questions the guide cannot. Two facts in it cost us live round trips
+before anyone read it.
+
+**Operation names are inconsistent about `v2`, and the guide hides that by writing `V2` everywhere:**
+
+| Operation | Guide writes | Binding declares |
+|---|---|---|
+| get one card | `getCardV2` | **`getCardv2`** |
+| set one card | `setCardV2` | **`setCardv2`** |
+| card list | `getCardSummariesV2` | `getCardSummariesV2` |
+| transaction feed | `getMCTransExtLocV2` | `getMCTransExtLocV2` |
+
+A wrong name is an Axis2 dispatch failure — *"The endpoint reference (EPR) for the Operation not
+found … WSA Action = …"* — which happens **before any operation runs**, so nothing was written.
+Loud and safe, but only once you read it as our bug rather than the vendor's.
+
+**A message part is a direct child of `CardManagementEP_<operation>`.** That is why `getTranRejects`
+wraps its criteria in `<search>`, and why `searchLocation` does too — `1214be7` found the latter by
+laddering shapes against the live binding; the WSDL states it outright. For the write:
+
+```xml
+<message name="CardManagementEP_setCardv2">
+  <part name="clientId" type="xsd:string"/>
+  <part name="card"     type="ns2:WSCardv2"/>   <!-- the WHOLE card, in ONE element -->
+</message>
+```
+
+So the request is `<clientId>` and `<card>` as siblings — **not** clientId, cardNumber and the card's
+fields flattened together, which is what this codebase sent until 2026-08-11. Dispatch failed on the
+name first, so the wrong signature was never exercised.
+
+**`WSCardv2` confirms the nested shape** production returns, which the parser was rewritten for in
+`3492c50`:
+
+```xml
+<complexType name="WSCardv2"><sequence>
+  <element name="cardNumber"/>  <element name="header" type="tns:WSCardHeader"/>
+  <element maxOccurs="unbounded" minOccurs="0" name="infos"/>
+  <element maxOccurs="unbounded" minOccurs="0" name="limits" type="tns:WSCardLimitv2"/>
+</sequence></complexType>   <!-- then locationGroups, locations, timeRestrictions -->
+```
+
+`<header>` is part of the type, not a quirk of one account. `WSCardInfo` also carries a
+`numericMatchValue` this codebase has never heard of — echoed back intact anyway, because the request
+is built from the response DOM rather than from our typed view. That choice paying for itself.
+
+**Before adding an operation, read the WSDL.** Not the page number.
+
 ## The one invariant that makes or breaks everything (p134, p137)
 
 `setCard` / `setCardV2` are **full-document writes, not patches**:

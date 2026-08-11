@@ -181,12 +181,33 @@ export function serializeSetCardRequest(
   // fields EFS sent as nil (originalStatus is "often returned as nil", p35), and an undeclared prefix
   // is not well-formed XML. buildSoapEnvelope declares only `soap`, and adding xsi there would change
   // the two transaction-feed envelopes for no reason, so it is declared here where it is used.
+  //
+  // ── The `<card>` wrapper, and why it was missing ───────────────────────────────────────────────
+  // The WSDL declares setCardv2 with TWO parts, and this service takes a part as a direct child of
+  // the `CardManagementEP_<operation>` element — the same rule the working reads follow:
+  //
+  //     <message name="CardManagementEP_setCardv2">
+  //       <part name="clientId" type="xsd:string"/>
+  //       <part name="card"     type="ns2:WSCardv2"/>
+  //     </message>
+  //
+  // So the whole card — cardNumber first, then header, then the repeated sub-objects, in the order
+  // WSCardv2's <sequence> declares — belongs inside ONE `<card>` element. This code previously
+  // emitted clientId, cardNumber and the card's contents as flat siblings, which is not the
+  // operation's signature. That was invisible until the operation name was fixed, because dispatch
+  // failed before the binding ever looked at the body.
+  //
+  // `cardNumber` comes from `target`, not from the response: it is the card we were asked to write,
+  // it belongs inside `card` per the sequence, and taking it from one place keeps the request from
+  // ever disagreeing with itself about which card it addresses.
   const body =
-    `<CardManagementEP_setCardV2 xmlns:xsi="${XSI_NS}">` +
+    `<CardManagementEP_setCardv2 xmlns:xsi="${XSI_NS}">` +
     `<clientId>${xmlEscapeText(target.clientId)}</clientId>` +
+    `<card>` +
     `<cardNumber>${xmlEscapeText(target.cardNumber)}</cardNumber>` +
     parts.join("") +
-    `</CardManagementEP_setCardV2>`;
+    `</card>` +
+    `</CardManagementEP_setCardv2>`;
 
   return { xml: body, redactedXml: redactCardXml(body) };
 }
@@ -343,7 +364,17 @@ export function assertEchoFidelity(doc: CardDocument, requestXml: string, edits:
   if (!body) {
     throw new EfsSoapError("Refusing to send a setCard request we cannot re-parse", "echo_unfaithful");
   }
-  const actual = canonicalize(body, REQUEST_ONLY_FIELDS);
+  // The comparison is between the card WE READ and the card WE ARE SENDING, so it is the `<card>`
+  // part that has to match `doc.root` — not the whole operation element, whose other child is the
+  // clientId. Its absence is a serializer bug of exactly the kind this guard exists to refuse.
+  const card = collectElements(body, "card")[0];
+  if (!card) {
+    throw new EfsSoapError(
+      "Refusing to send a setCard request with no <card> element — setCardv2 takes (clientId, card)",
+      "echo_unfaithful",
+    );
+  }
+  const actual = canonicalize(card, REQUEST_ONLY_FIELDS);
   const diffs = diffCanonical(expectedCanonical(doc, edits), actual);
   if (diffs.length === 0) return;
   throw new EfsSoapError(

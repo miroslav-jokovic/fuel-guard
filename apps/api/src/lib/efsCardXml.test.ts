@@ -12,7 +12,7 @@ import {
   parseCardDocument,
   redactCardXml,
 } from "./efsCardXml.js";
-import { collectElements, parseXml } from "./efsXml.js";
+import { childElements, collectElements, parseXml } from "./efsXml.js";
 
 /**
  * The centre of gravity for this feature.
@@ -43,17 +43,25 @@ const ALL_FIXTURES = [
 ];
 
 const TARGET = { clientId: "session-abc", cardNumber: "70830000000000000" };
+const XSI_NS_TEST = "http://www.w3.org/2001/XMLSchema-instance";
 
 /** Inputs rather than echoed content. On the nested shape `cardNumber` is BOTH, so it is excluded
  *  from the response side too whenever the two documents are compared. */
 const INPUT_FIELDS = new Set(["clientId", "cardNumber"]);
 
-/** Re-parse a serialized request body so assertions can look at it as a document. */
+/**
+ * Re-parse a serialized request and return its `<card>` part.
+ *
+ * The operation takes `(clientId, card)` per the WSDL, so `<card>` is the element that has to
+ * correspond to the document we read — `clientId` is an input alongside it, not part of the echo.
+ */
 function requestBody(xml: string) {
   const wrapper = parseXml(`<w xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${xml}</w>`);
-  const body = wrapper ? collectElements(wrapper, "CardManagementEP_setCardV2")[0] : null;
-  if (!body) throw new Error("request body did not parse");
-  return body;
+  const operation = wrapper ? collectElements(wrapper, "CardManagementEP_setCardv2")[0] : null;
+  if (!operation) throw new Error("request body did not parse, or the operation element is misnamed");
+  const card = collectElements(operation, "card")[0];
+  if (!card) throw new Error("request has no <card> part");
+  return card;
 }
 
 function echo(doc: CardDocument, edits: CardEdit[] = []) {
@@ -347,6 +355,61 @@ describe("override recipes (guide p194)", () => {
     expect(xml).toContain("<limit>1000</limit>");
     expect(xml).not.toContain("CADV");
     expect(xml).toContain("<matchValue>D-4471</matchValue>"); // prompts untouched
+  });
+});
+
+describe("the setCardv2 request signature — read off the WSDL, not the guide", () => {
+  /**
+   * Two bugs found in one Axis2 dispatch failure, both of them ours.
+   *
+   * The guide writes `setCardV2` (p137). The binding declares `setCardv2` — lowercase `v`, like
+   * `getCardv2` but unlike `getCardSummariesV2`. The vendor is inconsistent and the guide hides it,
+   * so the operation name is not something a page number can settle.
+   *
+   * The second one was hiding behind the first. The WSDL declares:
+   *
+   *     <message name="CardManagementEP_setCardv2">
+   *       <part name="clientId" type="xsd:string"/>
+   *       <part name="card"     type="ns2:WSCardv2"/>
+   *     </message>
+   *
+   * — two parts, so the card belongs inside ONE `<card>` element. We were emitting clientId,
+   * cardNumber and the card's contents as flat siblings. Nothing caught it because dispatch failed
+   * on the name before the binding ever deserialized the body; fixing only the name would have sent
+   * a well-formed request with the wrong shape to a full-document write.
+   */
+  const doc = () => parseCardDocument(fixture("getCardV2.nestedHeader.xml"));
+
+  it("names the operation as the binding does", () => {
+    const { xml } = serializeSetCardRequest(doc(), TARGET, []);
+    expect(xml).toContain("<CardManagementEP_setCardv2");
+    expect(xml).not.toContain("CardManagementEP_setCardV2");
+  });
+
+  it("passes the card as a single <card> part, with clientId beside it", () => {
+    const { xml } = serializeSetCardRequest(doc(), TARGET, []);
+    const wrapper = parseXml(`<w xmlns:xsi="${XSI_NS_TEST}">${xml}</w>`)!;
+    const operation = collectElements(wrapper, "CardManagementEP_setCardv2")[0]!;
+    // Exactly the two parts the WSDL declares, in parameterOrder.
+    expect(childElements(operation).map((el) => el.localName)).toEqual(["clientId", "card"]);
+  });
+
+  it("puts cardNumber inside <card>, where WSCardv2's sequence declares it", () => {
+    const { body } = echo(doc());
+    expect(collectElements(body, "cardNumber")).toHaveLength(1);
+    // First, per the <sequence>: cardNumber, header, infos, limits, locationGroups, …
+    expect(childElements(body)[0]!.localName).toBe("cardNumber");
+    expect(childElements(body)[1]!.localName).toBe("header");
+  });
+
+  it("refuses a request with no <card> part", () => {
+    // The flat shape we used to send. Well-formed XML, correct operation name, wrong signature —
+    // and the guard has to be the thing that stops it, because EFS might not.
+    const d = doc();
+    const flattened = serializeSetCardRequest(d, TARGET, []).xml
+      .replace("<card>", "")
+      .replace("</card>", "");
+    expect(() => assertEchoFidelity(d, flattened, [])).toThrow(/no <card> element/);
   });
 });
 

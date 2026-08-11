@@ -40,7 +40,22 @@ import { childElements, collectElements, findDescendant, localName, type XmlElem
  * with the request, so the first attempt provably did not land. Any other failure propagates.
  */
 
-const OP_SET_CARD_V2 = "setCardV2";
+/**
+ * Lowercase `v`, read off the WSDL rather than the guide.
+ *
+ * The guide writes `setCardV2` throughout (p137) and so did this constant. Axis2 answered
+ * "The endpoint reference (EPR) for the Operation not found … WSA Action = setCardV2" — a
+ * DISPATCH-phase rejection, so no operation ran and nothing was written. The contract at
+ * `…/CardManagementWS?wsdl` declares:
+ *
+ *     <operation name="setCardv2" parameterOrder="clientId card">
+ *
+ * The vendor is inconsistent and the guide papers over it: `getCardv2` lowercase, but
+ * `getCardSummariesV2` and `getMCTransExtLocV2` uppercase. Only the binding knows, and
+ * `docs/22-EFS-CARD-CONTROL.md` now records what it says — check there before adding an operation,
+ * rather than trusting a page number.
+ */
+const OP_SET_CARD_V2 = "setCardv2";
 
 export interface SetCardResult {
   /** The redacted request body, for the ledger. Never the raw one — it carries the PAN. */

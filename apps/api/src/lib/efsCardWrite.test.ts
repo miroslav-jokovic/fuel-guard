@@ -85,9 +85,13 @@ describe("setCardV2 — the request", () => {
     });
 
     const sent = s.bodies[1]!;
-    expect(sent).toContain("<CardManagementEP_setCardV2");
+    // Operation name AND request signature both come from the WSDL rather than the guide: the
+    // binding declares `setCardv2` (lowercase v) taking two parts, `clientId` and `card`. Sending
+    // `setCardV2` earned an Axis2 "EPR for the Operation not found" and never reached a card.
+    expect(sent).toContain("<CardManagementEP_setCardv2");
     expect(sent).toContain("<clientId>sess-1</clientId>");
-    expect(sent).toContain(`<cardNumber>${CARD}</cardNumber>`);
+    expect(sent).toContain(`<card><cardNumber>${CARD}</cardNumber>`);
+    expect(sent).toContain("</card></CardManagementEP_setCardv2>");
     expect(sent).toContain("<status>Hold</status>");
     // The single most important assertion in this file: every prompt the card had is still there.
     // One dropped <infos> record is one deleted driver assignment (guide p137).
