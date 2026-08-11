@@ -49,6 +49,7 @@ export {
   Upload04Icon                as ArrowUpTrayIcon,
   RefreshIcon                 as ArrowPathIcon,
   Tick02Icon                  as CheckIcon,
+  SquareLock02Icon            as LockIcon,                        // card lock / card-control settings
   MoreVerticalIcon            as EllipsisVerticalIcon,
   Copy01Icon                  as CopyIcon,
   Sent02Icon                  as PaperAirplaneIcon,

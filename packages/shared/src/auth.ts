@@ -10,6 +10,8 @@ export interface AuthClaims {
   email?: string;
   org_id?: string;
   user_role?: UserRole;
+  /** Seconds since the epoch. Standard JWT claim, verified by `jose` along with the signature. */
+  iat?: number;
 }
 
 /** The authenticated principal the API attaches to each request after verifying the JWT. */
@@ -18,6 +20,16 @@ export interface AuthContext {
   email: string | null;
   orgId: string | null;
   role: UserRole | null;
+  /**
+   * When this token was minted, in seconds since the epoch — the basis for step-up re-authentication
+   * (`middleware/requireFreshAuth.ts`). It comes off the SAME verified JWT as the rest of this
+   * context, so proving freshness costs no extra table, no extra round trip and no new state.
+   *
+   * OPTIONAL, and absence means "not fresh". A token minted before this field existed, or a test
+   * persona that does not set it, is refused by the step-up gate rather than waved through — the
+   * whole point of the gate is to be certain, and "we could not tell" is not certainty.
+   */
+  issuedAt?: number | null;
 }
 
 /** Lower-cased domain part of an email, or null if malformed. */
@@ -99,4 +111,7 @@ export const claimsToContext = (c: AuthClaims): AuthContext => ({
   email: c.email ?? null,
   orgId: c.org_id ?? null,
   role: c.user_role ?? null,
+  // Carried through verbatim: a number here is only ever one `jose` has already verified the
+  // signature over, so nothing downstream has to trust the client about when it signed in.
+  issuedAt: typeof c.iat === "number" ? c.iat : null,
 });
