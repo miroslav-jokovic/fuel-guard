@@ -365,6 +365,69 @@ export interface LocationQuery {
 }
 
 /**
+ * How the criteria sit inside `CardManagementEP_searchLocation`. The guide documents the FIELDS
+ * (p132) but not the element nesting around them — and for this WSDL that omission has already bitten
+ * twice, in opposite directions:
+ *
+ *   • getTranRejects' section lists its criteria flat too (p107), yet the production WSDL wraps them
+ *     in a `<search>` element — the working feed request in efsSoap.ts is the proof.
+ *   • Sending searchLocation's criteria flat, in the guide's order, earned from production:
+ *
+ *       org.apache.axis2.databinding.ADBException: Unexpected subelement locId
+ *
+ *     The ADB deserializer rejected the FIRST criterion element as a direct child — which is exactly
+ *     what it does when the request bean expects a wrapper object there instead. (An earlier attempt
+ *     that omitted unset fields got "Unexpected subelement state" — same verdict, different first
+ *     element. The two together rule flat-at-top-level out.)
+ *
+ * We cannot read the WSDL from here to settle the wrapper's name (EFS's firewall allowlists the
+ * production egress address for HTTPS, and ?wsdl is not separately reachable), so the binding itself
+ * is the oracle: try the plausible shapes in likelihood order, let ADB refuse the wrong ones — a
+ * shape complaint is instant and harmless — and REMEMBER the one the endpoint accepts, per endpoint,
+ * so the ladder runs at most once per process. `search` goes first because it is the wrapper this
+ * same WSDL already proved for the other criteria-carrying operation.
+ */
+type LocationRequestShape = "search" | "flat" | "criteria" | "request";
+const LOCATION_REQUEST_SHAPES: readonly LocationRequestShape[] = ["search", "flat", "criteria", "request"];
+
+/** Shape proven against each endpoint, keyed like the session cache. In-memory on purpose: it is a
+ *  protocol fact, re-derivable in one round trip, not state worth a table. */
+const acceptedLocationShapes = new Map<string, LocationRequestShape>();
+
+/** Test seam. */
+export function __resetLocationShapes(): void {
+  acceptedLocationShapes.clear();
+}
+
+/** An ADB complaint about WHERE an element sat — as opposed to a refusal, a bad value or an outage.
+ *  Only this advances the shape ladder; everything else is a real answer and is rethrown as-is. */
+const SHAPE_FAULT = /ADBException|Unexpected subelement/i;
+
+/**
+ * Every criterion element is sent, every time, in the guide's declared order — "EFS's Axis2 binding
+ * rejects omitted filter elements even though the WSDL marks them nillable"
+ * (docs/plans/EFS-SOAP-INTEGRATION-PLAN.md). Unused int fields go as 0, not empty: an empty
+ * `<locId></locId>` is not a valid xsd:int, and 0-as-no-filter is the convention already proven
+ * against this endpoint by the working getTranRejects request (`<locationId>0</locationId>`).
+ */
+function locationCriteria(query: LocationQuery): string {
+  return (
+    elAlways("locId", query.locId ?? 0) +
+    elAlways("state", query.state ?? "") +
+    elAlways("city", query.city ?? "") +
+    elAlways("name", query.name ?? "") +
+    elAlways("country", query.country ?? "") +
+    elAlways("chainId", query.chainId ?? 0)
+  );
+}
+
+function locationBody(shape: LocationRequestShape, clientId: string, query: LocationQuery): string {
+  const fields = locationCriteria(query);
+  const inner = shape === "flat" ? fields : `<${shape}>${fields}</${shape}>`;
+  return `<CardManagementEP_searchLocation>${elAlways("clientId", clientId)}${inner}</CardManagementEP_searchLocation>`;
+}
+
+/**
  * Find EFS locations. Backs the single-location override picker — an operator knows "the Love's on
  * I-57", not a 6-digit id, and p194 requires a valid id.
  *
@@ -379,51 +442,61 @@ export async function searchLocation(
   opts: CardOpOptions = {},
 ): Promise<EfsLocation[]> {
   // At least one REAL criterion, judged on the query object rather than on the serialized string —
-  // the string is never empty now (see below), so testing it would silently disable this guard.
+  // the string is never empty now (see locationCriteria), so testing it would silently disable this.
   const hasCriterion = [query.locId, query.state, query.city, query.name, query.country, query.chainId]
     .some((v) => v !== null && v !== undefined && String(v).trim() !== "");
   if (!hasCriterion) {
     throw new EfsSoapError("A location search needs at least one criterion", "not_implemented");
   }
 
-  /**
-   * ⚠ EVERY criterion element is sent, every time, in the guide's declared order.
-   *
-   * Production told us why. Sending only the two fields we wanted to filter on earned:
-   *
-   *   org.apache.axis2.databinding.ADBException: Unexpected subelement state
-   *
-   * — the ADB deserializer walking a fixed xsd:sequence, expecting `locId`, and finding `state`. This
-   * is the same binding behaviour the transaction feeds hit and recorded in
-   * docs/plans/EFS-SOAP-INTEGRATION-PLAN.md: "EFS's Axis2 binding rejects omitted filter elements even
-   * though the WSDL marks them nillable." The guide's "if searching a specific location set else don't
-   * set" (p132) describes intent, not wire format.
-   *
-   * Unused int fields go as 0, not empty: an empty `<locId></locId>` is not a valid xsd:int and the
-   * same deserializer would reject it. 0 as "no filter" is the convention already proven against this
-   * endpoint by the working getTranRejects request (`<locationId>0</locationId>`, efsSoap.ts).
-   */
-  const fields =
-    elAlways("locId", query.locId ?? 0) +
-    elAlways("state", query.state ?? "") +
-    elAlways("city", query.city ?? "") +
-    elAlways("name", query.name ?? "") +
-    elAlways("country", query.country ?? "") +
-    elAlways("chainId", query.chainId ?? 0);
-  const xml = await call(
-    env, creds, OPS.searchLocation,
-    (session) => `<CardManagementEP_searchLocation>${elAlways("clientId", session.clientId)}${fields}</CardManagementEP_searchLocation>`,
-    opts,
+  const shapeKey = `${creds.orgId}:${creds.endpointUrl}`;
+  const proven = acceptedLocationShapes.get(shapeKey);
+  // The proven shape first, then the rest — so if the binding ever changes under us (a WEX redeploy),
+  // the ladder re-runs instead of hard-failing on a memo.
+  const shapes = proven
+    ? [proven, ...LOCATION_REQUEST_SHAPES.filter((s) => s !== proven)]
+    : LOCATION_REQUEST_SHAPES;
+
+  const refusals: string[] = [];
+  for (const shape of shapes) {
+    let xml: string;
+    try {
+      xml = await call(
+        env, creds, OPS.searchLocation,
+        (session) => locationBody(shape, session.clientId, query),
+        opts,
+      );
+    } catch (error) {
+      const isShapeFault =
+        error instanceof EfsSoapError && error.code === "soap_fault" && SHAPE_FAULT.test(error.message);
+      if (!isShapeFault) throw error; // a real answer — auth, firewall, outage — not a shape question
+      refusals.push(`${shape}: ${error.message}`);
+      if (acceptedLocationShapes.get(shapeKey) === shape) acceptedLocationShapes.delete(shapeKey);
+      continue;
+    }
+    if (acceptedLocationShapes.get(shapeKey) !== shape) {
+      acceptedLocationShapes.set(shapeKey, shape);
+      // Loud once per process: this line is the protocol documentation the guide never wrote.
+      console.log(`[efs-cards] searchLocation: EFS accepted the "${shape}" request shape (org ${creds.orgId})`);
+    }
+    return resultRecords(parseSoap(xml)).map((record) => ({
+      locId: text(record, "locId") ?? "",
+      name: text(record, "name"),
+      city: text(record, "city"),
+      state: text(record, "state"),
+      country: text(record, "country"),
+      addr1: text(record, "addr1"),
+      phone: text(record, "phone"),
+    })).filter((l) => l.locId !== "");
+  }
+
+  // Every shape refused. Name each verdict: the next engineer's fix starts from EFS's own words, and
+  // the probe surfaces this message verbatim.
+  throw new EfsSoapError(
+    `EFS rejected every request shape we know for searchLocation — ${refusals.join("; ")}`,
+    "soap_fault",
+    { refusals },
   );
-  return resultRecords(parseSoap(xml)).map((record) => ({
-    locId: text(record, "locId") ?? "",
-    name: text(record, "name"),
-    city: text(record, "city"),
-    state: text(record, "state"),
-    country: text(record, "country"),
-    addr1: text(record, "addr1"),
-    phone: text(record, "phone"),
-  })).filter((l) => l.locId !== "");
 }
 
 // ─── small helpers ─────────────────────────────────────────────────────────────────────────────

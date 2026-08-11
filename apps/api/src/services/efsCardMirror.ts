@@ -96,9 +96,25 @@ export async function syncEfsCards(
   const summaries = await getCardSummaries(env, creds, { fetchImpl: opts.fetchImpl, priority: "backfill" });
   result.cardsSeen = summaries.length;
 
+  // Which cards the mirror already holds. The roster pass MUST know, because a roster row carries no
+  // document — treating a known card as new would overwrite the detailed document with `{}` (see
+  // upsertFromSummary). If this read fails we stop rather than guess: a sweep that cannot tell new
+  // from known is a sweep that can only do damage.
+  const { data: knownRows, error: knownError } = await admin
+    .from("efs_cards")
+    .select("card_ref_hmac")
+    .eq("org_id", creds.orgId)
+    .limit(10_000);
+  if (knownError) {
+    result.errors.push(`could not read the existing mirror: ${errorText(knownError.message)}`);
+    result.failed = summaries.length;
+    return result;
+  }
+  const known = new Set(((knownRows ?? []) as { card_ref_hmac: string }[]).map((r) => r.card_ref_hmac));
+
   for (const summary of summaries) {
     try {
-      await upsertFromSummary(admin, env, creds.orgId, summary);
+      await upsertFromSummary(admin, env, creds.orgId, summary, known);
       result.upserted += 1;
     } catch (error) {
       result.failed += 1;
@@ -133,35 +149,58 @@ async function upsertFromSummary(
   env: Env,
   orgId: string,
   summary: CardSummaryRow,
+  known: ReadonlySet<string>,
 ): Promise<void> {
   const last4 = cardLast4(summary.cardNumber);
   if (!last4) throw new Error("card number had no usable last four");
+  const refHmac = cardRefHmac(env, orgId, summary.cardNumber);
+
+  // What the roster genuinely knows. Deliberately NOT document/card_version: the roster call carries
+  // no card document, and an upsert that wrote `document: {}` over a known row erased the detail pass's
+  // work on every sweep — permanently, for any card beyond the detail budget. The empty document is
+  // for FIRST sightings only, where `document not null` demands some value until the detail pass runs.
+  const rosterFields = {
+    card_last4: last4,
+    // A status EFS reports but the getCard enum omits (notably 'Fraud', the `U` search code) is
+    // stored verbatim — see 0175. Coercing it to something familiar would hide the single most
+    // important thing about that card. "Unknown" rather than "Inactive" when EFS reported none:
+    // the column is not-null, but inventing a real state is worse than admitting we have none.
+    status: summary.status ?? "Unknown",
+    policy_number: summary.policyNumber,
+    company_xref: summary.companyXref,
+    payroll_status: summary.payrollStatus,
+    info_source: normalizeSource(summary.infoSource),
+    driver_id_prompt: summary.driverId,
+    unit_prompt: summary.unitNumber,
+    driver_name: summary.driverName,
+    override_uses: summary.override ? null : 0,
+    synced_at: new Date().toISOString(),
+    sync_error: null,
+  };
+
+  if (known.has(refHmac)) {
+    // Known card: refresh the roster facts and nothing else. The sealed PAN does not change and the
+    // document belongs to the detail pass.
+    const { error } = await admin
+      .from("efs_cards")
+      .update(rosterFields)
+      .eq("org_id", orgId)
+      .eq("card_ref_hmac", refHmac);
+    if (error) throw new Error(error.message);
+    return;
+  }
 
   const { error } = await admin.from("efs_cards").upsert(
     {
       org_id: orgId,
-      card_ref_hmac: cardRefHmac(env, orgId, summary.cardNumber),
+      card_ref_hmac: refHmac,
       card_number_sealed: seal(env, summary.cardNumber, secretAad(orgId, "efs_card_pan")),
-      card_last4: last4,
-      // A status EFS reports but the getCard enum omits (notably 'Fraud', the `U` search code) is
-      // stored verbatim — see 0175. Coercing it to something familiar would hide the single most
-      // important thing about that card. "Unknown" rather than "Inactive" when EFS reported none:
-      // the column is not-null, but inventing a real state is worse than admitting we have none.
-      status: summary.status ?? "Unknown",
-      policy_number: summary.policyNumber,
-      company_xref: summary.companyXref,
-      payroll_status: summary.payrollStatus,
-      info_source: normalizeSource(summary.infoSource),
-      driver_id_prompt: summary.driverId,
-      unit_prompt: summary.unitNumber,
-      driver_name: summary.driverName,
-      override_uses: summary.override ? null : 0,
-      // The roster call carries no card document. A first sighting gets an empty one, which the
-      // detail pass replaces; `document` is not-null so the row is never half-formed.
+      ...rosterFields,
+      // First sighting: an empty document until the detail pass replaces it — `document` is not-null
+      // so the row is never half-formed. (Upsert rather than insert so two overlapping sweeps racing
+      // on a brand-new card cannot fail on the unique index.)
       document: {},
       card_version: "",
-      synced_at: new Date().toISOString(),
-      sync_error: null,
     },
     { onConflict: "org_id,card_ref_hmac", ignoreDuplicates: false },
   );

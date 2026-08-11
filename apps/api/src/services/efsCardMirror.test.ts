@@ -182,6 +182,49 @@ describe("syncEfsCards", () => {
     expect(rec.writtenRows("efs_cards")[0]!.status).toBe("Unknown");
   });
 
+  it("never lets the roster pass wipe a document the detail pass already mirrored", async () => {
+    // The roster call carries no card document. An earlier version upserted `document: {}` and
+    // `card_version: ""` for EVERY summary row, so each nightly sweep erased the mirrored detail for
+    // every known card — permanently for any card beyond the detail budget. A known card must get an
+    // UPDATE of the roster facts only; the empty document is for first sightings.
+    const rec = createSupabaseRecorder({
+      tables: {
+        efs_cards: [{ card_ref_hmac: cardRefHmac(env, ORG, PAN_A) }],
+        fuel_cards: [],
+      },
+    });
+    await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail) });
+
+    const rosterUpdates = rec
+      .forTable("efs_cards")
+      .filter((q) => q.write?.method === "update" && (q.write.payload as Record<string, unknown>).status !== undefined);
+    expect(rosterUpdates).toHaveLength(1); // PAN_A is known → update; PAN_B is new → upsert
+    const updated = rosterUpdates[0]!;
+    expect(updated.filters()).toContainEqual({ col: "card_ref_hmac", val: cardRefHmac(env, ORG, PAN_A) });
+    expect(updated.write!.payload).not.toHaveProperty("document");
+    expect(updated.write!.payload).not.toHaveProperty("card_version");
+    expect(updated.write!.payload).not.toHaveProperty("card_number_sealed");
+
+    // And nothing anywhere re-blanks PAN_A's document: every write that names its hmac either omits
+    // the document (roster update) or carries the full one (detail pass).
+    const blanked = rec
+      .writtenRows("efs_cards")
+      .filter((r) => r.card_ref_hmac === cardRefHmac(env, ORG, PAN_A) && r.card_version === "");
+    expect(blanked).toHaveLength(0);
+  });
+
+  it("stops the sweep when it cannot read which cards it already holds", async () => {
+    // A sweep that cannot tell new from known would treat all 199 cards as first sightings and blank
+    // every document. Refusing to write is strictly better than that.
+    const rec = createSupabaseRecorder({
+      tables: { efs_cards: { data: null, error: { message: "connection refused" } }, fuel_cards: [] },
+    });
+    const result = await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, summaries) });
+
+    expect(result.errors.join(" ")).toMatch(/existing mirror/);
+    expect(rec.writtenRows("efs_cards")).toHaveLength(0);
+  });
+
   it("keeps a config source it does not recognise instead of erasing it", async () => {
     // normalizeSource used to null anything outside POLICY/CARD/BOTH, because 0171's constraint would
     // have rejected the row — so the page said "we have no idea where this card's rules come from"
