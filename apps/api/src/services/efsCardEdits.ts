@@ -1,0 +1,215 @@
+import {
+  EFS_EDITABLE_INFO_IDS,
+  type EfsWritableStatus,
+  type OverrideScope,
+  type PromptInput,
+} from "@fuelguard/shared";
+import type { CardEdit } from "../lib/efsCardEcho.js";
+import type { CardDocument } from "../lib/efsCardXml.js";
+import { childElements, collectElements, localName, type XmlElement } from "../lib/efsXml.js";
+
+/**
+ * The vendor's own override and prompt recipes, expressed as `CardEdit[]` and nothing else.
+ *
+ * PURE — no database, no network, no clock. Every function here takes the card document EFS just sent
+ * us and returns the edit list that should be applied to it. That makes the part of card control most
+ * likely to be wrong in a way nobody notices — "which fields does an override actually set?" — testable
+ * against fixtures without a Supabase stub in sight.
+ *
+ * ── Where these recipes come from ────────────────────────────────────────────────────────────────
+ * `docs/22-EFS-CARD-CONTROL.md` §Overrides, transcribed from the guide's appendix (p194) and checked
+ * line by line against the PDF. They are quoted in the comments at each call site rather than
+ * paraphrased, because "the recipe is exact and must be followed literally" is the whole reason this
+ * file is separate from the orchestration around it.
+ *
+ * ── The rule that governs every function below ───────────────────────────────────────────────────
+ * An edit names what CHANGES. Everything unnamed is echoed byte-identical from the response DOM by
+ * `serializeSetCardRequest`, and `assertEchoFidelity` refuses to send a request whose content does not
+ * match "the response, plus exactly these edits". So the correctness question for this file is never
+ * "did we remember to include field X" — it is only "is this the smallest true description of the
+ * change".
+ */
+
+/** `override` carries a use count, not a boolean (p194) — 0 means the card has no exception left. */
+const OVERRIDE_NONE = "0";
+/**
+ * `locationOverride` is typed boolean(1) but carries a 6-digit location id when a single-location
+ * override is active. "0" is the value that means "no single-location override" — the literal false
+ * of the declared type, and the shape `parseCardDocument` already reads as "not an id".
+ */
+const LOCATION_OVERRIDE_NONE = "0";
+
+// ─── Status ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lock: `status` → `Hold` (default) or `Inactive`.
+ *
+ * `Hold` is reversible and is what the UI defaults to. `Inactive` is offered for a card being retired.
+ * `Deleted` is NEVER written — it is EFS's hard delete (p128) and there is no undo.
+ */
+export const lockEdits = (status: EfsWritableStatus): CardEdit[] => [
+  { op: "setField", name: "status", value: status },
+];
+
+/** Unlock: `status` → `Active`. The only status this product ever restores a card to. */
+export const unlockEdits = (): CardEdit[] => [{ op: "setField", name: "status", value: "Active" }];
+
+// ─── Overrides (p194) ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Grant a one-time exception.
+ *
+ * The guide's two recipes, verbatim:
+ *   • All locations:    `overrideAllLocations=true`,  `override` = 1..9
+ *   • Single location:  `locationOverride` = the 6-digit EFS location id,
+ *                       `overrideAllLocations=false`, `override` = 1..9
+ *
+ * ── The one place this goes beyond the recipe, and why ───────────────────────────────────────────
+ * The recipes are written as if applied to a card with no override configured. On a card that already
+ * carries one, following them literally can produce a document that asserts BOTH forms at once — an
+ * all-locations grant on a card whose `locationOverride` still holds last week's truck stop. The two
+ * are mutually exclusive by construction (the single-location recipe explicitly sets
+ * `overrideAllLocations=false`), and the failure mode is silent and expensive in the wrong direction:
+ * the operator is told "at every location" and the driver is declined everywhere but Effingham.
+ *
+ * So the stale field is cleared, and ONLY when it actually holds an id — a card that already reads
+ * `locationOverride` 0/1 is left untouched, because writing a value EFS already has is a change we
+ * would then have to explain in the ledger. This is the single inference in this file; it is called
+ * out here, in the ledger's `edits` column, and in docs/22 so the pilot can confirm it against real
+ * vendor behaviour.
+ */
+export function overrideGrantEdits(doc: CardDocument, uses: number, scope: OverrideScope): CardEdit[] {
+  const edits: CardEdit[] = [{ op: "setField", name: "override", value: String(uses) }];
+  if (scope.kind === "all") {
+    edits.push({ op: "setField", name: "overrideAllLocations", value: "true" });
+    if (doc.card.locationOverrideId !== null) {
+      edits.push({ op: "setField", name: "locationOverride", value: LOCATION_OVERRIDE_NONE });
+    }
+  } else {
+    edits.push({ op: "setField", name: "locationOverride", value: scope.locationId });
+    edits.push({ op: "setField", name: "overrideAllLocations", value: "false" });
+  }
+  return edits;
+}
+
+/**
+ * Clear an exception: no remaining uses, neither scope armed.
+ *
+ * All three fields are written unconditionally here, unlike the grant path. Clearing is the SAFE
+ * direction — the worst outcome of writing a value EFS already holds is a no-op edit in the ledger,
+ * whereas leaving one of the three armed is an exception somebody thinks they revoked.
+ */
+export const overrideClearEdits = (): CardEdit[] => [
+  { op: "setField", name: "override", value: OVERRIDE_NONE },
+  { op: "setField", name: "overrideAllLocations", value: "false" },
+  { op: "setField", name: "locationOverride", value: LOCATION_OVERRIDE_NONE },
+];
+
+// ─── Prompts (infos) ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * A card record as a flat field map, in DOCUMENT ORDER, preserving every field including ones this
+ * codebase has never heard of.
+ *
+ * This is what makes a prompts change safe. `replaceAll` re-serializes the whole `infos` array from
+ * records, so anything not in the record is gone — and an `<infos>` element carries `reportValue`,
+ * `lengthCheck`, `minimum`, `maximum`, `value` and potentially fields WEX adds next year. Rebuilding
+ * records from the typed view instead of from the DOM would drop them, which for a prompt means the
+ * pump stops applying a rule nobody meant to remove.
+ *
+ * A nested container inside a record would flatten here and lose data. That cannot pass silently:
+ * `assertEchoFidelity` compares full field PATHS, so the flattened request would not match the
+ * expected canonical form and would be refused rather than sent. Recorded as a property, not a hope —
+ * `efsCardEdits.test.ts` proves it with a record carrying a nested child.
+ */
+export function recordFromElement(element: XmlElement): Record<string, string | null> {
+  const record: Record<string, string | null> = {};
+  for (const child of childElements(element)) {
+    const nil = child.getAttribute("xsi:nil") ?? child.getAttribute("nil");
+    record[localName(child)] = nil === "true" || nil === "1" ? null : (child.textContent ?? "").trim();
+  }
+  return record;
+}
+
+const EDITABLE = new Set<string>(EFS_EDITABLE_INFO_IDS);
+
+export interface PromptPlan {
+  edits: CardEdit[];
+  /** Editable prompts present before and absent after — the removals the caller must authorise. */
+  removedInfoIds: string[];
+  /** For the audit trail: what the editable prompts were, and what they became. */
+  before: { infoId: string; validationType: string | null; matchValue: string | null }[];
+  after: { infoId: string; validationType: string | null; matchValue: string | null }[];
+}
+
+/**
+ * Build a full-replace of the `infos` array from the editable prompts the operator submitted.
+ *
+ * ── What "full replace" means here, and what it deliberately does not ────────────────────────────
+ * EFS has no partial prompt update: the array in the request IS the card's prompts afterwards. So the
+ * request has to carry every record, not just the edited ones. Records whose `infoId` is not editable
+ * in Phase 1 — `ODRD`, `TRIP`, `TRLR`, `NAME`, `PPIN`, `CNTN` — are passed through EXACTLY as EFS sent
+ * them, field for field, and an operator has no way to reach them from this path at all.
+ *
+ * For an editable record that already exists, only `validationType` and `matchValue` are touched; the
+ * rest of the record keeps its original values AND its original position in the array, because
+ * rebuilding it would silently normalise fields we were never asked to change.
+ *
+ * ── Blank versus nil ─────────────────────────────────────────────────────────────────────────────
+ * A cleared `matchValue` is written as an EMPTY element rather than `xsi:nil`. The guide's instruction
+ * is "only remove fields or blank them out if you intend to remove them" (p137) — blanking is an empty
+ * element, and this codebase has already learned that EFS's Axis2 binding treats an omitted element
+ * and an empty one very differently. Removing the RECORD is a separate, explicit act (below), not
+ * something that happens because a text box was emptied.
+ */
+export function promptsEdits(doc: CardDocument, prompts: readonly PromptInput[]): PromptPlan {
+  const existing = collectElements(doc.root, "infos");
+  const wanted = new Map(prompts.map((p) => [p.infoId as string, p]));
+  const records: Record<string, string | null>[] = [];
+  const removedInfoIds: string[] = [];
+  const seen = new Set<string>();
+
+  for (const element of existing) {
+    const record = recordFromElement(element);
+    const infoId = record.infoId ?? "";
+    if (!EDITABLE.has(infoId)) {
+      records.push(record); // untouched, in place
+      continue;
+    }
+    seen.add(infoId);
+    const update = wanted.get(infoId);
+    if (!update) {
+      // Present before, absent from the submission → the operator removed this prompt. Authorising
+      // that is the caller's job (removing DRID needs an explicit flag AND step-up); this function
+      // only reports it.
+      removedInfoIds.push(infoId);
+      continue;
+    }
+    records.push({ ...record, validationType: update.validationType, matchValue: update.matchValue ?? "" });
+  }
+
+  // A prompt the card does not have yet — assigning a driver to a card that has never had one.
+  // Appended in submission order, after everything that already existed.
+  for (const prompt of prompts) {
+    if (seen.has(prompt.infoId)) continue;
+    records.push({
+      infoId: prompt.infoId,
+      validationType: prompt.validationType,
+      matchValue: prompt.matchValue ?? "",
+    });
+  }
+
+  const view = (list: Record<string, string | null>[]) =>
+    list
+      .filter((r) => EDITABLE.has(r.infoId ?? ""))
+      .map((r) => ({ infoId: r.infoId ?? "", validationType: r.validationType ?? null, matchValue: r.matchValue ?? null }));
+
+  return {
+    edits: [{ op: "replaceAll", name: "infos", records }],
+    removedInfoIds,
+    before: doc.card.infos
+      .filter((i) => EDITABLE.has(i.infoId))
+      .map((i) => ({ infoId: i.infoId, validationType: i.validationType, matchValue: i.matchValue })),
+    after: view(records),
+  };
+}

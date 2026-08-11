@@ -1,0 +1,271 @@
+import { writeAudit } from "../lib/audit.js";
+import { driftAgainstExpected, type CardEdit, type EchoDiff } from "../lib/efsCardEcho.js";
+import { VOLATILE_FIELDS, type CardDocument } from "../lib/efsCardXml.js";
+import type { EfsSoapError } from "../lib/efsSoapSession.js";
+import { refreshCardDetail } from "./efsCardMirror.js";
+import type { CardMutationContext, CardMutationOutcome, CardMutationPlan } from "./efsCardControl.js";
+
+/**
+ * What actually happened, and writing it down. The second half of every mutation.
+ *
+ * Split from `efsCardControl.ts` at the 500-line budget, along the line the design already draws:
+ * that file DECIDES and DISPATCHES, this one CLASSIFIES and RECORDS. Everything here runs after the
+ * vendor call has been made and nothing here can prevent it — which is why nothing here throws for a
+ * bad outcome. By the time these functions run, the only remaining question is what to write down,
+ * and refusing to write it down because the write failed is how a mutation becomes invisible.
+ *
+ * The type imports from efsCardControl.ts are type-only and erased at build, so the two modules
+ * import each other in the type system and only one way at runtime.
+ */
+
+// ─── Classification ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Did the change we asked for actually take?
+ *
+ * Compares only the paths the edits NAMED. Anything else that moved is drift, which is a separate
+ * finding with a separate remedy — conflating them would report a successful lock as a failure
+ * because somebody in the WEX portal changed a policy number in the same second.
+ */
+export function intentLanded(before: CardDocument, after: CardDocument, edits: readonly CardEdit[]): boolean {
+  // Every edited path must match the expectation exactly. `driftAgainstExpected` with the volatile
+  // fields excluded gives us the full difference; the intent landed iff none of the differing paths
+  // is one an edit named.
+  const editedPaths = new Set(edits.map((e) => `/${e.name}`));
+  const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS);
+  return !diffs.some((d) => editedPaths.has(d.path) || [...editedPaths].some((p) => d.path.startsWith(`${p}/`)));
+}
+
+/**
+ * Fields that moved which no edit named, minus the ones the vendor legitimately maintains itself.
+ *
+ * `originalStatus` is the only exclusion, and only when the status was changed: the field's name and
+ * the guide's note that it is "often returned as nil" (p35) both point at EFS keeping the status a
+ * card will return to. We do NOT silently drop it — it is recorded under `vendorMaintained` in the
+ * ledger's drift column, so if the pilot shows it behaving differently the evidence is already there.
+ * Anything else moving is real drift and says so.
+ */
+function classifyDrift(
+  before: CardDocument,
+  after: CardDocument,
+  edits: readonly CardEdit[],
+): { unexplained: EchoDiff[]; vendorMaintained: EchoDiff[] } {
+  const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS);
+  const touchedStatus = edits.some((e) => e.name === "status");
+  const unexplained: EchoDiff[] = [];
+  const vendorMaintained: EchoDiff[] = [];
+  for (const diff of diffs) {
+    if (touchedStatus && diff.path === "/originalStatus") vendorMaintained.push(diff);
+    else unexplained.push(diff);
+  }
+  return { unexplained, vendorMaintained };
+}
+
+// ─── Finalizers — one per outcome, each writing ledger + audit ─────────────────────────────────
+
+interface WirePayload {
+  requestXmlRedacted: string | null;
+  responseXmlRedacted: string | null;
+  writeError?: EfsSoapError | null;
+  readError?: unknown;
+}
+
+export async function finalizeLanded(
+  ctx: CardMutationContext,
+  plan: CardMutationPlan,
+  after: CardDocument,
+  wire: WirePayload,
+): Promise<CardMutationOutcome> {
+  const { unexplained, vendorMaintained } = classifyDrift(plan.before, after, plan.edits);
+  const drifted = unexplained.length > 0;
+  const driftFields = unexplained.map((d) => d.path);
+
+  await settle(ctx, plan.mutationId, {
+    status: drifted ? "drift_detected" : "succeeded",
+    after_version: after.version,
+    reconciled_version: after.version,
+    after_document: after.card,
+    drift: drifted || vendorMaintained.length > 0
+      ? { unexplained: unexplained.slice(0, 20), vendorMaintained: vendorMaintained.slice(0, 20) }
+      : null,
+    ...wireColumns(wire),
+  });
+
+  await audit(ctx, plan, plan.auditAction, after, {
+    outcome: drifted ? "drift_detected" : "succeeded",
+    driftFields,
+  });
+  if (drifted) {
+    await audit(ctx, plan, "card.drift_detected", after, { outcome: "drift_detected", driftFields });
+  }
+
+  return {
+    mutationId: plan.mutationId,
+    status: drifted ? "drift_detected" : "succeeded",
+    version: after.version,
+    driftFields,
+    faultCode: null,
+    faultMessage: null,
+  };
+}
+
+export async function finalizeFailed(
+  ctx: CardMutationContext,
+  plan: CardMutationPlan,
+  after: CardDocument,
+  wire: WirePayload,
+): Promise<CardMutationOutcome> {
+  const fault = wire.writeError;
+  // No fault and no change is its own diagnosis: EFS accepted the request and did nothing with it,
+  // which is a vendor behaviour worth naming rather than reporting as an unexplained failure.
+  const faultCode = fault?.code ?? "no_change";
+  const faultMessage = fault?.message
+    ?? "EFS accepted the request but the card is unchanged. Check the card in the WEX portal before retrying.";
+
+  await settle(ctx, plan.mutationId, {
+    status: "failed",
+    after_version: after.version,
+    reconciled_version: after.version,
+    after_document: after.card,
+    efs_fault_code: faultCode,
+    efs_fault_message: faultMessage.slice(0, 500),
+    ...wireColumns(wire),
+  });
+
+  await audit(ctx, plan, "card.mutation_failed", after, {
+    outcome: "failed", efsFaultCode: faultCode, efsFaultMessage: faultMessage.slice(0, 300),
+  });
+
+  return {
+    mutationId: plan.mutationId, status: "failed", version: after.version,
+    driftFields: [], faultCode, faultMessage,
+  };
+}
+
+/**
+ * The write went out and we could not confirm what became of it.
+ *
+ * Terminal on purpose. Retrying is not an option (the write may have landed), and calling it a
+ * failure would tell somebody a card is unchanged when it may not be. The row stays 'sent', the audit
+ * says `card.mutation_unverified`, and the operator is told to go and look.
+ */
+export async function finalizeUnverified(
+  ctx: CardMutationContext,
+  plan: CardMutationPlan,
+  wire: WirePayload,
+): Promise<CardMutationOutcome> {
+  const readMessage = wire.readError instanceof Error ? wire.readError.message : String(wire.readError ?? "");
+  const faultCode = wire.writeError?.code ?? "unverified";
+  const faultMessage =
+    `The change was sent but could not be confirmed: ${wire.writeError?.message ?? readMessage}`.slice(0, 500);
+
+  await settle(ctx, plan.mutationId, {
+    status: "sent",
+    efs_fault_code: faultCode,
+    efs_fault_message: faultMessage,
+    ...wireColumns(wire),
+  });
+
+  await audit(ctx, plan, "card.mutation_unverified", null, {
+    outcome: "sent", efsFaultCode: faultCode, efsFaultMessage: faultMessage.slice(0, 300),
+  });
+
+  return {
+    mutationId: plan.mutationId, status: "sent", version: null,
+    driftFields: [], faultCode, faultMessage,
+  };
+}
+
+/** `echo_unfaithful`: our own guard refused to send. Nothing reached EFS, so nothing is reconciled. */
+export async function finalizeUnsent(
+  ctx: CardMutationContext,
+  plan: CardMutationPlan,
+  error: EfsSoapError,
+): Promise<CardMutationOutcome> {
+  await settle(ctx, plan.mutationId, {
+    status: "failed",
+    efs_fault_code: error.code,
+    efs_fault_message: error.message.slice(0, 500),
+    // attempts back to 0: nothing was dispatched, and a row claiming an attempt would send the next
+    // reader looking for a request that never existed.
+    attempts: 0,
+  });
+  await audit(ctx, plan, "card.mutation_failed", null, {
+    outcome: "failed", efsFaultCode: error.code, efsFaultMessage: error.message.slice(0, 300), sent: false,
+  });
+  return {
+    mutationId: plan.mutationId, status: "failed", version: null, driftFields: [],
+    faultCode: error.code, faultMessage: error.message,
+  };
+}
+
+const wireColumns = (wire: WirePayload) => ({
+  // Capped: the ledger is evidence, not an archive, and a 200KB card document per row is neither.
+  request_xml_redacted: wire.requestXmlRedacted?.slice(0, 60_000) ?? null,
+  response_xml_redacted: wire.responseXmlRedacted?.slice(0, 60_000) ?? null,
+});
+
+async function settle(
+  ctx: CardMutationContext,
+  mutationId: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await ctx.admin
+    .from("efs_card_mutations")
+    .update({ ...patch, completed_at: new Date().toISOString() })
+    .eq("id", mutationId)
+    .eq("org_id", ctx.orgId);
+  // Loud, and not fatal. The vendor call already happened; failing the request now would tell the
+  // operator nothing happened when something did.
+  if (error) console.error(`[card-control] could not settle mutation ${mutationId}: ${error.message}`);
+}
+
+/**
+ * Card control is ENTIRELY compliance-relevant, so `meta` carries VALUES, not just field names —
+ * the `AUDITED_VALUE_FIELDS` rule from routes/roster/drivers.ts, applied to the whole surface.
+ * `matchValue` is a driver ID or a unit number: operational data an auditor asks about, not a secret.
+ *
+ * NEVER in here: the card number, the clientId, the SOAP password, raw XML.
+ */
+async function audit(
+  ctx: CardMutationContext,
+  plan: CardMutationPlan,
+  action: string,
+  after: CardDocument | null,
+  extra: Record<string, unknown>,
+): Promise<void> {
+  await writeAudit(ctx.admin, {
+    orgId: ctx.orgId,
+    actorId: ctx.userId,
+    action,
+    entity: "efs_cards",
+    entityId: ctx.efsCardId,
+    meta: {
+      mutationId: plan.mutationId,
+      intent: plan.intent,
+      reason: ctx.reason,
+      stepUp: ctx.stepUp === true,
+      expectedVersion: ctx.expectedVersion,
+      resultVersion: after?.version ?? null,
+      statusBefore: plan.before.card.status,
+      statusAfter: after?.card.status ?? null,
+      ...plan.auditMeta,
+      ...extra,
+    },
+  });
+}
+
+/** Vendor truth back into the mirror, from a fresh read. Never the other way round. */
+export async function updateMirror(ctx: CardMutationContext): Promise<void> {
+  try {
+    await refreshCardDetail(ctx.admin, ctx.env, ctx.creds, ctx.cardNumber, {
+      priority: "interactive",
+      fetchImpl: ctx.fetchImpl,
+    });
+  } catch (error) {
+    console.error(
+      `[card-control] mirror refresh failed after a mutation on card ${ctx.efsCardId}: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
