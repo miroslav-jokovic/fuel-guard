@@ -206,6 +206,24 @@ function renderCollection(root: XmlElement, name: CardCollection, edits: readonl
 // ─── The fidelity guard ────────────────────────────────────────────────────────────────────────
 
 /**
+ * The canonical path an edit addresses in a given document.
+ *
+ * A field edit lands wherever the header lives (`/status` flat, `/header/status` nested); a
+ * collection edit always lands at the root (`/infos`). Exported because the reconciler has to ask
+ * the same question — "is this differing path one WE moved?" — and answering it with a hand-built
+ * `/${name}` is how a successful lock gets recorded as a failure on the nested shape.
+ */
+export function editPath(doc: CardDocument, edit: CardEdit): string {
+  const isField = edit.op === "setField" || edit.op === "setFieldNil";
+  return isField ? `${doc.fieldPrefix}/${edit.name}` : `/${edit.name}`;
+}
+
+/** The canonical path of a scalar field in a given document. */
+export function fieldPath(doc: CardDocument, name: string): string {
+  return `${doc.fieldPrefix}/${name}`;
+}
+
+/**
  * Apply an edit list to a canonical response so we know what the request SHOULD contain.
  *
  * `doc.fieldPrefix` is what keeps this honest across both response shapes. An edit names a FIELD

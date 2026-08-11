@@ -1,5 +1,5 @@
 import { writeAudit } from "../lib/audit.js";
-import { driftAgainstExpected, type CardEdit, type EchoDiff } from "../lib/efsCardEcho.js";
+import { driftAgainstExpected, editPath, fieldPath, type CardEdit, type EchoDiff } from "../lib/efsCardEcho.js";
 import { VOLATILE_FIELDS, type CardDocument } from "../lib/efsCardXml.js";
 import type { EfsSoapError } from "../lib/efsSoapSession.js";
 import { refreshCardDetail } from "./efsCardMirror.js";
@@ -30,7 +30,13 @@ import type { CardMutationContext, CardMutationOutcome, CardMutationPlan } from 
 export function intentLanded(before: CardDocument, after: CardDocument, edits: readonly CardEdit[]): boolean {
   // Every edited path must match the expectation. `driftAgainstExpected` with the volatile fields
   // excluded gives the full difference; the intent landed iff no differing path is one an edit named.
-  const editedPaths = new Set(edits.map((e) => `/${e.name}`));
+  //
+  // `editPath` rather than a hand-built `/${e.name}`: on the nested response shape a scalar lives at
+  // `/header/status`, and `/status` matches nothing there. The failure is not a false negative but a
+  // false POSITIVE — with no path recognised as ours, `some()` is never true and EVERY mutation
+  // reports as landed, including one EFS accepted and silently did not apply. The two tests in
+  // efsCardReconcile.test.ts named "NOT land" are the ones that go red if this reverts.
+  const editedPaths = new Set(edits.map((e) => editPath(before, e)));
   const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS);
   return !diffs.some(
     (d) =>
@@ -84,12 +90,13 @@ function classifyDrift(
 ): { unexplained: EchoDiff[]; vendorMaintained: EchoDiff[] } {
   const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS);
   const touchedStatus = edits.some((e) => e.name === "status");
-  const editedPaths = new Set(edits.map((e) => `/${e.name}`));
+  const editedPaths = new Set(edits.map((e) => editPath(before, e)));
+  const originalStatusPath = fieldPath(before, "originalStatus");
   const unexplained: EchoDiff[] = [];
   const vendorMaintained: EchoDiff[] = [];
   for (const diff of diffs) {
     // EFS keeping the status a card will return to, when we moved the status.
-    if (touchedStatus && diff.path === "/originalStatus") vendorMaintained.push(diff);
+    if (touchedStatus && diff.path === originalStatusPath) vendorMaintained.push(diff);
     // The vendor writing OUR value back in its own casing on a field we edited — `Hold` → `HOLD`.
     // `intentLanded` already accepts it, so counting it as drift would report every single lock as
     // "Applied, with other changes" and turn the drift signal into noise on the first live write.
