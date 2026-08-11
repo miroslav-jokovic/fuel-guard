@@ -4,6 +4,7 @@ import {
   availability,
   cardStatusLabel,
   cardStatusTone,
+  compareCardValues,
   freshness,
   limitRows,
   lockConfirmation,
@@ -361,5 +362,28 @@ describe("freshness — an alarm that fires every day is not an alarm", () => {
   it("still treats never-checked as stale", () => {
     expect(freshness(null).stale).toBe(true);
     expect(freshness(null).text).toBe("Never checked.");
+  });
+});
+
+describe("sorting the card list", () => {
+  it("keeps blanks at the BOTTOM in both directions", () => {
+    // The rule worth a test: a card with no driver is not "the smallest driver". Sorting blanks to
+    // the top of an ascending list buries every card that HAS one under a wall of dashes.
+    expect(compareCardValues(null, "Dana", "asc")).toBeGreaterThan(0);
+    expect(compareCardValues(null, "Dana", "desc")).toBeGreaterThan(0);
+    expect(compareCardValues("Dana", null, "asc")).toBeLessThan(0);
+    expect(compareCardValues("Dana", null, "desc")).toBeLessThan(0);
+  });
+
+  it("orders units the way a human reads them", () => {
+    // Plain string ordering puts unit 10 before unit 9. A yard does not.
+    expect(compareCardValues("9", "10", "asc")).toBeLessThan(0);
+    expect(compareCardValues(9, 10, "asc")).toBeLessThan(0);
+  });
+
+  it("reverses on desc, and treats two blanks as equal", () => {
+    expect(compareCardValues("Ann", "Bob", "asc")).toBeLessThan(0);
+    expect(compareCardValues("Ann", "Bob", "desc")).toBeGreaterThan(0);
+    expect(compareCardValues(null, "", "asc")).toBe(0);
   });
 });

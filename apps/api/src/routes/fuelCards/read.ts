@@ -35,7 +35,17 @@ import { dispatchJob } from "../../services/queue/dispatch.js";
 const listQuerySchema = z.object({
   status: z.string().optional(),
   search: z.string().trim().max(64).optional(),
-  limit: z.coerce.number().int().min(1).max(200).optional(),
+  /**
+   * ⚠ This was capped at 200, and the fleet that shipped it has 199 cards. One more card and the
+   * inventory page would have started silently hiding one — no error, no warning, just a shorter
+   * list than the account owns. The page also filters and paginates client-side, so a truncated
+   * response quietly narrows every facet on the screen as well.
+   *
+   * 2000 is not a page size; it is a ceiling that a real fleet will not reach, on a query that reads
+   * fifteen small columns from one indexed table. `total` below reports the count EFS-side of the
+   * limit, so a fleet that ever does reach it can be told rather than shortchanged.
+   */
+  limit: z.coerce.number().int().min(1).max(2000).optional(),
 });
 
 const locationQuerySchema = z.object({
@@ -198,16 +208,26 @@ export function fuelCardsRouter(): Router {
     const admin = getSupabaseAdmin(env);
     const orgId = req.auth!.orgId!;
 
-    let query = admin.from("efs_cards").select(EFS_CARD_LIST_COLS).eq("org_id", orgId);
+    // `count: exact` so `total` is what the company OWNS, not what this response happened to carry.
+    let query = admin
+      .from("efs_cards")
+      .select(EFS_CARD_LIST_COLS, { count: "exact" })
+      .eq("org_id", orgId);
     // ilike, not eq: the filter's values come from the documented enum (Active/Hold/…) while a
     // production account stores ACTIVE/HOLD. `eq` matched nothing and the page looked empty.
     if (parsed.data.status) query = query.ilike("status", parsed.data.status);
     if (parsed.data.search) {
       // Last four, unit number or driver id — the three things an operator actually has to hand.
       const term = parsed.data.search.replace(/[%,()]/g, "");
-      query = query.or(`card_last4.ilike.%${term}%,unit_prompt.ilike.%${term}%,driver_id_prompt.ilike.%${term}%`);
+      // driver_name included because the list now SHOWS it — a column you can read but not search for
+      // is a column people scroll past looking for the name they already know.
+      query = query.or(
+        `card_last4.ilike.%${term}%,unit_prompt.ilike.%${term}%,driver_id_prompt.ilike.%${term}%,driver_name.ilike.%${term}%`,
+      );
     }
-    const { data, error } = await query.order("card_last4").limit(parsed.data.limit ?? 200);
+    const { data, error, count } = await query
+      .order("card_last4")
+      .limit(parsed.data.limit ?? 2000);
     if (error) {
       dbErrorResponse(res, "fuel-cards.list", error, "Could not load the card list");
       return;
@@ -216,7 +236,9 @@ export function fuelCardsRouter(): Router {
     const access = await loadCardControlAccess(admin, env, orgId, req.auth!.userId, req.auth!.role);
     res.json({
       cards: (data as unknown as CardRow[]).map(toSummary),
-      total: data?.length ?? 0,
+      // The company's real count. `cards.length` is what came back; a difference between the two is
+      // the only honest signal that a limit truncated the answer.
+      total: count ?? data?.length ?? 0,
       capabilities: access,
       staleAfterMinutes: staleAfterMinutes(env),
     });

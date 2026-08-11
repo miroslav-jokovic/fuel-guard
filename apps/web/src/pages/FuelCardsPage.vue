@@ -15,7 +15,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
-import { cardStatusLabel, cardStatusTone, freshness } from "@/features/fuelCards/cardControlModel";
+import { cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
 import { useEfsCards, useSyncEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
@@ -26,7 +26,19 @@ const toast = useToastStore();
 
 const search = ref("");
 const status = ref("");
+/**
+ * The secondary facets. Applied CLIENT-side, deliberately: the route returns the whole inventory in
+ * one response and this page already paginates in the browser, so filtering here is instant and adds
+ * no vendor-adjacent API surface. Search and status stay server-side because they were already.
+ */
+const driver = ref("");
+const unit = ref("");
+const policy = ref("");
+const override = ref("");
+const linked = ref("");
+const health = ref("");
 const page = ref(1);
+const sort = ref<{ key: string; dir: "asc" | "desc" }>({ key: "card_last4", dir: "asc" });
 
 const query = useEfsCards({ search, status });
 const sync = useSyncEfsCards();
@@ -72,10 +84,69 @@ const syncOutcome = computed((): { tone: string; text: string; at?: string } | n
   return null;
 });
 
-watch([search, status], () => { page.value = 1; });
+watch([search, status, driver, unit, policy, override, linked, health], () => { page.value = 1; });
 
-const rows = computed(() => query.data.value?.cards ?? []);
-const paged = computed(() => rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+const allRows = computed(() => query.data.value?.cards ?? []);
+
+/** Options built from the data on screen, so a filter can never offer a value that matches nothing. */
+const optionsFrom = (pick: (row: EfsCardRow) => string | number | null, anyLabel: string) =>
+  computed(() => [
+    { value: "", label: anyLabel },
+    ...[...new Set(allRows.value.map(pick).filter((v): v is string | number => v !== null && v !== ""))]
+      .map(String)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .map((v) => ({ value: v, label: v })),
+  ]);
+
+const driverOptions = optionsFrom((r) => r.driverName, "Any driver");
+const unitOptions = optionsFrom((r) => r.unitPrompt, "Any unit");
+const policyOptions = optionsFrom((r) => r.policyNumber, "Any policy");
+
+const rows = computed(() =>
+  allRows.value.filter((r) => {
+    if (driver.value && r.driverName !== driver.value) return false;
+    if (unit.value && r.unitPrompt !== unit.value) return false;
+    if (policy.value && String(r.policyNumber ?? "") !== policy.value) return false;
+    // An active exception is the thing an auditor scans this page for — "who can currently buy fuel
+    // outside their limits" is one click, not a sort down a 199-row list.
+    if (override.value === "active" && (r.overrideUses ?? 0) <= 0) return false;
+    if (override.value === "none" && (r.overrideUses ?? 0) > 0) return false;
+    if (linked.value === "linked" && !r.fuelCardId) return false;
+    if (linked.value === "unlinked" && r.fuelCardId) return false;
+    // 140 of this fleet's 199 cards carried a sync error at one point and nothing on screen said so.
+    if (health.value === "errors" && !r.syncError) return false;
+    if (health.value === "ok" && r.syncError) return false;
+    return true;
+  }),
+);
+
+const sorted = computed(() => {
+  const { key, dir } = sort.value;
+  const value = (row: EfsCardRow): string | number => {
+    switch (key) {
+      case "status": return row.status ?? "";
+      case "unitPrompt": return row.unitPrompt ?? "";
+      case "driverName": return row.driverName ?? "";
+      case "driverIdPrompt": return row.driverIdPrompt ?? "";
+      case "policyNumber": return row.policyNumber ?? 0;
+      case "overrideUses": return row.overrideUses ?? 0;
+      case "lastUsedDate": return row.lastUsedDate ?? "";
+      default: return row.last4 ?? "";
+    }
+  };
+  return [...rows.value].sort((a, b) => compareCardValues(value(a), value(b), dir));
+});
+
+const paged = computed(() => sorted.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
+
+function onSort(key: string): void {
+  sort.value = sort.value.key === key
+    ? { key, dir: sort.value.dir === "asc" ? "desc" : "asc" }
+    : { key, dir: "asc" };
+}
+
+/** True when the API had more cards than it returned — see the limit note on the read route. */
+const truncated = computed(() => (query.data.value?.total ?? 0) > allRows.value.length);
 
 /** Oldest row wins: the banner should reflect the least fresh thing on screen, not the average. */
 const oldestSync = computed(() => {
@@ -85,20 +156,43 @@ const oldestSync = computed(() => {
 const listFreshness = computed(() => freshness(oldestSync.value, new Date(), query.data.value?.staleAfterMinutes));
 
 const columns: DataTableColumn[] = [
-  { key: "maskedRef", label: "Card", headerClass: "min-w-[8rem]", cellClass: "font-medium text-ink" },
-  { key: "status", label: "Status", headerClass: "min-w-[7rem]" },
-  { key: "unitPrompt", label: "Unit", headerClass: "min-w-[6rem]" },
-  { key: "driverIdPrompt", label: "Driver ID", headerClass: "min-w-[8rem]" },
-  { key: "policyNumber", label: "Policy", numeric: true, headerClass: "min-w-[5rem]" },
-  { key: "overrideUses", label: "Override", headerClass: "min-w-[6rem]" },
+  { key: "maskedRef", label: "Card", sortable: true, headerClass: "min-w-[8rem]", cellClass: "font-medium text-ink" },
+  { key: "status", label: "Status", sortable: true, headerClass: "min-w-[7rem]" },
+  { key: "driverName", label: "Driver", sortable: true, headerClass: "min-w-[10rem]" },
+  { key: "unitPrompt", label: "Unit", sortable: true, headerClass: "min-w-[6rem]" },
+  { key: "driverIdPrompt", label: "Driver ID", sortable: true, headerClass: "min-w-[8rem]" },
+  { key: "policyNumber", label: "Policy", sortable: true, numeric: true, headerClass: "min-w-[5rem]" },
+  { key: "overrideUses", label: "Override", sortable: true, headerClass: "min-w-[6rem]" },
 ];
 
-const chips = computed(() =>
-  status.value ? [{ key: "status", label: "Status", value: cardStatusLabel(status.value) }] : [],
-);
+/** Every active facet gets a chip, so nothing narrows the list invisibly. */
+const chips = computed(() => [
+  ...(status.value ? [{ key: "status", label: "Status", value: cardStatusLabel(status.value) }] : []),
+  ...(driver.value ? [{ key: "driver", label: "Driver", value: driver.value }] : []),
+  ...(unit.value ? [{ key: "unit", label: "Unit", value: unit.value }] : []),
+  ...(policy.value ? [{ key: "policy", label: "Policy", value: policy.value }] : []),
+  ...(override.value ? [{ key: "override", label: "Exception", value: override.value === "active" ? "Active" : "None" }] : []),
+  ...(linked.value ? [{ key: "linked", label: "Vehicle", value: linked.value === "linked" ? "Linked" : "Not linked" }] : []),
+  ...(health.value ? [{ key: "health", label: "Sync", value: health.value === "errors" ? "With errors" : "Clean" }] : []),
+]);
+
+const FACETS: Record<string, { value: string }> = {
+  status: status as unknown as { value: string },
+  driver: driver as unknown as { value: string },
+  unit: unit as unknown as { value: string },
+  policy: policy as unknown as { value: string },
+  override: override as unknown as { value: string },
+  linked: linked as unknown as { value: string },
+  health: health as unknown as { value: string },
+};
 
 function onRemoveChip(key: string): void {
-  if (key === "status") status.value = "";
+  const facet = FACETS[key];
+  if (facet) facet.value = "";
+}
+
+function clearAll(): void {
+  for (const facet of Object.values(FACETS)) facet.value = "";
 }
 
 async function onSync(): Promise<void> {
@@ -142,7 +236,7 @@ async function onSync(): Promise<void> {
       count-label="cards"
       :chips="chips"
       @remove="onRemoveChip"
-      @clear-all="status = ''"
+      @clear-all="clearAll"
     >
       <template #filters>
         <FilterSelect
@@ -156,19 +250,65 @@ async function onSync(): Promise<void> {
             { value: 'Fraud', label: 'Fraud hold' },
           ]"
         />
+        <FilterSelect v-model="driver" label="Driver" :options="driverOptions" />
+        <FilterSelect v-model="unit" label="Unit" :options="unitOptions" />
+      </template>
+      <template #more>
+        <FilterSelect v-model="policy" label="Policy" :options="policyOptions" block />
+        <FilterSelect
+          v-model="override"
+          label="Exception"
+          block
+          :options="[
+            { value: '', label: 'Any' },
+            { value: 'active', label: 'Has an active exception' },
+            { value: 'none', label: 'No exception' },
+          ]"
+        />
+        <FilterSelect
+          v-model="linked"
+          label="Vehicle"
+          block
+          :options="[
+            { value: '', label: 'Any' },
+            { value: 'linked', label: 'Linked to a vehicle' },
+            { value: 'unlinked', label: 'Not linked' },
+          ]"
+        />
+        <FilterSelect
+          v-model="health"
+          label="Last sync"
+          block
+          :options="[
+            { value: '', label: 'Any' },
+            { value: 'errors', label: 'Reported an error' },
+            { value: 'ok', label: 'Clean' },
+          ]"
+        />
       </template>
     </FilterBar>
+
+    <p v-if="truncated" class="text-sm text-caution-700">
+      Showing {{ allRows.length }} of {{ query.data.value?.total }} cards. Narrow the search to see the rest.
+    </p>
 
     <DataTable
       :columns="columns"
       :rows="paged"
       row-key="id"
+      :sort="sort"
       :loading="query.isLoading.value"
       :error="query.isError.value ? (query.error.value?.message ?? 'Could not load cards') : undefined"
       empty-text="No cards yet. Refresh from EFS to pull this account's card list."
+      @sort="onSort"
       @retry="query.refetch()"
       @row-click="(row) => router.push(`/fuel-cards/${(row as EfsCardRow).id}`)"
     >
+      <template #cell-driverName="{ row }">
+        <span v-if="(row as EfsCardRow).driverName">{{ (row as EfsCardRow).driverName }}</span>
+        <span v-else class="text-ink-subtle">—</span>
+      </template>
+
       <template #cell-status="{ row }">
         <span :class="[BADGE_BASE, toneClass(cardStatusTone((row as EfsCardRow).status))]">
           {{ cardStatusLabel((row as EfsCardRow).status) }}

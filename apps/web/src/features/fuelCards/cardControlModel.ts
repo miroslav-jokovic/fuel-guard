@@ -103,6 +103,32 @@ export function freshness(
   return { text: `Checked ${days} day${days === 1 ? "" : "s"} ago.${suffix}`, stale };
 }
 
+/**
+ * Order two card rows by one column.
+ *
+ * PURE and here rather than in the page because of one rule that is easy to get wrong and impossible
+ * to notice: BLANKS SORT LAST IN BOTH DIRECTIONS. A card with no driver is not "the smallest driver";
+ * it is a card with no driver. Sorting them to the top of an ascending list buries every card that
+ * HAS a driver under a wall of dashes, which is the opposite of what somebody clicking "Driver" wants.
+ *
+ * Numbers compare numerically, text uses a numeric-aware collator so unit 9 precedes unit 10.
+ */
+export function compareCardValues(
+  a: string | number | null,
+  b: string | number | null,
+  dir: "asc" | "desc",
+): number {
+  const x = a ?? "";
+  const y = b ?? "";
+  if (x === "" && y !== "") return 1;
+  if (y === "" && x !== "") return -1;
+  if (x === "" && y === "") return 0;
+  const raw = typeof x === "number" && typeof y === "number"
+    ? x - y
+    : String(x).localeCompare(String(y), undefined, { numeric: true });
+  return raw * (dir === "asc" ? 1 : -1);
+}
+
 // ─── Effective configuration ───────────────────────────────────────────────────────────────────
 
 export interface EffectiveDisplayRow {
