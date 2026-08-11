@@ -220,6 +220,15 @@ const EnvSchema = z.object({
   EFS_CARD_CONTROL_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
   // Gates the QA entitlement probe endpoint. Staging only, and unset again once the probe has run.
   EFS_CARD_CONTROL_PROBE_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
+  // Whole-orchestration deadline for one mutation: fresh getCardv2 → setCardV2 → verifying re-read.
+  // Deliberately larger than the sum of the per-request timeouts, because the budget has to cover the
+  // pacing waits between three calls in the interactive lane, not just the sockets. When it expires
+  // the write is NOT retried: the ledger row stays 'sent' (outcome unknown) and a human is told so.
+  EFS_CARD_WRITE_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(25_000),
+  // Org-wide ceiling on card mutations per rolling hour, counted from the ledger. Per-user limits do
+  // not stop three collaborating accounts; this does. Roughly ten times the busiest legitimate hour
+  // we can construct (a theft sweep locking one depot's cards).
+  EFS_CARD_MAX_MUTATIONS_PER_HOUR: z.coerce.number().int().min(1).max(1000).default(50),
   // How often the card mirror is swept. DAILY on purpose: card configuration changes when a human
   // changes it, and spending the shared service account's rate budget on data that has not moved is
   // exactly the "excessive polling" the EFS guide warns can get an account suspended (p11).

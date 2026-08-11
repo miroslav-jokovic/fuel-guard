@@ -272,3 +272,74 @@ not yet built — `lib/efsCardEcho.ts` (the full-document echo with fidelity gua
 exists. Do not enable writes without walking the Phase B gate in
 `docs/plans/EFS-CARD-CONTROL-PLAN.md`, starting with the no-op echo probe against a disposable card
 on QA.
+
+## Status 2026-08-11 (later) — Phase B built, gated, and not yet switched on
+
+The write path exists in the repo. It is unreachable in production and stays that way until the
+entitlement gate passes: `EFS_CARD_CONTROL_ENABLED` defaults false, every org's
+`write_entitlement` is still `unknown`, and `unknown` behaves exactly like `denied` at the gate.
+
+**What was added**
+
+| Piece | Where |
+|---|---|
+| The gate — six-proof write probe | `apps/api/src/routes/fuelCards/writeProbe.ts` → `POST /api/fuel-cards/write-check` |
+| `setCardV2` (retry-free, fidelity-checked on the bytes sent) | `apps/api/src/lib/efsCardWrite.ts` |
+| Per-intent edit builders (the p194 recipes) | `apps/api/src/services/efsCardEdits.ts` |
+| Plan → apply orchestration | `apps/api/src/services/efsCardControl.ts` |
+| Outcome classification + ledger/audit/mirror writes | `apps/api/src/services/efsCardReconcile.ts` |
+| Five write routes + history | `apps/api/src/routes/fuelCards/control.ts` |
+| Per-user throttles / step-up | `apps/api/src/middleware/{cardWriteLimit,requireFreshAuth}.ts` |
+| Mutation ledger / write counters | `supabase/migrations/0177_efs_card_mutations.sql`, `0178_card_write_counters.sql` |
+| Drawer, panels, location picker, history, settings page | `apps/web/src/features/fuelCards/*`, `apps/web/src/pages/CardControlSettingsPage.vue` |
+
+**Migration numbering, checked rather than assumed.** The live API's `/api/version` reports the
+Supabase ledger's `max(version)` = **0175**, so 0176 (in the repo, applied by hand in the SQL editor
+after the collision above) is still absent from the ledger and will be re-applied by the next
+`supabase db push` — it is idempotent by construction, dropping every check constraint on the columns
+it re-adds. 0177 and 0178 are free.
+
+**Two things a reviewer should look at first**
+
+1. **The one inference in the write path.** `overrideGrantEdits` clears a stale `locationOverride`
+   when granting an all-locations exception. The p194 recipes are written for a card with no override
+   configured; followed literally on a card that already has one, they produce a document asserting
+   both scopes at once, and the operator is told "every location" while the driver is declined
+   everywhere but one truck stop. The clearing happens only when the field actually holds an id, is
+   recorded in the ledger's `edits` column, and should be confirmed against real vendor behaviour
+   during the pilot.
+2. **`originalStatus` and drift.** When a status edit is applied, a moved `originalStatus` is recorded
+   under `drift.vendorMaintained` rather than counted as unexplained drift — the field's name and the
+   guide's note (p35) both suggest EFS maintains it. It is recorded, not discarded: if the pilot shows
+   it behaving differently, the evidence is already in the ledger.
+
+**Sequence to switch it on** — do not skip a step.
+
+1. Ask WEX for: entitlement to `setCardV2` on QA and production (name `setCardV2` and
+   `setCardRefreshingLimits` explicitly), a DISPOSABLE QA card number, and QA credentials.
+2. Decide the approver list. `require_approver` defaults true, so an admin must name at least one
+   person before any fleet manager can change a card.
+3. `VITE_API_URL` on `@fleetguard/web` → fleetguardapi-production, so the UI that gains write buttons
+   talks to the EFS-enabled, statically-addressed service.
+4. On STAGING only: `EFS_CARD_CONTROL_PROBE_ENABLED=true`. Run the write check **read-only first** —
+   it proves our echo against this account's real card XML and touches nothing. Then, with the
+   WEX-confirmed disposable card, run it for real. Archive the redacted result below. Unset the flag.
+5. Repeat once on production against a decommissioned card.
+6. Only if all six proofs pass: `EFS_CARD_CONTROL_ENABLED=true` on `@fleetguard/api` ONLY, and enable
+   `efs_card_control_settings.enabled` for ONE pilot org.
+7. First real mutation: lock and unlock a spare card, and verify it at a pump or in the WEX portal.
+   Watch the mutation ledger for a week before widening.
+
+**If the gate fails, it fails closed.** A moved `cardVersion` after a no-op echo records
+`write_entitlement = 'unknown'` with recommendation `fix_echo`, and card actions stay off — even
+though EFS accepted the write. That is the intended behaviour, not a bug to work around.
+
+_(Probe appendix: paste the redacted `write-check` response here after the first QA run.)_
+
+### Phase C stays out of scope
+
+Product-limit overrides (the one p194 recipe that requires deliberately dropping the limits array),
+`setCardRefreshingLimits` and the `…OVER` convention, bulk actions, maker-checker, mutation revert,
+`handEnter=DISALLOW`, and location-group/blocklist editing. The design accommodates all of them —
+`approved_by` and `before_document` already exist on the ledger, and `planCardMutation` /
+`applyCardMutation` are already separate functions — so none of them needs a schema change later.

@@ -1,13 +1,15 @@
 <script setup lang="ts">
 /**
- * One card, as EFS currently reports it.
+ * One card, as EFS currently reports it — and everything this product can do to it.
  *
- * Read-only in Phase A. The action panel is deliberately visible-but-disabled when the write
- * entitlement has not been checked: the read layer ships first, the product story is "you will be able
- * to lock this card", and hiding the actions makes the page look like a dead end. When the person's
- * ROLE will never allow it, the panel is hidden instead — see availability() in cardControlModel.
+ * The action surfaces render from server-computed `capabilities`, never from a role the browser can
+ * see: the answer depends on a deploy kill switch, an org opt-in, an EFS write entitlement and an
+ * approver list, and the browser can see none of those. When the write entitlement has not been
+ * checked the actions are visible-but-disabled with one explanatory line — hiding them makes the page
+ * look like a dead end and generates tickets asking for a feature that is already built. When the
+ * person's ROLE will never allow it, they are hidden instead. See availability() in cardControlModel.
  */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { AppIcon } from "@fuelguard/ui";
 import { ArrowPathIcon } from "@fuelguard/ui/icons";
@@ -18,7 +20,9 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
 import { useToastStore } from "@/stores/toast";
+import CardControlDrawer from "@/features/fuelCards/CardControlDrawer.vue";
 import CardEffectiveConfig from "@/features/fuelCards/CardEffectiveConfig.vue";
+import CardMutationHistory from "@/features/fuelCards/CardMutationHistory.vue";
 import { availability, cardStatusLabel, cardStatusTone, freshness } from "@/features/fuelCards/cardControlModel";
 import { useEfsCard, useRefreshEfsCard } from "@/features/fuelCards/useEfsCards";
 
@@ -36,6 +40,25 @@ const notice = computed(() =>
   capabilities.value ? availability(capabilities.value, session.admin) : null,
 );
 const cardFreshness = computed(() => freshness(card.value?.syncedAt ?? null));
+
+const drawerOpen = ref(false);
+
+/** The card-level prompts, which are what the drawer edits. Policy-level records are not editable. */
+const cardPrompts = computed(() =>
+  (query.data.value?.effective.infos ?? [])
+    .filter((row) => row.origin === "card")
+    .map((row) => ({
+      infoId: row.value.infoId,
+      validationType: row.value.validationType,
+      matchValue: row.value.matchValue,
+    })),
+);
+
+/** True when the server says at least one action is reachable for this person on this card. */
+const canAct = computed(() => {
+  const c = capabilities.value;
+  return !!c && (c.canLock || c.canUnlock || c.canOverride || c.canSetPrompts);
+});
 
 /** Every fact an operator asks for before deciding anything, in the order they ask. */
 const facts = computed(() => {
@@ -69,6 +92,8 @@ async function onRefresh(): Promise<void> {
   <div class="space-y-6">
     <PageHeader :description="card ? `${card.maskedRef} — settings EFS reports right now.` : 'Loading the card…'">
       <template #actions>
+        <!-- Trailing ellipsis because it opens a drawer rather than doing something immediately. -->
+        <BaseButton v-if="canAct" variant="primary" @click="drawerOpen = true">Card actions…</BaseButton>
         <BaseButton variant="secondary" :disabled="refresh.isPending.value" @click="onRefresh">
           <AppIcon :icon="ArrowPathIcon" class="size-4" aria-hidden="true" />
           {{ refresh.isPending.value ? "Refreshing…" : "Refresh from EFS" }}
@@ -112,7 +137,7 @@ async function onRefresh(): Promise<void> {
         </p>
       </BaseCard>
 
-      <!-- Phase A is read-only. This panel is the honest answer to "why can't I lock it?" -->
+      <!-- The honest answer to "why can't I lock it?", shown instead of the actions button. -->
       <BaseCard v-if="notice && notice.mode === 'disabled'">
         <div class="space-y-2">
           <h2 class="text-sm font-medium text-ink">Card actions</h2>
@@ -132,6 +157,32 @@ async function onRefresh(): Promise<void> {
         v-if="query.data.value"
         :effective="query.data.value.effective"
         :policy-number="card.policyNumber"
+      />
+
+      <BaseCard>
+        <div class="space-y-3">
+          <h2 class="text-sm font-medium text-ink">Change history</h2>
+          <CardMutationHistory :card-id="id" />
+        </div>
+      </BaseCard>
+
+      <CardControlDrawer
+        v-if="capabilities"
+        :open="drawerOpen"
+        :card-id="id"
+        :masked-ref="card.maskedRef"
+        :version="card.version"
+        :status="card.status"
+        :last-used-date="card.lastUsedDate"
+        :driver-name="card.driverName"
+        :unit-prompt="card.unitPrompt"
+        :override-uses="card.overrideUses"
+        :override-all-locations="card.overrideAllLocations"
+        :location-override-id="card.locationOverrideId"
+        :prompts="cardPrompts"
+        :capabilities="capabilities"
+        @close="drawerOpen = false"
+        @changed="query.refetch()"
       />
     </template>
   </div>

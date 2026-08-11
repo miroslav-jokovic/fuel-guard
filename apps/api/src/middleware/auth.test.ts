@@ -22,12 +22,17 @@ describe("verifyAccessToken (real jose verification)", () => {
       .sign(privateKey);
 
     const ctx = await verifyAccessToken(token, publicKey);
-    expect(ctx).toEqual({
+    expect(ctx).toMatchObject({
       userId: "user-123",
       email: "dana@silvicominc.com",
       orgId: "11111111-1111-1111-1111-111111111111",
       role: "fleet_manager",
     });
+    // `iat` is carried through as `issuedAt` — the basis for step-up re-authentication
+    // (middleware/requireFreshAuth.ts). Asserted as a shape rather than a value, because the number
+    // is the clock at signing time; asserted at all because a claim that quietly stopped arriving
+    // would make every step-up gate fail closed and nothing else in the suite would notice.
+    expect(typeof ctx.issuedAt).toBe("number");
   });
 
   it("rejects a token signed by the wrong key", async () => {

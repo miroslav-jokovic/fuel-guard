@@ -98,8 +98,8 @@ describe("section capability matrix", () => {
 describe("claimsToContext", () => {
   it("maps a fully-claimed JWT", () => {
     expect(
-      claimsToContext({ sub: "u1", email: "a@b.com", org_id: "o1", user_role: "fleet_manager" }),
-    ).toEqual({ userId: "u1", email: "a@b.com", orgId: "o1", role: "fleet_manager" });
+      claimsToContext({ sub: "u1", email: "a@b.com", org_id: "o1", user_role: "fleet_manager", iat: 1_700_000_000 }),
+    ).toEqual({ userId: "u1", email: "a@b.com", orgId: "o1", role: "fleet_manager", issuedAt: 1_700_000_000 });
   });
   it("nulls org/role when the user has no membership (audit B3)", () => {
     expect(claimsToContext({ sub: "u1" })).toEqual({
@@ -107,6 +107,9 @@ describe("claimsToContext", () => {
       email: null,
       orgId: null,
       role: null,
+      // A token with no `iat` yields null, and every step-up gate reads null as "not fresh". Failing
+      // closed on an absent claim is the property, not an accident — see middleware/requireFreshAuth.ts.
+      issuedAt: null,
     });
   });
 });

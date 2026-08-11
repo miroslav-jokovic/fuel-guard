@@ -55,6 +55,8 @@ interface CardRow {
   unit_prompt: string | null;
   driver_name: string | null;
   override_uses: number | null;
+  override_all_locations: boolean | null;
+  location_override_id: string | null;
   last_used_date: string | null;
   fuel_card_id: string | null;
   synced_at: string;
@@ -71,6 +73,10 @@ const toSummary = (row: CardRow) => ({
   unitPrompt: row.unit_prompt,
   driverName: row.driver_name,
   overrideUses: row.override_uses,
+  // Both halves of an active exception, not just the count: "2 uses left" and "2 uses left at ONE
+  // truck stop" are different facts, and the action drawer has to say which one it is replacing.
+  overrideAllLocations: row.override_all_locations,
+  locationOverrideId: row.location_override_id,
   lastUsedDate: row.last_used_date,
   fuelCardId: row.fuel_card_id,
   syncedAt: row.synced_at,

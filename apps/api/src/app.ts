@@ -22,7 +22,9 @@ import { reportsRouter } from "./routes/reports.js";
 import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { fuelingRouter } from "./routes/fueling.js";
+import { fuelCardControlRouter } from "./routes/fuelCards/control.js";
 import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
+import { fuelCardWriteProbeRouter } from "./routes/fuelCards/writeProbe.js";
 import { fuelCardsRouter } from "./routes/fuelCards/read.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { tmsIngestRouter } from "./routes/tmsIngest.js";
@@ -45,8 +47,7 @@ import { versionRouter } from "./routes/version.js";
 /**
  * CSP tuned for the single-service deploy where this server also serves the SPA: the browser talks
  * directly to Supabase (REST + realtime websockets + storage images), so those origins must be
- * allowed in connect/img. In a split-service deploy, VITE_API_URL is the browser's API origin and
- * must be allowed too. Harmless for API-only responses (JSON carries no CSP-restricted content).
+ * allowed in connect/img. Harmless for API-only responses (JSON carries no CSP-restricted content).
  */
 function securityMiddleware(env: Env) {
   const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
@@ -202,7 +203,15 @@ export function createApp(env: Env): Express {
   app.use("/api/audit", auditRouter());
   app.use("/api/integrations", integrationsRouter());
   app.use("/api/fueling", fuelingRouter());
-  app.use("/api/fuel-cards", fuelCardsRouter(), fuelCardProbeRouter()); // reads + admin-only diagnostics
+  // Reads, then writes, then the two admin-only diagnostics. Four routers on one prefix (the
+  // rosterDriversRouter precedent), each starting with its own `router.use(requireAuth)` so
+  // routeAuth.test.ts discovers them from this line and fails CI if any one forgets it.
+  // The write router is mounted after the read one so its `cardWriteLimit()` only ever sees the paths
+  // it is meant to meter — a GET never touches the durable counter.
+  // ⚠ ONE LINE, deliberately: routeAuth.test.ts discovers mounts with `app\.use\("(\/api\/…)"…Router\(\)\)`
+  // and cannot see a call broken across lines. A mount it cannot see is a router whose `requireAuth`
+  // nothing checks — the single failure that fitness function exists to make impossible.
+  app.use("/api/fuel-cards", fuelCardsRouter(), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here

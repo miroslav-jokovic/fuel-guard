@@ -226,3 +226,167 @@ export function availability(capabilities: CardCapabilities, isAdmin: boolean): 
       return { mode: "disabled", message: "Card actions are unavailable." };
   }
 }
+
+// ─── Phase B: the confirmation copy ────────────────────────────────────────────────────────────
+
+/**
+ * The sentence an operator reads before a card changes.
+ *
+ * PURE, and in this file rather than in the component, for one reason: this text is the last thing
+ * standing between somebody and a real consequence at a real pump, and it should be readable, and
+ * reviewable, and testable, without mounting a drawer. `cardControlModel.test.ts` asserts the ones
+ * that name numbers — an override confirmation that says "2 purchases" when it will grant 3 is worse
+ * than no confirmation at all.
+ *
+ * Every body says what happens to the DRIVER, not what happens to the record. "The card stops working
+ * at every location immediately" is actionable; "status will be set to Hold" is a field name.
+ */
+export interface CardConfirmation {
+  tone: "danger" | "warning";
+  title: string;
+  body: string;
+  confirmLabel: string;
+  /** Present tense for the button while the vendor call is in flight. */
+  busyLabel: string;
+  /** The toast title on success. */
+  doneLabel: string;
+}
+
+export const lockConfirmation = (status: "Hold" | "Inactive"): CardConfirmation =>
+  status === "Inactive"
+    ? {
+        tone: "danger",
+        title: "Deactivate this card?",
+        body:
+          "The card stops working at every location immediately, and deactivating is how a card is retired rather than paused. " +
+          "Fuel purchases will decline until somebody activates it again.",
+        confirmLabel: "Deactivate card",
+        busyLabel: "Deactivating…",
+        doneLabel: "Card deactivated",
+      }
+    : {
+        tone: "danger",
+        title: "Lock this card?",
+        body:
+          "The card stops working at every location immediately. Fuel purchases will decline until you unlock it.",
+        confirmLabel: "Lock card",
+        busyLabel: "Locking…",
+        doneLabel: "Card locked",
+      };
+
+export const unlockConfirmation = (wasFraud: boolean): CardConfirmation => ({
+  tone: wasFraud ? "danger" : "warning",
+  title: wasFraud ? "Unlock a card flagged for fraud?" : "Unlock this card?",
+  body: wasFraud
+    // Somebody — WEX, or this product's own detection — decided this card was being abused. Releasing
+    // it is not the reversible safety action a lock is, and the copy should not pretend otherwise.
+    ? "This card is flagged for fraud. Unlocking it lets fuel purchases go through again at every location it is allowed to use. Confirm your password to continue."
+    : "Fuel purchases will go through again at every location this card is allowed to use.",
+  confirmLabel: "Unlock card",
+  busyLabel: "Unlocking…",
+  doneLabel: "Card unlocked",
+});
+
+/**
+ * The override confirmation NAMES THE NUMBERS. "This card will be allowed 2 purchases outside its
+ * normal limits at Loves station 442, Effingham IL." A generic "grant an override?" is how somebody grants
+ * nine when they meant one.
+ */
+export function overrideConfirmation(uses: number, locationLabel: string | null): CardConfirmation {
+  const where = locationLabel ? `at ${locationLabel}` : "at any location";
+  const purchases = uses === 1 ? "1 purchase" : `${uses} purchases`;
+  return {
+    tone: "warning",
+    title: "Grant a fuel exception?",
+    body:
+      `This card will be allowed ${purchases} outside its normal limits ${where}. ` +
+      "The exception is used up automatically — it does not need to be revoked.",
+    confirmLabel: "Grant exception",
+    busyLabel: "Granting…",
+    doneLabel: "Exception granted",
+  };
+}
+
+export const clearOverrideConfirmation = (): CardConfirmation => ({
+  tone: "warning",
+  title: "Remove the exception?",
+  body: "The card goes back to its normal limits immediately. Any unused exceptions are cancelled.",
+  confirmLabel: "Remove exception",
+  busyLabel: "Removing…",
+  doneLabel: "Exception removed",
+});
+
+export const promptsConfirmation = (removesDriverId: boolean): CardConfirmation =>
+  removesDriverId
+    ? {
+        tone: "danger",
+        title: "Stop asking who is fueling?",
+        body:
+          "The pump will stop checking a Driver ID on this card. Anyone holding it can fuel, and FuelGuard loses its strongest signal for attributing a fill to a driver. " +
+          "Confirm your password to continue.",
+        confirmLabel: "Remove Driver ID prompt",
+        busyLabel: "Saving…",
+        doneLabel: "Prompts updated",
+      }
+    : {
+        tone: "warning",
+        title: "Change what the pump asks for?",
+        body: "Drivers will be prompted for exactly these values at the pump the next time they fuel with this card.",
+        confirmLabel: "Save prompts",
+        busyLabel: "Saving…",
+        doneLabel: "Prompts updated",
+      };
+
+// ─── Phase B: what an outcome MEANS ────────────────────────────────────────────────────────────
+
+export interface OutcomeNotice {
+  kind: "success" | "warning" | "error";
+  title: string;
+  message?: string;
+}
+
+/**
+ * Turn a recorded outcome into what the operator is told.
+ *
+ * The API answers 200 for every RECORDED outcome, including the ones that did not work — the request
+ * succeeded, we asked EFS and wrote down the answer. So "did the card change?" is read from `status`,
+ * never from the HTTP code, and three of the four answers are not "it worked":
+ *
+ *   succeeded      → say so plainly.
+ *   drift_detected → it worked AND something else moved. Not an error; a thing to go and look at.
+ *   failed         → EFS refused. Quote the vendor's own words; they carry the reference WEX asks for.
+ *   sent           → WE DO NOT KNOW. The one outcome that must never be dressed up as either.
+ */
+export function outcomeNotice(
+  outcome: { status: string; driftFields?: string[]; faultMessage?: string | null },
+  doneLabel: string,
+): OutcomeNotice {
+  switch (outcome.status) {
+    case "succeeded":
+      return { kind: "success", title: doneLabel };
+    case "drift_detected":
+      return {
+        kind: "warning",
+        title: `${doneLabel} — with other changes`,
+        message:
+          "Something else on this card changed at the same time" +
+          ((outcome.driftFields?.length ?? 0) > 0
+            ? ` (${outcome.driftFields!.map((f) => f.replace(/^\//, "")).join(", ")}).`
+            : ".") +
+          " EFS is the source of truth and the card page now shows what it reports.",
+      };
+    case "sent":
+      return {
+        kind: "warning",
+        title: "Sent, but not confirmed",
+        message:
+          "The change was sent to EFS and we could not confirm what happened. Check the card in the WEX portal before trying again — retrying could apply it twice.",
+      };
+    default:
+      return {
+        kind: "error",
+        title: "EFS refused the change",
+        message: outcome.faultMessage ?? "The card was not changed.",
+      };
+  }
+}

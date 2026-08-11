@@ -63,7 +63,11 @@ const CARD_MARKERS = ["status", "policyNumber", "handEnter", "infoSource", "limi
  * Excluded from the version hash. These change on their own — `lastUsedDate` on every fill — and
  * including them would 409 a dispatcher who opened the drawer while the truck was fuelling.
  */
-const VOLATILE_FIELDS: ReadonlySet<string> = new Set(["lastUsedDate", "lastTransaction", "beingOverridden"]);
+export const VOLATILE_FIELDS: ReadonlySet<string> = new Set([
+  "lastUsedDate",
+  "lastTransaction",
+  "beingOverridden",
+]);
 
 export const XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
 /**

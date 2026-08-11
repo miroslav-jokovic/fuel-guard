@@ -6,7 +6,12 @@ import {
   cardStatusTone,
   freshness,
   limitRows,
+  lockConfirmation,
+  outcomeNotice,
+  overrideConfirmation,
   promptRows,
+  promptsConfirmation,
+  unlockConfirmation,
   sourceSentence,
   timeRows,
 } from "./cardControlModel.js";
@@ -174,5 +179,79 @@ describe("write availability", () => {
     expect(availability(caps({ blockedBy: "kill_switch" }), true)).toMatchObject({
       mode: "disabled", message: "Card actions are paused.",
     });
+  });
+});
+
+describe("confirmation copy — the last thing between a person and a pump", () => {
+  it("names the numbers in an override confirmation", () => {
+    // A generic "grant an override?" is how somebody grants nine when they meant one.
+    const one = overrideConfirmation(1, "Loves #442, Effingham IL");
+    expect(one.body).toContain("1 purchase");
+    expect(one.body).toContain("Loves #442, Effingham IL");
+
+    const three = overrideConfirmation(3, null);
+    expect(three.body).toContain("3 purchases");
+    expect(three.body).toContain("at any location");
+  });
+
+  it("says what happens to the DRIVER, not what happens to the record", () => {
+    const lock = lockConfirmation("Hold");
+    expect(lock.body).toMatch(/stops working/i);
+    expect(lock.body).not.toMatch(/status/i);
+  });
+
+  it("treats deactivating as a different, heavier act than holding", () => {
+    expect(lockConfirmation("Inactive").title).toMatch(/deactivate/i);
+    expect(lockConfirmation("Hold").title).toMatch(/lock/i);
+  });
+
+  it("escalates an unlock when EFS has flagged the card for fraud", () => {
+    expect(unlockConfirmation(false).tone).toBe("warning");
+    const fraud = unlockConfirmation(true);
+    expect(fraud.tone).toBe("danger");
+    expect(fraud.body).toMatch(/password/i);
+  });
+
+  it("spells out what removing the Driver ID prompt costs", () => {
+    const removing = promptsConfirmation(true);
+    expect(removing.tone).toBe("danger");
+    expect(removing.body).toMatch(/anyone holding it can fuel/i);
+    expect(promptsConfirmation(false).tone).toBe("warning");
+  });
+});
+
+describe("outcomeNotice — a 200 is not a success", () => {
+  it("reports a clean success plainly", () => {
+    expect(outcomeNotice({ status: "succeeded" }, "Card locked")).toEqual({
+      kind: "success",
+      title: "Card locked",
+    });
+  });
+
+  it("never dresses an unverified write up as either a success or a failure", () => {
+    // The write went out and nobody knows what happened. Retrying could apply it twice, so the copy
+    // sends the operator to the WEX portal instead.
+    const notice = outcomeNotice({ status: "sent" }, "Card locked");
+    expect(notice.kind).toBe("warning");
+    expect(notice.title).toMatch(/not confirmed/i);
+    expect(notice.message).toMatch(/could apply it twice/i);
+  });
+
+  it("says a drifted write worked AND that something else moved", () => {
+    const notice = outcomeNotice({ status: "drift_detected", driftFields: ["/policyNumber"] }, "Card locked");
+    expect(notice.kind).toBe("warning");
+    expect(notice.title).toContain("Card locked");
+    expect(notice.message).toContain("policyNumber");
+  });
+
+  it("quotes the vendor's own words on a refusal", () => {
+    // EFS fault strings carry the reference number WEX support asks for; dropping it costs a round
+    // trip through the vendor.
+    const notice = outcomeNotice(
+      { status: "failed", faultMessage: "Not Allowed 109491436176" },
+      "Card locked",
+    );
+    expect(notice.kind).toBe("error");
+    expect(notice.message).toContain("109491436176");
   });
 });

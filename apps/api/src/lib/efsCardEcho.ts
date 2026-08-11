@@ -159,9 +159,13 @@ function renderCollection(root: XmlElement, name: CardCollection, edits: readonl
 // ─── The fidelity guard ────────────────────────────────────────────────────────────────────────
 
 /** Apply an edit list to a canonical response so we know what the request SHOULD contain. */
-function expectedCanonical(doc: CardDocument, edits: readonly CardEdit[]): CanonicalDoc {
+function expectedCanonical(
+  doc: CardDocument,
+  edits: readonly CardEdit[],
+  exclude: ReadonlySet<string> = new Set(),
+): CanonicalDoc {
   const expected: CanonicalDoc = new Map(
-    [...canonicalize(doc.root)].map(([path, values]) => [path, [...values]]),
+    [...canonicalize(doc.root, exclude)].map(([path, values]) => [path, [...values]]),
   );
   const dropCollection = (name: string): void => {
     for (const path of [...expected.keys()]) {
@@ -220,6 +224,31 @@ function diffCanonical(expected: CanonicalDoc, actual: CanonicalDoc): EchoDiff[]
 
 /** Inputs, not echoed content — legitimately present in the request and absent from the response. */
 const REQUEST_ONLY_FIELDS: ReadonlySet<string> = new Set(["clientId", "cardNumber"]);
+
+/**
+ * What moved on the card that we did not ask to move.
+ *
+ * The reconciling half of `assertEchoFidelity`, and deliberately built from the same two pieces so
+ * the two cannot disagree: "the card we read, plus exactly the edits we applied" is the expectation
+ * BEFORE the write and the expectation AFTER it. Any path that differs in the fresh read is either
+ * somebody working in the WEX portal at the same moment, or our own request doing something we did
+ * not intend — and those are worth telling apart from a change that simply worked.
+ *
+ * `exclude` is the caller's list of element names that legitimately move on their own (see
+ * VOLATILE_FIELDS, and the status/originalStatus pairing in services/efsCardControl.ts). Excluded
+ * names are dropped from BOTH sides, so an exclusion can hide a difference but can never invent one.
+ *
+ * Returns an empty array when the card is exactly what we expected. Never throws: drift is a finding
+ * to record, not a failure to abort on — by the time this runs, the write has already happened.
+ */
+export function driftAgainstExpected(
+  before: CardDocument,
+  edits: readonly CardEdit[],
+  after: CardDocument,
+  exclude: ReadonlySet<string> = new Set(),
+): EchoDiff[] {
+  return diffCanonical(expectedCanonical(before, edits, exclude), canonicalize(after.root, exclude));
+}
 
 /**
  * Refuse to send a request that does not say exactly what we intended.
