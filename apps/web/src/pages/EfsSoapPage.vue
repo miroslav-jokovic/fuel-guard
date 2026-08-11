@@ -16,12 +16,12 @@ import {
   type TestConnectionResult,
 } from "@/features/settings/useEfsSoap";
 import { useToastStore } from "@/stores/toast";
-import BaseButton from "@/components/ui/BaseButton.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
-import BaseInput from "@/components/ui/BaseInput.vue";
-import FormField from "@/components/ui/FormField.vue";
+import { AppButton as BaseButton } from "@fuelguard/ui";
+import { AppCard as BaseCard } from "@fuelguard/ui";
+import { AppInput as BaseInput } from "@fuelguard/ui";
+import { AppFormField as FormField } from "@fuelguard/ui";
 import PageHeader from "@/components/ui/PageHeader.vue";
-import AppSelect, { type SelectOption } from "@/components/AppSelect.vue";
+import { AppSelect, type SelectOption } from "@fuelguard/ui";
 import JobActionCard from "@/features/jobs/JobActionCard.vue";
 import EfsClientCertCard from "@/features/settings/EfsClientCertCard.vue";
 
@@ -101,10 +101,10 @@ function validate(): boolean {
   else if (!/^https?:\/\//i.test(endpoint)) errs.endpointUrl = "Must be an http(s) URL";
   // WEX hands out the WSDL URL — `…/CardManagementWS?wsdl` — because that is what you open in a
   // browser to read the contract. It is NOT the endpoint. The value saved here is used verbatim as
-  // the POST target for every SOAP call, so a stored `?wsdl` means every request asks Axis2 for the
-  // contract document and gets XML back that is not a response. The failure looks like a parse error
-  // on the very first call, which reads as "the vendor is broken" rather than "we typed the wrong
-  // URL" — so it is refused here, with the correction spelled out.
+  // the POST target for every SOAP call (checkOutboundUrl normalises through `new URL().toString()`,
+  // which keeps the query string), so a stored `?wsdl` makes every request ask Axis2 for the contract
+  // document and get back XML that is not a response. It fails on the first call as a parse error,
+  // which reads as "the vendor is broken" rather than "we typed the wrong URL".
   else if (/[?&]wsdl\b/i.test(endpoint)) {
     errs.endpointUrl = `Remove the "?wsdl" — that is the contract document, not the endpoint. Use ${endpoint.split("?")[0]}`;
   }
@@ -198,7 +198,7 @@ const testChipClass = computed(() => {
     <PageHeader>
       EFS SOAP integration — the direct webservice link that delivers posted transactions and
       rejected authorization attempts into FuelGuard. One credential set covers both feeds. See
-      <code class="rounded bg-surface-muted px-1 py-0.5 text-xs">docs/plans/EFS-SOAP-INTEGRATION-PLAN.md</code>
+      <code class="rounded-control bg-surface-muted px-1 py-0.5 text-xs">docs/plans/EFS-SOAP-INTEGRATION-PLAN.md</code>
       for the full plan and the list of items still awaiting EFS's data release.
     </PageHeader>
 
@@ -264,8 +264,8 @@ const testChipClass = computed(() => {
 
           <!--
             Labelled "(WSDL)" until 2026-08-11, which invited the one mistake this field cannot
-            survive: WEX's email hands you `…/CardManagementWS?wsdl`, and pasting that verbatim makes
-            every SOAP call ask for the contract document instead of sending a request.
+            survive: WEX's onboarding email hands you `…/CardManagementWS?wsdl`, and pasting that
+            verbatim makes every SOAP call ask for the contract document instead of sending a request.
           -->
           <FormField
             v-slot="{ id }"
@@ -361,7 +361,7 @@ const testChipClass = computed(() => {
           </BaseButton>
         </div>
 
-        <div v-if="testResult" class="mt-3 rounded-md bg-surface-subtle p-3 text-xs" :class="testChipClass">
+        <div v-if="testResult" class="mt-3 rounded-control bg-surface-subtle p-3 text-xs" :class="testChipClass">
           <template v-if="testResult.kind === 'success'">
             ✓ Connected — roundtrip {{ testResult.roundtripMs }} ms
           </template>
