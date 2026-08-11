@@ -8,6 +8,13 @@ import type { Env } from "../env.js";
  *  - **Resilience** — 429 (honoring Retry-After) and 5xx/network errors are retried with exponential
  *    backoff + jitter, up to SAMSARA_MAX_RETRIES; an exhausted call returns its last response so the
  *    caller throws and the surrounding JOB fails visibly instead of silently returning null.
+ *  - **A deadline.** Every other outbound client here sets one (mailer 10s, openMeteo 15s, soapClient,
+ *    lovesApiClient, kwikTripIngest, roadRangerIngest, postedPriceFetch); this one did not, which is
+ *    the expensive omission: a hung Samsara connection sat until undici's 300s header/body timeout, and
+ *    with SAMSARA_MAX_RETRIES=4 that is five attempts x five minutes for ONE page. The stats-history
+ *    fetchers issue two paginated sequences per batch, so one wedged batch could burn ~50 minutes
+ *    before throwing — long enough that a deploy restart reclaimed the job first and the ledger
+ *    recorded "interrupted (lease expired)" instead of the real cause (incident 2026-08-10).
  */
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -52,6 +59,8 @@ export interface SamsaraFetchOpts {
   priority?: "live" | "backfill";
   /** Optional endpoint-specific cap, applied below the configured lane rate. */
   maxRps?: number;
+  /** Per-attempt deadline in ms. Defaults to SAMSARA_REQUEST_TIMEOUT_MS; 0 disables (tests only). */
+  timeoutMs?: number;
 }
 
 /** Effective per-second cadence for a lane: live gets SAMSARA_LIVE_RPS_FRACTION of the cap, backfill the
@@ -80,13 +89,20 @@ export async function samsaraFetch(
   const maxRetries = opts.retry === false ? 0 : env.SAMSARA_MAX_RETRIES;
   const doFetch = opts.fetchImpl ?? fetch;
   const headers = { Authorization: `Bearer ${token}`, ...(opts.init?.headers ?? {}) };
+  // Per ATTEMPT, not per call: a timed-out attempt is a network error, so it flows into the same
+  // retry/backoff path as any other. An aborted attempt therefore costs seconds, not five minutes.
+  const timeoutMs = opts.timeoutMs ?? env.SAMSARA_REQUEST_TIMEOUT_MS;
   let attempt = 0;
   for (;;) {
     const wait = reserveSlot(slotKey, rps);
     if (wait > 0) await sleep(wait);
     let res: Response;
     try {
-      res = await doFetch(url, { ...opts.init, headers });
+      res = await doFetch(url, {
+        ...opts.init,
+        headers,
+        ...(timeoutMs > 0 ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+      });
     } catch (e) {
       if (attempt >= maxRetries) throw e;
       await sleep(backoffMs(attempt++));

@@ -258,6 +258,7 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
     }
     return {
       ...result,
+      stageMs: foundation.stageMs,
       capabilityLearned: cap.learned,
       capabilityVehicles: cap.vehicles,
       capabilityVehiclesWithData: cap.vehiclesWithData,

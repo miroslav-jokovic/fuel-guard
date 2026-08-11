@@ -1,9 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
+import {
+  createSupabaseRecorder,
+  expectOrgScoped,
+  type SupabaseRecorder,
+} from "../testing/supabaseRecorder.js";
 import { syncIdleLearnedEnvelopes } from "./idleLearnedEnvelopeSync.js";
 
 const ORG = "org-1";
 const END = "2026-08-02T00:00:00.000Z";
+
+/**
+ * Written through `apply_idle_learned_envelope` (migration 0175) — never an upsert on `vehicles`. The
+ * upsert failed the table's NOT NULL constraints (`unit_number`, `tank_capacity_gal`) on rows that
+ * already existed, and would have let an evidence job CREATE a fleet row if it had not.
+ */
+function envelopeRows(rec: SupabaseRecorder): Record<string, unknown>[] {
+  return rec
+    .rpcs()
+    .filter((call) => call.fn === "apply_idle_learned_envelope")
+    .flatMap((call) => (call.args as { p_rows: Record<string, unknown>[] }).p_rows);
+}
+
+function expectNoVehicleTableWrite(rec: SupabaseRecorder): void {
+  expect(rec.forTable("vehicles").filter((q) => q.write !== null)).toHaveLength(0);
+}
 
 function session(
   vehicleId: string,
@@ -47,6 +67,7 @@ describe("syncIdleLearnedEnvelopes", () => {
           ],
         },
       },
+      rpc: { apply_idle_learned_envelope: 2 }, // rows the DB reports it updated
     });
 
     const result = await syncIdleLearnedEnvelopes(rec.client, ORG, {
@@ -61,11 +82,10 @@ describe("syncIdleLearnedEnvelopes", () => {
       notApplicable: 1,
       rowsWritten: 2,
     });
-    expect(rec.writtenRows("vehicles")).toEqual(
+    expect(envelopeRows(rec)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "v1",
-          org_id: ORG,
           idle_learned_envelope_status: "sufficient",
           idle_learned_envelope_low_f: 40,
           idle_learned_envelope_high_f: 90,
@@ -74,13 +94,16 @@ describe("syncIdleLearnedEnvelopes", () => {
         }),
         expect.objectContaining({
           id: "v2",
-          org_id: ORG,
           idle_learned_envelope_status: "not_applicable",
           idle_learned_envelope_low_f: null,
           idle_learned_envelope_high_f: null,
         }),
       ]),
     );
+    // The tenant is the RPC's p_org argument now, not a column in the payload.
+    expect(envelopeRows(rec)[0]).not.toHaveProperty("org_id");
+    expectNoVehicleTableWrite(rec);
+    for (const call of rec.rpcs()) expect((call.args as { p_org: string }).p_org).toBe(ORG);
     expectOrgScoped(rec, ORG);
   });
 
@@ -101,12 +124,13 @@ describe("syncIdleLearnedEnvelopes", () => {
           ],
         },
       },
+      rpc: { apply_idle_learned_envelope: 1 }, // rows the DB reports it updated
     });
 
     const result = await syncIdleLearnedEnvelopes(rec.client, ORG, { endIso: END });
 
     expect(result.insufficient).toBe(1);
-    expect(rec.writtenRows("vehicles")).toEqual([
+    expect(envelopeRows(rec)).toEqual([
       expect.objectContaining({
         id: "v1",
         idle_learned_envelope_status: "insufficient",
@@ -114,5 +138,6 @@ describe("syncIdleLearnedEnvelopes", () => {
         idle_learned_envelope_high_f: null,
       }),
     ]);
+    expectNoVehicleTableWrite(rec);
   });
 });

@@ -183,6 +183,7 @@ export function startSamsaraScheduler(env: Env): void {
       await runOrgTier(admin, env, orgId, "sync_idle", async () => {
         const r = await syncIdleFoundation(admin, env, orgId);
         return {
+          stageMs: r.stageMs,
           fetched: r.idleEvents.fetched,
           upserted: r.idleEvents.upserted,
           capabilityVehicles: r.idleCapabilities.vehicles,

@@ -25,6 +25,13 @@ interface StatsHistoryPage {
  *  grouped backfill (up to ~96h); real GPS volume is HOS-bounded so this is only a runaway guard. */
 const MAX_STATS_PAGES = 120;
 
+/** Samsara caps /fleet/vehicles/stats/history (and the trailer variant) at 10 req/s per token
+ *  (endpoint "Level Three" — developers.samsara.com/docs/rate-limits). The lane pacing alone can
+ *  exceed that (live lane = SAMSARA_MAX_RPS x SAMSARA_LIVE_RPS_FRACTION, 12 req/s at defaults), so
+ *  every stats-history call also carries this endpoint cap; samsaraFetch applies whichever is lower.
+ *  Kept a hair under the published limit so pacing jitter cannot brush the ceiling. */
+const STATS_HISTORY_MAX_RPS = 9;
+
 /**
  * Real Samsara stats-history fetcher (docs/10). Requests GPS with the OBD odometer decorated onto
  * each point, so every sample carries time + lat/lng + speed + reverse-geocoded address + odometer.
@@ -58,7 +65,7 @@ export function makeSamsaraFetcher(
       // produced 0% telematics coverage). parseSamsaraSamples merges the type series in by nearest time.
       url.searchParams.set("decorations", "obdOdometerMeters");
       if (after) url.searchParams.set("after", after);
-      const res = await samsaraFetch(env, token, url, { priority });
+      const res = await samsaraFetch(env, token, url, { priority, maxRps: STATS_HISTORY_MAX_RPS });
       if (!res.ok) throw new Error(`Samsara API ${res.status}`);
       const page = (await res.json()) as StatsHistoryPage;
 
@@ -207,7 +214,10 @@ async function fetchAssetGpsHistory(
     url.searchParams.set("startTime", startIso);
     url.searchParams.set("endTime", endIso);
     if (after) url.searchParams.set("after", after);
-    const res = await samsaraFetch(env, token, url, { priority: "backfill" });
+    const res = await samsaraFetch(env, token, url, {
+      priority: "backfill",
+      maxRps: STATS_HISTORY_MAX_RPS,
+    });
     if (!res.ok) throw new Error(`Samsara API ${res.status}`);
     const page = (await res.json()) as {
       data?: AssetGpsRaw[];
@@ -309,7 +319,10 @@ export function makeSamsaraEngineStatesFetcher(env: Env, token: string): EngineS
       url.searchParams.set("startTime", startIso);
       url.searchParams.set("endTime", endIso);
       if (after) url.searchParams.set("after", after);
-      const res = await samsaraFetch(env, token, url, { priority: "backfill" });
+      const res = await samsaraFetch(env, token, url, {
+        priority: "backfill",
+        maxRps: STATS_HISTORY_MAX_RPS,
+      });
       if (!res.ok) throw new Error(`Samsara API ${res.status}`);
       const page = (await res.json()) as {
         data?: SamsaraEngineVehicleRecord[];
@@ -408,7 +421,10 @@ async function fetchVehicleTelemetryStats(
     url.searchParams.set("startTime", startIso);
     url.searchParams.set("endTime", endIso);
     if (after) url.searchParams.set("after", after);
-    const res = await samsaraFetch(env, token, url, { priority: "backfill" });
+    const res = await samsaraFetch(env, token, url, {
+      priority: "backfill",
+      maxRps: STATS_HISTORY_MAX_RPS,
+    });
     if (!res.ok) throw new Error(`Samsara API ${res.status}`);
     const page = (await res.json()) as {
       data?: SamsaraVehicleTelemetryRecord[];
