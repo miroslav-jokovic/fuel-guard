@@ -21,6 +21,9 @@ const EnvSchema = z.object({
   SUPABASE_ANON_KEY: z.string().optional(),
   // Where the invite email should send users to finish sign-up (the web app's accept page).
   WEB_APP_URL: z.string().url().default("http://localhost:5173"),
+  // Split-service web deploy: the API origin baked into the web bundle. The API also uses it for CSP
+  // connect-src so browser calls are allowed when the SPA and API live on separate Railway services.
+  VITE_API_URL: z.string().url().optional(),
   // Single-service deploy: absolute path to the built web SPA to serve. Defaults next to the API
   // (apps/web/dist). Leave unset in API-only/dev runs and nothing static is served.
   WEB_DIST: z.string().optional(),

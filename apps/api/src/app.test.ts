@@ -8,7 +8,10 @@ let server: Server;
 let baseUrl: string;
 
 beforeAll(async () => {
-  const env = loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv);
+  const env = loadEnv({
+    NODE_ENV: "test",
+    VITE_API_URL: "https://api.example.test",
+  } as NodeJS.ProcessEnv);
   const app = createApp(env);
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
@@ -50,6 +53,11 @@ describe("GET /healthz", () => {
 });
 
 describe("GET /api/version", () => {
+  it("allows the split-service API origin in the CSP connect-src", async () => {
+    const res = await fetch(`${baseUrl}/api/version`);
+    expect(res.headers.get("content-security-policy")).toContain("connect-src 'self' https://api.example.test");
+  });
+
   it("is public and reports the expected schema version from this checkout", async () => {
     const res = await fetch(`${baseUrl}/api/version`);
     expect(res.status).toBe(200);

@@ -55,6 +55,7 @@ export function createApp(env: Env): Express {
   // CSP tuned for the single-service deploy where this server also serves the SPA: the browser talks
   // directly to Supabase (REST + realtime websockets + storage images), so those origins must be
   // allowed in connect/img. Harmless for API-only responses (JSON carries no CSP-restricted content).
+  const apiConnectSrc = env.VITE_API_URL ? [env.VITE_API_URL] : [];
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -67,6 +68,7 @@ export function createApp(env: Env): Express {
           imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
           connectSrc: [
             "'self'",
+            ...apiConnectSrc,
             "https://*.supabase.co",
             "wss://*.supabase.co",
             "https://*.sentry.io",
