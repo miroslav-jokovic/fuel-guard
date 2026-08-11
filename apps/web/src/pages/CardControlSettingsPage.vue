@@ -310,12 +310,48 @@ async function run(): Promise<void> {
           obtained on one shape does not carry to the other.
         </p>
 
-        <details v-if="result.document" class="rounded-md border border-line">
-          <summary class="cursor-pointer px-3 py-2 text-sm text-ink">
-            The card as EFS sent it — card numbers masked
-          </summary>
-          <pre class="max-h-96 overflow-auto px-3 pb-3 text-xs leading-5 text-ink-muted">{{ result.document }}</pre>
-        </details>
+        <!--
+          What a no-op echo moved. THE finding when the gate fails, so it goes above the documents
+          rather than inside a collapsed section: "cardVersion moved" tells an operator to stop,
+          and nothing else; the field names tell an engineer where to look.
+        -->
+        <div v-if="result.changed?.length" class="rounded-md border border-danger-200 bg-danger-50 p-3">
+          <h3 class="text-sm font-medium text-danger-700">
+            Our request changed {{ result.changed.length }} field(s) it should have left alone
+          </h3>
+          <ul class="mt-2 space-y-1 font-mono text-xs text-danger-700">
+            <li v-for="d in result.changed" :key="d.path">
+              {{ d.path }}: {{ d.expected.join("|") || "(absent)" }} → {{ d.actual.join("|") || "(absent)" }}
+            </li>
+          </ul>
+        </div>
+
+        <!--
+          Textareas rather than a collapsed <details>: the content of a closed <details> cannot be
+          selected or copied, which is how three consecutive probe runs were reported back with an
+          empty document block while the diagnosis waited on exactly that text.
+        -->
+        <FormField v-if="result.document" label="The card as EFS sent it — card numbers masked">
+          <template #default="{ id }">
+            <textarea
+              :id="id"
+              class="h-48 w-full rounded-md border border-line bg-surface p-2 font-mono text-xs text-ink-muted"
+              readonly
+              :value="result.document"
+            />
+          </template>
+        </FormField>
+
+        <FormField v-if="result.documentAfter" label="The card after the write — card numbers masked">
+          <template #default="{ id }">
+            <textarea
+              :id="id"
+              class="h-48 w-full rounded-md border border-line bg-surface p-2 font-mono text-xs text-ink-muted"
+              readonly
+              :value="result.documentAfter"
+            />
+          </template>
+        </FormField>
 
         <p v-if="result.egressIp" class="text-sm text-ink-muted">
           This request left from <span class="font-mono text-ink">{{ result.egressIp }}</span> —

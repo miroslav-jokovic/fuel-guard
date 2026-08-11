@@ -224,6 +224,10 @@ export interface CardControlProbeResult {
   document?: string | null;
   /** The address EFS saw us dial from — the one that has to be on their allowlist, per environment. */
   egressIp?: string | null;
+  /** The card after the write, PANs masked. Present only when step 6 ran. */
+  documentAfter?: string | null;
+  /** Exactly what a no-op echo moved. Empty on a clean run; this is the finding when it is not. */
+  changed?: { path: string; expected: string[]; actual: string[] }[];
   persisted: boolean;
 }
 

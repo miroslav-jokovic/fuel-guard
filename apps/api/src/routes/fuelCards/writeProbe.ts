@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { getAppLocals } from "../../lib/appLocals.js";
-import { assertEchoFidelity, serializeSetCardRequest } from "../../lib/efsCardEcho.js";
-import { documentShape, redactCardXml, type CardDocument } from "../../lib/efsCardXml.js";
+import { assertEchoFidelity, driftAgainstExpected, serializeSetCardRequest, type EchoDiff } from "../../lib/efsCardEcho.js";
+import { VOLATILE_FIELDS, documentShape, redactCardXml, type CardDocument } from "../../lib/efsCardXml.js";
 import { egressAddress } from "../../lib/egressAddress.js";
 import { getCardSummaries, getCardV2 } from "../../lib/efsCardOps.js";
 import { setCardV2 } from "../../lib/efsCardWrite.js";
@@ -146,7 +146,12 @@ export function fuelCardWriteProbeRouter(): Router {
       // A holder rather than a bare `let`: the document is assigned inside a callback, and TypeScript
       // does not carry a narrowing across that boundary — a plain local would type as `never` at every
       // later use and force non-null assertions that hide a real "step 3 did not run" case.
-      const state: { doc: CardDocument | null; versionAfter: string | null } = { doc: null, versionAfter: null };
+      const state: {
+    doc: CardDocument | null;
+    after: CardDocument | null;
+    versionAfter: string | null;
+    changed: EchoDiff[];
+  } = { doc: null, after: null, versionAfter: null, changed: [] };
 
       steps.push(await runStep(1, "login", async () => {
         await efsLogin(env, creds, "interactive");
@@ -196,13 +201,25 @@ export function fuelCardWriteProbeRouter(): Router {
         if (steps.find((s) => s.step === 5)?.ok) {
           steps.push(await runStep(6, "getCardv2 — cardVersion unchanged", async () => {
             const after = await getCardV2(env, creds, cardNumber, { priority: "interactive" });
+            state.after = after;
             state.versionAfter = after.version;
             if (after.version !== before.version) {
               // THE failure this whole endpoint exists to catch. The write succeeded AND changed the
               // card. Anything less specific than an error here would let Phase B ship on a lie.
+              //
+              // NAME THE FIELDS. "Capture the response as a fixture and fix the serializer" is a task
+              // for somebody who already knows which field moved; the operator running this has a
+              // browser and a stopwatch. `driftAgainstExpected` with an empty edit list asks exactly
+              // the right question — "what differs between the card we read and the card we now
+              // hold?" — and it is the same function the reconciler uses, so the two cannot disagree.
+              state.changed = driftAgainstExpected(before, [], after, VOLATILE_FIELDS);
+              const named = state.changed
+                .slice(0, 6)
+                .map((d) => `${d.path}: ${d.expected.join("|") || "(absent)"} → ${d.actual.join("|") || "(absent)"}`)
+                .join("; ");
               throw new Error(
-                "cardVersion MOVED after a no-op echo — the request changed the card. " +
-                  "Do not enable writes. Capture this response as a fixture and fix the serializer.",
+                `cardVersion MOVED after a no-op echo — our request changed ${state.changed.length} field(s). ` +
+                  `Do not enable writes. Changed: ${named}`,
               );
             }
             return "unchanged — the echo is faithful end to end";
@@ -226,6 +243,9 @@ export function fuelCardWriteProbeRouter(): Router {
         versionAfter: state.versionAfter,
         documentShape: before ? documentShape(before) : null,
         egressIp,
+        // Paths only, never values: probe_result is read on every card page load, and a changed
+        // field can carry a driver's name. The full before/after go to the operator in the response.
+        changedPaths: state.changed.map((d) => d.path),
         recommendation,
         verdict,
         steps,
@@ -276,6 +296,13 @@ export function fuelCardWriteProbeRouter(): Router {
          * so a card document does not sit in a table read on every page load.
          */
         document: before?.redactedXml ?? null,
+        /** The card AFTER the write. Present only when step 6 ran — the other half of the diff. */
+        documentAfter: state.after?.redactedXml ?? null,
+        /**
+         * Exactly what moved, path by path, when a no-op echo did not leave the card alone.
+         * Empty on a clean run. This is the finding; the two documents above are the evidence.
+         */
+        changed: state.changed,
         // A failed settings write must not read as a failed probe — the steps above are the finding.
         persisted: !settingsError,
       });
