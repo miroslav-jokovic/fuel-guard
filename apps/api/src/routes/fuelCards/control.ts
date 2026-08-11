@@ -18,6 +18,7 @@ import { enforceCardWriteLimit } from "../../middleware/cardWriteLimit.js";
 import { DEFAULT_STEP_UP_MAX_AGE_SEC, hasFreshAuth, stepUpRequired } from "../../middleware/requireFreshAuth.js";
 import {
   CardControlError,
+  CardMutationReplay,
   executeCardMutation,
   type CardMutationContext,
   type CardMutationIntentSpec,
@@ -388,6 +389,12 @@ function refusal(blockedBy: string | null, scope: CardScope): [string, string] {
  * never reach an operator dressed up as "EFS is having trouble".
  */
 function controlErrorResponse(res: Response, error: unknown): void {
+  // A settled replay is a 200, not a failure: the caller asked for something that already happened,
+  // and the useful answer is what it did. `idempotent: true` is the flag a client switches on.
+  if (error instanceof CardMutationReplay) {
+    res.json({ ok: error.outcome.status === "succeeded", idempotent: true, ...error.outcome });
+    return;
+  }
   if (error instanceof CardControlError) {
     res.status(error.status).json({ ...apiError(error.code, error.message), ...(error.detail ?? {}) });
     return;

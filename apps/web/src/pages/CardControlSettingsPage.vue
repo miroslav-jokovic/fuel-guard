@@ -11,6 +11,14 @@ import StepUpPrompt from "@/components/StepUpPrompt.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import { useCardControlProbe, CardControlApiError } from "@/features/fuelCards/useCardControl";
+import CardApproverList from "@/features/fuelCards/CardApproverList.vue";
+import {
+  useCardControlSettings,
+  useGrantCardApprover,
+  useRevokeCardApprover,
+  useUpdateCardControlSettings,
+} from "@/features/fuelCards/useCardControlSettings";
+import type { CardControlScope } from "@fuelguard/shared";
 
 /**
  * The EFS write check — the gate that decides whether card actions exist at all.
@@ -31,6 +39,67 @@ import { useCardControlProbe, CardControlApiError } from "@/features/fuelCards/u
 
 const toast = useToastStore();
 const probe = useCardControlProbe();
+const query = useCardControlSettings();
+const updateSettings = useUpdateCardControlSettings();
+const grant = useGrantCardApprover();
+const revoke = useRevokeCardApprover();
+
+const settings = computed(() => query.data.value?.settings ?? null);
+const busy = computed(
+  () => updateSettings.isPending.value || grant.isPending.value || revoke.isPending.value,
+);
+
+/**
+ * Every mutation on this page can come back asking for a password. Rather than five copies of that
+ * handling, one runner: do the thing, and if the API says the sign-in is stale, park the action and
+ * show the prompt. Confirming replays exactly what was parked.
+ */
+const pending = ref<null | (() => Promise<void>)>(null);
+
+async function guarded(run: () => Promise<void>, failureTitle: string): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    if (error instanceof CardControlApiError && error.code === "step_up_required") {
+      pending.value = run;
+      stepUp.value = true;
+      return;
+    }
+    toast.error(failureTitle, error instanceof Error ? error.message : undefined);
+  }
+}
+
+async function afterStepUp(): Promise<void> {
+  stepUp.value = false;
+  const action = pending.value;
+  pending.value = null;
+  if (action) await guarded(action, "That did not work");
+  else await run();
+}
+
+const setEnabled = (enabled: boolean) =>
+  guarded(async () => {
+    await updateSettings.mutateAsync({ enabled });
+    toast.success(enabled ? "Card actions switched on" : "Card actions switched off");
+  }, "Could not change that setting");
+
+const setRequireApprover = (requireApprover: boolean) =>
+  guarded(async () => {
+    await updateSettings.mutateAsync({ requireApprover });
+    toast.success(requireApprover ? "Approver list is enforced" : "Approver list is no longer enforced");
+  }, "Could not change that setting");
+
+const onGrant = (userId: string, scopes: CardControlScope[]) =>
+  guarded(async () => {
+    await grant.mutateAsync({ userId, scopes });
+    toast.success("Permissions saved");
+  }, "Could not save those permissions");
+
+const onRevoke = (userId: string) =>
+  guarded(async () => {
+    await revoke.mutateAsync(userId);
+    toast.success("Approver removed");
+  }, "Could not remove that approver");
 
 const cardNumber = ref("");
 const confirm = ref("");
@@ -76,13 +145,91 @@ async function run(): Promise<void> {
 
     <BaseCard v-if="stepUp">
       <StepUpPrompt
-        reason="Running the EFS write check sends a real change to a real card."
-        @confirmed="stepUp = false; run()"
-        @cancel="stepUp = false"
+        :reason="pending ? 'Changing who may act on fuel cards needs a recent sign-in.' : 'Running the EFS write check sends a real change to a real card.'"
+        @confirmed="afterStepUp"
+        @cancel="stepUp = false; pending = null"
       />
     </BaseCard>
 
-    <BaseCard v-else>
+    <!-- ── Who may act ──────────────────────────────────────────────────────────────────────── -->
+    <BaseCard v-if="!stepUp && settings">
+      <div class="space-y-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <h2 class="text-sm font-medium text-ink">Card actions</h2>
+          <span :class="[BADGE_BASE, toneClass(settings.enabled ? 'success' : 'neutral')]">
+            {{ settings.enabled ? "On" : "Off" }}
+          </span>
+          <span :class="[BADGE_BASE, toneClass(entitlementTone(settings.writeEntitlement))]">
+            EFS write access: {{ settings.writeEntitlement }}
+          </span>
+        </div>
+
+        <label class="flex items-start gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            class="mt-1"
+            :checked="settings.enabled"
+            :disabled="busy || (!settings.enabled && settings.writeEntitlement !== 'confirmed')"
+            @change="setEnabled(($event.target as HTMLInputElement).checked)"
+          />
+          <span>
+            Let this company change fuel cards.
+            <span class="block text-ink-muted">
+              Off by default. Being able to READ cards never implies permission to change them.
+            </span>
+          </span>
+        </label>
+
+        <p v-if="settings.writeEntitlement !== 'confirmed'" class="rounded-md bg-caution-50 px-3 py-2 text-sm text-caution-700">
+          Card actions cannot be switched on until the EFS write check has passed — run it below.
+          <template v-if="settings.probeVerdict"> Last check: {{ settings.probeVerdict }}</template>
+        </p>
+
+        <label class="flex items-start gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            class="mt-1"
+            :checked="settings.requireApprover"
+            :disabled="busy"
+            @change="setRequireApprover(($event.target as HTMLInputElement).checked)"
+          />
+          <span>
+            Only named people may change cards.
+            <span class="block text-ink-muted">
+              On by default. Turning this off gives every {{ (query.data.value?.eligibleRoles ?? []).join(" and ").replace(/_/g, " ") }}
+              in this company the ability to lock cards and grant fuel exceptions.
+            </span>
+          </span>
+        </label>
+      </div>
+    </BaseCard>
+
+    <!-- ── The approver list ────────────────────────────────────────────────────────────────── -->
+    <BaseCard v-if="!stepUp && query.data.value">
+      <div class="space-y-4">
+        <div class="space-y-1">
+          <h2 class="text-sm font-medium text-ink">Who may change a card</h2>
+          <p class="text-sm text-ink-muted">
+            Card changes are limited to
+            {{ (query.data.value.eligibleRoles ?? []).join(" and ").replace(/_/g, " ") }} — a dispatcher
+            granting fuel exceptions is the pattern this product exists to detect. Within those roles,
+            name the individuals and choose what each one may do.
+          </p>
+        </div>
+        <CardApproverList
+          :approvers="query.data.value.approvers"
+          :eligible="query.data.value.eligible"
+          :eligible-roles="query.data.value.eligibleRoles"
+          :busy="busy"
+          :enforced="query.data.value.settings.requireApprover"
+          @grant="onGrant"
+          @revoke="onRevoke"
+        />
+      </div>
+    </BaseCard>
+
+    <!-- ── The gate ─────────────────────────────────────────────────────────────────────────── -->
+    <BaseCard v-if="!stepUp">
       <div class="space-y-4">
         <div class="space-y-1">
           <h2 class="text-sm font-medium text-ink">Run the check</h2>

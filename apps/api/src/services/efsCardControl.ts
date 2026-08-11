@@ -116,6 +116,23 @@ export interface CardMutationPlan {
   auditAction: string;
 }
 
+/**
+ * A replay of an Idempotency-Key that has already SETTLED.
+ *
+ * Not an error condition, which is why it is not a `CardControlError`: the caller asked for something
+ * that already happened, and the honest answer is the outcome it produced the first time. The route
+ * returns it as a 200 with `idempotent: true` (plan §5.5, the routes/meHazmat.ts shape).
+ *
+ * The alternative — 409 on every replay — is safe but unhelpful: a browser that retried after a
+ * network blip would be told "already submitted" and left with no idea whether the card changed.
+ */
+export class CardMutationReplay extends Error {
+  constructor(public outcome: CardMutationOutcome) {
+    super("This request was already processed.");
+    this.name = "CardMutationReplay";
+  }
+}
+
 export interface CardMutationOutcome {
   mutationId: string;
   status: "succeeded" | "failed" | "drift_detected" | "sent";
@@ -188,15 +205,8 @@ export async function planCardMutation(
   if (error) {
     // The partial unique index is the ONLY replay defence — a read-then-write check would be a race
     // by construction, and the failure mode of a double-submitted override is a driver getting two
-    // free tanks. 23505 is unique_violation.
-    if ((error as { code?: string }).code === "23505") {
-      throw new CardControlError(
-        "That request was already submitted.",
-        "mutation_in_flight",
-        409,
-        { idempotencyKey: ctx.idempotencyKey },
-      );
-    }
+    // free tanks. 23505 is unique_violation, and it means this key has been seen before.
+    if ((error as { code?: string }).code === "23505") throw await replayOf(ctx);
     throw new Error(`could not open the card mutation ledger row: ${error.message}`);
   }
 
@@ -289,6 +299,50 @@ export async function executeCardMutation(
   spec: CardMutationIntentSpec,
 ): Promise<CardMutationOutcome> {
   return await applyCardMutation(ctx, await planCardMutation(ctx, spec));
+}
+
+/**
+ * What to throw when an Idempotency-Key collides.
+ *
+ * The distinction the plan draws, and the reason the index is consulted rather than trusted blindly:
+ * a SETTLED key means "you already did this, here is what happened", and an unsettled one means "the
+ * first attempt has not finished yet". Only the second is a conflict.
+ *
+ * If the row cannot be read back — the collision is real, so it exists — the conservative answer is
+ * in-flight: telling somebody a write succeeded on the strength of a failed lookup is the one mistake
+ * that cannot be walked back.
+ */
+async function replayOf(ctx: CardMutationContext): Promise<Error> {
+  const { data } = await ctx.admin
+    .from("efs_card_mutations")
+    .select("id, status, after_version, drift, efs_fault_code, efs_fault_message")
+    .eq("org_id", ctx.orgId)
+    .eq("idempotency_key", ctx.idempotencyKey ?? "")
+    .maybeSingle();
+
+  const row = data as {
+    id: string; status: string; after_version: string | null;
+    drift: { unexplained?: { path: string }[] } | null;
+    efs_fault_code: string | null; efs_fault_message: string | null;
+  } | null;
+
+  if (row && row.status !== "pending") {
+    return new CardMutationReplay({
+      mutationId: row.id,
+      status: row.status as CardMutationOutcome["status"],
+      version: row.after_version,
+      driftFields: row.drift?.unexplained?.map((d) => d.path) ?? [],
+      faultCode: row.efs_fault_code,
+      faultMessage: row.efs_fault_message,
+    });
+  }
+
+  return new CardControlError(
+    "That request is still being processed. Wait for it to finish before trying again.",
+    "mutation_in_flight",
+    409,
+    { idempotencyKey: ctx.idempotencyKey, mutationId: row?.id ?? null },
+  );
 }
 
 // ─── Blast-radius caps ─────────────────────────────────────────────────────────────────────────

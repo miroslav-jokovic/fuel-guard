@@ -336,6 +336,53 @@ though EFS accepted the write. That is the intended behaviour, not a bug to work
 
 _(Probe appendix: paste the redacted `write-check` response here after the first QA run.)_
 
+## Who may change a card, and how that is recorded
+
+Two gates, ANDed. Neither substitutes for the other, and neither is configurable from the other side.
+
+**1. The role floor — not configurable.** Writing a card requires `rolesThatManage("fuel")`: admin or
+fleet manager. It is re-checked on every mutation, so it cannot be widened by a row in a table.
+Naming an ineligible user as an approver is refused with a `422 role_not_eligible` naming the remedy —
+change their role, which is a visible act with consequences elsewhere, rather than a quiet grant here.
+A dispatcher granting fuel exceptions is precisely the pattern this product exists to DETECT.
+
+**2. The named-approver list — per person, per scope.** On by default (`require_approver`). Scopes are
+`lock`, `unlock`, `override`, `prompts`, granted individually, because the arrangement real fleets ask
+for is a yard manager who can lock a stolen card at 2am but cannot grant fuel exceptions.
+
+Both are managed at **Settings → Card control** (`GET/PATCH /api/fuel-cards/settings`,
+`PUT/DELETE /api/fuel-cards/approvers/:userId`), admin-only and behind step-up re-authentication.
+Before this existed, switching a pilot org on meant hand-written SQL — which is not only awkward but
+UNAUDITED: a permission change made with a SQL client leaves no trace of who made it.
+
+Card control cannot be switched on until `write_entitlement = 'confirmed'`. The API refuses it with
+`409 card_control_not_entitled` rather than letting a settings page say "on" next to a product that
+does nothing.
+
+### The audit vocabulary
+
+Every action below writes an `audit_logs` row with the actor, the target and the VALUES on both sides —
+the `AUDITED_VALUE_FIELDS` rule from `routes/roster/drivers.ts`, applied to the whole surface. Search
+them at Settings → Audit log. Never in `meta`: the card number, the `clientId`, the SOAP password, raw
+XML.
+
+| Action | Written when | Carries |
+|---|---|---|
+| `card.control_enabled` / `card.control_disabled` | the org switch moves | before/after, entitlement at the time |
+| `card.approver_policy_changed` | `require_approver` moves | before/after, and the consequence in words |
+| `card.approver_granted` | someone is named or their scopes change | target, role, scopes before/after, added, removed |
+| `card.approver_revoked` | an approver is removed | target, and the scopes they held when it was taken away |
+| `card.locked` / `card.unlocked` | a status change lands | status before/after, reason, expected/result version |
+| `card.override_granted` / `card.override_cleared` | an exception moves | uses before/after, scope, location id |
+| `card.prompts_changed` | prompts are replaced | prompts before/after, any removed infoIds |
+| `card.mutation_failed` | EFS refused | fault code and the vendor's own message |
+| `card.mutation_unverified` | the write went out, the outcome is unknown | why it could not be confirmed |
+| `card.drift_detected` | something moved that no edit named | the field paths |
+| `integration.efs_soap.card_control_probed` | the write check runs | entitlement, verdict, per-step outcomes, card last four |
+
+Every mutation also carries `stepUp` — whether the person re-authenticated — and a required `reason`,
+3 to 200 characters, on the ledger row and in the audit meta.
+
 ### Phase C stays out of scope
 
 Product-limit overrides (the one p194 recipe that requires deliberately dropping the limits array),

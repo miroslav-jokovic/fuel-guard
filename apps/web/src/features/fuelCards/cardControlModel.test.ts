@@ -255,3 +255,56 @@ describe("outcomeNotice — a 200 is not a success", () => {
     expect(notice.message).toContain("109491436176");
   });
 });
+
+describe("effective config — the card/policy merge, as an operator reads it", () => {
+  const prompt = (infoId: string, matchValue: string | null) => ({
+    infoId, validationType: "EXACT_MATCH", matchValue, reportValue: null,
+  });
+  const limit = (limitId: string, value: number) => ({
+    limitId, limit: value, hours: 24, minHours: null,
+  });
+
+  it("keeps a losing policy row visible rather than dropping it", () => {
+    // Silently omitting it produces the worst support call there is: the operator can see the rule in
+    // the WEX portal, cannot see it here, and has no way to tell which one is real.
+    const rows = promptRows([
+      { value: prompt("DRID", "D-4471"), origin: "card" },
+      { value: prompt("DRID", "POLICY-DEFAULT"), origin: "policy-overridden" },
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.enforced).toBe(true);
+    expect(rows[1]!.enforced).toBe(false);
+    expect(rows[1]!.originLabel.toLowerCase()).toMatch(/overridden|policy/);
+  });
+
+  it("marks a policy row that never applied at all", () => {
+    // `infoSource: CARD` means policy prompts are ignored entirely — a different fact from "the card
+    // happened to override this one", and the badge has to say so.
+    const rows = promptRows([{ value: prompt("UNIT", "3182"), origin: "policy-ignored" }]);
+    expect(rows[0]!.enforced).toBe(false);
+  });
+
+  it("renders fuel limits in GALLONS and everything else in DOLLARS", () => {
+    // Getting this backwards makes a 100-gallon cap look like a $100 cap — roughly a factor of four,
+    // in the direction that reads as "this truck is over budget" when it is not.
+    const [fuel] = limitRows([{ value: limit("ULSD", 250), origin: "card" }]);
+    const [cash] = limitRows([{ value: limit("CADV", 100), origin: "card" }]);
+    expect(fuel!.detail).toMatch(/gal/i);
+    expect(cash!.detail).toContain("$");
+    expect(cash!.detail).not.toMatch(/gal/i);
+  });
+
+  it("states the source in words, naming the policy number", () => {
+    expect(sourceSentence("Prompts", "BOTH", 14)).toMatch(/policy 14/i);
+    expect(sourceSentence("Limits", "CARD", 14)).toMatch(/card/i);
+  });
+
+  it("labels a time restriction by its day name, not its number", () => {
+    // The guide numbers 1 = Sunday, NOT 0 = Sunday. An off-by-one here shows a Saturday curfew on a
+    // Friday and nobody notices until a driver is declined.
+    const rows = timeRows([
+      { value: { day: 1, beginTime: "1970-01-01T22:00:00-06:00", endTime: "1970-01-01T05:00:00-06:00" }, origin: "card" },
+    ]);
+    expect(rows[0]!.label).toMatch(/sunday/i);
+  });
+});

@@ -24,6 +24,7 @@ import { integrationsRouter } from "./routes/integrations.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardControlRouter } from "./routes/fuelCards/control.js";
 import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
+import { fuelCardSettingsRouter } from "./routes/fuelCards/settings.js";
 import { fuelCardWriteProbeRouter } from "./routes/fuelCards/writeProbe.js";
 import { fuelCardsRouter } from "./routes/fuelCards/read.js";
 import { webhooksRouter } from "./routes/webhooks.js";
@@ -211,7 +212,9 @@ export function createApp(env: Env): Express {
   // ⚠ ONE LINE, deliberately: routeAuth.test.ts discovers mounts with `app\.use\("(\/api\/…)"…Router\(\)\)`
   // and cannot see a call broken across lines. A mount it cannot see is a router whose `requireAuth`
   // nothing checks — the single failure that fitness function exists to make impossible.
-  app.use("/api/fuel-cards", fuelCardsRouter(), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter());
+  // ⚠ SETTINGS FIRST. fuelCardsRouter declares `GET /:id`, which matches the literal path "settings"
+  // and would answer 404 for a card id that was never a card id. Order is the fix; a test asserts it.
+  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here

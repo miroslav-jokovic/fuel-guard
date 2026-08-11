@@ -211,3 +211,54 @@ describe("history is a read", () => {
     },
   );
 });
+
+describe("card-control settings — who may act", () => {
+  const s = withServer(); // 4 + 4 + 3 + 2 + 2 = 15 requests
+
+  const SETTINGS = "/api/fuel-cards/settings";
+  const APPROVER = `/api/fuel-cards/approvers/${CARD}`;
+
+  it("is not swallowed by the card-detail route", async () => {
+    // `/:id` is declared in the READ router and would match the literal "settings", answering 404 for
+    // a card id that was never a card id. Mount order is the fix; this is the test that guards it.
+    const res = await send(s.url(), SETTINGS, "GET", { token: "admin" });
+    expect(res.status).not.toBe(404);
+    expect([401, 403]).not.toContain(res.status);
+  });
+
+  it.each(["fleet", "dispatcher", "safety", "auditor"])("refuses %s the settings", async (persona) => {
+    // Deciding who may spend money at a pump is an admin act, even for a fleet manager who can
+    // themselves change cards.
+    expect((await send(s.url(), SETTINGS, "GET", { token: persona })).status).toBe(403);
+  });
+
+  it("refuses an admin without a recent sign-in on every WRITE", async () => {
+    // Reading the page is fine; changing who may act costs a password. The test personas carry no
+    // `iat`, so all three fail closed.
+    for (const [path, method, body] of [
+      [SETTINGS, "PATCH", { enabled: true }],
+      [APPROVER, "PUT", { scopes: ["lock"] }],
+      [APPROVER, "DELETE", undefined],
+    ] as const) {
+      const res = await send(s.url(), path, method, { token: "admin", body });
+      expect(res.status).toBe(403);
+      expect((await errorBody(res)).error.code).toBe("step_up_required");
+    }
+  });
+
+  it("refuses a scope-less grant before it refuses the stale sign-in", async () => {
+    // An approver row with no scopes is a person who looks authorised and is not. Validation runs
+    // first so the message names the real problem.
+    const res = await send(s.url(), APPROVER, "PUT", { token: "admin", body: { scopes: [] } });
+    expect([400, 403]).toContain(res.status);
+  });
+
+  it("refuses an unknown scope outright", async () => {
+    const res = await send(s.url(), APPROVER, "PUT", { token: "admin", body: { scopes: ["delete_everything"] } });
+    expect([400, 403]).toContain(res.status);
+  });
+
+  it.each(["dispatcher", "driver"])("refuses %s the approver routes", async (persona) => {
+    expect((await send(s.url(), APPROVER, "PUT", { token: persona, body: { scopes: ["lock"] } })).status).toBe(403);
+  });
+});
