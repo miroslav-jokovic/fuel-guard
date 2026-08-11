@@ -230,3 +230,45 @@ cheaper than the wrong remedy.
 **Still open:** only `getCardSummariesV2` has ever been attempted. The sweep stops at its first call,
 so `getCardv2`, `getPolicy` and `searchLocation` are untested and we cannot yet say whether they are
 refused too — which is precisely what WEX asked.
+
+## Status 2026-08-11 — Phase A live end to end; the access mystery resolved
+
+Every open question above was closed in one overnight session. The findings, in causal order,
+because each one masked the next:
+
+1. **WEX's firewall is per-operation-group, and only card management is IP-gated.** Login and the
+   transaction feeds pass from any address (the feeds ran for weeks on rotating egress); the
+   card-management operations check source IP. This is why the feeds never noticed anything and why
+   card calls "flapped" — they succeeded exactly when the rotating pool happened to serve the one
+   address WEX had.
+2. **Static outbound IPs only apply to deployments created after enabling them**, and they were
+   enabled on `@fleetguard/api` while production traffic ran elsewhere. The project runs TWO
+   deployments of this same API (`@fleetguard/api` → fleetguardapi-production, `@fleetguard/web` →
+   fleetguardweb-production). EFS work is consolidated on `@fleetguard/api` (static IPs
+   152.55.176.240 / 162.220.232.252 / 152.55.177.181, allowlisted at WEX; `EFS_SOAP_ENABLED=false`
+   on the web service stops its schedulers). ⚠ Interactive EFS calls served from the web origin
+   (card-detail getPolicy, the location picker) still dial from pool egress until the frontend's
+   `VITE_API_URL` points at fleetguardapi-production.
+3. **`searchLocation` needs its criteria wrapped, like `getTranRejects`.** Flat criteria earn
+   `ADBException: Unexpected subelement locId`. The guide documents fields, not nesting (p132 vs
+   p107 — same omission, both search ops). `lib/efsLocationSearch.ts` resolves the shape against the
+   live binding (ladder: search → flat → criteria → request), memoizes the winner per endpoint, and
+   logs `searchLocation: EFS accepted the "…" request shape`. Probe now: all five card operations ok.
+4. **Migration 0175 was silently skipped by a ledger version collision** — the ledger's 0175 is
+   `idle_learned_envelope_writes` (applied under that number before its repo renumbering), so
+   `supabase db push` skipped `0175_efs_cards_tolerant_vendor_values.sql` while
+   `applied_schema_version()` reported 0175 as current. Applied manually in the SQL editor and
+   renumbered to 0176 in the repo. Lesson: the ledger tracks by version string; a renumbered
+   migration's old number is burned forever, and "schema current" cannot detect a skipped file whose
+   number the ledger already holds.
+5. **The roster sweep was erasing mirrored card detail** (`document: {}` upserted over every known
+   row each sweep). Fixed in `services/efsCardMirror.ts`: known cards get an update of roster facts
+   only.
+
+The mirror now holds all 199 cards. Reads (Phase A) are fully operational. Card ACTIONS remain
+deliberately off: `EFS_CARD_CONTROL_ENABLED` defaults false, `write_entitlement` is unconfirmed, and
+the Phase B write path (setCardV2 operation, mutation ledger, per-intent routes, action panels) is
+not yet built — `lib/efsCardEcho.ts` (the full-document echo with fidelity guard) is the part that
+exists. Do not enable writes without walking the Phase B gate in
+`docs/plans/EFS-CARD-CONTROL-PLAN.md`, starting with the no-op echo probe against a disposable card
+on QA.
