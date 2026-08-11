@@ -7,6 +7,7 @@ import {
   canonicalize,
   cardVersion,
   describeAtPath,
+  documentShape,
   maskPan,
   parseCardDocument,
   redactCardXml,
@@ -603,5 +604,18 @@ describe("redaction", () => {
 
   it("masks for display without ever holding a full PAN", () => {
     expect(maskPan("7521")).toBe("•••• 7521");
+  });
+});
+
+describe("documentShape", () => {
+  it("names the flat shape the guide documents", () => {
+    expect(documentShape(parseCardDocument(fixture("getCardV2.full.xml")))).toBe("flat");
+  });
+
+  it("names the nested shape production returns, and the wrapper it found", () => {
+    // Reported by the write probe. A QA account and a production account are different EFS
+    // installations; if QA answers flat, a clean QA round-trip proves nothing about production, and
+    // this string is what makes that visible instead of assumed.
+    expect(documentShape(parseCardDocument(fixture("getCardV2.nestedHeader.xml")))).toBe("nested:header");
   });
 });

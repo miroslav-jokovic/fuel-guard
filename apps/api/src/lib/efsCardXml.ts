@@ -351,6 +351,19 @@ export function parseCardDocument(xml: string): CardDocument {
   };
 }
 
+/**
+ * Which of the two response shapes this document arrived in.
+ *
+ * Reported by the write probe, and the reason is specific: a QA account and a production account are
+ * two different EFS installations, and a proof obtained on one only transfers to the other if the
+ * documents have the same structure. "The echo round-tripped perfectly in QA" means nothing for
+ * production if QA answers flat and production answers nested. Naming the shape in the probe result
+ * turns that from an assumption into a line of evidence, on both runs.
+ */
+export function documentShape(doc: CardDocument): "flat" | `nested:${string}` {
+  return doc.root === doc.header ? "flat" : `nested:${localName(doc.header)}`;
+}
+
 // ─── Canonical form ────────────────────────────────────────────────────────────────────────────
 
 /**

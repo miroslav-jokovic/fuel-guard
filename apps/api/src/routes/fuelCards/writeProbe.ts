@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { assertEchoFidelity, serializeSetCardRequest } from "../../lib/efsCardEcho.js";
-import { redactCardXml, type CardDocument } from "../../lib/efsCardXml.js";
+import { documentShape, redactCardXml, type CardDocument } from "../../lib/efsCardXml.js";
 import { getCardSummaries, getCardV2 } from "../../lib/efsCardOps.js";
 import { setCardV2 } from "../../lib/efsCardWrite.js";
 import { EfsSoapError, efsLogin } from "../../lib/efsSoapSession.js";
@@ -162,7 +162,11 @@ export function fuelCardWriteProbeRouter(): Router {
         steps.push(await runStep(3, "getCardv2 — document model", async () => {
           const fresh = await getCardV2(env, creds, cardNumber, { priority: "interactive" });
           state.doc = fresh;
-          return `${fresh.card.infos.length} prompts, ${fresh.card.limits.length} limits, version ${fresh.version.slice(0, 12)}…`;
+          // The shape is part of the finding, not decoration. A QA account and a production account
+          // are different EFS installations: this account answers `nested:header`, every example in
+          // the guide is `flat`, and a proof obtained on one shape does not transfer to the other.
+          return `shape=${documentShape(fresh)}, ${fresh.card.infos.length} prompts, `
+            + `${fresh.card.limits.length} limits, version ${fresh.version.slice(0, 12)}…`;
         }));
       }
 
@@ -216,6 +220,7 @@ export function fuelCardWriteProbeRouter(): Router {
         cardLast4: last4,
         versionBefore: before?.version ?? null,
         versionAfter: state.versionAfter,
+        documentShape: before ? documentShape(before) : null,
         recommendation,
         verdict,
         steps,
@@ -253,6 +258,18 @@ export function fuelCardWriteProbeRouter(): Router {
         recommendation,
         verdict,
         steps,
+        documentShape: before ? documentShape(before) : null,
+        /**
+         * The card as EFS sent it, PANs masked — returned to the admin who ran the probe, and
+         * deliberately NOT persisted.
+         *
+         * Every hour of the nested-<header> diagnosis was spent getting this string out of the
+         * vendor by hand. It is the one artefact that turns "the echo passed" into a fixture
+         * somebody can commit, and it is exactly what step 4's failure verdict asks for. Admin-only,
+         * same org, already redacted; kept out of `probe_result` so the settings row stays small and
+         * so a card document does not sit in a table read on every page load.
+         */
+        document: before?.redactedXml ?? null,
         // A failed settings write must not read as a failed probe — the steps above are the finding.
         persisted: !settingsError,
       });
