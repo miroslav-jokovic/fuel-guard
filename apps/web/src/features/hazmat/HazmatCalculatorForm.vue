@@ -22,9 +22,11 @@ import {
   equipmentSpec,
   useHazmatCalc,
   linePackagingDerivation,
+  stripCitations,
+  suggestedGrossLb,
   EQUIPMENT_OPTIONS,
+  OTHER_FREIGHT_OPTIONS,
   TANK_STATE_OPTIONS,
-  QUANTITY_UNIT_OPTIONS,
   GROSS_WEIGHT_UNIT_OPTIONS,
   PACKAGE_TYPE_OPTIONS,
   CAPACITY_UNIT_OPTIONS,
@@ -38,13 +40,24 @@ import {
  * (`PublicPlacardCalculatorPage.vue`). An anonymous visitor has no organization, so the equipment
  * picker and the fleet query behind it must never mount there.
  *
- * LAYOUT (reworked 2026-08): the form asked the right questions in the wrong shapes. A measurement and
- * its unit are ONE fact, and a 4-column grid kept splitting them across a row break — "Per-package
- * size" would land at the end of one row with "Size unit" orphaned at the start of the next, which is
- * how a 4-gallon fiberboard box gets entered as 4 of something else. Value+unit are now single
- * controls, the line is grouped identify → package → measure → declare, and the offeror declarations
- * (residue, LQ, reclassified combustible) sit in their own block because each one changes the answer
- * and none of them should read as an afterthought checkbox.
+ * LAYOUT (reworked again 2026-08, H-MX/UX pass):
+ *  · EQUIPMENT is ONE question with two paths — "From my fleet" (trailer picker; the equipment is
+ *    READ from the trailer and shown as a confirmation, not asked again) or "Other equipment"
+ *    (the equipment picker alone). The old layout showed both controls side by side and read as two
+ *    questions; users answered twice.
+ *  · Each product line asks: what is it → how is it packed (type, count, optional per-package
+ *    weight/volume) → what does it gross. The NET-quantity field is gone from this form — the placard
+ *    ladder never reads it (every threshold runs on gross pounds), and it double-asked what the
+ *    packaging block already established. When count × per-package weight are known, the gross is
+ *    offered as a one-click suggestion, never silently applied.
+ *  · CFR citations are stripped from all form copy (labels, hints, derived notes) — they live in the
+ *    RESULTS panel, where they annotate an answer instead of intimidating a question. Plain-language
+ *    grouping replaced the uppercase sub-headers.
+ *  · "Offeror declarations" became "What the BOL declares" — same three verified claims, said in the
+ *    words a dispatcher reads on the paper.
+ *  · NEW (H-MX): "Any non-hazmat freight on this load?" — a tri-state that resolves the
+ *    §172.301(a)(3) no-other-material condition instead of leaving it a standing assumption. It never
+ *    touches the placard aggregate (hazmat-only by CFR).
  */
 const props = withDefaults(defineProps<{ basePath?: string; fleet?: boolean }>(), {
   basePath: "/api/hazmat",
@@ -63,24 +76,37 @@ const fleetEnabled = computed(() => props.fleet);
 // (the boundary rule — see this query's own header).
 const { data: trailers } = useHazmatTrailersQuery({ enabled: fleetEnabled });
 const selectedTrailerId = ref("");
-const trailerOptions = computed(() => [
-  { value: "", label: "Not from the fleet" },
-  ...(trailers.value ?? []).map((t) => ({
+
+/** One question, two paths: state the trailer (fleet) or state the equipment (manual/public). */
+const sourceMode = ref<"fleet" | "manual">(props.fleet ? "fleet" : "manual");
+/** True while the user is deliberately overriding a trailer-derived equipment answer. */
+const equipmentOverride = ref(false);
+
+const trailerOptions = computed(() =>
+  (trailers.value ?? []).map((t) => ({
     value: t.id,
     label: t.trailer_type ? `${t.unit_number} — ${t.trailer_type.replace("_", " ")}` : t.unit_number,
   })),
-]);
+);
 
 const equipmentOptions = EQUIPMENT_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
+
+function setSourceMode(mode: "fleet" | "manual") {
+  if (sourceMode.value === mode) return;
+  sourceMode.value = mode;
+  equipmentOverride.value = false;
+  if (mode === "manual") selectedTrailerId.value = "";
+}
 
 /**
  * Picking a trailer states the equipment instead of asking the user to restate it. The trailer's
  * type is the same source of truth the load path uses (`resolveVehicleKind`, D-H4), and the tank
- * capacity now lives on the trailer row itself (H-C2), so the calculator and a real analysis of the
+ * capacity lives on the trailer row itself (H-C2), so the calculator and a real analysis of the
  * same equipment cannot disagree.
  */
 function applyTrailer(id: string) {
   selectedTrailerId.value = id;
+  equipmentOverride.value = false;
   if (!id) return;
   const trailer = (trailers.value ?? []).find((t) => t.id === id);
   if (!trailer) return;
@@ -96,44 +122,61 @@ function applyEquipment(value: string) {
   }
 }
 
-const equipmentNote = computed(() => {
-  if (!selectedTrailerId.value) return null;
-  const trailer = (trailers.value ?? []).find((t) => t.id === selectedTrailerId.value);
-  if (!trailer) return null;
-  if (form.equipmentType === "") {
-    return { warn: true, text: "This trailer's type is not set — pick the equipment above, and set the type on the Trailers page so next time it is read rather than asked." };
-  }
-  return { warn: false, text: `Equipment read from the fleet: ${trailer.unit_number} is a ${equipmentSpec(form.equipmentType)?.label.toLowerCase() ?? form.equipmentType}.` };
+const selectedTrailer = computed(() =>
+  selectedTrailerId.value ? ((trailers.value ?? []).find((t) => t.id === selectedTrailerId.value) ?? null) : null,
+);
+
+/** The trailer answered the question — show the answer, don't re-ask it. */
+const equipmentConfirmation = computed(() => {
+  if (sourceMode.value !== "fleet" || !selectedTrailer.value || equipmentOverride.value) return null;
+  if (form.equipmentType === "") return null; // trailer type unset → the picker asks instead
+  const spec = equipmentSpec(form.equipmentType);
+  return `${selectedTrailer.value.unit_number} is a ${spec?.label.toLowerCase() ?? form.equipmentType}${
+    form.cargoTankCapacityGal ? ` · ${form.cargoTankCapacityGal} gal` : ""
+  }`;
 });
 
-const isTank = computed(() => equipmentSpec(form.equipmentType)?.vehicleKind === "cargo_tank");
-const packageHint = (type: string): string | undefined => packageTypeSpec(type)?.hint;
+/** When the equipment must still be asked: manual mode, or a fleet trailer with no type on file. */
+const showEquipmentPicker = computed(() => {
+  if (sourceMode.value === "manual") return true;
+  if (!selectedTrailer.value) return false;
+  return form.equipmentType === "" || equipmentOverride.value;
+});
 
-/** D-H14: the measured §171.8 note for a line — shown whenever a capacity was applied, loudest
- *  when it CONTRADICTS the package type's default. */
+const trailerTypeMissing = computed(
+  () => sourceMode.value === "fleet" && selectedTrailer.value != null && form.equipmentType === "" && !equipmentOverride.value,
+);
+
+const isTank = computed(() => equipmentSpec(form.equipmentType)?.vehicleKind === "cargo_tank");
+const packageHint = (type: string): string | undefined => {
+  const hint = packageTypeSpec(type)?.hint;
+  return hint ? stripCitations(hint) : undefined;
+};
+
+/** The measured bulk/non-bulk note for a line — loudest when it CONTRADICTS the type's default. */
 function capacityNote(line: CalcLineForm): { text: string; warn: boolean } | null {
   const d = linePackagingDerivation(line, form.equipmentType);
   if (d.source !== "capacity" || !d.because) return null;
   return {
-    text: (d.overrodeType ? "Capacity overrides the package type — " : "Measured: ") + d.because + ".",
+    text: (d.overrodeType ? "The per-package size overrides the package type — " : "Measured: ") + stripCitations(d.because) + ".",
     warn: d.overrodeType,
   };
 }
 
 /**
- * The §171.8 answer this line is currently sending to the engine, said out loud. It is the single
- * most consequential derived value on the form — bulk placards at any quantity, non-bulk waits for
- * 1,001 lb — and it used to be visible only as an indirect hint on the package-type field.
+ * The bulk-or-packaged answer this line is currently sending to the engine, said out loud. It is the
+ * single most consequential derived value on the form — bulk placards at any quantity, packaged
+ * freight waits for the 1,001 lb threshold.
  */
 function packagingBadge(line: CalcLineForm): { text: string; source: string } | null {
   if (!line.product && !line.packageType) return null;
   const d = linePackagingDerivation(line, form.equipmentType);
   const source =
     d.source === "capacity"
-      ? "from the per-package size you entered (§171.8)"
+      ? "from the per-package size you entered"
       : d.source === "type"
-        ? "from the package type (§171.8)"
-        : "assumed from the equipment — state the packaging to be sure";
+        ? "from the package type"
+        : "assumed from the equipment — set the package type to be sure";
   return { text: d.kind === "bulk" ? "Bulk packaging" : "Non-bulk packaging", source };
 }
 
@@ -144,6 +187,18 @@ function perPackageLb(line: CalcLineForm): number | null {
   if (!Number.isFinite(gross) || !Number.isFinite(count) || count <= 0 || line.grossWeightValue === "" || line.packageCount === "") return null;
   const lb = line.grossWeightUnit === "kg" ? gross * 2.20462 : gross;
   return Math.round(lb / count);
+}
+
+/** count × per-package weight, offered when the gross field is still blank — one click, never silent. */
+function grossSuggestion(line: CalcLineForm): number | null {
+  if (line.grossWeightValue !== "") return null;
+  return suggestedGrossLb(line);
+}
+function applyGrossSuggestion(line: CalcLineForm) {
+  const lb = suggestedGrossLb(line);
+  if (lb == null) return;
+  line.grossWeightValue = String(lb);
+  line.grossWeightUnit = "lb";
 }
 
 function addLine() {
@@ -158,17 +213,13 @@ function selectProduct(i: number, product: HazmatProduct) {
 function clearProduct(i: number) {
   form.lines[i]!.product = null;
 }
-function onPackageTypeChange(i: number, value: string) {
-  const line = form.lines[i]!;
-  line.packageType = value;
-  const spec = packageTypeSpec(value);
-  if (spec && line.quantityValue === "") line.quantityUnit = spec.defaultUnit;
-}
 async function calculate() {
   result.value = await calc.mutateAsync(buildCalcRequest(form));
 }
 function resetAll() {
   selectedTrailerId.value = "";
+  equipmentOverride.value = false;
+  sourceMode.value = props.fleet ? "fleet" : "manual";
   Object.assign(form, emptyForm());
   result.value = null;
   calc.reset();
@@ -178,23 +229,43 @@ function resetAll() {
 <template>
   <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-2">
     <form class="min-w-0 space-y-4" @submit.prevent="calculate">
-      <!-- ── 1 · equipment ──────────────────────────────────────────────────────────────────── -->
+      <!-- ── 1 · equipment: one question, two paths ─────────────────────────────────────────── -->
       <BaseCard as="section">
         <div class="flex items-center gap-3">
           <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">1</span>
           <div>
             <h2 class="text-sm font-semibold text-ink">Equipment</h2>
-            <p class="mt-0.5 text-sm text-ink-muted">What the load rides on — this decides which bulk and packaged-freight rules apply.</p>
+            <p class="mt-0.5 text-sm text-ink-muted">What the load rides on — this decides which rules apply.</p>
           </div>
         </div>
 
+        <!-- fleet users choose the path; the public calculator goes straight to the picker -->
+        <div v-if="fleet" class="mt-4 inline-flex rounded-control bg-surface-subtle p-1 ring-1 ring-inset ring-edge" role="group" aria-label="Where the equipment comes from">
+          <button
+            type="button"
+            class="rounded-control px-3 py-1.5 text-sm font-medium transition-colors"
+            :class="sourceMode === 'fleet' ? 'bg-surface text-ink shadow-sm ring-1 ring-inset ring-edge' : 'text-ink-muted hover:text-ink'"
+            @click="setSourceMode('fleet')"
+          >
+            From my fleet
+          </button>
+          <button
+            type="button"
+            class="rounded-control px-3 py-1.5 text-sm font-medium transition-colors"
+            :class="sourceMode === 'manual' ? 'bg-surface text-ink shadow-sm ring-1 ring-inset ring-edge' : 'text-ink-muted hover:text-ink'"
+            @click="setSourceMode('manual')"
+          >
+            Other equipment
+          </button>
+        </div>
+
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <!-- Fleet equipment states the answer for you. Never mounted on the public page. -->
+          <!-- Fleet path: the trailer states the answer. Never mounted on the public page. -->
           <FormField
-            v-if="fleet"
+            v-if="fleet && sourceMode === 'fleet'"
             v-slot="{ id }"
             label="Trailer"
-            hint="Picking one fills the equipment and tank capacity from the fleet."
+            hint="The equipment and tank capacity are read from the trailer."
           >
             <ComboSelect
               :id="id"
@@ -204,13 +275,15 @@ function resetAll() {
               @update:model-value="applyTrailer"
             />
           </FormField>
+
           <FormField
+            v-if="showEquipmentPicker"
             v-slot="{ id }"
             label="Equipment"
             required
             :hint="
               form.equipmentType === ''
-                ? 'Bulk or packaged decides whether the 1,001 lb threshold applies at all — there is no safe default.'
+                ? 'Bulk tank or packaged freight changes the whole answer — there is no safe default.'
                 : undefined
             "
           >
@@ -222,12 +295,13 @@ function resetAll() {
               @update:model-value="applyEquipment"
             />
           </FormField>
+
           <!-- Tank-only fields stay together so the card does not reflow around them. -->
           <template v-if="isTank">
             <FormField
               v-slot="{ id }"
               label="Cargo tank capacity"
-              hint="Optional. Used when capacity affects the applicable cargo-tank requirements."
+              hint="Optional — used when capacity affects the cargo-tank requirements."
             >
               <div class="flex items-stretch gap-2">
                 <BaseInput :id="id" v-model="form.cargoTankCapacityGal" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="9200" />
@@ -240,14 +314,19 @@ function resetAll() {
           </template>
         </div>
 
+        <!-- the trailer answered — confirm it instead of asking again -->
         <p
-          v-if="equipmentNote && equipmentNote.warn"
+          v-if="equipmentConfirmation"
+          class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-control bg-surface-subtle px-3 py-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge"
+        >
+          <span>Read from the fleet: <strong class="font-semibold text-ink">{{ equipmentConfirmation }}</strong></span>
+          <button type="button" class="font-medium text-brand-700 hover:underline" @click="equipmentOverride = true">Change</button>
+        </p>
+        <p
+          v-else-if="trailerTypeMissing"
           class="mt-3 rounded-surface bg-warning-50 px-3 py-2 text-xs text-warning-800 ring-1 ring-inset ring-warning-200"
         >
-          {{ equipmentNote.text }}
-        </p>
-        <p v-else-if="equipmentNote" class="mt-3 text-xs text-ink-muted">
-          {{ equipmentNote.text }}
+          This trailer's type is not set — pick the equipment above, and set the type on the Trailers page so next time it is read rather than asked.
         </p>
       </BaseCard>
 
@@ -287,22 +366,21 @@ function resetAll() {
               </template>
               <ProductPicker v-else :base-path="props.basePath" @select="(p) => selectProduct(i, p)" />
 
-              <!-- package -->
-              <div class="space-y-3">
-                <p class="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Packaging</p>
+              <!-- how it's packed -->
+              <div class="space-y-3 border-t border-edge pt-4">
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <FormField
                     v-slot="{ id }"
                     label="Package type"
                     class="sm:col-span-2"
-                    :hint="packageHint(line.packageType) ?? 'As the BOL states it — bulk vs non-bulk is derived from this.'"
+                    :hint="packageHint(line.packageType) ?? 'As the BOL states it — drums, totes, boxes, or the tank itself.'"
                   >
                     <ComboSelect
                       :id="id"
                       :model-value="line.packageType"
                       :options="PACKAGE_TYPE_OPTIONS"
                       placeholder="Drums, totes, boxes…"
-                      @update:model-value="(v: string) => onPackageTypeChange(i, v)"
+                      @update:model-value="(v: string) => (line.packageType = v)"
                     />
                   </FormField>
 
@@ -310,7 +388,7 @@ function resetAll() {
                     v-if="line.packageType !== 'bulk_cargo'"
                     v-slot="{ id }"
                     label="Package count"
-                    hint="DOT packages, not pallets (§172.202(a)(7))."
+                    hint="Count the drums or boxes themselves, not the pallets they ride on."
                   >
                     <BaseInput :id="id" v-model="line.packageCount" type="number" inputmode="numeric" min="0" placeholder="1056" />
                   </FormField>
@@ -319,22 +397,22 @@ function resetAll() {
                     <BaseInput :id="id" v-model="line.compartmentIndex" type="number" inputmode="numeric" min="1" placeholder="1" />
                   </FormField>
 
-                  <!-- D-H14: the measured §171.8 size. Value and unit are ONE control — split across a
-                       grid break, this is the field most likely to be filled in wrongly. -->
+                  <!-- Value and unit are ONE control — split across a grid break, this is the field
+                       most likely to be filled in wrongly. -->
                   <FormField
                     v-if="line.packageType !== 'bulk_cargo'"
                     v-slot="{ id }"
-                    label="Size of each package"
-                    hint="Optional. >119 gal liquid / >1,000 lb water cap. = bulk (§171.8)."
+                    label="Per package (optional)"
+                    hint="Weight or volume of one package, if the BOL lists it."
                   >
                     <div class="flex items-stretch gap-2">
-                      <BaseInput :id="id" v-model="line.perPackageCapacityValue" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="4" />
+                      <BaseInput :id="id" v-model="line.perPackageCapacityValue" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="55" />
                       <ComboSelect v-model="line.perPackageCapacityUnit" class="w-32 shrink-0" :options="CAPACITY_UNIT_OPTIONS" />
                     </div>
                   </FormField>
                 </div>
 
-                <!-- the derived §171.8 answer, said out loud -->
+                <!-- the derived bulk/packaged answer, said out loud -->
                 <p
                   v-if="packagingBadge(line)"
                   class="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-control bg-surface-subtle px-3 py-2 text-xs ring-1 ring-inset ring-edge"
@@ -351,42 +429,40 @@ function resetAll() {
                 </p>
               </div>
 
-              <!-- measure -->
-              <div class="space-y-3">
-                <p class="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">Quantity on the paper</p>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <FormField v-slot="{ id }" label="Total quantity">
-                    <div class="flex items-stretch gap-2">
-                      <BaseInput :id="id" v-model="line.quantityValue" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" :placeholder="isTank ? '8000' : '4224'" />
-                      <ComboSelect v-model="line.quantityUnit" class="w-24 shrink-0" :options="QUANTITY_UNIT_OPTIONS" />
-                    </div>
-                  </FormField>
-                  <FormField v-slot="{ id }" label="Total gross weight" hint="Drives the §172.504(c) aggregate.">
-                    <div class="flex items-stretch gap-2">
-                      <BaseInput :id="id" v-model="line.grossWeightValue" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="44307" />
-                      <ComboSelect v-model="line.grossWeightUnit" class="w-24 shrink-0" :options="GROSS_WEIGHT_UNIT_OPTIONS" />
-                    </div>
-                  </FormField>
-                </div>
+              <!-- what it grosses -->
+              <div class="space-y-2 border-t border-edge pt-4">
+                <FormField
+                  v-slot="{ id }"
+                  label="Gross weight of this product"
+                  hint="Packages plus contents, from the BOL — the placard thresholds run on this."
+                >
+                  <div class="flex items-stretch gap-2">
+                    <BaseInput :id="id" v-model="line.grossWeightValue" class="min-w-0 flex-1" type="number" inputmode="decimal" min="0" placeholder="44307" />
+                    <ComboSelect v-model="line.grossWeightUnit" class="w-24 shrink-0" :options="GROSS_WEIGHT_UNIT_OPTIONS" />
+                  </div>
+                </FormField>
+                <p v-if="grossSuggestion(line) != null" class="text-xs text-ink-muted">
+                  {{ line.packageCount }} × {{ line.perPackageCapacityValue }} {{ line.perPackageCapacityUnit }} works out to
+                  <strong class="text-ink">{{ grossSuggestion(line)!.toLocaleString("en-US") }} lb</strong> —
+                  <button type="button" class="font-medium text-brand-700 hover:underline" @click="applyGrossSuggestion(line)">use it</button>.
+                </p>
                 <p v-if="perPackageLb(line) != null" class="text-xs text-ink-muted">
                   That works out to <strong class="text-ink">{{ perPackageLb(line) }} lb</strong> per package —
                   if that looks like a pallet rather than a package, the count is the thing to fix.
                 </p>
               </div>
 
-              <!-- declare -->
+              <!-- what the paper declares -->
               <div class="space-y-2 rounded-surface bg-surface-subtle p-3 ring-1 ring-inset ring-edge">
-                <p class="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">
-                  Offeror declarations
-                </p>
+                <p class="text-sm font-medium text-ink">What the BOL declares</p>
                 <p class="text-xs text-ink-muted">
-                  Only tick what the shipping paper actually says. Each one changes the answer, and the engine
-                  verifies them rather than taking them on trust.
+                  Tick only what the shipping paper actually says — each one changes the answer, and the
+                  engine double-checks every claim rather than taking it on trust.
                 </p>
                 <div class="space-y-1.5 pt-1">
-                  <BaseCheckbox v-model="line.isResidueLine">Residue only (§173.29(c))</BaseCheckbox>
-                  <BaseCheckbox v-model="line.isLimitedQuantity">Limited Quantity, as declared on the BOL (§172.203(b))</BaseCheckbox>
-                  <BaseCheckbox v-model="line.reclassedCombustible">Reclassified combustible (§173.150(f))</BaseCheckbox>
+                  <BaseCheckbox v-model="line.isResidueLine">Residue only — the packaging is empty but not cleaned</BaseCheckbox>
+                  <BaseCheckbox v-model="line.isLimitedQuantity">Marked “Limited Quantity” on the BOL</BaseCheckbox>
+                  <BaseCheckbox v-model="line.reclassedCombustible">Reclassified combustible by the shipper</BaseCheckbox>
                 </div>
               </div>
             </div>
@@ -394,10 +470,30 @@ function resetAll() {
         </div>
       </BaseCard>
 
-      <!-- ── 3 · trip context ───────────────────────────────────────────────────────────────── -->
+      <!-- ── 3 · the rest of the load (H-MX) ────────────────────────────────────────────────── -->
       <BaseCard as="section">
         <div class="flex items-center gap-3">
           <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">3</span>
+          <div>
+            <h2 class="text-sm font-semibold text-ink">Rest of the load</h2>
+            <p class="mt-0.5 text-sm text-ink-muted">Whether anything besides these products rides on the truck.</p>
+          </div>
+        </div>
+        <div class="mt-4">
+          <FormField
+            v-slot="{ id }"
+            label="Any non-hazmat freight on this load?"
+            hint="Never changes which placards you need — but on a large single-product package load it decides whether the UN number must also be displayed on the vehicle."
+          >
+            <ComboSelect :id="id" v-model="form.otherFreight" :options="OTHER_FREIGHT_OPTIONS" />
+          </FormField>
+        </div>
+      </BaseCard>
+
+      <!-- ── 4 · trip context ───────────────────────────────────────────────────────────────── -->
+      <BaseCard as="section">
+        <div class="flex items-center gap-3">
+          <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">4</span>
           <div>
             <h2 class="text-sm font-semibold text-ink">Trip context</h2>
             <p class="mt-0.5 text-sm text-ink-muted">Optional — facts about the run rather than the freight.</p>
@@ -406,8 +502,8 @@ function resetAll() {
         <div class="mt-4">
           <FormField
             v-slot="{ id }"
-            label="Identification numbers retained from the previous or current business day"
-            hint="§172.336(c). Comma-separated. Leave blank if none."
+            label="ID numbers still displayed from an earlier load today"
+            hint="If placards or number panels from the previous or current business day are still on the truck, list those IDs. Comma-separated; leave blank if none."
           >
             <BaseInput :id="id" v-model="form.businessDayIds" placeholder="UN1830, UN1789" />
           </FormField>

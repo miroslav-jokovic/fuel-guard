@@ -117,7 +117,7 @@ describe("computePlacards — fuel scope (§172.504)", () => {
   });
 
   it("stamps the bumped engine version", () => {
-    expect(evaluateLoad(load()).engineVersion).toBe("0.10.0");
+    expect(evaluateLoad(load()).engineVersion).toBe("0.11.0");
   });
 
   // D4-revised Table 1 gate: recognized and blocked, never assessed (fail-closed, D2).
@@ -168,5 +168,97 @@ describe("computePlacards — fuel scope (§172.504)", () => {
       }),
     );
     expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("nonbulk_single_material_id_display");
+  });
+});
+
+// ── 0.11.0 (H-MX): the mixed-load input — §172.301(a)(3)'s "no other material" condition ─────────
+describe("otherFreightAboard — the §172.301(a)(3) no-other-material condition", () => {
+  const nbSingle = (over: Partial<LoadInput> = {}): LoadInput =>
+    load({
+      vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+      lines: [line({ packagingKind: "non_bulk", grossWeightLb: 10000, packageCount: 40 })],
+      ...over,
+    });
+
+  it("unknown (null / omitted) → asserted conservatively with both assumptions (pre-0.11 behavior)", () => {
+    const v = evaluateLoad(nbSingle());
+    expect(v.placards.idDisplays.map((d) => d.idNumber)).toEqual(["UN1203"]);
+    const f = v.eligibility.blocks.find((b) => b.ruleId === "nonbulk_single_material_id_display");
+    expect(f).toBeDefined();
+    expect(f!.message).toContain("no-other-material");
+  });
+
+  it("other freight aboard (true) → the ID display is NOT required, said with the citation", () => {
+    const v = evaluateLoad(nbSingle({ otherFreightAboard: true } as Partial<LoadInput>));
+    expect(v.placards.idDisplays).toEqual([]);
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("nonbulk_single_material_id_display");
+    const t = v.trace.find((n) => n.ruleId === "nonbulk_id_display_172_301");
+    expect(t).toBeDefined();
+    expect(t!.fired).toBe(false);
+    // The finding is informational — it never blocks eligibility.
+    expect(v.eligibility.status).not.toBe("blocked");
+  });
+
+  it("other freight aboard does NOT change the §172.504(c) placard answer", () => {
+    const yes = evaluateLoad(nbSingle({ otherFreightAboard: true } as Partial<LoadInput>));
+    const no = evaluateLoad(nbSingle({ otherFreightAboard: false } as Partial<LoadInput>));
+    expect(yes.placards.required.map((p) => p.placard)).toEqual(no.placards.required.map((p) => p.placard));
+    expect(yes.placards.aggregate!.countedGrossWeightLb).toBe(no.placards.aggregate!.countedGrossWeightLb);
+  });
+
+  it("confirmed hazmat-only (false) → required, and only the loading-facility assumption remains", () => {
+    const v = evaluateLoad(nbSingle({ otherFreightAboard: false } as Partial<LoadInput>));
+    expect(v.placards.idDisplays.map((d) => d.idNumber)).toEqual(["UN1203"]);
+    const f = v.eligibility.blocks.find((b) => b.ruleId === "nonbulk_single_material_id_display");
+    expect(f).toBeDefined();
+    expect(f!.message).toContain("No other freight is declared aboard");
+    expect(f!.message).not.toContain("no-other-material conditions");
+  });
+
+  it("other HAZMAT aboard (a bulk line) also fails the no-other-material condition — rule not applied", () => {
+    const v = evaluateLoad(
+      load({
+        vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+        lines: [
+          line({ packagingKind: "non_bulk", grossWeightLb: 10000 }),
+          line({ hmtRef: "UN1202-diesel-fuel#III", packagingKind: "bulk", grossWeightLb: 9000 }),
+        ],
+      }),
+    );
+    expect(v.eligibility.blocks.map((b) => b.ruleId)).not.toContain("nonbulk_single_material_id_display");
+    // The bulk line's own §172.302 display is unaffected.
+    expect(v.placards.idDisplays.map((d) => d.idNumber)).toEqual(["UN1202"]);
+  });
+});
+
+describe("loadProfile — the load type, stated (0.11.0)", () => {
+  it("a cargo tank is a bulk load", () => {
+    expect(evaluateLoad(load()).placards.loadProfile).toEqual({
+      packaging: "bulk", hazmatLines: 1, distinctPlacardCategories: 1, otherFreightAboard: null,
+    });
+  });
+
+  it("packages on a van are a non-bulk load; the input tri-state is echoed", () => {
+    const v = evaluateLoad(load({
+      vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+      lines: [line({ packagingKind: "non_bulk", grossWeightLb: 600 })],
+      otherFreightAboard: true,
+    } as Partial<LoadInput>));
+    expect(v.placards.loadProfile).toEqual({
+      packaging: "non_bulk", hazmatLines: 1, distinctPlacardCategories: 1, otherFreightAboard: true,
+    });
+  });
+
+  it("a tote and drums together are mixed packaging with the categories counted", () => {
+    const v = evaluateLoad(load({
+      vehicle: { kind: "van_or_flatbed", cargoTankCapacityGal: null, compartments: null },
+      lines: [
+        line({ packagingKind: "bulk", grossWeightLb: 2400 }),
+        line({ hmtRef: "UN1075-lpg#none", packagingKind: "non_bulk", grossWeightLb: 900 }),
+      ],
+    }));
+    expect(v.placards.loadProfile).toEqual({
+      packaging: "mixed", hazmatLines: 2, distinctPlacardCategories: 2, otherFreightAboard: null,
+    });
   });
 });

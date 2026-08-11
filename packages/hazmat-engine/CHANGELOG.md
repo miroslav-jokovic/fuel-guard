@@ -3,6 +3,19 @@
 Every **verdict-affecting** change bumps the minor version and gets an entry here; the version is
 stored on every verdict row (H4) so a decision is reproducible forever.
 
+## 0.11.0 — 2026-08-11 (H-MX: mixed hazmat + general-freight loads)
+- **New input `otherFreightAboard: boolean | null` (default `null`).** States whether the vehicle carries
+  any freight beyond the declared hazmat lines. Read by exactly one rule — the §172.301(a)(3) non-bulk
+  single-material ID display, whose "contains no other material, hazardous or otherwise" condition was
+  previously an unstated assumption. It NEVER feeds the §172.504(c) aggregate (the CFR counts hazmat only).
+- **§172.301(a)(3) now evaluates all of its conditions.** Other hazmat aboard (a bulk line, a second
+  material) disapplies the rule; `otherFreightAboard: true` yields an `info` finding saying the display is
+  NOT required, with the citation; `false` keeps the display and narrows the conditional to the
+  one-loading-facility assumption; `null` preserves pre-0.11 conservative behavior exactly.
+- **New output `placards.loadProfile`** — bulk / non_bulk / mixed packaging over the resolved lines, the
+  line and distinct-category counts, and the echoed `otherFreightAboard` tri-state, so the UI can state the
+  load type without re-deriving it.
+
 ## 0.7.0 — 2026-07-31 (H2)
 - **Table 1 fail-closed gate (D4-revised).** Any line whose dataset placard row is a §172.504 **Table 1**
   class/division (explosives 1.1–1.3, 2.3 poison gas, 4.3, PIH 6.1, organic-peroxide 5.2, radioactive) now

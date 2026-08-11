@@ -67,6 +67,24 @@ const panelOnlyIds = computed(() =>
 
 const agg = computed(() => v.value.placards.aggregate ?? null);
 const fmt = (n: number): string => n.toLocaleString("en-US");
+
+/**
+ * H-MX (engine 0.11.0): the load type, stated where a dispatcher looks first. The engine derives it
+ * (bulk / non-bulk / mixed packaging over the resolved lines, plus the mixed-with-general-freight
+ * fact from the form's tri-state) — this is pure display of `placards.loadProfile`.
+ */
+const loadProfile = computed(() => {
+  const p = v.value.placards.loadProfile;
+  if (!p) return null;
+  const packaging =
+    p.packaging === "bulk" ? "Bulk load" : p.packaging === "non_bulk" ? "Packaged (non-bulk) load" : "Mixed packaging — bulk + packages";
+  const freight =
+    p.otherFreightAboard === true ? "with general freight aboard" : p.otherFreightAboard === false ? "hazmat only" : null;
+  const scope = `${p.hazmatLines} hazmat line${p.hazmatLines === 1 ? "" : "s"} · ${p.distinctPlacardCategories} placard categor${
+    p.distinctPlacardCategories === 1 ? "y" : "ies"
+  }`;
+  return { packaging, freight, scope };
+});
 </script>
 
 <template>
@@ -79,6 +97,13 @@ const fmt = (n: number): string => n.toLocaleString("en-US");
       <span v-if="result.datasetProvisional" :class="[BADGE_BASE, toneClass('warning')]">
         Provisional dataset — decision support only, cannot clear a load
       </span>
+    </div>
+
+    <!-- ── what kind of load this is (H-MX) ──────────────────────────────────────────────────── -->
+    <div v-if="loadProfile" class="flex flex-wrap items-center gap-2">
+      <span :class="[BADGE_BASE, toneClass('brand')]">{{ loadProfile.packaging }}</span>
+      <span v-if="loadProfile.freight" :class="[BADGE_BASE, toneClass('neutral')]">{{ loadProfile.freight }}</span>
+      <span class="text-xs text-ink-muted">{{ loadProfile.scope }}</span>
     </div>
 
     <!-- ── what goes on the truck ─────────────────────────────────────────────────────────────── -->

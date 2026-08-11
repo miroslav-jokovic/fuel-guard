@@ -171,6 +171,18 @@ export function computePlacards(load: LoadInput): PlacardComputation {
     thresholds: { placardLb: 1001, dangerousCategoryLb: DANGEROUS_CATEGORY_BAR_LB, nonBulkIdDisplayLb: 8820 },
   };
 
+  // ── 2b) the load profile, stated (0.11.0 / H-MX) ──────────────────────────────────────────────
+  // Bulk / non-bulk / mixed is a fact the engine already knows line by line; saying it once here means
+  // the UI (and the record) never re-derives it. `otherFreightAboard` is echoed so a mixed
+  // hazmat + general-freight load is describable — it feeds §172.301(a)(3) below and NOTHING else.
+  const bulkResolvedCount = resolved.filter((r) => isBulk(r)).length;
+  placards.loadProfile = {
+    packaging: bulkResolvedCount === resolved.length ? "bulk" : bulkResolvedCount === 0 ? "non_bulk" : "mixed",
+    hazmatLines: resolved.length,
+    distinctPlacardCategories: new Set(resolved.map((r) => r.placard)).size,
+    otherFreightAboard: load.otherFreightAboard,
+  };
+
   // H-P1 follow-up: the package count was recorded and never questioned. "Count packages, not pallets"
   // was a form hint with nothing behind it, so a line reading 22 pallets instead of 1,056 boxes passed
   // silently — and the per-package gross it implies is the one number that catches it. A non-bulk
@@ -359,40 +371,82 @@ export function computePlacards(load: LoadInput): PlacardComputation {
   const nbAggregateLb = nbWeights.reduce<number>((s, w) => s + (w ?? 0), 0);
   const NONBULK_ID_THRESHOLD_LB = 8820; // 4,000 kg — the metric figure is the operative one (§172.301(a)(3))
   const notClass1or7 = nonBulk.every((r) => !/^1(\.|$)|^7$/.test(baseClass(r.entry.hazardClass ?? "")));
-  if (nonBulk.length > 0 && nbIds.size === 1 && notClass1or7 && (!nbWeightKnown || nbAggregateLb >= NONBULK_ID_THRESHOLD_LB)) {
+  // 0.11.0 (H-MX): the rule's fourth condition — "contains no other material, hazardous or otherwise"
+  // — is now actually evaluated. Other HAZMAT aboard (a bulk line, an LQ line, a second product) is
+  // knowable from the lines themselves; other NON-hazmat freight is the `otherFreightAboard` input.
+  //   · other hazmat aboard, or ≥2 non-bulk materials → the rule simply does not apply (as before);
+  //   · otherFreightAboard === true  → the display is NOT required — said out loud, with the citation;
+  //   · otherFreightAboard === false → required; only the one-loading-facility assumption remains;
+  //   · otherFreightAboard === null  → asserted conservatively with both assumptions (pre-0.11 behavior).
+  const otherHazmatAboard = resolved.length !== nonBulk.length;
+  const singleMaterialLoad = nonBulk.length > 0 && nbIds.size === 1 && !otherHazmatAboard;
+  const nbWeightTrigger = !nbWeightKnown || nbAggregateLb >= NONBULK_ID_THRESHOLD_LB;
+  if (singleMaterialLoad && notClass1or7 && nbWeightTrigger) {
     const idNumber = [...nbIds][0] as string;
-    if (!seenId.has(idNumber)) {
-      seenId.add(idNumber);
-      placards.idDisplays.push({
-        idNumber,
-        format: idPlan.format,
-        alternateFormats: idPlan.alternateFormats,
-        onPlacards: idPlan.onPlacards,
-        positions: "each_side_and_each_end",
-        because: [{ cfr: "49 CFR 172.301(a)(3)" }, { cfr: "49 CFR 172.332" }, { cfr: "49 CFR 172.336" }],
+    if (load.otherFreightAboard === true) {
+      findings.push({
+        ruleId: "nonbulk_id_display_not_required_mixed_load",
+        tier: "info",
+        message:
+          `The vehicle carries other freight, so the §172.301(a)(3) identification-number display for ${idNumber} is NOT required — ` +
+          `that rule applies only when the vehicle contains no other material, hazardous or otherwise. ` +
+          `The placarding answer above is unchanged (other freight never counts toward the §172.504(c) aggregate).`,
+        citations: [{ cfr: "49 CFR 172.301(a)(3)" }],
+        evidence: { aggregateLb: nbWeightKnown ? nbAggregateLb : null, idNumber, otherFreightAboard: true },
+      });
+      trace.push({
+        ruleId: "nonbulk_id_display_172_301",
+        fired: false,
+        inputs: { aggregateLb: nbWeightKnown ? nbAggregateLb : null, singleMaterial: idNumber, otherFreightAboard: true },
+        citations: [{ cfr: "49 CFR 172.301(a)(3)" }],
+        note: "Not required: other freight is aboard, so the no-other-material condition fails.",
+      });
+    } else {
+      const confirmedNoOtherFreight = load.otherFreightAboard === false;
+      if (!seenId.has(idNumber)) {
+        seenId.add(idNumber);
+        placards.idDisplays.push({
+          idNumber,
+          format: idPlan.format,
+          alternateFormats: idPlan.alternateFormats,
+          onPlacards: idPlan.onPlacards,
+          positions: "each_side_and_each_end",
+          because: [{ cfr: "49 CFR 172.301(a)(3)" }, { cfr: "49 CFR 172.332" }, { cfr: "49 CFR 172.336" }],
+        });
+      }
+      const nbPackageCounts = nonBulk.map((r) => r.line.packageCount);
+      const nbPackages = nbPackageCounts.every((c) => c != null)
+        ? nbPackageCounts.reduce<number>((s, c) => s + (c ?? 0), 0)
+        : null;
+      findings.push({
+        ruleId: "nonbulk_single_material_id_display",
+        tier: "conditional",
+        message:
+          `A single-material non-bulk load${nbWeightKnown ? ` of ${nbAggregateLb} lb` : ""} must display its identification number (${idNumber}) ` +
+          `when it is ≥ 4,000 kg (8,820 lb), all loaded at one facility, and the vehicle carries no other material (§172.301(a)(3)). ` +
+          (confirmedNoOtherFreight
+            ? `No other freight is declared aboard — confirm the loading-facility condition.`
+            : `Confirm the loading-facility and no-other-material conditions.`),
+        citations: [{ cfr: "49 CFR 172.301(a)(3)" }],
+        evidence: {
+          aggregateLb: nbWeightKnown ? nbAggregateLb : null,
+          packageCount: nbPackages,
+          idNumber,
+          otherFreightAboard: load.otherFreightAboard,
+        },
+      });
+      trace.push({
+        ruleId: "nonbulk_id_display_172_301",
+        fired: true,
+        inputs: {
+          aggregateLb: nbWeightKnown ? nbAggregateLb : null,
+          singleMaterial: idNumber,
+          otherFreightAboard: load.otherFreightAboard,
+        },
+        citations: [{ cfr: "49 CFR 172.301(a)(3)" }],
+        note: "R1 resolved: the 8,820 lb figure is the 4,000 kg non-bulk single-material trigger (PHMSA Chart 15).",
       });
     }
-    const nbPackageCounts = nonBulk.map((r) => r.line.packageCount);
-    const nbPackages = nbPackageCounts.every((c) => c != null)
-      ? nbPackageCounts.reduce<number>((s, c) => s + (c ?? 0), 0)
-      : null;
-    findings.push({
-      ruleId: "nonbulk_single_material_id_display",
-      tier: "conditional",
-      message:
-        `A single-material non-bulk load${nbWeightKnown ? ` of ${nbAggregateLb} lb` : ""} must display its identification number (${idNumber}) ` +
-        `when it is ≥ 4,000 kg (8,820 lb), all loaded at one facility, and the vehicle carries no other material (§172.301(a)(3)). ` +
-        `Confirm the loading-facility and no-other-material conditions.`,
-      citations: [{ cfr: "49 CFR 172.301(a)(3)" }],
-      evidence: { aggregateLb: nbWeightKnown ? nbAggregateLb : null, packageCount: nbPackages, idNumber },
-    });
-    trace.push({
-      ruleId: "nonbulk_id_display_172_301",
-      fired: true,
-      inputs: { aggregateLb: nbWeightKnown ? nbAggregateLb : null, singleMaterial: idNumber },
-      citations: [{ cfr: "49 CFR 172.301(a)(3)" }],
-      note: "R1 resolved: the 8,820 lb figure is the 4,000 kg non-bulk single-material trigger (PHMSA Chart 15).",
-    });
   }
 
   // 6c) §172.332 / §172.334 / §172.336 — HOW the required number is displayed.

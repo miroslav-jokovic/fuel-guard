@@ -8,6 +8,8 @@ import {
   hasResolvedLine,
   linePackagingKind,
   parseBusinessDayIds,
+  stripCitations,
+  suggestedGrossLb,
   type CalcForm,
 } from "./calcModel";
 // (D-H14 cases below exercise linePackagingKind's capacity override end-to-end through the form model.)
@@ -120,5 +122,40 @@ describe("calcModel — form → /calc request (plan H5, reworked by H-P1)", () 
   it("hasResolvedLine reflects whether any line carries a product", () => {
     expect(hasResolvedLine(emptyForm())).toBe(false);
     expect(hasResolvedLine(formWith({ lines: [{ ...emptyLine(), product: gasoline }] }))).toBe(true);
+  });
+
+  it("H-MX: maps the non-hazmat-freight tri-state onto the engine's otherFreightAboard", () => {
+    const loadOf = (otherFreight: string) =>
+      buildCalcRequest(formWith({ equipmentType: "van", otherFreight, lines: [{ ...emptyLine("van"), product: gasoline }] })).load as {
+        otherFreightAboard: boolean | null;
+      };
+    expect(loadOf("").otherFreightAboard).toBeNull(); // not sure → unknown, conservative
+    expect(loadOf("no").otherFreightAboard).toBe(false);
+    expect(loadOf("yes").otherFreightAboard).toBe(true);
+  });
+
+  it("H-MX: suggests count × per-package weight as the line gross, and only when it is honest", () => {
+    const base = { ...emptyLine("van"), product: gasoline, packageType: "drum", packageCount: "4" };
+    expect(suggestedGrossLb({ ...base, perPackageCapacityValue: "440", perPackageCapacityUnit: "lb" })).toBe(1760);
+    expect(suggestedGrossLb({ ...base, perPackageCapacityValue: "200", perPackageCapacityUnit: "kg" })).toBe(1764);
+    // A volume needs a density guess — no suggestion.
+    expect(suggestedGrossLb({ ...base, perPackageCapacityValue: "55", perPackageCapacityUnit: "gal" })).toBeNull();
+    // No count, no suggestion.
+    expect(suggestedGrossLb({ ...base, packageCount: "", perPackageCapacityValue: "440", perPackageCapacityUnit: "lb" })).toBeNull();
+    // For a gas, lb/kg per package is WATER CAPACITY (D-H14), not contents weight — never suggested.
+    const propane = { ...gasoline, hazardClass: "2.1" };
+    expect(suggestedGrossLb({ ...base, product: propane, perPackageCapacityValue: "420", perPackageCapacityUnit: "lb" })).toBeNull();
+  });
+
+  it("strips citations from derived notes for form display, keeping the operative figures", () => {
+    expect(stripCitations("capacity 492.1 L exceeds 450 L (119 gal) — bulk (§171.8(1))")).toBe(
+      "capacity 492.1 L exceeds 450 L (119 gal) — bulk",
+    );
+    expect(stripCitations("capacity 200 L is at or under 450 L (119 gal) — the §171.8(2) two-part test cannot be met")).toBe(
+      "capacity 200 L is at or under 450 L (119 gal) — the two-part test cannot be met",
+    );
+    expect(stripCitations("water capacity 454 kg is at or under 454 kg (1,000 lb) — non-bulk (§171.8(3); PHMSA 19-0045)")).toBe(
+      "water capacity 454 kg is at or under 454 kg (1,000 lb) — non-bulk",
+    );
   });
 });

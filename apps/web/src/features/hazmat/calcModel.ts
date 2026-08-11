@@ -66,6 +66,12 @@ export interface CalcForm {
   tankState: string;
   /** §172.336(c) table: comma/space-separated IDs retained from the previous or current business day. */
   businessDayIds: string;
+  /**
+   * H-MX: is any NON-hazmat freight riding along? "" = not sure (conservative default) | "no" | "yes".
+   * Feeds the engine's `otherFreightAboard` tri-state — it decides the §172.301(a)(3) vehicle ID
+   * display on big single-product package loads, and NEVER the placard aggregate (hazmat-only by CFR).
+   */
+  otherFreight: string;
   lines: CalcLineForm[];
 }
 
@@ -129,6 +135,12 @@ export const GROSS_WEIGHT_UNIT_OPTIONS: Array<{ value: string; label: string }> 
   { value: "lb", label: "lb" },
   { value: "kg", label: "kg" },
 ];
+/** H-MX: the mixed-load tri-state. Blank means "not sure" — the engine then assumes the worst. */
+export const OTHER_FREIGHT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "", label: "Not sure" },
+  { value: "no", label: "No — these products are the whole load" },
+  { value: "yes", label: "Yes — other freight rides along (mixed load)" },
+];
 /** D-H14: per-package size units. gal/L are receptacle volume; lb/kg are water capacity (gases). */
 export const CAPACITY_UNIT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "gal", label: "gal" },
@@ -178,6 +190,7 @@ export function emptyForm(): CalcForm {
     cargoTankCapacityGal: "",
     tankState: "loaded",
     businessDayIds: "",
+    otherFreight: "",
     lines: [emptyLine()],
   };
 }
@@ -283,6 +296,8 @@ export function buildCalcRequest(form: CalcForm): HazmatCalcRequest {
     },
     tankState: form.tankState,
     lines,
+    // H-MX: tri-state — "yes"/"no" are the user's statement, blank stays null (unknown, conservative).
+    otherFreightAboard: form.otherFreight === "yes" ? true : form.otherFreight === "no" ? false : null,
     claimedExceptions: { shipperClaimsNoPlacards: false, claimedSpecialPermits: [] },
     portContext: { vesselConnected: null, imdgPapers: null },
     tripContext: {
@@ -293,4 +308,37 @@ export function buildCalcRequest(form: CalcForm): HazmatCalcRequest {
   };
 
   return { load: load as Record<string, unknown> };
+}
+
+/**
+ * H-MX: the line gross weight the entered packaging implies — package count × per-package weight —
+ * offered as a one-click suggestion, never silently applied. Only when the per-package figure is a
+ * WEIGHT (lb/kg): a volume needs a density guess, and for Class 2 products lb/kg per package means
+ * water capacity (D-H14), not contents weight, so gases never get a suggestion.
+ */
+export function suggestedGrossLb(line: CalcLineForm): number | null {
+  if (line.perPackageCapacityUnit !== "lb" && line.perPackageCapacityUnit !== "kg") return null;
+  if (phaseForHazardClass(line.product?.hazardClass ?? null) === "gas") return null;
+  const per = weightToLb(numOrNull(line.perPackageCapacityValue), line.perPackageCapacityUnit);
+  const count = numOrNull(line.packageCount);
+  if (per == null || per <= 0 || count == null || count <= 0) return null;
+  return Math.round(per * count);
+}
+
+/**
+ * Strip regulatory citations from a derived note for FORM display (the results panel keeps its
+ * citations — that is where they carry audit value). Removes "(§171.8(1))"-style parentheticals and
+ * bare "§171.8(2)" tokens, then tidies the whitespace the removal leaves behind.
+ */
+export function stripCitations(text: string): string {
+  // Mark bare §-references first (their own parens would defeat a one-pass parenthetical regex),
+  // then drop any parenthetical that contains a marker or an agency citation, then the markers.
+  const MARK = "\u0000";
+  return text
+    .replace(/§\s?[0-9]+(?:\.[0-9]+)*(?:\([0-9a-zA-Z]+\))*(?:'s)?/g, MARK)
+    .replace(/\s*\([^()]*(?:\u0000|PHMSA|49 CFR)[^()]*\)/g, "")
+    .replace(/\u0000\s*/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;])/g, "$1")
+    .trim();
 }

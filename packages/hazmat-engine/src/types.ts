@@ -6,7 +6,7 @@ import { z } from "zod";
  * @hazmat/data (boundary), so it reads the dataset through a minimal consumer view (`datasetRefSchema`)
  * — the full dataset is passed through; the engine reads only what a given phase needs.
  */
-export const ENGINE_VERSION = "0.10.0";
+export const ENGINE_VERSION = "0.11.0";
 
 export const datasetRefSchema = z
   .object({ version: z.string(), provisional: z.boolean().default(false) })
@@ -77,6 +77,17 @@ export const loadInputSchema = z.object({
   vehicle: vehicleSchema,
   tankState: tankStateSchema.default("loaded"),
   lines: z.array(lineSchema).default([]),
+  /**
+   * 0.11.0 (H-MX): does the vehicle carry ANY freight beyond the declared hazmat lines — hazardous or
+   * otherwise? `true` = mixed load, `false` = the lines above are the whole load, `null` = unknown
+   * (the conservative default, which preserves pre-0.11 behavior exactly).
+   *
+   * Read by ONE rule: the §172.301(a)(3) non-bulk single-material ID display, whose fourth condition
+   * is that the vehicle "contains no other material, hazardous or otherwise". It must NEVER feed the
+   * §172.504(c) aggregate — the CFR counts hazardous materials only, so adding other freight there
+   * would over-placard, and that arithmetic is correct today without this field.
+   */
+  otherFreightAboard: z.boolean().nullable().default(null),
   claimedExceptions: claimedExceptionsSchema.default({ shipperClaimsNoPlacards: false, claimedSpecialPermits: [] }),
   portContext: portContextSchema.default({ vesselConnected: null, imdgPapers: null }),
   tripContext: tripContextSchema.default({ previousOrCurrentBusinessDayIds: null, carrierRelationship: "unknown" }),
@@ -173,6 +184,17 @@ export interface PlacardOutput {
     residueExcludedLines: number;
     /** The three bars, so the UI never has to hardcode them. */
     thresholds: { placardLb: number; dangerousCategoryLb: number; nonBulkIdDisplayLb: number };
+  };
+  /**
+   * 0.11.0 (H-MX): what kind of load this is, stated so the UI never re-derives it. `packaging` is the
+   * §171.8 profile of the RESOLVED hazmat lines (a cargo tank is bulk by definition);
+   * `otherFreightAboard` echoes the input tri-state so "mixed hazmat + general freight" is sayable.
+   */
+  loadProfile?: {
+    packaging: "bulk" | "non_bulk" | "mixed";
+    hazmatLines: number;
+    distinctPlacardCategories: number;
+    otherFreightAboard: boolean | null;
   };
 }
 export interface Verdict {
