@@ -289,7 +289,7 @@ export const unlockConfirmation = (wasFraud: boolean): CardConfirmation => ({
 
 /**
  * The override confirmation NAMES THE NUMBERS. "This card will be allowed 2 purchases outside its
- * normal limits at Loves #442, Effingham IL." A generic "grant an override?" is how somebody grants
+ * normal limits at Loves station 442, Effingham IL." A generic "grant an override?" is how somebody grants
  * nine when they meant one.
  */
 export function overrideConfirmation(uses: number, locationLabel: string | null): CardConfirmation {
