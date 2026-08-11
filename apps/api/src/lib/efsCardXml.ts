@@ -171,11 +171,14 @@ function parseLimits(root: XmlElement): WsCard["limits"] {
  * Redacted and short: the path can land on a field that carries operational data, and this string
  * ends up in an API error, a job row and a Sentry event.
  */
-export function describeAtPath(raw: unknown, path: readonly (string | number)[]): string {
+export function describeAtPath(raw: unknown, path: readonly PropertyKey[]): string {
+  // `readonly PropertyKey[]` because that is what zod 4 types `issue.path` as. A symbol segment
+  // cannot occur in a document parsed from XML, but the signature accepts it so the call site
+  // compiles without a cast — and indexing with a PropertyKey is well-defined either way.
   let node: unknown = raw;
   for (const key of path) {
     if (node === null || typeof node !== "object") return "not present";
-    node = (node as Record<string | number, unknown>)[key];
+    node = (node as Record<PropertyKey, unknown>)[key];
   }
   if (node === null) return "null";
   if (node === undefined) return "absent";
