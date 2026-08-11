@@ -96,6 +96,7 @@ export {
   Link04Icon                  as LinkIcon,                       // ⚠ verify (01/02/03/04 stylistic)
   ChampionIcon                as TrophyIcon,                     // ⚠ verify (ChampionIcon vs. Trophy01Icon)
   SecurityCheckIcon           as ShieldCheckIcon,                // ⚠ verify (shield-with-tick)
+  AlertDiamondIcon            as HazmatPlacardIcon,              // hazmat/DOT placard diamond
   Key01Icon                   as KeyIcon,
   ResetPasswordIcon           as ResetPasswordIcon,
   Wifi01Icon                  as SignalIcon,                     // ⚠ verify (wifi arcs vs. signal bars)

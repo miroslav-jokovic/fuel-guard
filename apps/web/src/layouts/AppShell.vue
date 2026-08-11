@@ -294,7 +294,7 @@ async function signOut() {
     >
       <!-- Sticky header ensures the hamburger toggle is always reachable on mobile. -->
       <header
-        class="sticky top-0 z-40 flex h-12 shrink-0 items-center border-b border-edge-subtle bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-8"
+        class="sticky top-0 z-40 flex h-14 shrink-0 items-center border-b border-edge-subtle bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-8"
       >
         <div class="flex items-center gap-x-3">
           <button

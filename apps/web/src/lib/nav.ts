@@ -15,7 +15,7 @@ import {
   FuelCardIcon,
   RejectionIcon,
   ShieldCheckIcon,
-  ShieldExclamationIcon,
+  HazmatPlacardIcon,
   SparklesIcon,
   TrailerIcon,
   TransactionIcon,
@@ -123,7 +123,13 @@ export function buildNavGroups(role: UserRole | null, modules: ModuleSet | null,
         // ONE hazmat entry (H-C4, owner decision 2026-08-08): the hub routes to the calculator, the
         // loads board and the review queue — duplicating them here duplicated Loads/Trailers for no
         // gain. The review badge rides on the hub so the queue still announces itself.
-        { name: "HazmatGuard", to: "/hazmat", icon: ShieldExclamationIcon, show: isStaff && moduleEnabled(modules, "hazmatguard"), badge: counts.hazmatReview },
+        {
+          name: "HazmatGuard",
+          to: "/hazmat",
+          icon: HazmatPlacardIcon,
+          show: isStaff && moduleEnabled(modules, "hazmatguard"),
+          badge: counts.hazmatReview,
+        },
       ],
     },
     {

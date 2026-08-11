@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModuleSet } from "@fuelguard/shared";
+import { HazmatPlacardIcon, ShieldExclamationIcon } from "@fuelguard/ui/icons";
 import { buildNavGroups } from "./nav";
 
 const withHazmat = new Set(["hazmatguard"]) as unknown as ModuleSet;
@@ -13,7 +14,10 @@ describe("buildNavGroups", () => {
       expect(names).not.toContain(gone);
     }
     // The review badge rides on the hub now.
-    expect(safety?.items.find((i) => i.name === "HazmatGuard")?.badge).toBe(3);
+    const hazmat = safety?.items.find((i) => i.name === "HazmatGuard");
+    expect(hazmat?.badge).toBe(3);
+    expect(hazmat?.icon).toBe(HazmatPlacardIcon);
+    expect(hazmat?.icon).not.toBe(ShieldExclamationIcon);
   });
 
   it("hides HazmatGuard entirely without the module entitlement", () => {

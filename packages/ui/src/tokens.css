@@ -155,10 +155,10 @@
   --ink-inverse: oklch(1 0 0);
 
   /* hairlines & control borders */
-  --edge-subtle: oklch(0.88 0.015 258); /* decorative row dividers */
-  --edge: oklch(0.78 0.02 258); /* surface grouping             */
-  --edge-strong: oklch(0.6 0.025 258); /* compatibility alias         */
-  --edge-control: oklch(0.6 0.025 258); /* essential control boundary  */
+  --edge-subtle: oklch(0.9 0.012 258); /* decorative row dividers */
+  --edge: oklch(0.82 0.016 258); /* surface grouping             */
+  --edge-strong: oklch(0.64 0.025 258); /* compatibility alias         */
+  --edge-control: oklch(0.64 0.025 258); /* essential control boundary  */
 
   /* identity, interaction, links, selection, and focus are deliberately separate */
   --brand-accent: oklch(0.837 0.128 66.29);

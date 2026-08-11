@@ -31,9 +31,9 @@ body {
   --prototype-text-tertiary: oklch(0.49 0.03 258);
   --prototype-text-disabled: oklch(0.64 0.025 258);
   --prototype-inverse: oklch(1 0 0);
-  --prototype-border-subtle: oklch(0.88 0.015 258);
-  --prototype-border-default: oklch(0.78 0.02 258);
-  --prototype-border-control: oklch(0.6 0.025 258);
+  --prototype-border-subtle: oklch(0.9 0.012 258);
+  --prototype-border-default: oklch(0.82 0.016 258);
+  --prototype-border-control: oklch(0.64 0.025 258);
   --prototype-brand-accent: oklch(0.837 0.128 66.29);
   --prototype-brand-soft: oklch(0.901 0.076 70.697);
   --prototype-brand-strong: oklch(0.65 0.16 55);
@@ -155,7 +155,7 @@ body {
   }
 
   .sidebar-account-item {
-    color: var(--sidebar-ink);
+    color: var(--ink);
     @apply block w-full rounded-control px-3 py-2 text-left text-sm font-medium transition-colors;
   }
 
