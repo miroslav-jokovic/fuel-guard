@@ -133,7 +133,7 @@ describe("syncIdleDutyEvidence", () => {
           hos_rest_sec: 10_800,
           hos_work_sec: 0,
           hos_ambiguous_sec: 0,
-          hos_evidence_version: "vehicle-hos-v1",
+          hos_evidence_version: "vehicle-hos-v2",
         }),
         expect.objectContaining({
           id: "p2",
@@ -324,6 +324,195 @@ describe("syncIdleDutyEvidence", () => {
       id: "p-rounding",
       hos_covered_sec: 13_449,
       hos_rest_sec: 13_450,
+    });
+  });
+
+  it("attributes vehicle-less sleeper segments to the truck through the driver-vehicle assignment", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        idle_park_sessions: {
+          data: [
+            {
+              id: "p-assigned",
+              org_id: ORG,
+              vehicle_id: "v5",
+              started_at: START,
+              ended_at: "2026-08-01T03:00:00.000Z",
+              duration_sec: 10_800,
+              idle_sec: 10_800,
+              off_sec: 0,
+              cycles: 0,
+              mode: "continuous",
+            },
+          ],
+        },
+        // The overnight reality: the sleeper log names no truck, and no idle event carries the driver.
+        hos_duty_segments: {
+          data: [
+            {
+              driver_id: null,
+              samsara_driver_id: "SD9",
+              vehicle_id: null,
+              status: "sleeper",
+              started_at: START,
+              ended_at: "2026-08-01T03:00:00.000Z",
+            },
+          ],
+        },
+        idle_events: { data: [] },
+        vehicles: { data: [{ id: "v5", samsara_vehicle_id: "SV5" }] },
+        driver_vehicle_assignments: {
+          data: [
+            {
+              vehicle_samsara_id: "SV5",
+              driver_samsara_id: "SD9",
+              start_at: "2026-07-30T00:00:00.000Z",
+              end_at: null, // open assignment — clipped to the window end
+            },
+          ],
+        },
+      },
+      rpc: rpcUpdating(1),
+    });
+
+    const result = await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
+
+    expect(result).toMatchObject({ sessions: 1, sufficient: 1, rowsWritten: 1 });
+    expect(hosEvidenceRows(rec)[0]).toMatchObject({
+      id: "p-assigned",
+      hos_evidence_status: "sufficient",
+      hos_covered_sec: 10_800,
+      hos_rest_sec: 10_800,
+      hos_evidence_version: "vehicle-hos-v2",
+    });
+    expectNoSessionTableWrite(rec);
+    expectRpcOrgScoped(rec, ORG);
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("never re-attributes a segment whose own logbook names a different truck", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        idle_park_sessions: {
+          data: [
+            {
+              id: "p-log-conflict",
+              org_id: ORG,
+              vehicle_id: "v6",
+              started_at: START,
+              ended_at: "2026-08-01T01:00:00.000Z",
+              duration_sec: 3_600,
+              idle_sec: 3_600,
+              off_sec: 0,
+              cycles: 0,
+              mode: "continuous",
+            },
+          ],
+        },
+        hos_duty_segments: {
+          data: [
+            {
+              // The driver's log says this sleeper block happened in ANOTHER truck. The stale open
+              // assignment below must not overrule the log and lend v6 evidence it does not have.
+              driver_id: "d7",
+              samsara_driver_id: "SD7",
+              vehicle_id: "v-other",
+              status: "sleeper",
+              started_at: START,
+              ended_at: "2026-08-01T01:00:00.000Z",
+            },
+          ],
+        },
+        idle_events: { data: [] },
+        vehicles: { data: [{ id: "v6", samsara_vehicle_id: "SV6" }] },
+        driver_vehicle_assignments: {
+          data: [
+            {
+              vehicle_samsara_id: "SV6",
+              driver_samsara_id: "SD7",
+              start_at: "2026-07-30T00:00:00.000Z",
+              end_at: null,
+            },
+          ],
+        },
+      },
+      rpc: rpcUpdating(1),
+    });
+
+    const result = await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
+
+    expect(result).toMatchObject({ sessions: 1, insufficient: 1, sufficient: 0 });
+    expect(hosEvidenceRows(rec)[0]).toMatchObject({
+      id: "p-log-conflict",
+      hos_evidence_status: "insufficient",
+      hos_unknown_sec: 3_600,
+    });
+  });
+
+  it("marks the session ambiguous when assignment-derived work overlaps logbook rest on one truck", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        idle_park_sessions: {
+          data: [
+            {
+              id: "p-conflict-kinds",
+              org_id: ORG,
+              vehicle_id: "v8",
+              started_at: START,
+              ended_at: "2026-08-01T02:00:00.000Z",
+              duration_sec: 7_200,
+              idle_sec: 7_200,
+              off_sec: 0,
+              cycles: 0,
+              mode: "continuous",
+            },
+          ],
+        },
+        hos_duty_segments: {
+          data: [
+            {
+              driver_id: "d1",
+              samsara_driver_id: "SD1",
+              vehicle_id: "v8",
+              status: "sleeper",
+              started_at: START,
+              ended_at: "2026-08-01T02:00:00.000Z",
+            },
+            {
+              // A second driver assigned to the same truck was ON DUTY for the same hours — a wrong or
+              // stale assignment must surface as ambiguity, not silently pick a winner.
+              driver_id: "d2",
+              samsara_driver_id: "SD2",
+              vehicle_id: null,
+              status: "on_duty",
+              started_at: START,
+              ended_at: "2026-08-01T02:00:00.000Z",
+            },
+          ],
+        },
+        idle_events: { data: [] },
+        vehicles: { data: [{ id: "v8", samsara_vehicle_id: "SV8" }] },
+        driver_vehicle_assignments: {
+          data: [
+            {
+              vehicle_samsara_id: "SV8",
+              driver_samsara_id: "SD2",
+              start_at: "2026-07-30T00:00:00.000Z",
+              end_at: null,
+            },
+          ],
+        },
+      },
+      rpc: rpcUpdating(1),
+    });
+
+    const result = await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
+
+    expect(result).toMatchObject({ sessions: 1, ambiguous: 1, sufficient: 0 });
+    expect(hosEvidenceRows(rec)[0]).toMatchObject({
+      id: "p-conflict-kinds",
+      hos_evidence_status: "ambiguous",
+      hos_ambiguous_sec: 7_200,
     });
   });
 });

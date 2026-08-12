@@ -24,7 +24,8 @@ const PAGE_SIZE = 1000;
 /** Rows per apply_idle_hos_evidence call — one round trip per chunk, not per row. */
 const WRITE_CHUNK = 500;
 const SEGMENT_PAD_MS = 72 * 3_600_000;
-const EVIDENCE_VERSION = "vehicle-hos-v1" as const;
+/** v2: duty segments reach a truck through the driver↔vehicle assignment timeline, not only the logbook. */
+const EVIDENCE_VERSION = "vehicle-hos-v2" as const;
 
 interface ParkSessionRow {
   id: string;
@@ -41,10 +42,19 @@ interface ParkSessionRow {
 
 interface HosSegmentRow {
   driver_id: string | null;
+  samsara_driver_id: string | null;
   vehicle_id: string | null;
   status: string;
   started_at: string;
   ended_at: string | null;
+}
+
+/** Time-ranged driver↔vehicle assignment (0051) — keyed by SAMSARA ids on both sides. */
+interface AssignmentRow {
+  vehicle_samsara_id: string;
+  driver_samsara_id: string;
+  start_at: string;
+  end_at: string | null;
 }
 
 interface IdleEventRow {
@@ -216,7 +226,7 @@ async function readHosSegments(
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await admin
       .from("hos_duty_segments")
-      .select("driver_id, vehicle_id, status, started_at, ended_at")
+      .select("driver_id, samsara_driver_id, vehicle_id, status, started_at, ended_at")
       .eq("org_id", orgId)
       .gte("started_at", paddedFromIso)
       .lte("started_at", endIso)
@@ -226,6 +236,53 @@ async function readHosSegments(
       .range(offset, offset + PAGE_SIZE - 1);
     requireDatabaseSuccess(error, "HOS segment read");
     const batch = (data ?? []) as HosSegmentRow[];
+    out.push(...batch);
+    if (batch.length < PAGE_SIZE) return out;
+  }
+}
+
+/** vehicles.samsara_vehicle_id → vehicles.id, so samsara-keyed assignments resolve to our fleet rows. */
+async function readVehicleIdBySamsara(
+  admin: SupabaseClient,
+  orgId: string,
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await admin
+      .from("vehicles")
+      .select("id, samsara_vehicle_id")
+      .eq("org_id", orgId)
+      .not("samsara_vehicle_id", "is", null)
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    requireDatabaseSuccess(error, "vehicle read");
+    const batch = (data ?? []) as { id: string; samsara_vehicle_id: string }[];
+    for (const row of batch) map.set(row.samsara_vehicle_id, row.id);
+    if (batch.length < PAGE_SIZE) return map;
+  }
+}
+
+/** Assignment intervals overlapping the (padded) window — same pad as the segments they will clip. */
+async function readAssignments(
+  admin: SupabaseClient,
+  orgId: string,
+  fromIso: string,
+  endIso: string,
+): Promise<AssignmentRow[]> {
+  const out: AssignmentRow[] = [];
+  const paddedFromIso = new Date(Date.parse(fromIso) - SEGMENT_PAD_MS).toISOString();
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await admin
+      .from("driver_vehicle_assignments")
+      .select("vehicle_samsara_id, driver_samsara_id, start_at, end_at")
+      .eq("org_id", orgId)
+      .lte("start_at", endIso)
+      .or(`end_at.is.null,end_at.gte.${paddedFromIso}`)
+      .order("start_at", { ascending: true })
+      .order("vehicle_samsara_id", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    requireDatabaseSuccess(error, "assignment read");
+    const batch = (data ?? []) as AssignmentRow[];
     out.push(...batch);
     if (batch.length < PAGE_SIZE) return out;
   }
@@ -258,9 +315,11 @@ async function readIdleEvents(
 function mapSegments(rows: HosSegmentRow[]): {
   byVehicle: Map<string, HosSegment[]>;
   byDriver: Map<string, HosSegment[]>;
+  bySamsaraDriver: Map<string, HosSegment[]>;
 } {
   const byVehicle = new Map<string, HosSegment[]>();
   const byDriver = new Map<string, HosSegment[]>();
+  const bySamsaraDriver = new Map<string, HosSegment[]>();
   for (const row of rows) {
     const startMs = Date.parse(row.started_at);
     const endMs = row.ended_at == null ? null : Date.parse(row.ended_at);
@@ -270,7 +329,7 @@ function mapSegments(rows: HosSegmentRow[]): {
     )
       continue;
     const status: HosStatus = normalizeHosStatus(row.status);
-    if (row.driver_id == null && row.vehicle_id == null) continue;
+    if (row.driver_id == null && row.vehicle_id == null && row.samsara_driver_id == null) continue;
     const segment: HosSegment = {
       driverId: row.driver_id ?? "unresolved",
       vehicleId: row.vehicle_id,
@@ -288,8 +347,62 @@ function mapSegments(rows: HosSegmentRow[]): {
       driverList.push(segment);
       byDriver.set(row.driver_id, driverList);
     }
+    if (row.samsara_driver_id != null) {
+      const samsaraList = bySamsaraDriver.get(row.samsara_driver_id) ?? [];
+      samsaraList.push(segment);
+      bySamsaraDriver.set(row.samsara_driver_id, samsaraList);
+    }
   }
-  return { byVehicle, byDriver };
+  return { byVehicle, byDriver, bySamsaraDriver };
+}
+
+/**
+ * Attribute duty segments to trucks through the driver↔vehicle assignment timeline (0051).
+ *
+ * WHY (incident 2026-08-11 — "5/177 trucks with confident data"). A duty segment carries a vehicle_id
+ * only when the Samsara LOG entry did, and that is essentially only driving entries: the sleeper and
+ * off-duty segments that decide overnight idle almost never name a truck. In production that left an
+ * HOS duty overlay on 4 of 190 trucks (2%), so the avoidable-idle model — which refuses to judge
+ * continuous idle without duty evidence — excluded 97% of the fleet as "uncertain". The link the
+ * logbook omits already exists in driver_vehicle_assignments (persisted by the vehicle sync, extended
+ * by operator-derived intervals): clip each assigned driver's segments to the assignment interval and
+ * credit them to that truck.
+ *
+ * Safety properties, in order:
+ *  - A segment whose OWN logbook truck is a DIFFERENT vehicle is never re-attributed — the driver's
+ *    log contradicts the assignment, and the log wins.
+ *  - A wrong same-window assignment cannot silently flip a verdict: conflicting duty KINDS overlapping
+ *    on one truck are marked ambiguous by the vehicle timeline, and ambiguous sessions are excluded
+ *    from scoring rather than guessed (buildHosVehicleTimelines).
+ *  - Team drivers double-covering a truck stay correct: same-kind overlap is counted once.
+ */
+function deriveAssignedVehicleSegments(
+  assignments: AssignmentRow[],
+  vehicleIdBySamsara: Map<string, string>,
+  segmentsBySamsaraDriver: Map<string, HosSegment[]>,
+  windowEndMs: number,
+): Map<string, HosSegment[]> {
+  const derived = new Map<string, HosSegment[]>();
+  for (const assignment of assignments) {
+    const vehicleId = vehicleIdBySamsara.get(assignment.vehicle_samsara_id);
+    if (vehicleId == null) continue;
+    const assignStartMs = Date.parse(assignment.start_at);
+    const assignEndMs = assignment.end_at == null ? windowEndMs : Date.parse(assignment.end_at);
+    if (!Number.isFinite(assignStartMs) || !Number.isFinite(assignEndMs)) continue;
+    if (assignEndMs <= assignStartMs) continue;
+    for (const segment of segmentsBySamsaraDriver.get(assignment.driver_samsara_id) ?? []) {
+      // The driver's own logbook named a different truck for this segment → the log wins, skip.
+      if (segment.vehicleId != null && segment.vehicleId !== vehicleId) continue;
+      const segmentEndMs = segment.endMs ?? windowEndMs;
+      const clippedStartMs = Math.max(segment.startMs, assignStartMs);
+      const clippedEndMs = Math.min(segmentEndMs, assignEndMs);
+      if (!(clippedEndMs > clippedStartMs)) continue;
+      const list = derived.get(vehicleId) ?? [];
+      list.push({ ...segment, vehicleId, startMs: clippedStartMs, endMs: clippedEndMs });
+      derived.set(vehicleId, list);
+    }
+  }
+  return derived;
 }
 
 export async function syncIdleDutyEvidence(
@@ -309,11 +422,30 @@ export async function syncIdleDutyEvidence(
   const sessions = await readSessions(admin, orgId, fromIso, endIso);
   if (sessions.length === 0)
     return { sessions: 0, sufficient: 0, insufficient: 0, ambiguous: 0, rowsWritten: 0 };
-  const [hosRows, events] = await Promise.all([
+  const [hosRows, events, vehicleIdBySamsara, assignments] = await Promise.all([
     readHosSegments(admin, orgId, fromIso, endIso),
     readIdleEvents(admin, orgId, fromIso, endIso),
+    readVehicleIdBySamsara(admin, orgId),
+    readAssignments(admin, orgId, fromIso, endIso),
   ]);
-  const { byVehicle: segmentsByVehicle, byDriver: segmentsByDriver } = mapSegments(hosRows);
+  const {
+    byVehicle: segmentsByVehicle,
+    byDriver: segmentsByDriver,
+    bySamsaraDriver: segmentsBySamsaraDriver,
+  } = mapSegments(hosRows);
+  // Merge assignment-derived segments into the per-vehicle view BEFORE the timelines are built, so the
+  // timeline's overlap/conflict handling applies to them exactly as to logbook-tagged segments.
+  const assignedSegments = deriveAssignedVehicleSegments(
+    assignments,
+    vehicleIdBySamsara,
+    segmentsBySamsaraDriver,
+    endMs,
+  );
+  for (const [vehicleId, segments] of assignedSegments) {
+    const list = segmentsByVehicle.get(vehicleId) ?? [];
+    list.push(...segments);
+    segmentsByVehicle.set(vehicleId, list);
+  }
   const vehicleTimelines = buildHosVehicleTimelines(segmentsByVehicle, Date.parse(fromIso), endMs);
   const writes: ParkSessionEvidenceWrite[] = [];
   let sufficient = 0;
