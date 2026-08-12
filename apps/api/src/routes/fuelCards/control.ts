@@ -26,7 +26,15 @@ import {
   type CardMutationContext,
   type CardMutationIntentSpec,
 } from "../../services/efsCardControl.js";
-import { lockEdits, overrideClearEdits, overrideGrantEdits, promptsEdits, unlockEdits } from "../../services/efsCardEdits.js";
+import {
+  OVERRIDE_FIELDS,
+  lockEdits,
+  overrideClearEdits,
+  overrideClearedLanded,
+  overrideGrantEdits,
+  promptsEdits,
+  unlockEdits,
+} from "../../services/efsCardEdits.js";
 import { loadCardControlAccess, type CardScope } from "../../services/efsCardControlAccess.js";
 import { loadCardNumber } from "../../services/efsCardMirror.js";
 import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
@@ -303,6 +311,12 @@ export function fuelCardControlRouter(): Router {
     const prepared = await prepare(req, res, "override");
     if (!prepared) return;
 
+    // D1: the dedicated `deleteOverride` op behind its flag; the proven three-edit echo otherwise.
+    // Same intent, same ledger, same finalizers — only the wire mechanism differs, and the audit
+    // meta names which one ran so the two are distinguishable in history. The flag stays off until
+    // the D1 probe proves entitlement and post-state on the QA card (fix plan D1).
+    const viaDeleteOp = getAppLocals(req).env.EFS_CARD_DELETE_OVERRIDE_ENABLED;
+
     await run(res, {
       ...prepared.ctx,
       reason: body.data.reason,
@@ -311,8 +325,16 @@ export function fuelCardControlRouter(): Router {
     }, {
       intent: "override_clear",
       auditAction: "card.override_cleared",
-      buildEdits: () => overrideClearEdits(),
-      auditMeta: (doc) => ({ overrideUsesBefore: doc.card.overrideUses, overrideUsesAfter: 0 }),
+      // With the vendor op, no edits are echoed — `[]` is the ledger's honest record of that.
+      buildEdits: viaDeleteOp ? () => [] : () => overrideClearEdits(),
+      ...(viaDeleteOp
+        ? { vendorOp: { op: "deleteOverride" as const, landed: overrideClearedLanded, movesFields: OVERRIDE_FIELDS } }
+        : {}),
+      auditMeta: (doc) => ({
+        overrideUsesBefore: doc.card.overrideUses,
+        overrideUsesAfter: 0,
+        vendorOp: viaDeleteOp ? "deleteOverride" : "setCardv2",
+      }),
     });
   }));
 

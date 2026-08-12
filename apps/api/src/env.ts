@@ -224,6 +224,11 @@ const EnvSchema = z.object({
   EFS_CARD_CONTROL_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
   // Gates the QA entitlement probe endpoint. Staging only, and unset again once the probe has run.
   EFS_CARD_CONTROL_PROBE_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
+  // D1: clear overrides via the dedicated `deleteOverride` operation (guide p27) instead of the
+  // three-field setCardv2 echo. Default FALSE — the echo path stays the mechanism until the D1 probe
+  // proves this account is entitled to the op and records its observed post-state (fix plan D1).
+  // The fallback is not deleted when this turns on; turning it off restores the proven path.
+  EFS_CARD_DELETE_OVERRIDE_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
   // Whole-orchestration deadline for one mutation: fresh getCardv2 → setCardV2 → verifying re-read.
   // Deliberately larger than the sum of the per-request timeouts, because the budget has to cover the
   // pacing waits between three calls in the interactive lane, not just the sockets. When it expires

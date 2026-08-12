@@ -491,3 +491,37 @@ Other enumerated writables (`handEnter`, validation types) are sent as EFS retur
 echo, so they cannot mismatch by construction. Whether the same vocabulary-matching applies to
 override/limit fields is untested — those are numeric or boolean-shaped, where casing does not
 arise. If a future field write shows accepted-and-ignored symptoms, suspect this first.
+
+## D1 — `deleteOverride` adopted flag-gated, probe pending (2026-08-12)
+
+The override-clear intent has two mechanisms as of this entry:
+
+- **The echo clear (production default).** Three-field `setCardv2` write (`override=0`,
+  `overrideAllLocations=false`, `locationOverride=0`) — the p194 recipe inverted, live since
+  Phase 2, proven on the QA card.
+- **The dedicated op (`EFS_CARD_DELETE_OVERRIDE_ENABLED`, default false).**
+  `deleteOverride(clientId, cardNumber)` (guide p27) — no document echo, so no field to drop:
+  materially smaller blast radius for the one intent. `lib/efsCardWrite.ts#deleteOverrideOp`,
+  retry:false like every write; dispatched through the same plan/apply/ledger machinery via
+  `CardMutationIntentSpec.vendorOp`, with `edits: []` recorded honestly and the audit meta naming
+  `vendorOp: "deleteOverride" | "setCardv2"` so history distinguishes the mechanisms.
+
+**Verification without edits.** A vendor op has no edit paths for `intentLanded` to compare, so it
+carries its own predicate: `overrideClearedLanded` — NO USES REMAIN (`overrideUses` 0-or-null),
+which every plausible vendor post-state (0, nil, absent) satisfies while a surviving exception
+fails. The three override fields are declared as the op's expected footprint (`movesFields`) and
+classified as vendor-maintained in the drift record — visible, never alarmed; anything else moving
+is unexplained drift exactly as on the echo path.
+
+**Before the flag turns on** the D1 probe must answer, on the QA card
+(`docs/plans/DEVIN-D1-DELETEOVERRIDE-EXPERIMENTS.md`):
+
+1. Entitlement — does this account get `not_allowed` for the op? (Fallback stays; E6 ticket.)
+2. Post-state — what EFS actually writes into the trio (recorded from `afterDocument`; the
+   predicate above is then checked against reality, not left as a guess).
+3. The B4 decision — does `deleteOverride` restore the limits array after a PRODUCT override?
+   Yes → B4's clear path is this op and the ledger-reconstruction design in B4.2 is deleted from
+   the plan. No → B4.2 stands. (Needs a portal-staged product override; may run later than 1–2.)
+
+Findings land here when the run completes. Until then: flag off, echo clear remains the mechanism,
+and nothing user-visible changes.

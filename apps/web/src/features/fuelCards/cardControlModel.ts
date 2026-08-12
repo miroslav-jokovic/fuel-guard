@@ -150,6 +150,63 @@ export function cardAssignmentRank(card: {
   return has(card.driverName) || has(card.driverIdPrompt) || has(card.unitPrompt) ? 0 : 1;
 }
 
+// ─── Account-wide overrides (B3) ───────────────────────────────────────────────────────────────
+
+/**
+ * Where an active exception applies, in words.
+ *
+ * The single-location id is checked FIRST, deliberately. The two scope fields are mutually exclusive
+ * by recipe (p194), but a card configured in the WEX portal can carry both at once — and this
+ * codebase has already concluded (see overrideGrantEdits) that when they conflict, the location id
+ * is what the pump actually honours: the driver is declined everywhere but that one truck stop.
+ * Claiming "any location" on such a card would repeat the exact lie that function exists to prevent.
+ */
+export function overrideScopeLabel(allLocations: boolean | null, locationId: string | null): string {
+  if (locationId) return `Location #${locationId}`;
+  if (allLocations) return "Any location";
+  // Uses remain but neither scope field is armed — a state EFS can report and we will not guess at.
+  return "Scope not reported";
+}
+
+export interface ActiveOverrideRow {
+  id: string;
+  maskedRef: string;
+  driverName: string | null;
+  unitPrompt: string | null;
+  status: string;
+  uses: number;
+  scopeLabel: string;
+}
+
+/**
+ * Every card on the account that currently carries a fuel exception — the account-wide answer to
+ * "who can buy outside their limits right now" (audit B3).
+ *
+ * `overrideUses > 0` is the gate because that is the vendor's own semantics: the count is decremented
+ * per use and 0 means no exception left (p194). A card with a leftover scope field but zero uses is
+ * configuration residue, not an active exception, and listing it here would teach operators to
+ * distrust the panel. Sorted by card order — the same order as the inventory below it, so a reader
+ * can find the row again.
+ */
+export function activeOverrides(rows: readonly {
+  id: string; maskedRef: string; driverName: string | null; unitPrompt: string | null;
+  status: string; overrideUses: number | null; overrideAllLocations: boolean | null;
+  locationOverrideId: string | null; last4: string;
+}[]): ActiveOverrideRow[] {
+  return rows
+    .filter((r) => (r.overrideUses ?? 0) > 0)
+    .sort((a, b) => compareCardValues(a.last4, b.last4, "asc"))
+    .map((r) => ({
+      id: r.id,
+      maskedRef: r.maskedRef,
+      driverName: r.driverName,
+      unitPrompt: r.unitPrompt,
+      status: r.status,
+      uses: r.overrideUses ?? 0,
+      scopeLabel: overrideScopeLabel(r.overrideAllLocations, r.locationOverrideId),
+    }));
+}
+
 // ─── Effective configuration ───────────────────────────────────────────────────────────────────
 
 export interface EffectiveDisplayRow {

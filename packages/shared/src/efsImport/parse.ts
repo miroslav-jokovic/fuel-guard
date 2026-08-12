@@ -382,6 +382,10 @@ export interface DeclinedTransactionRow {
   unit: string | null;
   driver_ext_id: string | null;
   driver_name: string | null;
+  /** WHERE driver_name came from (migration 0182). The SOAP reject feed carries no driver at all —
+   *  'efs_report' is a name EFS printed on an uploaded report; 'card_mirror' / 'posted_history' are
+   *  DERIVED from the card and describe its assigned driver, not proof of who stood at the pump. */
+  driver_name_source: "efs_report" | "card_mirror" | "posted_history" | null;
   error_code: string | null;
   error_description: string | null;
   policy: string | null;

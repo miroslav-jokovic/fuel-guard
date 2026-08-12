@@ -118,6 +118,21 @@ const total = computed(() => data.value?.total ?? 0);
 // the printout — the same principle the transactions page follows with its faithful tran_time column.
 const fmt = (iso: string | null, _state: string | null) => rejectDateTime(iso);
 
+// The EFS reject feed carries NO driver — verified against the live getTranRejects operation on
+// 2026-08-12: 110 records, ten fields, no driverName/driverId. So a name in this column is DERIVED
+// from the card (migration 0182 records which source), and the UI has to say so: a decline is
+// exactly the case where the card may not be with its assigned driver, and that gap is the fraud
+// signal this page exists to surface. An unmarked name would read as evidence of presence.
+const DRIVER_SOURCE_NOTE: Record<string, string> = {
+  efs_report: "As printed on the uploaded EFS reject report.",
+  card_mirror: "The driver this card is assigned to in EFS. NOT proof this person was at the pump.",
+  posted_history: "Derived from approved fills on this same card. NOT proof this person was at the pump.",
+};
+const driverNote = (row: DeclinedTransactionRow): string =>
+  DRIVER_SOURCE_NOTE[row.driver_name_source ?? ""] ?? "";
+const driverIsDerived = (row: DeclinedTransactionRow): boolean =>
+  row.driver_name_source === "card_mirror" || row.driver_name_source === "posted_history";
+
 // Row drill-down: click a decline to inspect its full details + why it was flagged.
 const selectedRow = ref<DeclinedTransactionRow | null>(null);
 
@@ -143,7 +158,13 @@ const columns: DataTableColumn[] = [
   { key: "declined_at", label: "Date / Time", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
   { key: "card_ref", label: "Card #", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
   { key: "invoice", label: "Invoice", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  { key: "driver_name", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
+  {
+    key: "driver_name",
+    label: "Driver (card)",
+    sortable: true,
+    headerClass: "min-w-[10rem]",
+    cellClass: "text-ink-secondary",
+  },
   { key: "location_text", label: "Location", headerClass: "min-w-[12rem]", cellClass: "text-ink-secondary" },
   { key: "city", label: "City", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
   { key: "state", label: "State", sortable: true, headerClass: "min-w-[4rem]", cellClass: "text-ink-secondary" },
@@ -224,6 +245,18 @@ const columns: DataTableColumn[] = [
         <span v-else class="text-xs text-ink-tertiary">—</span>
       </template>
       <template #cell-declined_at="{ row }">{{ fmt(row.declined_at, row.state) }}</template>
+      <template #cell-driver_name="{ row }">
+        <span v-if="row.driver_name" :title="driverNote(row)" class="inline-flex items-baseline gap-1">
+          <span>{{ row.driver_name }}</span>
+          <span
+            v-if="driverIsDerived(row)"
+            class="text-[10px] font-medium uppercase tracking-wide text-ink-tertiary"
+            aria-label="derived from the card, not reported with the decline"
+            >card</span
+          >
+        </span>
+        <span v-else class="text-xs text-ink-tertiary">—</span>
+      </template>
       <template #cell-error_code="{ row }">
         <span :class="[BADGE_BASE, toneClass('danger')]">{{ row.error_code }}</span>
       </template>
@@ -312,7 +345,16 @@ const columns: DataTableColumn[] = [
         </div>
 
         <dl class="grid grid-cols-2 gap-x-4 gap-y-3">
-          <div><dt class="text-xs text-ink-tertiary">Driver</dt><dd class="text-ink">{{ selectedRow.driver_name || "—" }}</dd></div>
+          <div class="col-span-2">
+            <dt class="text-xs text-ink-tertiary">Driver</dt>
+            <dd class="text-ink">{{ selectedRow.driver_name || "—" }}</dd>
+            <dd v-if="selectedRow.driver_name && driverNote(selectedRow)" class="mt-0.5 text-xs text-ink-tertiary">
+              {{ driverNote(selectedRow) }}
+            </dd>
+            <dd v-else-if="!selectedRow.driver_name" class="mt-0.5 text-xs text-ink-tertiary">
+              The EFS reject feed does not report a driver, and this card could not be matched to one.
+            </dd>
+          </div>
           <div><dt class="text-xs text-ink-tertiary">Card #</dt><dd class="text-ink">{{ selectedRow.card_ref || "—" }}</dd></div>
           <div><dt class="text-xs text-ink-tertiary">Invoice</dt><dd class="text-ink">{{ selectedRow.invoice || "—" }}</dd></div>
           <div><dt class="text-xs text-ink-tertiary">Location</dt><dd class="text-ink">{{ selectedRow.location_text || "—" }}</dd></div>

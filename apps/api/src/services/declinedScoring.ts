@@ -14,6 +14,7 @@ import {
 import type { Env } from "../env.js";
 import { reconcileWithSamsara } from "./samsaraRecon.js";
 import { syncCardAssignments, lookupCardAssignment } from "./cardAssignments.js";
+import { resolveDeclineDrivers } from "./declineDriverResolution.js";
 
 const WINDOW_H = 3; // hours around a decline for repeat / approval-elsewhere checks
 
@@ -386,6 +387,10 @@ export async function scoreDeclinedOrg(admin: SupabaseClient, env: Env, orgId: s
   // fill history (WP1 D4), then attribution for rows imported before the WP1 fix (D2).
   await syncCardAssignments(admin, orgId).catch(() => undefined); // best-effort — scoring works without it
   await attributeDeclines(admin, orgId);
+  // Derive the driver the reject feed cannot supply (migration 0182). Best-effort: a decline is
+  // scored on card + location + timing evidence, none of which needs a NAME, so a mirror that is
+  // mid-sync must never be the reason a fraud signal goes unscored.
+  await resolveDeclineDrivers(admin, env, orgId).catch(() => undefined);
   const { data: rows } = await admin
     .from("declined_transactions")
     .select("id")

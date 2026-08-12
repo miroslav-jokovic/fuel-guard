@@ -87,10 +87,14 @@ function classifyDrift(
   before: CardDocument,
   after: CardDocument,
   edits: readonly CardEdit[],
+  /** Header fields a dedicated vendor op is EXPECTED to move (D1: the three override fields).
+   *  Recorded as vendor-maintained — visible in the ledger's drift column, never alarmed. */
+  vendorMovesFields: readonly string[] = [],
 ): { unexplained: EchoDiff[]; vendorMaintained: EchoDiff[] } {
   const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS);
   const touchedStatus = edits.some((e) => e.name === "status");
   const editedPaths = new Set(edits.map((e) => editPath(before, e)));
+  const vendorMovedPaths = new Set(vendorMovesFields.map((name) => fieldPath(before, name)));
   const originalStatusPath = fieldPath(before, "originalStatus");
   const unexplained: EchoDiff[] = [];
   const vendorMaintained: EchoDiff[] = [];
@@ -101,6 +105,9 @@ function classifyDrift(
     // `intentLanded` already accepts it, so counting it as drift would report every single lock as
     // "Applied, with other changes" and turn the drift signal into noise on the first live write.
     else if (editedPaths.has(diff.path) && vendorNormalisedOnly(diff)) vendorMaintained.push(diff);
+    // A field the dedicated vendor op was sent to move (deleteOverride clearing the override
+    // trio). The op's `landed` predicate already judged the outcome; these are its footprint.
+    else if (vendorMovedPaths.has(diff.path)) vendorMaintained.push(diff);
     else unexplained.push(diff);
   }
   return { unexplained, vendorMaintained };
@@ -121,7 +128,9 @@ export async function finalizeLanded(
   after: CardDocument,
   wire: WirePayload,
 ): Promise<CardMutationOutcome> {
-  const { unexplained, vendorMaintained } = classifyDrift(plan.before, after, plan.edits);
+  const { unexplained, vendorMaintained } = classifyDrift(
+    plan.before, after, plan.edits, plan.vendorOp?.movesFields ?? [],
+  );
   const drifted = unexplained.length > 0;
   const driftFields = unexplained.map((d) => d.path);
 

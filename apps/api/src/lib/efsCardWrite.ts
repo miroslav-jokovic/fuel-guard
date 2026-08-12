@@ -2,7 +2,7 @@ import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { assertEchoFidelity, serializeSetCardRequest, type CardEdit } from "./efsCardEcho.js";
 import { type CardDocument, redactCardXml } from "./efsCardXml.js";
-import { callCardOp, type CardOpOptions } from "./efsCardOps.js";
+import { callCardOp, elAlways, type CardOpOptions } from "./efsCardOps.js";
 import { EfsSoapError, parseSoap } from "./efsSoapSession.js";
 import { childElements, collectElements, findDescendant, localName, type XmlElement } from "./efsXml.js";
 
@@ -112,6 +112,62 @@ export async function setCardV2(
   if (isDecline(resultText)) {
     throw new EfsSoapError(
       `EFS refused the card change: ${resultText}`,
+      "declined",
+      { result: resultText, response: responseXmlRedacted.slice(0, 400) },
+    );
+  }
+
+  return { requestXmlRedacted, responseXmlRedacted, resultText, shape };
+}
+
+/**
+ * `deleteOverride(clientId, cardNumber)` — the vendor's dedicated override-clear (guide p27).
+ *
+ * The second write operation this file has ever gained, and it earns its place by SHRINKING blast
+ * radius: the setCardv2 clear is a full-document echo where a serializer bug can delete a fleet's
+ * driver assignments, while this op names one card and can only touch its override. No echo, no
+ * fidelity guard needed — there is no document in the request to get wrong.
+ *
+ * Everything else follows this file's rules: `retry: false` hardcoded (a timed-out delete may have
+ * landed, and "deleted twice" is not safe to assume harmless for an op whose post-state we are still
+ * characterising), interactive priority, and the response classified by the same void/decline rules
+ * as setCardV2 — the guide documents the same "fault error … or an error with error # and
+ * description" family for it (p27), and "no news is good news" (p9) applies.
+ *
+ * FLAG-GATED at the call site (`EFS_CARD_DELETE_OVERRIDE_ENABLED`, default false): the D1 probe must
+ * first prove the account is entitled to the op and record what EFS actually sets the three override
+ * fields to afterwards. Until then the echo-based clear remains the mechanism (fix plan D1).
+ */
+export async function deleteOverrideOp(
+  env: Env,
+  creds: EfsSoapCredentials,
+  cardNumber: string,
+  opts: Omit<CardOpOptions, "retry"> = {},
+): Promise<SetCardResult> {
+  let requestXmlRedacted = "";
+
+  const xml = await callCardOp(
+    env, creds, "deleteOverride",
+    (session) => {
+      const body =
+        `<CardManagementEP_deleteOverride>${elAlways("clientId", session.clientId)}${elAlways("cardNumber", cardNumber)}</CardManagementEP_deleteOverride>`;
+      requestXmlRedacted = redactCardXml(body);
+      return body;
+    },
+    {
+      ...opts,
+      priority: opts.priority ?? "interactive",
+      // Not overridable. See rule 2 in the file docblock.
+      retry: false,
+    },
+  );
+
+  const { resultText, shape } = classifySetCardResponse(xml);
+  const responseXmlRedacted = redactCardXml(xml);
+
+  if (isDecline(resultText)) {
+    throw new EfsSoapError(
+      `EFS refused the override delete: ${resultText}`,
       "declined",
       { result: resultText, response: responseXmlRedacted.slice(0, 400) },
     );

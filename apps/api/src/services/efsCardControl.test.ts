@@ -7,7 +7,7 @@ import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { CardControlError, executeCardMutation, type CardMutationContext } from "./efsCardControl.js";
-import { lockEdits } from "./efsCardEdits.js";
+import { OVERRIDE_FIELDS, lockEdits, overrideClearedLanded } from "./efsCardEdits.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /**
@@ -347,5 +347,66 @@ describe("the second verifying look (audit P0-2)", () => {
     );
     expect(outcome.status).toBe("failed");
     expect(settled(rec)).toMatchObject({ status: "failed" });
+  });
+});
+
+describe("a vendor op replaces the echo (fix plan D1 — deleteOverride)", () => {
+  const vendorSpec = (landed: (doc: ReturnType<typeof parseCardDocument>) => boolean) => ({
+    intent: "override_clear" as const,
+    auditAction: "card.override_cleared",
+    // No edits are echoed for a dedicated op — `[]` is the ledger's honest record of that.
+    buildEdits: () => [],
+    vendorOp: { op: "deleteOverride" as const, landed, movesFields: OVERRIDE_FIELDS },
+  });
+
+  it("dispatches deleteOverride — two parts, no document — and succeeds via the predicate", async () => {
+    // The production predicate must accept the fixture's no-override state; if this precondition
+    // ever fails, the fixture gained an override and the test needs a cleared variant instead.
+    expect(overrideClearedLanded(parseCardDocument(CARD_ACTIVE))).toBe(true);
+
+    const rec = recorder();
+    // login → fresh read → deleteOverride → verifying re-read. Same sequence as the echo path.
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE);
+    const outcome = await executeCardMutation(
+      ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)),
+      vendorSpec(overrideClearedLanded),
+    );
+
+    expect(outcome.status).toBe("succeeded");
+    const writeBody = s.bodies[2]!;
+    expect(writeBody).toContain("<CardManagementEP_deleteOverride>");
+    // The op's safety case, asserted on the wire: nothing document-shaped went out, so nothing
+    // document-shaped can be deleted by it.
+    expect(writeBody).not.toContain("<CardManagementEP_setCardv2");
+    expect(writeBody).not.toContain("<infos>");
+    expect(settled(rec)).toMatchObject({ status: "succeeded" });
+    // The ledger row records that nothing was echoed.
+    const rows = rec.writtenRows("efs_card_mutations");
+    expect(rows[0]).toMatchObject({ intent: "override_clear", edits: [] });
+  });
+
+  it("records failed/no_change when the predicate says the exception survived", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE);
+    const outcome = await executeCardMutation(
+      ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)),
+      // A predicate that refuses: the void success came back but the re-read still shows uses.
+      vendorSpec(() => false),
+    );
+    expect(outcome.status).toBe("failed");
+    expect(outcome.faultCode).toBe("no_change");
+    expect(settled(rec)).toMatchObject({ status: "failed", efs_fault_code: "no_change" });
+  });
+
+  it("still reports unexplained drift on fields the op does not own", async () => {
+    const rec = recorder();
+    // The verify read shows a policy change nobody asked for — drift, exactly as on the echo path.
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>"));
+    const outcome = await executeCardMutation(
+      ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)),
+      vendorSpec(overrideClearedLanded),
+    );
+    expect(outcome.status).toBe("drift_detected");
+    expect(outcome.driftFields.some((p) => p.includes("policyNumber"))).toBe(true);
   });
 });

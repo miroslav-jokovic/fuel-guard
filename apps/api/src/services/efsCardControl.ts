@@ -4,7 +4,7 @@ import type { Env } from "../env.js";
 import type { CardEdit } from "../lib/efsCardEcho.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { getCardV2 } from "../lib/efsCardOps.js";
-import { setCardV2 } from "../lib/efsCardWrite.js";
+import { deleteOverrideOp, setCardV2 } from "../lib/efsCardWrite.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
 import {
   finalizeFailed,
@@ -105,6 +105,27 @@ export interface CardMutationContext {
   fetchImpl?: typeof fetch;
 }
 
+/**
+ * A dedicated vendor operation replacing the setCardv2 echo for one intent (fix plan D1).
+ *
+ * When present, `buildEdits` returns `[]` — the wire write is not an edit list, so the ledger's
+ * `edits` column honestly records that nothing was echoed. Verification and drift then need what the
+ * edits would have provided:
+ *
+ *   `landed`      — the direct after-document predicate `intentLanded` cannot be, having no edit
+ *                   paths to compare. Written to tolerate every post-state shape the vendor might
+ *                   choose (0, nil, absent) until the probe pins the real one down.
+ *   `movesFields` — header fields the op is EXPECTED to move. Classified as vendor-maintained in
+ *                   the drift record — visible in the ledger, never alarmed as unexplained drift.
+ *                   Anything else that moved is still drift, exactly as on the echo path.
+ */
+export interface CardMutationVendorOp {
+  /** The only dedicated write op adopted so far. A union, so the next one extends rather than forks. */
+  op: "deleteOverride";
+  landed: (after: CardDocument) => boolean;
+  movesFields: readonly string[];
+}
+
 export interface CardMutationIntentSpec {
   intent: CardMutationIntent;
   /** Built from the freshly-read document — see services/efsCardEdits.ts. */
@@ -113,6 +134,8 @@ export interface CardMutationIntentSpec {
   auditMeta?: (doc: CardDocument) => Record<string, unknown>;
   /** The audit action written on success. Failure and drift have their own actions. */
   auditAction: string;
+  /** Dispatch a dedicated vendor op instead of the setCardv2 echo. See CardMutationVendorOp. */
+  vendorOp?: CardMutationVendorOp;
 }
 
 export interface CardMutationPlan {
@@ -122,6 +145,7 @@ export interface CardMutationPlan {
   edits: CardEdit[];
   auditMeta: Record<string, unknown>;
   auditAction: string;
+  vendorOp?: CardMutationVendorOp;
 }
 
 /**
@@ -239,6 +263,7 @@ export async function planCardMutation(
     edits,
     auditMeta,
     auditAction: spec.auditAction,
+    ...(spec.vendorOp ? { vendorOp: spec.vendorOp } : {}),
   };
 }
 
@@ -268,11 +293,16 @@ export async function applyCardMutation(
   let writeError: EfsSoapError | null = null;
 
   try {
-    const result = await setCardV2(ctx.env, ctx.creds, before, ctx.cardNumber, edits, {
-      priority: "interactive",
+    // One dispatch per plan: the dedicated vendor op when the intent adopted one (D1), else the
+    // full-document echo. Both live in efsCardWrite.ts, both retry:false, both classified the same.
+    const opts = {
+      priority: "interactive" as const,
       timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
       fetchImpl: ctx.fetchImpl,
-    });
+    };
+    const result = plan.vendorOp
+      ? await deleteOverrideOp(ctx.env, ctx.creds, ctx.cardNumber, opts)
+      : await setCardV2(ctx.env, ctx.creds, before, ctx.cardNumber, edits, opts);
     requestXmlRedacted = result.requestXmlRedacted;
     responseXmlRedacted = result.responseXmlRedacted;
   } catch (error) {
@@ -304,7 +334,12 @@ export async function applyCardMutation(
     return await finalizeUnverified(ctx, plan, { requestXmlRedacted, responseXmlRedacted, writeError, readError });
   }
 
-  let landed = intentLanded(before, after, edits);
+  // A vendor op has no edit paths to compare, so its own predicate answers "did it land" —
+  // deliberately tolerant of every clear-shape (0 / nil / absent) until the probe pins one down.
+  const hasLanded = (doc: CardDocument): boolean =>
+    plan.vendorOp ? plan.vendorOp.landed(doc) : intentLanded(before, doc, edits);
+
+  let landed = hasLanded(after);
 
   // A SECOND look before declaring no_change (audit P0-2, incident 2026-08-12). setCardv2's success
   // response is void (WSDL: zero-part setCardv2Response), so an installation that applies writes
@@ -321,7 +356,7 @@ export async function applyCardMutation(
         timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
         fetchImpl: ctx.fetchImpl,
       });
-      landed = intentLanded(before, after, edits);
+      landed = hasLanded(after);
     } catch {
       // The first re-read stands. It succeeded and is a complete verification on its own; a failed
       // second look must not downgrade a verified `failed` into an unverified `sent`.

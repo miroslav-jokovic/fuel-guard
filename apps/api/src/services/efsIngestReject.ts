@@ -9,6 +9,7 @@ import {
 } from "./efsIngestShared.js";
 import type { IngestInput, IngestResult } from "./efsIngestShared.js";
 import type { IngestDeps } from "./efsIngest.js";
+import { resolveDeclineDrivers } from "./declineDriverResolution.js";
 
 export async function ingestReject(
   admin: SupabaseClient,
@@ -89,6 +90,10 @@ export async function ingestReject(
       .from("declined_transactions")
       .upsert(declinedRows, { onConflict: "org_id,external_ref", ignoreDuplicates: true });
     if (error) throw new Error(error.message);
+    // The SOAP reject feed carries no driver (verified against production 2026-08-12 — ten fields,
+    // no driverName/driverId). Derive it from the card so the Rejections page has a Driver column
+    // at all; see declineDriverResolution.ts for why a masked ref is left blank instead of guessed.
+    await resolveDeclineDrivers(admin, env, input.orgId).catch(() => undefined);
     try {
       await deps.scoreDeclined(admin, env, input.orgId, importId);
     } catch (e) {

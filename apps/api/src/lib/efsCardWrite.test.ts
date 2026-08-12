@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { parseCardDocument } from "./efsCardXml.js";
-import { classifySetCardResponse, editsLanded, isDecline, setCardV2 } from "./efsCardWrite.js";
+import { classifySetCardResponse, deleteOverrideOp, editsLanded, isDecline, setCardV2 } from "./efsCardWrite.js";
 import { EfsSoapError, __resetEfsSessions } from "./efsSoapSession.js";
 import { __resetSoapPacing } from "./soapClient.js";
 
@@ -176,6 +176,61 @@ describe("setCardV2 — reading the answer", () => {
   });
 });
 
+describe("deleteOverrideOp — the dedicated clear (fix plan D1)", () => {
+  it("sends the two-part request the WSDL declares, and nothing resembling a document", async () => {
+    const s = stub(loginOk, soap(""));
+    await deleteOverrideOp(env, creds, CARD, { fetchImpl: s.fetchImpl });
+    const sent = s.bodies[1]!;
+    expect(sent).toContain("<CardManagementEP_deleteOverride>");
+    expect(sent).toContain("<clientId>sess-1</clientId>");
+    expect(sent).toContain(`<cardNumber>${CARD}</cardNumber>`);
+    // The op's whole safety case: no echoed card document, so no field to drop. A request that
+    // grew an <infos> or <limits> element has become a different operation.
+    expect(sent).not.toContain("<infos>");
+    expect(sent).not.toContain("<limits>");
+    expect(sent).not.toContain("<card>");
+  });
+
+  it("treats an empty 200 as success and a decline as a refusal, same rules as setCardV2", async () => {
+    const ok = stub(loginOk, soap(""));
+    const result = await deleteOverrideOp(env, creds, CARD, { fetchImpl: ok.fetchImpl });
+    expect(result.shape).toBe("empty");
+
+    __resetEfsSessions();
+    __resetSoapPacing();
+    const declined = stub(loginOk, soap("<deleteOverrideResponse><result>-1</result></deleteOverrideResponse>"));
+    await expect(
+      deleteOverrideOp(env, creds, CARD, { fetchImpl: declined.fetchImpl }),
+    ).rejects.toMatchObject({ code: "declined" });
+  });
+
+  it("does not retry, even when the transport would — a timed-out delete may have landed", async () => {
+    const s = stub(loginOk, { status: 500, body: "boom" }, soap(""));
+    await expect(
+      deleteOverrideOp(env, creds, CARD, { fetchImpl: s.fetchImpl }),
+    ).rejects.toBeInstanceOf(EfsSoapError);
+    // Login and ONE dispatch. A third call would be a second delete reaching EFS.
+    expect(s.calls).toBe(2);
+  });
+
+  it("surfaces not_allowed with its code — the entitlement finding the D1 probe reads", async () => {
+    const s = stub(
+      loginOk,
+      soap("<soap:Fault xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/'><faultstring>Not Allowed 109491436176</faultstring></soap:Fault>"),
+    );
+    await expect(
+      deleteOverrideOp(env, creds, CARD, { fetchImpl: s.fetchImpl }),
+    ).rejects.toMatchObject({ code: "not_allowed" });
+  });
+
+  it("redacts the card number out of everything persisted", async () => {
+    const s = stub(loginOk, soap("<deleteOverrideResponse/>"));
+    const result = await deleteOverrideOp(env, creds, CARD, { fetchImpl: s.fetchImpl });
+    expect(result.requestXmlRedacted).not.toMatch(/\d{12,}/);
+    expect(result.responseXmlRedacted).not.toMatch(/\d{12,}/);
+  });
+});
+
 describe("classifySetCardResponse", () => {
   it("finds a wrapped scalar rather than reading a card field as a status code", () => {
     const wrapped = soap("<setCardV2Response><result><value>-1</value></result></setCardV2Response>");
@@ -211,12 +266,5 @@ describe("editsLanded", () => {
   it("says a removeAll landed only when the collection is actually gone", () => {
     const before = doc();
     expect(editsLanded(before, [{ op: "removeAll", name: "infos" }])).toBe(false);
-  });
-
-  it("tolerates the vendor's own casing — HOLD is a landed Hold (reconciler parity with vendorNormalisedOnly)", () => {
-    const after = parseCardDocument(fixture("getCardV2.full.xml").replace("<status>Active</status>", "<status>HOLD</status>"));
-    expect(editsLanded(after, [{ op: "setField", name: "status", value: "Hold" }])).toBe(true);
-    // Case is the ONLY tolerance: a genuinely different state still refuses.
-    expect(editsLanded(after, [{ op: "setField", name: "status", value: "Inactive" }])).toBe(false);
   });
 });

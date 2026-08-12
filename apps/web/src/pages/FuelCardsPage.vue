@@ -15,6 +15,7 @@ import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
+import ActiveOverridesPanel from "@/features/fuelCards/ActiveOverridesPanel.vue";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
 const PAGE_SIZE = 20;
@@ -221,6 +222,10 @@ function clearAll(): void {
     <p v-if="listFreshness.stale && rows.length > 0" class="text-sm text-caution-700">
       {{ listFreshness.text }}
     </p>
+
+    <!-- Account-wide, ABOVE the filters: the panel's claim ("who can buy outside their limits")
+         must not be narrowed by whatever the table below is currently filtered to (audit B3). -->
+    <ActiveOverridesPanel />
 
     <FilterBar
       v-model:search="search"

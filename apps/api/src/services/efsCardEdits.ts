@@ -117,6 +117,23 @@ export const overrideClearEdits = (): CardEdit[] => [
   { op: "setField", name: "locationOverride", value: LOCATION_OVERRIDE_NONE },
 ];
 
+/** The header trio an override lives in — what `deleteOverride` is expected to move (fix plan D1). */
+export const OVERRIDE_FIELDS = ["override", "overrideAllLocations", "locationOverride"] as const;
+
+/**
+ * Did an override clear LAND, judged from the after-document alone (D1's vendor-op predicate).
+ *
+ * `deleteOverride`'s post-state is not documented — the guide says what the op does (p27), not what
+ * it writes into the three fields (0? nil? removed?). Until the probe records the real shape, the
+ * honest predicate is the one that matters for fuel: NO USES REMAIN. `parseCardDocument` reads 0,
+ * nil and absent all as null-or-0 here, so every plausible clear-shape passes — while a card still
+ * carrying uses fails, which is the outcome that must never be reported as done. Scope residue
+ * without uses grants nothing (p194: the count is the exception) and is visible as vendor-maintained
+ * drift in the ledger, not silently blessed.
+ */
+export const overrideClearedLanded = (after: CardDocument): boolean =>
+  (after.card.overrideUses ?? 0) === 0;
+
 // ─── Prompts (infos) ───────────────────────────────────────────────────────────────────────────
 
 /**

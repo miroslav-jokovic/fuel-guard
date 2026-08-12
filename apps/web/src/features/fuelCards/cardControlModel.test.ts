@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CardCapabilities } from "@fuelguard/shared";
 import {
+  activeOverrides,
   availability,
   cardStatusLabel,
   cardAssignmentRank,
@@ -11,6 +12,7 @@ import {
   lockConfirmation,
   outcomeNotice,
   overrideConfirmation,
+  overrideScopeLabel,
   promptRows,
   promptsConfirmation,
   unlockConfirmation,
@@ -422,5 +424,44 @@ describe("unassigned cards sink to the bottom", () => {
     // That is FuelGuard's own attribution guess failing, and says nothing about whether a driver is
     // using the card — sinking those would hide working cards.
     expect(cardAssignmentRank(card({ driverIdPrompt: "0225" }))).toBe(0);
+  });
+});
+
+describe("account-wide overrides (B3)", () => {
+  const card = (over: Partial<Parameters<typeof activeOverrides>[0][number]> = {}) => ({
+    id: "c1", maskedRef: "•••• 7671", last4: "7671", driverName: null, unitPrompt: null,
+    status: "ACTIVE", overrideUses: null, overrideAllLocations: null, locationOverrideId: null,
+    ...over,
+  });
+
+  it("lists only cards with uses remaining — zero and null are not exceptions", () => {
+    const rows = activeOverrides([
+      card({ id: "a", last4: "1111", overrideUses: 2, overrideAllLocations: true }),
+      card({ id: "b", last4: "2222", overrideUses: 0, overrideAllLocations: true }), // spent
+      card({ id: "c", last4: "3333" }), // never had one
+      // Scope residue with no uses left is configuration noise, not free fuel (p194: 0 = none left).
+      card({ id: "d", last4: "4444", overrideUses: 0, locationOverrideId: "442013" }),
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(["a"]);
+    expect(rows[0]).toMatchObject({ uses: 2, scopeLabel: "Any location" });
+  });
+
+  it("orders by card number — the same order as the inventory below the panel", () => {
+    const rows = activeOverrides([
+      card({ id: "high", last4: "9020", overrideUses: 1, overrideAllLocations: true }),
+      card({ id: "low", last4: "0114", overrideUses: 3, overrideAllLocations: true }),
+    ]);
+    expect(rows.map((r) => r.id)).toEqual(["low", "high"]);
+  });
+
+  it("says WHERE the exception applies, and prefers the location id when both scopes are armed", () => {
+    expect(overrideScopeLabel(false, "442013")).toBe("Location #442013");
+    expect(overrideScopeLabel(true, null)).toBe("Any location");
+    // The conflicting state a WEX-portal edit can leave behind. The pump honours the id (see
+    // overrideGrantEdits' docblock) — claiming "any location" here is the lie that strands a driver.
+    expect(overrideScopeLabel(true, "442013")).toBe("Location #442013");
+    // Uses remain but neither scope is armed: reported honestly, never guessed.
+    expect(overrideScopeLabel(null, null)).toBe("Scope not reported");
+    expect(overrideScopeLabel(false, null)).toBe("Scope not reported");
   });
 });
