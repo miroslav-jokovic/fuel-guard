@@ -33,12 +33,10 @@ const props = defineProps<{
   rows: PromptRow[];
   drafts: PromptInput[];
   busy: boolean;
-  reason: string;
 }>();
 
 const emit = defineEmits<{
   "update:drafts": [value: PromptInput[]];
-  "update:reason": [value: string];
   save: [];
 }>();
 
@@ -48,7 +46,6 @@ const validationOptions = [
 ];
 
 const readOnlyRows = computed(() => props.rows.filter((r) => !r.editable));
-const reasonValid = computed(() => props.reason.trim().length >= 3);
 
 /** A prompt whose value has been emptied is a prompt the operator is REMOVING. */
 export interface Removal { infoId: string }
@@ -63,7 +60,8 @@ function update(index: number, patch: Partial<PromptInput>): void {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <section class="space-y-4">
+    <h3 class="text-sm font-semibold text-ink">Prompts</h3>
     <div v-for="(draft, index) in props.drafts" :key="draft.infoId" class="space-y-3 rounded-control border border-edge p-3">
       <p class="text-sm font-medium text-ink">{{ infoLabel(draft.infoId) }}</p>
       <FormField
@@ -110,24 +108,10 @@ function update(index: number, patch: Partial<PromptInput>): void {
       </ul>
     </div>
 
-    <FormField label="Reason" required hint="Recorded in the audit log.">
-      <template #default="{ id }">
-        <BaseInput
-          :id="id"
-          type="text"
-          maxlength="200"
-          :model-value="props.reason"
-          :disabled="props.busy"
-          placeholder="Reassigned to a new driver"
-          @update:model-value="emit('update:reason', $event)"
-        />
-      </template>
-    </FormField>
-
     <div class="flex justify-end">
-      <BaseButton variant="primary" :disabled="props.busy || !reasonValid" @click="emit('save')">
+      <BaseButton variant="primary" :disabled="props.busy" @click="emit('save')">
         Save prompts
       </BaseButton>
     </div>
-  </div>
+  </section>
 </template>

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import {
@@ -6,6 +7,7 @@ import {
   grantOverrideSchema,
   lockCardSchema,
   efsStatusEquals,
+  rolesThatCanView,
   rolesThatManage,
   setPromptsSchema,
   unlockCardSchema,
@@ -69,6 +71,22 @@ import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
 
 /** Idempotency-Key header. uuid v4 from the browser, one per drawer-open per intent. */
 const idempotencyKeySchema = z.string().uuid().optional();
+
+/**
+ * What a reused Idempotency-Key must be asked FOR (audit P1-2 / migration 0180). The key alone
+ * replays the recorded outcome; the fingerprint proves the replayed request is the SAME request.
+ * `reason` and `expectedVersion` are excluded deliberately: neither changes what is being asked,
+ * and expectedVersion legitimately differs when a client retries after a card_state_changed 409
+ * with the same key (no ledger row was opened, so the key is still live).
+ */
+function mutationFingerprint(intent: string, efsCardId: string, body: Record<string, unknown>): string {
+  const sanitized: Record<string, unknown> = {};
+  for (const key of Object.keys(body).sort()) {
+    if (key === "reason" || key === "expectedVersion") continue;
+    sanitized[key] = body[key];
+  }
+  return createHash("sha256").update(`${intent}:${efsCardId}:${JSON.stringify(sanitized)}`).digest("hex");
+}
 
 interface Prepared {
   ctx: CardMutationContext;
@@ -158,6 +176,13 @@ export function fuelCardControlRouter(): Router {
       // the mutation id the operator needs in order to look the attempt up.
       res.json({ ok: outcome.status === "succeeded", ...outcome });
     } catch (error) {
+      // A refusal decided against the FRESH document (fraud unlock, DRID removal) surfaces before
+      // any ledger row exists — the same recovery shape wherever it is thrown from.
+      if (error instanceof ActionRefusalError) {
+        if (error.code === "step_up_required") { stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, error.message); return; }
+        res.status(400).json(apiError(error.code, error.message));
+        return;
+      }
       controlErrorResponse(res, error);
     }
   };
@@ -172,7 +197,12 @@ export function fuelCardControlRouter(): Router {
 
     // NO step-up on a lock. This is the safety action you want frictionless at 2am, it is fully
     // reversible, and friction here has a cost measured in stolen fuel.
-    await run(res, { ...prepared.ctx, reason: body.data.reason, expectedVersion: body.data.expectedVersion }, {
+    await run(res, {
+      ...prepared.ctx,
+      reason: body.data.reason,
+      expectedVersion: body.data.expectedVersion,
+      requestFingerprint: mutationFingerprint("lock", prepared.ctx.efsCardId, body.data),
+    }, {
       intent: "lock",
       auditAction: "card.locked",
       buildEdits: () => lockEdits(body.data.status),
@@ -203,11 +233,29 @@ export function fuelCardControlRouter(): Router {
       return;
     }
 
-    await run(res, { ...prepared.ctx, reason: body.data.reason, expectedVersion: body.data.expectedVersion }, {
+    const hadFreshAuth = hasFreshAuth(req);
+    await run(res, {
+      ...prepared.ctx,
+      reason: body.data.reason,
+      expectedVersion: body.data.expectedVersion,
+      requestFingerprint: mutationFingerprint("unlock", prepared.ctx.efsCardId, body.data),
+    }, {
       intent: "unlock",
       auditAction: "card.unlocked",
-      buildEdits: () => unlockEdits(),
-      auditMeta: (doc) => ({ statusBefore: doc.card.status, unlockedFromFraud: efsStatusEquals(mirroredStatus, "Fraud") }),
+      buildEdits: (doc) => {
+        // The mirror check above gives the honest prompt EARLY; this one is the decision that
+        // counts, taken against the document EFS reported INSIDE the operation. A card flagged
+        // Fraud since the last sweep must not unlock without step-up because our copy was stale
+        // (audit P1-7). Thrown here → no ledger row, no dispatch.
+        if (efsStatusEquals(doc.card.status, "Fraud") && !hadFreshAuth) {
+          throw new ActionRefusalError(
+            "This card is flagged for fraud. Confirm your password to unlock it.",
+            "step_up_required",
+          );
+        }
+        return unlockEdits();
+      },
+      auditMeta: (doc) => ({ statusBefore: doc.card.status, unlockedFromFraud: efsStatusEquals(doc.card.status, "Fraud") || efsStatusEquals(mirroredStatus, "Fraud") }),
     });
   }));
 
@@ -229,7 +277,12 @@ export function fuelCardControlRouter(): Router {
     if (!prepared) return;
 
     const { uses, scope } = body.data;
-    await run(res, { ...prepared.ctx, reason: body.data.reason, expectedVersion: body.data.expectedVersion }, {
+    await run(res, {
+      ...prepared.ctx,
+      reason: body.data.reason,
+      expectedVersion: body.data.expectedVersion,
+      requestFingerprint: mutationFingerprint("override_grant", prepared.ctx.efsCardId, body.data),
+    }, {
       intent: "override_grant",
       auditAction: "card.override_granted",
       buildEdits: (doc) => overrideGrantEdits(doc, uses, scope),
@@ -248,7 +301,12 @@ export function fuelCardControlRouter(): Router {
     const prepared = await prepare(req, res, "override");
     if (!prepared) return;
 
-    await run(res, { ...prepared.ctx, reason: body.data.reason, expectedVersion: body.data.expectedVersion }, {
+    await run(res, {
+      ...prepared.ctx,
+      reason: body.data.reason,
+      expectedVersion: body.data.expectedVersion,
+      requestFingerprint: mutationFingerprint("override_clear", prepared.ctx.efsCardId, body.data),
+    }, {
       intent: "override_clear",
       auditAction: "card.override_cleared",
       buildEdits: () => overrideClearEdits(),
@@ -283,13 +341,13 @@ export function fuelCardControlRouter(): Router {
         // attribution decision loses its strongest signal — the guide warns about exactly this (p137).
         // Explicit flag AND a fresh sign-in; never a side effect of clearing a text box.
         if (!allowRemoveDriverId) {
-          throw new PromptRefusalError(
+          throw new ActionRefusalError(
             "Removing the Driver ID prompt needs allowRemoveDriverId: true — it stops the pump checking who is fuelling.",
             "invalid_request",
           );
         }
         if (!hasFreshAuth(req)) {
-          throw new PromptRefusalError("Confirm your password to remove the Driver ID prompt.", "step_up_required");
+          throw new ActionRefusalError("Confirm your password to remove the Driver ID prompt.", "step_up_required");
         }
       }
       return plan.edits;
@@ -297,7 +355,12 @@ export function fuelCardControlRouter(): Router {
 
     try {
       const outcome = await executeCardMutation(
-        { ...prepared.ctx, reason: body.data.reason, expectedVersion: body.data.expectedVersion },
+        {
+          ...prepared.ctx,
+          reason: body.data.reason,
+          expectedVersion: body.data.expectedVersion,
+          requestFingerprint: mutationFingerprint("prompts_set", prepared.ctx.efsCardId, body.data),
+        },
         {
           intent: "prompts_set",
           auditAction: "card.prompts_changed",
@@ -310,7 +373,7 @@ export function fuelCardControlRouter(): Router {
       );
       res.json({ ok: outcome.status === "succeeded", ...outcome });
     } catch (error) {
-      if (error instanceof PromptRefusalError) {
+      if (error instanceof ActionRefusalError) {
         if (error.code === "step_up_required") { stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, error.message); return; }
         res.status(400).json(apiError(error.code, error.message));
         return;
@@ -322,10 +385,12 @@ export function fuelCardControlRouter(): Router {
   // ── History ─────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * The mutation ledger for one card. A READ, so it is open to everyone who can view the card — an
-   * auditor who cannot change a card is exactly the person who needs to see what changed.
+   * The mutation ledger for one card. A READ, gated like every other card read
+   * (rolesThatCanView("fuel"), the same gate read.ts applies): an auditor who cannot change a card
+   * is exactly the person who needs to see what changed — and a driver, whose fueling this surface
+   * exists to scrutinise, is exactly who must not browse it (audit P1-4).
    */
-  router.get("/:id/history", requireOrg, asyncHandler(async (req, res) => {
+  router.get("/:id/history", requireOrg, requireRole(...rolesThatCanView("fuel")), asyncHandler(async (req, res) => {
     const { env } = getAppLocals(req);
     const admin = getSupabaseAdmin(env);
     const orgId = req.auth!.orgId!;
@@ -355,13 +420,15 @@ const badRequest = (res: Response, error: z.ZodError): void => {
 };
 
 /**
- * A prompts change this caller is not allowed to make, discovered only once the fresh card document
- * is in hand. Thrown from `buildEdits` so `planCardMutation` aborts before it writes a ledger row.
+ * An action this caller is not allowed to take, discovered only once the FRESH card document is in
+ * hand — a prompts change that drops the driver id, an unlock of a card EFS has just flagged.
+ * Thrown from `buildEdits` so `planCardMutation` aborts before it writes a ledger row: no row, no
+ * dispatch, no half-finished record of a change that never happened.
  */
-class PromptRefusalError extends Error {
+class ActionRefusalError extends Error {
   constructor(message: string, public code: "invalid_request" | "step_up_required") {
     super(message);
-    this.name = "PromptRefusalError";
+    this.name = "ActionRefusalError";
   }
 }
 

@@ -80,6 +80,29 @@ export function backoffMs(attempt: number, baseMs = 500, capMs = 15_000): number
   return Math.round(exp / 2 + Math.random() * (exp / 2));
 }
 
+/**
+ * Ceiling on any single retry sleep. backoffMs already caps itself at 15s; a vendor (or middlebox)
+ * Retry-After header used to be honored UNCAPPED, so `Retry-After: 3600` parked an interactive
+ * request handler for an hour (audit P1-1 companion finding). The header is advice; the cap is ours.
+ */
+export const RETRY_SLEEP_CAP_MS = 15_000;
+
+export const capRetrySleep = (ms: number | null): number | null =>
+  ms === null ? null : Math.min(ms, RETRY_SLEEP_CAP_MS);
+
+/**
+ * Does this body carry a SOAP Fault? Axis2 delivers APPLICATION faults over HTTP 500 (SOAP 1.1
+ * norm), and EFS's own error doctrine (guide p9–10) classifies its named faults — Not Allowed,
+ * InvalidParameterNameID — as fix-and-resend or call-your-account-manager, never retry. Before this
+ * check, every refused interactive call burned the full retry budget with backoff sleeps in a
+ * 1 rps lane: the observed 15–20s card-detail loads were five paced attempts at a permanent answer.
+ * A fault body is therefore returned IMMEDIATELY for classification; only fault-less 5xx (a
+ * gateway blip, a genuine server error) stays retryable. Cheap string probe on purpose — the real
+ * parse happens downstream in parseSoap; this only has to be sound, and a false negative merely
+ * retries like before.
+ */
+export const looksLikeSoapFault = (body: string): boolean => /<(\w+:)?Fault[\s>]/.test(body);
+
 /** Parse a Retry-After header (delta-seconds or HTTP-date) into ms, or null. Exported for tests. */
 export function parseRetryAfter(value: string | null): number | null {
   if (!value) return null;
@@ -302,7 +325,13 @@ export async function soapFetch(
           );
         }
         if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
-          const ra = parseRetryAfter(res.headers.get("retry-after"));
+          // The body must be read before the retry decision: a fault-on-500 is the vendor's final
+          // answer, not a transient condition — see looksLikeSoapFault. 429 carries no fault.
+          const body = await res.text();
+          if (res.status >= 500 && looksLikeSoapFault(body)) {
+            return { status: res.status, headers: res.headers, body };
+          }
+          const ra = capRetrySleep(parseRetryAfter(res.headers.get("retry-after")));
           await sleep(ra ?? backoffMs(attempt));
           attempt++;
           continue;
@@ -319,7 +348,8 @@ export async function soapFetch(
       continue;
     }
     if ((out.status === 429 || out.status >= 500) && attempt < maxRetries) {
-      const ra = parseRetryAfter(out.headers.get("retry-after"));
+      if (out.status >= 500 && looksLikeSoapFault(out.body)) return out; // see looksLikeSoapFault
+      const ra = capRetrySleep(parseRetryAfter(out.headers.get("retry-after")));
       await sleep(ra ?? backoffMs(attempt));
       attempt++;
       continue;

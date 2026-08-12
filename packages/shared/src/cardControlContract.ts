@@ -11,6 +11,7 @@ import {
   EFS_POLICY_MIN,
   EFS_VALIDATION_TYPES,
   EFS_LOCK_STATUSES,
+  EFS_WRITABLE_STATUSES,
 } from "./efsCardCatalog.js";
 
 /**
@@ -246,7 +247,16 @@ export type CardCapabilities = z.infer<typeof cardCapabilitiesSchema>;
  * Why every mutation carries a reason: it is the cheapest column in the schema and the most valuable
  * one six months later, when somebody asks why a card was locked on a Tuesday night.
  */
-export const cardReasonSchema = z.string().trim().min(3).max(200);
+/**
+ * OPTIONAL as of 2026-08-12 (product decision B1): the mutation stands on actor, intent, step-up
+ * flag and the before/after documents; the free-text why is welcome but no longer demanded. Kept
+ * as a field (defaulting to empty) so an org that wants reasons back gets a UI change, not an API
+ * change. min(3) applies only when a reason IS given — a one-letter reason is noise, not evidence.
+ */
+export const cardReasonSchema = z.union([
+  z.string().trim().min(3).max(200),
+  z.string().trim().max(0),
+]).default("");
 
 /**
  * The optimistic-concurrency token, computed by us over the mutable part of the card document. EFS
@@ -277,7 +287,15 @@ export const unlockCardSchema = z.object({
 export const overrideScopeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all") }),
   // 6-digit EFS location id per p194; the field is int(7) in searchLocation output, so accept 1-7.
-  z.object({ kind: z.literal("location"), locationId: z.string().regex(/^[0-9]{1,7}$/) }),
+  z.object({
+    kind: z.literal("location"),
+    // 1–7 digits AND non-zero: "0" (any width) is LOCATION_OVERRIDE_NONE, the sentinel that means
+    // "no single-location override" — granting uses against it arms NEITHER scope, and the driver
+    // is declined everywhere while the ledger says they're covered (audit P1-6c).
+    locationId: z.string().regex(/^[0-9]{1,7}$/).refine((v) => Number(v) > 0, {
+      message: "locationId 0 means no override — pick a real EFS location id.",
+    }),
+  }),
 ]);
 export type OverrideScope = z.infer<typeof overrideScopeSchema>;
 
@@ -298,7 +316,13 @@ export const promptInputSchema = z.object({
   infoId: z.enum(EFS_EDITABLE_INFO_IDS),
   validationType: z.enum(["EXACT_MATCH", "REPORT_ONLY"]),
   matchValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
-});
+}).refine(
+  (p) => p.validationType !== "EXACT_MATCH" || (p.matchValue ?? "").length > 0,
+  // The pump validates driver entry AGAINST this value. Empty + EXACT_MATCH means nothing a driver
+  // types can ever match: the card silently stops fueling (audit P1-6a). Clearing the value while
+  // keeping validation on is never what an operator meant — make them pick one.
+  { message: "EXACT_MATCH needs a value to match — clear the validation type instead of the value." },
+);
 export type PromptInput = z.infer<typeof promptInputSchema>;
 
 export const setPromptsSchema = z.object({
@@ -308,7 +332,16 @@ export const setPromptsSchema = z.object({
    * Requiring the literal `true` means a caller can never arrive at full-replace by omitting a field.
    */
   replaceAll: z.literal(true),
-  prompts: z.array(promptInputSchema).max(20),
+  // Bounded by what is actually editable, and UNIQUE by infoId: EFS's prompts array is a full
+  // replace, and two records with one infoId is a document shape the vendor never emits — on this
+  // vendor, "accepted and ignored" is the documented failure mode for shapes it has never seen
+  // (audit P1-6b). The append loop in efsCardEdits would have pushed both.
+  prompts: z.array(promptInputSchema)
+    .max(EFS_EDITABLE_INFO_IDS.length)
+    .refine(
+      (list) => new Set(list.map((p) => p.infoId)).size === list.length,
+      { message: "Each prompt may appear once." },
+    ),
   /**
    * Dropping the DRID record stops the pump asking who is fuelling, and every downstream attribution
    * decision loses its strongest signal. Explicit opt-in plus step-up re-auth; never a side effect of

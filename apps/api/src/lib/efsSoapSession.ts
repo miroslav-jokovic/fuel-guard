@@ -395,7 +395,12 @@ export async function efsLogin(
   assertBreakerClosed(key);
   const body = `<CardManagementEP_login><user>${xmlEscape(creds.soapUsername)}</user><password>${xmlEscape(creds.soapPassword)}</password></CardManagementEP_login>`;
   try {
-    const response = await requestXml(env, creds, SESSION_OPS.login, body, priority, opts);
+    // retry:false BY DEFAULT (audit P1-1). With the transport's 4-retry default, one wrong password
+    // became ~5 vendor-side invalid logins per attempt — and the breaker's threshold of 3 attempts
+    // admitted ~15 before opening, actively feeding the AccountLockedException it exists to prevent,
+    // on the shared account that also runs transaction ingestion. A failed login is re-attempted by
+    // the CALLER's next operation, at the caller's pace; the transport must not multiply it.
+    const response = await requestXml(env, creds, SESSION_OPS.login, body, priority, { retry: false, ...opts });
     const session = {
       clientId: responseResult(response.body),
       cookie: cookieHeader(response.headers),

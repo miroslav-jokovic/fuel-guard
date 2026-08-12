@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { useQuery } from "@tanstack/vue-query";
 import { computed, type Ref } from "vue";
 import type { CardCapabilities, EfsLocation } from "@fuelguard/shared";
 import { apiFetch } from "@/lib/api";
@@ -75,6 +75,15 @@ export interface EfsCardDetailResponse {
   capabilities: CardCapabilities;
 }
 
+/**
+ * Card views refresh THEMSELVES (audit B6). No manual "Refresh from EFS" button: the list and detail
+ * poll while their tab is visible, and refetch on focus, so the operator always sees near-current
+ * vendor truth without pressing anything. The polling hits OUR mirror (a cheap Postgres read), not
+ * EFS — the mirror's own roster cadence keeps the mirror fresh against the vendor. `POLL_MS` is
+ * generous because card configuration changes when a human changes it, not continuously.
+ */
+const POLL_MS = 60_000;
+
 export function useEfsCards(filters: { search: Ref<string>; status: Ref<string> }) {
   return useQuery({
     queryKey: computed(() => [...cardsKey, "list", filters.search.value, filters.status.value] as const),
@@ -85,6 +94,9 @@ export function useEfsCards(filters: { search: Ref<string>; status: Ref<string> 
       const query = params.toString();
       return call<EfsCardListResponse>(`/api/fuel-cards${query ? `?${query}` : ""}`);
     },
+    refetchInterval: POLL_MS,
+    refetchIntervalInBackground: false, // pause while the tab is hidden — no point polling unseen
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -93,24 +105,9 @@ export function useEfsCard(id: Ref<string>) {
     queryKey: computed(() => [...cardsKey, "detail", id.value] as const),
     queryFn: (): Promise<EfsCardDetailResponse> => call(`/api/fuel-cards/${id.value}`),
     enabled: computed(() => !!id.value),
-  });
-}
-
-/** Re-read ONE card from EFS. Synchronous at the API — one paced call, and a person is waiting. */
-export function useRefreshEfsCard() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => call<{ ok: true; version: string }>(`/api/fuel-cards/${id}/refresh`, "POST"),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: cardsKey }),
-  });
-}
-
-/** Queue a full mirror sweep. 202 + jobId; the ledger refuses a second concurrent run per company. */
-export function useSyncEfsCards() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => call<{ ok: true; queued: true; jobId: string }>("/api/fuel-cards/sync", "POST"),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: cardsKey }),
+    refetchInterval: POLL_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { maskPan, mergeEffectiveConfig, policyNumberSchema, rolesThatCanView, rolesThatManage } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
+import { getPolicyCached } from "../../lib/efsPolicyCache.js";
 import { EfsSoapError } from "../../lib/efsSoapSession.js";
 import { getPolicy } from "../../lib/efsCardOps.js";
 import { searchLocation } from "../../lib/efsLocationSearch.js";
@@ -276,15 +277,15 @@ export function fuelCardsRouter(): Router {
     };
 
     // The policy half is best-effort. A card page that fails because the vendor is slow is worse than
-    // one that renders card-level truth and says the policy could not be read.
+    // one that renders card-level truth and says the policy could not be read. Served through the
+    // short-TTL cache (lib/efsPolicyCache.ts): a policy is shared by up to 99 cards and changes when
+    // a human changes it — dialing the vendor per page view was the 15–20s card page (audit P1-1).
     let policy = null;
     let policyError: string | null = null;
     if (row.policy_number != null) {
-      try {
-        const creds = await getEfsSoapCredentials(admin, env, orgId);
-        if (creds?.enabled) policy = await getPolicy(env, creds, row.policy_number);
-      } catch (error) {
-        policyError = error instanceof EfsSoapError ? error.message : "Could not read the policy";
+      const creds = await getEfsSoapCredentials(admin, env, orgId);
+      if (creds?.enabled) {
+        ({ policy, policyError } = await getPolicyCached(env, creds, row.policy_number));
       }
     }
 

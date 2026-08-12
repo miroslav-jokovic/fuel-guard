@@ -432,9 +432,19 @@ export interface OutcomeNotice {
  *   sent           → WE DO NOT KNOW. The one outcome that must never be dressed up as either.
  */
 export function outcomeNotice(
-  outcome: { status: string; driftFields?: string[]; faultMessage?: string | null },
+  outcome: { status: string; driftFields?: string[]; faultMessage?: string | null; idempotent?: boolean },
   doneLabel: string,
 ): OutcomeNotice {
+  // A replay of an already-settled key (audit P1-2): the API did nothing new and returned the prior
+  // outcome. Say so, rather than claim a fresh success or failure — the operator clicked twice and
+  // deserves to know the second click matched the first.
+  if (outcome.idempotent) {
+    return {
+      kind: outcome.status === "succeeded" ? "success" : "warning",
+      title: "Already done",
+      message: "This matches an earlier attempt — nothing new was sent.",
+    };
+  }
   switch (outcome.status) {
     case "succeeded":
       return { kind: "success", title: doneLabel };
@@ -456,11 +466,19 @@ export function outcomeNotice(
         message:
           "The change was sent to EFS and we could not confirm what happened. Check the card in the WEX portal before trying again — retrying could apply it twice.",
       };
-    default:
+    case "failed":
       return {
         kind: "error",
         title: "EFS refused the change",
         message: outcome.faultMessage ?? "The card was not changed.",
+      };
+    default:
+      // An UNRECOGNISED status. Never assert "not changed" — that is a claim the client cannot make
+      // about a status it does not understand. Point at the history, which has the truth.
+      return {
+        kind: "warning",
+        title: "Unexpected result",
+        message: "The card may or may not have changed — check this card's change history.",
       };
   }
 }

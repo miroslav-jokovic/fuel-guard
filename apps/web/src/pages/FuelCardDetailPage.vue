@@ -11,28 +11,24 @@
  */
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
-import { AppIcon } from "@fuelguard/ui";
-import { ArrowPathIcon } from "@fuelguard/ui/icons";
+import { } from "@fuelguard/ui/icons";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppCard as BaseCard } from "@fuelguard/ui";
 import ErrorState from "@/components/ErrorState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useSessionStore } from "@/stores/session";
-import { useToastStore } from "@/stores/toast";
 import CardControlDrawer from "@/features/fuelCards/CardControlDrawer.vue";
 import CardEffectiveConfig from "@/features/fuelCards/CardEffectiveConfig.vue";
 import CardMutationHistory from "@/features/fuelCards/CardMutationHistory.vue";
 import { availability, cardStatusLabel, cardStatusTone, freshness } from "@/features/fuelCards/cardControlModel";
-import { useEfsCard, useRefreshEfsCard } from "@/features/fuelCards/useEfsCards";
+import { useEfsCard } from "@/features/fuelCards/useEfsCards";
 
 const route = useRoute();
 const session = useSessionStore();
-const toast = useToastStore();
 
 const id = computed(() => String(route.params.id ?? ""));
 const query = useEfsCard(id);
-const refresh = useRefreshEfsCard();
 
 const card = computed(() => query.data.value?.card ?? null);
 const capabilities = computed(() => query.data.value?.capabilities ?? null);
@@ -78,14 +74,6 @@ const facts = computed(() => {
   ];
 });
 
-async function onRefresh(): Promise<void> {
-  try {
-    await refresh.mutateAsync(id.value);
-    toast.success("Card refreshed");
-  } catch (e) {
-    toast.error("Could not refresh the card", e instanceof Error ? e.message : undefined);
-  }
-}
 </script>
 
 <template>
@@ -94,10 +82,6 @@ async function onRefresh(): Promise<void> {
       <template #actions>
         <!-- Trailing ellipsis because it opens a drawer rather than doing something immediately. -->
         <BaseButton v-if="canAct" variant="primary" @click="drawerOpen = true">Card actions…</BaseButton>
-        <BaseButton variant="secondary" :disabled="refresh.isPending.value" @click="onRefresh">
-          <AppIcon :icon="ArrowPathIcon" class="size-4" aria-hidden="true" />
-          {{ refresh.isPending.value ? "Refreshing…" : "Refresh from EFS" }}
-        </BaseButton>
       </template>
     </PageHeader>
 

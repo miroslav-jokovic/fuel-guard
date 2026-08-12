@@ -6,8 +6,11 @@ import {
   CARD_SCOPE_LABELS,
   cardApproverGrantSchema,
   cardControlSettingsPatchSchema,
+  grantOverrideSchema,
   isCardControlScope,
   lockCardSchema,
+  setPromptsSchema,
+  unlockCardSchema,
 } from "./cardControlContract.js";
 import { canonicalEfsStatus, efsStatusEquals } from "./efsCardCatalog.js";
 
@@ -105,5 +108,69 @@ describe("lockCardSchema (audit P0-3)", () => {
     for (const status of ["Deleted", "Fraud", "HOLD "]) {
       expect(lockCardSchema.safeParse({ ...base, status }).success).toBe(false);
     }
+  });
+});
+
+// ─── Phase 2 contract tripwires (audit P1-6, B1) ────────────────────────────────────────────────
+describe("promptInputSchema / setPromptsSchema (audit P1-6)", () => {
+  const base = { expectedVersion: "0123456789abcdef0123456789abcdef", replaceAll: true as const };
+
+  it("refuses EXACT_MATCH with an empty match value — that combination bricks the pump", () => {
+    for (const matchValue of ["", null]) {
+      const parsed = setPromptsSchema.safeParse({
+        ...base, prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue }],
+      });
+      expect(parsed.success).toBe(false);
+    }
+  });
+
+  it("accepts REPORT_ONLY with an empty value — reporting nothing is legal", () => {
+    expect(setPromptsSchema.safeParse({
+      ...base, prompts: [{ infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null }],
+    }).success).toBe(true);
+  });
+
+  it("refuses duplicate infoIds — a full-replace with two DRID records is a vendor shape EFS never emits", () => {
+    expect(setPromptsSchema.safeParse({
+      ...base,
+      prompts: [
+        { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "111" },
+        { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "222" },
+      ],
+    }).success).toBe(false);
+  });
+});
+
+describe("grantOverrideSchema locationId (audit P1-6c)", () => {
+  const base = {
+    expectedVersion: "0123456789abcdef0123456789abcdef",
+    uses: 1,
+  };
+
+  it("refuses 0 in every width — that is the no-override sentinel, not a location", () => {
+    for (const locationId of ["0", "0000000"]) {
+      expect(grantOverrideSchema.safeParse({
+        ...base, scope: { kind: "location", locationId },
+      }).success).toBe(false);
+    }
+  });
+
+  it("accepts a real location id", () => {
+    expect(grantOverrideSchema.safeParse({
+      ...base, scope: { kind: "location", locationId: "123456" },
+    }).success).toBe(true);
+  });
+});
+
+describe("reason is optional (product decision B1)", () => {
+  it("a mutation without a reason parses, defaulting to empty", () => {
+    const parsed = unlockCardSchema.parse({ expectedVersion: "0123456789abcdef0123456789abcdef" });
+    expect(parsed.reason).toBe("");
+  });
+
+  it("a reason that IS given still has to say something", () => {
+    expect(unlockCardSchema.safeParse({
+      expectedVersion: "0123456789abcdef0123456789abcdef", reason: "ab",
+    }).success).toBe(false);
   });
 });

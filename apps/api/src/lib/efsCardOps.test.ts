@@ -110,10 +110,11 @@ describe("getCardSummaries", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       cardNumber: "70830000000000001", policyNumber: 14, unitNumber: "3182",
-      driverId: "D-4471", override: false, beingOverridden: false, status: "Active",
+      driverId: "D-4471", override: 0, beingOverridden: false, status: "Active",
       infoSource: "BOTH", // arrives as `Infosrc`
     });
-    expect(rows[1]).toMatchObject({ override: true, beingOverridden: true, status: "Hold" });
+    // W1: `override` is the remaining-use COUNT (WSDL int) — the boolean parse read 2–9 as false.
+    expect(rows[1]).toMatchObject({ override: 1, beingOverridden: true, status: "Hold" });
   });
 
   it("sends an EMPTY <request> by default — omitting it is what the binding rejects", async () => {
@@ -127,14 +128,18 @@ describe("getCardSummaries", () => {
     expect(s.bodies[1]).toContain("<CardManagementEP_getCardSummariesV2>");
   });
 
-  it("emits one <request> per search criterion when asked", async () => {
+  it("emits ONE <request> wrapping filter/clause records per the WSDL (audit W2)", async () => {
     const s = stub(loginOk, summaries);
     await getCardSummaries(env, creds, {
       fetchImpl: s.fetchImpl,
       searches: [{ type: "STATUS", searchParam: "A" }, { type: "POLICY", searchParam: "14" }],
     });
-    expect(s.bodies[1]).toContain("<request><type>STATUS</type><searchParam>A</searchParam></request>");
-    expect(s.bodies[1]).toContain("<request><type>POLICY</type><searchParam>14</searchParam></request>");
+    expect(s.bodies[1]).toContain(
+      "<request><filter><clause><type>STATUS</type><searchParam>A</searchParam></clause>" +
+        "<clause><type>POLICY</type><searchParam>14</searchParam></clause></filter></request>",
+    );
+    // And never the old repeated-sibling shape, which matched neither v1 nor v2.
+    expect(s.bodies[1]).not.toContain("<request><type>");
   });
 
   it("can fall back to the v1 operation", async () => {

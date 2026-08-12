@@ -48,3 +48,13 @@ describe("stepUpToken", () => {
     expect(verifyStepUpToken(bare, minted.token, "u1", "org1")).toBe(false);
   });
 });
+
+describe("strict key decoding (audit hardening)", () => {
+  it("fails closed on a key that does not decode to 32 bytes", () => {
+    // A truncated key must NOT silently derive a short subkey — the old inline heuristic could.
+    const shortKey = loadEnv({ NODE_ENV: "test", SECRETS_ENCRYPTION_KEY: "abcd" } as NodeJS.ProcessEnv);
+    expect(mintStepUpToken(shortKey, "u1", "org1")).toBeNull();
+    const good = mintStepUpToken(env, "u1", "org1")!;
+    expect(verifyStepUpToken(shortKey, good.token, "u1", "org1")).toBe(false);
+  });
+});

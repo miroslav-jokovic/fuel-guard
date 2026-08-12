@@ -5,7 +5,7 @@ import type { Env } from "../env.js";
 import { getCardSummaries, getCardV2, type CardSummaryRow } from "../lib/efsCardOps.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
-import { isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
+import { decodeSecretsKey, isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /**
@@ -56,11 +56,11 @@ export interface CardMirrorResult {
  * produces two different handles and cannot be correlated across them.
  */
 export function cardRefHmac(env: Env, orgId: string, cardNumber: string): string {
-  const raw = env.SECRETS_ENCRYPTION_KEY;
-  if (!raw) {
-    throw new EfsSoapError("SECRETS_ENCRYPTION_KEY is not set — refusing to index card numbers", "not_implemented");
-  }
-  const master = Buffer.from(raw, raw.includes("-") || raw.includes("_") || /[+/=]/.test(raw) ? "base64" : "hex");
+  // Strict, shared decoder (audit hardening): the old inline `Buffer.from(raw, includes("-") ? …)`
+  // heuristic could silently derive this subkey from a TRUNCATED key — `Buffer.from(x, "hex")` stops
+  // at the first non-hex char and returns a short buffer with no error, collapsing the keyed lookup
+  // handle toward the guessable bare-digest case. decodeSecretsKey asserts exactly 32 bytes.
+  const master = decodeSecretsKey(env);
   const subkey = Buffer.from(hkdfSync("sha256", master, Buffer.alloc(0), "efs-card-ref", 32));
   return createHmac("sha256", subkey).update(`${orgId}:${cardNumber}`).digest("hex");
 }
@@ -208,7 +208,9 @@ async function upsertFromSummary(
     driver_id_prompt: summary.driverId,
     unit_prompt: summary.unitNumber,
     driver_name: summary.driverName,
-    override_uses: summary.override ? null : 0,
+    // The roster now carries the actual remaining-use COUNT (WSDL int, audit W1) — no more
+    // null-for-unknown: the summary is authoritative for this number on every sweep.
+    override_uses: summary.override,
     synced_at: new Date().toISOString(),
     sync_error: null,
   };

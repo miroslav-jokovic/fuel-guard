@@ -3,22 +3,23 @@ import { ref } from "vue";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import { AppInput as BaseInput } from "@fuelguard/ui";
 import { AppFormField as FormField } from "@fuelguard/ui";
-import { supabase } from "@/lib/supabase";
-import { useSessionStore } from "@/stores/session";
+import { verifyStepUp } from "@/lib/stepUp";
 
 /**
  * "Confirm your password to continue" — the browser half of step-up re-authentication.
  *
- * ── How this actually proves anything ────────────────────────────────────────────────────────────
- * `signInWithPassword` mints a NEW access token, and the API's `requireFreshAuth` reads that token's
- * `iat`. So a successful sign-in here is what makes the very next request pass a freshness check
- * three hundred seconds wide. There is no separate step-up token, no server-side state, and nothing
- * the browser can assert on its own — the proof rides inside a signature the API verifies anyway.
+ * ── How this actually proves anything (audit P0-4) ───────────────────────────────────────────────
+ * The password is sent to the API's POST /api/auth/step-up, which re-verifies it against Supabase's
+ * own password grant and, ONLY then, mints a short-lived step-up token bound to this user. The token
+ * is held in memory by `lib/stepUp.ts` and rides the next sensitive request in the `x-step-up-token`
+ * header. This replaced reading the access token's `iat`, which the refresh-token grant re-mints
+ * with no password — so a signed-in but unattended browser could pass it. Possession of a token that
+ * only a typed password can mint cannot be manufactured that way.
  *
  * ── The honest caveat ────────────────────────────────────────────────────────────────────────────
- * An SSO-only account has no password to re-enter. There this degrades to "your session is recent"
- * rather than "you proved it was you", which is why every surface that requires step-up is ALSO
- * behind an admin role or a named approver scope. Stated here rather than discovered later.
+ * An SSO-only account has no password to re-enter; there the server cannot mint a token and this
+ * fails closed, which is why every surface that needs step-up is ALSO behind an admin role or a
+ * named approver scope. Stated here rather than discovered later.
  *
  * The password is never stored, never emitted, and the field is cleared on every outcome.
  */
@@ -26,23 +27,17 @@ import { useSessionStore } from "@/stores/session";
 const props = defineProps<{ reason: string }>();
 const emit = defineEmits<{ confirmed: []; cancel: [] }>();
 
-const session = useSessionStore();
 const password = ref("");
 const error = ref<string | null>(null);
 const busy = ref(false);
 
 async function confirm(): Promise<void> {
-  const email = session.email;
-  if (!email) {
-    error.value = "We could not read your account email. Sign out and back in, then try again.";
-    return;
-  }
   busy.value = true;
   error.value = null;
-  const { error: authError } = await supabase.auth.signInWithPassword({ email, password: password.value });
+  const ok = await verifyStepUp(password.value);
   password.value = "";
   busy.value = false;
-  if (authError) {
+  if (!ok) {
     // Deliberately not "wrong password": the same message covers a wrong password and an SSO account
     // with none, and neither case should be told anything about the other.
     error.value = "That did not work. Check your password and try again.";

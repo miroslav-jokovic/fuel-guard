@@ -7,22 +7,19 @@
  */
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { AppButton as BaseButton } from "@fuelguard/ui";
 import DataTable, { type DataTableColumn } from "@/components/ui/DataTable.vue";
 import FilterBar from "@/components/ui/FilterBar.vue";
 import FilterSelect from "@/components/ui/FilterSelect.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import TablePagination from "@/components/TablePagination.vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
-import { useToastStore } from "@/stores/toast";
 import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues, freshness } from "@/features/fuelCards/cardControlModel";
 import { useJob } from "@/features/jobs/useJob";
-import { useEfsCards, useSyncEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
+import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
 const PAGE_SIZE = 20;
 
 const router = useRouter();
-const toast = useToastStore();
 
 const search = ref("");
 const status = ref("");
@@ -45,7 +42,6 @@ const page = ref(1);
 const sort = ref<{ key: string; dir: "asc" | "desc" }>({ key: "assignment", dir: "asc" });
 
 const query = useEfsCards({ search, status });
-const sync = useSyncEfsCards();
 
 /**
  * The sweep runs in the background, so the button alone tells you nothing. This is what turns
@@ -209,28 +205,11 @@ function clearAll(): void {
   for (const facet of Object.values(FACETS)) facet.value = "";
 }
 
-async function onSync(): Promise<void> {
-  try {
-    await sync.mutateAsync();
-    toast.success("Refresh started");
-    // The ledger row appears as soon as the job is enqueued; markRunning shows it without a poll wait.
-    syncJob.markRunning();
-    void syncJob.refresh();
-  } catch (e) {
-    toast.error("Could not start the refresh", e instanceof Error ? e.message : undefined);
-  }
-}
 </script>
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Every EFS card on this account, with the settings EFS currently reports.">
-      <template #actions>
-        <BaseButton variant="secondary" :disabled="sync.isPending.value || syncJob.isRunning.value" @click="onSync">
-          {{ sync.isPending.value || syncJob.isRunning.value ? "Refreshing…" : "Refresh from EFS" }}
-        </BaseButton>
-      </template>
-    </PageHeader>
+    <PageHeader description="Every EFS card on this account, with the settings EFS currently reports. This page refreshes itself." />
 
     <p v-if="syncOutcome" class="text-sm" :class="syncOutcome.tone === 'danger' ? 'text-danger-700' : syncOutcome.tone === 'warning' ? 'text-caution-700' : 'text-ink-muted'">
       {{ syncOutcome.text }}
@@ -313,7 +292,7 @@ async function onSync(): Promise<void> {
       :sort="sort"
       :loading="query.isLoading.value"
       :error="query.isError.value ? (query.error.value?.message ?? 'Could not load cards') : undefined"
-      empty-text="No cards yet. Refresh from EFS to pull this account's card list."
+      empty-text="No cards yet — the next EFS sync will pull this account's card list."
       @sort="onSort"
       @retry="query.refetch()"
       @row-click="(row) => router.push(`/fuel-cards/${(row as EfsCardRow).id}`)"

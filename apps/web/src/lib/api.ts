@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { stepUpHeader } from "./stepUp";
 
 // Same-origin by default (single-service deploy): paths already include `/api`, so "" → "/api/…".
 // Set VITE_API_URL only when the API lives on a different origin (split-service deploy).
@@ -42,6 +43,10 @@ export async function apiFetch<T = unknown>(
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // A held, unexpired step-up token rides on EVERY request (audit P0-4). Harmless where it is
+      // not required; the one proof of a recently-typed password where it is. Explicit per-call
+      // headers still win, so a caller can override.
+      ...stepUpHeader(),
       ...(options.headers ?? {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,

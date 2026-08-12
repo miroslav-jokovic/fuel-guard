@@ -71,8 +71,12 @@ const PATTERNS: ReadonlyArray<{ bucket: CardWriteBucket; method: "POST" | "DELET
 export function cardWriteBucket(method: string, pathname: string): CardWriteBucket | null {
   const verb = method.toUpperCase();
   if (verb !== "POST" && verb !== "DELETE") return null;
-  // Query strings and duplicate slashes must not let a request slip past the match.
-  const path = pathname.split("?")[0]!.replace(/\/{2,}/g, "/");
+  // Query strings, duplicate slashes AND CASING must not let a request slip past the match:
+  // Express routes case-insensitively by default, so `POST /API/fuel-cards/:id/override` reaches
+  // the handler — and a case-sensitive pattern table here answered `null`, which the limiter treats
+  // as "no bucket, allow". Lowercasing first makes the table see every spelling the router accepts
+  // (audit P1-5). Uuids in the path lowercase harmlessly; the patterns are already lowercase.
+  const path = pathname.split("?")[0]!.replace(/\/{2,}/g, "/").toLowerCase();
   return PATTERNS.find((p) => p.method === verb && p.re.test(path))?.bucket ?? null;
 }
 

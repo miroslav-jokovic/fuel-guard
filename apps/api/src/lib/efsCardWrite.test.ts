@@ -212,4 +212,11 @@ describe("editsLanded", () => {
     const before = doc();
     expect(editsLanded(before, [{ op: "removeAll", name: "infos" }])).toBe(false);
   });
+
+  it("tolerates the vendor's own casing — HOLD is a landed Hold (reconciler parity with vendorNormalisedOnly)", () => {
+    const after = parseCardDocument(fixture("getCardV2.full.xml").replace("<status>Active</status>", "<status>HOLD</status>"));
+    expect(editsLanded(after, [{ op: "setField", name: "status", value: "Hold" }])).toBe(true);
+    // Case is the ONLY tolerance: a genuinely different state still refuses.
+    expect(editsLanded(after, [{ op: "setField", name: "status", value: "Inactive" }])).toBe(false);
+  });
 });

@@ -235,6 +235,10 @@ const EnvSchema = z.object({
   // change that already landed. Phase 0's experiments measure the real latency; this default is the
   // floor until they do. 0 disables the second read (not recommended outside tests).
   EFS_CARD_VERIFY_RETRY_MS: z.coerce.number().int().min(0).max(30_000).default(3_000),
+  // getPolicy cache TTL (lib/efsPolicyCache.ts). A policy is shared by up to 99 cards and changes
+  // when a human changes it; dialing the vendor once per card-page view was the 15-20s page (audit
+  // P1-1). Ten minutes keeps the page honest without spending the shared account's rate budget.
+  EFS_POLICY_CACHE_MS: z.coerce.number().int().min(0).max(3_600_000).default(10 * 60 * 1000),
   // Org-wide ceiling on card mutations per rolling hour, counted from the ledger. Per-user limits do
   // not stop three collaborating accounts; this does. Roughly ten times the busiest legitimate hour
   // we can construct (a theft sweep locking one depot's cards).

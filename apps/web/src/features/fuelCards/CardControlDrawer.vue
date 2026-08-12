@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import type { CardCapabilities, EfsLocation, PromptInput } from "@fuelguard/shared";
 import { EFS_EDITABLE_INFO_IDS, efsStatusEquals } from "@fuelguard/shared";
 import { AppIcon } from "@fuelguard/ui";
@@ -32,25 +32,32 @@ import {
 } from "./useCardControl";
 
 /**
- * Every way this product can change a fuel card, behind one confirmation.
+ * Every way this product can change a fuel card.
  *
- * Copies `features/roster/DriverAccessModal.vue` deliberately: a typed action union, a `confirmation`
- * computed returning the exact words, the confirmation REPLACING the drawer body rather than stacking
- * a second modal on top of it, a `busy` computed OR-ing every mutation, and a `#footer` that swaps
- * with the body state.
+ * ── The four properties this drawer exists to keep ───────────────────────────────────────────────
  *
- * ── Three things this drawer does that a normal form does not ────────────────────────────────────
+ * 1. **It sends the version the screen was DRAWN from.** If the card moved in the WEX portal since,
+ *    the API answers 409 and the operator is shown the new truth instead of silently overwriting it.
  *
- * 1. **It sends the version the screen was DRAWN from.** Not a fresh one. If the card moved in the
- *    WEX portal since, the API answers 409 and the operator is shown the new truth instead of
- *    silently overwriting somebody's change.
- *
- * 2. **One idempotency key per action per open.** Reused across retries of the SAME action, so a
- *    double click or a retried request cannot grant two overrides.
+ * 2. **One idempotency key per action, RE-MINTED after every settled outcome** (audit P1-2). Reused
+ *    across retries of the same in-flight attempt — a double-click cannot grant two overrides — but
+ *    a new key after success/failure/drift, so a genuine SECOND attempt from the still-open drawer
+ *    is a new request rather than a replay of the first. The one exception is `sent`: an unconfirmed
+ *    write keeps its key, because re-clicking it must replay "still unconfirmed", never risk a
+ *    second apply.
  *
  * 3. **A 200 is not a success.** The API answers 200 for every recorded outcome, including "EFS
- *    refused" and "we could not confirm". `outcomeNotice` decides which of those the operator hears,
- *    and "sent but not confirmed" is never dressed up as either a success or a failure.
+ *    refused" and "we could not confirm". `outcomeNotice` decides which the operator hears, and an
+ *    `idempotent` replay is called out as matching an earlier attempt rather than dressed up as new.
+ *
+ * 4. **State is keyed on the CARD, not just the drawer being open** (audit finding, web #2). A drawer
+ *    that stays mounted while the card changes underneath it re-seeds everything — keys, drafts,
+ *    inputs — so an action can never carry card A's key or draft to card B.
+ *
+ * ── Layout ───────────────────────────────────────────────────────────────────────────────────────
+ * Each section (Lock, Exception, Prompts) is STACKED with its own action button, the dashboard's
+ * pattern — not tabs. One in-flight action disables only its own section; the shared confirmation
+ * step then replaces the body for the single decision that needs confirming.
  */
 
 const props = defineProps<{
@@ -73,28 +80,25 @@ const emit = defineEmits<{ close: []; changed: [] }>();
 
 const toast = useToastStore();
 
-type Tab = "status" | "override" | "prompts";
 type ConfirmAction = "lock" | "unlock" | "override" | "clearOverride" | "prompts";
 
-const tab = ref<Tab>("status");
 const confirmAction = ref<ConfirmAction | null>(null);
 /** Set when the API asks for a fresh sign-in; the prompt replaces the body, like a confirmation. */
 const stepUpFor = ref<ConfirmAction | null>(null);
+/** The message + max-age the SERVER asked step-up for, so the prompt says why (web finding #4). */
+const stepUpReason = ref<string>("This action needs a recent sign-in.");
 
-const reason = ref("");
 const lockStatus = ref<"Hold" | "Inactive">("Hold");
 const uses = ref(1);
 const scopeKind = ref<"all" | "location">("all");
 const location = ref<EfsLocation | null>(null);
 const drafts = ref<PromptInput[]>([]);
 
-/**
- * One key per action per drawer-open. Minted when the drawer opens rather than per request, because
- * the request the guard has to catch is the RETRY.
- */
-const keys = ref<Record<ConfirmAction, string>>({
+/** One key per action, re-minted at every settled outcome (see property 2). */
+const keys = reactive<Record<ConfirmAction, string>>({
   lock: "", unlock: "", override: "", clearOverride: "", prompts: "",
 });
+const rotate = (action: ConfirmAction): void => { keys[action] = newIdempotencyKey(); };
 
 const lock = useLockCard();
 const unlock = useUnlockCard();
@@ -102,32 +106,32 @@ const grant = useGrantOverride();
 const clear = useClearOverride();
 const setPrompts = useSetPrompts();
 
-const busy = computed(
-  () => lock.isPending.value || unlock.isPending.value || grant.isPending.value
-    || clear.isPending.value || setPrompts.isPending.value,
-);
+/** Per-action pending, so one in-flight section does not freeze the others. */
+const pendingFor = ref<ConfirmAction | null>(null);
+const busy = computed(() => pendingFor.value !== null);
+const sectionBusy = (action: ConfirmAction): boolean => pendingFor.value === action;
 
 const editablePrompts = computed(() =>
   props.prompts.map((p) => ({ ...p, editable: (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId) })),
 );
 
-/** Reset every draft when the drawer opens: a stale reason from last time is an audit-log lie. */
+/**
+ * Seed everything from the current card — on OPEN and on any change to the card identity or the
+ * version/prompts it was drawn from (property 4, and the 409-then-refetch rebuild, web finding #3).
+ * Re-seeding on `version` is what makes a post-409 retry send the operator's intent against the
+ * FRESH document rather than silently re-applying a draft built from the stale one.
+ */
 watch(
-  () => props.open,
-  (open) => {
+  () => [props.open, props.cardId, props.version, props.prompts] as const,
+  ([open]) => {
     if (!open) return;
-    tab.value = "status";
     confirmAction.value = null;
     stepUpFor.value = null;
-    reason.value = "";
     lockStatus.value = "Hold";
     uses.value = 1;
     scopeKind.value = "all";
     location.value = null;
-    keys.value = {
-      lock: newIdempotencyKey(), unlock: newIdempotencyKey(), override: newIdempotencyKey(),
-      clearOverride: newIdempotencyKey(), prompts: newIdempotencyKey(),
-    };
+    for (const action of Object.keys(keys) as ConfirmAction[]) rotate(action);
     // Only the editable prompts become drafts. Everything else is echoed untouched by the API.
     drafts.value = props.prompts
       .filter((p) => (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId))
@@ -162,24 +166,23 @@ const confirmation = computed<CardConfirmation | null>(() => {
   }
 });
 
-const tabs = computed(() =>
+const sections = computed(() =>
   [
-    { key: "status" as const, label: "Lock", show: props.capabilities.canLock || props.capabilities.canUnlock },
-    { key: "override" as const, label: "Exception", show: props.capabilities.canOverride },
-    { key: "prompts" as const, label: "Prompts", show: props.capabilities.canSetPrompts },
-  ].filter((t) => t.show),
+    { key: "status" as const, show: props.capabilities.canLock || props.capabilities.canUnlock },
+    { key: "override" as const, show: props.capabilities.canOverride },
+    { key: "prompts" as const, show: props.capabilities.canSetPrompts },
+  ].filter((s) => s.show),
 );
+const showSection = (key: "status" | "override" | "prompts"): boolean =>
+  sections.value.some((s) => s.key === key);
 
-const common = () => ({
-  cardId: props.cardId,
-  expectedVersion: props.version,
-  reason: reason.value.trim(),
-});
+const common = () => ({ cardId: props.cardId, expectedVersion: props.version });
 
 async function runConfirmedAction(): Promise<void> {
   const action = confirmAction.value;
-  if (!action) return;
+  if (!action || busy.value) return; // re-entrancy guard (web finding #5)
   const copy = confirmation.value!;
+  pendingFor.value = action;
   try {
     const outcome = await dispatch(action);
     const notice = outcomeNotice(outcome, copy.doneLabel);
@@ -188,30 +191,36 @@ async function runConfirmedAction(): Promise<void> {
     else toast.error(notice.title, notice.message);
     confirmAction.value = null;
     emit("changed");
+    // A key is spent the moment its request SETTLES with a known outcome — a retry from here must be
+    // a new request. `sent` is the sole exception: its outcome is unknown, and re-clicking it must
+    // replay "still unconfirmed", never chance a second apply.
+    if (outcome.status !== "sent") rotate(action);
     // Only a clean success closes the drawer. Anything else leaves the operator where they can read
     // the card's new state and decide what to do about it.
     if (notice.kind === "success") emit("close");
   } catch (error) {
     handleFailure(action, error);
+  } finally {
+    pendingFor.value = null;
   }
 }
 
 function dispatch(action: ConfirmAction): Promise<CardMutationOutcome> {
   switch (action) {
     case "lock":
-      return lock.mutateAsync({ ...common(), idempotencyKey: keys.value.lock, status: lockStatus.value });
+      return lock.mutateAsync({ ...common(), idempotencyKey: keys.lock, status: lockStatus.value });
     case "unlock":
-      return unlock.mutateAsync({ ...common(), idempotencyKey: keys.value.unlock });
+      return unlock.mutateAsync({ ...common(), idempotencyKey: keys.unlock });
     case "override":
       return grant.mutateAsync({
-        ...common(), idempotencyKey: keys.value.override, uses: uses.value,
+        ...common(), idempotencyKey: keys.override, uses: uses.value,
         scope: scopeKind.value === "all" ? { kind: "all" } : { kind: "location", locationId: location.value!.locId },
       });
     case "clearOverride":
-      return clear.mutateAsync({ ...common(), idempotencyKey: keys.value.clearOverride });
+      return clear.mutateAsync({ ...common(), idempotencyKey: keys.clearOverride });
     case "prompts":
       return setPrompts.mutateAsync({
-        ...common(), idempotencyKey: keys.value.prompts,
+        ...common(), idempotencyKey: keys.prompts,
         // A cleared value is a REMOVED prompt, not an empty one — the API refuses the record entirely.
         prompts: drafts.value.filter((d) => (d.matchValue ?? "").trim() !== ""),
         allowRemoveDriverId: removesDriverId.value,
@@ -220,23 +229,25 @@ function dispatch(action: ConfirmAction): Promise<CardMutationOutcome> {
 }
 
 /**
- * Failures that are not really failures.
+ * Outcomes that are not really the end.
  *
- * `card_state_changed` and `step_up_required` are both "do something first, then try again", and both
- * deserve a specific response rather than a red toast with a vendor sentence in it. Everything else
- * uses the house idiom.
+ * Each recoverable refusal gets its own specific response and, where the server sent one, its own
+ * words. A key is NOT rotated here: none of these opened a ledger row, so the same key is still the
+ * right one for the retry the operator is about to make.
  */
 function handleFailure(action: ConfirmAction, error: unknown): void {
   const api = error instanceof CardControlApiError ? error : null;
+
   if (api?.code === "step_up_required") {
     stepUpFor.value = action;
+    stepUpReason.value = api.message || "This action needs a recent sign-in.";
     confirmAction.value = null;
     return;
   }
   if (api?.code === "card_state_changed") {
     confirmAction.value = null;
-    emit("changed"); // refetch, so the drawer's props carry the version EFS actually holds
-    toast.error("Card changed in EFS", "Review the current settings and try again.");
+    emit("changed"); // parent refetches; the watch re-seeds drafts from the version EFS now holds
+    toast.error("Card changed in EFS", "The current settings are loaded — review and try again.");
     return;
   }
   if (api?.code === "mutation_in_flight") {
@@ -244,10 +255,30 @@ function handleFailure(action: ConfirmAction, error: unknown): void {
     toast.error("Still confirming an earlier change", "Wait for it to finish, then try again.");
     return;
   }
+  if (api?.code === "idempotency_key_reused") {
+    // Defence in depth for property 4: the client already re-seeds on card change, so this should
+    // not happen — but if it does, a fresh key makes the retry clean rather than stuck.
+    rotate(action);
+    confirmAction.value = null;
+    toast.error("Please try that again", "The previous request could not be matched; a fresh attempt is ready.");
+    return;
+  }
+  if (api?.status === 429) {
+    confirmAction.value = null;
+    const retryAfter = typeof api.detail.retryAfterSec === "number" ? ` Try again in about ${api.detail.retryAfterSec}s.` : "";
+    toast.error("Too many card changes just now", `This limit protects the account.${retryAfter}`);
+    return;
+  }
+  if (api?.code === "card_control_disabled" || api?.code === "card_control_not_entitled" || api?.status === 403) {
+    confirmAction.value = null;
+    emit("changed"); // capabilities may have changed under the operator; refetch closes the tabs
+    toast.error("Card actions are not available", api?.message);
+    return;
+  }
   toast.error("Could not change the card", error instanceof Error ? error.message : undefined);
 }
 
-/** The step-up prompt succeeded: the token is fresh now, so re-run the action that needed it. */
+/** The step-up prompt succeeded: a fresh step-up token is held now, so re-run the action. */
 async function afterStepUp(): Promise<void> {
   const action = stepUpFor.value;
   stepUpFor.value = null;
@@ -272,7 +303,7 @@ function close(): void {
     <!-- Step-up replaces the body, like a confirmation: one decision on screen at a time. -->
     <StepUpPrompt
       v-if="stepUpFor"
-      :reason="confirmation?.title ?? 'This action needs a recent sign-in.'"
+      :reason="stepUpReason"
       @confirmed="afterStepUp"
       @cancel="stepUpFor = null"
     />
@@ -286,25 +317,12 @@ function close(): void {
       </div>
       <h3 class="mt-4 text-base font-semibold text-ink">{{ confirmation.title }}</h3>
       <p class="mt-2 max-w-sm text-sm leading-6 text-ink-muted">{{ confirmation.body }}</p>
-      <p class="mt-4 max-w-sm text-sm text-ink-tertiary">Reason: {{ reason }}</p>
     </div>
 
-    <div v-else class="space-y-5">
-      <nav v-if="tabs.length > 1" class="flex gap-2" aria-label="Card actions">
-        <BaseButton
-          v-for="entry in tabs"
-          :key="entry.key"
-          size="sm"
-          :variant="tab === entry.key ? 'primary' : 'ghost'"
-          @click="tab = entry.key"
-        >
-          {{ entry.label }}
-        </BaseButton>
-      </nav>
-
+    <!-- Stacked sections, each with its own action button (dashboard pattern, B2). -->
+    <div v-else class="space-y-8">
       <CardStatusPanel
-        v-if="tab === 'status'"
-        v-model:reason="reason"
+        v-if="showSection('status')"
         v-model:lock-status="lockStatus"
         :status="props.status"
         :last-used-date="props.lastUsedDate"
@@ -312,31 +330,29 @@ function close(): void {
         :unit-prompt="props.unitPrompt"
         :can-lock="props.capabilities.canLock"
         :can-unlock="props.capabilities.canUnlock"
-        :busy="busy"
+        :busy="sectionBusy('lock') || sectionBusy('unlock')"
         @lock="confirmAction = 'lock'"
         @unlock="confirmAction = 'unlock'"
       />
 
       <CardOverridePanel
-        v-else-if="tab === 'override'"
-        v-model:reason="reason"
+        v-if="showSection('override')"
         v-model:uses="uses"
         v-model:scope-kind="scopeKind"
         v-model:location="location"
         :override-uses="props.overrideUses"
         :override-all-locations="props.overrideAllLocations"
         :location-override-id="props.locationOverrideId"
-        :busy="busy"
+        :busy="sectionBusy('override') || sectionBusy('clearOverride')"
         @grant="confirmAction = 'override'"
         @clear="confirmAction = 'clearOverride'"
       />
 
       <CardPromptsPanel
-        v-else
+        v-if="showSection('prompts')"
         v-model:drafts="drafts"
-        v-model:reason="reason"
         :rows="editablePrompts"
-        :busy="busy"
+        :busy="sectionBusy('prompts')"
         @save="confirmAction = 'prompts'"
       />
     </div>

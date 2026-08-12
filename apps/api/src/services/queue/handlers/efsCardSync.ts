@@ -1,5 +1,6 @@
 import { getEfsSoapCredentials } from "../../efsSoapCredentials.js";
 import { syncEfsCards } from "../../efsCardMirror.js";
+import { resolveUnresolvedMutations } from "../../efsCardUnresolved.js";
 import type { JobHandler } from "../types.js";
 
 /**
@@ -36,6 +37,20 @@ export const efsCardSyncHandler: JobHandler = async (ctx, job) => {
       `[efs-cards] org ${job.org_id}: ${result.upserted} card(s), ${result.detailed} detailed, ${result.linked} linked`,
     );
   }
+  // The sweep just refreshed the fleet's documents — the cheapest possible moment to also settle
+  // ledger rows stuck in 'sent'/'pending' (audit P1-3): the evidence is one backfill-lane read away
+  // and the 0179 unique index means a stale pending row is BLOCKING its card until someone does.
+  const unresolved = await resolveUnresolvedMutations(ctx.admin, ctx.env, creds, { maxVendorReads: 10 });
+  if (unresolved.errors.length > 0) {
+    console.error(`[efs-cards] org ${job.org_id}: reconciler — ${unresolved.errors.slice(0, 3).join("; ")}`);
+  }
+  if (unresolved.reconciledSucceeded + unresolved.reconciledFailed + unresolved.abandonedPending > 0) {
+    console.log(
+      `[efs-cards] org ${job.org_id}: reconciled ${unresolved.reconciledSucceeded} landed, ` +
+        `${unresolved.reconciledFailed} no_change, ${unresolved.abandonedPending} abandoned pending`,
+    );
+  }
+
   // Spread into a plain record: JobHandler's return type is the ledger's `stats` jsonb.
-  return { ...result };
+  return { ...result, unresolved: { ...unresolved, errors: unresolved.errors.slice(0, 5) } };
 };

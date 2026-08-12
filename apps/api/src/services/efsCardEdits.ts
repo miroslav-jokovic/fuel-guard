@@ -190,12 +190,24 @@ export function promptsEdits(doc: CardDocument, prompts: readonly PromptInput[])
 
   // A prompt the card does not have yet — assigning a driver to a card that has never had one.
   // Appended in submission order, after everything that already existed.
+  //
+  // FULL VENDOR SHAPE, in WSCardInfo's sequence order (WSDL; guide p138-139) — not just the three
+  // fields we care about. The schema marks none of the record's nine elements optional, EFS's own
+  // serializer emits them all, and this vendor's demonstrated failure mode for a shape it has never
+  // seen is "accepted and ignored" (audit W3). `value` is "0" per the guide's own instruction for
+  // every non-accrual combination (p39). numericMatchValue is deliberately absent: EFS's own
+  // responses omit it, so the omission is a shape the vendor demonstrably produces.
   for (const prompt of prompts) {
     if (seen.has(prompt.infoId)) continue;
     records.push({
       infoId: prompt.infoId,
-      validationType: prompt.validationType,
+      lengthCheck: "false",
       matchValue: prompt.matchValue ?? "",
+      maximum: "0",
+      minimum: "0",
+      reportValue: "",
+      validationType: prompt.validationType,
+      value: "0",
     });
   }
 

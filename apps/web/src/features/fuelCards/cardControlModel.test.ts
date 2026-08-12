@@ -264,6 +264,19 @@ describe("outcomeNotice — a 200 is not a success", () => {
     expect(notice.kind).toBe("error");
     expect(notice.message).toContain("109491436176");
   });
+
+  it("names an idempotent replay rather than claiming a fresh outcome (audit P1-2)", () => {
+    const notice = outcomeNotice({ status: "succeeded", idempotent: true }, "Card locked");
+    expect(notice.title).toBe("Already done");
+    expect(notice.message).toContain("earlier attempt");
+  });
+
+  it("never asserts 'not changed' for a status it does not recognise", () => {
+    const notice = outcomeNotice({ status: "some_new_status" }, "Card locked");
+    expect(notice.kind).toBe("warning");
+    expect(notice.message).toMatch(/history/i);
+    expect(notice.message).not.toMatch(/not changed/i);
+  });
 });
 
 describe("effective config — the card/policy merge, as an operator reads it", () => {

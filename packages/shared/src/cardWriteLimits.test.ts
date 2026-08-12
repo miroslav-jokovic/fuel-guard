@@ -74,3 +74,13 @@ describe("the numbers", () => {
     expect(CARD_OVERRIDE_STEP_UP_ABOVE_USES).toBeLessThan(9);
   });
 });
+
+describe("case-insensitive matching (audit P1-5)", () => {
+  it("buckets /API/FUEL-CARDS/... exactly like the lowercase spelling", () => {
+    // Express routes case-insensitively by default, so this spelling REACHES the handler; a
+    // null here meant "no bucket, allow" — the caps silently skipped for anyone who typed /API/.
+    expect(cardWriteBucket("POST", "/API/Fuel-Cards/abc-123/Override")).toBe("card_override");
+    expect(cardWriteBucket("POST", "/API/FUEL-CARDS/abc-123/LOCK")).toBe("card_status");
+    expect(cardWriteBucket("DELETE", "/Api/Fuel-Cards/abc-123/Override")).toBe("card_override");
+  });
+});

@@ -53,8 +53,17 @@ export class SecretBoxError extends Error {
 const b64url = (b: Buffer): string => b.toString("base64url");
 const unb64url = (s: string): Buffer => Buffer.from(s, "base64url");
 
-/** Decode the configured KEK. Accepts base64 (with or without padding) or hex; must be 32 bytes. */
-function keyMaterial(env: Env): Buffer {
+/**
+ * Decode the configured KEK. Accepts base64 (with or without padding) or hex; MUST be 32 bytes.
+ *
+ * Exported so every keyed primitive in the codebase decodes SECRETS_ENCRYPTION_KEY the same strict
+ * way (audit hardening). `Buffer.from(x, "hex")` stops silently at the first non-hex character, and
+ * `Buffer.from(x, "base64")` is equally forgiving — so a truncated or mistyped key used to derive an
+ * HMAC subkey elsewhere could yield a SHORT buffer with no error, weakening the keyed handle it
+ * protects. The strict hex regex plus the 32-byte assertion here is the only decoder that refuses
+ * that. `cardRefHmac` and the step-up token subkey both call this rather than re-deriving the parse.
+ */
+export function decodeSecretsKey(env: Env): Buffer {
   const raw = env.SECRETS_ENCRYPTION_KEY;
   if (!raw) {
     throw new SecretBoxError(
@@ -74,6 +83,9 @@ function keyMaterial(env: Env): Buffer {
   }
   return decoded;
 }
+
+/** Internal alias kept so the rest of this file reads unchanged. */
+const keyMaterial = decodeSecretsKey;
 
 /** Is sealing available in this deploy? Callers use this to fail closed BEFORE accepting a secret. */
 export function isSecretBoxConfigured(env: Env): boolean {

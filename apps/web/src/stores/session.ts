@@ -5,6 +5,7 @@ import type { UserRole } from "@fuelguard/shared";
 import { canManageFleet, isAdmin, isReadOnly } from "@fuelguard/shared";
 import { supabase, DEV_BYPASS } from "@/lib/supabase";
 import { decodeClaims } from "@/lib/jwt";
+import { clearStepUp } from "@/lib/stepUp";
 
 /** Builds a fake-but-structurally-valid session for local UI development (VITE_DEV_BYPASS=true).
  *  The JWT payload is not signed — frontend only decodes it (never verifies) per decodeClaims(). */
@@ -78,6 +79,8 @@ export const useSessionStore = defineStore("session", () => {
   async function signOut() {
     // Clear local state FIRST so route guards immediately see "logged out" (no waiting on the network).
     session.value = null;
+    // A step-up token must never outlive the session that earned it (audit P0-4).
+    clearStepUp();
     try {
       // `local` scope clears the stored tokens without a server round-trip that can hang/stall.
       await supabase.auth.signOut({ scope: "local" });

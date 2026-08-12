@@ -2,7 +2,6 @@
 import { computed } from "vue";
 import type { EfsLocation } from "@fuelguard/shared";
 import { AppButton as BaseButton } from "@fuelguard/ui";
-import { AppInput as BaseInput } from "@fuelguard/ui";
 import { AppCombobox as ComboSelect } from "@fuelguard/ui";
 import { AppFormField as FormField } from "@fuelguard/ui";
 import EfsLocationPicker from "./EfsLocationPicker.vue";
@@ -26,14 +25,12 @@ const props = defineProps<{
   uses: number;
   scopeKind: "all" | "location";
   location: EfsLocation | null;
-  reason: string;
 }>();
 
 const emit = defineEmits<{
   "update:uses": [value: number];
   "update:scopeKind": [value: "all" | "location"];
   "update:location": [value: EfsLocation | null];
-  "update:reason": [value: string];
   grant: [];
   clear: [];
 }>();
@@ -50,14 +47,12 @@ const scopeOptions = [
 ];
 
 const active = computed(() => (props.overrideUses ?? 0) > 0);
-const reasonValid = computed(() => props.reason.trim().length >= 3);
-const ready = computed(
-  () => reasonValid.value && (props.scopeKind === "all" || props.location !== null),
-);
+const ready = computed(() => props.scopeKind === "all" || props.location !== null);
 </script>
 
 <template>
-  <div class="space-y-4">
+  <section class="space-y-4">
+    <h3 class="text-sm font-semibold text-ink">Exception</h3>
     <div v-if="active" class="rounded-control bg-surface-subtle px-3 py-2 text-sm text-ink">
       This card already has {{ props.overrideUses }} exception{{ props.overrideUses === 1 ? "" : "s" }} left
       <template v-if="props.locationOverrideId">at location #{{ props.locationOverrideId }}</template>
@@ -96,27 +91,13 @@ const ready = computed(
       @update:model-value="emit('update:location', $event)"
     />
 
-    <FormField label="Reason" required hint="Recorded in the audit log.">
-      <template #default="{ id }">
-        <BaseInput
-          :id="id"
-          type="text"
-          maxlength="200"
-          :model-value="props.reason"
-          :disabled="props.busy"
-          placeholder="Ran dry short of the planned stop"
-          @update:model-value="emit('update:reason', $event)"
-        />
-      </template>
-    </FormField>
-
     <div class="flex justify-end gap-3">
-      <BaseButton v-if="active" variant="secondary" :disabled="props.busy || !reasonValid" @click="emit('clear')">
+      <BaseButton v-if="active" variant="secondary" :disabled="props.busy" @click="emit('clear')">
         Remove exception
       </BaseButton>
       <BaseButton variant="primary" :disabled="props.busy || !ready" @click="emit('grant')">
         Grant exception
       </BaseButton>
     </div>
-  </div>
+  </section>
 </template>

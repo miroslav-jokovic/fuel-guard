@@ -16,18 +16,31 @@ dashboard, no WEX portal, no SOAP credentials.
    can't map to the runbook's table. Do not improvise a next step.
 5. When finished — or when stopping early — **revert the card to Active** (step 6) and **unset
    `EFS_CARD_CONTROL_PROBE_ENABLED`** (step 7). Neither is optional.
-6. Work against staging/QA only. Nothing here touches code; do not commit anything.
+6. Work against the QA ORG only (card 7671); never the production org. Nothing here touches code; do not commit anything.
 
 ## Step 0 — Preconditions (verify, don't assume)
 
-1. Miki has pushed the Phase 0/Phase 1 commits and Railway has deployed:
-   `curl -s "https://<staging-api>/api/version?cb=$(date +%s)"` must show a commit **newer than
-   `97fbbae`** and `schema.applied` ≥ `0179`. If not — stop, report, nothing below is possible.
-2. Set `EFS_CARD_CONTROL_PROBE_ENABLED=true` on the **API service** (same care as
-   DEVIN-ENABLE-CARD-ACTIONS step 2: the parser accepts only the literal word `true`). Wait for the
-   redeploy, confirm via `startedAt`.
-3. You have your own **admin user on the QA org** (created via the invite flow per
-   DEVIN-EFS-QA-SETUP §3a — your email, your password; ask Miki to send the invite if you don't).
+**Infra note (corrects an earlier version of this doc).** FuelGuard runs ONE Railway environment,
+named `production`, that hosts BOTH orgs. "QA" here is an **org** (`07fe4058-…`), not a separate
+deployment — the safety comes from the org gates, not from a separate environment. So the single
+Railway `production` environment IS where these experiments run, against the QA ORG's card only.
+The production ORG (`86d6b3ea-…`) stays untouched: it has no card-control settings row, so every
+write gate is shut for it regardless of the deploy-wide flag.
+
+1. **Migrations 0179 and 0180 must be applied.**
+   `curl -s "https://<api-host>/api/version?cb=$(date +%s)"` must show `schema.applied` ≥ `0180`,
+   `state: current`, `drift: false`, `ok: true`. If it reports `0178`/`behind`/`ok:false` — STOP.
+   Migrations auto-apply via the `Apply Supabase migrations` GitHub Action when a `supabase/migrations/**`
+   file lands on `main`; if the API is behind, that Action has not run/succeeded for these commits.
+   This is Miki's to resolve (push the Phase 0–2 commits, confirm the migrate Action is green) — do
+   not attempt to apply migrations yourself.
+2. Set `EFS_CARD_CONTROL_PROBE_ENABLED=true` on the **API service** (`@fleetguard/api`). The parser
+   accepts only the literal word `true` (`1`/`yes`/`on` silently evaluate to false). Setting a
+   variable does NOT always trigger a redeploy — after setting it, redeploy the existing API
+   deployment and confirm a new `startedAt` via `/api/version` before continuing. (You correctly
+   deleted this flag on your last run per the cleanup rule; it needs re-setting now.)
+3. You have your own **admin user on the QA org** (`07fe4058-…`), created via the invite flow per
+   DEVIN-EFS-QA-SETUP §3a — your email, your password; ask Miki to send the invite if you don't.
    Miki's account and password are not available to you.
 
 ## Step 1 — Get a fresh token (repeat whenever a call answers 403 `step_up_required`)
@@ -45,7 +58,7 @@ TOKEN=$(curl -s "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
 (`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`). Your password never goes anywhere but Supabase.
 
 ```bash
-API=https://<staging-api>
+API=https://<api-host>
 CARD=<the full card number from DEVIN-EFS-QA-SETUP step 7, first in the list>
 exp() { curl -s "$API/api/fuel-cards/experiment" -X POST \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$1"; }

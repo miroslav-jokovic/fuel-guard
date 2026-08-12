@@ -183,17 +183,25 @@ export function isDecline(resultText: string | null): boolean {
 }
 
 /**
- * Whether a fresh card document proves an edit list landed.
+ * Whether a fresh card document proves an edit list landed — WITHOUT the before-document.
  *
- * Used by the reconciler AND by the entitlement probe's step 6, so "did it apply?" has exactly one
- * definition. Compares only the paths the edits named — everything else moving is DRIFT, which is a
- * different finding with a different remedy (see `services/efsCardControl.ts`).
+ * The background reconciler's question (services/efsCardUnresolved.ts): a `sent` ledger row stores
+ * its edits and nothing that can rebuild a CardDocument, so `intentLanded`'s canonical diff is out
+ * of reach and this direct field comparison is the honest alternative. Compares only the fields the
+ * edits named — everything else moving is DRIFT, a different finding with a different remedy.
+ *
+ * Values compare CASE-INSENSITIVELY, the same tolerance `vendorNormalisedOnly` grants the live
+ * path: this account demonstrably stores `HOLD` for a sent `Hold`, and an exact compare here would
+ * re-create the false-failure the tolerance exists to prevent — in the one code path whose whole
+ * job is un-sticking rows.
  */
 export function editsLanded(after: CardDocument, edits: readonly CardEdit[]): boolean {
+  const sameText = (a: string | null, b: string): boolean =>
+    a !== null && a.trim().toLowerCase() === b.trim().toLowerCase();
   for (const edit of edits) {
     switch (edit.op) {
       case "setField": {
-        if (fieldText(after.header, edit.name) !== edit.value) return false;
+        if (!sameText(fieldText(after.header, edit.name), edit.value)) return false;
         break;
       }
       case "setFieldNil": {

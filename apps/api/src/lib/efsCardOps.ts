@@ -180,8 +180,13 @@ export interface CardSummaryRow {
   unitNumber: string | null;
   driverId: string | null;
   driverName: string | null;
-  /** The card has an override configured. */
-  override: boolean;
+  /**
+   * REMAINING OVERRIDE USES, 0–9 — an int per the live WSDL, not the guide's "boolean(1)". The
+   * boolean parse read a 2–9 use count as null → false, so a card with three exceptions left showed
+   * "no override" in the mirror and the fleet view (audit W1) — the exact exception-visibility this
+   * product sells.
+   */
+  override: number;
   /** The card is currently BEING overridden — a distinct field in the response (p44). */
   beingOverridden: boolean;
   status: string | null;
@@ -196,11 +201,14 @@ export interface CardSummaryRow {
  * ⚠ THE RESPONSE CONTAINS FULL CARD NUMBERS FOR THE ENTIRE FLEET IN ONE BODY. It must never be
  * logged, never persisted raw, and never attached to an error. Every throw below redacts first.
  *
- * Search shape: the guide shows a `request` element carrying `payrUse` alongside a repeated `request`
- * array carrying `type`/`searchParam` (p45). That is genuinely ambiguous in the source document, so
- * the default here sends NO search at all — the fields are documented as "Optional search features",
- * and an unfiltered list is what the mirror sweep wants anyway. Filters are exercised by the probe
- * before anything depends on them.
+ * Search shape: RESOLVED by the live WSDL (2026-08-12) where the guide's tables rendered
+ * ambiguously. v2 takes ONE `request` part (WSCardSummaryV2Req) whose children are `payrUse` and a
+ * `filter` element holding repeated `clause{type, searchParam}` records; v1 takes one `request`
+ * with `type`/`searchParam`/`payrUse` as direct children — a single clause by construction. The
+ * previous builder emitted repeated `<request>` siblings, which matched neither (audit W2); the
+ * unfiltered call — one empty `<request>`, the mirror sweep's shape that runs every night — is
+ * unchanged. Filtered searches remain probe-before-depend: the shape is now WSDL-true, but no
+ * production path consumes a filtered search until one QA probe call has seen it answered.
  */
 export async function getCardSummaries(
   env: Env,
@@ -233,14 +241,29 @@ export async function getCardSummaries(
     }
   }
   const operation = opts.useV2 === false ? OPS.getCardSummaries : OPS.getCardSummariesV2;
-  const searches = (opts.searches ?? [])
-    .map((s) => `<request>${elAlways("type", s.type)}${elAlways("searchParam", s.searchParam)}</request>`)
-    .join("");
-  const payrollUse = opts.payrollUse ? `<request>${elAlways("payrUse", opts.payrollUse)}</request>` : "";
+  const useV1 = opts.useV2 === false;
+  const searches = opts.searches ?? [];
+  if (useV1 && searches.length > 1) {
+    // WSCardSummaryReq holds exactly one type/searchParam pair. Silently sending only the first
+    // would return a DIFFERENT fleet subset than the caller asked for.
+    throw new EfsSoapError("getCardSummaries (v1) supports at most one search clause", "not_implemented");
+  }
   // With no filters at all, still send ONE empty <request>. Omitting it entirely is what the binding
   // is documented to reject (see elAlways), and "no search" is the normal case for the mirror sweep —
   // so this is the shape that runs every night, not an edge case.
-  const requestElements = searches || payrollUse ? `${payrollUse}${searches}` : "<request></request>";
+  let requestElements = "<request></request>";
+  if (searches.length > 0 || opts.payrollUse) {
+    const payrUse = opts.payrollUse ? elAlways("payrUse", opts.payrollUse) : "";
+    if (useV1) {
+      const one = searches[0];
+      requestElements = `<request>${one ? `${elAlways("type", one.type)}${elAlways("searchParam", one.searchParam)}` : ""}${payrUse}</request>`;
+    } else {
+      const clauses = searches
+        .map((c) => `<clause>${elAlways("type", c.type)}${elAlways("searchParam", c.searchParam)}</clause>`)
+        .join("");
+      requestElements = `<request>${payrUse}<filter>${clauses}</filter></request>`;
+    }
+  }
   const xml = await callCardOp(
     env, creds, operation,
     (session) =>
@@ -256,7 +279,7 @@ export async function getCardSummaries(
       unitNumber: text(record, "unitNumber"),
       driverId: text(record, "driverId"),
       driverName: text(record, "driverName"),
-      override: truthy(text(record, "override")),
+      override: toInt(text(record, "override")) ?? 0,
       beingOverridden: truthy(text(record, "beingOverridden")),
       status: text(record, "status"),
       payrollStatus: text(record, "payrollStatus"),

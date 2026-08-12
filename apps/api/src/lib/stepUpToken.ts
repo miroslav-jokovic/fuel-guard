@@ -1,5 +1,6 @@
 import { createHmac, hkdfSync, timingSafeEqual } from "node:crypto";
 import type { Env } from "../env.js";
+import { decodeSecretsKey, SecretBoxError } from "./secretBox.js";
 
 /**
  * Server-minted step-up tokens: proof that THIS user re-entered their password moments ago.
@@ -34,9 +35,16 @@ export const STEP_UP_TOKEN_TTL_SEC = 300;
 export const STEP_UP_TOKEN_HEADER = "x-step-up-token";
 
 function subkey(env: Env): Buffer | null {
-  const raw = env.SECRETS_ENCRYPTION_KEY;
-  if (!raw) return null;
-  const master = Buffer.from(raw, raw.includes("-") || raw.includes("_") || /[+/=]/.test(raw) ? "base64" : "hex");
+  // Shared strict decoder (audit hardening): assert 32 bytes rather than trust a lax hex/base64
+  // heuristic that could shorten the master silently. A missing/invalid key yields null, and every
+  // caller turns that into "cannot mint / cannot verify" — fail closed, never a weak token.
+  let master: Buffer;
+  try {
+    master = decodeSecretsKey(env);
+  } catch (e) {
+    if (e instanceof SecretBoxError) return null;
+    throw e;
+  }
   return Buffer.from(hkdfSync("sha256", master, Buffer.alloc(0), "step-up-token", 32));
 }
 

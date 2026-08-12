@@ -61,6 +61,7 @@ export class CardControlError extends Error {
       | "card_control_not_entitled"
       | "card_state_changed"
       | "mutation_in_flight"
+      | "idempotency_key_reused"
       | "org_hourly_cap_reached"
       | "secrets_key_missing"
       | "not_found",
@@ -89,6 +90,13 @@ export interface CardMutationContext {
   idempotencyKey?: string | null;
   /** True when the caller re-authenticated for this action. Recorded as evidence. */
   stepUp?: boolean;
+  /**
+   * sha256 over (intent, card, sanitized body) — routes/fuelCards/control.ts#mutationFingerprint.
+   * On an Idempotency-Key collision, a DIFFERENT fingerprint refuses instead of replaying: a key
+   * reused for another request must never be answered with an unrelated recorded outcome
+   * (audit P1-2, migration 0180).
+   */
+  requestFingerprint?: string | null;
   /**
    * Injectable fetch — tests pass a stub, exactly as the feeds and the mirror do. Threaded through
    * every vendor call in the operation rather than only the first, because the whole point of this
@@ -198,6 +206,7 @@ export async function planCardMutation(
       before_document: before.card,
       edits,
       idempotency_key: ctx.idempotencyKey ?? null,
+      request_fingerprint: ctx.requestFingerprint ?? null,
     })
     .select("id")
     .single();
@@ -354,7 +363,7 @@ export async function executeCardMutation(
 async function replayOf(ctx: CardMutationContext): Promise<Error> {
   const { data } = await ctx.admin
     .from("efs_card_mutations")
-    .select("id, status, after_version, drift, efs_fault_code, efs_fault_message")
+    .select("id, status, after_version, drift, efs_fault_code, efs_fault_message, request_fingerprint")
     .eq("org_id", ctx.orgId)
     .eq("idempotency_key", ctx.idempotencyKey ?? "")
     .maybeSingle();
@@ -363,7 +372,24 @@ async function replayOf(ctx: CardMutationContext): Promise<Error> {
     id: string; status: string; after_version: string | null;
     drift: { unexplained?: { path: string }[] } | null;
     efs_fault_code: string | null; efs_fault_message: string | null;
+    request_fingerprint: string | null;
   } | null;
+
+  // A reused key carrying a DIFFERENT request is a client bug, and replaying the recorded outcome
+  // would present card A's result as card B's (the drawer's card-swap bug was a live example).
+  // Refuse with a distinct code so the client knows to mint a fresh key. Pre-0180 rows have no
+  // fingerprint and keep the key-only behaviour they were written under.
+  if (
+    row && row.request_fingerprint && ctx.requestFingerprint &&
+    row.request_fingerprint !== ctx.requestFingerprint
+  ) {
+    return new CardControlError(
+      "This Idempotency-Key was already used for a different request. Retry with a fresh key.",
+      "idempotency_key_reused",
+      409,
+      { mutationId: row.id },
+    );
+  }
 
   if (row && row.status !== "pending") {
     return new CardMutationReplay({
