@@ -1,5 +1,5 @@
 ====================================================================================================
-AVOIDABLE-IDLE PIPELINE AUDIT — last 30 days — 2026-08-12T17:37:37.888Z
+AVOIDABLE-IDLE PIPELINE AUDIT — last 30 days — 2026-08-12T18:27:31.905Z
 ====================================================================================================
 
 ####################################################################################################
@@ -8,39 +8,41 @@ AVOIDABLE-IDLE PIPELINE AUDIT — last 30 days — 2026-08-12T17:37:37.888Z
 
 ## A. Samsara data actually in our tables (full scan, distinct trucks)
 
-  vehicle_engine_days   :    4857 rows, 177 distinct trucks
-  idle_park_sessions    :   14523 rows, 175 distinct trucks
-  hos_duty_segments     :  152000 rows, 63 trucks via LOGBOOK vehicle link
-                           152000 rows carry samsara_driver_id (assignment-join key)
-  driver_vehicle_assign :   46381 intervals overlapping window, 313 distinct trucks, 174 distinct drivers
+  vehicle_engine_days   :    4852 rows, 177 distinct trucks
+  idle_park_sessions    :   14542 rows, 175 distinct trucks
+  hos_duty_segments     :  124892 rows, 63 trucks via LOGBOOK vehicle link
+                           124892 rows carry samsara_driver_id (assignment-join key)
+  driver_vehicle_assign :   46650 intervals overlapping window, 313 distinct trucks, 174 distinct drivers
   assignments resolving to an active truck: 174
 
 ## B. Park-session duty evidence (did v2 attribution run, and what did it change?)
 
-  vehicle-hos-v2: 14523 sessions — sufficient 11731 (81%), insufficient 2635, ambiguous 157
-      seconds-weighted: idle 31689.6h, HOS-covered 71981.1h (227%), unknown 2988.1h
+  vehicle-hos-v2: 14527 sessions — sufficient 11684 (80%), insufficient 2701, ambiguous 142
+      seconds-weighted: idle 31979.4h, HOS-covered 73646.1h (230%), unknown 3029.2h
+  vehicle-hos-v1: 15 sessions — sufficient 0 (0%), insufficient 15, ambiguous 0
+      seconds-weighted: idle 6.1h, HOS-covered 0h (0%), unknown 0h
 
 ## C. Rollup days (what the Idling page actually reads)
 
-  5020 truck-days across 177 trucks. Day-level duty status:
-      not_applicable   1807 (36%)
-      sufficient       1724 (34%)
-      insufficient     1488 (30%)
+  5027 truck-days across 177 trucks. Day-level duty status:
+      not_applicable   1809 (36%)
+      sufficient       1727 (34%)
+      insufficient     1490 (30%)
       ambiguous        1 (0%)
 
 ## D. Funnel under the seconds-weighted rule (evidenced share >= 80% => confident)
 
   trucks with any rollup data          177
   … coverage >= 50% of range           169
-  … + capability/alternative known     89
-  … + duty-evidenced share >= 80%      80   <- what the page now calls "confident"
+  … + capability/alternative known     90
+  … + duty-evidenced share >= 80%      81   <- what the page now calls "confident"
 
   Equipment-flag census (the admin-controlled gate):
       has_apu = true (admin)               15
       has_optimized_idle = true (admin)    22
       has_apu = false (admin: no APU)      38
-      learned continuous_only (judgeable)  23
-      UNSET — excluded from scoring        92  (83 of them LEARNED apu/ecu_optimized — awaiting admin confirmation)
+      learned continuous_only (judgeable)  24
+      UNSET — excluded from scoring        91  (82 of them LEARNED apu/ecu_optimized — awaiting admin confirmation)
 
   WHAT-IF: with equipment flags set on every truck, confident would be 152 of 177.
 
@@ -50,24 +52,24 @@ AVOIDABLE-IDLE PIPELINE AUDIT — last 30 days — 2026-08-12T17:37:37.888Z
        40– 60%    0
        60– 80%   ### 3
        80– 95%   ############### 15
-       95–100%   ############################################################ 65
+       95–100%   ############################################################ 66
 
   Threshold sensitivity (confident count if the floor were):
-      >= 50%  ->  83 trucks
-      >= 60%  ->  83 trucks
-      >= 70%  ->  82 trucks
-      >= 80%  ->  80 trucks
+      >= 50%  ->  84 trucks
+      >= 60%  ->  84 trucks
+      >= 70%  ->  83 trucks
+      >= 80%  ->  81 trucks
       >= 90%  ->  75 trucks
 
   Trucks below the 80% bar: 9 (sorted best-first)
       unit 711      share 80%  continuous 342.6h  unknown 69.9h  ambiguous 0h  rest 259.1h  work 13.5h  (30 days)
-      unit 506      share 78%  continuous 465.4h  unknown 100.6h  ambiguous 0h  rest 390h  work 6.7h  (31 days)
-      unit 718      share 69%  continuous 159.9h  unknown 49.1h  ambiguous 0h  rest 106.4h  work 4.3h  (31 days)
-      unit 598      share 33%  continuous 38.9h  unknown 25.9h  ambiguous 0h  rest 12.7h  work 0.3h  (23 days)
+      unit 506      share 78%  continuous 466.4h  unknown 100.6h  ambiguous 0h  rest 391h  work 6.7h  (31 days)
+      unit 718      share 69%  continuous 160.9h  unknown 49.1h  ambiguous 0h  rest 107.4h  work 4.4h  (31 days)
+      unit 598      share 33%  continuous 38.9h  unknown 25.9h  ambiguous 0h  rest 12.7h  work 0.3h  (24 days)
       unit 595      share 30%  continuous 20.7h  unknown 14.6h  ambiguous 0h  rest 1.4h  work 4.8h  (19 days)
       unit 574      share 29%  continuous 359.1h  unknown 256h  ambiguous 0h  rest 108.7h  work 1.3h  (31 days)
       unit 586      share 24%  continuous 174.2h  unknown 132.3h  ambiguous 0h  rest 56.7h  work 3.1h  (31 days)
-      unit 589      share 1%  continuous 185.8h  unknown 183.3h  ambiguous 0h  rest 1.2h  work 1.3h  (31 days)
+      unit 589      share 4%  continuous 191.9h  unknown 183.3h  ambiguous 0h  rest 7.8h  work 1.3h  (31 days)
       unit 550      share 0%  continuous 130.3h  unknown 130.3h  ambiguous 0h  rest 0h  work 0h  (31 days)
 
 ## Verdict inputs

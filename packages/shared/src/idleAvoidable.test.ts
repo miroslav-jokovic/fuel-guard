@@ -298,3 +298,70 @@ describe("idleScore", () => {
     expect(idleScore(80 * H, 50 * H)).toBe(0);
   });
 });
+
+describe("bucket algebra (precision harness invariant, 2026-08-12)", () => {
+  const H = 3600;
+  const algebraBase: AvoidableInput = {
+    driveSec: 8 * H,
+    idleSec: 6 * H,
+    offSec: 4 * H,
+    coverageSec: 18 * H,
+    periodSec: 24 * H,
+    sessions: [{ idleSec: 5 * H, mode: "continuous" }],
+    hasApu: null,
+    hasOptimizedIdle: null,
+    learnedCapability: "unknown",
+  };
+  const bucketSum = (r: ReturnType<typeof computeAvoidable>) =>
+    r.avoidableIdleSec +
+    r.unavoidableIdleSec +
+    r.justifiedIdleSec +
+    r.uncertainIdleSec +
+    r.operationalGraceIdleSec;
+
+  it("never lets grace push the bucket sum past continuous when the envelope made everything uncertain", () => {
+    // Optimized-idle truck, temperature evidence insufficient (all continuous -> uncertain) AND a duty
+    // overlay carrying a 15-min grace. Grace must yield: the sum stayed 900s over before the fix.
+    const r = computeAvoidable({
+      ...algebraBase,
+      hasOptimizedIdle: true,
+      optimizedEnvelope: {
+        status: "insufficient",
+        source: "documented_default",
+        insideSec: 0,
+        outsideSec: 0,
+        unknownSec: 5 * H,
+        ambiguousSec: 0,
+      },
+      dutyEvidence: {
+        status: "sufficient",
+        workSec: H,
+        unknownSec: 0,
+        ambiguousSec: 0,
+        graceSec: 15 * 60,
+      },
+    });
+    expect(r.operationalGraceIdleSec).toBe(0);
+    expect(r.uncertainIdleSec).toBe(5 * H);
+    expect(bucketSum(r)).toBe(r.continuousIdleSec);
+  });
+
+  it("bucket sum equals continuous across mixed partial-evidence inputs", () => {
+    for (const dutyUnknown of [0, 0.5 * H, 2 * H, 5 * H]) {
+      for (const grace of [0, 15 * 60, 30 * 60]) {
+        const r = computeAvoidable({
+          ...algebraBase,
+          hasApu: true,
+          dutyEvidence: {
+            status: "insufficient",
+            workSec: H,
+            unknownSec: dutyUnknown,
+            ambiguousSec: 0,
+            graceSec: grace,
+          },
+        });
+        expect(bucketSum(r)).toBe(r.continuousIdleSec);
+      }
+    }
+  });
+});

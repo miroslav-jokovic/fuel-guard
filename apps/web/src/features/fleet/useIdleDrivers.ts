@@ -4,7 +4,8 @@ import { computeAvoidable, avoidableCost, idleScore, type IdleCapability } from 
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
-import { fetchRollupRows, sumRollupByVehicle } from "./useIdleBreakdown";
+import { fetchRollupRows } from "./useIdleBreakdown";
+import { sumRollupByVehicle } from "@fuelguard/shared";
 
 const WINDOW_DAYS = 30;
 const DEFAULT_COST_BASIS: IdleCostBasis = {

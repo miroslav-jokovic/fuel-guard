@@ -226,11 +226,16 @@ export function computeAvoidable(input: AvoidableInput, opts: AvoidableOpts = {}
       Math.max(0, duty.unknownSec) + Math.max(0, duty.ambiguousSec),
     );
     const evidencedSec = continuousIdleSec - dutyUncertainSec;
+    uncertainIdleSec = Math.min(continuousIdleSec, uncertainIdleSec + dutyUncertainSec);
+    // Grace can only occupy seconds not already consumed by justified/uncertain (the envelope path may
+    // have marked ALL continuous seconds uncertain before this block). Without this cap the bucket sum
+    // exceeded continuous by up to the 15-minute grace on optimized-idle trucks with insufficient
+    // temperature evidence — the "900-second algebra overage" the precision harness caught (2026-08-12).
     operationalGraceIdleSec = Math.min(
       evidencedSec,
       Math.min(Math.max(0, duty.graceSec), onDutyGraceSec),
+      Math.max(0, continuousIdleSec - justifiedIdleSec - uncertainIdleSec),
     );
-    uncertainIdleSec = Math.min(continuousIdleSec, uncertainIdleSec + dutyUncertainSec);
     avoidableIdleSec = Math.max(
       0,
       Math.min(

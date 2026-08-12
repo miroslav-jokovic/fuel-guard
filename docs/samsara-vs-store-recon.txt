@@ -1,0 +1,118 @@
+====================================================================================================
+SAMSARA vs STORE — org Silvicom Inc, tz America/Chicago, 2026-07-29 → 2026-08-11 (14 complete local days)
+====================================================================================================
+
+Comparing 5 trucks.
+
+## 1. Engine time — Samsara (independent integration) vs vehicle_engine_days
+
+  within 3% tolerance : 2
+  drifted              : 3
+  in Samsara, MISSING from store: 0
+  no meaningful Samsara data (parked/offline all window): 0
+      unit 585      idle sam 99.5h vs store 99.5h · drive sam 184.9h vs store 55.6h · 9 store days
+      unit 669      idle sam 2.5h vs store 2.5h · drive sam 157.3h vs store 5.3h · 8 store days
+      unit 642      idle sam 245.5h vs store 132.5h · drive sam 80.5h vs store 80.5h · 10 store days
+
+## 1b. Per-day breakdown (requested units)
+
+  unit 589 (samsara id 281474978003057)
+      day          sam idle  sam drive  sam off   | store idle  store drive  store off
+      2026-07-29        9h     6.1h     8.8h  |       9h      6.1h       8.8h
+      2026-07-30      0.8h     0.2h      23h  |     0.8h      0.2h        23h
+      2026-07-31      4.1h     0.1h    19.8h  |     4.1h      0.1h      19.8h
+      2026-08-01        0h    15.5h     8.5h  |       0h     15.5h       8.5h
+      2026-08-02        0h      24h       0h  |       0h       24h         0h
+      2026-08-03        0h      24h       0h  |       0h       24h         0h
+      2026-08-04        0h      24h       0h  |       0h       24h         0h
+      2026-08-05        0h      24h       0h  |       0h       24h         0h
+      2026-08-06        0h      24h       0h  |       0h       24h         0h
+      2026-08-07        0h      24h       0h  |       0h       24h         0h
+      2026-08-08        0h      24h       0h  |       0h       24h         0h
+      2026-08-09        0h      24h       0h  |       0h       24h         0h
+      2026-08-10        0h      24h       0h  |       0h       24h         0h
+      2026-08-11      3.6h    19.2h     1.2h  |     3.6h     19.2h       1.2h
+
+  unit 585 (samsara id 212014918176557)
+      day          sam idle  sam drive  sam off   | store idle  store drive  store off
+      2026-07-29     10.4h      10h     3.6h  |    10.4h       10h       3.6h
+      2026-07-30     10.6h    10.5h       3h  |    10.6h     10.5h         3h
+      2026-07-31     12.3h     9.2h     2.5h  |    12.3h      9.2h       2.5h
+      2026-08-01      6.5h      11h     6.6h  |     6.5h       11h       6.6h
+      2026-08-02     18.8h     0.1h     5.1h  |    18.8h      0.1h       5.1h
+      2026-08-03     13.4h     9.1h     1.5h  |    13.4h      9.1h       1.5h
+      2026-08-04     14.3h     4.7h       5h  |    14.3h      4.7h         5h
+      2026-08-05     13.3h       1h     9.8h  |    13.3h        1h       9.8h
+      2026-08-06        0h     9.4h    14.6h  |       0h      0.1h      14.6h
+      2026-08-07        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-08        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-09        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-10        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-11        0h      24h       0h  |    —— NO STORE ROW ——
+
+  unit 669 (samsara id 212014918176436)
+      day          sam idle  sam drive  sam off   | store idle  store drive  store off
+      2026-07-29        0h       0h    15.4h  |       0h        0h        24h
+      2026-07-30      0.7h     1.9h    21.4h  |     0.7h      1.9h      21.4h
+      2026-07-31      1.3h     0.5h    22.3h  |     1.3h      0.5h      22.3h
+      2026-08-01        0h       0h      24h  |       0h        0h        24h
+      2026-08-02        0h       0h      24h  |       0h        0h        24h
+      2026-08-03      0.2h     1.2h    22.6h  |     0.2h      1.2h      22.6h
+      2026-08-04      0.1h     1.1h    22.8h  |     0.1h      1.1h      22.8h
+      2026-08-05      0.2h     8.6h    15.2h  |     0.2h      0.6h      15.2h
+      2026-08-06        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-07        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-08        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-09        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-10        0h      24h       0h  |    —— NO STORE ROW ——
+      2026-08-11        0h      24h       0h  |    —— NO STORE ROW ——
+
+  unit 642 (samsara id 281475001821764)
+      day          sam idle  sam drive  sam off   | store idle  store drive  store off
+      2026-07-29     11.6h      12h     0.4h  |    11.6h       12h       0.4h
+      2026-07-30     12.5h    10.6h       1h  |    12.5h     10.6h         1h
+      2026-07-31     13.9h     8.7h     1.4h  |    13.9h      8.7h       1.4h
+      2026-08-01     19.4h     2.2h     2.4h  |    19.4h      2.2h       2.4h
+      2026-08-02     17.2h     5.4h     1.4h  |    17.2h      5.4h       1.4h
+      2026-08-03     12.7h     9.3h       2h  |    12.7h      9.3h         2h
+      2026-08-04     13.1h    10.9h       0h  |    13.1h     10.9h         0h
+      2026-08-05     16.8h     6.7h     0.5h  |    16.8h      6.7h       0.5h
+      2026-08-06     12.2h    10.9h     0.9h  |    12.2h     10.9h       0.9h
+      2026-08-07     20.1h     3.9h       0h  |     3.2h      3.9h         0h
+      2026-08-08       24h       0h       0h  |    —— NO STORE ROW ——
+      2026-08-09       24h       0h       0h  |    —— NO STORE ROW ——
+      2026-08-10       24h       0h       0h  |    —— NO STORE ROW ——
+      2026-08-11       24h       0h       0h  |    —— NO STORE ROW ——
+
+  unit 775 (samsara id 281475004187206)
+      day          sam idle  sam drive  sam off   | store idle  store drive  store off
+      2026-07-29      8.6h     7.7h     0.7h  |    15.7h      7.7h       0.7h
+      2026-07-30     13.6h    10.4h       0h  |    13.6h     10.4h         0h
+      2026-07-31      9.1h    12.5h     2.4h  |     9.1h     12.5h       2.4h
+      2026-08-01      6.9h    11.4h     5.7h  |     6.9h     11.4h       5.7h
+      2026-08-02       24h       0h       0h  |      24h        0h         0h
+      2026-08-03     13.6h    10.1h     0.3h  |    13.6h     10.1h       0.3h
+      2026-08-04     12.5h    11.4h       0h  |    12.5h     11.4h         0h
+      2026-08-05     22.8h     1.2h       0h  |    22.8h      1.2h         0h
+      2026-08-06     15.6h     5.4h       3h  |    15.6h      5.4h         3h
+      2026-08-07       12h    11.7h     0.3h  |      12h     11.7h       0.3h
+      2026-08-08     10.6h    13.3h     0.1h  |    10.6h     13.3h       0.1h
+      2026-08-09      0.9h    11.1h    11.9h  |     0.9h     11.1h      11.9h
+      2026-08-10     11.9h     1.3h    10.7h  |    11.9h      1.3h      10.7h
+      2026-08-11     12.2h       0h    11.8h  |     0.5h        0h      11.8h
+
+
+## 2. Idling events — Samsara /idling/events vs idle_events (same window)
+
+  Samsara returned 0 idling events in window.
+  >>> ZERO events almost certainly means this token lacks the 'Read Idling' scope (Samsara
+  >>> answers 200-empty, not 403). The store comparison below would be all false alarms, so
+  >>> it is SKIPPED. Use a token with Read Idling to run this section.
+  matching             : 0
+  differing            : 0
+
+## Verdict
+  Engine time:  2/5 trucks tie out within 3%. No truck has Samsara data the store lacks — the pull is complete.
+  Idling events: SKIPPED (token lacks Read Idling scope — engine-time parity above is the authoritative check).
+  Note: the AVOIDABLE number is gated downstream of this data (equipment flags + duty evidence);
+  a complete pull with few avoidable trucks means the gate, not the pull. See docs/idle-avoidable-audit.txt.

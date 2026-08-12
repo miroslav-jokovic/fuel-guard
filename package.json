@@ -25,6 +25,7 @@
     "test:rls": "node scripts/run-tests.mjs --matrices-only",
     "//verify:live": "Answers \"why don't I see my changes?\" in one command: compares git HEAD + the highest migration file against the deployed API's GET /api/version. Exits non-zero on drift.",
     "verify:live": "node scripts/verify-live.mjs",
+    "verify:idle": "node scripts/verify-idle-precision.mjs",
     "gen": "pnpm gen:rules",
     "gen:rules": "node scripts/gen-rule-catalog.mjs",
     "lint": "eslint .",

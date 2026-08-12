@@ -1,0 +1,21 @@
+================================================================================================
+VEHICLE IDENTITY CHECK — 2026-08-12T18:51:44.248Z
+Samsara reports 186 vehicles; store maps 190 active trucks.
+================================================================================================
+
+  clean 1:1 mappings                 : 183
+  mapped id NOT FOUND at Samsara     : 5
+      unit 676 - OLD → samsara_vehicle_id 281474987718233 (vehicle gone/replaced at Samsara)
+      unit 733 - OLD → samsara_vehicle_id 281474999467782 (vehicle gone/replaced at Samsara)
+      unit 738 - OLD → samsara_vehicle_id 281474999466947 (vehicle gone/replaced at Samsara)
+      unit 739 - OLD → samsara_vehicle_id 281474999425250 (vehicle gone/replaced at Samsara)
+      unit 748 - OLD → samsara_vehicle_id 281474999425316 (vehicle gone/replaced at Samsara)
+  LIKELY SWAPPED / STALE mapping     : 0
+  label mismatch / ambiguous         : 2
+      unit 639 → "639 GK5N9FXGGT 3AKJHHDR4PSUG8156 GK5N9FXGGT" (id 281474982525578) — also matches Samsara id 281475001821345 (736 GPJJD639R5 3HSDZAPR9TN510691 GPJJD639R5)
+      unit 724 → "724 GZ83P45DC9 3HSDZAPR3SN645213 GZ83P45DC9" (id 281474996406764) — also matches Samsara id 281475003966356 (769 G724ESTX6S 3HSDZAPR5TN156720 G724ESTX6S)
+
+  A SWAPPED truck syncs the wrong vehicle's telemetry: engine data that contradicts Samsara's
+  dashboard, HOS/assignments that never line up (the 0-5% duty-share trucks), and rollups that
+  can never be right until the mapping is fixed. Fix the mapping (Vehicles page or fleet identity
+  re-sync after correcting names at Samsara), then re-run sync_idle + sync_hos and re-audit.
