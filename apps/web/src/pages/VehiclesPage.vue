@@ -205,6 +205,13 @@ async function onRetire(v: Vehicle) {
     >
       <template #cell-unit_number="{ row }">
         <RouterLink :to="`/vehicles/${row.id}`" class="font-medium text-link hover:text-link-hover">{{ row.unit_number }}</RouterLink>
+        <!-- Replacement lifecycle (identity check 2026-08-12): the identity sync stamps this when the
+             mapped Samsara vehicle no longer exists. Surfaced, never auto-retired — a human decides. -->
+        <span
+          v-if="row.samsara_missing_since && row.status !== 'retired'"
+          :class="[BADGE_BASE, toneClass('warning'), 'ml-2']"
+          :title="`This truck's Samsara vehicle no longer exists (since ${new Date(row.samsara_missing_since).toLocaleDateString()}). It cannot sync telematics — likely replaced. Retire it if the physical truck is gone.`"
+        >Samsara link lost</span>
       </template>
       <template #cell-vehicle="{ row }">{{ [row.year, row.make, row.model].filter(Boolean).join(" ") || "—" }}</template>
       <template #cell-tank_capacity_gal="{ row }">

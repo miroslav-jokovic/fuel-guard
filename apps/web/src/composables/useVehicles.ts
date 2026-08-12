@@ -3,7 +3,7 @@ import type { Vehicle, VehicleInput } from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 
 const VEHICLE_COLS =
-  "id, org_id, unit_number, make, model, year, plate, vin, fuel_type, tank_capacity_gal, tank_capacity_source, baseline_mpg, current_odometer, status, assigned_driver_id, samsara_vehicle_id, samsara_fuel_percent, samsara_fuel_at, has_apu, apu_type, has_optimized_idle, idle_capability, created_at, updated_at";
+  "id, org_id, unit_number, make, model, year, plate, vin, fuel_type, tank_capacity_gal, tank_capacity_source, baseline_mpg, current_odometer, status, assigned_driver_id, samsara_vehicle_id, samsara_fuel_percent, samsara_fuel_at, samsara_missing_since, has_apu, apu_type, has_optimized_idle, idle_capability, created_at, updated_at";
 
 /** WP-CAP provenance: a capacity typed through the app is a HUMAN entry — stamp it 'manual' so it's
  *  distinguishable from a learner self-heal ('auto'). The stamp is transparency, not a veto: a manual

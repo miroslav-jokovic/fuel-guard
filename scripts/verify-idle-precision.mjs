@@ -502,7 +502,7 @@ async function loadData() {
   const [organizations, vehicles, engineDays, sessions, rollups, events, segments, assignments, settings, prices, jobs] =
     await Promise.all([
       readAll("organizations", "id, name"),
-      readAll("vehicles", "id, org_id, unit_number, status, samsara_vehicle_id, has_apu, has_optimized_idle, idle_capability"),
+      readAll("vehicles", "id, org_id, unit_number, status, samsara_vehicle_id, samsara_missing_since, has_apu, has_optimized_idle, idle_capability"),
       readAll(
         "vehicle_engine_days",
         "org_id, vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec",
@@ -835,6 +835,41 @@ for (const kind of ["sync_idle", "sync_hos"]) {
     freshnessOffenders.push(`${kind} newest successful finished_at=${latest?.finished_at ?? "none"}`);
 }
 check("5 freshness (<26h)", freshnessOffenders);
+
+// 6 — identity hygiene (identity check + 0184, 2026-08-12). A truck whose Samsara vehicle vanished is
+// stamped by the identity sync and surfaced in the UI; if it sits unretired past the grace period it is
+// unresolvable rot: it can never sync again and silently drags fleet coverage. Fail so it gets decided.
+const IDENTITY_GRACE_MS = 14 * 86_400_000;
+const identityOffenders = activeVehicles
+  .filter(
+    (vehicle) =>
+      vehicle.samsara_missing_since != null &&
+      Date.now() - Date.parse(vehicle.samsara_missing_since) >= IDENTITY_GRACE_MS,
+  )
+  .map(
+    (vehicle) =>
+      `unit ${vehicle.unit_number}: Samsara vehicle missing since ${vehicle.samsara_missing_since} — retire it or fix the mapping`,
+  );
+check("6 identity hygiene (no active truck unlinked from Samsara beyond 14d grace)", identityOffenders);
+
+// 7 — rollup history depth (backfill, 2026-08-12). The page's longer date ranges and the 400-day
+// envelope learner are only as real as the materialized history. Informational floor: at least the
+// standard source window must be present; the count is printed so a backfill's effect is visible here.
+{
+  const { data: oldest } = await db
+    .from("idle_rollup_days")
+    .select("day")
+    .order("day", { ascending: true })
+    .limit(1);
+  const oldestDay = oldest?.[0]?.day ?? null;
+  const historyDays = oldestDay
+    ? Math.round((Date.now() - Date.parse(`${oldestDay}T00:00:00Z`)) / 86_400_000)
+    : 0;
+  const depthOffenders =
+    historyDays >= DAYS ? [] : [`rollup history spans ${historyDays}d (oldest day ${oldestDay ?? "none"}) — below the ${DAYS}d source window`];
+  console.log(`     rollup history: oldest day ${oldestDay ?? "none"} (~${historyDays}d)`);
+  check("7 rollup history depth (>= source window)", depthOffenders);
+}
 
 const examplesByOrg = [];
 const allPages = [];

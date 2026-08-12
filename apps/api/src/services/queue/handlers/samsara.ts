@@ -213,8 +213,10 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
     const equipment = foundation.idleEquipmentEvidence;
     console.log(`[samsara] idle capability: ${cap.learned}/${cap.vehicles} trucks classified`);
     // The rollup is the derived view rendered by Idling. A successful source sync with a stale rollup is
-    // not a successful job, so let this error reject the job and use the queue retry policy.
-    const rollup = await syncIdleRollup(admin, orgId);
+    // not a successful job, so let this error reject the job and use the queue retry policy. A deep
+    // (backfill) window is passed through so the rollup materializes the whole backfilled span — its
+    // stale-row deletion is window-scoped, so subsequent rolling 30-day runs never touch that history.
+    const rollup = await syncIdleRollup(admin, orgId, sinceDays != null ? { sinceDays } : {});
     console.log(
       `[samsara] idle rollup: ${rollup.written}/${rollup.rows} day-rows written, ${rollup.deleted} stale rows deleted (${rollup.windowDays}d window)`,
     );

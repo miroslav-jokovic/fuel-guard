@@ -81,6 +81,9 @@ export async function syncIdleEvents(
   orgId: string,
   opts: {
     sinceDays?: number;
+    /** Window end (default now). Set by the chunked backfill so each slice covers an explicit
+     *  [endIso − sinceDays, endIso) range instead of always ending at the current instant. */
+    endIso?: string;
     thresholds?: IdleThresholds;
     idlingFetcher?: (startIso: string, endIso: string) => Promise<{ data: unknown[] }>;
   } = {},
@@ -89,7 +92,9 @@ export async function syncIdleEvents(
   if (!token) throw new NoSamsaraTokenError();
 
   const days = opts.sinceDays ?? IDLE_SOURCE_WINDOW_DAYS;
-  const endMs = Date.now();
+  const endMs = opts.endIso != null ? Date.parse(opts.endIso) : Date.now();
+  if (!Number.isFinite(endMs))
+    throw new RangeError("Idle sync endIso must be a valid ISO timestamp");
   const startMs = endMs - days * 86_400_000;
   const fetchIdling = opts.idlingFetcher ?? makeSamsaraIdlingEventFetcher(env, token);
   const events = await fetchIdleEventsChunked(fetchIdling, startMs, endMs);

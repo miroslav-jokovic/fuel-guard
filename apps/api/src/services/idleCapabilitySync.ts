@@ -145,6 +145,7 @@ async function syncIdleVehicle(
   endIso: string,
   days: number,
   nowIso: string,
+  skipVehicleLearning: boolean,
 ): Promise<VehicleCapabilitySyncResult> {
   const vehicleId = vehicle.id;
   const sessions = buildIdleSessions(samples);
@@ -210,6 +211,17 @@ async function syncIdleVehicle(
     sessions,
   );
   const statesIdleSec = Math.round(sessions.reduce((acc, s) => acc + s.idleSec, 0));
+  if (skipVehicleLearning) {
+    // Historical backfill slice: the day/session HISTORY above is the payload; the truck's CURRENT
+    // capability columns stay owned by the latest-window sync (see the opts doc on syncIdleCapabilities).
+    return {
+      learned: 0,
+      engineDays: engDays.length,
+      parkSessions: parkRows.length,
+      staleEngineDaysDeleted: reconciliation.staleEngineDaysDeleted,
+      staleParkSessionsDeleted: reconciliation.staleParkSessionsDeleted,
+    };
+  }
   const { error: vehicleUpdateError } = await admin
     .from("vehicles")
     .update({
@@ -250,7 +262,20 @@ export async function syncIdleCapabilities(
   admin: SupabaseClient,
   env: Env,
   orgId: string,
-  opts: { sinceDays?: number; engineStatesFetcher?: EngineStatesFetcher } = {},
+  opts: {
+    sinceDays?: number;
+    /** Window end (default now) — set by the chunked backfill for explicit historical slices. */
+    endIso?: string;
+    /**
+     * Skip the vehicle-level capability/evidence write (idle_capability, idle_states_*, idle_evidence_*).
+     * The chunked backfill sets this on every HISTORICAL slice: those columns describe the truck's
+     * CURRENT behavior window, and letting a months-old slice overwrite them would regress the fleet's
+     * learned capabilities until the final slice ran. Engine-days / park-session rows (day-keyed,
+     * window-scoped reconciliation) are still written — they are the history being backfilled.
+     */
+    skipVehicleLearning?: boolean;
+    engineStatesFetcher?: EngineStatesFetcher;
+  } = {},
 ): Promise<IdleCapabilityResult> {
   const token = await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
@@ -285,8 +310,11 @@ export async function syncIdleCapabilities(
   const orgTz = organizationTimezone(orgRow?.operating_hours);
 
   const days = opts.sinceDays ?? IDLE_SOURCE_WINDOW_DAYS;
-  const endIso = new Date().toISOString();
-  const startIso = new Date(Date.now() - days * 86_400_000).toISOString();
+  const endMs = opts.endIso != null ? Date.parse(opts.endIso) : Date.now();
+  if (!Number.isFinite(endMs))
+    throw new RangeError("Idle capability endIso must be a valid ISO timestamp");
+  const endIso = new Date(endMs).toISOString();
+  const startIso = new Date(endMs - days * 86_400_000).toISOString();
   const fetcher = opts.engineStatesFetcher ?? makeSamsaraEngineStatesFetcher(env, token);
   let learned = 0;
   let engineDays = 0;
@@ -326,6 +354,7 @@ export async function syncIdleCapabilities(
         endIso,
         days,
         nowIso,
+        opts.skipVehicleLearning === true,
       );
       learned += result.learned;
       engineDays += result.engineDays;

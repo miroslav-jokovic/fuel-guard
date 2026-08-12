@@ -25,6 +25,8 @@ export interface VehicleSyncResult {
   updated: number; // existing rows matched + refreshed
   assigned: number; // vehicles whose driver assignment was pulled from Samsara
   needsCompletion: string[]; // unit numbers of NEW vehicles missing tank capacity / baseline MPG
+  /** Unit numbers of ACTIVE trucks whose mapped Samsara vehicle no longer exists (likely replaced). */
+  samsaraMissing: string[];
 }
 
 export class NoSamsaraTokenError extends Error {
@@ -39,6 +41,8 @@ interface ExistingRow {
   samsara_vehicle_id: string | null;
   vin: string | null;
   unit_number: string;
+  status: string | null;
+  samsara_missing_since: string | null;
 }
 
 /**
@@ -77,7 +81,7 @@ export async function syncVehiclesFromSamsara(
 
   const { data: existingData } = await admin
     .from("vehicles")
-    .select("id, samsara_vehicle_id, vin, unit_number")
+    .select("id, samsara_vehicle_id, vin, unit_number, status, samsara_missing_since")
     .eq("org_id", orgId);
   const existing = (existingData ?? []) as ExistingRow[];
 
@@ -93,7 +97,51 @@ export async function syncVehiclesFromSamsara(
     updated: 0,
     assigned: 0,
     needsCompletion: [],
+    samsaraMissing: [],
   };
+
+  // ── Replacement lifecycle (identity check 2026-08-12). A mapped Samsara vehicle that no longer
+  // exists usually means the truck was physically replaced — five "… - OLD" ghosts sat active for
+  // weeks with nothing marking them. Stamp `samsara_missing_since` (first observation wins) and CLEAR
+  // it when the id reappears (a gateway swap / device fault can make a live truck vanish temporarily —
+  // four such trucks existed the day this shipped). Deliberately NEVER auto-retires: the stamp powers
+  // a "likely replaced — retire?" prompt, and retirement stays a human decision.
+  {
+    const liveIds = new Set(vehicles.map((sv) => sv.samsaraId));
+    const nowIso = new Date().toISOString();
+    const missing = existing.filter(
+      (r) =>
+        r.status !== "retired" &&
+        r.samsara_vehicle_id != null &&
+        !liveIds.has(r.samsara_vehicle_id),
+    );
+    const toStamp = missing.filter((r) => r.samsara_missing_since == null).map((r) => r.id);
+    if (toStamp.length) {
+      const { error } = await admin
+        .from("vehicles")
+        .update({ samsara_missing_since: nowIso })
+        .in("id", toStamp)
+        .eq("org_id", orgId);
+      if (error) throw new Error(`vehicle samsara-missing stamp failed: ${error.message}`);
+    }
+    result.samsaraMissing = missing.map((r) => r.unit_number).sort();
+    const toClear = existing
+      .filter(
+        (r) =>
+          r.samsara_missing_since != null &&
+          r.samsara_vehicle_id != null &&
+          liveIds.has(r.samsara_vehicle_id),
+      )
+      .map((r) => r.id);
+    if (toClear.length) {
+      const { error } = await admin
+        .from("vehicles")
+        .update({ samsara_missing_since: null })
+        .in("id", toClear)
+        .eq("org_id", orgId);
+      if (error) throw new Error(`vehicle samsara-missing clear failed: ${error.message}`);
+    }
+  }
 
   for (const sv of vehicles) {
     const identity = {
@@ -182,11 +230,9 @@ export async function syncVehiclesFromSamsara(
         updated_at: now,
       }));
       for (let i = 0; i < arows.length; i += 500) {
-        await admin
-          .from("driver_vehicle_assignments")
-          .upsert(arows.slice(i, i + 500), {
-            onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at",
-          });
+        await admin.from("driver_vehicle_assignments").upsert(arows.slice(i, i + 500), {
+          onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at",
+        });
       }
     }
     if (links.length) {
@@ -284,7 +330,10 @@ export async function syncVehicleStatsFromSamsara(
       samsara_fuel_at?: string | null;
     } = {};
     if (odo != null && Number(r.current_odometer) !== odo) patch.current_odometer = odo;
-    if (fuel && (Number(r.samsara_fuel_percent) !== fuel.percent || r.samsara_fuel_at !== fuel.time)) {
+    if (
+      fuel &&
+      (Number(r.samsara_fuel_percent) !== fuel.percent || r.samsara_fuel_at !== fuel.time)
+    ) {
       patch.samsara_fuel_percent = fuel.percent;
       patch.samsara_fuel_at = fuel.time;
     }

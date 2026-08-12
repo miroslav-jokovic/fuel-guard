@@ -18,6 +18,7 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "fuel_transactions", column: "samsara_nearest_station_miles", migration: "0040" },
   { table: "station_geocode_learned", column: "query", migration: "0045" },
   { table: "vehicles", column: "has_apu", migration: "0046" },
+  { table: "vehicles", column: "samsara_missing_since", migration: "0184" },
   { table: "vehicles", column: "has_optimized_idle", migration: "0048" },
   { table: "idle_events", column: "air_temp_source", migration: "0049" },
   { table: "idle_events", column: "idle_gal", migration: "0050" },

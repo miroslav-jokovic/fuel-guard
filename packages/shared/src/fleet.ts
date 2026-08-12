@@ -98,6 +98,9 @@ export interface Vehicle {
   samsara_vehicle_id: string | null;
   samsara_fuel_percent: number | null;
   samsara_fuel_at: string | null;
+  /** Stamped by the identity sync when the mapped Samsara vehicle no longer exists (likely replaced);
+   *  cleared if it reappears. Surfaces a "retire?" prompt — never auto-retires (0184). */
+  samsara_missing_since?: string | null;
   /** Manual source of truth: is the truck ENGINE-OFF capable at rest (real APU / battery HVAC / shore power)? null = unknown/unset. */
   has_apu?: boolean | null;
   /** Idle-reduction equipment detail (refines has_apu). null = unknown/unset. */

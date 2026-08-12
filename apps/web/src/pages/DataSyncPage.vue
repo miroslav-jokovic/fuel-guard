@@ -142,7 +142,10 @@ const integrity = computed(() => {
         kind="sync_idle"
         endpoint="/api/integrations/samsara/sync-idle"
         action-label="Sync idling now"
-        description="Pull the last 30 days of Samsara idling events and refresh the driver idle scorecard. Also runs with 'Sync fleet identity'. Needs the token's Read Idling scope."
+        secondary-label="Backfill last 120 days"
+        :secondary-body="{ sinceDays: 120 }"
+        secondary-confirm="Backfill 120 days of idle history? Runs in 30-day slices (roughly an hour total) and unlocks longer Idling date ranges plus temperature-envelope learning for Optimized Idle trucks. Run 'Backfill last 120 days' on the HOS card FIRST so the rest-vs-work split has matching history."
+        description="Pull the last 30 days of Samsara idling events and refresh the driver idle scorecard. 'Backfill last 120 days' seeds deeper history in 30-day slices. Also runs with 'Sync fleet identity'. Needs the token's Read Idling scope."
       />
       <JobActionCard
         v-if="session.canManage"
