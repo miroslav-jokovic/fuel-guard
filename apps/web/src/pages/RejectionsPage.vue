@@ -130,8 +130,6 @@ const DRIVER_SOURCE_NOTE: Record<string, string> = {
 };
 const driverNote = (row: DeclinedTransactionRow): string =>
   DRIVER_SOURCE_NOTE[row.driver_name_source ?? ""] ?? "";
-const driverIsDerived = (row: DeclinedTransactionRow): boolean =>
-  row.driver_name_source === "card_mirror" || row.driver_name_source === "posted_history";
 
 // Row drill-down: click a decline to inspect its full details + why it was flagged.
 const selectedRow = ref<DeclinedTransactionRow | null>(null);
@@ -158,13 +156,7 @@ const columns: DataTableColumn[] = [
   { key: "declined_at", label: "Date / Time", sortable: true, headerClass: "min-w-[10rem]", cellClass: "text-ink-secondary" },
   { key: "card_ref", label: "Card #", headerClass: "min-w-[7rem]", cellClass: "text-ink-secondary" },
   { key: "invoice", label: "Invoice", headerClass: "min-w-[6rem]", cellClass: "text-ink-secondary" },
-  {
-    key: "driver_name",
-    label: "Driver (card)",
-    sortable: true,
-    headerClass: "min-w-[10rem]",
-    cellClass: "text-ink-secondary",
-  },
+  { key: "driver_name", label: "Driver", sortable: true, headerClass: "min-w-[9rem]", cellClass: "text-ink-secondary" },
   { key: "location_text", label: "Location", headerClass: "min-w-[12rem]", cellClass: "text-ink-secondary" },
   { key: "city", label: "City", headerClass: "min-w-[8rem]", cellClass: "text-ink-secondary" },
   { key: "state", label: "State", sortable: true, headerClass: "min-w-[4rem]", cellClass: "text-ink-secondary" },
@@ -246,15 +238,7 @@ const columns: DataTableColumn[] = [
       </template>
       <template #cell-declined_at="{ row }">{{ fmt(row.declined_at, row.state) }}</template>
       <template #cell-driver_name="{ row }">
-        <span v-if="row.driver_name" :title="driverNote(row)" class="inline-flex items-baseline gap-1">
-          <span>{{ row.driver_name }}</span>
-          <span
-            v-if="driverIsDerived(row)"
-            class="text-[10px] font-medium uppercase tracking-wide text-ink-tertiary"
-            aria-label="derived from the card, not reported with the decline"
-            >card</span
-          >
-        </span>
+        <span v-if="row.driver_name" :title="driverNote(row)">{{ row.driver_name }}</span>
         <span v-else class="text-xs text-ink-tertiary">—</span>
       </template>
       <template #cell-error_code="{ row }">
