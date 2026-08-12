@@ -7,6 +7,7 @@ import {
   type IdleEquipmentProfile,
   type IdleThermalInterval,
 } from "@fuelguard/shared";
+import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 
 export interface IdleEquipmentEvidenceSyncResult {
   sessions: number;
@@ -191,7 +192,7 @@ export async function syncIdleEquipmentEvidence(
   orgId: string,
   opts: { sinceDays?: number; endIso?: string } = {},
 ): Promise<IdleEquipmentEvidenceSyncResult> {
-  const days = opts.sinceDays ?? 30;
+  const days = opts.sinceDays ?? IDLE_SOURCE_WINDOW_DAYS;
   if (!Number.isInteger(days) || days < 1 || days > 400) {
     throw new RangeError("Idle equipment evidence sinceDays must be an integer from 1 to 400");
   }

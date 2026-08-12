@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } from "./idleWindow.js";
 import {
   buildHosVehicleTimelines,
   hosVehicleOverlapSeconds,
@@ -50,7 +51,7 @@ interface HosSegmentRow {
 }
 
 /** Time-ranged driver↔vehicle assignment (0051) — keyed by SAMSARA ids on both sides. */
-interface AssignmentRow {
+export interface AssignmentRow {
   vehicle_samsara_id: string;
   driver_samsara_id: string;
   start_at: string;
@@ -121,15 +122,17 @@ function includeUncoveredSeconds(
   };
 }
 
-function buildEvidence(
+export function buildEvidence(
   segmentsByVehicle: Map<string, HosSegment[]>,
   segmentsByDriver: Map<string, HosSegment[]>,
   events: IdleEventRow[],
-  session: ParkSessionRow,
+  session: Pick<ParkSessionRow, "vehicle_id" | "started_at" | "duration_sec"> & {
+    ended_at: string | null;
+  },
   vehicleTimelines: Map<string, HosVehicleTimeline>,
 ): DutyEvidenceValues {
   const startMs = Date.parse(session.started_at);
-  const endMs = Date.parse(session.ended_at);
+  const endMs = session.ended_at == null ? NaN : Date.parse(session.ended_at);
   const durationSecExact =
     Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
       ? (endMs - startMs) / 1000
@@ -376,7 +379,7 @@ function mapSegments(rows: HosSegmentRow[]): {
  *    from scoring rather than guessed (buildHosVehicleTimelines).
  *  - Team drivers double-covering a truck stay correct: same-kind overlap is counted once.
  */
-function deriveAssignedVehicleSegments(
+export function deriveAssignedVehicleSegments(
   assignments: AssignmentRow[],
   vehicleIdBySamsara: Map<string, string>,
   segmentsBySamsaraDriver: Map<string, HosSegment[]>,
@@ -410,7 +413,7 @@ export async function syncIdleDutyEvidence(
   orgId: string,
   opts: { sinceDays?: number; endIso?: string } = {},
 ): Promise<IdleDutyEvidenceSyncResult> {
-  const days = opts.sinceDays ?? 30;
+  const days = opts.sinceDays ?? IDLE_SOURCE_WINDOW_DAYS;
   if (!Number.isInteger(days) || days < 1 || days > 400) {
     throw new RangeError("Idle duty evidence sinceDays must be an integer from 1 to 400");
   }
@@ -418,7 +421,7 @@ export async function syncIdleDutyEvidence(
   const endMs = Date.parse(endIso);
   if (!Number.isFinite(endMs))
     throw new RangeError("Idle duty evidence endIso must be a valid ISO timestamp");
-  const fromIso = new Date(endMs - days * 86_400_000).toISOString();
+  const fromIso = idleCalendarStartIso(endIso, days);
   const sessions = await readSessions(admin, orgId, fromIso, endIso);
   if (sessions.length === 0)
     return { sessions: 0, sufficient: 0, insufficient: 0, ambiguous: 0, rowsWritten: 0 };
@@ -443,7 +446,7 @@ export async function syncIdleDutyEvidence(
   );
   for (const [vehicleId, segments] of assignedSegments) {
     const list = segmentsByVehicle.get(vehicleId) ?? [];
-    list.push(...segments);
+    for (const segment of segments) list.push(segment);
     segmentsByVehicle.set(vehicleId, list);
   }
   const vehicleTimelines = buildHosVehicleTimelines(segmentsByVehicle, Date.parse(fromIso), endMs);

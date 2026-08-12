@@ -16,6 +16,7 @@ import { makeSamsaraIdlingEventFetcher } from "../lib/samsara.js";
 import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
 import { backfillTemperatures } from "./weatherBackfill.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 
 export interface IdleSyncResult {
   fetched: number;
@@ -87,7 +88,7 @@ export async function syncIdleEvents(
   const token = opts.idlingFetcher ? "test" : await loadSamsaraToken(admin, env, orgId);
   if (!token) throw new NoSamsaraTokenError();
 
-  const days = opts.sinceDays ?? 30;
+  const days = opts.sinceDays ?? IDLE_SOURCE_WINDOW_DAYS;
   const endMs = Date.now();
   const startMs = endMs - days * 86_400_000;
   const fetchIdling = opts.idlingFetcher ?? makeSamsaraIdlingEventFetcher(env, token);

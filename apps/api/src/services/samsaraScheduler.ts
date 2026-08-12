@@ -252,6 +252,7 @@ export function startSamsaraScheduler(env: Env): void {
           rollupWindowDays: rollup.windowDays,
           rollupRows: rollup.rows,
           rollupWritten: rollup.written,
+          rollupDeleted: rollup.deleted,
         };
       });
       await runOrgTier(admin, env, orgId, "snapshot_driver_week", async () => {

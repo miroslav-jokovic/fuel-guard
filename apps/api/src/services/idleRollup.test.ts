@@ -72,6 +72,48 @@ describe("syncIdleRollup", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  it("deletes org-scoped rollup keys absent from the fresh derivation", async () => {
+    const staleDay = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const rec = createSupabaseRecorder({
+      rpc: { delete_idle_rollup_rows: 1 },
+      tables: {
+        vehicle_engine_days: [
+          { vehicle_id: "v1", day: today, drive_sec: 100, idle_sec: 50, off_sec: 0, coverage_sec: 150 },
+        ],
+        idle_park_sessions: [],
+        idle_events: [],
+        hos_duty_segments: [],
+        driver_vehicle_assignments: [],
+        vehicles: [],
+        drivers: [],
+        idle_rollup_days: [
+          {
+            vehicle_id: "v1",
+            day: staleDay,
+            drive_sec: 100,
+            idle_sec: 50,
+            off_sec: 0,
+            coverage_sec: 150,
+            managed_idle_sec: 0,
+            continuous_idle_sec: 0,
+            rest_idle_sec: 0,
+            work_idle_sec: 0,
+            other_idle_sec: 0,
+            attributed_driver_id: null,
+          },
+        ],
+      },
+    });
+
+    const result = await syncIdleRollup(rec.client, ORG, { sinceDays: 2 });
+    expect(result.deleted).toBe(1);
+    expect(rec.rpcs()).toContainEqual({
+      fn: "delete_idle_rollup_rows",
+      args: { p_org: ORG, p_rows: [{ vehicle_id: "v1", day: staleDay }] },
+    });
+    expectOrgScoped(rec, ORG);
+  });
+
   it("skips the write when the stored rollup row already matches (diff-before-write)", async () => {
     const rec = createSupabaseRecorder({
       tables: {
@@ -144,6 +186,45 @@ describe("syncIdleRollup", () => {
     await syncIdleRollup(rec.client, ORG, { sinceDays: 2 });
     const row = rec.writtenRows("idle_rollup_days").find((r) => r.day === today)!;
     expect(row.attributed_driver_id).toBe("d1");
+    expectOrgScoped(rec, ORG);
+  });
+
+  it("rolls assignment-attributed HOS evidence into the vehicle timeline", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        vehicle_engine_days: [
+          { vehicle_id: "v1", day: today, drive_sec: 0, idle_sec: 3600, off_sec: 0, coverage_sec: 3600 },
+        ],
+        idle_park_sessions: [
+          { vehicle_id: "v1", started_at: todayT(1), ended_at: todayT(2), idle_sec: 3600, mode: "continuous" },
+        ],
+        idle_events: [],
+        hos_duty_segments: [
+          {
+            driver_id: "d1",
+            samsara_driver_id: "op1",
+            vehicle_id: null,
+            status: "on_duty",
+            started_at: todayT(1),
+            ended_at: todayT(2),
+          },
+        ],
+        driver_vehicle_assignments: [
+          { vehicle_samsara_id: "s1", driver_samsara_id: "op1", start_at: todayT(0), end_at: null },
+        ],
+        vehicles: [{ id: "v1", samsara_vehicle_id: "s1" }],
+        drivers: [{ id: "d1", samsara_driver_id: "op1" }],
+        idle_rollup_days: [],
+      },
+    });
+
+    await syncIdleRollup(rec.client, ORG, { sinceDays: 2 });
+    expect(rec.writtenRows("idle_rollup_days")[0]).toMatchObject({
+      hos_work_sec: 3600,
+      hos_grace_sec: 900,
+      hos_unknown_sec: 0,
+      hos_evidence_status: "sufficient",
+    });
     expectOrgScoped(rec, ORG);
   });
 

@@ -8,6 +8,7 @@ import {
   type VehicleTelemetryFetcher,
 } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 
 export interface IdleTelemetrySyncResult {
   vehicles: number;
@@ -51,7 +52,7 @@ export async function syncIdleTelemetry(
     return { vehicles: 0, vehiclesWithTelemetry: 0, windowsWritten: 0, samples: { battery: 0, rpm: 0, engineLoad: 0, ecuSpeed: 0 } };
   }
 
-  const days = opts.sinceDays ?? 30;
+  const days = opts.sinceDays ?? IDLE_SOURCE_WINDOW_DAYS;
   if (!Number.isInteger(days) || days < 1 || days > 400) throw new RangeError("Idle telemetry sinceDays must be an integer from 1 to 400");
   const endMs = Date.now();
   const startMs = endMs - days * 86_400_000;

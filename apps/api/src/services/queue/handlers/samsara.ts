@@ -175,6 +175,7 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
           rollupWindowDays: rollup.windowDays,
           rollupRows: rollup.rows,
           rollupWritten: rollup.written,
+          rollupDeleted: rollup.deleted,
         },
       });
     }
@@ -190,6 +191,7 @@ export const syncHosHandler: JobHandler = async (ctx, job) => {
       rollupWindowDays: rollup.windowDays,
       rollupRows: rollup.rows,
       rollupWritten: rollup.written,
+      rollupDeleted: rollup.deleted,
     };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };
@@ -214,7 +216,7 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
     // not a successful job, so let this error reject the job and use the queue retry policy.
     const rollup = await syncIdleRollup(admin, orgId);
     console.log(
-      `[samsara] idle rollup: ${rollup.written}/${rollup.rows} day-rows written (${rollup.windowDays}d window)`,
+      `[samsara] idle rollup: ${rollup.written}/${rollup.rows} day-rows written, ${rollup.deleted} stale rows deleted (${rollup.windowDays}d window)`,
     );
     if (actorId) {
       await writeAudit(admin, {
@@ -253,6 +255,7 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
           rollupWindowDays: rollup.windowDays,
           rollupRows: rollup.rows,
           rollupWritten: rollup.written,
+          rollupDeleted: rollup.deleted,
         },
       });
     }
@@ -288,6 +291,7 @@ export const syncIdleHandler: JobHandler = async (ctx, job) => {
       rollupWindowDays: rollup.windowDays,
       rollupRows: rollup.rows,
       rollupWritten: rollup.written,
+      rollupDeleted: rollup.deleted,
     };
   } catch (e) {
     if (e instanceof NoSamsaraTokenError) return { skipped: "no_samsara_token" };

@@ -21,6 +21,7 @@ interface RawSession {
   vehicle_id: string;
   started_at: string;
   ended_at: string | null;
+  duration_sec: number;
   idle_sec: number;
   mode: string;
 }
@@ -35,6 +36,7 @@ interface RawEvent {
 
 interface RawSegment {
   driver_id: string | null;
+  samsara_driver_id: string | null;
   vehicle_id: string | null;
   status: string;
   started_at: string;
@@ -82,7 +84,7 @@ export async function readIdleRollupInputs(
   const sessions = await readAll<RawSession>("idle_park_sessions", (a, b) =>
     admin
       .from("idle_park_sessions")
-      .select("vehicle_id, started_at, ended_at, idle_sec, mode")
+      .select("vehicle_id, started_at, ended_at, duration_sec, idle_sec, mode")
       .eq("org_id", orgId)
       .gte("started_at", w.fromIso)
       .lte("started_at", w.toIso)
@@ -104,10 +106,13 @@ export async function readIdleRollupInputs(
   const segments = await readAll<RawSegment>("hos_duty_segments", (a, b) =>
     admin
       .from("hos_duty_segments")
-      .select("driver_id, vehicle_id, status, started_at, ended_at")
+      .select("driver_id, samsara_driver_id, vehicle_id, status, started_at, ended_at")
       .eq("org_id", orgId)
       .gte("started_at", new Date(Date.parse(w.fromIso) - SEGMENT_PAD_MS).toISOString())
       .lte("started_at", w.toIso)
+      .or(
+        `ended_at.is.null,ended_at.gte.${new Date(Date.parse(w.fromIso) - SEGMENT_PAD_MS).toISOString()}`,
+      )
       .order("started_at", { ascending: true })
       .order("id", { ascending: true })
       .range(a, b),

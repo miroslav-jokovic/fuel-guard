@@ -17,6 +17,7 @@ import {
   type SamsaraGpsSnapshotFetcher,
 } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 
 export interface HosSyncResult {
   fetched: number; // duty-status segments parsed from the window
@@ -36,7 +37,7 @@ const HOS_FETCH_CHUNK_DAYS = 7;
  * cover the same range or older idle sessions remain permanently unsupported. Requests are still split into
  * 7-day Samsara calls below, and diff-before-write keeps steady-state database writes bounded.
  */
-const DEFAULT_SINCE_DAYS = 30;
+const DEFAULT_SINCE_DAYS = IDLE_SOURCE_WINDOW_DAYS;
 
 /**
  * If Samsara returned per-driver items but NONE parsed into segments, the nested-log field names differ from

@@ -39,6 +39,37 @@ describe("buildIdleRollupDays", () => {
     });
   });
 
+  it("scales independently synced session buckets to observed day idle", () => {
+    const rows = buildIdleRollupDays({
+      engineDays: [
+        {
+          vehicleId: "v1",
+          day: D1,
+          driveSec: 0,
+          idleSec: 4 * 3600,
+          offSec: 0,
+          coverageSec: 4 * 3600,
+        },
+      ],
+      sessions: [
+        { vehicleId: "v1", startedAtMs: T0 + H, idleSec: 5 * 3600, mode: "continuous" },
+        { vehicleId: "v1", startedAtMs: T0 + 2 * H, idleSec: 3 * 3600, mode: "apu_or_off" },
+      ],
+      events: [],
+      segmentsByDriver: new Map(),
+      assignments: [],
+      ...win,
+    });
+    expect(rows[0]).toMatchObject({
+      idleSec: 4 * 3600,
+      continuousIdleSec: 2 * 3600 + 30 * 60,
+      managedIdleSec: 1 * 3600 + 30 * 60,
+    });
+    expect(rows[0]!.continuousIdleSec + rows[0]!.managedIdleSec).toBeLessThanOrEqual(
+      rows[0]!.idleSec + 1,
+    );
+  });
+
   it("overlays HOS duty onto idle events (rest/work), with uncovered time and no-driver idle → other", () => {
     const segs = new Map<string, HosSegment[]>([
       [
@@ -75,7 +106,16 @@ describe("buildIdleRollupDays", () => {
 
   it("preserves Optimized Idle envelope evidence with the continuous session", () => {
     const rows = buildIdleRollupDays({
-      engineDays: [],
+      engineDays: [
+        {
+          vehicleId: "v1",
+          day: D1,
+          driveSec: 0,
+          idleSec: 3600,
+          offSec: 0,
+          coverageSec: 3600,
+        },
+      ],
       sessions: [
         {
           vehicleId: "v1",

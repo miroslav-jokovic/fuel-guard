@@ -317,6 +317,15 @@ export function buildIdleRollupDays(input: {
   const rows: IdleRollupDay[] = [];
   const roundSeconds = (value: number): number => Math.round(value);
   for (const [key, a] of acc) {
+    // WHY (idle precision incident 2026-08-12): engine-day totals and park sessions are independently
+    // synced. Apply the same proportional fit used by computeAvoidable before persisting derived buckets,
+    // so a downstream consumer cannot observe managed+continuous idle above the day's observed idle.
+    const classifiedIdleSec = a.managedIdleSec + a.continuousIdleSec;
+    const observedIdleSec = Math.max(0, a.idleSec);
+    const sessionScale =
+      classifiedIdleSec > observedIdleSec && classifiedIdleSec > 0
+        ? observedIdleSec / classifiedIdleSec
+        : 1;
     rows.push({
       vehicleId: a.vehicleId,
       day: a.day,
@@ -324,8 +333,8 @@ export function buildIdleRollupDays(input: {
       idleSec: roundSeconds(a.idleSec),
       offSec: roundSeconds(a.offSec),
       coverageSec: roundSeconds(a.coverageSec),
-      managedIdleSec: roundSeconds(a.managedIdleSec),
-      continuousIdleSec: roundSeconds(a.continuousIdleSec),
+      managedIdleSec: roundSeconds(a.managedIdleSec * sessionScale),
+      continuousIdleSec: roundSeconds(a.continuousIdleSec * sessionScale),
       restIdleSec: roundSeconds(a.restIdleSec),
       workIdleSec: roundSeconds(a.workIdleSec),
       otherIdleSec: roundSeconds(a.otherIdleSec),

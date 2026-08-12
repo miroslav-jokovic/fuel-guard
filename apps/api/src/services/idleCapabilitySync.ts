@@ -12,6 +12,7 @@ import type { Env } from "../env.js";
 import { loadSamsaraToken } from "../lib/samsaraToken.js";
 import { makeSamsaraEngineStatesFetcher, type EngineStatesFetcher } from "../lib/samsara.js";
 import { NoSamsaraTokenError } from "./samsaraVehicleSync.js";
+import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
 
 export interface IdleCapabilityResult {
   vehicles: number;
@@ -283,7 +284,7 @@ export async function syncIdleCapabilities(
     .maybeSingle();
   const orgTz = organizationTimezone(orgRow?.operating_hours);
 
-  const days = opts.sinceDays ?? 30;
+  const days = opts.sinceDays ?? IDLE_SOURCE_WINDOW_DAYS;
   const endIso = new Date().toISOString();
   const startIso = new Date(Date.now() - days * 86_400_000).toISOString();
   const fetcher = opts.engineStatesFetcher ?? makeSamsaraEngineStatesFetcher(env, token);

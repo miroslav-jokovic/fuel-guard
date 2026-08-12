@@ -32,14 +32,16 @@ const { computeAvoidable, avoidableCost } =
   await import("../packages/shared/src/idleAvoidable.ts");
 const { sumRollupByVehicle } = await import("../packages/shared/src/idleBreakdown.ts");
 const { buildHosVehicleTimelines } = await import("../packages/shared/src/hosVehicleTimeline.ts");
-const { buildSessionDutyEvidence } =
-  await import("../apps/api/src/services/idleSessionDutyEvidence.ts");
+const { buildEvidence, deriveAssignedVehicleSegments } =
+  await import("../apps/api/src/services/idleDutyEvidenceSync.ts");
+const { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } =
+  await import("../apps/api/src/services/idleWindow.ts");
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const argv = process.argv.slice(2);
 const reportRequested = argv.includes("--report");
 const snapshotRequested = argv.includes("--snapshot-fixtures");
-const DAYS = 30;
+const DAYS = IDLE_SOURCE_WINDOW_DAYS;
 const DAY_SEC = 86_400;
 const HOS_PAD_MS = 72 * 3_600_000;
 const TOLERANCE_SEC = 1;
@@ -55,7 +57,9 @@ const selectedDays = Math.max(
       (DAY_SEC * 1000),
   ),
 );
-const sourceFromIso = `${fromDay}T00:00:00.000Z`;
+// Match the API's stable calendar-bounded derivation window; this avoids a moving timestamp boundary
+// changing the first page day while the verifier is reading live data.
+const sourceFromIso = idleCalendarStartIso(nowIso, DAYS);
 const hosFromIso = new Date(Date.parse(sourceFromIso) - HOS_PAD_MS).toISOString();
 
 const envPath = join(ROOT, "apps/api/.env");
@@ -112,9 +116,18 @@ function compareFields(actual, expected, fields, label, offenders) {
     );
 }
 
-function buildEvidenceMaps(sessions, events, segments, windowStartMs, windowEndMs) {
+function buildEvidenceMaps(
+  sessions,
+  events,
+  segments,
+  assignments,
+  vehicleIdBySamsara,
+  windowStartMs,
+  windowEndMs,
+) {
   const byDriver = new Map();
   const byVehicle = new Map();
+  const bySamsaraDriver = new Map();
   for (const segment of segments) {
     const normalized = {
       driverId: segment.driver_id ?? "unresolved",
@@ -133,6 +146,22 @@ function buildEvidenceMaps(sessions, events, segments, windowStartMs, windowEndM
       list.push(normalized);
       byVehicle.set(segment.vehicle_id, list);
     }
+    if (segment.samsara_driver_id) {
+      const list = bySamsaraDriver.get(segment.samsara_driver_id) ?? [];
+      list.push(normalized);
+      bySamsaraDriver.set(segment.samsara_driver_id, list);
+    }
+  }
+  const assigned = deriveAssignedVehicleSegments(
+    assignments,
+    vehicleIdBySamsara,
+    bySamsaraDriver,
+    windowEndMs,
+  );
+  for (const [vehicleId, segmentsForVehicle] of assigned) {
+    const list = byVehicle.get(vehicleId) ?? [];
+    for (const segment of segmentsForVehicle) list.push(segment);
+    byVehicle.set(vehicleId, list);
   }
   const timelines = buildHosVehicleTimelines(byVehicle, windowStartMs, windowEndMs);
   const evidenceBySession = new Map();
@@ -140,7 +169,7 @@ function buildEvidenceMaps(sessions, events, segments, windowStartMs, windowEndM
     if (session.mode !== "continuous") continue;
     evidenceBySession.set(
       session.id,
-      buildSessionDutyEvidence(session, events, byDriver, byVehicle, timelines),
+      buildEvidence(byVehicle, byDriver, events, session, timelines),
     );
   }
   return evidenceBySession;
@@ -163,6 +192,17 @@ function sourceSums(engineDays, sessions) {
       managed_idle_sec: row.mode === "continuous" ? 0 : Math.max(0, n(row.idle_sec)),
       continuous_idle_sec: row.mode === "continuous" ? Math.max(0, n(row.idle_sec)) : 0,
     });
+  }
+  // Match buildIdleRollupDays: independently synced session totals are proportionally fitted to the
+  // matching engine-day idle before they are persisted as derived mode buckets.
+  for (const [key, values] of session) {
+    const classified = values.managed_idle_sec + values.continuous_idle_sec;
+    const observed = Math.max(0, n(engine.get(key)?.idle_sec));
+    if (classified > observed && classified > 0) {
+      const scale = observed / classified;
+      values.managed_idle_sec = Math.round(values.managed_idle_sec * scale);
+      values.continuous_idle_sec = Math.round(values.continuous_idle_sec * scale);
+    }
   }
   return { engine, session };
 }
@@ -188,11 +228,11 @@ function computedEvidenceSums(sessions, evidenceBySession) {
     const evidence = evidenceBySession.get(row.id);
     if (!evidence) continue;
     addTo(out, keyOf(row.vehicle_id, dayOf(row.started_at)), {
-      hos_rest_sec: evidence.restSec,
-      hos_work_sec: evidence.workSec,
-      hos_unknown_sec: evidence.unknownSec,
-      hos_ambiguous_sec: evidence.ambiguousSec,
-      hos_grace_sec: evidence.graceSec,
+      hos_rest_sec: evidence.overlap.restSec,
+      hos_work_sec: evidence.overlap.workSec,
+      hos_unknown_sec: evidence.overlap.unknownSec,
+      hos_ambiguous_sec: evidence.overlap.ambiguousSec,
+      hos_grace_sec: Math.min(evidence.overlap.workSec, 15 * 60),
     });
   }
   for (const values of out.values())
@@ -459,10 +499,10 @@ function consistencyOffenders(page, independentRows) {
 }
 
 async function loadData() {
-  const [organizations, vehicles, engineDays, sessions, rollups, events, segments, settings, prices, jobs] =
+  const [organizations, vehicles, engineDays, sessions, rollups, events, segments, assignments, settings, prices, jobs] =
     await Promise.all([
       readAll("organizations", "id, name"),
-      readAll("vehicles", "id, org_id, unit_number, status, has_apu, has_optimized_idle, idle_capability"),
+      readAll("vehicles", "id, org_id, unit_number, status, samsara_vehicle_id, has_apu, has_optimized_idle, idle_capability"),
       readAll(
         "vehicle_engine_days",
         "org_id, vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec",
@@ -471,22 +511,53 @@ async function loadData() {
       readAll(
         "idle_park_sessions",
         "id, org_id, vehicle_id, started_at, ended_at, duration_sec, idle_sec, mode, hos_evidence_status, hos_covered_sec, hos_rest_sec, hos_work_sec, hos_driving_sec, hos_excluded_sec, hos_unknown_sec, hos_ambiguous_sec",
-        (q) => q.gte("started_at", sourceFromIso).lte("started_at", nowIso),
+        (q) =>
+          q
+            .gte("started_at", sourceFromIso)
+            .lte("started_at", nowIso)
+            .order("started_at", { ascending: true })
+            .order("id", { ascending: true }),
       ),
       readAll(
         "idle_rollup_days",
         "id, org_id, vehicle_id, day, drive_sec, idle_sec, off_sec, coverage_sec, managed_idle_sec, continuous_idle_sec, rest_idle_sec, work_idle_sec, other_idle_sec, optimized_envelope_inside_sec, optimized_envelope_outside_sec, optimized_envelope_unknown_sec, optimized_envelope_ambiguous_sec, optimized_envelope_status, optimized_envelope_source, hos_rest_sec, hos_work_sec, hos_unknown_sec, hos_ambiguous_sec, hos_grace_sec, hos_evidence_status, updated_at",
-        (q) => q.gte("day", fromDay).lte("day", toDay),
+        (q) =>
+          q
+            .gte("day", fromDay)
+            .lte("day", toDay)
+            .order("day", { ascending: true })
+            .order("vehicle_id", { ascending: true }),
       ),
       readAll(
         "idle_events",
         "org_id, vehicle_id, driver_id, started_at, duration_sec",
-        (q) => q.gte("started_at", sourceFromIso).lte("started_at", nowIso),
+        (q) =>
+          q
+            .gte("started_at", sourceFromIso)
+            .lte("started_at", nowIso)
+            .order("started_at", { ascending: true })
+            .order("id", { ascending: true }),
       ),
       readAll(
         "hos_duty_segments",
-        "org_id, driver_id, vehicle_id, status, started_at, ended_at",
-        (q) => q.gte("started_at", hosFromIso).lte("started_at", nowIso),
+        "org_id, driver_id, samsara_driver_id, vehicle_id, status, started_at, ended_at",
+        (q) =>
+          q
+            .gte("started_at", hosFromIso)
+            .lte("started_at", nowIso)
+            .or(`ended_at.is.null,ended_at.gte.${hosFromIso}`)
+            .order("started_at", { ascending: true })
+            .order("vehicle_id", { ascending: true }),
+      ),
+      readAll(
+        "driver_vehicle_assignments",
+        "org_id, vehicle_samsara_id, driver_samsara_id, start_at, end_at",
+        (q) =>
+          q
+            .lte("start_at", nowIso)
+            .or(`end_at.is.null,end_at.gte.${hosFromIso}`)
+            .order("start_at", { ascending: true })
+            .order("vehicle_samsara_id", { ascending: true }),
       ),
       readAll("idle_settings", "org_id, idle_gal_per_hour, fuel_price_per_gal"),
       readAll(
@@ -500,7 +571,7 @@ async function loadData() {
         (q) => q.in("kind", ["sync_idle", "sync_hos"]).eq("status", "done"),
       ),
     ]);
-  return { organizations, vehicles, engineDays, sessions, rollups, events, segments, settings, prices, jobs };
+  return { organizations, vehicles, engineDays, sessions, rollups, events, segments, assignments, settings, prices, jobs };
 }
 
 function costBasisFor(orgId, settings, prices) {
@@ -615,13 +686,13 @@ function reportText({ page, checks, examples, basis, funnelData }) {
   const failedNames = new Set(checks.filter((check) => check.offenders.length).map((check) => check.name));
   const diagnoses = [];
   if ([...failedNames].some((name) => name.startsWith("1a")))
-    diagnoses.push("**1a — derived-state retention:** `idle_rollup_days` contains rows with no matching current `vehicle_engine_days` row (for example, unit 512 on 2026-07-13 has rollup off=86,400s but no source row). The rollup writer diffs and upserts changed rows but does not remove derived rows after the foundation row disappears; this is a stale rollup/source deletion stage, not a scoring-semantic change.");
+    diagnoses.push("**1a — derived-state retention:** `idle_rollup_days` contains rows with no matching current `vehicle_engine_days` row (for example, unit 512 on 2026-07-13 has rollup off=86,400s but no source row). The fixed rollup now deletes absent keys through an org-scoped set-based RPC and aligns its maintenance window with the source feeds; these rows await deployment and one successful cycle.");
   if ([...failedNames].some((name) => name.startsWith("1b")))
     diagnoses.push("**1b — session feed drift:** the persisted rollup mode split differs from the current park-session source sums on named truck-days. This is a rollup maintenance lag/stale-derived-row issue (and includes rows with source sessions that were subsequently replaced), not a browser aggregation discrepancy.");
   if ([...failedNames].some((name) => name.startsWith("1c") || name.startsWith("1d")))
-    diagnoses.push("**1c/1d — HOS evidence drift:** persisted rollup HOS buckets do not equal either the current source-session evidence or the stored session evidence on named truck-days. The rollup is stale or was built from a different session/HOS snapshot; the verifier deliberately reports both comparisons instead of silently accepting the derived row.");
+    diagnoses.push("**1c/1d — HOS evidence drift:** persisted rollup HOS buckets do not equal either the current source-session evidence or the stored session evidence on named truck-days. The fixed derivation now includes the same assignment-attributed vehicle timeline as sync_hos and uses the aligned source window; rerun after deployment to distinguish remaining stale rows from a new derivation defect.");
   if ([...failedNames].some((name) => name.startsWith("2b")))
-    diagnoses.push("**2b — per-day classified-idle algebra:** `buildIdleRollupDays` accumulates independently synced managed/continuous session seconds without applying the range-level clamp that `computeAvoidable` applies. This leaves many day rows with classified idle above engine idle; the clamp prevents the page verdict from exceeding observed idle, but it does not make the persisted per-day invariant true. No semantic fix is applied here.");
+    diagnoses.push("**2b — per-day classified-idle algebra:** the deployed derived rows still contain independently synced managed/continuous session seconds above observed engine idle. The fixed `buildIdleRollupDays` now applies the same proportional fit as `computeAvoidable`; this result therefore identifies rows awaiting the first fixed rollup cycle rather than weakening the invariant.");
   if ([...failedNames].some((name) => name.startsWith("3")))
     diagnoses.push("**3 — verdict algebra:** the named trucks fail the ±1s bucket identity because rollup HOS grace/uncertain buckets and/or classified session seconds are inconsistent with the current source snapshot. The page remains internally card/table consistent, but the source-to-verdict chain is not precision-clean until the derived rows are rebuilt and the identity/source drift is resolved.");
   const lines = [
@@ -689,11 +760,17 @@ const orgEngineDays = data.engineDays.filter((row) => orgIds.has(row.org_id));
 const orgSessions = data.sessions.filter((row) => orgIds.has(row.org_id));
 const orgEvents = data.events.filter((row) => orgIds.has(row.org_id));
 const orgSegments = data.segments.filter((row) => orgIds.has(row.org_id));
+const orgAssignments = data.assignments.filter((row) => orgIds.has(row.org_id));
+const vehicleIdBySamsara = new Map(
+  activeVehicles.filter((vehicle) => vehicle.samsara_vehicle_id).map((vehicle) => [vehicle.samsara_vehicle_id, vehicle.id]),
+);
 const { engine: expectedEngine, session: expectedSession } = sourceSums(orgEngineDays, orgSessions);
 const evidenceBySession = buildEvidenceMaps(
   orgSessions,
   orgEvents,
   orgSegments,
+  orgAssignments,
+  vehicleIdBySamsara,
   Date.parse(sourceFromIso),
   Date.parse(nowIso),
 );
