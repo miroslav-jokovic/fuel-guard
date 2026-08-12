@@ -1,5 +1,6 @@
 import {
   EFS_EDITABLE_INFO_IDS,
+  matchStatusCasing,
   type EfsWritableStatus,
   type OverrideScope,
   type PromptInput,
@@ -46,13 +47,24 @@ const LOCATION_OVERRIDE_NONE = "0";
  *
  * `Hold` is reversible and is what the UI defaults to. `Inactive` is offered for a card being retired.
  * `Deleted` is NEVER written — it is EFS's hard delete (p128) and there is no undo.
+ *
+ * `observedStatus` is the status field of the document EFS returned INSIDE this same operation
+ * (`doc.card.status`) — never the mirror, which can be a sweep old. The write is spelled in that
+ * document's own casing (`matchStatusCasing`), because Phase 0 proved this vendor silently ignores
+ * a status whose casing does not match the account's stored vocabulary (H1, 2026-08-12: `HOLD`
+ * landed in 533ms, `Active` was accepted-and-ignored). See docs/22 §Root cause.
  */
-export const lockEdits = (status: EfsWritableStatus): CardEdit[] => [
-  { op: "setField", name: "status", value: status },
+export const lockEdits = (status: EfsWritableStatus, observedStatus: string | null): CardEdit[] => [
+  { op: "setField", name: "status", value: matchStatusCasing(observedStatus, status) },
 ];
 
-/** Unlock: `status` → `Active`. The only status this product ever restores a card to. */
-export const unlockEdits = (): CardEdit[] => [{ op: "setField", name: "status", value: "Active" }];
+/**
+ * Unlock: `status` → `Active`. The only status this product ever restores a card to.
+ * Same casing rule as `lockEdits`, same reason.
+ */
+export const unlockEdits = (observedStatus: string | null): CardEdit[] => [
+  { op: "setField", name: "status", value: matchStatusCasing(observedStatus, "Active") },
+];
 
 // ─── Overrides (p194) ──────────────────────────────────────────────────────────────────────────
 

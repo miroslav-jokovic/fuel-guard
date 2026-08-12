@@ -107,7 +107,8 @@ const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, expectedVersion:
 const spec = {
   intent: "lock" as const,
   auditAction: "card.locked",
-  buildEdits: () => lockEdits("Hold"),
+  // Same shape as the production route: the fresh in-operation read supplies the casing (H1).
+  buildEdits: (doc: ReturnType<typeof parseCardDocument>) => lockEdits("Hold", doc.card.status),
 };
 
 /** The ledger row as it was finally settled. */
@@ -139,6 +140,27 @@ describe("a mutation that lands", () => {
     expect(rows[0]).toMatchObject({ status: "pending", intent: "lock", reason: "Truck broken into overnight" });
     expect(settled(rec)).toMatchObject({ status: "succeeded" });
     expect(rec.writtenRows("audit_logs").map((r) => r.action)).toContain("card.locked");
+  });
+
+  it("TRIPWIRE (H1): on an account that spells ACTIVE, the dispatched write says HOLD — and succeeds", async () => {
+    // The live 2026-08-12 failure, end to end: production account reads `ACTIVE`, we asked for
+    // `Hold`, EFS returned void success and changed nothing. The fix spells the write from the
+    // fresh read's own casing. This asserts the actual wire bytes of the setCardv2 dispatch —
+    // remove the casing rule from lockEdits and this fails on the request body, not on a mock.
+    const ACTIVE_UPPER = CARD_ACTIVE.replace("<status>Active</status>", "<status>ACTIVE</status>");
+    const HELD_UPPER = CARD_ACTIVE.replace("<status>Active</status>", "<status>HOLD</status>");
+    expect(parseCardDocument(ACTIVE_UPPER).card.status).toBe("ACTIVE"); // the replace hit the header
+    const rec = recorder();
+    const s = stub(loginOk, ACTIVE_UPPER, soap(""), HELD_UPPER);
+    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(ACTIVE_UPPER)), spec);
+
+    const writeBody = s.bodies.find((b) => b.includes("setCardv2"));
+    expect(writeBody).toBeDefined();
+    expect(writeBody).toContain("<status>HOLD</status>");
+    expect(writeBody).not.toContain("<status>Hold</status>");
+    // …and the case-tolerant verify recognises the upper-case landing as success, not drift.
+    expect(outcome.status).toBe("succeeded");
+    expect(settled(rec)).toMatchObject({ status: "succeeded" });
   });
 
   it("keeps every query and write inside the org", async () => {

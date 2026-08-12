@@ -441,3 +441,53 @@ Product-limit overrides (the one p194 recipe that requires deliberately dropping
 `handEnter=DISALLOW`, and location-group/blocklist editing. The design accommodates all of them —
 `approved_by` and `before_document` already exist on the ledger, and `planCardMutation` /
 `applyCardMutation` are already separate functions — so none of them needs a schema change later.
+
+## Root cause 2026-08-12 — the `no_change` failure was status casing (H1, CONFIRMED)
+
+The first live mutation (lock, card ••••7671, 2026-08-12) got `setCardv2`'s void success back and
+the card stayed Active — the ledger's `no_change`. Phase 0 ran controlled experiments against the QA
+org's card the same day, and the second one closed the case.
+
+### The evidence, verbatim from the experiment run
+
+| Step | Wrote | Account read back | Result |
+|---|---|---|---|
+| E1 read-only | — | `ACTIVE` (upper-case) | rules out a late-landing of the original write (H2) |
+| E2 | `<status>HOLD</status>` — matching the account's casing | `HOLD` | **LANDED in 533ms** (first re-read) |
+| revert | `<status>Active</status>` — the guide's spelling | `HOLD`, `HOLD`, `HOLD` at ~0.7s / 4.4s / 10s | void success returned, write **silently ignored** |
+
+Same session, same card, same request shape, same echo — the casing was the only variable. So:
+**EFS applies a status write only when its casing matches the account's stored vocabulary; a
+mismatched casing is answered with the identical void success and not applied.** This is W2's
+"accepted-and-ignored" failure mode measured in the wild, and it is why the guide's documented
+spelling (`Active`, `Hold` — p35, p134) can be exactly the string that does nothing on a production
+account that stores `ACTIVE` / `HOLD`.
+
+Two numbers worth keeping: apply latency when the write is correct is **~533ms**, comfortably inside
+the first verifying re-read plus the `EFS_CARD_VERIFY_RETRY_MS` second look — no tuning needed
+(closes P0-2's open question). And a wrong-cased write stays unapplied through at least three reads
+over ten seconds — it is not slow, it is dead.
+
+### The fix (shipped with this entry)
+
+`matchStatusCasing(observed, target)` in `packages/shared/src/efsCardCatalog.ts`: every status write
+borrows the casing of the status the account just showed us in the SAME operation's fresh read —
+upper-case account → upper-case write, lower-case → lower-case, mixed/absent → the guide's spelling
+verbatim. Wired through `lockEdits` / `unlockEdits` (which now REQUIRE the observed status — the
+compiler forbids the old verbatim path), the lock/unlock routes (`doc.card.status`, never the
+mirror), and the write probe's forward write. The probe's revert always wrote the account's own
+original string verbatim, which is why it was already H1-safe.
+
+Reads stay tolerant, writes stay literal: `efsStatusEquals` still absorbs any casing on the way in
+(migration 0176's verbatim-storage rule is unchanged), so verification recognises `HOLD` as the
+`Hold` we asked for. Tripwire tests pin the wire bytes — an `ACTIVE` account must produce
+`<status>HOLD</status>` in the dispatched request — in `efsCardEdits.test.ts`,
+`efsCardControl.test.ts` and `efsCardCatalog.test.ts`.
+
+### Scope, honestly stated
+
+Proven for the status field on one QA account; adopted as the rule for status writes everywhere.
+Other enumerated writables (`handEnter`, validation types) are sent as EFS returned them via the
+echo, so they cannot mismatch by construction. Whether the same vocabulary-matching applies to
+override/limit fields is untested — those are numeric or boolean-shaped, where casing does not
+arise. If a future field write shows accepted-and-ignored symptoms, suspect this first.

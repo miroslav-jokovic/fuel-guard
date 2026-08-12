@@ -1,5 +1,13 @@
 # Devin — run the Phase 0 `no_change` experiments (E1–E5) on the QA card
 
+> **RESOLVED 2026-08-12 — kept for the record.** The 2026-08-12 run confirmed **H1**: E1 read
+> `ACTIVE` (upper-case vocabulary), E2's `HOLD` landed in 533ms, and the step-6 revert — written
+> `Active` per the command below — was silently ignored, which is itself H1 evidence and left card
+> 7671 on HOLD. Root cause and fix: `docs/22-EFS-CARD-CONTROL.md` §Root cause 2026-08-12. If this
+> doc is ever re-run, **every write, including the revert, must match the casing E1 observed**
+> (upper-case account → `"ACTIVE"` / `"HOLD"`); the step-6 command's mixed-case `Active` is exactly
+> the write that fails. E3–E5 were correctly skipped under the stop-early rule.
+
 Repo: FuelGuard, branch `main`. Companion docs: `EFS-PHASE0-EXPERIMENTS-RUNBOOK.md` (the science),
 `EFS-CARD-CONTROL-FIX-PLAN.md` Phase 0 (why each experiment exists). This task is API-only — no
 dashboard, no WEX portal, no SOAP credentials.
@@ -100,10 +108,12 @@ is H2 evidence and the latency number the fix plan wants), `writeErrorCode`, `ch
 
 ## Step 6 — Revert
 
-Use whichever variant most recently landed (or `standard` if none has):
+Use whichever variant most recently landed (or `standard` if none has). **Spell `Active` in the
+casing E1 observed** — on an account that reads `ACTIVE`, the revert must send `ACTIVE`; mixed-case
+`Active` is silently ignored on such an account (that is finding H1):
 
 ```bash
-exp "{\"experiment\":\"set_status\",\"cardNumber\":\"$CARD\",\"status\":\"Active\",\"variant\":\"<variant>\",\"confirm\":\"WRITE 7671\"}" | jq .
+exp "{\"experiment\":\"set_status\",\"cardNumber\":\"$CARD\",\"status\":\"ACTIVE\",\"variant\":\"<variant>\",\"confirm\":\"WRITE 7671\"}" | jq .
 ```
 
 If NO variant can move the card and E1 showed it stuck on Hold: report it prominently — Miki

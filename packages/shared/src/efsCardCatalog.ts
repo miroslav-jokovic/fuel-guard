@@ -62,6 +62,39 @@ export function canonicalEfsStatus(value: string | null | undefined): string | n
   return EFS_CARD_STATUSES.find((known) => efsStatusEquals(known, value)) ?? value;
 }
 
+/**
+ * Spell a status the way THIS account spells it, before writing it.
+ *
+ * ── The confirmed vendor behaviour this encodes (H1, 2026-08-12) ────────────────────────────────
+ * Phase 0 experiment E2 on the QA card: a `setCardv2` carrying `<status>HOLD</status>` — matching
+ * the account's own upper-case vocabulary — LANDED in 533ms. The revert carrying `<status>Active</status>`
+ * — the guide's documented spelling, but not the account's — was answered with the same void success
+ * and silently NOT APPLIED, across three re-reads over ten seconds. Same session, same card, same
+ * request shape; the casing was the only variable. That silently-ignored write is the original
+ * `no_change` failure this whole audit started from.
+ *
+ * So: reads stay tolerant (`efsStatusEquals`), writes stay literal. Before dispatching a status we
+ * borrow the casing of the status the account just SHOWED us — the one string we know this account's
+ * validator accepts, because it produced it.
+ *
+ * The rule, in order:
+ *   • no observed value (null / blank)      → target verbatim (guide spelling; nothing to imitate)
+ *   • observed is all upper-case            → TARGET
+ *   • observed is all lower-case            → target lower-cased
+ *   • observed is mixed-case (`Active`)     → target verbatim — the guide's spelling IS mixed-case,
+ *     and inventing any other transform (title-case? camel?) would be an assumption, which is what
+ *     put us here.
+ */
+export function matchStatusCasing(observed: string | null | undefined, target: string): string {
+  const seen = observed?.trim() ?? "";
+  if (seen === "") return target;
+  const hasLetters = seen.toUpperCase() !== seen.toLowerCase();
+  if (!hasLetters) return target;
+  if (seen === seen.toUpperCase()) return target.toUpperCase();
+  if (seen === seen.toLowerCase()) return target.toLowerCase();
+  return target;
+}
+
 /** Statuses this product is willing to SET. Deliberately excludes Deleted and Fraud. */
 export const EFS_WRITABLE_STATUSES = ["Active", "Inactive", "Hold"] as const;
 export type EfsWritableStatus = (typeof EFS_WRITABLE_STATUSES)[number];

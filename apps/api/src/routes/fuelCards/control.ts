@@ -205,7 +205,9 @@ export function fuelCardControlRouter(): Router {
     }, {
       intent: "lock",
       auditAction: "card.locked",
-      buildEdits: () => lockEdits(body.data.status),
+      // `doc.card.status` — the fresh in-operation read — feeds the H1 casing rule: the write is
+      // spelled the way THIS account spells its statuses, or the vendor silently ignores it.
+      buildEdits: (doc) => lockEdits(body.data.status, doc.card.status),
       auditMeta: (doc) => ({ statusRequested: body.data.status, statusBefore: doc.card.status }),
     });
   }));
@@ -253,7 +255,7 @@ export function fuelCardControlRouter(): Router {
             "step_up_required",
           );
         }
-        return unlockEdits();
+        return unlockEdits(doc.card.status);
       },
       auditMeta: (doc) => ({ statusBefore: doc.card.status, unlockedFromFraud: efsStatusEquals(doc.card.status, "Fraud") || efsStatusEquals(mirroredStatus, "Fraud") }),
     });

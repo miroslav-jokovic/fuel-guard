@@ -28,7 +28,7 @@ function request(document: ReturnType<typeof doc>, edits: Parameters<typeof seri
 describe("lock / unlock", () => {
   it("changes exactly one leaf", () => {
     const before = doc();
-    const xml = request(before, lockEdits("Hold"));
+    const xml = request(before, lockEdits("Hold", before.card.status));
     expect(xml).toContain("<status>Hold</status>");
     expect(xml).not.toContain("<status>Active</status>");
     // Everything else is still there — the policy, the prompts, the limits.
@@ -39,9 +39,43 @@ describe("lock / unlock", () => {
   it("never writes Deleted", () => {
     // `Deleted` is EFS's hard delete (p128) and is not in EFS_WRITABLE_STATUSES, so it is unreachable
     // from the type. This asserts the two values the product actually offers.
-    expect(lockEdits("Hold")).toEqual([{ op: "setField", name: "status", value: "Hold" }]);
-    expect(lockEdits("Inactive")).toEqual([{ op: "setField", name: "status", value: "Inactive" }]);
-    expect(unlockEdits()).toEqual([{ op: "setField", name: "status", value: "Active" }]);
+    expect(lockEdits("Hold", "Active")).toEqual([{ op: "setField", name: "status", value: "Hold" }]);
+    expect(lockEdits("Inactive", "Active")).toEqual([{ op: "setField", name: "status", value: "Inactive" }]);
+    expect(unlockEdits("Hold")).toEqual([{ op: "setField", name: "status", value: "Active" }]);
+  });
+});
+
+describe("H1 — the write is spelled in the account's own casing", () => {
+  // The confirmed 2026-08-12 root cause: this vendor answers a status write whose casing does not
+  // match the account's stored vocabulary with void SUCCESS and silently ignores it. E2 proved
+  // `HOLD` lands in 533ms on an upper-case account while `Active` is accepted-and-dropped. These
+  // are the tripwires: if someone "simplifies" the builders back to verbatim targets, they fail.
+
+  it("TRIPWIRE: an account reading ACTIVE gets <status>HOLD</status> on the wire, not Hold", () => {
+    const before = parseCardDocument(
+      fixture("getCardV2.full.xml").replace("<status>Active</status>", "<status>ACTIVE</status>"),
+    );
+    expect(before.card.status).toBe("ACTIVE"); // the replace actually hit the header field
+    const xml = request(before, lockEdits("Hold", before.card.status));
+    expect(xml).toContain("<status>HOLD</status>");
+    expect(xml).not.toContain("<status>Hold</status>");
+  });
+
+  it("unlock on an upper-case account writes ACTIVE — the exact write whose mixed-case twin failed live", () => {
+    expect(unlockEdits("HOLD")).toEqual([{ op: "setField", name: "status", value: "ACTIVE" }]);
+  });
+
+  it("a lower-case account gets lower-case writes", () => {
+    expect(lockEdits("Hold", "active")).toEqual([{ op: "setField", name: "status", value: "hold" }]);
+    expect(unlockEdits("hold")).toEqual([{ op: "setField", name: "status", value: "active" }]);
+  });
+
+  it("mixed-case and absent observations pass the guide spelling through verbatim", () => {
+    // Mixed case is the guide's own spelling — every fixture in this repo — and inventing a
+    // transform for it would be exactly the kind of assumption H1 punished.
+    expect(lockEdits("Hold", "Active")[0]!.value).toBe("Hold");
+    expect(lockEdits("Hold", null)[0]!.value).toBe("Hold");
+    expect(unlockEdits(null)[0]!.value).toBe("Active");
   });
 });
 

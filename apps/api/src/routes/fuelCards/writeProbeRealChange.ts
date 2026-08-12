@@ -1,4 +1,4 @@
-import { efsStatusEquals } from "@fuelguard/shared";
+import { efsStatusEquals, matchStatusCasing } from "@fuelguard/shared";
 import type { Env } from "../../env.js";
 import { getCardV2 } from "../../lib/efsCardOps.js";
 import { setCardV2 } from "../../lib/efsCardWrite.js";
@@ -14,7 +14,8 @@ import type { EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
  * (2026-08-12, card ••••7671) failed on exactly that gap: setCardv2 returned its void success and
  * the card stayed Active. `write_entitlement = confirmed` now requires this half too (audit P0-1).
  *
- *   7. apply  — one real, reversible edit: `status → realChangeStatus` (default Hold).
+ *   7. apply  — one real, reversible edit: `status → realChangeStatus` (default Hold), spelled in
+ *               the account's own casing per H1 (`matchStatusCasing`).
  *   8. verify — re-read at 0s/+3s/+8s until the edit lands; the FIRST landing timestamp is the
  *               measured APPLY LATENCY, which calibrates EFS_CARD_VERIFY_RETRY_MS (audit P0-2).
  *   9. revert — write the card's ORIGINAL status back, verbatim as EFS reported it.
@@ -135,7 +136,12 @@ export async function runRealChangeSteps(
     return { steps, applyLatencyMs: null, revertLatencyMs: null, finalDoc: base };
   }
 
-  const apply = await writeAndVerify(env, creds, cardNumber, base, realChangeStatus, [7, 8], "real change");
+  // The forward write is spelled in the account's own casing (H1): a target cased differently from
+  // the account's vocabulary is answered with void success and silently not applied — which would
+  // read here as "accepted but never landed" and fail the probe against a healthy account.
+  const applyStatus = matchStatusCasing(originalStatus, realChangeStatus);
+
+  const apply = await writeAndVerify(env, creds, cardNumber, base, applyStatus, [7, 8], "real change");
   steps.push(apply.writeStep, apply.verifyStep);
   const afterApply = apply.doc ?? base;
   if (!apply.writeStep.ok || !apply.verifyStep.ok) {
@@ -150,7 +156,7 @@ export async function runRealChangeSteps(
   steps.push(revert.writeStep, revert.verifyStep);
   if (!revert.writeStep.ok || !revert.verifyStep.ok) {
     const last = steps[steps.length - 1]!;
-    last.error = `${last.error ?? ""} ⚠ THE CARD IS STILL "${realChangeStatus}" — restore it to "${originalStatus}" in the WEX portal before anything else.`.trim();
+    last.error = `${last.error ?? ""} ⚠ THE CARD IS STILL "${applyStatus}" — restore it to "${originalStatus}" in the WEX portal before anything else.`.trim();
   }
   return { steps, applyLatencyMs: apply.latencyMs, revertLatencyMs: revert.latencyMs, finalDoc: revert.doc ?? afterApply };
 }
