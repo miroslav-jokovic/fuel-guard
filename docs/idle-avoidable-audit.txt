@@ -1,5 +1,5 @@
 ====================================================================================================
-AVOIDABLE-IDLE PIPELINE AUDIT — last 30 days — 2026-08-12T15:52:06.185Z
+AVOIDABLE-IDLE PIPELINE AUDIT — last 30 days — 2026-08-12T17:37:37.888Z
 ====================================================================================================
 
 ####################################################################################################
@@ -9,52 +9,68 @@ AVOIDABLE-IDLE PIPELINE AUDIT — last 30 days — 2026-08-12T15:52:06.185Z
 ## A. Samsara data actually in our tables (full scan, distinct trucks)
 
   vehicle_engine_days   :    4857 rows, 177 distinct trucks
-  idle_park_sessions    :   14547 rows, 175 distinct trucks
-  hos_duty_segments     :  124798 rows, 63 trucks via LOGBOOK vehicle link
-                           124798 rows carry samsara_driver_id (assignment-join key)
-  driver_vehicle_assign :   46316 intervals overlapping window, 313 distinct trucks, 174 distinct drivers
+  idle_park_sessions    :   14523 rows, 175 distinct trucks
+  hos_duty_segments     :  152000 rows, 63 trucks via LOGBOOK vehicle link
+                           152000 rows carry samsara_driver_id (assignment-join key)
+  driver_vehicle_assign :   46381 intervals overlapping window, 313 distinct trucks, 174 distinct drivers
   assignments resolving to an active truck: 174
 
 ## B. Park-session duty evidence (did v2 attribution run, and what did it change?)
 
-  vehicle-hos-v2: 14547 sessions — sufficient 11612 (80%), insufficient 2795, ambiguous 140
-      seconds-weighted: idle 31996.8h, HOS-covered 73858.2h (231%), unknown 3055.7h
+  vehicle-hos-v2: 14523 sessions — sufficient 11731 (81%), insufficient 2635, ambiguous 157
+      seconds-weighted: idle 31689.6h, HOS-covered 71981.1h (227%), unknown 2988.1h
 
 ## C. Rollup days (what the Idling page actually reads)
 
-  5019 truck-days across 177 trucks. Day-level duty status:
-      not_applicable   1809 (36%)
-      sufficient       1732 (35%)
-      insufficient     1477 (29%)
+  5020 truck-days across 177 trucks. Day-level duty status:
+      not_applicable   1807 (36%)
+      sufficient       1724 (34%)
+      insufficient     1488 (30%)
       ambiguous        1 (0%)
 
-## D. The page's funnel (range aggregation replicated exactly, incl. worst-status-wins)
+## D. Funnel under the seconds-weighted rule (evidenced share >= 80% => confident)
 
   trucks with any rollup data          177
-  … coverage ≥ 50% of range            169
-  … + capability/alternative known     169
-  … + duty status clean on EVERY day   15   ← what the page calls "confident"
+  … coverage >= 50% of range           169
+  … + capability/alternative known     89
+  … + duty-evidenced share >= 80%      80   <- what the page now calls "confident"
 
-  Trucks failing ONLY the duty gate: 154
-      unit 736      30/31 days duty-clean (worst=insufficient), continuous idle 9.4h
-      unit 750      30/31 days duty-clean (worst=insufficient), continuous idle 3.3h
-      unit 782      30/31 days duty-clean (worst=insufficient), continuous idle 96.8h
-      unit 737      30/31 days duty-clean (worst=insufficient), continuous idle 4.2h
-      unit 740      30/31 days duty-clean (worst=insufficient), continuous idle 6.3h
-      unit 568      30/31 days duty-clean (worst=insufficient), continuous idle 6.2h
-      unit 741      30/31 days duty-clean (worst=insufficient), continuous idle 9.1h
-      unit 762      30/31 days duty-clean (worst=insufficient), continuous idle 24.6h
-      unit 633      22/23 days duty-clean (worst=insufficient), continuous idle 59h
-      unit 786      18/19 days duty-clean (worst=insufficient), continuous idle 17h
-      unit 767      29/31 days duty-clean (worst=insufficient), continuous idle 7.9h
-      unit 556      29/31 days duty-clean (worst=insufficient), continuous idle 387.9h
-      unit 647      29/31 days duty-clean (worst=insufficient), continuous idle 57.5h
-      unit 712      29/31 days duty-clean (worst=insufficient), continuous idle 61.7h
-      unit 632      29/31 days duty-clean (worst=insufficient), continuous idle 84.5h
-      … +139 more
+  Equipment-flag census (the admin-controlled gate):
+      has_apu = true (admin)               15
+      has_optimized_idle = true (admin)    22
+      has_apu = false (admin: no APU)      38
+      learned continuous_only (judgeable)  23
+      UNSET — excluded from scoring        92  (83 of them LEARNED apu/ecu_optimized — awaiting admin confirmation)
+
+  WHAT-IF: with equipment flags set on every truck, confident would be 152 of 177.
+
+  Evidenced-share distribution (trucks passing coverage+capability):
+        0– 20%   ## 2
+       20– 40%   #### 4
+       40– 60%    0
+       60– 80%   ### 3
+       80– 95%   ############### 15
+       95–100%   ############################################################ 65
+
+  Threshold sensitivity (confident count if the floor were):
+      >= 50%  ->  83 trucks
+      >= 60%  ->  83 trucks
+      >= 70%  ->  82 trucks
+      >= 80%  ->  80 trucks
+      >= 90%  ->  75 trucks
+
+  Trucks below the 80% bar: 9 (sorted best-first)
+      unit 711      share 80%  continuous 342.6h  unknown 69.9h  ambiguous 0h  rest 259.1h  work 13.5h  (30 days)
+      unit 506      share 78%  continuous 465.4h  unknown 100.6h  ambiguous 0h  rest 390h  work 6.7h  (31 days)
+      unit 718      share 69%  continuous 159.9h  unknown 49.1h  ambiguous 0h  rest 106.4h  work 4.3h  (31 days)
+      unit 598      share 33%  continuous 38.9h  unknown 25.9h  ambiguous 0h  rest 12.7h  work 0.3h  (23 days)
+      unit 595      share 30%  continuous 20.7h  unknown 14.6h  ambiguous 0h  rest 1.4h  work 4.8h  (19 days)
+      unit 574      share 29%  continuous 359.1h  unknown 256h  ambiguous 0h  rest 108.7h  work 1.3h  (31 days)
+      unit 586      share 24%  continuous 174.2h  unknown 132.3h  ambiguous 0h  rest 56.7h  work 3.1h  (31 days)
+      unit 589      share 1%  continuous 185.8h  unknown 183.3h  ambiguous 0h  rest 1.2h  work 1.3h  (31 days)
+      unit 550      share 0%  continuous 130.3h  unknown 130.3h  ambiguous 0h  rest 0h  work 0h  (31 days)
 
 ## Verdict inputs
-  If B shows v2 sessions with materially higher sufficiency but D still collapses to ~15,
-  the bottleneck is the worst-status-wins aggregation (calculation), not the Samsara pull.
-  If B shows no v2 rows, the new evidence code hasn't run — deploy/sync first, audit again.
-  If A shows thin assignments/segments, the gap is the data pull.
+  Trucks clustered at 60-79% share -> threshold calibration question (evidence exists, bar slightly high).
+  Trucks clustered at 0-40% share  -> evidence generation gap for those trucks' drivers/assignments.
+  High ambiguous hours             -> conflicting assignment overlaps to investigate.

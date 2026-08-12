@@ -93,7 +93,9 @@ export async function ingestReject(
     // The SOAP reject feed carries no driver (verified against production 2026-08-12 — ten fields,
     // no driverName/driverId). Derive it from the card so the Rejections page has a Driver column
     // at all; see declineDriverResolution.ts for why a masked ref is left blank instead of guessed.
-    await resolveDeclineDrivers(admin, env, input.orgId).catch(() => undefined);
+    await resolveDeclineDrivers(admin, env, input.orgId).catch((e) =>
+      console.error(`[decline-drivers] ingest org=${input.orgId} FAILED:`, e instanceof Error ? e.message : e),
+    );
     try {
       await deps.scoreDeclined(admin, env, input.orgId, importId);
     } catch (e) {

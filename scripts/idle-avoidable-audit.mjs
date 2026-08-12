@@ -175,9 +175,11 @@ for (const org of orgs) {
     if (!v) continue;
     total += 1;
     const coverageOk = s.cov / periodSec >= 0.5;
+    // EXACT resolveAlternative semantics (idleAvoidable.ts): learned "apu"/"ecu_optimized" is
+    // display-only and NEVER grants judgeability — only admin flags or demonstrated continuous_only do.
     const alternativeKnown =
       v.has_apu === true || v.has_optimized_idle === true || v.has_apu === false ||
-      (v.idle_capability != null && v.idle_capability !== "unknown");
+      v.idle_capability === "continuous_only";
     if (coverageOk) passCoverage += 1;
     if (!(coverageOk && alternativeKnown)) continue;
     passCapability += 1;
@@ -191,6 +193,38 @@ for (const org of orgs) {
   say(`  … coverage >= 50% of range           ${passCoverage}`);
   say(`  … + capability/alternative known     ${passCapability}`);
   say(`  … + duty-evidenced share >= 80%      ${confident}   <- what the page now calls "confident"`);
+
+  // Capability census — the gate the admin controls from the Vehicles page.
+  const census = { apuTrue: 0, apuFalse: 0, optTrue: 0, unset: 0, unsetLearnedApu: 0, unsetLearnedOther: 0, contOnly: 0 };
+  for (const v of active) {
+    if (v.has_apu === true) census.apuTrue += 1;
+    else if (v.has_optimized_idle === true) census.optTrue += 1;
+    else if (v.has_apu === false) census.apuFalse += 1;
+    else if (v.idle_capability === "continuous_only") census.contOnly += 1;
+    else {
+      census.unset += 1;
+      if (v.idle_capability === "apu" || v.idle_capability === "ecu_optimized") census.unsetLearnedApu += 1;
+      else census.unsetLearnedOther += 1;
+    }
+  }
+  say("\n  Equipment-flag census (the admin-controlled gate):");
+  say(`      has_apu = true (admin)               ${census.apuTrue}`);
+  say(`      has_optimized_idle = true (admin)    ${census.optTrue}`);
+  say(`      has_apu = false (admin: no APU)      ${census.apuFalse}`);
+  say(`      learned continuous_only (judgeable)  ${census.contOnly}`);
+  say(`      UNSET — excluded from scoring        ${census.unset}  (${census.unsetLearnedApu} of them LEARNED apu/ecu_optimized — awaiting admin confirmation)`);
+
+  // What-if: confident count when the admin confirms equipment on every unset truck.
+  let whatIf = 0;
+  for (const [vehicleId, s2] of per) {
+    const v = vehById.get(vehicleId);
+    if (!v) continue;
+    if (!(s2.cov / periodSec >= 0.5)) continue;
+    const dutyUncertain2 = Math.min(s2.continuous, s2.unknown + s2.ambiguous);
+    const share2 = s2.continuous > 0 ? (s2.continuous - dutyUncertain2) / s2.continuous : 1;
+    if (share2 >= 0.8) whatIf += 1;
+  }
+  say(`\n  WHAT-IF: with equipment flags set on every truck, confident would be ${whatIf} of ${total}.`);
 
   say("\n  Evidenced-share distribution (trucks passing coverage+capability):");
   const bins = [[0,0.2],[0.2,0.4],[0.4,0.6],[0.6,0.8],[0.8,0.95],[0.95,1.001]];

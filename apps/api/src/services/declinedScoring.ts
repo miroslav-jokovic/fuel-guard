@@ -390,7 +390,18 @@ export async function scoreDeclinedOrg(admin: SupabaseClient, env: Env, orgId: s
   // Derive the driver the reject feed cannot supply (migration 0182). Best-effort: a decline is
   // scored on card + location + timing evidence, none of which needs a NAME, so a mirror that is
   // mid-sync must never be the reason a fraud signal goes unscored.
-  await resolveDeclineDrivers(admin, env, orgId).catch(() => undefined);
+  await resolveDeclineDrivers(admin, env, orgId)
+    .then((r) => {
+      if (r.candidates) {
+        console.log(
+          `[decline-drivers] org=${orgId} blank=${r.candidates} mirror=${r.fromCardMirror} ` +
+            `posted=${r.fromPostedHistory} linked=${r.linkedToDriver} unresolved=${r.stillUnresolved}`,
+        );
+      }
+    })
+    // Non-fatal on purpose — a decline is scored on card, location and timing, none of which needs a
+    // NAME — but never silent: an exception here used to be indistinguishable from never having run.
+    .catch((e) => console.error(`[decline-drivers] org=${orgId} FAILED:`, e instanceof Error ? e.message : e));
   const { data: rows } = await admin
     .from("declined_transactions")
     .select("id")
