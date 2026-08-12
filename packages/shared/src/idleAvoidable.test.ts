@@ -132,6 +132,79 @@ describe("computeAvoidable", () => {
     expect(r.confident).toBe(false);
   });
 
+  it("judges the evidenced share and excludes only the unevidenced seconds (seconds-weighted duty)", () => {
+    // 5h continuous idle; duty overlay covers 4.5h, 0.5h has no usable HOS interval. The old binary rule
+    // zeroed the whole truck for this (the 30-of-31-clean-days production collapse); now the 0.5h is
+    // uncertain, the 4.5h is judged, and the truck is confident (90% evidenced >= 80% floor).
+    const r = computeAvoidable({
+      ...base,
+      hasApu: true,
+      dutyEvidence: {
+        status: "insufficient", // the aggregate STATUS no longer decides — the seconds do
+        workSec: H,
+        unknownSec: 0.5 * H,
+        ambiguousSec: 0,
+        graceSec: 0,
+      },
+    });
+    expect(r.uncertainIdleSec).toBe(0.5 * H);
+    expect(r.avoidableIdleSec).toBe(4.5 * H);
+    expect(r.unavoidableIdleSec).toBe(0);
+    expect(r.confident).toBe(true);
+  });
+
+  it("stays unconfident when less than 80% of continuous idle carries duty evidence", () => {
+    const r = computeAvoidable({
+      ...base,
+      hasApu: true,
+      dutyEvidence: {
+        status: "insufficient",
+        workSec: 0,
+        unknownSec: 2 * H, // 40% unevidenced
+        ambiguousSec: 0,
+        graceSec: 0,
+      },
+    });
+    expect(r.uncertainIdleSec).toBe(2 * H);
+    expect(r.avoidableIdleSec).toBe(3 * H); // still judged conservatively, never inflated
+    expect(r.confident).toBe(false);
+  });
+
+  it("treats conflicting (ambiguous) duty seconds as uncertain, same as unevidenced ones", () => {
+    const r = computeAvoidable({
+      ...base,
+      hasApu: true,
+      dutyEvidence: {
+        status: "ambiguous",
+        workSec: 0,
+        unknownSec: 0,
+        ambiguousSec: 0.25 * H, // 5% conflicted — judged share 95%, confident
+        graceSec: 0,
+      },
+    });
+    expect(r.uncertainIdleSec).toBe(0.25 * H);
+    expect(r.avoidableIdleSec).toBe(4.75 * H);
+    expect(r.confident).toBe(true);
+  });
+
+  it("applies bounded grace to the evidenced portion under partial duty evidence", () => {
+    const r = computeAvoidable({
+      ...base,
+      hasApu: true,
+      dutyEvidence: {
+        status: "insufficient",
+        workSec: H,
+        unknownSec: 0.5 * H,
+        ambiguousSec: 0,
+        graceSec: 30 * 60, // above the 15-minute bound → clamped
+      },
+    });
+    expect(r.operationalGraceIdleSec).toBe(15 * 60);
+    expect(r.uncertainIdleSec).toBe(0.5 * H);
+    expect(r.avoidableIdleSec).toBe(4.5 * H - 15 * 60);
+    expect(r.confident).toBe(true);
+  });
+
   it("Demonstrably continuous-only: same idle is UNAVOIDABLE, not blamed", () => {
     const r = computeAvoidable({ ...base, hasApu: null, learnedCapability: "continuous_only" });
     expect(r.avoidableIdleSec).toBe(0);

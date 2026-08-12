@@ -79,6 +79,12 @@ export interface AvoidableOpts {
   minCoverage?: number;
   /** On-duty operational grace before work idle becomes avoidable. Default 15 minutes. */
   onDutyGraceSec?: number;
+  /**
+   * Fraction (0–1) of continuous idle that must carry direct duty evidence for the truck to be scored
+   * as confident. Default 0.8. The unevidenced remainder is ALWAYS excluded from the avoidable verdict
+   * regardless of this threshold — it only gates whether the truck counts as "confident" at all.
+   */
+  minDutyEvidencedShare?: number;
 }
 
 export interface AvoidableResult {
@@ -145,6 +151,7 @@ function resolveAlternative(i: AvoidableInput): {
 export function computeAvoidable(input: AvoidableInput, opts: AvoidableOpts = {}): AvoidableResult {
   const minCoverage = opts.minCoverage ?? 0.5;
   const onDutyGraceSec = Math.max(0, opts.onDutyGraceSec ?? 15 * 60);
+  const minDutyEvidencedShare = Math.min(1, Math.max(0, opts.minDutyEvidencedShare ?? 0.8));
   const engineOnSec = Math.max(0, input.driveSec) + Math.max(0, input.idleSec);
 
   let managedIdleSec = 0;
@@ -201,30 +208,45 @@ export function computeAvoidable(input: AvoidableInput, opts: AvoidableOpts = {}
   let dutyCanJudge = true;
   if (input.dutyEvidence != null && continuousIdleSec > 0) {
     const duty = input.dutyEvidence;
-    if (duty.status === "sufficient") {
-      operationalGraceIdleSec = Math.min(
-        continuousIdleSec,
-        Math.min(Math.max(0, duty.graceSec), onDutyGraceSec),
-      );
-      avoidableIdleSec = Math.max(0, avoidableIdleSec - operationalGraceIdleSec);
-      unavoidableIdleSec = Math.max(
-        0,
-        continuousIdleSec -
-          avoidableIdleSec -
-          justifiedIdleSec -
-          uncertainIdleSec -
-          operationalGraceIdleSec,
-      );
-    } else {
-      // HOS is the only source that can distinguish rest from loading/waiting. Do not score a candidate
-      // when the direct overlap is missing or conflicting; the row remains visible as uncertain.
-      avoidableIdleSec = 0;
-      justifiedIdleSec = 0;
-      operationalGraceIdleSec = 0;
-      uncertainIdleSec = continuousIdleSec;
-      unavoidableIdleSec = 0;
-      dutyCanJudge = false;
-    }
+    // SECONDS-WEIGHTED duty evidence (audit 2026-08-12). The previous rule was binary: any period whose
+    // duty status was not "sufficient" had ALL of its continuous idle re-bucketed as uncertain and was
+    // excluded from scoring. Aggregated over a range where the status is the WORST of the days (and a
+    // day the worst of its sessions, and a session "sufficient" only at 100% coverage with zero unknown
+    // seconds), that compounds into all-or-nothing: in production, 154 of 169 well-covered trucks were
+    // excluded for ONE imperfect day — most were duty-clean 29-30 days of 31 ("$38 across 5/177 trucks").
+    //
+    // The principle stays "judge from evidence, never assumption" — applied per second instead of per
+    // period: seconds WITHOUT a usable duty overlay (unknown) or with a CONFLICTING one (ambiguous) are
+    // excluded as uncertain, exactly as before; the evidenced remainder is judged normally. Partial
+    // evidence can therefore only SHRINK the avoidable verdict, never inflate it. Confidence follows the
+    // same logic: the truck is scoreable when at least MIN_DUTY_EVIDENCED_SHARE of its continuous idle
+    // carries direct duty evidence — not only when every second of every day does.
+    const dutyUncertainSec = Math.min(
+      continuousIdleSec,
+      Math.max(0, duty.unknownSec) + Math.max(0, duty.ambiguousSec),
+    );
+    const evidencedSec = continuousIdleSec - dutyUncertainSec;
+    operationalGraceIdleSec = Math.min(
+      evidencedSec,
+      Math.min(Math.max(0, duty.graceSec), onDutyGraceSec),
+    );
+    uncertainIdleSec = Math.min(continuousIdleSec, uncertainIdleSec + dutyUncertainSec);
+    avoidableIdleSec = Math.max(
+      0,
+      Math.min(
+        avoidableIdleSec - operationalGraceIdleSec,
+        continuousIdleSec - justifiedIdleSec - uncertainIdleSec - operationalGraceIdleSec,
+      ),
+    );
+    unavoidableIdleSec = Math.max(
+      0,
+      continuousIdleSec -
+        avoidableIdleSec -
+        justifiedIdleSec -
+        uncertainIdleSec -
+        operationalGraceIdleSec,
+    );
+    dutyCanJudge = evidencedSec / continuousIdleSec >= minDutyEvidencedShare;
   }
 
   const coverage = input.periodSec > 0 ? Math.min(1, input.coverageSec / input.periodSec) : 0;
