@@ -11,7 +11,6 @@ import {
   EFS_POLICY_MIN,
   EFS_VALIDATION_TYPES,
   EFS_LOCK_STATUSES,
-  EFS_WRITABLE_STATUSES,
 } from "./efsCardCatalog.js";
 
 /**

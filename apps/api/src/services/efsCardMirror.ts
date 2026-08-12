@@ -4,7 +4,6 @@ import { cardLast4, cardRefsMatch, isFullCardNumber, parseEfsDateTime } from "@f
 import type { Env } from "../env.js";
 import { getCardSummaries, getCardV2, type CardSummaryRow } from "../lib/efsCardOps.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
-import { EfsSoapError } from "../lib/efsSoapSession.js";
 import { decodeSecretsKey, isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
