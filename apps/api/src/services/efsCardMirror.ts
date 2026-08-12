@@ -41,6 +41,8 @@ export interface CardMirrorResult {
   upserted: number;
   detailed: number;
   linked: number;
+  /** Cards the roster no longer returns, newly marked absent this sweep (audit P2). */
+  tombstoned: number;
   failed: number;
   errors: string[];
 }
@@ -83,7 +85,7 @@ export async function syncEfsCards(
   opts: { fetchImpl?: typeof fetch; maxDetail?: number } = {},
 ): Promise<CardMirrorResult> {
   const result: CardMirrorResult = {
-    orgId: creds.orgId, cardsSeen: 0, upserted: 0, detailed: 0, linked: 0, failed: 0, errors: [],
+    orgId: creds.orgId, cardsSeen: 0, upserted: 0, detailed: 0, linked: 0, tombstoned: 0, failed: 0, errors: [],
   };
 
   if (!isSecretBoxConfigured(env)) {
@@ -174,7 +176,58 @@ export async function syncEfsCards(
   }
 
   result.linked = await linkFuelCards(admin, creds.orgId);
+  result.tombstoned = await tombstoneAbsentCards(admin, env, creds.orgId, summaries);
   return result;
+}
+
+/**
+ * Mark cards the roster no longer returns as absent, and clear the mark from cards that came back.
+ *
+ * A card removed in the WEX portal drops out of getCardSummaries silently (audit P2). Never a hard
+ * delete — efs_card_mutations cascades from efs_cards, and a removed card's history is exactly what
+ * an auditor asks about. `absent_since` is set once (first sweep that misses it) and cleared the
+ * moment it reappears, so a transient roster hiccup does not keep re-stamping the timestamp.
+ *
+ * Guarded by a NON-EMPTY roster: a sweep that legitimately returns zero cards is indistinguishable
+ * here from a vendor blip that returned nothing, and tombstoning the ENTIRE fleet on one empty
+ * response is the kind of damage this file refuses elsewhere. Zero summaries → touch nothing.
+ */
+async function tombstoneAbsentCards(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  summaries: readonly CardSummaryRow[],
+): Promise<number> {
+  if (summaries.length === 0) return 0;
+  const present = new Set(summaries.map((s) => cardRefHmac(env, orgId, s.cardNumber)));
+
+  // Read the org's hmac + current absent flag in pages (same max-rows discipline as the roster read).
+  const rows: { card_ref_hmac: string; absent_since: string | null }[] = [];
+  const PAGE = 1_000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin
+      .from("efs_cards")
+      .select("card_ref_hmac, absent_since")
+      .eq("org_id", orgId)
+      .order("card_ref_hmac", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) return 0; // best effort: a tombstone failure must not fail the whole sweep
+    const page = (data ?? []) as { card_ref_hmac: string; absent_since: string | null }[];
+    rows.push(...page);
+    if (page.length < PAGE) break;
+  }
+
+  const nowIso = new Date().toISOString();
+  const toMark = rows.filter((r) => !present.has(r.card_ref_hmac) && r.absent_since === null).map((r) => r.card_ref_hmac);
+  const toClear = rows.filter((r) => present.has(r.card_ref_hmac) && r.absent_since !== null).map((r) => r.card_ref_hmac);
+
+  if (toClear.length > 0) {
+    await admin.from("efs_cards").update({ absent_since: null }).eq("org_id", orgId).in("card_ref_hmac", toClear);
+  }
+  if (toMark.length > 0) {
+    await admin.from("efs_cards").update({ absent_since: nowIso }).eq("org_id", orgId).in("card_ref_hmac", toMark);
+  }
+  return toMark.length;
 }
 
 /** The roster pass: everything getCardSummaries knows, with no per-card round trip. */

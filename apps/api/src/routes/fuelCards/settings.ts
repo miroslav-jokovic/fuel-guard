@@ -112,6 +112,18 @@ export function fuelCardSettingsRouter(): Router {
       admin.from("memberships").select("user_id, role").eq("org_id", orgId),
     ]);
 
+    // All THREE reads are checked, not just the team list (audit P2). A swallowed settings error used
+    // to render DEFAULT_SETTINGS — control shown as OFF on a page where it is ON, and an admin
+    // re-enabling something already enabled, or trusting an empty approver list that only failed to
+    // load. A settings page that quietly fabricates its own contents is worse than one that errors.
+    if (settingsResult.error) {
+      dbErrorResponse(res, "card-control.settings", settingsResult.error, "Could not load the card-control settings");
+      return;
+    }
+    if (approverResult.error) {
+      dbErrorResponse(res, "card-control.settings", approverResult.error, "Could not load the approver list");
+      return;
+    }
     if (membershipResult.error) {
       dbErrorResponse(res, "card-control.settings", membershipResult.error, "Could not load the team list");
       return;

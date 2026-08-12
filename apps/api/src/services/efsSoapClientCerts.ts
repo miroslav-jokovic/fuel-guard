@@ -380,6 +380,18 @@ async function loadMaterial(
     .maybeSingle();
   if (!data) return null;
   const row = data as Pick<CertRow, "id" | "cert_pem" | "ca_pem" | "key_sealed" | "key_passphrase_sealed" | "fingerprint_sha256" | "not_after" | "subject">;
+  // An EXPIRED active certificate is a silent feed outage waiting to happen (audit P2): every EFS
+  // handshake will fail once the vendor rejects it, and the daily expiry watcher only WARNS ahead of
+  // time — it does not stop the material being handed to the TLS layer. Log loudly here so the cause
+  // is named in the logs at the moment of use, not inferred from a quiet feed. Not a hard refusal:
+  // clock skew and a cert that expired minutes ago mid-rotation should degrade to "the handshake
+  // tells us", not "we blocked ourselves" — but nobody should have to guess why the feed died.
+  if (row.not_after && Date.parse(row.not_after) <= Date.now()) {
+    console.error(
+      `[efs-cert] org ${orgId}: the ACTIVE client certificate ${row.fingerprint_sha256.slice(0, 16)}… ` +
+        `expired at ${row.not_after}. EFS handshakes will fail until a new certificate is activated.`,
+    );
+  }
   try {
     return {
       source: "org",

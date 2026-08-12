@@ -26,6 +26,17 @@ export const efsCardSyncHandler: JobHandler = async (ctx, job) => {
     maxDetail: ctx.env.EFS_CARD_SYNC_MAX_DETAIL ?? 200,
   });
 
+  // A sweep that did ZERO work AND failed is a failed job, not a done one (audit P2). The
+  // total-failure shapes — SECRETS_ENCRYPTION_KEY unset, or the mirror read that aborts the whole
+  // sweep — return `upserted:0, failed>0` and, recorded as `done`, would suppress the retry cadence
+  // for a full interval while nothing happened. Throw so the job ledger reflects reality and the
+  // next run is scheduled. A PARTIAL failure (some cards upserted, some failed) is genuinely
+  // done-with-warnings and stays non-fatal — one unreadable card must not abandon the other 399.
+  if (result.upserted === 0 && result.failed > 0) {
+    throw new Error(
+      `[efs-cards] org ${job.org_id}: sweep did no work — ${result.errors.slice(0, 3).join("; ") || "no cards upserted"}`,
+    );
+  }
   if (result.failed > 0) {
     // Visible, but not fatal: one unreadable card must not abandon the other 399. The per-card
     // `sync_error` column carries the detail to the UI; this line is for the operator watching logs.

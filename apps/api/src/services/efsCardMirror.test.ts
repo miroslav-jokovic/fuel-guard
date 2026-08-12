@@ -48,6 +48,8 @@ const PAN_B = "70830000000000002";
 const soap = (body: string) =>
   `<?xml version="1.0"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body>${body}</soap:Body></soap:Envelope>`;
 const loginOk = soap("<loginResponse><result>sess-1</result></loginResponse>");
+/** A roster that legitimately returns no cards — must never be read as "tombstone the fleet". */
+const emptySummaries = soap("<getCardSummariesV2Response><result></result></getCardSummariesV2Response>");
 const cardDetail = readFileSync(
   fileURLToPath(new URL("../lib/__fixtures__/efs/getCardV2.full.xml", import.meta.url)), "utf8",
 );
@@ -126,6 +128,22 @@ describe("syncEfsCards", () => {
 
     expect(result.errors[0]).toMatch(/SECRETS_ENCRYPTION_KEY/);
     expect(rec.writtenRows("efs_cards")).toHaveLength(0);
+  });
+
+  it("does NOT tombstone the fleet when the roster comes back empty (audit P2 guard)", async () => {
+    // A vendor blip returning zero cards is indistinguishable from a real empty account here, and
+    // marking every card absent on one empty response is exactly the damage this file refuses. An
+    // empty roster must touch nothing.
+    const rec = createSupabaseRecorder({
+      tables: { efs_cards: [{ org_id: ORG, card_ref_hmac: "a".repeat(64), absent_since: null }], fuel_cards: [] },
+    });
+    const result = await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, emptySummaries) });
+
+    expect(result.cardsSeen).toBe(0);
+    expect(result.tombstoned).toBe(0);
+    // Nothing was marked absent — no write carrying an absent_since timestamp went out.
+    const wrote = JSON.stringify(rec.writtenRows("efs_cards"));
+    expect(wrote).not.toContain("absent_since");
   });
 
   it("carries on when one card's detail read fails, and records why on that row", async () => {
