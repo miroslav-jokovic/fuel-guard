@@ -1,0 +1,17 @@
+
+Idle confidence preconditions — last 30 days
+
+Silvicom Inc
+  active trucks                         190
+  known idle capability                 175 ( 92%)   ← gate 2 (canJudge)
+  learned envelope 'sufficient'           0 (  0%)   ← gate 2 (optimized-idle only)
+  HOS duty overlay in window              4 (  2%)   ← gate 3 (dutyCanJudge)
+
+  Upper bound on confident trucks: 4 of 190 — no truck can be confident without BOTH a known capability and a duty overlay.
+  Narrowest gate: HOS duty overlay (Samsara HOS sync).
+
+If the numbers above are healthy but the page still shows few confident trucks, the remaining
+gate is coverage (>= 50% of the selected range). Try a 30-day range first: rollup history starts
+when the feature shipped, and a long span dilutes coverage below the floor — a bug already seen
+in production (see the comment at apps/web/src/features/fleet/useIdleBreakdown.ts:294).
+

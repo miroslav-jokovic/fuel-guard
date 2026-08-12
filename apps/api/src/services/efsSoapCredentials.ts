@@ -175,8 +175,23 @@ export async function getEfsSoapCredentials(
   const tls = await resolveTls(admin, env, orgId);
   if (data) return fromRow(data as DbRow, tls);
 
-  // Env-var fallback (single-tenant deploy). Endpoint, username, and password must be present.
-  if (env.EFS_SOAP_ORG_ID && env.EFS_SOAP_ORG_ID !== orgId) return null;
+  // Env-var fallback (single-tenant deploy). Endpoint, username, and password must be present —
+  // and the fallback must be BOUND to one org. Serving one EFS account's credentials to whichever
+  // orgId happened to ask is how one fleet's PANs end up mirrored into every tenant (audit P0-6):
+  // the sweep would seal the same card inventory into each org, and any tenant that later passed
+  // the card-control gates could act on another company's cards. No RLS posture catches it, because
+  // the service role does the writes. So: no EFS_SOAP_ORG_ID, no fallback — loudly.
+  if (!env.EFS_SOAP_ORG_ID) {
+    if (env.EFS_SOAP_ENDPOINT_URL && env.EFS_SOAP_USERNAME && env.EFS_SOAP_PASSWORD) {
+      console.error(
+        "[efs-soap] EFS_SOAP_* env credentials are set but EFS_SOAP_ORG_ID is not. The fallback is " +
+          "disabled until it names exactly one org — serving it to every org mirrors one EFS " +
+          "account's cards into all tenants.",
+      );
+    }
+    return null;
+  }
+  if (env.EFS_SOAP_ORG_ID !== orgId) return null;
   if (env.EFS_SOAP_ENDPOINT_URL && env.EFS_SOAP_USERNAME && env.EFS_SOAP_PASSWORD) {
     return {
       orgId,
@@ -201,8 +216,17 @@ export async function getEfsSoapCredentials(
   return null;
 }
 
-/** Every org with EFS SOAP configured (row present + enabled). An env fallback is scoped to
- * EFS_SOAP_ORG_ID when supplied; otherwise it applies to all organizations for legacy compatibility. */
+/**
+ * Every org with EFS SOAP configured (row present + enabled), plus the ONE org an env fallback is
+ * bound to via EFS_SOAP_ORG_ID.
+ *
+ * The previous "legacy compatibility" branch enumerated `organizations` and applied the env
+ * credentials to every org when EFS_SOAP_ORG_ID was unset. That fan-out is the cross-tenant PAN
+ * exposure described in audit P0-6 — one EFS account's whole card inventory swept into every
+ * tenant's mirror. It is gone: an unbound fallback now contributes no orgs at all, and
+ * `getEfsSoapCredentials` logs the misconfiguration loudly so the missing variable is found in
+ * minutes, not by a tenant finding someone else's cards.
+ */
 export async function orgsWithEfsSoap(admin: SupabaseClient, env: Env): Promise<string[]> {
   const set = new Set<string>();
   const { data } = await admin
@@ -213,17 +237,13 @@ export async function orgsWithEfsSoap(admin: SupabaseClient, env: Env): Promise<
     set.add(row.org_id);
   }
   if (
+    env.EFS_SOAP_ORG_ID &&
     env.EFS_SOAP_ENDPOINT_URL &&
     env.EFS_SOAP_USERNAME &&
     env.EFS_SOAP_PASSWORD &&
     env.EFS_SOAP_ENABLED
   ) {
-    if (env.EFS_SOAP_ORG_ID) {
-      set.add(env.EFS_SOAP_ORG_ID);
-    } else {
-      const { data: orgs } = await admin.from("organizations").select("id");
-      for (const o of (orgs ?? []) as { id: string }[]) set.add(o.id);
-    }
+    set.add(env.EFS_SOAP_ORG_ID);
   }
   return [...set];
 }

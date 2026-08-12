@@ -10,6 +10,7 @@ import {
   EFS_POLICY_MAX,
   EFS_POLICY_MIN,
   EFS_VALIDATION_TYPES,
+  EFS_LOCK_STATUSES,
   EFS_WRITABLE_STATUSES,
 } from "./efsCardCatalog.js";
 
@@ -43,7 +44,7 @@ import {
  *
  * The rule this encodes: **reads are tolerant, writes are strict.** Receiving an unrecognised value is
  * a fact to display verbatim (`cardStatusLabel` already falls back to the raw string); *sending* one
- * is a bug, which is why `lockCardSchema.status` below is a real `z.enum` over EFS_WRITABLE_STATUSES.
+ * is a bug, which is why `lockCardSchema.status` below is a real `z.enum` over EFS_LOCK_STATUSES.
  *
  * `known` is unused at runtime and present for the reader: it documents what we expect to see, and
  * keeps the constant referenced so a catalog change still shows up here in a grep.
@@ -259,8 +260,13 @@ export const cardVersionSchema = z.string().min(16);
 export const lockCardSchema = z.object({
   expectedVersion: cardVersionSchema,
   reason: cardReasonSchema,
-  /** Hold is reversible and is what we default to; Inactive is offered for a card being retired. */
-  status: z.enum(EFS_WRITABLE_STATUSES).default("Hold"),
+  /**
+   * Hold is reversible and is what we default to; Inactive is offered for a card being retired.
+   * EFS_LOCK_STATUSES, not EFS_WRITABLE_STATUSES: `Active` here was an unlock reachable through the
+   * lock route, skipping the fraud step-up and mislabelling the audit trail (audit P0-3). The full
+   * writable set remains what the PRODUCT may ever send; this schema is what LOCK may ask for.
+   */
+  status: z.enum(EFS_LOCK_STATUSES).default("Hold"),
 });
 export type LockCardRequest = z.infer<typeof lockCardSchema>;
 

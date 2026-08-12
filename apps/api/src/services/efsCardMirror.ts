@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cardLast4, cardRefsMatch, isFullCardNumber, parseEfsDateTime } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { getCardSummaries, getCardV2, type CardSummaryRow } from "../lib/efsCardOps.js";
+import type { CardDocument } from "../lib/efsCardXml.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
 import { isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
@@ -100,17 +101,33 @@ export async function syncEfsCards(
   // document — treating a known card as new would overwrite the detailed document with `{}` (see
   // upsertFromSummary). If this read fails we stop rather than guess: a sweep that cannot tell new
   // from known is a sweep that can only do damage.
-  const { data: knownRows, error: knownError } = await admin
-    .from("efs_cards")
-    .select("card_ref_hmac")
-    .eq("org_id", creds.orgId)
-    .limit(10_000);
-  if (knownError) {
-    result.errors.push(`could not read the existing mirror: ${errorText(knownError.message)}`);
-    result.failed = summaries.length;
-    return result;
+  //
+  // PAGED, not `.limit(10_000)` (audit P0-7). PostgREST caps every response at the server's
+  // `max-rows` (Supabase default 1000) REGARDLESS of the requested limit, and truncation is not an
+  // error — so past ~1000 cards, the single-read version silently classified known cards as new and
+  // the roster pass blanked their documents on every sweep. Paging to a short page is the only read
+  // that cannot truncate silently; any page-level error still aborts the whole sweep.
+  const knownRows: { card_ref_hmac: string; detail_synced_at: string | null }[] = [];
+  const PAGE = 1_000;
+  for (let from = 0; ; from += PAGE) {
+    const { data: page, error: knownError } = await admin
+      .from("efs_cards")
+      .select("card_ref_hmac, detail_synced_at")
+      .eq("org_id", creds.orgId)
+      .order("card_ref_hmac", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (knownError) {
+      result.errors.push(`could not read the existing mirror: ${errorText(knownError.message)}`);
+      result.failed = summaries.length;
+      return result;
+    }
+    const rows = (page ?? []) as { card_ref_hmac: string; detail_synced_at: string | null }[];
+    knownRows.push(...rows);
+    if (rows.length < PAGE) break;
   }
-  const known = new Set(((knownRows ?? []) as { card_ref_hmac: string }[]).map((r) => r.card_ref_hmac));
+  const known = new Set(knownRows.map((r) => r.card_ref_hmac));
+  /** When the DETAIL pass last saw each card. Null/absent = never — those go first in the budget. */
+  const detailSeen = new Map(knownRows.map((r) => [r.card_ref_hmac, r.detail_synced_at]));
 
   for (const summary of summaries) {
     try {
@@ -123,8 +140,26 @@ export async function syncEfsCards(
     }
   }
 
+  // STALEST-FIRST, not vendor order (audit P0-7). `summaries.slice(0, budget)` refreshed the same
+  // prefix every sweep, so a card past the budget never acquired a document at all — the header's
+  // "depth catches up across runs" was a promise the code didn't keep. Ordering by the detail
+  // pass's own clock keeps it: never-detailed cards first, then oldest documents, and every card's
+  // position improves as others are refreshed ahead of it.
   const budget = opts.maxDetail ?? 200;
-  for (const summary of summaries.slice(0, budget)) {
+  const byStaleness = summaries
+    .map((summary) => ({
+      summary,
+      // Hashed once per card, not once per comparison — the HMAC is cheap but not free at fleet size.
+      seenAt: detailSeen.get(cardRefHmac(env, creds.orgId, summary.cardNumber)) ?? null,
+    }))
+    .sort((a, b) => {
+      if (a.seenAt === null && b.seenAt === null) return 0;
+      if (a.seenAt === null) return -1;
+      if (b.seenAt === null) return 1;
+      return a.seenAt < b.seenAt ? -1 : a.seenAt > b.seenAt ? 1 : 0;
+    })
+    .map((entry) => entry.summary);
+  for (const summary of byStaleness.slice(0, budget)) {
     try {
       await refreshCardDetail(admin, env, creds, summary.cardNumber, { fetchImpl: opts.fetchImpl });
       result.detailed += 1;
@@ -249,14 +284,33 @@ export async function refreshCardDetail(
     fetchImpl: opts.fetchImpl,
     priority: opts.priority ?? "backfill",
   });
+  return upsertCardDetail(admin, env, creds.orgId, cardNumber, doc);
+}
+
+/**
+ * Write one already-read card document into the mirror.
+ *
+ * Split from `refreshCardDetail` for the post-mutation path (audit B5.1): every mutation already
+ * ends with a verifying `getCardv2`, and the mirror update used to dial the vendor AGAIN to learn
+ * what that read had just learned — a fourth paced call on a lane a person is waiting on. The
+ * document from the verifying read goes straight in instead. Vendor truth still only ever flows
+ * EFS → mirror; this just stops paying twice for the same truth.
+ */
+export async function upsertCardDetail(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  cardNumber: string,
+  doc: CardDocument,
+): Promise<{ cardVersion: string }> {
   const last4 = cardLast4(cardNumber);
   if (!last4) throw new Error("card number had no usable last four");
 
   const { error } = await admin.from("efs_cards").upsert(
     {
-      org_id: creds.orgId,
-      card_ref_hmac: cardRefHmac(env, creds.orgId, cardNumber),
-      card_number_sealed: seal(env, cardNumber, secretAad(creds.orgId, "efs_card_pan")),
+      org_id: orgId,
+      card_ref_hmac: cardRefHmac(env, orgId, cardNumber),
+      card_number_sealed: seal(env, cardNumber, secretAad(orgId, "efs_card_pan")),
       card_last4: last4,
       // "Unknown", not "Inactive". The column is not-null, so a card EFS reported without a status
       // needs SOME value — but Inactive is a real state an operator acts on, and inventing it means
@@ -286,6 +340,8 @@ export async function refreshCardDetail(
       card_version: doc.version,
       last_response_xml_redacted: doc.redactedXml.slice(0, 60_000),
       synced_at: new Date().toISOString(),
+      // The detail pass's own clock — orders the sweep's budget stalest-first (migration 0179).
+      detail_synced_at: new Date().toISOString(),
       sync_error: null,
     },
     { onConflict: "org_id,card_ref_hmac", ignoreDuplicates: false },

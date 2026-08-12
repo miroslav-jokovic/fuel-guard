@@ -1,0 +1,107 @@
+================================================================================================
+IDLE / HOS SYNC DIAGNOSIS — 2026-08-11T20:51:20.079Z
+================================================================================================
+
+## 1. Last 16 sync_idle / sync_hos jobs
+
+[sync_hos] DONE     ran     3.9m  started 2026-08-11T19:53:35.069+00:00  scheduled
+    stats: {"fetched":125290,"located":149,"upserted":65610,"rollupRows":5610,"rollupWritten":130,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14516,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5291,"dutyEvidenceRowsWritten":14516,"dutyEvidenceInsufficient":9224}
+
+[sync_idle] RUNNING  ran        -  started 2026-08-11T19:52:34.399+00:00  manual
+    lease_expires_at=2026-08-11T19:57:34.399+00:00  (now 2026-08-11T20:51:20.079Z)
+
+[sync_hos] DONE     ran     3.9m  started 2026-08-11T19:45:09.432+00:00  scheduled
+    stats: {"fetched":125281,"located":149,"upserted":65641,"rollupRows":5610,"rollupWritten":232,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14520,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5287,"dutyEvidenceRowsWritten":14520,"dutyEvidenceInsufficient":9232}
+
+[sync_hos] DONE     ran     4.1m  started 2026-08-11T19:35:15.395+00:00  scheduled
+    stats: {"fetched":125266,"located":149,"upserted":67046,"rollupRows":5604,"rollupWritten":339,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14503,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5264,"dutyEvidenceRowsWritten":14503,"dutyEvidenceInsufficient":9238}
+
+[sync_idle] FAILED   ran    16.3m  started 2026-08-11T19:35:12.924+00:00  scheduled
+    ERROR: interrupted (lease expired / process died)
+
+[sync_hos] DONE     ran     3.9m  started 2026-08-11T18:39:32.647+00:00  scheduled
+    stats: {"fetched":125177,"located":149,"upserted":66291,"rollupRows":5604,"rollupWritten":349,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14524,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5257,"dutyEvidenceRowsWritten":14524,"dutyEvidenceInsufficient":9266}
+
+[sync_hos] DONE     ran     4.0m  started 2026-08-11T18:13:35.551+00:00  scheduled
+    stats: {"fetched":125147,"located":149,"upserted":66001,"rollupRows":5608,"rollupWritten":173,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14496,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5285,"dutyEvidenceRowsWritten":14496,"dutyEvidenceInsufficient":9210}
+
+[sync_idle] FAILED   ran    26.2m  started 2026-08-11T18:13:19.18+00:00  scheduled
+    ERROR: Idle learned envelope learned-envelope upsert failed: null value in column "unit_number" of relation "vehicles" violates not-null constraint
+
+[sync_hos] DONE     ran     4.0m  started 2026-08-11T17:56:22.55+00:00  scheduled
+    stats: {"fetched":125116,"located":150,"upserted":66386,"rollupRows":5608,"rollupWritten":379,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14503,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5278,"dutyEvidenceRowsWritten":14503,"dutyEvidenceInsufficient":9224}
+
+[sync_hos] DONE     ran     4.9m  started 2026-08-11T17:28:01.354+00:00  scheduled
+    stats: {"fetched":125080,"located":150,"upserted":67511,"rollupRows":5604,"rollupWritten":470,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14461,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5277,"dutyEvidenceRowsWritten":14461,"dutyEvidenceInsufficient":9183}
+
+[sync_idle] FAILED   ran    28.9m  started 2026-08-11T17:27:30.352+00:00  scheduled
+    ERROR: Idle learned envelope learned-envelope upsert failed: null value in column "unit_number" of relation "vehicles" violates not-null constraint
+
+[sync_hos] DONE     ran     4.5m  started 2026-08-11T16:11:18.468+00:00  scheduled
+    stats: {"fetched":124947,"located":150,"upserted":66334,"rollupRows":5602,"rollupWritten":315,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14493,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5233,"dutyEvidenceRowsWritten":14493,"dutyEvidenceInsufficient":9259}
+
+[sync_hos] DONE     ran     4.2m  started 2026-08-11T15:45:13.53+00:00  scheduled
+    stats: {"fetched":124909,"located":150,"upserted":65535,"rollupRows":5598,"rollupWritten":109,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14472,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5227,"dutyEvidenceRowsWritten":14472,"dutyEvidenceInsufficient":9244}
+
+[sync_idle] FAILED   ran    26.1m  started 2026-08-11T15:45:10.768+00:00  scheduled
+    ERROR: Idle learned envelope learned-envelope upsert failed: null value in column "unit_number" of relation "vehicles" violates not-null constraint
+
+[sync_hos] DONE     ran     3.7m  started 2026-08-11T15:37:41.758+00:00  scheduled
+    stats: {"fetched":124895,"located":150,"upserted":65653,"rollupRows":5598,"rollupWritten":132,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14472,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5225,"dutyEvidenceRowsWritten":14472,"dutyEvidenceInsufficient":9246}
+
+[sync_hos] DONE     ran     4.2m  started 2026-08-11T15:28:35.409+00:00  scheduled
+    stats: {"fetched":124879,"located":150,"upserted":66578,"rollupRows":5598,"rollupWritten":337,"currentDrivers":175,"rollupWindowDays":35,"dutyEvidenceSessions":14473,"dutyEvidenceAmbiguous":1,"dutyEvidenceSufficient":5226,"dutyEvidenceRowsWritten":14473,"dutyEvidenceInsufficient":9246}
+
+
+## 2. Coverage — how many vehicles actually have idle data
+
+  vehicles (total)                : 194
+  ...with samsara_vehicle_id      : 194
+  ...with idle_capability learned : 194
+  ...with idle_states_at stamped  : 194
+
+  vehicle_engine_days (30d)   :      4812 rows across 177 distinct vehicles
+  idle_park_sessions (30d)    :     14494 rows across 175 distinct vehicles
+  idle_telemetry_windows      :       194 rows across 194 distinct vehicles
+  idle_events (30d)           :     37807 rows across 175 distinct vehicles
+  idle_rollup_days (30d)      :      5007 rows across 177 distinct vehicles
+  hos_duty_segments (30d)     :    124156 rows across 61+ distinct vehicles
+
+  Most recently synced trucks (idle_states_at desc, top 12):
+    587            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    643            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    747            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    678            cap=continuous_only  evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    735            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    552            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    702            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    754            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    770            cap=continuous_only  evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    787            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    703            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+    708            cap=apu              evidence=sufficient    at=2026-08-11T19:38:57.053+00:00
+
+## 3. Jobs active right now (any kind)
+
+  efs_soap_posted        running  since 2026-08-11T20:51:45.325+00:00  lease=2026-08-11T20:56:45.325+00:00
+  efs_soap_posted        running  since 2026-08-11T20:51:45.27+00:00  lease=2026-08-11T20:56:45.27+00:00
+  sync_idle              running  since 2026-08-11T19:52:34.399+00:00  lease=2026-08-11T19:57:34.399+00:00  << EXPIRED
+
+## 4. Migration 0174/0175 objects present?
+
+  apply_idle_hos_evidence: present (returned 0, expected 0)
+  apply_idle_equipment_evidence: present (returned 0, expected 0)
+  apply_idle_learned_envelope: present (returned 0, expected 0)
+
+## 5. Last 10 failed jobs of ANY kind (context)
+
+  [efs_process_import] ran 0.7m — [scoring] atomic persistence failed for 3fadd3d4-5470-4946-a9c3-0dcd306caadd: numeric field overflow
+  [efs_process_import] ran 0.3m — [scoring] atomic persistence failed for a8b2f8f2-1aa5-4164-a769-14859f44fa98: numeric field overflow
+  [efs_process_import] ran 0.2m — [scoring] atomic persistence failed for b016b89c-ad83-4f71-b23e-482d2ae64502: numeric field overflow
+  [efs_process_import] ran 0.3m — [scoring] atomic persistence failed for 7e628980-9271-4319-8ec5-546ef704bb22: numeric field overflow
+  [efs_process_import] ran 0.6m — [scoring] atomic persistence failed for c7018652-b133-4ac6-b280-433fe0dd1d8f: numeric field overflow
+  [efs_process_import] ran 0.3m — [scoring] atomic persistence failed for 7b94df6a-62bd-49e7-9794-ff388fb3ce46: numeric field overflow
+  [efs_process_import] ran 0.6m — [scoring] atomic persistence failed for b4486ace-7bf0-4254-81e2-0dc093137d92: numeric field overflow
+  [efs_process_import] ran 0.3m — [scoring] atomic persistence failed for 0bc10567-3d02-4385-985b-f546e1830456: numeric field overflow
+  [efs_process_import] ran 0.9m — [scoring] atomic persistence failed for 84aba2a2-7068-42f2-b133-5dfaca82ce52: numeric field overflow
+  [efs_process_import] ran 0.6m — [scoring] atomic persistence failed for b4486ace-7bf0-4254-81e2-0dc093137d92: numeric field overflow

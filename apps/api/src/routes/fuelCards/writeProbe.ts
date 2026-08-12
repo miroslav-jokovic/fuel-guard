@@ -2,23 +2,25 @@ import { Router } from "express";
 import { z } from "zod";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { assertEchoFidelity, driftAgainstExpected, serializeSetCardRequest, type EchoDiff } from "../../lib/efsCardEcho.js";
-import { VOLATILE_FIELDS, documentShape, redactCardXml, type CardDocument } from "../../lib/efsCardXml.js";
+import { VOLATILE_FIELDS, documentShape, type CardDocument } from "../../lib/efsCardXml.js";
 import { egressAddress } from "../../lib/egressAddress.js";
 import { getCardSummaries, getCardV2 } from "../../lib/efsCardOps.js";
 import { setCardV2 } from "../../lib/efsCardWrite.js";
-import { EfsSoapError, efsLogin } from "../../lib/efsSoapSession.js";
+import { efsLogin } from "../../lib/efsSoapSession.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { writeAudit } from "../../lib/audit.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireFreshAuth } from "../../middleware/requireFreshAuth.js";
 import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
+import { runRealChangeSteps, runStep, type ProbeStep } from "./writeProbeRealChange.js";
 
 /**
  * ★ THE GATE. The one thing that decides whether Phase B may be switched on at all.
  *
- * Six proofs, ALL required. Five of them are the obvious ones; the sixth is the one that saves the
- * company.
+ * Ten proofs, ALL required. Steps 1–6 prove the echo is faithful and harmless; steps 7–10 prove EFS
+ * actually APPLIES an edit and lets us revert it — the half the 2026-08-12 no_change incident showed
+ * was missing (audit P0-1). `confirmed` now requires the full ten.
  *
  *   1. `login` succeeds                     → credentials, TLS and routing are good.
  *   2. `getCardSummariesV2` returns ≥1 card → READ entitlement.
@@ -68,35 +70,16 @@ const writeProbeSchema = z.object({
    * and touches nothing. Set false only when WEX has confirmed the card is disposable.
    */
   readOnly: z.boolean().default(true),
+  /**
+   * The status steps 7–10 write and then revert (audit P0-1). Hold or Inactive in ANY casing —
+   * casing travels verbatim because it is itself under test (Phase 0 hypothesis H1: this account
+   * stores HOLD, the guide documents Hold, and a case-sensitive service enum would silently drop
+   * ours). Active is excluded: the revert step is the only thing that writes the original status.
+   */
+  realChangeStatus: z.string().trim().regex(/^(hold|inactive)$/i, "realChangeStatus must be Hold or Inactive (any casing)").default("Hold"),
 });
 
-interface ProbeStep {
-  step: number;
-  name: string;
-  ok: boolean;
-  ms: number;
-  detail?: string;
-  errorCode?: string;
-  error?: string;
-}
-
 type Entitlement = "unknown" | "confirmed" | "denied";
-
-async function runStep(step: number, name: string, run: () => Promise<string | undefined>): Promise<ProbeStep> {
-  const started = Date.now();
-  try {
-    const detail = await run();
-    return { step, name, ok: true, ms: Date.now() - started, ...(detail ? { detail } : {}) };
-  } catch (error) {
-    const efs = error instanceof EfsSoapError ? error : null;
-    return {
-      step, name, ok: false, ms: Date.now() - started,
-      errorCode: efs?.code ?? "unknown",
-      // Redacted unconditionally: a refusal usually quotes the card number back at us.
-      error: redactCardXml(error instanceof Error ? error.message : String(error)).slice(0, 300),
-    };
-  }
-}
 
 export function fuelCardWriteProbeRouter(): Router {
   const router = Router();
@@ -126,7 +109,7 @@ export function fuelCardWriteProbeRouter(): Router {
         res.status(400).json(apiError("invalid_request", parsed.error.issues[0]?.message ?? "Invalid probe request"));
         return;
       }
-      const { cardNumber, confirm, readOnly } = parsed.data;
+      const { cardNumber, confirm, readOnly, realChangeStatus } = parsed.data;
       const last4 = cardNumber.slice(-4);
       if (!readOnly && confirm.toUpperCase() !== `WRITE ${last4}`) {
         res.status(400).json(apiError(
@@ -227,6 +210,25 @@ export function fuelCardWriteProbeRouter(): Router {
         }
       }
 
+      // ── Steps 7–10: the REAL-CHANGE half (audit P0-1) ─────────────────────────────────────────
+      // Only after the no-op half is fully green: a real edit on top of an unfaithful echo or an
+      // already-moved card answers nothing and risks the disposable card's state for no evidence.
+      let applyLatencyMs: number | null = null;
+      let revertLatencyMs: number | null = null;
+      if (!readOnly && steps.length === 6 && steps.every((s) => s.ok)) {
+        const base = state.after ?? before;
+        if (base) {
+          const real = await runRealChangeSteps(env, creds, cardNumber, base, realChangeStatus);
+          steps.push(...real.steps);
+          applyLatencyMs = real.applyLatencyMs;
+          revertLatencyMs = real.revertLatencyMs;
+          if (real.finalDoc) {
+            state.after = real.finalDoc;
+            state.versionAfter = real.finalDoc.version;
+          }
+        }
+      }
+
       const { entitlement, recommendation, verdict } = judge(steps, readOnly);
       // The address EFS saw. On a second environment this is the difference between "WEX has not
       // enabled us" and "WEX allowlisted three IPs and we left from a fourth" — see lib/egressAddress.
@@ -246,6 +248,11 @@ export function fuelCardWriteProbeRouter(): Router {
         // Paths only, never values: probe_result is read on every card page load, and a changed
         // field can carry a driver's name. The full before/after go to the operator in the response.
         changedPaths: state.changed.map((d) => d.path),
+        // Measured vendor apply latency (step 8 / step 10). THE number that calibrates
+        // EFS_CARD_VERIFY_RETRY_MS — see audit P0-2 and the env var's own comment.
+        applyLatencyMs,
+        revertLatencyMs,
+        realChangeStatus: readOnly ? null : realChangeStatus,
         recommendation,
         verdict,
         steps,
@@ -385,11 +392,52 @@ function judge(steps: ProbeStep[], readOnly: boolean): {
         "Our request is silently altering cards. Capture the response as a fixture, fix the serializer, re-probe. Do not enable writes.",
     };
   }
+  if (failed(7)) {
+    const code = at(7)?.errorCode;
+    const permissionRefusal = code === "not_allowed" || code === "auth";
+    return {
+      entitlement: permissionRefusal ? "denied" : "unknown",
+      recommendation: permissionRefusal ? "ask_wex_for_write_entitlement" : "investigate_real_change_failure",
+      verdict: permissionRefusal
+        ? "EFS refused the REAL change even though the no-op echo was accepted. Ask WEX to enable setCardV2 mutations for this account."
+        : "The real-change write failed for a reason that is not a permission refusal — see step 7. Do not enable writes.",
+    };
+  }
+  if (failed(8)) {
+    return {
+      entitlement: "unknown",
+      recommendation: "no_change_investigate",
+      verdict:
+        "EFS ACCEPTED the real change and NEVER APPLIED it — the exact live no_change failure (audit Part 1). " +
+        "Run the Phase 0 experiments (docs/plans/EFS-PHASE0-EXPERIMENTS-RUNBOOK.md): casing, wrapper, originalStatus, setCard v1 — then WEX. Do not enable writes.",
+    };
+  }
+  if (failed(9) || failed(10)) {
+    return {
+      entitlement: "unknown",
+      recommendation: "restore_card_manually",
+      verdict:
+        "The change APPLIED but the revert did not complete — the card may still be in the changed status. " +
+        "Restore it in the WEX portal, then re-probe. Apply works; do not enable writes until a full apply-and-revert cycle is clean.",
+    };
+  }
+  const applied = at(8) !== undefined;
+  if (!applied) {
+    // Six proofs green but the real-change half never ran (it requires all six first). Without it,
+    // "EFS applies our edits" is still unproven — the exact gap the 2026-08-12 incident exposed.
+    return {
+      entitlement: "unknown",
+      recommendation: "run_real_change_half",
+      verdict:
+        "The no-op half passed, but the REAL-CHANGE half (steps 7–10) did not run. write_entitlement stays unproven " +
+        "until one reversible edit demonstrably applies and reverts. Re-run readOnly=false.",
+    };
+  }
   return {
     entitlement: "confirmed",
     recommendation: "enable_for_pilot_org",
     verdict:
-      "All six proofs passed: the account may write, and a no-op echo left the card byte-identical. " +
-      "Phase B may be enabled for ONE pilot org. Watch the mutation ledger for a week before widening.",
+      "All ten proofs passed: the account may write, a no-op echo left the card byte-identical, and a real edit " +
+      "applied and reverted with measured latency. Phase B may be enabled for ONE pilot org. Watch the mutation ledger for a week before widening.",
   };
 }

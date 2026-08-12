@@ -66,6 +66,18 @@ export function canonicalEfsStatus(value: string | null | undefined): string | n
 export const EFS_WRITABLE_STATUSES = ["Active", "Inactive", "Hold"] as const;
 export type EfsWritableStatus = (typeof EFS_WRITABLE_STATUSES)[number];
 
+/**
+ * Statuses the LOCK endpoint may write — the writable set minus `Active` (audit P0-3).
+ *
+ * `Active` in the lock schema was an unlock reachable through the lock route: an approver holding
+ * only the `lock` scope could re-activate a card — including one mirrored as Fraud, since the
+ * fraud step-up lives on the unlock handler — and the audit trail would record it as `card.locked`.
+ * Unlock stays the only path that writes `Active`, with its own scope, its own step-up, and its own
+ * audit action.
+ */
+export const EFS_LOCK_STATUSES = ["Hold", "Inactive"] as const;
+export type EfsLockStatus = (typeof EFS_LOCK_STATUSES)[number];
+
 export const EFS_CARD_STATUS_LABELS: Record<EfsCardStatus, string> = {
   Active: "Active",
   Inactive: "Inactive",

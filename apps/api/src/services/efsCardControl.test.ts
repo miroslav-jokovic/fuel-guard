@@ -38,6 +38,9 @@ const env = {
   EFS_SOAP_INTERACTIVE_TIMEOUT_MS: 10_000,
   EFS_CARD_WRITE_TIMEOUT_MS: 25_000,
   EFS_CARD_MAX_MUTATIONS_PER_HOUR: 50,
+  // 0 = no second verifying look. Most cases here assert the FIRST-read verdict; the second-look
+  // behaviour (audit P0-2) has its own test below, with a 1ms delay.
+  EFS_CARD_VERIFY_RETRY_MS: 0,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
 } as unknown as Env;
 
@@ -120,8 +123,10 @@ afterEach(() => {
 describe("a mutation that lands", () => {
   it("writes pending, then succeeded, and audits the intent", async () => {
     const rec = recorder();
-    // login → fresh read → setCardV2 → verifying re-read → mirror refresh read
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD, CARD_HELD);
+    // login → fresh read → setCardV2 → verifying re-read. No fifth call: the mirror is fed from
+    // the verifying read itself (audit B5.1) — a fifth stubbed response here would mask a regression
+    // that started dialing the vendor again.
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
     const outcome = await executeCardMutation(
       { ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), reason: "Truck broken into overnight" },
       spec,
@@ -138,14 +143,14 @@ describe("a mutation that lands", () => {
 
   it("keeps every query and write inside the org", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD, CARD_HELD);
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
     await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
     expectOrgScoped(rec, ORG);
   });
 
   it("never writes a card number into the ledger", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD, CARD_HELD);
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
     await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
     // Mechanical proof rather than a code-review habit: scan EVERY recorded payload for a card
     // number. The ledger row stores a full card echo as XML, so this is the test that would have
@@ -166,8 +171,8 @@ describe("a mutation that does not land", () => {
     const fault = soap(
       "<soap:Fault xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/'><faultstring>Not Allowed 109491436176</faultstring></soap:Fault>",
     );
-    // login → read → REFUSED write → re-read (still Active) → mirror
-    const s = stub(loginOk, CARD_ACTIVE, fault, CARD_ACTIVE, CARD_ACTIVE);
+    // login → read → REFUSED write → re-read (still Active)
+    const s = stub(loginOk, CARD_ACTIVE, fault, CARD_ACTIVE);
     const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
 
     expect(outcome.status).toBe("failed");
@@ -180,7 +185,7 @@ describe("a mutation that does not land", () => {
 
   it("records drift when the card moved in ways no edit named", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_AND_DRIFTED, CARD_HELD_AND_DRIFTED);
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_AND_DRIFTED);
     const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
 
     // The lock landed. Something else moved too — EFS wins, the mirror follows, and we say so.
@@ -248,7 +253,7 @@ describe("the vendor writes our value back in its own casing", () => {
 
   it("counts a lock as SUCCEEDED when the card comes back HOLD", async () => {
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_UPPERCASE, CARD_HELD_UPPERCASE);
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_UPPERCASE);
     const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
 
     // Without the casing tolerance this was `failed`: the operator was told "EFS accepted the request
@@ -262,7 +267,7 @@ describe("the vendor writes our value back in its own casing", () => {
   it("still calls it FAILED when the status is a genuinely different state", async () => {
     // The tolerance is case ONLY. A card that came back Active after a lock is a real failure.
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_ACTIVE);
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE);
     const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
     expect(outcome.status).toBe("failed");
   });
@@ -270,9 +275,55 @@ describe("the vendor writes our value back in its own casing", () => {
   it("does not let the tolerance swallow real drift on a field nobody edited", async () => {
     const drifted = CARD_HELD_UPPERCASE.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>");
     const rec = recorder();
-    const s = stub(loginOk, CARD_ACTIVE, soap(""), drifted, drifted);
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), drifted);
     const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
     expect(outcome.status).toBe("drift_detected");
     expect(outcome.driftFields).toContain("/policyNumber");
+  });
+});
+
+describe("the second verifying look (audit P0-2)", () => {
+  /**
+   * The 2026-08-12 incident shape: setCardv2 answers its void success, the IMMEDIATE re-read still
+   * shows the old document (vendor-side apply lag), and the old code recorded a successful lock as
+   * failed/no_change — inviting a retry of a change that had already landed. With a second look
+   * enabled, the late landing is seen and recorded as the success it was.
+   */
+  it("records SUCCEEDED when the change lands between the first and second look", async () => {
+    const rec = recorder();
+    // login → read → write → verify #1 (stale: still Active) → verify #2 (landed: Hold)
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_HELD);
+    const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
+    const outcome = await executeCardMutation(
+      { ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env },
+      spec,
+    );
+    expect(outcome.status).toBe("succeeded");
+    expect(settled(rec)).toMatchObject({ status: "succeeded" });
+  });
+
+  it("still records failed/no_change when BOTH looks see an unchanged card", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_ACTIVE);
+    const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
+    const outcome = await executeCardMutation(
+      { ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env },
+      spec,
+    );
+    expect(outcome.status).toBe("failed");
+    expect(outcome.faultCode).toBe("no_change");
+  });
+
+  it("keeps the FIRST read's verified verdict when the second look itself fails", async () => {
+    const rec = recorder();
+    // verify #2 breaks — the mutation is still VERIFIED-failed by look #1, never downgraded to sent.
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, "not xml at all");
+    const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
+    const outcome = await executeCardMutation(
+      { ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env },
+      spec,
+    );
+    expect(outcome.status).toBe("failed");
+    expect(settled(rec)).toMatchObject({ status: "failed" });
   });
 });

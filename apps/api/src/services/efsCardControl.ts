@@ -203,10 +203,23 @@ export async function planCardMutation(
     .single();
 
   if (error) {
-    // The partial unique index is the ONLY replay defence — a read-then-write check would be a race
-    // by construction, and the failure mode of a double-submitted override is a driver getting two
-    // free tanks. 23505 is unique_violation, and it means this key has been seen before.
-    if ((error as { code?: string }).code === "23505") throw await replayOf(ctx);
+    // 23505 is unique_violation, and TWO indexes can raise it, with different meanings:
+    //   uq_efs_card_mutations_one_pending  — another mutation on this card is mid-flight RIGHT NOW.
+    //     The database is the only guard that cannot race here (audit P0-5): the SELECT-based check
+    //     above has a vendor read between it and this insert, wide enough for two operators.
+    //   uq_efs_card_mutations_idempotency  — this Idempotency-Key has been seen before; the ONLY
+    //     replay defence, since a read-then-write check would be a race by construction, and the
+    //     failure mode of a double-submitted override is a driver getting two free tanks.
+    if ((error as { code?: string }).code === "23505") {
+      if ((error.message ?? "").includes("uq_efs_card_mutations_one_pending")) {
+        throw new CardControlError(
+          "Another change to this card is still being confirmed. Wait for it to finish, then try again.",
+          "mutation_in_flight",
+          409,
+        );
+      }
+      throw await replayOf(ctx);
+    }
     throw new Error(`could not open the card mutation ledger row: ${error.message}`);
   }
 
@@ -282,16 +295,42 @@ export async function applyCardMutation(
     return await finalizeUnverified(ctx, plan, { requestXmlRedacted, responseXmlRedacted, writeError, readError });
   }
 
-  // The mirror follows EFS in every branch, success or failure. Best effort: a mirror write that
-  // fails must not turn a completed, correctly-recorded mutation into an error.
-  await updateMirror(ctx);
+  let landed = intentLanded(before, after, edits);
 
-  const landed = intentLanded(before, after, edits);
+  // A SECOND look before declaring no_change (audit P0-2, incident 2026-08-12). setCardv2's success
+  // response is void (WSDL: zero-part setCardv2Response), so an installation that applies writes
+  // with any lag makes the immediate re-read see the OLD document — recording a successful lock as
+  // `failed` and inviting the operator to retry a change that already landed, the exact double-write
+  // this whole design exists to prevent. One more read after a pause is the cheapest defence; the
+  // pause is configurable so Phase 0's measured apply latency can tune it (0 disables, tests only).
+  const verifyRetryMs = ctx.env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
+  if (!landed && verifyRetryMs > 0) {
+    await sleep(verifyRetryMs);
+    try {
+      after = await getCardV2(ctx.env, ctx.creds, ctx.cardNumber, {
+        priority: "interactive",
+        timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
+        fetchImpl: ctx.fetchImpl,
+      });
+      landed = intentLanded(before, after, edits);
+    } catch {
+      // The first re-read stands. It succeeded and is a complete verification on its own; a failed
+      // second look must not downgrade a verified `failed` into an unverified `sent`.
+    }
+  }
+
+  // The mirror follows EFS in every branch, success or failure — fed from the verifying read itself
+  // rather than a fourth vendor call (audit B5.1). Best effort: a mirror write that fails must not
+  // turn a completed, correctly-recorded mutation into an error.
+  await updateMirror(ctx, after);
+
   if (!landed) {
     return await finalizeFailed(ctx, plan, after, { requestXmlRedacted, responseXmlRedacted, writeError });
   }
   return await finalizeLanded(ctx, plan, after, { requestXmlRedacted, responseXmlRedacted });
 }
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Plan and apply in one call — the Phase 1 route path. */
 export async function executeCardMutation(
@@ -393,6 +432,14 @@ async function assertOrgHourlyCap(ctx: CardMutationContext): Promise<void> {
  * version. A card with a 'pending' or 'sent' row has an outcome nobody knows yet, and stacking a
  * second write on top of an unknown is how a card ends up in a state nobody can explain.
  */
+/** Everything one orchestration can legitimately take: read + write + two verify reads, each on its
+ *  own interactive deadline, plus the second-look pause, plus pacing margin. */
+function inFlightWindowMs(env: Env): number {
+  const perCall = env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS ?? 10_000;
+  const secondLook = env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
+  return 4 * perCall + secondLook + 15_000;
+}
+
 async function assertNoMutationInFlight(ctx: CardMutationContext): Promise<void> {
   const { data, error } = await ctx.admin
     .from("efs_card_mutations")
@@ -401,11 +448,25 @@ async function assertNoMutationInFlight(ctx: CardMutationContext): Promise<void>
     .eq("efs_card_id", ctx.efsCardId)
     .in("status", ["pending", "sent"])
     // 'sent' is terminal-unknown and can be days old; only a RECENT one means "in flight". The window
-    // is the whole-orchestration deadline plus a margin, so a crashed request unblocks the card by
-    // itself rather than needing an admin.
-    .gte("created_at", new Date(Date.now() - (ctx.env.EFS_CARD_WRITE_TIMEOUT_MS ?? 25_000) * 2).toISOString())
+    // is derived from what one mutation can actually take — three paced interactive calls plus the
+    // second-look delay plus margin — because the old EFS_CARD_WRITE_TIMEOUT_MS*2 (50s) was SHORTER
+    // than a worst-case orchestration, so a legitimately slow first write lost its protection while
+    // still mid-flight (audit P0-5). Stale-`pending` unblocking is the reconciler's job, not this
+    // window's; `pending` rows are also fenced by the uq_efs_card_mutations_one_pending index.
+    .gte("created_at", new Date(Date.now() - inFlightWindowMs(ctx.env)).toISOString())
     .limit(1);
-  if (error) return; // The org cap above already failed closed on an unreadable ledger.
+  // FAIL CLOSED (audit P0-5). This guard exists to stop a second full-document write racing an
+  // unresolved first one; waving requests through because the ledger cannot be read makes it
+  // decoration exactly when things are already going wrong. (The org cap above normally fails
+  // closed first — this is the same posture, kept locally so a refactor cannot separate them.)
+  if (error) {
+    throw new CardControlError(
+      "Card changes are paused because the change log is unavailable. Try again shortly.",
+      "org_hourly_cap_reached",
+      503,
+      { reason: "ledger_unavailable" },
+    );
+  }
   if (data && data.length > 0) {
     throw new CardControlError(
       "Another change to this card is still being confirmed. Wait for it to finish, then try again.",

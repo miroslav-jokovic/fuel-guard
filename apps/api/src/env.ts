@@ -229,6 +229,12 @@ const EnvSchema = z.object({
   // pacing waits between three calls in the interactive lane, not just the sockets. When it expires
   // the write is NOT retried: the ledger row stays 'sent' (outcome unknown) and a human is told so.
   EFS_CARD_WRITE_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(120_000).default(25_000),
+  // Wait before the SECOND verifying re-read when the first says the edit did not land. The
+  // 2026-08-12 no_change incident (audit Part 1, H2): a vendor-side apply lag makes an immediate
+  // re-read see the old document, recording a SUCCESSFUL write as failed and inviting a retry of a
+  // change that already landed. Phase 0's experiments measure the real latency; this default is the
+  // floor until they do. 0 disables the second read (not recommended outside tests).
+  EFS_CARD_VERIFY_RETRY_MS: z.coerce.number().int().min(0).max(30_000).default(3_000),
   // Org-wide ceiling on card mutations per rolling hour, counted from the ledger. Per-user limits do
   // not stop three collaborating accounts; this does. Roughly ten times the busiest legitimate hour
   // we can construct (a theft sweep locking one depot's cards).

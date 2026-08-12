@@ -2,7 +2,7 @@ import { writeAudit } from "../lib/audit.js";
 import { driftAgainstExpected, editPath, fieldPath, type CardEdit, type EchoDiff } from "../lib/efsCardEcho.js";
 import { VOLATILE_FIELDS, type CardDocument } from "../lib/efsCardXml.js";
 import type { EfsSoapError } from "../lib/efsSoapSession.js";
-import { refreshCardDetail } from "./efsCardMirror.js";
+import { upsertCardDetail } from "./efsCardMirror.js";
 import type { CardMutationContext, CardMutationOutcome, CardMutationPlan } from "./efsCardControl.js";
 
 /**
@@ -300,13 +300,18 @@ async function audit(
   });
 }
 
-/** Vendor truth back into the mirror, from a fresh read. Never the other way round. */
-export async function updateMirror(ctx: CardMutationContext): Promise<void> {
+/**
+ * Vendor truth back into the mirror — from the verifying re-read the mutation already made.
+ *
+ * Takes the document instead of dialing EFS again (audit B5.1): the old version re-read the card a
+ * FOURTH time to learn what the verification read had just learned, adding a paced interactive call
+ * to every mutation a person was waiting on. Truth still flows only EFS → mirror; it is simply the
+ * same truth, paid for once. Best effort, as before: a mirror write that fails must not turn a
+ * completed, correctly-recorded mutation into an error.
+ */
+export async function updateMirror(ctx: CardMutationContext, after: CardDocument): Promise<void> {
   try {
-    await refreshCardDetail(ctx.admin, ctx.env, ctx.creds, ctx.cardNumber, {
-      priority: "interactive",
-      fetchImpl: ctx.fetchImpl,
-    });
+    await upsertCardDetail(ctx.admin, ctx.env, ctx.orgId, ctx.cardNumber, after);
   } catch (error) {
     console.error(
       `[card-control] mirror refresh failed after a mutation on card ${ctx.efsCardId}: ` +

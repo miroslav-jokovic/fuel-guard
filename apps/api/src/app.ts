@@ -23,6 +23,7 @@ import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardControlRouter } from "./routes/fuelCards/control.js";
+import { fuelCardExperimentsRouter } from "./routes/fuelCards/experiments.js";
 import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
 import { fuelCardSettingsRouter } from "./routes/fuelCards/settings.js";
 import { fuelCardWriteProbeRouter } from "./routes/fuelCards/writeProbe.js";
@@ -43,6 +44,7 @@ import { messagesRouter } from "./routes/messages.js";
 import { rosterDriversRouter } from "./routes/roster/drivers.js";
 import { rosterCredentialsRouter } from "./routes/roster/credentials.js";
 import { authRouter } from "./routes/auth.js";
+import { authStepUpRouter } from "./routes/authStepUp.js";
 import { versionRouter } from "./routes/version.js";
 
 /**
@@ -196,6 +198,9 @@ export function createApp(env: Env): Express {
   app.use("/api/messages", messagesRouter()); // driver ↔ dispatch messaging
   app.use("/api/members", membersRouter());
   app.use("/api/auth", authRouter()); // PUBLIC driver-login exchange (its own throttles + uniform errors)
+  // Step-up password re-verification (audit P0-4). Behind requireAuth internally; shares the
+  // /api/auth strictLimiter above, which is the right budget for a password oracle.
+  app.use("/api/auth", authStepUpRouter());
   app.use("/api/roster/drivers", rosterDriversRouter()); // admin-owned driver master data + app enrollment
   app.use("/api/roster/drivers", rosterCredentialsRouter()); // company-issued app logins (DC4)
   app.use("/api/transactions", transactionsRouter());
@@ -214,7 +219,7 @@ export function createApp(env: Env): Express {
   // nothing checks — the single failure that fitness function exists to make impossible.
   // ⚠ SETTINGS FIRST. fuelCardsRouter declares `GET /:id`, which matches the literal path "settings"
   // and would answer 404 for a card id that was never a card id. Order is the fix; a test asserts it.
-  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter());
+  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here

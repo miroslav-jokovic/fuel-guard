@@ -7,6 +7,7 @@ import {
   cardApproverGrantSchema,
   cardControlSettingsPatchSchema,
   isCardControlScope,
+  lockCardSchema,
 } from "./cardControlContract.js";
 import { canonicalEfsStatus, efsStatusEquals } from "./efsCardCatalog.js";
 
@@ -84,5 +85,25 @@ describe("vendor status casing — what a production account actually sends", ()
     // An unrecognised status is news; showing it verbatim is the point.
     expect(canonicalEfsStatus("SOMETHING_NEW")).toBe("SOMETHING_NEW");
     expect(canonicalEfsStatus(null)).toBeNull();
+  });
+});
+
+// ─── Audit P0-3 tripwire: the lock endpoint must never be able to activate a card ───────────────
+describe("lockCardSchema (audit P0-3)", () => {
+  const base = { expectedVersion: "0123456789abcdef0123456789abcdef", reason: "test lock" };
+
+  it("refuses status Active — unlock is the only path that writes Active", () => {
+    expect(lockCardSchema.safeParse({ ...base, status: "Active" }).success).toBe(false);
+  });
+
+  it("accepts Hold and Inactive, defaulting to Hold", () => {
+    expect(lockCardSchema.parse({ ...base }).status).toBe("Hold");
+    expect(lockCardSchema.parse({ ...base, status: "Inactive" }).status).toBe("Inactive");
+  });
+
+  it("refuses Deleted and Fraud outright", () => {
+    for (const status of ["Deleted", "Fraud", "HOLD "]) {
+      expect(lockCardSchema.safeParse({ ...base, status }).success).toBe(false);
+    }
   });
 });

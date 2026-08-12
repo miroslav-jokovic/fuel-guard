@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
+import { getAppLocals } from "../lib/appLocals.js";
 import { apiError } from "../lib/http.js";
+import { STEP_UP_TOKEN_HEADER, verifyStepUpToken } from "../lib/stepUpToken.js";
 
 /**
  * Step-up re-authentication (plan §6.3): prove it is still the same person, right now.
@@ -45,8 +47,28 @@ export const STEP_UP_CODE = "step_up_required";
  * beat. `maxAgeSec` is echoed so the prompt can say "in the last 5 minutes" without hardcoding a
  * number the server owns.
  */
+/**
+ * The step-up TOKEN is the primary proof (audit P0-4): minted by POST /api/auth/step-up only after
+ * Supabase's own password grant accepted the caller's password, HMAC-bound to userId+orgId, expiring
+ * in minutes. `iat` freshness remains below as a DEPRECATED fallback only until the web client sends
+ * the token everywhere (Phase 2 drawer work) — it is defeated by the refresh-token grant, which
+ * re-mints access tokens with a current `iat` and no password. Remove the fallback with the web
+ * migration; the tests that pin the token path are the tripwire for that removal.
+ */
+function hasStepUpToken(req: Request): boolean {
+  const token = req.header(STEP_UP_TOKEN_HEADER);
+  const userId = req.auth?.userId;
+  const orgId = req.auth?.orgId;
+  if (!token || !userId || !orgId) return false;
+  return verifyStepUpToken(getAppLocals(req).env, token, userId, orgId);
+}
+
 export function requireFreshAuth(maxAgeSec: number = DEFAULT_STEP_UP_MAX_AGE_SEC) {
   return (req: Request, res: Response, next: NextFunction): void => {
+    if (hasStepUpToken(req)) {
+      next();
+      return;
+    }
     const issuedAt = req.auth?.issuedAt;
     const nowSec = Math.floor(Date.now() / 1000);
 
@@ -78,6 +100,7 @@ export function requireFreshAuth(maxAgeSec: number = DEFAULT_STEP_UP_MAX_AGE_SEC
  * because the answer is in the parsed body.
  */
 export function hasFreshAuth(req: Request, maxAgeSec: number = DEFAULT_STEP_UP_MAX_AGE_SEC): boolean {
+  if (hasStepUpToken(req)) return true;
   const issuedAt = req.auth?.issuedAt;
   if (typeof issuedAt !== "number") return false;
   const ageSec = Math.floor(Date.now() / 1000) - issuedAt;
