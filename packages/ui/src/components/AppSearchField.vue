@@ -44,7 +44,7 @@ function clear() {
       type="search"
       :placeholder="placeholder"
       :aria-label="label"
-      class="pr-10 pl-9"
+      class="app-search-field-input pr-10 pl-9"
     />
     <AppIconButton
       v-if="local"
@@ -56,3 +56,14 @@ function clear() {
     />
   </div>
 </template>
+
+<style scoped>
+/* Keep the component's accessible clear button and suppress browser-specific duplicate affordances. */
+.app-search-field-input::-webkit-search-cancel-button,
+.app-search-field-input::-webkit-search-decoration,
+.app-search-field-input::-webkit-search-results-button,
+.app-search-field-input::-webkit-search-results-decoration {
+  appearance: none;
+  display: none;
+}
+</style>
