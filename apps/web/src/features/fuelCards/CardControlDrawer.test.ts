@@ -236,9 +236,13 @@ describe("re-entrancy", () => {
     const wrapper = render();
     await button(wrapper, "Lock card").trigger("click");
     await flushPromises();
+    await button(wrapper, "Lock card").trigger("click");
+    await flushPromises();
     // Two rapid confirm clicks; the second must be swallowed by the busy guard.
-    await button(wrapper, "Lock card").trigger("click");
-    await button(wrapper, "Lock card").trigger("click");
+    const busyConfirm = wrapper.findAll("footer button")[1]!;
+    expect(busyConfirm.text()).toBe("Locking…");
+    await busyConfirm.trigger("click");
+    await busyConfirm.trigger("click");
     await flushPromises();
     expect(mutations.lock.mutateAsync).toHaveBeenCalledTimes(1);
     resolve({ status: "succeeded", mutationId: "m1" });
