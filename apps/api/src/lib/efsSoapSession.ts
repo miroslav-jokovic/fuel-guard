@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { nextEfsWallClock } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
@@ -298,22 +299,29 @@ const inFlightLogins = new Map<string, Promise<EfsSession>>();
 const breakers = new Map<string, { openUntil: number; reason: string }>();
 const consecutiveAuthFailures = new Map<string, number>();
 
-const sessionKey = (creds: EfsSoapCredentials): string => `${creds.orgId}:${creds.endpointUrl}`;
+const sessionKey = (creds: EfsSoapCredentials): string => {
+  const credentialHash = createHash("sha256")
+    .update(`${creds.soapPassword}\u0000${creds.tls?.fingerprintSha256 ?? "none"}`)
+    .digest("hex")
+    .slice(0, 16);
+  return `${creds.orgId}:${creds.endpointUrl}:${credentialHash}`;
+};
 
 /** Test seam. Also call on credential change, so a rotated password cannot ride a cached session. */
-export function __resetEfsSessions(creds?: EfsSoapCredentials): void {
-  if (!creds) {
+export function __resetEfsSessions(orgId?: string): void {
+  if (!orgId) {
     sessions.clear();
     inFlightLogins.clear();
     breakers.clear();
     consecutiveAuthFailures.clear();
     return;
   }
-  const key = sessionKey(creds);
-  sessions.delete(key);
-  inFlightLogins.delete(key);
-  breakers.delete(key);
-  consecutiveAuthFailures.delete(key);
+  const prefix = `${orgId}:`;
+  for (const cache of [sessions, inFlightLogins, breakers, consecutiveAuthFailures]) {
+    for (const key of cache.keys()) {
+      if (key.startsWith(prefix)) cache.delete(key);
+    }
+  }
 }
 
 /** Non-secret view for the settings page and logs. Never exposes the clientId or the cookie. */

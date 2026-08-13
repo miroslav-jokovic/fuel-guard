@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
+import { invalidatePolicy } from "../lib/efsPolicyCache.js";
+import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { describeTlsMaterial, envTlsMaterial, type EfsTlsMaterial } from "../lib/soapClient.js";
 import { CERT_EXPIRY_WARN_DAYS, listCerts, loadActiveMaterial, type StoredCertSummary } from "./efsSoapClientCerts.js";
 
@@ -277,6 +279,8 @@ export async function upsertEfsSoapCredentials(
     { onConflict: "org_id" },
   );
   if (error) throw new Error(error.message);
+  __resetEfsSessions(orgId);
+  invalidatePolicy(orgId);
 }
 
 /** Disable + wipe the SOAP password so a scheduler that missed the enabled flag can't dial home. */
@@ -290,6 +294,8 @@ export async function disableEfsSoapCredentials(admin: SupabaseClient, orgId: st
     })
     .eq("org_id", orgId);
   if (error) throw new Error(error.message);
+  __resetEfsSessions(orgId);
+  invalidatePolicy(orgId);
 }
 
 /**

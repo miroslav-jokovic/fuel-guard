@@ -17,6 +17,8 @@ import {
   upsertEfsSoapCredentials,
 } from "../services/efsSoapCredentials.js";
 import { pingEfsSoap } from "../lib/efsSoap.js";
+import { invalidatePolicy } from "../lib/efsPolicyCache.js";
+import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { describeTlsMaterial, invalidateTlsAgents } from "../lib/soapClient.js";
 import { allowPrivateEndpoints, checkOutboundUrl } from "../lib/ssrfGuard.js";
 import {
@@ -633,6 +635,8 @@ export function integrationsRouter(): Router {
         }
         const promoted = await activatePendingCert(admin, orgId, actorId);
         invalidateTlsAgents();
+        __resetEfsSessions(orgId);
+        invalidatePolicy(orgId);
         await writeAudit(admin, {
           orgId,
           actorId,
@@ -749,6 +753,8 @@ export function integrationsRouter(): Router {
         // Drop pooled keep-alive sockets so the very next request presents the NEW identity rather
         // than riding a connection established under the old certificate.
         invalidateTlsAgents();
+        __resetEfsSessions(orgId);
+        invalidatePolicy(orgId);
         await writeAudit(admin, {
           orgId,
           actorId: req.auth!.userId,
@@ -782,6 +788,8 @@ export function integrationsRouter(): Router {
       try {
         const rolled = await rollbackToPreviousCert(admin, orgId, req.auth!.userId);
         invalidateTlsAgents();
+        __resetEfsSessions(orgId);
+        invalidatePolicy(orgId);
         await writeAudit(admin, {
           orgId,
           actorId: req.auth!.userId,
@@ -814,6 +822,8 @@ export function integrationsRouter(): Router {
       const orgId = req.auth!.orgId!;
       const retired = await retireAllCerts(admin, orgId, req.auth!.userId, "withdrawn");
       invalidateTlsAgents();
+      __resetEfsSessions(orgId);
+      invalidatePolicy(orgId);
       await writeAudit(admin, {
         orgId,
         actorId: req.auth!.userId,
