@@ -58,7 +58,7 @@ const GRANDFATHERED = {
   // Pinned 2026-08-13 for a different reason. Phase 1 Step 1.2 adds an org-ownership guard to the
   // probe routers; that guard lives in ONE shared helper imported by all three, so this file must
   // not grow. Removed when the Phase 4 harness supersedes the experiment router.
-  "apps/api/src/routes/fuelCards/experiments.ts": 517,
+  "apps/api/src/routes/fuelCards/experiments.ts": 513,
   // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
   // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
   // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this

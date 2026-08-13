@@ -4,7 +4,7 @@ import { HttpError } from "../../lib/http.js";
 import { cardRefHmac } from "../../services/efsCardMirror.js";
 import type { EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
 import { createSupabaseRecorder, type RecordedQuery } from "../../testing/supabaseRecorder.js";
-import { assertOrgOwnsCard, assertProbeAllowed } from "./probeGuards.js";
+import { assertOrgOwnsCard, assertProbeAllowed, resolveProbeCredentials } from "./probeGuards.js";
 
 const ORG = "org-1";
 const OTHER_ORG = "org-2";
@@ -91,5 +91,35 @@ describe("assertProbeAllowed", () => {
       EFS_ALLOW_PRODUCTION_PROBE: "true",
     } as NodeJS.ProcessEnv);
     expect(() => assertProbeAllowed(overrideEnv, creds({ environment: "production" }))).not.toThrow();
+  });
+});
+
+describe("resolveProbeCredentials", () => {
+  // The ORDER is the security property, not an implementation detail: a PAN that this org does not
+  // own must be refused before the credentials table is touched, so a fishing expedition cannot use
+  // the 404-vs-409 difference to learn whether another company has EFS connected.
+  it("refuses an unowned card without ever reading the credentials table", async () => {
+    const db = createSupabaseRecorder({ tables: { efs_cards: [], efs_soap_credentials: [] } });
+    await expect(resolveProbeCredentials(db.client, env, ORG, PAN)).rejects.toMatchObject({ status: 404 });
+    expect(db.queries.map((q) => q.table)).toEqual(["efs_cards"]);
+  });
+
+  it("answers 409 when the org owns the card but EFS is switched off", async () => {
+    const db = createSupabaseRecorder({
+      tables: {
+        efs_cards: [{ id: "card-1", org_id: ORG, card_ref_hmac: cardRefHmac(env, ORG, PAN) }],
+        efs_soap_credentials: [],
+      },
+    });
+    await expect(resolveProbeCredentials(db.client, env, ORG, PAN)).rejects.toMatchObject({
+      status: 409,
+      code: "efs_not_configured",
+    });
+  });
+
+  it("skips the ownership read when no card is named", async () => {
+    const db = createSupabaseRecorder({ tables: { efs_cards: [], efs_soap_credentials: [] } });
+    await expect(resolveProbeCredentials(db.client, env, ORG)).rejects.toMatchObject({ status: 409 });
+    expect(db.queries.some((q) => q.table === "efs_cards")).toBe(false);
   });
 });

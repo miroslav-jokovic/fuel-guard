@@ -20,8 +20,7 @@ import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireFreshAuth } from "../../middleware/requireFreshAuth.js";
-import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
-import { assertOrgOwnsCard, assertProbeAllowed } from "./probeGuards.js";
+import { resolveProbeCredentials } from "./probeGuards.js";
 
 /**
  * Phase 0 experiment endpoint — the instrument for diagnosing "EFS accepted the request but the
@@ -154,12 +153,9 @@ export function fuelCardExperimentsRouter(): Router {
       const input = parsed.data;
       const last4 = input.cardNumber.slice(-4);
 
-      const admin = getSupabaseAdmin(env); const orgId = req.auth!.orgId!; await assertOrgOwnsCard(admin, env, orgId, input.cardNumber);
-      const creds = await getEfsSoapCredentials(admin, env, orgId); if (!creds?.enabled) {
-        res.status(409).json(apiError("efs_not_configured", "EFS is not connected for this company."));
-        return;
-      }
-      assertProbeAllowed(env, creds);
+      const admin = getSupabaseAdmin(env);
+      const orgId = req.auth!.orgId!;
+      const creds = await resolveProbeCredentials(admin, env, orgId, input.cardNumber);
 
       // ── E1: read-only state check ─────────────────────────────────────────────────────────────
       if (input.experiment === "read_state") {

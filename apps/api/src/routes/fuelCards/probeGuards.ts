@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../../env.js";
 import { HttpError } from "../../lib/http.js";
 import { cardRefHmac } from "../../services/efsCardMirror.js";
-import type { EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
+import { getEfsSoapCredentials, type EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
 
 const PRODUCTION_HOST = "ws.efsllc.com";
 
@@ -45,4 +45,29 @@ export function assertProbeAllowed(env: Env, creds: EfsSoapCredentials): void {
       "Production EFS probes are disabled. Set EFS_ALLOW_PRODUCTION_PROBE=true only for an explicitly approved run.",
     );
   }
+}
+
+/**
+ * The whole probe preamble, in the one order that is safe. Every probe router needs the same three
+ * facts, and ORDER IS THE POINT: ownership is settled before the credentials are read, so a PAN
+ * fishing expedition against another company's card learns "not found" and never learns whether this
+ * org has EFS configured at all. Written once here because three routers repeating it is three
+ * chances to drop a line — the omission that a reviewer reads straight past.
+ *
+ * Throws `HttpError` (404 unknown card · 409 EFS not connected · 403 production endpoint); every
+ * caller is wrapped in `asyncHandler`, so the structured responder in app.ts formats all three.
+ */
+export async function resolveProbeCredentials(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  cardNumber?: string,
+): Promise<EfsSoapCredentials> {
+  if (cardNumber) await assertOrgOwnsCard(admin, env, orgId, cardNumber);
+  const creds = await getEfsSoapCredentials(admin, env, orgId);
+  if (!creds?.enabled) {
+    throw new HttpError(409, "efs_not_configured", "EFS is not connected for this company.");
+  }
+  assertProbeAllowed(env, creds);
+  return creds;
 }
