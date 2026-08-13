@@ -52,7 +52,7 @@ const GRANDFATHERED = {
   // PHASE 3'S EXIT GATE DELETES THESE FOUR ENTRIES. If they are still here after Phase 3, that is a
   // bug in the plan, not a new normal.
   "apps/api/src/routes/fuelCards/control.ts": 528,
-  "apps/api/src/services/efsCardControl.ts": 540,
+  "apps/api/src/services/efsCardControl.ts": 534,
   "packages/shared/src/cardControlContract.ts": 529,
   "apps/web/src/features/fuelCards/cardControlModel.ts": 542,
   // Pinned 2026-08-13 for a different reason. Phase 1 Step 1.2 adds an org-ownership guard to the

@@ -51,6 +51,8 @@ export interface EfsRequestOptions {
   cookie?: string | null;
   /** Per-request deadline. Omitted → the lane default from `laneTimeoutMs`. */
   timeoutMs?: number;
+  /** Optional caller-owned deadline spanning multiple SOAP operations. */
+  signal?: AbortSignal;
 }
 
 export async function requestXml(
@@ -74,6 +76,7 @@ export async function requestXml(
       fetchImpl: opts.fetchImpl,
       retry: opts.retry,
       timeoutMs: opts.timeoutMs,
+      signal: opts.signal,
     });
     if (response.status === 401 || response.status === 403) {
       throw new EfsSoapError(`EFS rejected the ${operation} request`, "auth", response.status);
