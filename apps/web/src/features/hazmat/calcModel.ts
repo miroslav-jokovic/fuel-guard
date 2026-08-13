@@ -336,7 +336,9 @@ export function stripCitations(text: string): string {
   const MARK = "\u0000";
   return text
     .replace(/§\s?[0-9]+(?:\.[0-9]+)*(?:\([0-9a-zA-Z]+\))*(?:'s)?/g, MARK)
+    // eslint-disable-next-line no-control-regex -- null byte is the private sentinel for removed citations.
     .replace(/\s*\([^()]*(?:\u0000|PHMSA|49 CFR)[^()]*\)/g, "")
+    // eslint-disable-next-line no-control-regex -- remove the private null-byte citation sentinel.
     .replace(/\u0000\s*/g, "")
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([,.;])/g, "$1")

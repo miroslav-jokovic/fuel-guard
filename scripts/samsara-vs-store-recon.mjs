@@ -18,7 +18,7 @@
  * Run:  node scripts/samsara-vs-store-recon.mjs [--days 7] [--units 550,589,699]
  * Writes docs/samsara-vs-store-recon.txt.
  */
-import { readFileSync, existsSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
