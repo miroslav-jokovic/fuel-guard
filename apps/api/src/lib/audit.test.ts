@@ -16,7 +16,13 @@ describe("writeAudit", () => {
   it("reports an audit outage after bounded retries instead of pretending it succeeded", async () => {
     const insert = vi.fn().mockResolvedValue({ error: { message: "down" } });
     const admin = { from: () => ({ insert }) } as never;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(writeAudit(admin, entry)).resolves.toBe(false);
     expect(insert).toHaveBeenCalledTimes(2);
+    expect(error).toHaveBeenCalledWith(
+      "[audit] write failed after retry",
+      expect.objectContaining({ action: entry.action, orgId: entry.orgId, error: "down" }),
+    );
+    error.mockRestore();
   });
 });

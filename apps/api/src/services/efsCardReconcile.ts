@@ -288,7 +288,7 @@ async function audit(
   after: CardDocument | null,
   extra: Record<string, unknown>,
 ): Promise<void> {
-  await writeAudit(ctx.admin, {
+  const recorded = await writeAudit(ctx.admin, {
     orgId: ctx.orgId,
     actorId: ctx.userId,
     action,
@@ -307,6 +307,11 @@ async function audit(
       ...extra,
     },
   });
+  if (!recorded) {
+    console.error(`[card-control] mutation ${plan.mutationId} settled without an audit row`, {
+      orgId: ctx.orgId, action,
+    });
+  }
 }
 
 /**
