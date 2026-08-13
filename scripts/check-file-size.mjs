@@ -44,10 +44,21 @@ const SKIP = new Set(["node_modules", "dist", ".git", "coverage", ".pnpm-store",
  */
 const GRANDFATHERED = {
   "apps/api/src/routes/integrations.ts": 832,
-  // 640 → 670 on 2026-08-10. NOT new code: 7ad0eec ran the formatter over this file and Prettier
-  // re-wrapped ~30 long call/argument lines. The one behavioural line in that commit was the
-  // `{ maxRps: 5 }` HOS cap. Re-pinned rather than reverted formatting; the split is still owed.
-  "apps/api/src/lib/samsara.ts": 670,
+  // Pinned 2026-08-13 — EFS card-control plan (docs/28-EFS-EXECUTION-PLAN.md) Phase 0 Step 0.6.
+  // Phase 3 (the capability registry) restructures all four: control.ts becomes a generated
+  // factory, efsCardControl.ts splits into five orchestrator phase modules, cardControlContract.ts
+  // splits into per-capability contracts, cardControlModel.ts loses its per-intent confirmations to
+  // the view modules. Splitting them now and again in Phase 3 is two refactors of the same code.
+  // PHASE 3'S EXIT GATE DELETES THESE FOUR ENTRIES. If they are still here after Phase 3, that is a
+  // bug in the plan, not a new normal.
+  "apps/api/src/routes/fuelCards/control.ts": 528,
+  "apps/api/src/services/efsCardControl.ts": 540,
+  "packages/shared/src/cardControlContract.ts": 529,
+  "apps/web/src/features/fuelCards/cardControlModel.ts": 542,
+  // Pinned 2026-08-13 for a different reason. Phase 1 Step 1.2 adds an org-ownership guard to the
+  // probe routers; that guard lives in ONE shared helper imported by all three, so this file must
+  // not grow. Removed when the Phase 4 harness supersedes the experiment router.
+  "apps/api/src/routes/fuelCards/experiments.ts": 517,
   // soapClient.ts (571) and efsSoap.ts (519) left this list on 2026-08-10. The EFS card-control work
   // split them — soapClient → soapClient + efsTls, efsSoap → efsSoap + efsSoapSession + efsXml — and
   // all five now sit under BUDGET on their own. Deleting an entry is the intended end state of this

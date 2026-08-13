@@ -34,7 +34,7 @@ const PUBLIC_PREFIXES = new Set([
  */
 function mountedApiRouters(): string[] {
   const src = readFileSync(new URL("./app.ts", import.meta.url), "utf8");
-  const re = /app\.use\("(\/api\/[^"]+)"\s*,[^)]*?\w+Router\(\)\)/g;
+  const re = /app\.use\("(\/api\/[^"]+)"\s*,[^\n]*?\w+Router\(\)[^\n]*\)/g;
   return [...src.matchAll(re)].map((m) => m[1]!);
 }
 
@@ -60,7 +60,7 @@ describe("route auth coverage", () => {
   const protectedPrefixes = mountedApiRouters().filter((p) => !PUBLIC_PREFIXES.has(p));
 
   it("discovers the mounted /api routers", () => {
-    expect(protectedPrefixes.length).toBeGreaterThan(5);
+    expect(protectedPrefixes.length).toBeGreaterThan(20);
   });
 
   it.each(protectedPrefixes)("rejects unauthenticated %s with 401", async (prefix) => {

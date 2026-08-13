@@ -146,10 +146,9 @@ export const overrideClearedLanded = (after: CardDocument): boolean =>
  * records from the typed view instead of from the DOM would drop them, which for a prompt means the
  * pump stops applying a rule nobody meant to remove.
  *
- * A nested container inside a record would flatten here and lose data. That cannot pass silently:
- * `assertEchoFidelity` compares full field PATHS, so the flattened request would not match the
- * expected canonical form and would be refused rather than sent. Recorded as a property, not a hope —
- * `efsCardEdits.test.ts` proves it with a record carrying a nested child.
+ * A nested container inside a record flattens here and loses its path. The current `replaceAll` fidelity
+ * check compares the flattened edit object to the flattened serialized request, so it does NOT detect
+ * that loss. This is a known gap, not a proven property [no-test-claim]; `efsCardEdits.test.ts` has no nested-child case.
  */
 export function recordFromElement(element: XmlElement): Record<string, string | null> {
   const record: Record<string, string | null> = {};

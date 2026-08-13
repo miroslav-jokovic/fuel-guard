@@ -75,6 +75,126 @@ async function fetchIdleEventsChunked(fetchIdling: IdlingFetcher, startMs: numbe
   return [...byUuid.values()];
 }
 
+type ParsedIdleEvent = ReturnType<typeof parseIdlingEvents>[number];
+type IdleVehicleRef = { id: string; hasApu: boolean | null };
+
+function buildIdleEventRows(
+  events: ParsedIdleEvent[],
+  orgId: string,
+  vehBySamsara: Map<string, IdleVehicleRef>,
+  drvBySamsara: Map<string, string>,
+  intervals: AssignmentInterval[],
+  backfilledTemp: Map<string, number>,
+  learnedBurn: ReturnType<typeof learnIdleBurn>,
+  thresholds: IdleThresholds,
+  fuelPrice: number,
+) {
+  return events.map((e) => {
+    const veh = e.assetId ? vehBySamsara.get(e.assetId) : undefined;
+    // Resolve temperature: Samsara's reading if present, else the CP2 backfill, else none (→ undetermined).
+    const backfill = e.airTempF == null ? (backfilledTemp.get(e.eventUuid) ?? null) : null;
+    const airTempF = e.airTempF ?? backfill;
+    const airTempSource = e.airTempF != null ? "samsara" : backfill != null ? "backfill" : "none";
+    // CP3: resolved gallons — measured if Samsara reported it, else the learned per-truck / temperature estimate.
+    const est = estimateIdleGallons(
+      { vehicleId: veh?.id ?? null, durationSec: e.durationSec, fuelGal: e.fuelGal, airTempF },
+      {
+        learned: learnedBurn,
+        defaultGalPerHour: thresholds.idleGalPerHour ?? 0.8,
+        climateLowF: thresholds.climateLowF,
+        climateHighF: thresholds.climateHighF,
+      },
+    );
+    // CP4: attribute to Samsara's operator when present; else infer the driver assigned to this truck at the idle
+    // time ('inferred' vs 'direct' for transparency). Unattributed only when neither source resolves a driver.
+    const directDriver = e.operatorId ? (drvBySamsara.get(e.operatorId) ?? null) : null;
+    let driverId = directDriver;
+    let driverSource: "direct" | "inferred" | "none" = directDriver != null ? "direct" : "none";
+    if (driverId == null && e.assetId) {
+      const dsam = matchAssignmentAt(intervals, e.assetId, Date.parse(e.startTime));
+      const inferred = dsam ? (drvBySamsara.get(dsam) ?? null) : null;
+      if (inferred) {
+        driverId = inferred;
+        driverSource = "inferred";
+      }
+    }
+    return {
+      org_id: orgId,
+      samsara_event_id: e.eventUuid,
+      vehicle_id: veh?.id ?? null,
+      driver_id: driverId,
+      driver_source: driverSource,
+      started_at: e.startTime,
+      duration_sec: e.durationSec,
+      pto_active: e.ptoActive,
+      air_temp_f: airTempF,
+      air_temp_source: airTempSource,
+      fuel_gal: e.fuelGal,
+      idle_gal: est.gallons,
+      cost_usd: Math.round(est.gallons * fuelPrice * 100) / 100,
+      lat: e.lat,
+      lng: e.lng,
+      geofence_types: e.geofenceTypes,
+      // has_apu makes the classification capability-fair: an APU truck's extreme-temp main-engine idle stays
+      // discretionary (should've used the APU), not justified (audit A1.3).
+      classification: classifyIdleEvent(
+        {
+          durationSec: e.durationSec,
+          ptoActive: e.ptoActive,
+          airTempF,
+          hasApu: veh?.hasApu ?? null,
+        },
+        thresholds,
+      ),
+    };
+  });
+}
+
+async function persistOperatorAssignments(
+  admin: SupabaseClient,
+  orgId: string,
+  events: ParsedIdleEvent[],
+): Promise<void> {
+  // Durable driver attribution: Samsara's formal driver-vehicle-assignments feed is sparse for some fleets,
+  // but every idle event carries an `operator`. Collapse those operators into contiguous driver↔vehicle
+  // intervals and upsert them into driver_vehicle_assignments alongside the endpoint-derived intervals, so
+  // ALL consumers (idle attribution, driver scoring, card reconciliation) get complete coverage — not just
+  // the idle-drivers view. Best-effort: an error here never fails the idle sync.
+  try {
+    const obs = events
+      .filter((e) => e.assetId && e.operatorId && e.startTime)
+      .map((e) => {
+        const startMs = new Date(e.startTime).getTime();
+        return {
+          vehicleSamsaraId: e.assetId as string,
+          driverSamsaraId: e.operatorId as string,
+          startMs,
+          endMs: startMs + Math.max(0, e.durationSec) * 1000,
+        };
+      })
+      .filter((o) => Number.isFinite(o.startMs));
+    const intervals = mergeOperatorAssignments(obs);
+    if (intervals.length) {
+      const now = new Date().toISOString();
+      const arows = intervals.map((iv) => ({
+        org_id: orgId,
+        vehicle_samsara_id: iv.vehicleSamsaraId,
+        driver_samsara_id: iv.driverSamsaraId,
+        start_at: new Date(iv.startMs).toISOString(),
+        end_at: iv.endMs != null ? new Date(iv.endMs).toISOString() : null,
+        updated_at: now,
+      }));
+      for (let i = 0; i < arows.length; i += 500) {
+        await admin.from("driver_vehicle_assignments").upsert(arows.slice(i, i + 500), {
+          onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at",
+        });
+      }
+    }
+  } catch {
+    /* operator-derived assignments are best-effort — never fail the idle sync over them */
+  }
+}
+
 export async function syncIdleEvents(
   admin: SupabaseClient,
   env: Env,
@@ -167,7 +287,6 @@ export async function syncIdleEvents(
   // the fleet's ACTUAL EFS price/gal. Gallons = Samsara's measured value when present, else duration × the
   // configured idle burn rate (0.8 gal/hr). The EFS price is the recent fleet average; fall back to the
   // configured rate, then the default.
-  const galPerHour = thresholds.idleGalPerHour ?? 0.8;
   const fuelPrice = await recentEfsPricePerGal(admin, orgId, thresholds.fuelPricePerGal ?? 4.0);
   // CP3: learn a per-truck idle burn rate from this batch's MEASURED events (fall back to a fleet rate, then the
   // configured default). Unmeasured events then get a truck-specific, temperature-adjusted gallons estimate
@@ -195,65 +314,17 @@ export async function syncIdleEvents(
     }
   }
 
-  const rows = events.map((e) => {
-    const veh = e.assetId ? vehBySamsara.get(e.assetId) : undefined;
-    // Resolve temperature: Samsara's reading if present, else the CP2 backfill, else none (→ undetermined).
-    const backfill = e.airTempF == null ? (backfilledTemp.get(e.eventUuid) ?? null) : null;
-    const airTempF = e.airTempF ?? backfill;
-    const airTempSource = e.airTempF != null ? "samsara" : backfill != null ? "backfill" : "none";
-    // CP3: resolved gallons — measured if Samsara reported it, else the learned per-truck / temperature estimate.
-    const est = estimateIdleGallons(
-      { vehicleId: veh?.id ?? null, durationSec: e.durationSec, fuelGal: e.fuelGal, airTempF },
-      {
-        learned: learnedBurn,
-        defaultGalPerHour: galPerHour,
-        climateLowF: thresholds.climateLowF,
-        climateHighF: thresholds.climateHighF,
-      },
-    );
-    // CP4: attribute to Samsara's operator when present; else infer the driver assigned to this truck at the idle
-    // time ('inferred' vs 'direct' for transparency). Unattributed only when neither source resolves a driver.
-    const directDriver = e.operatorId ? (drvBySamsara.get(e.operatorId) ?? null) : null;
-    let driverId = directDriver;
-    let driverSource: "direct" | "inferred" | "none" = directDriver != null ? "direct" : "none";
-    if (driverId == null && e.assetId) {
-      const dsam = matchAssignmentAt(intervals, e.assetId, Date.parse(e.startTime));
-      const inferred = dsam ? (drvBySamsara.get(dsam) ?? null) : null;
-      if (inferred) {
-        driverId = inferred;
-        driverSource = "inferred";
-      }
-    }
-    return {
-      org_id: orgId,
-      samsara_event_id: e.eventUuid,
-      vehicle_id: veh?.id ?? null,
-      driver_id: driverId,
-      driver_source: driverSource,
-      started_at: e.startTime,
-      duration_sec: e.durationSec,
-      pto_active: e.ptoActive,
-      air_temp_f: airTempF,
-      air_temp_source: airTempSource,
-      fuel_gal: e.fuelGal,
-      idle_gal: est.gallons,
-      cost_usd: Math.round(est.gallons * fuelPrice * 100) / 100,
-      lat: e.lat,
-      lng: e.lng,
-      geofence_types: e.geofenceTypes,
-      // has_apu makes the classification capability-fair: an APU truck's extreme-temp main-engine idle stays
-      // discretionary (should've used the APU), not justified (audit A1.3).
-      classification: classifyIdleEvent(
-        {
-          durationSec: e.durationSec,
-          ptoActive: e.ptoActive,
-          airTempF,
-          hasApu: veh?.hasApu ?? null,
-        },
-        thresholds,
-      ),
-    };
-  });
+  const rows = buildIdleEventRows(
+    events,
+    orgId,
+    vehBySamsara,
+    drvBySamsara,
+    intervals,
+    backfilledTemp,
+    learnedBurn,
+    thresholds,
+    fuelPrice,
+  );
 
   let upserted = 0;
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
@@ -291,39 +362,7 @@ export async function syncIdleEvents(
   // intervals and upsert them into driver_vehicle_assignments alongside the endpoint-derived intervals, so
   // ALL consumers (idle attribution, driver scoring, card reconciliation) get complete coverage — not just the
   // idle-drivers view. Best-effort: an error here never fails the idle sync.
-  try {
-    const obs = events
-      .filter((e) => e.assetId && e.operatorId && e.startTime)
-      .map((e) => {
-        const startMs = new Date(e.startTime).getTime();
-        return {
-          vehicleSamsaraId: e.assetId as string,
-          driverSamsaraId: e.operatorId as string,
-          startMs,
-          endMs: startMs + Math.max(0, e.durationSec) * 1000,
-        };
-      })
-      .filter((o) => Number.isFinite(o.startMs));
-    const intervals = mergeOperatorAssignments(obs);
-    if (intervals.length) {
-      const now = new Date().toISOString();
-      const arows = intervals.map((iv) => ({
-        org_id: orgId,
-        vehicle_samsara_id: iv.vehicleSamsaraId,
-        driver_samsara_id: iv.driverSamsaraId,
-        start_at: new Date(iv.startMs).toISOString(),
-        end_at: iv.endMs != null ? new Date(iv.endMs).toISOString() : null,
-        updated_at: now,
-      }));
-      for (let i = 0; i < arows.length; i += 500) {
-        await admin.from("driver_vehicle_assignments").upsert(arows.slice(i, i + 500), {
-          onConflict: "org_id,vehicle_samsara_id,driver_samsara_id,start_at",
-        });
-      }
-    }
-  } catch {
-    /* operator-derived assignments are best-effort — never fail the idle sync over them */
-  }
+  await persistOperatorAssignments(admin, orgId, events);
 
   return { fetched: events.length, upserted };
 }

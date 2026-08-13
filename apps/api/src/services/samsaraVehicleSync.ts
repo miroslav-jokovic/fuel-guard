@@ -52,22 +52,16 @@ interface ExistingRow {
  * baseline MPG, fuel type). New trucks are created with tank capacity 0 / no baseline and reported in
  * `needsCompletion` so the admin knows to finish them before those drive fuel/efficiency detection.
  */
-export async function syncVehiclesFromSamsara(
-  admin: SupabaseClient,
+async function fetchSamsaraVehicles(
   env: Env,
-  orgId: string,
+  token: string,
   listerOverride?: SamsaraVehicleLister,
   odometerOverride?: SamsaraOdometerFetcher,
-  assignmentOverride?: SamsaraAssignmentFetcher,
-): Promise<VehicleSyncResult> {
-  const token = listerOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
-  if (!token) throw new NoSamsaraTokenError();
-
+): Promise<{ vehicles: SamsaraVehicle[]; odometerMiles: Map<string, number>; fuelByVehicle: Map<string, VehicleFuelLevel> }> {
   const lister = listerOverride ?? makeSamsaraVehicleLister(env, token);
   const raw = await lister();
   const vehicles = parseSamsaraVehicles({ data: raw as { id?: string }[] });
 
-  // Current odometer + fuel level per vehicle (best-effort — identity sync still succeeds without stats).
   let odometerMiles = new Map<string, number>();
   let fuelByVehicle = new Map<string, VehicleFuelLevel>();
   try {
@@ -78,146 +72,132 @@ export async function syncVehiclesFromSamsara(
   } catch {
     /* leave stats unset; not fatal */
   }
+  return { vehicles, odometerMiles, fuelByVehicle };
+}
 
-  const { data: existingData } = await admin
-    .from("vehicles")
-    .select("id, samsara_vehicle_id, vin, unit_number, status, samsara_missing_since")
-    .eq("org_id", orgId);
-  const existing = (existingData ?? []) as ExistingRow[];
-
-  const bySamsara = new Map(
-    existing.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id!, r]),
-  );
-  const byVin = new Map(existing.filter((r) => r.vin).map((r) => [r.vin!.toUpperCase(), r]));
-  const byUnit = new Map(existing.map((r) => [r.unit_number, r]));
-
-  const result: VehicleSyncResult = {
-    total: vehicles.length,
-    created: 0,
-    updated: 0,
-    assigned: 0,
-    needsCompletion: [],
-    samsaraMissing: [],
+function buildVehicleMaps(existing: ExistingRow[]) {
+  return {
+    bySamsara: new Map(existing.filter((r) => r.samsara_vehicle_id).map((r) => [r.samsara_vehicle_id!, r])),
+    byVin: new Map(existing.filter((r) => r.vin).map((r) => [r.vin!.toUpperCase(), r])),
+    byUnit: new Map(existing.map((r) => [r.unit_number, r])),
   };
+}
 
-  // ── Replacement lifecycle (identity check 2026-08-12). A mapped Samsara vehicle that no longer
-  // exists usually means the truck was physically replaced — five "… - OLD" ghosts sat active for
-  // weeks with nothing marking them. Stamp `samsara_missing_since` (first observation wins) and CLEAR
-  // it when the id reappears (a gateway swap / device fault can make a live truck vanish temporarily —
-  // four such trucks existed the day this shipped). Deliberately NEVER auto-retires: the stamp powers
-  // a "likely replaced — retire?" prompt, and retirement stays a human decision.
-  {
-    const liveIds = new Set(vehicles.map((sv) => sv.samsaraId));
-    const nowIso = new Date().toISOString();
-    const missing = existing.filter(
+async function applyReplacementLifecycle(
+  admin: SupabaseClient,
+  orgId: string,
+  existing: ExistingRow[],
+  liveIds: Set<string>,
+): Promise<string[]> {
+  const nowIso = new Date().toISOString();
+  const missing = existing.filter(
+    (r) => r.status !== "retired" && r.samsara_vehicle_id != null && !liveIds.has(r.samsara_vehicle_id),
+  );
+  const toStamp = missing.filter((r) => r.samsara_missing_since == null).map((r) => r.id);
+  if (toStamp.length) {
+    const { error } = await admin
+      .from("vehicles")
+      .update({ samsara_missing_since: nowIso })
+      .in("id", toStamp)
+      .eq("org_id", orgId);
+    if (error) throw new Error(`vehicle samsara-missing stamp failed: ${error.message}`);
+  }
+  const toClear = existing
+    .filter(
       (r) =>
-        r.status !== "retired" &&
+        r.samsara_missing_since != null &&
         r.samsara_vehicle_id != null &&
-        !liveIds.has(r.samsara_vehicle_id),
-    );
-    const toStamp = missing.filter((r) => r.samsara_missing_since == null).map((r) => r.id);
-    if (toStamp.length) {
-      const { error } = await admin
-        .from("vehicles")
-        .update({ samsara_missing_since: nowIso })
-        .in("id", toStamp)
-        .eq("org_id", orgId);
-      if (error) throw new Error(`vehicle samsara-missing stamp failed: ${error.message}`);
-    }
-    result.samsaraMissing = missing.map((r) => r.unit_number).sort();
-    const toClear = existing
-      .filter(
-        (r) =>
-          r.samsara_missing_since != null &&
-          r.samsara_vehicle_id != null &&
-          liveIds.has(r.samsara_vehicle_id),
-      )
-      .map((r) => r.id);
-    if (toClear.length) {
-      const { error } = await admin
-        .from("vehicles")
-        .update({ samsara_missing_since: null })
-        .in("id", toClear)
-        .eq("org_id", orgId);
-      if (error) throw new Error(`vehicle samsara-missing clear failed: ${error.message}`);
-    }
+        liveIds.has(r.samsara_vehicle_id),
+    )
+    .map((r) => r.id);
+  if (toClear.length) {
+    const { error } = await admin
+      .from("vehicles")
+      .update({ samsara_missing_since: null })
+      .in("id", toClear)
+      .eq("org_id", orgId);
+    if (error) throw new Error(`vehicle samsara-missing clear failed: ${error.message}`);
+  }
+  return missing.map((r) => r.unit_number).sort();
+}
+
+async function upsertSamsaraVehicle(
+  admin: SupabaseClient,
+  orgId: string,
+  sv: SamsaraVehicle,
+  odometerMiles: Map<string, number>,
+  fuelByVehicle: Map<string, VehicleFuelLevel>,
+  maps: ReturnType<typeof buildVehicleMaps>,
+): Promise<{ kind: "created" | "updated"; unit?: string }> {
+  const identity = {
+    make: sv.make,
+    model: sv.model,
+    year: sv.year,
+    plate: sv.licensePlate,
+    vin: sv.vin,
+  };
+  const odo = odometerMiles.get(sv.samsaraId);
+  const fuel = fuelByVehicle.get(sv.samsaraId);
+  const withStats = <T extends object>(o: T) => {
+    let out: T & {
+      current_odometer?: number;
+      samsara_fuel_percent?: number;
+      samsara_fuel_at?: string | null;
+    } = { ...o };
+    if (odo != null) out = { ...out, current_odometer: odo };
+    if (fuel) out = { ...out, samsara_fuel_percent: fuel.percent, samsara_fuel_at: fuel.time };
+    return out;
+  };
+  const match =
+    maps.bySamsara.get(sv.samsaraId) ??
+    (sv.vin ? maps.byVin.get(sv.vin.toUpperCase()) : undefined) ??
+    maps.byUnit.get(sv.name);
+  if (match) {
+    await admin
+      .from("vehicles")
+      .update(withStats({ ...identity, samsara_vehicle_id: sv.samsaraId }))
+      .eq("id", match.id)
+      .eq("org_id", orgId);
+    return { kind: "updated" };
   }
 
-  for (const sv of vehicles) {
-    const identity = {
-      make: sv.make,
-      model: sv.model,
-      year: sv.year,
-      plate: sv.licensePlate,
-      vin: sv.vin,
-    };
-    const odo = odometerMiles.get(sv.samsaraId);
-    const fuel = fuelByVehicle.get(sv.samsaraId);
-    // Attach odometer + fuel level only when Samsara actually reported them (never overwrite with null).
-    const withStats = <T extends object>(o: T) => {
-      let out: T & {
-        current_odometer?: number;
-        samsara_fuel_percent?: number;
-        samsara_fuel_at?: string | null;
-      } = { ...o };
-      if (odo != null) out = { ...out, current_odometer: odo };
-      if (fuel) out = { ...out, samsara_fuel_percent: fuel.percent, samsara_fuel_at: fuel.time };
-      return out;
-    };
-    const withOdo = withStats;
-    const match =
-      bySamsara.get(sv.samsaraId) ??
-      (sv.vin ? byVin.get(sv.vin.toUpperCase()) : undefined) ??
-      byUnit.get(sv.name);
-
-    if (match) {
+  const unit = pickUnitNumber(sv);
+  const { error } = await admin.from("vehicles").insert(
+    withStats({
+      org_id: orgId,
+      unit_number: unit,
+      ...identity,
+      samsara_vehicle_id: sv.samsaraId,
+      fuel_type: "diesel",
+      tank_capacity_gal: 0,
+      status: "active",
+    }),
+  );
+  if (error) {
+    if (error.code === "23505") {
       await admin
         .from("vehicles")
-        .update(withOdo({ ...identity, samsara_vehicle_id: sv.samsaraId }))
-        .eq("id", match.id)
-        .eq("org_id", orgId);
-      result.updated++;
-      continue;
+        .update(withStats({ ...identity, samsara_vehicle_id: sv.samsaraId }))
+        .eq("org_id", orgId)
+        .eq("unit_number", unit);
+      return { kind: "updated" };
     }
-
-    const unit = pickUnitNumber(sv);
-    const { error } = await admin.from("vehicles").insert(
-      withOdo({
-        org_id: orgId,
-        unit_number: unit,
-        ...identity,
-        samsara_vehicle_id: sv.samsaraId,
-        fuel_type: "diesel",
-        tank_capacity_gal: 0,
-        status: "active",
-      }),
-    );
-    if (error) {
-      // Most likely a unit_number collision with a row we couldn't pre-match → link it instead.
-      if (error.code === "23505") {
-        await admin
-          .from("vehicles")
-          .update(withOdo({ ...identity, samsara_vehicle_id: sv.samsaraId }))
-          .eq("org_id", orgId)
-          .eq("unit_number", unit);
-        result.updated++;
-        continue;
-      }
-      throw new Error(error.message);
-    }
-    result.created++;
-    result.needsCompletion.push(unit);
+    throw new Error(error.message);
   }
+  return { kind: "created", unit };
+}
 
-  // ── Driver assignments: pull each truck's current driver and set assigned_driver_id ──────────
-  // Best-effort: needs drivers synced first (so they carry samsara_driver_id) + the "Read Assignments"
-  // token scope. Any failure here leaves identity/odometer sync intact.
+async function syncDriverAssignments(
+  admin: SupabaseClient,
+  env: Env,
+  token: string,
+  orgId: string,
+  assignmentOverride?: SamsaraAssignmentFetcher,
+): Promise<number> {
   try {
     const fetcher = assignmentOverride ?? makeSamsaraAssignmentFetcher(env, token);
     const rawAssign = (await fetcher()) as Parameters<typeof parseCurrentAssignments>[0];
     const links = parseCurrentAssignments(rawAssign, new Date().toISOString());
-    // CP4: persist time-ranged assignment intervals so idle events without a Samsara operator can be attributed
-    // to the driver who had the truck at that time. Best-effort (inside the same try).
     const intervals = parseAssignmentIntervals(rawAssign);
     if (intervals.length) {
       const now = new Date().toISOString();
@@ -235,41 +215,91 @@ export async function syncVehiclesFromSamsara(
         });
       }
     }
-    if (links.length) {
-      const [{ data: vRows }, { data: dRows }] = await Promise.all([
-        admin
-          .from("vehicles")
-          .select("id, samsara_vehicle_id")
-          .eq("org_id", orgId)
-          .not("samsara_vehicle_id", "is", null),
-        admin
-          .from("drivers")
-          .select("id, samsara_driver_id")
-          .eq("org_id", orgId)
-          .not("samsara_driver_id", "is", null),
-      ]);
-      const vehById = new Map(
-        (vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]),
-      );
-      const drvById = new Map(
-        (dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]),
-      );
-      for (const link of links) {
-        const vehId = vehById.get(link.vehicleSamsaraId);
-        const drvId = drvById.get(link.driverSamsaraId);
-        if (vehId && drvId) {
-          await admin
-            .from("vehicles")
-            .update({ assigned_driver_id: drvId })
-            .eq("id", vehId)
-            .eq("org_id", orgId);
-          result.assigned++;
-        }
+    if (!links.length) return 0;
+    const [{ data: vRows }, { data: dRows }] = await Promise.all([
+      admin
+        .from("vehicles")
+        .select("id, samsara_vehicle_id")
+        .eq("org_id", orgId)
+        .not("samsara_vehicle_id", "is", null),
+      admin
+        .from("drivers")
+        .select("id, samsara_driver_id")
+        .eq("org_id", orgId)
+        .not("samsara_driver_id", "is", null),
+    ]);
+    const vehById = new Map((vRows ?? []).map((r) => [r.samsara_vehicle_id as string, r.id as string]));
+    const drvById = new Map((dRows ?? []).map((r) => [r.samsara_driver_id as string, r.id as string]));
+    let assigned = 0;
+    for (const link of links) {
+      const vehId = vehById.get(link.vehicleSamsaraId);
+      const drvId = drvById.get(link.driverSamsaraId);
+      if (vehId && drvId) {
+        await admin.from("vehicles").update({ assigned_driver_id: drvId }).eq("id", vehId).eq("org_id", orgId);
+        assigned++;
       }
     }
+    return assigned;
   } catch {
     /* assignments are best-effort */
+    return 0;
   }
+}
+
+export async function syncVehiclesFromSamsara(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  listerOverride?: SamsaraVehicleLister,
+  odometerOverride?: SamsaraOdometerFetcher,
+  assignmentOverride?: SamsaraAssignmentFetcher,
+): Promise<VehicleSyncResult> {
+  const token = listerOverride ? "test" : await loadSamsaraToken(admin, env, orgId);
+  if (!token) throw new NoSamsaraTokenError();
+
+  const { vehicles, odometerMiles, fuelByVehicle } = await fetchSamsaraVehicles(
+    env,
+    token,
+    listerOverride,
+    odometerOverride,
+  );
+
+  const { data: existingData } = await admin
+    .from("vehicles")
+    .select("id, samsara_vehicle_id, vin, unit_number, status, samsara_missing_since")
+    .eq("org_id", orgId);
+  const existing = (existingData ?? []) as ExistingRow[];
+
+  const maps = buildVehicleMaps(existing);
+
+  const result: VehicleSyncResult = {
+    total: vehicles.length,
+    created: 0,
+    updated: 0,
+    assigned: 0,
+    needsCompletion: [],
+    samsaraMissing: await applyReplacementLifecycle(
+      admin,
+      orgId,
+      existing,
+      new Set(vehicles.map((sv) => sv.samsaraId)),
+    ),
+  };
+
+  for (const sv of vehicles) {
+    const synced = await upsertSamsaraVehicle(admin, orgId, sv, odometerMiles, fuelByVehicle, maps);
+    if (synced.kind === "created") {
+      result.created++;
+      result.needsCompletion.push(synced.unit!);
+    } else {
+      result.updated++;
+    }
+  }
+
+  // ── Driver assignments: pull each truck's current driver and set assigned_driver_id ──────────
+  // Best-effort: needs drivers synced first (so they carry samsara_driver_id) + the "Read Assignments"
+  // token scope. Any failure here leaves identity/odometer sync intact.
+  result.assigned = await syncDriverAssignments(admin, env, token, orgId, assignmentOverride);
 
   return result;
 }

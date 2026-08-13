@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { assertEchoFidelity, serializeSetCardRequest } from "../lib/efsCardEcho.js";
+import { assertEchoFidelity, serializeSetCardRequest, type CardEdit } from "../lib/efsCardEcho.js";
 import { parseCardDocument } from "../lib/efsCardXml.js";
 import { lockEdits, overrideClearEdits, overrideGrantEdits, promptsEdits, unlockEdits } from "./efsCardEdits.js";
 
@@ -17,6 +17,11 @@ const fixture = (name: string): string =>
   readFileSync(fileURLToPath(new URL(`../lib/__fixtures__/efs/${name}`, import.meta.url)), "utf8");
 const doc = (name = "getCardV2.full.xml") => parseCardDocument(fixture(name));
 const CARD = "70830000000000000";
+
+const setField = (e: CardEdit) => {
+  if (e.op !== "setField") throw new Error(`expected setField, got ${e.op}`);
+  return e;
+};
 
 /** Build the request the way `setCardV2` does, and let the production guard judge it. */
 function request(document: ReturnType<typeof doc>, edits: Parameters<typeof serializeSetCardRequest>[2]): string {
@@ -73,9 +78,9 @@ describe("H1 — the write is spelled in the account's own casing", () => {
   it("mixed-case and absent observations pass the guide spelling through verbatim", () => {
     // Mixed case is the guide's own spelling — every fixture in this repo — and inventing a
     // transform for it would be exactly the kind of assumption H1 punished.
-    expect(lockEdits("Hold", "Active")[0]!.value).toBe("Hold");
-    expect(lockEdits("Hold", null)[0]!.value).toBe("Hold");
-    expect(unlockEdits(null)[0]!.value).toBe("Active");
+    expect(setField(lockEdits("Hold", "Active")[0]!).value).toBe("Hold");
+    expect(setField(lockEdits("Hold", null)[0]!).value).toBe("Hold");
+    expect(setField(unlockEdits(null)[0]!).value).toBe("Active");
   });
 });
 
