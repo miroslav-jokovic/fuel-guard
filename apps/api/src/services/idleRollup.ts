@@ -10,7 +10,6 @@ import {
   normalizeHosStatus,
   summarizeIdleEquipmentEvidence,
   type IdleEquipmentEvidenceStatus,
-  type IdleRollupDay,
   type HosSegment,
   type HosVehicleTimeline,
   type RollupAssignment,
@@ -31,7 +30,6 @@ import {
  * own 30-day re-pull.
  */
 
-const UPSERT_CHUNK = 500;
 /** One aligned window for the source feeds and derived rollup; see idleWindow.ts (precision incident 2026-08-12). */
 const ROLLING_DAYS = IDLE_SOURCE_WINDOW_DAYS;
 /** First run on an empty table: backfill as far as the raw tables reach. */
