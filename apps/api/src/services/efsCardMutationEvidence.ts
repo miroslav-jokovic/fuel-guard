@@ -10,10 +10,3 @@ export function mutationLedgerEvidence(ctx: Pick<CardMutationContext, "creds" | 
     card_last4: cardLast4(ctx.cardNumber),
   };
 }
-
-export const cardOpOptions = (ctx: CardMutationContext) => ({
-  priority: "interactive" as const,
-  timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
-  fetchImpl: ctx.fetchImpl,
-  signal: ctx.signal,
-});

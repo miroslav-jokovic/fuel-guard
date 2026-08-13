@@ -1,13 +1,17 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../env.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
-import { loadCardControlAccess } from "./efsCardControlAccess.js";
+import {
+  __resetGrandfatheredProbeOrgs,
+  loadCardControlAccess,
+} from "./efsCardControlAccess.js";
 
 const env = {
   EFS_CARD_CONTROL_ENABLED: true,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
 } as unknown as Env;
+const envWithoutSecretsKey = { EFS_CARD_CONTROL_ENABLED: true } as unknown as Env;
 
 const baseIdentity = {
   endpointUrl: "https://qa.efsllc.com/axis2/services/CardManagementWS/",
@@ -43,7 +47,12 @@ function accessRecorder(
   });
 }
 
+beforeEach(() => {
+  __resetGrandfatheredProbeOrgs();
+});
+
 afterEach(() => {
+  __resetGrandfatheredProbeOrgs();
   vi.restoreAllMocks();
 });
 
@@ -88,6 +97,42 @@ describe("card-control credential identity binding", () => {
 
     expect(access.blockedBy).toBeNull();
     expect(access.canLock).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses card control when the stored endpoint URL cannot be parsed", async () => {
+    const rec = accessRecorder(credentialIdentityHash(env, baseIdentity), {
+      endpointUrl: "not-a-url",
+    });
+
+    const access = await loadCardControlAccess(rec.client, env, "org-invalid-endpoint", "user-1", "admin");
+
+    expect(access.blockedBy).toBe("endpoint_changed");
+    expect(access.canLock).toBe(false);
+  });
+
+  it("refuses card control when the secrets key is unavailable", async () => {
+    const rec = accessRecorder(credentialIdentityHash(env, baseIdentity));
+
+    const access = await loadCardControlAccess(
+      rec.client,
+      envWithoutSecretsKey,
+      "org-missing-secrets-key",
+      "user-1",
+      "admin",
+    );
+
+    expect(access.blockedBy).toBe("endpoint_changed");
+    expect(access.canLock).toBe(false);
+  });
+
+  it("logs the grandfathered warning once per org", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const rec = accessRecorder(null);
+
+    await loadCardControlAccess(rec.client, env, "org-warning-once", "user-1", "admin");
+    await loadCardControlAccess(rec.client, env, "org-warning-once", "user-1", "admin");
+
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });

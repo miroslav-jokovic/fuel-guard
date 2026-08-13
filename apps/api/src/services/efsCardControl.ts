@@ -16,7 +16,8 @@ import {
   updateMirror,
 } from "./efsCardReconcile.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
-import { cardOpOptions, mutationLedgerEvidence } from "./efsCardMutationEvidence.js";
+import { mutationLedgerEvidence } from "./efsCardMutationEvidence.js";
+import { cardOpOptions } from "./efsCardOperationOptions.js";
 
 /**
  * Changing a fuel card in EFS: one path, one ledger row, one recorded outcome for every branch.

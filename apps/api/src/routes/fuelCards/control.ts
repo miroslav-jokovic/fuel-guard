@@ -38,8 +38,7 @@ import {
 import { loadCardControlAccess, type CardScope } from "../../services/efsCardControlAccess.js";
 import { loadCardNumber } from "../../services/efsCardMirror.js";
 import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
-import { ActionRefusalError, assertPromptRemovalAllowed } from "./controlRefusal.js";
-import { refusal } from "./cardControlRefusal.js";
+import { ActionRefusalError, assertPromptRemovalAllowed, refusal } from "./controlRefusal.js";
 
 /**
  * Changing a fuel card. Five endpoints, one per INTENT.

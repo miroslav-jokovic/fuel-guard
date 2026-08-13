@@ -5,6 +5,10 @@ import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
 
 const grandfatheredProbeOrgs = new Set<string>();
 
+export function __resetGrandfatheredProbeOrgs(): void {
+  grandfatheredProbeOrgs.clear();
+}
+
 /**
  * One place that answers "may this person change this card, and if not, why not?"
  *
@@ -97,11 +101,21 @@ export async function loadCardControlAccess(
     soap_username: string;
     account_id: string | null;
   };
-  const currentIdentity = credentialIdentityHash(env, {
-    endpointUrl: currentCredentials.endpoint_url,
-    soapUsername: currentCredentials.soap_username,
-    accountId: currentCredentials.account_id,
-  });
+  /**
+   * A credential whose identity cannot be computed — an unparseable endpoint or a missing sealing key —
+   * is not a credential that matches what was probed. Returning `endpoint_changed` is strictly better
+   * than a 500 that tells the operator nothing and could leave the capability path ambiguous.
+   */
+  let currentIdentity: string;
+  try {
+    currentIdentity = credentialIdentityHash(env, {
+      endpointUrl: currentCredentials.endpoint_url,
+      soapUsername: currentCredentials.soap_username,
+      accountId: currentCredentials.account_id,
+    });
+  } catch {
+    return denied("endpoint_changed", entitlement);
+  }
   const probedIdentity = row?.probed_identity_hash ?? null;
   if (probedIdentity !== null && probedIdentity !== currentIdentity) {
     return denied("endpoint_changed", entitlement);
