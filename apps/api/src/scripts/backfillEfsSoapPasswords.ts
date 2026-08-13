@@ -1,8 +1,8 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { pathToFileURL } from "node:url";
 import { loadEnv, type Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { seal, sealingKeyId, secretAad } from "../lib/secretBox.js";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * One-time backfill: seal the legacy plaintext `efs_soap_credentials.soap_password` values that
@@ -28,6 +28,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * the plaintext is blanked in the same statement that writes the ciphertext. The key id is a truncated
  * double-hash of a hash, is not secret, and is already stored in every envelope — printing and
  * comparing it costs nothing.
+ *
+ * An empty anchor set is indistinguishable from being pointed at the wrong database, and that is not
+ * a distinction to guess at while blanking plaintext credentials. Dry-run may report that state, but
+ * `--apply` refuses to proceed without an anchor.
  *
  *   pnpm backfill:efs-soap-passwords              # report only, writes nothing
  *   pnpm backfill:efs-soap-passwords --apply      # seal and blank
@@ -82,7 +86,10 @@ export function compareSealedKeyIds(
   };
 }
 
-async function runBackfill(admin: SupabaseClient, env: Env, apply: boolean): Promise<void> {
+export async function runBackfill(admin: SupabaseClient, env: Env, apply: boolean): Promise<boolean> {
+  // These are unordered samples capped at 200: enough to answer "am I pointed at the right database
+  // and key", not proof that every sealed row in either table carries the current key id. This is not
+  // an exhaustive audit.
   const [{ data, error }, { data: cardAnchors, error: cardAnchorError }, { data: certAnchors, error: certAnchorError }] =
     await Promise.all([
       admin
@@ -104,13 +111,16 @@ async function runBackfill(admin: SupabaseClient, env: Env, apply: boolean): Pro
   console.log(`[efs-soap] current sealing key id: ${verdict.currentKeyId}`);
   if (!verdict.hasAnchor) {
     console.log("[efs-soap] no existing sealed material to compare against; the key cannot be cross-checked");
+    if (apply) {
+      console.error("[efs-soap] refusing to apply: no sealed material exists to cross-check the key against");
+      return false;
+    }
   } else {
     console.log("[efs-soap] existing sealed key ids:");
     for (const { keyId, count } of verdict.keyIds) console.log(`  - ${keyId}: ${count}`);
     if (!verdict.ok) {
       console.error(`[efs-soap] refusing: stored sealing key id differs from current ${verdict.currentKeyId}`);
-      process.exitCode = 1;
-      return;
+      return false;
     }
     console.log("[efs-soap] sealing key id matches all existing sealed material.");
   }
@@ -122,7 +132,7 @@ async function runBackfill(admin: SupabaseClient, env: Env, apply: boolean): Pro
     console.log(`[efs-soap] ${pending.length} row(s) hold a legacy plaintext password:`);
     for (const row of pending) console.log(`  - org ${row.org_id}`);
     console.log(`[efs-soap] dry run — nothing written. Re-run with --apply to seal them.`);
-    return;
+    return true;
   }
 
   let migrated = 0;
@@ -139,9 +149,11 @@ async function runBackfill(admin: SupabaseClient, env: Env, apply: boolean): Pro
     migrated += 1;
   }
   console.log(`[efs-soap] sealed ${migrated} legacy password row(s)`);
+  return true;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const env = loadEnv(process.env);
-  await runBackfill(getSupabaseAdmin(env), env, process.argv.includes("--apply"));
+  const ok = await runBackfill(getSupabaseAdmin(env), env, process.argv.includes("--apply"));
+  if (!ok) process.exitCode = 1;
 }
