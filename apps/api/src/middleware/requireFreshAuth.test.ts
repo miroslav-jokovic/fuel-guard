@@ -34,10 +34,14 @@ function call(issuedAt: number | null | undefined, maxAgeSec?: number, stepUpTok
 }
 
 describe("requireFreshAuth", () => {
-  it("passes a token minted moments ago", () => {
-    const { next, res } = call(nowSec() - 10);
-    expect(next).toHaveBeenCalled();
-    expect(res.status).not.toHaveBeenCalled();
+  it("a fresh iat alone no longer satisfies step-up", () => {
+    const { next, res, json } = call(nowSec() - 10);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(json.mock.calls[0]![0]).toMatchObject({
+      error: { code: "step_up_required" },
+      maxAgeSec: DEFAULT_STEP_UP_MAX_AGE_SEC,
+    });
   });
 
   it("refuses a token older than the window, and says how fresh it needs to be", () => {
@@ -58,16 +62,16 @@ describe("requireFreshAuth", () => {
     expect((call(null).next as unknown as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
   });
 
-  it("tolerates small clock skew but refuses a token from the future", () => {
-    // Thirty seconds of skew between Supabase and this process is normal and harmless.
-    expect(call(nowSec() + 30).next).toHaveBeenCalled();
+  it("does not accept any iat value, including clock-skewed values", () => {
+    // Access-token freshness is not step-up proof, even when the clock skew is small.
+    expect(call(nowSec() + 30).next).not.toHaveBeenCalled();
     // Ten minutes into the future is not skew; it is a broken clock or a forged claim, and neither is
     // a reason to lower a security bar.
     expect(call(nowSec() + 600).next).not.toHaveBeenCalled();
   });
 
-  it("honours a caller-supplied window", () => {
-    expect(call(nowSec() - 45, 60).next).toHaveBeenCalled();
+  it("does not accept a fresh iat in a caller-supplied window", () => {
+    expect(call(nowSec() - 45, 60).next).not.toHaveBeenCalled();
     expect(call(nowSec() - 90, 60).next).not.toHaveBeenCalled();
   });
 
@@ -91,7 +95,7 @@ describe("hasFreshAuth — the predicate for conditional step-up", () => {
     const fresh = request(nowSec() - 5);
     const stale = request(nowSec() - 10_000);
     const missing = request(undefined);
-    expect(hasFreshAuth(fresh)).toBe(true);
+    expect(hasFreshAuth(fresh)).toBe(false);
     expect(hasFreshAuth(stale)).toBe(false);
     expect(hasFreshAuth(missing)).toBe(false);
   });

@@ -7,11 +7,10 @@ import { STEP_UP_TOKEN_HEADER, verifyStepUpToken } from "../lib/stepUpToken.js";
  * Step-up re-authentication (plan §6.3): prove it is still the same person, right now.
  *
  * ── What it actually checks ──────────────────────────────────────────────────────────────────────
- * The `iat` of the JWT `requireAuth` has already verified through the project JWKS. A Supabase access
- * token is short-lived and is re-minted by `signInWithPassword`, so "this token was issued in the
- * last five minutes" means the caller typed their password in the last five minutes. That is the
- * whole mechanism: no table, no round trip, no second credential store, and nothing the browser can
- * forge — the number is inside a signature we check.
+ * The step-up token is minted only after Supabase accepts a fresh password grant. It is HMAC-bound to
+ * the verified user and org, so a refreshed access token cannot silently become a step-up proof.
+ * There is no table, no second credential store, and nothing the browser can forge — the token is
+ * verified against the deploy's signing key.
  *
  * ── Where it is required, and where it deliberately is not ───────────────────────────────────────
  * Required for: the write-entitlement probe, enabling card control, granting or revoking approvers,
@@ -23,12 +22,10 @@ import { STEP_UP_TOKEN_HEADER, verifyStepUpToken } from "../lib/stepUpToken.js";
  * response slower has a cost measured in stolen fuel, and it buys nothing an attacker could not get
  * by waiting five minutes anyway.
  *
- * ── The caveat that has to be written down ───────────────────────────────────────────────────────
- * An SSO-only org has no password to re-enter. There, `iat` freshness degrades to "your session
- * started recently" rather than "you proved it was you", because that is all the identity provider
- * gives us without building federated re-auth. Every surface that requires step-up is therefore ALSO
- * behind `requireRole("admin")` or an approver scope, so the degraded case is still not open to the
- * whole org. Documented rather than silently weaker.
+ * ── The route contract ────────────────────────────────────────────────────────────────────────────
+ * A caller without a valid step-up token is refused, even when the access token has a recent `iat`.
+ * Access-token freshness is not password proof because a refresh-token grant can mint a new access
+ * token without asking the user to re-enter a password.
  *
  * ── Rejected alternatives ────────────────────────────────────────────────────────────────────────
  * A `step_up_tokens` table: more state, same guarantee. TOTP/WebAuthn: building MFA infrastructure
@@ -50,10 +47,7 @@ export const STEP_UP_CODE = "step_up_required";
 /**
  * The step-up TOKEN is the primary proof (audit P0-4): minted by POST /api/auth/step-up only after
  * Supabase's own password grant accepted the caller's password, HMAC-bound to userId+orgId, expiring
- * in minutes. `iat` freshness remains below as a DEPRECATED fallback only until the web client sends
- * the token everywhere (Phase 2 drawer work) — it is defeated by the refresh-token grant, which
- * re-mints access tokens with a current `iat` and no password. Remove the fallback with the web
- * migration; the tests that pin the token path are the tripwire for that removal.
+ * in minutes. The web client sends it on every request, so there is no access-token freshness fallback.
  */
 function hasStepUpToken(req: Request): boolean {
   const token = req.header(STEP_UP_TOKEN_HEADER);
@@ -65,22 +59,7 @@ function hasStepUpToken(req: Request): boolean {
 
 export function requireFreshAuth(maxAgeSec: number = DEFAULT_STEP_UP_MAX_AGE_SEC) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    if (hasStepUpToken(req)) {
-      next();
-      return;
-    }
-    const issuedAt = req.auth?.issuedAt;
-    const nowSec = Math.floor(Date.now() / 1000);
-
-    // FAIL CLOSED on a missing claim. A token without `iat` is either older than this feature or not
-    // one we minted the way we think; either way we cannot prove freshness, and a step-up gate that
-    // waves through what it cannot verify is decoration. See AuthContext.issuedAt.
-    //
-    // A token issued in the FUTURE is also refused rather than treated as maximally fresh: small
-    // clock skew is normal and harmless within the window, but a large negative age means something
-    // is wrong with the clock or the token, and neither is a reason to lower a security bar.
-    const ageSec = typeof issuedAt === "number" ? nowSec - issuedAt : null;
-    if (ageSec === null || ageSec > maxAgeSec || ageSec < -60) {
+    if (!hasStepUpToken(req)) {
       res.status(403).json({
         ...apiError(
           STEP_UP_CODE,
@@ -99,12 +78,8 @@ export function requireFreshAuth(maxAgeSec: number = DEFAULT_STEP_UP_MAX_AGE_SEC
  * above three uses, a prompts change that drops the driver ID. Those cannot be decided by middleware
  * because the answer is in the parsed body.
  */
-export function hasFreshAuth(req: Request, maxAgeSec: number = DEFAULT_STEP_UP_MAX_AGE_SEC): boolean {
-  if (hasStepUpToken(req)) return true;
-  const issuedAt = req.auth?.issuedAt;
-  if (typeof issuedAt !== "number") return false;
-  const ageSec = Math.floor(Date.now() / 1000) - issuedAt;
-  return ageSec <= maxAgeSec && ageSec >= -60;
+export function hasFreshAuth(req: Request): boolean {
+  return hasStepUpToken(req);
 }
 
 /** The body a conditional step-up refusal sends, so the two paths cannot drift apart. */

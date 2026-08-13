@@ -53,23 +53,29 @@ write gate is shut for it regardless of the deploy-wide flag.
 
 ## Step 1 — Get a fresh token (repeat whenever a call answers 403 `step_up_required`)
 
-The experiment endpoint demands a sign-in **fresh within 5 minutes**. A new password-grant login
-satisfies it; re-run this before each batch of calls:
-
-```bash
-TOKEN=$(curl -s "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
-  -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" \
-  -d '{"email":"<your QA admin email>","password":"<your password>"}' | jq -r .access_token)
-```
-
-`SUPABASE_URL` / `SUPABASE_ANON_KEY` are readable from the web service's Railway variables
-(`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`). Your password never goes anywhere but Supabase.
+The experiment endpoint requires a valid **step-up token** minted after a fresh password check. Re-run
+this before each batch of calls, or whenever the 300-second step-up token expires:
 
 ```bash
 API=https://<api-host>
+TOKEN=$(curl -s "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
+  -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" \
+  -d '{"email":"<your QA admin email>","password":"<your password>"}' | jq -r .access_token)
+STEP_UP_TOKEN=$(curl -s "$API/api/auth/step-up" -X POST \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"password":"<your password>"}' | jq -r .token)
+```
+
+`/api/auth/step-up` returns `{token, expiresAt}`; the `token` field is the value required below.
+`SUPABASE_URL` / `SUPABASE_ANON_KEY` are readable from the web service's Railway variables
+(`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`). The API forwards the password only for this in-flight
+Supabase verification; it never stores or logs it.
+
+```bash
 CARD=<the full card number from DEVIN-EFS-QA-SETUP step 7, first in the list>
 exp() { curl -s "$API/api/fuel-cards/experiment" -X POST \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$1"; }
+  -H "Authorization: Bearer $TOKEN" -H "x-step-up-token: $STEP_UP_TOKEN" \
+  -H "Content-Type: application/json" -d "$1"; }
 ```
 
 ## Step 2 — E1, read-only state (run first, always)
