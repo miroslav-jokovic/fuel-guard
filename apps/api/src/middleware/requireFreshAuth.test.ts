@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { describe, expect, it, vi } from "vitest";
+import { loadEnv } from "../env.js";
+import { STEP_UP_TOKEN_HEADER, mintStepUpToken } from "../lib/stepUpToken.js";
 import { DEFAULT_STEP_UP_MAX_AGE_SEC, hasFreshAuth, requireFreshAuth } from "./requireFreshAuth.js";
 
 /**
@@ -9,9 +11,21 @@ import { DEFAULT_STEP_UP_MAX_AGE_SEC, hasFreshAuth, requireFreshAuth } from "./r
  */
 
 const nowSec = () => Math.floor(Date.now() / 1000);
+const env = loadEnv({
+  NODE_ENV: "test",
+  SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+} as NodeJS.ProcessEnv);
 
-function call(issuedAt: number | null | undefined, maxAgeSec?: number) {
-  const req = { auth: { userId: "u", email: null, orgId: "o", role: "admin", issuedAt } } as unknown as Request;
+function request(issuedAt: number | null | undefined, stepUpToken?: string, orgId = "o") {
+  return {
+    auth: { userId: "u", email: null, orgId, role: "admin", issuedAt },
+    header: vi.fn((name: string) => (name === STEP_UP_TOKEN_HEADER ? stepUpToken : undefined)),
+    app: { locals: { env } },
+  } as unknown as Request;
+}
+
+function call(issuedAt: number | null | undefined, maxAgeSec?: number, stepUpToken?: string, orgId?: string) {
+  const req = request(issuedAt, stepUpToken, orgId);
   const json = vi.fn();
   const res = { status: vi.fn().mockReturnThis(), json } as unknown as Response;
   const next = vi.fn() as unknown as NextFunction;
@@ -56,13 +70,27 @@ describe("requireFreshAuth", () => {
     expect(call(nowSec() - 45, 60).next).toHaveBeenCalled();
     expect(call(nowSec() - 90, 60).next).not.toHaveBeenCalled();
   });
+
+  it("a valid step-up token passes with no iat at all", () => {
+    const token = mintStepUpToken(env, "u", "o")!.token;
+    const { next, res } = call(undefined, undefined, token);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it("a step-up token minted for a different org does not pass", () => {
+    const token = mintStepUpToken(env, "u", "other-org")!.token;
+    const { next, res } = call(undefined, undefined, token);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
 });
 
 describe("hasFreshAuth — the predicate for conditional step-up", () => {
   it("agrees with the middleware", () => {
-    const fresh = { auth: { issuedAt: nowSec() - 5 } } as unknown as Request;
-    const stale = { auth: { issuedAt: nowSec() - 10_000 } } as unknown as Request;
-    const missing = { auth: {} } as unknown as Request;
+    const fresh = request(nowSec() - 5);
+    const stale = request(nowSec() - 10_000);
+    const missing = request(undefined);
     expect(hasFreshAuth(fresh)).toBe(true);
     expect(hasFreshAuth(stale)).toBe(false);
     expect(hasFreshAuth(missing)).toBe(false);
