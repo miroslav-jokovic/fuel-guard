@@ -12,6 +12,7 @@ import {
   EFS_VALIDATION_TYPES,
   EFS_LOCK_STATUSES,
 } from "./efsCardCatalog.js";
+import type { EffectiveRow } from "./cardControlEffectiveConfig.js";
 
 /**
  * The wire contract for EFS card control. One source of truth; never redefine these per app.
@@ -156,14 +157,7 @@ export const wsPolicySchema = z.object({
 });
 export type WsPolicy = z.infer<typeof wsPolicySchema>;
 
-// ─── Effective configuration (card vs policy) ──────────────────────────────────────────────────
-
-export type EffectiveOrigin = "card" | "policy" | "policy-overridden" | "policy-ignored";
-
-export interface EffectiveRow<T> {
-  value: T;
-  origin: EffectiveOrigin;
-}
+export { isEnforced, type EffectiveOrigin, type EffectiveRow } from "./cardControlEffectiveConfig.js";
 
 /**
  * Combine card-level and policy-level records into what a pump will actually enforce.
@@ -198,9 +192,6 @@ export function mergeEffectiveConfig<T>(
   }
   return rows;
 }
-
-/** Whether a merged row is actually enforced at the pump. */
-export const isEnforced = (origin: EffectiveOrigin): boolean => origin === "card" || origin === "policy";
 
 // ─── Read responses ────────────────────────────────────────────────────────────────────────────
 

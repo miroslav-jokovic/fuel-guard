@@ -24,6 +24,10 @@
  * to ratchet), and anything at or above WARN_AT is reported without failing.
  *
  * `.tsx` is in scope. It was previously excluded, which silently exempted all 68 driver UI files.
+ *
+ * 3. A line budget can be satisfied by deleting whitespace instead of code, which leaves the gate green
+ * and the file worse. The compression budget makes that route cost more than the honest one: pinned
+ * files also have a baseline count of overlong or compressed statement lines, and that count may not rise.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, extname } from "node:path";
@@ -51,9 +55,9 @@ const GRANDFATHERED = {
   // the view modules. Splitting them now and again in Phase 3 is two refactors of the same code.
   // PHASE 3'S EXIT GATE DELETES THESE FOUR ENTRIES. If they are still here after Phase 3, that is a
   // bug in the plan, not a new normal.
-  "apps/api/src/routes/fuelCards/control.ts": 528,
+  "apps/api/src/routes/fuelCards/control.ts": 504,
   "apps/api/src/services/efsCardControl.ts": 534,
-  "packages/shared/src/cardControlContract.ts": 529,
+  "packages/shared/src/cardControlContract.ts": 522,
   "apps/web/src/features/fuelCards/cardControlModel.ts": 542,
   // Pinned 2026-08-13 for a different reason. Phase 1 Step 1.2 adds an org-ownership guard to the
   // probe routers; that guard lives in ONE shared helper imported by all three, so this file must
@@ -65,10 +69,34 @@ const GRANDFATHERED = {
   // list; do not re-add one instead of splitting.
 };
 
+const COMPRESSION_BUDGETS = {
+  "apps/api/src/routes/integrations.ts": 1,
+  "apps/api/src/routes/fuelCards/control.ts": 15,
+  "apps/api/src/services/efsCardControl.ts": 2,
+  "packages/shared/src/cardControlContract.ts": 0,
+  "apps/web/src/features/fuelCards/cardControlModel.ts": 13,
+  "apps/api/src/routes/fuelCards/experiments.ts": 4,
+};
+
 const SOURCE_EXT = new Set([".ts", ".tsx", ".vue"]);
 const isSource = (f) =>
   !f.endsWith(".test.ts") && !f.endsWith(".test.tsx") && !f.endsWith(".spec.ts") && !f.endsWith(".spec.tsx") &&
   SOURCE_EXT.has(extname(f));
+
+function compressionLines(source) {
+  return source.split("\n").flatMap((line, i) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/")) return [];
+    const overlong = line.length > 120;
+    const isForHeader = /^for\s*\(/.test(trimmed);
+    const semicolon = line.indexOf(";");
+    const afterSemicolon = semicolon >= 0
+      ? line.slice(semicolon + 1).replace(/\/\/.*$/, "").replace(/[}\])\s]+$/, "").trim()
+      : "";
+    const compressed = !isForHeader && afterSemicolon.length > 0;
+    return overlong || compressed ? [i + 1] : [];
+  });
+}
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -83,6 +111,7 @@ function walk(dir, out = []) {
 const violations = [];
 const grown = [];
 const ratchet = [];
+const compressionGrown = [];
 const warnings = [];
 const seen = new Set();
 
@@ -91,8 +120,15 @@ for (const d of SCAN_DIRS) {
   try { files = walk(join(ROOT, d)); } catch { continue; }
   for (const full of files) {
     const rel = relative(ROOT, full);
-    const lines = readFileSync(full, "utf8").split("\n").length;
+    const source = readFileSync(full, "utf8");
+    const lines = source.split("\n").length;
     const pin = GRANDFATHERED[rel];
+    const compressionBudget = COMPRESSION_BUDGETS[rel];
+
+    if (compressionBudget !== undefined) {
+      const compressed = compressionLines(source);
+      if (compressed.length > compressionBudget) compressionGrown.push({ rel, count: compressed.length, pin: compressionBudget, lines: compressed });
+    }
 
     if (pin !== undefined) {
       seen.add(rel);
@@ -138,6 +174,16 @@ if (grown.length) {
       "module, or — if the growth is genuinely justified — raise the pin in the same commit so the\n" +
       "decision is reviewable.",
   );
+}
+
+if (compressionGrown.length) {
+  failed = true;
+  console.error("\n✗ pinned files grew their compressed-line budget:");
+  for (const g of compressionGrown.sort((a, b) => b.count - b.pin - (a.count - a.pin))) {
+    console.error(`  ${g.rel}: ${g.count} compressed lines, baseline ${g.pin} (+${g.count - g.pin})`);
+    for (const line of g.lines) console.error(`    line ${line}`);
+  }
+  console.error("\nKeep statements readable and split crowded code instead of compressing it onto fewer lines.");
 }
 
 if (violations.length) {
