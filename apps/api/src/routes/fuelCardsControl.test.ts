@@ -69,16 +69,18 @@ function withServer(): { url: () => string } {
 
 type ApiErrorBody = { error: { code: string; message: string } };
 const errorBody = async (res: Response): Promise<ApiErrorBody> => (await res.json()) as ApiErrorBody;
+const TEST_IDEMPOTENCY_KEY = "11111111-1111-4111-8111-111111111111";
 
 const send = (
   base: string, path: string, method: string,
-  opts: { token?: string; body?: unknown; headers?: Record<string, string> } = {},
+  opts: { token?: string; body?: unknown; headers?: Record<string, string>; omitIdempotencyKey?: boolean } = {},
 ): Promise<Response> =>
   fetch(`${base}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
       ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+      ...(opts.omitIdempotencyKey ? {} : { "Idempotency-Key": TEST_IDEMPOTENCY_KEY }),
       ...(opts.headers ?? {}),
     },
     ...(opts.body === undefined ? {} : { body: JSON.stringify(opts.body) }),
@@ -122,7 +124,7 @@ describe("write routes — authentication and role", () => {
 });
 
 describe("write routes — the contract", () => {
-  const s = withServer(); // 7 + 5 + 1 + 2 + 1 = 16 requests
+  const s = withServer(); // 7 + 5 + 1 + 2 + 1 + 1 = 17 requests
 
   it("accepts a missing reason, but refuses a malformed one (B1)", async () => {
     for (const [path, method, body] of WRITE_ROUTES) {
@@ -166,6 +168,14 @@ describe("write routes — the contract", () => {
       });
       expect(res.status).toBe(400);
     }
+  });
+
+  it("refuses a mutation without an Idempotency-Key", async () => {
+    const res = await send(s.url(), `/api/fuel-cards/${CARD}/lock`, "POST", {
+      token: "admin", body: base, omitIdempotencyKey: true,
+    });
+    expect(res.status).toBe(400);
+    expect((await errorBody(res)).error.code).toBe("invalid_request");
   });
 
   it("refuses a malformed Idempotency-Key rather than ignoring it", async () => {
