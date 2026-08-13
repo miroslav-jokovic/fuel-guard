@@ -55,6 +55,7 @@ const FAULT_CODES: ReadonlyArray<[RegExp, EfsSoapError["code"], string?]> = [
   [/InvalidLoginException/i, "auth", "EFS rejected the password for this service account."],
   [/InvalidAccountException/i, "auth", "EFS does not recognise this service account username."],
   [/InvalidClientId/i, "session_expired"],
+  [/flying\s*j/i, "soap_fault", "EFS returned a Flying J operation response."],
   // The guide names this fault "NotAllowed" (p9); the service actually emits "Not Allowed 109491436176"
   // — a space, and a reference number that changes per request. Matching only the documented spelling
   // meant a real access refusal fell through to the generic heuristic and was reported as an untyped

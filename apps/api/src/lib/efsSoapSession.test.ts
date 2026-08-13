@@ -333,6 +333,7 @@ describe("EFS fault classification", () => {
 
   it.each([
     ["InvalidClientId", "session_expired"],
+    ["Flying J", "soap_fault"],
     ["AccountLockedException", "account_locked"],
     ["InvalidLoginException", "auth"],
     ["InvalidAccountException", "auth"],
