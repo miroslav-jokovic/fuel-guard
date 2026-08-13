@@ -43,7 +43,7 @@ const SKIP = new Set(["node_modules", "dist", ".git", "coverage", ".pnpm-store",
  * high-water mark the gate now holds them under.
  */
 const GRANDFATHERED = {
-  "apps/api/src/routes/integrations.ts": 832,
+  "apps/api/src/routes/integrations.ts": 831,
   // Pinned 2026-08-13 — EFS card-control plan (docs/28-EFS-EXECUTION-PLAN.md) Phase 0 Step 0.6.
   // Phase 3 (the capability registry) restructures all four: control.ts becomes a generated
   // factory, efsCardControl.ts splits into five orchestrator phase modules, cardControlContract.ts
