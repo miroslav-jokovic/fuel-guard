@@ -401,9 +401,10 @@ export function redactCardXml(xml: string): string {
   });
 
   const redacted = parked
-    .replace(/(<(?:cardNumber|cardNum|CardNumber)>)([^<]*)(<\/)/gi, (_m, open, value: string, close) =>
+    .replace(/(<(?:cardNumber|cardNum|CardNumber|fromCard|toCard)>)([^<]*)(<\/)/gi, (_m, open, value: string, close) =>
       `${open}${maskDigits(value)}${close}`)
-    .replace(/\b\d{12,25}\b/g, (digits) => maskDigits(digits));
+    .replace(/\b\d{10,25}[A-Z]{2,6}\b/g, (value) => maskDigits(value))
+    .replace(/\b\d{10,25}\b/g, (digits) => maskDigits(digits));
 
   return redacted.replace(/@@EFSREF(\d+)@@/g, (_m, i: string) => references[Number(i)] ?? "");
 }

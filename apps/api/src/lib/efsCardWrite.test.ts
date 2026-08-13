@@ -170,9 +170,9 @@ describe("setCardV2 — reading the answer", () => {
   it("redacts the card number out of everything it hands back for the ledger", async () => {
     const s = stub(loginOk, soap(`<setCardV2Response><echo>${CARD}</echo></setCardV2Response>`));
     const result = await setCardV2(env, creds, doc(), CARD, [], { fetchImpl: s.fetchImpl });
-    // Mechanical proof, not a review habit: nothing 12+ digits long survives into a persisted column.
-    expect(result.requestXmlRedacted).not.toMatch(/\d{12,}/);
-    expect(result.responseXmlRedacted).not.toMatch(/\d{12,}/);
+    // Mechanical proof, not a review habit: nothing 10+ digits long survives into a persisted column.
+    expect(result.requestXmlRedacted).not.toMatch(/\d{10,}/);
+    expect(result.responseXmlRedacted).not.toMatch(/\d{10,}/);
   });
 });
 
@@ -226,8 +226,8 @@ describe("deleteOverrideOp — the dedicated clear (fix plan D1)", () => {
   it("redacts the card number out of everything persisted", async () => {
     const s = stub(loginOk, soap("<deleteOverrideResponse/>"));
     const result = await deleteOverrideOp(env, creds, CARD, { fetchImpl: s.fetchImpl });
-    expect(result.requestXmlRedacted).not.toMatch(/\d{12,}/);
-    expect(result.responseXmlRedacted).not.toMatch(/\d{12,}/);
+    expect(result.requestXmlRedacted).not.toMatch(/\d{10,}/);
+    expect(result.responseXmlRedacted).not.toMatch(/\d{10,}/);
   });
 });
 

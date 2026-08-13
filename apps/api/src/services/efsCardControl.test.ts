@@ -178,12 +178,12 @@ describe("a mutation that lands", () => {
     // number. The ledger row stores a full card echo as XML, so this is the test that would have
     // caught a missing redactCardXml call.
     //
-    // The pattern is `\b\d{12,}\b` — the SAME definition redactCardXml uses — rather than a bare
-    // `\d{12,}`. Card versions and HMACs are hex, so a bare run happily matches twelve digits that
+    // The pattern is `\b\d{10,}\b` — the SAME definition redactCardXml uses — rather than a bare
+    // `\d{10,}`. Card versions and HMACs are hex, so a bare run happily matches twelve digits that
     // happen to sit inside a hash and the test fails for a reason that has nothing to do with PANs.
     // Word boundaries are what make this assert "a card number is present", which is the claim.
     const serialized = JSON.stringify(rec.queries.map((q) => q.write?.payload ?? null));
-    expect(serialized).not.toMatch(/\b\d{12,}\b/);
+    expect(serialized).not.toMatch(/\b\d{10,}\b/);
   });
 });
 

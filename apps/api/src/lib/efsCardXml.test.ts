@@ -694,10 +694,26 @@ describe("redaction", () => {
     expect(out).toContain("••••7521");
   });
 
-  it("leaves no 12-or-more digit run in a full request body", () => {
+  it("masks a 10-digit card number in a fault message", () => {
+    expect(redactCardXml("<faultstring>Card 7083000000 is not active</faultstring>")).toContain("••••0000");
+  });
+
+  it("masks a card number with an OVER suffix in a fault message", () => {
+    const out = redactCardXml("<faultstring>Card 70830000000000111OVER is over-limit</faultstring>");
+    expect(out).not.toContain("70830000000000111OVER");
+    expect(out).toContain("••••0111");
+  });
+
+  it("masks transferCard's fromCard and toCard elements", () => {
+    const out = redactCardXml("<transferCard><fromCard>7083000000</fromCard><toCard>7083999999</toCard></transferCard>");
+    expect(out).toContain("<fromCard>••••0000</fromCard>");
+    expect(out).toContain("<toCard>••••9999</toCard>");
+  });
+
+  it("leaves no 10-or-more digit run in a full request body", () => {
     const doc = parseCardDocument(fixture("getCardV2.full.xml"));
     const { redactedXml } = serializeSetCardRequest(doc, { clientId: "s", cardNumber: "70830000000007521" }, []);
-    expect(redactedXml).not.toMatch(/\d{12,}/);
+    expect(redactedXml).not.toMatch(/\d{10,}/);
   });
 
   it("leaves short numbers — unit numbers, location ids, limits — alone", () => {

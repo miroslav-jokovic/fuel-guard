@@ -486,7 +486,10 @@ function normalizeSource(value: string | null): string | null {
 function errorText(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   // Belt and braces: a vendor message can quote the card number back at us.
-  return message.replace(/\b\d{12,25}\b/g, (d) => `••••${d.slice(-4)}`).slice(0, 300);
+  return message
+    .replace(/\b\d{10,25}[A-Z]{2,6}\b/g, (value) => `••••${value.replace(/\D/g, "").slice(-4)}`)
+    .replace(/\b\d{10,25}\b/g, (d) => `••••${d.slice(-4)}`)
+    .slice(0, 300);
 }
 
 export { isFullCardNumber };
