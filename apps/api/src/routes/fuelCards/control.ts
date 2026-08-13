@@ -38,6 +38,7 @@ import {
 import { loadCardControlAccess, type CardScope } from "../../services/efsCardControlAccess.js";
 import { loadCardNumber } from "../../services/efsCardMirror.js";
 import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
+import { ActionRefusalError, assertPromptRemovalAllowed } from "./controlRefusal.js";
 
 /**
  * Changing a fuel card. Five endpoints, one per INTENT.
@@ -360,20 +361,7 @@ export function fuelCardControlRouter(): Router {
      */
     const buildEdits = (doc: Parameters<CardMutationIntentSpec["buildEdits"]>[0]) => {
       const plan = promptsEdits(doc, prompts);
-      if (plan.removedInfoIds.includes("DRID")) {
-        // Dropping the driver-ID record stops the pump asking who is fuelling, and every downstream
-        // attribution decision loses its strongest signal — the guide warns about exactly this (p137).
-        // Explicit flag AND a fresh sign-in; never a side effect of clearing a text box.
-        if (!allowRemoveDriverId) {
-          throw new ActionRefusalError(
-            "Removing the Driver ID prompt needs allowRemoveDriverId: true — it stops the pump checking who is fuelling.",
-            "invalid_request",
-          );
-        }
-        if (!hasFreshAuth(req)) {
-          throw new ActionRefusalError("Confirm your password to remove the Driver ID prompt.", "step_up_required");
-        }
-      }
+      assertPromptRemovalAllowed(plan.removedInfoIds, allowRemoveDriverId, hasFreshAuth(req));
       return plan.edits;
     };
 
@@ -443,18 +431,6 @@ const badRequest = (res: Response, error: z.ZodError): void => {
   res.status(400).json(apiError("invalid_request", error.issues[0]?.message ?? "Invalid request"));
 };
 
-/**
- * An action this caller is not allowed to take, discovered only once the FRESH card document is in
- * hand — a prompts change that drops the driver id, an unlock of a card EFS has just flagged.
- * Thrown from `buildEdits` so `planCardMutation` aborts before it writes a ledger row: no row, no
- * dispatch, no half-finished record of a change that never happened.
- */
-class ActionRefusalError extends Error {
-  constructor(message: string, public code: "invalid_request" | "step_up_required") {
-    super(message);
-    this.name = "ActionRefusalError";
-  }
-}
 
 /** One sentence per blocked-by reason, each pointing at what would actually unblock it. */
 function refusal(blockedBy: string | null, scope: CardScope): [string, string] {

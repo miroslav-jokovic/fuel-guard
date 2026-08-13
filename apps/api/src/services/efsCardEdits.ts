@@ -163,11 +163,11 @@ const EDITABLE = new Set<string>(EFS_EDITABLE_INFO_IDS);
 
 export interface PromptPlan {
   edits: CardEdit[];
-  /** Editable prompts present before and absent after — the removals the caller must authorise. */
+  /** Editable prompts explicitly marked for removal — the removals the caller must authorise. */
   removedInfoIds: string[];
   /** For the audit trail: what the editable prompts were, and what they became. */
-  before: { infoId: string; validationType: string | null; matchValue: string | null }[];
-  after: { infoId: string; validationType: string | null; matchValue: string | null }[];
+  before: { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[];
+  after: { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[];
 }
 
 /**
@@ -175,13 +175,13 @@ export interface PromptPlan {
  *
  * ── What "full replace" means here, and what it deliberately does not ────────────────────────────
  * EFS has no partial prompt update: the array in the request IS the card's prompts afterwards. So the
- * request has to carry every record, not just the edited ones. Records whose `infoId` is not editable
- * in Phase 1 — `ODRD`, `TRIP`, `TRLR`, `NAME`, `PPIN`, `CNTN` — are passed through EXACTLY as EFS sent
- * them, field for field, and an operator has no way to reach them from this path at all.
+ * request has to carry every record, not just the edited ones. Editable omissions are preserved unless
+ * the caller marks `remove: true`; records whose `infoId` is not editable in Phase 1 — `ODRD`, `TRIP`,
+ * `TRLR`, `NAME`, `PPIN`, `CNTN` — are passed through EXACTLY as EFS sent them.
  *
- * For an editable record that already exists, only `validationType` and `matchValue` are touched; the
- * rest of the record keeps its original values AND its original position in the array, because
- * rebuilding it would silently normalise fields we were never asked to change.
+ * For an editable record that already exists, only `validationType`, `matchValue` and `reportValue` are
+ * touched; the rest of the record keeps its original values AND its original position in the array,
+ * because rebuilding it would silently normalise fields we were never asked to change.
  *
  * ── Blank versus nil ─────────────────────────────────────────────────────────────────────────────
  * A cleared `matchValue` is written as an EMPTY element rather than `xsi:nil`. The guide's instruction
@@ -207,13 +207,21 @@ export function promptsEdits(doc: CardDocument, prompts: readonly PromptInput[])
     seen.add(infoId);
     const update = wanted.get(infoId);
     if (!update) {
-      // Present before, absent from the submission → the operator removed this prompt. Authorising
-      // that is the caller's job (removing DRID needs an explicit flag AND step-up); this function
-      // only reports it.
+      // The full-replace request still carries this record when the operator did not explicitly remove
+      // it. Removal must be authored with `remove: true`, never inferred from omission or an empty value.
+      records.push(record);
+      continue;
+    }
+    if (update.remove) {
       removedInfoIds.push(infoId);
       continue;
     }
-    records.push({ ...record, validationType: update.validationType, matchValue: update.matchValue ?? "" });
+    records.push({
+      ...record,
+      validationType: update.validationType,
+      matchValue: update.validationType === "EXACT_MATCH" ? update.matchValue ?? "" : "",
+      reportValue: update.validationType === "REPORT_ONLY" ? update.reportValue ?? "" : "",
+    });
   }
 
   // A prompt the card does not have yet — assigning a driver to a card that has never had one.
@@ -226,14 +234,14 @@ export function promptsEdits(doc: CardDocument, prompts: readonly PromptInput[])
   // every non-accrual combination (p39). numericMatchValue is deliberately absent: EFS's own
   // responses omit it, so the omission is a shape the vendor demonstrably produces.
   for (const prompt of prompts) {
-    if (seen.has(prompt.infoId)) continue;
+    if (seen.has(prompt.infoId) || prompt.remove) continue;
     records.push({
       infoId: prompt.infoId,
       lengthCheck: "false",
-      matchValue: prompt.matchValue ?? "",
+      matchValue: prompt.validationType === "EXACT_MATCH" ? prompt.matchValue ?? "" : "",
       maximum: "0",
       minimum: "0",
-      reportValue: "",
+      reportValue: prompt.validationType === "REPORT_ONLY" ? prompt.reportValue ?? "" : "",
       validationType: prompt.validationType,
       value: "0",
     });
@@ -242,14 +250,24 @@ export function promptsEdits(doc: CardDocument, prompts: readonly PromptInput[])
   const view = (list: Record<string, string | null>[]) =>
     list
       .filter((r) => EDITABLE.has(r.infoId ?? ""))
-      .map((r) => ({ infoId: r.infoId ?? "", validationType: r.validationType ?? null, matchValue: r.matchValue ?? null }));
+      .map((r) => ({
+        infoId: r.infoId ?? "",
+        validationType: r.validationType ?? null,
+        matchValue: r.matchValue ?? null,
+        reportValue: r.reportValue ?? null,
+      }));
 
   return {
     edits: [{ op: "replaceAll", name: "infos", records }],
     removedInfoIds,
     before: doc.card.infos
       .filter((i) => EDITABLE.has(i.infoId))
-      .map((i) => ({ infoId: i.infoId, validationType: i.validationType, matchValue: i.matchValue })),
+      .map((i) => ({
+        infoId: i.infoId,
+        validationType: i.validationType,
+        matchValue: i.matchValue,
+        reportValue: i.reportValue,
+      })),
     after: view(records),
   };
 }

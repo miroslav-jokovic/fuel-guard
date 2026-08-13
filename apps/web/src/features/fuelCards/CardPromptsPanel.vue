@@ -17,15 +17,15 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
  * (It is design — see `promptsEdits` in the API, which echoes those records verbatim.)
  *
  * ── Clearing a value is not the same as removing a prompt ────────────────────────────────────────
- * Emptying the Driver ID box REMOVES the prompt, which stops the pump checking who is fuelling. That
- * needs an explicit acknowledgement and a fresh sign-in, so this panel makes it visible the moment it
- * happens rather than at the confirmation.
+ * Empty values are valid for REPORT_ONLY prompts. Removal is an explicit action with its own danger
+ * button, confirmation and step-up requirement.
  */
 
 interface PromptRow {
   infoId: string;
   validationType: string | null;
   matchValue: string | null;
+  reportValue: string | null;
   editable: boolean;
 }
 
@@ -47,13 +47,6 @@ const validationOptions = [
 
 const readOnlyRows = computed(() => props.rows.filter((r) => !r.editable));
 
-/** A prompt whose value has been emptied is a prompt the operator is REMOVING. */
-export interface Removal { infoId: string }
-const removals = computed(() =>
-  props.drafts.filter((d) => (d.matchValue ?? "").trim() === "").map((d) => d.infoId as string),
-);
-const removesDriverId = computed(() => removals.value.includes("DRID"));
-
 function update(index: number, patch: Partial<PromptInput>): void {
   emit("update:drafts", props.drafts.map((d, i) => (i === index ? { ...d, ...patch } : d)));
 }
@@ -65,17 +58,19 @@ function update(index: number, patch: Partial<PromptInput>): void {
     <div v-for="(draft, index) in props.drafts" :key="draft.infoId" class="space-y-3 rounded-control border border-edge p-3">
       <p class="text-sm font-medium text-ink">{{ infoLabel(draft.infoId) }}</p>
       <FormField
-        label="Value the driver must enter"
-        :hint="`Maximum ${EFS_MATCH_VALUE_MAX} characters. Clearing this removes the prompt entirely.`"
+        :label="draft.validationType === 'REPORT_ONLY' ? 'Value to report' : 'Value the driver must enter'"
+        :hint="draft.validationType === 'REPORT_ONLY'
+          ? `Maximum ${EFS_MATCH_VALUE_MAX} characters. An empty report value is allowed.`
+          : `Maximum ${EFS_MATCH_VALUE_MAX} characters. Choose Remove this prompt to remove it.`"
       >
         <template #default="{ id }">
           <BaseInput
             :id="id"
             type="text"
             :maxlength="EFS_MATCH_VALUE_MAX"
-            :model-value="draft.matchValue ?? ''"
-            :disabled="props.busy"
-            @update:model-value="update(index, { matchValue: $event })"
+            :model-value="draft.validationType === 'REPORT_ONLY' ? draft.reportValue ?? '' : draft.matchValue ?? ''"
+            :disabled="props.busy || draft.remove"
+            @update:model-value="update(index, draft.validationType === 'REPORT_ONLY' ? { reportValue: $event } : { matchValue: $event })"
           />
         </template>
       </FormField>
@@ -85,17 +80,35 @@ function update(index: number, patch: Partial<PromptInput>): void {
             :id="id"
             :model-value="draft.validationType"
             :options="validationOptions"
-            :disabled="props.busy"
+            :disabled="props.busy || draft.remove"
             @update:model-value="update(index, { validationType: $event as PromptInput['validationType'] })"
           />
         </template>
       </FormField>
+      <div class="flex justify-end gap-2">
+        <BaseButton
+          v-if="draft.remove"
+          variant="ghost"
+          size="sm"
+          :disabled="props.busy"
+          @click="update(index, { remove: false })"
+        >
+          Keep this prompt
+        </BaseButton>
+        <BaseButton
+          v-else
+          variant="danger"
+          size="sm"
+          :disabled="props.busy"
+          @click="update(index, { remove: true })"
+        >
+          Remove this prompt
+        </BaseButton>
+      </div>
+      <p v-if="draft.remove" class="rounded-control bg-danger-50 px-3 py-2 text-sm text-danger-700">
+        This prompt will be removed from the card after confirmation.
+      </p>
     </div>
-
-    <p v-if="removesDriverId" class="rounded-control bg-danger-50 px-3 py-2 text-sm text-danger-700">
-      Clearing the Driver ID stops the pump checking who is fueling this card, and FuelGuard loses its
-      strongest signal for attributing a fill to a driver. You will be asked to confirm your password.
-    </p>
 
     <div v-if="readOnlyRows.length > 0" class="space-y-1">
       <p class="text-sm text-ink-muted">Also on this card, and left untouched:</p>
@@ -103,7 +116,9 @@ function update(index: number, patch: Partial<PromptInput>): void {
         <li v-for="row in readOnlyRows" :key="row.infoId" class="flex items-center gap-2 text-sm text-ink-tertiary">
           <span>{{ infoLabel(row.infoId) }}</span>
           <span v-if="row.validationType" :class="[BADGE_BASE, toneClass('neutral')]">{{ row.validationType }}</span>
-          <span v-if="row.matchValue">{{ row.matchValue }}</span>
+          <span v-if="row.validationType === 'REPORT_ONLY' ? row.reportValue : row.matchValue">
+            {{ row.validationType === "REPORT_ONLY" ? row.reportValue : row.matchValue }}
+          </span>
         </li>
       </ul>
     </div>

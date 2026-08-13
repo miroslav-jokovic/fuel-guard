@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <getCardv2Response>
+      <return>
+        <companyXRef></companyXRef>
+        <handEnter>POLICY</handEnter>
+        <infoSource>CARD</infoSource>
+        <limitSource>POLICY</limitSource>
+        <locationSource>POLICY</locationSource>
+        <timeSource>POLICY</timeSource>
+        <overrideAllLocations>false</overrideAllLocations>
+        <override>0</override>
+        <policyNumber>1</policyNumber>
+        <status>Active</status>
+        <payrollStatus>Follows</payrollStatus>
+        <infos>
+          <infoId>UNIT</infoId>
+          <validationType>REPORT_ONLY</validationType>
+          <matchValue></matchValue>
+          <reportValue>T001</reportValue>
+          <lengthCheck>false</lengthCheck>
+          <minimum>0</minimum>
+          <maximum>0</maximum>
+          <value>0</value>
+        </infos>
+      </return>
+    </getCardv2Response>
+  </soap:Body>
+</soap:Envelope>

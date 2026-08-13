@@ -36,6 +36,7 @@ const ALL_FIXTURES = [
   "getCardV2.namespaced.xml",
   "getCardV2.autoRoll.xml",
   "getCardV2.overridden.xml",
+  "getCardV2.reportOnly.xml",
   // The production shape: header fields nested inside <header>, sub-objects as its siblings. Every
   // property in this file must hold on it exactly as it does on the flat guide examples — that it
   // did NOT is the bug this fixture exists for. See the comment at the head of the fixture.
@@ -93,6 +94,13 @@ describe("parseCardDocument", () => {
     expect(doc.card.infos.map((i) => i.infoId)).toEqual(["DRID", "UNIT", "ODRD"]);
     expect(doc.card.limits.map((l) => l.limitId)).toEqual(["ULSD", "CADV"]);
     expect(doc.card.timeRestrictions.map((t) => t.day)).toEqual([1, 7]);
+  });
+
+  it("preserves an empty REPORT_ONLY matchValue and its reportValue", () => {
+    const doc = parseCardDocument(fixture("getCardV2.reportOnly.xml"));
+    expect(doc.card.infos).toEqual(expect.arrayContaining([
+      expect.objectContaining({ infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T001" }),
+    ]));
   });
 
   it("reads empty collections as empty arrays, never as undefined", () => {

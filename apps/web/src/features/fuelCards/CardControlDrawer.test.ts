@@ -81,7 +81,7 @@ function render(over: Record<string, unknown> = {}) {
       overrideUses: 0,
       overrideAllLocations: false,
       locationOverrideId: null,
-      prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471" }],
+      prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471", reportValue: null }],
       capabilities: caps(),
       ...over,
     },
@@ -173,6 +173,27 @@ describe("idempotency keys (audit P1-2)", () => {
     expect(call.cardId).toBe("card-2");
     expect(call.expectedVersion).toBe("ffffffffffffffffffffffffffffffff");
     expect(call.idempotencyKey).not.toBe(cardAKey); // card B never inherits card A's key
+  });
+});
+
+describe("REPORT_ONLY prompt fidelity", () => {
+  it("a no-op save on a REPORT_ONLY card sends the prompt back unchanged", async () => {
+    mutations.prompts.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    const wrapper = render({
+      prompts: [{ infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T001" }],
+    });
+    await button(wrapper, "Save prompts").trigger("click");
+    await flushPromises();
+    await button(wrapper, "Save prompts").trigger("click");
+    await flushPromises();
+    const arg = mutations.prompts.mutateAsync.mock.calls[0]![0] as { prompts: unknown[] };
+    expect(arg.prompts).toEqual([{
+      infoId: "UNIT",
+      validationType: "REPORT_ONLY",
+      matchValue: null,
+      reportValue: "T001",
+      remove: false,
+    }]);
   });
 });
 

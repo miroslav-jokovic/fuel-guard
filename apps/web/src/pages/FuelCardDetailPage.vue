@@ -47,6 +47,7 @@ const cardPrompts = computed(() =>
       infoId: row.value.infoId,
       validationType: row.value.validationType,
       matchValue: row.value.matchValue,
+      reportValue: row.value.reportValue,
     })),
 );
 

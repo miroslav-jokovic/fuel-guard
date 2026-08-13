@@ -12,6 +12,7 @@ import {
   EFS_VALIDATION_TYPES,
   EFS_LOCK_STATUSES,
 } from "./efsCardCatalog.js";
+import type { EffectiveRow } from "./cardControlEffectiveConfig.js";
 
 /**
  * The wire contract for EFS card control. One source of truth; never redefine these per app.
@@ -156,14 +157,7 @@ export const wsPolicySchema = z.object({
 });
 export type WsPolicy = z.infer<typeof wsPolicySchema>;
 
-// ─── Effective configuration (card vs policy) ──────────────────────────────────────────────────
-
-export type EffectiveOrigin = "card" | "policy" | "policy-overridden" | "policy-ignored";
-
-export interface EffectiveRow<T> {
-  value: T;
-  origin: EffectiveOrigin;
-}
+export { isEnforced, type EffectiveOrigin, type EffectiveRow } from "./cardControlEffectiveConfig.js";
 
 /**
  * Combine card-level and policy-level records into what a pump will actually enforce.
@@ -198,9 +192,6 @@ export function mergeEffectiveConfig<T>(
   }
   return rows;
 }
-
-/** Whether a merged row is actually enforced at the pump. */
-export const isEnforced = (origin: EffectiveOrigin): boolean => origin === "card" || origin === "policy";
 
 // ─── Read responses ────────────────────────────────────────────────────────────────────────────
 
@@ -315,8 +306,10 @@ export const promptInputSchema = z.object({
   infoId: z.enum(EFS_EDITABLE_INFO_IDS),
   validationType: z.enum(["EXACT_MATCH", "REPORT_ONLY"]),
   matchValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
+  reportValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
+  remove: z.boolean().default(false),
 }).refine(
-  (p) => p.validationType !== "EXACT_MATCH" || (p.matchValue ?? "").length > 0,
+  (p) => p.remove || p.validationType !== "EXACT_MATCH" || (p.matchValue ?? "").length > 0,
   // The pump validates driver entry AGAINST this value. Empty + EXACT_MATCH means nothing a driver
   // types can ever match: the card silently stops fueling (audit P1-6a). Clearing the value while
   // keeping validation on is never what an operator meant — make them pick one.
@@ -327,8 +320,8 @@ export type PromptInput = z.infer<typeof promptInputSchema>;
 export const setPromptsSchema = z.object({
   expectedVersion: cardVersionSchema,
   /**
-   * Full-replace is the EFS semantic, not a convenience: prompts absent from a setCardV2 are deleted.
-   * Requiring the literal `true` means a caller can never arrive at full-replace by omitting a field.
+   * Full-replace is the EFS semantic, not a convenience: the API carries every prompt record and
+   * requires explicit `remove: true` before omitting one from the setCardV2 document.
    */
   replaceAll: z.literal(true),
   // Bounded by what is actually editable, and UNIQUE by infoId: EFS's prompts array is a full
