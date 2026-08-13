@@ -166,22 +166,24 @@ function resetAll() {
 
         <!-- fleet users choose the path; the public calculator goes straight to the picker -->
         <div v-if="fleet" class="mt-4 inline-flex rounded-control bg-surface-subtle p-1 ring-1 ring-inset ring-edge" role="group" aria-label="Where the equipment comes from">
-          <button
-            type="button"
+          <BaseButton
+            variant="ghost"
+            size="sm"
             class="rounded-control px-3 py-1.5 text-sm font-medium transition-colors"
             :class="sourceMode === 'fleet' ? 'bg-surface text-ink shadow-sm ring-1 ring-inset ring-edge' : 'text-ink-muted hover:text-ink'"
             @click="setSourceMode('fleet')"
           >
             From my fleet
-          </button>
-          <button
-            type="button"
+          </BaseButton>
+          <BaseButton
+            variant="ghost"
+            size="sm"
             class="rounded-control px-3 py-1.5 text-sm font-medium transition-colors"
             :class="sourceMode === 'manual' ? 'bg-surface text-ink shadow-sm ring-1 ring-inset ring-edge' : 'text-ink-muted hover:text-ink'"
             @click="setSourceMode('manual')"
           >
             Other equipment
-          </button>
+          </BaseButton>
         </div>
 
         <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -245,7 +247,12 @@ function resetAll() {
           class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-control bg-surface-subtle px-3 py-2 text-xs text-ink-secondary ring-1 ring-inset ring-edge"
         >
           <span>Read from the fleet: <strong class="font-semibold text-ink">{{ equipmentConfirmation }}</strong></span>
-          <button type="button" class="font-medium text-brand-700 hover:underline" @click="equipmentOverride = true">Change</button>
+          <BaseButton
+            variant="ghost"
+            size="sm"
+            class="!h-auto !px-0 !text-xs !font-medium !text-brand-700 hover:!bg-transparent hover:!underline"
+            @click="equipmentOverride = true"
+          >Change</BaseButton>
         </p>
         <p
           v-else-if="trailerTypeMissing"

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { activeOverrides } from "./cardControlModel";
 import { useEfsCards } from "./useEfsCards";
@@ -25,8 +24,6 @@ import { useEfsCards } from "./useEfsCards";
  * step-up rules and idempotency keys; a quick "clear" button here would bypass none of them but
  * would invite clearing the wrong card from a list of look-alike last-fours.
  */
-
-const router = useRouter();
 
 // Unfiltered on purpose — see the docblock. Refs are stable for the component's lifetime.
 const query = useEfsCards({ search: ref(""), status: ref("") });
@@ -54,10 +51,9 @@ const loaded = computed(() => query.data.value !== undefined);
 
     <ul v-else class="divide-y divide-edge rounded-control border border-edge bg-surface">
       <li v-for="row in rows" :key="row.id">
-        <button
-          type="button"
+        <RouterLink
+          :to="`/fuel-cards/${row.id}`"
           class="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-left text-sm hover:bg-surface-subtle"
-          @click="router.push(`/fuel-cards/${row.id}`)"
         >
           <span class="font-medium text-ink">{{ row.maskedRef }}</span>
           <span class="text-ink-muted">{{ row.driverName ?? row.unitPrompt ?? "Unassigned" }}</span>
@@ -65,7 +61,7 @@ const loaded = computed(() => query.data.value !== undefined);
             {{ row.uses }} use{{ row.uses === 1 ? "" : "s" }} left
           </span>
           <span class="text-ink-muted">{{ row.scopeLabel }}</span>
-        </button>
+        </RouterLink>
       </li>
     </ul>
   </section>
