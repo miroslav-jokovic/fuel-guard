@@ -199,7 +199,12 @@ function applyGrossSuggestion(line: CalcLineForm) {
             <p v-if="grossSuggestion(line) != null" class="text-xs text-ink-muted">
               {{ line.packageCount }} × {{ line.perPackageCapacityValue }} {{ line.perPackageCapacityUnit }} works out to
               <strong class="text-ink">{{ grossSuggestion(line)!.toLocaleString("en-US") }} lb</strong> —
-              <button type="button" class="font-medium text-brand-700 hover:underline" @click="applyGrossSuggestion(line)">use it</button>.
+              <BaseButton
+                variant="ghost"
+                size="sm"
+                class="!h-auto !px-0 !text-xs !font-medium !text-brand-700 hover:!bg-transparent hover:!underline"
+                @click="applyGrossSuggestion(line)"
+              >use it</BaseButton>.
             </p>
             <p v-if="perPackageLb(line) != null" class="text-xs text-ink-muted">
               That works out to <strong class="text-ink">{{ perPackageLb(line) }} lb</strong> per package —
