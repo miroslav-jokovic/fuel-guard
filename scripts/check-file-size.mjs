@@ -68,16 +68,12 @@ const SKIP = new Set(["node_modules", "dist", ".git", "coverage", ".pnpm-store",
 const GRANDFATHERED = {
   "apps/api/src/routes/integrations.ts": 831,
   // Pinned 2026-08-13 — EFS card-control plan (docs/28-EFS-EXECUTION-PLAN.md) Phase 0 Step 0.6.
-  // Phase 3 (the capability registry) restructures all four: control.ts becomes a generated
-  // factory, efsCardControl.ts splits into five orchestrator phase modules, cardControlContract.ts
-  // splits into per-capability contracts, cardControlModel.ts loses its per-intent confirmations to
-  // the view modules. Splitting them now and again in Phase 3 is two refactors of the same code.
-  // PHASE 3'S EXIT GATE DELETES THESE FOUR ENTRIES. If they are still here after Phase 3, that is a
+  // Phase 3 (the capability registry) restructures the remaining two: efsCardControl.ts splits into
+  // five orchestrator phase modules, and cardControlContract.ts splits into per-capability contracts.
+  // PHASE 3'S EXIT GATE DELETES THESE TWO ENTRIES. If they are still here after Phase 3, that is a
   // bug in the plan, not a new normal.
-  "apps/api/src/routes/fuelCards/control.ts": 504,
-  "apps/api/src/services/efsCardControl.ts": 534,
-  "packages/shared/src/cardControlContract.ts": 522,
-  "apps/web/src/features/fuelCards/cardControlModel.ts": 542,
+  "apps/api/src/services/efsCardControl.ts": 530,
+  "packages/shared/src/cardControlContract.ts": 512,
   // Pinned 2026-08-13 for a different reason. Phase 1 Step 1.2 adds an org-ownership guard to the
   // probe routers; that guard lives in ONE shared helper imported by all three, so this file must
   // not grow. Removed when the Phase 4 harness supersedes the experiment router.
@@ -90,10 +86,8 @@ const GRANDFATHERED = {
 
 const COMPRESSION_BUDGETS = {
   "apps/api/src/routes/integrations.ts": 2,
-  "apps/api/src/routes/fuelCards/control.ts": 25,
   "apps/api/src/services/efsCardControl.ts": 7,
   "packages/shared/src/cardControlContract.ts": 5,
-  "apps/web/src/features/fuelCards/cardControlModel.ts": 24,
   "apps/api/src/routes/fuelCards/experiments.ts": 12,
 };
 

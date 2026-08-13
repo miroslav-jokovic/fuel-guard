@@ -39,6 +39,7 @@ import { loadCardControlAccess, type CardScope } from "../../services/efsCardCon
 import { loadCardNumber } from "../../services/efsCardMirror.js";
 import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
 import { ActionRefusalError, assertPromptRemovalAllowed } from "./controlRefusal.js";
+import { refusal } from "./cardControlRefusal.js";
 
 /**
  * Changing a fuel card. Five endpoints, one per INTENT.
@@ -139,7 +140,7 @@ export function fuelCardControlRouter(): Router {
     const admin = getSupabaseAdmin(env);
     const access = await loadCardControlAccess(admin, env, orgId, req.auth!.userId, req.auth!.role);
     if (access.blockedBy !== null || !access.scopes.includes(scope)) {
-      // Four ANDed facts, each with its own sentence, because "an admin needs to run the write check"
+      // Five ANDed facts, each with its own sentence, because "an admin needs to run the write check"
       // and "EFS has not enabled this for your account" send a person to two different places.
       const [code, message] = refusal(access.blockedBy, scope);
       res.status(403).json(apiError(code, message));
@@ -431,26 +432,6 @@ const badRequest = (res: Response, error: z.ZodError): void => {
   res.status(400).json(apiError("invalid_request", error.issues[0]?.message ?? "Invalid request"));
 };
 
-
-/** One sentence per blocked-by reason, each pointing at what would actually unblock it. */
-function refusal(blockedBy: string | null, scope: CardScope): [string, string] {
-  switch (blockedBy) {
-    case "kill_switch":
-      return ["card_control_disabled", "Card actions are switched off for this deployment."];
-    case "not_enabled":
-      return ["card_control_disabled", "Card actions are not switched on for this company yet. An admin can enable them in Settings → Card control."];
-    case "no_credentials":
-      return ["efs_not_configured", "EFS is not connected for this company."];
-    case "not_entitled":
-      return ["card_control_not_entitled", "EFS has not confirmed write access for this account. An admin needs to run the EFS write check."];
-    case "role":
-      return ["forbidden", "Your role cannot change fuel cards."];
-    case "not_approver":
-      return ["forbidden", "You are not on this company's card-control approver list."];
-    default:
-      return ["forbidden", `You are not approved for the "${scope}" action on fuel cards.`];
-  }
-}
 
 /**
  * Vendor failures and our own refusals map to different statuses on purpose.

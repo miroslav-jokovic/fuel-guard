@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireRole, requireOrg } from "../middleware/auth.js";
+import { requireFreshAuth } from "../middleware/requireFreshAuth.js";
 import { apiError, asyncHandler } from "../lib/http.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 import { getAppLocals } from "../lib/appLocals.js";
@@ -49,6 +50,7 @@ function jobResponse(res: import("express").Response, result: RunJobResult): voi
 export function integrationsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+  const efsAdminFresh = [requireOrg, requireRole("admin"), requireFreshAuth()] as const;
 
   // Set / rotate the org's Samsara API token (admin). The token is SEALED at rest (secretBox, same as
   // the EFS client keys) — this fails closed with 422 when SECRETS_ENCRYPTION_KEY is not configured
@@ -373,8 +375,7 @@ export function integrationsRouter(): Router {
 
   router.post(
     "/efs-soap/enable",
-    requireOrg,
-    requireRole("admin"),
+    ...efsAdminFresh,
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);
@@ -414,7 +415,7 @@ export function integrationsRouter(): Router {
         soapPassword: input.soapPassword,
         accountId: input.accountId ?? null,
         enabled: true,
-      });
+      }, req.auth!.userId);
       // Audit records the environment + username prefix — NEVER the password.
       await writeAudit(admin, {
         orgId,
@@ -434,8 +435,7 @@ export function integrationsRouter(): Router {
 
   router.post(
     "/efs-soap/disable",
-    requireOrg,
-    requireRole("admin"),
+    ...efsAdminFresh,
     asyncHandler(async (req, res) => {
       const env = getAppLocals(req).env;
       const admin = getSupabaseAdmin(env);

@@ -10,6 +10,7 @@ import { efsLogin } from "../../lib/efsSoapSession.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { writeAudit } from "../../lib/audit.js";
+import { credentialIdentityHash, efsEndpointHost } from "../../services/efsSoapCredentialIdentity.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireFreshAuth } from "../../middleware/requireFreshAuth.js";
 import { resolveProbeCredentials } from "./probeGuards.js";
@@ -258,6 +259,9 @@ export function fuelCardWriteProbeRouter(): Router {
         .upsert({
           org_id: orgId,
           write_entitlement: entitlement,
+          probed_endpoint_host: efsEndpointHost(creds.endpointUrl),
+          probed_identity_hash: credentialIdentityHash(env, creds),
+          probed_document_shape: before ? documentShape(before) : null,
           probe_result: probeResult,
           probed_at: new Date().toISOString(),
           probed_by: req.auth!.userId,
@@ -270,6 +274,7 @@ export function fuelCardWriteProbeRouter(): Router {
         entity: "efs_card_control_settings",
         meta: {
           environment: creds.environment,
+          endpointHost: efsEndpointHost(creds.endpointUrl),
           readOnly,
           cardLast4: last4, // never the PAN
           entitlement,

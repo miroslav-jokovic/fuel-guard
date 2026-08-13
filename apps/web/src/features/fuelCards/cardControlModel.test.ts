@@ -182,6 +182,16 @@ describe("write availability", () => {
     expect(notice.actionTo).toBeUndefined();
   });
 
+  it("explains an endpoint change and tells an admin to re-run the connection check", () => {
+    const notice = availability(caps({ blockedBy: "endpoint_changed", writeEntitlement: "confirmed" }), true);
+
+    expect(notice).toMatchObject({
+      mode: "disabled",
+      message: "The EFS connection changed since this company was checked. An admin needs to re-run the connection check before card actions work again.",
+      actionTo: "/settings/card-control",
+    });
+  });
+
   it("offers the settings link only to an admin", () => {
     expect(availability(caps({ blockedBy: "not_enabled" }), false).actionTo).toBeUndefined();
     expect(availability(caps({ blockedBy: "not_enabled" }), true).actionTo).toBe("/settings/card-control");

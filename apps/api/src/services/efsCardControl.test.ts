@@ -142,6 +142,27 @@ describe("a mutation that lands", () => {
     expect(rec.writtenRows("audit_logs").map((r) => r.action)).toContain("card.locked");
   });
 
+  it("records the endpoint host and environment on the ledger row at insert", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
+
+    await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+
+    const insert = rec
+      .forTable("efs_card_mutations")
+      .find((query) => query.write?.method === "insert");
+    expect(insert?.write?.payload).toMatchObject({
+      environment: "production",
+      endpoint_host: "ws.efsllc.com",
+      card_last4: "0000",
+    });
+    expect(rec.writtenRows("audit_logs").at(-1)?.meta).toMatchObject({
+      environment: "production",
+      endpointHost: "ws.efsllc.com",
+      cardLast4: "0000",
+    });
+  });
+
   it("TRIPWIRE (H1): on an account that spells ACTIVE, the dispatched write says HOLD — and succeeds", async () => {
     // The live 2026-08-12 failure, end to end: production account reads `ACTIVE`, we asked for
     // `Hold`, EFS returned void success and changed nothing. The fix spells the write from the

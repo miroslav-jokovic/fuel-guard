@@ -13,9 +13,9 @@ import { STEP_UP_TOKEN_HEADER, verifyStepUpToken } from "../lib/stepUpToken.js";
  * verified against the deploy's signing key.
  *
  * ── Where it is required, and where it deliberately is not ───────────────────────────────────────
- * Required for: the write-entitlement probe, enabling card control, granting or revoking approvers,
- * an override above CARD_OVERRIDE_STEP_UP_ABOVE_USES uses, and any prompts change that removes the
- * driver-ID record.
+ * Required for: the write-entitlement probe, enabling or disabling the EFS SOAP integration, enabling
+ * card control, granting or revoking approvers, an override above CARD_OVERRIDE_STEP_UP_ABOVE_USES uses,
+ * and any prompts change that removes the driver-ID record.
  *
  * NOT required for a plain lock or unlock. That is the safety action you want frictionless at 2am
  * when a truck has been broken into, and it is fully reversible. A control that makes the emergency

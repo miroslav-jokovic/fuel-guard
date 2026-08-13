@@ -125,6 +125,61 @@ describe("EFS credential rotation", () => {
     expect(efsSessionDiagnostics(creds(OTHER_ORG)).hasSession).toBe(true);
   });
 
+  it("resets write entitlement when the endpoint is repointed", async () => {
+    const db = createSupabaseRecorder({
+      tables: {
+        efs_soap_credentials: [credentialRow("", "sealed")],
+        efs_card_control_settings: {
+          data: { org_id: ORG, enabled: true, write_entitlement: "confirmed" },
+        },
+      },
+    });
+
+    await upsertEfsSoapCredentials(db.client, env, ORG, {
+      ...input,
+      endpointUrl: "https://qa2.efsllc.com/axis2/services/CardManagementWS/",
+    }, "actor-1");
+
+    expect(db.writtenRows("efs_card_control_settings")).toContainEqual({
+      write_entitlement: "unknown",
+      enabled: false,
+    });
+    expect(db.writtenRows("audit_logs").at(-1)).toMatchObject({
+      action: "integration.efs_soap.credentials_changed",
+      meta: { changedFields: ["endpoint_url"] },
+    });
+  });
+
+  it("does not reset write entitlement on a password rotation", async () => {
+    const db = createSupabaseRecorder({
+      tables: {
+        efs_soap_credentials: [credentialRow("", "sealed")],
+        efs_card_control_settings: {
+          data: { org_id: ORG, enabled: true, write_entitlement: "confirmed" },
+        },
+      },
+    });
+
+    await upsertEfsSoapCredentials(db.client, env, ORG, input);
+
+    expect(db.writtenRows("efs_card_control_settings")).toHaveLength(0);
+    expect(db.writtenRows("audit_logs")).toHaveLength(0);
+  });
+
+  it("refuses credentials claiming production against a non-production host", async () => {
+    const db = createSupabaseRecorder();
+
+    await expect(upsertEfsSoapCredentials(db.client, env, ORG, {
+      ...input,
+      environment: "production",
+    })).rejects.toThrow(/production endpoint host/i);
+    await expect(upsertEfsSoapCredentials(db.client, env, ORG, {
+      ...input,
+      endpointUrl: "https://ws.efsllc.com/axis2/services/CardManagementWS/",
+    })).rejects.toThrow(/production endpoint host/i);
+    expect(db.writtenRows("efs_soap_credentials")).toHaveLength(0);
+  });
+
   it("disabling credentials clears the session and the policy cache", async () => {
     const rec = sequence(loginOk, policyOk, loginOk, policyOk);
     const orgCreds = creds(ORG);

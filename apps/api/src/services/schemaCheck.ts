@@ -81,6 +81,8 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   // probe fails if 0171 ran but its columns did not.
   { table: "efs_cards", column: "card_ref_hmac", migration: "0171" },
   { table: "efs_card_control_settings", column: "write_entitlement", migration: "0173" },
+  { table: "efs_card_control_settings", column: "probed_identity_hash", migration: "0187" },
+  { table: "efs_card_mutations", column: "endpoint_host", migration: "0187" }
 ];
 
 /** Warn on boot when a required column/table is missing (a migration hasn't been applied). Non-fatal. */

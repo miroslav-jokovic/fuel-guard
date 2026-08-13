@@ -16,6 +16,7 @@ import {
   updateMirror,
 } from "./efsCardReconcile.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
+import { cardOpOptions, mutationLedgerEvidence } from "./efsCardMutationEvidence.js";
 
 /**
  * Changing a fuel card in EFS: one path, one ledger row, one recorded outcome for every branch.
@@ -106,13 +107,6 @@ export interface CardMutationContext {
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
 }
-
-const cardOpOptions = (ctx: CardMutationContext) => ({
-  priority: "interactive" as const,
-  timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
-  fetchImpl: ctx.fetchImpl,
-  signal: ctx.signal,
-});
 
 /**
  * A dedicated vendor operation replacing the setCardv2 echo for one intent (fix plan D1).
@@ -234,6 +228,7 @@ export async function planCardMutation(
       before_version: before.version,
       before_document: before.card,
       edits,
+      ...mutationLedgerEvidence(ctx),
       idempotency_key: ctx.idempotencyKey ?? null,
       request_fingerprint: ctx.requestFingerprint ?? null,
     })
