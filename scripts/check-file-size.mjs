@@ -33,6 +33,25 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, extname } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
+const PRETTIER_CONFIG_PATH = join(ROOT, ".prettierrc.json");
+let prettierConfig;
+try {
+  prettierConfig = JSON.parse(readFileSync(PRETTIER_CONFIG_PATH, "utf8"));
+} catch (error) {
+  throw new Error(
+    `Could not read ${PRETTIER_CONFIG_PATH}: ${error instanceof Error ? error.message : String(error)}`,
+    { cause: error },
+  );
+}
+const PRINT_WIDTH = prettierConfig.printWidth;
+if (!Number.isInteger(PRINT_WIDTH) || PRINT_WIDTH <= 0) {
+  throw new Error(`Missing valid printWidth in ${PRETTIER_CONFIG_PATH}`);
+}
+
+/**
+ * Prettier's configured width is the only non-arbitrary definition of "too long" for this repo.
+ * Hardcoding a second number creates two sources of truth that will drift.
+ */
 const BUDGET = 500;
 const WARN_AT = Math.floor(BUDGET * 0.9); // 450 — visible creep, not a failure
 const SCAN_DIRS = ["apps", "packages"];
@@ -70,12 +89,12 @@ const GRANDFATHERED = {
 };
 
 const COMPRESSION_BUDGETS = {
-  "apps/api/src/routes/integrations.ts": 1,
-  "apps/api/src/routes/fuelCards/control.ts": 15,
-  "apps/api/src/services/efsCardControl.ts": 2,
-  "packages/shared/src/cardControlContract.ts": 0,
-  "apps/web/src/features/fuelCards/cardControlModel.ts": 13,
-  "apps/api/src/routes/fuelCards/experiments.ts": 4,
+  "apps/api/src/routes/integrations.ts": 2,
+  "apps/api/src/routes/fuelCards/control.ts": 25,
+  "apps/api/src/services/efsCardControl.ts": 7,
+  "packages/shared/src/cardControlContract.ts": 5,
+  "apps/web/src/features/fuelCards/cardControlModel.ts": 24,
+  "apps/api/src/routes/fuelCards/experiments.ts": 12,
 };
 
 const SOURCE_EXT = new Set([".ts", ".tsx", ".vue"]);
@@ -83,11 +102,17 @@ const isSource = (f) =>
   !f.endsWith(".test.ts") && !f.endsWith(".test.tsx") && !f.endsWith(".spec.ts") && !f.endsWith(".spec.tsx") &&
   SOURCE_EXT.has(extname(f));
 
+const isCommentLine = (trimmed) =>
+  trimmed.startsWith("//") ||
+  trimmed.startsWith("/*") ||
+  trimmed.startsWith("*") ||
+  trimmed.startsWith("*/");
+
 function compressionLines(source) {
   return source.split("\n").flatMap((line, i) => {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/")) return [];
-    const overlong = line.length > 120;
+    if (!trimmed || isCommentLine(trimmed)) return [];
+    const overlong = line.length > PRINT_WIDTH;
     const isForHeader = /^for\s*\(/.test(trimmed);
     const semicolon = line.indexOf(";");
     const afterSemicolon = semicolon >= 0
@@ -127,7 +152,14 @@ for (const d of SCAN_DIRS) {
 
     if (compressionBudget !== undefined) {
       const compressed = compressionLines(source);
-      if (compressed.length > compressionBudget) compressionGrown.push({ rel, count: compressed.length, pin: compressionBudget, lines: compressed });
+      if (compressed.length > compressionBudget) {
+        compressionGrown.push({
+          rel,
+          count: compressed.length,
+          pin: compressionBudget,
+          lines: compressed,
+        });
+      }
     }
 
     if (pin !== undefined) {
