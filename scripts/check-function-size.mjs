@@ -26,7 +26,6 @@ const MAX = 200; // hard ceiling for any NEW function span (raw lines, matching 
 // path#function → the span it is pinned at. Audit P2-B follow-ups: refactor these into orchestrators +
 // stage helpers (as scoreTransaction was) and remove the entry. They MAY NOT grow past the pinned size.
 const GRANDFATHERED = {
-  "apps/api/src/services/idleSync.ts#syncIdleEvents": 248,
   "apps/api/src/services/declinedScoring.ts#scoreDeclinedAttempt": 230,
   "apps/api/src/services/askData.ts#runTool": 212,
   "apps/api/src/services/fuelPlanning.ts#planFuelRoute": 210,

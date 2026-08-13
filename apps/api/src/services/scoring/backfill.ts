@@ -83,6 +83,65 @@ async function loadVehicleSamsaraMap(admin: SupabaseClient, orgId: string): Prom
 const BACKFILL_ABORT_AFTER = 20; // consecutive all-failed reconcile attempts → abort a live re-sync
 const BUCKET_MAX_MS = 96 * 3_600_000; // cap one grouped Samsara fetch window so it never over-paginates
 
+type BackfillScoreOpts = Omit<BackfillOpts, "onlyUnreconciled" | "sinceDays">;
+type BackfillContext = {
+  thresholds: Awaited<ReturnType<typeof loadThresholds>>;
+  operatingHours: Awaited<ReturnType<typeof loadOperatingHours>>;
+};
+
+async function runRebuildBackfill(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  scoreOpts: BackfillScoreOpts,
+  filters: { onlyUnreconciled?: boolean; sinceDays?: number },
+  ctxBase: BackfillContext,
+  onProgress?: ProgressFn,
+  shouldCancel?: () => Promise<boolean>,
+): Promise<number> {
+  // Learn each vehicle's gating values ONCE up front from the already-stored Samsara data, so every fill
+  // is scored against the CONVERGED values in a SINGLE pass — a rebuild no longer has to be run twice.
+  const { data: vrows } = await admin.from("vehicles").select("id").eq("org_id", orgId);
+  for (const v of (vrows ?? []) as { id: string }[]) {
+    await learnVehicleValues(admin, v.id);
+  }
+  const ids = await collectTxnIds(admin, orgId, filters);
+  const total = ids.length;
+  let done = 0;
+  // One poisoned fill must not abort the sweep (incident 2026-08-11: a single row's numeric overflow
+  // failed the ENTIRE nightly self-heal, every night, because the row sat inside the rebuild window).
+  // Each failure is already durably recorded on its scoring attempt; finish the fleet, then fail the
+  // JOB with a summary naming the rows — a diagnosis, not a mid-run abort that hides the other 99%.
+  const failures: { id: string; message: string }[] = [];
+  for (const id of ids) {
+    try {
+      await scoreTransaction(admin, env, orgId, id, { ...scoreOpts, ctx: ctxBase, skipLearn: true });
+    } catch (e) {
+      failures.push({ id, message: e instanceof Error ? e.message : String(e) });
+      console.error(`[backfill] rebuild scoring ${id} failed:`, failures.at(-1)!.message);
+    }
+    done++;
+    if (done % 50 === 0 || done === total) {
+      if (onProgress) await onProgress(done, total);
+      if (shouldCancel && (await shouldCancel())) {
+        await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
+        return done; // F6: stop gracefully; processed rows persist
+      }
+    }
+  }
+  // Same post-pass the import path runs: auto-clear "one card, multiple trucks" cases that Samsara
+  // explains as ONE driver moving between trucks. Previously only scoreImportWithCascade did this.
+  await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
+  if (failures.length) {
+    const sample = failures.slice(0, 3).map((f) => `${f.id}: ${f.message}`).join("; ");
+    throw new Error(
+      `rebuild scored ${total - failures.length}/${total} fills; ${failures.length} failed — ${sample}` +
+        (failures.length > 3 ? ` (+${failures.length - 3} more, see scoring_attempts)` : ""),
+    );
+  }
+  return total;
+}
+
 export async function backfillOrg(
   admin: SupabaseClient,
   env: Env,
@@ -111,49 +170,16 @@ export async function backfillOrg(
 
   // Rebuild path (skipRecon): reuse stored Samsara values, no live fetch — simple sequential re-score.
   if (scoreOpts.skipRecon) {
-    // Learn each vehicle's gating values (offset / tank reliability / capacity) ONCE up front from the
-    // already-stored Samsara data, so every fill is scored against the CONVERGED values in a SINGLE pass —
-    // a rebuild no longer has to be run twice for learned changes to take effect (audit R-3).
-    const { data: vrows } = await admin.from("vehicles").select("id").eq("org_id", orgId);
-    for (const v of (vrows ?? []) as { id: string }[]) {
-      await learnVehicleValues(admin, v.id);
-    }
-    const ids = await collectTxnIds(admin, orgId, { onlyUnreconciled, sinceDays });
-    const total = ids.length;
-    let done = 0;
-    // One poisoned fill must not abort the sweep (incident 2026-08-11: a single row's numeric overflow
-    // failed the ENTIRE nightly self-heal, every night, because the row sat inside the rebuild window).
-    // Each failure is already durably recorded on its scoring attempt; finish the fleet, then fail the
-    // JOB with a summary naming the rows — a diagnosis, not a mid-run abort that hides the other 99%.
-    const failures: { id: string; message: string }[] = [];
-    for (const id of ids) {
-      try {
-        await scoreTransaction(admin, env, orgId, id, { ...scoreOpts, ctx: ctxBase, skipLearn: true });
-      } catch (e) {
-        failures.push({ id, message: e instanceof Error ? e.message : String(e) });
-        console.error(`[backfill] rebuild scoring ${id} failed:`, failures.at(-1)!.message);
-      }
-      done++;
-      if (done % 50 === 0 || done === total) {
-        if (onProgress) await onProgress(done, total);
-        if (shouldCancel && (await shouldCancel())) {
-          await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
-          return done; // F6: stop gracefully; processed rows persist
-        }
-      }
-    }
-    // Same post-pass the import path runs: auto-clear "one card, multiple trucks" cases that Samsara
-    // explains as ONE driver moving between trucks. Previously only scoreImportWithCascade did this,
-    // so a full Rebuild left every such case sitting open with nothing to clear it.
-    await reconcileCardMultiForOrg(admin, orgId).catch(() => {});
-    if (failures.length) {
-      const sample = failures.slice(0, 3).map((f) => `${f.id}: ${f.message}`).join("; ");
-      throw new Error(
-        `rebuild scored ${total - failures.length}/${total} fills; ${failures.length} failed — ${sample}` +
-          (failures.length > 3 ? ` (+${failures.length - 3} more, see scoring_attempts)` : ""),
-      );
-    }
-    return total;
+    return runRebuildBackfill(
+      admin,
+      env,
+      orgId,
+      scoreOpts,
+      { onlyUnreconciled, sinceDays },
+      ctxBase,
+      onProgress,
+      shouldCancel,
+    );
   }
 
   // ── Live recon path (F3 + F4): fetch each truck's telematics ONCE per bounded window and reuse it across
