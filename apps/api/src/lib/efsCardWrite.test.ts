@@ -157,6 +157,15 @@ describe("setCardV2 — reading the answer", () => {
     ).rejects.toMatchObject({ code: "declined" });
   });
 
+  it("treats errorNumber/errorDesc responses as vendor failures", async () => {
+    const s = stub(loginOk, soap(
+      "<setCardV2Response><result><errorNumber>42</errorNumber><errorDesc>Card is not writable</errorDesc></result></setCardV2Response>",
+    ));
+    const attempt = setCardV2(env, creds, doc(), CARD, [], { fetchImpl: s.fetchImpl });
+    await expect(attempt).rejects.toMatchObject({ code: "declined" });
+    await expect(attempt).rejects.toThrow(/errorNumber=42.*errorDesc=Card is not writable/);
+  });
+
   it("surfaces a SOAP fault with the documented code", async () => {
     const s = stub(
       loginOk,

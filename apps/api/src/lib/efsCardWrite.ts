@@ -195,6 +195,16 @@ export function classifySetCardResponse(xml: string): { resultText: string | nul
     // expect from a vendor that acknowledges a write by saying nothing.
     return { resultText: null, shape: "empty" };
   }
+  const errorNumber = findDescendant(result, "errorNumber")?.textContent?.trim();
+  const errorDesc = findDescendant(result, "errorDesc")?.textContent?.trim();
+  if (errorNumber || errorDesc) {
+    return {
+      resultText: `error: ${[errorNumber && `errorNumber=${errorNumber}`, errorDesc && `errorDesc=${errorDesc}`]
+        .filter((value): value is string => !!value)
+        .join("; ")}`,
+      shape: "document",
+    };
+  }
   if (childElements(result).length > 0) {
     // A structured payload rather than a scalar — some deployments echo the stored card back. Not a
     // decline; a decline is documented as TEXT. Look for a nested scalar anyway so a wrapped
