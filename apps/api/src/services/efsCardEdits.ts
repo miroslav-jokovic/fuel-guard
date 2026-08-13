@@ -148,7 +148,7 @@ export const overrideClearedLanded = (after: CardDocument): boolean =>
  *
  * A nested container inside a record flattens here and loses its path. The current `replaceAll` fidelity
  * check compares the flattened edit object to the flattened serialized request, so it does NOT detect
- * that loss. This is a known gap, not a proven property; `efsCardEdits.test.ts` has no nested-child case.
+ * that loss. This is a known gap, not a proven property [no-test-claim]; `efsCardEdits.test.ts` has no nested-child case.
  */
 export function recordFromElement(element: XmlElement): Record<string, string | null> {
   const record: Record<string, string | null> = {};

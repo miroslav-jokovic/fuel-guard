@@ -211,7 +211,7 @@ export function createApp(env: Env): Express {
   app.use("/api/fueling", fuelingRouter());
   // Reads, then writes, then the two admin-only diagnostics. Four routers on one prefix (the
   // rosterDriversRouter precedent), each starting with its own `router.use(requireAuth)` so
-  // routeAuth.test.ts discovers them from this line and fails CI if any one forgets it.
+  // routeAuth.test.ts discovers "the mounted /api routers" from this line and fails CI if any one forgets it.
   // The write router is mounted after the read one so its `cardWriteLimit()` only ever sees the paths
   // it is meant to meter — a GET never touches the durable counter.
   // ⚠ ONE LINE, deliberately: routeAuth.test.ts discovers mounts with `app\.use\("(\/api\/…)"…Router\(\)\)`
