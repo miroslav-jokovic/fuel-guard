@@ -1,6 +1,8 @@
-import { loadEnv } from "../env.js";
+import { pathToFileURL } from "node:url";
+import { loadEnv, type Env } from "../env.js";
 import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
-import { seal, secretAad } from "../lib/secretBox.js";
+import { seal, sealingKeyId, secretAad } from "../lib/secretBox.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * One-time backfill: seal the legacy plaintext `efs_soap_credentials.soap_password` values that
@@ -22,41 +24,124 @@ import { seal, secretAad } from "../lib/secretBox.js";
  * predates step 2: the plaintext is gone, and only a deploy holding the same SECRETS_ENCRYPTION_KEY
  * can read the credential. Confirm the key matches the deploy's before running.
  *
+ * Sealing under a key the deployed API does not hold is the one failure this script cannot walk back:
+ * the plaintext is blanked in the same statement that writes the ciphertext. The key id is a truncated
+ * double-hash of a hash, is not secret, and is already stored in every envelope — printing and
+ * comparing it costs nothing.
+ *
  *   pnpm backfill:efs-soap-passwords              # report only, writes nothing
  *   pnpm backfill:efs-soap-passwords --apply      # seal and blank
  */
 
-const apply = process.argv.includes("--apply");
-const env = loadEnv(process.env);
-const admin = getSupabaseAdmin(env);
-
-const { data, error } = await admin
-  .from("efs_soap_credentials")
-  .select("org_id, soap_password, soap_password_sealed")
-  .is("soap_password_sealed", null);
-if (error) throw new Error(`could not read EFS SOAP credentials: ${error.message}`);
-
-const rows = (data ?? []) as { org_id: string; soap_password: string; soap_password_sealed: string | null }[];
-const pending = rows.filter((row) => Boolean(row.soap_password));
-
-if (!apply) {
-  console.log(`[efs-soap] ${pending.length} row(s) hold a legacy plaintext password:`);
-  for (const row of pending) console.log(`  - org ${row.org_id}`);
-  console.log(`[efs-soap] dry run — nothing written. Re-run with --apply to seal them.`);
-  process.exit(0);
+interface CredentialRow {
+  org_id: string;
+  soap_password: string;
+  soap_password_sealed: string | null;
 }
 
-let migrated = 0;
-for (const row of pending) {
-  const { error: updateError } = await admin
-    .from("efs_soap_credentials")
-    .update({
-      soap_password: "",
-      soap_password_sealed: seal(env, row.soap_password, secretAad(row.org_id, "efs_soap_password.v1")),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("org_id", row.org_id);
-  if (updateError) throw new Error(`could not seal EFS SOAP credentials for ${row.org_id}: ${updateError.message}`);
-  migrated += 1;
+interface SealedAnchorRow {
+  card_number_sealed?: string | null;
+  key_sealed?: string | null;
 }
-console.log(`[efs-soap] sealed ${migrated} legacy password row(s)`);
+
+export interface SealedKeyIdVerdict {
+  currentKeyId: string;
+  keyIds: Array<{ keyId: string; count: number }>;
+  sealedCount: number;
+  hasAnchor: boolean;
+  ok: boolean;
+}
+
+function keyIdFromEnvelope(sealed: string): string {
+  const parts = sealed.split(".");
+  return parts.length === 5 && parts[0] === "v1" && parts[1] ? parts[1] : "<malformed>";
+}
+
+/** Compare the active deployment key id with the ids embedded in existing sealed material. */
+export function compareSealedKeyIds(
+  currentKeyId: string,
+  sealedValues: readonly (string | null | undefined)[],
+): SealedKeyIdVerdict {
+  const counts = new Map<string, number>();
+  let sealedCount = 0;
+  for (const value of sealedValues) {
+    if (!value) continue;
+    sealedCount += 1;
+    const keyId = keyIdFromEnvelope(value);
+    counts.set(keyId, (counts.get(keyId) ?? 0) + 1);
+  }
+  const keyIds = [...counts.entries()]
+    .map(([keyId, count]) => ({ keyId, count }))
+    .sort((a, b) => a.keyId.localeCompare(b.keyId));
+  return {
+    currentKeyId,
+    keyIds,
+    sealedCount,
+    hasAnchor: sealedCount > 0,
+    ok: keyIds.every(({ keyId }) => keyId === currentKeyId),
+  };
+}
+
+async function runBackfill(admin: SupabaseClient, env: Env, apply: boolean): Promise<void> {
+  const [{ data, error }, { data: cardAnchors, error: cardAnchorError }, { data: certAnchors, error: certAnchorError }] =
+    await Promise.all([
+      admin
+        .from("efs_soap_credentials")
+        .select("org_id, soap_password, soap_password_sealed")
+        .is("soap_password_sealed", null),
+      admin.from("efs_cards").select("card_number_sealed").limit(200),
+      admin.from("efs_soap_client_certs").select("key_sealed").limit(200),
+    ]);
+  if (error) throw new Error(`could not read EFS SOAP credentials: ${error.message}`);
+  if (cardAnchorError) throw new Error(`could not read sealed card anchors: ${cardAnchorError.message}`);
+  if (certAnchorError) throw new Error(`could not read sealed certificate anchors: ${certAnchorError.message}`);
+
+  const sealedValues = [
+    ...((cardAnchors ?? []) as SealedAnchorRow[]).map((row) => row.card_number_sealed),
+    ...((certAnchors ?? []) as SealedAnchorRow[]).map((row) => row.key_sealed),
+  ];
+  const verdict = compareSealedKeyIds(sealingKeyId(env), sealedValues);
+  console.log(`[efs-soap] current sealing key id: ${verdict.currentKeyId}`);
+  if (!verdict.hasAnchor) {
+    console.log("[efs-soap] no existing sealed material to compare against; the key cannot be cross-checked");
+  } else {
+    console.log("[efs-soap] existing sealed key ids:");
+    for (const { keyId, count } of verdict.keyIds) console.log(`  - ${keyId}: ${count}`);
+    if (!verdict.ok) {
+      console.error(`[efs-soap] refusing: stored sealing key id differs from current ${verdict.currentKeyId}`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log("[efs-soap] sealing key id matches all existing sealed material.");
+  }
+
+  const rows = (data ?? []) as CredentialRow[];
+  const pending = rows.filter((row) => Boolean(row.soap_password));
+
+  if (!apply) {
+    console.log(`[efs-soap] ${pending.length} row(s) hold a legacy plaintext password:`);
+    for (const row of pending) console.log(`  - org ${row.org_id}`);
+    console.log(`[efs-soap] dry run — nothing written. Re-run with --apply to seal them.`);
+    return;
+  }
+
+  let migrated = 0;
+  for (const row of pending) {
+    const { error: updateError } = await admin
+      .from("efs_soap_credentials")
+      .update({
+        soap_password: "",
+        soap_password_sealed: seal(env, row.soap_password, secretAad(row.org_id, "efs_soap_password.v1")),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("org_id", row.org_id);
+    if (updateError) throw new Error(`could not seal EFS SOAP credentials for ${row.org_id}: ${updateError.message}`);
+    migrated += 1;
+  }
+  console.log(`[efs-soap] sealed ${migrated} legacy password row(s)`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const env = loadEnv(process.env);
+  await runBackfill(getSupabaseAdmin(env), env, process.argv.includes("--apply"));
+}
