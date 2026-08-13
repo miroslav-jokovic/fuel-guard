@@ -72,7 +72,7 @@ const props = defineProps<{
   overrideUses: number | null;
   overrideAllLocations: boolean | null;
   locationOverrideId: string | null;
-  prompts: { infoId: string; validationType: string | null; matchValue: string | null }[];
+  prompts: { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[];
   capabilities: CardCapabilities;
 }>();
 
@@ -139,15 +139,15 @@ watch(
         infoId: p.infoId as PromptInput["infoId"],
         validationType: p.validationType === "REPORT_ONLY" ? "REPORT_ONLY" : "EXACT_MATCH",
         matchValue: p.matchValue,
+        reportValue: p.reportValue,
+        remove: false,
       }));
   },
   { immediate: true },
 );
 
-const removesDriverId = computed(
-  () => props.prompts.some((p) => p.infoId === "DRID")
-    && !drafts.value.some((d) => d.infoId === "DRID" && (d.matchValue ?? "").trim() !== ""),
-);
+const removesPrompt = computed(() => drafts.value.some((draft) => draft.remove));
+const removesDriverId = computed(() => drafts.value.some((draft) => draft.infoId === "DRID" && draft.remove));
 
 const locationLabel = computed(() =>
   location.value
@@ -221,9 +221,9 @@ function dispatch(action: ConfirmAction): Promise<CardMutationOutcome> {
     case "prompts":
       return setPrompts.mutateAsync({
         ...common(), idempotencyKey: keys.prompts,
-        // A cleared value is a REMOVED prompt, not an empty one — the API refuses the record entirely.
-        prompts: drafts.value.filter((d) => (d.matchValue ?? "").trim() !== ""),
-        allowRemoveDriverId: removesDriverId.value,
+        // Removal is explicit on the draft; empty match/report values are valid prompt values.
+        prompts: drafts.value,
+        allowRemoveDriverId: removesPrompt.value,
       });
   }
 }

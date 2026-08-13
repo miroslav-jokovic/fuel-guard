@@ -118,7 +118,7 @@ describe("promptInputSchema / setPromptsSchema (audit P1-6)", () => {
   it("refuses EXACT_MATCH with an empty match value — that combination bricks the pump", () => {
     for (const matchValue of ["", null]) {
       const parsed = setPromptsSchema.safeParse({
-        ...base, prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue }],
+        ...base, prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue, reportValue: null }],
       });
       expect(parsed.success).toBe(false);
     }
@@ -126,7 +126,7 @@ describe("promptInputSchema / setPromptsSchema (audit P1-6)", () => {
 
   it("accepts REPORT_ONLY with an empty value — reporting nothing is legal", () => {
     expect(setPromptsSchema.safeParse({
-      ...base, prompts: [{ infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null }],
+      ...base, prompts: [{ infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "" }],
     }).success).toBe(true);
   });
 
@@ -134,8 +134,8 @@ describe("promptInputSchema / setPromptsSchema (audit P1-6)", () => {
     expect(setPromptsSchema.safeParse({
       ...base,
       prompts: [
-        { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "111" },
-        { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "222" },
+        { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "111", reportValue: null },
+        { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "222", reportValue: null },
       ],
     }).success).toBe(false);
   });

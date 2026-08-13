@@ -126,14 +126,14 @@ describe("override — the p194 recipes", () => {
 });
 
 describe("prompts — full replace without collateral damage", () => {
-  it("preserves every field of an edited record, changing only the two that were asked for", () => {
+  it("preserves every field of an edited record, changing only the prompt fields that were asked for", () => {
     const before = doc();
     const drid = before.card.infos.find((i) => i.infoId === "DRID")!;
     expect(drid.lengthCheck).not.toBeNull(); // the fixture carries fields the API never surfaces
 
     const plan = promptsEdits(before, [
-      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999" },
-      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: "T-118" },
+      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999", reportValue: null, remove: false },
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false },
     ]);
     const xml = request(before, plan.edits);
 
@@ -148,16 +148,17 @@ describe("prompts — full replace without collateral damage", () => {
     const others = before.card.infos.filter((i) => i.infoId !== "DRID" && i.infoId !== "UNIT");
     expect(others.length).toBeGreaterThan(0); // the fixture has to actually exercise this
 
-    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471" }]);
+    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471", reportValue: null, remove: false }]);
     const xml = request(before, plan.edits);
     for (const other of others) expect(xml).toContain(`<infoId>${other.infoId}</infoId>`);
   });
 
-  it("reports a removal rather than performing one silently", () => {
+  it("reports an explicit removal rather than performing one silently", () => {
     const before = doc();
-    // UNIT submitted, DRID absent → the operator removed the driver-ID prompt. The route is what
-    // decides whether that is allowed; this function only has to SAY it is happening.
-    const plan = promptsEdits(before, [{ infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: "T-118" }]);
+    const plan = promptsEdits(before, [
+      { infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471", reportValue: null, remove: true },
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false },
+    ]);
     expect(plan.removedInfoIds).toContain("DRID");
     const xml = request(before, plan.edits);
     expect(xml).not.toContain("<infoId>DRID</infoId>");
@@ -165,27 +166,49 @@ describe("prompts — full replace without collateral damage", () => {
 
   it("appends a prompt the card has never had", () => {
     const before = doc("getCardV2.empty.xml");
-    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1" }]);
+    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null, remove: false }]);
     const xml = request(before, plan.edits);
     expect(xml).toContain("<infoId>DRID</infoId>");
     expect(xml).toContain("<matchValue>D-1</matchValue>");
   });
 
-  it("blanks a cleared matchValue rather than nilling it", () => {
+  it("does not remove a REPORT_ONLY prompt when the operator changes nothing", () => {
     const before = doc();
     const plan = promptsEdits(before, [
-      { infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null },
-      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: "T-118" },
+      { infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-report", remove: false },
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false },
     ]);
     const xml = request(before, plan.edits);
-    // "Blank them out if you intend to remove them" (p137) — an empty element, not xsi:nil, and
-    // certainly not an omitted one.
+    expect(plan.removedInfoIds).toEqual([]);
+    expect(xml).toContain("<validationType>REPORT_ONLY</validationType>");
     expect(xml).toContain("<matchValue></matchValue>");
+    expect(xml).toContain("<reportValue>D-report</reportValue>");
+  });
+
+  it("writes reportValue, not matchValue, when switching EXACT_MATCH to REPORT_ONLY", () => {
+    const before = doc();
+    const plan = promptsEdits(before, [
+      { infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-report", remove: false },
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "T-118", remove: false },
+    ]);
+    const xml = request(before, plan.edits);
+    expect(xml).toContain("<matchValue></matchValue>");
+    expect(xml).toContain("<reportValue>D-report</reportValue>");
+  });
+
+  it("appends a REPORT_ONLY prompt with its report value, not an empty string", () => {
+    const before = doc("getCardV2.empty.xml");
+    const plan = promptsEdits(before, [{
+      infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-report", remove: false,
+    }]);
+    const xml = request(before, plan.edits);
+    expect(xml).toContain("<validationType>REPORT_ONLY</validationType>");
+    expect(xml).toContain("<reportValue>D-report</reportValue>");
   });
 
   it("records before and after for the audit trail", () => {
     const before = doc();
-    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999" }]);
+    const plan = promptsEdits(before, [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-9999", reportValue: null, remove: false }]);
     expect(plan.before.find((p) => p.infoId === "DRID")?.matchValue).toBe("D-4471");
     expect(plan.after.find((p) => p.infoId === "DRID")?.matchValue).toBe("D-9999");
   });
