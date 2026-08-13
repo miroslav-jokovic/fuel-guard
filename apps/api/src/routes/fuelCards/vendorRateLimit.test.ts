@@ -91,6 +91,26 @@ describe("fuel-card vendor rate budget", () => {
     }
   });
 
+  it("a trailing slash does not escape the vendor rate budget", async () => {
+    const { baseUrl, server } = await openServer();
+    try {
+      const result = await statuses(baseUrl, "/api/fuel-cards/diagnose/", "POST", {});
+      expect(result.at(-1)).toBe(429);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("an unrecognised fuel-card path is charged rather than skipped", async () => {
+    const { baseUrl, server } = await openServer();
+    try {
+      const result = await statuses(baseUrl, "/api/fuel-cards/not-a-real-route", "POST", {});
+      expect(result.at(-1)).toBe(429);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
   it("every route that can open a SOAP session is in the charged list", () => {
     const routers = [
       fuelCardSettingsRouter(),
