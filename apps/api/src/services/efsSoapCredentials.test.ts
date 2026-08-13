@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { Env } from "../env.js";
 import { getPolicyCached, __resetPolicyCache } from "../lib/efsPolicyCache.js";
+import { seal, secretAad } from "../lib/secretBox.js";
 import {
   __resetEfsSessions,
   efsSessionDiagnostics,
@@ -10,6 +11,7 @@ import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import {
   disableEfsSoapCredentials,
+  getEfsSoapCredentials,
   upsertEfsSoapCredentials,
   type EfsSoapCredentials,
 } from "./efsSoapCredentials.js";
@@ -22,6 +24,7 @@ const env = {
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
   EFS_POLICY_CACHE_MS: 60_000,
+  SECRETS_ENCRYPTION_KEY: "0".repeat(64),
 } as unknown as Env;
 
 const creds = (orgId = ORG): EfsSoapCredentials => ({
@@ -72,6 +75,40 @@ afterEach(() => {
   __resetSoapPacing();
 });
 
+const credentialRow = (legacyPassword: string, sealedPassword: string | null) => ({
+  org_id: ORG,
+  environment: "sandbox",
+  endpoint_url: creds().endpointUrl,
+  soap_username: "user",
+  soap_password: legacyPassword,
+  soap_password_sealed: sealedPassword,
+  account_id: null,
+  posted_last_cursor: null,
+  rejected_last_cursor: null,
+  posted_last_polled_at: null,
+  rejected_last_polled_at: null,
+  posted_last_success_at: null,
+  rejected_last_success_at: null,
+  posted_last_error: null,
+  rejected_last_error: null,
+  enabled: true,
+});
+
+describe("EFS credential password sealing", () => {
+  it("round-trips a sealed password", async () => {
+    const sealed = seal(env, "sealed-password", secretAad(ORG, "efs_soap_password.v1"));
+    const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [credentialRow("", sealed)] } });
+    const loaded = await getEfsSoapCredentials(db.client, env, ORG);
+    expect(loaded?.soapPassword).toBe("sealed-password");
+  });
+
+  it("still reads an unsealed legacy password during migration", async () => {
+    const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [credentialRow("legacy-password", null)] } });
+    const loaded = await getEfsSoapCredentials(db.client, env, ORG);
+    expect(loaded?.soapPassword).toBe("legacy-password");
+  });
+});
+
 describe("EFS credential rotation", () => {
   it("upserting credentials clears every cached session for that org", async () => {
     const rec = sequence(loginOk, loginOk);
@@ -79,7 +116,10 @@ describe("EFS credential rotation", () => {
     await withEfsSession(env, creds(OTHER_ORG), "live", async () => 1, { fetchImpl: rec.fetchImpl });
 
     const db = createSupabaseRecorder();
-    await upsertEfsSoapCredentials(db.client, ORG, input);
+    await upsertEfsSoapCredentials(db.client, env, ORG, input);
+    const written = db.writtenRows("efs_soap_credentials")[0]!;
+    expect(written.soap_password).toBe("");
+    expect(String(written.soap_password_sealed)).toMatch(/^v1\./);
 
     expect(efsSessionDiagnostics(creds(ORG)).hasSession).toBe(false);
     expect(efsSessionDiagnostics(creds(OTHER_ORG)).hasSession).toBe(true);

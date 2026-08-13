@@ -406,7 +406,7 @@ export function integrationsRouter(): Router {
         res.status(400).json(apiError("invalid_endpoint_url", endpoint.message));
         return;
       }
-      await upsertEfsSoapCredentials(admin, orgId, {
+      await upsertEfsSoapCredentials(admin, env, orgId, {
         environment: input.environment,
         // Store the URL we actually validated, so no second parser can disagree about the host.
         endpointUrl: endpoint.url,
