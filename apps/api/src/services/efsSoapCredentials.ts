@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
+import { invalidateOrgSoapCaches } from "../lib/soapCaches.js";
+import { open, seal, secretAad } from "../lib/secretBox.js";
 import { describeTlsMaterial, envTlsMaterial, type EfsTlsMaterial } from "../lib/soapClient.js";
 import { CERT_EXPIRY_WARN_DAYS, listCerts, loadActiveMaterial, type StoredCertSummary } from "./efsSoapClientCerts.js";
 
@@ -95,6 +97,7 @@ interface DbRow {
   endpoint_url: string;
   soap_username: string;
   soap_password: string;
+  soap_password_sealed: string | null;
   account_id: string | null;
   posted_last_cursor: string | null;
   rejected_last_cursor: string | null;
@@ -107,13 +110,16 @@ interface DbRow {
   enabled: boolean;
 }
 
-function fromRow(row: DbRow, tls: EfsTlsMaterial | null): EfsSoapCredentials {
+function fromRow(row: DbRow, tls: EfsTlsMaterial | null, env: Env): EfsSoapCredentials {
+  const soapPassword = row.soap_password_sealed
+    ? open(env, row.soap_password_sealed, secretAad(row.org_id, "efs_soap_password.v1"))
+    : row.soap_password;
   return {
     orgId: row.org_id,
     environment: row.environment === "production" ? "production" : "sandbox",
     endpointUrl: row.endpoint_url,
     soapUsername: row.soap_username,
-    soapPassword: row.soap_password,
+    soapPassword,
     accountId: row.account_id,
     postedLastCursor: row.posted_last_cursor,
     rejectedLastCursor: row.rejected_last_cursor,
@@ -173,7 +179,7 @@ export async function getEfsSoapCredentials(
     .eq("org_id", orgId)
     .maybeSingle();
   const tls = await resolveTls(admin, env, orgId);
-  if (data) return fromRow(data as DbRow, tls);
+  if (data) return fromRow(data as DbRow, tls, env);
 
   // Env-var fallback (single-tenant deploy). Endpoint, username, and password must be present —
   // and the fallback must be BOUND to one org. Serving one EFS account's credentials to whichever
@@ -260,6 +266,7 @@ export interface UpsertEfsSoapInput {
 /** Upsert credentials for an org. Also the ROTATE path — re-calling overwrites the password. */
 export async function upsertEfsSoapCredentials(
   admin: SupabaseClient,
+  env: Env,
   orgId: string,
   input: UpsertEfsSoapInput,
 ): Promise<void> {
@@ -269,7 +276,8 @@ export async function upsertEfsSoapCredentials(
       environment: input.environment,
       endpoint_url: input.endpointUrl,
       soap_username: input.soapUsername,
-      soap_password: input.soapPassword,
+      soap_password: "",
+      soap_password_sealed: seal(env, input.soapPassword, secretAad(orgId, "efs_soap_password.v1")),
       account_id: input.accountId,
       enabled: input.enabled,
       updated_at: new Date().toISOString(),
@@ -277,6 +285,7 @@ export async function upsertEfsSoapCredentials(
     { onConflict: "org_id" },
   );
   if (error) throw new Error(error.message);
+  invalidateOrgSoapCaches(orgId);
 }
 
 /** Disable + wipe the SOAP password so a scheduler that missed the enabled flag can't dial home. */
@@ -286,10 +295,12 @@ export async function disableEfsSoapCredentials(admin: SupabaseClient, orgId: st
     .update({
       enabled: false,
       soap_password: "",
+      soap_password_sealed: null,
       updated_at: new Date().toISOString(),
     })
     .eq("org_id", orgId);
   if (error) throw new Error(error.message);
+  invalidateOrgSoapCaches(orgId);
 }
 
 /**

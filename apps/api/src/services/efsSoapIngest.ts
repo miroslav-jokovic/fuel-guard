@@ -86,7 +86,7 @@ export async function runEfsSoapIngest(
   // 0091 is missing, fail loudly instead of repeatedly requesting the first seven-day window.
   if (creds.fromEnvFallback) {
     try {
-      await upsertEfsSoapCredentials(admin, orgId, {
+      await upsertEfsSoapCredentials(admin, env, orgId, {
         environment: creds.environment,
         endpointUrl: creds.endpointUrl,
         soapUsername: creds.soapUsername,

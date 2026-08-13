@@ -91,7 +91,7 @@ describe("syncEfsCards", () => {
     expect(written).not.toContain(PAN_A);
     expect(written).not.toContain(PAN_B);
     // The mechanical form of the same assertion: nothing card-number-shaped, whatever the column.
-    expect(written).not.toMatch(/\d{12,}/);
+    expect(written).not.toMatch(/\d{10,}/);
   });
 
   it("stores the number sealed AND as a keyed lookup handle", async () => {
@@ -160,11 +160,18 @@ describe("syncEfsCards", () => {
   });
 
   it("keeps card numbers out of its error messages", async () => {
-    const rec = createSupabaseRecorder({ tables: { efs_cards: { writeError: { message: `card ${PAN_A} rejected` } }, fuel_cards: [] } });
+    const shortPan = "7083000000";
+    const suffixedPan = "70830000000000111OVER";
+    const rec = createSupabaseRecorder({
+      tables: { efs_cards: { writeError: { message: `card ${shortPan} and ${suffixedPan} rejected` } }, fuel_cards: [] },
+    });
     const result = await syncEfsCards(rec.client, env, creds, { fetchImpl: stub(loginOk, summaries, cardDetail, cardDetail) });
+    const errors = result.errors.join(" ");
 
-    expect(result.errors.join(" ")).not.toContain(PAN_A);
-    expect(result.errors.join(" ")).toMatch(/••••/);
+    expect(errors).not.toContain(shortPan);
+    expect(errors).not.toContain(suffixedPan);
+    expect(errors).toContain("••••0000");
+    expect(errors).toContain("••••0111");
   });
 
   it("stores a status EFS reports even when the getCard enum omits it", async () => {

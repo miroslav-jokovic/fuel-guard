@@ -6,6 +6,7 @@ import type { CardDocument } from "../lib/efsCardXml.js";
 import { getCardV2 } from "../lib/efsCardOps.js";
 import { deleteOverrideOp, setCardV2 } from "../lib/efsCardWrite.js";
 import { EfsSoapError } from "../lib/efsSoapSession.js";
+import { sleepWithAbort, withEfsCardWriteDeadline } from "./efsCardWriteDeadline.js";
 import {
   finalizeFailed,
   finalizeLanded,
@@ -103,7 +104,15 @@ export interface CardMutationContext {
    * service's tests is the SEQUENCE: read, write, re-read.
    */
   fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
 }
+
+const cardOpOptions = (ctx: CardMutationContext) => ({
+  priority: "interactive" as const,
+  timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
+  fetchImpl: ctx.fetchImpl,
+  signal: ctx.signal,
+});
 
 /**
  * A dedicated vendor operation replacing the setCardv2 echo for one intent (fix plan D1).
@@ -193,11 +202,7 @@ export async function planCardMutation(
   await assertOrgHourlyCap(ctx);
   await assertNoMutationInFlight(ctx);
 
-  const before = await getCardV2(ctx.env, ctx.creds, ctx.cardNumber, {
-    priority: "interactive",
-    timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
-    fetchImpl: ctx.fetchImpl,
-  });
+  const before = await getCardV2(ctx.env, ctx.creds, ctx.cardNumber, cardOpOptions(ctx));
 
   if (before.version !== ctx.expectedVersion) {
     // Nothing is sent. The operator gets the fresh card and decides again — the only defence
@@ -295,11 +300,7 @@ export async function applyCardMutation(
   try {
     // One dispatch per plan: the dedicated vendor op when the intent adopted one (D1), else the
     // full-document echo. Both live in efsCardWrite.ts, both retry:false, both classified the same.
-    const opts = {
-      priority: "interactive" as const,
-      timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
-      fetchImpl: ctx.fetchImpl,
-    };
+    const opts = cardOpOptions(ctx);
     const result = plan.vendorOp
       ? await deleteOverrideOp(ctx.env, ctx.creds, ctx.cardNumber, opts)
       : await setCardV2(ctx.env, ctx.creds, before, ctx.cardNumber, edits, opts);
@@ -321,11 +322,7 @@ export async function applyCardMutation(
   let after: CardDocument | null = null;
   let readError: unknown = null;
   try {
-    after = await getCardV2(ctx.env, ctx.creds, ctx.cardNumber, {
-      priority: "interactive",
-      timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
-      fetchImpl: ctx.fetchImpl,
-    });
+    after = await getCardV2(ctx.env, ctx.creds, ctx.cardNumber, cardOpOptions(ctx));
   } catch (error) {
     readError = error;
   }
@@ -349,13 +346,9 @@ export async function applyCardMutation(
   // pause is configurable so Phase 0's measured apply latency can tune it (0 disables, tests only).
   const verifyRetryMs = ctx.env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
   if (!landed && verifyRetryMs > 0) {
-    await sleep(verifyRetryMs);
+    await sleepWithAbort(verifyRetryMs, ctx.signal);
     try {
-      after = await getCardV2(ctx.env, ctx.creds, ctx.cardNumber, {
-        priority: "interactive",
-        timeoutMs: ctx.env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS,
-        fetchImpl: ctx.fetchImpl,
-      });
+      after = await getCardV2(ctx.env, ctx.creds, ctx.cardNumber, cardOpOptions(ctx));
       landed = hasLanded(after);
     } catch {
       // The first re-read stands. It succeeded and is a complete verification on its own; a failed
@@ -374,14 +367,15 @@ export async function applyCardMutation(
   return await finalizeLanded(ctx, plan, after, { requestXmlRedacted, responseXmlRedacted });
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
 /** Plan and apply in one call — the Phase 1 route path. */
 export async function executeCardMutation(
   ctx: CardMutationContext,
   spec: CardMutationIntentSpec,
 ): Promise<CardMutationOutcome> {
-  return await applyCardMutation(ctx, await planCardMutation(ctx, spec));
+  return withEfsCardWriteDeadline(ctx.env, async (signal) => {
+    const scoped = { ...ctx, signal };
+    return applyCardMutation(scoped, await planCardMutation(scoped, spec));
+  });
 }
 
 /**

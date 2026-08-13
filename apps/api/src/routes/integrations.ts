@@ -17,7 +17,8 @@ import {
   upsertEfsSoapCredentials,
 } from "../services/efsSoapCredentials.js";
 import { pingEfsSoap } from "../lib/efsSoap.js";
-import { describeTlsMaterial, invalidateTlsAgents } from "../lib/soapClient.js";
+import { describeTlsMaterial } from "../lib/soapClient.js";
+import { invalidateOrgSoapIdentity } from "../lib/soapCaches.js";
 import { allowPrivateEndpoints, checkOutboundUrl } from "../lib/ssrfGuard.js";
 import {
   ClientCertServiceError,
@@ -34,7 +35,6 @@ import type { RunJobResult } from "../services/jobs.js";
 import { saveSamsaraToken, clearSamsaraToken } from "../lib/samsaraToken.js";
 import { SecretBoxError } from "../lib/secretBox.js";
 import { z } from "zod";
-
 /** Standard response for a background job endpoint: 202 with the job id, or 409 when one is running.
  *  The web watches the (org, kind) ledger row via useJob(kind) for progress + the final result stats. */
 function jobResponse(res: import("express").Response, result: RunJobResult): void {
@@ -46,7 +46,6 @@ function jobResponse(res: import("express").Response, result: RunJobResult): voi
     res.status(202).json({ ok: true, queued: true, jobId: result.jobId });
   }
 }
-
 export function integrationsRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -407,7 +406,7 @@ export function integrationsRouter(): Router {
         res.status(400).json(apiError("invalid_endpoint_url", endpoint.message));
         return;
       }
-      await upsertEfsSoapCredentials(admin, orgId, {
+      await upsertEfsSoapCredentials(admin, env, orgId, {
         environment: input.environment,
         // Store the URL we actually validated, so no second parser can disagree about the host.
         endpointUrl: endpoint.url,
@@ -632,7 +631,7 @@ export function integrationsRouter(): Router {
           return;
         }
         const promoted = await activatePendingCert(admin, orgId, actorId);
-        invalidateTlsAgents();
+        invalidateOrgSoapIdentity(orgId);
         await writeAudit(admin, {
           orgId,
           actorId,
@@ -748,7 +747,7 @@ export function integrationsRouter(): Router {
         const promoted = await activatePendingCert(admin, orgId, req.auth!.userId);
         // Drop pooled keep-alive sockets so the very next request presents the NEW identity rather
         // than riding a connection established under the old certificate.
-        invalidateTlsAgents();
+        invalidateOrgSoapIdentity(orgId);
         await writeAudit(admin, {
           orgId,
           actorId: req.auth!.userId,
@@ -781,7 +780,7 @@ export function integrationsRouter(): Router {
       const orgId = req.auth!.orgId!;
       try {
         const rolled = await rollbackToPreviousCert(admin, orgId, req.auth!.userId);
-        invalidateTlsAgents();
+        invalidateOrgSoapIdentity(orgId);
         await writeAudit(admin, {
           orgId,
           actorId: req.auth!.userId,
@@ -813,7 +812,7 @@ export function integrationsRouter(): Router {
       const admin = getSupabaseAdmin(env);
       const orgId = req.auth!.orgId!;
       const retired = await retireAllCerts(admin, orgId, req.auth!.userId, "withdrawn");
-      invalidateTlsAgents();
+      invalidateOrgSoapIdentity(orgId);
       await writeAudit(admin, {
         orgId,
         actorId: req.auth!.userId,

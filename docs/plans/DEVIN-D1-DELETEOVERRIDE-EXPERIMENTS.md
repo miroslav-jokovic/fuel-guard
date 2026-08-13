@@ -42,14 +42,24 @@ QA org's card only.
    last run; it needs re-setting.)
 3. `EFS_CARD_DELETE_OVERRIDE_ENABLED` must stay UNSET/false throughout — that is the production
    flag, and it only turns on after this run's findings say so. You never touch it.
-4. Fresh token exactly as in DEVIN-PHASE0-EXPERIMENTS step 1 (password grant, your QA admin user;
-   re-run whenever a call answers 403 `step_up_required`).
+4. Fresh access token plus step-up token as in DEVIN-PHASE0-EXPERIMENTS step 1 (your QA admin user;
+   re-run the mint call whenever a call answers 403 `step_up_required` or the 300-second token expires).
 
 ```bash
 API=https://fleetguardapi-production.up.railway.app
+STEP_UP_TOKEN=$(curl -s "$API/api/auth/step-up" -X POST \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"password":"<your password>"}' | jq -r .token)
+```
+
+The step-up response is `{token, expiresAt}`; use its `token` field below. `TOKEN` is the fresh access
+token from the password-grant step in DEVIN-PHASE0-EXPERIMENTS.
+
+```bash
 CARD=<the full 7671 card number from DEVIN-EFS-QA-SETUP step 7>
 exp() { curl -s "$API/api/fuel-cards/experiment" -X POST \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$1"; }
+  -H "Authorization: Bearer $TOKEN" -H "x-step-up-token: $STEP_UP_TOKEN" \
+  -H "Content-Type: application/json" -d "$1"; }
 ```
 
 ## Step 1 — Baseline read (always first)

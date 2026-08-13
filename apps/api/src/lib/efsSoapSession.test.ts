@@ -114,6 +114,31 @@ describe("EFS session reuse", () => {
     expect(efsSessionDiagnostics(creds).hasSession).toBe(true);
   });
 
+  it("uses a different session key when the password or active certificate changes", async () => {
+    const rec = recorder([loginOk()]);
+    await withEfsSession(env, creds, "live", async () => 1, { fetchImpl: rec.fetchImpl });
+
+    expect(efsSessionDiagnostics(creds).hasSession).toBe(true);
+    expect(efsSessionDiagnostics({ ...creds, soapPassword: "rotated" }).hasSession).toBe(false);
+    expect(efsSessionDiagnostics({
+      ...creds,
+      tls: { source: "org", fingerprintSha256: "new-cert", rejectUnauthorized: true },
+    }).hasSession).toBe(false);
+  });
+
+  it("resets every cached session for an org without affecting another org", async () => {
+    const rec = recorder([loginOk("org-1-a"), loginOk("org-1-b"), loginOk("org-2")]);
+    const sameOrgDifferentEndpoint = { ...creds, endpointUrl: "https://qa2.efsllc.com/axis2/services/CardManagementWS/" };
+    await withEfsSession(env, creds, "live", async () => 1, { fetchImpl: rec.fetchImpl });
+    await withEfsSession(env, sameOrgDifferentEndpoint, "live", async () => 1, { fetchImpl: rec.fetchImpl });
+    await withEfsSession(env, otherOrg, "live", async () => 1, { fetchImpl: rec.fetchImpl });
+
+    __resetEfsSessions("org-1");
+    expect(efsSessionDiagnostics(creds).hasSession).toBe(false);
+    expect(efsSessionDiagnostics(sameOrgDifferentEndpoint).hasSession).toBe(false);
+    expect(efsSessionDiagnostics(otherOrg).hasSession).toBe(true);
+  });
+
   it("does NOT log out at the end of a session-scoped operation", async () => {
     const rec = recorder([loginOk()]);
     await withEfsSession(env, creds, "live", async () => 1, { fetchImpl: rec.fetchImpl });
@@ -308,6 +333,7 @@ describe("EFS fault classification", () => {
 
   it.each([
     ["InvalidClientId", "session_expired"],
+    ["Flying J", "soap_fault"],
     ["AccountLockedException", "account_locked"],
     ["InvalidLoginException", "auth"],
     ["InvalidAccountException", "auth"],

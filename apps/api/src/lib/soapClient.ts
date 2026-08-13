@@ -120,7 +120,7 @@ export function parseRetryAfter(value: string | null): number | null {
  *  it is the failure we actually see: a half-open socket to a vendor that has stopped answering. The
  *  destroy() surfaces as an ordinary request error, so it lands in soapFetch's transient-retry catch
  *  alongside ECONNRESET rather than needing its own branch. */
-function httpsPost(url: string, headers: Record<string, string>, body: string, tls: EfsTlsMaterial, timeoutMs?: number): Promise<SoapResponse> {
+function httpsPost(url: string, headers: Record<string, string>, body: string, tls: EfsTlsMaterial, timeoutMs?: number, signal?: AbortSignal): Promise<SoapResponse> {
   return new Promise((resolve, reject) => {
     const target = new URL(url);
     const req = httpsRequest(
@@ -150,6 +150,15 @@ function httpsPost(url: string, headers: Record<string, string>, body: string, t
       },
     );
     req.on("error", reject);
+    if (signal) {
+      const abort = () => req.destroy(Object.assign(new Error("EFS request aborted"), { code: "ABORT_ERR" }));
+      if (signal.aborted) {
+        abort();
+        return;
+      }
+      signal.addEventListener("abort", abort, { once: true });
+      req.once("close", () => signal.removeEventListener("abort", abort));
+    }
     if (timeoutMs && timeoutMs > 0) {
       req.setTimeout(timeoutMs, () => {
         // Mirror the shape of a real socket timeout so classifyTlsError() reads it as "network".
@@ -205,6 +214,8 @@ export interface SoapRequestOptions {
    * services/efsCardControl.ts.
    */
   timeoutMs?: number;
+  /** Optional caller-owned deadline shared by a multi-request orchestration. */
+  signal?: AbortSignal;
 }
 
 export interface SoapResponse {
@@ -257,6 +268,9 @@ export async function soapFetch(
   // Explicit 0 disables the deadline; undefined takes the lane default. Before this existed neither
   // branch set any timeout at all, so a half-open socket hung until the process died.
   const timeoutMs = opts.timeoutMs === undefined ? laneTimeoutMs(env, priority) : opts.timeoutMs;
+  const requestSignal = opts.signal
+    ? timeoutMs > 0 ? AbortSignal.any([opts.signal, AbortSignal.timeout(timeoutMs)]) : opts.signal
+    : timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined;
   // Precedence: explicit material (per-org, resolved by the credentials layer) → deploy-wide env →
   // none. An injected fetch (tests) that did NOT ask for TLS bypasses the https path entirely, so the
   // mTLS layer can never interfere with the existing suite.
@@ -287,6 +301,7 @@ export async function soapFetch(
 
   let attempt = 0;
   for (;;) {
+    if (opts.signal?.aborted) throw new Error("EFS request aborted by caller");
     const wait = reserveSlot(slotKey, rps);
     if (wait > 0) await sleep(wait);
     let out: SoapResponse;
@@ -295,7 +310,7 @@ export async function soapFetch(
         // node:https does not follow redirects at all — a 3xx comes back to the caller as-is, and
         // efsSoap.ts then fails to parse it as SOAP. That is the behaviour we want, and it is why the
         // fetch branch below is made to match it.
-        out = await httpsPost(targetUrl, headers, opts.body, tls, timeoutMs);
+        out = await httpsPost(targetUrl, headers, opts.body, tls, timeoutMs, requestSignal);
       } else {
         // `redirect: "manual"` is load-bearing, not a style preference. fetch DEFAULTS to following
         // redirects, and it follows them itself: the URL validated above gets checked, the hop it is
@@ -312,7 +327,7 @@ export async function soapFetch(
           headers,
           body: opts.body,
           redirect: "manual",
-          ...(timeoutMs > 0 ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+          ...(requestSignal ? { signal: requestSignal } : {}),
         });
         if (res.status >= 300 && res.status < 400) {
           throw new BlockedEndpointError(
@@ -342,7 +357,7 @@ export async function soapFetch(
     } catch (e) {
       // A refused endpoint is a decision, not a transient failure: retrying re-runs the same checks,
       // reaches the same answer, and burns another paced slot on a request we are never going to make.
-      if (e instanceof BlockedEndpointError) throw e;
+      if (e instanceof BlockedEndpointError || opts.signal?.aborted) throw e;
       if (attempt >= maxRetries) throw e;
       await sleep(backoffMs(attempt++));
       continue;

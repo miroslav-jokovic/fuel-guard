@@ -224,6 +224,8 @@ const EnvSchema = z.object({
   EFS_CARD_CONTROL_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
   // Gates the QA entitlement probe endpoint. Staging only, and unset again once the probe has run.
   EFS_CARD_CONTROL_PROBE_ENABLED: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
+  // Explicit emergency escape hatch for a production probe. Default FALSE so a probe cannot write a live card by accident.
+  EFS_ALLOW_PRODUCTION_PROBE: z.string().default("false").transform((s) => s.toLowerCase() === "true"),
   // D1: clear overrides via the dedicated `deleteOverride` operation (guide p27) instead of the
   // three-field setCardv2 echo. Default FALSE — the echo path stays the mechanism until the D1 probe
   // proves this account is entitled to the op and records its observed post-state (fix plan D1).

@@ -27,6 +27,7 @@ const deletedIds = (rec: SupabaseRecorder, table: string) =>
 describe("retention policy (the config itself)", () => {
   it("never lists a forbidden table (audit ledger, business records, identity)", () => {
     const listed = new Set(RETENTION_RULES.map((r) => r.table));
+    expect(RETENTION_FORBIDDEN).toContain("efs_card_mutations");
     for (const t of RETENTION_FORBIDDEN) expect(listed.has(t)).toBe(false);
   });
 

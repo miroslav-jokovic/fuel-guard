@@ -78,7 +78,7 @@ import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
  */
 
 /** Idempotency-Key header. uuid v4 from the browser, one per drawer-open per intent. */
-const idempotencyKeySchema = z.string().uuid().optional();
+const idempotencyKeySchema = z.string().uuid();
 
 /**
  * What a reused Idempotency-Key must be asked FOR (audit P1-2 / migration 0180). The key alone
@@ -118,20 +118,20 @@ export function fuelCardControlRouter(): Router {
     const { env } = getAppLocals(req);
     const orgId = req.auth!.orgId!;
 
+    // Pure, and therefore before anything expensive: a missing or malformed replay key is a client
+    // bug and deserves a straight answer rather than three round trips followed by one.
+    const key = idempotencyKeySchema.safeParse(req.header("Idempotency-Key") ?? undefined);
+    if (!key.success) {
+      res.status(400).json(apiError("invalid_request", "Idempotency-Key must be a uuid."));
+      return null;
+    }
+
     // The deploy-wide kill switch first, and before any database work: it is the cheapest of the four
     // ANDed facts and the only one that can be answered without a round trip. A deployment with card
     // control off should not be querying settings tables to find that out.
     if (!env.EFS_CARD_CONTROL_ENABLED) {
       const [code, message] = refusal("kill_switch", scope);
       res.status(403).json(apiError(code, message));
-      return null;
-    }
-
-    // Pure, and therefore before anything expensive: a malformed replay key is a client bug and
-    // deserves a straight answer rather than three round trips followed by one.
-    const key = idempotencyKeySchema.safeParse(req.header("Idempotency-Key") ?? undefined);
-    if (!key.success) {
-      res.status(400).json(apiError("invalid_request", "Idempotency-Key must be a uuid."));
       return null;
     }
 

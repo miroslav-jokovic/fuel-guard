@@ -150,6 +150,7 @@ export const RETENTION_FORBIDDEN = [
   "platform_audit_log",
   "fuel_transactions", // business records
   "efs_transactions",
+  "efs_card_mutations", // card-control ledger
   "fuel_events",
   "declined_transactions",
   "anomalies",

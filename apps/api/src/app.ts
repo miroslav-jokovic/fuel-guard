@@ -9,10 +9,11 @@ import * as Sentry from "@sentry/node";
 import { APP_NAME } from "@fuelguard/shared";
 import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
-import { apiError, asyncHandler } from "./lib/http.js";
+import { asyncHandler } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
+import { errorResponder } from "./middleware/errorResponder.js";
 import { registerAllHandlers } from "./services/queue/handlers/index.js";
 import { invitesRouter } from "./routes/invites.js";
 import { membersRouter } from "./routes/members.js";
@@ -261,12 +262,7 @@ export function createApp(env: Env): Express {
   Sentry.setupExpressErrorHandler(app);
 
   // Structured error handler — never echo upstream errors verbatim (audit L8).
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("[api] unhandled error:", err);
-    if (!res.headersSent) {
-      res.status(500).json(apiError("internal_error", "Unexpected server error"));
-    }
-  });
+  app.use(errorResponder);
 
   return app;
 }
