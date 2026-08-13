@@ -219,17 +219,7 @@ export type EfsCardSummary = z.infer<typeof efsCardSummarySchema>;
  * depends on the org's write entitlement, the deploy kill switch and the approver list, none of which
  * the browser can see.
  */
-export const cardCapabilitiesSchema = z.object({
-  canLock: z.boolean(),
-  canUnlock: z.boolean(),
-  canOverride: z.boolean(),
-  canSetPrompts: z.boolean(),
-  writeEntitlement: z.enum(["unknown", "confirmed", "denied"]),
-  blockedBy: z
-    .enum(["kill_switch", "not_enabled", "not_entitled", "role", "not_approver", "no_credentials"])
-    .nullable(),
-});
-export type CardCapabilities = z.infer<typeof cardCapabilitiesSchema>;
+export { cardCapabilitiesSchema, type CardCapabilities } from "./cardCapabilitiesContract.js";
 
 // ─── Write requests (one per intent) ───────────────────────────────────────────────────────────
 

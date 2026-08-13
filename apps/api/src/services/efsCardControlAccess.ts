@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type CardCapabilities, type UserRole, rolesThatManage } from "@fuelguard/shared";
 import type { Env } from "../env.js";
+import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
+
+const grandfatheredProbeOrgs = new Set<string>();
+
+export function __resetGrandfatheredProbeOrgs(): void {
+  grandfatheredProbeOrgs.clear();
+}
 
 /**
  * One place that answers "may this person change this card, and if not, why not?"
@@ -8,7 +15,7 @@ import type { Env } from "../env.js";
  * There is deliberately no `ModuleKey` in this chain. Card control is not a separate product — it is
  * what the EFS integration the customer already pays for does once EFS allows it. Gating on
  * entitlements would mean a customer with SOAP wired up and write access confirmed still gets a
- * `module_disabled` 403 for an unrelated reason. Instead FOUR facts must all hold, and each one is
+ * `module_disabled` 403 for an unrelated reason. Instead FIVE facts must all hold, and each one is
  * real, diagnosable, and produces a different sentence on screen:
  *
  *   1. `EFS_CARD_CONTROL_ENABLED`      — the deploy-wide kill switch. Default off.
@@ -19,6 +26,8 @@ import type { Env } from "../env.js";
  *      no-op echo leaves the card byte-identical. Until then this is 'unknown', which behaves exactly
  *      like 'denied' at the gate and differently in the UI, because "an admin needs to run the write
  *      check" and "EFS has not enabled this for your account" send a person to two different places.
+ *   5. `probed_identity_hash` — the current EFS endpoint, username and account id still match the
+ *      credential identity that established the entitlement. A null value is grandfathered temporarily.
  *
  * On top of those: the role must manage the `fuel` section, AND — when `require_approver` is on,
  * which is the default — the user must be named in `efs_card_control_approvers` for the relevant
@@ -43,6 +52,7 @@ export interface CardControlSettingsRow {
   enabled: boolean;
   write_entitlement: "unknown" | "confirmed" | "denied";
   require_approver: boolean;
+  probed_identity_hash: string | null;
 }
 
 const NO_SCOPES: CardScope[] = [];
@@ -70,9 +80,11 @@ export async function loadCardControlAccess(
 
   const [{ data: settings }, { data: credentials }] = await Promise.all([
     admin.from("efs_card_control_settings")
-      .select("enabled, write_entitlement, require_approver")
+      .select("enabled, write_entitlement, require_approver, probed_identity_hash")
       .eq("org_id", orgId).maybeSingle(),
-    admin.from("efs_soap_credentials").select("enabled").eq("org_id", orgId).maybeSingle(),
+    admin.from("efs_soap_credentials")
+      .select("enabled, endpoint_url, soap_username, account_id")
+      .eq("org_id", orgId).maybeSingle(),
   ]);
 
   const row = (settings ?? null) as CardControlSettingsRow | null;
@@ -83,6 +95,38 @@ export async function loadCardControlAccess(
   }
   if (!row?.enabled) return denied("not_enabled", entitlement);
   if (entitlement !== "confirmed") return denied("not_entitled", entitlement);
+
+  const currentCredentials = credentials as {
+    endpoint_url: string;
+    soap_username: string;
+    account_id: string | null;
+  };
+  /**
+   * A credential whose identity cannot be computed — an unparseable endpoint or a missing sealing key —
+   * is not a credential that matches what was probed. Returning `endpoint_changed` is strictly better
+   * than a 500 that tells the operator nothing and could leave the capability path ambiguous.
+   */
+  let currentIdentity: string;
+  try {
+    currentIdentity = credentialIdentityHash(env, {
+      endpointUrl: currentCredentials.endpoint_url,
+      soapUsername: currentCredentials.soap_username,
+      accountId: currentCredentials.account_id,
+    });
+  } catch {
+    return denied("endpoint_changed", entitlement);
+  }
+  const probedIdentity = row?.probed_identity_hash ?? null;
+  if (probedIdentity !== null && probedIdentity !== currentIdentity) {
+    return denied("endpoint_changed", entitlement);
+  }
+  if (probedIdentity === null && !grandfatheredProbeOrgs.has(orgId)) {
+    grandfatheredProbeOrgs.add(orgId);
+    console.warn(
+      `[card-control] org ${orgId} has confirmed write entitlement without a recorded credential identity; ` +
+        "allowing grandfathered access until the Phase 2 exit gate is satisfied",
+    );
+  }
 
   // The role gate is derived from the shared matrix rather than a hardcoded list, so it stays in step
   // with the API's other fuel-section routes and with the UI. rolesThatManage("fuel") is

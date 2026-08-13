@@ -444,6 +444,7 @@ A preservation assertion built on the response DOM does not fix this on its own:
 **Verify:** **Deployed:** run against the production org's 199 cards. Every card must pass. Any failure is a finding to record in `docs/22` before proceeding.
 
 ### ✅ Exit Gate — Phase 2
+- [ ] No org with `write_entitlement = 'confirmed'` still has a null `probed_identity_hash`
 - [ ] The Phase 1 bug, replayed through the guard, throws `echo_unfaithful`
 - [ ] All four order tests pass; every existing echo test passes unchanged
 - [ ] Echo scan green across all 199 production cards

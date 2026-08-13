@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
+import { writeAudit } from "../lib/audit.js";
 import { invalidateOrgSoapCaches } from "../lib/soapCaches.js";
 import { open, seal, secretAad } from "../lib/secretBox.js";
 import { describeTlsMaterial, envTlsMaterial, type EfsTlsMaterial } from "../lib/soapClient.js";
+import { efsEndpointHost, validateEfsSoapEnvironment } from "./efsSoapCredentialIdentity.js";
 import { CERT_EXPIRY_WARN_DAYS, listCerts, loadActiveMaterial, type StoredCertSummary } from "./efsSoapClientCerts.js";
 
 /**
@@ -269,7 +271,31 @@ export async function upsertEfsSoapCredentials(
   env: Env,
   orgId: string,
   input: UpsertEfsSoapInput,
+  actorId: string | null = null,
 ): Promise<void> {
+  const endpointHost = validateEfsSoapEnvironment(input.environment, input.endpointUrl);
+  const { data: existing, error: readError } = await admin
+    .from("efs_soap_credentials")
+    .select("environment, endpoint_url, soap_username, account_id")
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+
+  const previous = existing as {
+    environment: string;
+    endpoint_url: string;
+    soap_username: string;
+    account_id: string | null;
+  } | null;
+  const changedFields = previous
+    ? [
+        ...(previous.environment !== input.environment ? ["environment"] : []),
+        ...(previous.endpoint_url !== input.endpointUrl ? ["endpoint_url"] : []),
+        ...(previous.soap_username !== input.soapUsername ? ["soap_username"] : []),
+        ...((previous.account_id ?? null) !== (input.accountId ?? null) ? ["account_id"] : []),
+      ]
+    : [];
+
   const { error } = await admin.from("efs_soap_credentials").upsert(
     {
       org_id: orgId,
@@ -285,6 +311,31 @@ export async function upsertEfsSoapCredentials(
     { onConflict: "org_id" },
   );
   if (error) throw new Error(error.message);
+
+  if (changedFields.length > 0) {
+    const { error: settingsError } = await admin
+      .from("efs_card_control_settings")
+      .update({ write_entitlement: "unknown", enabled: false })
+      .eq("org_id", orgId);
+    if (settingsError) throw new Error(settingsError.message);
+
+    await writeAudit(admin, {
+      orgId,
+      actorId,
+      action: "integration.efs_soap.credentials_changed",
+      entity: "efs_soap_credentials",
+      meta: {
+        changedFields,
+        environmentBefore: previous?.environment ?? null,
+        environmentAfter: input.environment,
+        endpointHostBefore: previous ? efsEndpointHost(previous.endpoint_url) : null,
+        endpointHostAfter: endpointHost,
+        usernameChanged: changedFields.includes("soap_username"),
+        accountIdChanged: changedFields.includes("account_id"),
+      },
+    });
+  }
+
   invalidateOrgSoapCaches(orgId);
 }
 

@@ -3,6 +3,8 @@ import { driftAgainstExpected, editPath, fieldPath, type CardEdit, type EchoDiff
 import { VOLATILE_FIELDS, type CardDocument } from "../lib/efsCardXml.js";
 import type { EfsSoapError } from "../lib/efsSoapSession.js";
 import { upsertCardDetail } from "./efsCardMirror.js";
+import { cardLast4 } from "@fuelguard/shared";
+import { efsEndpointHost } from "./efsSoapCredentialIdentity.js";
 import type { CardMutationContext, CardMutationOutcome, CardMutationPlan } from "./efsCardControl.js";
 
 /**
@@ -303,6 +305,9 @@ async function audit(
       resultVersion: after?.version ?? null,
       statusBefore: plan.before.card.status,
       statusAfter: after?.card.status ?? null,
+      environment: ctx.creds.environment,
+      endpointHost: efsEndpointHost(ctx.creds.endpointUrl),
+      cardLast4: cardLast4(ctx.cardNumber),
       ...plan.auditMeta,
       ...extra,
     },

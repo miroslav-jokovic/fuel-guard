@@ -181,7 +181,7 @@ const EnvSchema = z.object({
     .string()
     .default("false")
     .transform((s) => s.toLowerCase() === "true"),
-  EFS_SOAP_ENVIRONMENT: z.enum(["sandbox", "production"]).default("production"),
+  EFS_SOAP_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
   EFS_SOAP_ENDPOINT_URL: z.string().url().optional(),        // SOAP endpoint URL (not the ?wsdl document URL)
   EFS_SOAP_USERNAME: z.string().optional(),                  // fallback if per-org row not set
   EFS_SOAP_PASSWORD: z.string().optional(),                  // fallback if per-org row not set
