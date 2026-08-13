@@ -360,18 +360,19 @@ export function fuelCardControlRouter(): Router {
      */
     const buildEdits = (doc: Parameters<CardMutationIntentSpec["buildEdits"]>[0]) => {
       const plan = promptsEdits(doc, prompts);
-      if (plan.removedInfoIds.includes("DRID")) {
-        // Dropping the driver-ID record stops the pump asking who is fuelling, and every downstream
-        // attribution decision loses its strongest signal — the guide warns about exactly this (p137).
-        // Explicit flag AND a fresh sign-in; never a side effect of clearing a text box.
-        if (!allowRemoveDriverId) {
+      if (plan.removedInfoIds.length > 0) {
+        // Any removal is destructive on a full-replace vendor — a fresh sign-in for all of them.
+        if (!hasFreshAuth(req)) {
+          throw new ActionRefusalError("Confirm your password to remove a prompt.", "step_up_required");
+        }
+        if (plan.removedInfoIds.includes("DRID") && !allowRemoveDriverId) {
+          // Dropping the driver-ID record stops the pump asking who is fuelling, and every downstream
+          // attribution decision loses its strongest signal — the guide warns about exactly this (p137).
+          // Explicit flag AND a fresh sign-in; never a side effect of clearing a text box.
           throw new ActionRefusalError(
             "Removing the Driver ID prompt needs allowRemoveDriverId: true — it stops the pump checking who is fuelling.",
             "invalid_request",
           );
-        }
-        if (!hasFreshAuth(req)) {
-          throw new ActionRefusalError("Confirm your password to remove the Driver ID prompt.", "step_up_required");
         }
       }
       return plan.edits;

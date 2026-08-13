@@ -315,8 +315,10 @@ export const promptInputSchema = z.object({
   infoId: z.enum(EFS_EDITABLE_INFO_IDS),
   validationType: z.enum(["EXACT_MATCH", "REPORT_ONLY"]),
   matchValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
-  reportValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(), remove: z.boolean().default(false),
-}).refine((p) => p.remove || p.validationType !== "EXACT_MATCH" || (p.matchValue ?? "").length > 0,
+  reportValue: z.string().trim().max(EFS_MATCH_VALUE_MAX).nullable(),
+  remove: z.boolean().default(false),
+}).refine(
+  (p) => p.remove || p.validationType !== "EXACT_MATCH" || (p.matchValue ?? "").length > 0,
   // The pump validates driver entry AGAINST this value. Empty + EXACT_MATCH means nothing a driver
   // types can ever match: the card silently stops fueling (audit P1-6a). Clearing the value while
   // keeping validation on is never what an operator meant — make them pick one.
