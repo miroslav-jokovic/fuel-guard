@@ -18,9 +18,9 @@ import { apiFetch } from "@/lib/api";
  *    `newIdempotencyKey`) and reused across retries of the SAME action.
  *
  * 3. **A 409 is not an error to toast and forget.** `card_state_changed` means the card moved under
- *    the operator; the drawer refetches and shows them the new truth. `mutation_in_flight` means an
- *    earlier attempt is still being confirmed. Both are distinguishable here, by code, rather than by
- *    matching on message text.
+ *    the operator; the API payload carries the fresh document and the drawer seeds it immediately while
+ *    the parent refetch repairs the mirror. `mutation_in_flight` means an earlier attempt is still being
+ *    confirmed. Both are distinguishable here, by code, rather than by matching on message text.
  */
 
 const cardsKey = ["efs_cards"] as const;

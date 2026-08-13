@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import type { CardCapabilities, EfsLocation, PromptInput } from "@fuelguard/shared";
+import type { CardCapabilities, EfsLocation, PromptInput, WsCard } from "@fuelguard/shared";
 import { EFS_EDITABLE_INFO_IDS, efsStatusEquals } from "@fuelguard/shared";
 import { AppIcon } from "@fuelguard/ui";
 import { ExclamationTriangleIcon } from "@fuelguard/ui/icons";
@@ -93,6 +93,12 @@ const uses = ref(1);
 const scopeKind = ref<"all" | "location">("all");
 const location = ref<EfsLocation | null>(null);
 const drafts = ref<PromptInput[]>([]);
+const activeVersion = ref(props.version);
+const activeStatus = ref(props.status);
+const activePrompts = ref(props.prompts);
+/** Set after a 409 so a stale parent refetch cannot overwrite the live document in the drawer. */
+const recoveredVersion = ref<string | null>(null);
+const recoveredCardId = ref<string | null>(null);
 
 /** One key per action, re-minted at every settled outcome (see property 2). */
 const keys = reactive<Record<ConfirmAction, string>>({
@@ -112,36 +118,53 @@ const busy = computed(() => pendingFor.value !== null);
 const sectionBusy = (action: ConfirmAction): boolean => pendingFor.value === action;
 
 const editablePrompts = computed(() =>
-  props.prompts.map((p) => ({ ...p, editable: (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId) })),
+  activePrompts.value.map((p) => ({ ...p, editable: (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId) })),
 );
+
+function seedDrawer(
+  version: string,
+  status: string | null,
+  prompts: readonly { infoId: string; validationType: string | null; matchValue: string | null; reportValue: string | null }[],
+): void {
+  activeVersion.value = version;
+  activeStatus.value = status ?? props.status;
+  activePrompts.value = [...prompts];
+  confirmAction.value = null;
+  stepUpFor.value = null;
+  lockStatus.value = "Hold";
+  uses.value = 1;
+  scopeKind.value = "all";
+  location.value = null;
+  for (const action of Object.keys(keys) as ConfirmAction[]) rotate(action);
+  // Only the editable prompts become drafts. Everything else is echoed untouched by the API.
+  drafts.value = prompts
+    .filter((p) => (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId))
+    .map((p) => ({
+      infoId: p.infoId as PromptInput["infoId"],
+      validationType: p.validationType === "REPORT_ONLY" ? "REPORT_ONLY" : "EXACT_MATCH",
+      matchValue: p.matchValue,
+      reportValue: p.reportValue,
+      remove: false,
+    }));
+}
+
+/** The 409 payload is the fresh document the API just read, not a mirror row. */
+function isLiveCard(value: unknown): value is Pick<WsCard, "status" | "infos"> {
+  return typeof value === "object" && value !== null && Array.isArray((value as { infos?: unknown }).infos);
+}
 
 /**
  * Seed everything from the current card — on OPEN and on any change to the card identity or the
- * version/prompts it was drawn from (property 4, and the 409-then-refetch rebuild, web finding #3).
- * Re-seeding on `version` is what makes a post-409 retry send the operator's intent against the
- * FRESH document rather than silently re-applying a draft built from the stale one.
+ * version/prompts it was drawn from. A stale parent refetch cannot replace a newer live 409 payload.
  */
 watch(
   () => [props.open, props.cardId, props.version, props.prompts] as const,
   ([open]) => {
     if (!open) return;
-    confirmAction.value = null;
-    stepUpFor.value = null;
-    lockStatus.value = "Hold";
-    uses.value = 1;
-    scopeKind.value = "all";
-    location.value = null;
-    for (const action of Object.keys(keys) as ConfirmAction[]) rotate(action);
-    // Only the editable prompts become drafts. Everything else is echoed untouched by the API.
-    drafts.value = props.prompts
-      .filter((p) => (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId))
-      .map((p) => ({
-        infoId: p.infoId as PromptInput["infoId"],
-        validationType: p.validationType === "REPORT_ONLY" ? "REPORT_ONLY" : "EXACT_MATCH",
-        matchValue: p.matchValue,
-        reportValue: p.reportValue,
-        remove: false,
-      }));
+    if (recoveredCardId.value === props.cardId && recoveredVersion.value !== null && recoveredVersion.value !== props.version) return;
+    recoveredCardId.value = null;
+    recoveredVersion.value = null;
+    seedDrawer(props.version, props.status, props.prompts);
   },
   { immediate: true },
 );
@@ -158,7 +181,7 @@ const locationLabel = computed(() =>
 const confirmation = computed<CardConfirmation | null>(() => {
   switch (confirmAction.value) {
     case "lock": return lockConfirmation(lockStatus.value);
-    case "unlock": return unlockConfirmation(efsStatusEquals(props.status, "Fraud"));
+    case "unlock": return unlockConfirmation(efsStatusEquals(activeStatus.value, "Fraud"));
     case "override": return overrideConfirmation(uses.value, scopeKind.value === "location" ? locationLabel.value : null);
     case "clearOverride": return clearOverrideConfirmation();
     case "prompts": return promptsConfirmation(removesDriverId.value);
@@ -176,7 +199,7 @@ const sections = computed(() =>
 const showSection = (key: "status" | "override" | "prompts"): boolean =>
   sections.value.some((s) => s.key === key);
 
-const common = () => ({ cardId: props.cardId, expectedVersion: props.version });
+const common = () => ({ cardId: props.cardId, expectedVersion: activeVersion.value });
 
 async function runConfirmedAction(): Promise<void> {
   const action = confirmAction.value;
@@ -245,8 +268,18 @@ function handleFailure(action: ConfirmAction, error: unknown): void {
     return;
   }
   if (api?.code === "card_state_changed") {
-    confirmAction.value = null;
-    emit("changed"); // parent refetches; the watch re-seeds drafts from the version EFS now holds
+    const currentVersion = api.detail.currentVersion;
+    const currentCard = api.detail.card;
+    if (typeof currentVersion === "string" && isLiveCard(currentCard)) {
+      recoveredCardId.value = props.cardId;
+      recoveredVersion.value = currentVersion;
+      seedDrawer(currentVersion, currentCard.status, currentCard.infos);
+    } else {
+      confirmAction.value = null;
+    }
+    // The API just read this live document. Keep it in the drawer immediately; the parent refetch is
+    // still emitted to repair the mirror, but it must not be the source of recovery state.
+    emit("changed");
     toast.error("Card changed in EFS", "The current settings are loaded — review and try again.");
     return;
   }
@@ -324,7 +357,7 @@ function close(): void {
       <CardStatusPanel
         v-if="showSection('status')"
         v-model:lock-status="lockStatus"
-        :status="props.status"
+        :status="activeStatus"
         :last-used-date="props.lastUsedDate"
         :driver-name="props.driverName"
         :unit-prompt="props.unitPrompt"

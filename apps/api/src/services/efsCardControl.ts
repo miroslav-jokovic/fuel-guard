@@ -16,7 +16,10 @@ import {
   updateMirror,
 } from "./efsCardReconcile.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
+import { CardControlError } from "./efsCardControlErrors.js";
 import { mutationLedgerEvidence } from "./efsCardMutationEvidence.js";
+
+export { CardControlError } from "./efsCardControlErrors.js";
 import { cardOpOptions } from "./efsCardOperationOptions.js";
 
 /**
@@ -48,33 +51,6 @@ import { cardOpOptions } from "./efsCardOperationOptions.js";
  * A refused write still teaches us the card's true state. EFS always wins; the mirror follows; the
  * ledger records that it moved. The reverse — pushing our expectation back at EFS — is never done.
  */
-
-// ─── Errors the routes translate into status codes ─────────────────────────────────────────────
-
-/**
- * A refusal that is about US or about the request, not about the vendor. Vendor problems arrive as
- * `EfsSoapError` and keep their own codes, so a route can tell "EFS said no" from "we said no"
- * without inspecting message text.
- */
-export class CardControlError extends Error {
-  constructor(
-    message: string,
-    public code:
-      | "card_control_disabled"
-      | "card_control_not_entitled"
-      | "card_state_changed"
-      | "mutation_in_flight"
-      | "idempotency_key_reused"
-      | "org_hourly_cap_reached"
-      | "secrets_key_missing"
-      | "not_found",
-    public status: number,
-    public detail?: Record<string, unknown>,
-  ) {
-    super(message);
-    this.name = "CardControlError";
-  }
-}
 
 // ─── Inputs ────────────────────────────────────────────────────────────────────────────────────
 
@@ -202,6 +178,7 @@ export async function planCardMutation(
   if (before.version !== ctx.expectedVersion) {
     // Nothing is sent. The operator gets the fresh card and decides again — the only defence
     // available, since the guide offers no ETag and no row version.
+    await updateMirror(ctx, before);
     throw new CardControlError(
       "This card changed in EFS since the screen was drawn.",
       "card_state_changed",
