@@ -122,13 +122,19 @@ describe("write routes — authentication and role", () => {
 });
 
 describe("write routes — the contract", () => {
-  const s = withServer(); // 5 + 5 + 1 + 2 + 1 = 14 requests
+  const s = withServer(); // 7 + 5 + 1 + 2 + 1 = 16 requests
 
-  it("requires a reason on every write", async () => {
-    // The cheapest column in the schema and the most valuable one six months later.
+  it("accepts a missing reason, but refuses a malformed one (B1)", async () => {
     for (const [path, method, body] of WRITE_ROUTES) {
       const res = await send(s.url(), path, method, {
         token: "admin", body: { ...(body as object), reason: undefined },
+      });
+      expect(res.status).toBe(403);
+      expect((await errorBody(res)).error.code).toBe("card_control_disabled");
+    }
+    for (const reason of ["x", "x".repeat(201)]) {
+      const res = await send(s.url(), WRITE_ROUTES[0]![0], "POST", {
+        token: "admin", body: { ...base, reason },
       });
       expect(res.status).toBe(400);
     }
