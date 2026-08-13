@@ -13,6 +13,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireFreshAuth } from "../../middleware/requireFreshAuth.js";
 import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
+import { assertOrgOwnsCard, assertProbeAllowed } from "./probeGuards.js";
 import { runRealChangeSteps, runStep, type ProbeStep } from "./writeProbeRealChange.js";
 
 /**
@@ -119,11 +120,13 @@ export function fuelCardWriteProbeRouter(): Router {
         return;
       }
 
+      await assertOrgOwnsCard(admin, env, orgId, cardNumber);
       const creds = await getEfsSoapCredentials(admin, env, orgId);
       if (!creds?.enabled) {
         res.status(409).json(apiError("efs_not_configured", "EFS is not connected for this company."));
         return;
       }
+      assertProbeAllowed(env, creds);
 
       const steps: ProbeStep[] = [];
       // A holder rather than a bare `let`: the document is assigned inside a callback, and TypeScript

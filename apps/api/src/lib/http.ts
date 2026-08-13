@@ -3,6 +3,17 @@ import type { ZodType } from "zod";
 import { randomUUID } from "node:crypto";
 
 /** Build the structured error envelope (docs/01 §8). Never leak upstream errors verbatim (L8). */
+export class HttpError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
 export function apiError(code: string, message: string) {
   return { error: { code, message } };
 }

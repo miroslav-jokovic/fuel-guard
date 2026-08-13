@@ -17,6 +17,7 @@ import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { writeAudit } from "../../lib/audit.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { getEfsSoapCredentials } from "../../services/efsSoapCredentials.js";
+import { assertOrgOwnsCard, assertProbeAllowed } from "./probeGuards.js";
 
 /**
  * Ask EFS, one operation at a time, what it will actually let this account do.
@@ -106,11 +107,15 @@ export function fuelCardProbeRouter(): Router {
         return;
       }
 
+      if (parsed.data.cardNumber) {
+        await assertOrgOwnsCard(admin, env, orgId, parsed.data.cardNumber);
+      }
       const creds = await getEfsSoapCredentials(admin, env, orgId);
       if (!creds?.enabled) {
         res.status(409).json(apiError("efs_not_configured", "EFS is not connected for this company."));
         return;
       }
+      assertProbeAllowed(env, creds);
 
       const steps: StepResult[] = [];
 

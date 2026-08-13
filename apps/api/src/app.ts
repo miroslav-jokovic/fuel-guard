@@ -9,7 +9,7 @@ import * as Sentry from "@sentry/node";
 import { APP_NAME } from "@fuelguard/shared";
 import type { Env } from "./env.js";
 import { setAppLocals } from "./lib/appLocals.js";
-import { apiError, asyncHandler } from "./lib/http.js";
+import { apiError, asyncHandler, HttpError } from "./lib/http.js";
 import { getBuildInfo } from "./lib/buildInfo.js";
 import { getSchemaStatus } from "./lib/schemaVersion.js";
 import { requireAuth } from "./middleware/auth.js";
@@ -264,6 +264,10 @@ export function createApp(env: Env): Express {
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     console.error("[api] unhandled error:", err);
     if (!res.headersSent) {
+      if (err instanceof HttpError) {
+        res.status(err.status).json(apiError(err.code, err.message));
+        return;
+      }
       res.status(500).json(apiError("internal_error", "Unexpected server error"));
     }
   });
