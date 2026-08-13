@@ -14,10 +14,34 @@ import { apiFetch } from "@/lib/api";
 
 const cardsKey = ["efs_cards"] as const;
 
+export class EfsCardQueryError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "EfsCardQueryError";
+  }
+}
+
+/** Keep the normal query retry budget, except a 429: retrying it only extends the vendor lockout. */
+export function shouldRetryEfsCardQuery(failureCount: number, error: unknown): boolean {
+  return !(error instanceof EfsCardQueryError && error.status === 429) && failureCount < 3;
+}
+
 /** `apiFetch` never throws; vue-query needs it to, so errors surface instead of caching as data. */
 async function call<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const res = await apiFetch<T>(path, { method, ...(body === undefined ? {} : { body }) });
-  if (!res.ok) throw new Error(res.error?.message ?? "That did not work");
+  if (!res.ok) {
+    throw new EfsCardQueryError(
+      res.status,
+      res.error?.code ?? "error",
+      res.status === 429
+        ? "Too many requests just now — try again in a minute"
+        : res.error?.message ?? "That did not work",
+    );
+  }
   return res.data as T;
 }
 
@@ -101,9 +125,10 @@ export function useEfsCards(filters: { search: Ref<string>; status: Ref<string> 
 }
 
 export function useEfsCard(id: Ref<string>) {
-  return useQuery({
+  return useQuery<EfsCardDetailResponse, EfsCardQueryError>({
     queryKey: computed(() => [...cardsKey, "detail", id.value] as const),
     queryFn: (): Promise<EfsCardDetailResponse> => call(`/api/fuel-cards/${id.value}`),
+    retry: shouldRetryEfsCardQuery,
     enabled: computed(() => !!id.value),
     refetchInterval: POLL_MS,
     refetchIntervalInBackground: false,

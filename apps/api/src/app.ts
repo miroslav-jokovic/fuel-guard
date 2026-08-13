@@ -29,6 +29,7 @@ import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
 import { fuelCardSettingsRouter } from "./routes/fuelCards/settings.js";
 import { fuelCardWriteProbeRouter } from "./routes/fuelCards/writeProbe.js";
 import { fuelCardsRouter } from "./routes/fuelCards/read.js";
+import { skipFuelCardVendorRateLimit } from "./routes/fuelCards/vendorRateLimit.js";
 import { webhooksRouter } from "./routes/webhooks.js";
 import { tmsIngestRouter } from "./routes/tmsIngest.js";
 import { aiRouter } from "./routes/ai.js";
@@ -141,6 +142,13 @@ export function createApp(env: Env): Express {
     standardHeaders: "draft-7",
     legacyHeaders: false,
   });
+  const fuelCardVendorLimiter = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: 30,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    skip: skipFuelCardVendorRateLimit,
+  });
   // M7: the public calculator is unauthenticated → its own tighter limiter on the abuse surface.
   const calcLimiter = rateLimit({
     windowMs: 60_000,
@@ -152,7 +160,7 @@ export function createApp(env: Env): Express {
   app.use("/api/auth", strictLimiter); // public login exchange — worst-case abuse target
   app.use("/api/reports", strictLimiter);
   app.use("/api/integrations", strictLimiter);
-  app.use("/api/fuel-cards", strictLimiter); // dials a rate-paced vendor on a shared service account
+  app.use("/api/fuel-cards", fuelCardVendorLimiter);
   app.use("/api/ai", strictLimiter);
   app.use("/api/public", calcLimiter); // M7 public calculator — unauthenticated, tighter limit
 
