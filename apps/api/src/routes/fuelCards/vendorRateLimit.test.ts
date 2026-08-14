@@ -5,6 +5,7 @@ import type { Router } from "express";
 import { createApp } from "../../app.js";
 import { loadEnv } from "../../env.js";
 import type { AuthContext } from "@fuelguard/shared";
+import { fuelCardCapabilityRouter } from "../../efs/router.js";
 import { fuelCardControlRouter } from "./control.js";
 import { fuelCardEchoScanRouter } from "./echoScan.js";
 import { fuelCardExperimentsRouter } from "./experiments.js";
@@ -113,9 +114,17 @@ describe("fuel-card vendor rate budget", () => {
   });
 
   it("every route that can open a SOAP session is in the charged list", () => {
+    // Must list every router `app.ts` mounts on `/api/fuel-cards`, in that line's order. A mounted
+    // router missing from here does not go UNMETERED — `skipFuelCardVendorRateLimit` skips only an
+    // explicitly classified database-only route, so anything it cannot match stays charged — but its
+    // routes are then classified by accident rather than by declaration.
+    //
+    // `fuelCardCapabilityRouter` joined the mount line in Step 3.5 and serves `POST /:id/lock`,
+    // which left `fuelCardControlRouter`. This assertion is what noticed.
     const routers = [
       fuelCardSettingsRouter(),
       fuelCardsRouter(),
+      fuelCardCapabilityRouter(),
       fuelCardControlRouter(),
       fuelCardProbeRouter(),
       fuelCardWriteProbeRouter(),

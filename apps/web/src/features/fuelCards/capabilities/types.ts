@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import type { CapabilityContract, WsCard } from "@fuelguard/shared";
 
 /**
@@ -63,8 +64,13 @@ export interface CapabilityView<TBody> {
  *
  * Inference only; the contract is not stored. The registry pairs the three artifacts by key, and a
  * second link here would be one that could drift.
+ *
+ * Corrected in Step 3.5 alongside `defineBehaviour`, which had the same two faults: a
+ * `CapabilityContract<never>` bound that no real contract satisfies, and a free `TBody` the contract
+ * could not constrain. Deriving `z.infer<TSchema>` is what makes docs/27 §7.3's claim — one body type
+ * across all three artifacts — actually hold.
  */
-export const defineView = <TContract extends CapabilityContract<never>, TBody>(
-  _contract: TContract,
-  view: CapabilityView<TBody>,
-): CapabilityView<TBody> => view;
+export const defineView = <TSchema extends z.ZodTypeAny>(
+  _contract: CapabilityContract<TSchema>,
+  view: CapabilityView<z.infer<TSchema>>,
+): CapabilityView<z.infer<TSchema>> => view;

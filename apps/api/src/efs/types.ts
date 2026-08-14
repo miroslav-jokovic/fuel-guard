@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import type { CapabilityContract, Target } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import type { CardEdit } from "../lib/efsCardEcho.js";
@@ -129,6 +130,18 @@ export interface CapabilityBehaviour<TBody> extends Governance<TBody> {
   mutation: Mutation<TBody>;
   /** Required, not optional: every write is followed by a verifying re-read. */
   verify: VerifyPlan<TBody>;
+  /**
+   * Header fields a `direct` mutation is EXPECTED to move, recorded as vendor-maintained drift.
+   *
+   * Not optional decoration. A `direct` step names its own op and produces no edits, so nothing tells
+   * the drift classifier which fields that op owns — and a capability that omits this reports its own
+   * successful write as unexplained drift on every run. Step 3.4's first green two-step sequence came
+   * back `drift_detected` for exactly this reason; `orchestrator.test.ts` keeps the case.
+   *
+   * Capability-level rather than step-level because drift is judged ONCE, across the whole mutation:
+   * from the document the plan opened to the one the last step left behind.
+   */
+  vendorMovesFields?: readonly string[];
 }
 
 /**
@@ -136,8 +149,17 @@ export interface CapabilityBehaviour<TBody> extends Governance<TBody> {
  *
  * The contract argument is consumed for INFERENCE only. It is not stored, because the registry pairs
  * the two by key and storing it here would create a second, divergable link.
+ *
+ * ── This did not work until Step 3.5, and nothing noticed ────────────────────────────────────────
+ * The signature was `<TContract extends CapabilityContract<never>, TBody>`. Two faults in one line:
+ * `CapabilityContract<never>` is not a supertype of any real contract — `TSchema` appears as
+ * `schema: TSchema`, so the first real capability failed to compile against it — and `TBody` was a
+ * FREE parameter inferred from the behaviour alone. The contract could not constrain the body it was
+ * supposedly binding, which is precisely the claim docs/27 §7.3 makes and `types.test.ts` did not
+ * check. Deriving `z.infer<TSchema>` here makes the claim true: a behaviour whose `buildEdits` takes
+ * a body the contract's schema cannot produce now fails `pnpm typecheck`.
  */
-export const defineBehaviour = <TContract extends CapabilityContract<never>, TBody>(
-  _contract: TContract,
-  behaviour: CapabilityBehaviour<TBody>,
-): CapabilityBehaviour<TBody> => behaviour;
+export const defineBehaviour = <TSchema extends z.ZodTypeAny>(
+  _contract: CapabilityContract<TSchema>,
+  behaviour: CapabilityBehaviour<z.infer<TSchema>>,
+): CapabilityBehaviour<z.infer<TSchema>> => behaviour;

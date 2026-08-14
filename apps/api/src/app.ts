@@ -24,6 +24,7 @@ import { auditRouter } from "./routes/audit.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardControlRouter } from "./routes/fuelCards/control.js";
+import { fuelCardCapabilityRouter } from "./efs/router.js";
 import { fuelCardEchoScanRouter } from "./routes/fuelCards/echoScan.js";
 import { fuelCardExperimentsRouter } from "./routes/fuelCards/experiments.js";
 import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
@@ -229,7 +230,11 @@ export function createApp(env: Env): Express {
   // nothing checks — the single failure that fitness function exists to make impossible.
   // ⚠ SETTINGS FIRST. fuelCardsRouter declares `GET /:id`, which matches the literal path "settings"
   // and would answer 404 for a card id that was never a card id. Order is the fix; a test asserts it.
-  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter());
+  // fuelCardCapabilityRouter is the generated one (Step 3.5) and serves POST /:id/lock. It sits
+  // before fuelCardControlRouter, which no longer declares that path — the order is belt to that
+  // brace, so that if a capability is ever migrated without its hand-written handler being removed,
+  // the DESCRIPTOR wins rather than whichever router Express reached first.
+  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here
