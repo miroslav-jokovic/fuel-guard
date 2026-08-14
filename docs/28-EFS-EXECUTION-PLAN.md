@@ -159,7 +159,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 0 | Green the pipeline | 🔶 *(PRs #3, #5 merged; **Step 0.13 outstanding** — QA card roles unassigned, which blocks Phases 9 and 10. Step 0.15 done in #5; all sixteen `ci.yml` gates green on `main` at `12a86a8`)* | `delivery-p0-green` |
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks not run: §6.2 foreign-card probe, §6.3 step-up, §6.4 endpoint binding, 409 replay. Status and prompts changes confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | 🔶 *(2.1–2.5 merged, PRs #13–#21; **echo scan green 197/197** on 2026-08-14. Two exit-gate items need Miki: the `probed_identity_hash` null check, and the "every existing echo test passes unchanged" wording — #13 changed two deliberately)* | `delivery-p2-echo` |
-| 3 | Capability architecture | 🔶 *(3.1–3.3 merged, PRs #20, #24, #25; migration 0190 applied. **Step 3.4 is next**)* | `delivery-p3-registry` |
+| 3 | Capability architecture | 🔶 *(3.1–3.4 done; 3.4 on `delivery-p3-registry`, unmerged. **Step 3.5 is next** — and it carries 3.5a/3.5b, the two items 3.4 deferred)* | `delivery-p3-registry` |
 | 4 | Harness & promotion | ⬜ | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
@@ -532,7 +532,13 @@ A preservation assertion built on the response DOM does not fix this on its own:
 ### Step 3.5 — Pilot: migrate `card_lock`
 **Files:** `packages/shared/src/efs/capabilities/cardLock.contract.ts`, `apps/api/src/efs/capabilities/cardLock.behaviour.ts`, `apps/web/src/features/fuelCards/capabilities/cardLock.view.ts`, plus the three registry index files and `apps/api/src/efs/router.ts`.
 **Change:** one capability, end to end. The old spec and the new descriptor coexist; the router uses the descriptor for lock only.
-**Verify:** characterisation tests for lock pass byte-identically. **Live QA** (status card): lock and unlock still work.
+
+**Carried over from Step 3.4 — these two are 3.5's, not optional.** Both are route-layer changes that 3.4's file list did not cover, and neither could be written honestly before a descriptor reached `prepare()`:
+
+- **3.5a — the capability promotion lookup in the access check** (docs/27 §5, prepare step 3). A no-op until Phase 4's promotion table exists, so 3.4 would have added a function returning `true`. It goes in when the descriptor arrives, with the Phase 4 table stubbed by a single lookup that **fails closed on a missing row**.
+- **3.5b — `preflightStepUp` before `enforceCardWriteLimit`** (prepare steps 6 and 7). Today the one preflight that exists — override uses > 3 — is already hand-written before `prepare()` in `control.ts:280`, so the ORDER is right and the MECHANISM is not: it is per-route code, not a contract field. 3.5 moves it onto `governance.preflightStepUp` for lock, 3.6 for the rest. Until then a capability may declare `preflightStepUp` and be silently ignored — **so no capability may declare it before 3.5b lands.**
+
+**Verify:** characterisation tests for lock pass byte-identically. **Live QA** (status card): lock and unlock still work. Plus: a capability declaring `preflightStepUp` refuses *before* a rate-limit slot is spent — assert the limiter counter is unmoved, not just the status code.
 
 > **DECIDED (2026-08-13) — `reason` becomes per-capability.** Decision B1 made `reason` optional API-wide, which is right for the 2am stolen-card path and wrong for discretionary writes. The contract is the natural home for the distinction. Each capability declares its own rule:
 > - **optional** — `card_lock`, `card_unlock`, `card_deactivate` (the emergency path must not demand prose)
@@ -643,10 +649,20 @@ A preservation assertion built on the response DOM does not fix this on its own:
 **Change:** write `approved_by` — it exists in `0177` and nothing writes it. Use the existing `planCardMutation` / `applyCardMutation` seam. Define who may promote a capability to production.
 **Verify:** *"a mutation records who approved it"*. The authority is recorded in §14.
 
+### Step 5.4 — Chase the `fuelCardsControl.test.ts` intermittent
+**Files:** `apps/api/src/routes/fuelCardsControl.test.ts`, `apps/api/src/app.ts` (`fuelCardVendorLimiter`).
+**Observed 2026-08-14, once in eleven full `apps/api` runs, never in isolation.** Five cases in that file failed together, one of them *"refuses a mutation without an Idempotency-Key"* — **403 where 400 was expected**. The Idempotency-Key parse is the FIRST thing `prepare()` does, ahead of the kill switch, so a 403 means the request never reached `prepare()`. That points at a middleware answering first, not at card-control logic.
+
+Confirmed **not** caused by Step 3.4: the diff touches no auth, no middleware and no limiter, and the failure did not recur in the ten subsequent full runs on the same branch.
+
+**Change:** reproduce first — run `apps/api` under load or with the file order forced — then fix the cause. Two candidates worth ruling out in order: `fuelCardVendorLimiter` being reached across `createApp()` instances in one worker (the file's own docblock claims each app builds its own store — verify it), and `strictLimiter`'s IP keying colliding with another suite's server on 127.0.0.1. This is the same family as the `idleRollup.test.ts` finding in PR #12: a test that fails on a schedule nobody is watching turns CI red at random and teaches everyone to re-run it.
+**Verify:** the failure reproduces on demand before any fix, and the fix is verified by reverting it alone.
+
 ### ✅ Exit Gate — Phase 5
 - [ ] Every signal in 5.1 fires when triggered
 - [ ] Runbook written; containment walked on QA with timings recorded
 - [ ] `approved_by` populated; promotion authority defined
+- [ ] The `fuelCardsControl.test.ts` intermittent is reproduced and fixed, or shown to be impossible
 
 ---
 
@@ -884,6 +900,7 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 
 | Date | Phase | Steps completed | Notes / surprises |
 |---|---|---|---|
+| 2026-08-14 | 3 | **3.4** | **The §1 table was stale by three phases** — it still read "Phase 0 🔶, Step 0.15 outstanding, Phases 1–3 not started" while PRs #5–#25 had merged. §0.1 routes the next session off that table, so it was sending sessions to finished work. Reconciled against the repo (`lint:ui-adoption` green locally, CI green on `main` at `12a86a8`), not against a summary. **3.4 landed with the characterisation suite byte-identical and no pre-existing test edited** — the exit criterion held. **Two items of 3.4 deliberately NOT done**, both route-layer and both impossible to write honestly yet: the promotion lookup (no Phase 4 table) and `preflightStepUp` before the limiter (no descriptor at the route). They are now numbered **3.5a / 3.5b**, with the standing hazard recorded: a capability declaring `preflightStepUp` is silently ignored until 3.5b. **`efsCardControl.ts` 507 → 85 lines, waiver DELETED** — the entry Phase 3's exit gate exists to remove. **Found by running it:** a sequence mixing an echo step with a direct one reports the direct step's footprint as unexplained drift unless the capability declares `vendorMovesFields` — the first two-step run came back `drift_detected` with everything working. **`lint:comment-claims` was red on `main`** (confirmed on `origin/main` at `12a86a8`) and is not yet in `ci.yml`, which is why CI did not see it; the comment named a test without quoting it. Fixed. **One unexplained intermittent:** five cases in `fuelCardsControl.test.ts` failed together once in eleven full runs, 403 where 400 was expected, never reproduced since and not in isolation — the diff touches no auth or limiter code. Numbered **Step 5.4** rather than waved away. |
 | 2026-08-14 | 3 | **3.1**, **3.2**, **3.3** | Continues the row below. **Echo scan GREEN: 197/197, 0 failed** — Phase 2's headline gate item. Migration 0190 applied via migrate.yml, `/healthz` ok. **Two Railway services found, only `fleetguardapi` reaches EFS**; `fleetguardweb` runs a full API copy whose egress WEX blocks (`NotAllowed`, p9), and `deploy-verify` polls only one of them — see `docs/29`. Live QA: Miki confirmed status changes AND prompts changes work, which is §6 check 1. Two bugs found by him and one fixed: the REPORT_ONLY attribution read (#23), and an override that still shows after EFS consumed it (open, needs a live Refresh to tell vendor-truth from sync staleness). Step 3.2 deliberately did NOT widen the approver scopes CHECK — Phase 3 adds no new scope. |
 | 2026-08-14 | 1, 2 | Phase 1 exit-gate prep; **2.1**, **2.2** | Single engineer, no separate reviewer. **PR #11 carried a second bug**: the 409 recovery latch was set and never cleared, so a reopen after a successful retry showed the pre-change document and guaranteed another 409. Two exits needed — closing, and any settled outcome, since `drift_detected`/`sent` settle without closing — each with a test that fails when only that exit is removed. **`idleRollup.test.ts` was failing 18 hours a day** (PR #12): two date anchors computed independently from `Date.now()` collapse onto the same UTC date from 06:00 UTC on. `main` was red; #11 went green only because its run landed at 03:5x. **Matrix `rls` re-baselined 375 → 377** (migration 0189), verified as coming from `main` alone. **Phase 2 is only 40% done** — the handoff document described 2.1 and 2.2 as the whole of Phase 2 and omitted 2.3–2.5. **Live QA:** Miki confirmed status change works; that exercises `setField` only, so it touches neither the 409 path nor anything #13 changed. A prompts save is the untested path and is now stricter. |
 | 2026-08-13 | 0 | All except 0.13 | **CI had been red on `main` since `61a05ca` (2026-08-12)** — one commit's worth of stale test fixtures blocked every migration and driver build. Five correct stops by the executor; **three were errors in the task, not the code**: a missing step for the second typecheck error, an impossible verify on Step 9, and an over-tight commit scope. **Step 0.8 produced a real finding** — the nested-container flattening in `recordFromElement` is a second instance of the `replaceAll` tautology, folded into Phase 2 Step 2.1. Gate lists both improved: `samsara.ts` left the filesize waivers, `syncIdleEvents` left the funcsize waivers. Railway probe flag confirmed **unset**. |
