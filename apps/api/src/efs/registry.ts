@@ -1,6 +1,7 @@
 import type { z } from "zod";
-import { type CapabilityContract, cardLockContract } from "@fuelguard/shared";
+import { type CapabilityContract, cardLockContract, cardUnlockContract } from "@fuelguard/shared";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
+import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
 import { resolveCapability } from "./orchestrator/resolve.js";
 import { executeCapability } from "../services/efsCardControl.js";
 import type { CardMutationContext, CardMutationOutcome } from "./orchestrator/types.js";
@@ -69,9 +70,9 @@ export const mount = <TBody extends CardMutationRequestFields>(
 /**
  * Every capability the API serves from its descriptor.
  *
- * One entry today — `card_lock`, the pilot (plan Step 3.5). The four still driven by
- * `CardMutationIntentSpec` in `routes/fuelCards/control.ts` join it in Step 3.6, one commit each,
- * and 3.7 deletes the hand-written handlers.
+ * `card_lock` was the pilot (Step 3.5); Step 3.6 adds the rest one commit at a time. Whatever is
+ * still driven by `CardMutationIntentSpec` in `routes/fuelCards/control.ts` has not been migrated
+ * yet, and 3.7 deletes the hand-written handlers once nothing is left.
  *
  * The router iterates this. So does the cross-registry fitness test, which is what stops a capability
  * being declared and never mounted — the failure apps/api/src/routeAuth.test.ts documents in
@@ -80,4 +81,5 @@ export const mount = <TBody extends CardMutationRequestFields>(
  */
 export const MOUNTED_CAPABILITIES: readonly MountedCapability[] = [
   mount(cardLockContract, cardLockBehaviour),
+  mount(cardUnlockContract, cardUnlockBehaviour),
 ];

@@ -3,11 +3,9 @@ import {
   CARD_OVERRIDE_STEP_UP_ABOVE_USES,
   clearOverrideSchema,
   grantOverrideSchema,
-  efsStatusEquals,
   rolesThatCanView,
   rolesThatManage,
   setPromptsSchema,
-  unlockCardSchema,
 } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../lib/http.js";
@@ -25,7 +23,6 @@ import {
   overrideClearedLanded,
   overrideGrantEdits,
   promptsEdits,
-  unlockEdits,
 } from "../../services/efsCardEdits.js";
 import { ActionRefusalError, assertPromptRemovalAllowed } from "./controlRefusal.js";
 import { badRequest, controlErrorResponse, mutationFingerprint, prepare } from "./controlPrepare.js";
@@ -67,11 +64,12 @@ import { badRequest, controlErrorResponse, mutationFingerprint, prepare } from "
  * JWT and every query chains `.eq("org_id", orgId)`. A card belonging to another org is a 404, never a
  * 403 — we do not confirm that another tenant's card exists.
  *
- * ── FOUR endpoints now, not five ─────────────────────────────────────────────────────────────────
- * `POST /:id/lock` left in Step 3.5 for the generated router in `apps/api/src/efs/`. The gate
- * sequence both routers share — idempotency key, kill switch, access, credentials, card, write
- * limiter — lives in `controlPrepare.ts` rather than being copied, because a second copy is a second
- * place for one of those six to be forgotten. Steps 3.6 and 3.7 retire the remaining four.
+ ── What is left here, and what is not ──────────────────────────────────────────────────────────
+ * `POST /:id/lock` left in Step 3.5 and `POST /:id/unlock` in Step 3.6, both to the generated router
+ * in `apps/api/src/efs/`. What remains is whatever Step 3.6 has not migrated yet; 3.7 deletes this
+ * file's handlers entirely. The gate sequence both routers share — idempotency key, kill switch,
+ * access, credentials, card, write limiter — lives in `controlPrepare.ts` rather than being copied,
+ * because a second copy is a second place for one of those six to be forgotten.
  */
 
 export function fuelCardControlRouter(): Router {
@@ -107,54 +105,10 @@ export function fuelCardControlRouter(): Router {
   // than left in place, because two routers declaring one path is a coin toss decided by mount
   // order. Steps 3.6 and 3.7 empty the rest of this file the same way.
 
-  router.post("/:id/unlock", requireOrg, canManage, asyncHandler(async (req, res) => {
-    const body = unlockCardSchema.safeParse(req.body ?? {});
-    if (!body.success) { badRequest(res, body.error); return; }
-    const prepared = await prepare(req, res, "unlock");
-    if (!prepared) return;
-
-    // Unlocking a card EFS has flagged as Fraud is the one status change that needs step-up. Somebody
-    // — WEX, or this product's own detection — decided that card was being abused; releasing it is
-    // not the reversible safety action a lock is.
-    const { data } = await prepared.ctx.admin
-      .from("efs_cards").select("status")
-      .eq("id", prepared.ctx.efsCardId).eq("org_id", prepared.ctx.orgId).maybeSingle();
-    const mirroredStatus = (data as { status?: string } | null)?.status ?? null;
-    // efsStatusEquals, not ===: this account reports FRAUD upper-cased, and an exact comparison
-    // would have waved the unlock straight past the step-up this branch exists to demand.
-    if (efsStatusEquals(mirroredStatus, "Fraud") && !hasFreshAuth(req)) {
-      stepUpRequired(
-        res, DEFAULT_STEP_UP_MAX_AGE_SEC,
-        "This card is flagged for fraud. Confirm your password to unlock it.",
-      );
-      return;
-    }
-
-    const hadFreshAuth = hasFreshAuth(req);
-    await run(res, {
-      ...prepared.ctx,
-      reason: body.data.reason,
-      expectedVersion: body.data.expectedVersion,
-      requestFingerprint: mutationFingerprint("unlock", prepared.ctx.efsCardId, body.data),
-    }, {
-      intent: "unlock",
-      auditAction: "card.unlocked",
-      buildEdits: (doc) => {
-        // The mirror check above gives the honest prompt EARLY; this one is the decision that
-        // counts, taken against the document EFS reported INSIDE the operation. A card flagged
-        // Fraud since the last sweep must not unlock without step-up because our copy was stale
-        // (audit P1-7). Thrown here → no ledger row, no dispatch.
-        if (efsStatusEquals(doc.card.status, "Fraud") && !hadFreshAuth) {
-          throw new ActionRefusalError(
-            "This card is flagged for fraud. Confirm your password to unlock it.",
-            "step_up_required",
-          );
-        }
-        return unlockEdits(doc.card.status);
-      },
-      auditMeta: (doc) => ({ statusBefore: doc.card.status, unlockedFromFraud: efsStatusEquals(doc.card.status, "Fraud") || efsStatusEquals(mirroredStatus, "Fraud") }),
-    });
-  }));
+  // `POST /:id/unlock` left in Step 3.6, driven by `cardUnlockContract` + `cardUnlockBehaviour`.
+  // The fraud step-up went with it, and it went as ONE check rather than two: the mirror-based
+  // early prompt is gone and `planStepUp` decides against the document EFS returns inside the
+  // operation. See the behaviour file for why that is a fix and not a loss.
 
   // ── Overrides ───────────────────────────────────────────────────────────────────────────────────
 
