@@ -841,11 +841,74 @@ describe("WSCardv2 element sequence", () => {
     const { xml } = serializeSetCardRequest(doc, TARGET, []);
     const infos = /<infos>[\s\S]*<\/infos>/.exec(xml)![0];
     const limits = /<limits>[\s\S]*<\/limits>/.exec(xml)![0];
-    const swapped = xml.replace(infos, " ").replace(limits, infos).replace(" ", limits);
+    const swapped = xml.replace(infos, "@@SWAP@@").replace(limits, infos).replace("@@SWAP@@", limits);
 
     expect(swapped).not.toBe(xml); // the sabotage actually happened
     expect(namesOf(swapped).indexOf("limits")).toBeLessThan(namesOf(swapped).indexOf("infos"));
     expect(() => assertEchoFidelity(doc, swapped, [])).toThrow(/out of WSCardv2 sequence/);
+  });
+
+  it("record fields are emitted in WSCardInfo sequence order regardless of object literal order", () => {
+    // The natural order to think in — id, then what it does, then the value — is not the WSDL's.
+    // Before this step the request carried whatever order the caller typed.
+    const doc = parseCardDocument(fixture("getCardV2.empty.xml"));
+    const { xml } = echo(doc, [
+      {
+        op: "replaceAll",
+        name: "infos",
+        records: [{
+          infoId: "DRID",
+          validationType: "EXACT_MATCH",
+          matchValue: "D-1",
+          value: "0",
+          reportValue: "",
+          lengthCheck: "false",
+          minimum: "0",
+          maximum: "0",
+        }],
+      },
+    ]);
+
+    const record = /<infos>([\s\S]*?)<\/infos>/.exec(xml)![1]!;
+    const emitted = [...record.matchAll(/<([A-Za-z]+)[>/]/g)].map((m) => m[1]!);
+    expect(emitted).toEqual([
+      "infoId", "lengthCheck", "matchValue", "maximum", "minimum", "reportValue", "validationType", "value",
+    ]);
+  });
+
+  it("emits a limits record in WSCardLimitv2 order, the type WSCardv2 actually declares", () => {
+    // WSCardv2.limits is WSCardLimitv2 (six fields), not the four-field WSCardLimit. Getting that
+    // wrong would leave autoRollMap/autoRollMax with nowhere to go.
+    const doc = parseCardDocument(fixture("getCardV2.empty.xml"));
+    const { xml } = echo(doc, [
+      {
+        op: "replaceAll",
+        name: "limits",
+        records: [{ autoRollMax: "75", limitId: "ULSD", minHours: "0", limit: "300", autoRollMap: "7", hours: "24" }],
+      },
+    ]);
+
+    const record = /<limits>([\s\S]*?)<\/limits>/.exec(xml)![1]!;
+    const emitted = [...record.matchAll(/<([A-Za-z]+)[>/]/g)].map((m) => m[1]!);
+    expect(emitted).toEqual(["hours", "limit", "limitId", "minHours", "autoRollMap", "autoRollMax"]);
+  });
+
+  it("keeps a field the WSDL does not declare rather than dropping or refusing it", () => {
+    // Unmodelled vendor fields surviving the round trip is the whole design. We cannot know where a
+    // new one belongs, so it goes last — present, which is what matters, since an omitted field is a
+    // DELETED field.
+    const doc = parseCardDocument(fixture("getCardV2.empty.xml"));
+    const { xml } = echo(doc, [
+      {
+        op: "replaceAll",
+        name: "infos",
+        records: [{ someFutureField: "x", validationType: "EXACT_MATCH", infoId: "DRID" }],
+      },
+    ]);
+
+    const record = /<infos>([\s\S]*?)<\/infos>/.exec(xml)![1]!;
+    const emitted = [...record.matchAll(/<([A-Za-z]+)[>/]/g)].map((m) => m[1]!);
+    expect(emitted).toEqual(["infoId", "validationType", "someFutureField"]);
   });
 
   it("a zero-edit echo of every fixture is in sequence, and byte-stable", () => {

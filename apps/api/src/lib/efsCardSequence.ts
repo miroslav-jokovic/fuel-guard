@@ -44,6 +44,86 @@ export function sequenceRank(name: string): number {
   return SEQUENCE_RANK.get(name) ?? HEADER_RANK;
 }
 
+/**
+ * The field order inside each repeated record, from `docs/efs/CardManagementWS.wsdl`.
+ *
+ * Transcribed from the WSDL rather than from a fixture, and it corrected two things a fixture would
+ * not have shown:
+ *
+ *   • `WSCardv2` declares its `limits` as **`WSCardLimitv2`**, not `WSCardLimit` — six fields, with
+ *     `autoRollMap` and `autoRollMax` after `minHours`. The four-field `WSCardLimit` is a different
+ *     type used by the v1 card, and copying it would have put the auto-roll fields nowhere.
+ *   • `numericMatchValue` sits between `reportValue` and `validationType`. EFS's own responses omit
+ *     it, so nothing emits it today (see the append path in efsCardEdits.ts) — but if anything ever
+ *     does, this is where it goes, and guessing from a response would have put it at the end.
+ */
+export const WS_CARD_INFO_SEQUENCE = [
+  "infoId",
+  "lengthCheck",
+  "matchValue",
+  "maximum",
+  "minimum",
+  "reportValue",
+  "numericMatchValue",
+  "validationType",
+  "value",
+] as const;
+
+/** `WSCardLimitv2` — the type `WSCardv2.limits` actually declares. */
+export const WS_CARD_LIMIT_SEQUENCE = ["hours", "limit", "limitId", "minHours", "autoRollMap", "autoRollMax"] as const;
+
+export const WS_CARD_TIME_RESTRICTION_SEQUENCE = ["beginTime", "day", "endTime"] as const;
+
+const RECORD_SEQUENCES: Readonly<Record<string, readonly string[]>> = {
+  infos: WS_CARD_INFO_SEQUENCE,
+  limits: WS_CARD_LIMIT_SEQUENCE,
+  timeRestrictions: WS_CARD_TIME_RESTRICTION_SEQUENCE,
+};
+
+/**
+ * A record's field names in the order its type declares them.
+ *
+ * An UNLISTED field keeps its relative position and goes last, rather than being dropped or refused.
+ * The whole design rests on unmodelled vendor fields surviving the round trip (see the head of
+ * efsCardXml.ts), so a field WEX adds next year has to come back even though we cannot know where in
+ * the sequence it belongs. Last is a guess; dropping it is a deletion, and refusing it would brick
+ * every card carrying it. `locationGroups` and `locations` are scalar collections with no fields at
+ * all, so they are absent here and the caller's order passes through untouched.
+ */
+/**
+ * ── Why there is no `assertRecordFieldOrder` to match `assertSequenceOrder` ──────────────────────
+ *
+ * One was written and removed, because three existing tests refused it and they were right.
+ *
+ * `getCardV2.reportOnly.xml` carries its `<infos>` fields in the vendor's own order — `infoId,
+ * validationType, matchValue, reportValue, lengthCheck, minimum, maximum, value` — which is NOT the
+ * WSDL sequence. Records echoed straight from the response go through `serializeElement`, untouched,
+ * so a zero-edit echo of that card reproduces that order. A guard on record field order therefore
+ * refuses a byte-identical echo of a document EFS itself sent us, which bricks the card and protects
+ * nothing.
+ *
+ * The principle the guards follow, stated once: **order what WE construct; pass through what the
+ * vendor sent.** `serializeRecord` builds records from plain objects and owes them the declared
+ * order. `serializeElement` reproduces the vendor's nodes and owes them nothing but fidelity.
+ *
+ * Card-level order (`assertSequenceOrder`) is normalised rather than passed through, and the
+ * asymmetry is deliberate: placing a NEWLY INTRODUCED collection forces a choice of position there,
+ * and no equivalent choice arises inside a record — nothing ever inserts a field into an existing
+ * one. Both emit content-identical documents; only card-level element order is ever rewritten.
+ */
+export function orderRecordFields(collection: string, fields: readonly string[]): string[] {
+  const sequence = RECORD_SEQUENCES[collection];
+  if (!sequence) return [...fields];
+  const rank = (field: string): number => {
+    const index = sequence.indexOf(field);
+    return index === -1 ? sequence.length : index;
+  };
+  return fields
+    .map((field, index) => ({ field, index, rank: rank(field) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((entry) => entry.field);
+}
+
 
 /**
  * Refuse a request whose elements are not in WSCardv2's declared sequence.
