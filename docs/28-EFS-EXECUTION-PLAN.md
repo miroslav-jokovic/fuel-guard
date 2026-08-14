@@ -156,10 +156,10 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 
 | # | Phase | Status | Branch |
 |---|---|---|---|
-| 0 | Green the pipeline | 🔶 *(PR #3 open; **Step 0.15 outstanding** — `lint:ui-adoption` red; Step 0.13 deferred → after 1.2)* | `delivery-p0-green` |
-| 1 | Emergency fixes | ⬜ | `delivery-p1-emergency` |
-| 2 | Echo engine correctness | ⬜ | `delivery-p2-echo` |
-| 3 | Capability architecture | ⬜ | `delivery-p3-registry` |
+| 0 | Green the pipeline | 🔶 *(PRs #3, #5 merged; **Step 0.13 outstanding** — QA card roles unassigned, which blocks Phases 9 and 10. Step 0.15 done in #5; all sixteen `ci.yml` gates green on `main` at `12a86a8`)* | `delivery-p0-green` |
+| 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks not run: §6.2 foreign-card probe, §6.3 step-up, §6.4 endpoint binding, 409 replay. Status and prompts changes confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
+| 2 | Echo engine correctness | 🔶 *(2.1–2.5 merged, PRs #13–#21; **echo scan green 197/197** on 2026-08-14. Two exit-gate items need Miki: the `probed_identity_hash` null check, and the "every existing echo test passes unchanged" wording — #13 changed two deliberately)* | `delivery-p2-echo` |
+| 3 | Capability architecture | 🔶 *(3.1–3.3 merged, PRs #20, #24, #25; migration 0190 applied. **Step 3.4 is next**)* | `delivery-p3-registry` |
 | 4 | Harness & promotion | ⬜ | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
@@ -281,7 +281,7 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 **Change:** recon could not inspect Railway variables. Confirm `EFS_CARD_CONTROL_PROBE_ENABLED` is **not** `true` in any deployed environment. If it is, that is a live hazard — the probe routers take card numbers straight from the request body with no org check until Phase 1 Step 1.2.
 **Verify:** value recorded in §14.
 
-### Step 0.15 — `lint:ui-adoption` — 5 raw page/feature buttons ⚠️ **REOPENED**
+### Step 0.15 — `lint:ui-adoption` — 5 raw page/feature buttons ✅ **DONE (PR #5)**
 
 **Phase 0's exit gate was measured against a 12-gate list. `ci.yml` runs 16.** `lint:ui-adoption` (`ci.yml:79`) is red and has been all along, so `require-ci-green` still blocks `migrate.yml` — **migration 0185 from Phase 1A cannot apply until this is fixed.**
 
@@ -300,13 +300,13 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 **Land it on `delivery-p0-green`** — greening the pipeline is Phase 0's job, and PR #3 should not merge red.
 
 ### ✅ Exit Gate — Phase 0
-- [ ] **All sixteen `ci.yml` gates green** — verified against `ci.yml`, not against a doc
-- [ ] `requireFreshAuth.test.ts`, `efsCardEdits.test.ts`, `CardControlDrawer.test.ts` all green, with what they test preserved
-- [ ] `routeAuth.test.ts` discovers `/api/fuel-cards`
-- [ ] The false comment is corrected and the comment-claims check enforces it
-- [ ] `check-rls` wired; WSDL committed with its op check
-- [ ] Filesize decision recorded per file, with every waiver naming the phase that removes it
-- [ ] Approver-scope rule decided; QA card roles assigned; probe flag confirmed unset
+- [x] **All sixteen `ci.yml` gates green** — verified against `ci.yml`, not against a doc *(CI green on `main` at `12a86a8`)*
+- [x] `requireFreshAuth.test.ts`, `efsCardEdits.test.ts`, `CardControlDrawer.test.ts` all green, with what they test preserved
+- [x] `routeAuth.test.ts` discovers `/api/fuel-cards`
+- [x] The false comment is corrected and the comment-claims check enforces it
+- [x] `check-rls` wired; WSDL committed with its op check
+- [x] Filesize decision recorded per file, with every waiver naming the phase that removes it
+- [ ] Approver-scope rule decided ✅; **QA card roles assigned ⛔ Step 0.13**; probe flag confirmed unset ✅
 
 ---
 
@@ -864,7 +864,7 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 
 *Append one entry per session. Never delete an entry.*
 
-### QA card roles *(fill in Phase 0 Step 0.3 — last-4 only)*
+### QA card roles *(fill in Phase 0 Step 0.13 — last-4 only)*
 
 | Last-4 | Role | Observed starting state | Policy |
 |---|---|---|---|
