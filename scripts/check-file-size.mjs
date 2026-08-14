@@ -72,10 +72,10 @@ const GRANDFATHERED = {
   // five orchestrator phase modules, and cardControlContract.ts splits into per-capability contracts.
   // PHASE 3'S EXIT GATE DELETES THESE TWO ENTRIES. If they are still here after Phase 3, that is a
   // bug in the plan, not a new normal.
-  // Ratcheted 530 → 507 when the CardControlError class moved to efsCardControlErrors.ts. The
-  // compressed-line count did not move (7 before, 7 after), so this is code leaving the file rather
-  // than lines being squeezed out of it.
-  "apps/api/src/services/efsCardControl.ts": 507,
+  // efsCardControl.ts (507) left this list on 2026-08-14. Phase 3 Step 3.4 split it into the five
+  // orchestrator phase modules under apps/api/src/efs/orchestrator/ — plan, dispatch, ledger, steps,
+  // resolve — leaving the service as an 85-line door. Ratcheted 530 → 507 on 2026-08-13 when
+  // CardControlError moved out; deleted here, which is the intended end state of this list.
   "packages/shared/src/cardControlContract.ts": 512,
   // Pinned 2026-08-13 for a different reason. Phase 1 Step 1.2 adds an org-ownership guard to the
   // probe routers; that guard lives in ONE shared helper imported by all three, so this file must
@@ -89,7 +89,6 @@ const GRANDFATHERED = {
 
 const COMPRESSION_BUDGETS = {
   "apps/api/src/routes/integrations.ts": 2,
-  "apps/api/src/services/efsCardControl.ts": 7,
   "packages/shared/src/cardControlContract.ts": 5,
   "apps/api/src/routes/fuelCards/experiments.ts": 12,
 };

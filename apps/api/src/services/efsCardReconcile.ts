@@ -5,7 +5,8 @@ import type { EfsSoapError } from "../lib/efsSoapSession.js";
 import { upsertCardDetail } from "./efsCardMirror.js";
 import { cardLast4 } from "@fuelguard/shared";
 import { efsEndpointHost } from "./efsSoapCredentialIdentity.js";
-import type { CardMutationContext, CardMutationOutcome, CardMutationPlan } from "./efsCardControl.js";
+import type { LedgerAdapter } from "../efs/orchestrator/ledger.js";
+import type { CardMutationContext, CardMutationOutcome, SettleFacts } from "../efs/orchestrator/types.js";
 
 /**
  * What actually happened, and writing it down. The second half of every mutation.
@@ -16,8 +17,15 @@ import type { CardMutationContext, CardMutationOutcome, CardMutationPlan } from 
  * bad outcome. By the time these functions run, the only remaining question is what to write down,
  * and refusing to write it down because the write failed is how a mutation becomes invisible.
  *
- * The type imports from efsCardControl.ts are type-only and erased at build, so the two modules
- * import each other in the type system and only one way at runtime.
+ * ── Why the ledger arrives as an argument (Step 3.4) ─────────────────────────────────────────────
+ * These functions used to run their own `UPDATE efs_card_mutations`. They now settle through the
+ * `LedgerAdapter` they are handed, so the seam docs/27 §5.2 describes is real: every write to the
+ * ledger, from the pending insert to the final settle, goes through one implementation. A finaliser
+ * that kept its own UPDATE would be a second writer, and the first non-card target would find half
+ * the orchestrator already ported and half of it hardcoded to the card table.
+ *
+ * They take `SettleFacts` rather than the plan for the same reason: nothing here can dispatch,
+ * snapshot or judge, so a finaliser cannot acquire the power to re-run the write it is recording.
  */
 
 // ─── Classification ────────────────────────────────────────────────────────────────────────────
@@ -126,17 +134,18 @@ interface WirePayload {
 
 export async function finalizeLanded(
   ctx: CardMutationContext,
-  plan: CardMutationPlan,
+  ledger: LedgerAdapter,
+  plan: SettleFacts,
   after: CardDocument,
   wire: WirePayload,
 ): Promise<CardMutationOutcome> {
   const { unexplained, vendorMaintained } = classifyDrift(
-    plan.before, after, plan.edits, plan.vendorOp?.movesFields ?? [],
+    plan.before, after, plan.edits, plan.vendorMovesFields,
   );
   const drifted = unexplained.length > 0;
   const driftFields = unexplained.map((d) => d.path);
 
-  await settle(ctx, plan.mutationId, {
+  await ledger.settle(ctx, plan.mutationId, {
     status: drifted ? "drift_detected" : "succeeded",
     after_version: after.version,
     reconciled_version: after.version,
@@ -167,7 +176,8 @@ export async function finalizeLanded(
 
 export async function finalizeFailed(
   ctx: CardMutationContext,
-  plan: CardMutationPlan,
+  ledger: LedgerAdapter,
+  plan: SettleFacts,
   after: CardDocument,
   wire: WirePayload,
 ): Promise<CardMutationOutcome> {
@@ -178,7 +188,7 @@ export async function finalizeFailed(
   const faultMessage = fault?.message
     ?? "EFS accepted the request but the card is unchanged. Check the card in the WEX portal before retrying.";
 
-  await settle(ctx, plan.mutationId, {
+  await ledger.settle(ctx, plan.mutationId, {
     status: "failed",
     after_version: after.version,
     reconciled_version: after.version,
@@ -207,7 +217,8 @@ export async function finalizeFailed(
  */
 export async function finalizeUnverified(
   ctx: CardMutationContext,
-  plan: CardMutationPlan,
+  ledger: LedgerAdapter,
+  plan: SettleFacts,
   wire: WirePayload,
 ): Promise<CardMutationOutcome> {
   const readMessage = wire.readError instanceof Error ? wire.readError.message : String(wire.readError ?? "");
@@ -215,7 +226,7 @@ export async function finalizeUnverified(
   const faultMessage =
     `The change was sent but could not be confirmed: ${wire.writeError?.message ?? readMessage}`.slice(0, 500);
 
-  await settle(ctx, plan.mutationId, {
+  await ledger.settle(ctx, plan.mutationId, {
     status: "sent",
     efs_fault_code: faultCode,
     efs_fault_message: faultMessage,
@@ -235,10 +246,11 @@ export async function finalizeUnverified(
 /** `echo_unfaithful`: our own guard refused to send. Nothing reached EFS, so nothing is reconciled. */
 export async function finalizeUnsent(
   ctx: CardMutationContext,
-  plan: CardMutationPlan,
+  ledger: LedgerAdapter,
+  plan: SettleFacts,
   error: EfsSoapError,
 ): Promise<CardMutationOutcome> {
-  await settle(ctx, plan.mutationId, {
+  await ledger.settle(ctx, plan.mutationId, {
     status: "failed",
     efs_fault_code: error.code,
     efs_fault_message: error.message.slice(0, 500),
@@ -255,26 +267,68 @@ export async function finalizeUnsent(
   };
 }
 
+/**
+ * A sequence that applied some of its steps and then stopped.
+ *
+ * Terminal but ACTIONABLE (docs/27 §5.1, migration 0190), and the distinction is the whole reason the
+ * status exists: telling an operator a half-applied sequence `failed` sends them to re-run steps that
+ * already landed, and telling them it `succeeded` is a lie. The row keeps `step_index`, so recovery
+ * is re-running from there.
+ *
+ * Only reachable after at least one step landed — a first-step failure settles as one of the four
+ * original outcomes, which is what keeps every single-step capability behaving exactly as before.
+ * The UI must name the step by its `label`, never by its number.
+ */
+export async function finalizePartial(
+  ctx: CardMutationContext,
+  ledger: LedgerAdapter,
+  plan: SettleFacts,
+  after: CardDocument | null,
+  wire: WirePayload,
+): Promise<CardMutationOutcome> {
+  const fault = wire.writeError;
+  const readMessage = wire.readError instanceof Error ? wire.readError.message : String(wire.readError ?? "");
+  const faultCode = fault?.code ?? (wire.readError ? "unverified" : "no_change");
+  const faultMessage = (
+    fault?.message
+    ?? (wire.readError ? `The step was sent but could not be confirmed: ${readMessage}` : null)
+    ?? "EFS accepted the request and the card is unchanged."
+  ).slice(0, 500);
+
+  await ledger.settle(ctx, plan.mutationId, {
+    status: "partial",
+    step_index: plan.stepIndex,
+    ...(after ? { after_version: after.version, reconciled_version: after.version, after_document: after.card } : {}),
+    efs_fault_code: faultCode,
+    efs_fault_message: faultMessage,
+    ...wireColumns(wire),
+  });
+
+  await audit(ctx, plan, "card.mutation_partial", after, {
+    outcome: "partial",
+    stepIndex: plan.stepIndex,
+    stepLabel: plan.stepLabel,
+    efsFaultCode: faultCode,
+    efsFaultMessage: faultMessage.slice(0, 300),
+  });
+
+  return {
+    mutationId: plan.mutationId,
+    status: "partial",
+    version: after?.version ?? null,
+    driftFields: [],
+    faultCode,
+    faultMessage,
+    ...(plan.stepIndex === null ? {} : { stepIndex: plan.stepIndex }),
+    ...(plan.stepLabel === null ? {} : { stepLabel: plan.stepLabel }),
+  };
+}
+
 const wireColumns = (wire: WirePayload) => ({
   // Capped: the ledger is evidence, not an archive, and a 200KB card document per row is neither.
   request_xml_redacted: wire.requestXmlRedacted?.slice(0, 60_000) ?? null,
   response_xml_redacted: wire.responseXmlRedacted?.slice(0, 60_000) ?? null,
 });
-
-async function settle(
-  ctx: CardMutationContext,
-  mutationId: string,
-  patch: Record<string, unknown>,
-): Promise<void> {
-  const { error } = await ctx.admin
-    .from("efs_card_mutations")
-    .update({ ...patch, completed_at: new Date().toISOString() })
-    .eq("id", mutationId)
-    .eq("org_id", ctx.orgId);
-  // Loud, and not fatal. The vendor call already happened; failing the request now would tell the
-  // operator nothing happened when something did.
-  if (error) console.error(`[card-control] could not settle mutation ${mutationId}: ${error.message}`);
-}
 
 /**
  * Card control is ENTIRELY compliance-relevant, so `meta` carries VALUES, not just field names —
@@ -285,7 +339,7 @@ async function settle(
  */
 async function audit(
   ctx: CardMutationContext,
-  plan: CardMutationPlan,
+  plan: SettleFacts,
   action: string,
   after: CardDocument | null,
   extra: Record<string, unknown>,
