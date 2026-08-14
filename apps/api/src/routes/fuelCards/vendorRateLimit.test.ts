@@ -6,6 +6,7 @@ import { createApp } from "../../app.js";
 import { loadEnv } from "../../env.js";
 import type { AuthContext } from "@fuelguard/shared";
 import { fuelCardControlRouter } from "./control.js";
+import { fuelCardEchoScanRouter } from "./echoScan.js";
 import { fuelCardExperimentsRouter } from "./experiments.js";
 import { fuelCardProbeRouter } from "./probe.js";
 import { fuelCardSettingsRouter } from "./settings.js";
@@ -119,6 +120,7 @@ describe("fuel-card vendor rate budget", () => {
       fuelCardProbeRouter(),
       fuelCardWriteProbeRouter(),
       fuelCardExperimentsRouter(),
+      fuelCardEchoScanRouter(),
     ];
     const actual = routers.flatMap(routeTable).map((route) => `${route.method} ${route.path}`).sort();
     const configured = FUEL_CARD_ROUTE_TABLE.map((route) => `${route.method} ${route.path}`).sort();
