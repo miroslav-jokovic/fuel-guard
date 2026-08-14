@@ -1,3 +1,5 @@
+import { diffCanonical, type EchoDiff } from "./efsCardCanonical.js";
+import { assertSequenceOrder, sequenceRank } from "./efsCardSequence.js";
 import { assertCollectionsPreserved } from "./efsCardCollections.js";
 import { EfsSoapError } from "./efsSoapSession.js";
 import {
@@ -131,7 +133,9 @@ export function serializeSetCardRequest(
       return edit ? renderNewField(name, edit) : serializeElement(child);
     });
 
-  const parts: string[] = [];
+  // Named, because the request is emitted in WSCardv2's declared sequence rather than in whatever
+  // order the response happened to use. See `orderedParts` at the bottom of this function.
+  const parts: { name: string; xml: string }[] = [];
   const emittedCollections = new Set<string>();
   const emittedFields = new Set<string>();
 
@@ -157,11 +161,11 @@ export function serializeSetCardRequest(
     if (COLLECTION_SET.has(name)) {
       if (emittedCollections.has(name)) continue; // the whole collection is emitted at its first member
       emittedCollections.add(name);
-      parts.push(renderCollection(doc.root, name as CardCollection, collectionEdits.get(name) ?? []));
+      parts.push({ name, xml: renderCollection(doc.root, name as CardCollection, collectionEdits.get(name) ?? []) });
       continue;
     }
     if (nested && child === doc.header) {
-      parts.push(headerXml);
+      parts.push({ name, xml: headerXml });
       continue;
     }
     // The nested response carries the card's own `<cardNumber>` alongside the header. It is a
@@ -170,24 +174,45 @@ export function serializeSetCardRequest(
     if (REQUEST_ONLY_FIELDS.has(name)) continue;
     // In nested mode, field edits belong to the header and were applied there; anything else sitting
     // at root level is echoed verbatim. In flat mode this is where every header field is handled.
-    if (nested) parts.push(serializeElement(child));
-    else parts.push(...renderFields([child], emittedFields));
+    if (nested) parts.push({ name, xml: serializeElement(child) });
+    else for (const xml of renderFields([child], emittedFields)) parts.push({ name, xml });
   }
 
   // A field the response did not carry but an edit names — e.g. setting overrideAllLocations on a card
-  // that has never had an override. Appended rather than dropped. (Nested documents already did this
-  // inside the header wrapper.)
+  // that has never had an override. (Nested documents already did this inside the header wrapper.)
   for (const [name, edit] of fieldEdits) {
     if (emittedFields.has(name)) continue;
     emittedFields.add(name);
-    parts.push(renderNewField(name, edit));
+    parts.push({ name, xml: renderNewField(name, edit) });
   }
   // Likewise a collection being introduced for the first time (an override's limits array, p194).
   for (const [name, list] of collectionEdits) {
     if (emittedCollections.has(name)) continue;
     emittedCollections.add(name);
-    parts.push(renderCollection(doc.root, name as CardCollection, list));
+    parts.push({ name, xml: renderCollection(doc.root, name as CardCollection, list) });
   }
+
+  /**
+   * Emitted in WSCardv2's sequence, ALWAYS — not in the order the response arrived in.
+   *
+   * These last two loops used to append, so a collection the card did not have yet — the override
+   * recipe's `limits` (p194), the first prompt on an empty card — landed after `timeRestrictions`,
+   * out of the schema's declared order. Inserting at the right position is the fix, and sorting the
+   * whole list is how it is done: an insert that only handles the append path still emits the
+   * response's own order for everything else, and then a card EFS returned out of sequence would
+   * produce an out-of-sequence request that the guard below would refuse — bricking that card.
+   *
+   * So: accept whatever order the vendor sends on READ, emit the declared order on WRITE. The sort is
+   * stable and ranks unlisted names as header scalars, so the flat shape keeps its fields in document
+   * order and only their position relative to the collections is normalised.
+   *
+   * Reordering is safe for the fidelity check by construction — `canonicalize` keys by path, so it
+   * cannot tell these two apart. That is exactly why the order check is a SEPARATE assertion.
+   */
+  const orderedParts = parts
+    .map((part, index) => ({ part, index, rank: sequenceRank(part.name) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((entry) => entry.part.xml);
 
   // The xsi declaration is load-bearing, not decoration: the echo re-emits `xsi:nil` attributes for
   // fields EFS sent as nil (originalStatus is "often returned as nil", p35), and an undeclared prefix
@@ -217,7 +242,7 @@ export function serializeSetCardRequest(
     `<clientId>${xmlEscapeText(target.clientId)}</clientId>` +
     `<card>` +
     `<cardNumber>${xmlEscapeText(target.cardNumber)}</cardNumber>` +
-    parts.join("") +
+    orderedParts.join("") +
     `</card>` +
     `</CardManagementEP_setCardv2>`;
 
@@ -358,22 +383,10 @@ function fragmentKey(fragment: CanonicalDoc): string {
     .join("");
 }
 
-export interface EchoDiff {
-  path: string;
-  expected: string[];
-  actual: string[];
-}
-
-function diffCanonical(expected: CanonicalDoc, actual: CanonicalDoc): EchoDiff[] {
-  const diffs: EchoDiff[] = [];
-  for (const path of new Set([...expected.keys(), ...actual.keys()])) {
-    const e = expected.get(path) ?? [];
-    const a = actual.get(path) ?? [];
-    // Order matters within a path: two infos records swapping matchValues is a real change.
-    if (e.length !== a.length || e.some((v, i) => v !== a[i])) diffs.push({ path, expected: e, actual: a });
-  }
-  return diffs.sort((x, y) => (x.path < y.path ? -1 : 1));
-}
+// Both moved to efsCardCanonical.ts alongside `canonicalize`, which is the thing they compare — and
+// alongside `elementOrder`, which covers the one difference `diffCanonical` is blind to. Re-exported
+// here because `EchoDiff` is this module's published vocabulary for reconcile and the write probe.
+export type { EchoDiff } from "./efsCardCanonical.js";
 
 /**
  * What moved on the card that we did not ask to move.
@@ -446,4 +459,5 @@ export function assertEchoFidelity(doc: CardDocument, requestXml: string, edits:
   // with the request perfectly and has already lost part of the card. Running it second keeps the
   // diff as the first and more specific answer for every failure it can explain.
   assertCollectionsPreserved(doc, card, edits);
+  assertSequenceOrder(card);
 }

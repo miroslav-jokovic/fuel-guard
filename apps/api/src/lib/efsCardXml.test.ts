@@ -13,6 +13,8 @@ import {
   redactCardXml,
 } from "./efsCardXml.js";
 import { childElements, collectElements, parseXml } from "./efsXml.js";
+import { elementOrder } from "./efsCardCanonical.js";
+import { sequenceRank } from "./efsCardSequence.js";
 
 /**
  * The centre of gravity for this feature.
@@ -785,5 +787,78 @@ describe("documentShape", () => {
     // installations; if QA answers flat, a clean QA round-trip proves nothing about production, and
     // this string is what makes that visible instead of assumed.
     expect(documentShape(parseCardDocument(fixture("getCardV2.nestedHeader.xml")))).toBe("nested:header");
+  });
+});
+
+describe("WSCardv2 element sequence", () => {
+  /**
+   * `setCardv2` takes a `WSCardv2`, and a schema `<sequence>` is ORDERED. This vendor has twice
+   * answered a shape it did not expect with a void success and no effect — the operation name, then
+   * the missing `<card>` wrapper — so "it parsed" is not evidence a reordered request applies.
+   *
+   * The canonical diff cannot see any of this. It keys by path, so `<limits>` before `<infos>` and
+   * `<infos>` before `<limits>` are the same document to it. That blindness is why order is a
+   * separate assertion rather than more of the same comparison.
+   */
+
+  const strip = (name: string, xml: string): string =>
+    xml.replace(new RegExp(`\\s*<${name}>[\\s\\S]*?</${name}>`, "g"), "");
+  const namesOf = (xml: string): string[] => elementOrder(requestBody(xml));
+
+  it("introduces a new infos collection in sequence order, not at the end", () => {
+    // A card with no prompts at all — the first prompt on a fresh card. Before this step the new
+    // collection was pushed after everything, landing behind timeRestrictions.
+    const doc = parseCardDocument(strip("infos", fixture("getCardV2.full.xml")));
+    expect(namesOf(serializeSetCardRequest(doc, TARGET, []).xml)).not.toContain("infos");
+
+    const { xml } = echo(doc, [
+      { op: "replaceAll", name: "infos", records: [{ infoId: "DRID", matchValue: "D-1", validationType: "EXACT_MATCH" }] },
+    ]);
+
+    const names = namesOf(xml);
+    expect(names).toContain("infos");
+    expect(names.indexOf("infos")).toBeLessThan(names.indexOf("limits"));
+    expect(names.indexOf("infos")).toBeLessThan(names.indexOf("timeRestrictions"));
+  });
+
+  it("introduces a new limits collection in sequence order", () => {
+    // The p194 product-limit override on a card that has no limits yet.
+    const doc = parseCardDocument(strip("limits", fixture("getCardV2.full.xml")));
+    const { xml } = echo(doc, [
+      { op: "replaceAll", name: "limits", records: [{ limitId: "ULSD", limit: "1000", hours: "1", minHours: "0" }] },
+    ]);
+
+    const names = namesOf(xml);
+    expect(names.indexOf("infos")).toBeLessThan(names.indexOf("limits"));
+    expect(names.indexOf("limits")).toBeLessThan(names.indexOf("locationGroups"));
+  });
+
+  it("the guard rejects an out-of-sequence request", () => {
+    // Swap the two collection blocks in a request that is otherwise byte-for-byte correct. The
+    // canonical diff passes it — same paths, same values — so whatever refuses this is the order
+    // check and nothing else.
+    const doc = parseCardDocument(fixture("getCardV2.full.xml"));
+    const { xml } = serializeSetCardRequest(doc, TARGET, []);
+    const infos = /<infos>[\s\S]*<\/infos>/.exec(xml)![0];
+    const limits = /<limits>[\s\S]*<\/limits>/.exec(xml)![0];
+    const swapped = xml.replace(infos, " ").replace(limits, infos).replace(" ", limits);
+
+    expect(swapped).not.toBe(xml); // the sabotage actually happened
+    expect(namesOf(swapped).indexOf("limits")).toBeLessThan(namesOf(swapped).indexOf("infos"));
+    expect(() => assertEchoFidelity(doc, swapped, [])).toThrow(/out of WSCardv2 sequence/);
+  });
+
+  it("a zero-edit echo of every fixture is in sequence, and byte-stable", () => {
+    for (const name of ALL_FIXTURES) {
+      const doc = parseCardDocument(fixture(name));
+      const first = serializeSetCardRequest(doc, TARGET, []).xml;
+      const second = serializeSetCardRequest(doc, TARGET, []).xml;
+
+      expect(second, `${name} is not byte-stable across two serializations`).toBe(first);
+      expect(() => assertEchoFidelity(doc, first, [])).not.toThrow();
+
+      const ranks = namesOf(first).map(sequenceRank);
+      expect([...ranks].sort((a, b) => a - b), `${name} is out of sequence`).toEqual(ranks);
+    }
   });
 });
