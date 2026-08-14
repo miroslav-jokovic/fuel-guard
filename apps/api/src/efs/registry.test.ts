@@ -2,10 +2,12 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CARD_CAPABILITY_CONTRACTS, CARD_MUTATION_INTENTS, cardWriteBucket } from "@fuelguard/shared";
+import { loadEnv } from "../env.js";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
 import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.js";
-import { MOUNTED_CAPABILITIES } from "./registry.js";
+import { deleteOverrideBehaviour, overrideClearBehaviour } from "./capabilities/overrideClear.behaviour.js";
+import { ALL_CAPABILITIES, mountedCapabilities } from "./registry.js";
 
 /**
  * The cross-registry fitness test (docs/27 §7.2).
@@ -21,23 +23,31 @@ import { MOUNTED_CAPABILITIES } from "./registry.js";
  * never seen (Phase 0 Step 0.7). A count assertion first is what makes the rest mean anything.
  */
 
-const behaviours = { card_lock: cardLockBehaviour, card_unlock: cardUnlockBehaviour, override_grant: overrideGrantBehaviour } as const;
+const behaviours = { card_lock: cardLockBehaviour, card_unlock: cardUnlockBehaviour, override_grant: overrideGrantBehaviour,
+  override_clear: overrideClearBehaviour, delete_override: deleteOverrideBehaviour } as const;
 const MOUNT_PREFIX = "/api/fuel-cards";
 
 /** The keys this test knows about. Deliberately hardcoded: it is the thing being compared against. */
-const EXPECTED_KEYS = ["card_lock", "card_unlock", "override_grant"];
+const EXPECTED_KEYS = ["card_lock", "card_unlock", "delete_override", "override_clear", "override_grant"];
+/** The two mechanisms of `override_clear`. Exactly one of these is ever mounted. */
+const CLEAR_MECHANISMS = ["override_clear", "delete_override"];
+
+const envWith = (deleteOverride: boolean) =>
+  loadEnv({ NODE_ENV: "test", ...(deleteOverride ? { EFS_CARD_DELETE_OVERRIDE_ENABLED: "true" } : {}) } as NodeJS.ProcessEnv);
 
 describe("the capability registries agree with each other", () => {
   it("discovered every capability — without this, every loop below is vacuous", () => {
     expect(Object.keys(CARD_CAPABILITY_CONTRACTS).sort()).toEqual([...EXPECTED_KEYS].sort());
-    expect(MOUNTED_CAPABILITIES).toHaveLength(EXPECTED_KEYS.length);
+    expect(ALL_CAPABILITIES).toHaveLength(EXPECTED_KEYS.length);
+    // One fewer mounted than declared, and exactly one: the two clear mechanisms are alternatives.
+    expect(mountedCapabilities(envWith(false))).toHaveLength(EXPECTED_KEYS.length - 1);
   });
 
   it("pairs every contract with exactly one behaviour, and mounts it", () => {
     // A contract with no behaviour is a route the router cannot serve; a behaviour with no contract
     // is code that can never run. Both are invisible until somebody presses the button.
     expect(Object.keys(behaviours).sort()).toEqual(Object.keys(CARD_CAPABILITY_CONTRACTS).sort());
-    expect(MOUNTED_CAPABILITIES.map((m) => m.contract.key).sort())
+    expect(ALL_CAPABILITIES.map((m) => m.contract.key).sort())
       .toEqual(Object.keys(CARD_CAPABILITY_CONTRACTS).sort());
   });
 
@@ -61,7 +71,7 @@ describe("the capability registries agree with each other", () => {
   });
 
   it("declares the bucket its MOUNTED path actually resolves to — equality, not existence", () => {
-    for (const capability of MOUNTED_CAPABILITIES) {
+    for (const capability of ALL_CAPABILITIES) {
       const { method, path } = capability.contract.route;
       const mounted = `${MOUNT_PREFIX}${path.replace(":id", "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e")}`;
       // `cardWriteBucket` returns null on a miss and the limiter treats null as ALLOW, so a
@@ -119,6 +129,33 @@ describe("the capability registries agree with each other", () => {
       );
       expect(source, `${key} references expectedVersion`).not.toContain("expectedVersion");
     }
+  });
+
+  it("serves exactly one override-clear mechanism, whichever way the flag is set", () => {
+    for (const flag of [false, true]) {
+      const keys = mountedCapabilities(envWith(flag)).map((c) => c.contract.key);
+      const clears = keys.filter((key) => CLEAR_MECHANISMS.includes(key));
+      // Two capabilities on `DELETE /:id/override` is a coin toss decided by registration order, and
+      // the loser is silently unreachable. Zero is worse: the route 404s and an operator is told the
+      // card does not exist.
+      expect(clears, `flag=${flag}`).toHaveLength(1);
+      expect(clears[0]).toBe(flag ? "delete_override" : "override_clear");
+    }
+  });
+
+  it("keeps both clear mechanisms on one intent, so the audit key spans them", () => {
+    const intents = CLEAR_MECHANISMS.map((key) => CARD_CAPABILITY_CONTRACTS[key]!.intent);
+    // `capability_key` records WHICH mechanism ran; `intent` has to stay the coarse question — "who
+    // cleared this card's override" — or half the history disappears when the flag flips.
+    expect(new Set(intents)).toEqual(new Set(["override_clear"]));
+    const routes = CLEAR_MECHANISMS.map((key) => {
+      const { method, path } = CARD_CAPABILITY_CONTRACTS[key]!.route;
+      return `${method} ${path}`;
+    });
+    // They must also be genuinely interchangeable: same verb, same path, same bucket, or flipping
+    // the flag moves the endpoint under the drawer.
+    expect(new Set(routes).size).toBe(1);
+    expect(new Set(CLEAR_MECHANISMS.map((key) => CARD_CAPABILITY_CONTRACTS[key]!.writeBucket)).size).toBe(1);
   });
 
   it("declares a reason rule, so a capability cannot default into silence", () => {

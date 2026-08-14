@@ -136,7 +136,7 @@ beforeAll(async () => {
       return ADMIN;
     },
   });
-  app.use("/api/fuel-cards", fuelCardCapabilityRouter([mount(gatedContract, gatedBehaviour)]));
+  app.use("/api/fuel-cards", fuelCardCapabilityRouter(env, [mount(gatedContract, gatedBehaviour)]));
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
       baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

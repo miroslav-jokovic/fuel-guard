@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { cardLockContract } from "./capabilities/cardLock.contract.js";
 import { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
 import { overrideGrantContract } from "./capabilities/overrideGrant.contract.js";
+import { deleteOverrideContract, overrideClearContract } from "./capabilities/overrideClear.contract.js";
 import type { CapabilityContract } from "./types.js";
 
 /**
@@ -14,6 +15,9 @@ import type { CapabilityContract } from "./types.js";
  * Step 3.6 fills it — `card_unlock` is in — and 3.7 deletes `CardMutationIntentSpec` and the
  * hand-written handlers once `override_grant`, `override_clear` and `prompts_set` follow.
  *
+ * Two entries may share an `intent` — `override_clear` has two mechanisms — but each `key` is
+ * unique, and `mountedCapabilities(env)` decides which of a pair is actually served.
+ *
  * ── Why the values are typed loosely and the individual exports are not ──────────────────────────
  * A map has one value type, so putting five contracts in it erases each one's `z.infer`. Anything
  * that needs the BODY type imports the contract directly — `cardLockContract` keeps its schema's
@@ -24,6 +28,8 @@ export const CARD_CAPABILITY_CONTRACTS: Readonly<Record<string, CapabilityContra
   [cardLockContract.key]: cardLockContract,
   [cardUnlockContract.key]: cardUnlockContract,
   [overrideGrantContract.key]: overrideGrantContract,
+  [overrideClearContract.key]: overrideClearContract,
+  [deleteOverrideContract.key]: deleteOverrideContract,
 };
 
 /** The keys, for anything that needs the set rather than the declarations. */
@@ -35,3 +41,5 @@ export { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
 export type { CardUnlockBody } from "./capabilities/cardUnlock.contract.js";
 export { overrideGrantContract, overrideStepUpMessage } from "./capabilities/overrideGrant.contract.js";
 export type { OverrideGrantBody } from "./capabilities/overrideGrant.contract.js";
+export { deleteOverrideContract, overrideClearContract } from "./capabilities/overrideClear.contract.js";
+export type { OverrideClearBody } from "./capabilities/overrideClear.contract.js";
