@@ -5,6 +5,7 @@ import type { Env } from "../env.js";
 import { getCardSummaries, getCardV2, type CardSummaryRow } from "../lib/efsCardOps.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { decodeSecretsKey, isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
+import { preserveAttribution } from "./efsCardAttribution.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /**
@@ -66,8 +67,6 @@ export function cardRefHmac(env: Env, orgId: string, cardNumber: string): string
   return createHmac("sha256", subkey).update(`${orgId}:${cardNumber}`).digest("hex");
 }
 
-const infoValue = (document: { infos?: { infoId: string; matchValue: string | null }[] }, id: string): string | null =>
-  document.infos?.find((i) => i.infoId === id)?.matchValue ?? null;
 
 /**
  * Refresh one org's card inventory.
@@ -296,35 +295,6 @@ async function upsertFromSummary(
   if (error) throw new Error(error.message);
 }
 
-/**
- * The three denormalised attribution columns, written ONLY when this document actually says something.
- *
- * ── The erasure this prevents ───────────────────────────────────────────────────────────────────
- * `getCardSummaries` reports the driver id, driver name and unit number EFS attributes to a card. But
- * `getCardv2` returns CARD-LEVEL records only, even when the source is BOTH (p36) — so a card whose
- * prompts live on its POLICY has an empty `infos` array and `infoValue` returns null for all three.
- *
- * Writing those nulls back is what made the Cards page lose its Unit and Driver ID columns: the roster
- * pass learned the values, the detail pass blanked them minutes later, and a card that had shown a
- * driver went to "—" and stayed there. Same shape as the `document: {}` erasure fixed earlier — that
- * fix protected the document and the version, and left these three exposed.
- *
- * ── Why omitting is not the same as going stale ─────────────────────────────────────────────────
- * The roster pass writes all three on EVERY sweep, including when EFS reports null. So it remains the
- * authority that CLEARS a value when a driver really is unassigned; this pass only refines it when the
- * card carries its own record. A value can therefore never outlive what EFS reports — it just stops
- * being destroyed by the pass that was never entitled to answer the question.
- */
-function preserveAttribution(card: { infos: { infoId: string; matchValue: string | null }[] }): Record<string, string> {
-  const out: Record<string, string> = {};
-  const drid = infoValue(card, "DRID");
-  const unit = infoValue(card, "UNIT");
-  const name = infoValue(card, "NAME");
-  if (drid !== null) out.driver_id_prompt = drid;
-  if (unit !== null) out.unit_prompt = unit;
-  if (name !== null) out.driver_name = name;
-  return out;
-}
 
 /** The depth pass: one getCardv2, which is the only call that returns prompts, limits and restrictions. */
 export async function refreshCardDetail(

@@ -5,7 +5,7 @@ import type { Env } from "../env.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import { cardRefHmac, linkFuelCards, syncEfsCards } from "./efsCardMirror.js";
+import { cardRefHmac, linkFuelCards, syncEfsCards, upsertCardDetail } from "./efsCardMirror.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /**
@@ -335,5 +335,70 @@ describe("linkFuelCards", () => {
     });
     await linkFuelCards(rec.client, ORG);
     expectOrgScoped(rec, ORG);
+  });
+});
+
+describe("attribution columns after a prompts change", () => {
+  /**
+   * The Cards page and the drawer's header read `unit_prompt` / `driver_id_prompt` / `driver_name`,
+   * NOT the document. `preserveAttribution` fills them from the card's own prompt records.
+   *
+   * Reported from live QA on 2026-08-14: changing the Unit Number through the prompts drawer updated
+   * the prompts section and left the header showing the OLD number. The value of a REPORT_ONLY prompt
+   * lives in `reportValue` — `matchValue` comes back nil — and the reader only ever looked at
+   * `matchValue`, so the column was silently left at whatever it held before.
+   *
+   * Same shape as the Phase 1 reportValue bug: a reader that knows about one of the two fields a
+   * prompt can carry its value in.
+   */
+  const docWith = (infos: { infoId: string; validationType: string; matchValue: string | null; reportValue: string | null }[]) =>
+    ({
+      version: "v1",
+      redactedXml: "<card/>",
+      card: {
+        status: "Active", originalStatus: null, payrollStatus: null, payrollUse: null,
+        policyNumber: 14, companyXRef: null, handEnter: null,
+        infoSource: null, limitSource: null, locationSource: null, timeSource: null,
+        overrideUses: 0, locationOverrideId: null, overrideAllLocations: false,
+        lastUsedDate: null, lastTransaction: null,
+        infos, limits: [], locationGroups: [], locations: [], timeRestrictions: [],
+      },
+    }) as unknown as Parameters<typeof upsertCardDetail>[4];
+
+  const written = async (infos: Parameters<typeof docWith>[0]) => {
+    const rec = createSupabaseRecorder({ tables: { efs_cards: { data: { id: "efs-1" }, error: null } } });
+    await upsertCardDetail(rec.client, env, ORG, "70830000000000000", docWith(infos));
+    return rec.writtenRows("efs_cards").at(-1) ?? {};
+  };
+
+  it("takes the unit number from matchValue on an EXACT_MATCH prompt", async () => {
+    const row = await written([
+      { infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "3182", reportValue: null },
+    ]);
+    expect(row.unit_prompt).toBe("3182");
+  });
+
+  it("takes it from reportValue on a REPORT_ONLY prompt, where matchValue is nil", async () => {
+    const row = await written([
+      { infoId: "UNIT", validationType: "REPORT_ONLY", matchValue: null, reportValue: "4242" },
+    ]);
+    expect(row.unit_prompt).toBe("4242");
+  });
+
+  it("still omits the column when the card carries no such prompt at all", async () => {
+    // The protection this function exists for: a card whose prompts live on its POLICY must not have
+    // the roster pass's answer blanked by the detail pass.
+    const row = await written([]);
+    expect(row).not.toHaveProperty("unit_prompt");
+    expect(row).not.toHaveProperty("driver_id_prompt");
+  });
+
+  it("carries the same rule to the driver id and driver name", async () => {
+    const row = await written([
+      { infoId: "DRID", validationType: "REPORT_ONLY", matchValue: null, reportValue: "D-9999" },
+      { infoId: "NAME", validationType: "REPORT_ONLY", matchValue: null, reportValue: "Dana" },
+    ]);
+    expect(row.driver_id_prompt).toBe("D-9999");
+    expect(row.driver_name).toBe("Dana");
   });
 });
