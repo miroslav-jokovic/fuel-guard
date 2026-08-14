@@ -405,7 +405,7 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 **Goal:** make the echo guard actually guard. **Phase 9 and Phase 10 are blocked on this.**
 **Preconditions:** Phase 1 ✅ (Step 1.1 introduced `replaceAll.removals`, which Step 2.1 needs).
 
-### Step 2.1 — `replaceAll` preservation assertion
+### ✅ Step 2.1 — `replaceAll` preservation assertion — DONE, PR #13 (`ab27058`)
 **Files:** `apps/api/src/lib/efsCardEcho.ts` (`expectedCanonical` ~`:255-323`, `assertEchoFidelity` ~`:405-429`).
 **Change:** the expectation for a replaced collection is currently built from the same `replace.records` array the request is built from, so the guard cannot detect a dropped record. Add an assertion computed from the **response DOM**: *every record present before is present after, unless its identity key appears in the edit's explicit `removals` list.* Identity key per collection — `infoId` for `infos`, `limitId` for `limits`, `day` for `timeRestrictions`.
 **Verify:**
@@ -419,10 +419,22 @@ A preservation assertion built on the response DOM does not fix this on its own:
 
 **Verify additionally:** *"a record containing a nested container is refused, not silently flattened"*.
 
-### Step 2.2 — `editsLanded` made exact
+> **As built (2026-08-14).** The assertion lives in a new `apps/api/src/lib/efsCardCollections.ts`, not in `efsCardEcho.ts` — that file was 429 lines against a hard 500 budget. It runs **after** the canonical diff rather than before, so the diff keeps giving the first and more specific answer for every failure it can explain; running it first made three existing sabotage tests pass for a new reason, which is coverage loss disguised as green.
+>
+> **The precondition above was wrong.** Step 1.1 did not introduce `replaceAll.removals` — the field did not exist. #13 added it, and wired `promptsEdits` to pass its existing `removedInfoIds` through.
+>
+> **Deviation from the Phase 2 exit gate:** two existing echo tests were *changed*, not left unchanged. Both performed a deliberate record drop through a bare `replaceAll` and now declare it (`["ODRD"]` for prompts, `["CADV"]` for the p194 override recipe). This is the intended contract change — an undeclared omission is now refused — but the gate's "every existing echo test passes unchanged" needs amending to say so rather than being quietly treated as met.
+>
+> Nested containers are **refused**, per the cheaper of the two options offered. The `[no-test-claim]` marker at `efsCardEdits.ts:149-151` is retired.
+
+### ✅ Step 2.2 — `editsLanded` made exact — DONE, PR #14 (`77a861a`)
 **Files:** `apps/api/src/lib/efsCardWrite.ts` (`editsLanded` ~`:254-285`).
 **Change:** `replaceAll` currently compares record **counts**; compare identity **sets** instead. `appendRecord` is currently an empty branch that reports landed unconditionally; compare against the before-document.
 **Verify:** *"a replaceAll that landed the wrong records does not report succeeded"* · *"an appendRecord that did not land is not reported as landed"*.
+
+> **As built (2026-08-14).** `appendRecord` is checked by **presence** on the after-document, not against the before-document as written above: `editsLanded`'s whole reason for existing is that the `sent` reconciler has no before-document to diff against (`efsCardUnresolved.ts`). Presence cannot separate "our append landed" from "that identity was already there", but absence is conclusive, and the alternative — returning false — would strand every append row as permanently unresolved. Recorded here because the step text asked for something this code path cannot have.
+>
+> Record identity is now defined **once**, in `efsCardCollections.recordIdentity`, shared by the echo guard and the reconciler.
 
 ### Step 2.3 — Element sequence order
 **Files:** `apps/api/src/lib/efsCardCanonical.ts`, `apps/api/src/lib/efsCardEcho.ts`.
@@ -446,11 +458,13 @@ A preservation assertion built on the response DOM does not fix this on its own:
 **Verify:** **Deployed:** run against the production org's 199 cards. Every card must pass. Any failure is a finding to record in `docs/22` before proceeding.
 
 ### ✅ Exit Gate — Phase 2
-- [ ] No org with `write_entitlement = 'confirmed'` still has a null `probed_identity_hash`
-- [ ] The Phase 1 bug, replayed through the guard, throws `echo_unfaithful`
-- [ ] All four order tests pass; every existing echo test passes unchanged
-- [ ] Echo scan green across all 199 production cards
-- [ ] Standing gates green
+- [ ] No org with `write_entitlement = 'confirmed'` still has a null `probed_identity_hash` — *live DB check, not yet run*
+- [x] The Phase 1 bug, replayed through the guard, throws `echo_unfaithful` — `efsCardEcho.test.ts`, 2026-08-14
+- [ ] All four order tests pass; every existing echo test passes unchanged — *the four order tests are Step 2.3's and are not written. Two existing echo tests were changed by #13; see the Step 2.1 note — this clause needs amending before it can be ticked*
+- [ ] Echo scan green across all 199 production cards — *Step 2.5 not built*
+- [x] Standing gates green — 2026-08-14, at `77a861a`
+
+**Phase 2 is NOT complete: 2.3, 2.4 and 2.5 remain.** Steps 2.1 and 2.2 alone do not close it, and the "Phases 9 and 10 are blocked on Phase 2" dependency still stands.
 
 ---
 
@@ -842,4 +856,5 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 
 | Date | Phase | Steps completed | Notes / surprises |
 |---|---|---|---|
+| 2026-08-14 | 1, 2 | Phase 1 exit-gate prep; **2.1**, **2.2** | Single engineer, no separate reviewer. **PR #11 carried a second bug**: the 409 recovery latch was set and never cleared, so a reopen after a successful retry showed the pre-change document and guaranteed another 409. Two exits needed — closing, and any settled outcome, since `drift_detected`/`sent` settle without closing — each with a test that fails when only that exit is removed. **`idleRollup.test.ts` was failing 18 hours a day** (PR #12): two date anchors computed independently from `Date.now()` collapse onto the same UTC date from 06:00 UTC on. `main` was red; #11 went green only because its run landed at 03:5x. **Matrix `rls` re-baselined 375 → 377** (migration 0189), verified as coming from `main` alone. **Phase 2 is only 40% done** — the handoff document described 2.1 and 2.2 as the whole of Phase 2 and omitted 2.3–2.5. **Live QA:** Miki confirmed status change works; that exercises `setField` only, so it touches neither the 409 path nor anything #13 changed. A prompts save is the untested path and is now stricter. |
 | 2026-08-13 | 0 | All except 0.13 | **CI had been red on `main` since `61a05ca` (2026-08-12)** — one commit's worth of stale test fixtures blocked every migration and driver build. Five correct stops by the executor; **three were errors in the task, not the code**: a missing step for the second typecheck error, an impossible verify on Step 9, and an over-tight commit scope. **Step 0.8 produced a real finding** — the nested-container flattening in `recordFromElement` is a second instance of the `replaceAll` tautology, folded into Phase 2 Step 2.1. Gate lists both improved: `samsara.ts` left the filesize waivers, `syncIdleEvents` left the funcsize waivers. Railway probe flag confirmed **unset**. |
