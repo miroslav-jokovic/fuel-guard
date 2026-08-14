@@ -10,7 +10,7 @@ import { efsLogin } from "../../lib/efsSoapSession.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
-import { resolveProbeCredentials } from "./probeGuards.js";
+import { resolveReadOnlyScanCredentials } from "./probeGuards.js";
 
 /**
  * Read every card in the account, build the request we WOULD send, and check it — dispatching nothing.
@@ -32,10 +32,19 @@ import { resolveProbeCredentials } from "./probeGuards.js";
  * if anything sends it, which is precisely why the write probe demands a typed confirmation and this
  * endpoint has none — it cannot send.
  *
- * ── Why no probe flag, and why admin ─────────────────────────────────────────────────────────────
+ * ── Neither probe flag, and why ──────────────────────────────────────────────────────────────────
  * `EFS_CARD_CONTROL_PROBE_ENABLED` gates the endpoints that can WRITE. Gating a read-only diagnostic
  * behind the same flag would mean toggling the write flag on production to run it, which is worse
- * than not having the flag. Admin and org scope still apply, and the vendor rate limiter charges it.
+ * than not having the flag.
+ *
+ * The same reasoning applies to `EFS_ALLOW_PRODUCTION_PROBE`, and the first version of this file
+ * MISSED it: reusing `resolveProbeCredentials` for its credential lookup silently inherited that
+ * gate too, and the endpoint answered 403 on the production org — the only org whose 199 cards the
+ * exit gate cares about. Reusing a helper for one of its behaviours gets you all of them. It now
+ * uses `resolveReadOnlyScanCredentials`, which is the same lookup without the production gate; see
+ * the note there for what still guards this route.
+ *
+ * Admin and org scope still apply, and the vendor rate limiter charges it.
  *
  * ── Batched on purpose ───────────────────────────────────────────────────────────────────────────
  * The backfill lane is `EFS_SOAP_MAX_RPS - live`, which is 0.6 rps at the defaults — around six
@@ -96,7 +105,7 @@ export function fuelCardEchoScanRouter(): Router {
       }
       const { limit, offset, maxMs } = parsed.data;
 
-      const creds = await resolveProbeCredentials(admin, env, orgId);
+      const creds = await resolveReadOnlyScanCredentials(admin, env, orgId);
       await efsLogin(env, creds, "backfill");
 
       const summaries = await getCardSummaries(env, creds, { priority: "backfill" });
@@ -151,7 +160,7 @@ export function fuelCardEchoScanRouter(): Router {
  */
 async function scanOne(
   env: ReturnType<typeof getAppLocals>["env"],
-  creds: Awaited<ReturnType<typeof resolveProbeCredentials>>,
+  creds: Awaited<ReturnType<typeof resolveReadOnlyScanCredentials>>,
   cardNumber: string,
 ): Promise<CardResult> {
   const last4 = cardLast4(cardNumber);

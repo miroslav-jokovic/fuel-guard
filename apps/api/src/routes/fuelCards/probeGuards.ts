@@ -71,3 +71,38 @@ export async function resolveProbeCredentials(
   assertProbeAllowed(env, creds);
   return creds;
 }
+
+/**
+ * Credentials for a caller that CANNOT WRITE — no production gate.
+ *
+ * ── Why this exists, and why it is not `resolveProbeCredentials` with a flag ─────────────────────
+ * `assertProbeAllowed` blocks production unless `EFS_ALLOW_PRODUCTION_PROBE` is set, and that flag
+ * governs the three probe routes that can DIAL WITH INTENT — `/diagnose`, `/write-check` and
+ * `/experiment`. Two of those can change a card.
+ *
+ * The echo scan is the opposite: it reads the account and builds requests it never sends
+ * (`setCardV2` is not imported by that module, and `echoScan.test.ts` asserts it). Its entire stated
+ * purpose is a sweep of the PRODUCTION cards — Phase 2's exit gate is literally "echo scan green
+ * across all 199 production cards". Sending it through the probe gate meant it could only run with
+ * `EFS_ALLOW_PRODUCTION_PROBE=true`, which simultaneously unlocks the two write probes against
+ * production. A read-only diagnostic that requires enabling production writes to run is worse than
+ * no diagnostic, and it is the same trap this endpoint already avoided with the OTHER flag.
+ *
+ * ── What still guards it ─────────────────────────────────────────────────────────────────────────
+ * Admin role · org scope · the vendor rate limiter (this route is classified `opensSoap: true`) ·
+ * the backfill pacing lane · and the structural no-write property. What is deliberately given up is
+ * that an admin can spend vendor read budget on production without setting a flag first.
+ *
+ * Do NOT reuse this for anything that can write. The name says read-only; the caller must be.
+ */
+export async function resolveReadOnlyScanCredentials(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+): Promise<EfsSoapCredentials> {
+  const creds = await getEfsSoapCredentials(admin, env, orgId);
+  if (!creds?.enabled) {
+    throw new HttpError(409, "efs_not_configured", "EFS is not connected for this company.");
+  }
+  return creds;
+}
