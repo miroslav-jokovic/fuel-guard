@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { cardLockContract } from "./capabilities/cardLock.contract.js";
+import { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
 import type { CapabilityContract } from "./types.js";
 
 /**
@@ -9,8 +10,8 @@ import type { CapabilityContract } from "./types.js";
  * limiter fitness test, the promotion key set and the drawer's operation list now iterate ONE
  * declaration instead of each keeping their own copy (docs/27 §6.4).
  *
- * Steps 3.6 and 3.7 fill it: `card_unlock`, `override_grant`, `override_clear`, `prompts_set`, and
- * then `CardMutationIntentSpec` and the hand-written handlers are deleted.
+ * Step 3.6 fills it — `card_unlock` is in — and 3.7 deletes `CardMutationIntentSpec` and the
+ * hand-written handlers once `override_grant`, `override_clear` and `prompts_set` follow.
  *
  * ── Why the values are typed loosely and the individual exports are not ──────────────────────────
  * A map has one value type, so putting five contracts in it erases each one's `z.infer`. Anything
@@ -20,6 +21,7 @@ import type { CapabilityContract } from "./types.js";
  */
 export const CARD_CAPABILITY_CONTRACTS: Readonly<Record<string, CapabilityContract<z.ZodTypeAny>>> = {
   [cardLockContract.key]: cardLockContract,
+  [cardUnlockContract.key]: cardUnlockContract,
 };
 
 /** The keys, for anything that needs the set rather than the declarations. */
@@ -27,3 +29,5 @@ export const CARD_CAPABILITY_KEYS = Object.keys(CARD_CAPABILITY_CONTRACTS);
 
 export { cardLockContract } from "./capabilities/cardLock.contract.js";
 export type { CardLockBody } from "./capabilities/cardLock.contract.js";
+export { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
+export type { CardUnlockBody } from "./capabilities/cardUnlock.contract.js";

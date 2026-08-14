@@ -1,0 +1,55 @@
+import { type CardUnlockBody, cardUnlockContract, efsStatusEquals } from "@fuelguard/shared";
+import { unlockEdits } from "../../services/efsCardEdits.js";
+import { cardEchoVerify } from "../cardEchoVerify.js";
+import { defineBehaviour } from "../types.js";
+
+/** The one sentence this gate may say. Shared so the refusal and its test cannot drift apart. */
+export const FRAUD_STEP_UP = "This card is flagged for fraud. Confirm your password to unlock it.";
+
+/**
+ * Releasing a card, and the one status change that is not the safe direction.
+ *
+ * ── The fraud gate moved, and it moved to the source of truth ────────────────────────────────────
+ * The hand-written handler asked TWICE. First against `efs_cards.status` — our mirror — to prompt
+ * early, then against the document EFS returned inside the operation, which is the decision that
+ * counts (audit P1-7). Only the second survives here, and `docs/27` §3.4 is explicit about why: this
+ * gate needs "the card's CURRENT status, not the mirror's".
+ *
+ * That is a behaviour change and it is the point. The mirror is stale by construction in both
+ * directions: it can demand a password for a card WEX cleared an hour ago, and it cannot see a card
+ * flagged since the last sweep. A check built from a different source than the thing it checks,
+ * resolving the permissive way, is the shape five defects in this workstream have shared
+ * (`docs/29` §7) — and here it was guarding the same decision as an authoritative check sitting six
+ * lines below it.
+ *
+ * What it cost: the early refusal now spends one `getCardv2` before answering. It never saved a
+ * rate-limit slot — the mirror read ran AFTER `prepare()` — so the only loss is one vendor call on a
+ * path that should be rare, and what is bought is that the answer is right.
+ */
+export const cardUnlockBehaviour = defineBehaviour(cardUnlockContract, {
+  target: { kind: "card" },
+
+  mutation: {
+    kind: "echo",
+    /** Spelled from the fresh read's own casing, exactly as the lock is (incident 2026-08-12). */
+    buildEdits: (doc) => unlockEdits(doc.card.status),
+  },
+
+  verify: cardEchoVerify<CardUnlockBody>(),
+
+  /**
+   * Runs after the fresh read and before the ledger row opens, so a refusal leaves nothing behind.
+   *
+   * `efsStatusEquals`, never `===`: this account reports `FRAUD` upper-cased, and an exact
+   * comparison waved the unlock straight past the gate it exists to demand.
+   */
+  planStepUp: (ctx, snap) =>
+    (!ctx.stepUp && efsStatusEquals(snap.doc?.card.status ?? null, "Fraud") ? FRAUD_STEP_UP : null),
+
+  auditMeta: (snap) => ({
+    statusBefore: snap.doc?.card.status ?? null,
+    // Read from the document EFS just returned, not from the mirror the old handler also consulted.
+    // One source, so the audit row cannot disagree with the gate that let the write through.
+    unlockedFromFraud: efsStatusEquals(snap.doc?.card.status ?? null, "Fraud"),
+  }),
+});
