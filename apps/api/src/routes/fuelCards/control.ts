@@ -1,20 +1,9 @@
 import { Router } from "express";
-import {
-  rolesThatCanView,
-  rolesThatManage,
-  setPromptsSchema,
-} from "@fuelguard/shared";
+import { rolesThatCanView } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
-import { apiError, asyncHandler, dbErrorResponse } from "../../lib/http.js";
+import { asyncHandler, dbErrorResponse } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
-import { DEFAULT_STEP_UP_MAX_AGE_SEC, hasFreshAuth, stepUpRequired } from "../../middleware/requireFreshAuth.js";
-import { executeCardMutation, type CardMutationIntentSpec } from "../../services/efsCardControl.js";
-import {
-  promptsEdits,
-} from "../../services/efsCardEdits.js";
-import { ActionRefusalError, assertPromptRemovalAllowed } from "./controlRefusal.js";
-import { badRequest, controlErrorResponse, mutationFingerprint, prepare } from "./controlPrepare.js";
 
 /**
  * Changing a fuel card. Five endpoints, one per INTENT.
@@ -65,8 +54,6 @@ export function fuelCardControlRouter(): Router {
   const router = Router();
   router.use(requireAuth);
 
-  const canManage = requireRole(...rolesThatManage("fuel"));
-
   // `run()` went with the last capability that used it. The prompts handler below has always had
   // its own inline copy, which is the asymmetry Step 3.6 is about to remove entirely.
 
@@ -84,58 +71,10 @@ export function fuelCardControlRouter(): Router {
 
   // ── Prompts ─────────────────────────────────────────────────────────────────────────────────────
 
-  router.post("/:id/prompts", requireOrg, canManage, asyncHandler(async (req, res) => {
-    const body = setPromptsSchema.safeParse(req.body ?? {});
-    if (!body.success) { badRequest(res, body.error); return; }
-    const prepared = await prepare(req, res, "prompts");
-    if (!prepared) return;
-
-    const { prompts, allowRemoveDriverId } = body.data;
-
-    /**
-     * The removal decision is made against the card EFS reports INSIDE the operation, never against
-     * the mirror: a prompt removed in the WEX portal five minutes ago must not make this refuse, and
-     * one added there must not slip through unauthorised.
-     *
-     * It therefore has to happen inside `buildEdits`, which `planCardMutation` calls after the fresh
-     * read and BEFORE it opens a ledger row. Throwing from here is what makes the refusal safe: no
-     * row is written, nothing is dispatched, and there is no half-finished record of a change that
-     * never happened.
-     */
-    const buildEdits = (doc: Parameters<CardMutationIntentSpec["buildEdits"]>[0]) => {
-      const plan = promptsEdits(doc, prompts);
-      assertPromptRemovalAllowed(plan.removedInfoIds, allowRemoveDriverId, hasFreshAuth(req));
-      return plan.edits;
-    };
-
-    try {
-      const outcome = await executeCardMutation(
-        {
-          ...prepared.ctx,
-          reason: body.data.reason,
-          expectedVersion: body.data.expectedVersion,
-          requestFingerprint: mutationFingerprint("prompts_set", prepared.ctx.efsCardId, body.data),
-        },
-        {
-          intent: "prompts_set",
-          auditAction: "card.prompts_changed",
-          buildEdits,
-          auditMeta: (doc) => {
-            const plan = promptsEdits(doc, prompts);
-            return { promptsBefore: plan.before, promptsAfter: plan.after, removedInfoIds: plan.removedInfoIds };
-          },
-        },
-      );
-      res.json({ ok: outcome.status === "succeeded", ...outcome });
-    } catch (error) {
-      if (error instanceof ActionRefusalError) {
-        if (error.code === "step_up_required") { stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, error.message); return; }
-        res.status(400).json(apiError(error.code, error.message));
-        return;
-      }
-      controlErrorResponse(res, error);
-    }
-  }));
+  // `POST /:id/prompts` left in Step 3.6, the last of the five. Its removal refusal is now the
+  // capability's `precondition`, which the orchestrator runs after the fresh read and before the
+  // ledger row opens — the same place, and the same two refusal codes, as the `buildEdits` throw it
+  // replaced. This router is reads-and-history only now; Step 3.7 finishes the job.
 
   // ── History ─────────────────────────────────────────────────────────────────────────────────────
 

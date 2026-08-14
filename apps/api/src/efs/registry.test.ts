@@ -7,6 +7,7 @@ import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
 import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.js";
 import { deleteOverrideBehaviour, overrideClearBehaviour } from "./capabilities/overrideClear.behaviour.js";
+import { promptsSetBehaviour } from "./capabilities/promptsSet.behaviour.js";
 import { ALL_CAPABILITIES, mountedCapabilities } from "./registry.js";
 
 /**
@@ -24,11 +25,12 @@ import { ALL_CAPABILITIES, mountedCapabilities } from "./registry.js";
  */
 
 const behaviours = { card_lock: cardLockBehaviour, card_unlock: cardUnlockBehaviour, override_grant: overrideGrantBehaviour,
-  override_clear: overrideClearBehaviour, delete_override: deleteOverrideBehaviour } as const;
+  override_clear: overrideClearBehaviour, delete_override: deleteOverrideBehaviour,
+  prompts_set: promptsSetBehaviour } as const;
 const MOUNT_PREFIX = "/api/fuel-cards";
 
 /** The keys this test knows about. Deliberately hardcoded: it is the thing being compared against. */
-const EXPECTED_KEYS = ["card_lock", "card_unlock", "delete_override", "override_clear", "override_grant"];
+const EXPECTED_KEYS = ["card_lock", "card_unlock", "delete_override", "override_clear", "override_grant", "prompts_set"];
 /** The two mechanisms of `override_clear`. Exactly one of these is ever mounted. */
 const CLEAR_MECHANISMS = ["override_clear", "delete_override"];
 

@@ -53,7 +53,9 @@ export async function planCardMutation<TBody>(
     { env: ctx.env, stepUp: ctx.stepUp === true }, before, capability.body,
   );
   if (planStepUp) throw new ActionRefusalError(planStepUp, "step_up_required");
-  capability.governance.precondition?.(before, capability.body);
+  capability.governance.precondition?.(
+    { env: ctx.env, stepUp: ctx.stepUp === true }, before, capability.body,
+  );
 
   // Only the FIRST step's edits are built here, because only they can be judged before the ledger row
   // exists — a refusal thrown from `buildEdits` leaves no row and dispatches nothing. Later steps of a
