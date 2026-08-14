@@ -6,6 +6,7 @@ import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import { parseCardDocument } from "./efsCardXml.js";
 import { classifySetCardResponse, deleteOverrideOp, editsLanded, isDecline, setCardV2 } from "./efsCardWrite.js";
 import { EfsSoapError, __resetEfsSessions } from "./efsSoapSession.js";
+import { childElements, collectElements, localName } from "./efsXml.js";
 import { __resetSoapPacing } from "./soapClient.js";
 
 /**
@@ -275,5 +276,83 @@ describe("editsLanded", () => {
   it("says a removeAll landed only when the collection is actually gone", () => {
     const before = doc();
     expect(editsLanded(before, [{ op: "removeAll", name: "infos" }])).toBe(false);
+  });
+
+  /**
+   * These four are about the direction this function is allowed to be wrong in.
+   *
+   * It resolves `sent` rows — writes whose outcome nobody knows — with no before-document to diff
+   * against. A false NEGATIVE leaves a row unresolved for a human to look at. A false POSITIVE
+   * records a write that never applied as succeeded, and nothing ever looks at it again.
+   */
+  it("does not call a prompts replaceAll landed just because the record COUNT matches", () => {
+    // The card EFS returns is unchanged — the write did not apply. Three records before, three after,
+    // so a count comparison says "landed" on the single most common prompts edit there is.
+    const after = doc();
+    const records = collectElements(after.root, "infos").map((el) => {
+      const record: Record<string, string | null> = {};
+      for (const child of childElements(el)) record[localName(child)] = (child.textContent ?? "").trim();
+      return record;
+    });
+    const changed = records.map((r) => (r.infoId === "DRID" ? { ...r, matchValue: "D-9999" } : r));
+
+    expect(editsLanded(after, [{ op: "replaceAll", name: "infos", records: changed }])).toBe(false);
+  });
+
+  it("says a replaceAll landed when the fresh document actually carries the new values", () => {
+    const after = parseCardDocument(fixture("getCardV2.full.xml").replace("D-4471", "D-9999"));
+    const records = collectElements(after.root, "infos").map((el) => {
+      const record: Record<string, string | null> = {};
+      for (const child of childElements(el)) record[localName(child)] = (child.textContent ?? "").trim();
+      return record;
+    });
+
+    expect(editsLanded(after, [{ op: "replaceAll", name: "infos", records }])).toBe(true);
+  });
+
+  it("does not call a replaceAll landed when a record we did not intend is still there", () => {
+    // Same count, different membership: we asked for {DRID, UNIT, NEW} and the card holds
+    // {DRID, UNIT, ODRD}. Identity has to be compared, not cardinality.
+    const after = doc();
+    const records = collectElements(after.root, "infos")
+      .map((el) => {
+        const record: Record<string, string | null> = {};
+        for (const child of childElements(el)) record[localName(child)] = (child.textContent ?? "").trim();
+        return record;
+      })
+      .map((r) => (r.infoId === "ODRD" ? { ...r, infoId: "TRIP" } : r));
+
+    expect(editsLanded(after, [{ op: "replaceAll", name: "infos", records }])).toBe(false);
+  });
+
+  it("does not report an appendRecord landed when the record is not on the card", () => {
+    const after = doc();
+    expect(
+      editsLanded(after, [
+        { op: "appendRecord", name: "limits", record: { limitId: "DEF", limit: "40", hours: "24", minHours: "0" } },
+      ]),
+    ).toBe(false);
+  });
+
+  it("refuses to call anything landed when a record on the card cannot be identified", () => {
+    // Unknown must resolve to "not landed": the row stays visible for a human instead of being
+    // written off as succeeded on the strength of a record nobody can match.
+    const after = parseCardDocument(fixture("getCardV2.full.xml").replace("<infoId>ODRD</infoId>", "<infoId></infoId>"));
+    const records = collectElements(after.root, "infos").map((el) => {
+      const record: Record<string, string | null> = {};
+      for (const child of childElements(el)) record[localName(child)] = (child.textContent ?? "").trim();
+      return record;
+    });
+
+    expect(editsLanded(after, [{ op: "replaceAll", name: "infos", records }])).toBe(false);
+  });
+
+  it("reports an appendRecord landed when the record is on the card with the values we sent", () => {
+    const after = doc();
+    expect(
+      editsLanded(after, [
+        { op: "appendRecord", name: "limits", record: { limitId: "CADV", limit: "100", hours: "168" } },
+      ]),
+    ).toBe(true);
   });
 });

@@ -1,7 +1,8 @@
 import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
+import { identityFieldFor, recordIdentity } from "./efsCardCollections.js";
 import { assertEchoFidelity, serializeSetCardRequest, type CardEdit } from "./efsCardEcho.js";
-import { type CardDocument, redactCardXml } from "./efsCardXml.js";
+import { type CardCollection, type CardDocument, redactCardXml } from "./efsCardXml.js";
 import { callCardOp, elAlways, type CardOpOptions } from "./efsCardOps.js";
 import { EfsSoapError, parseSoap } from "./efsSoapSession.js";
 import { childElements, collectElements, findDescendant, localName, type XmlElement } from "./efsXml.js";
@@ -279,18 +280,98 @@ export function editsLanded(after: CardDocument, edits: readonly CardEdit[]): bo
         break;
       }
       case "replaceAll": {
-        if (collectElements(after.root, edit.name).length !== edit.records.length) return false;
+        if (!collectionMatches(after, edit.name, edit.records)) return false;
         break;
       }
       case "appendRecord": {
-        // Cannot be asserted by count alone without knowing the prior count, and the caller has the
-        // before-document for that. Phase 1 uses no appendRecord edits; when Phase C does, this is the
-        // branch to make exact rather than the one to trust.
+        // Presence of the record we appended, by identity and by the values we sent. This CANNOT
+        // distinguish "our append landed" from "a record with that identity was already there", which
+        // needs the before-document nobody has here — but absence is conclusive, and the branch used
+        // to report every append landed without looking at the card at all.
+        if (!recordPresent(after, edit.name, edit.record)) return false;
         break;
       }
     }
   }
   return true;
+}
+
+/**
+ * The three spellings of "no value" EFS uses, collapsed.
+ *
+ * A missing element, `xsi:nil` and an empty element all mean the same thing to this vendor, and a
+ * blanked field (guide p137) is written as the empty one. Collapsing them merges only the empties —
+ * a real value still never equals a different real value — which is the same narrow tolerance
+ * `vendorNormalisedOnly` grants for casing, and for the same reason: this function's false
+ * NEGATIVES leave rows stuck, in the one code path whose job is un-sticking them.
+ */
+function recordFieldValue(record: XmlElement, name: string): string | null {
+  const found = childElements(record).find((child) => localName(child) === name);
+  if (!found) return null;
+  const nil = found.getAttribute("xsi:nil") ?? found.getAttribute("nil");
+  if (nil === "true" || nil === "1") return null;
+  const text = (found.textContent ?? "").trim();
+  return text === "" ? null : text;
+}
+
+/** Does this element carry every field of `record`, with the values we sent? */
+function recordCarries(element: XmlElement, record: Record<string, string | null>): boolean {
+  for (const [name, intended] of Object.entries(record)) {
+    const actual = recordFieldValue(element, name);
+    // Both empty (missing / nil / blank) counts as a match; otherwise compare with the same
+    // case-insensitivity the scalar fields get.
+    if (intended === null || intended.trim() === "") {
+      if (actual !== null) return false;
+      continue;
+    }
+    if (actual === null || actual.trim().toLowerCase() !== intended.trim().toLowerCase()) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether the collection on the card IS the set of records we asked for.
+ *
+ * Identity sets, not cardinality. A `replaceAll` states the collection's whole intended contents, so
+ * "landed" means the card holds those records and no others — comparing counts calls the commonest
+ * prompts edit of all landed whenever EFS ignored it, because changing a record's VALUE does not
+ * change how many records there are.
+ *
+ * A record whose identity cannot be read, on either side, means the answer is unknown, and unknown
+ * resolves to "not landed" so the row stays visible.
+ */
+function collectionMatches(
+  after: CardDocument,
+  name: CardCollection,
+  records: readonly Record<string, string | null>[],
+): boolean {
+  const field = identityFieldFor(name);
+  const actual = new Map<string, XmlElement>();
+  for (const element of collectElements(after.root, name)) {
+    const identity = recordIdentity(name, element);
+    if (identity === null) return false;
+    actual.set(identity, element);
+  }
+  if (actual.size !== records.length) return false;
+
+  for (const record of records) {
+    const identity = field ? record[field] : null;
+    if (identity == null || identity.trim() === "") return false;
+    const element = actual.get(identity.trim());
+    if (!element || !recordCarries(element, record)) return false;
+  }
+  return true;
+}
+
+/** Whether a record with this identity and these values is on the card at all. */
+function recordPresent(after: CardDocument, name: CardCollection, record: Record<string, string | null>): boolean {
+  const field = identityFieldFor(name);
+  const identity = field ? record[field] : null;
+  if (identity == null || identity.trim() === "") return false;
+
+  return collectElements(after.root, name).some(
+    (element) => recordIdentity(name, element) === identity.trim() && recordCarries(element, record),
+  );
 }
 
 function fieldText(root: XmlElement, name: string): string | null {

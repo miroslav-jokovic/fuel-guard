@@ -41,6 +41,30 @@ const IDENTITY_FIELD: Partial<Record<CardCollection, string>> = {
   timeRestrictions: "day",
 };
 
+/** Which field names a record in this collection, if the collection has one. */
+export const identityFieldFor = (collection: CardCollection): string | undefined => IDENTITY_FIELD[collection];
+
+/**
+ * Which record this is, or null when that cannot be established.
+ *
+ * The single definition of record identity in this codebase, exported because `editsLanded` has to
+ * ask the same question about the same records. Two functions with their own idea of what makes a
+ * record "the same record" is the failure shape this whole phase is about.
+ *
+ * Returns null rather than throwing so each caller picks its own fail-closed answer: the echo guard
+ * refuses to send, the reconciler declines to call a row landed.
+ */
+export function recordIdentity(collection: CardCollection, element: XmlElement): string | null {
+  const children = childElements(element);
+  if (children.length === 0) return (element.textContent ?? "").trim();
+
+  const field = IDENTITY_FIELD[collection];
+  if (!field) return null;
+  const child = children.find((c) => localName(c) === field);
+  const value = (child?.textContent ?? "").trim();
+  return child && value !== "" ? value : null;
+}
+
 function unverifiable(message: string): EfsSoapError {
   return new EfsSoapError(`Refusing to send a setCard request we cannot verify: ${message}`, "echo_unfaithful");
 }
@@ -54,19 +78,15 @@ function unverifiable(message: string): EfsSoapError {
  * never a thing that merely happens.
  */
 function identityOf(collection: CardCollection, element: XmlElement): string {
-  const children = childElements(element);
-  if (children.length === 0) return (element.textContent ?? "").trim();
+  const identity = recordIdentity(collection, element);
+  if (identity !== null) return identity;
 
   const field = IDENTITY_FIELD[collection];
-  if (!field) {
-    throw unverifiable(`<${collection}> records have fields but no declared identity field`);
-  }
-  const child = children.find((c) => localName(c) === field);
-  const value = (child?.textContent ?? "").trim();
-  if (!child || value === "") {
-    throw unverifiable(`a <${collection}> record has no usable <${field}>`);
-  }
-  return value;
+  throw unverifiable(
+    field
+      ? `a <${collection}> record has no usable <${field}>`
+      : `<${collection}> records have fields but no declared identity field`,
+  );
 }
 
 /** Records by identity. A LIST per key, so dropping one of two same-keyed records is still a drop. */
