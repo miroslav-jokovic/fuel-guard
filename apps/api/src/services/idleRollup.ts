@@ -146,7 +146,9 @@ function sessionDutyEvidence(
   segmentsByVehicle: Map<string, HosSegment[]>,
   vehicleTimelines: Map<string, HosVehicleTimeline>,
 ): RollupDutyEvidence | undefined {
-  if (session.mode !== "continuous") return undefined;
+  // Built for EVERY mode now. The rest/on-duty/other split shown on the truck row covers all parked idle,
+  // while the hos_* verdict buckets still take continuous parks only — that filter lives in the rollup
+  // builder, so one overlay feeds both instead of the row carrying two disagreeing HOS splits.
   const evidence = buildEvidence(
     segmentsByVehicle,
     segmentsByDriver,
@@ -321,17 +323,6 @@ export async function syncIdleRollup(
           vehicleTimelines,
         ),
       })),
-    events: events
-      .filter((e) => e.vehicle_id)
-      .map((e) => ({
-        vehicleId: e.vehicle_id!,
-        driverId: e.driver_id,
-        startMs: Date.parse(e.started_at),
-        durationSec: Number(e.duration_sec),
-      })),
-    segmentsByDriver,
-    segmentsByVehicle,
-    vehicleTimelines,
     assignments,
     windowStartMs: inputStartMs,
     windowEndMs: endMs,

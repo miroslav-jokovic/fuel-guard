@@ -41,7 +41,13 @@ describe("syncIdleRollup", () => {
           },
         ],
         idle_park_sessions: [
-          { vehicle_id: "v1", started_at: dayT(1), idle_sec: 900, mode: "continuous" },
+          {
+            vehicle_id: "v1",
+            started_at: dayT(1),
+            ended_at: dayT(2),
+            idle_sec: 900,
+            mode: "continuous",
+          },
         ],
         idle_events: [
           { vehicle_id: "v1", driver_id: "d1", started_at: dayT(2), duration_sec: 600 },
@@ -55,7 +61,9 @@ describe("syncIdleRollup", () => {
             ended_at: dayT(6),
           },
         ],
-        driver_vehicle_assignments: [],
+        driver_vehicle_assignments: [
+          { vehicle_samsara_id: "s1", driver_samsara_id: "op1", start_at: dayT(0), end_at: null },
+        ],
         vehicles: [{ id: "v1", samsara_vehicle_id: "s1" }],
         drivers: [{ id: "d1", samsara_driver_id: "op1" }],
         organizations: [{ id: ORG, operating_hours: { tz: "UTC" } }],
@@ -77,9 +85,12 @@ describe("syncIdleRollup", () => {
       coverage_sec: 5400,
       continuous_idle_sec: 900,
       managed_idle_sec: 0,
-      rest_idle_sec: 600, // event fully inside the sleeper segment
+      // The park's own duty overlay, weighted onto its 900 s of idle — not an idle-event overlay.
+      rest_idle_sec: 900,
       work_idle_sec: 0,
-      other_idle_sec: 0,
+      // The 900 s of idle no park covered: real, but with no timing it cannot be placed against a duty
+      // status, so it is "other" rather than silently counted as rest.
+      other_idle_sec: 900,
       attributed_driver_id: "d1",
     });
 
@@ -161,7 +172,7 @@ describe("syncIdleRollup", () => {
             continuous_idle_sec: 0,
             rest_idle_sec: 0,
             work_idle_sec: 0,
-            other_idle_sec: 0,
+            other_idle_sec: 50, // idle under the 30-min park floor: reported as unclassifiable, not dropped
             attributed_driver_id: null,
           },
         ],

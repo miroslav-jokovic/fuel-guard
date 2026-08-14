@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { buildIdleRollupDays } from "./idleRollup.js";
-import type { HosSegment } from "./hos.js";
 
 const T0 = Date.parse("2026-06-01T00:00:00.000Z"); // day boundary
 const H = 3600_000;
@@ -21,8 +20,6 @@ describe("buildIdleRollupDays", () => {
         { vehicleId: "v1", startedAtMs: T0 + 5 * H, idleSec: 300, mode: "apu_or_off" },
         { vehicleId: "v1", startedAtMs: T0 + 6 * H, idleSec: 200, mode: "optimized_cycling" },
       ],
-      events: [],
-      segmentsByDriver: new Map(),
       assignments: [],
       ...win,
     });
@@ -56,8 +53,6 @@ describe("buildIdleRollupDays", () => {
         { vehicleId: "v1", startedAtMs: T0 + H, idleSec: 5 * 3600, mode: "continuous" },
         { vehicleId: "v1", startedAtMs: T0 + 2 * H, idleSec: 3 * 3600, mode: "apu_or_off" },
       ],
-      events: [],
-      segmentsByDriver: new Map(),
       assignments: [],
       ...win,
     });
@@ -89,8 +84,6 @@ describe("buildIdleRollupDays", () => {
           mode: "continuous",
         },
       ],
-      events: [],
-      segmentsByDriver: new Map(),
       assignments: [],
       ...win,
     });
@@ -124,8 +117,6 @@ describe("buildIdleRollupDays", () => {
           },
         },
       ],
-      events: [],
-      segmentsByDriver: new Map(),
       assignments: [],
       ...win,
     });
@@ -149,8 +140,6 @@ describe("buildIdleRollupDays", () => {
           mode: "continuous",
         },
       ],
-      events: [],
-      segmentsByDriver: new Map(),
       assignments: [],
       tz: "America/Chicago",
       ...win,
@@ -159,38 +148,62 @@ describe("buildIdleRollupDays", () => {
     expect(rows[0]).toMatchObject({ day: D1, continuousIdleSec: 3600 });
   });
 
-  it("overlays HOS duty onto idle events (rest/work), with uncovered time and no-driver idle → other", () => {
-    const segs = new Map<string, HosSegment[]>([
-      [
-        "d1",
-        [
-          { driverId: "d1", status: "sleeper", startMs: T0, endMs: T0 + 2 * H },
-          { driverId: "d1", status: "on_duty", startMs: T0 + 2 * H, endMs: T0 + 3 * H },
-        ],
-      ],
-    ]);
+  it("builds the rest/on-duty/other split from the parks' own duty overlay, not from idle events", () => {
+    // The row used to carry TWO different HOS splits: these display columns from an idle-event overlay,
+    // and the hos_* verdict columns from the park sessions. They disagreed by construction. Both now come
+    // from the same place — and the verdict columns still count CONTINUOUS parks only, while the display
+    // columns cover every park.
     const rows = buildIdleRollupDays({
-      engineDays: [],
-      sessions: [],
-      events: [
-        // 1h fully inside sleeper → rest; 1h spanning sleeper→on_duty 30/30.
-        { vehicleId: "v1", driverId: "d1", startMs: T0, durationSec: 3600 },
-        { vehicleId: "v1", driverId: "d1", startMs: T0 + 1.5 * H, durationSec: 3600 },
-        // 1h with no covering segment at all → other (uncovered).
-        { vehicleId: "v1", driverId: "d1", startMs: T0 + 5 * H, durationSec: 3600 },
-        // no driver → other.
-        { vehicleId: "v1", driverId: null, startMs: T0 + 7 * H, durationSec: 600 },
+      engineDays: [
+        { vehicleId: "v1", day: D1, driveSec: 0, idleSec: 5 * H_S, offSec: 0, coverageSec: 5 * H_S },
       ],
-      segmentsByDriver: segs,
+      sessions: [
+        {
+          vehicleId: "v1",
+          startedAtMs: T0 + H,
+          endedAtMs: T0 + 4 * H,
+          idleSec: 3 * H_S,
+          mode: "continuous",
+          dutyEvidence: {
+            status: "sufficient",
+            restSec: 2 * H_S,
+            workSec: 0.5 * H_S,
+            unknownSec: 0.5 * H_S,
+            ambiguousSec: 0,
+            graceSec: 0,
+          },
+        },
+        {
+          vehicleId: "v1",
+          startedAtMs: T0 + 5 * H,
+          endedAtMs: T0 + 6 * H,
+          idleSec: 1 * H_S,
+          mode: "apu_or_off",
+          dutyEvidence: {
+            status: "sufficient",
+            restSec: 1 * H_S,
+            workSec: 0,
+            unknownSec: 0,
+            ambiguousSec: 0,
+            graceSec: 0,
+          },
+        },
+      ],
       assignments: [],
       ...win,
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      restIdleSec: 3600 + 1800,
-      workIdleSec: 1800,
-      otherIdleSec: 3600 + 600,
+      // Display: BOTH parks — 2h rest continuous + 1h rest managed.
+      restIdleSec: 3 * H_S,
+      workIdleSec: 0.5 * H_S,
+      // 0.5h unevidenced + the 1h of idle no park covered (under the 30-min floor): never guessed as rest.
+      otherIdleSec: 1.5 * H_S,
+      // Verdict: the continuous park only.
+      hosRestSec: 2 * H_S,
+      hosWorkSec: 0.5 * H_S,
     });
+    expect(rows[0]!.restIdleSec + rows[0]!.workIdleSec + rows[0]!.otherIdleSec).toBe(5 * H_S);
   });
 
   it("preserves Optimized Idle envelope evidence with the continuous session", () => {
@@ -221,8 +234,6 @@ describe("buildIdleRollupDays", () => {
           },
         },
       ],
-      events: [],
-      segmentsByDriver: new Map(),
       assignments: [],
       ...win,
     });
@@ -255,8 +266,6 @@ describe("buildIdleRollupDays", () => {
           },
         },
       ],
-      events: [],
-      segmentsByDriver: new Map(),
       assignments: [],
       ...win,
     });
@@ -268,18 +277,19 @@ describe("buildIdleRollupDays", () => {
     });
   });
 
-  it("attributes the day to the dominant driver by idle-event duration", () => {
+  it("attributes the day to the driver assigned for most of it", () => {
+    // Attribution is the driver<->vehicle assignment, not the operator Samsara stamped on an idle event:
+    // assignments cover 98.7% of truck-days against the events' 84.3%, and dropping the event signal cost
+    // nothing measurable (audit 2026-08-13).
     const rows = buildIdleRollupDays({
       engineDays: [
         { vehicleId: "v1", day: D1, driveSec: 0, idleSec: 0, offSec: 0, coverageSec: 0 },
       ],
       sessions: [],
-      events: [
-        { vehicleId: "v1", driverId: "dA", startMs: T0 + H, durationSec: 600 },
-        { vehicleId: "v1", driverId: "dB", startMs: T0 + 2 * H, durationSec: 6000 },
+      assignments: [
+        { vehicleId: "v1", driverId: "dA", startMs: T0, endMs: T0 + 4 * H },
+        { vehicleId: "v1", driverId: "dB", startMs: T0 + 4 * H, endMs: T0 + 20 * H },
       ],
-      segmentsByDriver: new Map(),
-      assignments: [],
       ...win,
     });
     expect(rows[0]!.attributedDriverId).toBe("dB");
@@ -292,9 +302,8 @@ describe("buildIdleRollupDays", () => {
         { vehicleId: "v1", day: D2, driveSec: 100, idleSec: 0, offSec: 0, coverageSec: 100 },
       ],
       sessions: [],
-      events: [{ vehicleId: "v1", driverId: "dA", startMs: T0 + H, durationSec: 600 }], // only day 1
-      segmentsByDriver: new Map(),
-      assignments: [],
+      // dA is assigned on day 1 only; day 2 has engine time but no assignment of its own.
+      assignments: [{ vehicleId: "v1", driverId: "dA", startMs: T0, endMs: T0 + 12 * H }],
       ...win,
     });
     const d2 = rows.find((r) => r.day === D2)!;
@@ -306,9 +315,7 @@ describe("buildIdleRollupDays", () => {
       engineDays: [
         { vehicleId: "v1", day: D1, driveSec: 100, idleSec: 50, offSec: 0, coverageSec: 150 },
       ],
-      sessions: [],
-      events: [{ vehicleId: "v1", driverId: "dA", startMs: T0 + H, durationSec: 60 }], // 60s for dA
-      segmentsByDriver: new Map(),
+      sessions: [], // 60s for dA
       // Open-ended assignment for dB covering the whole day → far more weight than dA's one event.
       assignments: [{ vehicleId: "v1", driverId: "dB", startMs: T0, endMs: null }],
       windowStartMs: T0,
@@ -317,17 +324,16 @@ describe("buildIdleRollupDays", () => {
     expect(rows[0]!.attributedDriverId).toBe("dB");
   });
 
-  it("creates a row for a day that only has an idle event (no engine-day row)", () => {
+  it("creates no row for a truck-day with no engine time and no park session", () => {
+    // Rows used to be conjured by an idle event alone. Engine days and park sessions are the only
+    // observations now, so an assignment by itself describes no measured idle and earns no row.
     const rows = buildIdleRollupDays({
       engineDays: [],
       sessions: [],
-      events: [{ vehicleId: "v9", driverId: null, startMs: T0 + H, durationSec: 120 }],
-      segmentsByDriver: new Map(),
-      assignments: [],
+      assignments: [{ vehicleId: "v9", driverId: "dA", startMs: T0, endMs: T0 + 12 * H }],
       ...win,
     });
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ vehicleId: "v9", day: D1, otherIdleSec: 120, driveSec: 0 });
+    expect(rows).toEqual([]);
   });
 
   it("rounds every persisted seconds aggregate to an integer", () => {
@@ -367,16 +373,6 @@ describe("buildIdleRollupDays", () => {
           },
         },
       ],
-      events: [{ vehicleId: "v1", driverId: "d1", startMs: T0, durationSec: fractional }],
-      segmentsByDriver: new Map([
-        [
-          "d1",
-          [
-            { driverId: "d1", status: "sleeper", startMs: T0, endMs: T0 + 4_000_000 },
-            { driverId: "d1", status: "on_duty", startMs: T0 + 4_000_000, endMs: T0 + 8_000_000 },
-          ],
-        ],
-      ]),
       assignments: [],
       ...win,
     });
