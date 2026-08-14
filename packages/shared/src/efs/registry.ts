@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import { cardLockContract } from "./capabilities/cardLock.contract.js";
 import { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
+import { overrideGrantContract } from "./capabilities/overrideGrant.contract.js";
 import type { CapabilityContract } from "./types.js";
 
 /**
@@ -22,6 +23,7 @@ import type { CapabilityContract } from "./types.js";
 export const CARD_CAPABILITY_CONTRACTS: Readonly<Record<string, CapabilityContract<z.ZodTypeAny>>> = {
   [cardLockContract.key]: cardLockContract,
   [cardUnlockContract.key]: cardUnlockContract,
+  [overrideGrantContract.key]: overrideGrantContract,
 };
 
 /** The keys, for anything that needs the set rather than the declarations. */
@@ -31,3 +33,5 @@ export { cardLockContract } from "./capabilities/cardLock.contract.js";
 export type { CardLockBody } from "./capabilities/cardLock.contract.js";
 export { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
 export type { CardUnlockBody } from "./capabilities/cardUnlock.contract.js";
+export { overrideGrantContract, overrideStepUpMessage } from "./capabilities/overrideGrant.contract.js";
+export type { OverrideGrantBody } from "./capabilities/overrideGrant.contract.js";

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { CARD_CAPABILITY_CONTRACTS, CARD_MUTATION_INTENTS, cardWriteBucket } from "@fuelguard/shared";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
+import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.js";
 import { MOUNTED_CAPABILITIES } from "./registry.js";
 
 /**
@@ -20,11 +21,11 @@ import { MOUNTED_CAPABILITIES } from "./registry.js";
  * never seen (Phase 0 Step 0.7). A count assertion first is what makes the rest mean anything.
  */
 
-const behaviours = { card_lock: cardLockBehaviour, card_unlock: cardUnlockBehaviour } as const;
+const behaviours = { card_lock: cardLockBehaviour, card_unlock: cardUnlockBehaviour, override_grant: overrideGrantBehaviour } as const;
 const MOUNT_PREFIX = "/api/fuel-cards";
 
 /** The keys this test knows about. Deliberately hardcoded: it is the thing being compared against. */
-const EXPECTED_KEYS = ["card_lock", "card_unlock"];
+const EXPECTED_KEYS = ["card_lock", "card_unlock", "override_grant"];
 
 describe("the capability registries agree with each other", () => {
   it("discovered every capability — without this, every loop below is vacuous", () => {
