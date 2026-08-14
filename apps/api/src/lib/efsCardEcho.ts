@@ -1,5 +1,5 @@
 import { diffCanonical, type EchoDiff } from "./efsCardCanonical.js";
-import { assertSequenceOrder, sequenceRank } from "./efsCardSequence.js";
+import { assertSequenceOrder, orderRecordFields, sequenceRank } from "./efsCardSequence.js";
 import { assertCollectionsPreserved } from "./efsCardCollections.js";
 import { EfsSoapError } from "./efsSoapSession.js";
 import {
@@ -80,9 +80,27 @@ function serializeElement(element: XmlElement): string {
   return `<${name}>${children.map(serializeElement).join("")}</${name}>`;
 }
 
+/**
+ * One record of a repeated collection, in its type's DECLARED field order.
+ *
+ * Not `Object.entries` order, which is whatever order the caller happened to type the object literal
+ * in. Every other element in the request inherits its order from the response DOM, so this was the
+ * one place where a request's shape depended on how someone wrote a JavaScript object — and a
+ * `<sequence>` is ordered, on records exactly as on the card (guide p138-139, WSDL).
+ *
+ * Nothing in production emits an out-of-order record today: the update path spreads the DOM record
+ * (a spread keeps each key's first-insertion position, so reassigning does not move it), and the
+ * append path was written in sequence order by hand. This closes the latent case — the next caller
+ * to write `{ infoId, validationType, matchValue }`, which is the natural order to think in.
+ */
 function serializeRecord(name: string, record: Record<string, string | null>): string {
-  const fields = Object.entries(record)
-    .map(([key, value]) => (value === null ? `<${key} xsi:nil="true"/>` : `<${key}>${xmlEscapeText(value)}</${key}>`))
+  const fields = orderRecordFields(name, Object.keys(record))
+    .map((key) => {
+      const value = record[key];
+      return value === null || value === undefined
+        ? `<${key} xsi:nil="true"/>`
+        : `<${key}>${xmlEscapeText(value)}</${key}>`;
+    })
     .join("");
   return `<${name}>${fields}</${name}>`;
 }
