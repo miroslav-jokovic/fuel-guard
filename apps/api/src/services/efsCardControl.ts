@@ -1,28 +1,20 @@
 import { applyCardMutation } from "../efs/orchestrator/dispatch.js";
 import { cardLedger, type LedgerAdapter } from "../efs/orchestrator/ledger.js";
 import { planCardMutation } from "../efs/orchestrator/plan.js";
-import { resolveIntentSpec } from "../efs/orchestrator/resolve.js";
-import type {
-  CardMutationContext,
-  CardMutationIntentSpec,
-  CardMutationOutcome,
-  ResolvedCapability,
-} from "../efs/orchestrator/types.js";
+import type { CardMutationContext, CardMutationOutcome, ResolvedCapability } from "../efs/orchestrator/types.js";
 import { withEfsCardWriteDeadline } from "./efsCardWriteDeadline.js";
 
 export { CardControlError } from "./efsCardControlErrors.js";
 export { CardMutationReplay } from "../efs/orchestrator/types.js";
 export type {
   CardMutationContext,
-  CardMutationIntentSpec,
   CardMutationOutcome,
   CardMutationPlan,
-  CardMutationVendorOp,
   ResolvedCapability,
 } from "../efs/orchestrator/types.js";
 export { applyCardMutation } from "../efs/orchestrator/dispatch.js";
 export { planCardMutation } from "../efs/orchestrator/plan.js";
-export { resolveIntentSpec } from "../efs/orchestrator/resolve.js";
+export { resolveCapability } from "../efs/orchestrator/resolve.js";
 
 /**
  * Changing a fuel card in EFS: one path, one ledger row, one recorded outcome for every branch.
@@ -47,7 +39,7 @@ export { resolveIntentSpec } from "../efs/orchestrator/resolve.js";
  *
  * What is deliberately NOT here: the request-shaped half of `prepare()` — kill switch, idempotency
  * key, access, credentials, target resolution, `preflightStepUp`, the write limiter — which lives in
- * `routes/fuelCards/control.ts` until a descriptor drives a route in Step 3.5.
+ * `routes/fuelCards/controlPrepare.ts` and is called by the generated router.
  */
 
 /**
@@ -67,18 +59,4 @@ export async function executeCapability<TBody>(
     const scoped = { ...ctx, signal };
     return applyCardMutation(scoped, await planCardMutation(scoped, capability, ledger), ledger);
   });
-}
-
-/**
- * Plan and apply in one call — the Phase 1 route path.
- *
- * Still takes a `CardMutationIntentSpec` because all five routes still speak it; `resolveIntentSpec`
- * translates at the door. Steps 3.5 and 3.6 move the routes onto `executeCapability` one at a time,
- * and 3.7 deletes this function with the spec.
- */
-export async function executeCardMutation(
-  ctx: CardMutationContext,
-  spec: CardMutationIntentSpec,
-): Promise<CardMutationOutcome> {
-  return executeCapability(ctx, resolveIntentSpec(spec));
 }

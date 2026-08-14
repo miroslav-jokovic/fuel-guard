@@ -54,6 +54,18 @@ const env = loadEnv({
   // the pacer proving nothing.
   EFS_SOAP_INTERACTIVE_RPS: "100",
   EFS_SOAP_MAX_RPS: "100",
+  /**
+   * 0 = no second verifying look, and the same reasoning as the line above: the stub answers the
+   * re-read with the SAME document, so four of these five cases were sleeping the full 3s default
+   * before deciding a landing this suite does not assert. Each case ran at 3.1s against vitest's 5s
+   * timeout — 62% of the budget — and tipped over under load in a full run, which is a red gate for
+   * the suite that gates every migration in this phase.
+   *
+   * Nothing is weakened: what is asserted here is the DISPATCHED BYTES, which are produced before
+   * any verification runs. The second look has its own coverage in efsCardControl.test.ts, in
+   * "the second verifying look".
+   */
+  EFS_CARD_VERIFY_RETRY_MS: "0",
 } as NodeJS.ProcessEnv);
 
 const ADMIN: AuthContext = { userId: "u-admin", email: "a@x.test", orgId: ORG, role: "admin" };

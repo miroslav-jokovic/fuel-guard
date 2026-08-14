@@ -50,45 +50,6 @@ export interface CardMutationContext {
 }
 
 /**
- * A dedicated vendor operation replacing the setCardv2 echo for one intent (fix plan D1).
- *
- * When present, `buildEdits` returns `[]` — the wire write is not an edit list, so the ledger's
- * `edits` column honestly records that nothing was echoed. Verification and drift then need what the
- * edits would have provided:
- *
- *   `landed`      — the direct after-document predicate `intentLanded` cannot be, having no edit
- *                   paths to compare. Written to tolerate every post-state shape the vendor might
- *                   choose (0, nil, absent) until the probe pins the real one down.
- *   `movesFields` — header fields the op is EXPECTED to move. Classified as vendor-maintained in
- *                   the drift record — visible in the ledger, never alarmed as unexplained drift.
- *                   Anything else that moved is still drift, exactly as on the echo path.
- */
-export interface CardMutationVendorOp {
-  /** The only dedicated write op adopted so far. A union, so the next one extends rather than forks. */
-  op: "deleteOverride";
-  landed: (after: CardDocument) => boolean;
-  movesFields: readonly string[];
-}
-
-/**
- * The pre-capability way to describe a write. Every route still speaks this; `resolveIntentSpec`
- * translates it into a `ResolvedCapability` at the door.
- *
- * Deleted in Step 3.7, once all five routes are driven by descriptors.
- */
-export interface CardMutationIntentSpec {
-  intent: CardMutationIntent;
-  /** Built from the freshly-read document — see services/efsCardEdits.ts. */
-  buildEdits: (doc: CardDocument) => CardEdit[];
-  /** Extra audit `meta` for this intent, computed once the fresh document is in hand. */
-  auditMeta?: (doc: CardDocument) => Record<string, unknown>;
-  /** The audit action written on success. Failure and drift have their own actions. */
-  auditAction: string;
-  /** Dispatch a dedicated vendor op instead of the setCardv2 echo. See CardMutationVendorOp. */
-  vendorOp?: CardMutationVendorOp;
-}
-
-/**
  * A capability as the orchestrator executes it: the four axes of docs/27 §3, plus the body they are
  * all parameterised by and the two keys the ledger records.
  *
