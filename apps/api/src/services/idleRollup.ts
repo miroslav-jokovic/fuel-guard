@@ -5,6 +5,7 @@ import { buildEvidence } from "./idleDutyEvidenceSync.js";
 import { deriveAssignedVehicleSegments, type AssignmentRow } from "./idleDutyEvidenceSync.js";
 import { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } from "./idleWindow.js";
 import { organizationTimezone } from "./idleCapabilitySync.js";
+import { syncFuelPriceDays } from "./fuelPriceDaySync.js";
 import {
   ON_DUTY_GRACE_SEC,
   buildHosVehicleTimelines,
@@ -330,5 +331,11 @@ export async function syncIdleRollup(
   });
 
   const { written, deleted } = await persistIdleRollup(admin, orgId, rows, fromDate, toDate);
+  // The daily diesel price history the cost model charges against. Kept in step with the rollup window so
+  // every rollup day the page can render has a price row to price it with. Best-effort: a pricing failure
+  // must not fail the idle sync — the cost model falls back to the flat rate and says so.
+  await syncFuelPriceDays(admin, orgId, { sinceDays: Math.max(windowDays, 1) }).catch((error) => {
+    console.error(`[idle] fuel price day sync failed for org ${orgId}:`, error);
+  });
   return { windowDays, rows: rows.length, written, deleted };
 }

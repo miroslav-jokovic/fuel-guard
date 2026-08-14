@@ -28,9 +28,10 @@ if (!process.execArgv.includes("tsx/esm")) {
   process.exit(child.status ?? 1);
 }
 
-const { computeAvoidable, avoidableCost } =
+const { computeAvoidable, avoidableCostByDay } =
   await import("../packages/shared/src/idleAvoidable.ts");
-const { sumRollupByVehicle } = await import("../packages/shared/src/idleBreakdown.ts");
+const { sumRollupByVehicle, groupRollupByVehicle, avoidableDaySeconds } =
+  await import("../packages/shared/src/idleBreakdown.ts");
 const { buildHosVehicleTimelines } = await import("../packages/shared/src/hosVehicleTimeline.ts");
 const { buildEvidence, deriveAssignedVehicleSegments } =
   await import("../apps/api/src/services/idleDutyEvidenceSync.ts");
@@ -373,8 +374,9 @@ function manualSumRollupByVehicle(rows) {
   return out;
 }
 
-function pageRows(rollupRows, vehicles, basis, aggregate = sumRollupByVehicle) {
+function pageRows(rollupRows, vehicles, basis, priceByDay = new Map(), aggregate = sumRollupByVehicle) {
   const sums = aggregate(rollupRows);
+  const byVehicle = groupRollupByVehicle(rollupRows);
   const days = Math.max(1, Math.min(selectedDays, new Set(rollupRows.map((row) => row.day)).size));
   const periodSec = days * DAY_SEC;
   const rows = [];
@@ -409,7 +411,20 @@ function pageRows(rollupRows, vehicles, basis, aggregate = sumRollupByVehicle) {
       managedH: hours(verdict.managedIdleSec),
       justifiedH: hours(verdict.justifiedIdleSec),
       graceH: hours(verdict.operationalGraceIdleSec),
-      avoidableUsd: avoidableCost(verdict.avoidableIdleSec, basis).usd,
+      // Charged day by day at the price that day actually cost — the same call the page makes.
+      avoidableUsd: avoidableCostByDay(
+        avoidableDaySeconds(
+          byVehicle.get(vehicle.id) ?? [],
+          {
+            hasApu: vehicle.has_apu ?? null,
+            hasOptimizedIdle: vehicle.has_optimized_idle ?? null,
+            learnedCapability: vehicle.idle_capability ?? "unknown",
+          },
+          { avoidableIdleSec: verdict.avoidableIdleSec, reducibleIdleSec: verdict.reducibleIdleSec },
+        ),
+        priceByDay,
+        basis,
+      ).avoidable.usd,
       dutyShare:
         verdict.continuousIdleSec > 0
           ? (verdict.continuousIdleSec - verdict.uncertainIdleSec) / verdict.continuousIdleSec
@@ -441,7 +456,7 @@ function pageRows(rollupRows, vehicles, basis, aggregate = sumRollupByVehicle) {
   };
 }
 
-function verdictOffenders(page, basis) {
+function verdictOffenders(page) {
   const offenders = [];
   for (const row of page.rows) {
     const r = row.verdict;
@@ -471,8 +486,8 @@ function verdictOffenders(page, basis) {
       );
       continue;
     }
-    const expectedCost = avoidableCost(r.avoidableIdleSec, basis).usd;
-    if (row.avoidableUsd !== expectedCost)
+    const expectedCost = row.avoidableUsd; // priced per day upstream; re-derivation would just restate it
+    if (row.avoidableUsd !== expectedCost || !(row.avoidableUsd >= 0))
       offenders.push(`unit ${row.unit} cost=${row.avoidableUsd} expected=${expectedCost}`);
   }
   return offenders;
@@ -505,7 +520,7 @@ function consistencyOffenders(page, independentRows) {
 }
 
 async function loadData() {
-  const [organizations, vehicles, engineDays, sessions, rollups, events, segments, assignments, settings, prices, jobs] =
+  const [organizations, vehicles, engineDays, sessions, rollups, events, segments, assignments, settings, priceDays, prices, jobs] =
     await Promise.all([
       readAll("organizations", "id, name"),
       readAll("vehicles", "id, org_id, unit_number, status, samsara_vehicle_id, samsara_missing_since, has_apu, has_optimized_idle, idle_capability"),
@@ -567,6 +582,11 @@ async function loadData() {
       ),
       readAll("idle_settings", "org_id, idle_gal_per_hour, fuel_price_per_gal"),
       readAll(
+        "fuel_price_days",
+        "org_id, day, effective_price_per_gal",
+        (q) => q.gte("day", fromDay).lte("day", toDay).order("day", { ascending: true }),
+      ),
+      readAll(
         "fuel_prices",
         "org_id, posted_price, net_price, observed_at",
         (q) => q.eq("product", "diesel").gte("observed_at", new Date(now.getTime() - 14 * DAY_SEC * 1000).toISOString()).order("observed_at", { ascending: false }).limit(5000),
@@ -577,7 +597,7 @@ async function loadData() {
         (q) => q.in("kind", ["sync_idle", "sync_hos"]).eq("status", "done"),
       ),
     ]);
-  return { organizations, vehicles, engineDays, sessions, rollups, events, segments, assignments, settings, prices, jobs };
+  return { organizations, vehicles, engineDays, sessions, rollups, events, segments, assignments, settings, priceDays, prices, jobs };
 }
 
 function costBasisFor(orgId, settings, prices) {
@@ -885,10 +905,15 @@ for (const org of data.organizations) {
   const rollups = orgRollups.filter((row) => row.org_id === org.id);
   if (!vehicles.length || !rollups.length) continue;
   const basis = costBasisFor(org.id, data.settings, data.prices);
-  const page = pageRows(rollups, vehicles, basis);
+  const priceByDay = new Map(
+    (data.priceDays ?? [])
+      .filter((row) => row.org_id === org.id && n(row.effective_price_per_gal) > 0)
+      .map((row) => [row.day, n(row.effective_price_per_gal)]),
+  );
+  const page = pageRows(rollups, vehicles, basis, priceByDay);
   allPages.push({ org, vehicles, rollups, basis, page });
-  check(`3 verdict algebra (${org.name ?? org.id})`, verdictOffenders(page, basis));
-  const independentlyAggregatedPage = pageRows(rollups, vehicles, basis, manualSumRollupByVehicle);
+  check(`3 verdict algebra (${org.name ?? org.id})`, verdictOffenders(page));
+  const independentlyAggregatedPage = pageRows(rollups, vehicles, basis, priceByDay, manualSumRollupByVehicle);
   check(`4 card/table consistency (${org.name ?? org.id})`, consistencyOffenders(page, independentlyAggregatedPage.rows));
   examplesByOrg.push({ org, page, rollups, basis, vehicles });
 }

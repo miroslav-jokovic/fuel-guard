@@ -17,6 +17,7 @@
  *    an all-or-nothing status flag: seconds an overlay proves are judged, seconds it misses or contradicts are
  *    uncertain and excluded. Partial evidence can only SHRINK the avoidable verdict, never inflate it.
  */
+import { DEFAULT_FUEL_PRICE_PER_GAL } from "./fuelPriceDays.js";
 import type { IdleMode, IdleCapability } from "./idleSessions.js";
 
 /** Why (or why not) the truck had an alternative to main-engine idle — the basis of the avoidable verdict. */
@@ -382,9 +383,79 @@ export function avoidableCost(
   opts: { idleGalPerHour?: number; fuelPricePerGal?: number } = {},
 ): AvoidableCost {
   const galPerHour = opts.idleGalPerHour ?? 0.8;
-  const price = opts.fuelPricePerGal ?? 4.0;
+  const price = opts.fuelPricePerGal ?? DEFAULT_FUEL_PRICE_PER_GAL;
   const gallons = (Math.max(0, avoidableIdleSec) / 3600) * galPerHour;
+  // Round the DOLLARS from unrounded gallons. Rounding gallons first and pricing the rounded figure
+  // discards up to half a cent per row before the price is even applied (audit 2026-08-13).
   return { gallons: Math.round(gallons * 100) / 100, usd: Math.round(gallons * price * 100) / 100 };
+}
+
+/** One day's contribution to a truck's avoidable idle, ready to be priced at that day's rate. */
+export interface AvoidableDaySeconds {
+  day: string;
+  avoidableIdleSec: number;
+  reducibleIdleSec: number;
+}
+
+export interface DatedAvoidableCost extends AvoidableCost {
+  /** Effective $/gal actually charged, i.e. the day-priced cost divided by the gallons. */
+  blendedPricePerGal: number | null;
+  /** Days whose price came from `priceByDay`, and days that fell back to the flat rate. */
+  pricedDays: number;
+  unpricedDays: number;
+}
+
+/**
+ * Cost the avoidable idle DAY BY DAY, each day at the diesel price that day actually cost.
+ *
+ * A range is not one price. Over a single measured month this fleet's gallon-weighted price ran
+ * $4.223–$5.123 — a 21% spread — so charging a whole range at one rate mis-prices nearly every day in it
+ * even when the average happens to be close. It was not close: the flat posted median was 6.2% above what
+ * the fleet actually paid.
+ *
+ * The seconds come per day from the rollup, so this is a real per-day computation, not a range total
+ * sliced up afterwards. A day with no price row falls back to `fuelPricePerGal` and is counted in
+ * `unpricedDays` rather than silently dropped or zero-priced.
+ */
+export function avoidableCostByDay(
+  days: readonly AvoidableDaySeconds[],
+  priceByDay: ReadonlyMap<string, number>,
+  opts: { idleGalPerHour?: number; fuelPricePerGal?: number } = {},
+): { avoidable: DatedAvoidableCost; reducible: DatedAvoidableCost } {
+  const galPerHour = opts.idleGalPerHour ?? 0.8;
+  const fallbackPrice = opts.fuelPricePerGal ?? DEFAULT_FUEL_PRICE_PER_GAL;
+
+  let avoidableGal = 0;
+  let avoidableUsd = 0;
+  let reducibleGal = 0;
+  let reducibleUsd = 0;
+  let priced = 0;
+  let unpriced = 0;
+
+  for (const day of days) {
+    const dayPrice = priceByDay.get(day.day);
+    const price = dayPrice != null && Number.isFinite(dayPrice) && dayPrice > 0 ? dayPrice : fallbackPrice;
+    const contributes = day.avoidableIdleSec > 0 || day.reducibleIdleSec > 0;
+    if (contributes) {
+      if (dayPrice != null && dayPrice > 0) priced += 1;
+      else unpriced += 1;
+    }
+    const aGal = (Math.max(0, day.avoidableIdleSec) / 3600) * galPerHour;
+    const rGal = (Math.max(0, day.reducibleIdleSec) / 3600) * galPerHour;
+    avoidableGal += aGal;
+    avoidableUsd += aGal * price;
+    reducibleGal += rGal;
+    reducibleUsd += rGal * price;
+  }
+
+  const shape = (gallons: number, usd: number): DatedAvoidableCost => ({
+    gallons: Math.round(gallons * 100) / 100,
+    usd: Math.round(usd * 100) / 100,
+    blendedPricePerGal: gallons > 0 ? Math.round((usd / gallons) * 10_000) / 10_000 : null,
+    pricedDays: priced,
+    unpricedDays: unpriced,
+  });
+  return { avoidable: shape(avoidableGal, avoidableUsd), reducible: shape(reducibleGal, reducibleUsd) };
 }
 
 /**

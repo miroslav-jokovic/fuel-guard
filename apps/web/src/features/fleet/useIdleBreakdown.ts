@@ -2,7 +2,9 @@ import { computed, type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import {
   computeAvoidable,
-  avoidableCost,
+  avoidableCostByDay,
+  avoidableDaySeconds,
+  groupRollupByVehicle,
   idleScore,
   sumRollupByVehicle,
   type VehicleRollupSums,
@@ -39,6 +41,10 @@ export interface TruckBreakdown {
    *  the truck has no duty overlay at all. See `reducibleIdleSec`: this is the capex case, not blame. */
   reducibleH: number | null;
   reducibleUsd: number | null;
+  /** $/gal this truck's cost actually worked out at, once each day was charged at its own price. */
+  blendedPricePerGal: number | null;
+  /** Days of this truck's idle that had no price row and fell back to the flat basis. */
+  unpricedDays: number;
   unavoidableH: number;
   justifiedH: number;
   uncertainH: number;
@@ -154,6 +160,25 @@ export async function fetchRollupRows(fromDate: string, toDate: string): Promise
   return out;
 }
 
+/**
+ * The diesel price for each day of the range, from `fuel_price_days` (maintained by the rollup sync).
+ * Empty map → every day falls back to the flat basis, which the cost result reports as unpriced days.
+ */
+export async function fetchDayPrices(fromDate: string, toDate: string): Promise<Map<string, number>> {
+  const { data, error } = await supabase
+    .from("fuel_price_days")
+    .select("day, effective_price_per_gal")
+    .gte("day", fromDate)
+    .lte("day", toDate);
+  if (error) throw new Error(error.message);
+  const out = new Map<string, number>();
+  for (const r of (data ?? []) as { day: string; effective_price_per_gal: number | string }[]) {
+    const price = Number(r.effective_price_per_gal);
+    if (Number.isFinite(price) && price > 0) out.set(r.day, price);
+  }
+  return out;
+}
+
 function envelopeFor(
   s: VehicleRollupSums,
   hasOptimizedIdle: boolean | null,
@@ -195,14 +220,13 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
     queryFn: async (): Promise<IdleBreakdown> => {
       const { fromDate, toDate } = rangeBounds(toValue(filters));
       const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
-      const costOf = (sec: number) =>
-        avoidableCost(sec, {
-          idleGalPerHour: cb.idleGalPerHour,
-          fuelPricePerGal: cb.fuelPricePerGal,
-        }).usd;
 
-      const rows = await fetchRollupRows(fromDate, toDate);
+      const [rows, dayPrices] = await Promise.all([
+        fetchRollupRows(fromDate, toDate),
+        fetchDayPrices(fromDate, toDate),
+      ]);
       const sums = sumRollupByVehicle(rows);
+      const rowsByVehicle = groupRollupByVehicle(rows);
 
       // COVERAGE DENOMINATOR = the number of days the rollup actually HAS DATA for in the range, not
       // the span the picker selected (production bug: rollup history starts when the feature shipped,
@@ -256,6 +280,22 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           optimizedEnvelope: envelopeFor(s, v.has_optimized_idle ?? null),
           dutyEvidence: dutyEvidenceFor(s),
         });
+        // Charge each day at the diesel price that day actually cost, rather than one rate for the whole
+        // range. The day shares come from evaluating the same bucket logic against each day's own rollup
+        // row, normalized onto this truck's range verdict so hours and cost can never disagree.
+        const dayCost = avoidableCostByDay(
+          avoidableDaySeconds(
+            rowsByVehicle.get(v.id) ?? [],
+            {
+              hasApu: v.has_apu ?? null,
+              hasOptimizedIdle: v.has_optimized_idle ?? null,
+              learnedCapability: (v.idle_capability ?? "unknown") as IdleCapability,
+            },
+            { avoidableIdleSec: r.avoidableIdleSec, reducibleIdleSec: r.reducibleIdleSec },
+          ),
+          dayPrices,
+          { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal },
+        );
         trucks.push({
           vehicleId: v.id,
           unit: v.unit_number,
@@ -268,12 +308,14 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           continuousH: hrs(r.continuousIdleSec),
           avoidableH: hrs(r.avoidableIdleSec),
           reducibleH: r.reducibleIdleSec == null ? null : hrs(r.reducibleIdleSec),
-          reducibleUsd: r.reducibleIdleSec == null ? null : costOf(r.reducibleIdleSec),
+          reducibleUsd: r.reducibleIdleSec == null ? null : dayCost.reducible.usd,
           unavoidableH: hrs(r.unavoidableIdleSec),
           justifiedH: hrs(r.justifiedIdleSec),
           uncertainH: hrs(r.uncertainIdleSec),
           operationalGraceH: hrs(r.operationalGraceIdleSec),
-          avoidableUsd: costOf(r.avoidableIdleSec),
+          avoidableUsd: dayCost.avoidable.usd,
+          blendedPricePerGal: dayCost.avoidable.blendedPricePerGal,
+          unpricedDays: dayCost.avoidable.unpricedDays,
           score: idleScore(r.avoidableIdleSec, r.engineOnSec),
           alternative: r.alternative,
           capability: (v.idle_capability ?? "unknown") as IdleCapability,

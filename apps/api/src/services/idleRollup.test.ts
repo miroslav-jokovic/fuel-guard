@@ -181,7 +181,9 @@ describe("syncIdleRollup", () => {
     const res = await syncIdleRollup(rec.client, ORG, { sinceDays: 35 });
     expect(res.rows).toBe(1);
     expect(res.written).toBe(0);
-    expect(rec.writes()).toHaveLength(0); // no upsert issued at all
+    // No ROLLUP upsert issued at all. The price-history sync that runs alongside writes its own table,
+    // which is expected and unrelated to the diff-before-write guard.
+    expect(rec.writes().filter((w) => w.table === "idle_rollup_days")).toHaveLength(0);
     expect(res.windowDays).toBe(35);
     expectOrgScoped(rec, ORG, { exempt: ORG_LOOKUP });
   });

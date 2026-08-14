@@ -4,6 +4,7 @@ import {
   avoidableCost,
   idleScore,
   ON_DUTY_GRACE_SEC,
+  avoidableCostByDay,
   type AvoidableInput,
 } from "./idleAvoidable.js";
 
@@ -608,5 +609,75 @@ describe("bucket algebra (precision harness invariant, 2026-08-12)", () => {
         }
       }
     }
+  });
+});
+
+describe("avoidableCostByDay", () => {
+  const day = (d: string, hours: number) => ({
+    day: d,
+    avoidableIdleSec: hours * 3600,
+    reducibleIdleSec: hours * 3600,
+  });
+
+  it("charges each day at that day's price, not one rate for the range", () => {
+    // 10 h on a $4.00 day and 10 h on a $5.00 day. 8 gal each at 0.8 gal/h → $32 + $40 = $72.
+    // A flat range price would have to pick one and be wrong on the other.
+    const r = avoidableCostByDay(
+      [day("2026-07-01", 10), day("2026-07-02", 10)],
+      new Map([
+        ["2026-07-01", 4],
+        ["2026-07-02", 5],
+      ]),
+    );
+    expect(r.avoidable.gallons).toBe(16);
+    expect(r.avoidable.usd).toBe(72);
+    expect(r.avoidable.blendedPricePerGal).toBe(4.5);
+    expect(r.avoidable.pricedDays).toBe(2);
+    expect(r.avoidable.unpricedDays).toBe(0);
+  });
+
+  it("weights the blended price by where the hours actually fell", () => {
+    // Nearly all the idle happened on the cheap day, so the blend must sit near the cheap price — the
+    // failure mode of a flat rate is treating a heavy cheap day and a light dear one as equals.
+    const r = avoidableCostByDay(
+      [day("2026-07-01", 90), day("2026-07-02", 10)],
+      new Map([
+        ["2026-07-01", 4],
+        ["2026-07-02", 5],
+      ]),
+    );
+    expect(r.avoidable.blendedPricePerGal).toBeCloseTo(4.1, 5);
+  });
+
+  it("falls back to the flat rate for an unpriced day and reports how many", () => {
+    const r = avoidableCostByDay([day("2026-07-01", 10), day("2026-07-02", 10)], new Map([["2026-07-01", 4]]), {
+      fuelPricePerGal: 6,
+    });
+    expect(r.avoidable.usd).toBe(8 * 4 + 8 * 6);
+    expect(r.avoidable.pricedDays).toBe(1);
+    expect(r.avoidable.unpricedDays).toBe(1); // surfaced, never silently zero-priced
+  });
+
+  it("ignores a zero or negative day price rather than making idle free", () => {
+    const r = avoidableCostByDay([day("2026-07-01", 10)], new Map([["2026-07-01", 0]]), {
+      fuelPricePerGal: 5,
+    });
+    expect(r.avoidable.usd).toBe(40);
+    expect(r.avoidable.unpricedDays).toBe(1);
+  });
+
+  it("prices reducible idle on the same per-day basis", () => {
+    const r = avoidableCostByDay(
+      [{ day: "2026-07-01", avoidableIdleSec: 0, reducibleIdleSec: 10 * 3600 }],
+      new Map([["2026-07-01", 5]]),
+    );
+    expect(r.avoidable.usd).toBe(0);
+    expect(r.reducible.usd).toBe(40);
+  });
+
+  it("returns a null blended price when there are no hours to price", () => {
+    const r = avoidableCostByDay([], new Map());
+    expect(r.avoidable.usd).toBe(0);
+    expect(r.avoidable.blendedPricePerGal).toBeNull();
   });
 });

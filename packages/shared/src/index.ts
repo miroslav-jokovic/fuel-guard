@@ -46,6 +46,7 @@ export * from "./idleScoring.js";
 export * from "./idleSessions.js";
 export * from "./idleTelemetry.js";
 export * from "./idleEquipmentEvidence.js";
+export * from "./fuelPriceDays.js";
 export * from "./idleAvoidable.js";
 export * from "./idleDriverAttribution.js";
 export * from "./idleConfidence.js";
