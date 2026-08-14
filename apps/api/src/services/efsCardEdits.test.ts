@@ -212,4 +212,20 @@ describe("prompts — full replace without collateral damage", () => {
     expect(plan.before.find((p) => p.infoId === "DRID")?.matchValue).toBe("D-4471");
     expect(plan.after.find((p) => p.infoId === "DRID")?.matchValue).toBe("D-9999");
   });
+
+  it("refuses a record containing a nested container", () => {
+    // A flat record cannot hold `<a><b>x</b></a>`, and flattening it to textContent would keep the
+    // value while losing the path — invisibly, because the flattened record is the input to BOTH the
+    // request and its expectation. No EFS collection nests today; if one starts, this is where it
+    // stops, on the first write, instead of quietly reshaping a card.
+    const nestedInfos = fixture("getCardV2.full.xml").replace(
+      "<matchValue>D-4471</matchValue>",
+      "<matchValue><part>D</part><part>4471</part></matchValue>",
+    );
+    const before = parseCardDocument(nestedInfos);
+
+    expect(() =>
+      promptsEdits(before, [{ infoId: "UNIT", validationType: "EXACT_MATCH", matchValue: "4242", reportValue: null, remove: false }]),
+    ).toThrow(/nested container/);
+  });
 });

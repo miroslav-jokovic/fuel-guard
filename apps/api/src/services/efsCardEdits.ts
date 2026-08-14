@@ -8,6 +8,7 @@ import {
 import type { CardEdit } from "../lib/efsCardEcho.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { childElements, collectElements, localName, type XmlElement } from "../lib/efsXml.js";
+import { EfsSoapError } from "../lib/efsSoapSession.js";
 
 /**
  * The vendor's own override and prompt recipes, expressed as `CardEdit[]` and nothing else.
@@ -146,13 +147,25 @@ export const overrideClearedLanded = (after: CardDocument): boolean =>
  * records from the typed view instead of from the DOM would drop them, which for a prompt means the
  * pump stops applying a rule nobody meant to remove.
  *
- * A nested container inside a record flattens here and loses its path. The current `replaceAll` fidelity
- * check compares the flattened edit object to the flattened serialized request, so it does NOT detect
- * that loss. This is a known gap, not a proven property [no-test-claim]; `efsCardEdits.test.ts` has no nested-child case.
+ * ── Nested containers are REFUSED, not flattened ─────────────────────────────────────────────────
+ * A flat map cannot hold `<a><b>x</b></a>`; collapsing it to `textContent` would keep the value and
+ * lose the path, and the request would then carry `<a>x</a>` — a different document that no guard can
+ * see, because the flattened record is the input to both the request and its expectation.
+ *
+ * No EFS collection nests today, so this throws rather than growing a nested record type for a shape
+ * the vendor does not produce. If one ever does, this is where it fails loudly on the first write
+ * instead of quietly reshaping a card. Named test: "refuses a record containing a nested container".
  */
 export function recordFromElement(element: XmlElement): Record<string, string | null> {
   const record: Record<string, string | null> = {};
   for (const child of childElements(element)) {
+    if (childElements(child).length > 0) {
+      throw new EfsSoapError(
+        `Refusing to rebuild a <${localName(element)}> record: <${localName(child)}> contains a nested `
+          + `container, which a flat record cannot represent without losing its structure.`,
+        "echo_unfaithful",
+      );
+    }
     const nil = child.getAttribute("xsi:nil") ?? child.getAttribute("nil");
     record[localName(child)] = nil === "true" || nil === "1" ? null : (child.textContent ?? "").trim();
   }
@@ -258,7 +271,9 @@ export function promptsEdits(doc: CardDocument, prompts: readonly PromptInput[])
       }));
 
   return {
-    edits: [{ op: "replaceAll", name: "infos", records }],
+    // `removals` is what lets the echo guard tell an intended removal from a lost record. Anything
+    // omitted from `records` without being named here is refused before the request is sent.
+    edits: [{ op: "replaceAll", name: "infos", records, removals: removedInfoIds }],
     removedInfoIds,
     before: doc.card.infos
       .filter((i) => EDITABLE.has(i.infoId))
