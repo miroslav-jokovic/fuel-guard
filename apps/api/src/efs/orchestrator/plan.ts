@@ -49,9 +49,10 @@ export async function planCardMutation<TBody>(
   // AFTER the fresh read, and with the snapshot in hand: the mirror-based prompt a route gives early
   // is a courtesy, and this is the decision that counts. A card flagged Fraud since the last sweep
   // must not unlock without step-up because our copy was stale (audit P1-7).
-  if (capability.governance.planStepUp?.({ env: ctx.env, stepUp: ctx.stepUp === true }, before, capability.body)) {
-    throw new ActionRefusalError("Confirm your password to make this change.", "step_up_required");
-  }
+  const planStepUp = capability.governance.planStepUp?.(
+    { env: ctx.env, stepUp: ctx.stepUp === true }, before, capability.body,
+  );
+  if (planStepUp) throw new ActionRefusalError(planStepUp, "step_up_required");
   capability.governance.precondition?.(before, capability.body);
 
   // Only the FIRST step's edits are built here, because only they can be judged before the ledger row

@@ -113,10 +113,19 @@ export interface Step<TBody> {
  * the timing a type-level fact.
  */
 export interface Governance<TBody> {
-  /** Body only. Runs BEFORE prepare(), so a refusal never spends a rate-limit slot. */
-  preflightStepUp?: (body: TBody) => boolean;
-  /** Runs AFTER the fresh read, with everything the decision actually needs. */
-  planStepUp?: (ctx: PlanCtx, snap: Snapshot, body: TBody) => boolean;
+  /**
+   * Body only. Runs BEFORE prepare(), so a refusal never spends a rate-limit slot.
+   *
+   * Returns the SENTENCE the operator should read, or null to allow. Not a boolean: the two gates
+   * that exist say different things — "Confirm your password to grant more than 3 uses" and "This
+   * card is flagged for fraud" — and a gate that fires with the wrong sentence sends a person to the
+   * wrong place, which is the same reason `refusal()` has one sentence per blocked-by reason. A
+   * boolean would have forced a generic message built from the contract's verb, and both of the real
+   * gates would have lost the thing that makes them actionable.
+   */
+  preflightStepUp?: (body: TBody) => string | null;
+  /** Runs AFTER the fresh read, with everything the decision actually needs. Same string-or-null. */
+  planStepUp?: (ctx: PlanCtx, snap: Snapshot, body: TBody) => string | null;
   /** Throws ActionRefusalError. Runs after the fresh read, before buildEdits. */
   precondition?: (snap: Snapshot, body: TBody) => void;
   auditMeta?: (snap: Snapshot, body: TBody) => Record<string, unknown>;
