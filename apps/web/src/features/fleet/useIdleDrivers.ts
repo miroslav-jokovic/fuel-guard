@@ -1,10 +1,17 @@
 import { computed, type Ref, toValue } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { computeAvoidable, avoidableCost, idleScore, type IdleCapability } from "@fuelguard/shared";
+import {
+  computeAvoidable,
+  avoidableCostByDay,
+  avoidableDaySeconds,
+  groupRollupByVehicle,
+  idleScore,
+  type IdleCapability,
+} from "@fuelguard/shared";
 import { supabase } from "@/lib/supabase";
 import type { IdleDateFilter } from "./useIdleScores";
 import type { IdleCostBasis } from "@/composables/useIdleCostBasis";
-import { fetchRollupRows } from "./useIdleBreakdown";
+import { fetchRollupRows, fetchDayPrices } from "./useIdleBreakdown";
 import { sumRollupByVehicle } from "@fuelguard/shared";
 
 const WINDOW_DAYS = 30;
@@ -60,8 +67,12 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
       const { fromDate, toDate, days } = bounds(toValue(filters));
       const cb = toValue(costBasis) ?? DEFAULT_COST_BASIS;
 
-      const rows = await fetchRollupRows(fromDate, toDate);
+      const [rows, dayPrices] = await Promise.all([
+        fetchRollupRows(fromDate, toDate),
+        fetchDayPrices(fromDate, toDate),
+      ]);
       const sums = sumRollupByVehicle(rows);
+      const rowsByVehicle = groupRollupByVehicle(rows);
 
       const { data: vdata, error: verr } = await supabase
         .from("vehicles")
@@ -86,7 +97,13 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
       const periodSec = days * 86_400;
       const verdict = new Map<
         string,
-        { confident: boolean; hasAlternative: boolean; avoidableSec: number; continuousSec: number }
+        {
+          confident: boolean;
+          hasAlternative: boolean;
+          avoidableSec: number;
+          continuousSec: number;
+          byDay: Map<string, number>;
+        }
       >();
       for (const v of vehicles) {
         const s = sums.get(v.id);
@@ -124,6 +141,7 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
               ? {
                   status:
                     s.hosEvidenceStatus === "not_applicable" ? "unavailable" : s.hosEvidenceStatus,
+                  restSec: s.hosRest,
                   workSec: s.hosWork,
                   unknownSec: s.hosUnknown,
                   ambiguousSec: s.hosAmbiguous,
@@ -136,6 +154,19 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
           hasAlternative: r.hasAlternative,
           avoidableSec: r.avoidableIdleSec,
           continuousSec: r.continuousIdleSec,
+          // The SAME per-day split the Trucks tab uses, so a driver's dollars and their truck's dollars
+          // are the same dollars. Attributing per day also lets each day be charged at its own price.
+          byDay: new Map(
+            avoidableDaySeconds(
+              rowsByVehicle.get(v.id) ?? [],
+              {
+                hasApu: v.has_apu ?? null,
+                hasOptimizedIdle: v.has_optimized_idle ?? null,
+                learnedCapability: (v.idle_capability ?? "unknown") as IdleCapability,
+              },
+              { avoidableIdleSec: r.avoidableIdleSec, reducibleIdleSec: r.reducibleIdleSec },
+            ).map((d) => [d.day, d.avoidableIdleSec]),
+          ),
         });
       }
 
@@ -145,6 +176,8 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
         idleSec: number;
         avoidableSec: number;
         confidentEngineOnSec: number;
+        /** Avoidable seconds kept per DAY, so each day can be charged at that day's diesel price. */
+        avoidableByDay: Map<string, number>;
       };
       const byDriver = new Map<string | null, Tot>();
       for (const r of rows) {
@@ -156,12 +189,16 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
           idleSec: 0,
           avoidableSec: 0,
           confidentEngineOnSec: 0,
+          avoidableByDay: new Map<string, number>(),
         };
         t.engineOnSec += engineOnSec;
         t.idleSec += Number(r.idle_sec);
         t.confidentEngineOnSec += ver?.confident ? engineOnSec : 0;
-        if (ver?.confident && ver.hasAlternative && ver.continuousSec > 0)
-          t.avoidableSec += Number(r.continuous_idle_sec) * (ver.avoidableSec / ver.continuousSec);
+        if (ver?.confident && ver.hasAlternative) {
+          const daySec = ver.byDay.get(r.day) ?? 0;
+          t.avoidableSec += daySec;
+          t.avoidableByDay.set(r.day, (t.avoidableByDay.get(r.day) ?? 0) + daySec);
+        }
         byDriver.set(r.attributed_driver_id, t);
       }
 
@@ -172,10 +209,15 @@ export function useIdleDrivers(filters: Ref<IdleDateFilter>, costBasis?: Ref<Idl
         engineOnH: hrs(t.engineOnSec),
         idleH: hrs(t.idleSec),
         avoidableH: hrs(t.avoidableSec),
-        avoidableUsd: avoidableCost(t.avoidableSec, {
-          idleGalPerHour: cb.idleGalPerHour,
-          fuelPricePerGal: cb.fuelPricePerGal,
-        }).usd,
+        avoidableUsd: avoidableCostByDay(
+          [...t.avoidableByDay].map(([day, sec]) => ({
+            day,
+            avoidableIdleSec: sec,
+            reducibleIdleSec: 0,
+          })),
+          dayPrices,
+          { idleGalPerHour: cb.idleGalPerHour, fuelPricePerGal: cb.fuelPricePerGal },
+        ).avoidable.usd,
         idlePct: t.engineOnSec > 0 ? Math.round((t.idleSec / t.engineOnSec) * 1000) / 10 : 0,
         score: idleScore(t.avoidableSec, t.confidentEngineOnSec),
       }));
