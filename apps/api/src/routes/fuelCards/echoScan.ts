@@ -6,7 +6,7 @@ import { writeAudit } from "../../lib/audit.js";
 import { assertEchoFidelity, serializeSetCardRequest } from "../../lib/efsCardEcho.js";
 import { getCardSummaries, getCardV2 } from "../../lib/efsCardOps.js";
 import { CONTAINER, NIL, documentShape, redactCardXml } from "../../lib/efsCardXml.js";
-import { efsLogin } from "../../lib/efsSoapSession.js";
+import { EfsSoapError, efsLogin } from "../../lib/efsSoapSession.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
@@ -106,9 +106,31 @@ export function fuelCardEchoScanRouter(): Router {
       const { limit, offset, maxMs } = parsed.data;
 
       const creds = await resolveReadOnlyScanCredentials(admin, env, orgId);
-      await efsLogin(env, creds, "backfill");
 
-      const summaries = await getCardSummaries(env, creds, { priority: "backfill" });
+      /**
+       * The account-level setup, and the ONE place this route can fail without saying why.
+       *
+       * `errorResponder` understands `HttpError` and nothing else, so an `EfsSoapError` from the
+       * login or the card list fell through to a bare 500 `internal_error` — on the one endpoint in
+       * the product whose entire job is telling an operator what is wrong. The five control routes
+       * have always translated vendor errors (`controlErrorResponse`); this one did not, and the
+       * first production run spent its diagnosis on an empty error envelope.
+       *
+       * Per-card failures do NOT come through here: `scanOne` catches its own and reports them as
+       * rows, so one unreadable card cannot end the sweep. This is specifically "we could not even
+       * get the list", which is a different answer and deserves to look different.
+       */
+      let summaries;
+      try {
+        await efsLogin(env, creds, "backfill");
+        summaries = await getCardSummaries(env, creds, { priority: "backfill" });
+      } catch (error) {
+        if (!(error instanceof EfsSoapError)) throw error;
+        res.status(error.code === "rate_limited" ? 429 : 502).json(
+          apiError(`efs_${error.code}`, `Could not list this account's cards: ${error.message}`),
+        );
+        return;
+      }
       const window = summaries.slice(offset, offset + limit);
 
       const startedAt = Date.now();
