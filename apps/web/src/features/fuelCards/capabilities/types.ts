@@ -51,6 +51,15 @@ export const row = (label: string, before: string, after: string): CapabilityDif
 export interface CapabilityCardContext {
   maskedRef: string;
   card: Pick<WsCard, "status" | "infos" | "limits" | "overrideUses" | "overrideAllLocations" | "locationOverrideId">;
+  /**
+   * Turn an EFS location id into what a person calls that place — "Loves station 442, Effingham IL".
+   *
+   * A resolver rather than a field because the drawer holds the locations list and a view must not
+   * fetch. Returns null when the id is not in that list, and the caller falls back to the id: an
+   * override confirmation that cannot name the station must still name the number, because the
+   * number is what the driver will be declined at.
+   */
+  locationLabel?: (locationId: string) => string | null;
 }
 
 export interface CapabilityView<TBody> {

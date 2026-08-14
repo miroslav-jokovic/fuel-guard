@@ -1,8 +1,6 @@
 import { Router, type Response } from "express";
 import {
-  CARD_OVERRIDE_STEP_UP_ABOVE_USES,
   clearOverrideSchema,
-  grantOverrideSchema,
   rolesThatCanView,
   rolesThatManage,
   setPromptsSchema,
@@ -21,7 +19,6 @@ import {
   OVERRIDE_FIELDS,
   overrideClearEdits,
   overrideClearedLanded,
-  overrideGrantEdits,
   promptsEdits,
 } from "../../services/efsCardEdits.js";
 import { ActionRefusalError, assertPromptRemovalAllowed } from "./controlRefusal.js";
@@ -112,39 +109,10 @@ export function fuelCardControlRouter(): Router {
 
   // ── Overrides ───────────────────────────────────────────────────────────────────────────────────
 
-  router.post("/:id/override", requireOrg, canManage, asyncHandler(async (req, res) => {
-    const body = grantOverrideSchema.safeParse(req.body ?? {});
-    if (!body.success) { badRequest(res, body.error); return; }
-    // Vendor-capped at 9; we require a fresh sign-in above three. One free tank is an exception, four
-    // is a decision somebody should have to prove they made.
-    if (body.data.uses > CARD_OVERRIDE_STEP_UP_ABOVE_USES && !hasFreshAuth(req)) {
-      stepUpRequired(
-        res, DEFAULT_STEP_UP_MAX_AGE_SEC,
-        `Confirm your password to grant more than ${CARD_OVERRIDE_STEP_UP_ABOVE_USES} uses.`,
-      );
-      return;
-    }
-    const prepared = await prepare(req, res, "override");
-    if (!prepared) return;
-
-    const { uses, scope } = body.data;
-    await run(res, {
-      ...prepared.ctx,
-      reason: body.data.reason,
-      expectedVersion: body.data.expectedVersion,
-      requestFingerprint: mutationFingerprint("override_grant", prepared.ctx.efsCardId, body.data),
-    }, {
-      intent: "override_grant",
-      auditAction: "card.override_granted",
-      buildEdits: (doc) => overrideGrantEdits(doc, uses, scope),
-      auditMeta: (doc) => ({
-        overrideUsesBefore: doc.card.overrideUses,
-        overrideUsesAfter: uses,
-        overrideScope: scope.kind,
-        locationId: scope.kind === "location" ? scope.locationId : null,
-      }),
-    });
-  }));
+  // `POST /:id/override` left in Step 3.6. Its step-up gate is now `preflightStepUp` on the
+  // descriptor, which the generated router answers before `prepare()` — so a refusal still costs
+  // nothing against the daily override budget, and that is now a property of the type rather than
+  // of this file's statement order.
 
   router.delete("/:id/override", requireOrg, canManage, asyncHandler(async (req, res) => {
     const body = clearOverrideSchema.safeParse(req.body ?? {});

@@ -1,7 +1,8 @@
 import type { z } from "zod";
-import { type CapabilityContract, cardLockContract, cardUnlockContract } from "@fuelguard/shared";
+import { type CapabilityContract, cardLockContract, cardUnlockContract, overrideGrantContract } from "@fuelguard/shared";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
+import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.js";
 import { resolveCapability } from "./orchestrator/resolve.js";
 import { executeCapability } from "../services/efsCardControl.js";
 import type { CardMutationContext, CardMutationOutcome } from "./orchestrator/types.js";
@@ -82,4 +83,5 @@ export const mount = <TBody extends CardMutationRequestFields>(
 export const MOUNTED_CAPABILITIES: readonly MountedCapability[] = [
   mount(cardLockContract, cardLockBehaviour),
   mount(cardUnlockContract, cardUnlockBehaviour),
+  mount(overrideGrantContract, overrideGrantBehaviour),
 ];
