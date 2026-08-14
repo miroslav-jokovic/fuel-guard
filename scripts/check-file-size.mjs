@@ -74,9 +74,13 @@ const GRANDFATHERED = {
   // bug in the plan, not a new normal.
   // efsCardControl.ts (507) left this list on 2026-08-14. Phase 3 Step 3.4 split it into the five
   // orchestrator phase modules under apps/api/src/efs/orchestrator/ — plan, dispatch, ledger, steps,
-  // resolve — leaving the service as an 85-line door. Ratcheted 530 → 507 on 2026-08-13 when
-  // CardControlError moved out; deleted here, which is the intended end state of this list.
-  "packages/shared/src/cardControlContract.ts": 512,
+  // resolve — leaving the service as a 62-line door. Ratcheted 530 → 507 on 2026-08-13 when
+  // CardControlError moved out; deleted, which is the intended end state of this list.
+  //
+  // cardControlContract.ts (512) left it on 2026-08-14 too, in Step 3.7: the mutation ledger's view
+  // shapes and the approver-scope vocabulary moved to cardControlLedger.ts, which is the line the
+  // design already drew — a REQUEST's shape and a RECORD's shape change for different reasons.
+  // 511 → 355, with no capability contract in either file; those live in efs/capabilities/.
   // Pinned 2026-08-13 for a different reason. Phase 1 Step 1.2 adds an org-ownership guard to the
   // probe routers; that guard lives in ONE shared helper imported by all three, so this file must
   // not grow. Removed when the Phase 4 harness supersedes the experiment router.
@@ -89,7 +93,6 @@ const GRANDFATHERED = {
 
 const COMPRESSION_BUDGETS = {
   "apps/api/src/routes/integrations.ts": 2,
-  "packages/shared/src/cardControlContract.ts": 5,
   "apps/api/src/routes/fuelCards/experiments.ts": 12,
 };
 
