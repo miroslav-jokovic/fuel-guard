@@ -26,7 +26,8 @@ import { resolveReadOnlyScanCredentials } from "./probeGuards.js";
  * statement than it would have been three steps ago.
  *
  * ── Never dispatches ─────────────────────────────────────────────────────────────────────────────
- * `setCardV2` is not imported by this module, and `echoScan.test.ts` asserts that it is not. That is
+ * `setCardV2` is not imported by this module, and `echoScan.test.ts` proves it in
+ * "does not reference setCardV2 at all", which reads this file's source. That is
  * a structural guarantee rather than a careful one: the safety property here is not "we remembered
  * not to write", it is "there is no write to reach". A zero-edit echo is still a full-document write
  * if anything sends it, which is precisely why the write probe demands a typed confirmation and this
