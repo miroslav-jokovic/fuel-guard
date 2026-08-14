@@ -75,5 +75,6 @@ export * from "./driverAuthContract.js";
 export * from "./efsTime.js";
 export * from "./efsCardCatalog.js";
 export * from "./cardControlContract.js";
+export * from "./cardControlLedger.js";
 export * from "./efs/types.js";
 export * from "./efs/registry.js";

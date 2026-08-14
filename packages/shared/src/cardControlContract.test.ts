@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { grantOverrideSchema, lockCardSchema, setPromptsSchema, unlockCardSchema } from "./cardControlContract.js";
+// The permission vocabulary and the settings shapes moved here in Step 3.7's split. Imported from
+// the module rather than the package index, so this file keeps saying which one owns each symbol.
 import {
   CARD_CONTROL_AUDIT_ACTIONS,
   CARD_CONTROL_SCOPES,
@@ -6,12 +9,8 @@ import {
   CARD_SCOPE_LABELS,
   cardApproverGrantSchema,
   cardControlSettingsPatchSchema,
-  grantOverrideSchema,
   isCardControlScope,
-  lockCardSchema,
-  setPromptsSchema,
-  unlockCardSchema,
-} from "./cardControlContract.js";
+} from "./cardControlLedger.js";
 import { canonicalEfsStatus, efsStatusEquals } from "./efsCardCatalog.js";
 
 /**

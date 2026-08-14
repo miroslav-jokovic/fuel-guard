@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { CardMutationIntent } from "../cardControlContract.js";
+import type { CardMutationIntent } from "../cardControlLedger.js";
 import type { CardWriteBucket } from "../cardWriteLimits.js";
 
 /**
