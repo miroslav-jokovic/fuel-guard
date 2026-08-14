@@ -159,6 +159,9 @@ const capability = (over: Partial<ResolvedCapability<void>> = {}): ResolvedCapab
 const sequenced = (...steps: ResolvedStep<void>[]): ResolvedCapability<void> =>
   capability({ mutation: { kind: "sequence", steps }, vendorMovesFields: OVERRIDE_FIELDS });
 
+/** The capability's own words. The orchestrator must surface them, not a sentence of its own. */
+const STEP_UP_SENTENCE = "Confirm your password to make this particular change.";
+
 const settled = (rec: SupabaseRecorder) => rec.writtenRows("efs_card_mutations").at(-1) ?? {};
 const inserted = (rec: SupabaseRecorder) =>
   rec.forTable("efs_card_mutations").filter((q) => q.write?.method === "insert");
@@ -267,10 +270,16 @@ describe("governance gates run in the plan phase, before a row exists", () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_START);
 
-    await expect(executeCapability(
+    const error = await executeCapability(
       ctxFor(rec, s.fetchImpl, versionOf(CARD_START)),
-      capability({ governance: { planStepUp: (ctx) => !ctx.stepUp } }),
-    )).rejects.toBeInstanceOf(ActionRefusalError);
+      capability({ governance: { planStepUp: (ctx) => (ctx.stepUp ? null : STEP_UP_SENTENCE) } }),
+    ).catch((e: unknown) => e);
+
+    // Both halves, on ONE rejection: the right ERROR so the route maps it to a step-up response, and
+    // the right WORDS so the operator is told which action needs re-authenticating. Asserting only
+    // the class is what let the message be a generic sentence in the first place.
+    expect(error).toBeInstanceOf(ActionRefusalError);
+    expect((error as ActionRefusalError).message).toBe(STEP_UP_SENTENCE);
 
     // No row and no dispatch: a refusal decided against the fresh document must leave no
     // half-finished record of a change that never happened.
@@ -284,7 +293,7 @@ describe("governance gates run in the plan phase, before a row exists", () => {
 
     const outcome = await executeCapability(
       { ...ctxFor(rec, s.fetchImpl, versionOf(CARD_START)), stepUp: true },
-      capability({ governance: { planStepUp: (ctx) => !ctx.stepUp } }),
+      capability({ governance: { planStepUp: (ctx) => (ctx.stepUp ? null : STEP_UP_SENTENCE) } }),
     );
 
     // The pair matters: without this case, a `planStepUp` that was never called at all would pass

@@ -29,10 +29,10 @@ export interface MountedCapability {
 export interface AcceptedRequest {
   ok: true;
   /**
-   * Body-only step-up decision, answered BEFORE `prepare()` so a refusal never spends a rate-limit
-   * slot (docs/27 §5, prepare step 6).
+   * The sentence to show if this request needs a fresh sign-in, or null. Answered BEFORE `prepare()`
+   * so a refusal never spends a rate-limit slot (docs/27 §5, prepare step 6).
    */
-  needsStepUp: boolean;
+  stepUpMessage: string | null;
   expectedVersion: string;
   reason: string;
   /** The sanitized body the Idempotency-Key fingerprint is taken over. */
@@ -57,7 +57,7 @@ export const mount = <TBody extends CardMutationRequestFields>(
     const body = parsed.data;
     return {
       ok: true,
-      needsStepUp: behaviour.preflightStepUp?.(body) ?? false,
+      stepUpMessage: behaviour.preflightStepUp?.(body) ?? null,
       expectedVersion: body.expectedVersion,
       reason: body.reason,
       fingerprintBody: Object.fromEntries(Object.entries(body)),

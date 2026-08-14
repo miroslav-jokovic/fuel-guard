@@ -77,7 +77,7 @@ const gatedBehaviour = defineBehaviour(gatedContract, {
   target: { kind: "card" },
   mutation: { kind: "echo", buildEdits: () => [] },
   verify: cardEchoVerify(),
-  preflightStepUp: (body) => body.uses > 3,
+  preflightStepUp: (body) => (body.uses > 3 ? "Confirm your password to do the thing." : null),
 });
 
 function seededClient(): SupabaseRecorder {
@@ -185,7 +185,11 @@ describe("a body-only step-up refusal costs the operator nothing", () => {
 
     // 403 + `step_up_required`, the shape `stepUpRequired` writes and the drawer already handles.
     expect(res.status).toBe(403);
-    expect((await res.json() as { error: { code: string } }).error.code).toBe("step_up_required");
+    const payload = await res.json() as { error: { code: string; message: string } };
+    expect(payload.error.code).toBe("step_up_required");
+    // The capability's OWN sentence, not a generic one built from its verb. A gate that fires with
+    // the wrong words sends a person to the wrong place.
+    expect(payload.error.message).toBe("Confirm your password to do the thing.");
     // The assertion that matters. Reverse the two gates and this is 1: the operator is refused AND
     // billed, and after ten attempts at an action they were always allowed to take — they just had
     // to re-authenticate first — they are locked out of it for the rest of the minute.

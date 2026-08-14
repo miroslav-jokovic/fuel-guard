@@ -69,8 +69,8 @@ async function handle(capability: MountedCapability, req: Request, res: Response
   // BEFORE prepare(), and therefore before a rate-limit slot is spent. Body-only by type: this
   // decision cannot consult the card, because the card has not been read yet — the gates that need
   // the fresh document are `planStepUp` and `precondition`, and the orchestrator runs those.
-  if (accepted.needsStepUp && !hasFreshAuth(req)) {
-    stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, stepUpMessage(contract.ui.verb));
+  if (accepted.stepUpMessage && !hasFreshAuth(req)) {
+    stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, accepted.stepUpMessage);
     return;
   }
 
@@ -109,12 +109,3 @@ async function run(
     controlErrorResponse(res, error);
   }
 }
-
-/**
- * The generic sentence, used only when a capability's `preflightStepUp` fires.
- *
- * Deliberately built from the contract's own verb rather than hardcoded per capability: a
- * capability-specific sentence belongs to the capability, and until one needs it, one sentence that
- * names the action is more honest than five that say the same thing.
- */
-const stepUpMessage = (verb: string): string => `Confirm your password to ${verb.toLowerCase()}.`;
