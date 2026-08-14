@@ -1,3 +1,4 @@
+import { assertCollectionsPreserved } from "./efsCardCollections.js";
 import { EfsSoapError } from "./efsSoapSession.js";
 import {
   COLLECTION_SET,
@@ -41,7 +42,18 @@ export type CardEdit =
   | { op: "setField"; name: string; value: string }
   | { op: "setFieldNil"; name: string }
   | { op: "removeAll"; name: CardCollection }
-  | { op: "replaceAll"; name: CardCollection; records: Record<string, string | null>[] }
+  /**
+   * `removals` is the identity of every record the caller MEANT to drop (`infoId`, `limitId`, `day`).
+   * It is not used to build the request — `records` alone does that — it is what
+   * `assertCollectionsPreserved` checks the omissions against. An omission that is not named here is
+   * refused, so losing a record by accident and deleting one on purpose stop looking identical.
+   */
+  | {
+      op: "replaceAll";
+      name: CardCollection;
+      records: Record<string, string | null>[];
+      removals?: readonly string[];
+    }
   | { op: "appendRecord"; name: CardCollection; record: Record<string, string | null> };
 
 /**
@@ -420,10 +432,18 @@ export function assertEchoFidelity(doc: CardDocument, requestXml: string, edits:
   }
   const actual = canonicalize(card, REQUEST_ONLY_FIELDS);
   const diffs = diffCanonical(expectedCanonical(doc, edits), actual);
-  if (diffs.length === 0) return;
-  throw new EfsSoapError(
-    `Refusing to send a setCard request that does not faithfully echo the card (${diffs.length} field(s) differ: ${diffs.slice(0, 5).map((d) => d.path).join(", ")})`,
-    "echo_unfaithful",
-    { diffs: diffs.slice(0, 20) },
-  );
+  if (diffs.length > 0) {
+    throw new EfsSoapError(
+      `Refusing to send a setCard request that does not faithfully echo the card (${diffs.length} field(s) differ: ${diffs.slice(0, 5).map((d) => d.path).join(", ")})`,
+      "echo_unfaithful",
+      { diffs: diffs.slice(0, 20) },
+    );
+  }
+
+  // LAST, and the order is deliberate. The diff above catches everything where the request disagrees
+  // with the edits — a sabotaged serializer, a changed value, a dropped collection — and reports it
+  // by path. This one catches the case that diff cannot see by construction: an edit list that agrees
+  // with the request perfectly and has already lost part of the card. Running it second keeps the
+  // diff as the first and more specific answer for every failure it can explain.
+  assertCollectionsPreserved(doc, card, edits);
 }

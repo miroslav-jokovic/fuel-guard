@@ -279,13 +279,26 @@ describe("edits", () => {
       { infoId: "DRID", matchValue: "D-9999", validationType: "EXACT_MATCH", reportValue: null, lengthCheck: "false", minimum: "0", maximum: "0", value: "0" },
       { infoId: "UNIT", matchValue: "4242", validationType: "EXACT_MATCH", reportValue: null, lengthCheck: "false", minimum: "0", maximum: "0", value: "0" },
     ];
-    const { body, xml } = echo(doc, [{ op: "replaceAll", name: "infos", records }]);
+    // The ODRD accrual prompt was in the response and is NOT in the replacement, so it is gone. That
+    // is still the semantic — but it now has to be SAID: `removals` is what separates a deliberate
+    // deletion from an edit list that quietly lost a record (see efsCardCollections.ts).
+    const { body, xml } = echo(doc, [{ op: "replaceAll", name: "infos", records, removals: ["ODRD"] }]);
 
     expect(collectElements(body, "infos")).toHaveLength(2);
     expect(xml).toContain("<matchValue>D-9999</matchValue>");
-    // The ODRD accrual prompt was in the response and is NOT in the replacement, so it is gone —
-    // deliberately, which is why the caller has to pass the whole array rather than a patch.
     expect(xml).not.toContain("ODRD");
+  });
+
+  it("refuses the same replacement when the dropped record is not declared", () => {
+    // The identical edit list, minus the `removals`. Nothing about the REQUEST differs — which is
+    // exactly why the canonical diff cannot tell these two apart and this check exists.
+    const doc = parseCardDocument(fixture("getCardV2.full.xml"));
+    const records = [
+      { infoId: "DRID", matchValue: "D-9999", validationType: "EXACT_MATCH", reportValue: null, lengthCheck: "false", minimum: "0", maximum: "0", value: "0" },
+      { infoId: "UNIT", matchValue: "4242", validationType: "EXACT_MATCH", reportValue: null, lengthCheck: "false", minimum: "0", maximum: "0", value: "0" },
+    ];
+
+    expect(() => echo(doc, [{ op: "replaceAll", name: "infos", records }])).toThrow(/drops <infos> record "ODRD"/);
   });
 
   it("appends a record without disturbing the existing ones", () => {
@@ -356,7 +369,9 @@ describe("override recipes (guide p194)", () => {
     const edits: CardEdit[] = [
       { op: "setField", name: "overrideAllLocations", value: "true" },
       { op: "setField", name: "override", value: "1" },
-      { op: "replaceAll", name: "limits", records: [{ hours: "1", limit: "1000", limitId: "ULSD", minHours: "0" }] },
+      // CADV is dropped on purpose by this recipe, so the recipe declares it. An override that
+      // silently ate a product limit is the exact failure this workstream is here to prevent.
+      { op: "replaceAll", name: "limits", records: [{ hours: "1", limit: "1000", limitId: "ULSD", minHours: "0" }], removals: ["CADV"] },
     ];
     const { body, xml } = echo(doc(), edits);
     expect(collectElements(body, "limits")).toHaveLength(1);
