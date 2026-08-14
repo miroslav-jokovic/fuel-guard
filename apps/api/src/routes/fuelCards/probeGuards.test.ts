@@ -4,7 +4,7 @@ import { HttpError } from "../../lib/http.js";
 import { cardRefHmac } from "../../services/efsCardMirror.js";
 import type { EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
 import { createSupabaseRecorder, type RecordedQuery } from "../../testing/supabaseRecorder.js";
-import { assertOrgOwnsCard, assertProbeAllowed, resolveProbeCredentials } from "./probeGuards.js";
+import { assertOrgOwnsCard, assertProbeAllowed, resolveProbeCredentials, resolveReadOnlyScanCredentials } from "./probeGuards.js";
 
 const ORG = "org-1";
 const OTHER_ORG = "org-2";
@@ -121,5 +121,59 @@ describe("resolveProbeCredentials", () => {
     const db = createSupabaseRecorder({ tables: { efs_cards: [], efs_soap_credentials: [] } });
     await expect(resolveProbeCredentials(db.client, env, ORG)).rejects.toMatchObject({ status: 409 });
     expect(db.queries.some((q) => q.table === "efs_cards")).toBe(false);
+  });
+});
+
+describe("resolveReadOnlyScanCredentials", () => {
+  /**
+   * The difference between the two resolvers, and the bug it fixes.
+   *
+   * The echo scan cannot write and its whole purpose is a sweep of the PRODUCTION account — Phase
+   * 2's exit gate is "echo scan green across all 199 production cards". Routing it through
+   * `resolveProbeCredentials` meant a 403 on that exact org, runnable only by setting a flag that
+   * also unlocks two write probes against production.
+   */
+  const productionRow = {
+    org_id: ORG,
+    environment: "production",
+    endpoint_url: "https://ws.efsllc.com/axis2/services/CardManagementWS/",
+    soap_username: "user",
+    soap_password: "legacy-password",
+    soap_password_sealed: null,
+    account_id: null,
+    posted_last_cursor: null,
+    rejected_last_cursor: null,
+    posted_last_polled_at: null,
+    rejected_last_polled_at: null,
+    posted_last_success_at: null,
+    rejected_last_success_at: null,
+    posted_last_error: null,
+    rejected_last_error: null,
+    enabled: true,
+  };
+
+  it("returns production credentials with no EFS_ALLOW_PRODUCTION_PROBE set", async () => {
+    const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [productionRow] } });
+    await expect(resolveReadOnlyScanCredentials(db.client, env, ORG)).resolves.toMatchObject({
+      environment: "production",
+    });
+  });
+
+  it("is the ONLY difference — the gated resolver still refuses the same row", async () => {
+    // Same row, same env, both resolvers. One 403s and one does not; nothing else varies. Without
+    // this pairing the test above would pass just as well against a broken production gate.
+    const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [productionRow] } });
+    await expect(resolveProbeCredentials(db.client, env, ORG)).rejects.toMatchObject({
+      status: 403,
+      code: "production_probe_forbidden",
+    });
+  });
+
+  it("still refuses when EFS is not connected for the company", async () => {
+    const db = createSupabaseRecorder({ tables: { efs_soap_credentials: [] } });
+    await expect(resolveReadOnlyScanCredentials(db.client, env, ORG)).rejects.toMatchObject({
+      status: 409,
+      code: "efs_not_configured",
+    });
   });
 });

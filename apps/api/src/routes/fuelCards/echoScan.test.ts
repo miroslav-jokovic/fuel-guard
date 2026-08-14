@@ -57,6 +57,29 @@ describe("the echo scan cannot dispatch a write", () => {
   });
 });
 
+describe("credentials come from the read-only resolver, not the probe preamble", () => {
+  /**
+   * The bug this pins: the first version reused `resolveProbeCredentials`, which also enforces
+   * `EFS_ALLOW_PRODUCTION_PROBE`. The endpoint then answered 403 on the production org — the only
+   * org whose 199 cards the Phase 2 exit gate is about — and the only way to run it would have been
+   * to set a flag that simultaneously unlocks two write probes against production.
+   */
+  it("does not go through resolveProbeCredentials", () => {
+    expect(code).not.toContain("resolveProbeCredentials");
+    expect(code).toContain("resolveReadOnlyScanCredentials");
+  });
+
+  it("leaves the production gate in place for everything that can write", async () => {
+    // The three probe routes must keep it. If this fails, the read-only exemption has leaked.
+    const writers = ["probe.ts", "writeProbe.ts", "experiments.ts"];
+    for (const file of writers) {
+      const src = readFileSync(fileURLToPath(new URL(`./${file}`, import.meta.url)), "utf8");
+      expect(src, `${file} must still use the gated preamble`).toContain("resolveProbeCredentials");
+      expect(src, `${file} must not use the read-only resolver`).not.toContain("resolveReadOnlyScanCredentials");
+    }
+  });
+});
+
 describe("the scan is charged the vendor budget", () => {
   it("is classified as a SOAP route, because it is the heaviest one there is", () => {
     expect(isFuelCardVendorRequest({ method: "POST", path: "/api/fuel-cards/echo-scan" })).toBe(true);
