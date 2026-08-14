@@ -76,7 +76,9 @@ grep -oE "run: pnpm [a-z:@/ -]+" .github/workflows/ci.yml | sed 's/run: //'
 
 `pnpm build` needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; CI supplies them. A local failure naming those is an environment gap, not a defect — do not guess values.
 
-Matrix counts must hold: `rls` **375** · `hazmat_rls` **38** · `load-lifecycle` **61** · `duty-sessions` **25**. A count that *drops* is a finding; a count that rises is fine — re-baseline it here.
+Matrix counts must hold: `rls` **377** · `hazmat_rls` **38** · `load-lifecycle` **61** · `duty-sessions` **25**. A count that *drops* is a finding; a count that rises is fine — re-baseline it here.
+
+Re-baselined `rls` 375 → 377 on 2026-08-13: migration `0189_fuel_price_days` added a table, and the tenant-isolation sweep generates a leak test and an anon-lockout test per table. Confirmed to come from `main` alone, not from any card-control branch, by running the matrix on `origin/main` at `9ecaaf7`.
 
 > `pnpm build` needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the environment. A build failure naming those is a local env gap, not a code defect.
 

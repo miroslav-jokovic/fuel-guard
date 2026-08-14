@@ -19,6 +19,11 @@ const mutations = vi.hoisted(() => ({
 }));
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }));
+const LIVE_VERSION = "fedcba9876543210fedcba9876543210";
+const LIVE_CARD = {
+  status: "Active",
+  infos: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "LIVE-4471", reportValue: null }],
+};
 
 /** A COUNTER, not a constant: rotation is invisible to a mock that returns the same key every time,
  *  and rotation is precisely what the audit's idempotency finding is about. */
@@ -220,6 +225,125 @@ describe("outcomes an operator must not misread", () => {
     await lockAndConfirm(wrapper);
     expect(toast.error).toHaveBeenCalledWith("Card changed in EFS", expect.stringContaining("current settings"));
     expect(wrapper.emitted("changed")).toBeTruthy();
+  });
+
+  it("a card_state_changed response re-seeds the drawer from the version in the error payload", async () => {
+    mutations.lock.mutateAsync.mockRejectedValue(
+      new FakeApiError("changed", "card_state_changed", 409, {
+        currentVersion: LIVE_VERSION,
+        card: LIVE_CARD,
+      }),
+    );
+    const wrapper = render();
+
+    await lockAndConfirm(wrapper);
+
+    expect(wrapper.findAll("input").map((input) => (input.element as HTMLInputElement).value)).toContain("LIVE-4471");
+    expect(wrapper.emitted("changed")).toBeTruthy();
+  });
+
+  it("a second confirm after card_state_changed sends the version EFS returned", async () => {
+    mutations.lock.mutateAsync
+      .mockRejectedValueOnce(new FakeApiError("changed", "card_state_changed", 409, {
+        currentVersion: LIVE_VERSION,
+        card: LIVE_CARD,
+      }))
+      .mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    const wrapper = render();
+
+    await lockAndConfirm(wrapper);
+    await lockAndConfirm(wrapper);
+
+    const second = mutations.lock.mutateAsync.mock.calls[1]![0] as { expectedVersion: string };
+    expect(second.expectedVersion).toBe(LIVE_VERSION);
+  });
+
+  /**
+   * The recovery latch must not outlive the 409 it was set for.
+   *
+   * It exists for one window: between a 409 and the parent refetch that repairs the mirror, a refetch
+   * resolving to the OLD version must not overwrite the live document. Once the drawer closes, that
+   * window is over. If the latch survives it, every later re-seed is skipped — the operator reopens on
+   * the version from before their own successful change, and the next write is a guaranteed 409 that
+   * still costs a vendor round trip and an hourly-cap slot.
+   */
+  it("stops ignoring the parent once the drawer closes, so a reopen shows the card as it now is", async () => {
+    mutations.lock.mutateAsync
+      .mockRejectedValueOnce(new FakeApiError("changed", "card_state_changed", 409, {
+        currentVersion: LIVE_VERSION,
+        card: LIVE_CARD,
+      }))
+      .mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    const wrapper = render();
+
+    await lockAndConfirm(wrapper); // 409 — latch set to LIVE_VERSION
+    await lockAndConfirm(wrapper); // succeeds against LIVE_VERSION; the drawer asks to close
+
+    // The mutation moved the card again, so the parent comes back with neither the stale version nor
+    // the one the 409 carried.
+    const AFTER_VERSION = "99999999999999999999999999999999";
+    await wrapper.setProps({ open: false });
+    await wrapper.setProps({
+      open: true,
+      version: AFTER_VERSION,
+      prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "AFTER-4471", reportValue: null }],
+    });
+    await flushPromises();
+
+    expect(wrapper.findAll("input").map((input) => (input.element as HTMLInputElement).value)).toContain("AFTER-4471");
+
+    await lockAndConfirm(wrapper);
+    const third = mutations.lock.mutateAsync.mock.calls[2]![0] as { expectedVersion: string };
+    expect(third.expectedVersion).toBe(AFTER_VERSION);
+  });
+
+  /** The 409 the operator ABANDONS rather than retries. No outcome ever settles, so the settled-outcome
+   *  exit never runs and closing is the only thing that can end the window. */
+  it("stops ignoring the parent when a 409 is closed without a retry", async () => {
+    mutations.lock.mutateAsync.mockRejectedValue(
+      new FakeApiError("changed", "card_state_changed", 409, {
+        currentVersion: LIVE_VERSION,
+        card: LIVE_CARD,
+      }),
+    );
+    const wrapper = render();
+
+    await lockAndConfirm(wrapper); // 409 — latch set, and the operator gives up here
+    await wrapper.setProps({ open: false });
+
+    const AFTER_VERSION = "77777777777777777777777777777777";
+    await wrapper.setProps({
+      open: true,
+      version: AFTER_VERSION,
+      prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "REOPEN-4471", reportValue: null }],
+    });
+    await flushPromises();
+
+    expect(wrapper.findAll("input").map((input) => (input.element as HTMLInputElement).value)).toContain("REOPEN-4471");
+  });
+
+  /** `drift_detected` settles the mutation but does NOT close the drawer, so the close path alone
+   *  would leave the latch set on a drawer the operator is still looking at. */
+  it("stops ignoring the parent after a settled outcome that leaves the drawer open", async () => {
+    mutations.lock.mutateAsync
+      .mockRejectedValueOnce(new FakeApiError("changed", "card_state_changed", 409, {
+        currentVersion: LIVE_VERSION,
+        card: LIVE_CARD,
+      }))
+      .mockResolvedValue({ status: "drift_detected", mutationId: "m1", driftFields: ["/policyNumber"] });
+    const wrapper = render();
+
+    await lockAndConfirm(wrapper); // 409 — latch set
+    await lockAndConfirm(wrapper); // settles as drift; the drawer stays open
+
+    const AFTER_VERSION = "88888888888888888888888888888888";
+    await wrapper.setProps({
+      version: AFTER_VERSION,
+      prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "DRIFT-4471", reportValue: null }],
+    });
+    await flushPromises();
+
+    expect(wrapper.findAll("input").map((input) => (input.element as HTMLInputElement).value)).toContain("DRIFT-4471");
   });
 
   it("surfaces a 429 with the retry hint rather than a raw error", async () => {

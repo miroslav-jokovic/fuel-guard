@@ -265,6 +265,20 @@ describe("concurrency and caps", () => {
     expect(rec.writtenRows("efs_card_mutations")).toHaveLength(0);
   });
 
+  it("a card_state_changed refreshes the mirror row", async () => {
+    const rec = recorder();
+    const s = stub(loginOk, CARD_ACTIVE);
+
+    await expect(
+      executeCardMutation(ctxFor(rec, s.fetchImpl, "stale-version-from-an-old-screen"), spec),
+    ).rejects.toMatchObject({ code: "card_state_changed" });
+
+    expect(rec.writtenRows("efs_cards").at(-1)).toMatchObject({
+      org_id: ORG,
+      card_version: versionOf(CARD_ACTIVE),
+    });
+  });
+
   it("refuses once the org has spent its hourly budget", async () => {
     const rec = recorder({ efs_card_mutations: { data: [], error: null, count: 50 } });
     const s = stub(loginOk, CARD_ACTIVE);
