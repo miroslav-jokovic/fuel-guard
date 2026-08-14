@@ -1,12 +1,14 @@
 import type { z } from "zod";
-import { type CapabilityContract, cardLockContract, cardUnlockContract, overrideGrantContract } from "@fuelguard/shared";
+import { type CapabilityContract, cardLockContract, cardUnlockContract, deleteOverrideContract, overrideClearContract, overrideGrantContract } from "@fuelguard/shared";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
 import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.js";
+import { deleteOverrideBehaviour, overrideClearBehaviour } from "./capabilities/overrideClear.behaviour.js";
 import { resolveCapability } from "./orchestrator/resolve.js";
 import { executeCapability } from "../services/efsCardControl.js";
 import type { CardMutationContext, CardMutationOutcome } from "./orchestrator/types.js";
 import type { CapabilityBehaviour } from "./types.js";
+import type { Env } from "../env.js";
 
 /**
  * Contract + behaviour, paired by key, packaged so the router can serve them without knowing any
@@ -69,19 +71,45 @@ export const mount = <TBody extends CardMutationRequestFields>(
 });
 
 /**
- * Every capability the API serves from its descriptor.
+ * Contract and behaviour for every capability that EXISTS, mounted or not.
  *
- * `card_lock` was the pilot (Step 3.5); Step 3.6 adds the rest one commit at a time. Whatever is
- * still driven by `CardMutationIntentSpec` in `routes/fuelCards/control.ts` has not been migrated
- * yet, and 3.7 deletes the hand-written handlers once nothing is left.
- *
- * The router iterates this. So does the cross-registry fitness test, which is what stops a capability
- * being declared and never mounted — the failure apps/api/src/routeAuth.test.ts documents in
- * "discovers the mounted /api routers", where a discovery regex found 26 routers and silently missed
- * the one that mattered (Phase 0 Step 0.7).
+ * `override_clear` and `delete_override` are both here and only one is ever served: they are the two
+ * mechanisms of one intent, and `mountedCapabilities` picks. Keeping the unmounted one in this table
+ * is what lets the fitness test check it — a capability nothing can reach is still a capability that
+ * must declare a valid bucket, scope and (being direct) its `vendorMovesFields`.
  */
-export const MOUNTED_CAPABILITIES: readonly MountedCapability[] = [
+export const ALL_CAPABILITIES: readonly MountedCapability[] = [
   mount(cardLockContract, cardLockBehaviour),
   mount(cardUnlockContract, cardUnlockBehaviour),
   mount(overrideGrantContract, overrideGrantBehaviour),
+  mount(overrideClearContract, overrideClearBehaviour),
+  mount(deleteOverrideContract, deleteOverrideBehaviour),
 ];
+
+/**
+ * What the router actually serves, for one deployment.
+ *
+ * The only place that answers "which mechanism clears an override". It was an `if` inside the
+ * handler; making it a property of the registry is what gives **Step 4.2** somewhere to put the
+ * promotion lookup when it retires `EFS_CARD_DELETE_OVERRIDE_ENABLED` — the flag becomes a
+ * `delete_override` promotion state and this function reads that instead.
+ *
+ * The flag stays off until the D1 probe proves the account is entitled to the op and records what
+ * EFS actually sets the three override fields to afterwards (fix plan D1).
+ */
+export function mountedCapabilities(env: Env): readonly MountedCapability[] {
+  const clearKey = env.EFS_CARD_DELETE_OVERRIDE_ENABLED ? "delete_override" : "override_clear";
+  const mounted = ALL_CAPABILITIES.filter((c) => !isClearMechanism(c) || c.contract.key === clearKey);
+  // Two capabilities on one method+path is a coin toss decided by registration order, and the loser
+  // is silently unreachable. Refuse to build the router at all rather than serve whichever won.
+  const seen = new Set<string>();
+  for (const c of mounted) {
+    const route = `${c.contract.route.method} ${c.contract.route.path}`;
+    if (seen.has(route)) throw new Error(`two capabilities are mounted on ${route}`);
+    seen.add(route);
+  }
+  return mounted;
+}
+
+const isClearMechanism = (c: MountedCapability): boolean =>
+  c.contract.key === "override_clear" || c.contract.key === "delete_override";

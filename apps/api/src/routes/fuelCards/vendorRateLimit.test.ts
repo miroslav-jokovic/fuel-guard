@@ -124,7 +124,7 @@ describe("fuel-card vendor rate budget", () => {
     const routers = [
       fuelCardSettingsRouter(),
       fuelCardsRouter(),
-      fuelCardCapabilityRouter(),
+      fuelCardCapabilityRouter(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv)),
       fuelCardControlRouter(),
       fuelCardProbeRouter(),
       fuelCardWriteProbeRouter(),

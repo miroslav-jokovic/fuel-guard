@@ -1,6 +1,5 @@
-import { Router, type Response } from "express";
+import { Router } from "express";
 import {
-  clearOverrideSchema,
   rolesThatCanView,
   rolesThatManage,
   setPromptsSchema,
@@ -10,15 +9,8 @@ import { apiError, asyncHandler, dbErrorResponse } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { DEFAULT_STEP_UP_MAX_AGE_SEC, hasFreshAuth, stepUpRequired } from "../../middleware/requireFreshAuth.js";
+import { executeCardMutation, type CardMutationIntentSpec } from "../../services/efsCardControl.js";
 import {
-  executeCardMutation,
-  type CardMutationContext,
-  type CardMutationIntentSpec,
-} from "../../services/efsCardControl.js";
-import {
-  OVERRIDE_FIELDS,
-  overrideClearEdits,
-  overrideClearedLanded,
   promptsEdits,
 } from "../../services/efsCardEdits.js";
 import { ActionRefusalError, assertPromptRemovalAllowed } from "./controlRefusal.js";
@@ -75,37 +67,8 @@ export function fuelCardControlRouter(): Router {
 
   const canManage = requireRole(...rolesThatManage("fuel"));
 
-  const run = async (res: Response, ctx: CardMutationContext, spec: CardMutationIntentSpec): Promise<void> => {
-    try {
-      const outcome = await executeCardMutation(ctx, spec);
-      // 200 for every RECORDED outcome, including 'failed' and 'sent'. The request succeeded — we
-      // asked EFS and wrote down what happened. Returning 502 for a vendor refusal would throw away
-      // the mutation id the operator needs in order to look the attempt up.
-      res.json({ ok: outcome.status === "succeeded", ...outcome });
-    } catch (error) {
-      // A refusal decided against the FRESH document (fraud unlock, DRID removal) surfaces before
-      // any ledger row exists — the same recovery shape wherever it is thrown from.
-      if (error instanceof ActionRefusalError) {
-        if (error.code === "step_up_required") { stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, error.message); return; }
-        res.status(400).json(apiError(error.code, error.message));
-        return;
-      }
-      controlErrorResponse(res, error);
-    }
-  };
-
-  // ── Lock / unlock ───────────────────────────────────────────────────────────────────────────────
-
-  // `POST /:id/lock` is NOT here. It moved to the generated router in Step 3.5, driven by
-  // `cardLockContract` + `cardLockBehaviour` (apps/api/src/efs/). Nothing about the write changed —
-  // the characterisation suite asserts the same setCardv2 bytes — but the handler is gone rather
-  // than left in place, because two routers declaring one path is a coin toss decided by mount
-  // order. Steps 3.6 and 3.7 empty the rest of this file the same way.
-
-  // `POST /:id/unlock` left in Step 3.6, driven by `cardUnlockContract` + `cardUnlockBehaviour`.
-  // The fraud step-up went with it, and it went as ONE check rather than two: the mirror-based
-  // early prompt is gone and `planStepUp` decides against the document EFS returns inside the
-  // operation. See the behaviour file for why that is a fix and not a loss.
+  // `run()` went with the last capability that used it. The prompts handler below has always had
+  // its own inline copy, which is the asymmetry Step 3.6 is about to remove entirely.
 
   // ── Overrides ───────────────────────────────────────────────────────────────────────────────────
 
@@ -114,38 +77,10 @@ export function fuelCardControlRouter(): Router {
   // nothing against the daily override budget, and that is now a property of the type rather than
   // of this file's statement order.
 
-  router.delete("/:id/override", requireOrg, canManage, asyncHandler(async (req, res) => {
-    const body = clearOverrideSchema.safeParse(req.body ?? {});
-    if (!body.success) { badRequest(res, body.error); return; }
-    const prepared = await prepare(req, res, "override");
-    if (!prepared) return;
-
-    // D1: the dedicated `deleteOverride` op behind its flag; the proven three-edit echo otherwise.
-    // Same intent, same ledger, same finalizers — only the wire mechanism differs, and the audit
-    // meta names which one ran so the two are distinguishable in history. The flag stays off until
-    // the D1 probe proves entitlement and post-state on the QA card (fix plan D1).
-    const viaDeleteOp = getAppLocals(req).env.EFS_CARD_DELETE_OVERRIDE_ENABLED;
-
-    await run(res, {
-      ...prepared.ctx,
-      reason: body.data.reason,
-      expectedVersion: body.data.expectedVersion,
-      requestFingerprint: mutationFingerprint("override_clear", prepared.ctx.efsCardId, body.data),
-    }, {
-      intent: "override_clear",
-      auditAction: "card.override_cleared",
-      // With the vendor op, no edits are echoed — `[]` is the ledger's honest record of that.
-      buildEdits: viaDeleteOp ? () => [] : () => overrideClearEdits(),
-      ...(viaDeleteOp
-        ? { vendorOp: { op: "deleteOverride" as const, landed: overrideClearedLanded, movesFields: OVERRIDE_FIELDS } }
-        : {}),
-      auditMeta: (doc) => ({
-        overrideUsesBefore: doc.card.overrideUses,
-        overrideUsesAfter: 0,
-        vendorOp: viaDeleteOp ? "deleteOverride" : "setCardv2",
-      }),
-    });
-  }));
+  // `DELETE /:id/override` left in Step 3.6, as TWO capabilities sharing one intent —
+  // `override_clear` (the echo) and `delete_override` (the vendor op). The
+  // EFS_CARD_DELETE_OVERRIDE_ENABLED branch that used to live here is now `mountedCapabilities(env)`,
+  // which is where Step 4.2 puts the promotion lookup when it retires the flag.
 
   // ── Prompts ─────────────────────────────────────────────────────────────────────────────────────
 

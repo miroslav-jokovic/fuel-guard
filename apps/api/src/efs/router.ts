@@ -10,7 +10,8 @@ import {
   mutationFingerprint,
   prepare,
 } from "../routes/fuelCards/controlPrepare.js";
-import { MOUNTED_CAPABILITIES, type AcceptedRequest, type MountedCapability } from "./registry.js";
+import { mountedCapabilities, type AcceptedRequest, type MountedCapability } from "./registry.js";
+import type { Env } from "../env.js";
 import type { CardScope } from "../services/efsCardControlAccess.js";
 
 /**
@@ -35,7 +36,8 @@ import type { CardScope } from "../services/efsCardControlAccess.js";
  * allowed to take.
  */
 /**
- * @param capabilities defaults to the registry. Overridden only by router.test.ts, which needs a
+ * @param env decides which capabilities are served — today only the override-clear mechanism varies.
+ * @param capabilities defaults to that list. Overridden only by router.test.ts, which needs a
  * capability that DECLARES a `preflightStepUp`; it proves the ordering in the case titled
  * "refuses without charging a slot". `card_lock` has no preflight, deliberately, and the first real one
  * arrives with `override_grant` in Step 3.6. Asserting the ordering by reading this file's source
@@ -43,7 +45,8 @@ import type { CardScope } from "../services/efsCardControlAccess.js";
  * broken in production.
  */
 export function fuelCardCapabilityRouter(
-  capabilities: readonly MountedCapability[] = MOUNTED_CAPABILITIES,
+  env: Env,
+  capabilities: readonly MountedCapability[] = mountedCapabilities(env),
 ): Router {
   const router = Router();
   router.use(requireAuth);

@@ -234,7 +234,7 @@ export function createApp(env: Env): Express {
   // before fuelCardControlRouter, which no longer declares that path — the order is belt to that
   // brace, so that if a capability is ever migrated without its hand-written handler being removed,
   // the DESCRIPTOR wins rather than whichever router Express reached first.
-  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter());
+  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardControlRouter(), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here

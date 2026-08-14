@@ -2,6 +2,7 @@ import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
 import { cardLockView } from "./cardLock.view.js";
 import { cardUnlockView } from "./cardUnlock.view.js";
 import { overrideGrantView } from "./overrideGrant.view.js";
+import { deleteOverrideView, overrideClearView } from "./overrideClear.view.js";
 import type { CapabilityView } from "./types.js";
 
 /**
@@ -23,6 +24,8 @@ export const CARD_CAPABILITY_VIEWS: Readonly<Record<string, CapabilityView<never
   card_lock: cardLockView,
   card_unlock: cardUnlockView,
   override_grant: overrideGrantView,
+  override_clear: overrideClearView,
+  delete_override: deleteOverrideView,
 };
 
 /** The keys the drawer can describe, in the order the shared registry declares them. */
@@ -32,3 +35,4 @@ export const CARD_CAPABILITY_VIEW_KEYS = Object.keys(CARD_CAPABILITY_CONTRACTS)
 export { cardLockView } from "./cardLock.view.js";
 export { cardUnlockView } from "./cardUnlock.view.js";
 export { overrideGrantView } from "./overrideGrant.view.js";
+export { deleteOverrideView, overrideClearView } from "./overrideClear.view.js";
