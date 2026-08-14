@@ -98,7 +98,13 @@ describe("syncIdleRollup", () => {
   });
 
   it("deletes org-scoped rollup keys absent from the fresh derivation", async () => {
-    const staleDay = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    // Derived from `day`, NOT from `Date.now()` a second time. The two anchors used to be computed
+    // independently — 30 h back and 24 h back — and those land on the SAME UTC date at every hour
+    // from 06:00 UTC onward, so the "stale" row matched the fresh derivation, nothing was deleted,
+    // and this test failed for 18 hours out of every 24. Deriving it keeps them distinct at every
+    // hour. day+1 rather than day-1 because `day` is D-1 or D-2 and the read window is [D-2, today]:
+    // day+1 is always inside it, day-1 falls outside whenever `day` is already D-2.
+    const staleDay = new Date(Date.parse(`${day}T00:00:00.000Z`) + 86_400_000).toISOString().slice(0, 10);
     const rec = createSupabaseRecorder({
       rpc: { delete_idle_rollup_rows: 1 },
       tables: {
