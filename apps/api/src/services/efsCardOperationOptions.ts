@@ -1,4 +1,4 @@
-import type { CardMutationContext } from "./efsCardControl.js";
+import type { CardMutationContext } from "../efs/orchestrator/types.js";
 
 /** Options shared by the interactive card reads and writes in one mutation. */
 export const cardOpOptions = (ctx: CardMutationContext) => ({

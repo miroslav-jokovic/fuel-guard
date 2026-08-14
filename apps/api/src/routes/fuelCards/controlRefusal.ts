@@ -1,17 +1,10 @@
 import type { CardScope } from "../../services/efsCardControlAccess.js";
+import { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 
-/**
- * An action this caller is not allowed to take, discovered only once the FRESH card document is in
- * hand — a prompts change that drops the driver id, an unlock of a card EFS has just flagged.
- * Thrown from `buildEdits` so `planCardMutation` aborts before it writes a ledger row: no row, no
- * dispatch, no half-finished record of a change that never happened.
- */
-export class ActionRefusalError extends Error {
-  constructor(message: string, public code: "invalid_request" | "step_up_required") {
-    super(message);
-    this.name = "ActionRefusalError";
-  }
-}
+// Moved to the services layer in Step 3.4 so the orchestrator can throw it for a capability's
+// governance gates without a service importing a router. Re-exported so every existing import of
+// `ActionRefusalError` from this module keeps working.
+export { ActionRefusalError } from "../../services/efsCardControlErrors.js";
 
 /** Every explicit prompt removal is destructive; DRID additionally needs its named opt-in. */
 export function assertPromptRemovalAllowed(
