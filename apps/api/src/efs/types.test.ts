@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseCardDocument } from "../lib/efsCardXml.js";
+import type { z } from "zod";
+import { cardLockContract, defineContract } from "@fuelguard/shared";
 import { cardEchoVerify } from "./cardEchoVerify.js";
+import { defineBehaviour } from "./types.js";
 import type { CapabilityBehaviour, Mutation, Snapshot, Step } from "./types.js";
 
 /**
@@ -42,6 +45,26 @@ type _DirectIsAllowedInAStep = Expect<Assignable<DirectMutation, Step<Body>["mut
 type BodyOnlyDispatch = { kind: "direct"; dispatch: (body: Body) => Promise<never> };
 type _DispatchReceivesCtx = Expect<Assignable<BodyOnlyDispatch, Mutation<Body>> extends true ? false : true>;
 
+// ── the body type comes from the CONTRACT, not from whatever the behaviour happens to declare ────
+/**
+ * The fourth §7.3 claim, and the one this file was missing.
+ *
+ * `defineBehaviour` used to take a free `TBody`, so a behaviour could declare any body it liked and
+ * the contract it named could not contradict it — the binding the docs describe did not exist and
+ * nothing here noticed, because the three assertions above are about `CapabilityBehaviour`'s SHAPE
+ * and this one is about the helper that builds it (Step 3.5).
+ *
+ * Written as a compile check on the real helper rather than on a hand-made type: the fault was in the
+ * signature, so anything that re-declares the signature to test it would pass for the wrong reason.
+ */
+const _contractUnderTest = defineContract({
+  ...cardLockContract,
+  key: "type_assertion_only",
+});
+type ContractBody = Parameters<Parameters<typeof defineBehaviour<typeof _contractUnderTest.schema>>[1]["verify"]["judge"]>[2];
+type _BodyFlowsFromTheContract = Expect<Assignable<ContractBody, z.infer<typeof cardLockContract.schema>>>;
+type _AndIsNotJustAnything = Expect<Assignable<{ somethingElse: true }, ContractBody> extends true ? false : true>;
+
 /** Referenced so the compiler keeps the assertions above and `lint` does not read them as dead. */
 export const TYPE_ASSERTIONS: readonly true[] = [
   true as _VerifyIsRequired,
@@ -49,6 +72,8 @@ export const TYPE_ASSERTIONS: readonly true[] = [
   true as _EchoIsAllowedInAStep,
   true as _DirectIsAllowedInAStep,
   true as _DispatchReceivesCtx,
+  true as _BodyFlowsFromTheContract,
+  true as _AndIsNotJustAnything,
 ];
 
 const fixture = (name: string): string =>
