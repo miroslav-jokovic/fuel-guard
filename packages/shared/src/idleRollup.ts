@@ -12,9 +12,14 @@
  *  - the day's dominant driver (idle-event operators + assignment day-overlap — the same signals the
  *    driver leaderboard combined in the browser).
  *
- * Day bucketing is UTC (`toISOString().slice(0,10)`), matching what the page previously did client-side,
- * so numbers do not shift with this move. Pure and deterministic — no I/O, fully unit-tested.
+ * Day bucketing follows the org's operating timezone when one is passed (`tz`) — the SAME clock
+ * `aggregateEngineDays` cuts `vehicle_engine_days` on — and falls back to UTC when it is not. Sessions and
+ * assignment intervals that span a midnight are split across the days they cover rather than credited whole
+ * to the day they started, so a night's rest is not stranded on one side of the boundary. Pure and
+ * deterministic — no I/O, fully unit-tested.
  */
+import { dayInTz } from "./dashboard.js";
+import { zonedWallTimeToUtcIso } from "./efsImport/index.js";
 import { hosOverlapSeconds, type HosSegment } from "./hos.js";
 import {
   buildHosVehicleTimelines,
@@ -34,6 +39,8 @@ export interface RollupEngineDay {
 export interface RollupSession {
   vehicleId: string;
   startedAtMs: number;
+  /** Session end. Omitted → the session is treated as landing wholly on its start day. */
+  endedAtMs?: number;
   idleSec: number;
   /** idle_park_sessions.mode: continuous | optimized_cycling | apu_or_off */
   mode: string;
@@ -111,7 +118,53 @@ export interface IdleRollupDay {
 }
 
 const DAY_MS = 86_400_000;
-const dayOf = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+
+/**
+ * The calendar-day boundary this rollup is cut on. `vehicle_engine_days` is bucketed on the ORG's operating
+ * timezone (aggregateEngineDays with a DST-correct `tz`), so sessions and events have to be cut on the same
+ * clock or the two halves of one night land in different rows and the per-day fit below clips real idle away.
+ * `tz` omitted → UTC, which is what this module did before an org clock was threaded through.
+ */
+interface DayBoundary {
+  key: (ms: number) => string;
+  nextMidnight: (ms: number) => number;
+}
+
+function dayBoundary(tz?: string | null): DayBoundary {
+  if (!tz) {
+    return {
+      key: (ms) => new Date(ms).toISOString().slice(0, 10),
+      nextMidnight: (ms) => Math.floor(ms / DAY_MS) * DAY_MS + DAY_MS,
+    };
+  }
+  const key = (ms: number): string => dayInTz(new Date(ms).toISOString(), tz);
+  return {
+    key,
+    nextMidnight: (ms) => {
+      const nextDay = new Date(Date.parse(`${key(ms)}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+      return Date.parse(zonedWallTimeToUtcIso(nextDay, "00:00:00", tz));
+    },
+  };
+}
+
+/**
+ * Split [startMs, endMs) into per-day shares of 1, keyed on the given boundary. A session that spans a
+ * midnight contributes to every day it covers, in proportion to the wall-clock time spent there — the same
+ * split `aggregateEngineDays` performs on the engine-state intervals it is reconciled against.
+ */
+function dayShares(boundary: DayBoundary, startMs: number, endMs: number): Map<string, number> {
+  const shares = new Map<string, number>();
+  const span = endMs - startMs;
+  if (!(span > 0)) return shares.set(boundary.key(startMs), 1);
+  for (let from = startMs; from < endMs; ) {
+    const to = Math.min(endMs, boundary.nextMidnight(from));
+    if (!(to > from)) break; // defensive: a non-advancing boundary must not spin
+    const k = boundary.key(from);
+    shares.set(k, (shares.get(k) ?? 0) + (to - from) / span);
+    from = to;
+  }
+  return shares.size > 0 ? shares : shares.set(boundary.key(startMs), 1);
+}
 
 type Acc = Omit<IdleRollupDay, "attributedDriverId">;
 
@@ -195,7 +248,11 @@ export function buildIdleRollupDays(input: {
   /** Window bounds — open-ended assignments are clamped here (never iterated to infinity). */
   windowStartMs: number;
   windowEndMs: number;
+  /** The org's operating timezone — must match the one `vehicle_engine_days` was bucketed on. UTC when unset. */
+  tz?: string | null;
 }): IdleRollupDay[] {
+  const boundary = dayBoundary(input.tz);
+  const dayOf = boundary.key;
   const acc = new Map<string, Acc>();
   const weightByDay = new Map<string, Map<string, number>>();
   const weightByVeh = new Map<string, Map<string, number>>();
@@ -213,46 +270,55 @@ export function buildIdleRollupDays(input: {
     a.coverageSec += Math.max(0, d.coverageSec);
   }
 
-  // Park sessions: whole session bucketed to its START day (exactly how the page bucketed avoidable
-  // attribution before), split managed vs continuous by mode.
+  // Park sessions: SPLIT across every day the session spans, in proportion to the wall-clock time it spent
+  // in each (audit 2026-08-13). Previously the whole session was bucketed on its START day while engine-day
+  // idle was split at midnight — and since the per-day fit below clips classified idle down to that day's
+  // OBSERVED idle, an overnight rest lost every second that belonged to the following morning. In production
+  // 18% of sessions crossed a midnight but carried 39% of all session idle, and 27% of rollup rows sat pinned
+  // at the clip cap: 4,432 h of classified idle per 30 days was being discarded, almost all of it the
+  // overnight rest idle this feature exists to measure.
   for (const s of input.sessions) {
-    const a = accFor(acc, s.vehicleId, dayOf(s.startedAtMs));
-    if (s.mode === "continuous") a.continuousIdleSec += Math.max(0, s.idleSec);
-    else a.managedIdleSec += Math.max(0, s.idleSec); // apu_or_off | optimized_cycling
-    if (s.mode === "continuous" && s.optimizedEnvelope != null) {
-      a.optimizedEnvelopeInsideSec += Math.max(0, s.optimizedEnvelope.insideSec);
-      a.optimizedEnvelopeOutsideSec += Math.max(0, s.optimizedEnvelope.outsideSec);
-      a.optimizedEnvelopeUnknownSec += Math.max(0, s.optimizedEnvelope.unknownSec);
-      a.optimizedEnvelopeAmbiguousSec += Math.max(0, s.optimizedEnvelope.ambiguousSec);
-      const statusRank: Record<RollupEnvelopeEvidenceStatus, number> = {
-        not_applicable: 0,
-        sufficient: 1,
-        insufficient: 2,
-        ambiguous: 3,
-        unavailable: 4,
-      };
-      if (statusRank[s.optimizedEnvelope.status] > statusRank[a.optimizedEnvelopeStatus])
-        a.optimizedEnvelopeStatus = s.optimizedEnvelope.status;
-      if (s.optimizedEnvelope.source === "learned_behavioral")
-        a.optimizedEnvelopeSource = "learned_behavioral";
-      else if (a.optimizedEnvelopeSource === "none")
-        a.optimizedEnvelopeSource = s.optimizedEnvelope.source;
-    }
-    if (s.mode === "continuous" && s.dutyEvidence != null) {
-      a.hosRestSec += Math.max(0, s.dutyEvidence.restSec);
-      a.hosWorkSec += Math.max(0, s.dutyEvidence.workSec);
-      a.hosUnknownSec += Math.max(0, s.dutyEvidence.unknownSec);
-      a.hosAmbiguousSec += Math.max(0, s.dutyEvidence.ambiguousSec);
-      a.hosGraceSec += Math.max(0, s.dutyEvidence.graceSec);
-      const statusRank: Record<RollupDutyEvidenceStatus, number> = {
-        not_applicable: 0,
-        sufficient: 1,
-        insufficient: 2,
-        ambiguous: 3,
-        unavailable: 4,
-      };
-      if (statusRank[s.dutyEvidence.status] > statusRank[a.hosEvidenceStatus])
-        a.hosEvidenceStatus = s.dutyEvidence.status;
+    const idleSec = Math.max(0, s.idleSec);
+    const shares = dayShares(boundary, s.startedAtMs, s.endedAtMs ?? s.startedAtMs);
+    for (const [day, share] of shares) {
+      const a = accFor(acc, s.vehicleId, day);
+      if (s.mode === "continuous") a.continuousIdleSec += idleSec * share;
+      else a.managedIdleSec += idleSec * share; // apu_or_off | optimized_cycling
+      if (s.mode === "continuous" && s.optimizedEnvelope != null) {
+        a.optimizedEnvelopeInsideSec += Math.max(0, s.optimizedEnvelope.insideSec) * share;
+        a.optimizedEnvelopeOutsideSec += Math.max(0, s.optimizedEnvelope.outsideSec) * share;
+        a.optimizedEnvelopeUnknownSec += Math.max(0, s.optimizedEnvelope.unknownSec) * share;
+        a.optimizedEnvelopeAmbiguousSec += Math.max(0, s.optimizedEnvelope.ambiguousSec) * share;
+        const statusRank: Record<RollupEnvelopeEvidenceStatus, number> = {
+          not_applicable: 0,
+          sufficient: 1,
+          insufficient: 2,
+          ambiguous: 3,
+          unavailable: 4,
+        };
+        if (statusRank[s.optimizedEnvelope.status] > statusRank[a.optimizedEnvelopeStatus])
+          a.optimizedEnvelopeStatus = s.optimizedEnvelope.status;
+        if (s.optimizedEnvelope.source === "learned_behavioral")
+          a.optimizedEnvelopeSource = "learned_behavioral";
+        else if (a.optimizedEnvelopeSource === "none")
+          a.optimizedEnvelopeSource = s.optimizedEnvelope.source;
+      }
+      if (s.mode === "continuous" && s.dutyEvidence != null) {
+        a.hosRestSec += Math.max(0, s.dutyEvidence.restSec) * share;
+        a.hosWorkSec += Math.max(0, s.dutyEvidence.workSec) * share;
+        a.hosUnknownSec += Math.max(0, s.dutyEvidence.unknownSec) * share;
+        a.hosAmbiguousSec += Math.max(0, s.dutyEvidence.ambiguousSec) * share;
+        a.hosGraceSec += Math.max(0, s.dutyEvidence.graceSec) * share;
+        const statusRank: Record<RollupDutyEvidenceStatus, number> = {
+          not_applicable: 0,
+          sufficient: 1,
+          insufficient: 2,
+          ambiguous: 3,
+          unavailable: 4,
+        };
+        if (statusRank[s.dutyEvidence.status] > statusRank[a.hosEvidenceStatus])
+          a.hosEvidenceStatus = s.dutyEvidence.status;
+      }
     }
   }
 
@@ -300,17 +366,11 @@ export function buildIdleRollupDays(input: {
     const s = Math.max(asg.startMs, input.windowStartMs);
     const e = Math.min(asg.endMs ?? input.windowEndMs, input.windowEndMs);
     if (!(e > s)) continue;
-    for (let dayStart = Math.floor(s / DAY_MS) * DAY_MS; dayStart < e; dayStart += DAY_MS) {
-      const ov = Math.min(e, dayStart + DAY_MS) - Math.max(s, dayStart);
-      if (ov > 0)
-        addWeight(
-          weightByDay,
-          weightByVeh,
-          asg.vehicleId,
-          dayOf(dayStart),
-          asg.driverId,
-          ov / 1000,
-        );
+    for (let from = s; from < e; ) {
+      const to = Math.min(e, boundary.nextMidnight(from));
+      if (!(to > from)) break; // defensive: a non-advancing boundary must not spin
+      addWeight(weightByDay, weightByVeh, asg.vehicleId, dayOf(from), asg.driverId, (to - from) / 1000);
+      from = to;
     }
   }
 

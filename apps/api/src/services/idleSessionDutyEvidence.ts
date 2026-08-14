@@ -1,4 +1,5 @@
 import {
+  ON_DUTY_GRACE_SEC,
   hosVehicleTimelineOverlapSeconds,
   hosOverlapSeconds,
   hosVehicleOverlapSeconds,
@@ -27,6 +28,29 @@ function finiteNumber(value: number | string | null | undefined): number | null 
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/**
+ * Re-weight a duty overlap measured over the park's WALL CLOCK onto the park's IDLE seconds.
+ *
+ * The HOS overlay covers the whole park — including the stretches the engine was OFF — but every consumer
+ * of this evidence is apportioning IDLE seconds. Without this, a 12 h sleeper park with 9 h of idle
+ * reported 12 h of "rest idle": more rest than the truck had idle (unit 688 showed 393 h of rest against
+ * 366 h of continuous idle over 30 days). That over-count fed the rest/work split on the truck row, and
+ * it inflated the on-duty grace, which is derived from workSec.
+ *
+ * Where inside the park the engine was idling is not recorded — only the park's totals are — so idle is
+ * apportioned across the duty statuses in the same proportion they covered the park. That is an explicit
+ * assumption, and it is strictly better than crediting wall-clock seconds as idle seconds. The RAW overlap
+ * still decides `status`, since coverage is a property of the timeline, not of the idle it is scaled onto.
+ */
+function idleWeightedOverlap<T extends { coveredSec: number }>(overlap: T, idleSec: number): T {
+  if (!(overlap.coveredSec > idleSec) || idleSec < 0) return overlap;
+  const scale = idleSec / overlap.coveredSec;
+  const scaled = { ...overlap } as Record<string, unknown>;
+  for (const [key, value] of Object.entries(overlap))
+    if (typeof value === "number") scaled[key] = value * scale;
+  return scaled as T;
+}
+
 /** Build direct parked-session HOS evidence, then fall back to explicitly attributed idle events. */
 export function buildSessionDutyEvidence(
   session: IdleDutySessionInput,
@@ -52,10 +76,11 @@ export function buildSessionDutyEvidence(
   const vehicleSegments = segmentsByVehicle.get(session.vehicle_id) ?? [];
   const vehicleTimeline = vehicleTimelines?.get(session.vehicle_id);
   if (vehicleTimeline != null || vehicleSegments.length > 0) {
-    const overlap =
+    const rawOverlap =
       vehicleTimeline != null
         ? hosVehicleTimelineOverlapSeconds(vehicleTimeline, startMs, endMs)
         : hosVehicleOverlapSeconds(vehicleSegments, session.vehicle_id, startMs, endMs);
+    const overlap = idleWeightedOverlap(rawOverlap, idleSec);
     const unknownSec =
       overlap.unknownSec +
       overlap.drivingSec +
@@ -63,16 +88,16 @@ export function buildSessionDutyEvidence(
       Math.max(0, idleSec - overlap.coveredSec);
     return {
       status:
-        overlap.ambiguousSec > 0
+        rawOverlap.ambiguousSec > 0
           ? "ambiguous"
-          : overlap.coveredSec >= idleSec && unknownSec <= 0
+          : rawOverlap.coveredSec >= idleSec && unknownSec <= 0
             ? "sufficient"
             : "insufficient",
       restSec: overlap.restSec,
       workSec: overlap.workSec,
       unknownSec,
       ambiguousSec: overlap.ambiguousSec,
-      graceSec: Math.min(overlap.workSec, 15 * 60),
+      graceSec: Math.min(overlap.workSec, ON_DUTY_GRACE_SEC),
     };
   }
 
@@ -114,6 +139,6 @@ export function buildSessionDutyEvidence(
     workSec,
     unknownSec,
     ambiguousSec: 0,
-    graceSec: Math.min(workSec, 15 * 60),
+    graceSec: Math.min(workSec, ON_DUTY_GRACE_SEC),
   };
 }

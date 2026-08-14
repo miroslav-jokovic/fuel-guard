@@ -323,6 +323,7 @@ function dutyEvidenceFor(s) {
   if (s.continuous <= 0) return undefined;
   return {
     status: s.hosEvidenceStatus === "not_applicable" ? "unavailable" : s.hosEvidenceStatus,
+    restSec: s.hosRest,
     workSec: s.hosWork,
     unknownSec: s.hosUnknown,
     ambiguousSec: s.hosAmbiguous,
@@ -456,12 +457,17 @@ function verdictOffenders(page, basis) {
       r.avoidableIdleSec > r.continuousIdleSec + TOLERANCE_SEC ||
       r.continuousIdleSec > r.idleSec + TOLERANCE_SEC ||
       r.idleSec > engineOn + TOLERANCE_SEC ||
-      (!r.hasAlternative && r.avoidableIdleSec !== 0)
+      (!r.hasAlternative && r.avoidableIdleSec !== 0) ||
+      // Reducible is the OPPORTUNITY measure: it ignores the equipment flags on purpose, so it gets no
+      // free pass on the physical bounds. It is carved out of the same continuous idle and can never
+      // exceed it, and it must never come back negative from the justified/grace subtractions.
+      (r.reducibleIdleSec != null &&
+        (r.reducibleIdleSec < 0 || r.reducibleIdleSec > r.continuousIdleSec + TOLERANCE_SEC))
     ) {
       offenders.push(
         `unit ${row.unit} (${row.vehicleId}) algebra=${algebra}/${r.continuousIdleSec} ` +
-          `avoidable=${r.avoidableIdleSec} continuous=${r.continuousIdleSec} idle=${r.idleSec} engineOn=${engineOn} ` +
-          `hasAlternative=${r.hasAlternative}`,
+          `avoidable=${r.avoidableIdleSec} reducible=${r.reducibleIdleSec} continuous=${r.continuousIdleSec} ` +
+          `idle=${r.idleSec} engineOn=${engineOn} hasAlternative=${r.hasAlternative}`,
       );
       continue;
     }
@@ -634,6 +640,7 @@ function fixtureText(examples, rollups, basis) {
       justifiedSec: row.verdict.justifiedIdleSec,
       uncertainSec: row.verdict.uncertainIdleSec,
       graceSec: row.verdict.operationalGraceIdleSec,
+      reducibleSec: row.verdict.reducibleIdleSec,
       managedSec: row.verdict.managedIdleSec,
       avoidableH: row.avoidableH,
       unavoidableH: row.unavoidableH,

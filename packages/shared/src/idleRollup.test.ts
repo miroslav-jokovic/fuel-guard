@@ -4,6 +4,7 @@ import type { HosSegment } from "./hos.js";
 
 const T0 = Date.parse("2026-06-01T00:00:00.000Z"); // day boundary
 const H = 3600_000;
+const H_S = 3600;
 const D1 = "2026-06-01";
 const D2 = "2026-06-02";
 
@@ -68,6 +69,94 @@ describe("buildIdleRollupDays", () => {
     expect(rows[0]!.continuousIdleSec + rows[0]!.managedIdleSec).toBeLessThanOrEqual(
       rows[0]!.idleSec + 1,
     );
+  });
+
+  it("splits an overnight session across the days it spans instead of stranding it on the start day", () => {
+    // 10h park from 20:00 D1 to 06:00 D2 with 9h of continuous idle. Engine days split at midnight, so D1
+    // observes 4h of idle and D2 observes 6h. Bucketing the whole session on D1 pinned it to D1's 4h cap and
+    // threw the other 5h away; the split keeps 4h on D1 (40% of the span) and 5.4h on D2.
+    const rows = buildIdleRollupDays({
+      engineDays: [
+        { vehicleId: "v1", day: D1, driveSec: 0, idleSec: 4 * H_S, offSec: 0, coverageSec: 4 * H_S },
+        { vehicleId: "v1", day: D2, driveSec: 0, idleSec: 6 * H_S, offSec: 0, coverageSec: 6 * H_S },
+      ],
+      sessions: [
+        {
+          vehicleId: "v1",
+          startedAtMs: T0 + 20 * H,
+          endedAtMs: T0 + 30 * H,
+          idleSec: 9 * H_S,
+          mode: "continuous",
+        },
+      ],
+      events: [],
+      segmentsByDriver: new Map(),
+      assignments: [],
+      ...win,
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ day: D1, continuousIdleSec: 3.6 * H_S });
+    expect(rows[1]).toMatchObject({ day: D2, continuousIdleSec: 5.4 * H_S });
+    // Nothing was clipped away: the whole 9h survives, where start-day bucketing kept only 4h.
+    expect(rows[0]!.continuousIdleSec + rows[1]!.continuousIdleSec).toBe(9 * H_S);
+  });
+
+  it("prorates a split session's evidence buckets with its idle seconds", () => {
+    const rows = buildIdleRollupDays({
+      engineDays: [
+        { vehicleId: "v1", day: D1, driveSec: 0, idleSec: 8 * H_S, offSec: 0, coverageSec: 8 * H_S },
+        { vehicleId: "v1", day: D2, driveSec: 0, idleSec: 8 * H_S, offSec: 0, coverageSec: 8 * H_S },
+      ],
+      sessions: [
+        {
+          vehicleId: "v1",
+          startedAtMs: T0 + 22 * H,
+          endedAtMs: T0 + 26 * H, // 2h on D1, 2h on D2 → 50/50
+          idleSec: 4 * H_S,
+          mode: "continuous",
+          dutyEvidence: {
+            status: "sufficient",
+            restSec: 4 * H_S,
+            workSec: 0,
+            unknownSec: 0,
+            ambiguousSec: 0,
+            graceSec: 0,
+          },
+        },
+      ],
+      events: [],
+      segmentsByDriver: new Map(),
+      assignments: [],
+      ...win,
+    });
+    expect(rows[0]).toMatchObject({ day: D1, continuousIdleSec: 2 * H_S, hosRestSec: 2 * H_S });
+    expect(rows[1]).toMatchObject({ day: D2, continuousIdleSec: 2 * H_S, hosRestSec: 2 * H_S });
+  });
+
+  it("cuts days on the org timezone so sessions land on the same day as their engine time", () => {
+    // 02:00 UTC on 2026-06-02 is still 2026-06-01 in America/Chicago (UTC-5), which is the clock
+    // aggregateEngineDays bucketed the engine day on.
+    const rows = buildIdleRollupDays({
+      engineDays: [
+        { vehicleId: "v1", day: D1, driveSec: 0, idleSec: 4 * H_S, offSec: 0, coverageSec: 4 * H_S },
+      ],
+      sessions: [
+        {
+          vehicleId: "v1",
+          startedAtMs: Date.parse("2026-06-02T02:00:00.000Z"),
+          endedAtMs: Date.parse("2026-06-02T03:00:00.000Z"),
+          idleSec: 3600,
+          mode: "continuous",
+        },
+      ],
+      events: [],
+      segmentsByDriver: new Map(),
+      assignments: [],
+      tz: "America/Chicago",
+      ...win,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ day: D1, continuousIdleSec: 3600 });
   });
 
   it("overlays HOS duty onto idle events (rest/work), with uncovered time and no-driver idle → other", () => {

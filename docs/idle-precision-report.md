@@ -1,12 +1,12 @@
 # Idle precision report
 
-Run: 2026-08-12T20:23:25.923Z
-Window: 2026-07-13 through 2026-08-12 (page default; 31 observed calendar days)
-Cost basis: 0.8 gal/hour × $5.012/gal
+Run: 2026-08-14T00:36:22.543Z
+Window: 2026-07-15 through 2026-08-14 (page default; 30 observed calendar days)
+Cost basis: 0.8 gal/hour × $5.109/gal
 
 ## Executive result
 
-The live page computation reconciles to **65 confident trucks**, **13 rows with displayed avoidable hours**, **538.6 avoidable hours**, and **$2,160** on the rounded fleet card. The other confident trucks are either alternative=none (continuous-only or admin-confirmed no equipment, so idle is unavoidable) or equipped trucks whose managed/rest or grace/uncertain buckets leave zero displayed avoidable hours.
+The live page computation reconciles to **82 confident trucks**, **32 rows with displayed avoidable hours**, **1681.1 avoidable hours**, and **$6,870** on the rounded fleet card. The other confident trucks are either alternative=none (continuous-only or admin-confirmed no equipment, so idle is unavoidable) or equipped trucks whose managed/rest or grace/uncertain buckets leave zero displayed avoidable hours.
 
 ## Invariant results
 
@@ -17,6 +17,8 @@ The live page computation reconciles to **65 confident trucks**, **13 rows with 
 - **PASS** — 2a per-session HOS bucket algebra
 - **PASS** — 2b per-rollup nonnegative and classified-idle algebra
 - **PASS** — 5 freshness (<26h)
+- **PASS** — 6 identity hygiene (no active truck unlinked from Samsara beyond 14d grace)
+- **PASS** — 7 rollup history depth (>= source window)
 - **PASS** — 3 verdict algebra (Silvicom Inc)
 - **PASS** — 4 card/table consistency (Silvicom Inc)
 
@@ -24,38 +26,38 @@ The live page computation reconciles to **65 confident trucks**, **13 rows with 
 
 | Stage | Trucks |
 | --- | ---: |
-| Total with rollup data | 177 |
+| Total with rollup data | 176 |
 | Covered (coverage ≥ 50%) | 165 |
-| Judgeable (known alternative/envelope) | 74 |
-| Confident (duty-evidenced share ≥ 80%) | 65 |
+| Judgeable (known alternative/envelope) | 95 |
+| Confident (duty-evidenced share ≥ 80%) | 82 |
 
-Equipment census note: **91 trucks await admin equipment confirmation**. Learned APU/optimized patterns do not grant avoidability; they remain display evidence only.
+Equipment census note: **88 trucks await admin equipment confirmation**. Learned APU/optimized patterns do not grant avoidability; they remain display evidence only.
 
 ## Three worked examples
 
-### Unit 754 — equipped-and-wasting
+### Unit 781 — equipped-and-wasting
 
-Raw rollup sums: drive **609894s**, idle **707791s**, off **1248096s**, coverage **2565781s**; managed sessions **50715s**, continuous sessions **533158s**.
-HOS buckets: rest **684779s**, work **6235s**, unknown **244s**, ambiguous **0s**, grace **6231s**.
-Capability: has_apu=true, has_optimized_idle=true, learned=apu; resolved alternative **apu**.
-Verdict: managed **50715s**, continuous **533158s**, avoidable **532014s**, unavoidable **0s**, justified **0s**, uncertain **244s**, grace **900s**; confident **true**.
-Displayed: avoidable **147.8h**, unavoidable **0.0h**, uncertain **0.1h**, managed **14.1h**; dollars **$592.55**.
+Raw rollup sums: drive **537948s**, idle **1172469s**, off **119883s**, coverage **1830300s**; managed sessions **8169s**, continuous sessions **937774s**.
+HOS buckets: rest **1062458s**, work **18895s**, unknown **7404s**, ambiguous **0s**, grace **13516s**.
+Capability: has_apu=null, has_optimized_idle=true, learned=continuous_only; resolved alternative **optimized_idle**.
+Verdict: managed **8169s**, continuous **937774s**, avoidable **698641s**, unavoidable **0s**, justified **218213s**, uncertain **7404s**, grace **13516s**; confident **true**.
+Displayed: avoidable **194.1h**, unavoidable **0.0h**, uncertain **2.1h**, managed **2.3h**; dollars **$793.19**.
 
-### Unit 649 — continuous-only-unavoidable
+### Unit 674 — continuous-only-unavoidable
 
-Raw rollup sums: drive **604864s**, idle **814920s**, off **358393s**, coverage **1778177s**; managed sessions **8875s**, continuous sessions **651145s**.
-HOS buckets: rest **923767s**, work **14600s**, unknown **359s**, ambiguous **0s**, grace **12033s**.
+Raw rollup sums: drive **896724s**, idle **1343331s**, off **289926s**, coverage **2529981s**; managed sessions **16875s**, continuous sessions **1056703s**.
+HOS buckets: rest **1327529s**, work **30888s**, unknown **227s**, ambiguous **0s**, grace **20556s**.
 Capability: has_apu=null, has_optimized_idle=null, learned=continuous_only; resolved alternative **none**.
-Verdict: managed **8875s**, continuous **651145s**, avoidable **0s**, unavoidable **649886s**, justified **0s**, uncertain **359s**, grace **900s**; confident **true**.
-Displayed: avoidable **0.0h**, unavoidable **180.5h**, uncertain **0.1h**, managed **2.5h**; dollars **$0.00**.
+Verdict: managed **16875s**, continuous **1056703s**, avoidable **0s**, unavoidable **1035920s**, justified **0s**, uncertain **227s**, grace **20556s**; confident **true**.
+Displayed: avoidable **0.0h**, unavoidable **287.8h**, uncertain **0.1h**, managed **4.7h**; dollars **$0.00**.
 
-### Unit 697 — below-80-percent-duty-bar
+### Unit 555 — below-80-percent-duty-bar
 
-Raw rollup sums: drive **560709s**, idle **702523s**, off **1305606s**, coverage **2568838s**; managed sessions **26559s**, continuous sessions **606418s**.
-HOS buckets: rest **598676s**, work **7296s**, unknown **1135s**, ambiguous **123433s**, grace **5726s**.
-Capability: has_apu=null, has_optimized_idle=null, learned=apu; resolved alternative **unknown**.
-Verdict: managed **26559s**, continuous **606418s**, avoidable **0s**, unavoidable **480950s**, justified **0s**, uncertain **124568s**, grace **900s**; confident **false**.
-Displayed: avoidable **0.0h**, unavoidable **133.6h**, uncertain **34.6h**, managed **7.4h**; dollars **$0.00**.
+Raw rollup sums: drive **212524s**, idle **285467s**, off **553416s**, coverage **1051407s**; managed sessions **9059s**, continuous sessions **236021s**.
+HOS buckets: rest **216753s**, work **0s**, unknown **3440s**, ambiguous **47741s**, grace **0s**.
+Capability: has_apu=false, has_optimized_idle=false, learned=apu; resolved alternative **none**.
+Verdict: managed **9059s**, continuous **236021s**, avoidable **0s**, unavoidable **184840s**, justified **0s**, uncertain **51181s**, grace **0s**; confident **false**.
+Displayed: avoidable **0.0h**, unavoidable **51.3h**, uncertain **14.2h**, managed **2.5h**; dollars **$0.00**.
 
 ## Provenance
 

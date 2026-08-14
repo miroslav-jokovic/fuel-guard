@@ -4,6 +4,7 @@ import { persistIdleRollup } from "./idleRollupPersistence.js";
 import { buildEvidence } from "./idleDutyEvidenceSync.js";
 import { deriveAssignedVehicleSegments, type AssignmentRow } from "./idleDutyEvidenceSync.js";
 import { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } from "./idleWindow.js";
+import { organizationTimezone } from "./idleCapabilitySync.js";
 import {
   buildHosVehicleTimelines,
   buildIdleRollupDays,
@@ -212,6 +213,16 @@ export async function syncIdleRollup(
     },
   );
 
+  // The rollup must be cut on the SAME clock aggregateEngineDays bucketed vehicle_engine_days on, or a
+  // session and the engine time it is reconciled against land on different days and the per-day fit in
+  // buildIdleRollupDays clips real idle away.
+  const { data: orgRow } = await admin
+    .from("organizations")
+    .select("operating_hours")
+    .eq("id", orgId)
+    .maybeSingle();
+  const orgTz = organizationTimezone(orgRow?.operating_hours);
+
   // Samsara ids → our ids, to resolve the assignment feed.
   const [{ data: vs }, { data: ds }] = await Promise.all([
     admin
@@ -314,6 +325,7 @@ export async function syncIdleRollup(
       .map((s) => ({
         vehicleId: s.vehicle_id,
         startedAtMs: Date.parse(s.started_at),
+        endedAtMs: s.ended_at == null ? undefined : Date.parse(s.ended_at),
         idleSec: Number(s.idle_sec),
         mode: s.mode,
         optimizedEnvelope: sessionEnvelope(s, vehicleById.get(s.vehicle_id), events),
@@ -339,6 +351,7 @@ export async function syncIdleRollup(
     assignments,
     windowStartMs: inputStartMs,
     windowEndMs: endMs,
+    tz: orgTz,
   });
 
   const { written, deleted } = await persistIdleRollup(admin, orgId, rows, fromDate, toDate);

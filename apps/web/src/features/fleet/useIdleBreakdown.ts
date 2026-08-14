@@ -35,6 +35,10 @@ export interface TruckBreakdown {
   managedH: number; // apu_or_off + optimized_cycling idle
   continuousH: number;
   avoidableH: number;
+  /** Rest idle an APU/optimized idle WOULD carry — reported for EVERY truck, equipped or not. Null when
+   *  the truck has no duty overlay at all. See `reducibleIdleSec`: this is the capex case, not blame. */
+  reducibleH: number | null;
+  reducibleUsd: number | null;
   unavoidableH: number;
   justifiedH: number;
   uncertainH: number;
@@ -61,6 +65,11 @@ export interface IdleFleet {
   idlePct: number;
   avoidableH: number;
   avoidableUsd: number;
+  /** Fleet-wide reducible idle across every COVERED truck — the "what would equipping the fleet save"
+   *  figure. Counts trucks the equipment flags exclude from `avoidableH`, which is the point. */
+  reducibleH: number;
+  reducibleUsd: number;
+  reducibleTrucks: number;
   confidentTrucks: number;
   totalTrucks: number;
   rangeDays: number;
@@ -165,6 +174,7 @@ function dutyEvidenceFor(s: VehicleRollupSums): IdleDutyEvidence | undefined {
   if (s.continuous <= 0) return undefined;
   return {
     status: s.hosEvidenceStatus === "not_applicable" ? "unavailable" : s.hosEvidenceStatus,
+    restSec: s.hosRest,
     workSec: s.hosWork,
     unknownSec: s.hosUnknown,
     ambiguousSec: s.hosAmbiguous,
@@ -257,6 +267,8 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           managedH: hrs(r.managedIdleSec),
           continuousH: hrs(r.continuousIdleSec),
           avoidableH: hrs(r.avoidableIdleSec),
+          reducibleH: r.reducibleIdleSec == null ? null : hrs(r.reducibleIdleSec),
+          reducibleUsd: r.reducibleIdleSec == null ? null : costOf(r.reducibleIdleSec),
           unavoidableH: hrs(r.unavoidableIdleSec),
           justifiedH: hrs(r.justifiedIdleSec),
           uncertainH: hrs(r.uncertainIdleSec),
@@ -280,7 +292,10 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
         off = 0,
         avoidH = 0,
         avoidUsd = 0,
-        confidentTrucks = 0;
+        confidentTrucks = 0,
+        reduceH = 0,
+        reduceUsd = 0,
+        reducibleTrucks = 0;
       for (const t of trucks) {
         engineOn += t.engineOnH;
         drive += t.driveH;
@@ -290,6 +305,14 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           avoidH += t.avoidableH;
           avoidUsd += t.avoidableUsd;
           confidentTrucks += 1;
+        }
+        // Reducible deliberately does NOT gate on `confident`: confidence is about whether we can BLAME
+        // the truck, and the equipment flag it turns on is exactly what the opportunity measure exists to
+        // work without. It gates on coverage only — enough of the range observed to trust the hours.
+        if (t.reducibleH != null && t.reducibleH > 0 && t.coveragePct >= 50) {
+          reduceH += t.reducibleH;
+          reduceUsd += t.reducibleUsd ?? 0;
+          reducibleTrucks += 1;
         }
       }
       return {
@@ -303,6 +326,9 @@ export function useIdleBreakdown(filters: Ref<IdleDateFilter>, costBasis?: Ref<I
           idlePct: engineOn > 0 ? Math.round((idle / engineOn) * 1000) / 10 : 0,
           avoidableH: r1(avoidH),
           avoidableUsd: Math.round(avoidUsd),
+          reducibleH: r1(reduceH),
+          reducibleUsd: Math.round(reduceUsd),
+          reducibleTrucks,
           confidentTrucks,
           totalTrucks: trucks.length,
           rangeDays: days,

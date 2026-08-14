@@ -37,8 +37,9 @@ const {
       <span class="rounded-control bg-surface-muted px-2 py-0.5 font-semibold text-ink">{{ rangeLabel }}</span>
     </div>
 
-    <!-- Fleet engine-time summary: running = drive + idle, with the avoidable slice (new model) -->
-    <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <!-- Fleet engine-time summary: running = drive + idle, with BOTH idle measures — avoidable (waste on
+         trucks that had an alternative) and reducible (what equipping the rest of the fleet would save). -->
+    <div v-if="fleet" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <BaseCard>
         <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Fleet running time</dt>
         <dd class="mt-1 text-2xl font-bold text-ink">{{ fleet.engineOnH.toLocaleString() }} <span class="text-base font-normal text-ink-tertiary">engine-on h</span></dd>
@@ -54,6 +55,12 @@ const {
         <dd class="mt-1 text-2xl font-bold text-danger-700">{{ usd(fleet.avoidableUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.avoidableH.toLocaleString() }} h</span></dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary">across {{ fleet.confidentTrucks }}/{{ fleet.totalTrucks }} trucks with confident data</dd>
         <dd class="mt-0.5 text-xs text-ink-tertiary" title="Fuel price the idle cost is figured at">{{ priceNote }}</dd>
+      </BaseCard>
+      <BaseCard>
+        <dt class="text-xs font-medium tracking-wide text-ink-muted uppercase">Reducible with equipment</dt>
+        <dd class="mt-1 text-2xl font-bold text-warning-600">{{ usd(fleet.reducibleUsd) }} <span class="text-base font-normal text-ink-tertiary">· {{ fleet.reducibleH.toLocaleString() }} h</span></dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary">rest idle an APU or optimized idle would carry, across {{ fleet.reducibleTrucks }}/{{ fleet.totalTrucks }} trucks</dd>
+        <dd class="mt-0.5 text-xs text-ink-tertiary">includes trucks with no idle-reduction equipment — this is the case for fitting it, not waste to coach</dd>
       </BaseCard>
     </div>
 
@@ -84,10 +91,17 @@ const {
     <!-- Collapsible explanation + comfort band (was the always-on top blurb) -->
     <BaseCard v-if="showInfo" padding="sm" class="space-y-3 text-sm">
       <p class="text-ink-secondary">
-        We only count idling that could have been avoided: the engine running while parked, in comfortable
-        weather, with no work being done. We don't count short stops, idling to run equipment (PTO), or idling to
-        heat or cool the cab in extreme weather. Only <strong>avoidable</strong> idle affects a driver's score and
-        the wasted-money total.
+        <strong>Avoidable idle</strong> is waste we can coach: the truck had an APU or optimized idle recorded on
+        its Vehicles page, and the main engine ran while parked anyway — in comfortable weather, with no work being
+        done. We don't count short stops, idling to run equipment (PTO), or idling to heat or cool the cab in
+        extreme weather. Only avoidable idle affects a driver's score and the wasted-money total.
+      </p>
+      <p class="text-ink-secondary">
+        <strong>Reducible with equipment</strong> answers a different question: how much rest idle an APU or
+        optimized idle <em>would</em> have carried — shown for every truck, including those with no idle-reduction
+        equipment. On those trucks the driver wasted nothing, so avoidable is correctly zero; reducible is what
+        fitting equipment would be worth. A truck with no equipment recorded yet shows reducible hours and is
+        waiting on its Vehicles page entry before it can be scored for avoidable idle.
       </p>
       <p v-if="settings" class="text-ink-secondary">
         <span class="text-ink-muted">Comfortable-weather range (idle outside it counts as weather-excused — heating or cooling the cab):</span>
@@ -169,6 +183,8 @@ const {
         <template #cell-restIdleH="{ row }">{{ row.restIdleH == null ? "—" : row.restIdleH }}</template>
         <template #cell-workIdleH="{ row }">{{ row.workIdleH == null ? "—" : row.workIdleH }}</template>
         <template #cell-avoidableUsd="{ value }">{{ usd2(value) }}</template>
+        <template #cell-reducibleH="{ row }">{{ row.reducibleH == null ? "—" : row.reducibleH }}</template>
+        <template #cell-reducibleUsd="{ row }">{{ row.reducibleUsd == null ? "—" : usd2(row.reducibleUsd) }}</template>
         <template #cell-capability="{ value }">
           <span :class="['inline-flex rounded-control px-1.5 py-0.5 text-xs font-semibold', capBadge(value).cls]" title="Learned from the truck's engine on/off pattern">{{ capBadge(value).label }}</span>
         </template>

@@ -50,7 +50,8 @@ interface CapabilityReconciliationResult {
   staleParkSessionsDeleted: number;
 }
 
-function organizationTimezone(value: object | null | undefined): string {
+/** The org's operating clock — the day boundary engine-days, and therefore the rollup, are cut on. */
+export function organizationTimezone(value: object | null | undefined): string {
   if (value === null || value === undefined || Array.isArray(value) || !("tz" in value)) {
     return DEFAULT_ORG_TIMEZONE;
   }

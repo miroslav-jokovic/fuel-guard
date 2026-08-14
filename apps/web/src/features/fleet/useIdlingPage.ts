@@ -158,6 +158,10 @@ const trkColumns: DataTableColumn[] = [
   { key: "workIdleH", label: "On-duty idle", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "avoidableH", label: "Avoidable hours", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
   { key: "avoidableUsd", label: "Avoidable cost", sortable: true, numeric: true, cellClass: "font-semibold text-ink" },
+  // Reported for EVERY truck, including the ones with no equipment (where avoidable is a correct zero).
+  // This is the column that stops the page reading as empty for most of the fleet.
+  { key: "reducibleH", label: "Reducible with equipment (h)", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
+  { key: "reducibleUsd", label: "Reducible cost", sortable: true, numeric: true, cellClass: "text-ink-secondary" },
   { key: "capability", label: "Idle capability" },
   { key: "coveragePct", label: "Data confidence", sortable: true, numeric: true, cellClass: "text-ink-muted" },
 ];
