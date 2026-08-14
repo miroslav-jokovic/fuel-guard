@@ -460,11 +460,39 @@ A preservation assertion built on the response DOM does not fix this on its own:
 ### ✅ Exit Gate — Phase 2
 - [ ] No org with `write_entitlement = 'confirmed'` still has a null `probed_identity_hash` — *live DB check, not yet run*
 - [x] The Phase 1 bug, replayed through the guard, throws `echo_unfaithful` — `efsCardEcho.test.ts`, 2026-08-14
-- [ ] All four order tests pass; every existing echo test passes unchanged — *the four order tests are Step 2.3's and are not written. Two existing echo tests were changed by #13; see the Step 2.1 note — this clause needs amending before it can be ticked*
-- [ ] Echo scan green across all 199 production cards — *Step 2.5 not built*
+- [x] All four order tests pass — delivered by Step 2.3 (#16), in `efsCardXml.test.ts`
+- [ ] ~~Every existing echo test passes unchanged~~ — **needs amending, not ticking.** #13 deliberately CHANGED two: both performed a record drop through a bare `replaceAll` and now declare it in `removals` (`["ODRD"]` for prompts, `["CADV"]` for the p194 override recipe). That is the intended contract change. Steps 2.3, 2.4 and 3.1 each passed every pre-existing test unchanged. Miki to decide the wording.
+- [x] **Echo scan green across the production account — 2026-08-14: 197 cards scanned, 197 passed, 0 failed.** Run in four batches of 50 against `fleetguardapi-production` at `34f7336`. The account returns **197**, not the 199 this plan assumed; the older number is stale, not a shortfall.
+
+  What that clean sweep actually covers, given the guard grew during Phase 2: every card WEX holds
+  round-trips with no record dropped (2.1), no field dropped (2.1), no `editsLanded` miscount (2.2)
+  and no element out of `WSCardv2` sequence (2.3). The ten fixtures could never have made that claim —
+  this is the first evidence about the REAL fleet.
 - [x] Standing gates green — 2026-08-14, at `77a861a`
 
-**Phase 2 is NOT complete: 2.3, 2.4 and 2.5 remain.** Steps 2.1 and 2.2 alone do not close it, and the "Phases 9 and 10 are blocked on Phase 2" dependency still stands.
+**Phase 2 code is complete** (2.1 #13 · 2.2 #14 · 2.3 #16 · 2.4 #17 · 2.5 #18/#19/#21) **and the echo scan is green.** Two gate items remain: the `probed_identity_hash` live check, and the wording of the "unchanged" clause above.
+
+> ### Finding — `fleetguardweb` runs the API but cannot reach EFS (2026-08-14)
+>
+> The account has **two Railway services**, and this cost most of an afternoon to see:
+>
+> | Host | Serves | Reaches EFS |
+> |---|---|---|
+> | `fleetguardapi-production` | the API | yes — whitelisted, the pollers run here |
+> | `fleetguardweb-production` | the SPA **and a full copy of the API** | **no** |
+>
+> An EFS call landing on the web host is refused at WEX's firewall — `NotAllowed`, guide p9, both
+> `getCardSummariesV2` and v1. It looks like an outage and is an egress-IP whitelist miss. The browser
+> never hits it because the SPA calls `VITE_API_URL`, which is the api host.
+>
+> Two things follow, neither yet fixed:
+>
+> 1. **`deploy-verify` only polls `API_URL`.** It reported success for `34f7336` while the web host was
+>    still two commits behind. They deploy independently and one of them is unverified.
+> 2. **The web host serves EFS routes it cannot fulfil.** Either stop routing them there or whitelist
+>    its egress — the first is safer, since fewer whitelisted IPs is the stronger position with WEX.
+>
+> Ask WEX for nothing: no card was touched, and the block is at the card-LIST step.
 
 ---
 
