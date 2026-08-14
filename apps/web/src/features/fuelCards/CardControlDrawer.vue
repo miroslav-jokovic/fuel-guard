@@ -96,9 +96,21 @@ const drafts = ref<PromptInput[]>([]);
 const activeVersion = ref(props.version);
 const activeStatus = ref(props.status);
 const activePrompts = ref(props.prompts);
-/** Set after a 409 so a stale parent refetch cannot overwrite the live document in the drawer. */
+/**
+ * Set after a 409 so a stale parent refetch cannot overwrite the live document in the drawer.
+ *
+ * This latch is deliberately SHORT-LIVED. It covers one window — from the 409 until the parent's
+ * refetch catches up with the mirror the API just repaired — and `forgetRecovery` ends that window at
+ * both exits: the drawer closing, and the next mutation settling. A latch that outlived its window
+ * would skip every later re-seed, leaving the operator on the version from before their own change
+ * and making the next write a guaranteed 409 that still spends a vendor call and an hourly-cap slot.
+ */
 const recoveredVersion = ref<string | null>(null);
 const recoveredCardId = ref<string | null>(null);
+function forgetRecovery(): void {
+  recoveredVersion.value = null;
+  recoveredCardId.value = null;
+}
 
 /** One key per action, re-minted at every settled outcome (see property 2). */
 const keys = reactive<Record<ConfirmAction, string>>({
@@ -160,10 +172,9 @@ function isLiveCard(value: unknown): value is Pick<WsCard, "status" | "infos"> {
 watch(
   () => [props.open, props.cardId, props.version, props.prompts] as const,
   ([open]) => {
-    if (!open) return;
+    if (!open) return forgetRecovery();
     if (recoveredCardId.value === props.cardId && recoveredVersion.value !== null && recoveredVersion.value !== props.version) return;
-    recoveredCardId.value = null;
-    recoveredVersion.value = null;
+    forgetRecovery();
     seedDrawer(props.version, props.status, props.prompts);
   },
   { immediate: true },
@@ -213,6 +224,10 @@ async function runConfirmedAction(): Promise<void> {
     else if (notice.kind === "warning") toast.warning(notice.title, notice.message);
     else toast.error(notice.title, notice.message);
     confirmAction.value = null;
+    // A settled outcome ends the recovery window: from here the parent's refetch is NEWER than the
+    // 409 payload, not older, so it is the one that should win. Not every settled outcome closes the
+    // drawer — `drift_detected` and `sent` leave it open — so closing alone cannot be the only exit.
+    forgetRecovery();
     emit("changed");
     // A key is spent the moment its request SETTLES with a known outcome — a retry from here must be
     // a new request. `sent` is the sole exception: its outcome is unknown, and re-clicking it must

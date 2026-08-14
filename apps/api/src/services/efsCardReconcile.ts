@@ -320,20 +320,27 @@ async function audit(
 }
 
 /**
- * Vendor truth back into the mirror — from the verifying re-read the mutation already made.
+ * Vendor truth back into the mirror — from a card document EFS has already given us.
  *
  * Takes the document instead of dialing EFS again (audit B5.1): the old version re-read the card a
  * FOURTH time to learn what the verification read had just learned, adding a paced interactive call
  * to every mutation a person was waiting on. Truth still flows only EFS → mirror; it is simply the
- * same truth, paid for once. Best effort, as before: a mirror write that fails must not turn a
- * completed, correctly-recorded mutation into an error.
+ * same truth, paid for once.
+ *
+ * TWO callers, and the document is not always an "after". The mutation path passes the verifying
+ * re-read. `planCardMutation` passes the PRE-FLIGHT read when it refuses on `card_state_changed`,
+ * which is what stops a stale mirror row from re-proposing the same doomed version forever.
+ *
+ * Best effort in both cases, and the failure mode is why: a mirror write that fails must not turn a
+ * completed, correctly-recorded mutation into an error, nor a 409 into a 500 that throws away the
+ * fresh card the operator needs in order to retry.
  */
-export async function updateMirror(ctx: CardMutationContext, after: CardDocument): Promise<void> {
+export async function updateMirror(ctx: CardMutationContext, card: CardDocument): Promise<void> {
   try {
-    await upsertCardDetail(ctx.admin, ctx.env, ctx.orgId, ctx.cardNumber, after);
+    await upsertCardDetail(ctx.admin, ctx.env, ctx.orgId, ctx.cardNumber, card);
   } catch (error) {
     console.error(
-      `[card-control] mirror refresh failed after a mutation on card ${ctx.efsCardId}: ` +
+      `[card-control] mirror refresh failed on card ${ctx.efsCardId}: ` +
         `${error instanceof Error ? error.message : String(error)}`,
     );
   }
