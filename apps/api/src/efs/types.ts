@@ -126,8 +126,18 @@ export interface Governance<TBody> {
   preflightStepUp?: (body: TBody) => string | null;
   /** Runs AFTER the fresh read, with everything the decision actually needs. Same string-or-null. */
   planStepUp?: (ctx: PlanCtx, snap: Snapshot, body: TBody) => string | null;
-  /** Throws ActionRefusalError. Runs after the fresh read, before buildEdits. */
-  precondition?: (snap: Snapshot, body: TBody) => void;
+  /**
+   * Throws ActionRefusalError. Runs after the fresh read, before buildEdits.
+   *
+   * Takes `PlanCtx` as well as the snapshot, which docs/27 §3.4's sketch did not. The first real
+   * precondition is `prompts_set`'s removal check, and it needs three facts at once: which records
+   * the change would REMOVE (computed from the fresh document), the caller's explicit
+   * `allowRemoveDriverId`, and whether they re-authenticated. Splitting the fresh-auth half into
+   * `planStepUp` would mean two call sites for one rule, and the rule raises two DIFFERENT refusals
+   * — a missing opt-in is `invalid_request`, a missing password is `step_up_required` — so the split
+   * version has to keep them in step by hand. One call, one rule.
+   */
+  precondition?: (ctx: PlanCtx, snap: Snapshot, body: TBody) => void;
   auditMeta?: (snap: Snapshot, body: TBody) => Record<string, unknown>;
   /** Defaults to redactCardXml. MANDATORY when the contract sets `carriesSecret`. */
   redactRequest?: (xml: string) => string;

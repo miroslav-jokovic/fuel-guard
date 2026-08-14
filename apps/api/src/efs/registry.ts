@@ -1,9 +1,10 @@
 import type { z } from "zod";
-import { type CapabilityContract, cardLockContract, cardUnlockContract, deleteOverrideContract, overrideClearContract, overrideGrantContract } from "@fuelguard/shared";
+import { type CapabilityContract, cardLockContract, cardUnlockContract, deleteOverrideContract, overrideClearContract, overrideGrantContract, promptsSetContract } from "@fuelguard/shared";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
 import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.js";
 import { deleteOverrideBehaviour, overrideClearBehaviour } from "./capabilities/overrideClear.behaviour.js";
+import { promptsSetBehaviour } from "./capabilities/promptsSet.behaviour.js";
 import { resolveCapability } from "./orchestrator/resolve.js";
 import { executeCapability } from "../services/efsCardControl.js";
 import type { CardMutationContext, CardMutationOutcome } from "./orchestrator/types.js";
@@ -84,6 +85,7 @@ export const ALL_CAPABILITIES: readonly MountedCapability[] = [
   mount(overrideGrantContract, overrideGrantBehaviour),
   mount(overrideClearContract, overrideClearBehaviour),
   mount(deleteOverrideContract, deleteOverrideBehaviour),
+  mount(promptsSetContract, promptsSetBehaviour),
 ];
 
 /**

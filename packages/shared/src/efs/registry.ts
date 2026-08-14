@@ -3,6 +3,7 @@ import { cardLockContract } from "./capabilities/cardLock.contract.js";
 import { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
 import { overrideGrantContract } from "./capabilities/overrideGrant.contract.js";
 import { deleteOverrideContract, overrideClearContract } from "./capabilities/overrideClear.contract.js";
+import { promptsSetContract } from "./capabilities/promptsSet.contract.js";
 import type { CapabilityContract } from "./types.js";
 
 /**
@@ -30,6 +31,7 @@ export const CARD_CAPABILITY_CONTRACTS: Readonly<Record<string, CapabilityContra
   [overrideGrantContract.key]: overrideGrantContract,
   [overrideClearContract.key]: overrideClearContract,
   [deleteOverrideContract.key]: deleteOverrideContract,
+  [promptsSetContract.key]: promptsSetContract,
 };
 
 /** The keys, for anything that needs the set rather than the declarations. */
@@ -43,3 +45,5 @@ export { overrideGrantContract, overrideStepUpMessage } from "./capabilities/ove
 export type { OverrideGrantBody } from "./capabilities/overrideGrant.contract.js";
 export { deleteOverrideContract, overrideClearContract } from "./capabilities/overrideClear.contract.js";
 export type { OverrideClearBody } from "./capabilities/overrideClear.contract.js";
+export { promptsSetContract } from "./capabilities/promptsSet.contract.js";
+export type { PromptsSetBody } from "./capabilities/promptsSet.contract.js";
