@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env.js";
+import { makeOpenMeteoFetcher } from "../lib/openMeteo.js";
 import { syncIdleEvents, type IdleSyncResult } from "./idleSync.js";
 import { syncIdleCapabilities, type IdleCapabilityResult } from "./idleCapabilitySync.js";
 import { syncIdleTelemetry, type IdleTelemetrySyncResult } from "./idleTelemetrySync.js";
@@ -113,7 +114,10 @@ export async function syncIdleFoundation(
       syncIdleDutyEvidence(admin, orgId, { sinceDays: opts.sinceDays }),
     );
     const idleEquipmentEvidence = await stage("idleEquipmentEvidence", () =>
-      syncIdleEquipmentEvidence(admin, orgId, { sinceDays: opts.sinceDays }),
+      syncIdleEquipmentEvidence(admin, orgId, {
+        sinceDays: opts.sinceDays,
+        weatherFetcher: makeOpenMeteoFetcher(env),
+      }),
     );
     const idleLearnedEnvelopes = await stage("idleLearnedEnvelopes", () =>
       syncIdleLearnedEnvelopes(admin, orgId, { sinceDays: 400 }),
@@ -211,7 +215,11 @@ export async function syncIdleFoundation(
     idleDutyEvidence.rowsWritten += duty.rowsWritten;
 
     const equip = await stage("idleEquipmentEvidence", () =>
-      syncIdleEquipmentEvidence(admin, orgId, { sinceDays: slice.days, endIso: slice.endIso }),
+      syncIdleEquipmentEvidence(admin, orgId, {
+        sinceDays: slice.days,
+        endIso: slice.endIso,
+        weatherFetcher: makeOpenMeteoFetcher(env),
+      }),
     );
     idleEquipmentEvidence.sessions += equip.sessions;
     idleEquipmentEvidence.inside += equip.inside;

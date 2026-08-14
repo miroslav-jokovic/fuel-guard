@@ -122,15 +122,47 @@ function includeUncoveredSeconds(
   };
 }
 
+/**
+ * Re-weight a duty overlap measured over the park's WALL CLOCK onto the park's IDLE seconds.
+ *
+ * The HOS overlay spans the whole park, engine-off stretches included, but every consumer of this
+ * evidence is apportioning IDLE seconds — `hos_rest_sec` is read as "idle that happened during rest", and
+ * the reducible-idle measure is computed straight from it. Unweighted, a 12 h sleeper park holding 9 h of
+ * idle reported 12 h of rest idle: more rest than the truck had idle at all (unit 688 showed 393 h of rest
+ * against 366 h of continuous idle over 30 days). It also inflated the on-duty grace, which is derived
+ * from workSec.
+ *
+ * Where inside the park the engine was idling is not recorded — only the park's totals are — so idle is
+ * apportioned across the duty statuses in the same proportion they covered the park. That is an explicit
+ * assumption, and it is strictly better than counting wall-clock seconds as idle seconds. Coverage-derived
+ * STATUS is judged on the raw overlap, since coverage is a property of the timeline, not of the idle
+ * scaled onto it.
+ */
+function idleWeighted(overlap: HosVehicleOverlap, idleSec: number): HosVehicleOverlap {
+  if (!(idleSec >= 0) || !(overlap.coveredSec > idleSec)) return overlap;
+  const scale = idleSec / overlap.coveredSec;
+  return {
+    ...overlap,
+    restSec: overlap.restSec * scale,
+    workSec: overlap.workSec * scale,
+    drivingSec: overlap.drivingSec * scale,
+    excludedSec: overlap.excludedSec * scale,
+    unknownSec: overlap.unknownSec * scale,
+    ambiguousSec: overlap.ambiguousSec * scale,
+    coveredSec: overlap.coveredSec * scale,
+  };
+}
+
 export function buildEvidence(
   segmentsByVehicle: Map<string, HosSegment[]>,
   segmentsByDriver: Map<string, HosSegment[]>,
   events: IdleEventRow[],
-  session: Pick<ParkSessionRow, "vehicle_id" | "started_at" | "duration_sec"> & {
+  session: Pick<ParkSessionRow, "vehicle_id" | "started_at" | "duration_sec" | "idle_sec"> & {
     ended_at: string | null;
   },
   vehicleTimelines: Map<string, HosVehicleTimeline>,
 ): DutyEvidenceValues {
+  const idleSec = Math.max(0, Number(session.idle_sec) || 0);
   const startMs = Date.parse(session.started_at);
   const endMs = session.ended_at == null ? NaN : Date.parse(session.ended_at);
   const durationSecExact =
@@ -153,7 +185,7 @@ export function buildEvidence(
         : fullCoverage && overlap.unknownSec === 0
           ? "sufficient"
           : "insufficient";
-    return { status, overlap };
+    return { status, overlap: idleWeighted(overlap, idleSec) };
   }
 
   const fallbackSegments: HosSegment[] = [];
@@ -189,7 +221,7 @@ export function buildEvidence(
       : fullCoverage && overlap.unknownSec === 0
         ? "sufficient"
         : "insufficient";
-  return { status, overlap };
+  return { status, overlap: idleWeighted(overlap, idleSec) };
 }
 
 async function readSessions(

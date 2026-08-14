@@ -24,6 +24,14 @@ interface RawSession {
   duration_sec: number;
   idle_sec: number;
   mode: string;
+  /** Envelope evidence persisted by syncIdleEquipmentEvidence — the rollup reads it, never recomputes it. */
+  envelope_inside_sec: number | string | null;
+  envelope_outside_sec: number | string | null;
+  envelope_ambiguous_sec: number | string | null;
+  ambient_known_idle_sec: number | string | null;
+  ambient_unknown_idle_sec: number | string | null;
+  equipment_evidence_status: string | null;
+  equipment_evidence_version: string | null;
 }
 
 interface RawEvent {
@@ -84,7 +92,9 @@ export async function readIdleRollupInputs(
   const sessions = await readAll<RawSession>("idle_park_sessions", (a, b) =>
     admin
       .from("idle_park_sessions")
-      .select("vehicle_id, started_at, ended_at, duration_sec, idle_sec, mode")
+      .select(
+        "vehicle_id, started_at, ended_at, duration_sec, idle_sec, mode, envelope_inside_sec, envelope_outside_sec, envelope_ambiguous_sec, ambient_known_idle_sec, ambient_unknown_idle_sec, equipment_evidence_status, equipment_evidence_version",
+      )
       .eq("org_id", orgId)
       .gte("started_at", w.fromIso)
       .lte("started_at", w.toIso)

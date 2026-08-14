@@ -320,11 +320,59 @@ describe("syncIdleDutyEvidence", () => {
 
     await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
 
+    // Rest is reported in IDLE seconds, so it can never exceed the park's own idle. Unweighted, the
+    // wall-clock overlap rounded UP to 13,450 — one second more rest than the truck had idle at all.
     expect(hosEvidenceRows(rec)[0]).toMatchObject({
       id: "p-rounding",
       hos_covered_sec: 13_449,
-      hos_rest_sec: 13_450,
+      hos_rest_sec: 13_449,
     });
+  });
+
+  it("reports rest in IDLE seconds, not the park's wall clock", async () => {
+    // A 12 h sleeper park in which the engine idled for 9 h and was off for 3 h. The HOS overlay covers
+    // the whole park, but only 9 h of it was idle: reporting 12 h of "rest idle" claims more rest than the
+    // truck had idle, which is what produced 393 h of rest against 366 h of continuous idle on unit 688.
+    // The reducible-idle measure reads this column directly, so the over-count fed straight into it.
+    const rec = createSupabaseRecorder({
+      tables: {
+        idle_park_sessions: {
+          data: [
+            {
+              id: "p-hotel",
+              org_id: ORG,
+              vehicle_id: "v1",
+              started_at: START,
+              ended_at: "2026-08-01T12:00:00.000Z",
+              duration_sec: 12 * 3600,
+              idle_sec: 9 * 3600,
+              off_sec: 3 * 3600,
+              cycles: 0,
+              mode: "continuous",
+            },
+          ],
+        },
+        hos_duty_segments: {
+          data: [
+            {
+              driver_id: "d1",
+              vehicle_id: "v1",
+              status: "sleeper",
+              started_at: START,
+              ended_at: "2026-08-01T12:00:00.000Z",
+            },
+          ],
+        },
+        idle_events: { data: [] },
+      },
+      rpc: rpcUpdating(1),
+    });
+
+    await syncIdleDutyEvidence(rec.client, ORG, { sinceDays: 2, endIso: END });
+
+    const row = hosEvidenceRows(rec)[0]!;
+    expect(row.hos_rest_sec).toBe(9 * 3600); // the idle, not the 12 h wall clock
+    expect(Number(row.hos_rest_sec)).toBeLessThanOrEqual(9 * 3600);
   });
 
   it("attributes vehicle-less sleeper segments to the truck through the driver-vehicle assignment", async () => {

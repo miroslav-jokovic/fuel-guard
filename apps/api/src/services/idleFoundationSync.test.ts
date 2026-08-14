@@ -77,8 +77,11 @@ describe("syncIdleFoundation", () => {
     expect(idleDutyEvidence.syncIdleDutyEvidence).toHaveBeenCalledWith({}, "org-1", {
       sinceDays: 14,
     });
+    // The equipment stage also gets a weather fetcher: park sessions now resolve their OWN ambient
+    // temperature from their GPS fix rather than borrowing one from an overlapping Samsara idle event.
     expect(idleEquipmentEvidence.syncIdleEquipmentEvidence).toHaveBeenCalledWith({}, "org-1", {
       sinceDays: 14,
+      weatherFetcher: expect.any(Function),
     });
     expect(idleLearnedEnvelopes.syncIdleLearnedEnvelopes).toHaveBeenCalledWith({}, "org-1", {
       sinceDays: 400,

@@ -93,6 +93,8 @@ describe("learnIdleCapability", () => {
     startMs: 0, endMs: hours * 3600_000, durationSec: hours * 3600,
     idleSec: mode === "apu_or_off" ? hours * 360 : hours * 3600,
     offSec: mode === "apu_or_off" ? hours * 3240 : mode === "optimized_cycling" ? hours * 1800 : 0,
+    lat: null,
+    lng: null,
     cycles: mode === "optimized_cycling" ? 10 : 0, mode,
   });
 
@@ -143,6 +145,8 @@ describe("idle evidence model", () => {
       offSec: 0,
       cycles: 0,
       mode: "continuous",
+      lat: null,
+      lng: null,
     }));
     const evidence = summarizeIdleEvidence(sessions, []);
 

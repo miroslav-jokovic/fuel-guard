@@ -182,6 +182,11 @@ async function syncIdleVehicle(
       off_sec: persistedSeconds(s.offSec),
       cycles: persistedSeconds(s.cycles),
       mode: s.mode,
+      // The park's own GPS fix (migration 0188), already present on every engineStates sample we fetch.
+      // This is what lets the equipment-evidence sync read the session's weather from weather_cache
+      // instead of inheriting a temperature from whatever Samsara idle event happened to overlap it.
+      lat: s.lat,
+      lng: s.lng,
       observed_mode: evidence.observedMode,
       evidence_status: evidence.evidenceStatus,
       evidence_confidence: evidence.confidence,

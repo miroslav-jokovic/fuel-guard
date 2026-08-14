@@ -39,3 +39,34 @@ export function pickHourlyTempF(
   const v = hourly.temperatureF[best];
   return v == null || !Number.isFinite(v) ? null : Math.round(v * 10) / 10;
 }
+
+/**
+ * Split a park session into one thermal interval per clock hour it spans, each carrying that hour's
+ * temperature from the day series.
+ *
+ * The idle-equipment envelope asks "how many of these idle seconds were inside the equipment's capable
+ * temperature band" — a question about the whole park, not a single instant. `pickHourlyTempF` answers for
+ * one moment, which is right for an idle EVENT but wrong for a 10-hour sleeper park that can start at 78°F
+ * and end at 41°F. Splitting on the hour lets those seconds land in different buckets instead of all taking
+ * the temperature the park happened to begin at.
+ *
+ * Hours with no reading yield an interval with `tempF: null` — the envelope counts those as unknown and
+ * excludes them, so a gap in the weather series can only shrink the verdict, never skew it.
+ */
+export function hourlyThermalIntervals(
+  startMs: number,
+  endMs: number,
+  hourlyByDay: (day: string) => { time: string[]; temperatureF: (number | null)[] } | null | undefined,
+): { startMs: number; endMs: number; tempF: number | null }[] {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || !(endMs > startMs)) return [];
+  const HOUR_MS = 3_600_000;
+  const out: { startMs: number; endMs: number; tempF: number | null }[] = [];
+  for (let from = startMs; from < endMs; ) {
+    const to = Math.min(endMs, Math.floor(from / HOUR_MS) * HOUR_MS + HOUR_MS);
+    if (!(to > from)) break;
+    const atIso = new Date(from).toISOString();
+    out.push({ startMs: from, endMs: to, tempF: pickHourlyTempF(hourlyByDay(atIso.slice(0, 10)), atIso) });
+    from = to;
+  }
+  return out;
+}

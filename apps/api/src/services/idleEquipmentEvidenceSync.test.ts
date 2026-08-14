@@ -139,6 +139,88 @@ describe("syncIdleEquipmentEvidence", () => {
     expectOrgScoped(rec, ORG);
   });
 
+  it("prefers the session's OWN weather over a borrowed idle-event temperature", async () => {
+    // The dependency this removes: the session's idle seconds come from engineStates, the event's from
+    // Samsara's own detector, and where they disagree the borrowed reading decided the verdict. Here the
+    // overlapping event says 5 degF (outside the 25-90 degF band) while the park's own location says 60 degF
+    // (inside it). The park's own reading must win, and the row must say where it came from.
+    const rec = createSupabaseRecorder({
+      tables: {
+        idle_park_sessions: {
+          data: [
+            {
+              id: "p1",
+              org_id: ORG,
+              vehicle_id: "v1",
+              started_at: START,
+              ended_at: "2026-08-01T01:00:00.000Z",
+              idle_sec: 3600,
+              lat: 41.88,
+              lng: -87.63,
+            },
+          ],
+        },
+        idle_events: {
+          data: [{ vehicle_id: "v1", started_at: START, duration_sec: 3600, air_temp_f: 5 }],
+        },
+        vehicles: { data: [{ id: "v1", has_apu: null, apu_type: null, has_optimized_idle: true }] },
+        weather_cache: {
+          data: [{ hour_utc: "2026-08-01T00:00:00Z", temp_f: 60 }],
+        },
+      },
+      rpc: { apply_idle_equipment_evidence: 1 },
+    });
+
+    await syncIdleEquipmentEvidence(rec.client, ORG, {
+      endIso: END,
+      sinceDays: 1,
+      weatherFetcher: async () => null, // cache hit only; no external call needed
+    });
+
+    const row = equipmentEvidenceRows(rec)[0]!;
+    expect(row.ambient_source).toBe("session_weather");
+    expect(row.envelope_inside_sec).toBe(3600); // 60 degF, inside the band
+    expect(row.envelope_outside_sec).toBe(0); // NOT the 5 degF the idle event claimed
+    expect(row.equipment_evidence_status).toBe("inside_documented_default");
+  });
+
+  it("falls back to the idle-event temperature for a session with no location", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        idle_park_sessions: {
+          data: [
+            {
+              id: "p1",
+              org_id: ORG,
+              vehicle_id: "v1",
+              started_at: START,
+              ended_at: "2026-08-01T01:00:00.000Z",
+              idle_sec: 3600,
+              lat: null,
+              lng: null,
+            },
+          ],
+        },
+        idle_events: {
+          data: [{ vehicle_id: "v1", started_at: START, duration_sec: 3600, air_temp_f: 5 }],
+        },
+        vehicles: { data: [{ id: "v1", has_apu: null, apu_type: null, has_optimized_idle: true }] },
+        weather_cache: { data: [] },
+      },
+      rpc: { apply_idle_equipment_evidence: 1 },
+    });
+
+    await syncIdleEquipmentEvidence(rec.client, ORG, {
+      endIso: END,
+      sinceDays: 1,
+      weatherFetcher: async () => null,
+    });
+
+    const row = equipmentEvidenceRows(rec)[0]!;
+    expect(row.ambient_source).toBe("idle_events");
+    expect(row.envelope_outside_sec).toBe(3600); // 5 degF, outside the band
+  });
+
   it("does not write when the session read fails", async () => {
     const rec = createSupabaseRecorder({
       tables: {

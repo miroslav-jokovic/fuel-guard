@@ -8,6 +8,8 @@ import {
   type IdleThermalInterval,
 } from "@fuelguard/shared";
 import { IDLE_SOURCE_WINDOW_DAYS } from "./idleWindow.js";
+import { resolveSessionThermalIntervals } from "./idleSessionWeather.js";
+import type { OpenMeteoFetcher } from "../lib/openMeteo.js";
 
 export interface IdleEquipmentEvidenceSyncResult {
   sessions: number;
@@ -32,6 +34,8 @@ interface ParkSessionRow {
   started_at: string;
   ended_at: string;
   idle_sec: number;
+  lat: number | string | null;
+  lng: number | string | null;
 }
 
 interface IdleEventRow {
@@ -46,6 +50,9 @@ interface VehicleEquipmentRow {
   has_apu: boolean | null;
   apu_type: string | null;
   has_optimized_idle: boolean | null;
+  idle_learned_envelope_status: string | null;
+  idle_learned_envelope_low_f: number | string | null;
+  idle_learned_envelope_high_f: number | string | null;
 }
 
 /**
@@ -69,16 +76,32 @@ interface SessionEvidenceWrite {
   envelope_ambiguous_sec: number;
   equipment_evidence_version: "equipment-temp-v1";
   equipment_evidence_at: string;
+  ambient_source: "session_weather" | "idle_events" | "none";
 }
 
 function requireDatabaseSuccess(error: { message: string } | null, operation: string): void {
   if (error) throw new Error(`Idle equipment evidence ${operation} failed: ${error.message}`);
 }
 
+function finiteOrNull(value: number | string | null): number | null {
+  const parsed = typeof value === "number" ? value : value == null ? NaN : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function parseTemperature(value: number | string | null): number | null {
   if (value == null) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** The truck's learned temperature band, when it has one; undefined falls back to the documented default. */
+function learnedBand(
+  vehicle: VehicleEquipmentRow | undefined,
+): { lowF: number; highF: number } | undefined {
+  if (vehicle?.idle_learned_envelope_status !== "sufficient") return undefined;
+  const lowF = finiteOrNull(vehicle.idle_learned_envelope_low_f);
+  const highF = finiteOrNull(vehicle.idle_learned_envelope_high_f);
+  return lowF != null && highF != null && lowF < highF ? { lowF, highF } : undefined;
 }
 
 function emptyResult(): IdleEquipmentEvidenceSyncResult {
@@ -105,7 +128,7 @@ async function readSessions(
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await admin
       .from("idle_park_sessions")
-      .select("id, org_id, vehicle_id, started_at, ended_at, idle_sec")
+      .select("id, org_id, vehicle_id, started_at, ended_at, idle_sec, lat, lng")
       .eq("org_id", orgId)
       .gte("started_at", fromIso)
       .lt("started_at", endIso)
@@ -149,7 +172,9 @@ async function readVehicleEquipment(
 ): Promise<Map<string, VehicleEquipmentRow>> {
   const { data, error } = await admin
     .from("vehicles")
-    .select("id, has_apu, apu_type, has_optimized_idle")
+    .select(
+      "id, has_apu, apu_type, has_optimized_idle, idle_learned_envelope_status, idle_learned_envelope_low_f, idle_learned_envelope_high_f",
+    )
     .eq("org_id", orgId);
   requireDatabaseSuccess(error, "vehicle equipment read");
   return new Map(((data ?? []) as VehicleEquipmentRow[]).map((row) => [row.id, row]));
@@ -190,7 +215,7 @@ function addStatus(
 export async function syncIdleEquipmentEvidence(
   admin: SupabaseClient,
   orgId: string,
-  opts: { sinceDays?: number; endIso?: string } = {},
+  opts: { sinceDays?: number; endIso?: string; weatherFetcher?: OpenMeteoFetcher } = {},
 ): Promise<IdleEquipmentEvidenceSyncResult> {
   const days = opts.sinceDays ?? IDLE_SOURCE_WINDOW_DAYS;
   if (!Number.isInteger(days) || days < 1 || days > 400) {
@@ -208,6 +233,22 @@ export async function syncIdleEquipmentEvidence(
     readVehicleEquipment(admin, orgId),
   ]);
   const intervalsByVehicle = mapThermalIntervals(idleEvents);
+  // The session's OWN weather, from the GPS fix it now carries (migration 0188). This is the primary
+  // source; the idle-event overlap below is only a fallback for sessions recorded before locations were
+  // captured. Best-effort — a weather failure must never take the idle sync down.
+  const sessionIntervals = opts.weatherFetcher
+    ? await resolveSessionThermalIntervals(
+        admin,
+        sessions.map((session) => ({
+          id: session.id,
+          lat: finiteOrNull(session.lat),
+          lng: finiteOrNull(session.lng),
+          startedAtMs: Date.parse(session.started_at),
+          endedAtMs: Date.parse(session.ended_at),
+        })),
+        opts.weatherFetcher,
+      ).catch(() => new Map())
+    : new Map();
   const result = emptyResult();
   result.sessions = sessions.length;
   const nowIso = new Date().toISOString();
@@ -220,12 +261,24 @@ export async function syncIdleEquipmentEvidence(
       apuType: parseIdleEquipmentType(vehicle?.apu_type),
       hasOptimizedIdle: vehicle?.has_optimized_idle,
     });
+    const ownIntervals = sessionIntervals.get(session.id);
+    const ambientSource = ownIntervals?.length
+      ? "session_weather"
+      : (intervalsByVehicle.get(session.vehicle_id)?.length ?? 0) > 0
+        ? "idle_events"
+        : "none";
+    // The active band is resolved HERE and nowhere else. The rollup used to recompute this evidence from
+    // its own idle-event read with its own band, which meant two code paths could disagree about the same
+    // park; it now reads the columns this sync writes (audit 2026-08-13).
+    const band = learnedBand(vehicle);
     const evidence = summarizeIdleEquipmentEvidence({
       profile,
       sessionStartMs: Date.parse(session.started_at),
       sessionEndMs: Date.parse(session.ended_at),
       totalIdleSec: Number(session.idle_sec),
-      intervals: intervalsByVehicle.get(session.vehicle_id) ?? [],
+      envelopeLowF: band?.lowF,
+      envelopeHighF: band?.highF,
+      intervals: ownIntervals?.length ? ownIntervals : (intervalsByVehicle.get(session.vehicle_id) ?? []),
     });
     addStatus(result, evidence.status);
     writes.push({
@@ -243,6 +296,7 @@ export async function syncIdleEquipmentEvidence(
       envelope_ambiguous_sec: evidence.envelopeAmbiguousSec,
       equipment_evidence_version: evidence.evidenceVersion,
       equipment_evidence_at: nowIso,
+      ambient_source: ambientSource,
     });
   }
 

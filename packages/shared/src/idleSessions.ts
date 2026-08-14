@@ -20,6 +20,10 @@ export interface EngineSample {
   state: EngineState;
   /** mph at that instant (from the gps decoration), when available. */
   speedMph?: number;
+  /** Where the truck was at that instant (same gps decoration). Lets a park session own its location,
+   *  and therefore its weather, instead of borrowing both from an overlapping Samsara idle event. */
+  lat?: number;
+  lng?: number;
 }
 
 /** Parse a Samsara `/fleet/vehicles/stats/history?types=engineStates&decorations=gps` response into per-asset
@@ -31,10 +35,23 @@ export function parseEngineStates(response: { data?: unknown[] }): Map<string, E
     if (a.id == null) continue;
     const series: EngineSample[] = [];
     for (const e of a.engineStates ?? []) {
-      const p = e as { time?: string; value?: string; decorations?: { gps?: { speedMilesPerHour?: number } } };
+      const p = e as {
+        time?: string;
+        value?: string;
+        decorations?: { gps?: { speedMilesPerHour?: number; latitude?: number; longitude?: number } };
+      };
       if (!p.time || (p.value !== "Off" && p.value !== "On" && p.value !== "Idle")) continue;
       const t = Date.parse(p.time);
-      if (Number.isFinite(t)) series.push({ t, state: p.value, speedMph: p.decorations?.gps?.speedMilesPerHour });
+      if (!Number.isFinite(t)) continue;
+      const gps = p.decorations?.gps;
+      const lat = gps?.latitude;
+      const lng = gps?.longitude;
+      series.push({
+        t,
+        state: p.value,
+        speedMph: gps?.speedMilesPerHour,
+        ...(Number.isFinite(lat) && Number.isFinite(lng) ? { lat: lat!, lng: lng! } : {}),
+      });
     }
     out.set(String(a.id), series);
   }
@@ -54,6 +71,12 @@ export interface IdleSession {
   /** Off ↔ running transitions within the session — the ECU auto start/stop cycling signal. */
   cycles: number;
   mode: IdleMode;
+  /** Where the truck was parked — the first GPS fix observed during the session. A park is stationary by
+   *  definition, so one fix describes the whole of it. Null when no sample carried a gps decoration.
+   *  This is what lets a session look up its OWN weather instead of inheriting a temperature from a
+   *  Samsara idle event that happened to overlap it. */
+  lat: number | null;
+  lng: number | null;
 }
 
 /** Observed behavior labels. These deliberately do not claim what equipment is installed. */
@@ -204,7 +227,9 @@ export function buildIdleSessions(samples: EngineSample[], opts: IdleSessionOpts
   if (s.length < 2) return [];
 
   const sessions: IdleSession[] = [];
-  let cur: { startMs: number; idleSec: number; offSec: number; cycles: number; lastRunning: boolean | null } | null = null;
+  let cur:
+    | { startMs: number; idleSec: number; offSec: number; cycles: number; lastRunning: boolean | null; lat: number | null; lng: number | null }
+    | null = null;
 
   const close = (endMs: number) => {
     if (!cur) return;
@@ -215,7 +240,7 @@ export function buildIdleSessions(samples: EngineSample[], opts: IdleSessionOpts
       if (offShare >= o.offDominantShare) mode = "apu_or_off";
       else if (cur.cycles >= o.minCycles && cur.offSec > 0) mode = "optimized_cycling";
       else mode = "continuous";
-      sessions.push({ startMs: cur.startMs, endMs, durationSec: Math.round(durationSec), idleSec: Math.round(cur.idleSec), offSec: Math.round(cur.offSec), cycles: cur.cycles, mode });
+      sessions.push({ startMs: cur.startMs, endMs, durationSec: Math.round(durationSec), idleSec: Math.round(cur.idleSec), offSec: Math.round(cur.offSec), cycles: cur.cycles, mode, lat: cur.lat, lng: cur.lng });
     }
     cur = null;
   };
@@ -230,7 +255,12 @@ export function buildIdleSessions(samples: EngineSample[], opts: IdleSessionOpts
       continue;
     }
     // Parked interval (engine Off, or On/Idle while stationary).
-    if (!cur) cur = { startMs: seg.t, idleSec: 0, offSec: 0, cycles: 0, lastRunning: null };
+    if (!cur) cur = { startMs: seg.t, idleSec: 0, offSec: 0, cycles: 0, lastRunning: null, lat: null, lng: null };
+    // First fix wins: the truck is stationary for the whole park, so later fixes only add GPS jitter.
+    if (cur.lat == null && seg.lat != null && seg.lng != null) {
+      cur.lat = seg.lat;
+      cur.lng = seg.lng;
+    }
     const running = seg.state !== "Off";
     if (running) cur.idleSec += durSec;
     else cur.offSec += durSec;

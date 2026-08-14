@@ -6,10 +6,10 @@ import { deriveAssignedVehicleSegments, type AssignmentRow } from "./idleDutyEvi
 import { IDLE_SOURCE_WINDOW_DAYS, idleCalendarStartIso } from "./idleWindow.js";
 import { organizationTimezone } from "./idleCapabilitySync.js";
 import {
+  ON_DUTY_GRACE_SEC,
   buildHosVehicleTimelines,
   buildIdleRollupDays,
   normalizeHosStatus,
-  summarizeIdleEquipmentEvidence,
   type IdleEquipmentEvidenceStatus,
   type HosSegment,
   type HosVehicleTimeline,
@@ -55,6 +55,14 @@ interface RawSession {
   hos_work_sec?: number | string | null;
   hos_unknown_sec?: number | string | null;
   hos_ambiguous_sec?: number | string | null;
+  /** Envelope evidence persisted by syncIdleEquipmentEvidence — read here, never recomputed. */
+  envelope_inside_sec?: number | string | null;
+  envelope_outside_sec?: number | string | null;
+  envelope_ambiguous_sec?: number | string | null;
+  ambient_known_idle_sec?: number | string | null;
+  ambient_unknown_idle_sec?: number | string | null;
+  equipment_evidence_status?: string | null;
+  equipment_evidence_version?: string | null;
 }
 interface RawEvent {
   vehicle_id: string | null;
@@ -89,69 +97,45 @@ function envelopeStatus(evidence: {
   return "sufficient";
 }
 
+/**
+ * The park's envelope evidence, READ from the columns `syncIdleEquipmentEvidence` persisted — not
+ * recomputed here (audit 2026-08-13).
+ *
+ * This used to rebuild the evidence from its own `idle_events` read, with its own copy of the band
+ * resolution. Two code paths deriving the same verdict from two reads is a drift bug waiting to happen,
+ * and it was the last thing tying the avoidable verdict to Samsara's idling feed. The equipment sync now
+ * resolves each park's temperature from the park's OWN location (migration 0188) and always runs before
+ * the rollup in both the idle and HOS jobs, so these columns are the single source of truth.
+ */
 function sessionEnvelope(
   session: RawSession,
   vehicle: RawVehicleEvidence | undefined,
-  events: RawEvent[],
 ): RollupEnvelopeEvidence | undefined {
   if (session.mode !== "continuous" || vehicle?.has_optimized_idle !== true) return undefined;
-  const startMs = Date.parse(session.started_at);
   const idleSec = Math.max(0, finiteNumber(session.idle_sec) ?? 0);
-  if (!Number.isFinite(startMs) || idleSec <= 0) {
-    return {
-      status: "unavailable",
-      source: "none",
-      insideSec: 0,
-      outsideSec: 0,
-      unknownSec: idleSec,
-      ambiguousSec: 0,
-    };
-  }
-  const endedMs =
-    session.ended_at == null ? startMs + idleSec * 1000 : Date.parse(session.ended_at);
-  if (!(endedMs > startMs)) {
-    return {
-      status: "unavailable",
-      source: "none",
-      insideSec: 0,
-      outsideSec: 0,
-      unknownSec: idleSec,
-      ambiguousSec: 0,
-    };
-  }
-  const learnedLow = finiteNumber(vehicle.idle_learned_envelope_low_f);
-  const learnedHigh = finiteNumber(vehicle.idle_learned_envelope_high_f);
-  const learned =
-    vehicle.idle_learned_envelope_status === "sufficient" &&
-    learnedLow != null &&
-    learnedHigh != null &&
-    learnedLow < learnedHigh;
-  const evidence = summarizeIdleEquipmentEvidence({
-    profile: "optimized_idle_documented_default",
-    sessionStartMs: startMs,
-    sessionEndMs: endedMs,
-    totalIdleSec: idleSec,
-    envelopeLowF: learned ? learnedLow! : undefined,
-    envelopeHighF: learned ? learnedHigh! : undefined,
-    intervals: events
-      .filter((event) => event.vehicle_id === session.vehicle_id)
-      .map((event) => {
-        const eventStartMs = Date.parse(event.started_at);
-        const durationSec = Math.max(0, finiteNumber(event.duration_sec) ?? 0);
-        return {
-          startMs: eventStartMs,
-          endMs: eventStartMs + durationSec * 1000,
-          tempF: finiteNumber(event.air_temp_f),
-        };
-      }),
-  });
+  const insideSec = Math.max(0, finiteNumber(session.envelope_inside_sec) ?? 0);
+  const outsideSec = Math.max(0, finiteNumber(session.envelope_outside_sec) ?? 0);
+  const ambiguousSec = Math.max(0, finiteNumber(session.envelope_ambiguous_sec) ?? 0);
+  const knownSec = Math.max(0, finiteNumber(session.ambient_known_idle_sec) ?? 0);
+  const unknownSec = Math.max(0, finiteNumber(session.ambient_unknown_idle_sec) ?? 0);
+  // The equipment sync has not reached this park yet (a session written since the last foundation run).
+  // Report it as unevidenced rather than as a zero-temperature park: the seconds-weighted envelope will
+  // hold it as uncertain, which is the honest answer until the next sync fills it in.
+  if (session.equipment_evidence_version == null)
+    return { status: "unavailable", source: "none", insideSec: 0, outsideSec: 0, unknownSec: idleSec, ambiguousSec: 0 };
+  const learned = vehicle.idle_learned_envelope_status === "sufficient";
   return {
-    status: envelopeStatus(evidence),
+    status: envelopeStatus({
+      status: (session.equipment_evidence_status ?? "unknown") as IdleEquipmentEvidenceStatus,
+      ambientKnownIdleSec: knownSec,
+      ambientUnknownIdleSec: unknownSec,
+      envelopeAmbiguousSec: ambiguousSec,
+    }),
     source: learned ? "learned_behavioral" : "documented_default",
-    insideSec: evidence.envelopeInsideSec,
-    outsideSec: evidence.envelopeOutsideSec,
-    unknownSec: evidence.ambientUnknownIdleSec,
-    ambiguousSec: evidence.envelopeAmbiguousSec,
+    insideSec,
+    outsideSec,
+    unknownSec,
+    ambiguousSec,
   };
 }
 
@@ -176,7 +160,7 @@ function sessionDutyEvidence(
     workSec: evidence.overlap.workSec,
     unknownSec: evidence.overlap.unknownSec,
     ambiguousSec: evidence.overlap.ambiguousSec,
-    graceSec: Math.min(evidence.overlap.workSec, 15 * 60),
+    graceSec: Math.min(evidence.overlap.workSec, ON_DUTY_GRACE_SEC),
   };
 }
 
@@ -328,7 +312,7 @@ export async function syncIdleRollup(
         endedAtMs: s.ended_at == null ? undefined : Date.parse(s.ended_at),
         idleSec: Number(s.idle_sec),
         mode: s.mode,
-        optimizedEnvelope: sessionEnvelope(s, vehicleById.get(s.vehicle_id), events),
+        optimizedEnvelope: sessionEnvelope(s, vehicleById.get(s.vehicle_id)),
         dutyEvidence: sessionDutyEvidence(
           s,
           events,

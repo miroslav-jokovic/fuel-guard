@@ -29,6 +29,10 @@ const CHECKS: { table: string; column: string; migration: string }[] = [
   { table: "idle_telemetry_windows", column: "evidence_version", migration: "0165" },
   { table: "idle_park_sessions", column: "hos_evidence_version", migration: "0166" },
   { table: "idle_park_sessions", column: "equipment_evidence_status", migration: "0167" },
+  // The equipment-evidence sync SELECTs lat/lng to resolve each park's own weather; deploying it ahead
+  // of 0188 fails that read for the whole org rather than degrading to the idle-event fallback.
+  { table: "idle_park_sessions", column: "lat", migration: "0188" },
+  { table: "idle_park_sessions", column: "ambient_source", migration: "0188" },
   { table: "vehicles", column: "idle_learned_envelope_status", migration: "0168" },
   { table: "efs_transactions", column: "tran_time", migration: "0047" },
   { table: "driver_performance_settings", column: "org_id", migration: "0053" },
