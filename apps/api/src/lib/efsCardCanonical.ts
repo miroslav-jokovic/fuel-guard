@@ -137,3 +137,47 @@ export function canonicalString(doc: CanonicalDoc): string {
     .join("");
 }
 
+export interface EchoDiff {
+  path: string;
+  expected: string[];
+  actual: string[];
+}
+
+/**
+ * Where two canonical documents disagree.
+ *
+ * Order WITHIN a path matters — two infos records swapping matchValues is a real change — but order
+ * BETWEEN paths does not, because a path is keyed by name. That is deliberate and it is also the
+ * blind spot `elementOrder` exists to cover: this function cannot see that `<limits>` came before
+ * `<infos>`, because both are present with the same contents either way.
+ */
+export function diffCanonical(expected: CanonicalDoc, actual: CanonicalDoc): EchoDiff[] {
+  const diffs: EchoDiff[] = [];
+  for (const path of new Set([...expected.keys(), ...actual.keys()])) {
+    const e = expected.get(path) ?? [];
+    const a = actual.get(path) ?? [];
+    if (e.length !== a.length || e.some((v, i) => v !== a[i])) diffs.push({ path, expected: e, actual: a });
+  }
+  return diffs.sort((x, y) => (x.path < y.path ? -1 : 1));
+}
+
+/**
+ * The names of a card element's children, in document order, first occurrence only.
+ *
+ * Deduplicated because a collection is many sibling elements and its POSITION is one fact, not five.
+ * This is the one thing `canonicalize` deliberately throws away, so it is computed separately rather
+ * than folded in — the canonical form's order-insensitivity is what makes the version hash stable
+ * against EFS reordering `<infos>` between reads, and that must not change.
+ */
+export function elementOrder(root: XmlElement, exclude: ReadonlySet<string> = new Set()): string[] {
+  const seen = new Set<string>();
+  const order: string[] = [];
+  for (const child of childElements(root)) {
+    const name = localName(child);
+    if (exclude.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    order.push(name);
+  }
+  return order;
+}
+
