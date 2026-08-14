@@ -6,8 +6,13 @@ import { parseCardDocument } from "../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
-import { CardControlError, executeCardMutation, type CardMutationContext } from "./efsCardControl.js";
-import { OVERRIDE_FIELDS, lockEdits, overrideClearedLanded } from "./efsCardEdits.js";
+import { cardLockContract, deleteOverrideContract } from "@fuelguard/shared";
+import { CardControlError, executeCapability, type CardMutationContext } from "./efsCardControl.js";
+import { cardLockBehaviour } from "../efs/capabilities/cardLock.behaviour.js";
+import { deleteOverrideBehaviour } from "../efs/capabilities/overrideClear.behaviour.js";
+import { resolveCapability } from "../efs/orchestrator/resolve.js";
+import type { VerifyPlan } from "../efs/types.js";
+import { overrideClearedLanded } from "./efsCardEdits.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /**
@@ -104,12 +109,19 @@ const ctxFor = (rec: SupabaseRecorder, fetchImpl: typeof fetch, expectedVersion:
   stepUp: false,
 });
 
-const spec = {
-  intent: "lock" as const,
-  auditAction: "card.locked",
-  // Same shape as the production route: the fresh in-operation read supplies the casing (H1).
-  buildEdits: (doc: ReturnType<typeof parseCardDocument>) => lockEdits("Hold", doc.card.status),
-};
+/**
+ * The REAL lock capability, not a stand-in.
+ *
+ * Step 3.7 deleted `CardMutationIntentSpec`, and these cases were driving a hand-written spec that
+ * happened to mirror the production recipe. Pointing them at `cardLockBehaviour` makes that a fact
+ * rather than a resemblance: every assertion below now fails if the shipped lock changes, which is
+ * what a reconciliation-matrix suite is for.
+ */
+const lockCapability = resolveCapability(cardLockContract, cardLockBehaviour, {
+  expectedVersion: "", reason: "", status: "Hold" as const,
+});
+
+const executeLock = (ctx: CardMutationContext) => executeCapability(ctx, lockCapability);
 
 /** The ledger row as it was finally settled. */
 const settled = (rec: SupabaseRecorder) =>
@@ -128,9 +140,8 @@ describe("a mutation that lands", () => {
     // the verifying read itself (audit B5.1) — a fifth stubbed response here would mask a regression
     // that started dialing the vendor again.
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
-    const outcome = await executeCardMutation(
-      { ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), reason: "Truck broken into overnight" },
-      spec,
+    const outcome = await executeLock(
+      { ...ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), reason: "Truck broken into overnight" }
     );
 
     expect(outcome.status).toBe("succeeded");
@@ -146,7 +157,7 @@ describe("a mutation that lands", () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
 
-    await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     const insert = rec
       .forTable("efs_card_mutations")
@@ -173,7 +184,7 @@ describe("a mutation that lands", () => {
     expect(parseCardDocument(ACTIVE_UPPER).card.status).toBe("ACTIVE"); // the replace hit the header
     const rec = recorder();
     const s = stub(loginOk, ACTIVE_UPPER, soap(""), HELD_UPPER);
-    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(ACTIVE_UPPER)), spec);
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(ACTIVE_UPPER)));
 
     const writeBody = s.bodies.find((b) => b.includes("setCardv2"));
     expect(writeBody).toBeDefined();
@@ -187,14 +198,14 @@ describe("a mutation that lands", () => {
   it("keeps every query and write inside the org", async () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
-    await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
     expectOrgScoped(rec, ORG);
   });
 
   it("never writes a card number into the ledger", async () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD);
-    await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
     // Mechanical proof rather than a code-review habit: scan EVERY recorded payload for a card
     // number. The ledger row stores a full card echo as XML, so this is the test that would have
     // caught a missing redactCardXml call.
@@ -216,7 +227,7 @@ describe("a mutation that does not land", () => {
     );
     // login → read → REFUSED write → re-read (still Active)
     const s = stub(loginOk, CARD_ACTIVE, fault, CARD_ACTIVE);
-    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     expect(outcome.status).toBe("failed");
     expect(outcome.faultCode).toBe("not_allowed");
@@ -229,7 +240,7 @@ describe("a mutation that does not land", () => {
   it("records drift when the card moved in ways no edit named", async () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_AND_DRIFTED);
-    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     // The lock landed. Something else moved too — EFS wins, the mirror follows, and we say so.
     expect(outcome.status).toBe("drift_detected");
@@ -240,7 +251,7 @@ describe("a mutation that does not land", () => {
   it("records 'sent' — not failed — when the verifying re-read itself fails", async () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), "not xml at all");
-    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     // The write went out and we cannot say what became of it. Calling that "failed" would tell an
     // operator the card is unchanged when it may be locked.
@@ -255,7 +266,7 @@ describe("concurrency and caps", () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE);
     await expect(
-      executeCardMutation(ctxFor(rec, s.fetchImpl, "stale-version-from-an-old-screen"), spec),
+      executeLock(ctxFor(rec, s.fetchImpl, "stale-version-from-an-old-screen")),
     ).rejects.toMatchObject({ code: "card_state_changed" });
 
     // Asserted on the STUB, not just on the thrown error: two calls means login + the read, and no
@@ -270,7 +281,7 @@ describe("concurrency and caps", () => {
     const s = stub(loginOk, CARD_ACTIVE);
 
     await expect(
-      executeCardMutation(ctxFor(rec, s.fetchImpl, "stale-version-from-an-old-screen"), spec),
+      executeLock(ctxFor(rec, s.fetchImpl, "stale-version-from-an-old-screen")),
     ).rejects.toMatchObject({ code: "card_state_changed" });
 
     expect(rec.writtenRows("efs_cards").at(-1)).toMatchObject({
@@ -283,7 +294,7 @@ describe("concurrency and caps", () => {
     const rec = recorder({ efs_card_mutations: { data: [], error: null, count: 50 } });
     const s = stub(loginOk, CARD_ACTIVE);
     await expect(
-      executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec),
+      executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE))),
     ).rejects.toMatchObject({ code: "org_hourly_cap_reached" });
     // Refused before the vendor was dialled at all.
     expect(s.bodies.length).toBe(0);
@@ -292,7 +303,7 @@ describe("concurrency and caps", () => {
   it("fails CLOSED when the ledger cannot be counted", async () => {
     const rec = recorder({ efs_card_mutations: { data: null, error: { message: "connection reset" } } });
     const s = stub(loginOk, CARD_ACTIVE);
-    const error = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec).catch((e) => e);
+    const error = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE))).catch((e) => e);
     // This is the last cap between a compromised account and a fleet. An unreadable ledger is a
     // reason to stop, not a reason to proceed unmetered.
     expect(error).toBeInstanceOf(CardControlError);
@@ -311,7 +322,7 @@ describe("the vendor writes our value back in its own casing", () => {
   it("counts a lock as SUCCEEDED when the card comes back HOLD", async () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_HELD_UPPERCASE);
-    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
 
     // Without the casing tolerance this was `failed`: the operator was told "EFS accepted the request
     // but the card is unchanged" about a card that was, in fact, locked — and invited to retry.
@@ -325,7 +336,7 @@ describe("the vendor writes our value back in its own casing", () => {
     // The tolerance is case ONLY. A card that came back Active after a lock is a real failure.
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE);
-    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
     expect(outcome.status).toBe("failed");
   });
 
@@ -333,7 +344,7 @@ describe("the vendor writes our value back in its own casing", () => {
     const drifted = CARD_HELD_UPPERCASE.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>");
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), drifted);
-    const outcome = await executeCardMutation(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)), spec);
+    const outcome = await executeLock(ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)));
     expect(outcome.status).toBe("drift_detected");
     expect(outcome.driftFields).toContain("/policyNumber");
   });
@@ -351,10 +362,7 @@ describe("the second verifying look (audit P0-2)", () => {
     // login → read → write → verify #1 (stale: still Active) → verify #2 (landed: Hold)
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_HELD);
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
-    const outcome = await executeCardMutation(
-      { ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env },
-      spec,
-    );
+    const outcome = await executeLock({ ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env });
     expect(outcome.status).toBe("succeeded");
     expect(settled(rec)).toMatchObject({ status: "succeeded" });
   });
@@ -363,10 +371,7 @@ describe("the second verifying look (audit P0-2)", () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_ACTIVE);
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
-    const outcome = await executeCardMutation(
-      { ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env },
-      spec,
-    );
+    const outcome = await executeLock({ ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env });
     expect(outcome.status).toBe("failed");
     expect(outcome.faultCode).toBe("no_change");
   });
@@ -376,23 +381,26 @@ describe("the second verifying look (audit P0-2)", () => {
     // verify #2 breaks — the mutation is still VERIFIED-failed by look #1, never downgraded to sent.
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, "not xml at all");
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
-    const outcome = await executeCardMutation(
-      { ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env },
-      spec,
-    );
+    const outcome = await executeLock({ ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env });
     expect(outcome.status).toBe("failed");
     expect(settled(rec)).toMatchObject({ status: "failed" });
   });
 });
 
 describe("a vendor op replaces the echo (fix plan D1 — deleteOverride)", () => {
-  const vendorSpec = (landed: (doc: ReturnType<typeof parseCardDocument>) => boolean) => ({
-    intent: "override_clear" as const,
-    auditAction: "card.override_cleared",
-    // No edits are echoed for a dedicated op — `[]` is the ledger's honest record of that.
-    buildEdits: () => [],
-    vendorOp: { op: "deleteOverride" as const, landed, movesFields: OVERRIDE_FIELDS },
-  });
+  /**
+   * The shipped `delete_override` capability, with only its landing predicate swapped so a case can
+   * script "the exception survived". Everything else — the dispatch, the vendorMovesFields that keep
+   * the op's own footprint out of the drift report, the empty edit list — is production's.
+   */
+  const vendorCapability = (landed: (doc: ReturnType<typeof parseCardDocument>) => boolean) =>
+    resolveCapability(deleteOverrideContract, {
+      ...deleteOverrideBehaviour,
+      verify: {
+        snapshot: deleteOverrideBehaviour.verify.snapshot,
+        judge: (_before, after) => (after.doc ? (landed(after.doc) ? "landed" : "not_landed") : "indeterminate"),
+      } satisfies VerifyPlan<{ expectedVersion: string; reason: string }>,
+    }, { expectedVersion: "", reason: "" });
 
   it("dispatches deleteOverride — two parts, no document — and succeeds via the predicate", async () => {
     // The production predicate must accept the fixture's no-override state; if this precondition
@@ -402,9 +410,9 @@ describe("a vendor op replaces the echo (fix plan D1 — deleteOverride)", () =>
     const rec = recorder();
     // login → fresh read → deleteOverride → verifying re-read. Same sequence as the echo path.
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE);
-    const outcome = await executeCardMutation(
+    const outcome = await executeCapability(
       ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)),
-      vendorSpec(overrideClearedLanded),
+      vendorCapability(overrideClearedLanded),
     );
 
     expect(outcome.status).toBe("succeeded");
@@ -423,10 +431,10 @@ describe("a vendor op replaces the echo (fix plan D1 — deleteOverride)", () =>
   it("records failed/no_change when the predicate says the exception survived", async () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE);
-    const outcome = await executeCardMutation(
+    const outcome = await executeCapability(
       ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)),
       // A predicate that refuses: the void success came back but the re-read still shows uses.
-      vendorSpec(() => false),
+      vendorCapability(() => false),
     );
     expect(outcome.status).toBe("failed");
     expect(outcome.faultCode).toBe("no_change");
@@ -437,9 +445,9 @@ describe("a vendor op replaces the echo (fix plan D1 — deleteOverride)", () =>
     const rec = recorder();
     // The verify read shows a policy change nobody asked for — drift, exactly as on the echo path.
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE.replace("<policyNumber>14</policyNumber>", "<policyNumber>27</policyNumber>"));
-    const outcome = await executeCardMutation(
+    const outcome = await executeCapability(
       ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE)),
-      vendorSpec(overrideClearedLanded),
+      vendorCapability(overrideClearedLanded),
     );
     expect(outcome.status).toBe("drift_detected");
     expect(outcome.driftFields.some((p) => p.includes("policyNumber"))).toBe(true);

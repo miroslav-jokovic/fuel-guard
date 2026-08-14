@@ -6,7 +6,6 @@ import { createApp } from "../../app.js";
 import { loadEnv } from "../../env.js";
 import type { AuthContext } from "@fuelguard/shared";
 import { fuelCardCapabilityRouter } from "../../efs/router.js";
-import { fuelCardControlRouter } from "./control.js";
 import { fuelCardEchoScanRouter } from "./echoScan.js";
 import { fuelCardExperimentsRouter } from "./experiments.js";
 import { fuelCardProbeRouter } from "./probe.js";
@@ -119,13 +118,13 @@ describe("fuel-card vendor rate budget", () => {
     // explicitly classified database-only route, so anything it cannot match stays charged — but its
     // routes are then classified by accident rather than by declaration.
     //
-    // `fuelCardCapabilityRouter` joined the mount line in Step 3.5 and serves `POST /:id/lock`,
-    // which left `fuelCardControlRouter`. This assertion is what noticed.
+    // `fuelCardCapabilityRouter` joined the mount line in Step 3.5 and by 3.7 serves every card
+    // write; `fuelCardControlRouter` is gone and its history read moved into `fuelCardsRouter`.
+    // This assertion is what noticed each move.
     const routers = [
       fuelCardSettingsRouter(),
       fuelCardsRouter(),
       fuelCardCapabilityRouter(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv)),
-      fuelCardControlRouter(),
       fuelCardProbeRouter(),
       fuelCardWriteProbeRouter(),
       fuelCardExperimentsRouter(),

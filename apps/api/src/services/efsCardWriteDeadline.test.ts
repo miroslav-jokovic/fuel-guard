@@ -6,8 +6,10 @@ import { parseCardDocument } from "../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
-import { executeCardMutation, type CardMutationContext } from "./efsCardControl.js";
-import { lockEdits } from "./efsCardEdits.js";
+import { cardLockContract } from "@fuelguard/shared";
+import { executeCapability, type CardMutationContext } from "./efsCardControl.js";
+import { cardLockBehaviour } from "../efs/capabilities/cardLock.behaviour.js";
+import { resolveCapability } from "../efs/orchestrator/resolve.js";
 
 const ORG = "org-1";
 const CARD_ID = "card-1";
@@ -92,11 +94,11 @@ describe("card mutation orchestration deadline", () => {
       fetchImpl,
     };
 
-    const outcome = await executeCardMutation(ctx, {
-      intent: "lock",
-      auditAction: "card.locked",
-      buildEdits: (doc) => lockEdits("Hold", doc.card.status),
-    });
+    // The shipped lock capability. Step 3.7 deleted CardMutationIntentSpec, and pointing this at
+    // the real descriptor means the deadline is proven against the write that actually ships.
+    const outcome = await executeCapability(ctx, resolveCapability(cardLockContract, cardLockBehaviour, {
+      expectedVersion: ctx.expectedVersion, reason: ctx.reason, status: "Hold" as const,
+    }));
 
     expect(outcome.status).toBe("sent");
     expect(db.writtenRows("efs_card_mutations").at(-1)).toMatchObject({ status: "sent" });
