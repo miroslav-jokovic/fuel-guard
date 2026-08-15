@@ -177,7 +177,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | ⛔ *(2.1–2.5 merged, PRs #13–#21; echo scan green 197/197. **Exit gate FAILS:** the live check was run 2026-08-15 and the one org with card control has `write_entitlement = 'confirmed'` with a null `probed_identity_hash`, which the code grandfathers — **Step 2.6**. The gate wording is amended, identically to Phase 3's)* | `delivery-p2-echo` |
 | 3 | Capability architecture | ✅ *(3.1–3.11 merged; **exit gate CLOSED 2026-08-15** — all five operations verified live on `af1a8e5`, card returned byte-identical. The read behind 3.11 proved this account never reports override scope on ANY card, `docs/22` H3. 3.5a withdrawn — it is Step 4.2)* | merged to `main` |
-| 4 | Harness & promotion | 🔶 *(**every step built — 4.1 through 4.6.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Migration 0193 backfills the five live capabilities; `delete_override` stays unpromoted until a proof characterises it. **Remaining: the exit gate only, and every open item on it is observational** — the first live proof run, a promotion attempted on QA and refused on production, and suspension propagation timed)* | `delivery-p4-harness` |
+| 4 | Harness & promotion | 🔶 *(**every step built — 4.1 through 4.6.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Migration 0193 backfills the five live capabilities; `delete_override` stays unpromoted until a proof characterises it. **First live proof PASSED 2026-08-15** — QA ••••7671, proof `40b88b75`, all four required gates true, card restored, `card_lock` now `proven`. **Remaining:** a promotion attempted on QA and refused on production, suspension propagation timed, and **Step 4.7** — `apply_latency_ms` measures the wrong interval)* | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ *(5.6–5.10 filed 2026-08-15 from `docs/30` §6.G and Phase 2's two-hosts finding. Two §6.G items were small enough to fix on the spot and are done)* | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
 | 7 | Account & policy visibility | ⬜ *(7.7 card identity and 7.8 override staleness filed 2026-08-15. **7.7 is worth pulling forward** — 182 of 234 production cards are unlinked, so fuel attribution runs on a minority of the fleet)* | `delivery-p7-visibility` |
@@ -785,6 +785,29 @@ The covered set is **derived from the registry**, not listed, and a test asserts
 - Give the harness an **org-cap exemption** recorded as such in the ledger — ~40 proofs × (apply + revert) exceeds the 50/hour cap and a 503 is indistinguishable from a vendor refusal.
 
 **Verify:** *"records oeg4 false when the vendor's casing differs from ours"* · *"a failed revert marks the proof failed and says the card is still changed"* · *"a proof whose before-state equals the target is void"*. **Live QA:** `pnpm efs:prove card_lock --card <last4>` — all five green, latency recorded (~533ms baseline), card restored.
+
+#### ✅ First live proof — QA card ••••7671, 2026-08-15, proof `40b88b75`
+
+| Gate | Result |
+|---|---|
+| OEG-1 entitled | **true** |
+| OEG-2b no-op stable | **null** — not obtainable; see the note in `prove.ts` |
+| OEG-3 change landed | **true** |
+| OEG-4 vocabulary | **true** — observed `HOLD`, casing-adaptive |
+| OEG-5 revert landed | **true** |
+| outcome | **`proven`** · promotion `card_lock` → `proven`, **never `enabled`** |
+
+Verified from the database rather than from the response: two ledger rows (`lock` succeeded, `unlock` succeeded) both carrying `proof_run_id`, so the org-cap exemption is attributable — and the card back to `ACTIVE`. Shape `nested:header`, endpoint `ws.partner.efsllc.com`.
+
+**The CLI grew a step-up prompt to get here.** `/prove` carries `requireFreshAuth`, which demands a token minted from a freshly typed password (audit P0-4), and the browser holds that token in memory and never persists it — so there was nothing to paste. The guard was kept and the CLI now prompts for the password, hidden, sending it once to `POST /api/auth/step-up`. Removing `requireFreshAuth` was considered and rejected: it is a real control, and the plan specifies it.
+
+### Step 4.7 — `apply_latency_ms` does not measure what its column says *(filed 2026-08-15, from the first live proof)*
+**Files:** `apps/api/src/efs/harness/prove.ts`, `apps/api/src/efs/orchestrator/dispatch.ts`, and a migration if the column is renamed.
+**The finding.** The first live proof recorded **4562 ms** against the ~533 ms apply latency Phase 0 measured. The vendor did not get nine times slower — the harness starts its clock before `executeCapability` and stops after it returns, so the number includes the planning read, the write, the first verifying re-read **and the 3-second `EFS_CARD_VERIFY_RETRY_MS` second look**. 4562 ms is almost exactly plan-read + write + read + 3000 + read, which incidentally says the first re-read MISSED and the second caught it.
+**Why it matters.** `0191` documents the column as *"Milliseconds from dispatch to the first re-read that saw the change"*, and Phase 0's 533 ms baseline is quoted against it. Two different quantities under one name — the next person to compare them concludes the account degraded. Same disease as `sync_error` (§6.F) and `updated_at` (Step 5.7): one field, two meanings.
+**Change:** time the interval the column claims — inside `verifyStep`, from the write returning to the re-read that first sees the change — and return it on the outcome. If that cannot be threaded cleanly, rename the column to what it measures rather than leaving the label wrong.
+**Verify:** a scripted vendor that lands immediately records a latency well under the retry interval, and one that lands only on the second look records more. The two must be distinguishable, which today they are not.
+
 
 #### ✅ BUILT 2026-08-15 — `efs/harness/prove.ts`, `routes/fuelCards/prove.ts`, migration `0192`
 
