@@ -8,15 +8,17 @@
  * second one to drift is the one nobody tests.
  *
  * ── Neither the token nor the card number is ever an argument ───────────────────────────────────
- * The token is read from the environment and the CARD NUMBER IS PROMPTED FOR, hidden. Both rules
- * exist for the same reason and the second one nearly did not: a flag lands in shell history, in the
- * process table, and in any shell integration that records commands. A bearer token for an admin
- * account has no business there — and a PAN has less. Standing rule 13 keeps card numbers out of the
- * repository; keeping them out of `~/.zsh_history` is the same rule applied to the same secret.
+ * BOTH are prompted for, hidden, and held in memory for the life of one request. A flag lands in
+ * shell history, in the process table, and in any shell integration that records commands: a bearer
+ * token for an admin account has no business there, and a PAN has less. Standing rule 13 keeps card
+ * numbers out of the repository; keeping them out of `~/.zsh_history` is the same rule, same secret.
  *
- *   export FG_TOKEN="$(pbpaste)"        # copied from the browser console
- *   pnpm efs:scan
- *   pnpm efs:prove card_lock             # prompts for the card number, hidden
+ * `FG_TOKEN` is still honoured when it is already exported, because a scripted sweep needs it — but
+ * nothing tells you to set it, and the prompt is the documented path. That matches how every other
+ * live check in this workstream has been run: paste it once, at the keyboard.
+ *
+ *   pnpm efs:scan                        # prompts for the token, hidden
+ *   pnpm efs:prove card_lock             # prompts for the token and the card number, both hidden
  *   pnpm efs:promote card_lock --proof <uuid> --reason "OEG green on QA"
  *   pnpm efs:promote card_lock --suspend --reason "override drift on 7670"
  *   pnpm efs:echo-scan
@@ -36,29 +38,18 @@ for (let i = 0; i < rest.length; i += 1) {
 }
 
 const api = flags.api ?? process.env.FG_API ?? API_DEFAULT;
-const token = process.env.FG_TOKEN;
 
 function die(message) {
   console.error(message);
   process.exit(1);
 }
 
-if (!token) {
-  die(
-    "FG_TOKEN is not set.\n\n"
-      + "In the browser console on the app, run:\n"
-      + '  copy(JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith("sb-")&&k.endsWith("-auth-token")))).access_token)\n\n'
-      + 'then:  export FG_TOKEN="$(pbpaste)"\n\n'
-      + "It is read from the environment on purpose — a token passed as a flag lands in shell history.",
-  );
-}
-
 /** Read a line from the terminal without echoing it. Never falls back to an echoing read: a silent
  *  downgrade would print a PAN to the screen and into any terminal scrollback capture. */
-function promptHidden(prompt) {
+function promptHidden(prompt, what = "value") {
   return new Promise((resolve) => {
     if (!process.stdin.isTTY) {
-      die("No terminal available to prompt for the card number. Run this in an interactive shell.");
+      die(`No terminal available to prompt for the ${what}. Run this in an interactive shell — this never falls back to an echoing read.`);
     }
     process.stdout.write(prompt);
     process.stdin.setRawMode(true);
@@ -84,10 +75,31 @@ function promptHidden(prompt) {
   });
 }
 
+/**
+ * The admin token, prompted for unless already exported.
+ *
+ * Resolved lazily and once per run, so a command that dies on its arguments never asks for a
+ * credential it was not going to use.
+ */
+let cachedToken = null;
+async function getToken() {
+  if (cachedToken) return cachedToken;
+  if (process.env.FG_TOKEN) { cachedToken = process.env.FG_TOKEN; return cachedToken; }
+  console.log(
+    "Copy an admin token from the browser console on the app you are signed into:\n"
+      + '  copy(JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith("sb-")&&k.endsWith("-auth-token")))).access_token)\n',
+  );
+  const value = await promptHidden("Paste admin token (hidden): ", "admin token");
+  if (!value) die("No token given.");
+  cachedToken = value;
+  return cachedToken;
+}
+
 async function call(path, body) {
+  const bearer = await getToken();
   const res = await fetch(`${api}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` },
     body: JSON.stringify(body ?? {}),
   });
   const text = await res.text();
@@ -118,7 +130,8 @@ switch (command) {
     }
     // The FULL number, because the API unseals and matches on it. Prompted, hidden, held in memory
     // for one request, and only its last four are ever printed or stored.
-    const card = await promptHidden("Card number (hidden): ");
+    await getToken();
+    const card = await promptHidden("Card number (hidden): ", "card number");
     if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
     console.log(`Proving ${capability} against \u2022\u2022\u2022\u2022${card.slice(-4)} \u2014 it will be written to twice.`);
     await call(`/api/fuel-cards/prove/${capability}`, { cardNumber: card, confirm: `PROVE ${card.slice(-4)}` });
