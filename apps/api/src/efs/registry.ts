@@ -8,7 +8,8 @@ import { promptsSetBehaviour } from "./capabilities/promptsSet.behaviour.js";
 import { resolveCapability } from "./orchestrator/resolve.js";
 import { executeCapability } from "../services/efsCardControl.js";
 import type { CardMutationContext, CardMutationOutcome } from "./orchestrator/types.js";
-import type { CapabilityBehaviour } from "./types.js";
+import type { CapabilityBehaviour, Landing, ReadCtx, Snapshot } from "./types.js";
+import type { CardEdit } from "../lib/efsCardEcho.js";
 import type { Env } from "../env.js";
 
 /**
@@ -29,6 +30,20 @@ export interface MountedCapability {
   contract: CapabilityContract<z.ZodTypeAny>;
   /** Validate a request body. Returns what the route needs, or the schema's own error. */
   accept: (raw: unknown) => AcceptedRequest | { ok: false; error: z.ZodError };
+  /**
+   * How a settled-but-unverified row of this capability is judged LATER, by the background sweep.
+   *
+   * Non-generic on purpose: the reconciler reads its inputs out of jsonb columns, so there is no
+   * parsed body to be generic over. It reads the card through the capability's OWN `snapshot`,
+   * which is what lets a capability whose state lives outside the card document be reconciled at
+   * all (docs/27 §5.2).
+   */
+  reconcile: ReconcilePlan | null;
+}
+
+export interface ReconcilePlan {
+  snapshot: (ctx: ReadCtx) => Promise<Snapshot>;
+  judge: (after: Snapshot, edits: readonly CardEdit[], body: unknown) => Landing;
 }
 
 export interface AcceptedRequest {
@@ -69,6 +84,9 @@ export const mount = <TBody extends CardMutationRequestFields>(
       run: (ctx) => executeCapability(ctx, resolveCapability(contract, behaviour, body)),
     };
   },
+  reconcile: behaviour.verify.reconcile
+    ? { snapshot: behaviour.verify.snapshot, judge: behaviour.verify.reconcile }
+    : null,
 });
 
 /**
@@ -115,3 +133,17 @@ export function mountedCapabilities(env: Env): readonly MountedCapability[] {
 
 const isClearMechanism = (c: MountedCapability): boolean =>
   c.contract.key === "override_clear" || c.contract.key === "delete_override";
+
+/**
+ * Find the reconcile plan for a `capability_key` read out of the ledger.
+ *
+ * Searches ALL_CAPABILITIES, not the mounted list. A row written by `delete_override` must still be
+ * reconcilable after the flag flips and that mechanism stops being served — the write happened, and
+ * un-mounting a capability cannot retroactively make its unverified rows unanswerable.
+ *
+ * Null for a key nothing declares: a row written by a capability that has since been deleted is a
+ * question this code can no longer answer, and guessing with another capability's predicate would
+ * settle it wrongly rather than leave it visible.
+ */
+export const reconcilePlanFor = (capabilityKey: string): ReconcilePlan | null =>
+  ALL_CAPABILITIES.find((c) => c.contract.key === capabilityKey)?.reconcile ?? null;

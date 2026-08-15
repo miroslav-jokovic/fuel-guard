@@ -1,3 +1,4 @@
+import { editsLanded } from "../lib/efsCardWrite.js";
 import { intentLanded } from "../services/efsCardReconcile.js";
 import { getCardV2 } from "../lib/efsCardOps.js";
 import type { VerifyPlan } from "./types.js";
@@ -19,5 +20,15 @@ export const cardEchoVerify = <TBody>(): VerifyPlan<TBody> => ({
   judge: (before, after, _body, edits) => {
     if (!before.doc || !after.doc) return "indeterminate";
     return intentLanded(before.doc, after.doc, edits) ? "landed" : "not_landed";
+  },
+  /**
+   * After-only, because the reconciler runs hours later with no honest before-state. `editsLanded`
+   * asks the narrower question the situation actually supports — does the card carry these values
+   * NOW — which is the predicate the reconciler has always used for echo rows; Step 3.9 only moved
+   * it behind the capability so a direct op could supply its own.
+   */
+  reconcile: (after, edits) => {
+    if (!after.doc) return "indeterminate";
+    return editsLanded(after.doc, edits) ? "landed" : "not_landed";
   },
 });

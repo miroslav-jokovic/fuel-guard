@@ -77,6 +77,25 @@ export interface VerifyPlan<TBody> {
   /** Names its OWN read ops. */
   snapshot: (ctx: ReadCtx) => Promise<Snapshot>;
   judge: (before: Snapshot, after: Snapshot, body: TBody, edits: readonly CardEdit[]) => Landing;
+  /**
+   * The same question asked LATER, by the background reconciler, with no before-state to compare to.
+   *
+   * ── Why this is not just `judge` with a stored `before` ──────────────────────────────────────────
+   * `judge` answers "did the edits land, given what the card looked like a moment ago". Hours later
+   * that is the wrong question: the ledger stores `before_document` as the typed view, not the raw
+   * DOM `intentLanded` diffs against, and even with the DOM the card has legitimately moved since.
+   * What the reconciler can honestly ask is "does the card NOW carry what was asked", which is an
+   * AFTER-ONLY predicate — `editsLanded` for an echo, the op's own predicate for a direct write.
+   *
+   * REQUIRED in practice, and the fitness test says so: a capability without one is a capability
+   * whose unverified rows sit on an operator's "Unverified" list forever. That is what happened to
+   * every `direct` mutation until Step 3.9 — they record no edits, and the reconciler skipped any
+   * row with an empty edit list.
+   *
+   * `body` arrives as `unknown` because it comes back out of a jsonb column. A capability that needs
+   * it must PARSE it, never cast: nothing guarantees the row was written by today's schema.
+   */
+  reconcile?: (after: Snapshot, edits: readonly CardEdit[], body: unknown) => Landing;
 }
 
 /**

@@ -188,6 +188,15 @@ describe("the capability registries agree with each other", () => {
     expect(new Set(CLEAR_MECHANISMS.map((key) => CARD_CAPABILITY_CONTRACTS[key]!.writeBucket)).size).toBe(1);
   });
 
+  it("can be reconciled in the background, so no capability strands its own unverified rows", () => {
+    for (const capability of ALL_CAPABILITIES) {
+      // A `sent` row is terminal-unknown and sits on an operator's "Unverified" list until the
+      // background sweep answers it. A capability with no after-only predicate has no answer, and
+      // its rows stay there forever — which is what every `direct` op did until Step 3.9.
+      expect(capability.reconcile, `${capability.contract.key} reconcile`).not.toBeNull();
+    }
+  });
+
   it("declares a reason rule, so a capability cannot default into silence", () => {
     for (const contract of Object.values(CARD_CAPABILITY_CONTRACTS)) {
       expect(["optional", "required"], `${contract.key} reason`).toContain(contract.reason);
