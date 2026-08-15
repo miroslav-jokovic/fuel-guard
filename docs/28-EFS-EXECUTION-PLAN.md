@@ -591,7 +591,15 @@ A preservation assertion built on the response DOM does not fix this on its own:
 
 ### ✅ Exit Gate — Phase 3
 - [x] Characterisation suite passes byte-identically after every migration step
-- [ ] The only pre-existing test that changed is `WRITE_ROUTES` — **NOT met, and stated rather than fudged.** Five pre-existing files changed: `fuelCardsControl.test.ts` (the `WRITE_ROUTES` conversion itself), `vendorRateLimit.test.ts` (a moved router — a route-enumeration fixture, which is what the exemption names), `cardControlContract.test.ts` (an import line after a file split), and `efsCardControl.test.ts` + `efsCardWriteDeadline.test.ts` (both forced by Step 3.7 deleting the spec they construct). **Every one got stronger or kept every assertion**; none was weakened to accommodate a refactor. Each is named in its own commit
+- [x] **No test lost an assertion.** `git diff <base>..<head> -- '*.test.ts' | grep -cE '^-.*expect\('` is **0**; 99 were added. Every test that changed did so because the thing it named was deleted or moved by this phase, and each change is named in the commit that made it *(amended 2026-08-14 — see below)*
+
+> **GATE AMENDED, and why.** This line read *"the only pre-existing test that changed is `WRITE_ROUTES`"* (from `docs/27` §10). **That gate is unsatisfiable in this phase, and the contradiction is in the plan, not in the work:** Step 3.7's entire content is deleting `CardMutationIntentSpec`, and `efsCardControl.test.ts` and `efsCardWriteDeadline.test.ts` construct it. A gate cannot both require the deletion and forbid touching the tests that name the deleted thing.
+>
+> `docs/27` §10 argues the obvious gate — "no existing test may change" — is wrong because it **selects for the unsafe outcome**. The same argument applies one notch further out: a gate satisfiable only by contorting code around a test fails the same way from the other direction, and the pressure it creates is to leave a dead type alive so a test need not move.
+>
+> **The replacement is the property the original was reaching for, expressed as a number instead of a judgement.** Deleted-assertion count is mechanical, it is already §0.9 audit check 4, and it cannot be argued with at 2am. It is strictly harder to fudge than a prose list of which files were "allowed" to change.
+>
+> **What it does NOT relax:** the characterisation suite must still pass byte-identically (its own gate line, above), and standing rule 1 still forbids weakening a gate to make it green. This amendment tightens the check into something falsifiable; it does not lower it. Approved by Miki, 2026-08-14.
 - [x] Fitness test catches all three deliberate breakages
 - [x] `mutation:check` score on `apps/api/src/efs/` recorded and acceptable — **18/18, 7 new**
 - [x] **All four Phase-3 waivers from Step 0.6 are DELETED from `GRANDFATHERED`** — `control.ts`, `efsCardControl.ts`, `cardControlContract.ts`, `cardControlModel.ts` all under 500 on their own (`efsCardControl.ts` ✅ removed in 3.4)
