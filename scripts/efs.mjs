@@ -18,6 +18,8 @@
  * silently and fail as "Invalid or expired token", which reads like a vendor problem and is not one.
  *
  *   pnpm efs:scan                        # prompts for the token, hidden
+ *   node scripts/efs.mjs sync            # force a card-mirror sweep now
+ *   node scripts/efs.mjs job efs_card_sync   # watch it
  *   pnpm efs:write-check                 # the ten-proof entitlement gate; prompts: token, password, card
  *   pnpm efs:prove card_lock             # prompts: token, password (step-up), card number
  *   pnpm efs:promote card_lock --proof <uuid> --reason "OEG green on QA"
@@ -268,6 +270,50 @@ switch (command) {
     break;
   }
 
+  /**
+   * Force a card-mirror sweep now, instead of waiting for the scheduler.
+   *
+   * There is deliberately no "Refresh from EFS" button in the product — card views refresh
+   * themselves (audit B6) — and the scheduler's interval defaults to 24 hours. So after a change to
+   * the mirror or the linker, the only way to see the new behaviour against real vendor data is to
+   * ask for a sweep, and until now that meant hand-rolling a curl with an admin token in it.
+   *
+   * Read-only against the vendor: it lists the account's cards and re-reads details. It writes only
+   * to our own mirror, and it is idempotent by construction — every write is an upsert keyed on
+   * `(org_id, card_ref_hmac)`, so running it twice produces the same rows.
+   *
+   * The org is decided by the TOKEN, not by a flag. There is no `--org`, deliberately: an operator
+   * who pastes a QA token gets a QA sweep, and one who pastes production gets production, with no
+   * second place for the two to disagree.
+   */
+  case "sync": {
+    console.log(
+      "\nQueues a full card-mirror refresh for the org your token belongs to.\n"
+        + "Reads the vendor's card list and details; writes only to our mirror; safe to repeat.\n",
+    );
+    await call("/api/fuel-cards/sync", {});
+    console.log(
+      "\nQueued. The sweep runs server-side — watch it with:\n"
+        + "  node scripts/efs.mjs job efs_card_sync\n",
+    );
+    break;
+  }
+
+  /** The latest job of a kind, plus the last one that finished — how a sweep is watched. */
+  case "job": {
+    const kind = capability ?? "efs_card_sync";
+    const bearer = await getToken();
+    const res = await fetch(`${api}/api/jobs/latest?kind=${encodeURIComponent(kind)}`, {
+      headers: { Authorization: `Bearer ${bearer}` },
+    });
+    const text = await res.text();
+    let parsed;
+    try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+    console.log(JSON.stringify(parsed, null, 2));
+    if (!res.ok) process.exit(2);
+    break;
+  }
+
   case "promote": {
     if (!capability) die("usage: pnpm efs:promote <capability> --proof <id> --reason <why>   |   --suspend --reason <why>");
     const reason = typeof flags.reason === "string" ? flags.reason : null;
@@ -283,7 +329,7 @@ switch (command) {
 
   default:
     die(
-      "commands: scan · echo-scan · write-check [--read-only] [--status Hold|Inactive] · "
+      "commands: scan · echo-scan · sync · job [kind] · write-check [--read-only] [--status Hold|Inactive] · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
         + "(card numbers and tokens are always prompted for, never passed as flags)",
     );
