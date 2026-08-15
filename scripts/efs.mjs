@@ -205,9 +205,109 @@ switch (command) {
     await call("/api/fuel-cards/config-scan", {});
     break;
 
-  case "echo-scan":
-    await call("/api/fuel-cards/echo-scan", { limit: Number(flags.limit ?? 50), offset: Number(flags.offset ?? 0) });
+  /**
+   * Echo fidelity across the whole account, paged to the end (Phase 2 / Phase 4 exit gate).
+   *
+   * READ-ONLY by construction: it reads each card, builds the zero-edit request it WOULD send, and
+   * runs `assertEchoFidelity` against the vendor's own XML. `setCardV2` is not imported by that
+   * module and `echoScan.test.ts` asserts it. Nothing is dispatched.
+   *
+   * ── Why it pages itself now ─────────────────────────────────────────────────────────────────────
+   * The route takes at most 100 cards and one wall-clock budget per call, so a 197-card account is
+   * four calls. Chasing `nextOffset` by hand meant four token pastes and four chances to fumble an
+   * offset — the 2026-08-14 run was done exactly that way. A gate nobody wants to re-run is a gate
+   * that goes stale, which is how "green 197/197" became a claim two days old.
+   *
+   * ── It names the company it scanned ─────────────────────────────────────────────────────────────
+   * The gate says "green on PRODUCTION". A scan that cannot say which account it read is not evidence
+   * for that sentence, and after the suspension drill pointed at the wrong org (docs/22 H10) the cost
+   * of assuming is no longer theoretical. The org is resolved from the SERVER, not from intent.
+   */
+  case "echo-scan": {
+    const bearerForOrg = await getToken();
+    const probe = await fetch(`${api}/api/jobs/latest?kind=efs_card_sync`, {
+      headers: { Authorization: `Bearer ${bearerForOrg}` },
+    });
+    const probeBody = probe.ok ? await probe.json() : null;
+    const org = probeBody?.latest?.org_id ?? probeBody?.lastDone?.org_id ?? "(could not determine)";
+    console.log(`\nEcho scan — org ${org}. Read-only: nothing is dispatched.\n`);
+
+    const limit = Number(flags.limit ?? 50);
+    let offset = Number(flags.offset ?? 0);
+    let scanned = 0;
+    let passed = 0;
+    const failures = [];
+    let total = null;
+
+    /**
+     * ── One transient socket error must not discard the whole sweep ─────────────────────────────
+     * The first paged run died at offset 163 of 197 with an ECONNRESET — a network failure, not an
+     * application one — and took 163 cards of completed work with it. The ROUTE is resumable by
+     * design (it reports `nextOffset` precisely so a sweep can continue), and the loop was throwing
+     * that property away by letting `fetch` reject straight out of the process.
+     *
+     * Retries are per BATCH, not per scan: a batch is idempotent (it reads and judges, it never
+     * writes), so re-running one costs vendor budget and nothing else. On final failure the resume
+     * offset is printed, because the alternative is starting a four-minute paced sweep from zero.
+     */
+    const attemptBatch = async (attempt = 1) => {
+      try {
+        return await callRaw("/api/fuel-cards/echo-scan", { limit, offset });
+      } catch (error) {
+        if (attempt >= 3) throw error;
+        const waitMs = attempt * 3000;
+        console.log(`    (network error: ${error?.cause?.code ?? error?.message ?? error} — retrying in ${waitMs / 1000}s)`);
+        await new Promise((r) => setTimeout(r, waitMs));
+        return attemptBatch(attempt + 1);
+      }
+    };
+
+    for (let batch = 1; ; batch += 1) {
+      let res;
+      try {
+        res = await attemptBatch();
+      } catch (error) {
+        console.error(`\n✗ Batch ${batch} at offset ${offset} could not be completed: ${error?.cause?.code ?? error?.message ?? error}`);
+        console.error(`  ${scanned} card(s) scanned so far, ${passed} passed, ${failures.length} failed.`);
+        die(`  Resume with:\n    node scripts/efs.mjs echo-scan --offset ${offset}`);
+      }
+      if (!res.ok) {
+        console.error(JSON.stringify(res.body, null, 2));
+        console.error(`  Resume with: node scripts/efs.mjs echo-scan --offset ${offset}`);
+        die(`Batch ${batch} at offset ${offset} was refused — the account was NOT fully scanned.`);
+      }
+      const b = res.body;
+      total = b.total ?? total;
+      scanned += b.scanned ?? 0;
+      passed += b.passed ?? 0;
+      for (const r of b.results ?? []) if (!r.ok) failures.push(r);
+      console.log(
+        `  batch ${batch}: offset ${String(b.offset).padStart(3)}  scanned ${String(b.scanned).padStart(3)}`
+          + `  passed ${String(b.passed).padStart(3)}  failed ${b.failed}   (total ${b.total})`,
+      );
+      if (b.nextOffset === null || b.nextOffset === undefined) break;
+      offset = b.nextOffset;
+    }
+
+    console.log(`\n=== echo scan complete — org ${org} ===`);
+    console.log(`  the account returns : ${total}`);
+    console.log(`  scanned            : ${scanned}`);
+    console.log(`  passed             : ${passed}`);
+    console.log(`  failed             : ${failures.length}`);
+    if (failures.length > 0) {
+      console.log("\n  FAILURES — each is a card whose own document we cannot reproduce faithfully:");
+      for (const f of failures) console.log(`    ••••${f.last4}: ${JSON.stringify(f.diff ?? f.error ?? f)}`);
+      process.exit(2);
+    }
+    // Says what it covered, not just that it was green: a pass over a SHORT list is the failure mode
+    // this line exists to make visible.
+    console.log(
+      scanned === total
+        ? `\n✓ every card the account returns round-trips byte-for-byte (${scanned}/${total}).`
+        : `\n⚠ scanned ${scanned} of ${total} — the sweep did NOT cover the whole account.`,
+    );
     break;
+  }
 
   case "prove": {
     if (!capability) die("usage: pnpm efs:prove <capability>   (the card number is prompted for)");
