@@ -685,11 +685,21 @@ Confirmed **not** caused by Step 3.4: the diff touches no auth, no middleware an
 **Change:** reproduce first — run `apps/api` under load or with the file order forced — then fix the cause. Two candidates worth ruling out in order: `fuelCardVendorLimiter` being reached across `createApp()` instances in one worker (the file's own docblock claims each app builds its own store — verify it), and `strictLimiter`'s IP keying colliding with another suite's server on 127.0.0.1. This is the same family as the `idleRollup.test.ts` finding in PR #12: a test that fails on a schedule nobody is watching turns CI red at random and teaches everyone to re-run it.
 **Verify:** the failure reproduces on demand before any fix, and the fix is verified by reverting it alone.
 
+### Step 5.5 — `mutation-check` cancels itself on a busy day, silently
+**Files:** `.github/workflows/mutation-check.yml`.
+**Found 2026-08-14 while wiring Step 3.10.** The workflow carries `concurrency: { group: mutation-check-${{ github.ref }}, cancel-in-progress: true }`. On `main` every push shares one group, so **a later merge cancels an in-flight mutation check** — and a cancelled run is not a failed run. It is silent. Seven merges landed on `main` that day; all completed only because the job takes ~60s and the merges were minutes apart.
+
+That is the disease `scripts/mutation-check.mjs` opens by describing: *"a detection command that fails to START is a FAILURE, not a skip — 'the runner was missing so we passed' is how the driver app went 24 tests without executing any of them."* The script refuses to treat an unrunnable mutation as passed; the workflow around it will happily leave `main` with no completed run at all and nothing saying so.
+
+**Change:** `cancel-in-progress: false`. Cancellation is right for a job whose only output is feedback on the newest commit (CI on a PR branch), and wrong for a job that is *verification of `main`* — there, every commit deserves its own answer. The job is ~60s against a 20-minute timeout, so serialising costs nothing worth counting.
+**Verify:** push twice to `main` within a minute and confirm both runs complete. **This is a workflow edit**; the plan protects `ci.yml` by name and not this file, but it should be read as a CI change either way.
+
 ### ✅ Exit Gate — Phase 5
 - [ ] Every signal in 5.1 fires when triggered
 - [ ] Runbook written; containment walked on QA with timings recorded
 - [ ] `approved_by` populated; promotion authority defined
 - [ ] The `fuelCardsControl.test.ts` intermittent is reproduced and fixed, or shown to be impossible
+- [ ] `mutation-check` no longer cancels its own runs on `main`
 
 ---
 
