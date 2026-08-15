@@ -159,7 +159,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 0 | Green the pipeline | 🔶 *(PRs #3, #5 merged; **Step 0.13 outstanding** — QA card roles unassigned, which blocks Phases 9 and 10. Step 0.15 done in #5; all sixteen `ci.yml` gates green on `main` at `12a86a8`)* | `delivery-p0-green` |
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks not run: §6.2 foreign-card probe, §6.3 step-up, §6.4 endpoint binding, 409 replay. Status and prompts changes confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | 🔶 *(2.1–2.5 merged, PRs #13–#21; **echo scan green 197/197** on 2026-08-14. Two exit-gate items need Miki: the `probed_identity_hash` null check, and the "every existing echo test passes unchanged" wording — #13 changed two deliberately)* | `delivery-p2-echo` |
-| 3 | Capability architecture | 🔶 *(**every step 3.1–3.10 done**; 3.10 on `delivery-p3-mutation`. The exit gate has ONE item left: **live QA on all five operations**, which nothing offline can close. 3.5a withdrawn — it is Step 4.2)* | `delivery-p3-registry` |
+| 3 | Capability architecture | 🔶 *(**every step 3.1–3.10 merged.** Exit gate: six of seven ticked. The one left is **live QA on all five operations**, which nothing offline can close — and Phase 4's precondition is this phase ✅, so 4.5's live prover would otherwise be built on top of five capabilities nobody has pressed. 3.5a withdrawn — it is Step 4.2)* | `delivery-p3-registry` |
 | 4 | Harness & promotion | ⬜ | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
