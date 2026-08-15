@@ -26,12 +26,27 @@ const CTX: AuthContext = {
   role: "admin",
 };
 
+/** A second org, to prove the budget is per-EFS-account and not per-IP (Step 5.6). */
+const TOKEN_B = "admin-b";
+const CTX_B: AuthContext = {
+  userId: "u-admin-b",
+  email: "admin@other.test",
+  orgId: "9f8e7d6c-5b4a-4938-8271-605f4e3d2c1b",
+  role: "admin",
+};
+
+const PRINCIPALS: Record<string, AuthContext> = { [TOKEN]: CTX, [TOKEN_B]: CTX_B };
+
+/** A charged route: POST /:id/lock opens a SOAP session, so it spends the vendor budget. */
+const CHARGED = { path: `/api/fuel-cards/${CARD}/lock`, method: "POST", body: {} };
+
 async function openServer(): Promise<{ baseUrl: string; server: Server }> {
   vi.spyOn(console, "error").mockImplementation(() => {});
   const app = createApp(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
   app.locals.verifyToken = async (token: string): Promise<AuthContext> => {
-    if (token !== TOKEN) throw new Error("bad token");
-    return CTX;
+    const ctx = PRINCIPALS[token];
+    if (!ctx) throw new Error("bad token");
+    return ctx;
   };
   const server = await new Promise<Server>((resolve) => {
     const instance = app.listen(0, () => resolve(instance));
@@ -39,21 +54,36 @@ async function openServer(): Promise<{ baseUrl: string; server: Server }> {
   return { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, server };
 }
 
-async function statuses(baseUrl: string, path: string, method: string, body?: unknown): Promise<number[]> {
+interface CallOptions {
+  token?: string | null;
+  /** `app.set("trust proxy", 1)` means X-Forwarded-For IS `req.ip` — so this varies the source IP. */
+  ip?: string;
+  body?: unknown;
+}
+
+async function call(baseUrl: string, path: string, method: string, options: CallOptions = {}): Promise<number> {
+  const { token = TOKEN, ip, body } = options;
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
+      ...(ip === undefined ? {} : { "X-Forwarded-For": ip }),
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  await response.arrayBuffer();
+  return response.status;
+}
+
+async function repeat(count: number, fn: (index: number) => Promise<number>): Promise<number[]> {
   const out: number[] = [];
-  for (let i = 0; i < 31; i++) {
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    out.push(response.status);
-    await response.arrayBuffer();
-  }
+  for (let i = 0; i < count; i++) out.push(await fn(i));
   return out;
+}
+
+async function statuses(baseUrl: string, path: string, method: string, body?: unknown): Promise<number[]> {
+  return repeat(31, () => call(baseUrl, path, method, { body }));
 }
 
 async function closeServer(server: Server): Promise<void> {
@@ -110,6 +140,69 @@ describe("fuel-card vendor rate budget", () => {
     try {
       const result = await statuses(baseUrl, "/api/fuel-cards/not-a-real-route", "POST", {});
       expect(result.at(-1)).toBe(429);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  // ── Step 5.6: the bucket is the org, not the IP ────────────────────────────────────────────────
+  //
+  // The fix has two halves, and each half was reverted ON ITS OWN to see which cases go red —
+  // a prediction about that was wrong the first time, so these numbers are measured, not reasoned:
+  //
+  //   revert `keyGenerator` alone  → 2 red: "two orgs / one IP" and "one org / two IPs". Exactly the
+  //                                  two that describe the bucket, and no others.
+  //   revert the `requireAuth` hoist alone (keeping `keyGenerator`) → 7 red, because the key
+  //                                  generator THROWS on a missing `req.auth` instead of inventing a
+  //                                  key. That is the intended blast radius: the mount order cannot
+  //                                  be quietly undone into a silent return to IP keying.
+  //
+  // So the third case below belongs to the hoist, not to the key. Test 2 needs
+  // `app.set("trust proxy", 1)` (app.ts) to stand up — X-Forwarded-For IS `req.ip` under it, so
+  // varying that header is genuinely varying the source address.
+
+  it("two orgs from one IP get independent vendor budgets", async () => {
+    const { baseUrl, server } = await openServer();
+    try {
+      const orgA = await repeat(31, () => call(baseUrl, CHARGED.path, CHARGED.method, { body: CHARGED.body }));
+      expect(orgA.at(-1)).toBe(429); // org A has spent its own budget
+
+      // Same socket, same IP, different EFS account. Keyed on IP this was 429 — one org's QA session
+      // spending another org's vendor allowance, which is the whole defect.
+      const orgB = await call(baseUrl, CHARGED.path, CHARGED.method, { token: TOKEN_B, body: CHARGED.body });
+      expect(orgB).not.toBe(429);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("one org from two IPs shares one vendor budget", async () => {
+    const { baseUrl, server } = await openServer();
+    try {
+      // Alternating source addresses. Keyed on IP this is two buckets of ~16 and never trips;
+      // keyed on the org it is one bucket of 31 and the last call is refused.
+      const result = await repeat(31, (i) =>
+        call(baseUrl, CHARGED.path, CHARGED.method, {
+          ip: i % 2 === 0 ? "203.0.113.10" : "198.51.100.20",
+          body: CHARGED.body,
+        }),
+      );
+      expect(result.at(-1)).toBe(429);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("an unauthenticated request is refused without consuming a vendor slot", async () => {
+    const { baseUrl, server } = await openServer();
+    try {
+      const anonymous = await repeat(40, () => call(baseUrl, CHARGED.path, CHARGED.method, { token: null, body: CHARGED.body }));
+      expect(new Set(anonymous)).toEqual(new Set([401]));
+
+      // The org's 30 are still there. Before the hoist, those 40 anonymous calls drained the IP
+      // bucket and a paying org arrived to find its own budget already spent by a stranger.
+      const authenticated = await repeat(30, () => call(baseUrl, CHARGED.path, CHARGED.method, { body: CHARGED.body }));
+      expect(authenticated).not.toContain(429);
     } finally {
       await closeServer(server);
     }

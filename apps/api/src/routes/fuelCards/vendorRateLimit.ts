@@ -94,3 +94,29 @@ export function skipFuelCardVendorRateLimit(req: Request): boolean {
   const route = matchedRoute(req);
   return route !== undefined && !route.opensSoap;
 }
+
+/**
+ * The budget protects a shared VENDOR ACCOUNT, and an EFS account is held per org — so the bucket has
+ * to be the org, not the caller's IP (Step 5.6). Keyed on IP, two people in one office shared 30
+ * requests per quarter-hour across two different EFS accounts, and a QA session spent production's
+ * allowance; keyed on the org, neither is possible.
+ *
+ * `req.auth` is guaranteed here because `app.ts` mounts `requireAuth` AHEAD of this limiter on
+ * `/api/fuel-cards`. That ordering is the whole fix and `vendorRateLimit.test.ts` asserts it, in
+ * "an unauthenticated request is refused without consuming a vendor slot". Deliberately NOT solved by
+ * decoding the JWT here: that would be a second auth implementation (standing rule 5).
+ *
+ * An authenticated user with no org yet gets their own bucket rather than a shared one. They cannot
+ * reach EFS — `requireOrg` answers 403 inside every fuel-card router — but this module resolves
+ * ambiguity toward charging, and a shared fallback bucket is the IP bug in a different costume.
+ */
+export function fuelCardVendorRateLimitKey(req: Request): string {
+  const auth = req.auth;
+  if (!auth) {
+    // Unreachable while the mount order holds. Throwing beats inventing a key: express-rate-limit
+    // surfaces it through the error handler as a 500, which is loud, whereas any fallback value
+    // silently re-pools unrelated callers into one budget — the exact defect this function fixes.
+    throw new Error("fuel-card vendor rate limit reached before requireAuth — check the mount order in app.ts");
+  }
+  return auth.orgId ? `org:${auth.orgId}` : `user:${auth.userId}`;
+}
