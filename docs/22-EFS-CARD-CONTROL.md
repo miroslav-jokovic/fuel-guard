@@ -1008,3 +1008,29 @@ service-role access to tidy up an operator error is a larger risk than the untid
 **The lesson, and it generalises past this drill.** When a dangerous action is made safe, the thing
 made safe is whatever the author was picturing. Here that was the card, in detail, twice over — and
 the blast radius ran through the tenant. **Ask what else the action selects, not only what it does.**
+
+### The re-run, with both fixes, on QA — and the number
+
+```
+Suspension drill for card_lock, org 07fe4058-cc72-4a69-b3e9-29b4cf1c6a44.
+suspended at t+0ms
+write attempted and answered at t+481ms  ->  403 card_control_suspended
+✓ SUSPENSION PROPAGATED. Upper bound: 481ms — the very next call saw it.
+card_lock re-enabled — state restored.
+```
+
+The org guard printed the company it had confirmed with the SERVER before touching anything, which is
+the whole of the fix. Verified afterwards in the database rather than from the response:
+
+- QA `card_lock` back to `enabled` at 21:55:07, one second after the suspend
+- drill card ••••7671 still `ACTIVE` — the write never landed
+- **no `efs_card_mutations` row was created at all.** The most recent QA mutation predates the drill by
+  three hours. The gate refuses BEFORE the ledger opens, so a suspended capability leaves no trace on
+  the card path — which also means a suspension cannot be diagnosed from the mutation ledger later
+- audit trail is a clean pair: `card.capability_suspended` then `card.capability_promoted`, one second
+  apart, both attributable
+
+**481 ms is an upper bound, not the propagation time.** It is dominated by one HTTPS round trip to
+Railway; the actual propagation is a single uncached indexed read inside the request. That is exactly
+what `promotionBlock`'s "deliberately uncached, and that is the feature" comment predicts — and the
+point of running it is that the comment is now a measurement instead of a claim.
