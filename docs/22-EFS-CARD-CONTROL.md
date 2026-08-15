@@ -716,3 +716,52 @@ one. Filed: Step 7.5 (display) and Step 7.7 (the linking itself).
 defaults to 24; this card's badge was wrong for nine hours and the UI presented it with no staleness
 signal. For a lock that is tolerable. For an override — the number that says whether a driver can
 take another free tank — it is not. Filed as **`docs/28` Step 7.8**.
+
+## H5 — the first capability proof, and what a live run measured (2026-08-15, QA)
+
+The Phase 4 harness run end to end against `ws.partner.efsllc.com`, QA card ••••7671, proof
+`40b88b75`. Recorded here because it is the first time this codebase has produced *evidence about a
+capability* rather than evidence about a request.
+
+| OEG | Result | Note |
+|---|---|---|
+| 1 — entitled | **true** | no `not_allowed` from any call |
+| 2b — no-op stable | **null** | NOT obtainable, and deliberately not faked — see below |
+| 3 — change landed | **true** | apply → `succeeded` through the real orchestrator |
+| 4 — vocabulary | **true** | observed `HOLD`; `status` is casing-adaptive, so `Hold` vs `HOLD` is a handled adaptation |
+| 5 — revert landed | **true** | card back to `ACTIVE`, proven by re-read |
+
+**Document shape `nested:header`.** Confirms on a live QA card what `docs/22`'s WSDL section says the
+type declares, and what the production corpus shows: this account nests, it does not return a flat
+card.
+
+### Two things the run measured that no offline test could
+
+**The first verifying re-read MISSED.** The recorded 4562 ms spans the whole capability call —
+planning read, write, first re-read, the 3-second `EFS_CARD_VERIFY_RETRY_MS` pause, second re-read.
+That arithmetic only works if the first look did not see the change and the second did. So on this
+account, at this moment, **apply latency was somewhere above the first read and below ~3 s** — which
+is consistent with the 533 ms H1 measured, and is NOT the "9× slower" the raw number suggests. The
+column is mislabelled rather than the vendor being slow; **Step 4.7** fixes the measurement.
+
+**OEG-2b cannot be obtained through the capability model.** The gate is "cardVersion unchanged after
+a NO-OP dispatch" — a `setCardv2` carrying the echoed document and zero edits. Every capability
+produces edits by construction, which is exactly the property that makes `buildEdits` the single
+definition of what a write changes. Two reads compared to each other would have satisfied the column
+and proven nothing: it would show the card is quiet, not that a no-op write leaves it alone, and
+WSCardv2's sequence bugs live in serializer paths a zero-edit request never reaches. Left **null**,
+which Step 4.6 treats as "not obtained" and carries as a named residual risk on the promotion.
+
+### The promotion that followed, and why it was allowed
+
+`card_lock` → `enabled`, citing this proof. The interesting part is the vocabulary decision. The
+fleet-wide scan reports `status` as **`unobserved`** on QA, because no QA card is in `HOLD` at rest —
+and standing rule 14 guarantees none stays there. Step 4.6 as originally written required every
+vocabulary field to be `match`, which would have made the safest capability in the product
+permanently unpromotable. It was amended before being built: **`unobserved` yields to the proof
+run's own observation, and to nothing else.** `mismatch` still blocks unconditionally, because a
+mis-spelling means the next write is silently ignored (H1), and no proof makes that safe.
+
+Both residual risks are recorded on the promotion row and in the `card.capability_promoted` audit
+entry — "what did we know we did not know when we allowed this" is a question asked after an
+incident, not before.
