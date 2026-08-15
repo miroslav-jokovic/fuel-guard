@@ -38,6 +38,8 @@
     "lint:filesize": "node scripts/check-file-size.mjs",
     "lint:funcsize": "node scripts/check-function-size.mjs",
     "lint:migrations": "node scripts/check-migration-versions.mjs",
+    "//check:card-binding": "Phase 2's exit gate, scripted (Step 2.6): no org may hold write_entitlement = 'confirmed' with a null probed_identity_hash. Deliberately NOT in ci.yml — it reads the live database, and this repository is public, so wiring it there would mean a production service-role key in CI secrets to check a status claim. Run it at session start and after any probe or credential change; migration 0194 enforces the same rule in Postgres.",
+    "check:card-binding": "node scripts/card-control-binding-check.mjs",
     "lint:rls": "node scripts/check-rls.mjs",
     "//lint:upserts": "Bans `.upsert(x, { onConflict: \"id\" })` into a table with NOT NULL columns the payload cannot be shown to carry. Postgres evaluates NOT NULL on the proposed tuple BEFORE conflict arbitration, so that call fails on rows that already exist — the defect that shipped three times and took the Idling and HOS syncs down (incident 2026-08-10).",
     "lint:upserts": "node scripts/check-partial-upserts.mjs",

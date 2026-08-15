@@ -22,7 +22,18 @@
 cd <repo> && git log --oneline -5 && git branch --show-current
 pnpm verify:live                        # deployed HEAD + migration vs GET /api/version
 node scripts/check-file-size.mjs        # expect: see Phase 0 note
+pnpm check:card-binding                 # Phase 2's exit gate, re-established in one command
 ```
+
+> **Why that last one is here and not in `ci.yml`.** It reads the live database, and this repository
+> is PUBLIC — wiring it into CI would put a production service-role key in CI secrets to check a
+> status claim. It is a session-start command instead, and migration 0194 enforces the same rule in
+> Postgres where CI cannot reach.
+>
+> **It is also the only exit-gate item in this document a stranger can re-establish in one command,
+> and that is the point of it.** On 2026-08-15 this gate was recorded as *"now scripted, not manual"*
+> when no script existed; the claim was false for four days and was caught only by someone going to
+> run it. **Prefer a check that exits non-zero to a sentence that says it passed.**
 
 1. Read §0, §1 (Status), and **only** your phase's section.
 2. Your phase = the **first row in §1 not marked ✅**.
@@ -173,14 +184,14 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 
 | # | Phase | Status | Branch |
 |---|---|---|---|
-| 0 | Green the pipeline | 🔶 *(PRs #3, #5 merged; **Step 0.13 outstanding** — QA card roles unassigned, which blocks Phases 9 and 10. Step 0.15 done in #5; all sixteen `ci.yml` gates green on `main` at `12a86a8`)* | `delivery-p0-green` |
+| 0 | Green the pipeline | 🔶 *(PRs #3, #5 merged; **Step 0.13 OBSERVED 2026-08-15 evening and the answer is a USER DECISION** — its stated blocker was obsolete, and the observation found the QA account cannot fill three of §0.6's six roles: no card at Hold, no `infoSource=CARD` or `POLICY`, no time restrictions, only one card with limits. Phases 9–12 need those fixtures created in the WEX portal. Also: last-4 cannot key the role table — 35 QA cards, 20 distinct last-4s. Step 0.15 done in #5; all sixteen `ci.yml` gates green on `main` at `12a86a8`)* | `delivery-p0-green` |
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
-| 2 | Echo engine correctness | ⛔ *(2.1–2.5 merged, PRs #13–#21; echo scan green 197/197. **Exit gate FAILS:** the live check was run 2026-08-15 and the one org with card control has `write_entitlement = 'confirmed'` with a null `probed_identity_hash`, which the code grandfathers — **Step 2.6**. The gate wording is amended, identically to Phase 3's)* | `delivery-p2-echo` |
+| 2 | Echo engine correctness | ✅ *(2.1–2.6 merged, PRs #13–#21; echo scan green 197/197 — which is the WHOLE live fleet: the mirror's 199 includes 2 cards WEX de-listed and `tombstoneAbsentCards` correctly marked `absent_since` on 2026-08-14. **Exit gate CLOSED 2026-08-15 evening by Step 2.6** — QA re-probed (ten of ten proofs), `probed_identity_hash` bound, the grandfather branch deleted, and migration 0194 makes the violating state unrepresentable. The check is now genuinely scripted: `node scripts/card-control-binding-check.mjs`, exit 1 on any violation)* | `delivery-p2-echo` |
 | 3 | Capability architecture | ✅ *(3.1–3.11 merged; **exit gate CLOSED 2026-08-15** — all five operations verified live on `af1a8e5`, card returned byte-identical. The read behind 3.11 proved this account never reports override scope on ANY card, `docs/22` H3. 3.5a withdrawn — it is Step 4.2)* | merged to `main` |
 | 4 | Harness & promotion | 🔶 *(**every step built — 4.1 through 4.6.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Migration 0193 backfills the five live capabilities; `delete_override` stays unpromoted until a proof characterises it. **PROVEN AND PROMOTED LIVE 2026-08-15** — QA ••••7671, proof `40b88b75`, all four required gates true, card restored; `card_lock` then promoted to `enabled` citing that proof, both residual risks recorded on the promotion and in the audit row. **Remaining:** the production refusal attempt, suspension propagation timed, the production echo-scan re-run, and **Step 4.7** — `apply_latency_ms` measures the wrong interval)* | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ *(5.6–5.10 filed 2026-08-15 from `docs/30` §6.G and Phase 2's two-hosts finding. Two §6.G items were small enough to fix on the spot and are done)* | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
-| 7 | Account & policy visibility | ⬜ *(7.7 card identity and 7.8 override staleness filed 2026-08-15. **7.7 is worth pulling forward** — 182 of 234 production cards are unlinked, so fuel attribution runs on a minority of the fleet)* | `delivery-p7-visibility` |
+| 7 | Account & policy visibility | ⬜ *(7.7 card identity and 7.8 override staleness filed 2026-08-15. **7.7 is worth pulling forward** — **180 of the 232 LIVE production cards are unlinked**, so fuel attribution runs on a minority of the fleet. Counts corrected 2026-08-15 evening: the old "182 of 234" counted two cards WEX de-listed and `absent_since` correctly tombstoned. **The last-4 collision is account-wide, not production-only** — QA has it too, six last-4s naming three cards each)* | `delivery-p7-visibility` |
 | 8 | Card status *(first production promotion)* | ⬜ | `delivery-p8-status` |
 | 9 | Driver assignment & prompts | ⬜ | `delivery-p9-prompts` |
 | 10 | Override with amount | ⬜ | `delivery-p10-override` |
@@ -194,6 +205,8 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 ## Phase 0 — Green the pipeline
 
 **Baseline established by `docs/EFS-RECON-REPORT.md` (commit `5b28b20`, branch `recon/efs-baseline`).**
+
+> **⚠️ That file is NOT on `main`** — it exists only on the unmerged `recon/efs-baseline` branch (verified 2026-08-15 evening). The document this entire plan is baselined on is one `git branch -D` away from being gone, and nothing in the repo would notice. Merge it or move it onto `main` before anybody prunes stale branches; there are 30 of them, most already squash-merged and superseded.
 
 **CI is red on `main`, and has been since `61a05ca` (2026-08-12) — the card-control hardening commit.** It added `hasStepUpToken` and widened the `CardEdit` union without updating three test files. Because `migrate.yml`, `driver-android.yml` and `driver-ota.yml` are each gated by `require-ci-green`, **no migration has reached the database and no driver build has shipped since.** Nothing in this plan can proceed until 0.1–0.6 are done.
 
@@ -288,11 +301,28 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 
 **Consequence for every later phase:** a phase that adds a scope must also add its grant statement, or the capability promotes and nobody can use it. Add that to the phase's exit gate.
 
-### Step 0.13 — Assign QA card roles ⏭ **DEFERRED to immediately after Phase 1 Step 1.2**
-**Files:** §14 (last-4 only).
-**Change:** map the 13 cards to §0.6's roles from **observed** state.
-**Why deferred:** this needs `EFS_CARD_CONTROL_PROBE_ENABLED=true`, and until Step 1.2 lands the org-ownership guard the probe routers accept any card number from the request body. Run it as the first act after 1.2 merges, then unset the flag and redeploy.
-**Verify:** the §14 table is complete and every row cites the observed state. **Phase 9 and Phase 10 cannot start without it** — they need the reserved empty-`<infos>` and empty-`<limits>` cards.
+### Step 0.13 — Assign QA card roles — 🔶 **OBSERVED 2026-08-15 evening; the account cannot fill three of the six roles**
+**Files:** §14 (see the identity correction below).
+**Change:** map the QA cards to §0.6's roles from **observed** state.
+
+**The stated blocker was obsolete, and had been for weeks.** This step was deferred because it "needs `EFS_CARD_CONTROL_PROBE_ENABLED=true`". It does not: all 35 QA cards are already detail-synced in the mirror, so their state is observable with no vendor call and no flag, and Step 1.2's org-ownership guard landed long ago. **This step was blocking Phases 9 and 10 for a reason that had stopped being true** — which is its own lesson about deferral notes: a "why deferred" is a claim with a shelf life, and nothing re-checks it.
+
+**What the observation found — `docs/22` H7.** Three of the six roles cannot be filled, because the required starting states do not exist in this account:
+
+| Role | §0.6 requires | QA actually holds | Fillable |
+|---|---|---|---|
+| Status | one Active, one **Hold** | ACTIVE and INACTIVE only; **no card at Hold** | ❌ |
+| Prompts | one `infoSource=CARD`, one `POLICY`, one empty `<infos>` | **all 35 are `BOTH`**; empty-`infos` cards plentiful | ❌ (2 of 3) |
+| Override / limits | **two** with limits, one empty `<limits>` | **one** (••••7672: DEF 250, RFR 75, ULSD 500) | ❌ (1 of 2) |
+| Access controls | one **with** time restrictions, one without | `timeRestrictions` empty on **all 35** | ❌ |
+| Control | 2 never written to, one sharing an experiment card's policy | every card is `policyNumber 1` | ✅ |
+| Spare | 1 | plentiful | ✅ |
+
+**So the remaining work is a WEX-portal configuration task, not a code task**, and it is the real thing standing in front of Phases 9–12. Someone has to create the fixtures: put a card at Hold, set one card's `infoSource` to `CARD` and another's to `POLICY`, add limits to a second card, and add a time restriction to one. Until then those phases have nothing to test against. **USER DECISION — this needs the WEX portal.**
+
+**⚠️ The output format specified by this step cannot express its own answer.** It says "last-4 only". **35 QA cards carry only 20 distinct last-4 values**, and nine groups hold more than one card — ••••7670, ••••7671, ••••7672, ••••7677, ••••7678 and ••••7679 are **three cards each**. A role table keyed on last-4 would be ambiguous on the majority of the fleet, and the same defect is already in the record: *"the proof ran on QA ••••7671"* names three different cards. The one the proofs have actually been hitting is identifiable only by its contents — three `<infos>` records, `NAME = "Test Driver One"` — where the other two ••••7671 rows carry none. **The table must key on `efs_cards.id`**, which is a uuid, already stored, and carries no PAN. Same root cause as Step 7.7, now confirmed on both orgs.
+
+**Verify:** the §14 table names every role card by `efs_cards.id` with its observed state · every §0.6 required starting state exists in the account · **Phase 9 and Phase 10 cannot start without it.**
 
 ### Step 0.14 — Confirm the probe flag in the deployed environment
 **Change:** recon could not inspect Railway variables. Confirm `EFS_CARD_CONTROL_PROBE_ENABLED` is **not** `true` in any deployed environment. If it is, that is a live hazard — the probe routers take card numbers straight from the request body with no org check until Phase 1 Step 1.2.
@@ -323,7 +353,7 @@ Passing: `lint:migrations` · `lint:boundaries` · `lint:tests` · `lint:upserts
 - [x] The false comment is corrected and the comment-claims check enforces it
 - [x] `check-rls` wired; WSDL committed with its op check
 - [x] Filesize decision recorded per file, with every waiver naming the phase that removes it
-- [ ] Approver-scope rule decided ✅; **QA card roles assigned ⛔ Step 0.13**; probe flag confirmed unset ✅
+- [ ] Approver-scope rule decided ✅; **QA card roles OBSERVED but not assignable 🔶 Step 0.13** — three of six roles need fixtures that do not exist in the WEX account; probe flag confirmed unset ✅ *(re-verified 2026-08-15 evening: enabled for the Step 2.6 re-probe, deleted afterwards, both probe flags back to unset)*
 
 ---
 
@@ -474,9 +504,9 @@ A preservation assertion built on the response DOM does not fix this on its own:
 **Change:** `POST /api/fuel-cards/echo-scan` — admin, read-only, no probe flag. For every card in the org: read it, build a zero-edit request, run `assertEchoFidelity`, **never dispatch**. Report pass/fail per card with the diff on failure.
 **Verify:** **Deployed:** run against the production org's 199 cards. Every card must pass. Any failure is a finding to record in `docs/22` before proceeding.
 
-### Step 2.6 — The credential-identity binding is inert on the only org that has it *(2026-08-15)*
-**Files:** `apps/api/src/services/efsCardControlAccess.ts`, plus one live re-probe.
-**The live check was run, and the gate FAILS.** One row in `efs_card_control_settings`:
+### ✅ Step 2.6 — The credential-identity binding is inert on the only org that has it — **DONE 2026-08-15 evening**
+**Files:** `apps/api/src/services/efsCardControlAccess.ts`, `supabase/migrations/0194_card_control_identity_binding_required.sql`, `scripts/card-control-binding-check.mjs`, `scripts/efs.mjs`, plus one live re-probe.
+**The live check was run, and the gate FAILED.** One row in `efs_card_control_settings`:
 
 | org | enabled | `write_entitlement` | `probed_identity_hash` | `probed_at` |
 |---|---|---|---|---|
@@ -488,8 +518,19 @@ The production org has no row at all, so card control is QA-only today — which
 **Change, and the order matters.** ① Re-probe the QA org so `writeProbe.ts` populates `probed_identity_hash` (needs `EFS_CARD_CONTROL_PROBE_ENABLED`, and standing rule 15 — unset it and redeploy afterwards). ② THEN delete the grandfather branch so a null hash denies with `endpoint_changed`. Doing ② first revokes QA card control and blocks the Phase 3 live re-run; doing ① alone leaves the loophole open for the next org that arrives with a pre-0187 row.
 **Verify:** a settings row with a null `probed_identity_hash` and `write_entitlement = 'confirmed'` is DENIED, with a test that fails on today's code · the live query returns zero violating rows.
 
+**DONE 2026-08-15 evening, in the order above.** ① QA re-probed through the deployed API at `f204a92` — ten of ten proofs green, `changed: []`, card set to HOLD and reverted to ACTIVE. ② Grandfather branch deleted; two tests written that FAIL on the old code (`endpoint_changed` on a null hash, and the warning no longer deduplicated). ③ Migration 0194 added as a **validated** constraint, so it refuses to apply while a violating row exists — the fix order is now mechanical rather than remembered. `probed_identity_hash = a8a624d2…`, `probed_endpoint_host` and `probed_document_shape` populated for the first time. `docs/22` H6.
+
+**Four things this step turned up that the plan did not predict:**
+
+1. **A read-only re-probe would have made it worse.** `writeProbe.ts` upserts `write_entitlement` unconditionally from the run's verdict, and a read-only run can never return `confirmed`. So the cheap version of ① would have downgraded QA to `unknown` and stopped every card action in it. **Step 2.7** files the underlying behaviour; the CLI now defaults to the full run.
+2. **The probe had no safe operator path.** `/write-check` takes the full PAN in its body and the CLI had no command for it, so the only way to run ① was a curl — which puts a card number in the process table. `scripts/efs.mjs write-check` added, prompting like `prove`.
+3. **`--limit` was silently ignored on every command that takes no capability argument.** `capability` was destructured from a fixed argv position, so the first flag was eaten. `echo-scan --limit 100` ran at the default 50. Coverage was unaffected (the offsets still spanned the fleet) but operator input was being dropped without a word. Fixed in the same commit.
+4. **The provenance trio.** `probed_endpoint_host`, `probed_identity_hash` and `probed_document_shape` are written by exactly one code path, in one upsert. All three null *together* proves no probe had touched the row since 0187 — a free provenance check whenever one writer owns several columns.
+
 ### ✅ Exit Gate — Phase 2
-- [ ] **FAILS as of 2026-08-15** — org `07fe4058…` has `write_entitlement = 'confirmed'` with a null `probed_identity_hash`, and it is the only org with card control enabled. Fix is **Step 2.6**; the check itself is now scripted, not manual
+- [x] **CLOSED 2026-08-15 evening.** Was failing: org `07fe4058…` held `write_entitlement = 'confirmed'` with a null `probed_identity_hash` and the code grandfathered it. Re-probed live (ten of ten proofs, card returned byte-identical and restored to ACTIVE), hash now `a8a624d2…`, grandfather branch deleted, migration 0194 makes the state unrepresentable. **`node scripts/card-control-binding-check.mjs` — PASS, exit 0.**
+
+  > **The claim on this line used to be "the check itself is now scripted, not manual". That was false** — no such script existed, and it was found only by going to run it. The script exists now, and this line is the first gate item in the plan whose truth can be re-established in one command by somebody who was not here. **Every remaining `[ ]` in this document is a claim nobody can check that way.**
 - [x] The Phase 1 bug, replayed through the guard, throws `echo_unfaithful` — `efsCardEcho.test.ts`, 2026-08-14
 - [x] All four order tests pass — delivered by Step 2.3 (#16), in `efsCardXml.test.ts`
 - [x] **No test lost an assertion.** `git diff <base>..<head> -- '*.test.ts' | grep -cE '^-.*expect\('` is **0** across Phase 2's PRs *(amended 2026-08-15 — see below)*
@@ -501,13 +542,25 @@ The production org has no row at all, so card control is QA-only today — which
   > Steps 2.3, 2.4 and 2.5 each passed every pre-existing test unchanged, so the amendment costs nothing in coverage; it only stops #13's intended change from being scored as a violation. **Same replacement, same reasoning, same phase-level strictness.** Miki delegated the wording on 2026-08-15.
 - [x] **Echo scan green across the production account — 2026-08-14: 197 cards scanned, 197 passed, 0 failed.** Run in four batches of 50 against `fleetguardapi-production` at `34f7336`. The account returns **197**, not the 199 this plan assumed; the older number is stale, not a shortfall.
 
+  > **Audited 2026-08-15 evening, because "197 of 199" is exactly the shape of a gate that covers less than it claims.** It does not. The four audit rows each record `total: 197` — the vendor's own count at scan time — and the mirror's two extra rows are ••••7960 and ••••7562, which `tombstoneAbsentCards` marked `absent_since = 2026-08-14T17:20:11` immediately after that sweep. **197 live + 2 tombstoned = 199.** The sweep covered the entire live fleet, and the audit P2 tombstone mechanism worked exactly as designed. Recorded because the next person to notice the discrepancy should not have to re-derive it.
+  >
+  > One consequence for numbers quoted elsewhere: **the live fleet is 232 cards, not 234.** Both absent cards are unlinked and carry `ambiguous_fuel_card_link`, so Step 7.7's "182 of 234 unlinked" is really 180 of 232 live, plus 2 dead.
+
   What that clean sweep actually covers, given the guard grew during Phase 2: every card WEX holds
   round-trips with no record dropped (2.1), no field dropped (2.1), no `editsLanded` miscount (2.2)
   and no element out of `WSCardv2` sequence (2.3). The ten fixtures could never have made that claim —
   this is the first evidence about the REAL fleet.
 - [x] Standing gates green — 2026-08-14, at `77a861a`
 
-**Phase 2 code is complete** (2.1 #13 · 2.2 #14 · 2.3 #16 · 2.4 #17 · 2.5 #18/#19/#21) **and the echo scan is green.** Two gate items remain: the `probed_identity_hash` live check, and the wording of the "unchanged" clause above.
+**Phase 2 is complete** (2.1 #13 · 2.2 #14 · 2.3 #16 · 2.4 #17 · 2.5 #18/#19/#21 · 2.6 2026-08-15 evening) **and every gate item is closed.**
+
+### Step 2.7 — a READ-ONLY write-check revokes the entitlement it is diagnosing *(filed 2026-08-15 evening, from Step 2.6)*
+**Files:** `apps/api/src/routes/fuelCards/writeProbe.ts`.
+**The defect.** The settings upsert writes `write_entitlement: entitlement` unconditionally, and `judge()` returns `unknown` for every read-only run by design — *"a read-only run can never return `confirmed`: it did not attempt a write"*. That reasoning is right for a FIRST probe and wrong for a re-probe: running the harmless diagnostic against an org that is already `confirmed` **downgrades it to `unknown` and stops every card action in that org** until somebody runs the full ten-step probe against a disposable card. A diagnostic that revokes what it diagnoses is a trap, and it is the cheap-looking option.
+**Why it was not fixed on the spot.** It changes what re-running the probe MEANS, which is a semantics decision, not a cleanup — and Step 2.6 was already the change that made a null hash refuse. Two entitlement-semantics changes in one PR is how the second one ships unread.
+**Change:** a read-only run must not lower an existing entitlement. It observed nothing about write access, so it should leave `write_entitlement` untouched and record its verdict in `probe_result` only. `probed_identity_hash` should still be written — it is observed on every run, and it is what Step 2.6 needs.
+**Verify:** a read-only probe against a `confirmed` org leaves `write_entitlement = 'confirmed'` and updates `probed_identity_hash` · a read-only probe against an `unknown` org leaves it `unknown` · a full run still sets `confirmed` · a test for each that fails on today's code.
+**Mitigated meanwhile:** `scripts/efs.mjs write-check` defaults to the FULL run, and `--read-only` prints what it will cost before asking for anything.
 
 > ### Finding — `fleetguardweb` runs the API but cannot reach EFS (2026-08-14)
 >
@@ -602,7 +655,7 @@ The production org has no row at all, so card control is QA-only today — which
 **DONE 2026-08-14.** `control.ts` is **deleted**, not shrunk — it had been one history READ since 3.6, and a file named `control` that controls nothing is a file somebody puts a handler back into. The route moved to `read.ts`, where a GET belongs and where the mount order already keeps it away from the write limiter's counter. `cardControlContract.ts` **shrank** rather than growing (511 → 355, split into `cardControlLedger.ts`), because the capability contracts went to `packages/shared/src/efs/capabilities/` instead of into it. All four Phase-3 waivers are now gone from `GRANDFATHERED`.
 
 ### Step 3.8 — Fitness test
-**Files:** `apps/api/src/efs/registry.fitness.test.ts` (new).
+**Files:** ~~`apps/api/src/efs/registry.fitness.test.ts` (new)~~ — **built instead as `apps/api/src/efs/registry.test.ts` (extended) plus `apps/web/src/features/fuelCards/capabilities/registry.test.ts`; see the DONE note below.** *(Header corrected 2026-08-15 evening: the file named here was never created, and an audit that checks the plan's paths against the tree flagged it. The step body had recorded the real answer since 2026-08-14 — only this line was stale.)*
 **Change:** implement every assertion in `docs/27` §7.2, both directions, with the non-empty-discovery guard. Convert `fuelCardsControl.test.ts`'s hardcoded `WRITE_ROUTES` array to iterate the registry.
 **Verify:** it catches a deliberately half-wired capability, a wrong write-bucket, and a missing CHECK value. **The `WRITE_ROUTES` conversion is the only pre-existing test allowed to change in this phase.**
 
@@ -807,6 +860,16 @@ Verified from the database rather than from the response: two ledger rows (`lock
 **Why it matters.** `0191` documents the column as *"Milliseconds from dispatch to the first re-read that saw the change"*, and Phase 0's 533 ms baseline is quoted against it. Two different quantities under one name — the next person to compare them concludes the account degraded. Same disease as `sync_error` (§6.F) and `updated_at` (Step 5.7): one field, two meanings.
 **Change:** time the interval the column claims — inside `verifyStep`, from the write returning to the re-read that first sees the change — and return it on the outcome. If that cannot be threaded cleanly, rename the column to what it measures rather than leaving the label wrong.
 **Verify:** a scripted vendor that lands immediately records a latency well under the retry interval, and one that lands only on the second look records more. The two must be distinguishable, which today they are not.
+
+**✅ THE CALIBRATION NUMBER EXISTS, and it needed no new experiment (2026-08-15 evening).** The Step 2.6 re-probe timed exactly the interval this column claims — one dispatch against one verifying re-read — because `writeProbeRealChange.ts` has always measured it that way:
+
+| | measured, QA, 2026-08-15 16:42Z |
+|---|---|
+| apply, ACTIVE → HOLD (step 8) | **854 ms** |
+| revert, HOLD → ACTIVE (step 10) | **841 ms** |
+| the harness's figure, same account, same day | 4562 ms |
+
+So the vendor applies a status edit in **~850 ms on this account** — the same order as Phase 0's 533 ms, and comfortably inside `EFS_CARD_VERIFY_RETRY_MS`. **The 5.3× gap is entirely the harness's clock**, which settles the diagnosis above without a scripted vendor. Two code paths were already measuring the same physical quantity and only one of them was labelled honestly; the fix is to make `prove.ts` measure what `writeProbeRealChange.ts` measures. Use 854/841 as the regression baseline.
 
 
 #### ✅ BUILT 2026-08-15 — `efs/harness/prove.ts`, `routes/fuelCards/prove.ts`, migration `0192`
@@ -1061,7 +1124,11 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 
 ### Step 7.7 — Card identity: last-4 is not one *(filed 2026-08-15, from the Step 3.11 read)*
 **Files:** `apps/api/src/services/efsCardMirror.ts` (`linkFuelCards`), `apps/web/src/features/fuelCards/`.
-**Why this is its own step and not part of 7.5.** 7.5 splits `sync_error` so a linking outcome stops being displayed as a refresh failure. That fixes the DISPLAY. It does not fix the linking, and the measurement says the linking is the larger problem: **50 last-4 groups hold more than one card**, 140 of 234 rows carry `ambiguous_fuel_card_link`, and **182 of 234 cards are unlinked** — so fuel attribution is running on a minority of the fleet. Last-4 `7550` alone resolves to four distinct cards on four different units. Evidence and counts: `docs/22`, entry *"Last-4 is not an identity on this fleet"*.
+**Why this is its own step and not part of 7.5.** 7.5 splits `sync_error` so a linking outcome stops being displayed as a refresh failure. That fixes the DISPLAY. It does not fix the linking, and the measurement says the linking is the larger problem: **50 last-4 groups hold more than one card**, 139 of 234 rows carry `ambiguous_fuel_card_link`, and **182 of 234 cards are unlinked** — so fuel attribution is running on a minority of the fleet. Last-4 `7550` alone resolves to four distinct cards on four different units. Evidence and counts: `docs/22`, entry *"Last-4 is not an identity on this fleet"*.
+
+> **Counts re-measured 2026-08-15 evening, and two of them had drifted.** `ambiguous_fuel_card_link` is **139**, not 140 — one resolved. And **234 counts two tombstoned cards**: ••••7960 and ••••7562 were de-listed by WEX and correctly stamped `absent_since` on 2026-08-14, so **the live fleet is 232**, of which **180 are unlinked**. Both dead cards are themselves unlinked and ambiguous, so they inflate every number in this step by exactly the amount that makes it look marginally worse than it is. **Any fix here must exclude `absent_since is not null`, or it will spend its effort trying to link two cards the vendor no longer has.**
+>
+> **The same defect is on QA, which the production-only framing hid:** 35 sandbox cards carry 20 distinct last-4s, and six last-4s are three cards each. It is an account-wide property of this vendor's numbering, not a production data-quality problem — which also means **every proof record that names a card by last-4 is ambiguous** (`docs/22` H7, and §14's role table now keys on `efs_cards.id`).
 **Change:** link on an identity that is one — `card_ref_hmac` against the fuel-card record's own sealed number, falling back to (last-4 + unit) or (last-4 + driver) only where those are unique, and leaving genuinely ambiguous rows unlinked with a *reason* rather than an error. Every card-picking UI that shows `••••NNNN` alone must show the unit or driver beside it: on this fleet that string does not identify a card to a human either.
 **Verify:** a fixture with two cards sharing a last-4 links each to the right fuel card, or links neither and says why — never the wrong one. Count of linked cards recorded before and after. **Live:** the `ambiguous_fuel_card_link` count on production drops, and any row still carrying it names which cards it could not tell apart.
 
@@ -1208,11 +1275,49 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 
 *Append one entry per session. Never delete an entry.*
 
-### QA card roles *(fill in Phase 0 Step 0.13 — last-4 only)*
+### QA card roles *(Step 0.13 — observed 2026-08-15 evening)*
 
-| Last-4 | Role | Observed starting state | Policy |
+**Keyed on `efs_cards.id`, not last-4, and that is a correction to the step.** 35 QA cards carry only
+20 distinct last-4 values; ••••7670, ••••7671, ••••7672, ••••7677, ••••7678 and ••••7679 are **three
+cards each**. Last-4 cannot name a role card here. The uuid is already stored and carries no PAN.
+
+Observed from the mirror (all 35 detail-synced) — **no vendor call, no probe flag.** Every card is
+`policyNumber 1`, `infoSource BOTH`, `limitSource POLICY`, `timeSource POLICY`, `locations []`.
+
+| Role | `efs_cards.id` | Last-4 | Observed starting state |
 |---|---|---|---|
-| | | | |
+| Status — Active | `61b5132f-d512-4944-b38a-7f4bb3e7ab19` | ••••7682 | ACTIVE, infos 0, limits 0 |
+| Status — **Hold** | ⛔ **NO CANDIDATE** | — | **no QA card is at Hold.** Nearest is `14df9dc9…` ••••7675, which is INACTIVE — a different status, not a substitute |
+| Prompts — `infoSource=CARD` | ⛔ **NO CANDIDATE** | — | **all 35 cards are `BOTH`** |
+| Prompts — `infoSource=POLICY` | ⛔ **NO CANDIDATE** | — | **all 35 cards are `BOTH`** |
+| Prompts — keep EMPTY `<infos>` | `2b7b97df-c362-4c34-842b-3d1a5d98ca4b` | ••••7690 | ACTIVE, infos 0 — **never write prompts to this card** |
+| Override/limits — keep EMPTY `<limits>` | `1e489c28-3dbb-4b99-8ee2-eab598a7a4a6` | ••••7732 | ACTIVE, limits 0 — **never write limits to this card** |
+| Override/limits — with limits (1 of 2) | `bf47678d-3edb-4a45-bb34-df30dd1bf98d` | ••••7672 | ACTIVE, limits DEF 250 · RFR 75 · ULSD 500, infos 1 |
+| Override/limits — with limits (2 of 2) | ⛔ **NO CANDIDATE** | — | **only one QA card has any limits** |
+| Access controls — without restrictions | `d2f62c80-3fd2-4604-b508-b233392d21eb` | ••••7757 | ACTIVE, `timeRestrictions []` |
+| Access controls — **with** restrictions | ⛔ **NO CANDIDATE** | — | **`timeRestrictions` is empty on all 35** |
+| Control — never written to (1) | `e0311e5d-3785-4296-9648-bf25ca5edae5` | ••••7773 | ACTIVE, infos 0, limits 0 |
+| Control — never written to (2) | `e68ef1b9-ec49-4d44-993e-e9593be165ef` | ••••7724 | ACTIVE, infos 0, limits 0 |
+| Spare | `fb5fc3d8-f400-4436-b03c-b02ce533d43b` | ••••7674 | ACTIVE, infos 0, limits 0 |
+
+**8 of 13 filled. Five need fixtures created in the WEX portal** — a card at Hold, one
+`infoSource=CARD`, one `infoSource=POLICY`, a second card with limits, and one with a time
+restriction. Phases 9–12 cannot start until they exist. **USER DECISION.**
+
+**Cards already carrying driver prompts** (three `<infos>`: UNIT, NAME, DRID) — the Phase 9 fixtures,
+and the only cards in QA that have been written to:
+
+| `efs_cards.id` | Last-4 | `NAME.reportValue` |
+|---|---|---|
+| `adeba276-6d8a-4d20-906b-355d3885b72d` | ••••7671 | Test Driver One — **the card every proof so far has used** |
+| `58f842e1-d55e-4067-98d4-9d3eba555a98` | ••••7670 | Test Driver Two |
+| `2a91caa0-f8ec-4702-939e-55753d2e7d9a` | ••••7679 | Test Driver Three |
+| `bdd5fdb9-4dff-44a1-8332-afa644c3b5e5` | ••••7678 | Test Driver Four |
+| `e67bbfae-94d6-44df-8e5f-f640dde94f4c` | ••••7677 | Test Driver Five |
+
+Two of the three ••••7671 rows carry no prompts at all, which is how the proof card is told apart
+from its two namesakes — by contents, not by number. Every past record of *"the proof ran on QA
+••••7671"* means `adeba276…`; nothing but this table says so.
 
 ### Decisions
 
@@ -1245,6 +1350,7 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 | 2026-08-15 | 3, 5 | **3.11 done** · `finalizeFailed` diagnosis · the `efsSoapIngest` unseal throw · Phase 2 gate wording amended · **Steps 2.6, 5.6–5.10, 7.7, 7.8 filed** | **The P0 was one field, and the read made it a bigger finding.** `overrideAllLocations` sent `true`, read back `false`, condemning a grant whose count landed. Across **all 234 mirrored cards in both orgs** that field reads `true` zero times and `locationOverride` is populated zero times — **this account does not report override scope at all**, so location-scoped grants are equally unverifiable and have simply never been run live (`docs/22` H3). Grants now settle `indeterminate`, and accumulate on the unresolved list until Phase 4.4 — stated as a cost, not hidden. **The plan's own decisive query did not work:** `drift` is null on failed rows because only `finalizeLanded` writes it; fixed, and a failed row now names its unlanded fields. **§6.E closed, and I got it wrong first:** ••••7550 is FOUR distinct cards, and the one with `override_uses = 1` was a stale mirror — the consuming transaction landed 38 minutes after the sync, which two timestamps could not distinguish from "EFS still says 1" (`docs/22` H4). The portal's 50-gallon grant **does** drive `WSCardHeader.override` and EFS retires it on use, contradicting the same day's earlier speculation. **The Phase 2 exit gate FAILS:** the one org with card control has `write_entitlement = 'confirmed'` and a null `probed_identity_hash`, and the code grandfathers it — the binding is inert on 100% of orgs it governs (Step 2.6). **Fleet identity is broken:** 50 last-4 groups hold more than one card, 182 of 234 cards unlinked (Step 7.7). **The lesson, again and from the other side:** yesterday offline verification was blind to vendor truth; today a mirror row was mistaken for vendor truth. A mirror only ever tells you what EFS said at `detail_synced_at`. |
 | 2026-08-15 (later) | 3 | **Phase 3 exit gate CLOSED** · the `finalizeUnverified` evidence gap | The live re-run on `af1a8e5` did what it was supposed to: the grant that used to record `failed`/`no_change` now records `sent`/`unverified`, the audit says `card.mutation_unverified` and not `card.mutation_failed`, the mirror shows the count EFS actually holds, the clear settles `succeeded`, and **`card_version` returns to `15189d97…`, byte-identical to before the test** — rule 14 proved by hash rather than by eyeball. **And it found two things eleven steps of offline verification could not.** ① The first `sent` row this outcome ever produced in anger carried `after_document` NULL: `finalizeUnverified` was written for "the re-read failed", Step 3.11 routed "read fine, cannot judge" into the same finaliser, and the row an operator is *told to go and look at* ended up with less evidence than the `failed` row it replaced. Fixed in `5222564` — the same mistake as the morning's `finalizeFailed` gap, one outcome over, and the same rule: reusing a helper gets you all of its behaviours, not the one you wanted. ② The clear was refused `mutation_in_flight`, which is **correct** — `assertNoneInFlight` holds a `sent` row for 58s and the harness ran the clear immediately. I called it a defect before reading the guard; it is not one. Grants now always settle `sent`, so every grant→clear meets that window where before it did not. |
 | 2026-08-15 (evening) | 4 | **4.1–4.6 built and merged** · migrations 0191–0193 · **first live proof and first live promotion** · Steps 4.7 filed | **Phase 4 exists end to end and has run against the real vendor.** `card_lock` proven on QA ••••7671 (proof `40b88b75`) and promoted to `enabled` citing it. Verified from the DATABASE, not the response — promotion row, one audit row with a uuid `entity_id`, both residual risks in `meta`, two ledger rows carrying `proof_run_id`, card back to ACTIVE. **The promotion rule did the thing it was built for:** it neither waved `status` through as `unobserved` nor blocked on it — it accepted the proof's own observation of `HOLD` and wrote down why, which is the amendment 4.4 forced. **Three defects this phase found in its own work:** `apply_latency_ms` measures the whole capability call, not the documented interval, so it read 4562ms against a 533ms baseline (**Step 4.7**, filed not fixed); the promotion audit row was passing a capability KEY to a uuid column, so the first real promotion enabled a capability and recorded NOTHING (fixed — `writeAudit`'s boolean was being ignored, and the route now shouts); and gitleaks failed CI on `{ key: "oeg1Entitled" }`, renamed rather than allowlisted. **A process finding worth more than any of them:** `lint:secrets` scans `git archive HEAD`, so running the gate sweep BEFORE committing scans a HEAD without the new files and passes for that reason — now recorded in §0.4. **Also:** Step 0.14 closed by reading the deployed env (probe flag was unset); probe flag enabled for the proof run and unset again afterwards per rule 15. |
+| 2026-08-15 (night) | 0, 2 | **Step 2.6 DONE — Phase 2 CLOSED** · Step 0.13 observed · **Step 2.7 filed** · migration 0194 · `scripts/card-control-binding-check.mjs` · `efs.mjs write-check` · **the plan audited against reality** | **The guard had never run.** 0187's "temporary" grandfather clause was live on 100% of the orgs card control governed, from 2026-08-13 until tonight, and its one warning was deduplicated per process so it went silent after the first request. Re-probed QA live (ten of ten, card byte-identical, restored to ACTIVE), deleted the clause, and made the state **unrepresentable** with a VALIDATED constraint that refuses to apply over a violating row — the fix order is now enforced by Postgres instead of by a paragraph. **The provenance trio:** `probed_endpoint_host`, `probed_identity_hash` and `probed_document_shape` are written by one code path in one upsert, so all three null *together* proved no probe had touched the row since 0187. When one writer owns several columns, its siblings are a free provenance check. **Step 4.7 got its number for free:** the probe's steps 8 and 10 have always timed the interval `apply_latency_ms` claims — **854 ms apply, 841 ms revert** against the harness's 4562 ms. Two code paths measuring the same physical quantity, one labelled honestly. No new experiment needed. **Two defects found by building the operator path:** a READ-ONLY write-check downgrades a confirmed org to `unknown` and stops all card actions in it (**Step 2.7**, filed — it changes probe semantics and did not belong in this PR); and `--limit` was silently eaten on every command with no capability argument, because `capability` was destructured from a fixed argv position. `echo-scan --limit 100` had been running at 50. **THE AUDIT, which Miki asked for and which is the durable finding.** Every checkable claim in this document was checked against git, the database and the deployed API. **The plan is substantially accurate** — 12 of 12 commit hashes exist and are in `main`, all sixteen `ci.yml` gates are really sixteen, the four Phase-3 waivers are really deleted, and every DB claim held (5 promotions enabled, 1 proof proven, 234 rows, 182 unlinked, 50 colliding last-4 groups, `apply_latency_ms` exactly 4562). **Six things were wrong:** the Phase 2 gate claimed "the check is now scripted" and no script existed (the one that mattered — found only by going to run it); `ambiguous_fuel_card_link` is 139, not 140; card totals count 2 tombstoned cards, so the LIVE fleet is **232, not 234**; Step 3.8's `Files:` header names a file never created; **`docs/EFS-RECON-REPORT.md` — the baseline this whole plan cites — is not on `main`** and exists only on an unmerged branch; and Step 0.13's deferral reason had been obsolete for weeks while it blocked Phases 9 and 10. **197 vs 199 is NOT a coverage gap** — audit rows record `total: 197` and the mirror's two extras were correctly tombstoned by `absent_since` right after the sweep. Chased, and the system had already handled it. **Step 0.13's real answer is a USER DECISION, not a table.** The QA account cannot fill three of §0.6's six roles: no card at Hold, no `infoSource=CARD` or `POLICY`, no time restrictions anywhere, and only one card with limits. Those fixtures have to be created in the WEX portal before Phases 9–12 can start. **And last-4 cannot key the table** — 35 QA cards, 20 distinct last-4s, six of them three cards each; "the proof ran on ••••7671" names three cards. §14 now keys on `efs_cards.id`. **The lesson, and it is the answer to "why do we keep reopening Phase 0–4":** those phases are not regressing and no work was redone — the branches are stale, not lost. They stay open because **51 of 69 checkboxes are live vendor observations that nobody has run**, not code. A status claim written in prose rots silently; one that exits non-zero cannot. The Phase 2 gate is now the first in this document that a stranger can re-establish in one command. |
 | 2026-08-14 | 3 | **3.5**, **3.5b** | The pilot works: `card_lock` is served from its descriptor and the characterisation suite is byte-identical. **Proved it is really the new path** by unmounting the generated router — only the lock case fails. **I withdrew my own 3.5a**: the note I wrote that morning said to stub Phase 4's promotion table with a lookup that fails closed on a missing row, and since the table does not exist until Step 4.1, that would have refused every lock in production. It is Step 4.2 and always was; 4.2's backfill is the thing that makes the gate safe, and it must share a migration with the table. **`defineBehaviour` and `defineView` never bound anything** — `CapabilityContract<never>` is a bound no real contract satisfies, and `TBody` was free, so the contract could not constrain the body. That is docs/27 §7.3's fourth claim; `types.test.ts` checked the other three and this was the one that did not hold. Fixed and asserted. **`vendorRateLimit.test.ts` caught the route move** — the one route-enumeration fixture docs/27 §10 permits to change; its failure was in the safe direction. **Two live checks still owed on 3.5:** lock and unlock on the QA card, which is the only thing that can prove the generated router works against real EFS. |
 | 2026-08-14 | 3 | **3.4** | **The §1 table was stale by three phases** — it still read "Phase 0 🔶, Step 0.15 outstanding, Phases 1–3 not started" while PRs #5–#25 had merged. §0.1 routes the next session off that table, so it was sending sessions to finished work. Reconciled against the repo (`lint:ui-adoption` green locally, CI green on `main` at `12a86a8`), not against a summary. **3.4 landed with the characterisation suite byte-identical and no pre-existing test edited** — the exit criterion held. **Two items of 3.4 deliberately NOT done**, both route-layer and both impossible to write honestly yet: the promotion lookup (no Phase 4 table) and `preflightStepUp` before the limiter (no descriptor at the route). They are now numbered **3.5a / 3.5b**, with the standing hazard recorded: a capability declaring `preflightStepUp` is silently ignored until 3.5b. **`efsCardControl.ts` 507 → 85 lines, waiver DELETED** — the entry Phase 3's exit gate exists to remove. **Found by running it:** a sequence mixing an echo step with a direct one reports the direct step's footprint as unexplained drift unless the capability declares `vendorMovesFields` — the first two-step run came back `drift_detected` with everything working. **`lint:comment-claims` was red on `main`** (confirmed on `origin/main` at `12a86a8`) and is not yet in `ci.yml`, which is why CI did not see it; the comment named a test without quoting it. Fixed. **One unexplained intermittent:** five cases in `fuelCardsControl.test.ts` failed together once in eleven full runs, 403 where 400 was expected, never reproduced since and not in isolation — the diff touches no auth or limiter code. Numbered **Step 5.4** rather than waved away. |
 | 2026-08-14 | 3 | **3.1**, **3.2**, **3.3** | Continues the row below. **Echo scan GREEN: 197/197, 0 failed** — Phase 2's headline gate item. Migration 0190 applied via migrate.yml, `/healthz` ok. **Two Railway services found, only `fleetguardapi` reaches EFS**; `fleetguardweb` runs a full API copy whose egress WEX blocks (`NotAllowed`, p9), and `deploy-verify` polls only one of them — see `docs/29`. Live QA: Miki confirmed status changes AND prompts changes work, which is §6 check 1. Two bugs found by him and one fixed: the REPORT_ONLY attribution read (#23), and an override that still shows after EFS consumed it (open, needs a live Refresh to tell vendor-truth from sync staleness). Step 3.2 deliberately did NOT widen the approver scopes CHECK — Phase 3 adds no new scope. |
