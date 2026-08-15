@@ -36,6 +36,15 @@ export interface RegisteredProof {
 export interface MountedCapability {
   contract: CapabilityContract<z.ZodTypeAny>;
   /**
+   * How this capability produces its write — `echo`, `direct` or `sequence`.
+   *
+   * Exposed for the Step 4.3 local harness, which can replay only the echo kind: a `direct`
+   * capability names a vendor operation and has no document to serialize, so "the bytes it sends"
+   * is not a question with an answer. Kept here rather than re-derived from the behaviour, so the
+   * harness and the dispatcher read the same field.
+   */
+  behaviourMutation: CapabilityBehaviour<never>["mutation"];
+  /**
    * The capability's proof plan (Step 4.5), or null when it has none.
    *
    * Structurally typed rather than `ProofPlan<TBody>`, and that is what makes it assignable without
@@ -91,6 +100,7 @@ export const mount = <TBody extends CardMutationRequestFields>(
   behaviour: CapabilityBehaviour<TBody>,
 ): MountedCapability => ({
   contract,
+  behaviourMutation: behaviour.mutation as CapabilityBehaviour<never>["mutation"],
   proof: behaviour.proof ?? null,
   accept: (raw) => {
     const parsed = contract.schema.safeParse(raw);

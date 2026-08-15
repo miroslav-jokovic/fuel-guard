@@ -170,7 +170,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | ⛔ *(2.1–2.5 merged, PRs #13–#21; echo scan green 197/197. **Exit gate FAILS:** the live check was run 2026-08-15 and the one org with card control has `write_entitlement = 'confirmed'` with a null `probed_identity_hash`, which the code grandfathers — **Step 2.6**. The gate wording is amended, identically to Phase 3's)* | `delivery-p2-echo` |
 | 3 | Capability architecture | ✅ *(3.1–3.11 merged; **exit gate CLOSED 2026-08-15** — all five operations verified live on `af1a8e5`, card returned byte-identical. The read behind 3.11 proved this account never reports override scope on ANY card, `docs/22` H3. 3.5a withdrawn — it is Step 4.2)* | merged to `main` |
-| 4 | Harness & promotion | 🔶 *(**4.1, 4.2, 4.4, 4.5 built.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Migration 0193 backfills the five live capabilities; `delete_override` stays unpromoted until a proof characterises it. Remaining: 4.3 the local harness, 4.6 promotion — and the first live proof run)* | `delivery-p4-harness` |
+| 4 | Harness & promotion | 🔶 *(**4.1, 4.2, 4.3, 4.4, 4.5 built.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Migration 0193 backfills the five live capabilities; `delete_override` stays unpromoted until a proof characterises it. Remaining: **4.6 promotion only** — and the first live proof run)* | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ *(5.6–5.10 filed 2026-08-15 from `docs/30` §6.G and Phase 2's two-hosts finding. Two §6.G items were small enough to fix on the spot and are done)* | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
 | 7 | Account & policy visibility | ⬜ *(7.7 card identity and 7.8 override staleness filed 2026-08-15. **7.7 is worth pulling forward** — 182 of 234 production cards are unlinked, so fuel attribution runs on a minority of the fleet)* | `delivery-p7-visibility` |
@@ -724,10 +724,18 @@ The production org has no row at all, so card control is QA-only today — which
 **Both pre-existing write test-fixtures gained a promotion row** — the fixture equivalent of the backfill. Without it every write refuses `not_promoted`, which is the gate working, and is the clearest possible demonstration of why the plan insists the two ship together.
 **Verify:** *"an unpromoted capability is refused"* · *"a suspended capability is refused even when write_entitlement is confirmed"* · *"the five existing capabilities are enabled after backfill"*. **Deployed:** every existing operation still works on QA; suspend one and confirm it refuses immediately.
 
-### Step 4.3 — Local harness
-**Files:** `apps/api/src/efs/harness/local.ts` (new).
+### ✅ Step 4.3 — Local harness — DONE 2026-08-15
+**Files:** `apps/api/src/efs/harness/local.ts`, `local.test.ts`.
 **Change:** replay a fixture, run any capability's `buildEdits`, assert exact wire bytes. Runs in CI.
 **Verify:** covers all five migrated capabilities.
+
+Offline and synchronous — no server, no Supabase, no scripted SOAP session. `fuelCardsControl.characterisation.test.ts` already asserts route → bytes and earns its keep, but it stands up an Express app and a sealed credential to do it, which is why it covers five hand-written cases rather than a matrix. This runs **the same serializer and the same `assertEchoFidelity`** with none of the ceremony, so a serializer regression fails in CI rather than on a live card.
+
+The covered set is **derived from the registry**, not listed, and a test asserts the body table matches it — a hand-written list is one somebody forgets to extend, and the capability it forgets is the one the harness silently stops covering. `delete_override` is excluded by construction: it is `direct`, and a direct op has no document to echo. It **throws** rather than returning empty bytes, because "sends nothing" is true of the request body and false of the operation.
+
+**What writing it demonstrated.** The nested-shape case first asserted `<status>Hold</status>` and failed: `getCardV2.nestedHeader.xml` reports `HOLD`, so `matchStatusCasing` spelled the write `HOLD`. The same body produces different bytes against different accounts — H1, visible in the wire, caught by the harness built to show it.
+
+**One stale mutation fixed, not deleted.** `efs-preflight-after-limiter` pins the exact `prepare(...)` line in `router.ts`, which Step 4.2 changed by adding `contract.key`. `mutation-check.mjs` reported STALE — *"the code moved and this check has been testing nothing since"* — and its pattern was re-pointed at the new call. Back to 7/7, still catching the reordering it was written for.
 
 ### ✅ Step 4.4 — Config scanner (three-state) — DONE 2026-08-15
 **Files:** `apps/api/src/efs/harness/configScan.ts`, `apps/api/src/routes/fuelCards/scan.ts`, `apps/api/src/scripts/runConfigScan.ts`.
