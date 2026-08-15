@@ -44,6 +44,9 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
   // and charged — the org-cap exemption (migration 0192) is deliberately NOT a vendor-budget
   // exemption: the vendor's rate limit protects WEX, and a proof run is real traffic to them.
   { method: "POST", path: "/prove/:capability", opensSoap: true },
+  // Reads two of our own tables and writes one. No vendor call — a promotion is a decision about
+  // evidence already gathered, which is exactly why it is a separate endpoint from the proof.
+  { method: "POST", path: "/promote/:capability", opensSoap: false },
   { method: "POST", path: "/experiment", opensSoap: true },
 ];
 
