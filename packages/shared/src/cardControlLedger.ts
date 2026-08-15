@@ -22,8 +22,17 @@ export type CardMutationIntent = (typeof CARD_MUTATION_INTENTS)[number];
  * not confirm what happened — a timeout, or a re-read that itself failed. It is shown to operators as
  * "Unverified" rather than hidden, because a mutation whose result nobody knows is exactly the thing
  * a human needs to go and check.
+ *
+ * `partial` is terminal but ACTIONABLE: a sequenced capability applied some of its steps and failed
+ * one (docs/27 §5.1). It was added to the ledger's CHECK by migration 0190 and written by the
+ * orchestrator from Step 3.4, and this list did not learn about it until the Step 3.8 fitness test
+ * compared the two — which is precisely the drift that test exists to catch, since a status the
+ * database accepts and this list omits renders as a missing label on the one screen an operator
+ * opens to find out what happened.
  */
-export const CARD_MUTATION_STATUSES = ["pending", "sent", "succeeded", "failed", "drift_detected"] as const;
+export const CARD_MUTATION_STATUSES = [
+  "pending", "sent", "succeeded", "failed", "drift_detected", "partial",
+] as const;
 export type CardMutationStatus = (typeof CARD_MUTATION_STATUSES)[number];
 
 export const cardMutationSchema = z.object({
@@ -54,6 +63,8 @@ export const CARD_MUTATION_STATUS_LABELS: Record<CardMutationStatus, string> = {
   succeeded: "Applied",
   failed: "Refused by EFS",
   drift_detected: "Applied, with other changes",
+  // Names the shortfall, not the failure. "Failed" would send somebody to re-run steps that landed.
+  partial: "Partly applied",
 };
 
 // ─── Who may use card control ──────────────────────────────────────────────────────────────────
