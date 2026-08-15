@@ -13,9 +13,9 @@
  * token for an admin account has no business there, and a PAN has less. Standing rule 13 keeps card
  * numbers out of the repository; keeping them out of `~/.zsh_history` is the same rule, same secret.
  *
- * `FG_TOKEN` is still honoured when it is already exported, because a scripted sweep needs it — but
- * nothing tells you to set it, and the prompt is the documented path. That matches how every other
- * live check in this workstream has been run: paste it once, at the keyboard.
+ * `FG_TOKEN` is read ONLY when `--token-from-env` is passed, for a scripted sweep. It is not picked
+ * up implicitly: a token left exported from an earlier session would otherwise shadow the prompt
+ * silently and fail as "Invalid or expired token", which reads like a vendor problem and is not one.
  *
  *   pnpm efs:scan                        # prompts for the token, hidden
  *   pnpm efs:prove card_lock             # prompts for the token and the card number, both hidden
@@ -76,7 +76,7 @@ function promptHidden(prompt, what = "value") {
 }
 
 /**
- * The admin token, prompted for unless already exported.
+ * The admin token, always prompted for unless `--token-from-env` is passed.
  *
  * Resolved lazily and once per run, so a command that dies on its arguments never asks for a
  * credential it was not going to use.
@@ -84,7 +84,15 @@ function promptHidden(prompt, what = "value") {
 let cachedToken = null;
 async function getToken() {
   if (cachedToken) return cachedToken;
-  if (process.env.FG_TOKEN) { cachedToken = process.env.FG_TOKEN; return cachedToken; }
+  // ONLY with an explicit flag. Honouring FG_TOKEN whenever it happened to be set meant a stale
+  // export silently shadowed the prompt: the run never asked for a token, used the old one, and
+  // failed with "Invalid or expired token" — pointing at the vendor rather than at the shell. A
+  // convenience that changes behaviour invisibly is not a convenience.
+  if (flags["token-from-env"]) {
+    if (!process.env.FG_TOKEN) die("--token-from-env was passed but FG_TOKEN is not set.");
+    cachedToken = process.env.FG_TOKEN;
+    return cachedToken;
+  }
   console.log(
     "Copy an admin token from the browser console on the app you are signed into:\n"
       + '  copy(JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith("sb-")&&k.endsWith("-auth-token")))).access_token)\n',
@@ -103,6 +111,12 @@ async function call(path, body) {
     body: JSON.stringify(body ?? {}),
   });
   const text = await res.text();
+  if (res.status === 401) {
+    console.error(
+      "\nThe API rejected that token. It is a Supabase access token and they are short-lived —\n"
+        + "copy a fresh one from the browser console of the org you mean to act on.",
+    );
+  }
   let parsed;
   try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
   console.log(JSON.stringify(parsed, null, 2));
