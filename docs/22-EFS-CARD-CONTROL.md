@@ -961,3 +961,76 @@ what the code actually does, not what I assumed it would.
 - **The CLI exits non-zero on a refusal**, which is correct — a script chaining promotions must stop
   on a "no" — but it means a refusal and a crash look alike to a shell. The JSON body distinguishes
   them.
+
+---
+
+## H10 — a drill whose safety was designed around the wrong noun (2026-08-15 night)
+
+The suspension-propagation drill suspends a capability, immediately attempts a real write, and
+re-enables it. Its safety was carefully designed: the write carries a deliberately stale
+`expectedVersion`, so if suspension had NOT propagated the write would still be refused by optimistic
+concurrency in the plan phase, where `assertUnmoved` sends nothing. No card could be changed either
+way. That reasoning was correct and it held.
+
+**It was also entirely about the CARD, and the accident was about the ORG.** The first run was told to
+use a QA token and was given a production one. Nothing checked. It suspended `card_lock` on the
+production org — the one org where card control has never been promoted at all — and then could not
+restore it, because a re-enable must cite a proof and production has none.
+
+**What it actually cost, verified in the database rather than inferred from the response:**
+
+| | |
+|---|---|
+| production `efs_capability_promotions` | one new row, `card_lock = suspended` |
+| production `audit_logs` | `card.capability_suspended` — an honest record of a thing that did happen |
+| production `efs_card_control_settings` | **0** — card control was never switched on there |
+| production `efs_card_mutations` | **0** — no card was ever touched |
+| QA | untouched; all five promotions still `enabled` |
+
+**The resulting state is MORE restrictive than the one it replaced.** Production previously refused
+every write with `not_promoted`; it now refuses with `capability_suspended`. Nothing was opened. The
+stale-version guard was never even reached, because a second defect stopped the write earlier: the
+attempt omitted `Idempotency-Key`, which the write routes validate as a uuid BEFORE the capability
+gate. So the run measured nothing at all.
+
+**The row is being LEFT IN PLACE, deliberately.** Its `reason` reads "Phase 4 exit gate: measuring
+suspension propagation", so it explains itself to whoever finds it, and Phase 8 — the first production
+promotion — will clear it through the application with an audit trail. Deleting a production row with
+service-role access to tidy up an operator error is a larger risk than the untidiness.
+
+**Two fixes, both in the drill rather than in the product** (the product behaved correctly throughout):
+
+1. `--expect-org` is now REQUIRED, and the drill reads the token's actual org from an org-scoped
+   endpoint and refuses on any mismatch. It asks the SERVER what the token is rather than trusting
+   what the operator believes it is — those two differing is the whole failure.
+2. The write attempt sends an `Idempotency-Key`.
+
+**The lesson, and it generalises past this drill.** When a dangerous action is made safe, the thing
+made safe is whatever the author was picturing. Here that was the card, in detail, twice over — and
+the blast radius ran through the tenant. **Ask what else the action selects, not only what it does.**
+
+### The re-run, with both fixes, on QA — and the number
+
+```
+Suspension drill for card_lock, org 07fe4058-cc72-4a69-b3e9-29b4cf1c6a44.
+suspended at t+0ms
+write attempted and answered at t+481ms  ->  403 card_control_suspended
+✓ SUSPENSION PROPAGATED. Upper bound: 481ms — the very next call saw it.
+card_lock re-enabled — state restored.
+```
+
+The org guard printed the company it had confirmed with the SERVER before touching anything, which is
+the whole of the fix. Verified afterwards in the database rather than from the response:
+
+- QA `card_lock` back to `enabled` at 21:55:07, one second after the suspend
+- drill card ••••7671 still `ACTIVE` — the write never landed
+- **no `efs_card_mutations` row was created at all.** The most recent QA mutation predates the drill by
+  three hours. The gate refuses BEFORE the ledger opens, so a suspended capability leaves no trace on
+  the card path — which also means a suspension cannot be diagnosed from the mutation ledger later
+- audit trail is a clean pair: `card.capability_suspended` then `card.capability_promoted`, one second
+  apart, both attributable
+
+**481 ms is an upper bound, not the propagation time.** It is dominated by one HTTPS round trip to
+Railway; the actual propagation is a single uncached indexed read inside the request. That is exactly
+what `promotionBlock`'s "deliberately uncached, and that is the feature" comment predicts — and the
+point of running it is that the comment is now a measurement instead of a claim.
