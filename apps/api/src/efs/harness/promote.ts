@@ -68,23 +68,36 @@ export function decidePromotion(
   const refusals: string[] = [];
   const residualRisks: string[] = [];
 
+  /**
+   * ── A missing proof does not end the assessment (observed live 2026-08-15) ──────────────────────
+   * This used to `return` here with that one refusal, and the route's own promise — "Every reason is
+   * returned, so one round trip tells them everything they have to fix" — was therefore false on the
+   * MOST COMMON starting state, a company that has never been promoted anything.
+   *
+   * Watched happen on production: the refusal named the missing proof and said nothing about the
+   * missing document shape, which is an independent blocker needing an independent fix (a config
+   * scan, not a proof run). An operator would have run the proof, re-run this, and only then met the
+   * second wall. Two round trips to learn two facts that were both known on the first.
+   *
+   * So the proof-DEPENDENT checks below are skipped when there is no proof — they would be noise,
+   * not findings, and "OEG-1 is not obtained" adds nothing to "there is no proof" — while every
+   * ORG-level check still runs, because those are answerable without one.
+   */
   if (!proof) {
-    return {
-      allowed: false,
-      refusals: [`No proof run exists for ${capabilityKey} on this company. Run one before promoting.`],
-      residualRisks,
-    };
+    refusals.push(`No proof run exists for ${capabilityKey} on this company. Run one before promoting.`);
   }
-  if (proof.outcome !== "proven") {
+  if (proof && proof.outcome !== "proven") {
     refusals.push(`The cited proof settled "${proof.outcome}", not "proven".`);
   }
-  for (const gate of REQUIRED_GATES) {
-    const value = proof[gate.field];
-    // `!== true` rather than `=== false`: a null gate was never reached, and treating "we did not
-    // find out" as a pass is the single most expensive mistake this function could make.
-    if (value !== true) refusals.push(`${gate.label} is ${value === null ? "not obtained" : "false"}.`);
+  if (proof) {
+    for (const gate of REQUIRED_GATES) {
+      const value = proof[gate.field];
+      // `!== true` rather than `=== false`: a null gate was never reached, and treating "we did not
+      // find out" as a pass is the single most expensive mistake this function could make.
+      if (value !== true) refusals.push(`${gate.label} is ${value === null ? "not obtained" : "false"}.`);
+    }
   }
-  if (proof.oeg2bNoopStable !== true) {
+  if (proof && proof.oeg2bNoopStable !== true) {
     residualRisks.push(
       "OEG-2b (a no-op dispatch leaves cardVersion unchanged) was not obtained. It requires a write, "
         + "so it is unavailable on production by construction, and the capability model has no way to "
@@ -97,10 +110,12 @@ export function decidePromotion(
   // document onto an org whose cards come back nested means the serializer paths that were exercised
   // are not the ones that will run.
   if (!org.observedDocumentShape) {
+    // ORG-level and answerable with no proof at all, which is exactly why it must be reported even
+    // when the proof is missing: it is a second, independent blocker with a different fix.
     refusals.push("This company's document shape has not been recorded — run the config scan first.");
-  } else if (!proof.documentShape) {
+  } else if (proof && !proof.documentShape) {
     refusals.push("The proof did not record a document shape, so it cannot be matched to this company.");
-  } else if (proof.documentShape !== org.observedDocumentShape) {
+  } else if (proof && proof.documentShape !== org.observedDocumentShape) {
     refusals.push(
       `The proof was taken against a "${proof.documentShape}" document and this company returns `
         + `"${org.observedDocumentShape}".`,
@@ -133,7 +148,7 @@ export function decidePromotion(
      * yields to proof evidence, and to nothing else. `mismatch` above still blocks unconditionally,
      * and `unobserved` with no proof observation still blocks.
      */
-    const provenSpellings = proof.vocabulary[field] ?? [];
+    const provenSpellings = proof?.vocabulary[field] ?? [];
     if (provenSpellings.length > 0) {
       residualRisks.push(
         `"${field}" is unobserved fleet-wide; accepted on the proof run's own observation `
