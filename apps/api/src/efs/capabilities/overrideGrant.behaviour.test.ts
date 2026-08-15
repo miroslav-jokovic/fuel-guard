@@ -146,6 +146,22 @@ describe("an override grant whose scope this vendor does not report back", () =>
     expect(auditActions(rec)).not.toContain("card.mutation_failed");
   });
 
+  it("records what EFS actually held, and which field it could not judge", async () => {
+    const rec = recorder();
+    await grant(COUNT_ONLY, rec);
+
+    // The Phase 3 live re-run (2026-08-15) produced the first `sent` row this outcome had ever
+    // written in anger, and it carried `after_document: null` — strictly LESS evidence than the
+    // `failed` row it replaced, on the one outcome whose entire message is "go and look". An
+    // unverified row that cannot say what the card held, or where the disagreement was, is a shrug.
+    const settled = rec.writtenRows("efs_card_mutations").at(-1);
+    expect(settled?.status).toBe("sent");
+    expect(settled?.after_document).toMatchObject({ overrideUses: 1, overrideAllLocations: false });
+
+    const audited = rec.writtenRows("audit_logs").find((r) => r.action === "card.mutation_unverified");
+    expect(audited?.meta).toMatchObject({ unlandedFields: ["overrideAllLocations"] });
+  });
+
   it("still shows the operator the count EFS actually holds", async () => {
     const rec = recorder();
     await grant(COUNT_ONLY, rec);

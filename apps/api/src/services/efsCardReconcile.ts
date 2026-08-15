@@ -251,25 +251,42 @@ export async function finalizeUnverified(
   ledger: LedgerAdapter,
   plan: SettleFacts,
   wire: WirePayload,
+  /**
+   * The document the verification DID manage to read, when there was one.
+   *
+   * Null only when the re-read itself failed — the original reason this outcome exists. Step 3.11
+   * added a second route in: a capability that reads the card successfully and cannot judge what it
+   * sees. That row was landing with `after_document` null, which is strictly LESS evidence than the
+   * `failed` row it replaced, on the very outcome that asks an operator to go and look. Found by the
+   * Phase 3 live re-run on 2026-08-15 — the first row this outcome ever produced in anger.
+   */
+  after: CardDocument | null,
 ): Promise<CardMutationOutcome> {
   const readMessage = wire.readError instanceof Error ? wire.readError.message : String(wire.readError ?? "");
   const faultCode = wire.writeError?.code ?? "unverified";
   const faultMessage =
     `The change was sent but could not be confirmed: ${wire.writeError?.message ?? readMessage}`.slice(0, 500);
+  // Which edits the document does not carry. The point of an unverified row is that somebody has to
+  // look — telling them WHERE to look is the difference between evidence and a shrug.
+  const unlandedFields = after ? unlandedEditNames(plan.before, after, plan.edits) : null;
 
   await ledger.settle(ctx, plan.mutationId, {
     status: "sent",
     efs_fault_code: faultCode,
     efs_fault_message: faultMessage,
+    ...(after
+      ? { after_version: after.version, reconciled_version: after.version, after_document: after.card }
+      : {}),
     ...wireColumns(wire),
   });
 
-  await audit(ctx, plan, "card.mutation_unverified", null, {
+  await audit(ctx, plan, "card.mutation_unverified", after, {
     outcome: "sent", efsFaultCode: faultCode, efsFaultMessage: faultMessage.slice(0, 300),
+    unlandedFields,
   });
 
   return {
-    mutationId: plan.mutationId, status: "sent", version: null,
+    mutationId: plan.mutationId, status: "sent", version: after?.version ?? null,
     driftFields: [], faultCode, faultMessage,
   };
 }

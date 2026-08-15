@@ -97,7 +97,9 @@ export async function applyCardMutation<TBody>(
     if (!verified.after?.doc) {
       const wire = { ...sent, readError: verified.readError };
       return landedSteps === 0
-        ? await finalizeUnverified(ctx, ledger, facts, wire)
+        // Null, and the branch guarantees it: this is the "the re-read itself failed" route, the
+        // original reason `unverified` exists. The other call site DOES have a document.
+        ? await finalizeUnverified(ctx, ledger, facts, wire, null)
         : await finalizePartial(ctx, ledger, facts, null, wire);
     }
 
@@ -111,7 +113,7 @@ export async function applyCardMutation<TBody>(
       // "We could not tell" is not "it did not land". Recording the second as the first would invite
       // an operator to retry a change that may already be on the card.
       return verified.landing === "indeterminate"
-        ? await finalizeUnverified(ctx, ledger, facts, { ...sent, readError: INDETERMINATE })
+        ? await finalizeUnverified(ctx, ledger, facts, { ...sent, readError: INDETERMINATE }, verified.after.doc)
         : await finalizeFailed(ctx, ledger, facts, verified.after.doc, sent);
     }
 
