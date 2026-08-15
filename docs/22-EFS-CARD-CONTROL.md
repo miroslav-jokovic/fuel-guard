@@ -654,13 +654,65 @@ Found while checking whether ••••7550 had been granted twice. It had not
 | Rows with `fuel_card_id` null (unlinked) | 182 |
 | Rows with `override_uses > 0` | 1 |
 
-Last-4 `7550` alone resolves to four distinct active-fleet cards on different units and drivers. So
-`docs/30` §6.E — "••••7550 still shows `Override: 1 use left` after EFS consumed it" — may be the
-**correct** state of a card nobody granted anything on, and the portal grant Miki describes (50
-gallons, quantity-bounded, auto-closed) is the `managedFuelAction` mechanism of §6.B, which does not
-touch the `override` counter at all.
+Last-4 `7550` alone resolves to four distinct active-fleet cards on different units and drivers, so
+the last-4 in a report or a UI row does not identify a card.
+
+> **This paragraph originally speculated that `docs/30` §6.E was the correct state of a card nobody
+> had granted anything on, and that the portal's 50-gallon grant was `managedFuelAction`, which
+> "does not touch the `override` counter at all". A live re-read disproved both — see H4 below.**
+> Kept, struck, rather than deleted: it was written from two timestamps that could not support it,
+> which is the mistake worth remembering.
 
 This also enlarges `docs/30` §6.F. That finding reads as one column carrying two meanings, and it is
 — but the underlying cause is that fuel-card linking is being asked to resolve an identity that
 last-4 cannot express, on 50 groups of cards. A separate `link_status` column fixes the display; it
 does not fix the linking. **Both need a numbered step** — see `docs/28` Phase 7 Step 7.5.
+
+## H4 — the portal's quantity-bounded grant DOES drive `override`, and it decrements on use (2026-08-15, CONFIRMED)
+
+Live read of production card ••••7550 / unit 651 / DARRELL SMITH, `POST /:id/refresh`, authorised by
+Miki. This closes `docs/30` §6.E and corrects the speculation logged an hour earlier in the entry
+above.
+
+### The evidence
+
+| Field | Sync at 2026-08-14 17:12 | Live re-read 2026-08-15 02:02 |
+|---|---|---|
+| `override_uses` | **1** | **0** |
+| `last_used_date` | 2026-08-13 10:33 | **2026-08-14 17:50** |
+| `last_transaction` | 1566830255 | 1567449415 |
+| `sync_error` | `ambiguous_fuel_card_link` | **null** |
+
+### Three things this settles
+
+**1. §6.E was a stale mirror — the plainest of its four candidates.** The transaction that consumed
+the override landed at 17:50, **38 minutes after** the sync that recorded `override_uses = 1`, and
+nothing re-read the card for the next nine hours. There was never a live un-revoked exception.
+
+> **The reasoning error, recorded because it is the reusable part.** The stale-mirror candidate was
+> ruled out on the grounds that `detail_synced_at` (17:12) post-dated `last_used_date` (08-13 10:33),
+> so the sync "must" have seen the post-consumption state. Those two timestamps cannot distinguish
+> *"EFS still reports 1"* from *"we read it before the purchase"* — a later transaction invalidates
+> the inference entirely, and one arrived. **A mirror row can only ever tell you what EFS said at
+> `detail_synced_at`; it can never tell you what EFS says now.** Standing rule 11 is the same idea
+> for writes ("a successful response is never evidence of a correct write; only a re-read is"). It
+> applies to reads too.
+
+**2. The portal's 50-gallon grant surfaces as `WSCardHeader.override`, and EFS retires it on use.**
+Miki granted 50 gallons in the WEX portal on this card; the card carried `override = 1` while armed
+and `override = 0` after the purchase. So the quantity-bounded portal mechanism and the card-level
+use count are **not** independent, and the counter is decremented by the vendor — we do not have to
+clear it. What the counter cannot express is the 50-gallon bound itself, which remains the §6.B
+scoping problem and a Phase 4.4 question.
+
+**3. `docs/30` §6.F's mechanism is confirmed, live and by accident.** `sync_error` went from
+`ambiguous_fuel_card_link` to null on a manual refresh, because `refreshCardDetail` does not run the
+link pass that `syncCards` runs last. One column, two meanings, and the operator sees the alarming
+one. Filed: Step 7.5 (display) and Step 7.7 (the linking itself).
+
+### What it opens
+
+**Override state can be up to a full sync cycle wrong, and nothing says so.** `EFS_CARD_SYNC_HOURS`
+defaults to 24; this card's badge was wrong for nine hours and the UI presented it with no staleness
+signal. For a lock that is tolerable. For an override — the number that says whether a driver can
+take another free tank — it is not. Filed as **`docs/28` Step 7.8**.
