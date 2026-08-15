@@ -33,6 +33,32 @@ export const overrideClearBehaviour = defineBehaviour(overrideClearContract, {
   target: { kind: "card" },
   mutation: { kind: "echo", buildEdits: () => overrideClearEdits() },
   verify: cardEchoVerify<OverrideClearBody>(),
+
+  /**
+   * **Undone by `override_grant`** — the third and last capability whose revert is another one.
+   *
+   * The mirror image of the grant's plan, and it needs a card that HAS an override to clear. On a
+   * fleet where exactly one card in 234 carries a nonzero count, the precondition will usually void
+   * the run — correctly. Proving a clear against a card with nothing to clear is the same error as
+   * proving a lock against a held card: the write is dispatched, the re-read shows zero uses, and
+   * `overrideClearedLanded` reports success for a write that changed nothing.
+   *
+   * The revert restores exactly the count observed, so a proof run leaves the card carrying the same
+   * exception it arrived with rather than a fresh one.
+   */
+  proof: {
+    precondition: (snap) => (snap.doc?.card.overrideUses ?? 0) > 0,
+    sample: (): OverrideClearBody => ({ expectedVersion: "", reason: "Capability proof run" }),
+    revert: (snap) => ({
+      capability: "override_grant",
+      body: {
+        uses: snap.doc?.card.overrideUses ?? 1,
+        scope: { kind: "all" },
+        expectedVersion: "", reason: "Capability proof revert",
+      },
+    }),
+  },
+
   auditMeta: clearMeta("setCardv2"),
 });
 
@@ -62,6 +88,31 @@ export const deleteOverrideBehaviour = defineBehaviour(deleteOverrideContract, {
   target: { kind: "card" },
   /** `ctx.opts` arrives already built, so this cannot choose its own retry policy or pacing lane. */
   mutation: { kind: "direct", dispatch: (ctx) => deleteOverrideOp(ctx.env, ctx.creds, ctx.cardNumber, ctx.opts) },
+
+  /**
+   * The capability that most needs a proof run, and the reason it is flag-gated (finding D1).
+   *
+   * `deleteOverride`'s POST-STATE IS UNDOCUMENTED. The guide says what the op does (p27), not what it
+   * writes into the override trio — 0, nil, or the elements removed entirely — which is why
+   * `overrideClearedLanded` is deliberately tolerant of all three and why the flag defaults false.
+   * A proof run is exactly the instrument that replaces that tolerance with an observation: it
+   * records the after-document, so the three shapes stop being equally plausible.
+   *
+   * Same plan as the echo clear, because it is the same intent by a different mechanism: needs a
+   * card carrying an override, and hands the count back through `override_grant`.
+   */
+  proof: {
+    precondition: (snap) => (snap.doc?.card.overrideUses ?? 0) > 0,
+    sample: (): OverrideClearBody => ({ expectedVersion: "", reason: "Capability proof run" }),
+    revert: (snap) => ({
+      capability: "override_grant",
+      body: {
+        uses: snap.doc?.card.overrideUses ?? 1,
+        scope: { kind: "all" },
+        expectedVersion: "", reason: "Capability proof revert",
+      },
+    }),
+  },
   verify: deleteOverrideVerify,
   /**
    * NOT optional for a direct mutation. This op moves the three override header fields and produces

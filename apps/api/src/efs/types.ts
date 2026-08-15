@@ -163,9 +163,57 @@ export interface Governance<TBody> {
   redactResponse?: (xml: string) => string;
 }
 
+/**
+ * How the live prover exercises this capability against a real card (Step 4.5).
+ *
+ * ── Why the capability owns this and the harness does not ───────────────────────────────────────
+ * The pre-Phase-3 probe could only prove `card_lock`, because it hard-coded a `status` write and an
+ * `efsStatusEquals` comparison. A prover that knows what a capability changes is a second definition
+ * of the capability, and the second one to drift is the one nobody runs. Here the harness supplies
+ * only the ceremony — dispatch, the re-read schedule, the OEG bookkeeping — and every fact about
+ * WHAT to write comes from the same `mutation.buildEdits` and `verify.judge` production uses.
+ *
+ * ── `precondition` is OEG-3, and it is not optional rigour ──────────────────────────────────────
+ * A proof that starts in the target state proves nothing and reports success anyway: the write is
+ * dispatched, the re-read shows the target value, and `vendorNormalisedOnly` waves a case-only
+ * difference through — which is exactly the H1 failure the OEG exists to detect. The run is VOID
+ * rather than failed, because nothing was learned either way.
+ */
+export interface ProofPlan<TBody> {
+  /** OEG-3: the before-state must differ from what `sample()` would write, or the run is void. */
+  precondition: (snap: Snapshot) => boolean;
+  /** A body the prover may apply to a disposable QA card. */
+  sample: (snap: Snapshot) => TBody;
+  /**
+   * OEG-5: how to put the card back, proven by re-read.
+   *
+   * ── It names a CAPABILITY, and usually not this one ────────────────────────────────────────────
+   * `docs/27` §6.2 and Step 4.5 both sketched this as `(before) => TBody` — the same capability
+   * undoing itself. That holds for exactly two of the five that exist: `card_lock` (status back to
+   * the observed status) and `prompts_set` (replaceAll with the original records). It is false for
+   * the other three, and not marginally: **unlock is undone by lock, grant by clear, clear by
+   * grant.** Writing those as a `TBody` of the same capability requires inventing a field the
+   * contract does not have and casting through `unknown` — which is how a prover ends up leaving a
+   * QA card unlocked and reporting OEG-5 green.
+   *
+   * `body` is `unknown` because it belongs to ANOTHER capability's schema, which this module cannot
+   * know. The harness resolves the key through the registry and PARSES the body with that contract's
+   * own zod schema — the same discipline `VerifyPlan.reconcile` already follows for a body read back
+   * out of jsonb, and stronger than a cast would be.
+   */
+  revert: (snap: Snapshot) => { capability: string; body: unknown };
+}
+
 export interface CapabilityBehaviour<TBody> extends Governance<TBody> {
   target: Target;
   mutation: Mutation<TBody>;
+  /**
+   * Optional ONLY because the five migrated capabilities gained theirs in Step 4.5 and a sixth may
+   * land before its plan does. A capability with no plan cannot be proven, and Step 4.6 refuses to
+   * promote what cannot be proven — so the absence is safe, loud at the point of promotion, and not
+   * a hole.
+   */
+  proof?: ProofPlan<TBody>;
   /** Required, not optional: every write is followed by a verifying re-read. */
   verify: VerifyPlan<TBody>;
   /**

@@ -1,4 +1,4 @@
-import { type CardLockBody, cardLockContract } from "@fuelguard/shared";
+import { type CardLockBody, cardLockContract, efsStatusEquals } from "@fuelguard/shared";
 import { lockEdits } from "../../services/efsCardEdits.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import { defineBehaviour } from "../types.js";
@@ -39,6 +39,29 @@ export const cardLockBehaviour = defineBehaviour(cardLockContract, {
    * — the other half of the same incident.
    */
   verify: cardEchoVerify<CardLockBody>(),
+
+  /**
+   * One of the two capabilities that genuinely undoes itself (Step 4.5).
+   *
+   * `Hold` rather than `Inactive`: it is the reversible one, and the revert writes back the status
+   * EFS itself reported — byte-for-byte, so the way home also exercises this account's own casing on
+   * the write path, which is the H1 hypothesis. A card already held would prove nothing, hence the
+   * precondition; `efsStatusEquals` rather than `===`, because this account reports `HOLD`.
+   */
+  proof: {
+    precondition: (snap) => !efsStatusEquals(snap.doc?.card.status ?? null, "Hold"),
+    sample: (): CardLockBody => ({ status: "Hold", expectedVersion: "", reason: "Capability proof run" }),
+    revert: (snap) => ({
+      // Never assume `Active`: a card proved from INACTIVE must go back to INACTIVE, and `card_lock`
+      // can write it because Inactive is one of its own statuses. A card that started Active is
+      // handled by the harness, which reverts through `card_unlock` when this returns a status
+      // `card_lock` cannot write — see prove.ts.
+      capability: efsStatusEquals(snap.doc?.card.status ?? null, "Active") ? "card_unlock" : "card_lock",
+      body: efsStatusEquals(snap.doc?.card.status ?? null, "Active")
+        ? { expectedVersion: "", reason: "Capability proof revert" }
+        : { status: snap.doc?.card.status ?? "Inactive", expectedVersion: "", reason: "Capability proof revert" },
+    }),
+  },
 
   auditMeta: (snap, body: CardLockBody) => ({
     statusRequested: body.status,
