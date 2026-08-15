@@ -8,6 +8,10 @@
     "node": ">=22"
   },
   "scripts": {
+    "efs:scan": "node scripts/efs.mjs scan",
+    "efs:echo-scan": "node scripts/efs.mjs echo-scan",
+    "efs:prove": "node scripts/efs.mjs prove",
+    "efs:promote": "node scripts/efs.mjs promote",
     "driver:ios": "pnpm --filter @fuelguard/driver ios",
     "driver:android": "pnpm --filter @fuelguard/driver android",
     "driver:start": "pnpm --filter @fuelguard/driver start",

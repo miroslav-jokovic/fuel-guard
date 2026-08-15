@@ -3,6 +3,7 @@ import { z } from "zod";
 import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
 import { getAppLocals } from "../../lib/appLocals.js";
 import { scanConfig } from "../../efs/harness/configScan.js";
+import { documentShape, parseCardDocument } from "../../lib/efsCardXml.js";
 import { apiError, asyncHandler } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
@@ -87,7 +88,34 @@ export function fuelCardConfigScanRouter(): Router {
 
       const report = scanConfig(documents, CARD_CAPABILITY_CONTRACTS);
 
+      /**
+       * Record what this org was observed to BE, for Step 4.6 to compare a proof against.
+       *
+       * The gate refuses promotion when the proof's document shape does not match the target org's,
+       * which means the target's shape has to live somewhere that is not a proof — these are the
+       * columns 0191 added for it.
+       *
+       * UPDATE, never upsert. A settings row means "this org has card control configured"; creating
+       * one as a side effect of a read-only scan would hand an org a configuration nobody chose.
+       * An org with no row simply has nothing recorded, and Step 4.6 refuses on that rather than
+       * inventing a default.
+       */
+      let observedShape: string | null = null;
+      if (documents.length > 0) {
+        try {
+          observedShape = documentShape(parseCardDocument(documents[0]!));
+        } catch {
+          // A corpus we cannot parse records no shape, which blocks promotion — the safe direction.
+        }
+      }
+      const observedVocabulary = Object.fromEntries(report.fields.map((f) => [f.field, f.rawSpellings]));
+      const { error: writeError } = await admin
+        .from("efs_card_control_settings")
+        .update({ observed_document_shape: observedShape, observed_vocabulary: observedVocabulary })
+        .eq("org_id", orgId);
+
       res.json({
+        recorded: writeError ? null : { observedDocumentShape: observedShape },
         ok: true,
         provenance: {
           source: "mirror.last_response_xml_redacted",

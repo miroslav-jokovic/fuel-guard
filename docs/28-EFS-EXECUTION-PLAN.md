@@ -170,7 +170,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | ⛔ *(2.1–2.5 merged, PRs #13–#21; echo scan green 197/197. **Exit gate FAILS:** the live check was run 2026-08-15 and the one org with card control has `write_entitlement = 'confirmed'` with a null `probed_identity_hash`, which the code grandfathers — **Step 2.6**. The gate wording is amended, identically to Phase 3's)* | `delivery-p2-echo` |
 | 3 | Capability architecture | ✅ *(3.1–3.11 merged; **exit gate CLOSED 2026-08-15** — all five operations verified live on `af1a8e5`, card returned byte-identical. The read behind 3.11 proved this account never reports override scope on ANY card, `docs/22` H3. 3.5a withdrawn — it is Step 4.2)* | merged to `main` |
-| 4 | Harness & promotion | 🔶 *(**4.1, 4.2, 4.3, 4.4, 4.5 built.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Migration 0193 backfills the five live capabilities; `delete_override` stays unpromoted until a proof characterises it. Remaining: **4.6 promotion only** — and the first live proof run)* | `delivery-p4-harness` |
+| 4 | Harness & promotion | 🔶 *(**every step built — 4.1 through 4.6.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Migration 0193 backfills the five live capabilities; `delete_override` stays unpromoted until a proof characterises it. **Remaining: the exit gate only, and every open item on it is observational** — the first live proof run, a promotion attempted on QA and refused on production, and suspension propagation timed)* | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ *(5.6–5.10 filed 2026-08-15 from `docs/30` §6.G and Phase 2's two-hosts finding. Two §6.G items were small enough to fix on the spot and are done)* | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
 | 7 | Account & policy visibility | ⬜ *(7.7 card identity and 7.8 override staleness filed 2026-08-15. **7.7 is worth pulling forward** — 182 of 234 production cards are unlinked, so fuel attribution runs on a minority of the fleet)* | `delivery-p7-visibility` |
@@ -791,11 +791,35 @@ All three named tests pass, plus four more, and they run against the **real** ca
 
 **Not yet run live.** The route needs `EFS_CARD_CONTROL_PROBE_ENABLED`, a deploy, and a typed `PROVE <last4>` confirmation.
 
-### Step 4.6 — Promotion endpoint + CLI
+### ✅ Step 4.6 — Promotion endpoint + CLI — DONE 2026-08-15
 **Files:** `apps/api/src/routes/fuelCards/promote.ts`, `scripts/efs.mjs` (new), `package.json`.
 **Change:** `POST /api/fuel-cards/promote/:capability` — admin, `requireFreshAuth`, body `{action, reason: 3..500, proofId}`. **Server-side, promotion to `enabled` is refused unless**: the proof's five OEG results are green, the proof's `document_shape` matches the target org's observed shape, and every `vocabularyField` is `match` (not `unobserved`) in the config scan. Suspension needs no proof.
 
-> **⚠️ AMEND THIS RULE BEFORE BUILDING IT — Step 4.4 proved it unsatisfiable as written.** "Every `vocabularyField` must be `match` in the config scan" cannot be met for a value a card only passes THROUGH. QA reports `card_lock.status` `unobserved` because no QA card is in HOLD right now, and rule 14 guarantees none stays there — so `card_lock`, the safest capability in the product and one already verified live twice, could never be promoted on QA.
+> **✅ AMENDED AND BUILT 2026-08-15 — the rule below is what shipped.** `decidePromotion` is a pure
+> function (`efs/harness/promote.ts`), separated from the endpoint because it decides whether code
+> may touch a customer's fuel cards and a rule inside a request handler can only be tested by
+> standing up a request. It refuses by default and returns EVERY reason it found, not the first —
+> an operator who fixes the shape, re-runs, and is then told about a vocabulary field has done the
+> work twice, and the second refusal looks like the fix broke something.
+>
+> **What shipped beyond the written rule.** ① `unobserved` yields to proof evidence, per the
+> amendment below, and the acceptance is recorded as a residual risk rather than passed silently.
+> ② `mismatch` still blocks unconditionally — the amendment relaxes "no evidence", never "evidence
+> that we are wrong". ③ **A null OEG gate blocks**, because the columns are nullable precisely so
+> "not reached" and "false" stay distinguishable — except OEG-2b, which is unobtainable by
+> construction (Step 4.5) and on production by definition (`docs/24` §3.2), and is therefore carried
+> as a named residual risk on the promotion and its audit row. ④ A proof for a DIFFERENT capability
+> is refused by key — citing one is the kind of mistake that looks like a typo and reads like an
+> approval. ⑤ Suspension needs no proof and no evidence: a gate on the way OUT is a gate between a
+> person and stopping the damage.
+>
+> **`override_grant` is correctly unpromotable today**, and a test asserts it: `overrideAllLocations`
+> is unobserved fleet-wide (H3) and its `judge` returns `indeterminate`, so OEG-3 cannot come back
+> true. That is the system working.
+>
+> ---
+>
+> *(Original note, kept for the reasoning:)* **Step 4.4 proved the written rule unsatisfiable.** "Every `vocabularyField` must be `match` in the config scan" cannot be met for a value a card only passes THROUGH. QA reports `card_lock.status` `unobserved` because no QA card is in HOLD right now, and rule 14 guarantees none stays there — so `card_lock`, the safest capability in the product and one already verified live twice, could never be promoted on QA.
 >
 > **The scan and the prover answer different questions and the gate must accept both.** The scan asks *what does the fleet look like at rest*; Step 4.5's prover asks *what happens when we write this exact value and read it back* — which is strictly stronger evidence for precisely the transient case. The rule should be: every `vocabularyField` is `match` in the config scan **OR** the value was observed in the after-document of a green proof for this capability. `mismatch` still blocks unconditionally; `unobserved` with no proof still blocks. Decide the wording when 4.6 is built, but do not build the written version — it blocks the good outcome and would be "fixed" under pressure by weakening something. CLI: `pnpm efs:prove`, `pnpm efs:scan`, `pnpm efs:echo-scan`, `pnpm efs:promote`.
 **Verify:** *"promotion is refused when the document shape differs"* · *"promotion is refused when a vocabulary field is unobserved"* · *"suspension needs no proof"*. **Deployed:** promote `card_lock` on QA; attempt production and record the outcome — **a block is the system working**.
