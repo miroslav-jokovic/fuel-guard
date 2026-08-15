@@ -156,4 +156,23 @@ export interface CardMutationOutcome {
   /** Set only on `partial`: which step stopped, and what the capability calls it. */
   stepIndex?: number;
   stepLabel?: string;
+  /**
+   * Milliseconds from the write returning to the re-read that FIRST SAW the change (Step 4.7).
+   *
+   * Measured inside `verifyStep`, which is the only place that knows which read was the one that
+   * saw it. Null unless a step landed — an unlanded write has no apply latency, and zero would be
+   * a measurement rather than the absence of one.
+   *
+   * ── Why this is not "how long the mutation took" ────────────────────────────────────────────────
+   * `prove.ts` used to time the whole `dispatch()` call and store the result in a column documented
+   * as this interval. That number also carried the planning read, the write itself, the mirror
+   * update, the ledger writes and — decisively — the deliberate `EFS_CARD_VERIFY_RETRY_MS` pause.
+   * It read 4562 ms against a vendor that applies a status edit in ~850 ms, and the next person to
+   * compare the two would have concluded the account had degraded nine-fold.
+   *
+   * On a sequenced capability this is the LAST landed step's latency, not the sum: the question the
+   * column answers is "how long does this vendor take to apply an edit", and a sum answers "how long
+   * does this capability take", which is what the ledger's own timestamps already tell you.
+   */
+  applyLatencyMs?: number | null;
 }
