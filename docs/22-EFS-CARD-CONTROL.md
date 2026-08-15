@@ -1034,3 +1034,33 @@ the whole of the fix. Verified afterwards in the database rather than from the r
 Railway; the actual propagation is a single uncached indexed read inside the request. That is exactly
 what `promotionBlock`'s "deliberately uncached, and that is the feature" comment predicts — and the
 point of running it is that the comment is now a measurement instead of a claim.
+
+---
+
+## H11 — the production echo scan, re-run and paged (2026-08-15 night, CONFIRMED)
+
+Phase 4's last exit-gate item. The scan reads every card the account returns, builds the zero-edit
+request it WOULD send, and runs `assertEchoFidelity` against the vendor's own XML. `setCardV2` is not
+imported by that module and `echoScan.test.ts` asserts it — nothing is dispatched.
+
+**Result: 197 scanned, 197 passed, 0 failed, in one uninterrupted invocation** (22:07:30–22:12:49Z,
+six batches at offsets 0/34/68/101/134/168). That single run tiles 0–196 with no gap and no overlap,
+so the gate needs no arithmetic across runs and no assumption that the vendor's card order is stable
+between separate calls — an assumption an earlier two-run framing of this result quietly depended on.
+
+Three things the audit log showed that the terminal could not:
+
+- **Batch size is bound by the WALL CLOCK, not by `limit`.** Every batch returned 28–34 cards against
+  a requested 50, because the route stops cleanly at its 60-second budget and reports `nextOffset`.
+  `--limit` above roughly 34 is inert on this account, and a future reader tuning it will otherwise
+  conclude the flag is broken — which is exactly the shape of the `--limit` bug fixed earlier today.
+- **A client can lose a batch the server completed.** The second run died with `ECONNRESET` at offset
+  163; the audit row for that batch EXISTS, so the work finished and only the response was lost. The
+  per-batch retry added afterwards would therefore have re-run vendor work rather than recovered lost
+  work. Harmless here, and the reason the retry is bounded at three attempts.
+- **Three runs cost 427 card reads to produce 197 cards of evidence.** Paced against a shared service
+  account whose vendor guide warns about polling volume, that is the real price of a sweep that cannot
+  resume — which is why the resume path now exists.
+
+**No card was changed and none could be**: zero mutation rows for the production org across the whole
+evening, and card control has never been switched on there (zero settings rows).
