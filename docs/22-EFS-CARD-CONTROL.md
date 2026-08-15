@@ -526,7 +526,7 @@ is unexplained drift exactly as on the echo path.
 Findings land here when the run completes. Until then: flag off, echo clear remains the mechanism,
 and nothing user-visible changes.
 
-## Override grant lands and is recorded `failed` — 2026-08-14 (QA, live, OPEN)
+## Override grant lands and is recorded `failed` — 2026-08-14 (QA, live, RESOLVED by H3 below)
 
 **Observed.** A single-use override granted through the FuelGuard drawer on a QA card. The card page
 badge showed `Override: 1 use left`; the toast showed *"EFS refused the change — EFS accepted the
@@ -559,3 +559,108 @@ Step 3.11's first instruction, ahead of any fix.
 **Recorded here rather than fixed** because the fix depends on what the drift says, and because the
 tempting fix — widening `intentLanded` — would hide every genuine partial failure on every
 capability. Normalisation is a named, tested adapter or it is nothing (standing rule 4).
+
+## H3 — this account does not report override SCOPE at all (2026-08-15, CONFIRMED)
+
+Confirms the hypothesis in the entry above, and goes further than it did. Read from the ledger and
+the mirror; no vendor call was needed. (`H1`/`H2` were the two competing hypotheses in the 2026-08-12
+casing experiment — `H3` continues that numbering, not the entry count.)
+
+### The evidence
+
+`drift->'unexplained'` — the read Step 3.11 specified — is **null on every failed row**.
+`finalizeFailed` does not write the `drift` column; only `finalizeLanded` does. The rows do store
+`edits` and `after_document`, the typed view taken from the verifying re-read, so the same fact was
+reconstructed from those (`scripts/override-ledger-diagnose.mjs`).
+
+Three `override_grant` rows, all `all`-scope, `uses: 1`:
+
+| Sent | Read back by the verifying `getCardv2` | |
+|---|---|---|
+| `override = 1` | `overrideUses = 1` | landed, every time |
+| `overrideAllLocations = true` | `overrideAllLocations = false` | **never landed, every time** |
+
+No `locationOverride` edit was emitted on any of the three — the field was already null, and
+`overrideGrantEdits` only clears it when it holds an id. So `overrideAllLocations` was the **sole**
+condemning path, and one field out of two condemned the whole mutation.
+
+Widened to the whole fleet, both orgs, every card ever mirrored — **234 rows**:
+
+| Field | `true` | `false` | null |
+|---|---|---|---|
+| `overrideAllLocations` | **0** | 234 | 0 |
+| `locationOverride` | — | — | **234 (never once populated)** |
+
+The four checked-in fixtures agree, `getCardV2.overridden.xml` included — and that one HAS an
+override armed (uses 2, location 115732), which is the case that should have shown a scope.
+
+### The conclusion, and it is broader than the defect
+
+**This vendor does not report card override scope through `getCardv2` on this account.** Not "returns
+`false` for an all-locations grant" — *neither scope field is ever observable*. A location-scoped
+grant is therefore equally unverifiable; it fails the same judgement for the same reason and has
+simply never been exercised live. The two fields are, from a read's point of view, constants.
+
+What we cannot tell from here is WHY: the account may not be entitled to card-level scope, the write
+may be ignored, or `getCardv2` may not project the field. Phase 4.4's config scanner is the
+instrument that distinguishes those, and this is now one of the questions it exists to answer.
+
+### The fix (shipped with this entry, Step 3.11)
+
+`intentLanded` keeps its strictness and gains the ability to say WHICH edits did not land
+(`unlandedEditNames`, plus the after-only twin `unlandedEditNamesFromAfter` for the background
+sweep). `overrideGrantBehaviour` maps that list to three outcomes:
+
+- the **count** not landing → `not_landed` → `failed`. The count is what authorises a purchase
+  (p194); no tolerance applies to it, and a test proves deleting that line turns an applied-nothing
+  grant into `sent`.
+- a mismatch confined to `overrideAllLocations` / `locationOverride` → **`indeterminate`**.
+- anything else → `not_landed`, unchanged.
+
+`indeterminate` was already routed: the row stays `sent`, the audit says `card.mutation_unverified`,
+the operator is told to go and look rather than to retry, and `efsCardUnresolved.ts` skips
+indeterminate rows instead of settling them a cycle later. `judge` and `reconcile` are overridden
+together for exactly that reason.
+
+**Why not `succeeded`.** It would assert a scope we cannot observe, and the expensive direction is
+the one `overrideGrantEdits` already names: the operator told "at every location" while the driver is
+declined everywhere but one truck stop. **Why not a tolerance in `intentLanded`.** It would hide
+every genuine partial failure on every capability — standing rule 4.
+
+### Scope, honestly stated
+
+Override grants now accumulate on the unresolved list, on purpose, because we genuinely cannot verify
+them. That is a real operational cost and it is the honest one. It ends when Phase 4.4 establishes
+whether the scope arms — at which point this becomes either a proven adapter (`succeeded`) or a
+precondition refusing a grant this account cannot honour.
+
+### Two things this found on the way
+
+- **An operator did double-grant.** QA card ••••7670 carries two `override_grant` rows. The
+  misleading message produced exactly the behaviour it was predicted to produce.
+- **`docs/30` §6.E is not a sync bug.** Four **distinct** cards (four distinct `card_ref_hmac`) share
+  last-4 `7550` in the production org, and only one carries `override_uses = 1`. See the entry below.
+
+## Last-4 is not an identity on this fleet — 2026-08-15 (production, OPEN)
+
+Found while checking whether ••••7550 had been granted twice. It had not; it is not one card.
+
+| Measure | Value |
+|---|---|
+| `efs_cards` rows, both orgs | 234 |
+| Distinct card identities (`card_ref_hmac`) | 234 — **no duplicate mirror rows** |
+| Last-4 groups holding more than one card | **50** |
+| Rows carrying `sync_error = ambiguous_fuel_card_link` | 140 |
+| Rows with `fuel_card_id` null (unlinked) | 182 |
+| Rows with `override_uses > 0` | 1 |
+
+Last-4 `7550` alone resolves to four distinct active-fleet cards on different units and drivers. So
+`docs/30` §6.E — "••••7550 still shows `Override: 1 use left` after EFS consumed it" — may be the
+**correct** state of a card nobody granted anything on, and the portal grant Miki describes (50
+gallons, quantity-bounded, auto-closed) is the `managedFuelAction` mechanism of §6.B, which does not
+touch the `override` counter at all.
+
+This also enlarges `docs/30` §6.F. That finding reads as one column carrying two meanings, and it is
+— but the underlying cause is that fuel-card linking is being asked to resolve an identity that
+last-4 cannot express, on 50 groups of cards. A separate `link_status` column fixes the display; it
+does not fix the linking. **Both need a numbered step** — see `docs/28` Phase 7 Step 7.5.

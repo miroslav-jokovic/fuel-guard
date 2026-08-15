@@ -160,7 +160,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 0 | Green the pipeline | 🔶 *(PRs #3, #5 merged; **Step 0.13 outstanding** — QA card roles unassigned, which blocks Phases 9 and 10. Step 0.15 done in #5; all sixteen `ci.yml` gates green on `main` at `12a86a8`)* | `delivery-p0-green` |
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | 🔶 *(2.1–2.5 merged, PRs #13–#21; **echo scan green 197/197** on 2026-08-14. Two exit-gate items: the `probed_identity_hash` null check (a live DB read), and the "every existing echo test passes unchanged" wording — **which has the defect Phase 3's had; amend it the same way or amend neither**)* | `delivery-p2-echo` |
-| 3 | Capability architecture | 🔶 *(3.1–3.10 merged. Live QA found a **P0: override grant lands but is recorded `failed`** → **Step 3.11, and it is the next thing anyone does.** 4 of 5 operations pass. 3.5a withdrawn — it is Step 4.2)* | `delivery-p3-registry` |
+| 3 | Capability architecture | 🔶 *(3.1–3.10 merged. **Step 3.11 done 2026-08-15** — the P0 is diagnosed and fixed; the read proved this account never reports override scope on ANY card, `docs/22` H3. One item left: the live QA re-run of the grant on a deploy carrying the fix. 3.5a withdrawn — it is Step 4.2)* | `delivery-p3-override-judge` |
 | 4 | Harness & promotion | ⬜ | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
@@ -603,6 +603,18 @@ A preservation assertion built on the response DOM does not fix this on its own:
 **THE WRONG FIX, named so nobody reaches for it:** widening `intentLanded`'s tolerance. That hides every genuine partial failure on every capability — it is weakening the guard that caught this. Rule 4 applies: normalisation is a named, tested adapter, never an incidental tolerance. Defensible options once the drift is known — an adapter for a vendor normalisation we can prove, or a `precondition` refusing an all-locations grant on an account that does not honour it.
 **Verify:** a test that fails on today's code · **Live QA:** grant, re-read, and confirm the ledger says `succeeded`. Then clear, and re-read again.
 
+#### ✅ DONE 2026-08-15 — and the read changed the answer
+
+**The read the step specified could not be run as written.** `drift->'unexplained'` is null on every failed row: `finalizeFailed` does not write the `drift` column, only `finalizeLanded` does. The same fact was reconstructed from `edits` against `after_document` — `scripts/override-ledger-diagnose.mjs`, committed.
+
+**What it said.** Three grants, all `all`-scope, `uses: 1`. `override` landed 0 → 1 every time; `overrideAllLocations` was sent `true` and read back `false` every time, and was the sole condemning path. Widened to the fleet: across **all 234 mirrored cards in both orgs**, `overrideAllLocations` is `false` 234 times and `true` **zero** times, and `locationOverride` is null 234 times. So the finding is broader than the hypothesis — **this account does not report override scope at all**, and a location-scoped grant is equally unverifiable. Full evidence: `docs/22`, entry H3.
+
+**What shipped.** Not a tolerance. `intentLanded` keeps its strictness and gains `unlandedEditNames` (plus the after-only twin `unlandedEditNamesFromAfter`), so a capability can reason about a field without any other capability losing the guard. `overrideGrantBehaviour` maps the list: count not landing → `failed`, unchanged; mismatch confined to the two never-reported scope fields → **`indeterminate`**; anything else → `not_landed`. `judge` and `reconcile` overridden together, so the background sweep cannot condemn a cycle later what the live path declined to condemn.
+
+**Consequence, stated rather than buried:** override grants now sit on the unresolved list until Phase 4.4 establishes whether the scope arms. That is the honest cost of not being able to verify them, and it converts to either a proven adapter or a `precondition` when 4.4 answers.
+
+**Still open:** the live QA re-run (grant → re-read → expect `sent` + `card.mutation_unverified`, then clear → expect `succeeded`).
+
 ### ✅ Exit Gate — Phase 3
 - [x] Characterisation suite passes byte-identically after every migration step
 - [x] **No test lost an assertion.** `git diff <base>..<head> -- '*.test.ts' | grep -cE '^-.*expect\('` is **0**; 99 were added. Every test that changed did so because the thing it named was deleted or moved by this phase, and each change is named in the commit that made it *(amended 2026-08-14 — see below)*
@@ -617,7 +629,8 @@ A preservation assertion built on the response DOM does not fix this on its own:
 - [x] Fitness test catches all three deliberate breakages
 - [x] `mutation:check` score on `apps/api/src/efs/` recorded and acceptable — **18/18, 7 new**
 - [x] **All four Phase-3 waivers from Step 0.6 are DELETED from `GRANDFATHERED`** — `control.ts`, `efsCardControl.ts`, `cardControlContract.ts`, `cardControlModel.ts` all under 500 on their own (`efsCardControl.ts` ✅ removed in 3.4)
-- [ ] Live QA: all five operations still work — **4 of 5 as of 2026-08-14.** lock ✅ unlock ✅ prompts ✅ override-clear ✅; **override grant lands but is recorded `failed` (Step 3.11)**. Must be run on a deploy containing the generated router — a green run against a build still serving from `control.ts` proves the orchestrator, not the migration
+- [ ] Live QA: all five operations still work — **4 of 5 as of 2026-08-14.** lock ✅ unlock ✅ prompts ✅ override-clear ✅; override grant diagnosed and fixed in **Step 3.11 (2026-08-15)**, awaiting the live re-run on a deploy carrying the fix. Must be run on a deploy containing the generated router — a green run against a build still serving from `control.ts` proves the orchestrator, not the migration
+  > **What "works" now means for the grant, and it is deliberately not `succeeded`.** This account never reports override scope (`docs/22` H3), so a grant settles `sent` / `card.mutation_unverified`. The gate item is: the count lands, the ledger says `sent` and NOT `failed`, no message invites a retry, and the subsequent clear settles `succeeded`. A grant reporting `succeeded` after this change would mean the scope fields started echoing — a finding in its own right, not a pass.
 - [x] Standing gates green
 
 ---
@@ -794,6 +807,12 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 **Files:** `docs/25-EFS-ACCOUNT-INVENTORY.md` (generated from the scan JSON), scan JSON committed.
 **Change:** run `pnpm efs:scan` against QA and production. The document must answer: which Info IDs the account has and uses · **whether odometer following is configured, on which field, with what accrual value** · **the account's exact vocabulary for every writable string field** · which limit IDs with what values · whether refreshing limits are set and where · real credit ceilings · whether location groups are in use · whether time restrictions are in use · what each policy sets · **production's document shape and whether it matches QA's** · any field production sends that we do not model.
 **Verify:** every question answered with the raw evidence quoted and the source operation named. **This document scopes Phases 9–12 — if it contradicts an assumption there, stop and re-scope.**
+
+### Step 7.7 — Card identity: last-4 is not one *(filed 2026-08-15, from the Step 3.11 read)*
+**Files:** `apps/api/src/services/efsCardMirror.ts` (`linkFuelCards`), `apps/web/src/features/fuelCards/`.
+**Why this is its own step and not part of 7.5.** 7.5 splits `sync_error` so a linking outcome stops being displayed as a refresh failure. That fixes the DISPLAY. It does not fix the linking, and the measurement says the linking is the larger problem: **50 last-4 groups hold more than one card**, 140 of 234 rows carry `ambiguous_fuel_card_link`, and **182 of 234 cards are unlinked** — so fuel attribution is running on a minority of the fleet. Last-4 `7550` alone resolves to four distinct cards on four different units. Evidence and counts: `docs/22`, entry *"Last-4 is not an identity on this fleet"*.
+**Change:** link on an identity that is one — `card_ref_hmac` against the fuel-card record's own sealed number, falling back to (last-4 + unit) or (last-4 + driver) only where those are unique, and leaving genuinely ambiguous rows unlinked with a *reason* rather than an error. Every card-picking UI that shows `••••NNNN` alone must show the unit or driver beside it: on this fleet that string does not identify a card to a human either.
+**Verify:** a fixture with two cards sharing a last-4 links each to the right fuel card, or links neither and says why — never the wrong one. Count of linked cards recorded before and after. **Live:** the `ambiguous_fuel_card_link` count on production drops, and any row still carrying it names which cards it could not tell apart.
 
 ### ✅ Exit Gate — Phase 7
 - [ ] Every field in the production document is modelled; parity gate mechanical and green
