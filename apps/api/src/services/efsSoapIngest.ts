@@ -73,7 +73,28 @@ export async function runEfsSoapIngest(
     return { feed, status: "skipped_disabled", pagesFetched: 0, rowsFetched: 0 };
   }
 
-  const creds = await getEfsSoapCredentials(admin, env, orgId);
+  /**
+   * The unseal can throw, and this function promises it does not.
+   *
+   * `getEfsSoapCredentials` decrypts the sealed SOAP password. A rotated or missing
+   * `SECRETS_ENCRYPTION_KEY`, or a row sealed under a key this deploy no longer has, throws out of
+   * here — and this call sat outside every try/catch, so it escaped into the scheduler. The result
+   * was the worst shape a failure can take on a poller: the tick dies, `posted_last_error` is never
+   * written, and the admin screen shows the feed exactly as it looked when it last worked. A feed
+   * that has stopped looks identical to a feed that is idle.
+   *
+   * Recorded like any other feed failure, so it appears where an operator already looks. Not
+   * `skipped_no_config`: a credential that exists and cannot be opened is a fault, not an absence,
+   * and reporting it as absence is how it would stay invisible a second time.
+   */
+  let creds: Awaited<ReturnType<typeof getEfsSoapCredentials>>;
+  try {
+    creds = await getEfsSoapCredentials(admin, env, orgId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordFeedFailure(admin, orgId, feed, `credentials unavailable: ${message}`);
+    return { feed, status: "failed", pagesFetched: 0, rowsFetched: 0, error: message };
+  }
   if (!creds) {
     return { feed, status: "skipped_no_config", pagesFetched: 0, rowsFetched: 0 };
   }
