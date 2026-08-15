@@ -5,8 +5,50 @@ import {
   overrideStepUpMessage,
 } from "@fuelguard/shared";
 import { overrideGrantEdits } from "../../services/efsCardEdits.js";
+import { unlandedEditNames } from "../../services/efsCardReconcile.js";
+import { unlandedEditNamesFromAfter } from "../../lib/efsCardWrite.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
-import { defineBehaviour } from "../types.js";
+import { defineBehaviour, type Landing } from "../types.js";
+
+/**
+ * The two fields this account has never once echoed back, and the reason a granted override was
+ * recorded `failed`.
+ *
+ * ── The evidence, 2026-08-15 (docs/22 H2, docs/30 §6.A) ─────────────────────────────────────────
+ * Three live QA grants of `override=1, overrideAllLocations=true` all landed the COUNT (0 → 1) and
+ * all read `overrideAllLocations=false` back. Across every card either org has ever mirrored — 234
+ * rows — `overrideAllLocations` is `false` 234 times and `true` zero times, and `locationOverride`
+ * is null 234 times. Four checked-in fixtures agree, including `getCardV2.overridden.xml`, which HAS
+ * an override armed. This vendor does not report card override SCOPE through `getCardv2`.
+ *
+ * ── Why this is `indeterminate` and not a tolerance ─────────────────────────────────────────────
+ * Calling the write landed would assert a scope we cannot observe — and the expensive direction of
+ * being wrong is the one `overrideGrantEdits` already names: the operator is told "at every
+ * location" while the driver is declined everywhere. Calling it failed is what shipped, and it tells
+ * the operator to retry a grant that worked, which grants a SECOND one. Neither is true, so the
+ * capability says so: the row stays `sent`, the audit says `card.mutation_unverified`, and the
+ * operator is told to go and look instead of to try again.
+ *
+ * Phase 4.4's config scanner is the instrument that settles whether the scope armed. Until it has,
+ * this is the honest answer and NOT a resting place — the rows accumulate on the unresolved list on
+ * purpose, where they are visible.
+ */
+const UNOBSERVABLE_SCOPE_FIELDS: ReadonlySet<string> = new Set([
+  "overrideAllLocations",
+  "locationOverride",
+]);
+
+/**
+ * The count is the exception (guide p194): `override` is what authorises a purchase, and no
+ * tolerance applies to it. A grant whose count did not land granted nothing and is a plain failure.
+ */
+const judgeGrant = (unlanded: readonly string[]): Landing => {
+  if (unlanded.length === 0) return "landed";
+  if (unlanded.some((name) => !UNOBSERVABLE_SCOPE_FIELDS.has(name))) return "not_landed";
+  return "indeterminate";
+};
+
+const echoVerify = cardEchoVerify<OverrideGrantBody>();
 
 /**
  * Granting a fuel exception, and the one gate in this codebase that runs on the body alone.
@@ -31,7 +73,23 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
     buildEdits: (doc, body: OverrideGrantBody) => overrideGrantEdits(doc, body.uses, body.scope),
   },
 
-  verify: cardEchoVerify<OverrideGrantBody>(),
+  /**
+   * `cardEchoVerify`'s reads, its own resolution. Both halves are overridden together and
+   * deliberately: the background sweep re-judges a `sent` row through `reconcile`, so overriding
+   * only `judge` would leave the sweep condemning, one sync cycle later, precisely the mutation the
+   * live path declined to condemn.
+   */
+  verify: {
+    snapshot: echoVerify.snapshot,
+    judge: (before, after, _body, edits) => {
+      if (!before.doc || !after.doc) return "indeterminate";
+      return judgeGrant(unlandedEditNames(before.doc, after.doc, edits));
+    },
+    reconcile: (after, edits) => {
+      if (!after.doc) return "indeterminate";
+      return judgeGrant(unlandedEditNamesFromAfter(after.doc, edits));
+    },
+  },
 
   /** One free tank is an exception; four is a decision somebody should have to prove they made. */
   preflightStepUp: (body: OverrideGrantBody) =>

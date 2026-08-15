@@ -38,21 +38,38 @@ import type { CardMutationContext, CardMutationOutcome, SettleFacts } from "../e
  * because somebody in the WEX portal changed a policy number in the same second.
  */
 export function intentLanded(before: CardDocument, after: CardDocument, edits: readonly CardEdit[]): boolean {
-  // Every edited path must match the expectation. `driftAgainstExpected` with the volatile fields
-  // excluded gives the full difference; the intent landed iff no differing path is one an edit named.
-  //
-  // `editPath` rather than a hand-built `/${e.name}`: on the nested response shape a scalar lives at
-  // `/header/status`, and `/status` matches nothing there. The failure is not a false negative but a
-  // false POSITIVE — with no path recognised as ours, `some()` is never true and EVERY mutation
-  // reports as landed, including one EFS accepted and silently did not apply. The two tests in
-  // efsCardReconcile.test.ts named "NOT land" are the ones that go red if this reverts.
-  const editedPaths = new Set(edits.map((e) => editPath(before, e)));
-  const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS);
-  return !diffs.some(
-    (d) =>
-      (editedPaths.has(d.path) || [...editedPaths].some((p) => d.path.startsWith(`${p}/`)))
-      && !vendorNormalisedOnly(d),
-  );
+  return unlandedEditNames(before, after, edits).length === 0;
+}
+
+/**
+ * WHICH edits the vendor did not echo back. `intentLanded` is exactly this list being empty.
+ *
+ * Split out for Step 3.11, and the split is the whole point: a capability that needs to reason about
+ * a PARTICULAR field cannot do it through a boolean, and the alternative — widening `intentLanded`
+ * so the capability's case slips through — would hide every genuine partial failure on every other
+ * capability. The strictness stays here; only the resolution changes.
+ *
+ * `editPath` rather than a hand-built `/${e.name}`: on the nested response shape a scalar lives at
+ * `/header/status`, and `/status` matches nothing there. The failure is not a false negative but a
+ * false POSITIVE — with no path recognised as ours, nothing is ever collected and EVERY mutation
+ * reports as landed, including one EFS accepted and silently did not apply. The two tests in
+ * efsCardReconcile.test.ts named "NOT land" are the ones that go red if this reverts.
+ */
+export function unlandedEditNames(
+  before: CardDocument,
+  after: CardDocument,
+  edits: readonly CardEdit[],
+): string[] {
+  // `driftAgainstExpected` with the volatile fields excluded gives the full difference; an edit
+  // failed iff a differing path is the one it named, or lives beneath it (a collection's records).
+  const diffs = driftAgainstExpected(before, edits, after, VOLATILE_FIELDS)
+    .filter((d) => !vendorNormalisedOnly(d));
+  return edits
+    .filter((edit) => {
+      const path = editPath(before, edit);
+      return diffs.some((d) => d.path === path || d.path.startsWith(`${path}/`));
+    })
+    .map((edit) => edit.name);
 }
 
 /**
