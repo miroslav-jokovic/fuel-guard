@@ -2,7 +2,11 @@
 import { computed, ref } from "vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { activeOverrides } from "./cardControlModel";
+import { cardIdentityLabel } from "./cardIdentityLabel";
 import { useEfsCards } from "./useEfsCards";
+
+/** One rule for naming a card to a human, shared with the inventory — see cardIdentityLabel.ts. */
+const identity = cardIdentityLabel;
 
 /**
  * Every active fuel exception on the account, in one place (audit B3).
@@ -56,7 +60,13 @@ const loaded = computed(() => query.data.value !== undefined);
           class="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-left text-sm hover:bg-surface-subtle"
         >
           <span class="font-medium text-ink">{{ row.maskedRef }}</span>
-          <span class="text-ink-muted">{{ row.driverName ?? row.unitPrompt ?? "Unassigned" }}</span>
+          <!--
+            Step 7.7: unit AND driver, not one-or-the-other. `driverName ?? unitPrompt` printed
+            whichever came first and HID the other — on a fleet where 40 last-4 groups hold more than
+            one card, the hidden field is often the only thing telling two rows apart.
+          -->
+          <span v-if="!identity(row).unidentified" class="text-ink-muted">{{ identity(row).qualifier }}</span>
+          <span v-else class="text-ink-muted italic">no unit or driver</span>
           <span :class="[BADGE_BASE, toneClass('warning')]">
             {{ row.uses }} use{{ row.uses === 1 ? "" : "s" }} left
           </span>

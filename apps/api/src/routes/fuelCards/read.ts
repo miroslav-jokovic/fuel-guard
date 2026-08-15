@@ -70,6 +70,7 @@ interface CardRow {
   location_override_id: string | null;
   last_used_date: string | null;
   fuel_card_id: string | null;
+  fuel_card_link: { status?: string; method?: string | null; candidates?: string[] } | null;
   synced_at: string;
   sync_error: string | null;
 }
@@ -90,6 +91,14 @@ const toSummary = (row: CardRow) => ({
   locationOverrideId: row.location_override_id,
   lastUsedDate: row.last_used_date,
   fuelCardId: row.fuel_card_id,
+  /**
+   * WHY a card is not linked (Step 7.7). `candidates` is a count, not a list of ids: the operator
+   * question is "can this be resolved and how", and shipping fuel-card ids to a browser that cannot
+   * do anything with them is payload without a reader.
+   */
+  linkStatus: row.fuel_card_link?.status ?? null,
+  linkMethod: row.fuel_card_link?.method ?? null,
+  linkCandidates: row.fuel_card_link?.candidates?.length ?? 0,
   syncedAt: row.synced_at,
   syncError: row.sync_error,
 });

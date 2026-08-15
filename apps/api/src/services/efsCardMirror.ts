@@ -1,11 +1,12 @@
 import { createHmac, hkdfSync } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cardLast4, cardRefsMatch, isFullCardNumber, parseEfsDateTime } from "@fuelguard/shared";
+import { cardLast4, isFullCardNumber, parseEfsDateTime } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { getCardSummaries, getCardV2, type CardSummaryRow } from "../lib/efsCardOps.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
 import { decodeSecretsKey, isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
 import { preserveAttribution } from "./efsCardAttribution.js";
+import { linkFuelCards } from "./efsCardLinking.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /**
@@ -32,7 +33,7 @@ import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /** Columns safe to read back. `card_number_sealed` is deliberately absent — see `loadCardNumber`. */
 export const EFS_CARD_LIST_COLS =
-  "id, org_id, fuel_card_id, card_last4, status, policy_number, driver_id_prompt, unit_prompt, driver_name, override_uses, override_all_locations, location_override_id, last_used_date, synced_at, sync_error";
+  "id, org_id, fuel_card_id, fuel_card_link, card_last4, status, policy_number, driver_id_prompt, unit_prompt, driver_name, override_uses, override_all_locations, location_override_id, last_used_date, synced_at, sync_error";
 
 export const EFS_CARD_DETAIL_COLS = `${EFS_CARD_LIST_COLS}, original_status, payroll_status, payroll_use, company_xref, hand_enter, info_source, limit_source, location_source, time_source, last_transaction, document, card_version`;
 
@@ -174,7 +175,7 @@ export async function syncEfsCards(
     }
   }
 
-  result.linked = await linkFuelCards(admin, creds.orgId);
+  result.linked = await linkFuelCards(admin, env, creds.orgId);
   result.tombstoned = await tombstoneAbsentCards(admin, env, creds.orgId, summaries);
   return result;
 }
@@ -374,55 +375,6 @@ export async function upsertCardDetail(
   return { cardVersion: doc.version };
 }
 
-/**
- * Point each mirror row at its `fuel_cards` row, where that can be established without guessing.
- *
- * Deliberately conservative. `fuel_cards.card_ref` is a cardIdentityKey: sometimes a full PAN,
- * sometimes "<last4>|<controlId>". A last-four match alone is NOT proof — two physical cards can
- * share four digits, and WP3c already documents the false "card assigned to a different truck" alerts
- * that a loose match produced. So: link only when exactly one candidate matches provably, and record
- * `ambiguous_fuel_card_link` otherwise. A missing link shows as "not linked"; a wrong one silently
- * attributes fuel to the wrong truck.
- */
-export async function linkFuelCards(admin: SupabaseClient, orgId: string): Promise<number> {
-  const { data: unlinked } = await admin
-    .from("efs_cards")
-    .select("id, card_last4, driver_id_prompt")
-    .eq("org_id", orgId)
-    .is("fuel_card_id", null)
-    .limit(1000);
-  if (!unlinked?.length) return 0;
-
-  const { data: candidates } = await admin
-    .from("fuel_cards")
-    .select("id, card_ref, card_last4")
-    .eq("org_id", orgId)
-    .eq("provider", "efs")
-    .limit(2000);
-  if (!candidates?.length) return 0;
-
-  let linked = 0;
-  for (const row of unlinked as { id: string; card_last4: string; driver_id_prompt: string | null }[]) {
-    const matches = (candidates as { id: string; card_ref: string; card_last4: string | null }[]).filter(
-      (c) => c.card_last4 === row.card_last4 || cardRefsMatch(c.card_ref, row.card_last4),
-    );
-    if (matches.length !== 1) {
-      if (matches.length > 1) {
-        await admin.from("efs_cards")
-          .update({ sync_error: "ambiguous_fuel_card_link" })
-          .eq("id", row.id).eq("org_id", orgId);
-      }
-      continue;
-    }
-    const { error } = await admin
-      .from("efs_cards")
-      .update({ fuel_card_id: matches[0]!.id })
-      .eq("id", row.id)
-      .eq("org_id", orgId);
-    if (!error) linked += 1;
-  }
-  return linked;
-}
 
 /** Unseal a card number for an operation that needs it. The ONLY reader of card_number_sealed. */
 export async function loadCardNumber(
