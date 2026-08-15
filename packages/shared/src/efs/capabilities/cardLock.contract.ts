@@ -46,6 +46,8 @@ export const cardLockContract = defineContract({
    */
   vocabularyFields: ["status"],
   emittableValues: { status: EFS_LOCK_STATUSES },
+  /** `matchStatusCasing` spells the write from the fresh read — see the comment above. */
+  casingAdaptiveFields: ["status"],
   ui: {
     title: "Lock this card",
     verb: "Lock card",

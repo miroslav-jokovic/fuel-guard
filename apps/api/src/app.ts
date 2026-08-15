@@ -25,6 +25,7 @@ import { integrationsRouter } from "./routes/integrations.js";
 import { fuelingRouter } from "./routes/fueling.js";
 import { fuelCardCapabilityRouter } from "./efs/router.js";
 import { fuelCardEchoScanRouter } from "./routes/fuelCards/echoScan.js";
+import { fuelCardConfigScanRouter } from "./routes/fuelCards/scan.js";
 import { fuelCardExperimentsRouter } from "./routes/fuelCards/experiments.js";
 import { fuelCardProbeRouter } from "./routes/fuelCards/probe.js";
 import { fuelCardSettingsRouter } from "./routes/fuelCards/settings.js";
@@ -232,7 +233,7 @@ export function createApp(env: Env): Express {
   // fuelCardCapabilityRouter is the generated one and serves EVERY card write, one route per
   // capability in the registry (Step 3.7 deleted the hand-written control router; its history read
   // moved into fuelCardsRouter, where a GET belongs).
-  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter());
+  app.use("/api/fuel-cards", fuelCardSettingsRouter(), fuelCardsRouter(), fuelCardCapabilityRouter(env), fuelCardProbeRouter(), fuelCardWriteProbeRouter(), fuelCardExperimentsRouter(), fuelCardEchoScanRouter(), fuelCardConfigScanRouter());
   app.use("/api/ai", aiRouter());
   app.use("/api/jobs", jobsRouter());
   app.use("/api/dispatch", dispatchRouter()); // was defined but unmounted on main — wired here

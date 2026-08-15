@@ -36,6 +36,10 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
   // Reads the WHOLE account — one getCardSummaries plus one getCardv2 per card in the batch. The
   // heaviest vendor request in the product by a wide margin, and charged accordingly.
   { method: "POST", path: "/echo-scan", opensSoap: true },
+  // The one fuel-card route that genuinely cannot reach EFS: the config scan reads the mirror's
+  // stored vendor documents and resolves no credentials, so there is no vendor budget to charge
+  // and no ambiguity to resolve toward charging. See routes/fuelCards/scan.ts.
+  { method: "POST", path: "/config-scan", opensSoap: false },
   { method: "POST", path: "/experiment", opensSoap: true },
 ];
 

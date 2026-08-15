@@ -1,0 +1,417 @@
+{
+  "environment": "production",
+  "provenance": {
+    "source": "mirror.last_response_xml_redacted",
+    "cardsInOrg": 199,
+    "cardsWithStoredDocument": 199,
+    "cardsWithoutStoredDocument": 0,
+    "oldestSyncedAt": "2026-08-13T16:35:56.39+00:00",
+    "newestSyncedAt": "2026-08-15T02:02:58.075+00:00"
+  },
+  "documentsScanned": 199,
+  "documentsUnparseable": 0,
+  "fields": [
+    {
+      "field": "infoId",
+      "documentsScanned": 199,
+      "documentsWithField": 162,
+      "occurrences": 1227,
+      "observedValues": [
+        {
+          "text": "DRID",
+          "count": 162
+        },
+        {
+          "text": "NAME",
+          "count": 162
+        },
+        {
+          "text": "TRIP",
+          "count": 162
+        },
+        {
+          "text": "TRLR",
+          "count": 162
+        },
+        {
+          "text": "UNIT",
+          "count": 162
+        },
+        {
+          "text": "CNTN",
+          "count": 161
+        },
+        {
+          "text": "DLIC",
+          "count": 128
+        },
+        {
+          "text": "DLST",
+          "count": 128
+        }
+      ],
+      "rawSpellings": [
+        "DRID",
+        "NAME",
+        "TRIP",
+        "TRLR",
+        "UNIT",
+        "CNTN",
+        "DLIC",
+        "DLST"
+      ],
+      "nilCount": 0,
+      "absentCount": 37,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "overrideAllLocations",
+      "documentsScanned": 199,
+      "documentsWithField": 199,
+      "occurrences": 199,
+      "observedValues": [
+        {
+          "text": "false",
+          "count": 199
+        }
+      ],
+      "rawSpellings": [
+        "false"
+      ],
+      "nilCount": 0,
+      "absentCount": 0,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "status",
+      "documentsScanned": 199,
+      "documentsWithField": 199,
+      "occurrences": 199,
+      "observedValues": [
+        {
+          "text": "ACTIVE",
+          "count": 122
+        },
+        {
+          "text": "HOLD",
+          "count": 39
+        },
+        {
+          "text": "INACTIVE",
+          "count": 38
+        }
+      ],
+      "rawSpellings": [
+        "ACTIVE",
+        "HOLD",
+        "INACTIVE"
+      ],
+      "nilCount": 0,
+      "absentCount": 0,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "validationType",
+      "documentsScanned": 199,
+      "documentsWithField": 162,
+      "occurrences": 1227,
+      "observedValues": [
+        {
+          "text": "REPORT_ONLY",
+          "count": 904
+        },
+        {
+          "text": "EXACT_MATCH",
+          "count": 323
+        }
+      ],
+      "rawSpellings": [
+        "REPORT_ONLY",
+        "EXACT_MATCH"
+      ],
+      "nilCount": 0,
+      "absentCount": 37,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    }
+  ],
+  "verdicts": [
+    {
+      "capability": "card_lock",
+      "field": "status",
+      "state": "match",
+      "values": [
+        {
+          "expected": "Hold",
+          "state": "observed_differently_cased",
+          "observedAs": [
+            "HOLD"
+          ]
+        },
+        {
+          "expected": "Inactive",
+          "state": "observed_differently_cased",
+          "observedAs": [
+            "INACTIVE"
+          ]
+        }
+      ],
+      "observation": {
+        "field": "status",
+        "documentsScanned": 199,
+        "documentsWithField": 199,
+        "occurrences": 199,
+        "observedValues": [
+          {
+            "text": "ACTIVE",
+            "count": 122
+          },
+          {
+            "text": "HOLD",
+            "count": 39
+          },
+          {
+            "text": "INACTIVE",
+            "count": 38
+          }
+        ],
+        "rawSpellings": [
+          "ACTIVE",
+          "HOLD",
+          "INACTIVE"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "card_unlock",
+      "field": "status",
+      "state": "match",
+      "values": [
+        {
+          "expected": "Active",
+          "state": "observed_differently_cased",
+          "observedAs": [
+            "ACTIVE"
+          ]
+        }
+      ],
+      "observation": {
+        "field": "status",
+        "documentsScanned": 199,
+        "documentsWithField": 199,
+        "occurrences": 199,
+        "observedValues": [
+          {
+            "text": "ACTIVE",
+            "count": 122
+          },
+          {
+            "text": "HOLD",
+            "count": 39
+          },
+          {
+            "text": "INACTIVE",
+            "count": 38
+          }
+        ],
+        "rawSpellings": [
+          "ACTIVE",
+          "HOLD",
+          "INACTIVE"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "override_grant",
+      "field": "overrideAllLocations",
+      "state": "unobserved",
+      "values": [
+        {
+          "expected": "true",
+          "state": "unobserved"
+        },
+        {
+          "expected": "false",
+          "state": "observed_exact"
+        }
+      ],
+      "observation": {
+        "field": "overrideAllLocations",
+        "documentsScanned": 199,
+        "documentsWithField": 199,
+        "occurrences": 199,
+        "observedValues": [
+          {
+            "text": "false",
+            "count": 199
+          }
+        ],
+        "rawSpellings": [
+          "false"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "override_clear",
+      "field": "overrideAllLocations",
+      "state": "unobserved",
+      "values": [
+        {
+          "expected": "true",
+          "state": "unobserved"
+        },
+        {
+          "expected": "false",
+          "state": "observed_exact"
+        }
+      ],
+      "observation": {
+        "field": "overrideAllLocations",
+        "documentsScanned": 199,
+        "documentsWithField": 199,
+        "occurrences": 199,
+        "observedValues": [
+          {
+            "text": "false",
+            "count": 199
+          }
+        ],
+        "rawSpellings": [
+          "false"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "prompts_set",
+      "field": "validationType",
+      "state": "match",
+      "values": [
+        {
+          "expected": "EXACT_MATCH",
+          "state": "observed_exact"
+        },
+        {
+          "expected": "REPORT_ONLY",
+          "state": "observed_exact"
+        }
+      ],
+      "observation": {
+        "field": "validationType",
+        "documentsScanned": 199,
+        "documentsWithField": 162,
+        "occurrences": 1227,
+        "observedValues": [
+          {
+            "text": "REPORT_ONLY",
+            "count": 904
+          },
+          {
+            "text": "EXACT_MATCH",
+            "count": 323
+          }
+        ],
+        "rawSpellings": [
+          "REPORT_ONLY",
+          "EXACT_MATCH"
+        ],
+        "nilCount": 0,
+        "absentCount": 37,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "prompts_set",
+      "field": "infoId",
+      "state": "match",
+      "values": [
+        {
+          "expected": "DRID",
+          "state": "observed_exact"
+        },
+        {
+          "expected": "UNIT",
+          "state": "observed_exact"
+        }
+      ],
+      "observation": {
+        "field": "infoId",
+        "documentsScanned": 199,
+        "documentsWithField": 162,
+        "occurrences": 1227,
+        "observedValues": [
+          {
+            "text": "DRID",
+            "count": 162
+          },
+          {
+            "text": "NAME",
+            "count": 162
+          },
+          {
+            "text": "TRIP",
+            "count": 162
+          },
+          {
+            "text": "TRLR",
+            "count": 162
+          },
+          {
+            "text": "UNIT",
+            "count": 162
+          },
+          {
+            "text": "CNTN",
+            "count": 161
+          },
+          {
+            "text": "DLIC",
+            "count": 128
+          },
+          {
+            "text": "DLST",
+            "count": 128
+          }
+        ],
+        "rawSpellings": [
+          "DRID",
+          "NAME",
+          "TRIP",
+          "TRLR",
+          "UNIT",
+          "CNTN",
+          "DLIC",
+          "DLST"
+        ],
+        "nilCount": 0,
+        "absentCount": 37,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    }
+  ],
+  "summary": {
+    "match": 4,
+    "mismatch": 0,
+    "unobserved": 2
+  }
+}
