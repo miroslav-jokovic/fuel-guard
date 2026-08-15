@@ -5,6 +5,7 @@ import { writeAudit } from "../lib/audit.js";
 import { getCardV2 } from "../lib/efsCardOps.js";
 import { editsLanded } from "../lib/efsCardWrite.js";
 import type { CardEdit } from "../lib/efsCardEcho.js";
+import { reconcilePlanFor } from "../efs/registry.js";
 import { loadCardNumber } from "./efsCardMirror.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
@@ -66,6 +67,10 @@ const unresolvedRowSchema = z.object({
   status: z.enum(["pending", "sent"]),
   created_at: z.string(),
   edits: z.array(cardEditSchema).nullable(),
+  /** Null on every row written before the registry drove the route. Those keep the old behaviour. */
+  capability_key: z.string().nullable(),
+  /** Redacted, as submitted. Handed to the capability's own predicate, which must parse it. */
+  request_body: z.unknown().nullable(),
 });
 
 export interface UnresolvedResult {
@@ -92,7 +97,7 @@ export async function resolveUnresolvedMutations(
   // multiple sweeps and are a support conversation, not a silent flip a week after the fact.
   const { data, error } = await admin
     .from("efs_card_mutations")
-    .select("id, efs_card_id, status, created_at, edits")
+    .select("id, efs_card_id, status, created_at, edits, capability_key, request_body")
     .eq("org_id", creds.orgId)
     .in("status", ["pending", "sent"])
     .gte("created_at", new Date(now - 7 * 24 * 3600 * 1000).toISOString())
@@ -147,17 +152,33 @@ export async function resolveUnresolvedMutations(
 
     // status === "sent"
     const edits = row.edits ?? [];
-    if (edits.length === 0) continue; // nothing checkable — echo-only rows stay for a human
+    /**
+     * The capability's OWN after-only predicate when the row names one; `editsLanded` otherwise.
+     *
+     * Before Step 3.9 this line was `if (edits.length === 0) continue`, and a `direct` op records no
+     * edits — so every unverified `deleteOverride` sat on the operator's "Unverified" list forever,
+     * with the answer one read away. A row still gets skipped when nothing can judge it: no
+     * capability key AND no edits means there is no question this code knows how to ask.
+     */
+    const plan = row.capability_key === null ? null : reconcilePlanFor(row.capability_key);
+    if (plan === null && edits.length === 0) continue;
+
     if (!docByCard.has(row.efs_card_id)) {
       if (vendorReads >= maxReads) continue; // budget spent; next sweep continues from here
       vendorReads += 1;
       try {
         const cardNumber = await loadCardNumber(admin, env, creds.orgId, row.efs_card_id);
+        // The capability names its own reads (docs/27 §3.3), which is what will let a capability
+        // whose state lives outside the card document be reconciled without a second code path
+        // here. On the backfill lane either way — nobody is waiting on this sweep.
+        const opts_ = { priority: "backfill" as const, fetchImpl: opts.fetchImpl };
         docByCard.set(
           row.efs_card_id,
           cardNumber === null
             ? null
-            : await getCardV2(env, creds, cardNumber, { priority: "backfill", fetchImpl: opts.fetchImpl }),
+            : plan
+              ? (await plan.snapshot({ env, creds, cardNumber, opts: opts_ })).doc
+              : await getCardV2(env, creds, cardNumber, opts_),
         );
       } catch (e) {
         docByCard.set(row.efs_card_id, null);
@@ -167,7 +188,11 @@ export async function resolveUnresolvedMutations(
     const doc = docByCard.get(row.efs_card_id) ?? null;
     if (doc === null) continue;
 
-    const landed = editsLanded(doc, edits);
+    // Three-valued, and "indeterminate" is not "no": a capability that genuinely cannot tell must
+    // leave the row where a human can see it rather than have it settled by default.
+    const landing = plan ? plan.judge({ doc }, edits, row.request_body) : (editsLanded(doc, edits) ? "landed" : "not_landed");
+    if (landing === "indeterminate") continue;
+    const landed = landing === "landed";
     const cycleMs = (env.EFS_CARD_SYNC_HOURS ?? 24) * 3600 * 1000;
     if (!landed && ageMs <= cycleMs) continue; // too fresh to condemn — the apply may still be coming
 
@@ -206,7 +231,13 @@ export async function resolveUnresolvedMutations(
     await writeAudit(admin, {
       orgId: creds.orgId, action: "card.mutation_reconciled",
       entity: "efs_cards", entityId: row.efs_card_id,
-      meta: { mutationId: row.id, outcome: landed ? "succeeded" : "failed", ageMs },
+      meta: {
+        mutationId: row.id,
+        outcome: landed ? "succeeded" : "failed",
+        ageMs,
+        // Which predicate answered. A settlement nobody can attribute is one nobody can re-check.
+        judgedBy: row.capability_key ?? "edits_landed",
+      },
     });
   }
 

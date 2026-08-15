@@ -46,6 +46,16 @@ const deleteOverrideVerify: VerifyPlan<OverrideClearBody> = {
     if (!after.doc) return "indeterminate";
     return overrideClearedLanded(after.doc) ? "landed" : "not_landed";
   },
+  /**
+   * Identical to `judge`, and that is the whole point: this op's landing was ALREADY an after-only
+   * question, so it reconciles as well hours later as it does live. Until Step 3.9 the reconciler
+   * could not ask it — a direct write records no edits, and it skipped every row with an empty edit
+   * list, so an unverified `deleteOverride` stayed "Unverified" forever.
+   */
+  reconcile: (after) => {
+    if (!after.doc) return "indeterminate";
+    return overrideClearedLanded(after.doc) ? "landed" : "not_landed";
+  },
 };
 
 export const deleteOverrideBehaviour = defineBehaviour(deleteOverrideContract, {
