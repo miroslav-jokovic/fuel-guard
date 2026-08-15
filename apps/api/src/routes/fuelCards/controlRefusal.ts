@@ -47,6 +47,18 @@ export function refusal(blockedBy: string | null, scope: CardScope): [string, st
         "card_control_not_entitled",
         "The EFS connection changed since this company was checked. An admin needs to re-run the connection check before card actions work again.",
       ];
+    case "not_promoted":
+      return [
+        "card_control_not_promoted",
+        // Not "not entitled": the account may well be entitled. What is missing is OUR record that
+        // somebody approved this capability here, and the fix is a proof run, not a WEX call.
+        "This action has not been approved for this company yet. An admin needs to prove it on a test card first.",
+      ];
+    case "capability_suspended":
+      return [
+        "card_control_suspended",
+        "This action is suspended for this company. An admin can re-enable it once whatever caused the suspension is resolved.",
+      ];
     case "role":
       return ["forbidden", "Your role cannot change fuel cards."];
     case "not_approver":

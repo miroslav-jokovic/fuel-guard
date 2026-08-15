@@ -64,12 +64,51 @@ const NO_SCOPES: CardScope[] = [];
  * to "no write access, and here is why". A read page must render even when the write side is
  * misconfigured — that is the whole point of shipping the read layer independently.
  */
+/**
+ * Is this one capability allowed on this one org, right now? (Step 4.2)
+ *
+ * ── Deliberately uncached, and that is the feature ──────────────────────────────────────────────
+ * One extra indexed lookup per card write, against `uq_efs_capability_promotions_org_capability`.
+ * A TTL cache would make suspension take effect "within a minute", and suspension is the control an
+ * operator reaches for when a capability is actively doing damage — a minute of a runaway write path
+ * is the entire scenario this table exists to end. The plan says not to add one; this is why.
+ *
+ * ── Fails CLOSED on a database error ────────────────────────────────────────────────────────────
+ * An unreadable promotion table is not permission. It resolves to `not_promoted`, which refuses,
+ * because the alternative is that a database hiccup silently opens every capability at once.
+ */
+async function promotionBlock(
+  admin: SupabaseClient,
+  orgId: string,
+  capabilityKey: string,
+): Promise<CardCapabilities["blockedBy"] | null> {
+  const { data, error } = await admin
+    .from("efs_capability_promotions")
+    .select("state")
+    .eq("org_id", orgId)
+    .eq("capability_key", capabilityKey)
+    .maybeSingle();
+  if (error) return "not_promoted";
+
+  const state = (data as { state?: string } | null)?.state ?? null;
+  if (state === "enabled") return null;
+  // `suspended` gets its own answer: "switched off deliberately" and "never approved" send an admin
+  // to two different places, exactly as `not_entitled` and `not_enabled` already do.
+  return state === "suspended" ? "capability_suspended" : "not_promoted";
+}
+
 export async function loadCardControlAccess(
   admin: SupabaseClient,
   env: Env,
   orgId: string,
   userId: string,
   role: UserRole | null,
+  /**
+   * The capability being attempted. Omitted by the READ paths, which render what a user could do in
+   * general and must not be made to answer for a capability nobody named — passing one there would
+   * blank the whole card-control UI the moment a single capability were suspended.
+   */
+  capabilityKey?: string,
 ): Promise<CardControlAccess> {
   const denied = (blockedBy: CardCapabilities["blockedBy"], writeEntitlement: CardCapabilities["writeEntitlement"] = "unknown"): CardControlAccess => ({
     canLock: false, canUnlock: false, canOverride: false, canSetPrompts: false,
@@ -95,6 +134,14 @@ export async function loadCardControlAccess(
   }
   if (!row?.enabled) return denied("not_enabled", entitlement);
   if (entitlement !== "confirmed") return denied("not_entitled", entitlement);
+
+  // AFTER the account-level facts and before the per-user ones: a capability nobody promoted is
+  // refused whoever is asking, and telling an approver "you are not on the list" when the real
+  // answer is "this action is not approved for anyone here" sends them to the wrong place.
+  if (capabilityKey) {
+    const promotion = await promotionBlock(admin, orgId, capabilityKey);
+    if (promotion) return denied(promotion, entitlement);
+  }
 
   const currentCredentials = credentials as {
     endpoint_url: string;

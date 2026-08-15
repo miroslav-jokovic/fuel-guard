@@ -77,7 +77,7 @@ async function handle(capability: MountedCapability, req: Request, res: Response
     return;
   }
 
-  const prepared = await prepare(req, res, contract.scope as CardScope);
+  const prepared = await prepare(req, res, contract.scope as CardScope, contract.key);
   if (!prepared) return;
 
   await run(res, prepared.ctx, accepted, contract.intent, prepared.ctx.efsCardId);

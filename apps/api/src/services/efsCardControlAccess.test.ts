@@ -22,9 +22,15 @@ const baseIdentity = {
 function accessRecorder(
   probedIdentityHash: string | null,
   current: Partial<typeof baseIdentity> = {},
+  /** The promotion row the Step 4.2 gate reads. `undefined` models a row that does not exist. */
+  promotion?: { state: string } | { error: string },
 ) {
+  const promotionTable = promotion && "error" in promotion
+    ? { data: null, error: { message: promotion.error } }
+    : { data: promotion ?? null, error: null };
   return createSupabaseRecorder({
     tables: {
+      efs_capability_promotions: promotionTable,
       efs_card_control_settings: {
         data: {
           enabled: true,
@@ -134,5 +140,63 @@ describe("card-control credential identity binding", () => {
     await loadCardControlAccess(rec.client, env, "org-warning-once", "user-1", "admin");
 
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the promotion gate (Step 4.2)", () => {
+  const identity = () => credentialIdentityHash(env, baseIdentity);
+
+  it("refuses a capability nobody has promoted, even for an admin on a confirmed org", async () => {
+    // Every account-level fact holds — enabled, entitled, identity matching, admin role. The only
+    // thing missing is our own record that somebody approved THIS capability here.
+    const rec = accessRecorder(identity(), {}, undefined);
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin", "card_lock");
+
+    expect(access.blockedBy).toBe("not_promoted");
+    expect(access.canLock).toBe(false);
+  });
+
+  it("refuses a suspended capability even when write_entitlement is confirmed", async () => {
+    const rec = accessRecorder(identity(), {}, { state: "suspended" });
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin", "card_lock");
+
+    // Its own reason, not `not_promoted`: "switched off deliberately" and "never approved" send an
+    // admin to two different places, and suspension is the one an operator reaches for at 2am.
+    expect(access.blockedBy).toBe("capability_suspended");
+  });
+
+  it("allows a promoted capability", async () => {
+    const rec = accessRecorder(identity(), {}, { state: "enabled" });
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin", "card_lock");
+
+    // The pair matters: without it, a gate that refused unconditionally would satisfy both cases
+    // above for the wrong reason.
+    expect(access.blockedBy).toBeNull();
+    expect(access.canLock).toBe(true);
+  });
+
+  it("does not consult the promotion table at all for a read — no capability named", async () => {
+    // The read paths render what a user could do in general. Making them answer for a capability
+    // nobody named would blank the whole card-control UI the moment one capability were suspended.
+    const rec = accessRecorder(identity(), {}, undefined);
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin");
+
+    expect(access.blockedBy).toBeNull();
+    expect(access.canLock).toBe(true);
+  });
+
+  it("FAILS CLOSED when the promotion table cannot be read", async () => {
+    const rec = accessRecorder(identity(), {}, { error: "relation does not exist" });
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin", "card_lock");
+
+    // An unreadable promotion table is not permission. The alternative is that one database hiccup
+    // silently opens every capability at once.
+    expect(access.blockedBy).toBe("not_promoted");
+    expect(access.canLock).toBe(false);
   });
 });
