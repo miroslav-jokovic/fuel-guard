@@ -206,7 +206,11 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 
 **Baseline established by `docs/EFS-RECON-REPORT.md` (commit `5b28b20`, branch `recon/efs-baseline`).**
 
-> **⚠️ That file is NOT on `main`** — it exists only on the unmerged `recon/efs-baseline` branch (verified 2026-08-15 evening). The document this entire plan is baselined on is one `git branch -D` away from being gone, and nothing in the repo would notice. Merge it or move it onto `main` before anybody prunes stale branches; there are 30 of them, most already squash-merged and superseded.
+> **✅ ON `main` since 2026-08-15 night.** It was not, for three days: it existed only on the unmerged `recon/efs-baseline` branch, so the document this entire plan is baselined on was one `git branch -D` away from being gone and nothing in the repo would have noticed. Found by the plan audit, which checked every path this document names against the tree.
+>
+> Rescued by **cherry-picking `9c0688e`**, not by copying the file — the content is byte-identical and the original authorship and `Co-Authored-By: Devin` trailer survive, which matters for a document whose whole value is being a dated, attributable baseline. Vetted before it went onto a PUBLIC repository: no PANs, no credentials, no emails, no org ids. The one UUID in it is a Railway deployment id, already public in `/api/version`.
+>
+> **The branch may now be pruned safely**, along with the other 29 — most are squash-merged and superseded. Check for content unique to a branch (`git diff main...<branch> --name-only`) before deleting, not just whether it looks merged.
 
 **CI is red on `main`, and has been since `61a05ca` (2026-08-12) — the card-control hardening commit.** It added `hasStepUpToken` and widened the `CardEdit` union without updating three test files. Because `migrate.yml`, `driver-android.yml` and `driver-ota.yml` are each gated by `require-ci-green`, **no migration has reached the database and no driver build has shipped since.** Nothing in this plan can proceed until 0.1–0.6 are done.
 
