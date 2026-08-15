@@ -691,10 +691,29 @@ The production org has no row at all, so card control is QA-only today — which
 **Change:** replay a fixture, run any capability's `buildEdits`, assert exact wire bytes. Runs in CI.
 **Verify:** covers all five migrated capabilities.
 
-### Step 4.4 — Config scanner (three-state)
-**Files:** `apps/api/src/efs/harness/configScan.ts`, `apps/api/src/routes/fuelCards/scan.ts` (new).
+### ✅ Step 4.4 — Config scanner (three-state) — DONE 2026-08-15
+**Files:** `apps/api/src/efs/harness/configScan.ts`, `apps/api/src/routes/fuelCards/scan.ts`, `apps/api/src/scripts/runConfigScan.ts`.
 **Change:** read **raw wire text, never `doc.card`** — the typed view destroys format information (`boolOrNull` collapses `false` and `0`; `locationOverride` collapses `"0"` and `"1"` to null; `leafText` collapses nil and empty). Emit JSON: per field → `{observedValues[], count, rawSpelling, nilCount, absentCount, presentEmptyCount}`. Compare against each contract's `emittableValues` and report **`match` / `mismatch` / `unobserved`**.
 **Verify:** *"a field with no observed value reports unobserved, not match"*. Run against QA and production; commit the JSON.
+
+**Spends no vendor calls.** The mirror already stores `last_response_xml_redacted` — the vendor's own bytes — for **234 of 234 cards** across both orgs. Re-reading the fleet live would cost 234 paced calls against a shared budget to answer a question about SPELLING, which does not go stale in a day. The route is therefore the one fuel-card route classified `opensSoap: false` that reads vendor data. Provenance (corpus size, rows with no stored document, freshness range) rides on every response, because `unobserved` from a complete corpus and `unobserved` from a partial one are different findings.
+
+**Results — `docs/efs/config-scan-{sandbox,production}.json`, committed:**
+
+| Field | sandbox (35 cards) | production (199 cards) |
+|---|---|---|
+| `card_lock.status` / `card_unlock.status` | **unobserved** / match | **match** |
+| `override_{grant,clear}.overrideAllLocations` | **unobserved** | **unobserved** |
+| `prompts_set.validationType` / `.infoId` | match | match |
+
+**H3 confirmed mechanically, on production's 199 cards as well as QA's:** `overrideAllLocations` emits `false` and nothing else, on every card in both orgs. Step 3.11's `indeterminate` is now backed by an instrument rather than a hand-run query — and under Step 4.6's rule, **`override_grant` cannot be promoted**, which is the correct outcome.
+
+#### Two findings from building it
+
+**① `emittableValues` was about to make a safe capability unpromotable.** The first run reported `card_lock.status` as **mismatch** on both orgs: the account emits `ACTIVE`/`HOLD` and the contract declares `Active`/`Hold`. That verdict was *factually wrong about consequence* — `matchStatusCasing` has spelled status writes from the account's own fresh read since the 2026-08-12 incident, so the write lands. `cardLock.contract.ts` already said so in prose. It is now declared in the type: **`casingAdaptiveFields`**, per field and per capability, never a blanket tolerance (standing rule 4). The per-value verdict still records the casing difference; only the field-level judgement changes, because only the field-level judgement is a claim about what happens next.
+
+**② ⚠️ A fleet-at-rest snapshot cannot observe a TRANSIENT value — this changes Step 4.6.** QA reports `card_lock.status` as `unobserved` because **no QA card is currently in HOLD**, and `Hold` is exactly the value `card_lock` exists to write. A card *was* locked to Hold on QA on 2026-08-14 and reverted per rule 14, so the value existed and the snapshot missed it by design. **`unobserved` therefore does not mean "the account rejects this value"** — for a state a card passes through rather than rests in, a scan can never say otherwise. See Step 4.6.
+
 
 ### Step 4.5 — Live prover
 **Files:** `apps/api/src/efs/harness/prove.ts`, `apps/api/src/routes/fuelCards/prove.ts` (new).
@@ -706,7 +725,11 @@ The production org has no row at all, so card control is QA-only today — which
 
 ### Step 4.6 — Promotion endpoint + CLI
 **Files:** `apps/api/src/routes/fuelCards/promote.ts`, `scripts/efs.mjs` (new), `package.json`.
-**Change:** `POST /api/fuel-cards/promote/:capability` — admin, `requireFreshAuth`, body `{action, reason: 3..500, proofId}`. **Server-side, promotion to `enabled` is refused unless**: the proof's five OEG results are green, the proof's `document_shape` matches the target org's observed shape, and every `vocabularyField` is `match` (not `unobserved`) in the config scan. Suspension needs no proof. CLI: `pnpm efs:prove`, `pnpm efs:scan`, `pnpm efs:echo-scan`, `pnpm efs:promote`.
+**Change:** `POST /api/fuel-cards/promote/:capability` — admin, `requireFreshAuth`, body `{action, reason: 3..500, proofId}`. **Server-side, promotion to `enabled` is refused unless**: the proof's five OEG results are green, the proof's `document_shape` matches the target org's observed shape, and every `vocabularyField` is `match` (not `unobserved`) in the config scan. Suspension needs no proof.
+
+> **⚠️ AMEND THIS RULE BEFORE BUILDING IT — Step 4.4 proved it unsatisfiable as written.** "Every `vocabularyField` must be `match` in the config scan" cannot be met for a value a card only passes THROUGH. QA reports `card_lock.status` `unobserved` because no QA card is in HOLD right now, and rule 14 guarantees none stays there — so `card_lock`, the safest capability in the product and one already verified live twice, could never be promoted on QA.
+>
+> **The scan and the prover answer different questions and the gate must accept both.** The scan asks *what does the fleet look like at rest*; Step 4.5's prover asks *what happens when we write this exact value and read it back* — which is strictly stronger evidence for precisely the transient case. The rule should be: every `vocabularyField` is `match` in the config scan **OR** the value was observed in the after-document of a green proof for this capability. `mismatch` still blocks unconditionally; `unobserved` with no proof still blocks. Decide the wording when 4.6 is built, but do not build the written version — it blocks the good outcome and would be "fixed" under pressure by weakening something. CLI: `pnpm efs:prove`, `pnpm efs:scan`, `pnpm efs:echo-scan`, `pnpm efs:promote`.
 **Verify:** *"promotion is refused when the document shape differs"* · *"promotion is refused when a vocabulary field is unobserved"* · *"suspension needs no proof"*. **Deployed:** promote `card_lock` on QA; attempt production and record the outcome — **a block is the system working**.
 
 ### ✅ Exit Gate — Phase 4

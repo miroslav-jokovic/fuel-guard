@@ -86,6 +86,23 @@ export interface CapabilityContract<TSchema extends z.ZodTypeAny> {
   /** Vendor string fields this capability sends, and what it can emit — the config scanner's surface. */
   vocabularyFields: readonly string[];
   emittableValues: Readonly<Record<string, readonly string[]>>;
+  /**
+   * Fields whose casing is taken from the account's own fresh read AT WRITE TIME rather than from
+   * `emittableValues` — so a case-only difference between the two is a handled adaptation, not a
+   * mis-spelling that will be silently ignored.
+   *
+   * Exists because the config scanner (Step 4.4) would otherwise be factually wrong about `status`:
+   * this account emits `ACTIVE`/`HOLD` where the guide says `Active`/`Hold`, and `matchStatusCasing`
+   * has borrowed the observed casing since the 2026-08-12 incident. Reporting that as `mismatch`
+   * would claim the next write is about to be dropped, which is the one thing that is NOT true of a
+   * field with a named adapter in front of it — and it would make a correct, safe capability
+   * permanently unpromotable under Step 4.6's `match`-only gate.
+   *
+   * Declared per field and per capability so it is never a blanket tolerance: standing rule 4 allows
+   * a named, tested adapter and nothing else. The scanner still REPORTS the casing difference on the
+   * value; only the field-level verdict changes.
+   */
+  casingAdaptiveFields?: readonly string[];
   ui: CapabilityUi;
 }
 

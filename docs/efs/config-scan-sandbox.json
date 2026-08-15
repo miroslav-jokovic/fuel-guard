@@ -1,0 +1,349 @@
+{
+  "environment": "sandbox",
+  "provenance": {
+    "source": "mirror.last_response_xml_redacted",
+    "cardsInOrg": 35,
+    "cardsWithStoredDocument": 35,
+    "cardsWithoutStoredDocument": 0,
+    "oldestSyncedAt": "2026-08-15T02:34:02.924+00:00",
+    "newestSyncedAt": "2026-08-15T02:48:44.127+00:00"
+  },
+  "documentsScanned": 35,
+  "documentsUnparseable": 0,
+  "fields": [
+    {
+      "field": "infoId",
+      "documentsScanned": 35,
+      "documentsWithField": 7,
+      "occurrences": 17,
+      "observedValues": [
+        {
+          "text": "DRID",
+          "count": 7
+        },
+        {
+          "text": "NAME",
+          "count": 5
+        },
+        {
+          "text": "UNIT",
+          "count": 5
+        }
+      ],
+      "rawSpellings": [
+        "DRID",
+        "NAME",
+        "UNIT"
+      ],
+      "nilCount": 0,
+      "absentCount": 28,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "overrideAllLocations",
+      "documentsScanned": 35,
+      "documentsWithField": 35,
+      "occurrences": 35,
+      "observedValues": [
+        {
+          "text": "false",
+          "count": 35
+        }
+      ],
+      "rawSpellings": [
+        "false"
+      ],
+      "nilCount": 0,
+      "absentCount": 0,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "status",
+      "documentsScanned": 35,
+      "documentsWithField": 35,
+      "occurrences": 35,
+      "observedValues": [
+        {
+          "text": "ACTIVE",
+          "count": 34
+        },
+        {
+          "text": "INACTIVE",
+          "count": 1
+        }
+      ],
+      "rawSpellings": [
+        "ACTIVE",
+        "INACTIVE"
+      ],
+      "nilCount": 0,
+      "absentCount": 0,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    },
+    {
+      "field": "validationType",
+      "documentsScanned": 35,
+      "documentsWithField": 7,
+      "occurrences": 17,
+      "observedValues": [
+        {
+          "text": "REPORT_ONLY",
+          "count": 9
+        },
+        {
+          "text": "EXACT_MATCH",
+          "count": 8
+        }
+      ],
+      "rawSpellings": [
+        "REPORT_ONLY",
+        "EXACT_MATCH"
+      ],
+      "nilCount": 0,
+      "absentCount": 28,
+      "presentEmptyCount": 0,
+      "containerCount": 0
+    }
+  ],
+  "verdicts": [
+    {
+      "capability": "card_lock",
+      "field": "status",
+      "state": "unobserved",
+      "values": [
+        {
+          "expected": "Hold",
+          "state": "unobserved"
+        },
+        {
+          "expected": "Inactive",
+          "state": "observed_differently_cased",
+          "observedAs": [
+            "INACTIVE"
+          ]
+        }
+      ],
+      "observation": {
+        "field": "status",
+        "documentsScanned": 35,
+        "documentsWithField": 35,
+        "occurrences": 35,
+        "observedValues": [
+          {
+            "text": "ACTIVE",
+            "count": 34
+          },
+          {
+            "text": "INACTIVE",
+            "count": 1
+          }
+        ],
+        "rawSpellings": [
+          "ACTIVE",
+          "INACTIVE"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "card_unlock",
+      "field": "status",
+      "state": "match",
+      "values": [
+        {
+          "expected": "Active",
+          "state": "observed_differently_cased",
+          "observedAs": [
+            "ACTIVE"
+          ]
+        }
+      ],
+      "observation": {
+        "field": "status",
+        "documentsScanned": 35,
+        "documentsWithField": 35,
+        "occurrences": 35,
+        "observedValues": [
+          {
+            "text": "ACTIVE",
+            "count": 34
+          },
+          {
+            "text": "INACTIVE",
+            "count": 1
+          }
+        ],
+        "rawSpellings": [
+          "ACTIVE",
+          "INACTIVE"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "override_grant",
+      "field": "overrideAllLocations",
+      "state": "unobserved",
+      "values": [
+        {
+          "expected": "true",
+          "state": "unobserved"
+        },
+        {
+          "expected": "false",
+          "state": "observed_exact"
+        }
+      ],
+      "observation": {
+        "field": "overrideAllLocations",
+        "documentsScanned": 35,
+        "documentsWithField": 35,
+        "occurrences": 35,
+        "observedValues": [
+          {
+            "text": "false",
+            "count": 35
+          }
+        ],
+        "rawSpellings": [
+          "false"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "override_clear",
+      "field": "overrideAllLocations",
+      "state": "unobserved",
+      "values": [
+        {
+          "expected": "true",
+          "state": "unobserved"
+        },
+        {
+          "expected": "false",
+          "state": "observed_exact"
+        }
+      ],
+      "observation": {
+        "field": "overrideAllLocations",
+        "documentsScanned": 35,
+        "documentsWithField": 35,
+        "occurrences": 35,
+        "observedValues": [
+          {
+            "text": "false",
+            "count": 35
+          }
+        ],
+        "rawSpellings": [
+          "false"
+        ],
+        "nilCount": 0,
+        "absentCount": 0,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "prompts_set",
+      "field": "validationType",
+      "state": "match",
+      "values": [
+        {
+          "expected": "EXACT_MATCH",
+          "state": "observed_exact"
+        },
+        {
+          "expected": "REPORT_ONLY",
+          "state": "observed_exact"
+        }
+      ],
+      "observation": {
+        "field": "validationType",
+        "documentsScanned": 35,
+        "documentsWithField": 7,
+        "occurrences": 17,
+        "observedValues": [
+          {
+            "text": "REPORT_ONLY",
+            "count": 9
+          },
+          {
+            "text": "EXACT_MATCH",
+            "count": 8
+          }
+        ],
+        "rawSpellings": [
+          "REPORT_ONLY",
+          "EXACT_MATCH"
+        ],
+        "nilCount": 0,
+        "absentCount": 28,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    },
+    {
+      "capability": "prompts_set",
+      "field": "infoId",
+      "state": "match",
+      "values": [
+        {
+          "expected": "DRID",
+          "state": "observed_exact"
+        },
+        {
+          "expected": "UNIT",
+          "state": "observed_exact"
+        }
+      ],
+      "observation": {
+        "field": "infoId",
+        "documentsScanned": 35,
+        "documentsWithField": 7,
+        "occurrences": 17,
+        "observedValues": [
+          {
+            "text": "DRID",
+            "count": 7
+          },
+          {
+            "text": "NAME",
+            "count": 5
+          },
+          {
+            "text": "UNIT",
+            "count": 5
+          }
+        ],
+        "rawSpellings": [
+          "DRID",
+          "NAME",
+          "UNIT"
+        ],
+        "nilCount": 0,
+        "absentCount": 28,
+        "presentEmptyCount": 0,
+        "containerCount": 0
+      }
+    }
+  ],
+  "summary": {
+    "match": 3,
+    "mismatch": 0,
+    "unobserved": 3
+  }
+}
