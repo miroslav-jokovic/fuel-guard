@@ -525,3 +525,37 @@ is unexplained drift exactly as on the echo path.
 
 Findings land here when the run completes. Until then: flag off, echo clear remains the mechanism,
 and nothing user-visible changes.
+
+## Override grant lands and is recorded `failed` — 2026-08-14 (QA, live, OPEN)
+
+**Observed.** A single-use override granted through the FuelGuard drawer on a QA card. The card page
+badge showed `Override: 1 use left`; the toast showed *"EFS refused the change — EFS accepted the
+request but the card is unchanged. Check the card in the WEX portal before retrying."*
+
+**Both are our own output, and they disagree.** The badge is written by `updateMirror`, which is fed
+from the verifying re-read inside the same operation — so it is EFS's own answer after the write.
+The toast is `finalizeFailed`'s no-fault text, reached when `intentLanded` returns false. The write
+landed; the judgement condemned it.
+
+**Why this is the dangerous direction.** Re-granting does not overwrite an override, it grants
+another one, and the message instructs the operator to retry. `efsCardControl.ts` states the stake
+directly: *"the failure mode of a double-submitted override is a driver getting two free tanks."*
+The audit trail also records `card.mutation_failed` against a write that succeeded, which is wrong
+for compliance independently of the fuel.
+
+**Leading hypothesis, from recorded vendor data rather than the guide.** Every `getCardv2` fixture
+captured from this account carries `overrideAllLocations=false` — including
+`getCardV2.overridden.xml`, which has an override armed (uses 2, location 115732). **No recorded
+response from this vendor has ever carried `true`.** An all-locations grant writes three fields;
+`override` demonstrably lands. If EFS stores or returns `false` for `overrideAllLocations`, one
+edited path differs and `intentLanded` fails the whole mutation on it — the same shape as the H1
+casing incident (2026-08-12), one field further out, and outside `vendorNormalisedOnly`'s tolerance
+because `true` vs `false` is not a difference of case and must not become one.
+
+**Not yet confirmed.** The ledger records the answer and no vendor call is needed:
+`drift->'unexplained'` on the `override_grant` row names the field that did not land. That read is
+Step 3.11's first instruction, ahead of any fix.
+
+**Recorded here rather than fixed** because the fix depends on what the drift says, and because the
+tempting fix — widening `intentLanded` — would hide every genuine partial failure on every
+capability. Normalisation is a named, tested adapter or it is nothing (standing rule 4).
