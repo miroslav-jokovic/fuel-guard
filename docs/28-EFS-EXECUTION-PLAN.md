@@ -47,6 +47,13 @@ node scripts/check-file-size.mjs        # expect: see Phase 0 note
 
 **Sourced from `.github/workflows/ci.yml`, in its order. Never take this list from another document** — an earlier version of this plan copied it from a handoff doc, omitted four gates, and one of the four (`lint:ui-adoption`) was red on `main` the entire time.
 
+> **`lint:secrets` scans `git archive HEAD` — tracked content at HEAD, nothing else.** That is
+> deliberate (`scripts/scan-secrets.mjs`: the file set is then identical locally and in CI, and an
+> untracked `.env` never produces a false alarm). The consequence is easy to miss and cost a red CI
+> run on 2026-08-15: **running it before you commit scans a HEAD that does not contain your new
+> files, and passes for that reason.** Run it after committing, or it has told you nothing about the
+> code you just wrote.
+
 ```bash
 pnpm lint:secrets                          # ci.yml runs this FIRST, before install
 pnpm install --frozen-lockfile
