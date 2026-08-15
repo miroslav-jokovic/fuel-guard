@@ -18,7 +18,7 @@
  * silently and fail as "Invalid or expired token", which reads like a vendor problem and is not one.
  *
  *   pnpm efs:scan                        # prompts for the token, hidden
- *   pnpm efs:prove card_lock             # prompts for the token and the card number, both hidden
+ *   pnpm efs:prove card_lock             # prompts: token, password (step-up), card number
  *   pnpm efs:promote card_lock --proof <uuid> --reason "OEG green on QA"
  *   pnpm efs:promote card_lock --suspend --reason "override drift on 7670"
  *   pnpm efs:echo-scan
@@ -103,11 +103,50 @@ async function getToken() {
   return cachedToken;
 }
 
-async function call(path, body) {
+/**
+ * A step-up token, exchanged for a freshly typed password (`POST /api/auth/step-up`).
+ *
+ * `requireFreshAuth` will not accept a recent `iat`: a refresh grant can mint a new access token
+ * without anyone re-entering a password, so access-token freshness is not password proof (audit
+ * P0-4). The routes that write to a real card demand the step-up token specifically, which is why
+ * the first two proof attempts were refused with `step_up_required`.
+ *
+ * The password is prompted hidden, sent once to this deploy's own API over TLS, and never stored,
+ * logged, echoed or kept after the request. Supabase's password grant is the verifier and its
+ * session is discarded server-side; what comes back is a short-lived HMAC token bound to user+org.
+ */
+let cachedStepUp = null;
+async function getStepUpToken() {
+  if (cachedStepUp) return cachedStepUp;
   const bearer = await getToken();
-  const res = await fetch(`${api}${path}`, {
+  const password = await promptHidden("Password (hidden, for step-up re-authentication): ", "password");
+  if (!password) die("No password given — this action requires step-up re-authentication.");
+
+  const res = await fetch(`${api}/api/auth/step-up`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` },
+    body: JSON.stringify({ password }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    console.error(text);
+    die("Step-up refused. The password must be the one for the account whose token you pasted.");
+  }
+  cachedStepUp = JSON.parse(text).token;
+  if (!cachedStepUp) die("The step-up endpoint returned no token.");
+  return cachedStepUp;
+}
+
+async function call(path, body, opts = {}) {
+  const bearer = await getToken();
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` };
+  // Only where the route demands it, and asked for BEFORE the request rather than after a 403, so
+  // the operator types one password instead of discovering they needed it.
+  if (opts.stepUp) headers["x-step-up-token"] = await getStepUpToken();
+
+  const res = await fetch(`${api}${path}`, {
+    method: "POST",
+    headers,
     body: JSON.stringify(body ?? {}),
   });
   const text = await res.text();
@@ -144,11 +183,11 @@ switch (command) {
     }
     // The FULL number, because the API unseals and matches on it. Prompted, hidden, held in memory
     // for one request, and only its last four are ever printed or stored.
-    await getToken();
+    await getStepUpToken();
     const card = await promptHidden("Card number (hidden): ", "card number");
     if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
     console.log(`Proving ${capability} against \u2022\u2022\u2022\u2022${card.slice(-4)} \u2014 it will be written to twice.`);
-    await call(`/api/fuel-cards/prove/${capability}`, { cardNumber: card, confirm: `PROVE ${card.slice(-4)}` });
+    await call(`/api/fuel-cards/prove/${capability}`, { cardNumber: card, confirm: `PROVE ${card.slice(-4)}` }, { stepUp: true });
     break;
   }
 
@@ -157,11 +196,11 @@ switch (command) {
     const reason = typeof flags.reason === "string" ? flags.reason : null;
     if (!reason) die("--reason is required in both directions: 'why was this allowed' and 'why was this stopped' are both audit questions.");
     if (flags.suspend) {
-      await call(`/api/fuel-cards/promote/${capability}`, { action: "suspend", reason });
+      await call(`/api/fuel-cards/promote/${capability}`, { action: "suspend", reason }, { stepUp: true });
       break;
     }
     if (typeof flags.proof !== "string") die("--proof <id> is required to enable. Run `pnpm efs:prove` first.");
-    await call(`/api/fuel-cards/promote/${capability}`, { action: "enable", reason, proofId: flags.proof });
+    await call(`/api/fuel-cards/promote/${capability}`, { action: "enable", reason, proofId: flags.proof }, { stepUp: true });
     break;
   }
 
