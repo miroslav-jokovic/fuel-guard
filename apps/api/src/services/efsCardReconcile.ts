@@ -217,6 +217,20 @@ export async function finalizeFailed(
 
   await audit(ctx, plan, "card.mutation_failed", after, {
     outcome: "failed", efsFaultCode: faultCode, efsFaultMessage: faultMessage.slice(0, 300),
+    /**
+     * WHICH edits the vendor did not carry — the one fact a failed row could not previously state.
+     *
+     * Step 3.11's investigation was told to read `drift->'unexplained'`. That column is null on every
+     * failed row: `finalizeLanded` writes `drift`, this function never has, and the diagnosis had to
+     * be reconstructed from `edits` against `after_document` by a script written for the purpose.
+     * A `no_change` failure naming no field is a failure nobody can act on.
+     *
+     * The audit row rather than the `drift` column deliberately: `drift` means "fields that moved
+     * which no edit named", and these are the opposite — fields an edit named that did NOT move.
+     * Overloading one jsonb column with two inverted meanings is how `sync_error` came to say two
+     * unrelated things (docs/30 §6.F).
+     */
+    unlandedFields: unlandedEditNames(plan.before, after, plan.edits),
   });
 
   return {
