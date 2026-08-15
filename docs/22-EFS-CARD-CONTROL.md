@@ -934,8 +934,24 @@ meets the second wall.
 
 **Fixed in the same session.** The proof-dependent checks are skipped when there is no proof — "OEG-1
 is not obtained" adds nothing to "there is no proof", and four such lines would bury the refusals that
-carry independent fixes — while every org-level check still runs. The same attempt now returns three
-refusals. Verified by restoring the early return and watching exactly one test go red.
+carry independent fixes — while every org-level check still runs. Verified by restoring the early
+return and watching exactly one test go red.
+
+**CONFIRMED LIVE after the deploy, same command, same org:**
+
+```
+"refusals": [
+  "No proof run exists for card_lock on this company. Run one before promoting.",
+  "This company's document shape has not been recorded — run the config scan first.",
+  "The config scan reports \"status\" as UNOBSERVED and the proof run did not observe it either. No evidence is not evidence."
+]
+```
+
+Three reasons, three different fixes, one round trip — and **inert again**: zero promotion rows, zero
+settings rows, zero capability audit rows, all five promotions still QA-only. The prediction written
+before the first run said the fix would yield TWO; it yields three, because the vocabulary check is
+independently true for an org with no config scan. The count in the unit test was corrected to match
+what the code actually does, not what I assumed it would.
 
 **Two smaller things the run taught:**
 
