@@ -101,6 +101,13 @@ Re-baselined `rls` 375 → 377 on 2026-08-13: migration `0189_fuel_price_days` a
 10. **Every vendor field, operation and enum cites the WSDL or the guide, by line.**
 11. **A successful response is never evidence of a correct write. Only a re-read is.**
 12. **Never edit an applied migration.** Allocate numbers at execution time.
+
+> **How a migration actually reaches Supabase (corrected 2026-08-15).** **Miki runs `supabase db
+> push`.** `migrate.yml` exists, is gated by `require-ci-green`, and did run green on the 0191 merge
+> — but the push is what to plan around: 0192 was applied that way *before* its PR merged. So the
+> schema can be ahead of the code, and a step that assumes "merged ⇒ applied" is assuming the wrong
+> direction. **Validate against a scratch database first** (that is how 0190, 0191 and 0192 were
+> checked), then ask Miki to push. Still never dispatch `migrate.yml` by hand.
 13. **No QA card numbers in the repo.** Last-4 only.
 14. **Never leave a QA card dirty.** Every live run ends with a revert and a proving re-read.
 15. **Unset `EFS_CARD_CONTROL_PROBE_ENABLED` and redeploy** after any session that needed it.
