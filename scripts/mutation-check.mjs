@@ -181,8 +181,8 @@ const MUTATIONS = [
     id: "efs-preflight-after-limiter",
     why: "The body-only step-up runs AFTER the write limiter, so a refusal spends a slot against a daily cap for an action the caller was always allowed to take once they re-authenticate. Step 3.5b exists to prevent exactly this.",
     file: "apps/api/src/efs/router.ts",
-    find: "  if (accepted.stepUpMessage && !hasFreshAuth(req)) {\n    stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, accepted.stepUpMessage);\n    return;\n  }\n\n  const prepared = await prepare(req, res, contract.scope as CardScope);\n  if (!prepared) return;",
-    replace: "  const prepared = await prepare(req, res, contract.scope as CardScope);\n  if (!prepared) return;\n\n  if (accepted.stepUpMessage && !hasFreshAuth(req)) {\n    stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, accepted.stepUpMessage);\n    return;\n  }",
+    find: "  if (accepted.stepUpMessage && !hasFreshAuth(req)) {\n    stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, accepted.stepUpMessage);\n    return;\n  }\n\n  const prepared = await prepare(req, res, contract.scope as CardScope, contract.key);\n  if (!prepared) return;",
+    replace: "  const prepared = await prepare(req, res, contract.scope as CardScope, contract.key);\n  if (!prepared) return;\n\n  if (accepted.stepUpMessage && !hasFreshAuth(req)) {\n    stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, accepted.stepUpMessage);\n    return;\n  }",
     detect: apiTest("src/efs/router.test.ts"),
   },
   {
