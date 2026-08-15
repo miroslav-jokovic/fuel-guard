@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../testing/supabaseRecorder.js";
-import type { Env } from "../env.js";
 import { cardRefHmac } from "./efsCardMirror.js";
 import { resolveDeclineDrivers } from "./declineDriverResolution.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * The reject feed carries no driver (getTranRejects, verified against production 2026-08-12: ten
@@ -12,7 +12,7 @@ import { resolveDeclineDrivers } from "./declineDriverResolution.js";
  */
 
 const ORG = "86d6b3ea-4361-4f71-877f-e8373615769b";
-const env = { SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") } as unknown as Env;
+const env = testEnv({ SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") });
 
 const PAN_A = "7083050030485867142";
 const PAN_B = "7083050013944594507";

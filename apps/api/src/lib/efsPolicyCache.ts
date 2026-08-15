@@ -54,7 +54,7 @@ export async function getPolicyCached(
   opts: CardOpOptions = {},
 ): Promise<{ policy: WsPolicy | null; policyError: string | null }> {
   const key = keyOf(creds.orgId, policyNumber);
-  const ttl = env.EFS_POLICY_CACHE_MS ?? 10 * 60 * 1000;
+  const ttl = env.EFS_POLICY_CACHE_MS;
   const hit = cache.get(key);
   if (hit && hit.expiresAt > Date.now()) {
     return hit.value.ok

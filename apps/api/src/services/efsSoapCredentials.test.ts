@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import { getPolicyCached, __resetPolicyCache } from "../lib/efsPolicyCache.js";
 import { seal, secretAad } from "../lib/secretBox.js";
 import {
@@ -17,17 +16,18 @@ import {
   upsertEfsSoapCredentials,
   type EfsSoapCredentials,
 } from "./efsSoapCredentials.js";
+import { testEnv } from "../testing/testEnv.js";
 
 const ORG = "org-1";
 const OTHER_ORG = "org-2";
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_INTERACTIVE_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
   EFS_POLICY_CACHE_MS: 60_000,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
+});
 
 const creds = (orgId = ORG): EfsSoapCredentials => ({
   orgId,

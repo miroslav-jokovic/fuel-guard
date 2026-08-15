@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
 import type { VehicleTelemetryFetcher } from "../lib/samsara.js";
 import { syncIdleTelemetry } from "./idleTelemetrySync.js";
+import { testEnv } from "../testing/testEnv.js";
 
 const tokenLoader = vi.hoisted(() => ({ loadSamsaraToken: vi.fn() }));
 vi.mock("../lib/samsaraToken.js", () => tokenLoader);
@@ -86,7 +86,7 @@ describe("syncIdleTelemetry", () => {
       { id: "v2", samsara_vehicle_id: "s2" },
     ]);
 
-    const result = await syncIdleTelemetry(admin, {} as Env, "org-1", { sinceDays: 7, telemetryFetcher: telemetry });
+    const result = await syncIdleTelemetry(admin, testEnv(), "org-1", { sinceDays: 7, telemetryFetcher: telemetry });
 
     expect(result.vehicles).toBe(2);
     expect(result.vehiclesWithTelemetry).toBe(1);
@@ -113,7 +113,7 @@ describe("syncIdleTelemetry", () => {
     const { admin, upserts } = makeAdmin([{ id: "v1", samsara_vehicle_id: "s1" }]);
     const incomplete: VehicleTelemetryFetcher = async () => ({ data: [], complete: false, pages: 120 });
 
-    await expect(syncIdleTelemetry(admin, {} as Env, "org-1", { telemetryFetcher: incomplete })).rejects.toThrow(
+    await expect(syncIdleTelemetry(admin, testEnv(), "org-1", { telemetryFetcher: incomplete })).rejects.toThrow(
       "history was truncated",
     );
     expect(upserts).toHaveLength(0);

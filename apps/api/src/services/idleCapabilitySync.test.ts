@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
 import type { EngineStatesFetcher, SamsaraEngineVehicleRecord } from "../lib/samsara.js";
 import { syncIdleCapabilities } from "./idleCapabilitySync.js";
+import { testEnv } from "../testing/testEnv.js";
 
 const tokenLoader = vi.hoisted(() => ({ loadSamsaraToken: vi.fn() }));
 vi.mock("../lib/samsaraToken.js", () => tokenLoader);
@@ -199,7 +199,7 @@ describe("syncIdleCapabilities Phase 1 reconciliation", () => {
       currentVehicleId: null,
     };
     const admin = makeAdmin(state);
-    const result = await syncIdleCapabilities(admin, {} as Env, "org-1", {
+    const result = await syncIdleCapabilities(admin, testEnv(), "org-1", {
       sinceDays: 1,
       engineStatesFetcher: fetcher([
         {
@@ -244,7 +244,7 @@ describe("syncIdleCapabilities Phase 1 reconciliation", () => {
     };
 
     await expect(
-      syncIdleCapabilities(makeAdmin(state), {} as Env, "org-1", {
+      syncIdleCapabilities(makeAdmin(state), testEnv(), "org-1", {
         engineStatesFetcher: fetcher([], false),
       }),
     ).rejects.toThrow("history was truncated");
@@ -265,7 +265,7 @@ describe("syncIdleCapabilities Phase 1 reconciliation", () => {
       currentVehicleId: null,
     };
 
-    await syncIdleCapabilities(makeAdmin(state), {} as Env, "org-1", {
+    await syncIdleCapabilities(makeAdmin(state), testEnv(), "org-1", {
       sinceDays: 1,
       engineStatesFetcher: fetcher([
         {

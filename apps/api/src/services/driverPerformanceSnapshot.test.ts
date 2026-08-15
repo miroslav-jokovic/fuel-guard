@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { snapshotSettledWeeks } from "./driverPerformanceSnapshot.js";
 import { createSupabaseRecorder, expectOrgScoped, type RecordedQuery } from "../testing/supabaseRecorder.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Migrated off the local filter-aware `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). That fake read
@@ -12,7 +12,7 @@ import type { Env } from "../env.js";
  */
 const ORG = "org1";
 const NOW = Date.UTC(2026, 6, 24, 18, 0, 0); // Fri 2026-07-24; week 07-13..07-19 is settled (>96h after end)
-const env = {} as unknown as Env;
+const env = testEnv();
 
 /** The value the query filtered `col` on — how the fixture below answers per week. */
 const filterVal = (q: RecordedQuery, col: string) => q.filters().find((f) => f.col === col)?.val;

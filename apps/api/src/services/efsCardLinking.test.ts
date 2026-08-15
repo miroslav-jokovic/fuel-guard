@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import { seal, secretAad } from "../lib/secretBox.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { linkFuelCards } from "./efsCardLinking.js";
+import { testEnv } from "../testing/testEnv.js";
 
 const ORG = "org-1";
-const env = {
+const env = testEnv({
   // 32 bytes, base64 — a test key, never a deploy key.
   SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
-} as Env;
+});
 
 describe("linkFuelCards — identity, not compatibility (Step 7.7)", () => {
   /**

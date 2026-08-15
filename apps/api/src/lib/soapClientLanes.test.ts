@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import { __resetSoapPacing, laneTimeoutMs, soapFetch, soapLaneRps } from "./soapClient.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Two capabilities added for card control, both of which had to leave the existing pollers untouched:
@@ -8,11 +8,11 @@ import { __resetSoapPacing, laneTimeoutMs, soapFetch, soapLaneRps } from "./soap
  * branch set one — a half-open socket to EFS hung until the process died.
  */
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 2,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
-} as Env;
+});
 
 const url = "https://ws.efsllc.com/axis2/services/CardManagementWS/";
 
@@ -25,7 +25,7 @@ describe("priority lanes", () => {
   });
 
   it("gives interactive its OWN budget rather than a third slice", () => {
-    const withRps = { ...env, EFS_SOAP_INTERACTIVE_RPS: 3 } as Env;
+    const withRps = testEnv({ ...env, EFS_SOAP_INTERACTIVE_RPS: 3 });
     expect(soapLaneRps(withRps, "interactive")).toBe(3);
     // Adding the lane did not take anything away from the pollers.
     expect(soapLaneRps(withRps, "live")).toBeCloseTo(1.4);
@@ -37,7 +37,7 @@ describe("priority lanes", () => {
   });
 
   it("never returns a zero rate, which would stall a lane forever", () => {
-    const tiny = { ...env, EFS_SOAP_MAX_RPS: 0.1, EFS_SOAP_INTERACTIVE_RPS: 0.1 } as Env;
+    const tiny = testEnv({ ...env, EFS_SOAP_MAX_RPS: 0.1, EFS_SOAP_INTERACTIVE_RPS: 0.1 });
     for (const lane of ["live", "backfill", "interactive"] as const) {
       expect(soapLaneRps(tiny, lane)).toBeGreaterThan(0);
     }
@@ -46,7 +46,7 @@ describe("priority lanes", () => {
 
 describe("lane timeouts", () => {
   it("gives a waiting human a tighter deadline than an unwatched backfill", () => {
-    const configured = { ...env, EFS_SOAP_TIMEOUT_MS: 20_000, EFS_SOAP_INTERACTIVE_TIMEOUT_MS: 10_000 } as Env;
+    const configured = testEnv({ ...env, EFS_SOAP_TIMEOUT_MS: 20_000, EFS_SOAP_INTERACTIVE_TIMEOUT_MS: 10_000 });
     expect(laneTimeoutMs(configured, "interactive")).toBe(10_000);
     expect(laneTimeoutMs(configured, "live")).toBe(20_000);
     expect(laneTimeoutMs(configured, "backfill")).toBe(20_000);
@@ -98,7 +98,7 @@ describe("soapFetch deadlines", () => {
   });
 
   it("treats a timeout as transient and retries it — but ONLY when retries are allowed", async () => {
-    const retrying = { ...env, EFS_SOAP_MAX_RETRIES: 2 } as Env;
+    const retrying = testEnv({ ...env, EFS_SOAP_MAX_RETRIES: 2 });
     let calls = 0;
     const flaky = (async () => {
       calls++;

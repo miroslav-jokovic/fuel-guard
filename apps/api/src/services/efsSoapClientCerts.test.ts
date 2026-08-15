@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../env.js";
 import {
   ClientCertServiceError,
   activatePendingCert,
@@ -17,6 +16,7 @@ import {
   rollbackToPreviousCert,
   uploadClientCert,
 } from "./efsSoapClientCerts.js";
+import { testEnv } from "../testing/testEnv.js";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "lib", "__fixtures__", "mtls");
 const fx = (n: string): string => readFileSync(join(FIXTURES, n), "utf8");
@@ -29,7 +29,7 @@ const CA = fx("ca.crt");
 
 const ORG = "org-1";
 const ACTOR = "user-1";
-const env = { SECRETS_ENCRYPTION_KEY: randomBytes(32).toString("base64") } as Env;
+const env = testEnv({ SECRETS_ENCRYPTION_KEY: randomBytes(32).toString("base64") });
 
 // ── An in-memory stand-in for the one table under test ──────────────────────────────────────────
 // Deliberately a real store rather than canned responses: the properties worth testing here are
@@ -191,7 +191,7 @@ describe("uploadClientCert", () => {
   });
 
   it("refuses to store anything when SECRETS_ENCRYPTION_KEY is unset", async () => {
-    const noKeyEnv = {} as Env;
+    const noKeyEnv = testEnv();
     await expect(uploadClientCert(db.client, noKeyEnv, ORG, { certPem: CLIENT_CERT, keyPem: CLIENT_KEY }, ACTOR)).rejects.toThrow(
       /SECRETS_ENCRYPTION_KEY is not configured/,
     );

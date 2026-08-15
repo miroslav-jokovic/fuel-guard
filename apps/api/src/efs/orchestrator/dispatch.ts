@@ -260,7 +260,7 @@ async function verifyStep<TBody>(
   // the quantity that made the old number unreadable.
   if (landing === "landed") applyLatencyMs = Date.now() - verifyStartedAt;
 
-  const verifyRetryMs = ctx.env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
+  const verifyRetryMs = ctx.env.EFS_CARD_VERIFY_RETRY_MS;
   if (landing !== "landed" && verifyRetryMs > 0) {
     await sleepWithAbort(verifyRetryMs, ctx.signal);
     try {

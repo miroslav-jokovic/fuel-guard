@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Env } from "../../env.js";
 import { scoreTransaction } from "./scoreTransaction.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * Characterization tests for scoreTransaction — the previously-untested core scoring pass.
@@ -73,7 +73,7 @@ function makeAdmin(resolve: (q: SelectState) => unknown[]) {
   return { admin, writes, rpcCalls };
 }
 
-const env = {} as unknown as Env;
+const env = testEnv();
 
 const txnRow = {
   id: "t1",

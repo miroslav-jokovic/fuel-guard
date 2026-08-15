@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Env } from "../env.js";
 import type { EfsSoapCredentials } from "../services/efsSoapCredentials.js";
 import {
   EfsSoapError,
@@ -9,6 +8,7 @@ import {
   withEfsSession,
 } from "./efsSoapSession.js";
 import { __resetSoapPacing } from "./soapClient.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * The properties this file pins are the ones that keep us OUT of `AccountLockedException`. The EFS
@@ -17,13 +17,13 @@ import { __resetSoapPacing } from "./soapClient.js";
  * are willing to ask the vendor for a session, and under what circumstances we stop asking at all.
  */
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90,
   // Same reason as efsSoap.test.ts: the SSRF gate would otherwise resolve ws.efsllc.com for real.
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
-} as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: "org-1",
@@ -304,7 +304,7 @@ describe("EFS login circuit breaker", () => {
 
   it("does not RETRY a login fault — EFS returns faults as HTTP 200, so retries never engage", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const retryingEnv = { ...env, EFS_SOAP_MAX_RETRIES: 4 } as Env;
+    const retryingEnv = testEnv({ ...env, EFS_SOAP_MAX_RETRIES: 4 });
     const rec = recorder([], fault("Invalid username or password"));
 
     await expect(efsLogin(retryingEnv, creds, "live", { fetchImpl: rec.fetchImpl })).rejects.toMatchObject({ code: "auth" });

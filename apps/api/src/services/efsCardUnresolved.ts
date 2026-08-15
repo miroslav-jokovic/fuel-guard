@@ -38,8 +38,8 @@ import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 /** The live path's in-flight window, mirrored here rather than imported to keep this module free of
  *  efsCardControl's route-facing dependencies. Same inputs, same arithmetic, one comment each side. */
 function liveWindowMs(env: Env): number {
-  const perCall = env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS ?? 10_000;
-  const secondLook = env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
+  const perCall = env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS;
+  const secondLook = env.EFS_CARD_VERIFY_RETRY_MS;
   return 4 * perCall + secondLook + 15_000;
 }
 
@@ -193,7 +193,7 @@ export async function resolveUnresolvedMutations(
     const landing = plan ? plan.judge({ doc }, edits, row.request_body) : (editsLanded(doc, edits) ? "landed" : "not_landed");
     if (landing === "indeterminate") continue;
     const landed = landing === "landed";
-    const cycleMs = (env.EFS_CARD_SYNC_HOURS ?? 24) * 3600 * 1000;
+    const cycleMs = env.EFS_CARD_SYNC_HOURS * 3600 * 1000;
     if (!landed && ageMs <= cycleMs) continue; // too fresh to condemn — the apply may still be coming
 
     const { error: settleError } = await admin

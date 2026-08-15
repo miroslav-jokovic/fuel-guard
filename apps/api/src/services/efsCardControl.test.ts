@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Env } from "../env.js";
 import { parseCardDocument } from "../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
@@ -14,6 +13,7 @@ import { resolveCapability } from "../efs/orchestrator/resolve.js";
 import type { VerifyPlan } from "../efs/types.js";
 import { overrideClearedLanded } from "./efsCardEdits.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * The reconciliation matrix — the part of card control that decides what we tell a human happened.
@@ -32,7 +32,7 @@ const CARD_ID = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const USER = "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f";
 const CARD = "70830000000000000";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   // The interactive lane defaults to 1 rps. Left at the default these suites spend most of their
   // wall clock inside the pacer proving nothing.
@@ -47,7 +47,7 @@ const env = {
   // behaviour (audit P0-2) has its own test below, with a 1ms delay.
   EFS_CARD_VERIFY_RETRY_MS: 0,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: ORG,
@@ -362,7 +362,7 @@ describe("the second verifying look (audit P0-2)", () => {
     // login → read → write → verify #1 (stale: still Active) → verify #2 (landed: Hold)
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_HELD);
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
-    const outcome = await executeLock({ ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env });
+    const outcome = await executeLock({ ...ctx, env: testEnv({ ...env, EFS_CARD_VERIFY_RETRY_MS: 1 }) });
     expect(outcome.status).toBe("succeeded");
     expect(settled(rec)).toMatchObject({ status: "succeeded" });
   });
@@ -371,7 +371,7 @@ describe("the second verifying look (audit P0-2)", () => {
     const rec = recorder();
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, CARD_ACTIVE);
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
-    const outcome = await executeLock({ ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env });
+    const outcome = await executeLock({ ...ctx, env: testEnv({ ...env, EFS_CARD_VERIFY_RETRY_MS: 1 }) });
     expect(outcome.status).toBe("failed");
     expect(outcome.faultCode).toBe("no_change");
   });
@@ -381,7 +381,7 @@ describe("the second verifying look (audit P0-2)", () => {
     // verify #2 breaks — the mutation is still VERIFIED-failed by look #1, never downgraded to sent.
     const s = stub(loginOk, CARD_ACTIVE, soap(""), CARD_ACTIVE, "not xml at all");
     const ctx = ctxFor(rec, s.fetchImpl, versionOf(CARD_ACTIVE));
-    const outcome = await executeLock({ ...ctx, env: { ...env, EFS_CARD_VERIFY_RETRY_MS: 1 } as Env });
+    const outcome = await executeLock({ ...ctx, env: testEnv({ ...env, EFS_CARD_VERIFY_RETRY_MS: 1 }) });
     expect(outcome.status).toBe("failed");
     expect(settled(rec)).toMatchObject({ status: "failed" });
   });

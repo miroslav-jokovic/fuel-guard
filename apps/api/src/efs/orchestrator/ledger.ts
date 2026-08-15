@@ -1,4 +1,4 @@
-import { CARD_MUTATIONS_PER_HOUR_DEFAULT, type CardMutationIntent, type Target } from "@fuelguard/shared";
+import { type CardMutationIntent, type Target } from "@fuelguard/shared";
 import type { Env } from "../../env.js";
 import { CardControlError } from "../../services/efsCardControlErrors.js";
 import { mutationLedgerEvidence } from "../../services/efsCardMutationEvidence.js";
@@ -226,7 +226,7 @@ async function assertOrgCapacity(ctx: CardMutationContext): Promise<void> {
   // this, and every row it sets names the proof that exempted it.
   if (ctx.proofRunId) return;
 
-  const limit = ctx.env.EFS_CARD_MAX_MUTATIONS_PER_HOUR ?? CARD_MUTATIONS_PER_HOUR_DEFAULT;
+  const limit = ctx.env.EFS_CARD_MAX_MUTATIONS_PER_HOUR;
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error } = await ctx.admin
     .from("efs_card_mutations")
@@ -261,8 +261,8 @@ async function assertOrgCapacity(ctx: CardMutationContext): Promise<void> {
 /** Everything one orchestration can legitimately take: read + write + two verify reads, each on its
  *  own interactive deadline, plus the second-look pause, plus pacing margin. */
 function inFlightWindowMs(env: Env): number {
-  const perCall = env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS ?? 10_000;
-  const secondLook = env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
+  const perCall = env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS;
+  const secondLook = env.EFS_CARD_VERIFY_RETRY_MS;
   return 4 * perCall + secondLook + 15_000;
 }
 

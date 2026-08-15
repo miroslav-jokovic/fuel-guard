@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Env } from "../../env.js";
 import { getCardV2 } from "../../lib/efsCardOps.js";
 import { deleteOverrideOp } from "../../lib/efsCardWrite.js";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
@@ -14,6 +13,7 @@ import type { EfsSoapCredentials } from "../../services/efsSoapCredentials.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../../testing/supabaseRecorder.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
 import type { CardMutationContext, ResolvedCapability, ResolvedStep } from "./types.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * What Step 3.4 added, and nothing that existed before it.
@@ -34,7 +34,7 @@ const CARD_ID = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const USER = "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f";
 const CARD = "70830000000000000";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_INTERACTIVE_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
@@ -47,7 +47,7 @@ const env = {
   // second look has its own coverage in efsCardControl.test.ts.
   EFS_CARD_VERIFY_RETRY_MS: 0,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: ORG,
@@ -393,7 +393,7 @@ describe("apply latency measures the interval its column names (Step 4.7)", () =
    */
   const RETRY_MS = 300;
   const WRITE_MS = 400;
-  const withRetry = { ...env, EFS_CARD_VERIFY_RETRY_MS: RETRY_MS } as Env;
+  const withRetry = testEnv({ ...env, EFS_CARD_VERIFY_RETRY_MS: RETRY_MS });
   const ctxWithRetry = (rec: SupabaseRecorder, fetchImpl: typeof fetch, expectedVersion: string): CardMutationContext =>
     ({ ...ctxFor(rec, fetchImpl, expectedVersion), env: withRetry });
 
@@ -464,8 +464,19 @@ describe("apply latency measures the interval its column names (Step 4.7)", () =
     // whole-call timing the DIFFERENCE was still ~RETRY_MS — the pause is in one and not the other
     // either way — so a delta assertion alone passes on the broken code. What the old measurement
     // cannot do is put the immediate case under the retry interval, because it carries the write.
+    // This one stays exact.
     expect(immediate.applyLatencyMs!).toBeLessThan(RETRY_MS);
-    expect(delayed.applyLatencyMs! - immediate.applyLatencyMs!).toBeGreaterThanOrEqual(RETRY_MS);
+
+    // The delta gets a tolerance, and it is not a fudge. Observed failing at 295 >= 300 on
+    // 2026-08-15, roughly 1 isolated run in 5. The two latencies are measured in SEPARATE
+    // executeCapability calls, so the delta is RETRY_MS plus the difference between two independent
+    // read durations — if the immediate run's reads happen to take a few ms longer than the delayed
+    // run's, the delta lands just under RETRY_MS through no fault of the code. Nothing discriminating
+    // is lost: per the comment above, a collapse back to whole-call timing leaves this delta at
+    // ~RETRY_MS anyway, so this assertion never caught the bug — `immediate < RETRY_MS`, directly
+    // above, is what does, and it is untouched.
+    const TIMER_SLACK_MS = 25;
+    expect(delayed.applyLatencyMs! - immediate.applyLatencyMs!).toBeGreaterThanOrEqual(RETRY_MS - TIMER_SLACK_MS);
   });
 
   it("is null when nothing landed — an unlanded write has no apply latency", async () => {

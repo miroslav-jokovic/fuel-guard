@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cardUnlockContract } from "@fuelguard/shared";
-import type { Env } from "../../env.js";
 import { parseCardDocument } from "../../lib/efsCardXml.js";
 import { __resetEfsSessions } from "../../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../../lib/soapClient.js";
@@ -13,6 +12,7 @@ import { createSupabaseRecorder, type SupabaseRecorder } from "../../testing/sup
 import { resolveCapability } from "../orchestrator/resolve.js";
 import type { CardMutationContext } from "../orchestrator/types.js";
 import { FRAUD_STEP_UP, cardUnlockBehaviour } from "./cardUnlock.behaviour.js";
+import { testEnv } from "../../testing/testEnv.js";
 
 /**
  * The fraud step-up, which had NO test before Step 3.6 moved it.
@@ -32,7 +32,7 @@ const CARD_ID = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const USER = "2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f";
 const CARD = "70830000000000000";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_INTERACTIVE_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
@@ -43,7 +43,7 @@ const env = {
   EFS_CARD_MAX_MUTATIONS_PER_HOUR: 50,
   EFS_CARD_VERIFY_RETRY_MS: 0,
   SECRETS_ENCRYPTION_KEY: "0".repeat(64),
-} as unknown as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: ORG, environment: "production",

@@ -5,7 +5,7 @@ import {
   expectOrgScoped,
   type SupabaseRecorder,
 } from "../testing/supabaseRecorder.js";
-import type { Env } from "../env.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Migrated off the local `makeAdmin` Proxy (audit 2026-08-09, Stage 2.5). Two of this file's
@@ -16,7 +16,7 @@ import type { Env } from "../env.js";
  * adds `expectOrgScoped`, so scope is checked on the same runs as behaviour.
  */
 const ORG = "org1";
-const env = {} as Env;
+const env = testEnv();
 const T0 = Date.parse("2026-06-01T00:00:00.000Z");
 const iso = (ms: number) => new Date(ms).toISOString();
 const H = 3600_000;
@@ -184,7 +184,7 @@ describe("syncHosCurrentStatus (clocks + GPS city)", () => {
         },
       ],
     });
-    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, {
+    const res = await syncHosCurrentStatus(rec.client, testEnv(), ORG, {
       clocksFetcher,
       gpsFetcher,
     });
@@ -208,7 +208,7 @@ describe("syncHosCurrentStatus (clocks + GPS city)", () => {
     const gpsFetcher = async () => {
       throw new Error("Samsara API 500");
     };
-    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, {
+    const res = await syncHosCurrentStatus(rec.client, testEnv(), ORG, {
       clocksFetcher,
       gpsFetcher,
     });
@@ -226,7 +226,7 @@ describe("syncHosCurrentStatus (clocks + GPS city)", () => {
   it("clears the city for a truck without a GPS fix", async () => {
     const rec = createSupabaseRecorder({ tables: { drivers: driverRows } });
     const gpsFetcher = async () => ({ data: [] }); // snapshot succeeded, but no fixes reported
-    const res = await syncHosCurrentStatus(rec.client, {} as Env, ORG, {
+    const res = await syncHosCurrentStatus(rec.client, testEnv(), ORG, {
       clocksFetcher,
       gpsFetcher,
     });

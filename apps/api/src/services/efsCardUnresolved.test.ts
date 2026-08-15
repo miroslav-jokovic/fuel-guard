@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Env } from "../env.js";
 import { seal, secretAad } from "../lib/secretBox.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, type SupabaseRecorder } from "../testing/supabaseRecorder.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 import { resolveUnresolvedMutations } from "./efsCardUnresolved.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Settling the rows nobody could settle live — and the class of row that could never be settled.
@@ -22,15 +22,14 @@ const ORG = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const CARD_ID = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const PAN = "70830000000000000";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
-  EFS_SOAP_BACKFILL_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
   EFS_CARD_SYNC_HOURS: 24,
   SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
-} as unknown as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: ORG, environment: "production",

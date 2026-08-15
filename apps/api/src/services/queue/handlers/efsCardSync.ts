@@ -23,7 +23,7 @@ export const efsCardSyncHandler: JobHandler = async (ctx, job) => {
   }
 
   const result = await syncEfsCards(ctx.admin, ctx.env, creds, {
-    maxDetail: ctx.env.EFS_CARD_SYNC_MAX_DETAIL ?? 200,
+    maxDetail: ctx.env.EFS_CARD_SYNC_MAX_DETAIL,
   });
 
   // A sweep that did ZERO work AND failed is a failed job, not a done one (audit P2). The

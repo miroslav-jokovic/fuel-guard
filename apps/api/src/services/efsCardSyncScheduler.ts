@@ -37,7 +37,7 @@ export function startEfsCardSyncScheduler(env: Env): void {
   if (!env.EFS_SOAP_ENABLED) return; // the master EFS kill switch
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return; // not configured (e.g. local dev)
 
-  const intervalMs = Math.max(1, env.EFS_CARD_SYNC_HOURS ?? 24) * 60 * 60 * 1000;
+  const intervalMs = Math.max(1, env.EFS_CARD_SYNC_HOURS) * 60 * 60 * 1000;
   let running = false;
 
   const run = async (): Promise<void> => {

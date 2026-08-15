@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Env } from "../env.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
 import { cardRefHmac, syncEfsCards, upsertCardDetail } from "./efsCardMirror.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
+import { testEnv } from "../testing/testEnv.js";
 
 /**
  * Two things this suite exists to prove, both of which the type system cannot.
@@ -21,14 +21,14 @@ import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 const ORG = "org-1";
 const OTHER_ORG = "org-2";
 
-const env = {
+const env = testEnv({
   EFS_SOAP_MAX_RPS: 100,
   EFS_SOAP_MAX_RETRIES: 0,
   EFS_SOAP_BACKFILL_DAYS: 90,
   EFS_SOAP_ALLOW_PRIVATE_ENDPOINT: true,
   // 32 bytes, base64 — a test key, never a deploy key.
   SECRETS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
-} as Env;
+});
 
 const creds: EfsSoapCredentials = {
   orgId: ORG,
@@ -122,7 +122,7 @@ describe("syncEfsCards", () => {
   it("refuses to store anything when the sealing key is absent", async () => {
     // Matches saveSamsaraToken: refuse to persist rather than silently fall back to plaintext.
     const rec = createSupabaseRecorder({ tables: { efs_cards: [] } });
-    const result = await syncEfsCards(rec.client, { ...env, SECRETS_ENCRYPTION_KEY: undefined } as Env, creds, {
+    const result = await syncEfsCards(rec.client, testEnv({ ...env, SECRETS_ENCRYPTION_KEY: undefined }), creds, {
       fetchImpl: stub(loginOk, summaries),
     });
 
@@ -283,7 +283,7 @@ describe("cardRefHmac", () => {
   it("refuses to run without a key rather than falling back to an unkeyed digest", () => {
     // An unkeyed SHA-256 of a card number with a known BIN and known last four is a few million
     // guesses — that is not a lookup handle, it is the PAN with extra steps.
-    expect(() => cardRefHmac({ ...env, SECRETS_ENCRYPTION_KEY: undefined } as Env, ORG, PAN_A)).toThrow(/SECRETS_ENCRYPTION_KEY/);
+    expect(() => cardRefHmac(testEnv({ ...env, SECRETS_ENCRYPTION_KEY: undefined }), ORG, PAN_A)).toThrow(/SECRETS_ENCRYPTION_KEY/);
   });
 });
 

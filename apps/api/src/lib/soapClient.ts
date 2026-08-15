@@ -229,7 +229,7 @@ export interface SoapResponse {
  *  `interactive` returns early and deliberately does NOT participate in the live/backfill split: the
  *  two poller lanes keep exactly the budget they had before card control existed. */
 export function soapLaneRps(env: Env, priority: SoapPriority, liveFraction = 0.7): number {
-  if (priority === "interactive") return Math.max(0.1, env.EFS_SOAP_INTERACTIVE_RPS ?? 1);
+  if (priority === "interactive") return Math.max(0.1, env.EFS_SOAP_INTERACTIVE_RPS);
   const live = env.EFS_SOAP_MAX_RPS * liveFraction;
   return Math.max(0.1, priority === "backfill" ? env.EFS_SOAP_MAX_RPS - live : live);
 }
@@ -239,8 +239,8 @@ export function soapLaneRps(env: Env, priority: SoapPriority, liveFraction = 0.7
  *  deploy predating these keys) degrades to the documented default instead of `NaN`. */
 export function laneTimeoutMs(env: Env, priority: SoapPriority): number {
   return priority === "interactive"
-    ? (env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS ?? 10_000)
-    : (env.EFS_SOAP_TIMEOUT_MS ?? 20_000);
+    ? env.EFS_SOAP_INTERACTIVE_TIMEOUT_MS
+    : env.EFS_SOAP_TIMEOUT_MS;
 }
 
 /**

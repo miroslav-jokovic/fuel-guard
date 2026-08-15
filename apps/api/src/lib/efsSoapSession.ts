@@ -143,9 +143,10 @@ export interface EfsSession {
 }
 
 const SESSION_OPS = { login: "login", logout: "logout" } as const;
-/** Fallback session lifetime when nothing shorter applies. Well under EFS's daily reset. */
-const DEFAULT_SESSION_TTL_MS = 20 * 60 * 1000;
-const DEFAULT_BREAKER_MS = 30 * 60 * 1000;
+// Step 5.9: the session-lifetime and breaker fallbacks used to live here as literals behind
+// `env.X ?? …`. Both keys carry a zod `.default()` (env.ts), so the fallbacks were unreachable and
+// only ever a second place for the number to disagree with the first. `EFS_SOAP_SESSION_TTL_MS`
+// (20m, well under EFS's daily reset) and `EFS_LOGIN_BREAKER_MS` (30m) are the single source now.
 /** EFS expires clientIds "around 3:00 AM CT" (p11). Stop five minutes short of the stated boundary. */
 const CT_RESET_HOUR = 2;
 const CT_RESET_MINUTE = 55;
@@ -234,7 +235,7 @@ function recordLoginFailure(env: Env, key: string, error: EfsSoapError): void {
   const failures = locked ? LOGIN_FAILURE_THRESHOLD : (consecutiveAuthFailures.get(key) ?? 0) + 1;
   consecutiveAuthFailures.set(key, failures);
   if (failures < LOGIN_FAILURE_THRESHOLD) return;
-  const ms = env.EFS_LOGIN_BREAKER_MS ?? DEFAULT_BREAKER_MS;
+  const ms = env.EFS_LOGIN_BREAKER_MS;
   breakers.set(key, { openUntil: Date.now() + ms, reason: error.message });
   sessions.delete(key);
   // Loud on purpose: this also stops transaction ingestion, and nobody should have to infer that from
@@ -243,7 +244,7 @@ function recordLoginFailure(env: Env, key: string, error: EfsSoapError): void {
 }
 
 function sessionExpiry(env: Env, now: Date): number {
-  const ttl = env.EFS_SOAP_SESSION_TTL_MS ?? DEFAULT_SESSION_TTL_MS;
+  const ttl = env.EFS_SOAP_SESSION_TTL_MS;
   return Math.min(now.getTime() + ttl, nextEfsWallClock(now, CT_RESET_HOUR, CT_RESET_MINUTE));
 }
 
