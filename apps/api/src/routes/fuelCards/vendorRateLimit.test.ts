@@ -8,6 +8,7 @@ import type { AuthContext } from "@fuelguard/shared";
 import { fuelCardCapabilityRouter } from "../../efs/router.js";
 import { fuelCardEchoScanRouter } from "./echoScan.js";
 import { fuelCardConfigScanRouter } from "./scan.js";
+import { fuelCardProveRouter } from "./prove.js";
 import { fuelCardExperimentsRouter } from "./experiments.js";
 import { fuelCardProbeRouter } from "./probe.js";
 import { fuelCardSettingsRouter } from "./settings.js";
@@ -134,6 +135,7 @@ describe("fuel-card vendor rate budget", () => {
       // read of our own tables: the config scan reads the mirror's stored VENDOR documents and
       // resolves no credentials, so it cannot reach EFS however the corpus got there.
       fuelCardConfigScanRouter(),
+      fuelCardProveRouter(),
     ];
     const actual = routers.flatMap(routeTable).map((route) => `${route.method} ${route.path}`).sort();
     const configured = FUEL_CARD_ROUTE_TABLE.map((route) => `${route.method} ${route.path}`).sort();
