@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppIcon } from "@fuelguard/ui";
-import { ChevronLeftIcon, ChevronRightIcon } from "@fuelguard/ui/icons";
+import { ChevronRightIcon } from "@fuelguard/ui/icons";
 import type { HazmatLoadRow } from "@fuelguard/shared";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import { AppButton as BaseButton } from "@fuelguard/ui";
@@ -58,14 +58,7 @@ const columns: DataTableColumn[] = [
 
 <template>
   <div class="space-y-6">
-    <PageHeader description="Review flagged loads oldest-first, inspect the evidence, and record an attestation or rejection.">
-      <template #actions>
-        <BaseButton variant="ghost" size="sm" to="/hazmat">
-          <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
-          HazmatGuard
-        </BaseButton>
-      </template>
-    </PageHeader>
+    <PageHeader description="Review flagged loads oldest-first, inspect the evidence, and record an attestation or rejection." />
 
     <FilterBar
       v-model:search="search"

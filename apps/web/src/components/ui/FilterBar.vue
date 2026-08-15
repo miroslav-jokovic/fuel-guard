@@ -108,7 +108,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
             <div
               ref="panelRef"
               :style="floatingStyles"
-              class="z-[9999] w-72 rounded-control bg-surface p-4 text-sm shadow-lg ring-1 ring-edge"
+              class="z-[9999] w-72 rounded-control bg-surface p-4 text-sm shadow-md ring-1 ring-edge"
               role="dialog"
               aria-label="More filters"
             >

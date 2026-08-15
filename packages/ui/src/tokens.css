@@ -155,10 +155,10 @@
   --ink-inverse: oklch(1 0 0);
 
   /* hairlines & control borders */
-  --edge-subtle: oklch(0.9 0.012 258); /* decorative row dividers */
-  --edge: oklch(0.82 0.016 258); /* surface grouping             */
+  --edge-subtle: oklch(0.925 0.009 258); /* decorative row dividers */
+  --edge: oklch(0.87 0.012 258); /* surface and overlay grouping */
   --edge-strong: oklch(0.64 0.025 258); /* compatibility alias         */
-  --edge-control: oklch(0.64 0.025 258); /* essential control boundary  */
+  --edge-control: oklch(0.644 0.025 258); /* essential control boundary; 3:1 on canvas */
 
   /* identity, interaction, links, selection, and focus are deliberately separate */
   --brand-accent: oklch(0.837 0.128 66.29);
@@ -354,14 +354,14 @@
   --dp-primary-disabled-color: var(--ramp-brand-300);
   --dp-primary-text-color: var(--ink-inverse);
   --dp-secondary-color: var(--ink-subtle);
-  --dp-border-color: var(--edge-strong);
+  --dp-border-color: var(--edge-control);
   --dp-menu-border-color: var(--edge);
-  --dp-border-color-hover: var(--edge-strong);
+  --dp-border-color-hover: var(--edge-control);
   --dp-border-color-focus: var(--ramp-brand-600);
   --dp-disabled-color: var(--surface-muted);
   --dp-disabled-color-text: var(--ink-subtle);
   --dp-scroll-bar-background: var(--surface-subtle);
-  --dp-scroll-bar-color: var(--edge-strong);
+  --dp-scroll-bar-color: var(--edge);
   --dp-success-color: var(--ramp-success-600);
   --dp-success-color-disabled: var(--ramp-success-300);
   --dp-icon-color: var(--ink-subtle);

@@ -265,7 +265,7 @@ const EXPORTS = [
         <Menu v-if="session.canManage || session.readOnly" as="div" class="relative">
           <MenuButton
             :disabled="exporting"
-            class="inline-flex h-9 items-center gap-1.5 rounded-control bg-surface px-3 text-sm font-medium text-ink-secondary ring-1 ring-edge-control ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-50"
+            class="inline-flex h-9 items-center gap-1.5 rounded-control bg-surface px-3 text-sm font-medium text-ink-secondary ring-1 ring-edge ring-inset transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-50"
           >
             <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
             {{ exporting ? "Exporting…" : "Export" }}
@@ -279,13 +279,22 @@ const EXPORTS = [
             leave-from-class="scale-100 opacity-100"
             leave-to-class="scale-95 opacity-0"
           >
-            <MenuItems class="absolute right-0 z-20 mt-2 w-64 origin-top-right rounded-control bg-surface py-1 text-sm shadow-lg ring-1 ring-edge focus:outline-none">
+            <MenuItems class="absolute right-0 z-20 mt-2 w-64 origin-top-right overflow-hidden rounded-control bg-surface py-1 text-sm shadow-sm ring-1 ring-edge focus:outline-none">
               <MenuItem v-for="exp in EXPORTS" :key="exp.label" v-slot="{ active }">
-                <BaseButton type="button" :class="['kebab-item flex items-start gap-3', active ? 'bg-surface-subtle' : '']" @click="exp.run()">
+                <BaseButton
+                  type="button"
+                  variant="ghost"
+                  block
+                  :class="[
+                    '!h-auto !justify-start !gap-3 !whitespace-normal !rounded-none !px-3 !py-2 !text-left !font-normal',
+                    active ? 'bg-surface-subtle' : '',
+                  ]"
+                  @click="exp.run()"
+                >
                   <AppIcon :icon="exp.icon" class="mt-0.5 size-5 shrink-0 text-ink-tertiary" aria-hidden="true" />
-                  <span>
+                  <span class="min-w-0">
                     <span class="block font-medium text-ink">{{ exp.label }}</span>
-                    <span class="block text-xs text-ink-muted">{{ exp.description }}</span>
+                    <span class="mt-0.5 block text-xs leading-4 text-ink-muted">{{ exp.description }}</span>
                   </span>
                 </BaseButton>
               </MenuItem>

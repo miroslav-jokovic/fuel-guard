@@ -6,7 +6,6 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
   ArrowUpTrayIcon,
-  ChevronLeftIcon,
   ClipboardDocumentCheckIcon,
   EyeIcon,
 } from "@fuelguard/ui/icons";
@@ -296,10 +295,6 @@ async function fileDropped(): Promise<void> {
         >
           <AppIcon :icon="ArrowDownTrayIcon" class="size-4" aria-hidden="true" />
           {{ requestBinder.isPending.value ? "Building…" : "Export this file" }}
-        </BaseButton>
-        <BaseButton variant="ghost" size="sm" to="/compliance">
-          <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
-          Driver Qualification
         </BaseButton>
       </template>
     </PageHeader>

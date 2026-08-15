@@ -145,7 +145,7 @@ function clear() {
         <div
           ref="panelRef"
           :style="floatingStyles"
-          class="z-[9999] w-60 rounded-control bg-surface py-1 text-sm shadow-lg ring-1 ring-edge"
+          class="z-[9999] w-60 rounded-control bg-surface py-1 text-sm shadow-md ring-1 ring-edge"
           role="listbox"
           :aria-label="`${label} options`"
         >

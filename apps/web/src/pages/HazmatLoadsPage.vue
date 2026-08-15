@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { AppIcon } from "@fuelguard/ui";
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "@fuelguard/ui/icons";
+import { ChevronRightIcon, PlusIcon } from "@fuelguard/ui/icons";
 import {
   HAZMAT_LOAD_STATUSES,
   HAZMAT_LOAD_STATUS_LABELS,
@@ -55,10 +55,6 @@ const columns: DataTableColumn[] = [
   <div class="space-y-6">
     <PageHeader description="Create, analyze, and track declared hazmat loads through review and clearance.">
       <template #actions>
-        <BaseButton variant="ghost" size="sm" to="/hazmat">
-          <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
-          HazmatGuard
-        </BaseButton>
         <BaseButton variant="primary" size="sm" to="/hazmat/loads/new">
           <AppIcon :icon="PlusIcon" class="size-4" aria-hidden="true" />
           New load

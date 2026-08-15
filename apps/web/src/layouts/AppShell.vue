@@ -2,6 +2,7 @@
 import { AppIcon } from "@fuelguard/ui";
 import {
   Bars3Icon,
+  ChevronLeftIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   XMarkIcon,
@@ -320,6 +321,16 @@ async function signOut() {
               aria-hidden="true"
             />
           </button>
+          <template v-if="route.meta.parent">
+            <span class="h-5 w-px bg-edge-subtle" aria-hidden="true" />
+            <RouterLink
+              :to="(route.meta.parent as string)"
+              class="inline-flex h-9 items-center gap-1.5 rounded-control px-2 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            >
+              <AppIcon :icon="ChevronLeftIcon" class="size-4" aria-hidden="true" />
+              Back
+            </RouterLink>
+          </template>
         </div>
       </header>
       <main class="py-6">
