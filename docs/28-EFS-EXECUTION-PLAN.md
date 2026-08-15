@@ -77,7 +77,9 @@ grep -oE "run: pnpm [a-z:@/ -]+" .github/workflows/ci.yml | sed 's/run: //'
 
 `pnpm build` needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; CI supplies them. A local failure naming those is an environment gap, not a defect — do not guess values.
 
-Matrix counts must hold: `rls` **377** · `hazmat_rls` **38** · `load-lifecycle` **61** · `duty-sessions` **25**. A count that *drops* is a finding; a count that rises is fine — re-baseline it here.
+Matrix counts must hold: `rls` **381** · `hazmat_rls` **38** · `load-lifecycle` **61** · `duty-sessions` **25**. A count that *drops* is a finding; a count that rises is fine — re-baseline it here.
+
+Re-baselined `rls` 377 → **381** on 2026-08-15: migration `0191_efs_capability_promotion` adds two tables, and the tenant-isolation sweep generates a leak test and an anon-lockout test per table — exactly +4, from the same generator and the same rule as the 2026-08-13 re-baseline below. **That rise IS Step 4.1's verify**: 381 green is the matrix proving neither `efs_capability_proofs` nor `efs_capability_promotions` is tenant-reachable.
 
 Re-baselined `rls` 375 → 377 on 2026-08-13: migration `0189_fuel_price_days` added a table, and the tenant-isolation sweep generates a leak test and an anon-lockout test per table. Confirmed to come from `main` alone, not from any card-control branch, by running the matrix on `origin/main` at `9ecaaf7`.
 
@@ -161,7 +163,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | ⛔ *(2.1–2.5 merged, PRs #13–#21; echo scan green 197/197. **Exit gate FAILS:** the live check was run 2026-08-15 and the one org with card control has `write_entitlement = 'confirmed'` with a null `probed_identity_hash`, which the code grandfathers — **Step 2.6**. The gate wording is amended, identically to Phase 3's)* | `delivery-p2-echo` |
 | 3 | Capability architecture | ✅ *(3.1–3.11 merged; **exit gate CLOSED 2026-08-15** — all five operations verified live on `af1a8e5`, card returned byte-identical. The read behind 3.11 proved this account never reports override scope on ANY card, `docs/22` H3. 3.5a withdrawn — it is Step 4.2)* | merged to `main` |
-| 4 | Harness & promotion | ⬜ | `delivery-p4-harness` |
+| 4 | Harness & promotion | 🔶 *(**4.4 done** — config scanner, `docs/efs/config-scan-*.json` committed; **4.1 done** — migration 0191. 4.4 amended 4.6's promotion rule: a fleet-at-rest scan cannot observe a transient value, so the gate must accept proof evidence too. Next: 4.5, the live prover)* | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ *(5.6–5.10 filed 2026-08-15 from `docs/30` §6.G and Phase 2's two-hosts finding. Two §6.G items were small enough to fix on the spot and are done)* | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
 | 7 | Account & policy visibility | ⬜ *(7.7 card identity and 7.8 override staleness filed 2026-08-15. **7.7 is worth pulling forward** — 182 of 234 production cards are unlinked, so fuel attribution runs on a minority of the fleet)* | `delivery-p7-visibility` |
@@ -674,10 +676,25 @@ The production org has no row at all, so card control is QA-only today — which
 
 **Preconditions:** Phase 3 ✅.
 
-### Step 4.1 — Promotion schema
-**Files:** new migration.
+### ✅ Step 4.1 — Promotion schema — DONE 2026-08-15 (`0191_efs_capability_promotion`)
+**Files:** `supabase/migrations/0191_efs_capability_promotion.sql`.
 **Change:** `efs_capability_proofs` (org, capability, the five OEG results, `apply_latency_ms`, `endpoint_host`, `document_shape`, `vocabulary jsonb`, redacted request/response XML, `run_by`, `run_at`) and `efs_capability_promotions` (`org_id` × `capability` → `state`, `proof_id`, `promoted_by`, `promoted_at`, `reason`, `suspended_reason`). Both RLS-enabled, no policies, service-role only, 0106-style comment. Add `observed_document_shape` and `observed_vocabulary jsonb` to `efs_card_control_settings`.
 **Verify:** `pnpm verify:live`. `check-rls` passes (wired in Phase 0). RLS matrix proves neither table is tenant-reachable.
+
+**Validated against a scratch Postgres before merge**, the way 0190 was — applied clean, re-applied clean (every object is `if not exists`), and each constraint exercised rather than assumed:
+
+| Attempted | Result |
+|---|---|
+| a second promotion row for the same org + capability | refused |
+| an invented `state` (`definitely_enabled`) | refused |
+| a 2-character `reason` | refused |
+| a **PAN-length value in `card_last4`** | refused |
+| an invented `outcome` / `environment`, negative latency | refused |
+| a legitimate promotion, and a proof with the five OEG nulls | accepted |
+
+`rls` matrix **377 → 381**, +2 per new table, both enabled with **zero policies** — deny-all for every client role, service role only.
+
+**Deliberately backfills nothing.** Step 4.2 introduces the gate that reads these tables and backfills the five live capabilities as `enabled` **in the same migration as the gate**. Backfilling here would put rows in a table nothing reads; gating without the backfill would refuse every card operation in production between two merges.
 
 ### Step 4.2 — The promotion gate
 **Files:** `apps/api/src/services/efsCardControlAccess.ts`, `apps/api/src/env.ts`.
