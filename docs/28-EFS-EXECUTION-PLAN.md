@@ -554,13 +554,27 @@ The production org has no row at all, so card control is QA-only today — which
 
 **Phase 2 is complete** (2.1 #13 · 2.2 #14 · 2.3 #16 · 2.4 #17 · 2.5 #18/#19/#21 · 2.6 2026-08-15 evening) **and every gate item is closed.**
 
-### Step 2.7 — a READ-ONLY write-check revokes the entitlement it is diagnosing *(filed 2026-08-15 evening, from Step 2.6)*
+### ✅ Step 2.7 — a READ-ONLY write-check revokes the entitlement it is diagnosing — **DONE 2026-08-15 night**
 **Files:** `apps/api/src/routes/fuelCards/writeProbe.ts`.
 **The defect.** The settings upsert writes `write_entitlement: entitlement` unconditionally, and `judge()` returns `unknown` for every read-only run by design — *"a read-only run can never return `confirmed`: it did not attempt a write"*. That reasoning is right for a FIRST probe and wrong for a re-probe: running the harmless diagnostic against an org that is already `confirmed` **downgrades it to `unknown` and stops every card action in that org** until somebody runs the full ten-step probe against a disposable card. A diagnostic that revokes what it diagnoses is a trap, and it is the cheap-looking option.
 **Why it was not fixed on the spot.** It changes what re-running the probe MEANS, which is a semantics decision, not a cleanup — and Step 2.6 was already the change that made a null hash refuse. Two entitlement-semantics changes in one PR is how the second one ships unread.
 **Change:** a read-only run must not lower an existing entitlement. It observed nothing about write access, so it should leave `write_entitlement` untouched and record its verdict in `probe_result` only. `probed_identity_hash` should still be written — it is observed on every run, and it is what Step 2.6 needs.
 **Verify:** a read-only probe against a `confirmed` org leaves `write_entitlement = 'confirmed'` and updates `probed_identity_hash` · a read-only probe against an `unknown` org leaves it `unknown` · a full run still sets `confirmed` · a test for each that fails on today's code.
-**Mitigated meanwhile:** `scripts/efs.mjs write-check` defaults to the FULL run, and `--read-only` prints what it will cost before asking for anything.
+**DONE 2026-08-15 night — `writeProbe.ts`, `writeProbeEntitlement.test.ts` (new, 7 tests).**
+
+**The fix is an omission, not a branch.** PostgREST's upsert sets only the columns it is given, so a read-only run simply leaves `write_entitlement` out of the payload: an existing row keeps its value, and a brand-new row falls to the column default of `unknown` — which is the right answer for an org whose only probe was read-only. No "restore the old value" logic, and therefore no window in which the wrong value is stored.
+
+**Three things came with it that the filing did not anticipate:**
+
+1. **The response was telling the same lie the upsert was.** It reported `entitlement: "unknown"` from the run's verdict. Left alone, the column would now say `confirmed` while the response said `unknown`, which is worse than the original defect — the operator would go and run an unnecessary write probe against a real card. The response now carries three separate facts: `entitlement` (what the gate will read), `judgedEntitlement` (what this run could conclude — always `unknown` when read-only), and `entitlementWritten` (whether this run touched it). Same three in the audit row, plus `entitlementBefore`.
+2. **The verdict text.** It told every read-only run *"Write entitlement is still UNPROVEN: re-run with readOnly=false"*. For an org that already earned `confirmed` that is false and points at writing to a real card for no reason. `judge()` now takes the prior entitlement — used ONLY for the wording — and a confirmed org gets `no_action` and is told plainly that nothing changed.
+3. **`probed_document_shape` had the identical defect one column over.** It was written as `before ? documentShape(before) : null`, so a probe that failed at step 3 erased a shape an earlier probe had established. Absence of an observation is not an observation of absence — same sentence as the entitlement, so it was fixed in the same commit rather than filed as Step 2.8.
+
+**A read-only probe is now the cheap way to satisfy Step 2.6's binding.** It still records `probed_identity_hash` and `probed_endpoint_host` — both observed on every run — so an org can rebind a rotated credential without touching a card at all. Before this change, that was the one thing it could not do without cost.
+
+**Verified by breaking each guard.** Restoring the unconditional `write_entitlement` write turns exactly three tests red (confirmed, unknown, denied) and leaves the full-run test green; restoring the unconditional shape write turns exactly the shape test red. Both restored.
+
+**Mitigated meanwhile, and now redundant:** `scripts/efs.mjs write-check` still defaults to the FULL run — kept for a reason that outlives the bug, since only a full run answers "may this account write?" — but its warning no longer needs to describe a hazard.
 
 > ### Finding — `fleetguardweb` runs the API but cannot reach EFS (2026-08-14)
 >

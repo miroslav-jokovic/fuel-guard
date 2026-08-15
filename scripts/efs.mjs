@@ -213,16 +213,17 @@ switch (command) {
    * prevent. Same prompt discipline as `prove`.
    *
    * ── Why the write half is the DEFAULT here, and read-only needs a flag ──────────────────────────
-   * This inverts the HTTP endpoint, whose default is `readOnly: true`, and the inversion is
-   * deliberate. `writeProbe.ts` upserts `write_entitlement` UNCONDITIONALLY from the run's verdict,
-   * and a read-only run can never return `confirmed` — it did not attempt a write. So running the
-   * read-only diagnostic against an org that already HAS a confirmed entitlement silently downgrades
-   * it to `unknown`, and every card action in that org stops until somebody runs the full ten-step
-   * probe against a disposable card. A diagnostic that revokes the thing it is diagnosing is a trap,
-   * and defaulting to it in an operator tool is how somebody falls into it at speed.
+   * This inverts the HTTP endpoint, whose default is `readOnly: true`. It was introduced to defuse a
+   * trap — `writeProbe.ts` upserted `write_entitlement` unconditionally, so the harmless-looking
+   * read-only run silently downgraded an already-`confirmed` org to `unknown` and stopped every card
+   * action in it. **Step 2.7 fixed that at the source: a read-only run no longer touches the column
+   * in either direction.**
    *
-   * The underlying behaviour is filed as its own step; this flag only stops the CLI being the way it
-   * bites. `--read-only` still does the honest first run for an org that has nothing to lose.
+   * The inversion is KEPT anyway, for a reason that outlives the bug. Someone reaching for this
+   * command wants the question "may this account write?" answered, and only the full run answers it;
+   * a read-only run answers "would our echo have been faithful?", which is a different and rarer
+   * question. Defaulting to the run that cannot answer the likely question is how an operator
+   * concludes "still unproven" and goes looking for a WEX problem that does not exist.
    */
   case "write-check": {
     if (flags.card) {
@@ -233,11 +234,13 @@ switch (command) {
     }
     const readOnly = flags["read-only"] === true;
     if (readOnly) {
+      // Step 2.7 removed the hazard this warning used to carry: a read-only run no longer touches
+      // `write_entitlement` at all, so it can no longer revoke an org's card control. It still
+      // refreshes the credential identity binding, which is the reason to run one.
       console.log(
-        "\nREAD-ONLY run. It proves the echo against real vendor XML and touches no card.\n"
-          + "It also OVERWRITES write_entitlement with `unknown`, because a run that attempted no\n"
-          + "write cannot confirm one. If this org is already `confirmed`, that revokes card control\n"
-          + "until a full run restores it. Check first:  node scripts/card-control-binding-check.mjs\n",
+        "\nREAD-ONLY run. It proves the echo against real vendor XML, refreshes the credential\n"
+          + "identity binding, and touches no card. It does NOT change write_entitlement in either\n"
+          + "direction — a run that attempted no write has no standing to.\n",
       );
     }
     await getStepUpToken();
