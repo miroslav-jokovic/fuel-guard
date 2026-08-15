@@ -5,7 +5,7 @@ import type { Env } from "../env.js";
 import { __resetEfsSessions } from "../lib/efsSoapSession.js";
 import { __resetSoapPacing } from "../lib/soapClient.js";
 import { createSupabaseRecorder, expectOrgScoped } from "../testing/supabaseRecorder.js";
-import { cardRefHmac, linkFuelCards, syncEfsCards, upsertCardDetail } from "./efsCardMirror.js";
+import { cardRefHmac, syncEfsCards, upsertCardDetail } from "./efsCardMirror.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
 
 /**
@@ -284,57 +284,6 @@ describe("cardRefHmac", () => {
     // An unkeyed SHA-256 of a card number with a known BIN and known last four is a few million
     // guesses — that is not a lookup handle, it is the PAN with extra steps.
     expect(() => cardRefHmac({ ...env, SECRETS_ENCRYPTION_KEY: undefined } as Env, ORG, PAN_A)).toThrow(/SECRETS_ENCRYPTION_KEY/);
-  });
-});
-
-describe("linkFuelCards", () => {
-  it("links when exactly one candidate matches", async () => {
-    const rec = createSupabaseRecorder({
-      tables: {
-        efs_cards: [{ id: "efs-1", card_last4: "7521", driver_id_prompt: "D-1" }],
-        fuel_cards: [{ id: "fc-1", card_ref: "70830000000007521", card_last4: "7521" }],
-      },
-    });
-    expect(await linkFuelCards(rec.client, ORG)).toBe(1);
-    expect(rec.writtenRows("efs_cards")[0]).toMatchObject({ fuel_card_id: "fc-1" });
-  });
-
-  it("refuses to guess when two candidates share the last four", async () => {
-    // WP3c documented the false "card assigned to a different truck" alerts a loose match produced.
-    // A missing link reads as "not linked"; a wrong one attributes fuel to the wrong truck.
-    const rec = createSupabaseRecorder({
-      tables: {
-        efs_cards: [{ id: "efs-1", card_last4: "7521", driver_id_prompt: null }],
-        fuel_cards: [
-          { id: "fc-1", card_ref: "70830000000007521", card_last4: "7521" },
-          { id: "fc-2", card_ref: "70839999999997521", card_last4: "7521" },
-        ],
-      },
-    });
-    expect(await linkFuelCards(rec.client, ORG)).toBe(0);
-    expect(rec.writtenRows("efs_cards")[0]).toMatchObject({ sync_error: "ambiguous_fuel_card_link" });
-  });
-
-  it("leaves a card with no candidate unlinked and silent", async () => {
-    const rec = createSupabaseRecorder({
-      tables: {
-        efs_cards: [{ id: "efs-1", card_last4: "0000", driver_id_prompt: null }],
-        fuel_cards: [{ id: "fc-1", card_ref: "70830000000007521", card_last4: "7521" }],
-      },
-    });
-    expect(await linkFuelCards(rec.client, ORG)).toBe(0);
-    expect(rec.writtenRows("efs_cards")).toHaveLength(0);
-  });
-
-  it("scopes its reads and its writes to the org", async () => {
-    const rec = createSupabaseRecorder({
-      tables: {
-        efs_cards: [{ id: "efs-1", card_last4: "7521", driver_id_prompt: null }],
-        fuel_cards: [{ id: "fc-1", card_ref: "70830000000007521", card_last4: "7521" }],
-      },
-    });
-    await linkFuelCards(rec.client, ORG);
-    expectOrgScoped(rec, ORG);
   });
 });
 

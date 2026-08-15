@@ -59,6 +59,10 @@ export interface EfsCardRow {
   locationOverrideId: string | null;
   lastUsedDate: string | null;
   fuelCardId: string | null;
+  /** Step 7.7 linking evidence. Absent on an older API, which is why every field is optional. */
+  linkStatus?: "linked" | "ambiguous" | "unconfirmed" | "no_candidate" | "unidentifiable" | null;
+  linkMethod?: string | null;
+  linkCandidates?: number;
   syncedAt: string;
   syncError: string | null;
 }
