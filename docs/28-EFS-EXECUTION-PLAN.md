@@ -8,6 +8,7 @@
 | `docs/23-…-FINDINGS-2026-08-12.md` | Only if a step's intent is unclear |
 | `docs/26-…-PLAN-AUDIT.md` | Only if you want the evidence for why a step exists |
 | `docs/22-EFS-CARD-CONTROL.md` | Append every live EFS finding here, in the H1 format |
+| `docs/30-HANDOFF-2026-08-15.md` | **First, every session.** Ordering decision, standing instructions, environment facts, open findings |
 
 ---
 
@@ -157,9 +158,9 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | # | Phase | Status | Branch |
 |---|---|---|---|
 | 0 | Green the pipeline | 🔶 *(PRs #3, #5 merged; **Step 0.13 outstanding** — QA card roles unassigned, which blocks Phases 9 and 10. Step 0.15 done in #5; all sixteen `ci.yml` gates green on `main` at `12a86a8`)* | `delivery-p0-green` |
-| 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks not run: §6.2 foreign-card probe, §6.3 step-up, §6.4 endpoint binding, 409 replay. Status and prompts changes confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
-| 2 | Echo engine correctness | 🔶 *(2.1–2.5 merged, PRs #13–#21; **echo scan green 197/197** on 2026-08-14. Two exit-gate items need Miki: the `probed_identity_hash` null check, and the "every existing echo test passes unchanged" wording — #13 changed two deliberately)* | `delivery-p2-echo` |
-| 3 | Capability architecture | 🔶 *(**every step 3.1–3.10 merged.** Exit gate: six of seven ticked. The one left is **live QA on all five operations**, which nothing offline can close — and Phase 4's precondition is this phase ✅, so 4.5's live prover would otherwise be built on top of five capabilities nobody has pressed. 3.5a withdrawn — it is Step 4.2)* | `delivery-p3-registry` |
+| 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
+| 2 | Echo engine correctness | 🔶 *(2.1–2.5 merged, PRs #13–#21; **echo scan green 197/197** on 2026-08-14. Two exit-gate items: the `probed_identity_hash` null check (a live DB read), and the "every existing echo test passes unchanged" wording — **which has the defect Phase 3's had; amend it the same way or amend neither**)* | `delivery-p2-echo` |
+| 3 | Capability architecture | 🔶 *(3.1–3.10 merged. Live QA found a **P0: override grant lands but is recorded `failed`** → **Step 3.11, and it is the next thing anyone does.** 4 of 5 operations pass. 3.5a withdrawn — it is Step 4.2)* | `delivery-p3-registry` |
 | 4 | Harness & promotion | ⬜ | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
@@ -589,6 +590,19 @@ A preservation assertion built on the response DOM does not fix this on its own:
 
 **Also found:** `mutation-check.yml`'s path filter listed `apps/api/src/services/**` and never learned about `apps/api/src/efs/`. Phase 3 moved every card write there, so a change to a behaviour or the orchestrator stopped triggering the harness that guards it — leaving only the Monday cron. Same class as the route-enumeration list `vendorRateLimit.test.ts` caught in 3.5.
 
+### Step 3.11 — ⚠️ P0: an override grant that WORKS is recorded as failed
+**Files:** `apps/api/src/efs/capabilities/overrideGrant.behaviour.ts`, possibly `apps/api/src/services/efsCardReconcile.ts`.
+**Observed live on QA, 2026-08-14.** The badge reads `Override: 1 use left` — fed by `updateMirror` from the verifying re-read, so it is EFS's own answer — while the toast reads *"EFS accepted the request but the card is unchanged."* `intentLanded` returned false on a write that landed.
+
+**Why P0.** Re-granting does not overwrite, it grants AGAIN, and the message tells the operator to retry. `efsCardControl.ts`'s own comment: *"the failure mode of a double-submitted override is a driver getting two free tanks."* The audit row also says `card.mutation_failed` for a successful write.
+
+**Leading hypothesis.** Both recorded fixtures from this account show `overrideAllLocations=false`, including `getCardV2.overridden.xml`, which HAS an override armed. **We have never recorded this vendor returning `true`.** If EFS stores or returns `false` for an all-locations grant, `override` lands while one edited path differs and the whole mutation is condemned — the H1 casing incident's shape, one field out.
+
+**Do the read BEFORE the fix.** `select id, status, efs_fault_code, drift, edits from efs_card_mutations where intent = 'override_grant' order by created_at desc limit 5;` — `drift->'unexplained'` names the field. While there: check whether ••••7550 has **two** grant rows, which would explain the §6.E stale override with no sync bug at all.
+
+**THE WRONG FIX, named so nobody reaches for it:** widening `intentLanded`'s tolerance. That hides every genuine partial failure on every capability — it is weakening the guard that caught this. Rule 4 applies: normalisation is a named, tested adapter, never an incidental tolerance. Defensible options once the drift is known — an adapter for a vendor normalisation we can prove, or a `precondition` refusing an all-locations grant on an account that does not honour it.
+**Verify:** a test that fails on today's code · **Live QA:** grant, re-read, and confirm the ledger says `succeeded`. Then clear, and re-read again.
+
 ### ✅ Exit Gate — Phase 3
 - [x] Characterisation suite passes byte-identically after every migration step
 - [x] **No test lost an assertion.** `git diff <base>..<head> -- '*.test.ts' | grep -cE '^-.*expect\('` is **0**; 99 were added. Every test that changed did so because the thing it named was deleted or moved by this phase, and each change is named in the commit that made it *(amended 2026-08-14 — see below)*
@@ -603,7 +617,7 @@ A preservation assertion built on the response DOM does not fix this on its own:
 - [x] Fitness test catches all three deliberate breakages
 - [x] `mutation:check` score on `apps/api/src/efs/` recorded and acceptable — **18/18, 7 new**
 - [x] **All four Phase-3 waivers from Step 0.6 are DELETED from `GRANDFATHERED`** — `control.ts`, `efsCardControl.ts`, `cardControlContract.ts`, `cardControlModel.ts` all under 500 on their own (`efsCardControl.ts` ✅ removed in 3.4)
-- [ ] Live QA: all five operations still work — **on a deploy that contains the generated router.** See the note below; a green run against a build that still serves the operation from `control.ts` proves the orchestrator, not the migration
+- [ ] Live QA: all five operations still work — **4 of 5 as of 2026-08-14.** lock ✅ unlock ✅ prompts ✅ override-clear ✅; **override grant lands but is recorded `failed` (Step 3.11)**. Must be run on a deploy containing the generated router — a green run against a build still serving from `control.ts` proves the orchestrator, not the migration
 - [x] Standing gates green
 
 ---
@@ -773,7 +787,7 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 
 ### Step 7.5 — Mirror fixes
 **Files:** `apps/api/src/services/efsCardMirror.ts`, `apps/api/src/env.ts`.
-**Change:** raise `EFS_CARD_SYNC_MAX_DETAIL` above the fleet count **and assert `budget > fleetSize` as an invariant** · add a **ratio guard on tombstoning** (today a partial roster of 40/199 stamps `absent_since` on 159 live cards) · surface `absent_since` in `EFS_CARD_LIST_COLS` · stop the roster-only `card_version: ""` case throwing a 409 that claims the card changed — show "not yet read from EFS".
+**Change:** **split `sync_error`** — `linkFuelCards` runs LAST in `syncCards` and unconditionally overwrites the value both earlier passes set to null, so a linking outcome is displayed as *"Last refresh reported: ambiguous_fuel_card_link"* on a refresh that succeeded. One column, two unrelated meanings, and the UI reads the alarming one. A separate `link_status`, or a structured `{code, source, at}`. **Small enough to pull forward at any time.** · raise `EFS_CARD_SYNC_MAX_DETAIL` above the fleet count **and assert `budget > fleetSize` as an invariant** · add a **ratio guard on tombstoning** (today a partial roster of 40/199 stamps `absent_since` on 159 live cards) · surface `absent_since` in `EFS_CARD_LIST_COLS` · stop the roster-only `card_version: ""` case throwing a 409 that claims the card changed — show "not yet read from EFS".
 **Verify:** *"a partial roster does not tombstone"* · *"a card first seen by the roster reports not-yet-read, not card_state_changed"*. **Deployed:** after one sweep, every production card has `detail_synced_at`.
 
 ### Step 7.6 — Produce the inventory
@@ -937,6 +951,7 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 
 | Date | Phase | Steps completed | Notes / surprises |
 |---|---|---|---|
+| 2026-08-14 | 3 | **live QA — and it found a P0** | Four of five operations pass through the generated router: lock (Hold and Inactive), unlock, prompts on a card that has them, override clear. **Override grant lands and is recorded `failed`** — the badge shows the override because `updateMirror` is fed from the verifying re-read, while `intentLanded` condemns the write. Filed as **Step 3.11**, and it blocks Phase 4, whose Step 4.5 builds a live prover on the same `judge`. **Two findings sharpened by reading the WSDL:** `override` is `int` on `WSCardHeader`/`WSCardSummary` and `boolean` on every `WSTransaction*` — a card counter and a per-purchase flag, and we never read the transaction side; and `managedFuelAction` carries `qtyAllowed`/`effDt`/`locationId`, which is the semantics of the 50-gallon auto-closing override Miki granted in the portal, sitting unscoped in Phase 14.2. **`ambiguous_fuel_card_link` mechanism proven:** `linkFuelCards` runs last in `syncCards` and overwrites the `sync_error` both earlier passes set to null; a manual Refresh does not, so the message is from the sweep and the refresh succeeded. Filed into 7.5. **No UI to add a prompt to a card with none** — the API can (`appendRecord`), the drawer cannot; that is Step 9.6 and it needs a card from 0.13. **The lesson:** eleven steps of byte-level offline verification were structurally blind to all of this, because every test scripts its own after-document. |
 | 2026-08-14 | 3 | **3.10** | **Mutation score 18/18, 7 new.** The seven are the phase's own defects, written down: dropped `vendorMovesFields`, dropped `reconcile`, `===` instead of `efsStatusEquals` on the fraud gate, the DRID opt-in bypassed, a mismatched write bucket, the preflight moved after the limiter, `partial` collapsed into `failed`. Each had been hand-verified when its fix landed; the harness is what stops that from being a thing somebody once did. **`mutation-check.yml`'s path filter never followed the code** out of `services/` into `efs/`, so pushes touching a behaviour stopped triggering it — only the Monday cron would have. Fixed, and it is a workflow edit, which should be read as one. **Phase 3's exit gate now has exactly one open item: the live QA.** |
 | 2026-08-14 | 3 | **3.9** | The background sweep could never settle a `direct` op: it skipped every row with an empty edit list, and a dedicated vendor op writes no edits — so an unverified `deleteOverride` stayed "Unverified" forever with the answer one read away. **`efsCardUnresolved.ts` had no test file**, which is how a one-line skip survived being read repeatedly; it reads like a guard against rows that cannot be judged and is a guard against the rows that most need it. Fixed via an after-only `reconcile` on the verify plan, read through the capability's own `snapshot`. Now three-valued, so `indeterminate` leaves a row visible rather than settling it by default, and a `capability_key` this build does not declare is skipped rather than judged by somebody else's predicate. The audit row records `judgedBy`. |
 | 2026-08-14 | 3 | **3.8** | The fitness test **found a real defect on its first run**: `CARD_MUTATION_STATUSES` never learned about `'partial'`, which 0190 added to the CHECK in Step 3.2 and the orchestrator has written since 3.4. It backs a `z.enum` the history view parses through, so a partial row was a status the database accepts and the drawer cannot name — three steps with the drift sitting there. Labelled "Partly applied", which names the shortfall rather than the failure. **`WRITE_ROUTES` converted** to derive paths from the registry — the one pre-existing test change docs/27 §10 allows — with bodies kept in a keyed map, since only a capability's schema knows what a valid one looks like, and a guard that fails if the map misses one. **The view pairing had to live web-side**; a contract with a behaviour and no view is a capability the API executes and the drawer cannot describe. |
