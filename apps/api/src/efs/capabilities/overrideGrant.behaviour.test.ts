@@ -188,4 +188,17 @@ describe("the use count itself, which is what authorises a purchase", () => {
     expect(outcome.faultCode).toBe("no_change");
     expect(auditActions(rec)).toContain("card.mutation_failed");
   });
+
+  it("names the fields that did not land, so the failure can be acted on", async () => {
+    const rec = recorder();
+    await grant(NO_OVERRIDE, rec);
+
+    // Step 3.11's investigation was told to read `drift->'unexplained'` and found it null on every
+    // failed row — `finalizeFailed` never wrote it. A `no_change` naming no field is a failure
+    // nobody can diagnose without reconstructing it from two jsonb columns by hand.
+    const failed = rec.writtenRows("audit_logs").find((r) => r.action === "card.mutation_failed");
+    expect(failed?.meta).toMatchObject({
+      unlandedFields: ["override", "overrideAllLocations"],
+    });
+  });
 });
