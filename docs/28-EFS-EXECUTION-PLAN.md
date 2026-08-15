@@ -591,7 +591,7 @@ A preservation assertion built on the response DOM does not fix this on its own:
 
 ### ✅ Exit Gate — Phase 3
 - [x] Characterisation suite passes byte-identically after every migration step
-- [ ] The only pre-existing test that changed is `WRITE_ROUTES` — **NOT met, and stated rather than fudged.** Four others changed: `orchestrator.test.ts` (step-up signature), `efsCardControl.test.ts` and `efsCardWriteDeadline.test.ts` (the deleted spec), `vendorRateLimit.test.ts` and `cardControlContract.test.ts` (a moved router, a split module). **Every one got stronger or kept every assertion**; none was weakened to accommodate a refactor. Each is named in its own commit
+- [ ] The only pre-existing test that changed is `WRITE_ROUTES` — **NOT met, and stated rather than fudged.** Five pre-existing files changed: `fuelCardsControl.test.ts` (the `WRITE_ROUTES` conversion itself), `vendorRateLimit.test.ts` (a moved router — a route-enumeration fixture, which is what the exemption names), `cardControlContract.test.ts` (an import line after a file split), and `efsCardControl.test.ts` + `efsCardWriteDeadline.test.ts` (both forced by Step 3.7 deleting the spec they construct). **Every one got stronger or kept every assertion**; none was weakened to accommodate a refactor. Each is named in its own commit
 - [x] Fitness test catches all three deliberate breakages
 - [x] `mutation:check` score on `apps/api/src/efs/` recorded and acceptable — **18/18, 7 new**
 - [x] **All four Phase-3 waivers from Step 0.6 are DELETED from `GRANDFATHERED`** — `control.ts`, `efsCardControl.ts`, `cardControlContract.ts`, `cardControlModel.ts` all under 500 on their own (`efsCardControl.ts` ✅ removed in 3.4)
