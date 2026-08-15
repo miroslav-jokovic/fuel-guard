@@ -159,7 +159,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 0 | Green the pipeline | 🔶 *(PRs #3, #5 merged; **Step 0.13 outstanding** — QA card roles unassigned, which blocks Phases 9 and 10. Step 0.15 done in #5; all sixteen `ci.yml` gates green on `main` at `12a86a8`)* | `delivery-p0-green` |
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks not run: §6.2 foreign-card probe, §6.3 step-up, §6.4 endpoint binding, 409 replay. Status and prompts changes confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | 🔶 *(2.1–2.5 merged, PRs #13–#21; **echo scan green 197/197** on 2026-08-14. Two exit-gate items need Miki: the `probed_identity_hash` null check, and the "every existing echo test passes unchanged" wording — #13 changed two deliberately)* | `delivery-p2-echo` |
-| 3 | Capability architecture | 🔶 *(3.1–3.9 done; 3.9 on `delivery-p3-reconciler`. **Step 3.10 remains**, plus the live QA owed on every migrated capability — the last item nothing offline can close. 3.5a withdrawn — it is Step 4.2)* | `delivery-p3-registry` |
+| 3 | Capability architecture | 🔶 *(**every step 3.1–3.10 done**; 3.10 on `delivery-p3-mutation`. The exit gate has ONE item left: **live QA on all five operations**, which nothing offline can close. 3.5a withdrawn — it is Step 4.2)* | `delivery-p3-registry` |
 | 4 | Harness & promotion | ⬜ | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
@@ -585,14 +585,18 @@ A preservation assertion built on the response DOM does not fix this on its own:
 **Change:** point `pnpm mutation:check` at `apps/api/src/efs/` for this phase.
 **Verify:** run it. Record the score in §14. A near-zero score on the descriptor bindings means Step 3.1's tests are not biting — fix them before closing the phase.
 
+**DONE 2026-08-14. Score: 18/18 caught, 7 of them new** (`--only=efs-` is 7/7). The harness is a curated list, not a generic mutator, so "pointing it at `apps/api/src/efs/`" meant writing the seven mutations — each mirroring a defect this workstream actually produced. None is caught by a compile error; each altered line leaves the code typechecking, so every catch is an assertion failing.
+
+**Also found:** `mutation-check.yml`'s path filter listed `apps/api/src/services/**` and never learned about `apps/api/src/efs/`. Phase 3 moved every card write there, so a change to a behaviour or the orchestrator stopped triggering the harness that guards it — leaving only the Monday cron. Same class as the route-enumeration list `vendorRateLimit.test.ts` caught in 3.5.
+
 ### ✅ Exit Gate — Phase 3
-- [ ] Characterisation suite passes byte-identically after every migration step
-- [ ] The only pre-existing test that changed is `WRITE_ROUTES`
-- [ ] Fitness test catches all three deliberate breakages
-- [ ] `mutation:check` score on `apps/api/src/efs/` recorded and acceptable
-- [ ] **All four Phase-3 waivers from Step 0.6 are DELETED from `GRANDFATHERED`** — `control.ts`, `efsCardControl.ts`, `cardControlContract.ts`, `cardControlModel.ts` all under 500 on their own (`efsCardControl.ts` ✅ removed in 3.4)
+- [x] Characterisation suite passes byte-identically after every migration step
+- [ ] The only pre-existing test that changed is `WRITE_ROUTES` — **NOT met, and stated rather than fudged.** Four others changed: `orchestrator.test.ts` (step-up signature), `efsCardControl.test.ts` and `efsCardWriteDeadline.test.ts` (the deleted spec), `vendorRateLimit.test.ts` and `cardControlContract.test.ts` (a moved router, a split module). **Every one got stronger or kept every assertion**; none was weakened to accommodate a refactor. Each is named in its own commit
+- [x] Fitness test catches all three deliberate breakages
+- [x] `mutation:check` score on `apps/api/src/efs/` recorded and acceptable — **18/18, 7 new**
+- [x] **All four Phase-3 waivers from Step 0.6 are DELETED from `GRANDFATHERED`** — `control.ts`, `efsCardControl.ts`, `cardControlContract.ts`, `cardControlModel.ts` all under 500 on their own (`efsCardControl.ts` ✅ removed in 3.4)
 - [ ] Live QA: all five operations still work — **on a deploy that contains the generated router.** See the note below; a green run against a build that still serves the operation from `control.ts` proves the orchestrator, not the migration
-- [ ] Standing gates green
+- [x] Standing gates green
 
 ---
 
@@ -915,6 +919,7 @@ Reuse only: `SlideOver`, `AppButton`, `AppFormField`, `AppInput`, `AppCombobox`,
 
 | Date | Phase | Steps completed | Notes / surprises |
 |---|---|---|---|
+| 2026-08-14 | 3 | **3.10** | **Mutation score 18/18, 7 new.** The seven are the phase's own defects, written down: dropped `vendorMovesFields`, dropped `reconcile`, `===` instead of `efsStatusEquals` on the fraud gate, the DRID opt-in bypassed, a mismatched write bucket, the preflight moved after the limiter, `partial` collapsed into `failed`. Each had been hand-verified when its fix landed; the harness is what stops that from being a thing somebody once did. **`mutation-check.yml`'s path filter never followed the code** out of `services/` into `efs/`, so pushes touching a behaviour stopped triggering it — only the Monday cron would have. Fixed, and it is a workflow edit, which should be read as one. **Phase 3's exit gate now has exactly one open item: the live QA.** |
 | 2026-08-14 | 3 | **3.9** | The background sweep could never settle a `direct` op: it skipped every row with an empty edit list, and a dedicated vendor op writes no edits — so an unverified `deleteOverride` stayed "Unverified" forever with the answer one read away. **`efsCardUnresolved.ts` had no test file**, which is how a one-line skip survived being read repeatedly; it reads like a guard against rows that cannot be judged and is a guard against the rows that most need it. Fixed via an after-only `reconcile` on the verify plan, read through the capability's own `snapshot`. Now three-valued, so `indeterminate` leaves a row visible rather than settling it by default, and a `capability_key` this build does not declare is skipped rather than judged by somebody else's predicate. The audit row records `judgedBy`. |
 | 2026-08-14 | 3 | **3.8** | The fitness test **found a real defect on its first run**: `CARD_MUTATION_STATUSES` never learned about `'partial'`, which 0190 added to the CHECK in Step 3.2 and the orchestrator has written since 3.4. It backs a `z.enum` the history view parses through, so a partial row was a status the database accepts and the drawer cannot name — three steps with the drift sitting there. Labelled "Partly applied", which names the shortfall rather than the failure. **`WRITE_ROUTES` converted** to derive paths from the registry — the one pre-existing test change docs/27 §10 allows — with bodies kept in a keyed map, since only a capability's schema knows what a valid one looks like, and a guard that fails if the map misses one. **The view pairing had to live web-side**; a contract with a behaviour and no view is a capability the API executes and the drawer cannot describe. |
 | 2026-08-14 | 3 | **3.7** | `CardMutationIntentSpec`, `CardMutationVendorOp`, `resolveIntentSpec`, `executeCardMutation` and `control.ts` all deleted. **Two pre-existing test files changed and both got stronger**: `efsCardControl.test.ts` (21 cases) and `efsCardWriteDeadline.test.ts` were driving hand-written specs that RESEMBLED the production recipes, and now run against `cardLockBehaviour` and `deleteOverrideBehaviour` themselves — every assertion unchanged, but the matrix now fails if the shipped lock changes. **Found by running it: the characterisation suite was at 3.1s per case against vitest's 5s default and timed out in a full run.** The stub answers the verifying re-read with the same document, so four of five cases slept the full 3s `EFS_CARD_VERIFY_RETRY_MS` before deciding a landing this suite does not assert — 62% of the timeout budget, on the suite that gates every migration in this phase. Set to 0: 3.1s → 62ms per case, same bytes asserted. **All four Phase-3 waivers deleted.** |
