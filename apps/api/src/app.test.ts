@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createApp } from "./app.js";
 import { loadEnv } from "./env.js";
+import { closeTestServer } from "./testing/httpServer.js";
 
 let server: Server;
 let baseUrl: string;
@@ -23,9 +24,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) =>
-    server.close((err) => (err ? reject(err) : resolve())),
-  );
+  await closeTestServer(server);
 });
 
 type HealthBody = { status: string; service: string; env: string; schema: string; commit: string | null };

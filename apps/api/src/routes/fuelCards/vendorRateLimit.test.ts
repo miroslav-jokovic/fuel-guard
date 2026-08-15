@@ -16,6 +16,7 @@ import { fuelCardSettingsRouter } from "./settings.js";
 import { fuelCardsRouter } from "./read.js";
 import { fuelCardWriteProbeRouter } from "./writeProbe.js";
 import { FUEL_CARD_ROUTE_TABLE, isFuelCardVendorRequest } from "./vendorRateLimit.js";
+import { closeTestServer } from "../../testing/httpServer.js";
 
 const CARD = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 const TOKEN = "admin";
@@ -86,10 +87,6 @@ async function statuses(baseUrl: string, path: string, method: string, body?: un
   return repeat(31, () => call(baseUrl, path, method, { body }));
 }
 
-async function closeServer(server: Server): Promise<void> {
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -101,7 +98,7 @@ describe("fuel-card vendor rate budget", () => {
       const result = await statuses(baseUrl, `/api/fuel-cards/${CARD}`, "GET");
       expect(result).not.toContain(429);
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
@@ -111,7 +108,7 @@ describe("fuel-card vendor rate budget", () => {
       const result = await statuses(baseUrl, `/api/fuel-cards/${CARD}/lock`, "POST", {});
       expect(result.at(-1)).toBe(429);
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
@@ -121,7 +118,7 @@ describe("fuel-card vendor rate budget", () => {
       const result = await statuses(baseUrl, "/api/fuel-cards/diagnose", "POST", {});
       expect(result.at(-1)).toBe(429);
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
@@ -131,7 +128,7 @@ describe("fuel-card vendor rate budget", () => {
       const result = await statuses(baseUrl, "/api/fuel-cards/diagnose/", "POST", {});
       expect(result.at(-1)).toBe(429);
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
@@ -141,7 +138,7 @@ describe("fuel-card vendor rate budget", () => {
       const result = await statuses(baseUrl, "/api/fuel-cards/not-a-real-route", "POST", {});
       expect(result.at(-1)).toBe(429);
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
@@ -172,7 +169,7 @@ describe("fuel-card vendor rate budget", () => {
       const orgB = await call(baseUrl, CHARGED.path, CHARGED.method, { token: TOKEN_B, body: CHARGED.body });
       expect(orgB).not.toBe(429);
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
@@ -189,7 +186,7 @@ describe("fuel-card vendor rate budget", () => {
       );
       expect(result.at(-1)).toBe(429);
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 
@@ -204,7 +201,7 @@ describe("fuel-card vendor rate budget", () => {
       const authenticated = await repeat(30, () => call(baseUrl, CHARGED.path, CHARGED.method, { body: CHARGED.body }));
       expect(authenticated).not.toContain(429);
     } finally {
-      await closeServer(server);
+      await closeTestServer(server);
     }
   });
 

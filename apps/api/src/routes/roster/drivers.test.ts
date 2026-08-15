@@ -5,6 +5,7 @@ import type { AuthContext } from "@fuelguard/shared";
 import { driverCreateSchema, driverUpdateSchema, deriveFullName, resolveDriverUpdate } from "@fuelguard/shared";
 import { createApp } from "../../app.js";
 import { loadEnv } from "../../env.js";
+import { closeTestServer } from "../../testing/httpServer.js";
 
 /**
  * Roster drivers — GATING and CONTRACT only.
@@ -57,7 +58,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   errorLog.mockRestore();
-  await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
+  await closeTestServer(server);
 });
 
 const call = (path: string, init: RequestInit & { token?: string } = {}) => {

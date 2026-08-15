@@ -6,6 +6,7 @@ import type { AuthContext } from "@fuelguard/shared";
 import { verifyAccessToken } from "../lib/auth.js";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
+import { closeTestServer } from "../testing/httpServer.js";
 
 describe("verifyAccessToken (real jose verification)", () => {
   it("verifies a well-formed token and maps claims → context", async () => {
@@ -73,9 +74,7 @@ describe("auth middleware gating", () => {
   });
 
   afterAll(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((e) => (e ? reject(e) : resolve())),
-    );
+    await closeTestServer(server);
   });
 
   const get = (path: string, token?: string) =>

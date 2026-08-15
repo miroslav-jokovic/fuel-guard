@@ -6,6 +6,7 @@ import type { AddressInfo } from "node:net";
 import type { TLSSocket } from "node:tls";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Env } from "../env.js";
+import { closeTestServer } from "../testing/httpServer.js";
 import {
   __resetSoapPacing,
   assertTlsPolicy,
@@ -109,7 +110,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   invalidateTlsAgents();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeTestServer(server);
 });
 
 afterEach(() => {
