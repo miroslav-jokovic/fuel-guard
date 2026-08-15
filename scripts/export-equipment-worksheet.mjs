@@ -46,7 +46,7 @@ const rows = [];
 for (let off = 0; ; off += 1000) {
   const { data, error } = await db
     .from("vehicles")
-    .select("unit_number, has_apu, has_optimized_idle, idle_capability, idle_optimized_pct, status")
+    .select("id, unit_number, has_apu, has_optimized_idle, idle_capability, idle_optimized_pct, status")
     .neq("status", "retired")
     .order("unit_number", { ascending: true })
     .range(off, off + 999);
@@ -55,13 +55,36 @@ for (let off = 0; ; off += 1000) {
   if ((data ?? []).length < 1000) break;
 }
 
-const unanswered = rows.filter((v) => v.has_apu == null && v.has_optimized_idle !== true);
+// Money-at-stake ordering: sum each truck's last-30d CONTINUOUS idle from the rollup. A confirmed APU
+// on a truck idling 300h/month matters ~100x more than one idling 3h — confirm the top rows first.
+const sinceDay = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+const continuousByVehicle = new Map();
+for (let off = 0; ; off += 1000) {
+  const { data, error } = await db
+    .from("idle_rollup_days")
+    .select("vehicle_id, continuous_idle_sec")
+    .gte("day", sinceDay)
+    .range(off, off + 999);
+  if (error) throw new Error(error.message);
+  for (const r of data ?? [])
+    continuousByVehicle.set(
+      r.vehicle_id,
+      (continuousByVehicle.get(r.vehicle_id) ?? 0) + (Number(r.continuous_idle_sec) || 0),
+    );
+  if ((data ?? []).length < 1000) break;
+}
+
+const unanswered = rows
+  .filter((v) => v.has_apu == null && v.has_optimized_idle !== true)
+  .sort(
+    (a, b) => (continuousByVehicle.get(b.id) ?? 0) - (continuousByVehicle.get(a.id) ?? 0),
+  );
 const csvEscape = (v) => {
   const s = String(v ?? "");
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const lines = [
-  "unit_number,apu_type,has_optimized_idle,learned_pattern,engine_off_share,notes",
+  "unit_number,apu_type,has_optimized_idle,continuous_idle_h_30d,learned_pattern,engine_off_share,notes",
 ];
 for (const v of unanswered) {
   const pattern = v.idle_capability ?? "unknown";
@@ -75,13 +98,22 @@ for (const v of unanswered) {
         : pattern === "continuous_only"
           ? "only ever idles continuously — if truly no equipment, set apu_type=none"
           : "no clear pattern — check the spec sheet";
+  const continuousH = Math.round(((continuousByVehicle.get(v.id) ?? 0) / 3600) * 10) / 10;
   lines.push(
-    [v.unit_number, "", "", pattern, share, note].map(csvEscape).join(","),
+    [v.unit_number, "", "", continuousH, pattern, share, note].map(csvEscape).join(","),
   );
 }
 const outPath = join(ROOT, "docs/equipment-worksheet.csv");
 writeFileSync(outPath, lines.join("\r\n") + "\r\n");
 console.log(`${unanswered.length} trucks without an equipment answer (of ${rows.length} active).`);
+const top20 = unanswered
+  .slice(0, 20)
+  .reduce((acc, v) => acc + (continuousByVehicle.get(v.id) ?? 0), 0);
+const all = unanswered.reduce((acc, v) => acc + (continuousByVehicle.get(v.id) ?? 0), 0);
+console.log(
+  `Sorted by 30-day continuous idle: the TOP 20 rows carry ${Math.round((top20 / 3600) * 10) / 10}h of the ` +
+    `${Math.round((all / 3600) * 10) / 10}h total at stake (${all > 0 ? Math.round((top20 / all) * 100) : 0}%). Start there.`,
+);
 console.log(`Wrote ${outPath}`);
 console.log(
   "\nFill apu_type (diesel_apu / battery_hvac / fuel_heater / shore_power / none) and/or",
