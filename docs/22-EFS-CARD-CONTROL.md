@@ -765,3 +765,90 @@ mis-spelling means the next write is silently ignored (H1), and no proof makes t
 Both residual risks are recorded on the promotion row and in the `card.capability_promoted` audit
 entry — "what did we know we did not know when we allowed this" is a question asked after an
 incident, not before.
+
+---
+
+## H6 — the credential binding was inert, and closing it measured apply latency properly (2026-08-15 evening, QA, CONFIRMED)
+
+**The gate that never ran.** Migration 0187 bound a confirmed write entitlement to the credential
+identity it was confirmed against, and added the column nullable with a grandfather clause. From
+2026-08-13 until this run, the only org with card control had `write_entitlement = 'confirmed'` and
+`probed_identity_hash` NULL. `efsCardControlAccess.ts` read that null, logged one warning **per
+process**, and allowed the write. The guard was therefore switched off on 100% of the orgs it
+governed, and the warning designed to make that visible fired once per boot and then went silent.
+
+Two facts made it invisible, and both are worth carrying:
+
+- **`probed_endpoint_host` and `probed_document_shape` were null too.** `writeProbe.ts` writes all
+  three in one upsert, so their being null *together* is the evidence that no probe had touched the
+  row since 0187 added the columns. The plan inferred the provenance; the trio proves it. When a
+  column is written by exactly one code path, its siblings are a free provenance check.
+- **The dedup was the disguise.** A refusal that goes quiet after the first request looks identical
+  to a system with nothing to report.
+
+**Re-probed 2026-08-15 16:42Z, ten of ten proofs green**, on the QA sandbox
+(`ws.partner.efsllc.com`, egress `152.55.176.240`, shape `nested:header`, 35 cards). The card was
+returned byte-identical by a zero-edit echo (1662 bytes, `changed: []`), set to HOLD, and reverted to
+ACTIVE. `probed_identity_hash` now `a8a624d2…`, and all three provenance columns are populated.
+
+### What it measured that the harness could not
+
+Steps 8 and 10 time ONE dispatch against ONE verifying re-read, which is the interval
+`apply_latency_ms` claims to hold:
+
+| | measured |
+|---|---|
+| apply (ACTIVE → HOLD, step 8) | **854 ms** |
+| revert (HOLD → ACTIVE, step 10) | **841 ms** |
+| the harness's figure for the same account (proof `40b88b75`) | 4562 ms |
+
+So the vendor applies a status edit in **~850 ms on this account** — bounded above by H1's inference
+("above the first read, below ~3 s") and the same order as H1's 533 ms. The 4562 ms in the proof row
+is not the vendor being slow; it is `executeCapability` end to end, including the 3-second second
+look. **Step 4.7 now has its calibration number**, and it did not need a new experiment — the
+entitlement probe had been measuring it correctly the whole time, in a different column.
+
+**The lesson, in the shape this account keeps producing it:** two numbers named for the same thing,
+measured across different intervals, one of them nine times the other. Same family as `sync_error`,
+`updated_at` and `drift` — one label, two meanings.
+
+---
+
+## H7 — the QA account cannot start Phases 9–12 as it stands (2026-08-15, OPEN)
+
+Step 0.13 asks for 13 QA cards mapped to §0.6's roles "from observed state". The observation was run
+against all 35 QA cards in the mirror, every one detail-synced. **Three of the six roles cannot be
+filled, because the required starting states do not exist in this account:**
+
+| Role | §0.6 requires | QA actually holds |
+|---|---|---|
+| Status | one Active, one **Hold** | ACTIVE and INACTIVE only — **no card is at Hold** |
+| Prompts | one `infoSource=CARD`, one `POLICY` | **all 35 are `BOTH`** — neither value occurs |
+| Override / limits | **two** with limits | **one** (••••7672: DEF 250, RFR 75, ULSD 500) |
+| Access controls | one **with** time restrictions | `timeRestrictions` is empty on **all 35** |
+| Control | one on the same policy as an experiment card | trivially satisfied — every card is `policyNumber 1` |
+| Empty `<infos>` / empty `<limits>` | one each, preserved | plentiful |
+
+`limitSource` and `timeSource` are `POLICY` on all 35, and `locations` is empty on all 35 —
+consistent with H3, which found this account does not report override scope at all.
+
+**This is a WEX-portal configuration task, not a code task**, and it is the real reason Phases 9, 10,
+11 and 12 cannot start. The plan recorded Step 0.13 as blocked on `EFS_CARD_CONTROL_PROBE_ENABLED`;
+that blocker is obsolete — every QA card is already detail-synced and the Step 1.2 ownership guard
+landed weeks ago. The actual blocker is that the fixtures the phases need have never been created.
+
+### And last-4 is not an identity in QA either
+
+The production finding (2026-08-15) repeats on the sandbox: **35 QA cards carry only 20 distinct
+last-4 values**, and nine groups hold more than one card — `7670`, `7671`, `7672`, `7677`, `7678`,
+`7679` are **three cards each**.
+
+That has a direct consequence for the record: **"the proof ran on QA ••••7671" does not name a
+card.** Three cards answer to it. The one this account's proofs have been hitting is identifiable
+only by its contents — three `<infos>` records (UNIT 990, NAME "Test Driver One", DRID 9900) where
+the other two ••••7671 rows carry none.
+
+So Step 0.13's stated output format — "§14, last-4 only" — **cannot express the answer it asks
+for**, and neither can any future proof record. The role table must key on `efs_cards.id`, which is
+a uuid, is already stored, and carries no PAN. Recorded here rather than fixed in passing, because
+changing how every proof names its card is a decision, not a cleanup.

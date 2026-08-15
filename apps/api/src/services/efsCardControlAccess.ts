@@ -3,12 +3,6 @@ import { type CardCapabilities, type UserRole, rolesThatManage } from "@fuelguar
 import type { Env } from "../env.js";
 import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
 
-const grandfatheredProbeOrgs = new Set<string>();
-
-export function __resetGrandfatheredProbeOrgs(): void {
-  grandfatheredProbeOrgs.clear();
-}
-
 /**
  * One place that answers "may this person change this card, and if not, why not?"
  *
@@ -27,7 +21,9 @@ export function __resetGrandfatheredProbeOrgs(): void {
  *      like 'denied' at the gate and differently in the UI, because "an admin needs to run the write
  *      check" and "EFS has not enabled this for your account" send a person to two different places.
  *   5. `probed_identity_hash` — the current EFS endpoint, username and account id still match the
- *      credential identity that established the entitlement. A null value is grandfathered temporarily.
+ *      credential identity that established the entitlement. A null value REFUSES (Step 2.6): an
+ *      entitlement confirmed against a credential nobody recorded is not evidence about the
+ *      credential in the row today.
  *
  * On top of those: the role must manage the `fuel` section, AND — when `require_approver` is on,
  * which is the default — the user must be named in `efs_card_control_approvers` for the relevant
@@ -164,15 +160,35 @@ export async function loadCardControlAccess(
     return denied("endpoint_changed", entitlement);
   }
   const probedIdentity = row?.probed_identity_hash ?? null;
-  if (probedIdentity !== null && probedIdentity !== currentIdentity) {
+  /**
+   * Step 2.6 — this branch used to ALLOW.
+   *
+   * Migration 0187 added the column nullable and grandfathered a null "temporarily", logging one
+   * warning per process. The temporary outlived the migration: on 2026-08-15 the only org with card
+   * control had `write_entitlement = 'confirmed'` and a null hash, so this guard had never once run
+   * on any org it governed. An entitlement proved against a credential nobody recorded says nothing
+   * about the credential the row points at today — which is the entire question this fact exists to
+   * answer — so it now refuses.
+   *
+   * Migration 0194 makes the state unrepresentable. Reaching this branch therefore means the
+   * constraint is gone or something wrote around it, and both are reasons to refuse rather than
+   * allow. It is deliberately NOT deduplicated per org the way the grandfather warning was: a
+   * refusal that goes quiet after the first request is how the original defect stayed invisible.
+   *
+   * It reuses `endpoint_changed` rather than earning a reason of its own because the operator's next
+   * action is identical — re-run the write check. That code's copy ("the EFS connection changed")
+   * is wrong for this case in a way that would send somebody hunting a credential rotation that
+   * never happened, so the honest sentence lives here, in the log, where they will actually be.
+   */
+  if (probedIdentity === null) {
+    console.warn(
+      `[card-control] org ${orgId} has a confirmed write entitlement and NO recorded credential ` +
+        "identity — refusing. Nothing changed; it was never bound. Re-run the EFS write check.",
+    );
     return denied("endpoint_changed", entitlement);
   }
-  if (probedIdentity === null && !grandfatheredProbeOrgs.has(orgId)) {
-    grandfatheredProbeOrgs.add(orgId);
-    console.warn(
-      `[card-control] org ${orgId} has confirmed write entitlement without a recorded credential identity; ` +
-        "allowing grandfathered access until the Phase 2 exit gate is satisfied",
-    );
+  if (probedIdentity !== currentIdentity) {
+    return denied("endpoint_changed", entitlement);
   }
 
   // The role gate is derived from the shared matrix rather than a hardcoded list, so it stays in step

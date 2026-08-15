@@ -1,11 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../env.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
 import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
-import {
-  __resetGrandfatheredProbeOrgs,
-  loadCardControlAccess,
-} from "./efsCardControlAccess.js";
+import { loadCardControlAccess } from "./efsCardControlAccess.js";
 
 const env = {
   EFS_CARD_CONTROL_ENABLED: true,
@@ -53,12 +50,7 @@ function accessRecorder(
   });
 }
 
-beforeEach(() => {
-  __resetGrandfatheredProbeOrgs();
-});
-
 afterEach(() => {
-  __resetGrandfatheredProbeOrgs();
   vi.restoreAllMocks();
 });
 
@@ -89,21 +81,55 @@ describe("card-control credential identity binding", () => {
     expect(access.canLock).toBe(true);
   });
 
-  it("allows card control when the probed identity has never been recorded", async () => {
+  /**
+   * Step 2.6, and this test is the whole point of it.
+   *
+   * Until 2026-08-15 this case asserted the OPPOSITE — that a confirmed entitlement with no recorded
+   * credential identity was allowed through, logging one warning. That was migration 0187's
+   * "temporary" grandfather clause, and it was live on 100% of the orgs card control governed: the
+   * one org with an entitlement had a null hash, so the guard that stops a QA-confirmed entitlement
+   * being exercised against a repointed credential never once ran.
+   *
+   * It refuses as `endpoint_changed` rather than earning a reason of its own because the operator's
+   * next action is identical — re-run the write check — and migration 0194 makes the state
+   * unrepresentable anyway. The distinction that would mislead ("the connection changed" when
+   * nothing changed) is kept in the server log instead of the enum.
+   */
+  it("refuses card control when the entitlement was confirmed but no identity was ever recorded", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const rec = accessRecorder(null);
 
     const access = await loadCardControlAccess(
       rec.client,
       env,
-      "org-grandfathered",
+      "org-never-bound",
       "user-1",
       "admin",
     );
 
-    expect(access.blockedBy).toBeNull();
-    expect(access.canLock).toBe(true);
+    expect(access.blockedBy).toBe("endpoint_changed");
+    expect(access.canLock).toBe(false);
+    expect(access.canUnlock).toBe(false);
+    expect(access.canOverride).toBe(false);
+    expect(access.canSetPrompts).toBe(false);
+    expect(access.orgReady).toBe(false);
+    // Loud, and every time. This is now a refusal on a state a database constraint forbids, so a
+    // line per request is a signal that something wrote around the constraint — not log spam.
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses on every request, not once per org — the warning is not deduplicated", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const rec = accessRecorder(null);
+
+    const first = await loadCardControlAccess(rec.client, env, "org-never-bound", "user-1", "admin");
+    const second = await loadCardControlAccess(rec.client, env, "org-never-bound", "user-1", "admin");
+
+    // The deleted grandfather branch remembered which orgs it had warned about, so the second call
+    // was silent. A refusal that goes quiet after one request is how this defect stayed invisible.
+    expect(first.blockedBy).toBe("endpoint_changed");
+    expect(second.blockedBy).toBe("endpoint_changed");
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
   it("refuses card control when the stored endpoint URL cannot be parsed", async () => {
@@ -132,15 +158,6 @@ describe("card-control credential identity binding", () => {
     expect(access.canLock).toBe(false);
   });
 
-  it("logs the grandfathered warning once per org", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const rec = accessRecorder(null);
-
-    await loadCardControlAccess(rec.client, env, "org-warning-once", "user-1", "admin");
-    await loadCardControlAccess(rec.client, env, "org-warning-once", "user-1", "admin");
-
-    expect(warn).toHaveBeenCalledTimes(1);
-  });
 });
 
 describe("the promotion gate (Step 4.2)", () => {

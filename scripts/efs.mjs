@@ -18,6 +18,7 @@
  * silently and fail as "Invalid or expired token", which reads like a vendor problem and is not one.
  *
  *   pnpm efs:scan                        # prompts for the token, hidden
+ *   pnpm efs:write-check                 # the ten-proof entitlement gate; prompts: token, password, card
  *   pnpm efs:prove card_lock             # prompts: token, password (step-up), card number
  *   pnpm efs:promote card_lock --proof <uuid> --reason "OEG green on QA"
  *   pnpm efs:promote card_lock --suspend --reason "override drift on 7670"
@@ -28,7 +29,19 @@
  */
 const API_DEFAULT = "https://fleetguardapi-production.up.railway.app";
 
-const [, , command, capability, ...rest] = process.argv;
+/**
+ * `capability` is positional and OPTIONAL, so it cannot be destructured out of argv blindly.
+ *
+ * It used to be, and the first flag of any command that takes no capability was silently eaten as
+ * the capability. `echo-scan --limit 100 --offset 50` parsed as capability="--limit", rest=["100",
+ * "--offset","50"] — so `--offset` was honoured, `--limit` was dropped, and the run used the default
+ * 50. It reported a completely successful scan of the wrong page size and nothing anywhere said so.
+ * Same for `--api` on `scan`, which meant the host override was ignored exactly when someone was
+ * pointing the tool at a second deploy on purpose.
+ */
+const [, , command, ...argv] = process.argv;
+const capability = argv[0] && !argv[0].startsWith("--") ? argv[0] : undefined;
+const rest = capability ? argv.slice(1) : argv;
 const flags = {};
 for (let i = 0; i < rest.length; i += 1) {
   if (!rest[i].startsWith("--")) continue;
@@ -191,6 +204,67 @@ switch (command) {
     break;
   }
 
+  /**
+   * The entitlement probe — the ten-proof gate in routes/fuelCards/writeProbe.ts.
+   *
+   * It is here because Step 2.6 needs a re-probe and there was no safe way to run one. The route
+   * takes the full PAN in its body, so the alternative was a curl, and a curl puts the card number
+   * in argv — the process table and the shell history — which is the one thing this CLI exists to
+   * prevent. Same prompt discipline as `prove`.
+   *
+   * ── Why the write half is the DEFAULT here, and read-only needs a flag ──────────────────────────
+   * This inverts the HTTP endpoint, whose default is `readOnly: true`, and the inversion is
+   * deliberate. `writeProbe.ts` upserts `write_entitlement` UNCONDITIONALLY from the run's verdict,
+   * and a read-only run can never return `confirmed` — it did not attempt a write. So running the
+   * read-only diagnostic against an org that already HAS a confirmed entitlement silently downgrades
+   * it to `unknown`, and every card action in that org stops until somebody runs the full ten-step
+   * probe against a disposable card. A diagnostic that revokes the thing it is diagnosing is a trap,
+   * and defaulting to it in an operator tool is how somebody falls into it at speed.
+   *
+   * The underlying behaviour is filed as its own step; this flag only stops the CLI being the way it
+   * bites. `--read-only` still does the honest first run for an org that has nothing to lose.
+   */
+  case "write-check": {
+    if (flags.card) {
+      die(
+        "--card is refused on purpose: a card number passed as a flag lands in shell history and the\n"
+          + "process table. Run `node scripts/efs.mjs write-check` and paste it at the prompt instead.",
+      );
+    }
+    const readOnly = flags["read-only"] === true;
+    if (readOnly) {
+      console.log(
+        "\nREAD-ONLY run. It proves the echo against real vendor XML and touches no card.\n"
+          + "It also OVERWRITES write_entitlement with `unknown`, because a run that attempted no\n"
+          + "write cannot confirm one. If this org is already `confirmed`, that revokes card control\n"
+          + "until a full run restores it. Check first:  node scripts/card-control-binding-check.mjs\n",
+      );
+    }
+    await getStepUpToken();
+    const card = await promptHidden("Card number (hidden): ", "card number");
+    if (!/^[0-9]{10,25}$/.test(card)) die("That does not look like a card number.");
+    const last4 = card.slice(-4);
+    if (!readOnly) {
+      console.log(
+        `\nFULL run against ••••${last4}. It will set the card to `
+          + `${flags.status ?? "Hold"} and revert it.\nRun this only against a card WEX has confirmed is disposable.\n`,
+      );
+    }
+    await call(
+      "/api/fuel-cards/write-check",
+      {
+        cardNumber: card,
+        // The endpoint demands this typed string for the write half specifically, so that the
+        // destructive path cannot be reached by a replayed request or a stray double-click.
+        confirm: `WRITE ${last4}`,
+        readOnly,
+        ...(typeof flags.status === "string" ? { realChangeStatus: flags.status } : {}),
+      },
+      { stepUp: true },
+    );
+    break;
+  }
+
   case "promote": {
     if (!capability) die("usage: pnpm efs:promote <capability> --proof <id> --reason <why>   |   --suspend --reason <why>");
     const reason = typeof flags.reason === "string" ? flags.reason : null;
@@ -205,5 +279,9 @@ switch (command) {
   }
 
   default:
-    die("commands: scan · echo-scan · prove <capability> --card <n> · promote <capability> [--proof <id> | --suspend] --reason <why>");
+    die(
+      "commands: scan · echo-scan · write-check [--read-only] [--status Hold|Inactive] · "
+        + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
+        + "(card numbers and tokens are always prompted for, never passed as flags)",
+    );
 }
