@@ -1,7 +1,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CARD_CAPABILITY_CONTRACTS, CARD_MUTATION_INTENTS, cardWriteBucket } from "@fuelguard/shared";
+import {
+  CARD_CAPABILITY_CONTRACTS,
+  CARD_MUTATION_INTENTS,
+  CARD_MUTATION_STATUSES,
+  cardWriteBucket,
+} from "@fuelguard/shared";
 import { loadEnv } from "../env.js";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
@@ -59,6 +64,29 @@ describe("the capability registries agree with each other", () => {
       // membership, not a bijection. A miss here fails at INSERT, after the gates have passed.
       expect(CARD_MUTATION_INTENTS, `${contract.key} intent`).toContain(contract.intent);
     }
+  });
+
+  it("covers every intent the ledger's CHECK constraint permits", () => {
+    const permitted = checkValuesFromMigrations(/check\s*\(\s*intent\s+in\s*\(([^)]*)\)/gi);
+    expect(permitted.length, "intent CHECK not found in the migration directory").toBeGreaterThan(0);
+    const declared = new Set(Object.values(CARD_CAPABILITY_CONTRACTS).map((c) => c.intent));
+    for (const intent of permitted) {
+      // Both directions. An intent the DB permits with no capability behind it is a value nothing
+      // can ever write — dead vocabulary that reads like a feature. The reverse is caught below.
+      expect(declared, `intent '${intent}' has no capability`).toContain(intent);
+    }
+    // …and the shared constant must agree with the constraint, or a row the database happily stores
+    // is one the history view refuses to parse.
+    expect([...CARD_MUTATION_INTENTS].sort()).toEqual([...permitted].sort());
+  });
+
+  it("keeps the status vocabulary in step with the ledger's CHECK constraint", () => {
+    const permitted = checkValuesFromMigrations(/check\s*\(\s*status\s+in\s*\(([^)]*)\)/gi);
+    expect(permitted.length, "status CHECK not found in the migration directory").toBeGreaterThan(0);
+    // `cardMutationSchema.status` is `z.enum(CARD_MUTATION_STATUSES)`, and the drawer's history view
+    // parses through it. A status the database accepts and this list omits is a row that renders as
+    // a parse error on the one screen an operator opens to find out what happened.
+    expect([...CARD_MUTATION_STATUSES].sort()).toEqual([...permitted].sort());
   });
 
   it("declares a scope the approver CHECK constraint permits", () => {
@@ -168,20 +196,25 @@ describe("the capability registries agree with each other", () => {
 });
 
 /**
- * The approver-scope CHECK, read from the WHOLE migration directory rather than from `0173`.
+ * A CHECK constraint's permitted values, read from the WHOLE migration directory.
  *
- * Last-one-wins, because a constraint can be dropped and re-added by a later migration — reading
+ * LAST ONE WINS, because a constraint can be dropped and re-added by a later migration — reading
  * only the file that first declared it goes stale the first time anything is widened, and then this
- * test happily permits a scope the live database rejects (docs/27 §7.2).
+ * test happily permits a value the live database rejects, or misses one it now accepts. Migration
+ * 0190 widened the status CHECK four migrations after 0177 declared it; a single-file reader would
+ * still be asserting the old five (docs/27 §7.2).
  */
-function approverScopesFromMigrations(): string[] {
+function checkValuesFromMigrations(pattern: RegExp): string[] {
   const dir = fileURLToPath(new URL("../../../../supabase/migrations/", import.meta.url));
-  let scopes: string[] = [];
+  let values: string[] = [];
   for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
     const sql = readFileSync(`${dir}${file}`, "utf8");
-    for (const match of sql.matchAll(/check\s*\(\s*scopes\s*<@\s*array\[([^\]]*)\]/gi)) {
-      scopes = [...(match[1] ?? "").matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+    for (const match of sql.matchAll(new RegExp(pattern.source, pattern.flags))) {
+      values = [...(match[1] ?? "").matchAll(/'([^']+)'/g)].map((m) => m[1]!);
     }
   }
-  return scopes;
+  return values;
 }
+
+const approverScopesFromMigrations = (): string[] =>
+  checkValuesFromMigrations(/check\s*\(\s*scopes\s*<@\s*array\[([^\]]*)\]/gi);

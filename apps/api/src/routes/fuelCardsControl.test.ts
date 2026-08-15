@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { loadEnv } from "../env.js";
+import { mountedCapabilities } from "../efs/registry.js";
 import type { AuthContext } from "@fuelguard/shared";
 
 /**
@@ -89,16 +90,48 @@ const send = (
 const base = { expectedVersion: VERSION, reason: "Truck broken into overnight" };
 
 /** The five write routes with a body each would otherwise accept, so only the GATE can refuse them. */
-const WRITE_ROUTES: Array<[string, string, unknown]> = [
-  [`/api/fuel-cards/${CARD}/lock`, "POST", base],
-  [`/api/fuel-cards/${CARD}/unlock`, "POST", base],
-  [`/api/fuel-cards/${CARD}/override`, "POST", { ...base, uses: 1, scope: { kind: "all" } }],
-  [`/api/fuel-cards/${CARD}/override`, "DELETE", base],
-  [`/api/fuel-cards/${CARD}/prompts`, "POST", { ...base, replaceAll: true, prompts: [] }],
-];
+/**
+ * A minimal valid body per capability. The PATHS are no longer written down — they come from the
+ * registry below — but a body cannot be, since only the capability's own schema knows what a valid
+ * one looks like. The `it` after this asserts the map covers every mounted capability, so adding a
+ * capability without a sample fails here rather than silently dropping it from the gate sweep.
+ */
+const WRITE_BODIES: Record<string, unknown> = {
+  card_lock: base,
+  card_unlock: base,
+  override_grant: { ...base, uses: 1, scope: { kind: "all" } },
+  override_clear: base,
+  delete_override: base,
+  prompts_set: { ...base, replaceAll: true, prompts: [] },
+};
+
+/**
+ * Every write route the app actually mounts, derived rather than listed (plan Step 3.8).
+ *
+ * This array was five hardcoded literals, and docs/27 §10 names converting it as the ONE
+ * pre-existing test change this phase is allowed. The reason is not tidiness: a hardcoded list
+ * means a new capability is unauthenticated-tested only if somebody remembers to add it here, and
+ * "somebody remembers" is exactly what `routeAuth.test.ts` already proved does not hold — its
+ * discovery regex found 26 routers and silently missed the one that mattered.
+ */
+const MOUNTED = mountedCapabilities(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv));
+const WRITE_ROUTES: Array<[string, string, unknown]> = MOUNTED.map((capability) => [
+  `/api/fuel-cards${capability.contract.route.path.replace(":id", CARD)}`,
+  capability.contract.route.method,
+  WRITE_BODIES[capability.contract.key],
+]);
 
 describe("write routes — authentication and role", () => {
   const s = withServer(); // 5 + 15 + 2 = 22 requests
+
+  it("discovered every mounted write route, with a body for each", () => {
+    // Without this, an empty registry makes every `it.each` below run zero cases and the whole
+    // describe passes while asserting nothing about anything.
+    expect(WRITE_ROUTES.length).toBe(5);
+    for (const [path, method, body] of WRITE_ROUTES) {
+      expect(body, `no sample body for ${method} ${path}`).toBeDefined();
+    }
+  });
 
   it.each(WRITE_ROUTES)("refuses %s (%s) without a token", async (path, method, body) => {
     expect((await send(s.url(), path, method, { body })).status).toBe(401);
