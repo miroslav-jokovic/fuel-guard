@@ -92,6 +92,13 @@ function seededClient(): ReturnType<typeof createSupabaseRecorder> {
     // `card_status` fails open. Seeding it keeps these tests about the dispatched bytes.
     rpc: { bump_card_write_counter: { allowed: true } },
     tables: {
+      /**
+       * Step 4.2. The gate now demands a promotion row per capability, so these fixtures model the
+       * state migration 0193 backfills for every org whose write_entitlement is already confirmed.
+       * Without it every write below refuses `not_promoted` — which is the gate working, and exactly
+       * why the plan insists the backfill ship in the same change as the gate.
+       */
+      efs_capability_promotions: { data: { state: "enabled" }, error: null },
       efs_card_control_settings: {
         data: {
           org_id: ORG,

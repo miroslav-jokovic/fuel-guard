@@ -49,7 +49,18 @@ export interface Prepared {
  * function is called, or a refused request burns a slot the operator never got to use
  * (docs/27 §5, prepare steps 6 and 7).
  */
-export async function prepare(req: Request, res: Response, scope: CardScope): Promise<Prepared | null> {
+export async function prepare(
+  req: Request,
+  res: Response,
+  scope: CardScope,
+  /**
+   * The capability key, so the promotion gate can answer for THIS action (Step 4.2). Optional only
+   * because `scope` alone is what the four hand-written handlers passed before the registry existed;
+   * every caller in the generated router supplies it, and the fitness test in router.test.ts is what
+   * keeps that true.
+   */
+  capabilityKey?: string,
+): Promise<Prepared | null> {
   const { env } = getAppLocals(req);
   const orgId = req.auth!.orgId!;
 
@@ -71,7 +82,7 @@ export async function prepare(req: Request, res: Response, scope: CardScope): Pr
   }
 
   const admin = getSupabaseAdmin(env);
-  const access = await loadCardControlAccess(admin, env, orgId, req.auth!.userId, req.auth!.role);
+  const access = await loadCardControlAccess(admin, env, orgId, req.auth!.userId, req.auth!.role, capabilityKey);
   if (access.blockedBy !== null || !access.scopes.includes(scope)) {
     // Five ANDed facts, each with its own sentence, because "an admin needs to run the write check"
     // and "EFS has not enabled this for your account" send a person to two different places.

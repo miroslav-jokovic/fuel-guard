@@ -170,7 +170,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | ⛔ *(2.1–2.5 merged, PRs #13–#21; echo scan green 197/197. **Exit gate FAILS:** the live check was run 2026-08-15 and the one org with card control has `write_entitlement = 'confirmed'` with a null `probed_identity_hash`, which the code grandfathers — **Step 2.6**. The gate wording is amended, identically to Phase 3's)* | `delivery-p2-echo` |
 | 3 | Capability architecture | ✅ *(3.1–3.11 merged; **exit gate CLOSED 2026-08-15** — all five operations verified live on `af1a8e5`, card returned byte-identical. The read behind 3.11 proved this account never reports override scope on ANY card, `docs/22` H3. 3.5a withdrawn — it is Step 4.2)* | merged to `main` |
-| 4 | Harness & promotion | 🔶 *(**4.1, 4.4, 4.5 built.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Remaining: 4.2 the gate, 4.3 the local harness, 4.6 promotion — and the first live proof run)* | `delivery-p4-harness` |
+| 4 | Harness & promotion | 🔶 *(**4.1, 4.2, 4.4, 4.5 built.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Migration 0193 backfills the five live capabilities; `delete_override` stays unpromoted until a proof characterises it. Remaining: 4.3 the local harness, 4.6 promotion — and the first live proof run)* | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ *(5.6–5.10 filed 2026-08-15 from `docs/30` §6.G and Phase 2's two-hosts finding. Two §6.G items were small enough to fix on the spot and are done)* | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
 | 7 | Account & policy visibility | ⬜ *(7.7 card identity and 7.8 override staleness filed 2026-08-15. **7.7 is worth pulling forward** — 182 of 234 production cards are unlinked, so fuel attribution runs on a minority of the fleet)* | `delivery-p7-visibility` |
@@ -703,11 +703,25 @@ The production org has no row at all, so card control is QA-only today — which
 
 **Deliberately backfills nothing.** Step 4.2 introduces the gate that reads these tables and backfills the five live capabilities as `enabled` **in the same migration as the gate**. Backfilling here would put rows in a table nothing reads; gating without the backfill would refuse every card operation in production between two merges.
 
-### Step 4.2 — The promotion gate
+### ✅ Step 4.2 — The promotion gate — DONE 2026-08-15
 **Files:** `apps/api/src/services/efsCardControlAccess.ts`, `apps/api/src/env.ts`.
 **Change:** `loadCardControlAccess` takes an optional capability and refuses unless `state === 'enabled'`. Add `blockedBy: "not_promoted"` and `"capability_suspended"`. **Backfill** the five existing capabilities as `enabled` with `reason: 'backfilled from Phase B write_entitlement'`.
 > **This step absorbs the withdrawn 3.5a.** The backfill is not bookkeeping — it is the only thing that makes this gate safe to introduce. Order matters: the backfill must be in the SAME migration as the table, or every card operation is refused between 4.1 and the backfill. The capability argument now has exactly **one** call site to reach in the generated router (`apps/api/src/efs/router.ts`), plus the four hand-written handlers still in `control.ts` until Step 3.7. Migrate `EFS_CARD_DELETE_OVERRIDE_ENABLED` into the `delete_override` capability (keep the env var one release as an additional AND, then remove).
 **Do not add a TTL cache** — live queries are why suspension is instant.
+
+#### ✅ DONE 2026-08-15 — migration `0193`, and one deviation
+
+**The backfill is in the same migration as the gate**, as the step demands, and validated against a scratch database: five capabilities × every org whose `write_entitlement` is already `confirmed`. An org that never had write access acquires nothing. `on conflict do nothing`, proven not to resurrect a suspension — re-running the backfill over a `suspended` row leaves it suspended, because a backfill that un-suspends re-enables a write path somebody switched off on purpose.
+
+**`delete_override` is deliberately NOT backfilled.** It stays `not_promoted` until a proof run characterises what it writes into the override trio (finding D1) — which is exactly the state this table exists to express.
+
+**Deviation — `EFS_CARD_DELETE_OVERRIDE_ENABLED` is kept, and not as a countdown.** The step says to migrate the flag into the capability. It cannot fully move: the flag decides which clear mechanism the router MOUNTS, once per deploy, while a promotion is per-org and read per request. So the flag stays as the deploy-level mount switch and the promotion is the per-org gate — the "additional AND" the step describes, with the two answering different questions rather than the same one twice. Removing the flag would mean mounting both mechanisms on one route, which `mountedCapabilities` refuses by design.
+
+**Fails closed.** An unreadable promotion table resolves to `not_promoted`, never to permission — one database hiccup must not silently open every capability at once. Tested, and verified by deleting the refusal line: three tests go red.
+
+**Read paths pass no capability**, on purpose. They render what a user could do in general; making them answer for a capability nobody named would blank the whole card-control UI the moment one capability were suspended.
+
+**Both pre-existing write test-fixtures gained a promotion row** — the fixture equivalent of the backfill. Without it every write refuses `not_promoted`, which is the gate working, and is the clearest possible demonstration of why the plan insists the two ship together.
 **Verify:** *"an unpromoted capability is refused"* · *"a suspended capability is refused even when write_entitlement is confirmed"* · *"the five existing capabilities are enabled after backfill"*. **Deployed:** every existing operation still works on QA; suspend one and confirm it refuses immediately.
 
 ### Step 4.3 — Local harness
