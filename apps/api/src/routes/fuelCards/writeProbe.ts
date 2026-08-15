@@ -15,6 +15,7 @@ import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireFreshAuth } from "../../middleware/requireFreshAuth.js";
 import { resolveProbeCredentials } from "./probeGuards.js";
 import { runRealChangeSteps, runStep, type ProbeStep } from "./writeProbeRealChange.js";
+import { judge, type Entitlement } from "./writeProbeJudge.js";
 
 /**
  * ★ THE GATE. The one thing that decides whether Phase B may be switched on at all.
@@ -80,8 +81,6 @@ const writeProbeSchema = z.object({
   realChangeStatus: z.string().trim().regex(/^(hold|inactive)$/i, "realChangeStatus must be Hold or Inactive (any casing)").default("Hold"),
 });
 
-type Entitlement = "unknown" | "confirmed" | "denied";
-
 export function fuelCardWriteProbeRouter(): Router {
   const router = Router();
   router.use(requireAuth);
@@ -121,6 +120,17 @@ export function fuelCardWriteProbeRouter(): Router {
       }
 
       const creds = await resolveProbeCredentials(admin, env, orgId, cardNumber);
+
+      // Read BEFORE anything is written, for two reasons: the response must report what the org
+      // actually HOLDS rather than what this run guessed, and `judge()` needs it to stop telling an
+      // already-entitled org that its write access is "still UNPROVEN" after a read-only run.
+      const { data: priorRow } = await admin
+        .from("efs_card_control_settings")
+        .select("write_entitlement")
+        .eq("org_id", orgId)
+        .maybeSingle();
+      const priorEntitlement =
+        (priorRow as { write_entitlement?: Entitlement } | null)?.write_entitlement ?? "unknown";
 
       const steps: ProbeStep[] = [];
       // A holder rather than a bare `let`: the document is assigned inside a callback, and TypeScript
@@ -226,7 +236,37 @@ export function fuelCardWriteProbeRouter(): Router {
         }
       }
 
-      const { entitlement, recommendation, verdict } = judge(steps, readOnly);
+      const { entitlement: judged, recommendation, verdict } = judge(steps, readOnly, priorEntitlement);
+
+      /**
+       * ── Step 2.7: a READ-ONLY run must not touch `write_entitlement` ────────────────────────────
+       *
+       * This upsert used to write `judged` unconditionally, and `judge()` returns `unknown` for every
+       * read-only run BY CONSTRUCTION: `denied` can only come from a permission refusal at step 5 or
+       * step 7, and `confirmed` requires step 8 — none of which run when `readOnly` is true. So a
+       * read-only verdict is not a finding about write access at all. It is the ABSENCE of evidence,
+       * and storing it converted "we did not look" into "we looked and found nothing".
+       *
+       * The cost was concrete: running the harmless diagnostic against an org that was already
+       * `confirmed` downgraded it to `unknown` and stopped every card action there until somebody ran
+       * the full ten-step probe against a disposable card. The read-only path is the one an operator
+       * reaches for precisely BECAUSE it is safe, so the trap was laid on the cautious route.
+       *
+       * Omitting the key from the payload is what leaves it alone: PostgREST's upsert sets only the
+       * columns it is given, so an existing row keeps its value and a brand-new row falls to the
+       * column default of `unknown` — which is the right answer for an org whose only probe was
+       * read-only.
+       */
+      const writesEntitlement = !readOnly;
+
+      /**
+       * The identity trio is observed on EVERY run, including read-only, and is what Step 2.6's
+       * binding needs — so a read-only re-probe is now the cheap way to rebind a credential without
+       * touching a card. `probed_document_shape` is the exception: it is only KNOWN when step 3
+       * actually returned a document, and writing null over a previously recorded shape would erase
+       * a fact this probe simply failed to re-observe. Same rule as the entitlement, one column over.
+       */
+      const observedShape = before ? documentShape(before) : null;
       // The address EFS saw. On a second environment this is the difference between "WEX has not
       // enabled us" and "WEX allowlisted three IPs and we left from a fourth" — see lib/egressAddress.
       const egressIp = await egressAddress();
@@ -240,8 +280,12 @@ export function fuelCardWriteProbeRouter(): Router {
         cardLast4: last4,
         versionBefore: before?.version ?? null,
         versionAfter: state.versionAfter,
-        documentShape: before ? documentShape(before) : null,
+        documentShape: observedShape,
         egressIp,
+        // What THIS run was able to conclude about write access, kept distinct from what the org
+        // holds. On a read-only run these differ on purpose and the difference is the whole point.
+        judgedEntitlement: judged,
+        entitlementWritten: writesEntitlement,
         // Paths only, never values: probe_result is read on every card page load, and a changed
         // field can carry a driver's name. The full before/after go to the operator in the response.
         changedPaths: state.changed.map((d) => d.path),
@@ -258,14 +302,18 @@ export function fuelCardWriteProbeRouter(): Router {
         .from("efs_card_control_settings")
         .upsert({
           org_id: orgId,
-          write_entitlement: entitlement,
+          ...(writesEntitlement ? { write_entitlement: judged } : {}),
           probed_endpoint_host: efsEndpointHost(creds.endpointUrl),
           probed_identity_hash: credentialIdentityHash(env, creds),
-          probed_document_shape: before ? documentShape(before) : null,
+          ...(observedShape !== null ? { probed_document_shape: observedShape } : {}),
           probe_result: probeResult,
           probed_at: new Date().toISOString(),
           probed_by: req.auth!.userId,
         }, { onConflict: "org_id" });
+
+      // What the gate will read after this run: this run's verdict when it wrote one, otherwise
+      // whatever was already there.
+      const entitlement: Entitlement = writesEntitlement ? judged : priorEntitlement;
 
       await writeAudit(admin, {
         orgId,
@@ -278,6 +326,11 @@ export function fuelCardWriteProbeRouter(): Router {
           readOnly,
           cardLast4: last4, // never the PAN
           entitlement,
+          // An auditor asking "did this run change what the org may do?" must not have to infer it
+          // from `readOnly`. Both facts, named, in the row that outlives the operator's memory.
+          judgedEntitlement: judged,
+          entitlementWritten: writesEntitlement,
+          entitlementBefore: priorEntitlement,
           recommendation,
           verdict,
           steps: steps.map((s) => ({ step: s.step, name: s.name, ok: s.ok, errorCode: s.errorCode ?? null })),
@@ -287,11 +340,21 @@ export function fuelCardWriteProbeRouter(): Router {
       res.json({
         environment: creds.environment,
         readOnly,
+        /** What the capability gate will read from now on — the stored value, not this run's guess. */
         entitlement,
+        /**
+         * What THIS run could conclude. On a full run it equals `entitlement`; on a read-only run it
+         * is always `unknown`, because no write was attempted. Reported separately so the operator
+         * can see that a read-only probe proved nothing about write access WITHOUT being told their
+         * org just lost its entitlement — which is what this endpoint used to both say and do.
+         */
+        judgedEntitlement: judged,
+        /** False on every read-only run: `write_entitlement` was left exactly as it was. */
+        entitlementWritten: writesEntitlement,
         recommendation,
         verdict,
         steps,
-        documentShape: before ? documentShape(before) : null,
+        documentShape: observedShape,
         egressIp,
         /**
          * The card as EFS sent it, PANs masked — returned to the admin who ran the probe, and
@@ -318,127 +381,4 @@ export function fuelCardWriteProbeRouter(): Router {
   );
 
   return router;
-}
-
-/**
- * Turn six step results into the one field that gates the product.
- *
- * The three outcomes are deliberately NOT symmetric:
- *   • all six pass                     → `confirmed`. Phase B may be switched on for a pilot org.
- *   • step 5 refused on permissions    → `denied`. Go to WEX naming `setCardV2` and
- *                                        `setCardRefreshingLimits` explicitly. Phase A stands alone.
- *   • step 4 or 6 failed               → `unknown` + `fix_echo`. OUR bug. Add the response as a
- *                                        fixture, fix the serializer, re-probe. NEVER proceed.
- *
- * A read-only run can never return `confirmed`: it did not attempt a write, and an entitlement nobody
- * tested is exactly the assumption this whole gate exists to refuse.
- */
-function judge(steps: ProbeStep[], readOnly: boolean): {
-  entitlement: Entitlement;
-  recommendation: string;
-  verdict: string;
-} {
-  const at = (n: number) => steps.find((s) => s.step === n);
-  const failed = (n: number) => at(n) !== undefined && at(n)!.ok === false;
-
-  if (failed(1)) {
-    return {
-      entitlement: "unknown",
-      recommendation: "fix_credentials",
-      verdict: "Login failed — nothing below is meaningful. Fix credentials or connectivity first.",
-    };
-  }
-  if (failed(2) || failed(3)) {
-    return {
-      entitlement: "unknown",
-      recommendation: "fix_read_access",
-      verdict: "The read half is not working on this account, so the write half cannot be judged. Run the read diagnostic (POST /api/fuel-cards/diagnose) first.",
-    };
-  }
-  if (failed(4)) {
-    return {
-      entitlement: "unknown",
-      recommendation: "fix_echo",
-      verdict:
-        "The zero-edit echo does NOT faithfully reproduce this account's own card XML. This is our bug, not WEX's. " +
-        "Capture the getCardv2 response as a fixture in apps/api/src/lib/__fixtures__/efs/, fix the serializer, and re-probe. Do not enable writes.",
-    };
-  }
-  if (readOnly) {
-    return {
-      entitlement: "unknown",
-      recommendation: "run_write_half",
-      verdict:
-        "The echo is faithful against real vendor XML — the half that needs no write permission passed. " +
-        "Write entitlement is still UNPROVEN: re-run with readOnly=false against a card WEX has confirmed is disposable.",
-    };
-  }
-  if (failed(5)) {
-    const code = at(5)?.errorCode;
-    const permissionRefusal = code === "not_allowed" || code === "auth";
-    return {
-      entitlement: permissionRefusal ? "denied" : "unknown",
-      recommendation: permissionRefusal ? "ask_wex_for_write_entitlement" : "investigate_write_failure",
-      verdict: permissionRefusal
-        ? "EFS refused setCardV2 for this account. Ask WEX to enable it, naming setCardV2 and setCardRefreshingLimits explicitly. Phase A (reads) is unaffected and stays live."
-        : "setCardV2 failed for a reason that is not a permission refusal — see the step error. Do not enable writes until it is understood.",
-    };
-  }
-  if (failed(6)) {
-    return {
-      entitlement: "unknown",
-      recommendation: "fix_echo",
-      verdict:
-        "THE GATE FAILED. setCardV2 SUCCEEDED and the card CHANGED — a no-op echo must leave cardVersion identical. " +
-        "Our request is silently altering cards. Capture the response as a fixture, fix the serializer, re-probe. Do not enable writes.",
-    };
-  }
-  if (failed(7)) {
-    const code = at(7)?.errorCode;
-    const permissionRefusal = code === "not_allowed" || code === "auth";
-    return {
-      entitlement: permissionRefusal ? "denied" : "unknown",
-      recommendation: permissionRefusal ? "ask_wex_for_write_entitlement" : "investigate_real_change_failure",
-      verdict: permissionRefusal
-        ? "EFS refused the REAL change even though the no-op echo was accepted. Ask WEX to enable setCardV2 mutations for this account."
-        : "The real-change write failed for a reason that is not a permission refusal — see step 7. Do not enable writes.",
-    };
-  }
-  if (failed(8)) {
-    return {
-      entitlement: "unknown",
-      recommendation: "no_change_investigate",
-      verdict:
-        "EFS ACCEPTED the real change and NEVER APPLIED it — the exact live no_change failure (audit Part 1). " +
-        "Run the Phase 0 experiments (docs/plans/EFS-PHASE0-EXPERIMENTS-RUNBOOK.md): casing, wrapper, originalStatus, setCard v1 — then WEX. Do not enable writes.",
-    };
-  }
-  if (failed(9) || failed(10)) {
-    return {
-      entitlement: "unknown",
-      recommendation: "restore_card_manually",
-      verdict:
-        "The change APPLIED but the revert did not complete — the card may still be in the changed status. " +
-        "Restore it in the WEX portal, then re-probe. Apply works; do not enable writes until a full apply-and-revert cycle is clean.",
-    };
-  }
-  const applied = at(8) !== undefined;
-  if (!applied) {
-    // Six proofs green but the real-change half never ran (it requires all six first). Without it,
-    // "EFS applies our edits" is still unproven — the exact gap the 2026-08-12 incident exposed.
-    return {
-      entitlement: "unknown",
-      recommendation: "run_real_change_half",
-      verdict:
-        "The no-op half passed, but the REAL-CHANGE half (steps 7–10) did not run. write_entitlement stays unproven " +
-        "until one reversible edit demonstrably applies and reverts. Re-run readOnly=false.",
-    };
-  }
-  return {
-    entitlement: "confirmed",
-    recommendation: "enable_for_pilot_org",
-    verdict:
-      "All ten proofs passed: the account may write, a no-op echo left the card byte-identical, and a real edit " +
-      "applied and reverted with measured latency. Phase B may be enabled for ONE pilot org. Watch the mutation ledger for a week before widening.",
-  };
 }
