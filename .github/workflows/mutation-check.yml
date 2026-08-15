@@ -25,6 +25,13 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/**"
       - "apps/api/src/services/**"
+      # The capability registry — behaviours, the orchestrator, the generated router. Phase 3 moved
+      # every card write out of services/ into here, and this filter did not follow it, so a change
+      # to a behaviour stopped triggering the harness that guards it. Added in Step 3.10.
+      - "apps/api/src/efs/**"
+      # Contracts live shared-side, and a contract carries the write bucket a capability is metered
+      # under — the one field whose failure mode is an UNMETERED write route rather than a broken one.
+      - "packages/shared/src/efs/**"
       - "apps/api/src/testing/**"
       - "apps/driver/vitest.config.ts"
       - "scripts/mutation-check.mjs"
