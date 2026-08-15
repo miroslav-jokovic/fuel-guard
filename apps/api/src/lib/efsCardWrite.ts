@@ -263,37 +263,43 @@ export function isDecline(resultText: string | null): boolean {
  * job is un-sticking rows.
  */
 export function editsLanded(after: CardDocument, edits: readonly CardEdit[]): boolean {
+  return unlandedEditNamesFromAfter(after, edits).length === 0;
+}
+
+/**
+ * WHICH edits a fresh document does not carry. `editsLanded` is exactly this list being empty.
+ *
+ * The after-only twin of `unlandedEditNames` (services/efsCardReconcile.ts), and it exists for the
+ * same Step 3.11 reason: the background sweep re-judges through a capability's `reconcile`, so a
+ * capability that reasons about a particular field has to be able to ask the same question in both
+ * places or the sweep condemns, a cycle later, exactly what the live path declined to condemn.
+ */
+export function unlandedEditNamesFromAfter(
+  after: CardDocument,
+  edits: readonly CardEdit[],
+): string[] {
+  return edits.filter((edit) => !editLanded(after, edit)).map((edit) => edit.name);
+}
+
+function editLanded(after: CardDocument, edit: CardEdit): boolean {
   const sameText = (a: string | null, b: string): boolean =>
     a !== null && a.trim().toLowerCase() === b.trim().toLowerCase();
-  for (const edit of edits) {
-    switch (edit.op) {
-      case "setField": {
-        if (!sameText(fieldText(after.header, edit.name), edit.value)) return false;
-        break;
-      }
-      case "setFieldNil": {
-        if (fieldText(after.header, edit.name) !== null) return false;
-        break;
-      }
-      case "removeAll": {
-        if (collectElements(after.root, edit.name).length > 0) return false;
-        break;
-      }
-      case "replaceAll": {
-        if (!collectionMatches(after, edit.name, edit.records)) return false;
-        break;
-      }
-      case "appendRecord": {
-        // Presence of the record we appended, by identity and by the values we sent. This CANNOT
-        // distinguish "our append landed" from "a record with that identity was already there", which
-        // needs the before-document nobody has here — but absence is conclusive, and the branch used
-        // to report every append landed without looking at the card at all.
-        if (!recordPresent(after, edit.name, edit.record)) return false;
-        break;
-      }
-    }
+  switch (edit.op) {
+    case "setField":
+      return sameText(fieldText(after.header, edit.name), edit.value);
+    case "setFieldNil":
+      return fieldText(after.header, edit.name) === null;
+    case "removeAll":
+      return collectElements(after.root, edit.name).length === 0;
+    case "replaceAll":
+      return collectionMatches(after, edit.name, edit.records);
+    case "appendRecord":
+      // Presence of the record we appended, by identity and by the values we sent. This CANNOT
+      // distinguish "our append landed" from "a record with that identity was already there", which
+      // needs the before-document nobody has here — but absence is conclusive, and the branch used
+      // to report every append landed without looking at the card at all.
+      return recordPresent(after, edit.name, edit.record);
   }
-  return true;
 }
 
 /**
