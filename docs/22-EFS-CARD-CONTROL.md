@@ -852,3 +852,49 @@ So Step 0.13's stated output format — "§14, last-4 only" — **cannot express
 for**, and neither can any future proof record. The role table must key on `efs_cards.id`, which is
 a uuid, is already stored, and carries no PAN. Recorded here rather than fixed in passing, because
 changing how every proof names its card is a decision, not a cleanup.
+
+---
+
+## H8 — card identity, measured live: the vendor and the fuel import agree (2026-08-15 night, production, CONFIRMED)
+
+Step 7.7 shipped a tiered linker and could not answer its own decisive question offline: **does the
+card number EFS returns equal the number a fuel import wrote into `fuel_cards.card_ref`?** Both are
+sealed, so nothing on our side could compare them. The tiers were built to fail safe — exact digit
+equality or an 8+ digit suffix, matching NOTHING if the formats disagreed — and `fuel_card_link.method`
+was added precisely so one sweep would settle it.
+
+**One sweep settled it.** Manual `efs_card_sync`, production org, 2026-08-15 19:31–19:37Z, 197 cards
+read, 0 failed:
+
+| | before | after |
+|---|---|---|
+| linked (of 197 live) | 54 | **157** |
+| linked by `pan_exact` | — | **103** |
+| linked by `pan_suffix` / `last4_unit` | — | 0 |
+| `ambiguous`, naming their candidates | — | 35 of 35 |
+| `no_candidate` | — | 5 |
+| rows carrying `sync_error = ambiguous_fuel_card_link` | 139 | **0** |
+
+**The answer is yes, and emphatically.** `pan_exact` fired 103 times — the two systems store the same
+19-digit number, so the strongest tier does all the work and the weaker ones never ran. The previous
+sweep, on the old last-4 linker, linked **2**.
+
+Three things worth carrying:
+
+- **The fallback tiers are untested in production and should stay.** `last4_unit` fired zero times
+  because `pan_exact` reached everything it could, not because it is unnecessary — it is what catches
+  a card whose PAN never made it into an import. Its value is conditional, and a zero here is not
+  evidence against it.
+- **The prediction was close but for a different reason.** Simulating before the build said the unit
+  tier would resolve ~100 of 143. It resolved 0, and the PAN tier resolved 103. The COUNT was nearly
+  right and the MECHANISM was wrong — which is exactly why `method` is recorded per row rather than
+  inferred from a total.
+- **The remaining 40 have a ceiling, and it is data, not code.** 29 of them carry no `unit_prompt`,
+  so no tier below the PAN can reach them; 5 have no `fuel_cards` counterpart at all. Fuel attribution
+  now runs on **80% of the live fleet, up from 27%**, and the rest needs somebody to put a unit on a
+  card or import a missing row — each of which the row now names for itself.
+
+**And the `sync_error` overload is gone in the linking direction.** 139 rows displayed
+*"Last refresh reported: ambiguous_fuel_card_link"* on a refresh that had succeeded. The linker no
+longer writes that column at all, so the count is 0 — Step 7.5's refresh half is still open, but the
+half that was mislabelling successful syncs is closed.
