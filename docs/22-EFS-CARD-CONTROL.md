@@ -898,3 +898,50 @@ Three things worth carrying:
 *"Last refresh reported: ambiguous_fuel_card_link"* on a refresh that had succeeded. The linker no
 longer writes that column at all, so the count is 0 — Step 7.5's refresh half is still open, but the
 half that was mislabelling successful syncs is closed.
+
+---
+
+## H9 — the production promotion refusal, watched (2026-08-15 night, production, CONFIRMED)
+
+Phase 4's exit gate asked for the ALLOW path's mirror image: attempt a promotion on production and
+watch the gate refuse. The point was never to get past it — **a refusal is the system working** — it
+was to see what an operator is actually told.
+
+**Attempted:** `promote card_lock --proof 40b88b75-9fcf-4a82-9f7f-2353546ae243` against the production
+org, citing the QA proof. Admin token, step-up password, both real.
+
+**Refused, HTTP 409:**
+
+```
+"code": "promotion_refused"
+"refusals": ["No proof run exists for card_lock on this company. Run one before promoting."]
+```
+
+**The refusal is completely inert, which is the half worth verifying in the database rather than the
+response:** zero promotion rows on production, zero settings rows, zero capability audit rows, and all
+five existing promotions still QA-only. The write is unreachable behind `decision.allowed`.
+
+**But it named ONE blocker and production has THREE.** The proof lookup is org-scoped, so the QA proof
+is invisible here, and `decidePromotion` returned early — never reaching the document shape (no
+settings row at all) or the vocabulary verdict (no config scan for this org). The route's own comment
+promises *"Every reason is returned, so one round trip tells them everything they have to fix"*, and
+on **the most common starting state — a company that has never been promoted anything — that promise
+was false.**
+
+Each of the three has a DIFFERENT fix: run a proof, run a config scan, obtain an observation of
+`status`. An operator learning them one at a time runs the proof, re-runs the promotion, and only then
+meets the second wall.
+
+**Fixed in the same session.** The proof-dependent checks are skipped when there is no proof — "OEG-1
+is not obtained" adds nothing to "there is no proof", and four such lines would bury the refusals that
+carry independent fixes — while every org-level check still runs. The same attempt now returns three
+refusals. Verified by restoring the early return and watching exactly one test go red.
+
+**Two smaller things the run taught:**
+
+- **A malformed proof id is refused before any evidence is weighed.** The first attempt used a padded
+  UUID whose version nibble was `0`; zod rejected it with `invalid_request` and the gate never ran. A
+  typo can never be mistaken for a missing proof.
+- **The CLI exits non-zero on a refusal**, which is correct — a script chaining promotions must stop
+  on a "no" — but it means a refusal and a crash look alike to a shell. The JSON body distinguishes
+  them.

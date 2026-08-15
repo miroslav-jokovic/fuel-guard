@@ -158,3 +158,63 @@ describe("what it reports", () => {
     expect(decision.refusals.join(" ")).toMatch(/overrideAllLocations.*UNOBSERVED/);
   });
 });
+
+describe("a refusal names EVERY blocker, not the first one (observed live 2026-08-15)", () => {
+  /**
+   * Watched happen against the production org, which is the most common starting state: never
+   * promoted, no proof, no config scan. The gate refused — correct — and named ONLY the missing
+   * proof, while the route's own comment promises "Every reason is returned, so one round trip tells
+   * them everything they have to fix."
+   *
+   * The two blockers have DIFFERENT fixes: a proof run, and a config scan. An operator who learned
+   * one at a time would have run the proof, re-run the promotion, and only then met the second wall.
+   */
+  const virgin = { observedDocumentShape: null, scanVerdicts: {} };
+
+  it("reports the missing document shape even when there is no proof", () => {
+    const decision = decidePromotion("card_lock", null, virgin);
+
+    expect(decision.allowed).toBe(false);
+    // THREE, and the live run returned one. Each has a DIFFERENT fix: run a proof, run a config
+    // scan, and get an observation of `status` — the last either from a scan that catches a card in
+    // HOLD or from the proof run's own write.
+    expect(decision.refusals).toHaveLength(3);
+    expect(decision.refusals.join(" ")).toContain("No proof run exists");
+    // THE regression. Before this change the assessment returned early and neither of the next two
+    // was ever reached.
+    expect(decision.refusals.join(" ")).toContain("document shape has not been recorded");
+    expect(decision.refusals.join(" ")).toContain("UNOBSERVED");
+  });
+
+  it("does not pad the list with proof gates it could not have evaluated", () => {
+    // "OEG-1 is not obtained" adds nothing to "there is no proof", and four of them would bury the
+    // one refusal that carries an independent fix. Skipped as noise, not reported as findings.
+    const decision = decidePromotion("card_lock", null, virgin);
+
+    expect(decision.refusals.join(" ")).not.toContain("OEG-1");
+    expect(decision.refusals.join(" ")).not.toContain("OEG-5");
+  });
+
+  it("still reports only the proof when the org side is already satisfied", () => {
+    const decision = decidePromotion("card_lock", null, {
+      observedDocumentShape: "nested:header",
+      scanVerdicts: { status: "match" },
+    });
+
+    // The list grows and shrinks with what is actually wrong — it is not "always report everything".
+    expect(decision.refusals).toHaveLength(1);
+    expect(decision.refusals[0]).toContain("No proof run exists");
+  });
+
+  it("survives a missing proof while judging vocabulary, rather than throwing", () => {
+    // `proof.vocabulary[field]` was an unguarded dereference on a path that could not previously be
+    // reached with a null proof. Making the assessment continue is what makes it reachable.
+    const decision = decidePromotion("card_lock", null, {
+      observedDocumentShape: "nested:header",
+      scanVerdicts: { status: "unobserved" },
+    });
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.refusals.join(" ")).toContain("No proof run exists");
+  });
+});
