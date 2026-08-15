@@ -7,12 +7,16 @@
  * that computed anything itself would be a second implementation of the promotion rule, and the
  * second one to drift is the one nobody tests.
  *
- * The token is READ FROM THE ENVIRONMENT and never from a flag: an argument lands in shell history
- * and in the process table, where a bearer token for an admin account has no business being.
+ * ── Neither the token nor the card number is ever an argument ───────────────────────────────────
+ * The token is read from the environment and the CARD NUMBER IS PROMPTED FOR, hidden. Both rules
+ * exist for the same reason and the second one nearly did not: a flag lands in shell history, in the
+ * process table, and in any shell integration that records commands. A bearer token for an admin
+ * account has no business there — and a PAN has less. Standing rule 13 keeps card numbers out of the
+ * repository; keeping them out of `~/.zsh_history` is the same rule applied to the same secret.
  *
  *   export FG_TOKEN="$(pbpaste)"        # copied from the browser console
  *   pnpm efs:scan
- *   pnpm efs:prove card_lock --card 7677
+ *   pnpm efs:prove card_lock             # prompts for the card number, hidden
  *   pnpm efs:promote card_lock --proof <uuid> --reason "OEG green on QA"
  *   pnpm efs:promote card_lock --suspend --reason "override drift on 7670"
  *   pnpm efs:echo-scan
@@ -49,6 +53,37 @@ if (!token) {
   );
 }
 
+/** Read a line from the terminal without echoing it. Never falls back to an echoing read: a silent
+ *  downgrade would print a PAN to the screen and into any terminal scrollback capture. */
+function promptHidden(prompt) {
+  return new Promise((resolve) => {
+    if (!process.stdin.isTTY) {
+      die("No terminal available to prompt for the card number. Run this in an interactive shell.");
+    }
+    process.stdout.write(prompt);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding("utf8");
+    let value = "";
+    const onData = (chunk) => {
+      for (const ch of chunk) {
+        if (ch === "\r" || ch === "\n") {
+          process.stdin.setRawMode(false);
+          process.stdin.pause();
+          process.stdin.off("data", onData);
+          process.stdout.write("\n");
+          resolve(value.trim());
+          return;
+        }
+        if (ch === "\u0003") { process.stdout.write("\n"); process.exit(130); }
+        if (ch === "\u007f") { value = value.slice(0, -1); continue; }
+        value += ch;
+      }
+    };
+    process.stdin.on("data", onData);
+  });
+}
+
 async function call(path, body) {
   const res = await fetch(`${api}${path}`, {
     method: "POST",
@@ -74,10 +109,18 @@ switch (command) {
     break;
 
   case "prove": {
-    if (!capability) die("usage: pnpm efs:prove <capability> --card <full-card-number>");
-    // The FULL number, because the API unseals and matches on it — and it is never printed back.
-    const card = flags.card;
-    if (typeof card !== "string") die("--card requires the full card number (it is never logged or stored).");
+    if (!capability) die("usage: pnpm efs:prove <capability>   (the card number is prompted for)");
+    if (flags.card) {
+      die(
+        "--card is refused on purpose: a card number passed as a flag lands in shell history and the\n"
+          + "process table. Run `pnpm efs:prove " + capability + "` and paste it at the prompt instead.",
+      );
+    }
+    // The FULL number, because the API unseals and matches on it. Prompted, hidden, held in memory
+    // for one request, and only its last four are ever printed or stored.
+    const card = await promptHidden("Card number (hidden): ");
+    if (!/^[0-9]{12,25}$/.test(card)) die("That does not look like a card number.");
+    console.log(`Proving ${capability} against \u2022\u2022\u2022\u2022${card.slice(-4)} \u2014 it will be written to twice.`);
     await call(`/api/fuel-cards/prove/${capability}`, { cardNumber: card, confirm: `PROVE ${card.slice(-4)}` });
     break;
   }
