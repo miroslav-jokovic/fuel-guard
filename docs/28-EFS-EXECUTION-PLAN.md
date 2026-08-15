@@ -892,7 +892,36 @@ Confirmed **not** caused by Step 3.4: the diff touches no auth, no middleware an
 **Change:** reproduce first — run `apps/api` under load or with the file order forced — then fix the cause. Two candidates worth ruling out in order: `fuelCardVendorLimiter` being reached across `createApp()` instances in one worker (the file's own docblock claims each app builds its own store — verify it), and `strictLimiter`'s IP keying colliding with another suite's server on 127.0.0.1. This is the same family as the `idleRollup.test.ts` finding in PR #12: a test that fails on a schedule nobody is watching turns CI red at random and teaches everyone to re-run it.
 **Verify:** the failure reproduces on demand before any fix, and the fix is verified by reverting it alone.
 
-> **2026-08-15 — a second sighting, and it was wasted.** A full `apps/api` run came back **3 files / 3 tests failed** while other work ran on the same machine; that run took 41s against a normal 11s, so it was under real contention. **The failing file names were not captured**, and eleven subsequent runs — three solo, eight under deliberate 2× CPU load — were all clean at 1155/1155. So: consistent with the 1-in-11 rate, consistent with contention as the trigger, and evidence of nothing else.
+> ### ✅ DIAGNOSED 2026-08-15 — it is keep-alive sockets, not the limiters
+>
+> Captured at last, by redirecting the run to a log. Reproduced on the 4th of 4 consecutive full
+> runs: **5 failed, all in `src/app.test.ts`**, every one of them:
+>
+> ```
+> TypeError: fetch failed  ·  Caused by: SocketError: other side closed
+> { code: 'UND_ERR_SOCKET', localAddress: '127.0.0.1', bytesWritten: 177, bytesRead: 0 }
+> ```
+>
+> `bytesRead: 0` — the server accepted the connection and closed it without answering. And the
+> earlier occurrence the same day was `echoScanRoute.test.ts` failing in its `afterAll`, on
+> `server.close()`, with *"Hook timed out in 10000ms"*.
+>
+> **Those are the same fault seen from both ends.** `fetch` (undici) pools keep-alive connections to
+> `127.0.0.1`. Node's `server.close()` stops accepting but WAITS for existing connections to end, so
+> a pooled idle socket holds it open until the hook times out. The suite then tears down with sockets
+> still live, and whichever file is mid-request has its connection closed under it.
+>
+> **Neither candidate this step originally named is implicated.** Not `fuelCardVendorLimiter` across
+> `createApp()` instances, not `strictLimiter`'s IP keying — no 429, no auth failure and no assertion
+> mismatch anywhere in the captured run. It is transport, and it is in the test harness rather than
+> in the product.
+>
+> **Change:** call `server.closeAllConnections()` (Node ≥18.2) before waiting on `server.close()` in
+> every suite that starts one, or give each suite its own undici `Agent` and destroy it in
+> `afterAll`. **Verify by reproduction**: it appeared roughly 1 run in 4 under load here, so a fix
+> needs ~20 consecutive green full runs to be believed — each redirected to a log.
+>
+> **2026-08-15 — the second sighting, and it was wasted.** A full `apps/api` run came back **3 files / 3 tests failed** while other work ran on the same machine; that run took 41s against a normal 11s, so it was under real contention. **The failing file names were not captured**, and eleven subsequent runs — three solo, eight under deliberate 2× CPU load — were all clean at 1155/1155. So: consistent with the 1-in-11 rate, consistent with contention as the trigger, and evidence of nothing else.
 >
 > **The instruction that follows from losing it:** never run this suite for a pass/fail summary alone. `pnpm exec vitest run > /tmp/run.log 2>&1` every time, so the one run in eleven that fails leaves the file names, the assertion, and the ordering behind. This step has now been observed twice and diagnosed zero times, entirely because the evidence was not kept.
 
@@ -934,6 +963,13 @@ That is the disease `scripts/mutation-check.mjs` opens by describing: *"a detect
 **Recorded in Phase 2's findings on 2026-08-14 as "neither yet fixed"; numbered 2026-08-15.** Two Railway services deploy independently: `fleetguardapi` (whitelisted, reaches EFS, pollers run there) and `fleetguardweb` (the SPA **plus a full copy of the API**, refused by WEX's firewall). `deploy-verify` polls only `API_URL`, so it reported success for `34f7336` while the web host was two commits behind — **a green deploy check on a half-deployed system.**
 **Change:** poll both hosts, and stop routing EFS routes to the web host. Prefer removing the routes over whitelisting a second egress IP: fewer whitelisted addresses is the stronger position with WEX, and a route that cannot succeed should not exist rather than fail politely.
 **Verify:** `deploy-verify` fails when either host is behind · an EFS route on the web host returns a routing refusal, not a vendor `NotAllowed`.
+
+### Step 5.11 — `writeAudit` accepts a string where the column demands a uuid *(filed 2026-08-15, from the first promotion)*
+**Files:** `apps/api/src/lib/audit.ts`, and whichever of the 108 `writeAudit` call sites the sweep finds.
+**Found the hard way.** The first real capability promotion succeeded and wrote **no audit row**. `audit_logs.entity_id` is `uuid` (migration 0003); the promote route passed the capability KEY — `"card_lock"` — so the insert failed, `writeAudit` retried once, logged to stderr, returned `false`, and the caller ignored the return. The response said `ok: true`. **A promotion is the act that lets code touch a customer's fuel cards, and it was unattributable.** Fixed at that call site the same day.
+**Why it is a step and not just that fix.** `AuditEntry.entityId` is typed `string`. The column is `uuid`. Every one of **108 call sites** is one plausible value away from the same silent loss — an order number, a slug, a capability key — and nothing in the type system, the tests or CI would say so. This is §7's pattern in its purest form: two sources of truth for one field, disagreeing quietly, resolving toward "the write just vanishes".
+**Change:** make the type carry the constraint — a branded uuid, or a runtime guard in `writeAudit` that refuses a non-uuid loudly rather than letting Postgres reject it into a swallowed error. Then sweep the call sites. Consider whether a failed audit write should ever leave its caller reporting success; `efsCardReconcile.ts` shouts about it, the promote route now returns a warning, and most of the other 106 do neither.
+**Verify:** a `writeAudit` call with a non-uuid `entityId` fails a test rather than a production insert · a sweep of all call sites, recorded.
 
 ### ✅ Exit Gate — Phase 5
 - [ ] Every signal in 5.1 fires when triggered

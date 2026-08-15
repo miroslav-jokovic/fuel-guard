@@ -33,6 +33,40 @@ const promoteSchema = z.object({
   proofId: z.string().uuid().optional(),
 });
 
+/**
+ * Write the audit row for a promotion decision, and say whether it landed.
+ *
+ * ── Two bugs in one, found by checking the database after the first real promotion ──────────────
+ * `audit_logs.entity_id` is a **uuid** column and the first version passed the capability KEY —
+ * `"card_lock"` — so every insert failed. `writeAudit` retried, logged to stderr and returned
+ * `false`, and the route ignored the return: the promotion landed, the audit row did not, and the
+ * response said `ok: true`. A promotion is precisely the act that must never be unattributable.
+ *
+ * So: the promotion ROW's id, which is a uuid and is the thing the audit entry is about, and the
+ * capability key moves into `meta` where it was always meaningful. The boolean is returned rather
+ * than swallowed — `efsCardReconcile.ts` already treats a failed audit write as worth shouting
+ * about, and this is the same rule applied at the more consequential end.
+ */
+async function recordDecision(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  entry: { orgId: string; actorId: string | null; action: string; rowId: string | null; meta: Record<string, unknown> },
+): Promise<boolean> {
+  const recorded = await writeAudit(admin, {
+    orgId: entry.orgId,
+    actorId: entry.actorId,
+    action: entry.action,
+    entity: "efs_capability_promotions",
+    entityId: entry.rowId ?? undefined,
+    meta: entry.meta,
+  });
+  if (!recorded) {
+    console.error("[card-control] capability decision recorded WITHOUT an audit row", {
+      orgId: entry.orgId, action: entry.action, capability: entry.meta.capability,
+    });
+  }
+  return recorded;
+}
+
 /** Re-judge the org's stored scan spellings against the contract, so one rule reads the vocabulary. */
 function scanVerdicts(
   capabilityKey: string,
@@ -86,14 +120,15 @@ export function fuelCardPromoteRouter(): Router {
       const { action, reason, proofId } = parsed.data;
 
       if (action === "suspend") {
-        await admin.from("efs_capability_promotions").upsert({
+        const { data: suspendedRow } = await admin.from("efs_capability_promotions").upsert({
           org_id: orgId, capability_key: capabilityKey, state: "suspended",
           suspended_reason: reason, reason, promoted_by: req.auth!.userId,
           promoted_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        }, { onConflict: "org_id,capability_key" });
-        await writeAudit(admin, {
+        }, { onConflict: "org_id,capability_key" }).select("id").single();
+        await recordDecision(admin, {
           orgId, actorId: req.auth!.userId, action: "card.capability_suspended",
-          entity: "efs_capability_promotions", entityId: capabilityKey, meta: { reason },
+          rowId: (suspendedRow as { id: string } | null)?.id ?? null,
+          meta: { capability: capabilityKey, reason },
         });
         // No cache anywhere in the gate, so the next card write already sees this.
         res.json({ ok: true, capability: capabilityKey, state: "suspended" });
@@ -155,22 +190,29 @@ export function fuelCardPromoteRouter(): Router {
         return;
       }
 
-      await admin.from("efs_capability_promotions").upsert({
+      const { data: promotedRow } = await admin.from("efs_capability_promotions").upsert({
         org_id: orgId, capability_key: capabilityKey, state: "enabled",
         proof_id: proofId, reason, promoted_by: req.auth!.userId,
         promoted_at: new Date().toISOString(), suspended_reason: null,
         updated_at: new Date().toISOString(),
-      }, { onConflict: "org_id,capability_key" });
+      }, { onConflict: "org_id,capability_key" }).select("id").single();
 
-      await writeAudit(admin, {
+      const audited = await recordDecision(admin, {
         orgId, actorId: req.auth!.userId, action: "card.capability_promoted",
-        entity: "efs_capability_promotions", entityId: capabilityKey,
-        // The residual risks are recorded ON the audit row, not just returned: "what did we know we
-        // did not know when we allowed this" is the question asked after an incident, not before.
-        meta: { reason, proofId, residualRisks: decision.residualRisks },
+        rowId: (promotedRow as { id: string } | null)?.id ?? null,
+        // The residual risks ride ON the audit row, not just the response: "what did we know we did
+        // not know when we allowed this" is the question asked after an incident, not before.
+        meta: { capability: capabilityKey, reason, proofId, residualRisks: decision.residualRisks },
       });
 
-      res.json({ ok: true, capability: capabilityKey, state: "enabled", residualRisks: decision.residualRisks });
+      res.json({
+        ok: true, capability: capabilityKey, state: "enabled",
+        residualRisks: decision.residualRisks,
+        // Surfaced, not swallowed. A promotion is the act that lets code touch a customer's fuel
+        // cards; one that left no audit row is a fact the operator has to know while they still
+        // remember doing it.
+        ...(audited ? {} : { warning: "This promotion was NOT recorded in the audit log. Report it." }),
+      });
     }),
   );
 
