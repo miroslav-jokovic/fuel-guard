@@ -26,8 +26,28 @@ import type { Env } from "../env.js";
  * outcome out, and there is no cast anywhere in the chain — which is the point, since the value being
  * widened would be the request body of a write against a real fuel card.
  */
+/** What the prover needs off a proof plan, with the body type widened away. */
+export interface RegisteredProof {
+  precondition: (snap: Snapshot) => boolean;
+  sample: (snap: Snapshot) => unknown;
+  revert: (snap: Snapshot) => { capability: string; body: unknown };
+}
+
 export interface MountedCapability {
   contract: CapabilityContract<z.ZodTypeAny>;
+  /**
+   * The capability's proof plan (Step 4.5), or null when it has none.
+   *
+   * Structurally typed rather than `ProofPlan<TBody>`, and that is what makes it assignable without
+   * a cast: the prover never needs the body's type — it hands `sample()`'s output straight back to
+   * `accept()`, which parses it with the contract's own schema. Widening the return to `unknown`
+   * here is safe in a way that casting to `ProofPlan<never>` is not.
+   *
+   * Derived through `mount` so there is no second hand-maintained map. A capability missing from
+   * such a map is one the prover cannot resolve — which reports OEG-5 false on a revert that never
+   * dispatched, and leaves a QA card changed.
+   */
+  proof: RegisteredProof | null;
   /** Validate a request body. Returns what the route needs, or the schema's own error. */
   accept: (raw: unknown) => AcceptedRequest | { ok: false; error: z.ZodError };
   /**
@@ -71,6 +91,7 @@ export const mount = <TBody extends CardMutationRequestFields>(
   behaviour: CapabilityBehaviour<TBody>,
 ): MountedCapability => ({
   contract,
+  proof: behaviour.proof ?? null,
   accept: (raw) => {
     const parsed = contract.schema.safeParse(raw);
     if (!parsed.success) return { ok: false, error: parsed.error };
@@ -105,6 +126,18 @@ export const ALL_CAPABILITIES: readonly MountedCapability[] = [
   mount(deleteOverrideContract, deleteOverrideBehaviour),
   mount(promptsSetContract, promptsSetBehaviour),
 ];
+
+/**
+ * Every capability's behaviour, keyed by contract key, derived from `ALL_CAPABILITIES`.
+ *
+ * Derived rather than hand-listed, and that is the whole point: a second literal map would be a
+ * fourth place a capability has to be registered, and the fourth one to be forgotten is a capability
+ * the prover silently cannot resolve — reporting OEG-5 false on a revert that never dispatched.
+ * Includes the unmounted clear mechanism deliberately, because `delete_override` is exactly the
+ * capability a proof run is meant to characterise before it is ever mounted (finding D1).
+ */
+export const capabilityRegistry = (): Readonly<Record<string, MountedCapability>> =>
+  Object.fromEntries(ALL_CAPABILITIES.map((c) => [c.contract.key, c]));
 
 /**
  * What the router actually serves, for one deployment.

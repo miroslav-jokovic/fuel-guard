@@ -40,6 +40,10 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
   // stored vendor documents and resolves no credentials, so there is no vendor budget to charge
   // and no ambiguity to resolve toward charging. See routes/fuelCards/scan.ts.
   { method: "POST", path: "/config-scan", opensSoap: false },
+  // Writes to a real card twice and reads it three times. The heaviest interactive route there is,
+  // and charged — the org-cap exemption (migration 0192) is deliberately NOT a vendor-budget
+  // exemption: the vendor's rate limit protects WEX, and a proof run is real traffic to them.
+  { method: "POST", path: "/prove/:capability", opensSoap: true },
   { method: "POST", path: "/experiment", opensSoap: true },
 ];
 

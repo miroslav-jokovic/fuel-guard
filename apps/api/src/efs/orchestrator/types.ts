@@ -34,6 +34,16 @@ export interface CardMutationContext {
   /** True when the caller re-authenticated for this action. Recorded as evidence. */
   stepUp?: boolean;
   /**
+   * Set ONLY by the live prover (Step 4.5): the `efs_capability_proofs` row this write belongs to.
+   *
+   * Two effects, and they are deliberately the same fact rather than two flags. The mutation is
+   * exempt from the org hourly cap — a six-capability sweep is a dozen writes and would otherwise
+   * fail with `org_hourly_cap_reached`, a 429 the proof record cannot distinguish from the vendor
+   * refusing — and the ledger row records WHICH proof exempted it. An exemption nobody can attribute
+   * is one nobody can audit, so there is no way to claim the first without recording the second.
+   */
+  proofRunId?: string | null;
+  /**
    * sha256 over (intent, card, sanitized body) — routes/fuelCards/control.ts#mutationFingerprint.
    * On an Idempotency-Key collision, a DIFFERENT fingerprint refuses instead of replaying: a key
    * reused for another request must never be answered with an unrelated recorded outcome

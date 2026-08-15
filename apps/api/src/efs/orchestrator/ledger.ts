@@ -118,6 +118,7 @@ async function insertPending(ctx: CardMutationContext, row: PendingRow): Promise
       edits,
       ...mutationLedgerEvidence(ctx),
       idempotency_key: ctx.idempotencyKey ?? null,
+      proof_run_id: ctx.proofRunId ?? null,
       request_fingerprint: ctx.requestFingerprint ?? null,
     })
     .select("id")
@@ -219,12 +220,21 @@ async function replayOf(ctx: CardMutationContext): Promise<Error> {
  * fifty refused attempts in an hour is exactly as much of an emergency as fifty successful ones.
  */
 async function assertOrgCapacity(ctx: CardMutationContext): Promise<void> {
+  // The live prover is exempt, and the exemption is attributable (migration 0192): a proof sweep is
+  // a dozen writes against a 50/hour ceiling, and a cap refusal reads in the proof record exactly
+  // like the vendor refusing the write — evidence nobody should trust. Only the harness can set
+  // this, and every row it sets names the proof that exempted it.
+  if (ctx.proofRunId) return;
+
   const limit = ctx.env.EFS_CARD_MAX_MUTATIONS_PER_HOUR ?? CARD_MUTATIONS_PER_HOUR_DEFAULT;
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error } = await ctx.admin
     .from("efs_card_mutations")
     .select("id", { count: "exact", head: true })
     .eq("org_id", ctx.orgId)
+    // Proof-run rows are excluded from the count as well as from the check, or a sweep would spend
+    // the next hour's real budget. `idx_efs_card_mutations_org_real` is partial on exactly this.
+    .is("proof_run_id", null)
     .gte("created_at", since);
 
   // FAIL CLOSED. This is the last cap between a compromised account and a fleet, and it is the one

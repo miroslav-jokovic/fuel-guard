@@ -163,7 +163,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 1 | Emergency fixes | 🔶 *(code merged through PR #11. Live checks still not run: foreign-card probe → 404, step-up → 403, wrong password → `auth`, endpoint change → `endpoint_changed`, the 409 replay. Status, prompts and override-clear confirmed live on QA 2026-08-14)* | `delivery-p1-emergency` |
 | 2 | Echo engine correctness | ⛔ *(2.1–2.5 merged, PRs #13–#21; echo scan green 197/197. **Exit gate FAILS:** the live check was run 2026-08-15 and the one org with card control has `write_entitlement = 'confirmed'` with a null `probed_identity_hash`, which the code grandfathers — **Step 2.6**. The gate wording is amended, identically to Phase 3's)* | `delivery-p2-echo` |
 | 3 | Capability architecture | ✅ *(3.1–3.11 merged; **exit gate CLOSED 2026-08-15** — all five operations verified live on `af1a8e5`, card returned byte-identical. The read behind 3.11 proved this account never reports override scope on ANY card, `docs/22` H3. 3.5a withdrawn — it is Step 4.2)* | merged to `main` |
-| 4 | Harness & promotion | 🔶 *(**4.4 done** — config scanner, `docs/efs/config-scan-*.json` committed; **4.1 done** — migration 0191. 4.4 amended 4.6's promotion rule: a fleet-at-rest scan cannot observe a transient value, so the gate must accept proof evidence too. Next: 4.5, the live prover)* | `delivery-p4-harness` |
+| 4 | Harness & promotion | 🔶 *(**4.1, 4.4, 4.5 built.** Migrations 0191 + 0192 applied. 4.4 amended 4.6's promotion rule (a fleet-at-rest scan cannot observe a transient value); 4.5 corrected `ProofPlan.revert` (four of six capabilities are undone by a DIFFERENT capability) and left **OEG-2b unimplemented and null rather than faked**. Remaining: 4.2 the gate, 4.3 the local harness, 4.6 promotion — and the first live proof run)* | `delivery-p4-harness` |
 | 5 | Operational readiness | ⬜ *(5.6–5.10 filed 2026-08-15 from `docs/30` §6.G and Phase 2's two-hosts finding. Two §6.G items were small enough to fix on the spot and are done)* | `delivery-p5-ops` |
 | 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
 | 7 | Account & policy visibility | ⬜ *(7.7 card identity and 7.8 override staleness filed 2026-08-15. **7.7 is worth pulling forward** — 182 of 234 production cards are unlinked, so fuel attribution runs on a minority of the fleet)* | `delivery-p7-visibility` |
@@ -749,6 +749,18 @@ The production org has no row at all, so card control is QA-only today — which
 - Give the harness an **org-cap exemption** recorded as such in the ledger — ~40 proofs × (apply + revert) exceeds the 50/hour cap and a 503 is indistinguishable from a vendor refusal.
 
 **Verify:** *"records oeg4 false when the vendor's casing differs from ours"* · *"a failed revert marks the proof failed and says the card is still changed"* · *"a proof whose before-state equals the target is void"*. **Live QA:** `pnpm efs:prove card_lock --card <last4>` — all five green, latency recorded (~533ms baseline), card restored.
+
+#### ✅ BUILT 2026-08-15 — `efs/harness/prove.ts`, `routes/fuelCards/prove.ts`, migration `0192`
+
+All three named tests pass, plus four more, and they run against the **real** capability registry rather than a hand-built map. Apply and revert both go through `MountedCapability.accept()` → `run()` — the same entry point the router uses — so a proof exercises production's validation, echo guard, verifying re-read and ledger, not a second implementation of them.
+
+**The org-cap exemption is a column, not a flag** (`efs_card_mutations.proof_run_id`, migration 0192). A sweep is a dozen writes against a 50/hour ceiling, and `org_hourly_cap_reached` reads in a proof record exactly like the vendor refusing the write. Making the exemption *attributable* rather than a boolean means `where proof_run_id is null` is still the honest answer to "how many real changes did this org make". The vendor rate limiter is **not** exempted — that one protects WEX, and a proof run is real traffic to them.
+
+**OEG-2b is NOT implemented, and is left null rather than faked.** The gate is "cardVersion unchanged after a no-op DISPATCH" — a `setCardv2` carrying the echoed document and zero edits. The capability model cannot express it: every capability produces edits by construction, which is exactly the property that makes `buildEdits` the single definition of what a write changes. Two reads compared to each other would fill the column and prove nothing — it shows the card is quiet, not that a no-op write leaves it alone, and WSCardv2's sequence bugs live in serializer paths a zero-edit request never reaches. **Step 4.6 must treat a null gate as "not obtained", never as a pass.**
+
+**What a proof can and cannot decide.** The harness writes `proving`, then `proven` or `denied`. `enabled` is refused twice — once by `setPromotionState`'s type, once at the line that writes the column, because a type is erased at runtime. Only Step 4.6, driven by a person citing a proof, promotes.
+
+**Not yet run live.** The route needs `EFS_CARD_CONTROL_PROBE_ENABLED`, a deploy, and a typed `PROVE <last4>` confirmation.
 
 ### Step 4.6 — Promotion endpoint + CLI
 **Files:** `apps/api/src/routes/fuelCards/promote.ts`, `scripts/efs.mjs` (new), `package.json`.
