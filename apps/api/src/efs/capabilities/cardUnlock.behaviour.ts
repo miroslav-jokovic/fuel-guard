@@ -38,6 +38,23 @@ export const cardUnlockBehaviour = defineBehaviour(cardUnlockContract, {
   verify: cardEchoVerify<CardUnlockBody>(),
 
   /**
+   * **Undone by `card_lock`, not by itself** — the case that corrected `ProofPlan.revert`.
+   *
+   * Needs a card that is NOT already active, which on a healthy fleet is the rarer starting state;
+   * OEG-3 voids the run rather than pretending, because unlocking an active card reports success
+   * without any write ever having landed. The revert restores the exact status observed, so a card
+   * proved from `HOLD` goes back to HOLD and not to Inactive.
+   */
+  proof: {
+    precondition: (snap) => !efsStatusEquals(snap.doc?.card.status ?? null, "Active"),
+    sample: (): CardUnlockBody => ({ expectedVersion: "", reason: "Capability proof run" }),
+    revert: (snap) => ({
+      capability: "card_lock",
+      body: { status: snap.doc?.card.status ?? "Hold", expectedVersion: "", reason: "Capability proof revert" },
+    }),
+  },
+
+  /**
    * Runs after the fresh read and before the ledger row opens, so a refusal leaves nothing behind.
    *
    * `efsStatusEquals`, never `===`: this account reports `FRAUD` upper-cased, and an exact

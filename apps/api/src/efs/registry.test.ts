@@ -50,6 +50,31 @@ describe("the capability registries agree with each other", () => {
     expect(mountedCapabilities(envWith(false))).toHaveLength(EXPECTED_KEYS.length - 1);
   });
 
+  /**
+   * Step 4.5. `ProofPlan.revert` names the undoing capability as a STRING, because it is usually a
+   * DIFFERENT capability — unlock is undone by lock, grant by clear, clear by grant — and importing
+   * one behaviour into another to get a typed reference would be a cycle.
+   *
+   * A string the compiler cannot check is precisely the shape `docs/30` §7 warns about: a vocabulary
+   * that moves on one side only. Rename a capability key and every proof plan pointing at it becomes
+   * a prover that dispatches nothing and leaves a QA card changed. This is the check that notices.
+   */
+  it("every proof plan reverts through a capability that actually exists", () => {
+    const emptySnapshot = { doc: null } as Parameters<NonNullable<typeof cardLockBehaviour.proof>["revert"]>[0];
+    const planned = Object.entries(behaviours).filter(([, b]) => b.proof !== undefined);
+
+    // Guards the loop against being vacuous — the failure mode this whole file exists to prevent.
+    expect(planned.length).toBe(Object.keys(CARD_CAPABILITY_CONTRACTS).length);
+
+    for (const [key, behaviour] of planned) {
+      const target = behaviour.proof!.revert(emptySnapshot).capability;
+      expect(
+        Object.keys(CARD_CAPABILITY_CONTRACTS),
+        `${key}'s proof reverts through "${target}", which is not a capability`,
+      ).toContain(target);
+    }
+  });
+
   it("pairs every contract with exactly one behaviour, and mounts it", () => {
     // A contract with no behaviour is a route the router cannot serve; a behaviour with no contract
     // is code that can never run. Both are invisible until somebody presses the button.

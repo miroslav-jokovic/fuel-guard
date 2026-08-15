@@ -91,6 +91,31 @@ export const overrideGrantBehaviour = defineBehaviour(overrideGrantContract, {
     },
   },
 
+  /**
+   * **Undone by `override_clear`** — the second capability whose revert is a different capability.
+   *
+   * One use, all locations, on a card carrying no override. `uses: 1` deliberately sits at or below
+   * `CARD_OVERRIDE_STEP_UP_ABOVE_USES`, so a proof run never needs a fresh sign-in and the harness
+   * never has to hold a password.
+   *
+   * **This is the capability the whole harness was pulled forward for.** Step 4.4 proved
+   * `overrideAllLocations` is never emitted by this account, so `judge` returns `indeterminate` and
+   * OEG-3 cannot come back green from a live run either. That is the correct outcome and it is the
+   * ANSWER: it distinguishes "the account rejects the scope" from "no card is resting in it", which
+   * a fleet-at-rest scan can never do, and it is what decides whether Step 3.11 becomes a proven
+   * adapter or a permanent precondition.
+   */
+  proof: {
+    precondition: (snap) => (snap.doc?.card.overrideUses ?? 0) === 0,
+    sample: (): OverrideGrantBody => ({
+      uses: 1, scope: { kind: "all" }, expectedVersion: "", reason: "Capability proof run",
+    }),
+    revert: () => ({
+      capability: "override_clear",
+      body: { expectedVersion: "", reason: "Capability proof revert" },
+    }),
+  },
+
   /** One free tank is an exception; four is a decision somebody should have to prove they made. */
   preflightStepUp: (body: OverrideGrantBody) =>
     (body.uses > CARD_OVERRIDE_STEP_UP_ABOVE_USES ? overrideStepUpMessage : null),

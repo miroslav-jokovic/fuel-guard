@@ -116,13 +116,16 @@ const setPrompts = (
 ) =>
   executeCapability(
     ctxFor(rec, stub(loginOk, CARD_XML, soap(""), opts.after ?? CARD_XML), CARD_XML, opts.stepUp),
+    // `satisfies` rather than a bare literal: Step 4.5 gave `CapabilityBehaviour` a producer position
+    // for TBody (`proof.sample`), so the type is no longer contravariant and an inferred
+    // `replaceAll: true` is narrower than the contract's `boolean`. Type-only — the value is unchanged.
     resolveCapability(promptsSetContract, promptsSetBehaviour, {
       expectedVersion: versionOf(CARD_XML),
       reason: "New driver on this truck",
       replaceAll: true,
       allowRemoveDriverId: opts.allowRemoveDriverId,
       prompts,
-    }),
+    } satisfies PromptsSetBody),
   );
 
 const keepUnit: PromptInput =

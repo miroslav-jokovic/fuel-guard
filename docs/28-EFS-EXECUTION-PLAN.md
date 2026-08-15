@@ -736,6 +736,16 @@ The production org has no row at all, so card control is QA-only today — which
 **Files:** `apps/api/src/efs/harness/prove.ts`, `apps/api/src/routes/fuelCards/prove.ts` (new).
 **Change:** `POST /api/fuel-cards/prove/:capability` — admin, `requireFreshAuth`, `EFS_CARD_CONTROL_PROBE_ENABLED`, plus the Phase 1 org and production guards. Runs OEG-1/2b/3/4/5 from the behaviour's `proof` plan, reusing `writeProbeRealChange.ts`'s `runStep` and `VERIFY_DELAYS_MS`. Writes an `efs_capability_proofs` row. Sets `state='proving'` then `'proven'` or `'denied'` — **never `'enabled'`**.
 - **OEG-3 requires before-state ≠ target-state**, asserted from the planning read, or the run is void.
+
+> **⚠️ CORRECTION — `revert` names a CAPABILITY, not a body of the same one.** `docs/27` §6.2 and this step both sketched `revert: (before) => TBody`: the capability undoing itself. That holds for exactly **two of the six** that exist — `card_lock` (status back to the observed status) and `prompts_set` (`replaceAll` with the original records). It is false for the other four, and not marginally: **unlock is undone by lock, grant by clear, clear by grant, and `delete_override` by grant.**
+>
+> Writing those as a body of the *same* capability means inventing a field the contract does not have and casting through `unknown` — which is how a prover ends up leaving a QA card unlocked and reporting OEG-5 green. `ProofPlan.revert` therefore returns `{ capability, body: unknown }`; the harness resolves the key through the registry and PARSES the body with that contract's own zod schema, the same discipline `VerifyPlan.reconcile` already follows for a body read out of jsonb.
+>
+> The key is a **string**, because a typed reference would import one behaviour into another and cycle. A string the compiler cannot check is the §7 pattern exactly, so `registry.test.ts` carries *"every proof plan reverts through a capability that actually exists"* — verified by breaking it: renaming one target to `card_relock` fails with the capability named.
+
+**Proof plans landed 2026-08-15** for all six capabilities, with the corrected type, plus the fitness test above. **`delete_override` gets one deliberately**: its post-state is undocumented (finding D1) — the guide says what the op does, not what it writes into the override trio — so `overrideClearedLanded` is tolerant of 0, nil and absent, and a proof run is the instrument that replaces that tolerance with an observation.
+
+**Still to build:** the harness itself (`prove.ts`), the route, the org-cap exemption, and the three named tests.
 - Give the harness an **org-cap exemption** recorded as such in the ledger — ~40 proofs × (apply + revert) exceeds the 50/hour cap and a 503 is indistinguishable from a vendor refusal.
 
 **Verify:** *"records oeg4 false when the vendor's casing differs from ours"* · *"a failed revert marks the proof failed and says the card is still changed"* · *"a proof whose before-state equals the target is void"*. **Live QA:** `pnpm efs:prove card_lock --card <last4>` — all five green, latency recorded (~533ms baseline), card restored.

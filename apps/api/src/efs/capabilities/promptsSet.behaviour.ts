@@ -1,4 +1,4 @@
-import { type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
+import { EFS_EDITABLE_INFO_IDS, type PromptsSetBody, promptsSetContract } from "@fuelguard/shared";
 import { promptsEdits } from "../../services/efsCardEdits.js";
 import { assertPromptRemovalAllowed } from "../../routes/fuelCards/controlRefusal.js";
 import { cardEchoVerify } from "../cardEchoVerify.js";
@@ -24,6 +24,26 @@ import type { PlanCtx, Snapshot } from "../types.js";
  * must not slip through unauthorised. `precondition` runs after the fresh read and before the ledger
  * row opens, so a refusal leaves no row, no dispatch, and no half-finished record.
  */
+/**
+ * The card's own editable prompts, in the shape this capability's body wants them.
+ *
+ * Rebuilt from the observed document rather than invented, so a proof run writes the card's REAL
+ * records back and changes exactly one field. Filtered to `EFS_EDITABLE_INFO_IDS` because a
+ * `replaceAll` carrying an info id nobody may edit would be refused by the contract's own schema —
+ * and silently dropping the rest is what deletes a driver assignment (guide p137).
+ */
+const proofPrompts = (snap: Snapshot): PromptsSetBody["prompts"] =>
+  (snap.doc?.card.infos ?? [])
+    .filter((info): info is typeof info & { infoId: (typeof EFS_EDITABLE_INFO_IDS)[number] } =>
+      (EFS_EDITABLE_INFO_IDS as readonly string[]).includes(info.infoId))
+    .map((info) => ({
+      infoId: info.infoId,
+      validationType: info.validationType === "EXACT_MATCH" ? "EXACT_MATCH" as const : "REPORT_ONLY" as const,
+      matchValue: info.matchValue,
+      reportValue: info.reportValue,
+      remove: false,
+    }));
+
 export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
   target: { kind: "card" },
 
@@ -33,6 +53,39 @@ export const promptsSetBehaviour = defineBehaviour(promptsSetContract, {
   },
 
   verify: cardEchoVerify<PromptsSetBody>(),
+
+  /**
+   * The other self-undoing capability: `replaceAll` back to the records the card already had.
+   *
+   * The sample flips ONE prompt's `validationType` rather than adding or removing a record —
+   * `EXACT_MATCH` is what makes the pump validate a driver's entry, so flipping it to `REPORT_ONLY`
+   * and back is observable, reversible, and cannot strand a driver even if the revert fails. A
+   * proof that added a prompt would consume the reserved empty-`<infos>` card permanently (docs/24
+   * §3.3), and one that removed a DRID would trip this capability's own removal precondition.
+   *
+   * Voided when the card has no editable prompt to flip: there is nothing to change, so a write
+   * would be a no-op reported as a landing.
+   */
+  proof: {
+    precondition: (snap) => proofPrompts(snap).length > 0,
+    sample: (snap): PromptsSetBody => ({
+      expectedVersion: "",
+      reason: "Capability proof run",
+      replaceAll: true,
+      allowRemoveDriverId: false,
+      prompts: proofPrompts(snap).map((p, i) => (i === 0
+        ? { ...p, validationType: p.validationType === "EXACT_MATCH" ? "REPORT_ONLY" as const : "EXACT_MATCH" as const }
+        : p)),
+    }),
+    revert: (snap) => ({
+      capability: "prompts_set",
+      body: {
+        expectedVersion: "", reason: "Capability proof revert",
+        replaceAll: true, allowRemoveDriverId: false,
+        prompts: proofPrompts(snap),
+      },
+    }),
+  },
 
   precondition: (ctx: PlanCtx, snap: Snapshot, body: PromptsSetBody) => {
     const plan = planFor(snap, body);
