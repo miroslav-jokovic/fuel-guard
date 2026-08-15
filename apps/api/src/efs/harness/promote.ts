@@ -48,11 +48,16 @@ export interface PromotionDecision {
  * promotion instead of blocking it. A null on any of the other four blocks: "not reached" is not
  * "passed", and the difference between them is the entire reason those columns are nullable.
  */
-const REQUIRED_GATES: { key: keyof ProofEvidence; label: string }[] = [
-  { key: "oeg1Entitled", label: "OEG-1 (the account is entitled to the operations)" },
-  { key: "oeg3ChangeLanded", label: "OEG-3 (the change landed and was seen on re-read)" },
-  { key: "oeg4Vocabulary", label: "OEG-4 (the vendor spelled every vocabulary field as we sent it)" },
-  { key: "oeg5RevertLanded", label: "OEG-5 (the card was put back, proven by re-read)" },
+// `field`, not `key`. `{ key: "<something>" }` is the shape gitleaks' generic-api-key rule looks
+// for, and it flagged this table as a committed credential — a false positive that failed CI on a
+// list of OEG gate names. Renamed rather than allowlisted: an allowlist entry is a narrow hole in a
+// secret scanner, and the standing rules say never widen a gate to make it green when the code can
+// simply stop looking like the thing being detected.
+const REQUIRED_GATES: { field: keyof ProofEvidence; label: string }[] = [
+  { field: "oeg1Entitled", label: "OEG-1 (the account is entitled to the operations)" },
+  { field: "oeg3ChangeLanded", label: "OEG-3 (the change landed and was seen on re-read)" },
+  { field: "oeg4Vocabulary", label: "OEG-4 (the vendor spelled every vocabulary field as we sent it)" },
+  { field: "oeg5RevertLanded", label: "OEG-5 (the card was put back, proven by re-read)" },
 ];
 
 export function decidePromotion(
@@ -74,7 +79,7 @@ export function decidePromotion(
     refusals.push(`The cited proof settled "${proof.outcome}", not "proven".`);
   }
   for (const gate of REQUIRED_GATES) {
-    const value = proof[gate.key];
+    const value = proof[gate.field];
     // `!== true` rather than `=== false`: a null gate was never reached, and treating "we did not
     // find out" as a pass is the single most expensive mistake this function could make.
     if (value !== true) refusals.push(`${gate.label} is ${value === null ? "not obtained" : "false"}.`);
