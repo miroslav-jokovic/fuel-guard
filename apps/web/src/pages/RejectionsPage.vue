@@ -279,7 +279,7 @@ const columns: DataTableColumn[] = [
             </tr>
           </thead>
           <tbody>
-            <tr v-for="c in cardList" :key="c.id" class="border-t border-neutral-100">
+            <tr v-for="c in cardList" :key="c.id" class="border-t border-edge-subtle">
               <td class="py-1.5 pr-3 font-mono text-ink">{{ c.card }}</td>
               <td class="py-1.5 pr-3 text-ink">{{ c.unit }}</td>
               <td class="py-1.5">

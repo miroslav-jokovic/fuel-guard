@@ -114,8 +114,8 @@ function clear() {
         class="inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:opacity-60"
         :class="[
           selected
-            ? 'bg-brand-50/60 text-brand-800 ring-brand-600/30 hover:bg-brand-50'
-            : 'bg-surface text-ink-secondary ring-edge-control hover:bg-surface-subtle',
+            ? 'bg-brand-50/60 text-brand-800 ring-edge hover:bg-brand-50'
+            : 'bg-surface text-ink-secondary ring-edge hover:bg-surface-subtle',
           block ? 'min-w-0 flex-1 justify-between' : '',
         ]"
         :aria-expanded="open"
@@ -131,7 +131,7 @@ function clear() {
       <button
         v-if="selected"
         type="button"
-        class="inline-flex size-8 shrink-0 items-center justify-center rounded-control text-brand-700 ring-1 ring-inset ring-brand-600/30 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        class="inline-flex size-8 shrink-0 items-center justify-center rounded-control text-brand-700 ring-1 ring-inset ring-edge hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         :aria-label="`Clear ${label} filter`"
         @click.stop="clear"
       >
@@ -145,7 +145,7 @@ function clear() {
         <div
           ref="panelRef"
           :style="floatingStyles"
-          class="z-[9999] w-60 rounded-control bg-surface py-1 text-sm shadow-md ring-1 ring-edge"
+          class="z-[9999] w-60 rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle"
           role="listbox"
           :aria-label="`${label} options`"
         >

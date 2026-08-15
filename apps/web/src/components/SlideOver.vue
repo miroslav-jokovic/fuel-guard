@@ -55,7 +55,7 @@ const panelWidth = computed(() => (props.size === "lg" ? "max-w-lg" : "max-w-md"
               leave-to="translate-x-full"
             >
               <DialogPanel class="pointer-events-auto w-screen" :class="panelWidth">
-                <div class="flex h-full flex-col bg-surface shadow-xl">
+                <div class="flex h-full flex-col bg-surface shadow-dialog">
                   <div
                     class="flex items-start justify-between gap-4 border-b border-edge px-4 py-4 sm:px-6"
                   >

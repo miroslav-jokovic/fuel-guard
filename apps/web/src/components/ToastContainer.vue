@@ -76,7 +76,7 @@ function cfg(t: Toast): VariantConfig {
         <div
           v-for="t in toast.toasts"
           :key="t.id"
-          class="pointer-events-auto relative w-full overflow-hidden rounded-surface border-l-4 shadow-lg ring-1 ring-edge"
+          class="pointer-events-auto relative w-full overflow-hidden rounded-surface border-l-4 shadow-overlay ring-1 ring-edge-subtle"
           :class="[cfg(t).borderClass, cfg(t).bgClass]"
           role="alert"
         >

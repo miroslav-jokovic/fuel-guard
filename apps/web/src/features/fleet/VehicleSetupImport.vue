@@ -101,7 +101,7 @@ const equipLabel  = (apu: string | null, opt: boolean | null) => {
           <span class="text-xs text-ink-muted">All fields · 2 example rows</span>
         </BaseButton>
         <BaseButton
-          class="flex flex-col items-center gap-2 rounded-surface border-2 border-dashed border-edge-control px-4 py-5 text-center transition-colors hover:border-neutral-400 hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
+          class="flex flex-col items-center gap-2 rounded-surface border-2 border-dashed border-edge-control px-4 py-5 text-center transition-colors hover:border-edge-control hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40"
           :disabled="!vehicles.length"
           :title="vehicles.length ? 'Export current fleet — fill in tank / MPG and re-import' : 'No vehicles yet'"
           @click="downloadCurrentFleet"

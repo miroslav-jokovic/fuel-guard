@@ -7,7 +7,7 @@ const SOFT = {
   success: "bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20",
   info: "bg-info-50 text-info-700 ring-1 ring-inset ring-info-600/20",
   brand: "bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-600/20",
-  neutral: "bg-surface-subtle text-ink-muted ring-1 ring-inset ring-neutral-500/20",
+  neutral: "bg-surface-subtle text-ink-muted ring-1 ring-inset ring-edge",
 } as const;
 
 export type BadgeTone = keyof typeof SOFT;

@@ -153,7 +153,7 @@ watch(
         <div
           ref="panelRef"
           :style="floatingStyles"
-          class="z-[9999] overflow-hidden rounded-control bg-surface shadow-md ring-1 ring-edge"
+          class="z-[9999] overflow-hidden rounded-control bg-surface shadow-overlay ring-1 ring-edge-subtle"
         >
           <!-- "All vehicles" option -->
           <button

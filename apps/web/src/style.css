@@ -10,15 +10,15 @@ body {
 }
 
 :root {
-  /* Light workspace navigation selected in the verified prototype. */
-  --sidebar-surface: var(--canvas);
+  /* Persistent navigation has its own quiet plane, distinct from the workspace canvas. */
+  --sidebar-surface: var(--surface-navigation);
   --sidebar-surface-raised: var(--surface);
   --sidebar-ink: var(--ink-secondary);
   --sidebar-ink-muted: var(--ink-tertiary);
   --sidebar-hover: var(--surface-muted);
   --sidebar-selected: var(--selected-surface);
   --sidebar-selected-hover: var(--surface-muted);
-  --sidebar-edge: var(--edge);
+  --sidebar-edge: var(--edge-subtle);
   --sidebar-focus: var(--focus-ring);
 
   /* Development A/B lab tokens remain isolated from shipped component roles. */
@@ -72,7 +72,7 @@ body {
     overflow: hidden;
     border: 1px solid var(--sidebar-edge);
     background: var(--sidebar-surface-raised);
-    box-shadow: 0 12px 32px color-mix(in oklab, var(--ink) 16%, transparent);
+    box-shadow: var(--elevation-overlay);
   }
 
   .sidebar-glass-material {

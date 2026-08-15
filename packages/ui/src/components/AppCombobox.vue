@@ -127,7 +127,7 @@ function onKeydown(event: KeyboardEvent) {
     <ul
       v-if="open"
       :id="listboxId"
-      class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-control bg-surface py-1 text-sm shadow-md ring-1 ring-edge"
+      class="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle"
       role="listbox"
     >
       <li

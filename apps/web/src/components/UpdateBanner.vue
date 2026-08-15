@@ -25,7 +25,7 @@ const dismissed = ref(false);
       role="status"
     >
       <div
-        class="pointer-events-auto flex items-center gap-3 rounded-full border border-sidebar-edge bg-surface-inverse/80 py-2 pr-2 pl-4 text-sm text-ink-inverse shadow-xl shadow-black/20 backdrop-blur-md"
+        class="pointer-events-auto flex items-center gap-3 rounded-full border border-ink-inverse/10 bg-surface-inverse/80 py-2 pr-2 pl-4 text-sm text-ink-inverse shadow-overlay backdrop-blur-md"
       >
         <span class="relative flex size-2">
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-400 opacity-60" />

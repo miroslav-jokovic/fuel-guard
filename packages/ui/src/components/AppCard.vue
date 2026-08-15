@@ -15,8 +15,8 @@ withDefaults(
 const PAD: Record<string, string> = { none: "overflow-hidden", sm: "p-4", md: "p-5" };
 const VARIANT: Record<string, string> = {
   flat: "bg-transparent",
-  bordered: "bg-surface ring-1 ring-edge",
-  raised: "bg-surface shadow-lg ring-1 ring-edge",
+  bordered: "bg-surface shadow-card ring-1 ring-edge-subtle",
+  raised: "bg-surface shadow-card-raised ring-1 ring-edge-subtle",
 };
 </script>
 

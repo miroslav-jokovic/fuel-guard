@@ -88,7 +88,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         <button
           ref="triggerRef"
           type="button"
-          class="inline-flex items-center gap-x-1.5 rounded-control bg-surface px-2.5 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge-control hover:bg-surface-subtle"
+          class="inline-flex items-center gap-x-1.5 rounded-control bg-surface px-2.5 py-1.5 text-sm font-medium text-ink-secondary ring-1 ring-inset ring-edge hover:bg-surface-subtle"
           :aria-expanded="moreOpen"
           aria-haspopup="dialog"
           @click.stop="moreOpen = !moreOpen"
@@ -108,7 +108,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
             <div
               ref="panelRef"
               :style="floatingStyles"
-              class="z-[9999] w-72 rounded-control bg-surface p-4 text-sm shadow-md ring-1 ring-edge"
+              class="z-[9999] w-72 rounded-control bg-surface p-4 text-sm shadow-overlay ring-1 ring-edge-subtle"
               role="dialog"
               aria-label="More filters"
             >
@@ -134,7 +134,7 @@ const { floatingStyles } = useFloating(triggerRef, panelRef, {
         v-for="c in chips"
         :key="c.key"
         type="button"
-        class="group inline-flex items-center gap-1 rounded-control bg-surface-muted py-0.5 pr-1 pl-2 text-xs font-medium text-ink-secondary ring-1 ring-inset ring-edge hover:bg-neutral-200"
+        class="group inline-flex items-center gap-1 rounded-control bg-surface-muted py-0.5 pr-1 pl-2 text-xs font-medium text-ink-secondary ring-1 ring-inset ring-edge hover:bg-selected-surface"
         :aria-label="`Remove filter ${c.label}: ${c.value}`"
         @click="emit('remove', c.key)"
       >

@@ -25,6 +25,14 @@ const RULES = [
     name: "raw palette utility (use semantic tokens)",
     re: new RegExp(`\\b${UTIL_PREFIX}-${BANNED_HUES}-\\d+(?:/\\d+)?\\b`, "g"),
   },
+  {
+    name: "raw neutral edge utility (use semantic edge tokens)",
+    re: /\b(?:ring|border|divide|outline)-neutral-\d+(?:\/\d+)?\b/g,
+  },
+  {
+    name: "generic elevation utility (use shadow-card/overlay/dialog)",
+    re: /\bshadow-(?:sm|md|lg|xl|2xl)\b/g,
+  },
   { name: "hex color (use tokens / chartTheme)", re: /#[0-9a-fA-F]{3,8}\b/g },
   {
     name: "inline color style (use token classes)",

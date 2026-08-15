@@ -50,6 +50,8 @@ const pairs = [
   ["secondary text / surface", "--ink-secondary", "--surface", 4.5],
   ["tertiary text / surface", "--ink-tertiary", "--surface", 4.5],
   ["tertiary text / canvas", "--ink-tertiary", "--canvas", 4.5],
+  ["sidebar text / navigation", "--ink-secondary", "--surface-navigation", 4.5],
+  ["sidebar muted text / navigation", "--ink-tertiary", "--surface-navigation", 4.5],
   ["control border / surface", "--edge-control", "--surface", 3],
   ["control border / canvas", "--edge-control", "--canvas", 3],
   ["gold accent foreground / accent", "--ink", "--brand-accent", 4.5],

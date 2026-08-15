@@ -36,7 +36,7 @@ async function signOut() {
 <template>
   <div class="min-h-full">
     <!-- Persistent PLATFORM chrome so an operator always knows which plane they're in. -->
-    <header class="sticky top-0 z-40 border-b border-edge bg-surface-inverse text-ink-inverse">
+    <header class="sticky top-0 z-40 border-b border-ink-inverse/10 bg-surface-inverse text-ink-inverse">
       <div class="flex h-12 items-center justify-between px-4 sm:px-6">
         <div class="flex items-center gap-3">
           <span class="rounded-control bg-brand-accent px-2 py-0.5 text-xs font-bold tracking-wide text-ink">PLATFORM</span>
@@ -66,7 +66,7 @@ async function signOut() {
     </div>
 
     <div class="flex min-h-[calc(100vh-3rem)] flex-col md:flex-row">
-      <nav class="flex shrink-0 gap-1 overflow-x-auto border-b border-edge bg-canvas p-3 md:w-60 md:flex-col md:border-r md:border-b-0 md:p-4">
+      <nav class="flex shrink-0 gap-1 overflow-x-auto border-b border-edge-subtle bg-canvas p-3 md:w-60 md:flex-col md:border-r md:border-b-0 md:p-4">
         <template v-for="item in NAV" :key="item.label">
           <RouterLink
             v-if="item.to"

@@ -13,7 +13,7 @@ const tones = {
   success: "bg-success-50 text-success-700 ring-success-600/20",
   info: "bg-info-50 text-info-700 ring-info-600/20",
   brand: "bg-brand-50 text-brand-700 ring-brand-600/20",
-  neutral: "bg-surface-subtle text-ink-muted ring-neutral-500/20",
+  neutral: "bg-surface-subtle text-ink-muted ring-edge",
 } as const;
 </script>
 

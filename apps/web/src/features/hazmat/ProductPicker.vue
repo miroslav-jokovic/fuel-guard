@@ -50,7 +50,7 @@ function choose(p: HazmatProduct) {
     />
     <div
       v-if="open"
-      class="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-control bg-surface shadow-md ring-1 ring-edge"
+      class="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-control bg-surface shadow-overlay ring-1 ring-edge-subtle"
       role="listbox"
     >
       <p v-if="isFetching" class="px-3 py-2 text-sm text-ink-muted">Searching…</p>

@@ -1,7 +1,9 @@
 # FuelGuard Design System
 
-Vue 3 + Tailwind CSS v4. Tokens live in `apps/web/src/style.css`; primitives in
-`apps/web/src/components/ui/`. Run `pnpm lint:tokens` to catch violations.
+Vue 3 + Tailwind CSS v4. Cross-application tokens live in
+`packages/ui/src/tokens.css`; shared primitives live in `packages/ui/src/components/`.
+The web and admin applications import that canonical source. Run
+`pnpm lint:tokens-parity` and `pnpm --filter @fuelguard/web lint:tokens` to catch violations.
 
 ## 1. Color tokens
 
@@ -16,28 +18,33 @@ hex values, or inline `style` colors. They use semantic tokens:
 | `surface` | `bg-surface` | cards, tables, inputs, popovers |
 | `surface-subtle` | `bg-surface-subtle`, `hover:bg-surface-subtle` | table heads, hover rows |
 | `surface-muted` | `bg-surface-muted` | soft buttons, wells |
+| `surface-navigation` | `bg-surface-navigation` | persistent navigation, visually separate from the page canvas |
 | `surface-inverse` | `bg-surface-inverse` | code blocks, tooltips |
 | `ink` | `text-ink` | headings, primary values |
 | `ink-secondary` | `text-ink-secondary` | body copy, labels, cell text |
 | `ink-muted` | `text-ink-muted` | descriptions, captions, table heads |
 | `ink-subtle` | `text-ink-subtle` | placeholders, disabled, em-dashes |
 | `ink-inverse` | `text-ink-inverse` | text on brand/danger/inverse fills |
-| `edge-subtle` | `divide-edge-subtle` | row dividers |
-| `edge` | `ring-edge`, `border-edge`, `divide-edge` | card rings, hairlines |
-| `edge-strong` | `ring-edge-strong` | input/control borders |
+| `edge-subtle` | `divide-edge-subtle`, `ring-edge-subtle` | row dividers, card and overlay perimeters |
+| `edge` | `ring-edge`, `border-edge`, `divide-edge` | quiet interactive boundaries and grouped surfaces |
+| `edge-control` | `ring-edge-control` | essential input/control boundaries; preserves 3:1 contrast |
+
+The page canvas and persistent navigation are separate surface roles. Keep the
+canvas near-white and use `surface-navigation` for the sidebar; do not make both
+areas the same color or recreate the distinction with a dark border.
 
 ### Brand & status ramps (50–800, like a palette hue)
 
-`brand` (indigo today — swap one ramp in style.css to re-brand), `danger` (red),
+`brand` (warm FuelGuard gold), `danger` (red),
 `caution` (orange, severity-high), `warning` (amber), `success` (green), `info` (blue).
 
-Conventions: solid CTA `bg-brand-600 hover:bg-brand-500 text-ink-inverse`; links
-`text-brand-600 hover:text-brand-500`; focus `focus:ring-brand-600` /
-`focus-visible:outline-brand-600`; soft tint panels `bg-warning-50 text-warning-800
-ring-warning-200`; badges via `lib/badges.ts` tones only.
+Gold is identity, not the default action color. Primary actions use
+`bg-action-primary text-action-primary-foreground`; links and focus use their
+dedicated blue `link` and `focus-ring` roles. Soft status panels use pale surfaces,
+dark text, and restrained edges; badges use the shared badge tones.
 
-`neutral-*` is the gray ramp escape hatch (skeletons, scrims `bg-neutral-900/60`,
-the dark sidebar). Prefer roles. `white`/`black`/`transparent` literals are allowed
+`neutral-*` is the gray ramp escape hatch (skeletons and scrims such as
+`bg-neutral-900/60`). Prefer roles. `white`/`black`/`transparent` literals are allowed
 where they are truly theme-independent (e.g. text on a photo, the logo droplet).
 
 ### Charts (canvas)
@@ -55,7 +62,7 @@ Canvas can't read CSS vars — `features/dashboard/chartTheme.ts` resolves the
 | `BaseCheckbox` | raw checkboxes | slot = inline label |
 | `BaseSwitch` | hand-rolled feature toggles | accessible immediate on/off settings; pass an `aria-label` when needed |
 | `FormField` | ad-hoc label/error markup | `label`, `error`, `hint`, `required`; exposes `id` to slot |
-| `BaseCard` | `rounded-lg bg-white shadow-sm ring-1 ring-gray-200` divs | `padding` none·sm·md |
+| `BaseCard` | hand-rolled white/ring/shadow surfaces | `padding` none·sm·md; `variant` flat·bordered·raised |
 | `PageHeader` | ad-hoc description/actions rows | `description` + `#actions` |
 | `FilterBar` | loose filter rows above tables | the standard toolbar — see §3 |
 | `FileDropzone` | bare `<input type=file>` uploads | drag & drop + browse; `accept`, `multiple`, `busy`, emits `files` |
@@ -97,7 +104,7 @@ tokenized — use them, don't fork them.
   (per-filter), page resets to 1 on change. Primary = what users reach for
   daily; secondary = occasionally useful. Never ship a filter no query uses.
 - Dropdowns: one popover recipe everywhere —
-  `rounded-md bg-surface py-1 text-sm shadow-lg ring-1 ring-edge`
+  `rounded-control bg-surface py-1 text-sm shadow-overlay ring-1 ring-edge-subtle`
   (KebabMenu, AppSelect, and any Headless UI Menu panels). Menu items use
   the global `.kebab-item` classes. KebabMenu accepts a `#trigger` slot
   for non-⋮ triggers so toolbar dropdowns share the exact same panel.
@@ -109,7 +116,23 @@ tokenized — use them, don't fork them.
 - Radius: `rounded-md` controls, `rounded-lg` cards/panels. Card padding p-4/p-5
   via `BaseCard`. Vertical rhythm between sections: `space-y-6`.
 
-## 4. Dark mode (future)
+## 4. Elevation
+
+Depth is semantic; components never choose generic `shadow-sm`/`shadow-lg` values.
+
+| Token | Utility | Use for |
+|---|---|---|
+| `elevation-card` | `shadow-card` | default card separation from the canvas |
+| `elevation-card-raised` | `shadow-card-raised` | emphasized cards only |
+| `elevation-overlay` | `shadow-overlay` | menus, comboboxes, toasts, floating banners |
+| `elevation-dialog` | `shadow-dialog` | drawers and modal surfaces |
+
+Cards and overlays pair elevation with `ring-edge-subtle`. Filter triggers use
+`ring-edge`; actual text fields retain `ring-edge-control` because their boundary
+must remain identifiable. Active filters communicate state with surface and text,
+not a saturated colored perimeter.
+
+## 5. Dark mode (future)
 
 Roles are plain CSS custom properties. To ship dark mode: add
 `@custom-variant dark` and a `.dark { --canvas: …; }` block in style.css,

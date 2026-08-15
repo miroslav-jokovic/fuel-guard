@@ -170,7 +170,7 @@ function resetAll() {
             variant="ghost"
             size="sm"
             class="rounded-control px-3 py-1.5 text-sm font-medium transition-colors"
-            :class="sourceMode === 'fleet' ? 'bg-surface text-ink shadow-sm ring-1 ring-inset ring-edge' : 'text-ink-muted hover:text-ink'"
+            :class="sourceMode === 'fleet' ? 'bg-surface text-ink shadow-card ring-1 ring-inset ring-edge-subtle' : 'text-ink-muted hover:text-ink'"
             @click="setSourceMode('fleet')"
           >
             From my fleet
@@ -179,7 +179,7 @@ function resetAll() {
             variant="ghost"
             size="sm"
             class="rounded-control px-3 py-1.5 text-sm font-medium transition-colors"
-            :class="sourceMode === 'manual' ? 'bg-surface text-ink shadow-sm ring-1 ring-inset ring-edge' : 'text-ink-muted hover:text-ink'"
+            :class="sourceMode === 'manual' ? 'bg-surface text-ink shadow-card ring-1 ring-inset ring-edge-subtle' : 'text-ink-muted hover:text-ink'"
             @click="setSourceMode('manual')"
           >
             Other equipment

@@ -139,17 +139,18 @@
 
   /* ── 2. Semantic roles (a future .dark block re-points these) ────── */
   /* app background + raised surfaces */
-  --canvas: oklch(0.968 0.007 247.896);
+  --canvas: oklch(0.98 0.004 247.896);
   --surface: oklch(1 0 0);
   --surface-subtle: oklch(0.984 0.003 247.858); /* table headers, hover rows */
   --surface-muted: oklch(0.929 0.013 255.508); /* soft buttons, wells       */
+  --surface-navigation: oklch(0.955 0.009 252); /* persistent app navigation */
   --surface-inverse: oklch(0.208 0.042 265.755); /* code blocks, tooltips     */
 
   /* text */
-  --ink: oklch(0.208 0.042 265.755);
-  --ink-secondary: oklch(0.38 0.033 260);
-  --ink-muted: oklch(0.49 0.03 258);
-  --ink-tertiary: oklch(0.49 0.03 258);
+  --ink: oklch(0.3 0.032 263);
+  --ink-secondary: oklch(0.45 0.028 260);
+  --ink-muted: oklch(0.51 0.024 258);
+  --ink-tertiary: oklch(0.525 0.022 258);
   --ink-subtle: oklch(0.64 0.025 258);
   --ink-disabled: oklch(0.64 0.025 258);
   --ink-inverse: oklch(1 0 0);
@@ -159,6 +160,12 @@
   --edge: oklch(0.87 0.012 258); /* surface and overlay grouping */
   --edge-strong: oklch(0.64 0.025 258); /* compatibility alias         */
   --edge-control: oklch(0.644 0.025 258); /* essential control boundary; 3:1 on canvas */
+
+  /* elevation — shadows carry depth so cards and overlays do not need dark perimeters */
+  --elevation-card: 0 1px 2px color-mix(in oklab, var(--ink) 5%, transparent);
+  --elevation-card-raised: 0 6px 18px color-mix(in oklab, var(--ink) 7%, transparent), 0 1px 3px color-mix(in oklab, var(--ink) 4%, transparent);
+  --elevation-overlay: 0 10px 28px color-mix(in oklab, var(--ink) 10%, transparent), 0 2px 6px color-mix(in oklab, var(--ink) 5%, transparent);
+  --elevation-dialog: 0 20px 48px color-mix(in oklab, var(--ink) 14%, transparent), 0 4px 12px color-mix(in oklab, var(--ink) 7%, transparent);
 
   /* identity, interaction, links, selection, and focus are deliberately separate */
   --brand-accent: oklch(0.837 0.128 66.29);
@@ -216,6 +223,7 @@
   --color-surface: var(--surface);
   --color-surface-subtle: var(--surface-subtle);
   --color-surface-muted: var(--surface-muted);
+  --color-surface-navigation: var(--surface-navigation);
   --color-surface-inverse: var(--surface-inverse);
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);
@@ -248,6 +256,10 @@
   --radius-surface: var(--shape-surface);
   --radius-overlay: var(--shape-overlay);
   --radius-dialog: var(--shape-dialog);
+  --shadow-card: var(--elevation-card);
+  --shadow-card-raised: var(--elevation-card-raised);
+  --shadow-overlay: var(--elevation-overlay);
+  --shadow-dialog: var(--elevation-dialog);
 
   /* brand ramp */
   --color-brand-50: var(--ramp-brand-50);
@@ -355,7 +367,7 @@
   --dp-primary-text-color: var(--ink-inverse);
   --dp-secondary-color: var(--ink-subtle);
   --dp-border-color: var(--edge-control);
-  --dp-menu-border-color: var(--edge);
+  --dp-menu-border-color: var(--edge-subtle);
   --dp-border-color-hover: var(--edge-control);
   --dp-border-color-focus: var(--ramp-brand-600);
   --dp-disabled-color: var(--surface-muted);
@@ -382,4 +394,7 @@
   --dp-preview-font-size: 0.75rem;
   --dp-input-padding: 5px 30px 5px 34px;
   --dp-menu-min-width: 16rem;
+}
+.dp__menu {
+  box-shadow: var(--elevation-overlay);
 }
