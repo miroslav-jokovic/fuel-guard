@@ -73,7 +73,7 @@ async function dispatch(
   body: unknown,
   doc: CardDocument,
   capabilities: Readonly<Record<string, MountedCapability>>,
-): Promise<{ status: string; faultCode: string | null; faultMessage: string | null }> {
+): Promise<{ status: string; faultCode: string | null; faultMessage: string | null; applyLatencyMs: number | null }> {
   const capability = capabilities[capabilityKey];
   // Refused rather than skipped: a revert whose capability cannot be resolved leaves a QA card
   // changed, and reporting OEG-5 as merely "false" would lose why.
@@ -88,7 +88,14 @@ async function dispatch(
   }
 
   const outcome = await accepted.run({ ...ctx, expectedVersion: doc.version, reason: accepted.reason });
-  return { status: outcome.status, faultCode: outcome.faultCode, faultMessage: outcome.faultMessage };
+  // `applyLatencyMs` is carried out of the orchestrator rather than timed here (Step 4.7) — only
+  // `verifyStep` knows which re-read saw the change.
+  return {
+    status: outcome.status,
+    faultCode: outcome.faultCode,
+    faultMessage: outcome.faultMessage,
+    applyLatencyMs: outcome.applyLatencyMs ?? null,
+  };
 }
 
 /**
@@ -190,7 +197,6 @@ export async function proveCapability(
   };
 
   // ── OEG-3: apply ────────────────────────────────────────────────────────────────────────────
-  const startedAt = Date.now();
   let applied: Awaited<ReturnType<typeof dispatch>>;
   try {
     applied = await dispatch(ctx, capabilityKey, plan.sample(snap), before, deps.capabilities);
@@ -201,7 +207,21 @@ export async function proveCapability(
   }
   if (applied.faultCode && NOT_ENTITLED.has(applied.faultCode)) result.oeg1Entitled = false;
   result.oeg3ChangeLanded = applied.status === "succeeded";
-  if (result.oeg3ChangeLanded) result.applyLatencyMs = Date.now() - startedAt;
+  /**
+   * Step 4.7 — taken from the orchestrator, not measured here.
+   *
+   * This used to be `Date.now() - startedAt` around the whole `dispatch()` call, and migration 0191
+   * documents the column as "milliseconds from dispatch to the first re-read that saw the change".
+   * Those are different quantities: the wrapper also carried the write, the mirror update, the
+   * ledger writes and the deliberate `EFS_CARD_VERIFY_RETRY_MS` pause. The first live proof recorded
+   * 4562 ms on an account that applies a status edit in ~850 ms (`docs/22` H6), and the arithmetic
+   * only made sense once you noticed the 3-second pause inside it.
+   *
+   * `verifyStep` knows which re-read actually saw the change; nothing out here does. So the number
+   * is measured where that fact lives and carried out on the outcome — which also means the proof
+   * harness and the entitlement probe now report the same physical quantity.
+   */
+  result.applyLatencyMs = applied.applyLatencyMs ?? null;
   result.detail = `apply → ${applied.status}${applied.faultCode ? ` (${applied.faultCode})` : ""}`;
 
   // ── OEG-4: vocabulary, on the document the write left behind ────────────────────────────────

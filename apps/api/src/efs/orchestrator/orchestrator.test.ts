@@ -373,3 +373,130 @@ describe("a verification that cannot decide", () => {
     expect(rec.writtenRows("audit_logs").map((r) => r.action)).toContain("card.mutation_unverified");
   });
 });
+
+describe("apply latency measures the interval its column names (Step 4.7)", () => {
+  /**
+   * Migration 0191 documents `apply_latency_ms` as "milliseconds from dispatch to the first re-read
+   * that saw the change". `prove.ts` used to time the whole `executeCapability` call instead, which
+   * also carried the planning read, the write, the mirror update, the ledger writes and — decisively
+   * — the deliberate `EFS_CARD_VERIFY_RETRY_MS` pause. The first live proof recorded 4562 ms on an
+   * account that applies a status edit in ~850 ms (`docs/22` H6).
+   *
+   * ── Why the WRITE is deliberately slowed here ───────────────────────────────────────────────────
+   * The first draft of these tests passed against BOTH the old and the new measurement, because a
+   * scripted vendor answers instantly: with every call taking ~0 ms, "the whole call" and "the verify
+   * window" differ only by the retry pause, which both include. The tests proved nothing.
+   *
+   * `WRITE_MS` is what separates them. It sits INSIDE the old window and OUTSIDE the new one, so the
+   * old measurement cannot come in under it and the new one cannot come in over it. Restoring the
+   * whole-call timing turns three of these four red.
+   */
+  const RETRY_MS = 300;
+  const WRITE_MS = 400;
+  const withRetry = { ...env, EFS_CARD_VERIFY_RETRY_MS: RETRY_MS } as Env;
+  const ctxWithRetry = (rec: SupabaseRecorder, fetchImpl: typeof fetch, expectedVersion: string): CardMutationContext =>
+    ({ ...ctxFor(rec, fetchImpl, expectedVersion), env: withRetry });
+
+  /** Like `stub`, but every WRITE takes WRITE_MS — time the old measurement counted and the new does not. */
+  function slowWriteStub(...responses: string[]): { fetchImpl: typeof fetch } {
+    let i = 0;
+    const fetchImpl = (async (_input: string | URL, init?: RequestInit) => {
+      const body = String(init?.body ?? "");
+      const next = responses[i++];
+      if (next === undefined) throw new Error("the stub ran out of scripted responses");
+      if (body.includes("setCardv2") || body.includes("deleteOverride")) {
+        await new Promise((r) => setTimeout(r, WRITE_MS));
+      }
+      return new Response(next, { status: 200 });
+    }) as typeof fetch;
+    return { fetchImpl };
+  }
+
+  it("excludes the write itself when the first re-read sees the change", async () => {
+    const rec = recorder();
+    // login → plan read → setCardv2 (slow) → re-read ALREADY showing Hold.
+    const s = slowWriteStub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN);
+
+    const outcome = await executeCapability(ctxWithRetry(rec, s.fetchImpl, versionOf(CARD_START)), capability());
+
+    expect(outcome.status).toBe("succeeded");
+    expect(outcome.applyLatencyMs).not.toBeNull();
+    // No pause was taken and the write is not ours to count. The old whole-call timing could not
+    // come in under WRITE_MS, let alone under the retry interval.
+    expect(outcome.applyLatencyMs!).toBeLessThan(RETRY_MS);
+  });
+
+  it("includes the retry pause when only the second look sees it, and still excludes the write", async () => {
+    const rec = recorder();
+    // The first re-read still shows the OLD document, so the second look is the one that lands.
+    const s = slowWriteStub(loginOk, CARD_START, soap(""), CARD_START, CARD_HELD_OVERRIDDEN);
+
+    const outcome = await executeCapability(ctxWithRetry(rec, s.fetchImpl, versionOf(CARD_START)), capability());
+
+    expect(outcome.status).toBe("succeeded");
+    // Includes the pause DELIBERATELY: the column says "the first re-read that saw the change", and
+    // a vendor whose edit only becomes visible after a wait genuinely took longer to apply it.
+    expect(outcome.applyLatencyMs!).toBeGreaterThanOrEqual(RETRY_MS);
+    // The upper bound is what makes this case discriminating rather than decorative: the old
+    // measurement would carry WRITE_MS on top of the pause and land above this line.
+    expect(outcome.applyLatencyMs!).toBeLessThan(RETRY_MS + WRITE_MS);
+  });
+
+  /**
+   * The pair above is the plan's own Verify — "the two must be distinguishable, which today they are
+   * not". Stated as one assertion so a future change that collapses them fails HERE, with a message
+   * about the distinction, rather than as two unrelated bound violations.
+   */
+  it("distinguishes a vendor that lands immediately from one that lands only on the second look", async () => {
+    const immediate = await executeCapability(
+      ctxWithRetry(recorder(), slowWriteStub(loginOk, CARD_START, soap(""), CARD_HELD_OVERRIDDEN).fetchImpl, versionOf(CARD_START)),
+      capability(),
+    );
+    // The SOAP session is cached across calls, so the second run would skip its login and read every
+    // scripted response one position early — the login envelope would arrive where a card was due.
+    __resetEfsSessions();
+    const delayed = await executeCapability(
+      ctxWithRetry(recorder(), slowWriteStub(loginOk, CARD_START, soap(""), CARD_START, CARD_HELD_OVERRIDDEN).fetchImpl, versionOf(CARD_START)),
+      capability(),
+    );
+
+    // Both halves are needed, and the first is what makes this discriminating. Under the old
+    // whole-call timing the DIFFERENCE was still ~RETRY_MS — the pause is in one and not the other
+    // either way — so a delta assertion alone passes on the broken code. What the old measurement
+    // cannot do is put the immediate case under the retry interval, because it carries the write.
+    expect(immediate.applyLatencyMs!).toBeLessThan(RETRY_MS);
+    expect(delayed.applyLatencyMs! - immediate.applyLatencyMs!).toBeGreaterThanOrEqual(RETRY_MS);
+  });
+
+  it("is null when nothing landed — an unlanded write has no apply latency", async () => {
+    const rec = recorder();
+    // Both looks show the card unchanged: the write was accepted and never applied.
+    const s = slowWriteStub(loginOk, CARD_START, soap(""), CARD_START, CARD_START);
+
+    const outcome = await executeCapability(ctxWithRetry(rec, s.fetchImpl, versionOf(CARD_START)), capability());
+
+    expect(outcome.status).toBe("failed");
+    // Zero would be a measurement. Null is the absence of one, and the column is nullable for this.
+    expect(outcome.applyLatencyMs ?? null).toBeNull();
+  });
+
+  it("reports the LAST landed step's latency on a sequence, not the sum of the steps", async () => {
+    const rec = recorder();
+    // Step 0 lands on its first look; step 1 needs the second. A sum would carry step 0's window and
+    // both slow writes; the last-step rule keeps the number a property of the VENDOR, not the recipe.
+    const s = slowWriteStub(
+      loginOk, CARD_START,
+      soap(""), CARD_HELD_OVERRIDDEN,
+      soap(""), CARD_HELD_OVERRIDDEN, CARD_HELD_CLEARED,
+    );
+
+    const outcome = await executeCapability(
+      ctxWithRetry(rec, s.fetchImpl, versionOf(CARD_START)),
+      sequenced(holdStep, clearOverrideStep),
+    );
+
+    expect(outcome.status).toBe("succeeded");
+    expect(outcome.applyLatencyMs!).toBeGreaterThanOrEqual(RETRY_MS);
+    expect(outcome.applyLatencyMs!).toBeLessThan(RETRY_MS + WRITE_MS);
+  });
+});

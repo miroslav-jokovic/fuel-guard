@@ -68,6 +68,15 @@ export async function applyCardMutation<TBody>(
   let beforeDoc = plan.before;
   let landedSteps = 0;
   let last: { after: CardDocument; wire: DispatchOutcome } | null = null;
+  /**
+   * The LAST landed step's apply latency, not the sum across steps (Step 4.7).
+   *
+   * The column answers "how long does this vendor take to apply an edit". A sum would answer "how
+   * long did this capability take", which the ledger's own timestamps already give you, and it would
+   * make a two-step capability look like a slower vendor than a one-step capability writing to the
+   * same account.
+   */
+  let applyLatencyMs: number | null = null;
 
   for (const [index, step] of steps.entries()) {
     await ledger.markSent(ctx, plan.mutationId, sequenced ? index : null);
@@ -118,6 +127,7 @@ export async function applyCardMutation<TBody>(
     }
 
     landedSteps += 1;
+    applyLatencyMs = verified.applyLatencyMs;
     beforeSnapshot = verified.after;
     beforeDoc = verified.after.doc;
     last = { after: verified.after.doc, wire: sent };
@@ -127,7 +137,11 @@ export async function applyCardMutation<TBody>(
   // to completion has a last step. Throwing rather than asserting: a mutation that dispatched nothing
   // must never settle `succeeded`.
   if (!last) throw new Error(`mutation ${plan.mutationId} dispatched no steps`);
-  return await finalizeLanded(ctx, ledger, settleFacts(plan, allEdits, null), last.after, last.wire);
+  const landed = await finalizeLanded(ctx, ledger, settleFacts(plan, allEdits, null), last.after, last.wire);
+  // Attached only on the fully-landed path. `partial`, `failed`, `sent` and `drift_detected` all
+  // leave it null, because none of them has a re-read that saw the change — which is the one event
+  // this number is defined against.
+  return { ...landed, applyLatencyMs };
 }
 
 /** Held rather than thrown, so the ledger can say WHY a verification came back undecided. */
@@ -219,7 +233,16 @@ async function verifyStep<TBody>(
   before: Snapshot,
   edits: readonly CardEdit[],
   body: TBody,
-): Promise<{ after: Snapshot | null; landing: Landing; readError: unknown }> {
+): Promise<{ after: Snapshot | null; landing: Landing; readError: unknown; applyLatencyMs: number | null }> {
+  /**
+   * Step 4.7. The clock starts HERE — the caller has just had `dispatchStep` return, so this is the
+   * moment the write was accepted, and it is the same instant `writeProbeRealChange.ts` starts its
+   * own `verifyStarted`. The two measurements are now the same physical quantity, which is the whole
+   * point: they were always meant to be, and only one of them was labelled honestly.
+   */
+  const verifyStartedAt = Date.now();
+  let applyLatencyMs: number | null = null;
+
   let after: Snapshot | null = null;
   let readError: unknown = null;
   try {
@@ -227,9 +250,15 @@ async function verifyStep<TBody>(
   } catch (error) {
     readError = error;
   }
-  if (!after?.doc) return { after, landing: "indeterminate", readError: readError ?? INDETERMINATE };
+  if (!after?.doc) {
+    return { after, landing: "indeterminate", readError: readError ?? INDETERMINATE, applyLatencyMs: null };
+  }
 
   let landing = step.verify.judge(before, after, body, edits);
+  // Stamped at the read that SAW it, not at the end of the function: on a landed-first-look the two
+  // are the same, but on a landed-second-look the difference is the retry pause, which is exactly
+  // the quantity that made the old number unreadable.
+  if (landing === "landed") applyLatencyMs = Date.now() - verifyStartedAt;
 
   const verifyRetryMs = ctx.env.EFS_CARD_VERIFY_RETRY_MS ?? 3_000;
   if (landing !== "landed" && verifyRetryMs > 0) {
@@ -239,6 +268,11 @@ async function verifyStep<TBody>(
       if (second.doc) {
         after = second;
         landing = step.verify.judge(before, second, body, edits);
+        // Deliberately INCLUDES the pause. The column says "to the first re-read that saw the
+        // change", and this was that read — a vendor whose edit is only visible after three seconds
+        // genuinely took longer to apply it than one whose edit is visible immediately, and
+        // subtracting the pause would erase the only signal that tells those two apart.
+        if (landing === "landed") applyLatencyMs = Date.now() - verifyStartedAt;
       }
     } catch {
       // The first re-read stands. It succeeded and is a complete verification on its own; a failed
@@ -246,5 +280,5 @@ async function verifyStep<TBody>(
     }
   }
 
-  return { after, landing, readError };
+  return { after, landing, readError, applyLatencyMs };
 }
