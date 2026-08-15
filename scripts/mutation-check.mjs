@@ -132,6 +132,67 @@ const MUTATIONS = [
     replace: '      .gte("day", w.fromDate)',
     detect: apiTest("src/services/idleRollup.test.ts"),
   },
+  // ── the EFS capability registry (plan Step 3.10) ────────────────────────────
+  // Every one of these mirrors a defect THIS workstream actually produced or nearly produced, and
+  // each was verified by hand at the time it was fixed. Writing them down is what stops the check
+  // from being a thing somebody once did: the registry's whole promise is that a capability cannot
+  // ship half-wired, and a promise with no failing case behind it is a comment.
+  {
+    id: "efs-vendorMovesFields-dropped",
+    why: "A direct op stops declaring the fields it owns, so every successful clear reports itself as unexplained drift. Found by running a two-step sequence in Step 3.4; the first green run came back drift_detected.",
+    file: "apps/api/src/efs/capabilities/overrideClear.behaviour.ts",
+    find: "  vendorMovesFields: OVERRIDE_FIELDS,\n",
+    replace: "",
+    detect: apiTest("src/efs/registry.test.ts"),
+  },
+  {
+    id: "efs-reconcile-dropped",
+    why: "A capability stops declaring how its unverified rows are judged later, and they sit on the operator's Unverified list forever. That was the state of every direct op until Step 3.9.",
+    file: "apps/api/src/efs/capabilities/overrideClear.behaviour.ts",
+    find: "  reconcile: (after) => {\n    if (!after.doc) return \"indeterminate\";\n    return overrideClearedLanded(after.doc) ? \"landed\" : \"not_landed\";\n  },\n",
+    replace: "",
+    detect: apiTest("src/efs/registry.test.ts"),
+  },
+  {
+    id: "efs-fraud-stepup-exact-match",
+    why: "The fraud gate compares statuses with === instead of efsStatusEquals. This account reports FRAUD upper-cased, so the unlock walks straight past the step-up — the 2026-08-12 casing incident, applied to the field that decides whether a password is demanded.",
+    file: "apps/api/src/efs/capabilities/cardUnlock.behaviour.ts",
+    find: "(!ctx.stepUp && efsStatusEquals(snap.doc?.card.status ?? null, \"Fraud\") ? FRAUD_STEP_UP : null)",
+    replace: "(!ctx.stepUp && (snap.doc?.card.status ?? null) === \"Fraud\" ? FRAUD_STEP_UP : null)",
+    detect: apiTest("src/efs/capabilities/cardUnlock.behaviour.test.ts"),
+  },
+  {
+    id: "efs-prompts-optin-bypassed",
+    why: "The DRID removal opt-in is ignored, so clearing a text box can stop the pump asking who is fuelling (guide p137). The refusal had no test at all until Step 3.6.",
+    file: "apps/api/src/efs/capabilities/promptsSet.behaviour.ts",
+    find: "assertPromptRemovalAllowed(plan.removedInfoIds, body.allowRemoveDriverId, ctx.stepUp);",
+    replace: "assertPromptRemovalAllowed(plan.removedInfoIds, true, ctx.stepUp);",
+    detect: apiTest("src/efs/capabilities/promptsSet.behaviour.test.ts"),
+  },
+  {
+    id: "efs-writebucket-mismatched",
+    why: "A contract declares a bucket its mounted path does not resolve to. cardWriteBucket returns null on a miss and the limiter treats null as ALLOW, so the failure mode is an UNMETERED write route rather than a broken one.",
+    file: "packages/shared/src/efs/capabilities/cardLock.contract.ts",
+    find: "  writeBucket: \"card_status\",",
+    replace: "  writeBucket: \"card_override\",",
+    detect: apiTest("src/efs/registry.test.ts"),
+  },
+  {
+    id: "efs-preflight-after-limiter",
+    why: "The body-only step-up runs AFTER the write limiter, so a refusal spends a slot against a daily cap for an action the caller was always allowed to take once they re-authenticate. Step 3.5b exists to prevent exactly this.",
+    file: "apps/api/src/efs/router.ts",
+    find: "  if (accepted.stepUpMessage && !hasFreshAuth(req)) {\n    stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, accepted.stepUpMessage);\n    return;\n  }\n\n  const prepared = await prepare(req, res, contract.scope as CardScope);\n  if (!prepared) return;",
+    replace: "  const prepared = await prepare(req, res, contract.scope as CardScope);\n  if (!prepared) return;\n\n  if (accepted.stepUpMessage && !hasFreshAuth(req)) {\n    stepUpRequired(res, DEFAULT_STEP_UP_MAX_AGE_SEC, accepted.stepUpMessage);\n    return;\n  }",
+    detect: apiTest("src/efs/router.test.ts"),
+  },
+  {
+    id: "efs-partial-collapsed-into-failed",
+    why: "A half-applied sequence settles `failed` instead of `partial`, sending an operator to re-run steps that already landed. `partial` is terminal but ACTIONABLE (docs/27 §5.1, migration 0190).",
+    file: "apps/api/src/efs/orchestrator/dispatch.ts",
+    find: "      if (landedSteps > 0) return await finalizePartial(ctx, ledger, facts, verified.after.doc, sent);\n",
+    replace: "",
+    detect: apiTest("src/efs/orchestrator/orchestrator.test.ts"),
+  },
   // ── the fitness functions themselves ────────────────────────────────────────
   {
     id: "waiver-growth-unchecked",
