@@ -29,6 +29,8 @@
  * `--api` overrides the host. It defaults to the API service, NOT the web service: they deploy
  * independently and only one of them can reach EFS (docs/30 §4, Step 5.10).
  */
+import { randomUUID } from "node:crypto";
+
 const API_DEFAULT = "https://fleetguardapi-production.up.railway.app";
 
 /**
@@ -150,6 +152,25 @@ async function getStepUpToken() {
   cachedStepUp = JSON.parse(text).token;
   if (!cachedStepUp) die("The step-up endpoint returned no token.");
   return cachedStepUp;
+}
+
+/**
+ * The same request as `call`, but RETURNING the outcome instead of printing and exiting.
+ *
+ * `call` is right for a one-shot command: print the JSON, exit non-zero on a refusal. A drill has to
+ * keep going after a refusal — the refusal IS the result, and there is state to restore afterwards.
+ * Sharing the transport rather than reimplementing it keeps the auth handling in one place.
+ */
+async function callRaw(path, body, opts = {}) {
+  const bearer = await getToken();
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${bearer}` };
+  if (opts.stepUp) headers["x-step-up-token"] = await getStepUpToken();
+  if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
+  const res = await fetch(`${api}${path}`, { method: "POST", headers, body: JSON.stringify(body ?? {}) });
+  const text = await res.text();
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+  return { ok: res.ok, status: res.status, body: parsed };
 }
 
 async function call(path, body, opts = {}) {
@@ -314,6 +335,131 @@ switch (command) {
     break;
   }
 
+  /**
+   * Does suspension actually stop a live write, and how fast? (Phase 4 exit gate)
+   *
+   * The gate has no cache — `promotionBlock` reads `efs_capability_promotions` on every write, and
+   * that is a deliberate design decision with its own comment. So the EXPECTED propagation is "the
+   * next call". Expectation is not measurement, which is why this exists: it suspends, immediately
+   * attempts a real capability write, and reports the interval between the two HTTP responses.
+   *
+   * ── Why it cannot lock the card, whichever way the test comes out ───────────────────────────────
+   * The lock body carries a DELIBERATELY STALE `expectedVersion`. Two outcomes, both harmless:
+   *
+   *   suspension propagated  → refused at the gate, `card_control_suspended`, before any vendor call
+   *   suspension did NOT     → refused by optimistic concurrency in the plan phase, and `assertUnmoved`
+   *                            sends nothing
+   *
+   * So a failed drill is as safe as a passing one, and the refusal CODE is what distinguishes them.
+   * A drill that could damage the thing it tests would not get run twice.
+   *
+   * ── It always puts the capability back ──────────────────────────────────────────────────────────
+   * The re-enable runs in a `finally`. Leaving a QA capability suspended would block every later
+   * proof run, and the person who would discover that is not the person who ran this.
+   */
+  case "suspend-drill": {
+    const cardId = flags.card;
+    const proofId = flags.proof;
+    const expectOrg = flags["expect-org"];
+    if (!cardId || !proofId || !expectOrg) {
+      die(
+        "usage: node scripts/efs.mjs suspend-drill --card <efs_card uuid> --proof <proof uuid> "
+          + "--expect-org <org uuid or prefix>",
+      );
+    }
+    const capabilityKey = capability ?? "card_lock";
+
+    /**
+     * ── The guard this drill shipped without, and paid for immediately (2026-08-15) ───────────────
+     * The first run was told "use a QA token" and was given a PRODUCTION one. Nothing checked, so it
+     * suspended `card_lock` on the production org — the one org where card control had never been
+     * promoted at all — and then could not restore it, because production has no proof to cite.
+     *
+     * The drill's safety was designed entirely around the CARD (a stale version, so no write can
+     * land) and not at all around the ORG. A tool that mutates promotion state must confirm WHICH
+     * COMPANY it is about to mutate, and must refuse rather than assume when it cannot tell.
+     *
+     * The org is read from the caller's own token via an org-scoped endpoint, so it reflects what the
+     * SERVER thinks the token is, not what the operator believes it is — those two differing is the
+     * entire failure being prevented.
+     */
+    const bearerForOrg = await getToken();
+    const orgProbe = await fetch(`${api}/api/jobs/latest?kind=efs_card_sync`, {
+      headers: { Authorization: `Bearer ${bearerForOrg}` },
+    });
+    if (!orgProbe.ok) die("Could not determine which org this token belongs to — refusing to suspend anything.");
+    const probeBody = await orgProbe.json();
+    const actualOrg = probeBody?.latest?.org_id ?? probeBody?.lastDone?.org_id ?? null;
+    if (!actualOrg) {
+      die(
+        "This token's org could not be determined (no card-sync job has ever run for it). "
+          + "Refusing to suspend a capability for an org I cannot name.",
+      );
+    }
+    if (!String(actualOrg).startsWith(String(expectOrg))) {
+      die(
+        `REFUSING: --expect-org said ${expectOrg}, but this token belongs to ${actualOrg}.\n`
+          + "Nothing was suspended. Paste a token for the org you meant.",
+      );
+    }
+
+    console.log(
+      `\nSuspension drill for ${capabilityKey}, org ${actualOrg}.\n`
+        + "Suspends it, immediately attempts a real write, measures the gap, then re-enables it.\n"
+        + "The write carries a stale expectedVersion, so it cannot change the card either way.\n",
+    );
+
+    /** Assigned in `finally`, which always runs — so there is no initial value to be read. */
+    let restored;
+    try {
+      const suspended = await callRaw(`/api/fuel-cards/promote/${capabilityKey}`, {
+        action: "suspend",
+        reason: "Phase 4 exit gate: measuring suspension propagation",
+      }, { stepUp: true });
+      if (!suspended.ok) {
+        console.error(JSON.stringify(suspended.body, null, 2));
+        die("The suspend call failed — nothing was suspended, so there is nothing to restore.");
+      }
+      const suspendedAt = Date.now();
+      console.log(`suspended at t+0ms`);
+
+      const attempt = await callRaw(`/api/fuel-cards/${cardId}/lock`, {
+        // 16+ chars to satisfy cardVersionSchema, and deliberately not any real version.
+        expectedVersion: "STALE-VERSION-FOR-SUSPENSION-DRILL",
+        reason: "Phase 4 exit gate: this write is expected to be refused",
+        status: "Hold",
+        // The write routes require one and validate it as a uuid BEFORE the capability gate runs, so
+        // omitting it produced a 400 that never reached the thing being measured. The first run of
+        // this drill measured nothing for exactly that reason.
+      }, { idempotencyKey: randomUUID() });
+      const elapsed = Date.now() - suspendedAt;
+      const code = attempt.body?.error?.code ?? "(none)";
+
+      console.log(`write attempted and answered at t+${elapsed}ms  ->  ${attempt.status} ${code}`);
+      console.log(
+        code === "card_control_suspended"
+          ? `\n✓ SUSPENSION PROPAGATED. Upper bound: ${elapsed}ms — the very next call saw it.`
+          : `\n✗ NOT the suspension refusal. Got "${code}". If this is a version conflict, the gate did`
+            + " NOT stop the write and the card was saved only by optimistic concurrency.",
+      );
+      console.log(JSON.stringify(attempt.body, null, 2));
+    } finally {
+      const restore = await callRaw(`/api/fuel-cards/promote/${capabilityKey}`, {
+        action: "enable", proofId, reason: "Restoring after the suspension propagation drill",
+      }, { stepUp: true });
+      restored = restore.ok;
+      console.log(
+        restored
+          ? `\n${capabilityKey} re-enabled — state restored.`
+          : `\n*** ${capabilityKey} IS STILL SUSPENDED. Re-enable it by hand: ***\n`
+            + `  node scripts/efs.mjs promote ${capabilityKey} --proof ${proofId} --reason "restore"\n`
+            + JSON.stringify(restore.body, null, 2),
+      );
+    }
+    if (!restored) process.exit(2);
+    break;
+  }
+
   case "promote": {
     if (!capability) die("usage: pnpm efs:promote <capability> --proof <id> --reason <why>   |   --suspend --reason <why>");
     const reason = typeof flags.reason === "string" ? flags.reason : null;
@@ -329,7 +475,7 @@ switch (command) {
 
   default:
     die(
-      "commands: scan · echo-scan · sync · job [kind] · write-check [--read-only] [--status Hold|Inactive] · "
+      "commands: scan · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · write-check [--read-only] [--status Hold|Inactive] · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
         + "(card numbers and tokens are always prompted for, never passed as flags)",
     );
