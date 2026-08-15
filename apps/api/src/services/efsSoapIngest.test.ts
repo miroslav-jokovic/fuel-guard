@@ -62,7 +62,9 @@ describe("an EFS credential that cannot be unsealed", () => {
 
     expect(result.status).toBe("failed");
     expect(result.feed).toBe("posted");
-    expect(result.error).toBeTruthy();
+    // The vendor's own diagnosis, not merely "something went wrong": a poller failure the operator
+    // cannot act on is barely better than the silent one this replaced.
+    expect(result.error).toMatch(/SECRETS_ENCRYPTION_KEY/);
   });
 
   it("writes the fault where an operator already looks", async () => {
@@ -73,7 +75,11 @@ describe("an EFS credential that cannot be unsealed", () => {
     // reach it is a stopped feed presented as a healthy one.
     const written = rec.writtenRows("efs_soap_credentials").at(-1);
     expect(written?.posted_last_error).toMatch(/credentials unavailable/i);
-    expect(written?.posted_last_polled_at).toBeTruthy();
+    // A real timestamp, not merely a non-empty value — the admin screen renders "last polled" from
+    // this, and an unparseable string there reads as a healthy poll that happened at the epoch.
+    expect(Number.isFinite(Date.parse(String(written?.posted_last_polled_at)))).toBe(true);
+    // The failure must not masquerade as a success on the neighbouring column.
+    expect(written?.posted_last_success_at).toBeUndefined();
   });
 
   it("does not report the fault as an absence of configuration", async () => {
