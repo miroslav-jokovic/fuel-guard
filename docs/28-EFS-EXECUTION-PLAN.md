@@ -96,7 +96,11 @@ grep -oE "run: pnpm [a-z:@/ -]+" .github/workflows/ci.yml | sed 's/run: //'
 
 `pnpm build` needs `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; CI supplies them. A local failure naming those is an environment gap, not a defect — do not guess values.
 
-Matrix counts must hold: `rls` **381** · `hazmat_rls` **38** · `load-lifecycle` **61** · `duty-sessions` **25**. A count that *drops* is a finding; a count that rises is fine — re-baseline it here.
+Matrix counts must hold: `rls` **381** · `hazmat_rls` **38** · `load-lifecycle` **61** · `duty-sessions` **25** · `efs-card-control-triggers` **17**. A count that *drops* is a finding; a count that rises is fine — re-baseline it here.
+
+New matrix `efs-card-control-triggers` (**17**), added 2026-08-16 with Phase 5. Migrations 0196 and 0197 each move a rule INTO the database, and the unit suites cannot reach a trigger — they run against a Supabase fake. It applies the full production ledger in PGlite and exercises both. It is not decoration: it caught 0197's first draft, which forbade ANY row leaving `pending` without an approver and would therefore have refused the abandonment sweep in `efsCardUnresolved.ts` — and since `uq_efs_card_mutations_one_pending` lets a stuck `pending` row block every further mutation on that card, that would have wedged cards permanently. Verified by mutation: reverting 0196 to 0091's unconditional `set_updated_at()` turns 3 red, restoring 0197's over-tight draft turns exactly the abandonment case red, and removing 0197's trigger turns 4 red.
+
+> **`require-ci-green` gates `migrate.yml` on this.** A migration cannot reach the real Supabase project unless the behaviour it encodes is proven green on that commit — which is the point of putting these assertions in CI rather than in a session transcript.
 
 Re-baselined `rls` 377 → **381** on 2026-08-15: migration `0191_efs_capability_promotion` adds two tables, and the tenant-isolation sweep generates a leak test and an anon-lockout test per table — exactly +4, from the same generator and the same rule as the 2026-08-13 re-baseline below. **That rise IS Step 4.1's verify**: 381 green is the matrix proving neither `efs_capability_proofs` nor `efs_capability_promotions` is tenant-reachable.
 
