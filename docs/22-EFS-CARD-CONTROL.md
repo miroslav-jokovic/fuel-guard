@@ -1183,3 +1183,87 @@ Three things the audit log showed that the terminal could not:
 
 **No card was changed and none could be**: zero mutation rows for the production org across the whole
 evening, and card control has never been switched on there (zero settings rows).
+
+---
+
+## H14 — the proof harness could not put a card back, and nobody had run the path that proves it (2026-08-16, OFFLINE, CONFIRMED by mutation)
+
+**Found before Step 8.2, which is the run that would have hit it.** Not a live finding — no vendor
+call was made — but it is recorded here because its subject is this account's own vocabulary and its
+consequence would have been a dirty QA card, which standing rule 14 exists to prevent.
+
+`cardLockBehaviour.proof.revert` and `cardUnlockBehaviour.proof.revert` each built their revert body
+as `{ status: snap.doc.card.status }` — the status EFS had just reported, **verbatim**. This account
+reports `INACTIVE` and `HOLD` upper-cased (H1, 2026-08-12). `lockCardSchema.status` is a
+case-**sensitive** `z.enum(["Hold", "Inactive"])`. So `prove.ts`'s `accept()` refused every such body
+and threw:
+
+```
+proof: card_lock refused its own proof body: Invalid option: expected one of "Hold"|"Inactive"
+```
+
+which lands as `oeg5RevertLanded: false`, `cardStillChanged: true`, and
+`⚠ THE CARD IS STILL CHANGED — restore it in the WEX portal`.
+
+**Why it had not fired yet, and why 8.2 would have.** 33 of 35 QA cards are ACTIVE, and an Active
+card reverts through `card_unlock`, whose body carries no status at all — so the `card_lock` proof of
+2026-08-15 (proof `40b88b75`) passed without ever building a status-carrying revert. **`card_unlock`
+has never been proved.** Its precondition requires a NON-Active card, and QA's only two are both
+INACTIVE, so Step 8.2's first `efs:prove card_unlock` would have written to a real card and then
+been unable to put it back.
+
+**The docblock had reasoned it through and stopped one step short.** It said *"a card proved from
+INACTIVE must go back to INACTIVE, and `card_lock` can write it because Inactive is one of its own
+statuses"* — true about enum membership, silent about casing, on the one account whose casing broke a
+write four days earlier.
+
+**Fix.** One shared `apps/api/src/efs/capabilities/statusRevert.ts`, sending the **canonical**
+spelling: the API boundary stays canonical and the account's own casing is re-applied at `buildEdits`
+from the fresh read taken at write time — a better source than the status observed when the proof was
+planned, because the card may have moved in between. Plus `statusIsRevertible`, so a card at Fraud or
+Deleted is refused by the precondition instead of being written to with no way home.
+
+**Verified by mutation, not by reading**: restoring the verbatim spelling turns 6 red; making
+`statusIsRevertible` unconditional turns 3. Both controls are asserted — the documented spelling
+accepted, the raw upper-case spelling refused — so a schema that refused everything cannot make the
+suite green.
+
+> **For whoever runs Step 8.2: prove `card_unlock` first.** It is the capability that has never been
+> proved, and it is the cheapest confirmation that this fix holds against a real card rather than
+> against a schema.
+
+---
+
+## H15 — an approver row with no scopes has always been permitted, and the constraint said otherwise (2026-08-16, OFFLINE, CONFIRMED on a scratch database)
+
+Found while validating migration 0199 in PGlite, by inserting rows the constraint was supposed to
+refuse rather than by reading it.
+
+Migration 0173 declares:
+
+```sql
+constraint efs_card_control_approver_scopes_valid
+  check (scopes <@ array['lock','unlock','override','prompts']::text[] and array_length(scopes, 1) >= 1)
+```
+
+and its header explains the second half: *"An approver row with no scopes is a person who looks
+authorised and is not."* It has never held. `array_length('{}', 1)` is **NULL**, not 0; `NULL >= 1`
+is NULL; and a CHECK constraint rejects a row only when its expression is **FALSE**. Measured:
+
+```
+array_length('{}',1) = null
+NULL >= 1            = null   → a CHECK only fails on FALSE, so NULL passes
+cardinality('{}')    = 0
+scopes []            → accepted     (before the fix)
+scopes []            → REFUSED      (after)
+```
+
+**Not exploitable, which is why this is a fix and not an incident.** `efsCardControlAccess.ts`
+refuses an empty scope list with `not_approver` before it reaches any capability, so the application
+has always failed closed. What was wrong is the **claim**: the database was not enforcing the rule
+its own comment said it was, and the next person to read that comment would have trusted it.
+
+Fixed with `cardinality(scopes) >= 1`, in the same constraint migration 0199 was already rewriting
+for the new `deactivate` scope. If 0199 fails on that line in a real project, an empty-scoped row
+already exists — it grants nothing and never has; delete it or give it the scopes it was meant to
+have, then re-run.
