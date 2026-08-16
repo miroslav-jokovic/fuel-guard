@@ -167,3 +167,59 @@ export function signalMirrorSweepCompleted(fields: {
     { ...fields },
   );
 }
+
+/**
+ * The detail budget cannot cover the fleet (Step 7.5's invariant).
+ *
+ * `EFS_CARD_SYNC_MAX_DETAIL` bounds the depth pass, and the sweep's own docblock promises the depth
+ * "catches up across runs". That promise holds only while the budget EXCEEDS the fleet: below it, no
+ * sweep ever leaves the whole fleet with a current document, and every surface that judges a row
+ * against one sync cycle — `staleAfterMinutes`, the override badge in Step 7.8 — is measuring
+ * against a cadence the sweep is configured not to meet.
+ *
+ * `error`, not `warning`, and this is the one place in this file where the severity is louder than
+ * the immediate symptom. The symptom is mild and looks like nothing (a few cards with older
+ * documents); what it actually means is that a number the product presents as current is guaranteed
+ * stale for part of the fleet, indefinitely, and no other signal in this file will ever say so. It
+ * is also fixed by editing one environment variable.
+ */
+export function signalDetailBudgetShort(fields: {
+  orgId: string;
+  budget: number;
+  cardsSeen: number;
+}): void {
+  emit(
+    "mirror_detail_budget_short",
+    "error",
+    `EFS_CARD_SYNC_MAX_DETAIL (${fields.budget}) is below the fleet (${fields.cardsSeen}) — ` +
+      `${fields.cardsSeen - fields.budget} card(s) cannot be refreshed in any single sweep`,
+    { ...fields, shortfall: fields.cardsSeen - fields.budget },
+  );
+}
+
+/**
+ * The tombstone ratio guard held a sweep back (Step 7.5).
+ *
+ * A partial roster is indistinguishable from a fleet that shrank, and the plan's example is the one
+ * that happened: a roster of 40 against a mirror of 199 would have stamped `absent_since` on 159
+ * live cards. The guard refuses and says so rather than choosing between two irreversible readings.
+ *
+ * `warning`, because BOTH readings need a human and neither is urgent in the next few minutes: if
+ * the roster was partial nothing was damaged and the next sweep resolves it, and if the fleet really
+ * did shrink by that much then somebody already knows and the mark can wait a cycle.
+ */
+export function signalMirrorTombstoneRefused(fields: {
+  orgId: string;
+  candidates: number;
+  liveCards: number;
+  rosterCards: number;
+  ceiling: number;
+}): void {
+  emit(
+    "mirror_tombstone_refused",
+    "warning",
+    `refused to mark ${fields.candidates} of ${fields.liveCards} live card(s) absent from a roster of ` +
+      `${fields.rosterCards} — over the ${fields.ceiling}-card ceiling for one sweep`,
+    { ...fields },
+  );
+}

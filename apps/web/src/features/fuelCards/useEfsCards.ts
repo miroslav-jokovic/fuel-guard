@@ -74,7 +74,18 @@ export interface EfsCardRow {
   linkMethod?: string | null;
   linkCandidates?: number;
   syncedAt: string;
+  /**
+   * The DETAIL pass's clock (Step 7.8). `syncedAt` moves every sweep because the roster pass touches
+   * every row; this moves only when the card's document was re-read, and it is what the override
+   * state hangs off. Null = the roster has seen this card and nothing has ever read it.
+   */
+  detailSyncedAt?: string | null;
+  /** Set when EFS stopped listing the card (audit P2). Optional — an older API sends neither. */
+  absentSince?: string | null;
   syncError: string | null;
+  /** Which mirror pass failed (Step 7.5 / migration 0198). `roster` and `detail` fail differently. */
+  syncErrorSource?: "roster" | "detail" | null;
+  syncErrorAt?: string | null;
 }
 
 export interface EfsCardListResponse {

@@ -1,14 +1,15 @@
-import { createHmac, hkdfSync } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cardLast4, isFullCardNumber, parseEfsDateTime } from "@fuelguard/shared";
 import type { Env } from "../env.js";
 import { getCardSummaries, getCardV2, type CardSummaryRow } from "../lib/efsCardOps.js";
 import type { CardDocument } from "../lib/efsCardXml.js";
-import { decodeSecretsKey, isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
+import { isSecretBoxConfigured, seal, secretAad } from "../lib/secretBox.js";
 import { preserveAttribution } from "./efsCardAttribution.js";
 import { linkFuelCards } from "./efsCardLinking.js";
+import { cardRefHmac } from "./efsCardRef.js";
+import { tombstoneAbsentCards } from "./efsCardTombstone.js";
 import type { EfsSoapCredentials } from "./efsSoapCredentials.js";
-import { signalMirrorSweepCompleted } from "../lib/cardControlSignals.js";
+import { signalDetailBudgetShort, signalMirrorSweepCompleted } from "../lib/cardControlSignals.js";
 
 /**
  * Mirror the EFS card inventory into `efs_cards` — vendor truth, refreshed on a schedule.
@@ -32,9 +33,19 @@ import { signalMirrorSweepCompleted } from "../lib/cardControlSignals.js";
  * sealed on the way in and never selected on the way out.
  */
 
-/** Columns safe to read back. `card_number_sealed` is deliberately absent — see `loadCardNumber`. */
+/**
+ * Columns safe to read back. `card_number_sealed` is deliberately absent — see `loadCardNumber`.
+ *
+ * `detail_synced_at` and `absent_since` were both added by Step 7.5/7.8, and both were columns the
+ * mirror maintained that no surface could see:
+ *   • `detail_synced_at` is the clock the OVERRIDE state hangs off (Step 7.8). `synced_at` is the
+ *     roster clock and moves every sweep whether or not the card's document was re-read, so a page
+ *     that renders one while meaning the other says "checked an hour ago" about a document from
+ *     Tuesday.
+ *   • `absent_since` is the tombstone. A card WEX has de-listed rendered identically to a live one.
+ */
 export const EFS_CARD_LIST_COLS =
-  "id, org_id, fuel_card_id, fuel_card_link, card_last4, status, policy_number, driver_id_prompt, unit_prompt, driver_name, override_uses, override_all_locations, location_override_id, last_used_date, synced_at, sync_error";
+  "id, org_id, fuel_card_id, fuel_card_link, card_last4, status, policy_number, driver_id_prompt, unit_prompt, driver_name, override_uses, override_all_locations, location_override_id, last_used_date, synced_at, detail_synced_at, absent_since, sync_error";
 
 export const EFS_CARD_DETAIL_COLS = `${EFS_CARD_LIST_COLS}, original_status, payroll_status, payroll_use, company_xref, hand_enter, info_source, limit_source, location_source, time_source, last_transaction, document, card_version`;
 
@@ -46,27 +57,61 @@ export interface CardMirrorResult {
   linked: number;
   /** Cards the roster no longer returns, newly marked absent this sweep (audit P2). */
   tombstoned: number;
+  /**
+   * Cards the roster stopped listing that the ratio guard REFUSED to mark (Step 7.5). Non-zero means
+   * `tombstoned` is 0 by decision, not because nothing disappeared — the two must be read together.
+   */
+  tombstoneRefused: number;
+  /**
+   * Cards this sweep could not reach with its detail budget (Step 7.5's invariant).
+   *
+   * `EFS_CARD_SYNC_MAX_DETAIL` must exceed the fleet, or the depth pass can never cover it in one
+   * sweep and every card's document ages past the sync cycle it is judged against. Non-zero is a
+   * misconfiguration, not a busy night.
+   */
+  undetailedByBudget: number;
   failed: number;
   errors: string[];
 }
 
 /**
- * Deterministic, keyed, org-bound lookup handle for a card number.
+ * What one pass failed with, for one card. Step 7.5, and migration 0198 enforces the shape.
  *
- * Keyed rather than a bare digest on purpose: a card number has a known BIN and, once you have a
- * transaction row, a known last four, so an unkeyed SHA-256 is a few million guesses away from the
- * PAN. HKDF gives this a subkey distinct from the sealing key, so the lookup index and the ciphertext
- * do not share a secret. The org id is inside the MAC so the same physical card in two tenants
- * produces two different handles and cannot be correlated across them.
+ * `source` is what makes this different from the bare string it replaced: the pass that RECORDS a
+ * failure and the pass that CLEARS it used to be different passes, so a detail-read failure was
+ * erased by the next roster sweep whether or not anything had re-read the card.
  */
-export function cardRefHmac(env: Env, orgId: string, cardNumber: string): string {
-  // Strict, shared decoder (audit hardening): the old inline `Buffer.from(raw, includes("-") ? …)`
-  // heuristic could silently derive this subkey from a TRUNCATED key — `Buffer.from(x, "hex")` stops
-  // at the first non-hex char and returns a short buffer with no error, collapsing the keyed lookup
-  // handle toward the guessable bare-digest case. decodeSecretsKey asserts exactly 32 bytes.
-  const master = decodeSecretsKey(env);
-  const subkey = Buffer.from(hkdfSync("sha256", master, Buffer.alloc(0), "efs-card-ref", 32));
-  return createHmac("sha256", subkey).update(`${orgId}:${cardNumber}`).digest("hex");
+export interface SyncErrorRecord {
+  code: string;
+  source: "roster" | "detail";
+  at: string;
+}
+
+/**
+ * Write one pass's failure onto the card's own row.
+ *
+ * Best effort by design, in both directions. The update matches on `(org_id, card_ref_hmac)` and a
+ * FIRST sighting that failed has no row yet, so nothing is written and the failure stays in the
+ * sweep's `errors[]` where it already was. And a failure to record a failure is not itself worth
+ * failing a sweep over — the card is no worse off than before.
+ *
+ * Deliberately does NOT touch `synced_at`. That column means "the mirror last wrote vendor truth for
+ * this card", and a read that failed wrote none; the record's own `at` is what carries the timing.
+ */
+async function recordSyncError(
+  admin: SupabaseClient,
+  env: Env,
+  orgId: string,
+  cardNumber: string,
+  source: SyncErrorRecord["source"],
+  error: unknown,
+): Promise<void> {
+  const record: SyncErrorRecord = { code: errorText(error), source, at: new Date().toISOString() };
+  await admin
+    .from("efs_cards")
+    .update({ sync_error: record })
+    .eq("org_id", orgId)
+    .eq("card_ref_hmac", cardRefHmac(env, orgId, cardNumber));
 }
 
 
@@ -86,7 +131,8 @@ export async function syncEfsCards(
   opts: { fetchImpl?: typeof fetch; maxDetail?: number } = {},
 ): Promise<CardMirrorResult> {
   const result: CardMirrorResult = {
-    orgId: creds.orgId, cardsSeen: 0, upserted: 0, detailed: 0, linked: 0, tombstoned: 0, failed: 0, errors: [],
+    orgId: creds.orgId, cardsSeen: 0, upserted: 0, detailed: 0, linked: 0,
+    tombstoned: 0, tombstoneRefused: 0, undetailedByBudget: 0, failed: 0, errors: [],
   };
 
   if (!isSecretBoxConfigured(env)) {
@@ -139,6 +185,10 @@ export async function syncEfsCards(
       result.failed += 1;
       // The message may quote the card number back at us; last four only, ever.
       result.errors.push(`card ••••${cardLast4(summary.cardNumber) ?? "????"}: ${errorText(error)}`);
+      // On the ROW too, not only in this array (Step 7.5). A roster-pass failure for one card used
+      // to live exclusively in the job's stats blob — which is not what an operator looking at that
+      // card sees, and not something they can find from the card page at all.
+      await recordSyncError(admin, env, creds.orgId, summary.cardNumber, "roster", error);
     }
   }
 
@@ -148,6 +198,25 @@ export async function syncEfsCards(
   // pass's own clock keeps it: never-detailed cards first, then oldest documents, and every card's
   // position improves as others are refreshed ahead of it.
   const budget = opts.maxDetail ?? 200;
+  /**
+   * Step 7.5's invariant: `budget > fleetSize`.
+   *
+   * The header above promises "the depth catches up across runs", and stalest-first ordering keeps
+   * that promise — but only in the sense that every card eventually gets a turn. If the budget is
+   * below the fleet then NO sweep ever holds a current document for the whole fleet, and every
+   * surface that judges a row against one sync cycle (`staleAfterMinutes`, the override badge in
+   * Step 7.8) is judging it against a cadence the sweep cannot meet. Production shipped 199 cards
+   * against a budget of 200 — one card from this being true, with nothing that would have said so.
+   *
+   * A signal rather than a throw: refusing to sweep would turn a configuration problem into a total
+   * outage of the mirror, and the partial sweep is still worth having. It is loud, it names both
+   * numbers, and `undetailedByBudget` puts it in the job's stats where the next sweep's operator
+   * will see it.
+   */
+  if (budget < summaries.length) {
+    result.undetailedByBudget = summaries.length - budget;
+    signalDetailBudgetShort({ orgId: creds.orgId, budget, cardsSeen: summaries.length });
+  }
   const byStaleness = summaries
     .map((summary) => ({
       summary,
@@ -168,16 +237,14 @@ export async function syncEfsCards(
     } catch (error) {
       result.failed += 1;
       result.errors.push(`detail ••••${cardLast4(summary.cardNumber) ?? "????"}: ${errorText(error)}`);
-      await admin
-        .from("efs_cards")
-        .update({ sync_error: errorText(error), synced_at: new Date().toISOString() })
-        .eq("org_id", creds.orgId)
-        .eq("card_ref_hmac", cardRefHmac(env, creds.orgId, summary.cardNumber));
+      await recordSyncError(admin, env, creds.orgId, summary.cardNumber, "detail", error);
     }
   }
 
   result.linked = await linkFuelCards(admin, env, creds.orgId);
-  result.tombstoned = await tombstoneAbsentCards(admin, env, creds.orgId, summaries);
+  const tombstones = await tombstoneAbsentCards(admin, env, creds.orgId, summaries);
+  result.tombstoned = tombstones.tombstoned;
+  result.tombstoneRefused = tombstones.refused ? tombstones.candidates : 0;
 
   /**
    * Step 5.1's sweep signal.
@@ -210,56 +277,6 @@ export async function syncEfsCards(
     cardsWithoutDetail: withoutDetail ?? 0,
   });
   return result;
-}
-
-/**
- * Mark cards the roster no longer returns as absent, and clear the mark from cards that came back.
- *
- * A card removed in the WEX portal drops out of getCardSummaries silently (audit P2). Never a hard
- * delete — efs_card_mutations cascades from efs_cards, and a removed card's history is exactly what
- * an auditor asks about. `absent_since` is set once (first sweep that misses it) and cleared the
- * moment it reappears, so a transient roster hiccup does not keep re-stamping the timestamp.
- *
- * Guarded by a NON-EMPTY roster: a sweep that legitimately returns zero cards is indistinguishable
- * here from a vendor blip that returned nothing, and tombstoning the ENTIRE fleet on one empty
- * response is the kind of damage this file refuses elsewhere. Zero summaries → touch nothing.
- */
-async function tombstoneAbsentCards(
-  admin: SupabaseClient,
-  env: Env,
-  orgId: string,
-  summaries: readonly CardSummaryRow[],
-): Promise<number> {
-  if (summaries.length === 0) return 0;
-  const present = new Set(summaries.map((s) => cardRefHmac(env, orgId, s.cardNumber)));
-
-  // Read the org's hmac + current absent flag in pages (same max-rows discipline as the roster read).
-  const rows: { card_ref_hmac: string; absent_since: string | null }[] = [];
-  const PAGE = 1_000;
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("efs_cards")
-      .select("card_ref_hmac, absent_since")
-      .eq("org_id", orgId)
-      .order("card_ref_hmac", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) return 0; // best effort: a tombstone failure must not fail the whole sweep
-    const page = (data ?? []) as { card_ref_hmac: string; absent_since: string | null }[];
-    rows.push(...page);
-    if (page.length < PAGE) break;
-  }
-
-  const nowIso = new Date().toISOString();
-  const toMark = rows.filter((r) => !present.has(r.card_ref_hmac) && r.absent_since === null).map((r) => r.card_ref_hmac);
-  const toClear = rows.filter((r) => present.has(r.card_ref_hmac) && r.absent_since !== null).map((r) => r.card_ref_hmac);
-
-  if (toClear.length > 0) {
-    await admin.from("efs_cards").update({ absent_since: null }).eq("org_id", orgId).in("card_ref_hmac", toClear);
-  }
-  if (toMark.length > 0) {
-    await admin.from("efs_cards").update({ absent_since: nowIso }).eq("org_id", orgId).in("card_ref_hmac", toMark);
-  }
-  return toMark.length;
 }
 
 /** The roster pass: everything getCardSummaries knows, with no per-card round trip. */
@@ -296,7 +313,18 @@ async function upsertFromSummary(
     // null-for-unknown: the summary is authoritative for this number on every sweep.
     override_uses: summary.override,
     synced_at: new Date().toISOString(),
-    sync_error: null,
+    /**
+     * ⚠ NO `sync_error: null` HERE. Step 7.5, and this one line is the behavioural half of it.
+     *
+     * The roster pass is not the pass that records a detail failure, and it must not be the pass
+     * that erases one. It used to clear the column for every card on every sweep, BEFORE the budgeted
+     * detail pass ran — so a `getCardv2` failure recorded on Monday was gone by Tuesday whether or
+     * not anything had managed to re-read that card, and the page said "clean" over a document days
+     * old. Only a pass holding the whole document may clear it, which is `upsertCardDetail`.
+     *
+     * `efsCardMirror.test.ts` → "the roster pass does not clear an error the detail pass recorded"
+     * goes red if this is put back.
+     */
   };
 
   if (known.has(refHmac)) {
@@ -399,6 +427,9 @@ export async function upsertCardDetail(
       synced_at: new Date().toISOString(),
       // The detail pass's own clock — orders the sweep's budget stalest-first (migration 0179).
       detail_synced_at: new Date().toISOString(),
+      // The ONLY clear (Step 7.5). This pass is holding the whole document, so it is the only one
+      // entitled to say the card reads cleanly — including over an error the ROSTER pass recorded,
+      // which a successful full read has just disproved.
       sync_error: null,
     },
     { onConflict: "org_id,card_ref_hmac", ignoreDuplicates: false },
@@ -447,3 +478,4 @@ function errorText(error: unknown): string {
 }
 
 export { isFullCardNumber };
+export { cardRefHmac } from "./efsCardRef.js";

@@ -163,7 +163,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 /** Captured before any stub replaces it, so the suite can still talk to its own server. */
 const REAL_FETCH = globalThis.fetch;
 
-const post = (uses: number): Promise<Response> => {
+const post = (uses: number, version = "0123456789abcdef0123456789abcdef"): Promise<Response> => {
   recorder = seededClient();
   holder.client = recorder.client;
   // Anything reaching EFS is a test failure, not a network call: every case here is refused or
@@ -180,7 +180,7 @@ const post = (uses: number): Promise<Response> => {
       Authorization: "Bearer admin",
       "Idempotency-Key": IDEMPOTENCY,
     },
-    body: JSON.stringify({ expectedVersion: "0123456789abcdef0123456789abcdef", uses }),
+    body: JSON.stringify({ expectedVersion: version, uses }),
   });
 };
 
@@ -209,5 +209,40 @@ describe("a body-only step-up refusal costs the operator nothing", () => {
     // wired to this router at all would satisfy the zero-bump assertion perfectly.
     await post(1);
     expect(counterBumps()).toBe(1);
+  });
+});
+
+describe("a card the mirror has only ever seen in the roster (Step 7.5)", () => {
+  it("says it has not been read, rather than quoting a string-length rule at the operator", async () => {
+    /**
+     * `upsertFromSummary` writes `card_version: ""` on a first sighting — the roster call carries no
+     * document and the column is not-null. The card page renders that row, the drawer sends
+     * `expectedVersion: ""`, and `cardVersionSchema` is `min(16)`, so Confirm came back as
+     * **"Could not change the card — String must contain at least 16 character(s)"**.
+     *
+     * The execution plan describes this symptom as "a 409 that claims the card changed". It is not:
+     * `assertUnmoved`'s version comparison sits DOWNSTREAM of the schema and an empty version can
+     * never reach it. A fix placed there would have passed review and done nothing.
+     */
+    const res = await post(1, "");
+
+    expect(res.status).toBe(409);
+    const payload = await res.json() as { error: { code: string; message: string } };
+    expect(payload.error.code).toBe("card_never_read");
+    expect(payload.error.message).toMatch(/not been read from EFS/i);
+    // Refused ahead of `prepare()`, like the step-up gate above it: an operator who has to refresh
+    // first must not also be billed for the attempt.
+    expect(counterBumps(), "a refused request charged the daily counter").toBe(0);
+  });
+
+  it("still refuses a version that is merely WRONG through the schema, not through this gate", async () => {
+    // The positive control. `card_never_read` must claim only the empty case — a short-but-present
+    // version is a malformed request and stays a 400, or the new code becomes the catch-all that
+    // hides every version problem behind "refresh the card".
+    const res = await post(1, "too-short");
+
+    expect(res.status).toBe(400);
+    const payload = await res.json() as { error: { code: string } };
+    expect(payload.error.code).toBe("invalid_request");
   });
 });

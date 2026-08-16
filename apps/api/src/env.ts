@@ -273,7 +273,18 @@ const EnvSchema = z.object({
   // Per-card getCardv2 calls per sweep. The roster (one call) is always complete; this bounds the
   // DEPTH pass, which is one paced request per card and would otherwise run for minutes on a large
   // fleet. Cards catch up across runs.
-  EFS_CARD_SYNC_MAX_DETAIL: z.coerce.number().int().min(1).max(5000).default(200),
+  //
+  // ⚠ THIS MUST EXCEED THE FLEET (Step 7.5). "Cards catch up across runs" is only true in the weak
+  // sense that every card eventually gets a turn; if the budget is below the fleet then NO sweep
+  // ever leaves the whole fleet holding a current document, and every surface that judges a row
+  // against one sync cycle — `staleAfterMinutes`, Step 7.8's override badge — is measuring against a
+  // cadence the sweep is configured not to meet. `syncEfsCards` emits `mirror_detail_budget_short`
+  // when this is violated, because nothing else in the system would ever have said so.
+  //
+  // 200 shipped against a production fleet of 199. 1000 is five times that fleet and about eight
+  // minutes of the backfill lane at EFS_SOAP_MAX_RPS=2 — a nightly sweep, not an interactive one,
+  // and the ceiling stays at 5000 for an account that outgrows even this.
+  EFS_CARD_SYNC_MAX_DETAIL: z.coerce.number().int().min(1).max(5000).default(1000),
   // First-sync backfill window in days. Bounded so a misconfiguration can't request a decade of history.
   EFS_SOAP_BACKFILL_DAYS: z.coerce.number().int().min(1).max(730).default(90),
   // Maximum days of history per SOAP request. The EFS Card Web Service Integration Guide (p.11,

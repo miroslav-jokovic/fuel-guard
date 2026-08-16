@@ -10,6 +10,14 @@ export class CardControlError extends Error {
       | "card_control_disabled"
       | "card_control_not_entitled"
       | "card_state_changed"
+      /**
+       * The screen was drawn from a ROSTER-ONLY mirror row, so there is no version to compare
+       * against (Step 7.5). Distinct from `card_state_changed` because that one is a claim — "this
+       * card moved under you" — and on a never-detailed card it is a false one: nothing moved,
+       * nothing has ever been read. The recovery differs too. `card_state_changed` hands back the
+       * fresh document to review; this one is a request to read the card first.
+       */
+      | "card_never_read"
       | "mutation_in_flight"
       | "idempotency_key_reused"
       | "org_hourly_cap_reached"

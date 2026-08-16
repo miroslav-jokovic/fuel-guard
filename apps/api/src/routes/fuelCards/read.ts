@@ -73,7 +73,11 @@ interface CardRow {
   fuel_card_id: string | null;
   fuel_card_link: { status?: string; method?: string | null; candidates?: string[] } | null;
   synced_at: string;
-  sync_error: string | null;
+  /** The DETAIL pass's own clock. Null means this card has never been read past its roster row. */
+  detail_synced_at: string | null;
+  absent_since: string | null;
+  /** Step 7.5 / migration 0198: `{code, source, at}`, never a bare string. */
+  sync_error: { code?: string; source?: string; at?: string } | null;
 }
 
 const toSummary = (row: CardRow) => ({
@@ -101,7 +105,26 @@ const toSummary = (row: CardRow) => ({
   linkMethod: row.fuel_card_link?.method ?? null,
   linkCandidates: row.fuel_card_link?.candidates?.length ?? 0,
   syncedAt: row.synced_at,
-  syncError: row.sync_error,
+  /**
+   * Step 7.8. The override state hangs off THIS clock, not `syncedAt`.
+   *
+   * `synced_at` moves on every sweep because the roster pass touches every row; `detail_synced_at`
+   * moves only when the card's document was actually re-read. `override_all_locations` and
+   * `location_override_id` have no writer but the detail pass, so the override statement as a whole
+   * is only ever as fresh as this — and it is never NEWER than `synced_at`, so reading it is the
+   * conservative direction. Null = the roster has seen this card and nothing has read it.
+   */
+  detailSyncedAt: row.detail_synced_at,
+  /** Set when EFS stopped listing the card (audit P2). The row is kept; the history is the point. */
+  absentSince: row.absent_since,
+  /**
+   * Flattened like `fuel_card_link` above, and for the same reason: three scalars a template can
+   * render beat one object every caller has to destructure. `syncError` stays the bare code so the
+   * list page's health facet and any older client keep working unchanged (Step 7.5).
+   */
+  syncError: row.sync_error?.code ?? null,
+  syncErrorSource: row.sync_error?.source ?? null,
+  syncErrorAt: row.sync_error?.at ?? null,
 });
 
 /**

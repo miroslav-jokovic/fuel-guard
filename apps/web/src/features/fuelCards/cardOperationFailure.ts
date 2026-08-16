@@ -67,6 +67,21 @@ export function handleOperationFailure(error: unknown, on: OperationFailureHandl
 
   on.abandon();
 
+  if (api?.code === "card_never_read") {
+    /**
+     * Step 7.5. NOT `cardMoved`: there is no fresh document to reseed from, because the whole point
+     * is that this card has never been read past its roster row. The recovery is a read, and the
+     * card page's own Refresh button is where it lives — the refetch below picks the version up as
+     * soon as one exists.
+     */
+    on.refetch();
+    on.notify(
+      "error",
+      "This card has not been read from EFS yet",
+      "Press Refresh on the card, then try the change again.",
+    );
+    return;
+  }
   if (api?.code === "mutation_in_flight") {
     on.notify("error", "Still confirming an earlier change", "Wait for it to finish, then try again.");
     return;

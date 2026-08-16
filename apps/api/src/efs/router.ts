@@ -63,8 +63,44 @@ export function fuelCardCapabilityRouter(
   return router;
 }
 
+/**
+ * The card whose version we have never had (Step 7.5).
+ *
+ * `upsertFromSummary` writes `card_version: ""` on a first sighting, because `getCardSummaries`
+ * carries no document and the column is not-null. The card page renders that row, the drawer sends
+ * `expectedVersion: ""` — and `cardVersionSchema` is `min(16)`, so the operator's Confirm came back
+ * as **"Could not change the card — String must contain at least 16 character(s)"**. A schema
+ * message, about a field they never saw, describing a card the product simply had not read yet.
+ *
+ * ⚠ The execution plan files this as *"a 409 that claims the card changed"*, and that is the one
+ * thing it is NOT: `assertUnmoved`'s comparison is downstream of this schema and unreachable with an
+ * empty version. A fix placed there would have been dead code that reads like coverage. Checked by
+ * following the value, not by reading the step.
+ *
+ * Ahead of `accept()` so the honest message wins over the schema's, and ahead of `prepare()` so a
+ * refusal costs no rate-limit slot — the same ordering, and the same reason, as the step-up gate
+ * below it. The card is NOT read here: dialling the vendor before `prepare()` would be a write-path
+ * vendor call outside the limiter it exists to sit behind. `POST /:id/refresh` is the action, and
+ * the sentence names it.
+ */
+function refuseRosterOnlyVersion(req: Request, res: Response): boolean {
+  const version = (req.body as { expectedVersion?: unknown } | undefined)?.expectedVersion;
+  if (version !== "") return false;
+  res.status(409).json({
+    error: {
+      code: "card_never_read",
+      message:
+        "This card has not been read from EFS yet, so there is nothing to check your change against. "
+        + "Refresh the card, then try again.",
+    },
+  });
+  return true;
+}
+
 async function handle(capability: MountedCapability, req: Request, res: Response): Promise<void> {
   const { contract } = capability;
+
+  if (refuseRosterOnlyVersion(req, res)) return;
 
   const accepted = capability.accept(req.body ?? {});
   if (!accepted.ok) { badRequest(res, accepted.error); return; }

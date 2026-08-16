@@ -343,6 +343,15 @@ function clearAll(): void {
         <span :class="[BADGE_BASE, toneClass(cardStatusTone((row as EfsCardRow).status))]">
           {{ cardStatusLabel((row as EfsCardRow).status) }}
         </span>
+        <!--
+          Step 7.5. `absent_since` is set when EFS stops listing a card (audit P2) and the mirror has
+          maintained it since Phase 3 — with no column in EFS_CARD_LIST_COLS, so nothing could ever
+          render it. Two production cards were de-listed on 2026-08-14 and read here as ordinary
+          live cards carrying whatever status EFS last reported, which is the one thing they are not.
+        -->
+        <span v-if="(row as EfsCardRow).absentSince" :class="[BADGE_BASE, toneClass('neutral'), 'ml-1']">
+          De-listed
+        </span>
       </template>
       <template #cell-overrideUses="{ row }">
         <!-- An active override is the fact a fraud reviewer most wants to spot in a list. -->
