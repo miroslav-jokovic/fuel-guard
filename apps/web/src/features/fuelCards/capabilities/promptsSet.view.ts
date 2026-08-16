@@ -9,7 +9,7 @@ import { defineView, row } from "./types.js";
 /**
  * Changing what the pump asks for, said two ways because one of them is not reversible in effect.
  *
- * Prose lifted word for word from `promptsConfirmation` in `cardControlModel.ts`. What changed is
+ * Prose lifted word for word from `promptsConfirmation`, which Step 6.4 deleted. What changed is
  * where `removesDriverId` comes from: the model took it as an argument, and the view derives it from
  * the request. A caller that computed it wrongly would have shown the mild copy for the destructive
  * case, which is the one screen where that matters most.

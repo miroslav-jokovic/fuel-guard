@@ -11,7 +11,7 @@ import { defineView, row } from "./types.js";
  *
  * "This card will be allowed 2 purchases outside its normal limits at Loves station 442,
  * Effingham IL." A generic "grant an override?" is how somebody grants nine when they meant one.
- * Prose lifted word for word from `overrideConfirmation` in `cardControlModel.ts`.
+ * Prose lifted word for word from `overrideConfirmation`, which Step 6.4 deleted.
  */
 export const overrideGrantView = defineView(overrideGrantContract, {
   confirmation: (body: OverrideGrantBody, card) => {

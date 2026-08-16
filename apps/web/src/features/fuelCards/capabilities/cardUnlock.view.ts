@@ -10,7 +10,7 @@ import { defineView, row } from "./types.js";
 /**
  * Releasing a card, said two ways because it is two different decisions.
  *
- * Prose lifted word for word from `unlockConfirmation` in `cardControlModel.ts`. What changed is
+ * Prose lifted word for word from `unlockConfirmation`, which Step 6.4 deleted. What changed is
  * where `wasFraud` comes from: the model took it as an argument the caller computed, and the view
  * derives it from the card the drawer is already showing. One less thing a call site can get wrong,
  * and the tone, title and body then cannot disagree with each other.
