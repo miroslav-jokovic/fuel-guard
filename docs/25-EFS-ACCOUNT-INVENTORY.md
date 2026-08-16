@@ -210,12 +210,17 @@ cards preserves the six it cannot edit. What an operator cannot do is CHANGE the
 the WEX portal until Phase 9 widens the list. `DLIC`/`DLST` were not in that docblock's list and are
 licence data — worth a deliberate decision before they become editable.
 
-**The production mirror has not been swept since 2026-08-15 19:37Z.** `newestSyncedAt` is
-`2026-08-15T19:37:11Z` — the manual sweep from Step 7.7's linking run — and `oldestSyncedAt` is
-`2026-08-13T16:35Z`. `EFS_CARD_SYNC_HOURS` is 24, so a scheduled sweep should have run since. Two
-consequences: this corpus is a day old (fine for a vocabulary question, which is why the scan is
-built on it), and Step 7.5's *"after one sweep, every production card has `detail_synced_at`"* cannot
-be checked until a sweep actually runs — `node scripts/efs.mjs sync` then `job efs_card_sync`.
+**The production corpus is a day old, and that is not a defect.** `newestSyncedAt` is
+`2026-08-15T19:37:11Z` — the manual sweep from Step 7.7's linking run.
+
+> **⚠ I first read this as a scheduler that had stopped, and the arithmetic says otherwise.** That
+> sweep finished `2026-08-15T19:37:19Z`; the next reading was `2026-08-16T18:07:30Z`. **22h 30m
+> against a 24h `EFS_CARD_SYNC_HOURS`** — not overdue, just not yet due. A finding I could have
+> checked with a subtraction and did not.
+
+What IS still open is narrower: Step 7.5's *"after one sweep, every production card has
+`detail_synced_at`"* needs a sweep running the code that shipped today. One was triggered by hand at
+`2026-08-16T18:07:30Z` (job `79a40862`); its stats are the check.
 
 ---
 

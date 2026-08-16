@@ -1098,10 +1098,18 @@ decision, not an automatic inclusion, if the editable list widens.
 ### Provenance, and one thing it exposes
 
 `oldestSyncedAt 2026-08-13T16:35Z`, `newestSyncedAt 2026-08-15T19:37Z` — the newest is the manual
-sweep from Step 7.7's linking run. **`EFS_CARD_SYNC_HOURS` is 24 and nothing has swept production
-since.** A day-old corpus is fine for a vocabulary question, which is why this scan reads the mirror;
-it does mean Step 7.5's *"after one sweep, every production card has `detail_synced_at`"* is still
-unproven, and that a scheduled sweep is not visibly running.
+sweep from Step 7.7's linking run. A day-old corpus is fine for a vocabulary question, which is why
+this scan reads the mirror rather than the vendor.
+
+> **⚠ CORRECTION, same day, before this entry was an hour old.** I first wrote that "nothing has
+> swept production since" and read it as a scheduler that was not running. **It was not overdue.**
+> The manual sweep finished `2026-08-15T19:37:19Z` and the next reading was taken at
+> `2026-08-16T18:07:30Z` — **22h 30m**, against `EFS_CARD_SYNC_HOURS` of 24. The interval had simply
+> not elapsed. Arithmetic I could have done at the time and did not.
+>
+> Nothing here shows a scheduler problem. What remains true is narrower: Step 7.5's *"after one
+> sweep, every production card has `detail_synced_at`"* had not been proven, because the only sweep
+> since that code shipped is the one triggered by hand on 2026-08-16 at 18:07:30Z.
 
 
 ## H11 — the production echo scan, re-run and paged (2026-08-15 night, CONFIRMED)
