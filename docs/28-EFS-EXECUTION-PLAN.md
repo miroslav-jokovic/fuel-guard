@@ -1105,11 +1105,13 @@ have — see the §1 note. Neither is ticked on the strength of an argument.**
       ignore it. The element inventory is a prerequisite feature, recorded rather than guessed.
 - [x] **Runbook written** — `docs/29-EFS-INCIDENT-RUNBOOK.md`: assess, contain, recover, the `sent`
       state, the signal table, and §7's list of what has actually gone wrong here.
-- [ ] **Containment walked on QA with timings recorded.** NOT DONE. The 481 ms figure in the runbook
-      is Phase 4's suspension drill, which measured propagation only — calling that a containment
-      walk would be the same false claim as "now scripted, not manual" was for four days. The drill
-      is written out in the runbook §6.1 so whoever has a QA token can run it without rediscovering
-      the steps.
+- [ ] **Containment walked on QA with timings recorded.** PARTIALLY DONE, 2026-08-16. §2 containment
+      is measured: on QA org `07fe4058…`, card ••••7671, `card_lock` suspended at t+0 and the very
+      next write answered `403 card_control_suspended` at **t+172 ms**, then re-enabled cleanly. The
+      drill also demonstrated two guards nobody asked it to: `--expect-org` named the org back before
+      touching anything, and a wrong password was refused with `step_up_refused` having suspended
+      nothing. NOT ticked, because §1's assess timings were not captured — the end-to-end walk is
+      still incomplete, and the part that is proven is the part after you have decided to contain.
 - [x] **`approved_by` populated; promotion authority defined.** Written through the
       `planCardMutation` / `applyCardMutation` seam at `markSent` — the apply phase, not the plan
       phase, so the column is not a copy of `requested_by` by construction. Migration 0197 makes a

@@ -9,7 +9,7 @@ second and costs nothing but a re-enable.
 | | |
 |---|---|
 | **Fastest containment** | `node scripts/efs.mjs promote <capability> --suspend --reason "…"` |
-| **How fast** | **481 ms** to full effect on QA, measured 2026-08-15 — the very next call was refused |
+| **How fast** | **172 ms** to full effect on QA, measured 2026-08-16 — the very next call was refused. (481 ms on 2026-08-15; both are upper bounds, both are "the next call saw it") |
 | **Does it need a deploy?** | **No.** No cache anywhere in the gate |
 | **Blast radius of suspending** | One capability, one org. Reads are untouched |
 
@@ -120,7 +120,10 @@ Capabilities: `card_lock`, `card_unlock`, `override_grant`, `override_clear`, `p
 
 **What happens.** The promotion row for that org and capability moves to `suspended`. There is no
 cache anywhere in the gate, so **the next card write already sees it** and is refused before any
-vendor call. Measured at 481 ms end to end on QA. The refusal is `card_control_not_entitled` at the
+vendor call. Measured at **172 ms** on QA on 2026-08-16, and 481 ms on 2026-08-15 — both upper
+bounds, since each is the round trip of the very next call rather than an observation of the state
+flipping. The refusal seen by that call is `card_control_suspended` (403); the gate's other refusal is
+`card_control_not_entitled` at the
 gate — no request reaches EFS, so no vendor budget is spent and nothing half-applies.
 
 **What it does NOT do.** Reads are untouched: the mirror, the card list and the history all keep
@@ -284,13 +287,31 @@ Sentry event at the level below. To grep the Railway log for all of them:
 
 A runbook nobody has walked is a document, not a procedure. These are the drills that make it real.
 
-### 6.1 Containment walk (QA) — **OWED**
+### 6.1 Containment walk (QA) — **PARTIALLY WALKED 2026-08-16**
 
-**Status: not yet walked end to end with timings recorded.** The 481 ms figure above is from the
-Step 4 suspension drill, which measured suspension propagation only — not the whole containment
-procedure from §1 through §2.
+**What was observed**, on QA org `07fe4058-cc72-4a69-b3e9-29b4cf1c6a44`, card ••••7671
+(`adeba276-6d8a-4d20-906b-355d3885b72d`), capability `card_lock`:
 
-The drill, for whoever runs it next. **QA only.** `suspend-drill` requires `--expect-org` and refuses
+```
+suspended at t+0ms
+write attempted and answered at t+172ms  ->  403 card_control_suspended
+✓ SUSPENSION PROPAGATED. Upper bound: 172ms — the very next call saw it.
+card_lock re-enabled — state restored.
+```
+
+So **§2 containment is measured at 172 ms** and the re-enable path works. Two things the drill also
+demonstrated without being asked to:
+
+- **`--expect-org` did its job.** The drill named the org back before touching anything — the guard
+  added after a production capability was suspended by a drill that only checked the card.
+- **Step-up is enforced.** The first attempt was refused with `step_up_refused` on a wrong password
+  and nothing was suspended. A drill that mutates promotion state cannot be driven by a token alone.
+
+**Still owed:** the §1 assess timings (time to establish blast radius) were not captured, so the
+end-to-end walk is not complete. What is proven is the part that matters most in an incident — how
+long containment takes once you decide to contain.
+
+The rest of the drill, for whoever runs it next. **QA only.** `suspend-drill` requires `--expect-org` and refuses
 if the token's real org differs; that guard exists because its absence suspended the wrong company.
 
 ```bash
@@ -322,7 +343,7 @@ trigger each:
 | `card_mutation_settled` `succeeded` | Any successful `card_lock` on a QA card |
 | `card_mutation_settled` `failed` | Lock a card with a stale `expectedVersion` → refused by optimistic concurrency |
 | `card_mutation_settled` `sent` | Hardest, and the most valuable. Needs the re-read to fail while the write succeeds |
-| `promotion_state_changed` | Falls out of 6.1 for free — the drill suspends and re-enables |
+| `promotion_state_changed` | **FIRED 2026-08-16** — the 6.1 drill suspends and re-enables, emitting it twice. Confirm both lines are in the `fleetguardapi` log |
 | `mirror_sweep_completed` | `node scripts/efs.mjs sync` |
 | `efs_breaker_opened` | Three consecutive bad-credential logins against QA. **Opens the breaker for 30 minutes** — do this last, or not at all if QA is needed |
 | `echo_unfaithful` | Do **not** trigger against a live account. It is exercised offline by `efs/harness/local.ts`, which is where a serializer bug is supposed to be caught |
