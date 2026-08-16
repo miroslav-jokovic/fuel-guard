@@ -55,7 +55,15 @@ const probeSchema = z.object({
   policyNumber: policyNumberSchema.optional(),
 });
 
-interface StepResult {
+/**
+ * One vendor call's outcome, in the shape every diagnostic on this prefix reports.
+ *
+ * Exported with `step()` for `inventory.ts` (Step 7.2), whose Verify asks for "a `steps[]` array in
+ * the `/diagnose` shape" — which is only true if it IS this shape rather than a second one that
+ * looks like it. A copy would drift on the field that matters most: `error` is redacted here, and a
+ * second implementation that forgot would leak a PAN out of a vendor refusal.
+ */
+export interface StepResult {
   operation: string;
   ok: boolean;
   ms: number;
@@ -66,7 +74,7 @@ interface StepResult {
   error?: string;
 }
 
-async function step(operation: string, run: () => Promise<number>): Promise<StepResult> {
+export async function step(operation: string, run: () => Promise<number>): Promise<StepResult> {
   const started = Date.now();
   try {
     const count = await run();
