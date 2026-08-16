@@ -1,12 +1,16 @@
 # EFS account inventory — Step 7.6
 
-> ## 🟡 PARTIAL. Four of twelve questions answered, for BOTH orgs. The other eight are captured but unread.
+> ## ✅ ELEVEN of twelve answered, for both orgs. One is blocked by a vendor rate limit.
 >
-> **Status: config scan run against QA and production on 2026-08-16** — questions 2, 4, 11 and 12 are
-> answered for both, and question 11 is now a real comparison rather than half of one. The account
-> inventory ran against both orgs too, into
-> `docs/efs/account-inventory-{qa,production}.json`; **those files answer the remaining eight and
-> have not yet been read into this document.**
+> **Status: config scan AND account inventory run against QA and production on 2026-08-16.** Eleven
+> of the twelve questions are answered with the raw evidence quoted below and the source operation
+> named. **Question 6 (refreshing limits) is unanswered for production only** — both
+> `getPolicyRefreshingLimits` calls came back `rate_limited`; QA answered it (all six counters null).
+>
+> **Three answers should stop work rather than start it**, and they are called out where they sit:
+> location groups are `false` on both orgs (Phase 12), two policy limits are `0` and nobody knows
+> whether that means "no cap" or "no fuel" (Phase 11), and production's `totalAvailable` is `0`
+> against $83k of `creditAvailable` (Step 7.4's headroom panel).
 >
 > The instrument was built in a session with no credentials and no route to the vendor — verified,
 > not assumed: `env | grep -c "^EFS_\|^SUPABASE_"` → 0, and the proxy answers 403 to `CONNECT` for
@@ -81,16 +85,16 @@ inventory JSON, so filling this in is transcription rather than interpretation.
 
 | # | Question | Answered by | JSON path | Answer |
 |---|---|---|---|---|
-| 1 | Which Info IDs does the account **have**? | `getPromptTypes` | `inventory.promptTypes` | ⛔ UNANSWERED |
+| 1 | Which Info IDs does the account **have**? | `getPromptTypes` | `inventory.promptTypes` | ✅ **Production 40 · QA 41** (QA adds `VEHN`). Uses 8, may edit **2** |
 | 2 | Which Info IDs does it **use**? | `config-scan` over the mirror | scan `fields[]` | ✅ **QA: 3** (`DRID`,`UNIT`,`NAME`) on 7/35. **Production: 8** (`DRID`,`NAME`,`TRIP`,`TRLR`,`UNIT`,`CNTN`,`DLIC`,`DLST`) on 162/199 |
-| 3 | Is **odometer following** configured — on which field, with what accrual value? | `getPolicy` per policy + `getProducts` | `inventory.policies[].policy` | ⛔ UNANSWERED |
+| 3 | Is **odometer following** configured — on which field, with what accrual value? | `getPolicy` per policy + `getProducts` | `inventory.policies[].policy` | ✅ **YES — production policy 1, `ODRD` with `ACCRUAL_CHECK`, min 1 max 1800, value "0"** |
 | 4 | The account's exact **vocabulary for every writable string field** | `config-scan` | scan `fields[].rawSpellings` | ✅ **Both recorded below** |
-| 5 | Which **limit IDs**, with what values? | `getPolicy` per policy; `getProducts` for the codes | `inventory.policies[].policy.limits` | ⛔ UNANSWERED |
-| 6 | Are **refreshing limits** set, and where? | `getPolicyRefreshingLimits`; `getCardRefreshingLimits` per sample card | `inventory.policies[].refreshingLimits` | ⛔ UNANSWERED |
-| 7 | Real **credit ceilings** | `getCreditLimits` per contract | `inventory.creditLimits[]` | ⛔ UNANSWERED |
-| 8 | Are **location groups** in use? | `getCarrierInfo.locationGroups`, then `getLocationGroupDescriptions` | `inventory.carrierInfo`, `inventory.locationGroups` | ⛔ UNANSWERED |
+| 5 | Which **limit IDs**, with what values? | `getPolicy` per policy; `getProducts` for the codes | `inventory.policies[].policy.limits` | ✅ **Recorded below — and two are `0`** |
+| 6 | Are **refreshing limits** set, and where? | `getPolicyRefreshingLimits`; `getCardRefreshingLimits` per sample card | `inventory.policies[].refreshingLimits` | 🟡 **QA: all six counters null on all 3 policies.** Production: **`rate_limited`, unanswered** |
+| 7 | Real **credit ceilings** | `getCreditLimits` per contract | `inventory.creditLimits[]` | ✅ **Production: $85,900 / $64,400 original; $83,437.42 / $48,804.17 available** |
+| 8 | Are **location groups** in use? | `getCarrierInfo.locationGroups`, then `getLocationGroupDescriptions` | `inventory.carrierInfo`, `inventory.locationGroups` | ✅ **`locationGroups: false` on BOTH orgs** — see below |
 | 9 | Are **time restrictions** in use? | `getPolicy` per policy; sample cards | `inventory.policies[].policy.timeRestrictions` | ⛔ UNANSWERED |
-| 10 | What does **each policy** set? | `getPolicyDescriptions` + `getPolicy` | `inventory.policies[]` | ⛔ UNANSWERED |
+| 10 | What does **each policy** set? | `getPolicyDescriptions` + `getPolicy` | `inventory.policies[]` | ✅ **Production 2 policies · QA 3 — recorded below** |
 | 11 | **Production's document shape**, and does it match QA's? | `config-scan` `observedDocumentShape` | scan `recorded.observedDocumentShape` | ✅ **`nested:header` on BOTH — they match** |
 | 12 | Any field **production sends that we do not model** | `config-scan` — **refuses with 422** | `unmodelledFields[]` | ✅ **NONE on either.** Production returned **200 over 199/199 documents**, 0 unparseable |
 
@@ -224,15 +228,51 @@ What IS still open is narrower: Step 7.5's *"after one sweep, every production c
 
 ---
 
-## Production account inventory — 2026-08-16, partial reading
+## Account inventory — 2026-08-16, both orgs, read in full
 
-**Only the TAIL of `docs/efs/account-inventory-production.json` has been read into this document so
-far** (products, location groups, site policies, server time). `ok`, `truncated`, `carrierInfo`,
-`promptTypes`, `contracts`, `creditLimits` and `policies` are in the head of that file and are **still
-unread** — so questions 1, 3, 5, 6, 7, 8 and 10 stay ⛔ below. Commit the file and they can be read
-directly rather than transcribed.
+Both files are committed: `docs/efs/account-inventory-{qa,production}.json`. **Scanned for card
+numbers before anything else — zero 10-digit-or-longer runs in either, and `lint:secrets` green.**
 
-### Q8 (partial) — location groups: 18, and **every one is vendor-managed**
+| | QA | Production |
+|---|---|---|
+| `ok` | **true** | **false** — two steps `rate_limited` |
+| operations / budget | 17 / 28 | 15 / 28 |
+| `truncated` | `[]` | `[]` — **the caps were never reached** |
+| carrier | `TEST ACCOUNT` (5821160) | `SILVICOM INC` (139445) |
+
+**`truncated: []` on both is the Step 7.2 budget design confirmed against real accounts.** 17 and 15
+operations against a ceiling of 28, so `MAX_CONTRACTS(4)`/`MAX_POLICIES(7)` never bound anything —
+the caps exist for an account larger than either of these, and neither is close.
+
+### ⚠ Production `ok: false` — the vendor rate-limited two steps
+
+```
+getPolicyRefreshingLimits(1)  -> rate_limited
+getPolicyRefreshingLimits(2)  -> rate_limited
+```
+
+Thirteen of fifteen operations succeeded and the walk carried on, which is exactly the "never fails
+whole" design — a walk that aborted on the first refusal could not answer "which of these does this
+account refuse". But it means **question 6 is unanswered for production**, and it is a real
+operational finding: fifteen paced calls in sequence is enough to trip this vendor's limiter, and it
+tripped on the same operation twice rather than randomly. Re-run just that leg, or space the walk.
+
+### Q8 — **location groups are OFF for both orgs**, and that outranks the 18 below
+
+```
+QA         carrierInfo.locationGroups = false
+Production carrierInfo.locationGroups = false
+```
+
+`getCarrierInfo.locationGroups` is the account-level capability flag, and it is **false on both**.
+The 18 groups `getLocationGroupDescriptions` returns are therefore the vendor's global network
+groups, not this carrier's — consistent with every one of them being `ruleBased: true,
+editable: false`, and with policies referencing exactly one (`locationGroups: ["1"]` = "All").
+
+**Phase 12 is scoped by this line.** Location groups are not enabled for this account; there is
+nothing here to build a management surface on, and the read surface is one group per policy.
+
+### The 18 groups themselves — vendor-global, all rule-based
 
 ```
 grpId 1 "All" · 1276 "Pacific Pride" · 1278 "CANADA" · 1380 "IDLEAIRE" · 2085 "WILCO"
@@ -293,6 +333,84 @@ ACCE · CWAS · HOTL · HYDR · PARK · TCHN · TWAS
 `limitLabel()` falls back to the raw code, so a limit set on any of these renders as `HYDR` rather
 than "Hydrogen". Cosmetic today — none of the seven is known to carry a limit on this fleet — and a
 Phase 11 input: hydrogen, EV charging and parking are the ones a fleet is most likely to start using.
+
+### Q1 — the account HAS 40 prompt types, USES 8, and this product may EDIT 2
+
+| | count |
+|---|---|
+| `getPromptTypes` on production | **40** (QA 41 — QA alone has `VEHN`) |
+| in use on production cards | **8** — `DRID NAME TRIP TRLR UNIT CNTN DLIC DLST` |
+| `EFS_EDITABLE_INFO_IDS` | **2** — `DRID`, `UNIT` |
+
+Every prompt in use is in the account's list, so nothing is being used that EFS does not advertise.
+**This is Phase 9's scope in one row: 40 available, 8 in use, 2 editable.**
+
+### Q3 — odometer following IS configured, and it uses a validation type nothing else does
+
+```json
+{ "infoId": "ODRD", "validationType": "ACCRUAL_CHECK",
+  "minimum": 1, "maximum": 1800, "value": "0",
+  "matchValue": null, "reportValue": null, "numericMatchValue": null }
+```
+
+Production policy 1. `ODRD` is the odometer prompt and **`ACCRUAL_CHECK`** is its validation type —
+the mode where the pump checks the reading against an expected accrual rather than a fixed value.
+`minimum 1 / maximum 1800` bound the accepted reading; `value` is `"0"`.
+
+`ACCRUAL_CHECK` is in `EFS_VALIDATION_TYPES` and `wsCardInfoSchema` reads it, so it parses. It is NOT
+in `promptInputSchema`'s writable enum (`EXACT_MATCH | REPORT_ONLY`) — correctly, since `ODRD` is not
+in `EFS_EDITABLE_INFO_IDS` either and `promptsEdits` passes it through untouched. **Read yes, write
+no**, which is the right posture for a rule the pump enforces on every fill.
+
+### Q5 — the limits each policy sets, and two of them are `0`
+
+**Production policy 1** — `ADD 30 · ANFR 30 · DEF 20 · DSL 200 · OIL 50 · RFR 50 · SCLE 31 ·
+ULSD 200 · WWFL 16`
+**Production policy 2** — `DEF 50 · DEFC 50 · **DSL 0** · RFR 120 · SCLE 30 · **ULSD 0**`
+
+> ⚠ **`DSL 0` and `ULSD 0` on policy 2 need a human answer before anything renders them.** This is
+> the `autoRollMax = 0` trap in a second field: zero could mean "no diesel permitted" or "no cap
+> set", and those are opposite. Policy 2 caps reefer at 120 and DEF at 50 while zeroing the two main
+> diesel products, which reads more like "no cap" than "no fuel" — but that is an inference, not an
+> answer, and `formatLimit` currently renders it as `0 gal`. **Do not build the Phase 11 limits UI
+> until this is settled with WEX.**
+
+### Q7 — the real credit ceilings
+
+| contract | original | available | daily limit | total available | max money code |
+|---|---|---|---|---|---|
+| 69949 | $85,900 | **$83,437.42** | 0 | 0 | 0 |
+| 260246 | $64,400 | **$48,804.17** | 0 | 0 | 2,000 |
+
+Both `ACTIVE`, both `USD`, `transLimit` $1,500 each.
+
+> ⚠ **`dailyLimit`, `dailyAvailable` and `totalAvailable` are all `0` on both production contracts**
+> while `creditAvailable` is $83k and $48k. On QA the same fields carry real numbers
+> (`totalAvailable` 499,548 = `creditAvailable`). So on production these almost certainly mean "no
+> daily cap configured" rather than "nothing available" — **and a headroom widget that rendered
+> `totalAvailable` would tell an operator a fleet with $83,437 of credit has zero.** This is the
+> second reason Step 7.4's credit-headroom panel was not built today, and it is a better reason than
+> the first.
+
+### Q10 — what each policy sets
+
+| org | policy | infos | limits | time restrictions | location groups | blocked locations |
+|---|---|---|---|---|---|---|
+| production | 1 | 1 (`ODRD`) | 9 | 0 | 1 (`"1"` = All) | **7,948** |
+| production | 2 | 1 | 6 | 0 | 1 | 0 |
+| QA | 1, 2, 3 | 0 | 4 each | 0 | 1 each | 0 |
+
+**No time restrictions anywhere, on either org** — so Phase 12's time-restriction work has no live
+example to build against, and Step 0.13's missing QA fixture is now known to be missing on production
+too.
+
+### ⚠ 7,948 blocked locations, and the defect it found in today's code
+
+Production policy 1 blocks **7,948** locations. Step 7.4's `locationRows` was shipped this morning
+with **no cap** — one row per entry — so a card carrying that list would have put eight thousand rows
+into the card page's table. Capped at 25 with an explicit `+ 7,923 more blocked locations` summary
+row, because the plan's own rule is that a bounded view must say what it bounded. Test:
+*"caps a fleet-sized blocklist and SAYS how many it hid"*.
 
 ---
 

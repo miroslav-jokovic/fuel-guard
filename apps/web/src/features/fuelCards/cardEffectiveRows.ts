@@ -130,10 +130,23 @@ export function limitRows(rows: readonly Merged<RawLimit>[]): EffectiveDisplayRo
  * **blocklist** — "a list of locations that this card is BLOCKED from using" (p36). A single
  * "Locations" table listing both would be read as one meaning and be wrong for half its rows.
  */
+/**
+ * How many blocked locations to draw before summarising the rest.
+ *
+ * ⚠ MEASURED, not guessed. The 2026-08-16 production inventory found **7,948 blocked locations on
+ * policy 1** (`docs/22` H14). The first version of this function rendered one row per entry with no
+ * cap, so a card carrying that blocklist would have put eight thousand rows into a `DataTable` on
+ * the card page. A blocklist is a set an operator checks membership of, never a list they read, so
+ * the rows past this point cost a hung browser and buy nothing.
+ */
+const MAX_BLOCKED_ROWS = 25;
+
 export function locationRows(
   groups: readonly string[],
   blocked: readonly string[],
 ): EffectiveDisplayRow[] {
+  const shown = blocked.slice(0, MAX_BLOCKED_ROWS);
+  const hidden = blocked.length - shown.length;
   return [
     ...groups.map((id, i) => ({
       key: `grp-${id}-${i}`,
@@ -141,12 +154,22 @@ export function locationRows(
       detail: "This card may fuel at locations in this group.",
       ...describeOrigin("card" as EffectiveOrigin),
     })),
-    ...blocked.map((id, i) => ({
+    ...shown.map((id, i) => ({
       key: `blk-${id}-${i}`,
       label: `Location #${id}`,
       detail: "BLOCKED — this card is refused here.",
       ...describeOrigin("card" as EffectiveOrigin),
     })),
+    // Never a silent truncation: the count is the fact worth having, and a table that quietly showed
+    // 25 of 7,948 would read as "this card is blocked from 25 places".
+    ...(hidden > 0
+      ? [{
+          key: "blk-more",
+          label: `+ ${hidden.toLocaleString()} more blocked locations`,
+          detail: `${blocked.length.toLocaleString()} in total. Too many to list — check a specific location in the WEX portal.`,
+          ...describeOrigin("card" as EffectiveOrigin),
+        }]
+      : []),
   ];
 }
 
