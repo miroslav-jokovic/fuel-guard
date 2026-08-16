@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import type { CardCapabilities, PromptInput, WsCard } from "@fuelguard/shared";
+import type { CardCapabilities, WsCard } from "@fuelguard/shared";
 import { EFS_EDITABLE_INFO_IDS } from "@fuelguard/shared";
 import { AppButton as BaseButton } from "@fuelguard/ui";
 import SlideOver from "@/components/SlideOver.vue";
@@ -10,33 +10,29 @@ import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { useToastStore } from "@/stores/toast";
 import CardOperationInputs from "./CardOperationInputs.vue";
 import CardOperationResult from "./CardOperationResult.vue";
+import TypeToConfirm, { lastFourOf } from "./TypeToConfirm.vue";
 import { outcomeNotice } from "./cardControlModel";
 import { handleOperationFailure } from "./cardOperationFailure";
+import { operationBlocker } from "./operationBlocker";
 import {
   type CardOperationSpec,
   type OperationDraft,
   blockedSentence,
-  seedDraftFor,
   operationBlockedBy,
+  seedDraftFor,
   operationConfirmation,
   operationDiff,
   operationStepUp,
   operationUi,
+  resolveCapability,
   capabilityBlockedBy,
   statusRows,
   missingEditableInfoIds,
   unwritableStatusLabel,
   toOperationCard,
 } from "./cardOperations";
-import {
-  newIdempotencyKey,
-  useClearOverride,
-  useGrantOverride,
-  useLockCard,
-  useSetPrompts,
-  useUnlockCard,
-  type CardMutationOutcome,
-} from "./useCardControl";
+import { newIdempotencyKey, type CardMutationOutcome } from "./useCardControl";
+import { useOperationDispatch } from "./useOperationDispatch";
 
 /**
  * ONE operation, start to finish — Phase 6's answer to docs/28's Problem 3.
@@ -110,8 +106,21 @@ const activeStatus = ref(props.status);
 const busy = ref(false);
 const key = ref("");
 
-/** Invariant 1: frozen at the click, and what `dispatch` actually sends. */
-const committed = ref<{ body: Record<string, unknown> } | null>(null);
+/**
+ * Invariant 1: frozen at the click, and what `dispatch` actually sends.
+ *
+ * The CAPABILITY is frozen alongside the body as of Step 8.1, because the body alone no longer
+ * identifies the request: `card_unlock` and `card_deactivate` each write exactly one status and carry
+ * none, so both send `{}` and `body.status === undefined` stopped meaning "unlock".
+ *
+ * Freezing it here rather than resolving at dispatch time is defence-in-depth, stated honestly: with
+ * today's control flow there is no window for the draft to move in between — `confirm()` enters
+ * `run()` synchronously, and the one asynchronous gap (the step-up wait) cancels itself if a reseed
+ * arrives, because `seed()` clears `committed` and `stepUpFor` together. It is frozen because it is
+ * half of what the operator authorised, and splitting the two would leave the invariant true of the
+ * body and merely incidental of the endpoint.
+ */
+const committed = ref<{ body: Record<string, unknown>; capabilityKey: string } | null>(null);
 /** Invariant 4: the recorded outcome, kept on screen rather than toasted away. */
 const settled = ref<CardMutationOutcome | null>(null);
 /** Invariant 5 / the fallback: set when the API asks, or when the view predicted and we ask first. */
@@ -120,12 +129,12 @@ const stepUpFor = ref<string | null>(null);
 const pendingReseed = ref(false);
 /** Invariant 3: shown instead of closing when there is work to lose. */
 const confirmingDiscard = ref(false);
+/** Step 8.1's typed last-four. Its own ref rather than part of the draft: it is not a value being
+ *  SENT, it is evidence the operator looked at which card this is, so it must not reach `body` and
+ *  must not make the drawer `dirty` — an untouched drawer with four digits typed has nothing to lose. */
+const typed = ref("");
 
-const lock = useLockCard();
-const unlock = useUnlockCard();
-const grant = useGrantOverride();
-const clear = useClearOverride();
-const setPrompts = useSetPrompts();
+const dispatchOperation = useOperationDispatch();
 
 const readOnlyPrompts = computed(() =>
   activePrompts.value.filter((p) => !(EFS_EDITABLE_INFO_IDS as readonly string[]).includes(p.infoId)));
@@ -140,6 +149,7 @@ function seed(): void {
   stepUpFor.value = null;
   pendingReseed.value = false;
   confirmingDiscard.value = false;
+  typed.value = "";
   key.value = newIdempotencyKey();
 }
 
@@ -248,16 +258,23 @@ const diffColumns: DataTableColumn[] = [
 const blockedBy = computed(() =>
   (props.operation ? operationBlockedBy(props.operation, props.capabilities, props.scopes, draft.value) : null));
 
+/** The four digits the operator must reproduce, from the MASKED reference — never a PAN. */
+const expectedLastFour = computed(() => lastFourOf(props.maskedRef));
+/** Present only on a capability whose view asks for it, which today is `card_deactivate` alone. */
+const typeToConfirm = computed(() => confirmation.value?.typeToConfirm ?? null);
+
 /** Invariant 6 — the SENTENCE, never a boolean. The footer renders it beside the disabled button. */
-const missing = computed<string | null>(() => {
-  if (!props.operation) return null;
-  if (blockedBy.value) return blockedSentence(blockedBy.value);
-  if (!props.operation.applies(card.value)) return "This card is not in a state where that applies.";
-  const blocker = props.operation.blocker?.(draft.value);
-  if (blocker) return blocker;
-  if (statusUnchanged.value) return "This card is already at that status.";
-  return null;
-});
+const missing = computed<string | null>(() => operationBlocker({
+  operation: props.operation,
+  draft: draft.value,
+  card: card.value,
+  capabilities: props.capabilities,
+  scopes: props.scopes,
+  statusUnchanged: statusUnchanged.value,
+  confirmation: confirmation.value,
+  expectedLastFour: expectedLastFour.value,
+  typed: typed.value,
+}));
 
 const canConfirm = computed(() => missing.value === null && !busy.value);
 
@@ -265,7 +282,10 @@ function confirm(): void {
   if (!props.operation || !canConfirm.value) return; // re-entrancy guard (web finding #5)
   // Invariant 1: freeze both halves NOW. Everything below reads `committed`, so a reseed arriving
   // mid-flight cannot change what was authorised.
-  committed.value = { body: props.operation.body(draft.value) };
+  committed.value = {
+    body: props.operation.body(draft.value),
+    capabilityKey: resolveCapability(props.operation, draft.value).key,
+  };
   // Invariant 5: ask first when the rule says this will be asked, rather than spending a request to
   // be told. An unpredicted refusal still lands in `handleFailure`.
   if (predictedStepUp.value) {
@@ -297,33 +317,14 @@ async function run(): Promise<void> {
   }
 }
 
+/** The frozen body and the frozen capability, handed to `useOperationDispatch` (invariant 1). */
 function dispatch(): Promise<CardMutationOutcome> {
   const frozen = committed.value!;
-  const common = {
+  return dispatchOperation(props.operation!.id, frozen.capabilityKey, frozen.body, {
     cardId: props.cardId,
     expectedVersion: activeVersion.value,
     idempotencyKey: key.value,
-  };
-  const b = frozen.body;
-  switch (props.operation!.id) {
-    // Dispatched by the CHOSEN value, not by the operation: `card_unlock` is the only path to
-    // Active, and routing Active through the lock endpoint is audit P0-3.
-    case "status":
-      return b.status === undefined
-        ? unlock.mutateAsync(common)
-        : lock.mutateAsync({ ...common, status: b.status as "Hold" | "Inactive" });
-    case "grant":
-      return grant.mutateAsync({ ...common, uses: b.uses as number, scope: b.scope as never });
-    case "clear":
-      return clear.mutateAsync(common);
-    case "promptAdd":
-    case "prompts":
-      return setPrompts.mutateAsync({
-        ...common,
-        prompts: b.prompts as PromptInput[],
-        allowRemoveDriverId: b.allowRemoveDriverId as boolean,
-      });
-  }
+  });
 }
 
 /** Every branch lives in `cardOperationFailure.ts`; this binds them to the drawer's own state. */
@@ -455,6 +456,17 @@ const environmentBadge = computed(() =>
           <DataTable :columns="diffColumns" :rows="diffRows" row-key="label" dense empty-text="" />
         </section>
 
+
+        <!-- Step 8.1: the last thing before the footer, so it sits directly above Confirm. -->
+        <TypeToConfirm
+          v-if="typeToConfirm && expectedLastFour"
+          :expected="expectedLastFour"
+          :value="typed"
+          :label="typeToConfirm.label"
+          :mismatch="typeToConfirm.mismatch"
+          :busy="busy"
+          @update:value="typed = $event"
+        />
 
         <!-- Invariant 5: said before the button, not after the request. -->
         <p v-if="predictedStepUp" class="rounded-control bg-surface-subtle px-3 py-2 text-sm text-ink-secondary">

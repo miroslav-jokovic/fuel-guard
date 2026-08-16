@@ -100,16 +100,37 @@ export const EFS_WRITABLE_STATUSES = ["Active", "Inactive", "Hold"] as const;
 export type EfsWritableStatus = (typeof EFS_WRITABLE_STATUSES)[number];
 
 /**
- * Statuses the LOCK endpoint may write — the writable set minus `Active` (audit P0-3).
+ * Statuses the LOCK endpoint may write — one, now that each of the three has its own capability.
  *
  * `Active` in the lock schema was an unlock reachable through the lock route: an approver holding
  * only the `lock` scope could re-activate a card — including one mirrored as Fraud, since the
  * fraud step-up lives on the unlock handler — and the audit trail would record it as `card.locked`.
  * Unlock stays the only path that writes `Active`, with its own scope, its own step-up, and its own
  * audit action.
+ *
+ * `Inactive` left this list in Phase 8.1, for the SECOND half of that same finding. Lock could write
+ * it, so retiring a card was recorded as intent `lock` and audit action `card.locked`, and
+ * `CardChangeLog.vue` rendered "Locked card" for a retirement — the audit row saying something other
+ * than what happened, which is what made P0-3 a P0. `card_deactivate` is now the only path to
+ * `Inactive`, with its own scope, its own intent and its own audit action, and migration 0199 widened
+ * both CHECK constraints to admit them.
+ *
+ * The name is kept and the list is one value long on purpose: this is what the LOCK route may ask
+ * for, and a constant that answers that question is worth more than the inline literal it would
+ * otherwise become. `EFS_WRITABLE_STATUSES` is still the full set the product may ever send.
  */
-export const EFS_LOCK_STATUSES = ["Hold", "Inactive"] as const;
+export const EFS_LOCK_STATUSES = ["Hold"] as const;
 export type EfsLockStatus = (typeof EFS_LOCK_STATUSES)[number];
+
+/**
+ * The one status `card_deactivate` may write, and it carries no status field to write it WITH.
+ *
+ * Declared for the config scanner's `emittableValues`, which is what Step 8.3 compares against the
+ * account's own spellings. The capability's schema has no `status` at all — reaching any other state
+ * through it is not validated-against, it is unrepresentable, which is the stronger form of the
+ * guarantee P0-3 asked for.
+ */
+export const EFS_DEACTIVATE_STATUSES = ["Inactive"] as const;
 
 export const EFS_CARD_STATUS_LABELS: Record<EfsCardStatus, string> = {
   Active: "Active",

@@ -38,6 +38,8 @@ export type CardBlockedBy = z.infer<typeof cardBlockedBySchema>;
 export const cardCapabilitiesSchema = z.object({
   canLock: z.boolean(),
   canUnlock: z.boolean(),
+  /** Retiring a card, its own scope since Phase 8.1 / migration 0199 — see cardDeactivate.contract.ts. */
+  canDeactivate: z.boolean(),
   canOverride: z.boolean(),
   canSetPrompts: z.boolean(),
   writeEntitlement: z.enum(["unknown", "confirmed", "denied"]),

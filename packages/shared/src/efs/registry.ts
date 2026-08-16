@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { cardDeactivateContract } from "./capabilities/cardDeactivate.contract.js";
 import { cardLockContract } from "./capabilities/cardLock.contract.js";
 import { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
 import { overrideGrantContract } from "./capabilities/overrideGrant.contract.js";
@@ -28,6 +29,7 @@ import type { CapabilityContract } from "./types.js";
 export const CARD_CAPABILITY_CONTRACTS: Readonly<Record<string, CapabilityContract<z.ZodTypeAny>>> = {
   [cardLockContract.key]: cardLockContract,
   [cardUnlockContract.key]: cardUnlockContract,
+  [cardDeactivateContract.key]: cardDeactivateContract,
   [overrideGrantContract.key]: overrideGrantContract,
   [overrideClearContract.key]: overrideClearContract,
   [deleteOverrideContract.key]: deleteOverrideContract,
@@ -41,6 +43,8 @@ export { cardLockContract } from "./capabilities/cardLock.contract.js";
 export type { CardLockBody } from "./capabilities/cardLock.contract.js";
 export { cardUnlockContract } from "./capabilities/cardUnlock.contract.js";
 export type { CardUnlockBody } from "./capabilities/cardUnlock.contract.js";
+export { cardDeactivateContract } from "./capabilities/cardDeactivate.contract.js";
+export type { CardDeactivateBody } from "./capabilities/cardDeactivate.contract.js";
 export { overrideGrantContract, overrideStepUpMessage } from "./capabilities/overrideGrant.contract.js";
 export type { OverrideGrantBody } from "./capabilities/overrideGrant.contract.js";
 export { deleteOverrideContract, overrideClearContract } from "./capabilities/overrideClear.contract.js";

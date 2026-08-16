@@ -3,6 +3,7 @@ import { CARD_CAPABILITY_CONTRACTS } from "@fuelguard/shared";
 import {
   CARD_OPERATIONS,
   blockedSentence,
+  emptyDraft,
   operationBlockedBy,
   editableInfoIds,
   missingEditableInfoIds,
@@ -31,10 +32,10 @@ const card = {
 };
 
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
-  canLock: true, canUnlock: true, canOverride: true, canSetPrompts: true,
+  canLock: true, canUnlock: true, canDeactivate: true, canOverride: true, canSetPrompts: true,
   writeEntitlement: "confirmed", blockedBy: null,
   capabilityStates: {
-    card_lock: null, card_unlock: null, override_grant: null,
+    card_lock: null, card_unlock: null, card_deactivate: null, override_grant: null,
     override_clear: null, delete_override: null, prompts_set: null,
   },
   environment: "production", ...over,
@@ -98,10 +99,15 @@ describe("every operation is renderable end to end", () => {
   it("has a title, a confirmation and a diff — the drawer renders all three", () => {
     for (const op of CARD_OPERATIONS) {
       expect(operationUi(op)?.title, `${op.id} ui`).toBeTruthy();
+      // Built through `emptyDraft`, not hand-written. The literal this replaced said `lockStatus`,
+      // a field `OperationDraft` has not had since Step 6.5 renamed it `targetStatus` — and `as never`
+      // hid it, so `capabilityFor` was resolving from `undefined` and reaching `card_lock` only
+      // because the old ternary had no third branch. A fixture that cannot name a field the type
+      // does not have is the only version of this that stays true.
       const body = op.body({
-        lockStatus: "Hold", uses: 1, scopeKind: "all", location: null,
+        ...emptyDraft("Hold"),
         prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-1", reportValue: null, remove: false }],
-      } as never);
+      });
       expect(operationConfirmation(op, body, { maskedRef: "••••7671", card }), `${op.id} confirmation`).not.toBeNull();
       expect(Array.isArray(operationDiff(op, card, body)), `${op.id} diff`).toBe(true);
     }

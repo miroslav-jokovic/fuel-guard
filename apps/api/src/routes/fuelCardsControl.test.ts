@@ -100,6 +100,8 @@ const base = { expectedVersion: VERSION };
 const WRITE_BODIES: Record<string, unknown> = {
   card_lock: base,
   card_unlock: base,
+  // No status field — `card_deactivate` writes exactly one and carries none (Step 8.1).
+  card_deactivate: base,
   override_grant: { ...base, uses: 1, scope: { kind: "all" } },
   override_clear: base,
   delete_override: base,
@@ -123,12 +125,14 @@ const WRITE_ROUTES: Array<[string, string, unknown]> = MOUNTED.map((capability) 
 ]);
 
 describe("write routes — authentication and role", () => {
-  const s = withServer(); // 5 + 15 + 2 = 22 requests
+  const s = withServer(); // 6 + 18 + 2 = 26 requests
 
   it("discovered every mounted write route, with a body for each", () => {
     // Without this, an empty registry makes every `it.each` below run zero cases and the whole
     // describe passes while asserting nothing about anything.
-    expect(WRITE_ROUTES.length).toBe(5);
+    // Six since Step 8.1 mounted `card_deactivate`. A COUNT, so a capability added without a
+    // sample body fails here rather than being silently dropped from every sweep below.
+    expect(WRITE_ROUTES.length).toBe(6);
     for (const [path, method, body] of WRITE_ROUTES) {
       expect(body, `no sample body for ${method} ${path}`).toBeDefined();
     }
@@ -158,7 +162,7 @@ describe("write routes — authentication and role", () => {
 });
 
 describe("write routes — the contract", () => {
-  const s = withServer(); // 7 + 5 + 1 + 2 + 1 + 1 = 17 requests
+  const s = withServer(); // 8 + 5 + 1 + 2 + 1 + 1 = 18 requests
 
   /**
    * Phase 6.5. Decision B1 (Miki, 2026-08-12) removed `reason`; a session reinstated it

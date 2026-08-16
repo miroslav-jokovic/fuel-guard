@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CapabilityCardContext } from "./types.js";
+import { cardDeactivateView } from "./cardDeactivate.view.js";
 import { cardLockView } from "./cardLock.view.js";
 import { cardUnlockView } from "./cardUnlock.view.js";
 import { overrideClearView } from "./overrideClear.view.js";
@@ -74,11 +75,32 @@ describe("locking says what happens to the DRIVER", () => {
     expect(lock.body).not.toMatch(/status/i);
   });
 
+  /**
+   * Step 8.1 moved deactivation out of this view and into `cardDeactivate.view.ts` with the status.
+   * The case is kept — the two acts must still read differently — but it now asks the two views it
+   * takes to express them, which is the thing that changed.
+   */
   it("treats deactivating as a different, heavier act than holding", () => {
-    expect(cardLockView.confirmation({ status: "Inactive", expectedVersion: "" }, context()).title)
+    expect(cardDeactivateView.confirmation({ expectedVersion: "" }, context()).title)
       .toMatch(/deactivate/i);
     expect(cardLockView.confirmation({ status: "Hold", expectedVersion: "" }, context()).title)
       .toMatch(/lock/i);
+  });
+
+  it("says a HELD card is being retired, not that it is about to stop working", () => {
+    // The sentence Step 8.1 was written for. A card on Hold already declines fuel, so the ordinary
+    // copy's "stops working at every location immediately" is false of it — and the claim that
+    // matters is the one the step's own Verify names: it never becomes spendable on the way.
+    const held = cardDeactivateView.confirmation({ expectedVersion: "" }, context({ status: "HOLD" }));
+    expect(held.title).toMatch(/retire/i);
+    expect(held.body).toMatch(/nothing changes at the pump/i);
+    expect(held.body).not.toMatch(/stops working at every location/i);
+  });
+
+  it("asks for the last four before it will retire anything", () => {
+    // Absent on every other view, which `deactivation is the only capability that asks…` below pins.
+    expect(cardDeactivateView.confirmation({ expectedVersion: "" }, context()).typeToConfirm?.label)
+      .toMatch(/last four/i);
   });
 
   /**
