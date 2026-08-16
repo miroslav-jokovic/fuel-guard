@@ -199,7 +199,7 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 6.5 | Rework the card surface | ✅ **CLOSED 2026-08-16** (PR #67) *(opened by Miki on seeing Phase 6 run. `reason` removed from the LOGIC — B1 was his and a session had overridden it, logging the change as its own authority; that row is VACATED. Status became one three-item control mirroring WEX's own Change Status menu, with the P0-3 scope split preserved: `Active` only through `card_unlock`. Two sections with `⋮`. **Prompts can now be ADDED to a card that has none** — Miki found that; an unassigned card could never be given the Driver ID prompt that is its whole attribution signal. Audit section off the card page)* | merged to `main` |
 | 6.6 | Card changes on the Audit page | ✅ **CLOSED 2026-08-16** (PR #68) *(its own tab, `FilterBar` + `DateRangeFilter` + `DataTable` + `TablePagination` like every other list page, searchable by card. **Not a Supabase read like the tab beside it**: `efs_card_mutations` has RLS with NO POLICY, so a browser query returns an empty list and would have rendered as "no card ever changed". Route ordering verified by mutation)* | merged to `main` |
 | 6.7 | Phase 6 audit | ✅ **CLOSED 2026-08-16** *(six findings, all fixed. The serious one: **Phase 6 recreated the dead-code defect it existed to fix** — `CardMutationHistory.vue`, `useCardMutations` and `GET /:id/history` were all orphaned by 6.5.5 + 6.6, and the endpoint had no test either. Closed by deep-linking the card page's ⋮ to the Audit tab filtered by `cardId`, which also gave that filter its first caller)* | merged to `main` |
-| 7 | Account & policy visibility | 🔶 **7.5, 7.7, 7.8 DONE — the other four need live EFS and cannot be done in a remote container** *(migration 0198. 7.5 closed five defects and **found the plan wrong about one of them**: the roster-only card produces a 400 zod string-length message, not the 409 the step describes, because `cardVersionSchema` is `min(16)` and `assertUnmoved` is unreachable with an empty version. 7.8 built and unit-proven; its live QA drill is owed. **7.1, 7.2, 7.3, 7.4 and 7.6 are blocked on credentials, not on code** — 7.3 needs a real production card document, 7.6 IS the live scan, 7.4 consumes 7.6's output, and 7.2's Verify says "green on QA and on production". ⚠ USER DECISION: build 7.1/7.2 blind, or wait for a session with credentials)* | `claude/fuel-guard-efs-phase-7-goj5h7` |
+| 7 | Account & policy visibility | 🔶 **7.1, 7.2, 7.3, 7.4, 7.5, 7.7, 7.8 built — 7.6 needs a live session, and three Verifies are OWED not ticked** *(migration 0198. Everything buildable offline is built and every gate is green; what is owed is named rather than claimed: 7.2's "green on QA and on production", 7.3's `getCardV2.production.xml`, 7.6's scan, and 7.8's QA badge drill. **Built from the checked-in WSDL rather than the guide, which found five things the plan did not know:** three of the thirteen operations do not return `<result>` so the prescribed template would parse them as empty · `getPolicyRefreshingLimits` takes `policy`, not `policyNumber` · `getLocationGroups` is not an account-level call at all · 7.2's 28-request budget is unmeetable with unbounded loops · and 7.3 names five unmodelled fields where the WSDL has **six** — `numericMatchValue` is the third place a prompt can keep its value, in a function whose own docblock said there were two, after that same defect shipped twice. 7.4 left refreshing limits and credit headroom UNBUILT on purpose: per-card-page vendor calls are audit P1-1, and doing it right needs the sweep to mirror them)* | `claude/fuel-guard-efs-phase-7-goj5h7` |
 | 8 | Card status *(first production promotion)* | ⬜ | `delivery-p8-status` |
 | 9 | Driver assignment & prompts | ⬜ | `delivery-p9-prompts` |
 | 10 | Override with amount | ⬜ | `delivery-p10-override` |
@@ -1396,25 +1396,105 @@ differently).
 **Read-only. Produces the scan JSON that scopes Phases 9–12.**
 **Preconditions:** Phase 4 ✅ (scanner exists).
 
-### Step 7.1 — Inventory read operations
+### ✅ Step 7.1 — Inventory read operations — **DONE 2026-08-16** *(fixtures WSDL-derived, not recorded)*
 **Files:** `apps/api/src/lib/efsAccountOps.ts`, `packages/shared/src/efsAccountContract.ts` (new).
 **Change:** following the `getPolicy` template in `efsCardOps.ts` exactly — `getPromptTypes`, `getPolicyDescriptions`, `getProducts`, `getProductGroups`, `getContracts`, `getCreditLimits`, `getCardRefreshingLimits`, `getPolicyRefreshingLimits`, `getLocationGroupDescriptions`, `getLocationGroups`, `getSitePolicyDescriptions`, `getCarrierInfo`, `serverTime`.
 **Verify:** one recorded fixture per op; assert the request wrapper and `clientId`, and that the parse matches.
 
-### Step 7.2 — Inventory endpoint
+**DONE 2026-08-16 — `efsAccountOps.ts`, `efsAccountContract.ts`, 13 fixtures, 30 tests.** Built from
+the checked-in WSDL rather than the guide, which found four things this step could not have known:
+
+- **Three of the thirteen do NOT return `<result>`.** `getCardRefreshingLimits` →
+  `<cardRefreshingLimitsData>`, `getPolicyRefreshingLimits` → `<policyRefreshingLimitsData>`,
+  `serverTime` → `<serverTime>`. Following `getPolicy` *"exactly"*, as this step says, parses all
+  three as permanently empty — and "no refreshing limits" is indistinguishable from a card that has
+  none.
+- **`getPolicyRefreshingLimits` takes `policy`, not `policyNumber`** — the only policy operation in
+  the WSDL that does, so it is the one an author copies in wrongly.
+- **`getLocationGroups` is not an account-level call.** `parameterOrder="clientId cardNum policyNum"`.
+- **`getCardRefreshingLimits` takes a full card number** — the only PAN-bearing op here.
+
+⚠ **The fixtures are WSDL-DERIVED, not recorded.** A recorded fixture proves what the vendor SENDS;
+these prove only what it DECLARES. The suite is explicitly three tiers and says so; the one that
+makes a hand-written fixture worth anything is *"every element in every fixture is declared somewhere
+in the WSDL"*, so a fixture cannot invent a field and have a parser written to satisfy it. **A live
+session must re-record these.**
+
+### ✅ Step 7.2 — Inventory endpoint — **DONE 2026-08-16** *(live deploy check owed)*
 **Files:** `apps/api/src/routes/fuelCards/inventory.ts` (new), `apps/api/src/app.ts`.
 **Change:** `POST /api/fuel-cards/account-inventory` — admin, read-only, **no probe flag**. Sequence: `getCarrierInfo` → `getPromptTypes` → `getContracts` → per contract `getCreditLimits` → `getPolicyDescriptions` → per policy `getPolicy` + `getPolicyRefreshingLimits` → `getProductGroups` → `getProducts` → `getLocationGroupDescriptions` → `serverTime`. Optional `{sampleCards?}` (max 25, org-owned) adds `getCardv2` + `getCardRefreshingLimits`. Returns a structured, PAN-redacted inventory plus a `steps[]` array in the `/diagnose` shape.
 **Verify:** route test under 28 requests. **Deployed:** green on QA and on production.
 
-### Step 7.3 — Model every field production sends
+**DONE 2026-08-16 — `inventory.ts`, 9 route tests.** The budget is the design constraint and **this
+step does not say how to meet it**: the two loops are unbounded in the written sequence, at one call
+per contract and TWO per policy. Fixed cost is ten, so `MAX_CONTRACTS(4) + 2 × MAX_POLICIES(7) = 18`
+and 10 + 18 = 28 exactly. Asserted by COUNTING against a twelve-contract, twelve-policy account (46
+requests unbounded), never by re-doing the arithmetic. `truncated` names anything left out.
+
+**Two deliberate departures from the written sequence:** `getSitePolicyDescriptions` is INCLUDED
+(7.1 built it and this is the only route that could call it — omitting it ships an operation with no
+caller, the Phase 6.7 defect), and `getLocationGroups` is EXCLUDED from the account walk because it
+cannot answer an account-level question; it is reached through `sampleCards`.
+
+**`operations`, not `requests`, in the response** — `withEfsSession` reuses a cached session, so a
+`steps.length + 1` for the login is wrong whenever the session is warm. The route test caught it.
+
+**Still owed: the Deployed line.** The vendor is stubbed, so this proves the ROUTE — sequence,
+budget, gating, truncation, PAN discipline — not the parse against production.
+
+### 🔶 Step 7.3 — Model every field production sends — **DECLARED surface DONE 2026-08-16; the production fixture is owed**
 **Files:** `packages/shared/src/efsWsSchemas.ts`, `apps/api/src/lib/efsCardXml.ts`.
 **Change:** extend `wsCardSchema` with everything the scan finds unmodelled — known: `payrollAtm`, `payrollChk`, `payrollAch`, `payrollWire`, `payrollDebit`. Parse them.
 **Verify:** new fixture `getCardV2.production.xml` (redacted, from a real production card). **The scan fails on an unmodelled field**; the mirror sweep only **logs** it.
 
-### Step 7.4 — Surface what is parsed but dropped
+**DECLARED surface DONE 2026-08-16.** The five payroll flags are modelled and parsed — and the WSDL
+diff found **a sixth this step does not name**: `numericMatchValue`, the THIRD place a prompt can
+keep its value. `efsCardAttribution.ts` read `matchValue` then `reportValue` and its own docblock
+called those *"the two places a prompt keeps its value"*. That docblock exists because this defect
+has shipped twice already (the Phase 1 `reportValue` bug; the 2026-08-14 live QA report where a Unit
+Number changed in the prompts panel and not the header). `UNIT` and `DRID` are the two prompts the
+attribution columns are built from and the two most likely to hold a NUMBER. **The same gap was on
+the policy path** — `WSPolicy.infos` is the same `WSCardInfo` type — and every card on this account
+is `infoSource: BOTH`.
+
+**Not a write-deletion risk, checked rather than assumed:** `serializeSetCardRequest` assembles from
+the ORIGINAL response nodes, so an unparsed field survives a round trip.
+
+**The asymmetry is built both ways:** the config scan REFUSES (422, naming them); the sweep LOGS and
+mirrors the card. `MODELLED_CARD_FIELDS` is the PIN, checked by the WSDL from one side and by real
+documents from the other.
+
+**Still owed: `getCardV2.production.xml`.** What is done is complete for the DECLARED surface and is
+stronger than one recorded card in that respect. It cannot prove production sends nothing UNDECLARED
+— which this account has done twice.
+
+### 🔶 Step 7.4 — Surface what is parsed but dropped — **DONE 2026-08-16 except refreshing limits / credit headroom, deliberately**
 **Files:** `apps/api/src/routes/fuelCards/read.ts`, `apps/web/src/features/fuelCards/cardControlModel.ts`, `useEfsCards.ts`, `CardEffectiveConfig.vue`.
 **Change:** include `locationGroups`, blocked `locations`, `locationSource`, and the payroll flags in the `effective` payload. Render `autoRollMap` / `autoRollMax` with copy stating **`autoRollMax = 0` means no daily maximum, not unlimited**. Add refreshing limits (cached, graceful null) and credit headroom per contract. Add a policy parity view showing what each policy sets and the four `*Source` fields.
 **Verify:** feed the scan JSON into the pure renderers (`promptRows`, `limitRows`, `timeRows`, `sourceSentence`, `activeOverrides`) and assert **every observed field is reachable by exactly one row and no row renders `undefined` or `—`**. This is the parity gate — mechanical, not eyeballed.
+
+**DONE 2026-08-16, except refreshing limits and credit headroom.** Five things were parsed and then
+lost at a *different layer each*, which is why none looked like a bug from any one file:
+`locationSource` (payload carried three of four sources), `locationGroups` and `locations` (parsed
+since Phase 1, never sent — and `locations` is a **BLOCKLIST**, p36, so it goes on the wire as
+`blockedLocations`), `autoRollMap`/`autoRollMax` (the API always sent them; the web type omitted
+them — and v2 is used *specifically because v1 lacks them*), and 7.3's payroll flags.
+**`autoRollMax = 0` renders as "no daily maximum"**, never as the number.
+
+⚠ **Refreshing limits and credit headroom on the card page were NOT built, deliberately.**
+`getCardRefreshingLimits` takes a card number, so it is one vendor call PER CARD PAGE VIEW — audit
+P1-1, the 15–20s card page this codebase already fixed once. Doing it properly means the sweep
+mirroring those fields: a migration and a schema change, not a render. Filed rather than bolted on.
+
+**The parity gate's input is a WSDL-declared document, not 7.6's scan JSON**, which needs a live
+account. Same substitution as 7.3, same replacement path.
+
+> **Two gates failed together and had ONE cause**, worth recording because a survived mutation looks
+> like a testing problem: `lint:filesize` went red at 555 lines AND `mutation-check` dropped to 17/18
+> with `waiver-growth-unchecked` SURVIVING. That mutation neuters the file-size no-growth guard and
+> its probe checks whether the gate then passes — but an over-budget file makes the gate fail
+> *unconditionally*, so the probe could no longer tell a working guard from a dead one. Splitting
+> `cardEffectiveRows.ts` out fixed both.
 
 ### ✅ Step 7.5 — Mirror fixes — **DONE 2026-08-16, migration 0198**
 **Files:** `apps/api/src/services/efsCardMirror.ts`, `apps/api/src/env.ts`.
@@ -1486,10 +1566,21 @@ existing import still resolves.
 **Still owed, and it needs a live sweep:** *"after one sweep, every production card has
 `detail_synced_at`"*. Unverifiable from this container.
 
-### Step 7.6 — Produce the inventory
+### ⛔ Step 7.6 — Produce the inventory — **INSTRUMENT BUILT 2026-08-16; the scan itself needs a live session**
 **Files:** `docs/25-EFS-ACCOUNT-INVENTORY.md` (generated from the scan JSON), scan JSON committed.
 **Change:** run `pnpm efs:scan` against QA and production. The document must answer: which Info IDs the account has and uses · **whether odometer following is configured, on which field, with what accrual value** · **the account's exact vocabulary for every writable string field** · which limit IDs with what values · whether refreshing limits are set and where · real credit ceilings · whether location groups are in use · whether time restrictions are in use · what each policy sets · **production's document shape and whether it matches QA's** · any field production sends that we do not model.
 **Verify:** every question answered with the raw evidence quoted and the source operation named. **This document scopes Phases 9–12 — if it contradicts an assumption there, stop and re-scope.**
+
+**INSTRUMENT BUILT 2026-08-16; the scan itself is UNRUN.** `docs/25-EFS-ACCOUNT-INVENTORY.md` exists
+and carries all twelve questions with the operation and JSON path that answers each — every one
+marked ⛔ UNANSWERED, behind a banner saying so. **Nothing in it may be filled in from the WSDL or
+the guide**: the point of this step is what THIS ACCOUNT says, and an inventory assembled from the
+documentation could not contradict Phases 9–12, which is precisely what it exists to be able to do.
+
+`node scripts/efs.mjs inventory` is the command, added here — **which also gave 7.2's endpoint its
+first caller.** Route built, nothing able to reach it, is the same shape the 6.7 audit closed.
+`--cards` takes `efs_cards.id` UUIDs and refuses anything card-number-shaped outright, so no PAN
+reaches a shell history.
 
 ### ✅ Step 7.7 — Card identity: last-4 is not one — **DONE 2026-08-15 night**
 **Files:** `apps/api/src/services/efsCardMirror.ts` (`linkFuelCards`), `apps/web/src/features/fuelCards/`.
@@ -1793,6 +1884,7 @@ from its two namesakes — by contents, not by number. Every past record of *"th
 
 | Date | Phase | Steps completed | Notes / surprises |
 |---|---|---|---|
+| 2026-08-16 (Phase 7, later) | 7 | **Steps 7.1, 7.2, 7.3, 7.4 built; 7.6's instrument built and the scan left UNRUN** · `efsAccountOps.ts` · `efsAccountContract.ts` · `inventory.ts` · `efsCardFields.ts` · `cardEffectiveRows.ts` · `docs/25` | **Miki's instruction was the method: read the plan, then verify the current situation before implementing each step rather than trusting it.** That found five things the plan did not know, and every one would have shipped as working code. **Three of the thirteen operations do not return `<result>`** — the step says follow `getPolicy` "exactly", and doing so parses `getCardRefreshingLimits`, `getPolicyRefreshingLimits` and `serverTime` as permanently empty, which is indistinguishable from a card that genuinely has no refreshing limits. **`getPolicyRefreshingLimits` takes `policy`, not `policyNumber`** — the only policy op in the WSDL that does. **`getLocationGroups` is not an account-level call**, so it cannot be in 7.2's account walk at all. **7.2's 28-request Verify is unmeetable as written**: the loops are unbounded at one call per contract and two per policy, so the caps had to be derived (10 fixed + 4 + 2×7 = 28) and asserted by COUNTING against an account big enough to blow it. **And 7.3 names five unmodelled fields where the WSDL declares six.** `numericMatchValue` is the THIRD place a prompt can keep its value, sitting in a function whose own docblock said there were two — after that exact defect had already shipped twice (Phase 1's `reportValue`; the 2026-08-14 Unit Number report). `UNIT` and `DRID` are the two prompts attribution is built from. The same gap was on the policy path, caught by the schema rather than by review. **My own first move was also wrong and worth recording**: grepping `wsdl:operation` returned "all 13 missing" — the WSDL uses bare `<operation name=`. I validated the extractor against `getPolicy`, which is already proven live, before trusting it for anything else. **Two gates failed together with ONE cause**: `lint:filesize` at 555 lines AND `mutation-check` 17/18 with `waiver-growth-unchecked` SURVIVED — an over-budget file makes the file-size gate fail unconditionally, so that mutation's probe could no longer tell a working no-growth guard from a dead one. The split fixed both. **Deliberately unbuilt:** 7.4's refreshing limits and credit headroom on the card page, because `getCardRefreshingLimits` is one vendor call per card page view — audit P1-1 — and doing it right means the sweep mirroring them. **Owed, named rather than ticked:** 7.2's deploy check, 7.3's production fixture, 7.6's scan, 7.8's QA drill. Fixtures throughout are WSDL-DERIVED and every test file says so. Matrix **381/38/61/25/17**, mutation **18/18**, all sixteen gates. |
 | 2026-08-16 (Phase 7) | 7 | **Steps 7.5 and 7.8 DONE** · migration 0198 · `efsCardTombstone.ts` + `efsCardRef.ts` (splits, not waivers) · `useRefreshCard` | **No live access again** — `env | grep -c "^EFS_\|^SUPABASE_"` → 0 and `curl https://example.supabase.co` → 000, verified before planning rather than assumed, so only the two offline steps were attempted. **The plan is wrong about one of 7.5's five items, and the correction is the reusable part.** It says the roster-only card (`card_version: ""`) throws *"a 409 that claims the card changed"*. It does not: `cardVersionSchema` is `z.string().min(16)`, so `accept()` refuses an empty `expectedVersion` before `prepare()` and **`assertUnmoved`'s version comparison is unreachable** — a fix placed there, which is where it naturally goes, would have passed review and done nothing. **What the operator actually saw on Confirm was "Could not change the card — String must contain at least 16 character(s)."** Fixed at the boundary it really crosses, ahead of the rate limiter, as `card_never_read`. Same shape as 7.7's prediction: right about the symptom, wrong about the mechanism, and only following the value found it. **The refresh half of `sync_error` was one line.** After 7.7 the column had one WRITER (the detail pass) and two CLEARERS, the second being the ROSTER pass — which runs first and nulled it for every card on every sweep, so a `getCardv2` failure was erased by a pass that had not re-read the card. Now `{code, source, at}` with a CHECK, cleared only by a pass holding the whole document. **The CHECK's obvious spelling was wrong**: a CHECK passes on NULL as well as TRUE, and `jsonb_typeof(x -> 'at')` is NULL when the key is ABSENT, so the first draft accepted a record with no `at` — the field the migration exists to add. Caught in PGlite, not by reading it. **`EFS_CARD_SYNC_MAX_DETAIL` shipped at 200 against a fleet of 199** — one card from that erasure starting to bite, with nothing anywhere that would have said so; default now 1000 and `mirror_detail_budget_short` fires at `error`. **7.8's nine-hour badge was never "stale" by the page's own threshold** (26 hours), so the fix is not a louder warning — it is that the age is on screen at all. It hangs off `detail_synced_at`, not `synced_at`, because the override SCOPE has no writer but the detail pass; 7.5's budget invariant is what keeps the two clocks within a sweep of each other. **`POST /:id/refresh` got its first caller ever** — the component/hook/endpoint-with-no-caller shape the 6.7 audit closed once already, while `freshness()` printed "Refresh to see current settings." on a page with no refresh. Every guard mutated: roster-clear → 1 red, budget → 1, ratio guard → 3 (with its three "must not refuse" controls green), roster-only gate → 1 (malformed-version control stays 400), PAN mask on the new column write → 1, stale-count assertion → 3, wrong clock → 4. Matrix **381/38/61/25/17**, mutation **18/18**, `lint:secrets` clean, all sixteen gates. **Owed and named rather than ticked:** 7.5's *"after one sweep every production card has `detail_synced_at`"* and 7.8's QA badge drill. **Stopped rather than building blind: 7.1/7.2/7.3/7.4/7.6 are a USER DECISION.** **And a framing this session got wrong twice, corrected by Miki and then by reading the record.** Saying "needs live EFS" for "needs a vendor call" reads as "needs PRODUCTION": **QA is live EFS** — same vendor, `ws.partner.efsllc.com` — and Phase 7 is read-only throughout. Worse, it then proposed a NETWORK-POLICY change without checking how live work has actually been done here. It is not a firewall question. `docs/32` §123, `docs/29` §129-131, `docs/31` §153-155 and `docs/EFS-RECON-REPORT.md` §501 all show live runs happening **from a session on Miki's Mac** — local Postgres, Railway CLI, `apps/api/.env`, a terminal — *"this session he told me to run it and I did, twice."* Only the three 2026-08-16 remote-container sessions have lacked access, each verifying it rather than assuming. **And `scripts/efs.mjs:68` dies on `!process.stdin.isTTY`** — deliberately, so a hidden prompt can never degrade to an echoing read that puts a PAN in scrollback — **so opening the network would not have helped this session at all.** The tooling exists, is documented, and needs a terminal, not a firewall rule. |
 | 2026-08-16 | 5 | **5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.9, 5.10, 5.11 — ten of eleven. 5.8 BLOCKED by the plan's own instruction** | **No live access this session** (remote container: no Supabase credentials, and the network policy refuses Railway — `curl` to both hosts returns a 403 CONNECT from the proxy). So every step's CODE is complete and every gate is green, and the drills that need a live QA org are written down as OWED rather than claimed. **5.8 was not attempted on purpose**: the step says decide with Step 7.1's real output, "the same instrument, so do not guess ahead of it", and 7.1 is unrun. **Two steps were bigger than the plan thought.** 5.7's prescribed change does not work alone — migration 0091 puts a `before update` trigger on `efs_soap_credentials` running the unconditional `set_updated_at()`, so Postgres re-stamps the column whatever the patch contains; the code-only fix would have left behaviour identical and four new tests passing. Migration 0196 carries the other half. 5.9 was filed as "low severity, high tidiness" and deleting 19 unreachable fallbacks turned **62 tests red at once**: 88 fixtures across 42 files built their env as `{...} as unknown as Env`, a shape `loadEnv` can never return, so those tests were exercising `undefined` values no deployment can produce. The duplicated defaults were not protecting the product, they were propping up the fixtures. All 88 casts are gone. **Three call-site literals already DISAGREED with their schema default** (30 vs 7, 1 vs 12, Infinity vs 5000) — each one documentation of a value the process has never used. **5.11's sweep found four more silent audit losses** beyond the promotion one: a feature slug, two `${driverId}:${featureKey}` composites and a `ids.join(",")`. A bulk deletion of fuel plans left no trace at all. `writeAudit` now moves a non-uuid into `meta` and keeps the row rather than throwing — losing the row is the disaster, and a throw only moves the loss to the caller. **The soak found a pre-existing flake** unrelated to any step: orchestrator's apply-latency delta failed at 299>=300 and 295>=300 on the untouched tree, because the two latencies come from separate `executeCapability` calls. Given a named 25ms timer tolerance; the discriminating assertion beside it is untouched. **One signal of 5.1's six is deliberately NOT built** — the unknown-vendor-element digest. No "elements the product understands" set exists to subtract from, so "unknown" would have to be invented, and a digest full of false unknowns trains people to ignore it. Recorded, not guessed. Gates: all 18 `ci.yml` gates green including `lint:secrets` after committing, matrix **381/38/61/25**, mutation **7/7**. apps/api 1234 → 1287 tests. Every new assertion was verified by breaking the code it covers |
 | 2026-08-14 | 3 | **live QA — and it found a P0** | Four of five operations pass through the generated router: lock (Hold and Inactive), unlock, prompts on a card that has them, override clear. **Override grant lands and is recorded `failed`** — the badge shows the override because `updateMirror` is fed from the verifying re-read, while `intentLanded` condemns the write. Filed as **Step 3.11**, and it blocks Phase 4, whose Step 4.5 builds a live prover on the same `judge`. **Two findings sharpened by reading the WSDL:** `override` is `int` on `WSCardHeader`/`WSCardSummary` and `boolean` on every `WSTransaction*` — a card counter and a per-purchase flag, and we never read the transaction side; and `managedFuelAction` carries `qtyAllowed`/`effDt`/`locationId`, which is the semantics of the 50-gallon auto-closing override Miki granted in the portal, sitting unscoped in Phase 14.2. **`ambiguous_fuel_card_link` mechanism proven:** `linkFuelCards` runs last in `syncCards` and overwrites the `sync_error` both earlier passes set to null; a manual Refresh does not, so the message is from the sweep and the refresh succeeded. Filed into 7.5. **No UI to add a prompt to a card with none** — the API can (`appendRecord`), the drawer cannot; that is Step 9.6 and it needs a card from 0.13. **The lesson:** eleven steps of byte-level offline verification were structurally blind to all of this, because every test scripts its own after-document. |
