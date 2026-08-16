@@ -8,7 +8,7 @@
 | `docs/23-…-FINDINGS-2026-08-12.md` | Only if a step's intent is unclear |
 | `docs/26-…-PLAN-AUDIT.md` | Only if you want the evidence for why a step exists |
 | `docs/22-EFS-CARD-CONTROL.md` | Append every live EFS finding here, in the H1 format |
-| `docs/33-HANDOFF-2026-08-16.md` | **First, every session.** Ordering decision, standing instructions, environment facts, open findings. Supersedes `docs/32`, which stays for its history |
+| `docs/34-HANDOFF-PHASE-6.md` | **First, every session.** Phase 6's brief, standing instructions, environment facts, open findings. Supersedes `docs/33`, which stays for its Phase 5 record |
 | `docs/29-EFS-INCIDENT-RUNBOOK.md` | When a card changed and should not have. Assess → contain → recover, and the `sent` state |
 
 ---
@@ -194,8 +194,8 @@ Still open after recon: the deployed value of `EFS_CARD_CONTROL_PROBE_ENABLED` (
 | 2 | Echo engine correctness | ✅ *(2.1–2.6 merged, PRs #13–#21; echo scan green 197/197 — which is the WHOLE live fleet: the mirror's 199 includes 2 cards WEX de-listed and `tombstoneAbsentCards` correctly marked `absent_since` on 2026-08-14. **Exit gate CLOSED 2026-08-15 evening by Step 2.6** — QA re-probed (ten of ten proofs), `probed_identity_hash` bound, the grandfather branch deleted, and migration 0194 makes the violating state unrepresentable. The check is now genuinely scripted: `node scripts/card-control-binding-check.mjs`, exit 1 on any violation)* | `delivery-p2-echo` |
 | 3 | Capability architecture | ✅ *(3.1–3.11 merged; **exit gate CLOSED 2026-08-15** — all five operations verified live on `af1a8e5`, card returned byte-identical. The read behind 3.11 proved this account never reports override scope on ANY card, `docs/22` H3. 3.5a withdrawn — it is Step 4.2)* | merged to `main` |
 | 4 | Harness & promotion | ✅ *(**CLOSED 2026-08-15 night — every exit-gate item observed live, not argued.** 4.1–4.7 built and merged; migrations 0191–0193. Proven and promoted on QA (proof `40b88b75`), the production refusal watched and found a defect in its own completeness, suspension propagation measured at **481 ms**, and the production echo scan re-run **197/197 green in one invocation**. Step 4.7 moved the latency measurement into `verifyStep`. The two live drills each found a defect the code review had not: the gate named one blocker of three, and the suspension drill suspended the wrong company — both in the harness, neither in the product)* | `delivery-p4-harness` |
-| 5 | Operational readiness | 🔶 **MERGED (PR #62, `7c6cfac`) — ten of eleven steps; two exit-gate items still need a live QA org** *(**5.1 · 5.2 · 5.3 · 5.4 · 5.5 · 5.6 · 5.7 · 5.9 · 5.10 · 5.11 done.** Post-merge on `7c6cfac`: CI ✅, **Apply Supabase migrations ✅ — 0196 and 0197 are in the Supabase ledger**, Verify deployment ✅ **on BOTH hosts**, Mutation check ✅. Matrix 381/38/61/25/17, mutation 18/18, apps/api 1289 tests. **5.8 is blocked by the plan itself**: it says decide with Step 7.1's real output, and 7.1 is unrun. **Still open:** trigger each 5.1 signal in QA, and walk containment with timings — recipes in `docs/29-EFS-INCIDENT-RUNBOOK.md` §6. **Still owed on Railway:** `EFS_ROUTES_ENABLED=false` on `fleetguardweb`; `WEB_URL` turned out to be already set, and the earlier warning that deploy-verify would fail without it was wrong)* | merged to `main` |
-| 6 | Drawer shell | ⬜ | `delivery-p6-drawer` |
+| 5 | Operational readiness | ✅ **CLOSED 2026-08-16 — a USER DECISION, with two residuals named rather than ticked** *(PRs #62, #63, #64; `c08f3ef`. Ten steps of eleven built, merged and live: migrations **0196** and **0197** are in the Supabase ledger, and on `7c6cfac` CI ✅, Apply Supabase migrations ✅, Verify deployment ✅ **on both hosts**, Mutation check ✅, Production smoke ✅. Matrix **381/38/61/25/17**, mutation **18/18**, apps/api **1289** tests. **Miki closed the phase knowing two exit-gate items are unfinished** — see the gate below; they carry forward as findings, not as ticks. **5.8 remains blocked by the plan itself**: it says decide with Step 7.1's real output, and 7.1 is unrun)* | merged to `main` |
+| 6 | Drawer shell | ⬜ **← NEXT** *(precondition Phase 3 ✅ holds, and no vendor access is needed. **Two blockers found by survey, both in `docs/34`:** invariant 5 wants step-up PREDICTED via `preflightStepUp`, which lives on the API-side behaviour and cannot be imported by the web — the drawer discovers it today from a `step_up_required` 403; and the five `capabilities/*.view.ts` modules built in Phase 3 are **dead code nobody imports**, which is exactly what Phase 6 exists to consume. Watch `cardControlModel.ts` at **489/500** lines)* | `delivery-p6-drawer` |
 | 7 | Account & policy visibility | 🔶 *(**7.7 DONE AND PROVEN LIVE 2026-08-15 night** — linking now runs on identity (full PAN, then PAN suffix, then last-4 + unit) instead of a last-4 compare that `cardRefsMatch`'s own doc comment forbade. Migration 0195 records WHY a row is unlinked, in four statuses that each name a different next action. Simulated resolution: the unit tier alone clears 100 of 143. **PROVEN LIVE:** 54 → **157 of 197** linked in one sweep, 103 by exact PAN; `sync_error='ambiguous_fuel_card_link'` 139 → 0. The remaining 40 are a data ceiling — 29 lack a unit prompt, 5 have no counterpart row. 7.8 override staleness still open)* | `delivery-p7-visibility` |
 | 8 | Card status *(first production promotion)* | ⬜ | `delivery-p8-status` |
 | 9 | Driver assignment & prompts | ⬜ | `delivery-p9-prompts` |
@@ -1091,10 +1091,26 @@ That is the disease `scripts/mutation-check.mjs` opens by describing: *"a detect
 
 ### ✅ Exit Gate — Phase 5
 
-**Three of five closed. The two open ones need a live QA org, which the 2026-08-16 session did not
-have — see the §1 note. Neither is ticked on the strength of an argument.**
+**CLOSED 2026-08-16 at four of five, by Miki's decision, with the fifth carried forward.**
 
-- [ ] **Every signal in 5.1 fires when triggered.** Five of six signals are built and wired to a real
+Live QA on 2026-08-16 moved both of the previously-open items. One is now genuinely closed on
+evidence. The other is not, and is recorded as an open residual rather than ticked — the phase is
+closed, that item is not, and conflating the two is how "now scripted, not manual" stayed false for
+four days in this plan's own history.
+
+**The residual, carried into Phase 6's handoff (`docs/34`):** the §1 ASSESS half of the containment
+walk was never timed, and three of the five built signals — `card_mutation_settled` at `succeeded`,
+`failed` and `sent` — have still never fired in QA. `sent` is the one worth real effort: it is the
+most dangerous state in the system and the hardest to stage, because it needs the write to land while
+the re-read fails.
+
+- [x] **Signals fire when triggered — PARTIALLY OBSERVED, and closed on that basis.**
+      `promotion_state_changed` fired **twice for real** in QA on 2026-08-16, on the suspend and the
+      re-enable of the containment drill. `mirror_sweep_completed` was triggered by a live
+      `efs:sync` (job `0c8d316a…`) but its log line was never read back, so it is believed rather
+      than seen. The three `card_mutation_settled` outcomes have not fired. Ticked as a phase
+      decision, NOT as full evidence — the residual is named above.
+      Five of six signals are built and wired to a real
       emission point; each one's severity and tags are asserted by `cardControlSignals.test.ts`, and
       breaking a severity turns exactly its own case red. What is NOT done is the step's own Verify —
       "trigger each signal deliberately in QA and confirm it fires" — which needs a live org. The
@@ -1105,7 +1121,7 @@ have — see the §1 note. Neither is ticked on the strength of an argument.**
       ignore it. The element inventory is a prerequisite feature, recorded rather than guessed.
 - [x] **Runbook written** — `docs/29-EFS-INCIDENT-RUNBOOK.md`: assess, contain, recover, the `sent`
       state, the signal table, and §7's list of what has actually gone wrong here.
-- [ ] **Containment walked on QA with timings recorded.** PARTIALLY DONE, 2026-08-16. §2 containment
+- [x] **Containment walked on QA with timings recorded — the CONTAIN half, measured.** 2026-08-16. §2 containment
       is measured: on QA org `07fe4058…`, card ••••7671, `card_lock` suspended at t+0 and the very
       next write answered `403 card_control_suspended` at **t+172 ms**, then re-enabled cleanly. The
       drill also demonstrated two guards nobody asked it to: `--expect-org` named the org back before
