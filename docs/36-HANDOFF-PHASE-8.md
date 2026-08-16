@@ -52,9 +52,15 @@ mechanism, do not build a second one.
 `env | grep -c "^EFS_\|^SUPABASE_"` → 0, `curl https://fleetguardapi-production.up.railway.app` → 000.
 
 **Live work runs from Miki's Mac** — local Postgres, Railway CLI, `apps/api/.env`, a terminal
-(`docs/32` §123: *"this session he told me to run it and I did, twice"*). `scripts/efs.mjs:68` dies on
-`!process.stdin.isTTY`, so **even a container with full network could not run it**. Do not ask for a
-firewall change; ask Miki to run the command.
+(`docs/32` §123: *"this session he told me to run it and I did, twice"*). `promptHidden()` in
+`scripts/efs.mjs` dies on `!process.stdin.isTTY`, so **even a container with full network could not
+run it**. Do not ask for a firewall change; ask Miki to run the command.
+
+> Cited by symbol, not by line: this said `efs.mjs:68` and the check had already moved to 69 —
+> shifted by *this phase's own* stdout fix, within a day of being written. **Cite live code by
+> symbol; a line number into a file that is still changing rots silently and reads as verified.**
+> The `§N` citations into `docs/29`/`31`/`32` are line numbers too, but those are frozen handoffs —
+> they are fine, leave them alone.
 
 ### The operator CLI, and what this phase added to it
 
@@ -286,8 +292,18 @@ regression in card-control code (`cardOperationFailure`, `useEfsCards`) and is n
   `efs-card-control-triggers` 17.** A count that drops is a finding.
 - **`gitleaks` is not installed in a fresh container.** Install it, never skip the gate:
   `curl -sSL -o /tmp/gl.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz && cd /tmp && tar xzf gl.tar.gz gitleaks && mkdir -p ~/.local/bin && mv gitleaks ~/.local/bin/ && export PATH="$HOME/.local/bin:$PATH"`
-- **`mutation-check.mjs` is not in `ci.yml`** — a web-and-shared change slips under all four of its
-  triggers. Run it by hand after any change to a rule.
+- **`mutation-check.mjs` is not in `ci.yml`** — it has its own workflow, `mutation-check.yml`,
+  running weekly (Mondays 06:00 UTC), on `workflow_dispatch`, and on pushes to `main` touching a
+  listed path. **Run it by hand anyway**, because a green PR says nothing about it: `Mutation check`
+  did not run on PR #73's merge commit at all.
+  > **Check the trigger paths against the harness, not against your intuition.** Walking every
+  > `file:` and `detect:` in `mutation-check.mjs` against that path list on 2026-08-16 found
+  > `scripts/check-file-size.mjs` and `scripts/check-waiver-growth.mjs` uncovered — the two files
+  > the `waiver-growth-unchecked` mutation mutates and detects with. Editing the files that mutation
+  > guards did not re-run the harness proving the guard works. Both added.
+  >
+  > The same walk killed a plausible claim: **no mutation targets `apps/web`**, so the absence of a
+  > web path is correct, not a hole. A gap you reason your way to is a guess; run the comparison.
 - **`pnpm install` first.** A fresh container has no `node_modules` and `pnpm test` fails misleadingly.
 - CI takes ~5 minutes. Do not schedule a 25-minute check-in for it.
 

@@ -36,6 +36,14 @@ on:
       - "apps/driver/vitest.config.ts"
       - "scripts/mutation-check.mjs"
       - "scripts/check-test-collection.mjs"
+      # The `waiver-growth-unchecked` mutation MUTATES check-file-size.mjs and DETECTS with
+      # check-waiver-growth.mjs. Neither was a trigger path, so a change to either of the two files
+      # that mutation exists to guard did not re-run the harness that proves the guard works —
+      # the one edit most likely to break it was the one edit that skipped the check.
+      # Found 2026-08-16 by walking every `file:` and `detect:` in mutation-check.mjs against this
+      # list, after PR #73's own merge did not trigger this workflow.
+      - "scripts/check-file-size.mjs"
+      - "scripts/check-waiver-growth.mjs"
 
 concurrency:
   group: mutation-check-${{ github.ref }}
