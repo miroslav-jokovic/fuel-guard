@@ -81,6 +81,12 @@ jobs:
       - name: Feature boundaries
         run: pnpm lint:boundaries
 
+      # Added 2026-08-16. `efs.mjs` wrote its token prompt to stdout, so the documented
+      # `efs.mjs inventory > docs/efs/…json` swallowed the prompt and sat waiting on stdin —
+      # indistinguishable from a hung command, and it read as one for five minutes.
+      - name: Operator CLI stream discipline
+        run: pnpm lint:cli-streams
+
       - name: Typecheck
         run: pnpm typecheck
 

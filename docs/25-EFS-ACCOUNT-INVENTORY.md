@@ -42,6 +42,12 @@ node scripts/efs.mjs inventory --cards <efs_cards.id>,<efs_cards.id>
 node scripts/efs.mjs scan
 ```
 
+> **The redirect works because the CLI keeps its streams apart** — human-facing lines (the token
+> prompt, the instructions, progress) go to **stderr**, and only the JSON result goes to **stdout**.
+> That was not true until 2026-08-16: the prompt was written to stdout, so this exact documented
+> command swallowed it and sat waiting on stdin, indistinguishable from a hang. `pnpm lint:cli-streams`
+> is the gate that keeps it true.
+
 Commit both JSON files. `truncated` in each response names anything the 28-request budget left out —
 if it is non-empty, raise `MAX_CONTRACTS` / `MAX_POLICIES` and `INVENTORY_REQUEST_BUDGET` in
 `apps/api/src/routes/fuelCards/inventory.ts` together, and re-run. **A truncated walk must not be
@@ -121,9 +127,22 @@ is why `canonicalEfsStatus` exists and why the list route filters with `ilike` r
 **4. `overrideAllLocations` is `false` on all 35, exactly as `docs/22` H2/H3 recorded.** So
 `override_grant` remains correctly unpromotable on QA, and `override_clear` with it.
 
-**And the one it does not settle: `card_lock` is `unobserved`.** Its expected `Hold` appears on no QA
-card, because **no QA card is at Hold** — the blocker Step 0.13 recorded, and a fixture Miki has to
-create in the WEX portal. The scan cannot manufacture it.
+**And one reading to be careful about, because I got it wrong first: `card_lock: unobserved` is NOT
+a statement that card_lock is unproven.**
+
+It is a VOCABULARY observation. The scan reads stored documents and reports which spellings this
+account emits; no QA card is currently *sitting* at `Hold`, so the string never appears in the
+corpus. That is all it says.
+
+**`card_lock` is proven live and has been since 2026-08-15**: `pnpm efs:prove card_lock` ran green
+end to end against QA ••••7671, proof `40b88b75`, OEG-1/3/4/5 true, card restored to ACTIVE (`docs/28`
+Phase 4 exit gate). That test *sets* a card to Hold and reverts it — it manufactures the state the
+scan cannot see, which is exactly why the two instruments exist side by side.
+
+The genuine gap Step 0.13 records is narrower and is about FIXTURES, not capability: no QA card
+*rests* at Hold, so a test that needs to observe one without creating it has nothing to look at.
+Phases 9–12 need those resting fixtures made in the WEX portal; `card_lock` itself is not waiting on
+them.
 
 ---
 
