@@ -20,11 +20,45 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
-// A file that is ACTUALLY in check-file-size.mjs's GRANDFATHERED map. This pointed at efsSoap.ts,
-// which left that map on 2026-08-10 when the EFS card-control work split it — so the probe was
-// growing an unwaived file, the gate failed for the ordinary over-budget reason, and the probe read
-// that as its own assertion failing. Keep this in sync when the waiver list changes.
-const VICTIM = "apps/api/src/lib/samsara.ts"; // a pinned waiver
+
+/**
+ * The victim is DISCOVERED from check-file-size.mjs's GRANDFATHERED map, never hand-written.
+ *
+ * It was hand-written twice and went stale twice, in exactly the same way. It named efsSoap.ts,
+ * which left the map on 2026-08-10 when the card-control work split it; the comment left behind said
+ * "keep this in sync when the waiver list changes", and then samsara.ts left the map too and nobody
+ * did. Growing an UNWAIVED file does not trip the no-growth guard — samsara.ts is 451 lines against a
+ * 500-line budget, so the gate passes and this probe reads that as "the guard is dead".
+ *
+ * That is not a harmless false alarm. This probe is the `detect` command for the
+ * `waiver-growth-unchecked` mutation, and mutation-check.mjs runs `detect` ONLY against the mutated
+ * source — a detect that always exits non-zero therefore reports CAUGHT whether the guard works or
+ * not. The mutation has been vacuous, and the file-size no-growth guard unverified, for as long as
+ * the name has been wrong.
+ *
+ * A second "keep it in sync" comment would be the third attempt at the same failed idea. So the name
+ * comes from the map itself, the way run-tests.mjs discovers the matrices: a waiver list that changes
+ * cannot leave this probe pointing at nothing.
+ */
+function discoverVictim() {
+  const gate = readFileSync(join(ROOT, "scripts/check-file-size.mjs"), "utf8");
+  const start = gate.indexOf("const GRANDFATHERED");
+  const block = gate.slice(start, gate.indexOf("};", start));
+  // Entries only — a commented-out line is a file that LEFT the list, which is the whole hazard.
+  const pinned = [...block.matchAll(/^\s*"([^"]+)":\s*(\d+)\s*,/gm)].map((m) => m[1]);
+  if (pinned.length === 0) {
+    console.error(
+      "FAIL: check-file-size.mjs has no pinned waivers left, so the no-growth guard cannot be probed.\n" +
+        "That is the intended end state of that list — delete the `waiver-growth-unchecked` mutation\n" +
+        "and this probe together, rather than leaving a check that silently tests nothing.",
+    );
+    process.exit(1);
+  }
+  return pinned[0];
+}
+
+const VICTIM = discoverVictim();
+console.log(`probing the no-growth guard against the pinned waiver ${VICTIM}`);
 const target = join(ROOT, VICTIM);
 const backup = join(tmpdir(), "fuelguard-waiver-growth-probe.bak");
 
