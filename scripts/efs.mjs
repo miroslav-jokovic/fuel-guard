@@ -609,7 +609,8 @@ switch (command) {
 
   default:
     die(
-      "commands: scan · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · write-check [--read-only] [--status Hold|Inactive] · "
+      "commands: scan · inventory [--cards <uuid,uuid>] · echo-scan · sync · job [kind] · suspend-drill --card <id> --proof <id> --expect-org <id> · "
+        + "write-check [--read-only] [--status Hold|Inactive] · "
         + "prove <capability> · promote <capability> [--proof <id> | --suspend] --reason <why>\n"
         + "(card numbers and tokens are always prompted for, never passed as flags)",
     );
