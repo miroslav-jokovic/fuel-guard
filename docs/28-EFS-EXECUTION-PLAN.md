@@ -8,7 +8,7 @@
 | `docs/23-…-FINDINGS-2026-08-12.md` | Only if a step's intent is unclear |
 | `docs/26-…-PLAN-AUDIT.md` | Only if you want the evidence for why a step exists |
 | `docs/22-EFS-CARD-CONTROL.md` | Append every live EFS finding here, in the H1 format |
-| `docs/34-HANDOFF-PHASE-6.md` | **First, every session.** Phase 6's brief, standing instructions, environment facts, open findings. Supersedes `docs/33`, which stays for its Phase 5 record |
+| `docs/37-HANDOFF-PHASE-9.md` | **First, every session.** Phase 9's brief, standing instructions, environment facts, open findings. Supersedes `docs/36`, which stays for its Phase 8 record |
 | `docs/29-EFS-INCIDENT-RUNBOOK.md` | When a card changed and should not have. Assess → contain → recover, and the `sent` state |
 
 ---
@@ -1722,12 +1722,15 @@ correct.* No credentials in this container.
 | **8.4** | Promote to production | Outcome recorded either way. **A block is the system working** — record the blocker and resolve it before forcing |
 
 ### ✅ Exit Gate — Phase 8
-- [ ] Three capabilities proven on QA and recorded in `docs/22` — **2 of 3.** `card_lock` `88576345` ✅ · `card_deactivate` `6f28e05d` ✅ · `card_unlock` **void** (`7cedf66c`), still unproven. Recorded in `docs/22` **H16**
+- [ ] Three capabilities proven on QA and recorded in `docs/22` — **2 of 3.** `card_lock` `88576345` ✅ · `card_deactivate` `6f28e05d` ✅ · `card_unlock` **void twice** (`7cedf66c`, `73e2186b`) — both runs hit ••••7671, which is ACTIVE. Still unproven. Recorded in `docs/22` **H16**
 - [ ] Promotion attempted for production; outcome recorded — **8.4, not started**
 - [x] QA cards restored — `cardStillChanged: false` on all three runs; ••••7671 is back at ACTIVE (rule 14)
 - [x] Standing gates green — CI ✅, mutation ✅ 18/18, migrations applied, on `46ee6cf`
 
 > **The one run that closes the most: `efs:prove card_unlock` against `14df9dc9…` ••••7675 (INACTIVE).**
+> ⚠ Two attempts have now voided because they were pointed at ••••7671. The CLI prompts for a CARD
+> NUMBER, not a last-four — so this needs ••••7675's PAN from the out-of-repo QA list, not the card
+> that happened to be in the shell history.
 > It gives `card_unlock` its first proof AND exercises `statusRevert`'s INACTIVE → `card_deactivate`
 > branch — which before 2026-08-16 was `card_lock` with `{status:"INACTIVE"}`, refused by that
 > capability's own schema. That is H14's scenario on the exact card class that would have hit it.
@@ -1751,8 +1754,8 @@ correct.* No credentials in this container.
 | **9.1** | Expose `getPromptTypes` results, cached per org. Replace `EFS_EDITABLE_INFO_IDS` with a runtime-resolved set (intersection of `getPromptTypes` with `EFS_INFO_LABELS`), keeping the hardcoded pair as fallback | *"falls back to DRID/UNIT when getPromptTypes is unavailable"*. **Live QA:** the returned set matches the inventory exactly, **including casing** |
 | **9.2** | `promptInputSchema.infoId` → `z.string()` validated against the resolved set at request time. `validationType` → `z.enum(EFS_VALIDATION_TYPES)` — **all seven** — with `DYNAMIC` → `{CNTN, PPIN, DRID}` enforced. Add `value` (required when `ACCRUAL_CHECK`). Add optional `lengthCheck` / `minimum` / `maximum`. Remove the 2-prompt array cap | Contract tests for each acceptance and each rejection |
 | **9.3** | **Odometer following:** `promptsEdits` writes `value` for `ACCRUAL_CHECK` instead of hardcoding `"0"`. Display it as *"Driver enters the odometer; the pump rejects a reading more than N miles from the last one."* Add the accrual input | *"an ACCRUAL_CHECK prompt carries its accrual value onto the wire"* asserting the exact `<value>` bytes |
-| **9.4** | Add the `infoSource` precondition — a card-level prompt write on a `POLICY`-source card is a silent no-op reported as success today. Surface as a disabled state with the reason | *"a prompt write on a POLICY-source card is refused, naming the source"* |
-| **9.5** | **Decompose `promptsEdits` before it exceeds the 200-line function cap** — a per-validation-type table, not a switch | `pnpm lint:funcsize` |
+| **9.4** ⛔ | **LIVE CHECK BLOCKED — all 35 QA cards are `infoSource: BOTH`** (finding F). Build and unit-test it; record the live check as owed. Add the `infoSource` precondition — a card-level prompt write on a `POLICY`-source card is a silent no-op reported as success today. Surface as a disabled state with the reason | *"a prompt write on a POLICY-source card is refused, naming the source"* |
+| **9.5** ⚠ | **VERIFY THE PREMISE FIRST.** Measured 2026-08-16: `promptsEdits` is **~82 lines against a 200-line cap**, and the two functions near the budget (`createApp` 194, `syncIdleFoundation` 180) are not Phase 9's. The step is preventive, not corrective — 9.2 is what would grow it. Decompose into a per-validation-type table, not a switch, **only if 9.2 actually pushes it near the cap** | `node scripts/check-function-size.mjs` BEFORE and after 9.2 |
 | **9.6** | Per-prompt Edit / **Add** / **Remove** as three explicit actions. The confirmation lists every add, change and removal by name and value | *"can add a prompt the card does not have"* · *"cannot add one already on the card"*. **Live QA:** add a prompt to the reserved **empty-`<infos>`** card — this exercises Phase 2's sequence fix on a real document |
 | **9.7** | Prove and promote | Full OEG recorded; promotion outcome recorded |
 

@@ -1319,6 +1319,21 @@ that still carries a status. It needs a card resting at Hold, which QA does not 
 Until that fixture exists, `canonicalEfsStatus` in `statusRevert.ts` is proved by unit test and by
 mutation, and not by a live run.
 
+### The retry also voided — and for a reason worth naming
+
+A second `card_unlock` run (proof `73e2186b-4df4-4065-bdb4-84a9c64be7e4`) voided identically. It was
+pointed at **••••7671 again**, not at ••••7675: the CLI prompts for a **card number**, not for a
+last-four or a card id, so "run it against ••••7675" only lands if the operator has that card's PAN
+to hand. Two voided runs, same cause, no card touched either time.
+
+**`card_unlock` has now voided three times across two sessions and has never been proved.** The
+precondition is behaving exactly as designed each time — OEG-3 refuses to call a no-op a success —
+but a capability that keeps declining to be proved for want of the right starting card is a fixture
+problem, not a code problem, and it should be recorded as one.
+
+The QA card at INACTIVE is `14df9dc9…` **••••7675** (§14's role table). Its PAN lives in Miki's
+out-of-repo QA card list (rule 13 — no card numbers in this repository).
+
 ### An operator-error refusal worth keeping
 
 One `card_deactivate` attempt was refused with `{"error":{"code":"unauthorized","message":"Invalid or
