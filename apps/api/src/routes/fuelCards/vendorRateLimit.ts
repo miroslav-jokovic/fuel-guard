@@ -33,6 +33,10 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
   { method: "POST", path: "/:id/refresh", opensSoap: true },
   { method: "POST", path: "/:id/lock", opensSoap: true },
   { method: "POST", path: "/:id/unlock", opensSoap: true },
+  // Step 8.1. Same shape as lock and unlock — a fresh `getCardv2`, one `setCardv2`, a verifying
+  // re-read — so it is charged identically. Declared rather than left to the fallback: an unmatched
+  // route stays charged, but then it is classified by accident rather than by declaration.
+  { method: "POST", path: "/:id/deactivate", opensSoap: true },
   { method: "POST", path: "/:id/override", opensSoap: true },
   { method: "DELETE", path: "/:id/override", opensSoap: true },
   { method: "POST", path: "/:id/prompts", opensSoap: true },

@@ -61,6 +61,9 @@ export const CARD_WRITE_LIMITS: Record<CardWriteBucket, CardWriteLimit> = {
 const PATTERNS: ReadonlyArray<{ bucket: CardWriteBucket; method: "POST" | "DELETE"; re: RegExp }> = [
   { bucket: "card_status", method: "POST", re: /^\/api\/fuel-cards\/[^/]+\/lock\/?$/ },
   { bucket: "card_status", method: "POST", re: /^\/api\/fuel-cards\/[^/]+\/unlock\/?$/ },
+  // Same bucket as lock and unlock: all three write `status`, and a loop alternating between them
+  // must not get three times the budget by changing which verb it uses.
+  { bucket: "card_status", method: "POST", re: /^\/api\/fuel-cards\/[^/]+\/deactivate\/?$/ },
   { bucket: "card_override", method: "POST", re: /^\/api\/fuel-cards\/[^/]+\/override\/?$/ },
   // Clearing an override is cheap and safe, but it shares the bucket: a loop of grant/clear/grant
   // would otherwise get twice the budget by alternating.

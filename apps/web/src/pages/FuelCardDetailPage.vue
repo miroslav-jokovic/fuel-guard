@@ -132,7 +132,7 @@ const cardPrompts = computed(() =>
 /** True when the server says at least one action is reachable for this person on this card. */
 const canAct = computed(() => {
   const c = capabilities.value;
-  return !!c && (c.canLock || c.canUnlock || c.canOverride || c.canSetPrompts);
+  return !!c && (c.canLock || c.canUnlock || c.canDeactivate || c.canOverride || c.canSetPrompts);
 });
 
 /** Every fact an operator asks for before deciding anything, in the order they ask. */

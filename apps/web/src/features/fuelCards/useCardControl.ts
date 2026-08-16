@@ -128,6 +128,23 @@ export function useLockCard() {
   });
 }
 
+/**
+ * Retiring a card. No status in the body — `card_deactivate` writes exactly one and carries none,
+ * which is why this cannot be folded into `useLockCard` with a wider argument.
+ */
+export function useDeactivateCard() {
+  const invalidate = useCardInvalidation();
+  return useMutation({
+    mutationFn: (args: WriteArgs) =>
+      call<CardMutationOutcome>(
+        `/api/fuel-cards/${args.cardId}/deactivate`, "POST",
+        { expectedVersion: args.expectedVersion },
+        withKey(args.idempotencyKey),
+      ),
+    onSuccess: invalidate,
+  });
+}
+
 export function useUnlockCard() {
   const invalidate = useCardInvalidation();
   return useMutation({

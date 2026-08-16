@@ -29,6 +29,26 @@ export interface CapabilityConfirmation {
   confirmLabel: string;
   busyLabel: string;
   doneLabel: string;
+  /**
+   * Make the operator type the card's last four before Confirm becomes pressable (Step 8.1).
+   *
+   * Absent on every capability but `card_deactivate`, and that is a claim rather than an oversight.
+   * It is friction, and friction on a card action has a measurable cost — `card_lock` is the 2am
+   * safety action and must stay one click. What earns it here is the failure mode a retirement
+   * actually has: not a hijacked session (an attacker with one can already lock the whole fleet),
+   * but the wrong card, or meaning to pause and retiring instead. Typing the last four is the
+   * cheapest gate that makes an operator look at WHICH card is in front of them, and unlike a
+   * step-up it costs no round trip and no credential.
+   *
+   * The value is compared against `CapabilityCardContext.maskedRef`'s own last four by the drawer,
+   * so a view can ask for this without ever being handed a PAN.
+   */
+  typeToConfirm?: {
+    /** The label above the input — it must say what to type, not merely that something is required. */
+    label: string;
+    /** Shown when the entry does not match yet. Invariant 6: the sentence, never a boolean. */
+    mismatch: string;
+  };
 }
 
 /** One before/after line in the confirmation's diff. */

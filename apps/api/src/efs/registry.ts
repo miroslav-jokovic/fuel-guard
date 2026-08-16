@@ -1,5 +1,6 @@
 import type { z } from "zod";
-import { type CapabilityContract, cardLockContract, cardUnlockContract, deleteOverrideContract, overrideClearContract, overrideGrantContract, promptsSetContract } from "@fuelguard/shared";
+import { type CapabilityContract, cardDeactivateContract, cardLockContract, cardUnlockContract, deleteOverrideContract, overrideClearContract, overrideGrantContract, promptsSetContract } from "@fuelguard/shared";
+import { cardDeactivateBehaviour } from "./capabilities/cardDeactivate.behaviour.js";
 import { cardLockBehaviour } from "./capabilities/cardLock.behaviour.js";
 import { cardUnlockBehaviour } from "./capabilities/cardUnlock.behaviour.js";
 import { overrideGrantBehaviour } from "./capabilities/overrideGrant.behaviour.js";
@@ -128,6 +129,7 @@ export const mount = <TBody extends CardMutationRequestFields>(
 export const ALL_CAPABILITIES: readonly MountedCapability[] = [
   mount(cardLockContract, cardLockBehaviour),
   mount(cardUnlockContract, cardUnlockBehaviour),
+  mount(cardDeactivateContract, cardDeactivateBehaviour),
   mount(overrideGrantContract, overrideGrantBehaviour),
   mount(overrideClearContract, overrideClearBehaviour),
   mount(deleteOverrideContract, deleteOverrideBehaviour),

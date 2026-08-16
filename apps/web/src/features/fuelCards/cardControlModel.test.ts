@@ -25,7 +25,7 @@ import {
 // here on purpose rather than mirrored from `blockedBy` — a fixture that agreed with itself by
 // construction would hide a reader that had started using the wrong one of the two.
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
-  canLock: false, canUnlock: false, canOverride: false, canSetPrompts: false,
+  canLock: false, canUnlock: false, canDeactivate: false, canOverride: false, canSetPrompts: false,
   writeEntitlement: "unknown", blockedBy: null, capabilityStates: {}, environment: null, ...over,
 });
 

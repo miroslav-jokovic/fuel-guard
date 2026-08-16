@@ -60,6 +60,20 @@ export const lockEdits = (status: EfsWritableStatus, observedStatus: string | nu
 ];
 
 /**
+ * Deactivate: `status` → `Inactive`. Retiring a card, as opposed to pausing one.
+ *
+ * Takes no target status, because `card_deactivate` has none to give it — see that contract. This is
+ * not `lockEdits(status, observed)` with a narrower argument; it is the same shape as `unlockEdits`,
+ * for the same reason: the status IS the capability. Same casing rule as both (H1, 2026-08-12).
+ *
+ * `Deleted` remains NEVER written — that is EFS's hard delete (p128) and there is no undo. `Inactive`
+ * is reversible through `card_unlock`, which is what makes it a retirement and not a deletion.
+ */
+export const deactivateEdits = (observedStatus: string | null): CardEdit[] => [
+  { op: "setField", name: "status", value: matchStatusCasing(observedStatus, "Inactive") },
+];
+
+/**
  * Unlock: `status` → `Active`. The only status this product ever restores a card to.
  * Same casing rule as `lockEdits`, same reason.
  */

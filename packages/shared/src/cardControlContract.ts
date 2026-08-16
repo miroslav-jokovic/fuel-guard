@@ -296,6 +296,23 @@ export const unlockCardSchema = z.object({
   expectedVersion: cardVersionSchema,
 });
 
+/**
+ * Retiring a card. Shaped like the unlock — no `status` field — and that is the whole design.
+ *
+ * The handoff's question for Phase 8.1 was "can it reach any status other than `Inactive`?" This is
+ * the answer: there is nothing to put another status IN. A schema of `z.enum(["Inactive"])` would
+ * have been a validated constraint; an absent field is an unrepresentable one, and the difference
+ * matters because P0-3 happened when a schema that COULD carry `Active` eventually did.
+ *
+ * Declared separately from `unlockCardSchema` rather than aliased. They are identical today and mean
+ * opposite things, and a shared alias is how a field added for one of them silently arrives on the
+ * other.
+ */
+export const deactivateCardSchema = z.object({
+  expectedVersion: cardVersionSchema,
+});
+export type DeactivateCardRequest = z.infer<typeof deactivateCardSchema>;
+
 export const overrideScopeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("all") }),
   // 6-digit EFS location id per p194; the field is int(7) in searchLocation output, so accept 1-7.

@@ -43,7 +43,26 @@ export type CardOperationId = "status" | "grant" | "clear" | "promptAdd" | "prom
 export type CardOperationGroup = "Current card" | "Prompts";
 
 /** The scope names `capabilities.scopes` uses — the approver-list vocabulary, not the capability key. */
-export type CardOperationScope = "lock" | "unlock" | "override" | "prompts";
+export type CardOperationScope = "lock" | "unlock" | "deactivate" | "override" | "prompts";
+
+/**
+ * Which capability writes each status, and under whose scope — the P0-3 split, in one place.
+ *
+ * Derived from, not duplicated by, `capabilityFor` and `statusRows`. They each carried their own copy
+ * of this mapping until Step 8.1, which is two hand-lists of a security rule that have to agree: the
+ * row decides what the drawer DISABLES, `capabilityFor` decides what it SENDS, and a disagreement
+ * between them is an operation offered under one scope and dispatched under another. One table, read
+ * twice, is the only version of this that cannot drift (docs/35 §4.3).
+ *
+ * Three statuses, three capabilities, three scopes — as of Phase 8.1 there is no longer any status
+ * two capabilities can write. `Inactive` used to be reachable through `card_lock`, which recorded a
+ * retirement as `card.locked`; see `cardDeactivate.contract.ts`.
+ */
+const STATUS_CAPABILITY: Record<EfsWritableStatus, { key: string; scope: CardOperationScope }> = {
+  Active: { key: "card_unlock", scope: "unlock" },
+  Inactive: { key: "card_deactivate", scope: "deactivate" },
+  Hold: { key: "card_lock", scope: "lock" },
+};
 
 /** What the drawer knows about the card it is changing. A masked reference, never a PAN. */
 export type OperationCard = CapabilityCardContext["card"];
@@ -124,10 +143,16 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
      * express "this card is on Hold and should be retired" without unlocking first.
      */
     applies: () => true,
-    capabilityFor: (draft) => (draft.targetStatus === "Active"
-      ? { key: "card_unlock", scope: "unlock" as const }
-      : { key: "card_lock", scope: "lock" as const }),
-    body: (draft) => (draft.targetStatus === "Active" ? {} : { status: draft.targetStatus }),
+    capabilityFor: (draft) => STATUS_CAPABILITY[draft.targetStatus],
+    /**
+     * Only `card_lock` takes a status, because it is the only one of the three whose schema HAS the
+     * field. `card_unlock` and `card_deactivate` each write exactly one status and carry none —
+     * which is why the drawer must dispatch from the resolved capability and not from the body: two
+     * of these three bodies are `{}` and are not the same request.
+     */
+    body: (draft) => (STATUS_CAPABILITY[draft.targetStatus].key === "card_lock"
+      ? { status: draft.targetStatus }
+      : {}),
   },
   {
     id: "grant",
@@ -263,8 +288,8 @@ export const statusRows = (cardStatus: string | null): StatusRow[] =>
     value,
     label: EFS_CARD_STATUS_LABELS[value],
     current: efsStatusEquals(value, cardStatus),
-    capabilityKey: value === "Active" ? "card_unlock" : "card_lock",
-    scope: value === "Active" ? ("unlock" as const) : ("lock" as const),
+    capabilityKey: STATUS_CAPABILITY[value].key,
+    scope: STATUS_CAPABILITY[value].scope,
   }));
 
 /**

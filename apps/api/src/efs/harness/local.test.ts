@@ -24,6 +24,8 @@ const REASON = "Local harness replay";
 const BODIES: Record<string, unknown> = {
   card_lock: { status: "Hold", reason: REASON },
   card_unlock: { reason: REASON },
+  // No status field — `card_deactivate` writes exactly one and carries none (Step 8.1).
+  card_deactivate: { reason: REASON },
   override_grant: { uses: 2, scope: { kind: "all" }, reason: REASON },
   override_clear: { reason: REASON },
   prompts_set: {
@@ -37,7 +39,7 @@ describe("the local harness covers every capability that echoes a document", () 
     // Derived, not listed: a hand-written list is one somebody forgets to extend, and the capability
     // it forgets is the one this harness silently stops covering.
     expect(replayableCapabilities()).toEqual([
-      "card_lock", "card_unlock", "override_clear", "override_grant", "prompts_set",
+      "card_deactivate", "card_lock", "card_unlock", "override_clear", "override_grant", "prompts_set",
     ]);
   });
 
@@ -45,7 +47,7 @@ describe("the local harness covers every capability that echoes a document", () 
     expect(Object.keys(BODIES).sort()).toEqual(replayableCapabilities());
   });
 
-  for (const capability of ["card_lock", "card_unlock", "override_grant", "override_clear", "prompts_set"]) {
+  for (const capability of ["card_lock", "card_unlock", "card_deactivate", "override_grant", "override_clear", "prompts_set"]) {
     it(`produces a faithful, non-empty request for ${capability}`, () => {
       const result = replayCapability({ capabilityKey: capability, documentXml: FLAT, body: BODIES[capability] });
 

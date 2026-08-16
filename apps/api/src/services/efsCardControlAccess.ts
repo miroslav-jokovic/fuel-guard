@@ -42,7 +42,7 @@ import { credentialIdentityHash } from "./efsSoapCredentialIdentity.js";
  * to work this out.
  */
 
-export type CardScope = "lock" | "unlock" | "override" | "prompts";
+export type CardScope = "lock" | "unlock" | "deactivate" | "override" | "prompts";
 
 export interface CardControlAccess extends CardCapabilities {
   /** Scopes this user holds. Empty when they are not an approver, or when the gate is shut. */
@@ -165,7 +165,7 @@ export async function loadCardControlAccess(
   let environment: CardCapabilities["environment"] = null;
 
   const denied = (blockedBy: CardBlockedBy, writeEntitlement: CardCapabilities["writeEntitlement"] = "unknown"): CardControlAccess => ({
-    canLock: false, canUnlock: false, canOverride: false, canSetPrompts: false,
+    canLock: false, canUnlock: false, canDeactivate: false, canOverride: false, canSetPrompts: false,
     writeEntitlement, blockedBy, capabilityStates: allBlocked(blockedBy), environment,
     scopes: NO_SCOPES, orgReady: false,
   });
@@ -275,7 +275,7 @@ export async function loadCardControlAccess(
     return { ...denied("role", entitlement), orgReady: true };
   }
 
-  let scopes: CardScope[] = ["lock", "unlock", "override", "prompts"];
+  let scopes: CardScope[] = ["lock", "unlock", "deactivate", "override", "prompts"];
   if (row.require_approver) {
     const { data: approver } = await admin
       .from("efs_card_control_approvers")
@@ -291,6 +291,7 @@ export async function loadCardControlAccess(
   return {
     canLock: scopes.includes("lock"),
     canUnlock: scopes.includes("unlock"),
+    canDeactivate: scopes.includes("deactivate"),
     canOverride: scopes.includes("override"),
     canSetPrompts: scopes.includes("prompts"),
     writeEntitlement: entitlement,
@@ -316,5 +317,6 @@ export async function loadCardControlAccess(
 }
 
 function isCardScope(value: string): value is CardScope {
-  return value === "lock" || value === "unlock" || value === "override" || value === "prompts";
+  return value === "lock" || value === "unlock" || value === "deactivate"
+    || value === "override" || value === "prompts";
 }

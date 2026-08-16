@@ -23,6 +23,7 @@ import {
 const mutations = vi.hoisted(() => ({
   lock: { isPending: { value: false }, mutateAsync: vi.fn() },
   unlock: { isPending: { value: false }, mutateAsync: vi.fn() },
+  deactivate: { isPending: { value: false }, mutateAsync: vi.fn() },
   grant: { isPending: { value: false }, mutateAsync: vi.fn() },
   clear: { isPending: { value: false }, mutateAsync: vi.fn() },
   prompts: { isPending: { value: false }, mutateAsync: vi.fn() },
@@ -44,12 +45,23 @@ const FakeApiError = vi.hoisted(() =>
 vi.mock("./useCardControl", () => ({
   useLockCard: () => mutations.lock,
   useUnlockCard: () => mutations.unlock,
+  useDeactivateCard: () => mutations.deactivate,
   useGrantOverride: () => mutations.grant,
   useClearOverride: () => mutations.clear,
   useSetPrompts: () => mutations.prompts,
   newIdempotencyKey: () => keyGen.next(),
   CardControlApiError: FakeApiError,
 }));
+
+/**
+ * The dispatcher is REAL, and deliberately so — only the six hooks under it are faked.
+ *
+ * Step 8.1 moved the operation→endpoint routing into `useOperationDispatch`, and that routing is the
+ * thing audit P0-3 is about: which capability a ticked status actually calls. Mocking it would mean
+ * these cases assert against a table written in this file rather than the one that ships, which is
+ * how a status-routing regression reaches production green. The mock above is one layer lower, at
+ * the network boundary, where faking is what a unit test is for.
+ */
 
 vi.mock("@/stores/toast", () => ({ useToastStore: () => toast }));
 
@@ -83,12 +95,12 @@ vi.mock("@/components/StepUpPrompt.vue", () => ({
 }));
 
 const ALL_ENABLED = {
-  card_lock: null, card_unlock: null, override_grant: null,
+  card_lock: null, card_unlock: null, card_deactivate: null, override_grant: null,
   override_clear: null, delete_override: null, prompts_set: null,
 };
 
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
-  canLock: true, canUnlock: true, canOverride: true, canSetPrompts: true,
+  canLock: true, canUnlock: true, canDeactivate: true, canOverride: true, canSetPrompts: true,
   writeEntitlement: "confirmed", blockedBy: null,
   capabilityStates: { ...ALL_ENABLED }, environment: "production", ...over,
 });
@@ -109,7 +121,7 @@ function render(operationId = "lock", over: Record<string, unknown> = {}) {
       locationOverrideId: null,
       prompts: [{ infoId: "DRID", validationType: "EXACT_MATCH", matchValue: "D-4471", reportValue: null }],
       capabilities: caps(),
-      scopes: ["lock", "unlock", "override", "prompts"],
+      scopes: ["lock", "unlock", "deactivate", "override", "prompts"],
       ...over,
     },
     // The result region links to the card's history through AppButton's `to`, which renders a
@@ -173,6 +185,148 @@ describe("invariant 1 — the payload is frozen when Confirm is pressed", () => 
 
     const arg = mutations.grant.mutateAsync.mock.calls[0]![0] as { uses: number };
     expect(arg.uses).toBe(2);
+  });
+});
+
+/**
+ * Step 8.1. The step's own Verify is the first case here: *"a held card can be deactivated without
+ * first being unlocked"*.
+ *
+ * Worth stating what this does and does not prove. The single-write property was already true before
+ * this phase — Phase 6.5 replaced the Lock / Deactivate / Unlock trio with one status control, and
+ * `statusRows("HOLD")` has offered a reachable Inactive row ever since. What Step 8.1 changed is WHICH
+ * capability that row calls, and therefore what the ledger and the audit trail say afterwards. So the
+ * assertion is on the endpoint, not merely on the count.
+ */
+describe("retiring a card (Step 8.1)", () => {
+  const held = { status: "Hold", capabilities: caps(), maskedRef: "••••3182" };
+
+  const retire = async (over: Record<string, unknown> = {}) => {
+    const wrapper = render("status", { ...held, ...over });
+    await setDraft(wrapper, { targetStatus: "Inactive" });
+    return wrapper;
+  };
+
+  it("deactivates a HELD card in one call, and never through unlock", async () => {
+    mutations.deactivate.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    const wrapper = await retire();
+    await wrapper.findComponent({ name: "TypeToConfirm" }).vm.$emit("update:value", "3182");
+    await flushPromises();
+
+    await button(wrapper, "Deactivate card").trigger("click");
+    await flushPromises();
+
+    expect(mutations.deactivate.mutateAsync).toHaveBeenCalledTimes(1);
+    // The whole point of the step. An unlock on the way would make the card spendable, briefly, at
+    // every location it is allowed to use.
+    expect(mutations.unlock.mutateAsync).not.toHaveBeenCalled();
+    expect(mutations.lock.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("sends no status field — the capability writes exactly one and carries none", async () => {
+    mutations.deactivate.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    const wrapper = await retire();
+    await wrapper.findComponent({ name: "TypeToConfirm" }).vm.$emit("update:value", "3182");
+    await flushPromises();
+    await button(wrapper, "Deactivate card").trigger("click");
+    await flushPromises();
+
+    expect(mutations.deactivate.mutateAsync.mock.calls[0]![0]).not.toHaveProperty("status");
+  });
+
+  it("will not retire anything until the last four are typed", async () => {
+    const wrapper = await retire();
+
+    // Disabled, and SAYING why — invariant 6. A disabled button with no sentence is one an operator
+    // has to guess at.
+    expect(button(wrapper, "Deactivate card").attributes("disabled")).toBeDefined();
+    expect(wrapper.text()).toContain("Type the last four digits");
+
+    await button(wrapper, "Deactivate card").trigger("click");
+    await flushPromises();
+    expect(mutations.deactivate.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("refuses the WRONG last four, which is the mistake it exists to catch", async () => {
+    const wrapper = await retire();
+    await wrapper.findComponent({ name: "TypeToConfirm" }).vm.$emit("update:value", "9999");
+    await flushPromises();
+
+    // Retiring the wrong card is the failure this gate is for — not a hijacked session, which a
+    // password would address and which could already lock the whole fleet.
+    expect(button(wrapper, "Deactivate card").attributes("disabled")).toBeDefined();
+    await button(wrapper, "Deactivate card").trigger("click");
+    await flushPromises();
+    expect(mutations.deactivate.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("asks for no password — locking's 2am reasoning applies to the safe direction too", async () => {
+    mutations.deactivate.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    const wrapper = await retire();
+    await wrapper.findComponent({ name: "TypeToConfirm" }).vm.$emit("update:value", "3182");
+    await flushPromises();
+    await button(wrapper, "Deactivate card").trigger("click");
+    await flushPromises();
+
+    // Deliberate, and pinned from three sides: `CAPABILITIES_WITH_STEP_UP_GATE` omits the key, both
+    // registry tests derive against it, and this asserts the operator never sees the prompt.
+    expect(wrapper.find('[data-testid="step-up"]').exists()).toBe(false);
+    expect(mutations.deactivate.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT ask for the last four to lock or unlock — the gate is on retirement alone", async () => {
+    mutations.lock.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    const wrapper = render("status", { status: "Active", capabilities: caps() });
+    await setDraft(wrapper, { targetStatus: "Hold" });
+
+    // The control. Without it, a `typeToConfirm` accidentally left on every view would satisfy every
+    // case above and quietly put a four-digit challenge in front of the 2am lock.
+    expect(wrapper.findComponent({ name: "TypeToConfirm" }).exists()).toBe(false);
+    await button(wrapper, "Lock card").trigger("click");
+    await flushPromises();
+    expect(mutations.lock.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The P0-3 property at the dispatch layer: one operation, three statuses, three ENDPOINTS.
+   *
+   * Asserted as a set rather than case by case, because the defect is a collapse — two statuses
+   * sharing one capability, which is what `Inactive` and `Hold` did until Step 8.1 and what
+   * `Active` and `Hold` did before Phase 3. Verified by mutation: routing `Inactive` back through
+   * `card_lock` turns seven cases red across this file and `cardOperations.test.ts`.
+   *
+   * Note on what is NOT claimed. `committed` freezes the resolved capability alongside the body, and
+   * that freeze is defence-in-depth rather than a fix for a reachable defect: `confirm()` calls
+   * `run()` synchronously, so for a capability with no step-up there is no window in which the draft
+   * could move between the two. The one asynchronous gap — the step-up wait — cannot be reached here
+   * either, because a reseed during it clears `committed` and cancels the prompt outright. Freezing
+   * both halves is how invariant 1 is stated; a test asserting it catches a live bug would be
+   * asserting something this drawer's control flow does not currently permit.
+   */
+  it("gives each status its own endpoint — no two share one, from the same operation", async () => {
+    for (const m of [mutations.lock, mutations.unlock, mutations.deactivate]) {
+      m.mutateAsync.mockResolvedValue({ status: "succeeded", mutationId: "m1" });
+    }
+
+    const wrapper = await retire();
+    await wrapper.findComponent({ name: "TypeToConfirm" }).vm.$emit("update:value", "3182");
+    await flushPromises();
+    await button(wrapper, "Deactivate card").trigger("click");
+    await flushPromises();
+
+    const held = render("status", { status: "Active", capabilities: caps() });
+    await setDraft(held, { targetStatus: "Hold" });
+    await button(held, "Lock card").trigger("click");
+    await flushPromises();
+
+    const active = render("status", { status: "Hold", capabilities: caps() });
+    await setDraft(active, { targetStatus: "Active" });
+    await button(active, "Unlock card").trigger("click");
+    await flushPromises();
+
+    expect(mutations.deactivate.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.lock.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.unlock.mutateAsync).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -571,13 +725,27 @@ describe("the operation catalogue decides what is worth offering", () => {
    * Audit P0-3, expressed as data. `card_unlock` is the ONLY path to Active; routing it through the
    * lock route let a lock-only approver reactivate a Fraud-held card while the audit row said
    * `card.locked`. If this pairing ever flattens, the UI puts that hole back.
+   *
+   * Step 8.1 made it three-for-three. `Inactive` used to share `card_lock` with `Hold`, so a
+   * retirement was recorded as `card.locked` — the audit-mislabelling half of the same finding.
+   * There is now no status two capabilities can write, and no capability that writes two statuses.
    */
-  it("routes Active through card_unlock and the other two through card_lock", () => {
+  it("gives each of the three statuses its own capability and its own scope", () => {
     const byValue = Object.fromEntries(statusRows("Active").map((r) => [r.value, r]));
     expect(byValue.Active!.capabilityKey).toBe("card_unlock");
     expect(byValue.Active!.scope).toBe("unlock");
+    expect(byValue.Inactive!.capabilityKey).toBe("card_deactivate");
+    expect(byValue.Inactive!.scope).toBe("deactivate");
     expect(byValue.Hold!.capabilityKey).toBe("card_lock");
-    expect(byValue.Inactive!.capabilityKey).toBe("card_lock");
+    expect(byValue.Hold!.scope).toBe("lock");
+
+    // The property, not just the three pairings: no key repeated, no scope repeated. A future
+    // "simplification" that collapsed two rows onto one capability would pass the assertions above
+    // if it kept the third distinct, and fail here.
+    const keys = Object.values(byValue).map((r) => r.capabilityKey);
+    expect(new Set(keys).size).toBe(keys.length);
+    const scopes = Object.values(byValue).map((r) => r.scope);
+    expect(new Set(scopes).size).toBe(scopes.length);
   });
 
   it("names a state that is not one of the three, rather than ticking nothing in silence", () => {

@@ -12,29 +12,22 @@ import { defineView, row } from "./types.js";
  *
  * Step 6.4 deleted the copy in `cardControlModel.ts` once `CardOperationDrawer.vue` began reading
  * views. This is now the only place the sentence exists; `capabilities/views.test.ts` asserts it.
+ *
+ * Step 8.1 removed the `Inactive` branch that used to sit beside this one. It has not been deleted —
+ * it moved to `cardDeactivate.view.ts` word for word, along with the status that reaches it. This
+ * view now has one branch because `lockCardSchema` has one value, and the type says so: `body.status`
+ * is `"Hold"`, so a second branch would be unreachable code rather than a defensive one.
  */
 export const cardLockView = defineView(cardLockContract, {
-  confirmation: (body: CardLockBody) =>
-    body.status === "Inactive"
-      ? {
-          tone: "danger",
-          title: "Deactivate this card?",
-          body:
-            "The card stops working at every location immediately, and deactivating is how a card is retired rather than paused. " +
-            "Fuel purchases will decline until somebody activates it again.",
-          confirmLabel: "Deactivate card",
-          busyLabel: "Deactivating…",
-          doneLabel: "Card deactivated",
-        }
-      : {
-          tone: "danger",
-          title: "Lock this card?",
-          body:
-            "The card stops working at every location immediately. Fuel purchases will decline until you unlock it.",
-          confirmLabel: "Lock card",
-          busyLabel: "Locking…",
-          doneLabel: "Card locked",
-        },
+  confirmation: () => ({
+    tone: "danger",
+    title: "Lock this card?",
+    body:
+      "The card stops working at every location immediately. Fuel purchases will decline until you unlock it.",
+    confirmLabel: "Lock card",
+    busyLabel: "Locking…",
+    doneLabel: "Card locked",
+  }),
 
   /**
    * One row, matching the contract's `diffRows: ["status"]`.

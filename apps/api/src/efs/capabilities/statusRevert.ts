@@ -49,23 +49,36 @@ export interface StatusRevert {
  * guards rather than being restated in each precondition.
  */
 export const statusIsRevertible = (observed: string | null): boolean =>
-  efsStatusEquals(observed, "Active") || EFS_LOCK_STATUSES.some((s) => efsStatusEquals(s, observed));
+  efsStatusEquals(observed, "Active")
+  || efsStatusEquals(observed, "Inactive")
+  || EFS_LOCK_STATUSES.some((s) => efsStatusEquals(s, observed));
 
 /**
  * The capability that restores `observed`, with a body its own schema accepts.
  *
- * Never assume `Active`: a card proved from INACTIVE must go back to INACTIVE. `Active` is the one
- * status `card_lock` may not write (audit P0-3), so it routes through `card_unlock`, whose body
- * carries no status field — which is also why this cannot be expressed as one capability and a
- * status.
+ * Never assume `Active`: a card proved from INACTIVE must go back to INACTIVE. Since Phase 8.1 each
+ * of the three statuses has exactly one capability that writes it, so this is a three-way routing
+ * and not a capability-plus-status — two of the three carry no status field at all, which is what
+ * makes the P0-3 separation structural rather than validated.
+ *
+ * | observed   | restored by       | body            |
+ * |------------|-------------------|-----------------|
+ * | `Active`   | `card_unlock`     | no status field |
+ * | `Inactive` | `card_deactivate` | no status field |
+ * | `Hold`     | `card_lock`       | `status: Hold`  |
+ *
+ * Anything else is refused upstream by `statusIsRevertible`, so the fallthrough is not a guess about
+ * an unknown status — it is the one remaining case.
  */
 export const statusRevert = (snap: Snapshot): StatusRevert => {
   const observed = snap.doc?.card.status ?? null;
   if (efsStatusEquals(observed, "Active")) return { capability: "card_unlock", body: {} };
+  if (efsStatusEquals(observed, "Inactive")) return { capability: "card_deactivate", body: {} };
   return {
     capability: "card_lock",
-    // Falls back to the documented `Inactive` when the read gave us nothing to canonicalise — the
-    // safe direction, and the same default the two behaviours carried before this moved here.
-    body: { status: canonicalEfsStatus(observed) ?? "Inactive" },
+    // Falls back to the documented `Hold` when the read gave us nothing to canonicalise. `Hold` is
+    // now the only status `card_lock` may write, so it is the sole body this branch can produce —
+    // and the reversible one, which is the right way to fail on a card we could not read.
+    body: { status: canonicalEfsStatus(observed) ?? "Hold" },
   };
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { grantOverrideSchema, lockCardSchema, setPromptsSchema, unlockCardSchema } from "./cardControlContract.js";
+import { deactivateCardSchema, grantOverrideSchema, lockCardSchema, setPromptsSchema, unlockCardSchema } from "./cardControlContract.js";
 // The permission vocabulary and the settings shapes moved here in Step 3.7's split. Imported from
 // the module rather than the package index, so this file keeps saying which one owns each symbol.
 import {
@@ -19,17 +19,19 @@ import { canonicalEfsStatus, efsStatusEquals } from "./efsCardCatalog.js";
  * only thing keeping them honest is a test that names them.
  */
 describe("card control scopes — the permission vocabulary", () => {
-  it("keeps the four scopes and their labels in step", () => {
+  it("keeps every scope and its labels in step", () => {
     // Three surfaces read these exact strings: the `scopes` array in 0173, the capability gate, and
     // the settings UI. A scope with no label is a checkbox with no name.
     for (const scope of CARD_CONTROL_SCOPES) {
       expect(CARD_SCOPE_LABELS[scope]).toBeTruthy();
       expect(CARD_SCOPE_DESCRIPTIONS[scope]).toBeTruthy();
     }
-    expect(CARD_CONTROL_SCOPES).toHaveLength(4);
+    // Five since Phase 8.1 added `deactivate`. A count, so a scope added with no label fails here
+    // rather than rendering as an unnamed checkbox on the settings screen.
+    expect(CARD_CONTROL_SCOPES).toHaveLength(5);
   });
 
-  it("recognises only the four", () => {
+  it("recognises only the declared scopes", () => {
     expect(isCardControlScope("override")).toBe(true);
     expect(isCardControlScope("delete_card")).toBe(false);
     expect(isCardControlScope("")).toBe(false);
@@ -98,15 +100,51 @@ describe("lockCardSchema (audit P0-3)", () => {
     expect(lockCardSchema.safeParse({ ...base, status: "Active" }).success).toBe(false);
   });
 
-  it("accepts Hold and Inactive, defaulting to Hold", () => {
+  /**
+   * Narrowed by Step 8.1, and narrowed is the only direction this may ever move.
+   *
+   * `Inactive` used to be accepted here, which made `card_lock` the route to BOTH a pause and a
+   * retirement — recorded under one intent and one audit action, so `CardChangeLog.vue` rendered
+   * "Locked card" for a retirement. That is the audit-mislabelling half of the same P0-3 this
+   * describe block is named for; `card_deactivate` now owns the status, the scope and the label.
+   */
+  it("accepts Hold alone, and defaults to it", () => {
     expect(lockCardSchema.parse({ ...base }).status).toBe("Hold");
-    expect(lockCardSchema.parse({ ...base, status: "Inactive" }).status).toBe("Inactive");
+    expect(lockCardSchema.parse({ ...base, status: "Hold" }).status).toBe("Hold");
+  });
+
+  it("refuses status Inactive — deactivate is the only path that retires a card", () => {
+    // The pair with the `Active` case above: BOTH of the other two writable statuses are now
+    // somebody else's, so this schema can express exactly one thing.
+    expect(lockCardSchema.safeParse({ ...base, status: "Inactive" }).success).toBe(false);
   });
 
   it("refuses Deleted and Fraud outright", () => {
     for (const status of ["Deleted", "Fraud", "HOLD "]) {
       expect(lockCardSchema.safeParse({ ...base, status }).success).toBe(false);
     }
+  });
+});
+
+describe("deactivateCardSchema (Step 8.1)", () => {
+  const base = { expectedVersion: "0123456789abcdef0123456789abcdef" };
+
+  it("carries no status field at all, so no other status is representable", () => {
+    // Not "rejects Active" — there is nothing to reject WITH. A `z.enum(["Inactive"])` would be a
+    // validated constraint; an absent field is an unrepresentable one, and P0-3 happened because a
+    // schema that COULD carry `Active` eventually did.
+    expect(deactivateCardSchema.parse({ ...base })).toEqual({ expectedVersion: base.expectedVersion });
+    for (const status of ["Active", "Hold", "Inactive", "Deleted"]) {
+      // Zod strips what it does not declare, so a caller cannot smuggle one through either.
+      expect(deactivateCardSchema.parse({ ...base, status })).not.toHaveProperty("status");
+    }
+  });
+
+  it("still demands the optimistic-concurrency token", () => {
+    // The one field it does have. Without this the case above would pass on a schema that accepted
+    // literally anything.
+    expect(deactivateCardSchema.safeParse({}).success).toBe(false);
+    expect(deactivateCardSchema.safeParse({ expectedVersion: "too-short" }).success).toBe(false);
   });
 });
 
