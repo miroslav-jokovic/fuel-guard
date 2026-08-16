@@ -8,6 +8,7 @@ import { EfsSoapError, parseSoap, responseResult } from "./efsSoapFaults.js";
 export { EfsSoapError, parseSoap, responseResult, responseValues } from "./efsSoapFaults.js";
 import { classifyTlsError, soapFetch, type SoapPriority } from "./soapClient.js";
 import { BlockedEndpointError } from "./ssrfGuard.js";
+import { signalEfsBreakerOpened } from "./cardControlSignals.js";
 
 /**
  * EFS `CardManagementWS` session handling and fault classification — everything true of *any*
@@ -241,6 +242,13 @@ function recordLoginFailure(env: Env, key: string, error: EfsSoapError): void {
   // Loud on purpose: this also stops transaction ingestion, and nobody should have to infer that from
   // a quiet feed. routes/integrations.ts surfaces it on the settings page via efsSessionDiagnostics.
   console.error(`[efs-soap] login breaker OPEN for ${ms}ms (org ${key.split(":")[0]}): ${error.code} — ${error.message}`);
+  // Step 5.1. The console line above predates this and stays: it carries the breaker window, which
+  // is what an operator reads in the Railway log. The signal is what pages.
+  signalEfsBreakerOpened({
+    orgId: key.split(":")[0] ?? "unknown",
+    reason: `${error.code}: ${error.message}`,
+    openUntilIso: new Date(Date.now() + ms).toISOString(),
+  });
 }
 
 function sessionExpiry(env: Env, now: Date): number {

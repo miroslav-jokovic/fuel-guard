@@ -3,6 +3,7 @@ import { cardLedger, type LedgerAdapter } from "../efs/orchestrator/ledger.js";
 import { planCardMutation } from "../efs/orchestrator/plan.js";
 import type { CardMutationContext, CardMutationOutcome, ResolvedCapability } from "../efs/orchestrator/types.js";
 import { withEfsCardWriteDeadline } from "./efsCardWriteDeadline.js";
+import { signalCardMutationSettled } from "../lib/cardControlSignals.js";
 
 export { CardControlError } from "./efsCardControlErrors.js";
 export { CardMutationReplay } from "../efs/orchestrator/types.js";
@@ -55,8 +56,28 @@ export async function executeCapability<TBody>(
   capability: ResolvedCapability<TBody>,
   ledger: LedgerAdapter = cardLedger(),
 ): Promise<CardMutationOutcome> {
-  return withEfsCardWriteDeadline(ctx.env, async (signal) => {
+  const outcome = await withEfsCardWriteDeadline(ctx.env, async (signal) => {
     const scoped = { ...ctx, signal };
     return applyCardMutation(scoped, await planCardMutation(scoped, capability, ledger), ledger);
   });
+
+  /**
+   * Step 5.1's mutation-outcome signal, emitted HERE and nowhere else.
+   *
+   * The five `finalize*` functions in `efsCardReconcile.ts` each settle the ledger, so instrumenting
+   * settlement would have meant five call sites and five chances to add a sixth without one. This is
+   * the single point where an operation is over AND both facts the signal needs are in scope: the
+   * intent and the capability key live on the descriptor, and neither reaches the reconciler.
+   *
+   * After the deadline wrapper, so a mutation killed by the write deadline throws and is NOT reported
+   * as a settled outcome — it did not settle, and inventing a fifth outcome for it here would put a
+   * number in the dashboard that no ledger row backs.
+   */
+  signalCardMutationSettled({
+    orgId: ctx.orgId,
+    intent: capability.intent,
+    capability: capability.capabilityKey,
+    outcome: outcome.status,
+  });
+  return outcome;
 }

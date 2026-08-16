@@ -9,6 +9,7 @@ import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import { requireFreshAuth } from "../../middleware/requireFreshAuth.js";
 import { decidePromotion, type OrgObservation, type ProofEvidence } from "../../efs/harness/promote.js";
 import { judgeField, observeField } from "../../efs/harness/configScan.js";
+import { signalPromotionStateChanged } from "../../lib/cardControlSignals.js";
 
 /**
  * `POST /api/fuel-cards/promote/:capability` — the only way a capability becomes `enabled` (Step 4.6).
@@ -130,6 +131,12 @@ export function fuelCardPromoteRouter(): Router {
           rowId: (suspendedRow as { id: string } | null)?.id ?? null,
           meta: { capability: capabilityKey, reason },
         });
+        // Step 5.1. A suspension is `warning`, not `info`: somebody believed this capability was
+        // doing harm, which is at least as worth waking up for as enabling it.
+        signalPromotionStateChanged({
+          orgId, capability: capabilityKey, state: "suspended",
+          actorId: req.auth!.userId, environment: "unknown", reason,
+        });
         // No cache anywhere in the gate, so the next card write already sees this.
         res.json({ ok: true, capability: capabilityKey, state: "suspended" });
         return;
@@ -227,6 +234,12 @@ export function fuelCardPromoteRouter(): Router {
           // accepted it, and against which EFS" is the question asked after an incident.
           environment, proofRunBy: (row?.run_by as string | null) ?? null, promotedBy: req.auth!.userId,
         },
+      });
+
+      // Step 5.1. The act that lets code touch a customer's fuel cards does not happen quietly.
+      signalPromotionStateChanged({
+        orgId, capability: capabilityKey, state: "enabled",
+        actorId: req.auth!.userId, environment, reason,
       });
 
       res.json({
