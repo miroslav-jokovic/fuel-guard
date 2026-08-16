@@ -3,6 +3,7 @@
 **Date:** 2026-08-16 · **Written for:** the next Claude Code session
 **Repo:** `miroslav-jokovic/fuel-guard` (PUBLIC) · **Owner:** Miki (product manager, sole decision-maker)
 **`main` at handoff:** `f93221a` · **Migrations applied through 0197**
+*(superseded 2026-08-16: `main` is `e4c68db`, and **0198 is applied** — `migrate.yml` run #139, `supabase migration list --linked` reporting `0198 | 0198` local and remote at 15:11:25Z. See the status update below.)*
 
 Supersedes `docs/34-HANDOFF-PHASE-6.md`, which stays as the Phase 6 record.
 Read this, then `docs/28-EFS-EXECUTION-PLAN.md` §0 and §1, then Phase 7.
