@@ -187,15 +187,6 @@ export function useSetPrompts() {
   });
 }
 
-/** The change history for one card. A read: open to everyone who can view the card. */
-export function useCardMutations(cardId: Ref<string>) {
-  return useQuery({
-    queryKey: computed(() => [...cardsKey, "history", cardId.value] as const),
-    queryFn: (): Promise<{ mutations: CardMutationHistoryRow[] }> =>
-      call(`/api/fuel-cards/${cardId.value}/history`, "GET"),
-    enabled: computed(() => !!cardId.value),
-  });
-}
 
 // ─── Settings (admin) ──────────────────────────────────────────────────────────────────────────
 
@@ -253,6 +244,8 @@ export function useCardControlProbe() {
 // ─── The account-wide change log (Step 6.6) ────────────────────────────────────────────────────
 
 export interface CardMutationLogFilters {
+  /** Narrow to one card — set by the card page's "Change history" deep link. */
+  cardId?: string;
   search?: string;
   from?: string;
   to?: string;

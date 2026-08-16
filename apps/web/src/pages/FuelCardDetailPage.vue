@@ -234,7 +234,8 @@ const facts = computed(() => {
         Miki, 2026-08-16: "audit log section should belong on Audit Log page we have in settings and
         not on this page." A per-card audit table on the operating screen is a second place to look
         for something the Settings page already owns, and it pushed the card's own settings below
-        the fold. `CardMutationHistory.vue` is kept: it is the component that page will render.
+        the fold. The Current card ⋮ carries a "Change history…" link to that tab, filtered to this
+        card, so the question still has one click from here.
       -->
 
       <CardOperationDrawer

@@ -9,7 +9,6 @@ import { searchLocation } from "../../lib/efsLocationSearch.js";
 import { apiError, asyncHandler, dbErrorResponse } from "../../lib/http.js";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { handleMutationLog } from "./mutationLog.js";
-import { toMutationView } from "./mutationView.js";
 import { requireAuth, requireOrg, requireRole } from "../../middleware/auth.js";
 import {
   EFS_CARD_DETAIL_COLS,
@@ -266,26 +265,6 @@ export function fuelCardsRouter(): Router {
    */
   // Step 6.6 — see `mutationLog.ts` for why this is an API route and why it is mounted HERE.
   router.get("/mutations", requireOrg, canView, asyncHandler(handleMutationLog));
-
-  router.get("/:id/history", requireOrg, canView, asyncHandler(async (req, res) => {
-    const { env } = getAppLocals(req);
-    const admin = getSupabaseAdmin(env);
-    const orgId = req.auth!.orgId!;
-    const { data, error } = await admin
-      .from("efs_card_mutations")
-      // Explicit columns: the ledger carries before/after documents and redacted vendor XML, and
-      // neither belongs in a page render. `select("*")` here would ship both.
-      .select("id, intent, status, requested_by, step_up, created_at, completed_at, efs_fault_code, efs_fault_message, drift")
-      .eq("org_id", orgId)
-      .eq("efs_card_id", String(req.params.id))
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) {
-      dbErrorResponse(res, "fuel-cards.history", error, "Could not load the change history");
-      return;
-    }
-    res.json({ mutations: (data ?? []).map(toMutationView) });
-  }));
 
   router.get("/:id", requireOrg, canView, asyncHandler(async (req, res) => {
     const { env } = getAppLocals(req);

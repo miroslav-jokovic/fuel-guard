@@ -48,7 +48,7 @@ export type CardOperationScope = "lock" | "unlock" | "override" | "prompts";
 /** What the drawer knows about the card it is changing. A masked reference, never a PAN. */
 export type OperationCard = CapabilityCardContext["card"];
 
-/** Everything the six operations can collect between them. One object, so the drawer has one dirty check. */
+/** Everything the five operations can collect between them. One object, so the drawer has one dirty check. */
 export interface OperationDraft {
   /** The status the operator has ticked. Seeded from the card, so an untouched draft is a no-op. */
   targetStatus: EfsWritableStatus;
@@ -128,7 +128,6 @@ export const CARD_OPERATIONS: readonly CardOperationSpec[] = [
       ? { key: "card_unlock", scope: "unlock" as const }
       : { key: "card_lock", scope: "lock" as const }),
     body: (draft) => (draft.targetStatus === "Active" ? {} : { status: draft.targetStatus }),
-    blocker: () => null,
   },
   {
     id: "grant",

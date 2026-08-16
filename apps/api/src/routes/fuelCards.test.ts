@@ -17,6 +17,8 @@ import { closeTestServer } from "../testing/httpServer.js";
  */
 
 const ORG = "11111111-1111-1111-1111-111111111111";
+/** A card id shaped like the real thing — the deep link passes a uuid, and the schema demands one. */
+const CARD = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
 
 const CTX: Record<string, AuthContext> = {
   admin: { userId: "u-admin", email: "a@x.test", orgId: ORG, role: "admin" },
@@ -188,6 +190,19 @@ describe("the card change log (Step 6.6)", () => {
       const res = await call(`/api/fuel-cards/mutations?${q}`, "admin");
       expect(res.status, q).toBe(400);
     }
+  });
+
+  /**
+   * The card page's "Change history…" deep link sends this, and until the audit that followed
+   * Phase 6.6 nothing did — the filter existed with no caller, which standing rule 7 forbids. It is
+   * asserted here rather than only in the UI because a filter the API silently ignores looks
+   * identical to one nobody sent.
+   */
+  it("accepts the cardId the card page deep-links with", async () => {
+    reachedHandler(await call(
+      `/api/fuel-cards/mutations?cardId=${CARD}`,
+      "admin",
+    ));
   });
 
   it("accepts the filters the tab actually sends", async () => {
