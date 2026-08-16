@@ -97,9 +97,10 @@ function securityMiddleware(env: Env) {
  *
  * With `EFS_ROUTES_ENABLED=false` the whole prefix answers a routing refusal and the routers below
  * are never reached (this handler terminates; it never calls `next()`). Their mount line is left
- * exactly as it is on purpose — `routeAuth.test.ts` discovers mounts by scanning this file's source,
- * and making that line conditional would hide ten routers from the fitness function that exists to
- * prove they are authenticated.
+ * exactly as it is on purpose — `apps/api/src/routeAuth.test.ts` discovers mounts by scanning this
+ * file's source, and making that line conditional would hide ten routers from the fitness function
+ * that exists to prove they are authenticated, case by case, in
+ * "rejects unauthenticated %s with 401".
  *
  * 503 and not 404: the route is real and the caller is not wrong about it existing, the deployment
  * is wrong about where they sent it. The message names the host that can serve it.

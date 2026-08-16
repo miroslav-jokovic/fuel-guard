@@ -109,8 +109,8 @@ export function skipFuelCardVendorRateLimit(req: Request): boolean {
  * Two consequences of hoisting it, both wanted. An unauthenticated request is refused with a 401
  * WITHOUT spending a slot of a real org's budget. And every router on that prefix keeps its own
  * `router.use(requireAuth)` — all ten were checked one by one before the hoist — so this ADDS a check
- * rather than moving one: each router stays safe to mount anywhere, and `routeAuth.test.ts` still
- * discovers them.
+ * rather than moving one: each router stays safe to mount anywhere, and
+ * `apps/api/src/routeAuth.test.ts` still discovers them.
  *
  * An authenticated user with no org yet gets their own bucket rather than a shared one. They cannot
  * reach EFS — `requireOrg` answers 403 inside every fuel-card router — but this module resolves
