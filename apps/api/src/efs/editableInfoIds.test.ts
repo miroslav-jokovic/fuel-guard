@@ -52,7 +52,12 @@ describe("the editable prompt set, against the accounts it will be used on", () 
   it("offers nothing the vendor's own Info IDs table defines no meaning for", () => {
     // 15 codes on production and 16 on QA are absent from the guide's table (p168-169): DSCD, DMLC,
     // LSNB, CUNB, VHTP, PDLN, CLCD, VHNB, CVNM, LCCD, PLDS, SPLN, SLDS, CVNB, CARR, and QA's VEHN.
-    for (const id of resolveEditableInfoIds(PRODUCTION)) expect(EFS_INFO_LABELS[id]).toBeTruthy();
+    // A NON-EMPTY string, not merely truthy: a label of "" would render as a blank option in the
+    // prompt editor, which is the same defect as an undocumented id wearing a different disguise.
+    for (const id of resolveEditableInfoIds(PRODUCTION)) {
+      expect(EFS_INFO_LABELS[id]).toEqual(expect.any(String));
+      expect((EFS_INFO_LABELS[id] ?? "").length).toBeGreaterThan(0);
+    }
     expect(PRODUCTION).toContain("CARR"); // the account really does offer it…
     expect(resolveEditableInfoIds(PRODUCTION)).not.toContain("CARR"); // …and we really do not.
   });

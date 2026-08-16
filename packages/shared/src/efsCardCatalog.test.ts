@@ -60,8 +60,8 @@ describe("resolveEditableInfoIds", () => {
   });
 
   it("denies PPIN even when the account offers it", () => {
-    expect(EFS_INFO_LABELS.PPIN).toBeTruthy(); // the guide DOES define it — this is our refusal
-    expect(EFS_UNEDITABLE_INFO_IDS).toContain("PPIN");
+    expect(EFS_INFO_LABELS.PPIN).toBe("Personal identifier"); // the guide DOES define it (p169)…
+    expect(EFS_UNEDITABLE_INFO_IDS).toContain("PPIN"); // …so this exclusion is ours, not the vendor's
     expect(resolveEditableInfoIds(["ODRD", "PPIN"])).toEqual(["ODRD"]);
   });
 
