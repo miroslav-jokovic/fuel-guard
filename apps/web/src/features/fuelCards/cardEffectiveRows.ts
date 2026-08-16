@@ -123,6 +123,19 @@ export function limitRows(rows: readonly Merged<RawLimit>[]): EffectiveDisplayRo
 }
 
 /**
+ * How many blocked locations to draw before summarising the rest.
+ *
+ * ⚠ MEASURED, not guessed. The 2026-08-16 production inventory found **7,948 blocked locations on
+ * policy 1** (`docs/25` — "7,948 blocked locations, and the defect it found in today's code"). The
+ * QA account has none, and no fixture had more than a handful, which is why this shipped uncapped in
+ * the first place. The first version of `locationRows` rendered one row per entry with no
+ * cap, so a card carrying that blocklist would have put eight thousand rows into a `DataTable` on
+ * the card page. A blocklist is a set an operator checks membership of, never a list they read, so
+ * the rows past this point cost a hung browser and buy nothing.
+ */
+const MAX_BLOCKED_ROWS = 25;
+
+/**
  * Where this card may and may not fuel (Step 7.4).
  *
  * Both halves have been parsed since Phase 1 and reached no surface. They are NOT symmetrical and
@@ -130,17 +143,6 @@ export function limitRows(rows: readonly Merged<RawLimit>[]): EffectiveDisplayRo
  * **blocklist** — "a list of locations that this card is BLOCKED from using" (p36). A single
  * "Locations" table listing both would be read as one meaning and be wrong for half its rows.
  */
-/**
- * How many blocked locations to draw before summarising the rest.
- *
- * ⚠ MEASURED, not guessed. The 2026-08-16 production inventory found **7,948 blocked locations on
- * policy 1** (`docs/22` H14). The first version of this function rendered one row per entry with no
- * cap, so a card carrying that blocklist would have put eight thousand rows into a `DataTable` on
- * the card page. A blocklist is a set an operator checks membership of, never a list they read, so
- * the rows past this point cost a hung browser and buy nothing.
- */
-const MAX_BLOCKED_ROWS = 25;
-
 export function locationRows(
   groups: readonly string[],
   blocked: readonly string[],
