@@ -254,3 +254,84 @@ function routeTable(router: Router): Array<{ method: string; path: string }> {
     }));
   });
 }
+
+/**
+ * Step 5.10 — a route that cannot succeed should not exist rather than fail politely.
+ *
+ * `fleetguardweb` runs a full copy of this API and its egress is refused by WEX's firewall, so every
+ * fuel-card route there failed as a vendor `NotAllowed` — an answer that reads like an entitlement
+ * problem with the ACCOUNT rather than a request that arrived at the wrong host. `deploy-verify`
+ * meanwhile polled only the API host and reported success while the web host was two commits behind.
+ */
+describe("a host that cannot reach EFS refuses fuel-card routes outright", () => {
+  async function openWebHost(): Promise<{ baseUrl: string; server: Server }> {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const app = createApp(loadEnv({ NODE_ENV: "test", EFS_ROUTES_ENABLED: "false" } as NodeJS.ProcessEnv));
+    app.locals.verifyToken = async (): Promise<AuthContext> => CTX;
+    const server = await new Promise<Server>((resolve) => {
+      const instance = app.listen(0, () => resolve(instance));
+    });
+    return { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, server };
+  }
+
+  it("answers a routing refusal, not a vendor error, and names the host that can serve it", async () => {
+    const { baseUrl, server } = await openWebHost();
+    try {
+      const response = await fetch(`${baseUrl}${CHARGED.path}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = (await response.json()) as { error: { code: string; message: string } };
+
+      // 503, not 404: the route is real and the caller is not wrong that it exists — the deployment
+      // is wrong about where they sent it.
+      expect(response.status).toBe(503);
+      expect(body.error.code).toBe("efs_routes_not_served_here");
+      expect(body.error.message).toMatch(/API host/);
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("refuses reads on the prefix too — the whole prefix moves, not just the writes", async () => {
+    const { baseUrl, server } = await openWebHost();
+    try {
+      const response = await fetch(`${baseUrl}/api/fuel-cards/settings`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      });
+      expect(response.status).toBe(503);
+      await response.arrayBuffer();
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("leaves every other API prefix alone", async () => {
+    const { baseUrl, server } = await openWebHost();
+    try {
+      // /api/version is public and unrelated. If the refusal were mounted too broadly this is what
+      // would notice — a whole deployment answering 503 to everything would still pass the two cases
+      // above.
+      const response = await fetch(`${baseUrl}/api/version`);
+      expect(response.status).toBe(200);
+      await response.arrayBuffer();
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+
+  it("serves the routes normally when the flag is left at its default", async () => {
+    // The default has to be the API host's behaviour: a forgotten variable must degrade to "card
+    // control works" rather than to a silent total outage that every gate reports as healthy.
+    expect(loadEnv({ NODE_ENV: "test" } as NodeJS.ProcessEnv).EFS_ROUTES_ENABLED).toBe(true);
+
+    const { baseUrl, server } = await openServer();
+    try {
+      const status = await call(baseUrl, "/api/fuel-cards/settings", "GET");
+      expect(status).not.toBe(503);
+    } finally {
+      await closeTestServer(server);
+    }
+  });
+});
