@@ -9,8 +9,11 @@ import { childElements, localName, type XmlElement } from "./efsXml.js";
  * the exception that rule names: a PIN that two independent derivations check against, in the same
  * arrangement as `CAPABILITIES_WITH_STEP_UP_GATE`. Neither side owns the list.
  *
- *   1. `efsCardFields.test.ts` derives the vendor's DECLARED fields from the checked-in WSDL and
- *      asserts every one of them is pinned here. That catches a field EFS documents and we ignore.
+ *   1. `efsCardFields.test.ts` → "every field the WSDL declares on a card is modelled" derives the
+ *      vendor's DECLARED fields from the checked-in WSDL and asserts every one is pinned here. That
+ *      catches a field EFS documents and we ignore. Its mirror image,
+ *      `efsCardFields.test.ts` → "pins nothing the WSDL does not declare", catches the typo that
+ *      would make the first one vacuously green.
  *   2. `unmodelledCardFields()` derives the fields a REAL document actually carries and reports any
  *      that are not pinned. That catches a field EFS sends without declaring — which this account
  *      has already done twice, with a `status` outside the documented enum and an unrecognised
