@@ -71,13 +71,16 @@ export const PROMPT_REMOVAL_STEP_UP = "Confirm your password to remove a prompt.
 /**
  * WHICH capabilities have a step-up gate at all — the pin two independent derivations check against.
  *
- * A hand-written list, and deliberately so, for the same reason `registry.test.ts`'s `EXPECTED_KEYS`
- * is: it is the thing being compared, not a shortcut around comparing. What makes it safe is that
- * NEITHER side owns it. `apps/api` cannot import `apps/web`, so no single test can pair a behaviour's
- * gate with a view's warning; instead each side derives its own set from its own registry and
- * asserts equality with this one. Adding a gate to a behaviour without teaching the view to warn
- * turns the API's fitness test red; teaching the view without the gate turns the web's red. Either
- * way somebody has to come here and say what they meant.
+ * A hand-written list, and deliberately so, for the same reason the API fitness test's
+ * `EXPECTED_KEYS` is: it is the thing being compared, not a shortcut around comparing. What makes it
+ * safe is that NEITHER side owns it. `apps/api` cannot import `apps/web`, so no single test can pair
+ * a behaviour's gate with a view's warning; instead each side derives its own set from its own
+ * registry and asserts equality with this one.
+ *
+ * Both halves: `apps/api/src/efs/registry.test.ts` derives from the behaviours' governance hooks,
+ * and `apps/web/src/features/fuelCards/capabilities/registry.test.ts` from the view registry. Adding
+ * a gate to a behaviour without teaching the view to warn turns the web's red; teaching the view
+ * without the gate turns the API's red. Either way somebody has to come here and say what they meant.
  *
  * `card_lock` is absent and that is an assertion: locking is the 2am safety action, friction there
  * has a cost measured in stolen fuel, and it must never demand a password.

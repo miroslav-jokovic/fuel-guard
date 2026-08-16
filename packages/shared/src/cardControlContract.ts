@@ -219,7 +219,12 @@ export type EfsCardSummary = z.infer<typeof efsCardSummarySchema>;
  * depends on the org's write entitlement, the deploy kill switch and the approver list, none of which
  * the browser can see.
  */
-export { cardCapabilitiesSchema, type CardCapabilities } from "./cardCapabilitiesContract.js";
+export {
+  cardBlockedBySchema,
+  cardCapabilitiesSchema,
+  type CardBlockedBy,
+  type CardCapabilities,
+} from "./cardCapabilitiesContract.js";
 
 // ─── Write requests (one per intent) ───────────────────────────────────────────────────────────
 

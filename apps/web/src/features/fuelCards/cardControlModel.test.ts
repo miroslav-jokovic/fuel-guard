@@ -20,9 +20,12 @@ import {
   timeRows,
 } from "./cardControlModel.js";
 
+// `availability()` answers from the ACCOUNT-level facts only, so the per-capability map is empty
+// here on purpose rather than mirrored from `blockedBy` — a fixture that agreed with itself by
+// construction would hide a reader that had started using the wrong one of the two.
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   canLock: false, canUnlock: false, canOverride: false, canSetPrompts: false,
-  writeEntitlement: "unknown", blockedBy: null, ...over,
+  writeEntitlement: "unknown", blockedBy: null, capabilityStates: {}, environment: null, ...over,
 });
 
 describe("card status", () => {

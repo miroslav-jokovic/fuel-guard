@@ -67,7 +67,7 @@ vi.mock("@/components/StepUpPrompt.vue", () => ({
 
 const caps = (over: Partial<CardCapabilities> = {}): CardCapabilities => ({
   canLock: true, canUnlock: true, canOverride: true, canSetPrompts: true,
-  writeEntitlement: "confirmed", blockedBy: null, ...over,
+  writeEntitlement: "confirmed", blockedBy: null, capabilityStates: {}, environment: null, ...over,
 });
 
 const wrappers: VueWrapper[] = [];

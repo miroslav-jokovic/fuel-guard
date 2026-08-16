@@ -19,12 +19,23 @@ const baseIdentity = {
 function accessRecorder(
   probedIdentityHash: string | null,
   current: Partial<typeof baseIdentity> = {},
-  /** The promotion row the Step 4.2 gate reads. `undefined` models a row that does not exist. */
-  promotion?: { state: string } | { error: string },
+  /**
+   * The promotion rows the Step 4.2 gate reads, keyed by capability. A key that is absent models a
+   * capability nobody has promoted; `{ error }` models a table that cannot be read at all.
+   *
+   * A MAP, and an array on the wire, since Step 6.1 made this one query for every capability rather
+   * than one lookup per named key. A fixture that still returned a bare row would have let the
+   * production code's `.map` throw and no test would have said which line did it.
+   */
+  promotion?: Record<string, string> | { error: string },
+  environment = "sandbox",
 ) {
   const promotionTable = promotion && "error" in promotion
     ? { data: null, error: { message: promotion.error } }
-    : { data: promotion ?? null, error: null };
+    : {
+        data: Object.entries(promotion ?? {}).map(([capability_key, state]) => ({ capability_key, state })),
+        error: null,
+      };
   return createSupabaseRecorder({
     tables: {
       efs_capability_promotions: promotionTable,
@@ -43,6 +54,7 @@ function accessRecorder(
           endpoint_url: current.endpointUrl ?? baseIdentity.endpointUrl,
           soap_username: current.soapUsername ?? baseIdentity.soapUsername,
           account_id: current.accountId ?? baseIdentity.accountId,
+          environment,
         },
         error: null,
       },
@@ -175,7 +187,7 @@ describe("the promotion gate (Step 4.2)", () => {
   });
 
   it("refuses a suspended capability even when write_entitlement is confirmed", async () => {
-    const rec = accessRecorder(identity(), {}, { state: "suspended" });
+    const rec = accessRecorder(identity(), {}, { card_lock: "suspended" });
 
     const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin", "card_lock");
 
@@ -185,7 +197,7 @@ describe("the promotion gate (Step 4.2)", () => {
   });
 
   it("allows a promoted capability", async () => {
-    const rec = accessRecorder(identity(), {}, { state: "enabled" });
+    const rec = accessRecorder(identity(), {}, { card_lock: "enabled" });
 
     const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin", "card_lock");
 
@@ -195,15 +207,25 @@ describe("the promotion gate (Step 4.2)", () => {
     expect(access.canLock).toBe(true);
   });
 
-  it("does not consult the promotion table at all for a read — no capability named", async () => {
-    // The read paths render what a user could do in general. Making them answer for a capability
-    // nobody named would blank the whole card-control UI the moment one capability were suspended.
-    const rec = accessRecorder(identity(), {}, undefined);
+  /**
+   * Rewritten in Step 6.1, and the property it defends is unchanged.
+   *
+   * It used to assert the read path never READ the promotion table. That was the mechanism, not the
+   * point: the point is that a read must not be blanked by one capability's state, which is why
+   * `loadCardControlAccess` takes `capabilityKey` optionally at all. The read now does consult the
+   * table — `capabilityStates` is built from it — so the assertion moves to the property itself, and
+   * gains the half it could not previously make: that the suspension is REPORTED rather than merely
+   * survived.
+   */
+  it("never blanks a read because one capability is suspended — it reports it per capability", async () => {
+    const rec = accessRecorder(identity(), {}, { card_lock: "enabled", override_grant: "suspended" });
 
     const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin");
 
     expect(access.blockedBy).toBeNull();
     expect(access.canLock).toBe(true);
+    expect(access.capabilityStates.card_lock).toBeNull();
+    expect(access.capabilityStates.override_grant).toBe("capability_suspended");
   });
 
   it("FAILS CLOSED when the promotion table cannot be read", async () => {
@@ -215,5 +237,152 @@ describe("the promotion gate (Step 4.2)", () => {
     // silently opens every capability at once.
     expect(access.blockedBy).toBe("not_promoted");
     expect(access.canLock).toBe(false);
+  });
+
+  /**
+   * The trap this batch rewrite very nearly shipped.
+   *
+   * An ENABLED capability's entry in the map is `null`, so the ordinary fail-closed idiom —
+   * `promotions[key] ?? "not_promoted"` — refuses every capability anybody has promoted, while all
+   * three refusal cases above stay green. The gate would have looked thoroughly tested and worked
+   * for nobody. `allows a promoted capability` covers `card_lock`; this covers the rest, so a
+   * regression cannot hide behind the one key the other cases happen to name.
+   */
+  it("allows EVERY promoted capability, not only the one the other cases name", async () => {
+    for (const key of ["card_unlock", "override_grant", "override_clear", "prompts_set"]) {
+      const rec = accessRecorder(identity(), {}, { [key]: "enabled" });
+
+      const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin", key);
+
+      expect(access.blockedBy, `${key} blockedBy`).toBeNull();
+      expect(access.capabilityStates[key], `${key} state`).toBeNull();
+    }
+  });
+
+  it("refuses a capability key the registry does not carry", async () => {
+    // Not a hypothetical shape: the key arrives from the mounted route table, and a capability this
+    // service has no promotion record for must refuse rather than sail past the gate.
+    const rec = accessRecorder(identity(), {}, { card_lock: "enabled" });
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin", "card_teleport");
+
+    expect(access.blockedBy).toBe("not_promoted");
+  });
+});
+
+describe("what the drawer renders one button from (Step 6.1)", () => {
+  const identity = () => credentialIdentityHash(env, baseIdentity);
+  const allEnabled = {
+    card_lock: "enabled", card_unlock: "enabled", override_grant: "enabled",
+    override_clear: "enabled", delete_override: "enabled", prompts_set: "enabled",
+  };
+
+  it("reports an account-level refusal against every capability, so each button can explain itself", async () => {
+    // The kill switch blocks all six. A drawer that knew only `blockedBy` would have to render a
+    // page-level banner and leave the operator to work out whether it covered the button in front
+    // of them; `capabilityStates` lets the same sentence sit on the operation they are looking at.
+    const rec = accessRecorder(identity(), {}, allEnabled);
+
+    const access = await loadCardControlAccess(
+      rec.client, testEnv({ EFS_CARD_CONTROL_ENABLED: false }), "org-1", "user-1", "admin",
+    );
+
+    expect(access.blockedBy).toBe("kill_switch");
+    expect(Object.values(access.capabilityStates)).not.toHaveLength(0);
+    for (const [key, state] of Object.entries(access.capabilityStates)) {
+      expect(state, `${key} state`).toBe("kill_switch");
+    }
+  });
+
+  /**
+   * Promotion before scope, deliberately: "nobody here is approved for this action" and "you
+   * personally are not on the list" send two different people to two different places, and reporting
+   * the personal one first sends an approver hunting permissions that would not have helped.
+   */
+  it("blames the promotion, not the person, when both would block", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        efs_capability_promotions: {
+          data: [{ capability_key: "card_lock", state: "suspended" }],
+          error: null,
+        },
+        efs_card_control_settings: {
+          data: {
+            enabled: true, write_entitlement: "confirmed", require_approver: true,
+            probed_identity_hash: identity(),
+          },
+          error: null,
+        },
+        efs_card_control_approvers: { data: { scopes: ["unlock"] }, error: null },
+        efs_soap_credentials: {
+          data: {
+            enabled: true, endpoint_url: baseIdentity.endpointUrl,
+            soap_username: baseIdentity.soapUsername, account_id: baseIdentity.accountId,
+            environment: "production",
+          },
+          error: null,
+        },
+      },
+    });
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin");
+
+    // This user holds `unlock` only, so `card_lock` is suspended AND out of their scope. The
+    // suspension is the answer: `not_approver` here would send them to ask for a permission that
+    // would not have let them lock the card either.
+    expect(access.capabilityStates.card_lock).toBe("capability_suspended");
+  });
+
+  it("names the scope the operator is missing when the capability itself is fine", async () => {
+    const rec = createSupabaseRecorder({
+      tables: {
+        efs_capability_promotions: {
+          data: Object.entries(allEnabled).map(([capability_key, state]) => ({ capability_key, state })),
+          error: null,
+        },
+        efs_card_control_settings: {
+          data: {
+            enabled: true, write_entitlement: "confirmed", require_approver: true,
+            probed_identity_hash: identity(),
+          },
+          error: null,
+        },
+        efs_card_control_approvers: { data: { scopes: ["unlock"] }, error: null },
+        efs_soap_credentials: {
+          data: {
+            enabled: true, endpoint_url: baseIdentity.endpointUrl,
+            soap_username: baseIdentity.soapUsername, account_id: baseIdentity.accountId,
+            environment: "production",
+          },
+          error: null,
+        },
+      },
+    });
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin");
+
+    expect(access.capabilityStates.card_unlock).toBeNull();
+    expect(access.capabilityStates.card_lock).toBe("not_approver");
+    expect(access.capabilityStates.override_grant).toBe("not_approver");
+  });
+
+  it("carries the environment, which is what tells an operator the card is real", async () => {
+    const rec = accessRecorder(identity(), {}, allEnabled, "production");
+
+    const access = await loadCardControlAccess(rec.client, env, "org-1", "user-1", "admin");
+
+    expect(access.environment).toBe("production");
+  });
+
+  it("says nothing about the environment when the deploy is switched off before reading one", async () => {
+    // Null is not "production". A kill-switched deploy never reaches the credential row, and
+    // guessing here would put a confident badge on a screen that consulted nothing.
+    const rec = accessRecorder(identity(), {}, allEnabled, "production");
+
+    const access = await loadCardControlAccess(
+      rec.client, testEnv({ EFS_CARD_CONTROL_ENABLED: false }), "org-1", "user-1", "admin",
+    );
+
+    expect(access.environment).toBeNull();
   });
 });

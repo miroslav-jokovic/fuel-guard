@@ -10,6 +10,7 @@ import { seal, secretAad } from "../lib/secretBox.js";
 import { credentialIdentityHash } from "../services/efsSoapCredentialIdentity.js";
 import { parseCardDocument } from "../lib/efsCardXml.js";
 import { createSupabaseRecorder } from "../testing/supabaseRecorder.js";
+import { promotedCapabilitiesTable } from "../testing/promotionFixture.js";
 import { closeTestServer } from "../testing/httpServer.js";
 
 /**
@@ -99,7 +100,7 @@ function seededClient(): ReturnType<typeof createSupabaseRecorder> {
        * Without it every write below refuses `not_promoted` — which is the gate working, and exactly
        * why the plan insists the backfill ship in the same change as the gate.
        */
-      efs_capability_promotions: { data: { state: "enabled" }, error: null },
+      efs_capability_promotions: promotedCapabilitiesTable(),
       efs_card_control_settings: {
         data: {
           org_id: ORG,
