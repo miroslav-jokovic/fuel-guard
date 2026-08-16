@@ -198,6 +198,22 @@ export const operationById = (id: CardOperationId): CardOperationSpec | null =>
   CARD_OPERATIONS.find((op) => op.id === id) ?? null;
 
 /**
+ * The link that opens one operation on one card — the ONLY place `?action=` is spelled.
+ *
+ * Three surfaces link here (the list page's kebab, the active-exceptions panel, the effective-config
+ * table) and `FuelCardDetailPage.vue` parses it back through `operationFromQuery`. A hand-written
+ * query string in any of them fails silently: the card page opens with no drawer, which reads as a
+ * slow page rather than a broken link. One builder and one parser mean the only way to write an
+ * unresolvable link is to pass a spec that does not exist, which the type system already refuses.
+ */
+export const operationLink = (cardId: string, operation: CardOperationSpec): string =>
+  `/fuel-cards/${cardId}?action=${operation.id}`;
+
+/** The other half, for a link somebody arrived on. Null for an id nobody declared. */
+export const operationFromQuery = (action: unknown): CardOperationSpec | null =>
+  (typeof action === "string" ? operationById(action as CardOperationId) : null);
+
+/**
  * The `ui` block the contract declares — title, verb and tone, shared with the API's router and the
  * config scanner. The drawer's header reads it so a capability cannot be titled two different things
  * in two places.

@@ -24,6 +24,7 @@ import {
   sourceSentence,
   timeRows,
 } from "./cardControlModel";
+import { operationById, operationLink } from "./cardOperations";
 import type { EfsCardDetailResponse } from "./useEfsCards";
 
 const props = defineProps<{
@@ -33,6 +34,9 @@ const props = defineProps<{
   cardId?: string;
   canEditPrompts?: boolean;
 }>();
+
+/** Non-null by construction — `operationById` is exhaustive over `CARD_OPERATIONS`. */
+const promptsOperation = operationById("prompts")!;
 
 const columns: DataTableColumn[] = [
   { key: "label", label: "Setting", headerClass: "min-w-[12rem]", cellClass: "font-medium text-ink" },
@@ -54,7 +58,7 @@ const sections = computed(() => [
      * restriction has no capability behind it yet, and a policy-level row is not editable here at
      * all (card level always trumps policy, guide p37, but the policy is changed in the WEX portal).
      */
-    editAction: props.canEditPrompts && props.cardId ? `/fuel-cards/${props.cardId}?action=prompts` : null,
+    editAction: props.canEditPrompts && props.cardId ? operationLink(props.cardId, promptsOperation) : null,
   },
   {
     id: "limits",

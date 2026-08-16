@@ -28,6 +28,7 @@ import {
   blockedSentence,
   operationBlockedBy,
   operationById,
+  operationFromQuery,
   toOperationCard,
 } from "@/features/fuelCards/cardOperations";
 import { useEfsCard } from "@/features/fuelCards/useEfsCards";
@@ -95,7 +96,7 @@ const actionGroups = computed(() => {
  */
 watch([() => route.query.action, card], ([action, loaded]) => {
   if (!loaded || openOperation.value) return;
-  const spec = typeof action === "string" ? operationById(action as never) : null;
+  const spec = operationFromQuery(action);
   if (spec && spec.applies(toOperationCard(loaded))) openOperation.value = spec;
 }, { immediate: true });
 

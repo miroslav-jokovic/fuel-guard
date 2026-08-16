@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { BADGE_BASE, toneClass } from "@/lib/badges";
 import { activeOverrides } from "./cardControlModel";
+import { operationById, operationLink } from "./cardOperations";
 import { cardIdentityLabel } from "./cardIdentityLabel";
 import { useEfsCards } from "./useEfsCards";
 
@@ -38,6 +39,9 @@ const identity = cardIdentityLabel;
 const query = useEfsCards({ search: ref(""), status: ref("") });
 
 const rows = computed(() => activeOverrides(query.data.value?.cards ?? []));
+
+/** Non-null by construction — `operationById` is exhaustive over `CARD_OPERATIONS`. */
+const clearOperation = operationById("clear")!;
 
 /** Loaded once ever — after that, cached data keeps rendering through background refetches. */
 const loaded = computed(() => query.data.value !== undefined);
@@ -79,7 +83,7 @@ const loaded = computed(() => query.data.value !== undefined);
         </RouterLink>
         <!-- Opens the drawer on the card, with its confirmation and its diff. Not a one-click clear. -->
         <RouterLink
-          :to="`/fuel-cards/${row.id}?action=clear`"
+          :to="operationLink(row.id, clearOperation)"
           class="shrink-0 text-sm font-medium text-brand-700 hover:underline"
         >
           Remove exception…

@@ -17,7 +17,7 @@ import { cardAssignmentRank, cardStatusLabel, cardStatusTone, compareCardValues,
 import { useJob } from "@/features/jobs/useJob";
 import ActiveOverridesPanel from "@/features/fuelCards/ActiveOverridesPanel.vue";
 import KebabMenu from "@/components/KebabMenu.vue";
-import { CARD_OPERATIONS, operationBlockedBy, toOperationCard } from "@/features/fuelCards/cardOperations";
+import { CARD_OPERATIONS, operationBlockedBy, operationLink, toOperationCard } from "@/features/fuelCards/cardOperations";
 import { useEfsCards, type EfsCardRow } from "@/features/fuelCards/useEfsCards";
 
 const PAGE_SIZE = 20;
@@ -362,7 +362,7 @@ function clearAll(): void {
             v-for="op in rowOperations(row as EfsCardRow)"
             :key="op.id"
             class="kebab-item"
-            :to="`/fuel-cards/${(row as EfsCardRow).id}?action=${op.id}`"
+            :to="operationLink((row as EfsCardRow).id, op)"
           >
             {{ op.menuLabel }}
           </RouterLink>
