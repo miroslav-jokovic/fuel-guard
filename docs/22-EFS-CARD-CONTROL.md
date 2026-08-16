@@ -431,8 +431,21 @@ XML.
 | `card.drift_detected` | something moved that no edit named | the field paths |
 | `integration.efs_soap.card_control_probed` | the write check runs | entitlement, verdict, per-step outcomes, card last four |
 
-Every mutation also carries `stepUp` — whether the person re-authenticated — and a required `reason`,
-3 to 200 characters, on the ledger row and in the audit meta.
+Every mutation also carries `stepUp` — whether the person re-authenticated — and a `reason` on the
+ledger row and in the audit meta.
+
+**`reason` is per capability, and this paragraph used to say otherwise** *(corrected 2026-08-16,
+plan Step 6.2)*. Product decision B1 (2026-08-12) made it optional API-wide: nobody should be
+stranded at a pump at 2am because a dispatcher had to type a sentence to lock a stolen card. Step
+3.5 then made it a property of the contract — `ReasonRule` — rather than one rule for everything:
+
+| `reason: "required"` | `reason: "optional"` |
+|---|---|
+| `override_grant`, `prompts_set` | `card_lock`, `card_unlock`, `override_clear`, `delete_override` |
+
+The bound is unchanged where a reason IS given: 3 to 200 characters, the same range
+`efs_card_mutations.reason` enforces. The drawer reads the contract rather than assuming either way,
+so this table cannot drift from what the API accepts without `registry.test.ts` noticing.
 
 ### Phase C stays out of scope
 
