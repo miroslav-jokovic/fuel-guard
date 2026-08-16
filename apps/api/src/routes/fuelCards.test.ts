@@ -150,9 +150,50 @@ describe("route ordering", () => {
   it("does not let /:id swallow the fixed paths", async () => {
     // `/locations`, `/policies/:n` and `/sync` are declared before `/:id`. If that ever regresses,
     // "locations" is read as a card id and this returns 404 instead of reaching the search handler.
-    for (const path of ["/locations?state=IL", "/policies/14"]) {
+    for (const path of ["/locations?state=IL", "/policies/14", "/mutations"]) {
       const res = await call(`/api/fuel-cards${path}`, "admin");
       expect(res.status).not.toBe(404);
     }
+  });
+
+  /**
+   * Step 6.6, and the reason `/mutations` is registered before `/:id`.
+   *
+   * A 404 is the WRONG assertion on its own for this one: `/:id` also 404s for a card that is not in
+   * the org, so a swallowed `/mutations` and a genuinely missing card look identical from outside.
+   * What separates them is that `/:id` validates nothing and `/mutations` validates its filters — so
+   * a malformed filter must earn a 400. If `/:id` ever wins the match, `?from=nonsense` is ignored
+   * as an unknown query param on a card lookup and this goes green-adjacent instead.
+   */
+  it("routes /mutations to the log handler, not to /:id as a card called mutations", async () => {
+    const res = await call("/api/fuel-cards/mutations?from=not-a-date", "admin");
+    expect(res.status).toBe(400);
+    expect((await errorBody(res)).error.code).toBe("invalid_request");
+  });
+});
+
+describe("the card change log (Step 6.6)", () => {
+  it("refuses a driver, like every other fuel read", async () => {
+    // A driver reading the account's card-change history is reading a fraud-detection surface about
+    // themselves — the same reason they cannot list cards.
+    expect((await call("/api/fuel-cards/mutations", "driver")).status).toBe(403);
+  });
+
+  it("lets an auditor through — this is the surface they exist for", async () => {
+    reachedHandler(await call("/api/fuel-cards/mutations", "auditor"));
+  });
+
+  it("validates every filter it accepts, rather than ignoring what it cannot parse", async () => {
+    for (const q of ["from=16-08-2026", "to=nope", "cardId=not-a-uuid", "limit=5000", "offset=-1"]) {
+      const res = await call(`/api/fuel-cards/mutations?${q}`, "admin");
+      expect(res.status, q).toBe(400);
+    }
+  });
+
+  it("accepts the filters the tab actually sends", async () => {
+    reachedHandler(await call(
+      "/api/fuel-cards/mutations?search=7671&from=2026-08-01&to=2026-08-16&limit=25&offset=0",
+      "admin",
+    ));
   });
 });

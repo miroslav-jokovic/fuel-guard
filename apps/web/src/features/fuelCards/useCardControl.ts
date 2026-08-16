@@ -249,3 +249,45 @@ export function useCardControlProbe() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: cardsKey }),
   });
 }
+
+// ─── The account-wide change log (Step 6.6) ────────────────────────────────────────────────────
+
+export interface CardMutationLogFilters {
+  search?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface CardMutationLogRow extends CardMutationHistoryRow {
+  cardId: string | null;
+  maskedRef: string;
+  unitPrompt: string | null;
+  driverName: string | null;
+}
+
+/**
+ * Every card change on the account, filtered — the Audit Log page's "Card changes" tab.
+ *
+ * Goes through the API rather than Supabase, unlike the Activity tab beside it. That is not a style
+ * choice: `efs_card_mutations` has RLS enabled and no policy, so a browser query returns an empty
+ * list rather than an error, and the tab would look like a card nobody had ever changed.
+ */
+export function useCardMutationLog(
+  filters: Ref<CardMutationLogFilters>,
+  page: Ref<number>,
+  pageSize: number,
+) {
+  return useQuery({
+    queryKey: computed(() => [...cardsKey, "mutation-log", filters.value, page.value] as const),
+    queryFn: (): Promise<{ mutations: CardMutationLogRow[]; total: number }> => {
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String((page.value - 1) * pageSize),
+      });
+      for (const [key, value] of Object.entries(filters.value)) {
+        if (value) params.set(key, value);
+      }
+      return call(`/api/fuel-cards/mutations?${params.toString()}`, "GET");
+    },
+  });
+}

@@ -1314,6 +1314,80 @@ workflow; it is complete for the card page.
 
 ---
 
+## Phase 6.6 — Card changes on the Audit Log page *(opened 2026-08-16 by Miki)*
+
+Step 6.5.5 took the per-card history off the card page and left the question homeless: the exit gate
+recorded that Settings could not answer *"what changed on THIS card"*. This closes it.
+
+> Miki, 2026-08-16: *"Card logs on audit log page should be on separate tab and filtering and
+> searching should be by card and date same pattern we are using on all other pages."*
+
+### Step 6.6.1 — The endpoint
+**Files:** `apps/api/src/routes/fuelCards/read.ts`.
+**Change:** `GET /api/fuel-cards/mutations` — org-wide, `canView`, filtered by card and date.
+
+Two facts decide the shape, and neither is a preference:
+
+1. **It cannot be a direct Supabase read.** `AuditPage.vue` queries `audit_logs` from the browser
+   under RLS, and the obvious move is to copy that. **`efs_card_mutations` has RLS enabled and NO
+   POLICY** (migration 0177) — deny-by-default, deliberately, because the ledger carries
+   `before_document`, `after_document` and redacted vendor XML and the API is its only reader. A
+   client query returns nothing, silently. So this is an API route with the same explicit column
+   list `/:id/history` already uses.
+2. **⚠️ Route ORDER matters.** `/:id` is registered in this router. A literal `/mutations` mounted
+   after it is swallowed as `:id = "mutations"`, and the failure is a 404 that looks like a missing
+   card rather than a routing bug. Register it BEFORE `/:id`.
+
+Search is over the CARD, per Miki — last four, unit, driver — which means joining `efs_cards`.
+Dates filter `created_at`.
+
+### Step 6.6.2 — The tab
+**Files:** `apps/web/src/pages/AuditPage.vue`, plus a new feature component.
+**Change:** a tab strip — **Activity** (the existing `audit_logs` table, unchanged) and **Card
+changes**. There is no `Tabs` component in the design system; the house pattern is a hand-rolled
+`role="tablist"` strip of `BaseButton`s on `bg-surface-muted` — `CompliancePage.vue:316`,
+`DriverAppSettingsPage.vue:229`. Follow it rather than inventing one.
+
+The panel itself is the standard trio, exactly as every other list page: `FilterBar`
+(`v-model:search` + a `DateRangeFilter` in `#filters` + chips) → `DataTable` → `TablePagination`.
+
+**Not a duplicate of the Activity tab.** `audit_logs` already carries `card.locked` and
+`card.override_granted`, so the obvious objection is that this is the same data twice. It is not:
+the audit row buries WHICH card in `entity_id`/`meta` and carries no OUTCOME, while the ledger has
+the card FK, the status (`succeeded` / `failed` / `sent` / `drift_detected`) and the vendor's own
+fault text. "Which of my cards changed, and did it work?" is only answerable from the ledger.
+
+**Reuse:** `CARD_MUTATION_INTENT_LABELS` / `CARD_MUTATION_STATUS_LABELS` and the tone mapping in
+`CardMutationHistory.vue` — that component stays as the per-card view; this is the org-wide one.
+
+### ✅ Exit Gate — Phase 6.6 — **CLOSED 2026-08-16**
+- [x] Card changes is its own tab; the Activity tab is untouched
+- [x] Search by card (last four, unit, driver) and filter by date, through `FilterBar` + `DateRangeFilter` + chips
+- [x] Route registered before `/:id`, and the test bites — verified by mutation: moving it after `/:id` turns two red
+- [x] Standing gates green
+
+**The 404 check was not enough on its own, and that is worth keeping.** `/:id` also 404s for a card
+that is not in the org, so a swallowed `/mutations` and a genuinely missing card look identical from
+outside. What separates them is that `/:id` validates nothing while `/mutations` validates its
+filters — so `?from=nonsense` must earn a 400. That is the assertion that actually fails when the
+order regresses.
+
+**Two findings from building it:**
+
+1. **The handler built the Supabase client before validating.** Every 400 came back as a 500 wherever
+   Supabase is unconfigured — which is exactly where the route tests run. Validation now precedes the
+   client: a malformed date is a bad request, not a reason to reach for infrastructure.
+2. **`vendorRateLimit.ts`'s route table caught the new route**, as designed. `/mutations` is a pure
+   ledger read and is classified `opensSoap: false`; the gate refuses to let a fuel-card route exist
+   without an explicit traffic decision, which is the whole point of listing database-only routes in
+   it.
+
+`read.ts` split at the same time — it crossed 500 — into `mutationLog.ts` (the route) and
+`mutationView.ts` (the row shape, now shared with `/:id/history` so the two cannot describe one row
+differently).
+
+---
+
 ## Phase 7 — Account & policy visibility
 
 **Read-only. Produces the scan JSON that scopes Phases 9–12.**

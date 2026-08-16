@@ -23,6 +23,12 @@ export const FUEL_CARD_ROUTE_TABLE: readonly FuelCardRouteSpec[] = [
   { method: "GET", path: "/policies/:policyNumber", opensSoap: true },
   { method: "POST", path: "/sync", opensSoap: true },
   { method: "GET", path: "/", opensSoap: false },
+  /**
+   * Step 6.6. A pure ledger read — it joins `efs_card_mutations` to `efs_cards` and touches no
+   * credential, so it never opens a session. Charging it would spend the shared vendor budget on a
+   * page somebody leaves open.
+   */
+  { method: "GET", path: "/mutations", opensSoap: false },
   { method: "GET", path: "/:id", opensSoap: false },
   { method: "POST", path: "/:id/refresh", opensSoap: true },
   { method: "POST", path: "/:id/lock", opensSoap: true },
